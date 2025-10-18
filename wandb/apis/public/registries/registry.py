@@ -7,17 +7,17 @@ from wandb_gql import gql
 import wandb
 from wandb._analytics import tracked
 from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk.artifacts._generated import (
+    DELETE_REGISTRY_GQL,
+    FETCH_REGISTRY_GQL,
+    RENAME_REGISTRY_GQL,
+    UPSERT_REGISTRY_GQL,
+    DeleteRegistry,
+    RenameRegistry,
+    UpsertRegistry,
+)
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.projects._generated import (
-    DELETE_PROJECT_GQL,
-    FETCH_REGISTRY_GQL,
-    RENAME_PROJECT_GQL,
-    UPSERT_REGISTRY_PROJECT_GQL,
-    DeleteProject,
-    RenameProject,
-    UpsertRegistryProject,
-)
 
 from ._freezable_list import AddOnlyArtifactTypesList
 from ._utils import (
@@ -242,7 +242,7 @@ class Registry:
         )
         try:
             response = client.execute(
-                gql(UPSERT_REGISTRY_PROJECT_GQL),
+                gql(UPSERT_REGISTRY_GQL),
                 variable_values={
                     "description": description,
                     "entityName": org_entity,
@@ -270,9 +270,9 @@ class Registry:
         """Delete the registry. This is irreversible."""
         try:
             response = self.client.execute(
-                gql(DELETE_PROJECT_GQL), variable_values={"id": self._id}
+                gql(DELETE_REGISTRY_GQL), variable_values={"id": self._id}
             )
-            result = DeleteProject.model_validate(response)
+            result = DeleteRegistry.model_validate(response)
         except Exception:
             raise ValueError(
                 f"Failed to delete registry: {self.name!r} in organization: {self.organization!r}"
@@ -329,7 +329,7 @@ class Registry:
         full_saved_name = f"{REGISTRY_PREFIX}{self._saved_name}"
         try:
             response = self.client.execute(
-                gql(UPSERT_REGISTRY_PROJECT_GQL),
+                gql(UPSERT_REGISTRY_GQL),
                 variable_values={
                     "description": self.description,
                     "entityName": self.entity,
@@ -339,7 +339,7 @@ class Registry:
                     "artifactTypes": newly_added_types,
                 },
             )
-            result = UpsertRegistryProject.model_validate(response)
+            result = UpsertRegistry.model_validate(response)
         except Exception:
             raise ValueError(registry_save_error)
         if result.upsert_model.inserted:
@@ -352,14 +352,14 @@ class Registry:
         # Update the name of the registry if it has changed
         if self._saved_name != self.name:
             response = self.client.execute(
-                gql(RENAME_PROJECT_GQL),
+                gql(RENAME_REGISTRY_GQL),
                 variable_values={
                     "entityName": self.entity,
                     "oldProjectName": full_saved_name,
                     "newProjectName": self.full_name,
                 },
             )
-            result = RenameProject.model_validate(response)
+            result = RenameRegistry.model_validate(response)
             self._saved_name = self.name
             if result.rename_project.inserted:
                 # This is not suppose trigger unless the user has messed with the `_saved_name` variable

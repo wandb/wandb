@@ -10,6 +10,11 @@ from pydantic import Field
 from wandb._pydantic import GQLId, GQLInput
 
 
+class ArtifactTypeInput(GQLInput):
+    name: str
+    description: Optional[str] = None
+
+
 class UpdateArtifactSequenceInput(GQLInput):
     artifact_sequence_id: GQLId = Field(alias="artifactSequenceID")
     name: Optional[str] = None
