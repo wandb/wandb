@@ -3325,6 +3325,7 @@ class Run:
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:
         overrides = {"run": self._settings.run_id}  # type: ignore
+        # NOTE: no self._settings.api_key
         if not self._settings._offline:
             overrides["entity"] = self._settings.entity or ""
             overrides["project"] = self._settings.project or ""

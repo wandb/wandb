@@ -53,7 +53,7 @@ from wandb.sdk.artifacts._validators import (
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
-from wandb.sdk.lib import retry, runid
+from wandb.sdk.lib import retry, runid, filesystem
 from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
 
@@ -104,9 +104,14 @@ class RetryingClient:
         """
     )
 
-    def __init__(self, client: Client):
+    def __init__(self, client: Client, extra_http_headers: dict[str, str] | None = None):
         self._server_info = None
         self._client = client
+        # Hack to pass header around for artifacts operations...
+        self._extra_http_headers = extra_http_headers
+
+    def extra_http_headers(self):
+        return self._extra_http_headers
 
     @property
     def app_url(self):
@@ -304,7 +309,17 @@ class Api:
 
         _overrides = overrides or {}
         self.settings.update(_overrides)
+        # From settings, we should only be using x_extra_http_headers
+        # Save it to use in _download_file_from_url
+        self._extra_http_headers = {}
+        if "x_extra_http_headers" in self.settings:
+            self._extra_http_headers = self.settings["x_extra_http_headers"]
+        if self._extra_http_headers:
+            logger.debug("Api.__init__ extra_http_headers: %s", self._extra_http_headers)
+        else:
+            logger.debug("Api.__init__ extra_http_headers not found")
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
+
         if "organization" in _overrides:
             self.settings["organization"] = _overrides["organization"]
         if "username" in _overrides and "entity" not in _overrides:
@@ -316,10 +331,13 @@ class Api:
         use_api_key = api_key is not None or _thread_local_api_settings.cookies is None
 
         if use_api_key:
+            # TODO: I am thinking if my PR is correct https://github.com/wandb/wandb/pull/10657 and leads to run.log_artifact failure when using proxy
             self.api_key = self._load_api_key(
                 base_url=self.settings["base_url"],
                 init_api_key=api_key,
             )
+            if self.api_key is None:
+                print("Api._init_ use_api_key with base url", self.settings["base_url"], "the key is None")
             wandb_login._verify_login(
                 key=self.api_key,
                 base_url=self.settings["base_url"],
@@ -343,7 +361,8 @@ class Api:
                 headers={
                     "User-Agent": self.user_agent,
                     "Use-Admin-Privileges": "true",
-                    **(_thread_local_api_settings.headers or {}),
+                    # NOTE: no longer use thread local headers
+                    **(self._extra_http_headers),
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
@@ -355,7 +374,7 @@ class Api:
                 proxies=proxies,
             )
         )
-        self._client = RetryingClient(self._base_client)
+        self._client = RetryingClient(self._base_client, extra_http_headers=self._extra_http_headers)
         self._sentry = wandb.analytics.sentry.Sentry()
         self._configure_sentry()
 
@@ -376,16 +395,21 @@ class Api:
         # Use explicit key before thread local.
         # This allow user switching keys without picking up the wrong key from thread local.
         if init_api_key is not None:
+            logger.debug("API key source: init_api_key parameter")
             return init_api_key
         if _thread_local_api_settings.api_key:
+            logger.debug("API key source: thread local settings")
             return _thread_local_api_settings.api_key
         if os.getenv("WANDB_API_KEY"):
+            logger.debug("API key source: WANDB_API_KEY environment variable")
             return os.environ["WANDB_API_KEY"]
 
         auth = requests.utils.get_netrc_auth(base_url)
         if auth:
+            logger.debug("API key source: netrc file")
             return auth[-1]
 
+        logger.debug("API key source: user prompt")
         _, prompted_key = wandb_login._login(
             host=base_url,
             key=None,
@@ -2514,3 +2538,32 @@ class Api:
             raise RuntimeError(f"Failed to delete automation: {id_!r}")
 
         return result.success
+
+    # Used in File.download()
+    # ap.runs() > run.files() > file.download()
+    def _download_file_from_url(self, dest_path: str, url: str) -> None:
+        res = self._download_file(url)
+        if os.sep in dest_path:
+            filesystem.mkdir_exists_ok(os.path.dirname(dest_path))
+        with util.fsync_open(dest_path, "wb") as file:
+            for data in res.iter_content(chunk_size=1024):
+                file.write(data)
+
+    # Used by WandbImporter introduced in https://github.com/wandb/wandb/pull/6897
+    def _download_file_into_memory(self, url: str) -> bytes:
+        return self._download_file(url).content
+
+    def _download_file(self, url: str) -> requests.Response:
+        res = requests.get(
+            url,
+            auth=("api", self.api_key),
+            stream=True,
+            timeout=self._timeout,
+            headers={
+                "User-Agent": self.user_agent,
+                **(self._extra_http_headers),
+            }
+            # TODO: Use proxy as well?
+        )
+        res.raise_for_status()
+        return res

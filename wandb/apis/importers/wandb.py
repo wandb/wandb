@@ -608,9 +608,7 @@ class WandbImporter:
 
         dst_f = dst_run.file(fname)
         try:
-            contents = wandb.util.download_file_into_memory(
-                dst_f.url, self.dst_api.api_key
-            )
+            contents = self.dst_api._download_file_into_memory(dst_f.url)
         except urllib3.exceptions.ReadTimeoutError:
             return {"Error checking": "Timeout"}
         except requests.HTTPError as e:

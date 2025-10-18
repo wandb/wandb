@@ -195,6 +195,7 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 }
 
 func loadManifestFromURL(url string) (Manifest, error) {
+	// FIXME: inject header and use proper logger ... should use file transfers
 	client := retryablehttp.NewClient()
 	client.Logger = observability.NewNoOpLogger()
 	resp, err := client.Get(url)
