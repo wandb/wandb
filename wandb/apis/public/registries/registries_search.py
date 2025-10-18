@@ -21,11 +21,13 @@ from wandb.sdk.artifacts._generated import (
     FetchRegistries,
     RegistryCollections,
     RegistryConnectionFragment,
-    RegistryVersionConnectionFragment,
     RegistryVersions,
 )
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
-from wandb.sdk.artifacts._models.pagination import RegistryCollectionConnection
+from wandb.sdk.artifacts._models.pagination import (
+    ArtifactMembershipConnection,
+    RegistryCollectionConnection,
+)
 from wandb.sdk.artifacts._validators import (
     SOURCE_ARTIFACT_COLLECTION_TYPE,
     FullArtifactPath,
@@ -247,7 +249,7 @@ class Collections(Paginator[ArtifactCollection]):
 class Versions(Paginator["Artifact"]):
     """An lazy iterator of `Artifact` objects in a Registry."""
 
-    last_response: RegistryVersionConnectionFragment | None
+    last_response: ArtifactMembershipConnection | None
 
     def __init__(
         self,
@@ -264,8 +266,9 @@ class Versions(Paginator["Artifact"]):
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
 
-        omit_fields = omit_artifact_fields(client)
-        self.QUERY = gql_compat(REGISTRY_VERSIONS_GQL, omit_fields=omit_fields)
+        self.QUERY = gql_compat(
+            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields(client)
+        )
 
         variables = {
             "registryFilter": json.dumps(f) if (f := registry_filter) else None,
@@ -292,15 +295,11 @@ class Versions(Paginator["Artifact"]):
 
     @property
     def more(self) -> bool:
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
+        return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self) -> str | None:
-        if self.last_response is None:
-            return None
-        return self.last_response.page_info.end_cursor
+        return conn.next_cursor if (conn := self.last_response) else None
 
     @override
     def _update_response(self) -> None:
@@ -313,7 +312,7 @@ class Versions(Paginator["Artifact"]):
 
         try:
             conn = org_entity.artifact_memberships
-            self.last_response = RegistryVersionConnectionFragment.model_validate(conn)
+            self.last_response = ArtifactMembershipConnection.model_validate(conn)
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
@@ -322,23 +321,21 @@ class Versions(Paginator["Artifact"]):
 
         if self.last_response is None:
             return []
-
-        nodes = (e.node for e in self.last_response.edges)
         return [
-            Artifact._from_attrs(
-                path=FullArtifactPath(
+            Artifact._from_membership(
+                membership=membership,
+                target=FullArtifactPath(
                     prefix=project.entity_name,
                     project=project.name,
-                    name=f"{collection.name}:v{node.version_index}",
+                    name=f"{collection.name}:v{version_idx}",
                 ),
-                attrs=artifact,
                 client=self.client,
-                aliases=[alias.alias for alias in node.aliases],
             )
-            for node in nodes
+            for membership in self.last_response.nodes()
             if (
-                (collection := node.artifact_collection)
+                (collection := membership.artifact_collection)
                 and (project := collection.project)
-                and (artifact := node.artifact)
+                and membership.artifact
+                and (version_idx := membership.version_index) is not None
             )
         ]

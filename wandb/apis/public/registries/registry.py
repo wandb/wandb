@@ -6,7 +6,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb._analytics import tracked
-from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
     DELETE_REGISTRY_GQL,
     FETCH_REGISTRY_GQL,
@@ -18,8 +18,8 @@ from wandb.sdk.artifacts._generated import (
     UpsertModelInput,
     UpsertRegistry,
 )
+from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
-from wandb.sdk.internal.internal_api import Api as InternalApi
 
 from ._freezable_list import AddOnlyArtifactTypesList
 from ._utils import (
@@ -194,9 +194,7 @@ class Registry:
     @tracked
     def versions(self, filter: dict[str, Any] | None = None) -> Versions:
         """Returns the versions belonging to the registry."""
-        registry_filter = {
-            "name": self.full_name,
-        }
+        registry_filter = {"name": self.full_name}
         return Versions(self.client, self.organization, registry_filter, None, filter)
 
     @classmethod
@@ -307,8 +305,8 @@ class Registry:
     @tracked
     def save(self) -> None:
         """Save registry attributes to the backend."""
-        if not InternalApi()._server_supports(
-            ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
+        if not server_supports(
+            self.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
             raise RuntimeError(
                 "saving the registry is not enabled on this wandb server version. "

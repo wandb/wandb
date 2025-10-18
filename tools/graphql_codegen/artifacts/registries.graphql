@@ -16,19 +16,15 @@ query RegistryVersions(
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryVersionConnectionFragment
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactMembershipFragment
+          }
+        }
       }
-    }
-  }
-}
-
-fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnection {
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      ...ArtifactMembershipFragment
     }
   }
 }
