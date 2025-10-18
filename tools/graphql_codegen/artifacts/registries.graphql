@@ -28,20 +28,7 @@ fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnec
   }
   edges {
     node {
-      artifactCollection {
-        __typename
-        project {
-          ...ProjectInfoFragment
-        }
-        name
-      }
-      versionIndex
-      artifact {
-        ...ArtifactFragmentWithoutAliases
-      }
-      aliases {
-        alias
-      }
+      ...ArtifactMembershipFragment
     }
   }
 }
@@ -91,7 +78,7 @@ fragment RegistryCollectionFragment on ArtifactCollection {
   tags {
     edges {
       node {
-        name
+        ...TagFragment
       }
     }
   }
@@ -104,7 +91,7 @@ fragment RegistryCollectionFragment on ArtifactCollection {
   aliases {
     edges {
       node {
-        alias
+        ...ArtifactAliasFragment
       }
     }
   }

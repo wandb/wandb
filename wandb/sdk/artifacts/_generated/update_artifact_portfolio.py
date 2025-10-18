@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLId, GQLResult, Typename
+from wandb._pydantic import GQLResult
+
+from .fragments import ArtifactCollectionSummary
 
 
 class UpdateArtifactPortfolio(GQLResult):
@@ -17,18 +19,7 @@ class UpdateArtifactPortfolio(GQLResult):
 
 
 class UpdateArtifactPortfolioUpdateArtifactPortfolio(GQLResult):
-    artifact_collection: UpdateArtifactPortfolioUpdateArtifactPortfolioArtifactCollection = Field(
-        alias="artifactCollection"
-    )
-
-
-class UpdateArtifactPortfolioUpdateArtifactPortfolioArtifactCollection(GQLResult):
-    typename__: Typename[
-        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
-    ]
-    id: GQLId
-    name: str
-    description: Optional[str]
+    artifact_collection: ArtifactCollectionSummary = Field(alias="artifactCollection")
 
 
 UpdateArtifactPortfolio.model_rebuild()

@@ -7,7 +7,9 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLId, GQLResult
+from wandb._pydantic import GQLResult
+
+from .fragments import TagFragment
 
 
 class CreateArtifactCollectionTagAssignments(GQLResult):
@@ -19,17 +21,7 @@ class CreateArtifactCollectionTagAssignments(GQLResult):
 class CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments(
     GQLResult
 ):
-    tags: List[
-        CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignmentsTags
-    ]
-
-
-class CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignmentsTags(
-    GQLResult
-):
-    id: GQLId
-    name: str
-    tag_category_name: str = Field(alias="tagCategoryName")
+    tags: List[TagFragment]
 
 
 CreateArtifactCollectionTagAssignments.model_rebuild()
