@@ -97,6 +97,14 @@ fragment RegistryCollectionFragment on ArtifactCollection {
   }
 }
 
+query FetchRegistry($name: String, $entity: String) {
+  entity(name: $entity) {
+    project(name: $name) {
+      ...RegistryFragment
+    }
+  }
+}
+
 query FetchRegistries(
   $organization: String!
   $filters: JSONString
@@ -126,6 +134,11 @@ fragment RegistryConnectionFragment on ProjectConnection {
 
 fragment RegistryFragment on Project {
   id
+  name
+  description
+  createdAt
+  updatedAt
+  access
   allowAllArtifactTypesInRegistry
   artifactTypes(includeAll: true) {
     edges {
@@ -134,9 +147,30 @@ fragment RegistryFragment on Project {
       }
     }
   }
-  name
-  description
-  createdAt
-  updatedAt
-  access
+}
+
+# ------------------ Mutations ------------------
+
+mutation RenameRegistry($input: RenameProjectInput!) {
+  renameProject(input: $input) {
+    inserted
+    project {
+      name
+    }
+  }
+}
+
+mutation UpsertRegistry($input: UpsertModelInput!) {
+  upsertModel(input: $input) {
+    inserted
+    project {
+      ...RegistryFragment
+    }
+  }
+}
+
+mutation DeleteRegistry($id: String!) {
+  deleteModel(input: { id: $id }) {
+    success
+  }
 }
