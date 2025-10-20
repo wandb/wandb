@@ -1572,15 +1572,13 @@ class Run:
 
     @_log_to_run
     def _console_callback(self, name: str, data: str) -> None:
-        # logger.info("console callback: %s, %s", name, data)
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_output(name, data)
+            # nowait=True so that this can be called from an asyncio context.
+            self._backend.interface.publish_output(name, data, nowait=True)
 
     @_log_to_run
     @_raise_if_finished
     def _console_raw_callback(self, name: str, data: str) -> None:
-        # logger.info("console callback: %s, %s", name, data)
-
         # NOTE: console output is only allowed on the process which installed the callback
         # this will prevent potential corruption in the socket to the service.  Other methods
         # are protected by the _attach run decorator, but this callback was installed on the
@@ -1590,7 +1588,8 @@ class Run:
             return
 
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_output_raw(name, data)
+            # nowait=True so that this can be called from an asyncio context.
+            self._backend.interface.publish_output_raw(name, data, nowait=True)
 
     @_log_to_run
     def _tensorboard_callback(
