@@ -38,7 +38,10 @@ class StoragePolicy(ABC):
     @classmethod
     @abstractmethod
     def from_config(
-        cls, config: dict[str, Any], api: InternalApi | None = None
+        cls,
+        config: dict[str, Any],
+        api: InternalApi | None = None,
+        extra_http_headers: dict[str, str] | None = None,
     ) -> StoragePolicy:
         raise NotImplementedError
 

@@ -322,6 +322,8 @@ class File(Attrs):
             `ValueError` if file already exists, `replace=False` and
             `exist_ok=False`.
         """
+        # TODO: When user get file from API, each download call creates a new wandb.Api
+        # Which would verify login by making another API request...
         if api is None:
             api = wandb.Api()
 
@@ -334,7 +336,7 @@ class File(Attrs):
                     "File already exists, pass replace=True to overwrite or exist_ok=True to leave it as is and don't error."
                 )
 
-        util.download_file_from_url(path, self.url, api.api_key)
+        api._download_file_from_url(path, self.url)
         return open(path)
 
     @normalize_exceptions

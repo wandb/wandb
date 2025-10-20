@@ -269,6 +269,11 @@ class Artifact:
         self._size: NonNegativeInt | None = None
         self._digest: str | None = None
 
+        # NOTE: We don't need to and cannot set the headers from self._client
+        # Upload is using go core and will get the proper headers
+        # This works with draft artifact because you cannot download
+        # unless you call artifact.wait(), which would reset attributes
+        # and leads to fetching new manifest/file with right header
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(
             storage_policy=make_storage_policy(storage_region)
         )
@@ -1050,8 +1055,11 @@ class Artifact:
             # `requests.Session` within the constraints of the current artifacts API.  Right now,
             # `requests.get()` creates a new session for _each_ fetch.  This is wasteful and introduces a
             # noticeable perf overhead when e.g. downloading many artifacts sequentially or concurrently.
-            response = requests.get(manifest.file.direct_url)
-            return ArtifactManifest.from_manifest_json(from_json(response.content))
+            extra_http_headers = self._client.extra_http_headers()
+            logger.debug("Artifact._fetch_manifest extra_http_headers: %s", extra_http_headers)
+            response = requests.get(manifest.file.direct_url, headers=extra_http_headers)
+            return ArtifactManifest.from_manifest_json(
+                from_json(response.content), extra_http_headers=extra_http_headers)
 
         raise ValueError("Failed to fetch artifact manifest")
 
