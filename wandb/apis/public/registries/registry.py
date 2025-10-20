@@ -13,7 +13,9 @@ from wandb.sdk.artifacts._generated import (
     RENAME_REGISTRY_GQL,
     UPSERT_REGISTRY_GQL,
     DeleteRegistry,
+    RenameProjectInput,
     RenameRegistry,
+    UpsertModelInput,
     UpsertRegistry,
 )
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
@@ -241,16 +243,17 @@ class Registry:
             f"Failed to create registry {name!r} in organization {organization!r}."
         )
         try:
+            gql_input = UpsertModelInput(
+                description=description,
+                entity_name=org_entity,
+                name=full_name,
+                access=visibility_value,
+                allow_all_artifact_types_in_registry=not accepted_artifact_types,
+                artifact_types=accepted_artifact_types,
+            )
             response = client.execute(
                 gql(UPSERT_REGISTRY_GQL),
-                variable_values={
-                    "description": description,
-                    "entityName": org_entity,
-                    "name": full_name,
-                    "access": visibility_value,
-                    "allowAllArtifactTypesInRegistry": not accepted_artifact_types,
-                    "artifactTypes": accepted_artifact_types,
-                },
+                variable_values={"input": gql_input.model_dump()},
             )
         except Exception:
             raise ValueError(registry_creation_error)
@@ -292,10 +295,7 @@ class Registry:
         try:
             response = self.client.execute(
                 gql(FETCH_REGISTRY_GQL),
-                variable_values={
-                    "name": self.full_name,
-                    "entityName": self.entity,
-                },
+                variable_values={"name": self.full_name, "entity": self.entity},
             )
         except Exception:
             raise ValueError(load_failure_message)
@@ -328,16 +328,17 @@ class Registry:
         registry_save_error = f"Failed to save and update registry: {self.name} in organization: {self.organization}"
         full_saved_name = f"{REGISTRY_PREFIX}{self._saved_name}"
         try:
+            gql_input = UpsertModelInput(
+                description=self.description,
+                entity_name=self.entity,
+                name=full_saved_name,
+                access=visibility_value,
+                allow_all_artifact_types_in_registry=self.allow_all_artifact_types,
+                artifact_types=newly_added_types,
+            )
             response = self.client.execute(
                 gql(UPSERT_REGISTRY_GQL),
-                variable_values={
-                    "description": self.description,
-                    "entityName": self.entity,
-                    "name": full_saved_name,  # this makes it so we are updating the original registry in case the name has changed
-                    "access": visibility_value,
-                    "allowAllArtifactTypesInRegistry": self.allow_all_artifact_types,
-                    "artifactTypes": newly_added_types,
-                },
+                variable_values={"input": gql_input.model_dump()},
             )
             result = UpsertRegistry.model_validate(response)
         except Exception:
@@ -351,13 +352,14 @@ class Registry:
 
         # Update the name of the registry if it has changed
         if self._saved_name != self.name:
+            gql_input = RenameProjectInput(
+                entity_name=self.entity,
+                old_project_name=full_saved_name,
+                new_project_name=self.full_name,
+            )
             response = self.client.execute(
                 gql(RENAME_REGISTRY_GQL),
-                variable_values={
-                    "entityName": self.entity,
-                    "oldProjectName": full_saved_name,
-                    "newProjectName": self.full_name,
-                },
+                variable_values={"input": gql_input.model_dump()},
             )
             result = RenameRegistry.model_validate(response)
             self._saved_name = self.name

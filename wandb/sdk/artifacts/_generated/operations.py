@@ -1627,8 +1627,8 @@ fragment TagFragment on Tag {
 """
 
 FETCH_REGISTRY_GQL = """
-query FetchRegistry($name: String, $entityName: String) {
-  entity(name: $entityName) {
+query FetchRegistry($name: String, $entity: String) {
+  entity(name: $entity) {
     project(name: $name) {
       ...RegistryFragment
     }
@@ -1637,6 +1637,11 @@ query FetchRegistry($name: String, $entityName: String) {
 
 fragment RegistryFragment on Project {
   id
+  name
+  description
+  createdAt
+  updatedAt
+  access
   allowAllArtifactTypesInRegistry
   artifactTypes(includeAll: true) {
     edges {
@@ -1645,11 +1650,6 @@ fragment RegistryFragment on Project {
       }
     }
   }
-  name
-  description
-  createdAt
-  updatedAt
-  access
 }
 """
 
@@ -1684,6 +1684,11 @@ fragment RegistryConnectionFragment on ProjectConnection {
 
 fragment RegistryFragment on Project {
   id
+  name
+  description
+  createdAt
+  updatedAt
+  access
   allowAllArtifactTypesInRegistry
   artifactTypes(includeAll: true) {
     edges {
@@ -1692,19 +1697,12 @@ fragment RegistryFragment on Project {
       }
     }
   }
-  name
-  description
-  createdAt
-  updatedAt
-  access
 }
 """
 
 RENAME_REGISTRY_GQL = """
-mutation RenameRegistry($entityName: String!, $oldProjectName: String!, $newProjectName: String!) {
-  renameProject(
-    input: {entityName: $entityName, oldProjectName: $oldProjectName, newProjectName: $newProjectName}
-  ) {
+mutation RenameRegistry($input: RenameProjectInput!) {
+  renameProject(input: $input) {
     inserted
     project {
       name
@@ -1714,10 +1712,8 @@ mutation RenameRegistry($entityName: String!, $oldProjectName: String!, $newProj
 """
 
 UPSERT_REGISTRY_GQL = """
-mutation UpsertRegistry($description: String, $entityName: String, $name: String, $access: String, $allowAllArtifactTypesInRegistry: Boolean, $artifactTypes: [ArtifactTypeInput!]) {
-  upsertModel(
-    input: {description: $description, entityName: $entityName, name: $name, access: $access, allowAllArtifactTypesInRegistry: $allowAllArtifactTypesInRegistry, artifactTypes: $artifactTypes}
-  ) {
+mutation UpsertRegistry($input: UpsertModelInput!) {
+  upsertModel(input: $input) {
     inserted
     project {
       ...RegistryFragment
@@ -1727,6 +1723,11 @@ mutation UpsertRegistry($description: String, $entityName: String, $name: String
 
 fragment RegistryFragment on Project {
   id
+  name
+  description
+  createdAt
+  updatedAt
+  access
   allowAllArtifactTypesInRegistry
   artifactTypes(includeAll: true) {
     edges {
@@ -1735,11 +1736,6 @@ fragment RegistryFragment on Project {
       }
     }
   }
-  name
-  description
-  createdAt
-  updatedAt
-  access
 }
 """
 
