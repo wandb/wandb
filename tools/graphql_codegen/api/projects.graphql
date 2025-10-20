@@ -71,3 +71,73 @@ mutation deleteProject($id: String!) {
     __typename
   }
 }
+
+# ----------------------------------------------------------------------------
+
+fragment ProjectFragment on Project {
+  id
+  name
+  entityName
+  createdAt
+  isBenchmark
+}
+
+query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
+  models(entityName: $entity, after: $cursor, first: $perPage) {
+    edges {
+      node {
+        ...ProjectFragment
+      }
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+    }
+  }
+}
+
+query GetProject($project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    ...ProjectFragment
+  }
+}
+
+mutation CreateProject(
+  $description: String
+  $entityName: String
+  $id: String
+  $name: String
+  $framework: String
+  $access: String
+  $views: JSONString
+) {
+  upsertModel(
+    input: {
+      description: $description
+      entityName: $entityName
+      id: $id
+      name: $name
+      framework: $framework
+      access: $access
+      views: $views
+    }
+  ) {
+    project {
+      id
+      name
+      entityName
+      description
+      access
+      views
+    }
+    model {
+      id
+      name
+      entityName
+      description
+      access
+      views
+    }
+    inserted
+  }
+}
