@@ -19,10 +19,12 @@ __all__ = [
     "DELETE_ARTIFACT_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
+    "DELETE_REGISTRY_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
+    "FETCH_REGISTRY_GQL",
     "LINK_ARTIFACT_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACTS_GQL",
@@ -32,6 +34,7 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPE_GQL",
     "REGISTRY_COLLECTIONS_GQL",
     "REGISTRY_VERSIONS_GQL",
+    "RENAME_REGISTRY_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
     "TYPE_INFO_GQL",
@@ -39,6 +42,7 @@ __all__ = [
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
+    "UPSERT_REGISTRY_GQL",
 ]
 
 DELETE_ARTIFACT_SEQUENCE_GQL = """
@@ -1622,6 +1626,33 @@ fragment TagFragment on Tag {
 }
 """
 
+FETCH_REGISTRY_GQL = """
+query FetchRegistry($name: String, $entity: String) {
+  entity(name: $entity) {
+    project(name: $name) {
+      ...RegistryFragment
+    }
+  }
+}
+
+fragment RegistryFragment on Project {
+  id
+  name
+  description
+  createdAt
+  updatedAt
+  access
+  allowAllArtifactTypesInRegistry
+  artifactTypes(includeAll: true) {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+}
+"""
+
 FETCH_REGISTRIES_GQL = """
 query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
   organization(name: $organization) {
@@ -1653,6 +1684,11 @@ fragment RegistryConnectionFragment on ProjectConnection {
 
 fragment RegistryFragment on Project {
   id
+  name
+  description
+  createdAt
+  updatedAt
+  access
   allowAllArtifactTypesInRegistry
   artifactTypes(includeAll: true) {
     edges {
@@ -1661,10 +1697,52 @@ fragment RegistryFragment on Project {
       }
     }
   }
+}
+"""
+
+RENAME_REGISTRY_GQL = """
+mutation RenameRegistry($input: RenameProjectInput!) {
+  renameProject(input: $input) {
+    inserted
+    project {
+      name
+    }
+  }
+}
+"""
+
+UPSERT_REGISTRY_GQL = """
+mutation UpsertRegistry($input: UpsertModelInput!) {
+  upsertModel(input: $input) {
+    inserted
+    project {
+      ...RegistryFragment
+    }
+  }
+}
+
+fragment RegistryFragment on Project {
+  id
   name
   description
   createdAt
   updatedAt
   access
+  allowAllArtifactTypesInRegistry
+  artifactTypes(includeAll: true) {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+}
+"""
+
+DELETE_REGISTRY_GQL = """
+mutation DeleteRegistry($id: String!) {
+  deleteModel(input: {id: $id}) {
+    success
+  }
 }
 """

@@ -10,6 +10,52 @@ from pydantic import Field
 from wandb._pydantic import GQLId, GQLInput
 
 
+class UpsertModelInput(GQLInput):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    id: Optional[str] = None
+    framework: Optional[str] = None
+    entity_name: Optional[str] = Field(alias="entityName", default=None)
+    docker_image: Optional[str] = Field(alias="dockerImage", default=None)
+    repo: Optional[str] = None
+    access: Optional[str] = None
+    views: Optional[str] = None
+    is_benchmark: Optional[bool] = Field(alias="isBenchmark", default=None)
+    linked_benchmark: Optional[GQLId] = Field(alias="linkedBenchmark", default=None)
+    is_published: Optional[bool] = Field(alias="isPublished", default=None)
+    owner: Optional[GQLId] = None
+    allow_all_artifact_types_in_registry: Optional[bool] = Field(
+        alias="allowAllArtifactTypesInRegistry", default=None
+    )
+    rate_limits: Optional[RateLimitsInput] = Field(alias="rateLimits", default=None)
+    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    artifact_types: Optional[List[ArtifactTypeInput]] = Field(
+        alias="artifactTypes", default=None
+    )
+
+
+class RenameProjectInput(GQLInput):
+    entity_name: str = Field(alias="entityName")
+    old_project_name: str = Field(alias="oldProjectName")
+    new_project_name: str = Field(alias="newProjectName")
+    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+
+
+class RateLimitsInput(GQLInput):
+    graphql: Optional[int] = None
+    sdk_graphql: Optional[int] = Field(alias="sdkGraphql", default=None)
+    filestream_count: Optional[int] = Field(alias="filestreamCount", default=None)
+    filestream_size: Optional[int] = Field(alias="filestreamSize", default=None)
+    sdk_graphql_query_seconds: Optional[float] = Field(
+        alias="sdkGraphqlQuerySeconds", default=None
+    )
+
+
+class ArtifactTypeInput(GQLInput):
+    name: str
+    description: Optional[str] = None
+
+
 class UpdateArtifactSequenceInput(GQLInput):
     artifact_sequence_id: GQLId = Field(alias="artifactSequenceID")
     name: Optional[str] = None
@@ -117,6 +163,7 @@ class DeleteArtifactCollectionTagAssignmentsInput(GQLInput):
     client_mutation_id: Optional[str] = Field(alias="clientMutationID", default=None)
 
 
+UpsertModelInput.model_rebuild()
 UpdateArtifactInput.model_rebuild()
 LinkArtifactInput.model_rebuild()
 AddAliasesInput.model_rebuild()

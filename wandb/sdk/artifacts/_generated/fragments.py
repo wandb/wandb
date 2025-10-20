@@ -237,15 +237,15 @@ class RegistryConnectionFragmentEdges(GQLResult):
 
 class RegistryFragment(GQLResult):
     id: GQLId
-    allow_all_artifact_types_in_registry: bool = Field(
-        alias="allowAllArtifactTypesInRegistry"
-    )
-    artifact_types: RegistryFragmentArtifactTypes = Field(alias="artifactTypes")
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
     updated_at: Optional[str] = Field(alias="updatedAt")
     access: Optional[str]
+    allow_all_artifact_types_in_registry: bool = Field(
+        alias="allowAllArtifactTypesInRegistry"
+    )
+    artifact_types: RegistryFragmentArtifactTypes = Field(alias="artifactTypes")
 
 
 class RegistryFragmentArtifactTypes(GQLResult):
