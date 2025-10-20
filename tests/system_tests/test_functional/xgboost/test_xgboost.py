@@ -14,10 +14,14 @@ def test_classification(wandb_backend_spy, execute_script):
         assert config["learner"]["value"]["gradient_booster"]["name"] == "gbtree"
         assert config["learner"]["value"]["objective"]["name"] == "multi:softprob"
 
+        # NOTE: The values below depend on the Wine dataset.
+        #
+        # This is a bad test that needs rewriting.
+        # If it breaks, check if there was an xgboost release.
         summary = snapshot.summary(run_id=run_id)
         assert summary["Feature Importance_table"]["_type"] == "table-file"
         assert summary["Feature Importance_table"]["ncols"] == 2
-        assert summary["Feature Importance_table"]["nrows"] == 11
+        assert summary["Feature Importance_table"]["nrows"] == 13
         assert summary["best_score"] == 1.0
         assert summary["epoch"] == 49
         assert summary["validation_0-auc"]["max"] == 1

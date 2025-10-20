@@ -11,7 +11,6 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_
 run = wandb.init(project="wine-xgboost")
 
 model = XGBClassifier(
-    use_label_encoder=False,
     eval_metric=["mlogloss", "auc"],
     seed=42,
     n_estimators=50,
