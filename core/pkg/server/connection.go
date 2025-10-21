@@ -11,7 +11,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/wandb/wandb/core/internal/apihandler"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -19,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/wbapi"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
@@ -98,7 +98,7 @@ type Connection struct {
 	logLevel slog.Level
 
 	// apiRequestHandler handles processing API related requests from clients.
-	apiRequestHandler *apihandler.APIRequestHandler
+	wbapi *wbapi.WandbAPI
 }
 
 func NewConnection(
@@ -121,7 +121,7 @@ func NewConnection(
 		sentryClient:       params.SentryClient,
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
-		apiRequestHandler:  apihandler.NewApiRequestHandler(),
+		wbapi:              wbapi.NewWandbAPI(),
 	}
 }
 
@@ -600,7 +600,7 @@ func (nc *Connection) handleApi(
 	request *spb.ApiRequest,
 ) {
 	wg.Go(func() {
-		nc.apiRequestHandler.HandleRequest(id, request, nc.Respond)
+		nc.wbapi.HandleRequest(id, request, nc.Respond)
 	})
 }
 

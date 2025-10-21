@@ -1,6 +1,7 @@
-// Package publicapi implements logic for handling
-// requests from SDK API clients.
-package apihandler
+// Package wbapi implements logic for handling
+// requests from Wandb API clients
+// which communicate with the W&B backend server.
+package wbapi
 
 import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -12,15 +13,15 @@ const (
 	maxConcurrency = 10
 )
 
-// APIRequestHandler handles processing API requests
+// WandbAPI handles processing API requests
 // from the SDK API clients, and returning API responses to those requests.
-type APIRequestHandler struct {
+type WandbAPI struct {
 	// semaphore is a buffered channel limiting concurrent request handling
 	semaphore chan struct{}
 }
 
-func NewApiRequestHandler() *APIRequestHandler {
-	return &APIRequestHandler{
+func NewWandbAPI() *WandbAPI {
+	return &WandbAPI{
 		semaphore: make(chan struct{}, maxConcurrency),
 	}
 }
@@ -29,7 +30,7 @@ func NewApiRequestHandler() *APIRequestHandler {
 // or nil if not response is needed.
 //
 // HandleRequest Blocks until the request is processed.
-func (p *APIRequestHandler) HandleRequest(
+func (p *WandbAPI) HandleRequest(
 	id string,
 	request *spb.ApiRequest,
 	respondFn func(response *spb.ServerResponse),
