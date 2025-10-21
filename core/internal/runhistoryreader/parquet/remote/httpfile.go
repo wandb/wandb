@@ -120,27 +120,23 @@ func (o *HttpFileReader) ReadAt(p []byte, off int64) (int, error) {
 
 // Seek implements io.Seeker.Seek.
 func (o *HttpFileReader) Seek(offset int64, whence int) (int64, error) {
+	var newOffset int64
 	switch whence {
 	case io.SeekStart:
-		if err := o.validateOffset(offset); err != nil {
-			return -1, err
-		}
-		o.offset = offset
+		newOffset = offset
 	case io.SeekCurrent:
-		newOffset := o.offset + offset
-		if err := o.validateOffset(newOffset); err != nil {
-			return -1, err
-		}
-		o.offset = newOffset
+		newOffset = o.offset + offset
 	case io.SeekEnd:
-		newOffset := o.fileSize + offset
-		if err := o.validateOffset(newOffset); err != nil {
-			return -1, err
-		}
-		o.offset = newOffset
+		newOffset = o.fileSize + offset
 	default:
 		return 0, fmt.Errorf("invalid whence: %d", whence)
 	}
+
+	if err := o.validateOffset(newOffset); err != nil {
+		return -1, err
+	}
+
+	o.offset = newOffset
 	return o.offset, nil
 }
 
