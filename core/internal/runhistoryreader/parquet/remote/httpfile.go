@@ -11,7 +11,7 @@ import (
 )
 
 var successfulResponseStatusCodes = map[int]struct{}{
-	http.StatusOK: {},
+	http.StatusOK:             {},
 	http.StatusPartialContent: {},
 }
 
