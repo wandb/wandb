@@ -851,15 +851,10 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 		return
 	}
 
-	for _, update := range summary.Update {
-		if err := s.runSummary.SetFromRecord(update); err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf("sender: error updating summary: %v", err))
-		}
-	}
-
-	for _, remove := range summary.Remove {
-		s.runSummary.RemoveFromRecord(remove)
+	updates := runsummary.FromProto(summary)
+	if err := updates.Apply(s.runSummary); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: error updating summary: %v", err))
 	}
 
 	s.summaryDebouncer.SetNeedsDebounce()
