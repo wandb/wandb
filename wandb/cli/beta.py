@@ -9,15 +9,17 @@ import pathlib
 
 import click
 
+import wandb
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
 
 @click.group()
 def beta():
-    """Beta versions of wandb CLI commands."""
-    import wandb.env
+    """Beta versions of wandb CLI commands.
 
+    These commands may change or even completely break in any release of wandb.
+    """
     wandb._sentry.configure_scope(process_context="wandb_beta")
 
     try:
@@ -80,6 +82,10 @@ def sync(
     n: int,
 ) -> None:
     """Upload .wandb files specified by PATHS.
+
+    This is a beta re-implementation of `wandb sync`.
+    It is not feature complete, not guaranteed to work, and may change
+    in backward-incompatible ways in any release of wandb.
 
     PATHS can include .wandb files, run directories containing .wandb files,
     and "wandb" directories containing run directories.
