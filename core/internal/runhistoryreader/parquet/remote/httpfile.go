@@ -30,7 +30,7 @@ func getObjectSize(
 	if err != nil {
 		return -1, err
 	}
-	if resp.StatusCode >= http.StatusBadRequest {
+	if resp.StatusCode != http.StatusOK || resp.ContentLength < 0 {
 		return -1, fmt.Errorf(
 			"failed to get object size with status code: %d",
 			resp.StatusCode,
@@ -72,7 +72,7 @@ func NewHttpFileReader(
 	}, nil
 }
 
-// ReadAt implements io.ReaderAt.ReadAt
+// ReadAt implements io.ReaderAt.ReadAt.
 //
 // ReadAt reads up to len(p) bytes from object at o.url
 // starting from the offset 'off'.
@@ -100,7 +100,7 @@ func (o *HttpFileReader) ReadAt(p []byte, off int64) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if resp.StatusCode >= http.StatusBadRequest {
+	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf(
 			"failed to read with status code: %d",
 			resp.StatusCode,
@@ -118,7 +118,7 @@ func (o *HttpFileReader) ReadAt(p []byte, off int64) (int, error) {
 	return n, err
 }
 
-// Seek implements io.Seeker.Seek
+// Seek implements io.Seeker.Seek.
 func (o *HttpFileReader) Seek(offset int64, whence int) (int64, error) {
 	switch whence {
 	case io.SeekStart:
