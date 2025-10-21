@@ -350,7 +350,7 @@ type ServerSyncStatusResponse struct {
 	unknownFields protoimpl.UnknownFields
 
 	// The status of any ongoing work (such as network requests),
-	// keyed by the run ID.
+	// keyed by the run path (entity/project/id).
 	Stats map[string]*OperationStats `protobuf:"bytes,1,rep,name=stats,proto3" json:"stats,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// New messages since the last status request.
 	NewMessages []*ServerSyncMessage `protobuf:"bytes,2,rep,name=new_messages,json=newMessages,proto3" json:"new_messages,omitempty"`

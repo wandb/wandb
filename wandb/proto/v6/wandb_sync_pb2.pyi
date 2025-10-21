@@ -169,7 +169,7 @@ class ServerSyncStatusResponse(google.protobuf.message.Message):
     @property
     def stats(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, wandb.proto.wandb_internal_pb2.OperationStats]:
         """The status of any ongoing work (such as network requests),
-        keyed by the run ID.
+        keyed by the run path (entity/project/id).
         """
 
     @property
