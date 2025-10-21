@@ -17,13 +17,6 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
       }
     }
   }
-  aliases(after: $aliasesCursor, first: $aliasesPerPage) @include(if: $includeAliases) {
-    edges {
-      node {
-        ...ArtifactAliasFragment
-      }
-    }
-  }
 }
 
 # A smaller fragment on ArtifactCollection that only includes minimal descriptive fields.
@@ -94,9 +87,6 @@ query ProjectArtifactCollections(
   $project: String!
   $artifactType: String!
   $cursor: String
-  $aliasesCursor: String
-  $aliasesPerPage: Int = 0
-  $includeAliases: Boolean = false
 ) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $artifactType) {
@@ -123,9 +113,6 @@ query ProjectArtifactCollection(
   $project: String!
   $artifactType: String!
   $name: String!
-  $aliasesCursor: String
-  $aliasesPerPage: Int = 1000
-  $includeAliases: Boolean = true
 ) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $artifactType) {
@@ -134,6 +121,21 @@ query ProjectArtifactCollection(
       # - `artifactSequence` for old servers
       artifactCollection: artifactCollection(name: $name) {
         ...ArtifactCollectionFragment
+      }
+    }
+  }
+}
+
+query ArtifactCollectionAliases($id: ID!, $cursor: String, $perPage: Int = 1000) {
+  artifactCollection(id: $id) {
+    aliases(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...ArtifactAliasFragment
+        }
       }
     }
   }

@@ -43,11 +43,14 @@ class ArtifactCollectionFragment(GQLResult):
     project: Optional[ProjectInfoFragment]
     type: ArtifactCollectionFragmentType
     tags: ArtifactCollectionFragmentTags
+<<<<<<< HEAD
     aliases: Optional[ArtifactCollectionFragmentAliases] = None
 
 
 class ArtifactCollectionFragmentType(GQLResult):
     name: str
+=======
+>>>>>>> ca8795bd5f (fix(artifacts): fetch ArtifactCollection.aliases lazily, not on instantiation)
 
 
 class ArtifactCollectionFragmentTags(GQLResult):
@@ -207,11 +210,14 @@ class RegistryCollectionFragment(GQLResult):
     project: Optional[ProjectInfoFragment]
     type: RegistryCollectionFragmentType
     tags: RegistryCollectionFragmentTags
+<<<<<<< HEAD
     aliases: RegistryCollectionFragmentAliases
 
 
 class RegistryCollectionFragmentType(GQLResult):
     name: str
+=======
+>>>>>>> ca8795bd5f (fix(artifacts): fetch ArtifactCollection.aliases lazily, not on instantiation)
 
 
 class RegistryCollectionFragmentTags(GQLResult):
@@ -374,6 +380,12 @@ ArtifactAliasFragment.model_rebuild()
 ProjectInfoFragment.model_rebuild()
 TagFragment.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
+<<<<<<< HEAD
+=======
+ArtifactCollectionFragmentTags.model_rebuild()
+ArtifactCollectionFragmentTagsEdges.model_rebuild()
+ArtifactCollectionFragmentType.model_rebuild()
+>>>>>>> ca8795bd5f (fix(artifacts): fetch ArtifactCollection.aliases lazily, not on instantiation)
 ArtifactCollectionSummary.model_rebuild()
 CollectionInfoFragment.model_rebuild()
 SourceCollectionInfoFragment.model_rebuild()
@@ -388,6 +400,12 @@ FileWithUrlFragment.model_rebuild()
 OrgInfoFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 RegistryCollectionFragment.model_rebuild()
+<<<<<<< HEAD
+=======
+RegistryCollectionFragmentTags.model_rebuild()
+RegistryCollectionFragmentTagsEdges.model_rebuild()
+RegistryCollectionFragmentType.model_rebuild()
+>>>>>>> ca8795bd5f (fix(artifacts): fetch ArtifactCollection.aliases lazily, not on instantiation)
 RegistryFragment.model_rebuild()
 RegistryRoleFragment.model_rebuild()
 RunInfoFragment.model_rebuild()
