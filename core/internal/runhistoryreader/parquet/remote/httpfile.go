@@ -10,6 +10,11 @@ import (
 	"github.com/apache/arrow-go/v18/parquet"
 )
 
+var successfulResponseStatusCodes = map[int]struct{}{
+	http.StatusOK:             {},
+	http.StatusPartialContent: {},
+}
+
 // getObjectSize gets the size of an object at the given URL.
 //
 // getObjectSize makes an HTTP HEAD request to the given URL.
@@ -100,7 +105,7 @@ func (o *HttpFileReader) ReadAt(p []byte, off int64) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if resp.StatusCode != http.StatusOK {
+	if _, ok := successfulResponseStatusCodes[resp.StatusCode]; !ok {
 		return 0, fmt.Errorf(
 			"failed to read with status code: %d",
 			resp.StatusCode,
@@ -129,7 +134,7 @@ func (o *HttpFileReader) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekEnd:
 		newOffset = o.fileSize + offset
 	default:
-		return 0, fmt.Errorf("invalid whence: %d", whence)
+		return -1, fmt.Errorf("invalid whence: %d", whence)
 	}
 
 	if err := o.validateOffset(newOffset); err != nil {
@@ -142,10 +147,18 @@ func (o *HttpFileReader) Seek(offset int64, whence int) (int64, error) {
 
 func (o *HttpFileReader) validateOffset(offset int64) error {
 	if offset < 0 {
-		return errors.New("offset start before file")
+		return fmt.Errorf(
+			"offset start before file, offset: %d, file size: %d",
+			offset,
+			o.fileSize,
+		)
 	}
 	if offset > o.fileSize {
-		return errors.New("offset exceeds file size")
+		return fmt.Errorf(
+			"offset exceeds file size, offset: %d, file size: %d",
+			offset,
+			o.fileSize,
+		)
 	}
 	return nil
 }

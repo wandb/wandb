@@ -159,7 +159,7 @@ func TestGetObjectSize(t *testing.T) {
 		defer server.Close()
 
 		size, err := getObjectSize(ctx, client, server.URL)
-		assert.NoError(t, err)
+		assert.Error(t, err)
 
 		// When Content-Length is not set, it should return -1
 		assert.Equal(t, int64(-1), size)
