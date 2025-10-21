@@ -2,7 +2,8 @@
 
 from wandb._pydantic import Connection, ConnectionWithTotal
 
-from .._generated.fragments import (
+from .._generated import (
+    ArtifactAliasFragment,
     ArtifactCollectionFragment,
     ArtifactFragment,
     ArtifactMembershipFragment,
@@ -13,6 +14,7 @@ from .._generated.fragments import (
     RegistryFragment,
 )
 
+ArtifactAliasConnection = Connection[ArtifactAliasFragment]
 ArtifactTypeConnection = Connection[ArtifactTypeFragment]
 ArtifactCollectionConnection = ConnectionWithTotal[ArtifactCollectionFragment]
 ArtifactMembershipConnection = Connection[ArtifactMembershipFragment]
