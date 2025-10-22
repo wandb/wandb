@@ -75,6 +75,11 @@ var (
 	// Color for lower-level headings; more frequent than headings.
 	// Help page keys, metrics grid header.
 	colorSubheading = lipgloss.Color("230")
+
+	// Colors for key-value pairs such as run summary or config items.
+	colorItemKey   = lipgloss.Color("243")
+	colorItemValue = lipgloss.Color("252")
+	colorSelected  = lipgloss.Color("238")
 )
 
 // ASCII art for the loading screen and the help page.
@@ -177,6 +182,27 @@ var (
 // Status bar styles.
 var (
 	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(colorLayoutHighlight)
+)
+
+// Left sidebar styles.
+var (
+	sidebarStyle              = lipgloss.NewStyle().Padding(0, 1)
+	sidebarBorderStyle        = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(colorLayout)
+	sidebarHeaderStyle        = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginBottom(1)
+	sidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
+	sidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
+	sidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
+	sidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
+	RightBorder               = lipgloss.Border{
+		Top:         " ",
+		Bottom:      " ",
+		Left:        "",
+		Right:       "│",
+		TopLeft:     " ",
+		TopRight:    "│",
+		BottomLeft:  " ",
+		BottomRight: "│",
+	}
 )
 
 // Right sidebar styles.
