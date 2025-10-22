@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.36.1
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.36.1.
+
+### Bug Fixes
+
+- Prevent panic when converting error chains containing non-comparable error types by using a safe fallback for visited detection in exception conversion ([#1113](https://github.com/getsentry/sentry-go/pull/1113))
+
 ## 0.36.0
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.36.0.

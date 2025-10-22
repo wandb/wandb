@@ -13,10 +13,40 @@ const (
 	MechanismSourceCause string = "cause"
 )
 
+type visited struct {
+	comparable map[error]struct{}
+	msgs       map[string]struct{}
+}
+
+func (v *visited) seenError(err error) bool {
+	t := reflect.TypeOf(err)
+	if t == nil {
+		return false
+	}
+
+	if t.Comparable() {
+		if _, ok := v.comparable[err]; ok {
+			return true
+		}
+		v.comparable[err] = struct{}{}
+		return false
+	}
+
+	key := t.String() + err.Error()
+	if _, ok := v.msgs[key]; ok {
+		return true
+	}
+	v.msgs[key] = struct{}{}
+	return false
+}
+
 func convertErrorToExceptions(err error, maxErrorDepth int) []Exception {
 	var exceptions []Exception
-	visited := make(map[error]bool)
-	convertErrorDFS(err, &exceptions, nil, "", visited, maxErrorDepth, 0)
+	vis := &visited{
+		make(map[error]struct{}),
+		make(map[string]struct{}),
+	}
+	convertErrorDFS(err, &exceptions, nil, "", vis, maxErrorDepth, 0)
 
 	// mechanism type is used for debugging purposes, but since we can't really distinguish the origin of who invoked
 	// captureException, we set it to nil if the error is not chained.
@@ -37,15 +67,14 @@ func convertErrorToExceptions(err error, maxErrorDepth int) []Exception {
 	return exceptions
 }
 
-func convertErrorDFS(err error, exceptions *[]Exception, parentID *int, source string, visited map[error]bool, maxErrorDepth int, currentDepth int) {
+func convertErrorDFS(err error, exceptions *[]Exception, parentID *int, source string, visited *visited, maxErrorDepth int, currentDepth int) {
 	if err == nil {
 		return
 	}
 
-	if visited[err] {
+	if visited.seenError(err) {
 		return
 	}
-	visited[err] = true
 
 	_, isExceptionGroup := err.(interface{ Unwrap() []error })
 
