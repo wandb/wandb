@@ -389,7 +389,12 @@ def test_registries_collections(
 
 @mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
 def test_registries_versions(
-    org: str, api: Api, source_artifacts: list[Artifact], target_registry: Registry
+    org: str,
+    org_entity: str,
+    team: str,
+    api: Api,
+    source_artifacts: list[Artifact],
+    target_registry: Registry,
 ):
     # Each version linked to the same registry collection
     for artifact in source_artifacts:
@@ -400,7 +405,24 @@ def test_registries_versions(
     versions = sorted(registries.versions(), key=lambda v: v.name)
     assert len(versions) == len(source_artifacts)
 
+    # Sanity check: all source artifacts were logged from the same project
+    source_projects = list(set(src.project for src in source_artifacts))
+    assert len(source_projects) == 1
+    source_project = source_projects[0]
+
     # Check that the versions are linked to the correct registry collection
     for i, registry_version in enumerate(versions):
         assert registry_version.source_name == f"test-artifact-{i}:v0"
+        assert registry_version.source_project == source_project
+        assert registry_version.source_entity == team
+        assert registry_version.source_version == "v0"
+
         assert registry_version.name == f"reg-collection:v{i}"
+        assert registry_version.project == target_registry.full_name
+        assert registry_version.entity == org_entity
+        assert registry_version.version == f"v{i}"
+
+        if i == len(versions) - 1:
+            assert registry_version.aliases == ["latest"]
+        else:
+            assert registry_version.aliases == []

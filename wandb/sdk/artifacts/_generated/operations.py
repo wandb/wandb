@@ -1453,7 +1453,14 @@ query RegistryVersions($organization: String!, $registryFilter: JSONString, $col
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryVersionConnectionFragment
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactMembershipFragment
+          }
+        }
       }
     }
   }
@@ -1536,17 +1543,6 @@ fragment ProjectInfoFragment on Project {
   id
   name
   entityName
-}
-
-fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnection {
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      ...ArtifactMembershipFragment
-    }
-  }
 }
 
 fragment SourceCollectionInfoFragment on ArtifactSequence {

@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import RegistryVersionConnectionFragment
+from .fragments import ArtifactMembershipFragment, PageInfoFragment
 
 
 class RegistryVersions(GQLResult):
@@ -24,11 +24,22 @@ class RegistryVersionsOrganization(GQLResult):
 
 class RegistryVersionsOrganizationOrgEntity(GQLResult):
     name: str
-    artifact_memberships: Optional[RegistryVersionConnectionFragment] = Field(
-        alias="artifactMemberships"
-    )
+    artifact_memberships: Optional[
+        RegistryVersionsOrganizationOrgEntityArtifactMemberships
+    ] = Field(alias="artifactMemberships")
+
+
+class RegistryVersionsOrganizationOrgEntityArtifactMemberships(GQLResult):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[RegistryVersionsOrganizationOrgEntityArtifactMembershipsEdges]
+
+
+class RegistryVersionsOrganizationOrgEntityArtifactMembershipsEdges(GQLResult):
+    node: Optional[ArtifactMembershipFragment]
 
 
 RegistryVersions.model_rebuild()
 RegistryVersionsOrganization.model_rebuild()
 RegistryVersionsOrganizationOrgEntity.model_rebuild()
+RegistryVersionsOrganizationOrgEntityArtifactMemberships.model_rebuild()
+RegistryVersionsOrganizationOrgEntityArtifactMembershipsEdges.model_rebuild()

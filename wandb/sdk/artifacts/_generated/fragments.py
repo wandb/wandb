@@ -248,15 +248,6 @@ class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
     name: str
 
 
-class RegistryVersionConnectionFragment(GQLResult):
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RegistryVersionConnectionFragmentEdges]
-
-
-class RegistryVersionConnectionFragmentEdges(GQLResult):
-    node: Optional[ArtifactMembershipFragment]
-
-
 class RunInfoFragment(GQLResult):
     typename__: Typename[Literal["Run"]] = "Run"
     id: GQLId
@@ -374,8 +365,6 @@ RegistryFragment.model_rebuild()
 RegistryFragmentArtifactTypes.model_rebuild()
 RegistryFragmentArtifactTypesEdges.model_rebuild()
 RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
-RegistryVersionConnectionFragment.model_rebuild()
-RegistryVersionConnectionFragmentEdges.model_rebuild()
 RunInfoFragment.model_rebuild()
 RunInputArtifactConnectionFragment.model_rebuild()
 RunInputArtifactConnectionFragmentEdges.model_rebuild()
