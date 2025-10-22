@@ -2278,6 +2278,20 @@ class Settings(BaseModel, validate_assignment=True):
         if not self.x_jupyter_root or not program:
             return None
 
+        # When running with the VSCode notebook extension,
+        # The notebook path provided by the server is not actually the notebook.
+        if ipython.in_vscode_notebook():
+            notebook_path = ipython.get_vscode_notebook_path()
+            if notebook_path is None:
+                return None
+
+            self.program_abspath = os.path.abspath(notebook_path)
+            self.program_relpath = os.path.relpath(
+                notebook_path,
+                self.x_jupyter_root,
+            )
+            return
+
         self.program_abspath = os.path.abspath(
             os.path.join(self.x_jupyter_root, program)
         )
