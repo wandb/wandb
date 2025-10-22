@@ -4,6 +4,12 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  defaultArtifactType {
+    name
+  }
   tags {
     edges {
       node {
@@ -63,7 +69,7 @@ mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
   }
 }
 
-mutation MoveArtifactCollection($input: MoveArtifactSequenceInput!) {
+mutation UpdateArtifactCollectionType($input: MoveArtifactSequenceInput!) {
   moveArtifactSequence(input: $input) {
     artifactCollection {
       ...ArtifactCollectionSummary
@@ -71,9 +77,7 @@ mutation MoveArtifactCollection($input: MoveArtifactSequenceInput!) {
   }
 }
 
-mutation CreateArtifactCollectionTagAssignments(
-  $input: CreateArtifactCollectionTagAssignmentsInput!
-) {
+mutation AddArtifactCollectionTags($input: CreateArtifactCollectionTagAssignmentsInput!) {
   createArtifactCollectionTagAssignments(input: $input) {
     tags {
       ...TagFragment
@@ -81,62 +85,56 @@ mutation CreateArtifactCollectionTagAssignments(
   }
 }
 
-mutation DeleteArtifactCollectionTagAssignments(
-  $input: DeleteArtifactCollectionTagAssignmentsInput!
-) {
+mutation DeleteArtifactCollectionTags($input: DeleteArtifactCollectionTagAssignmentsInput!) {
   deleteArtifactCollectionTagAssignments(input: $input) {
     success
   }
 }
 
-fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
-  totalCount
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      ...ArtifactCollectionFragment
-    }
-  }
-}
-
 query ProjectArtifactCollections(
-  $entityName: String!
-  $projectName: String!
-  $artifactTypeName: String!
+  $entity: String!
+  $project: String!
+  $artifactType: String!
   $cursor: String
   $aliasesCursor: String
   $aliasesPerPage: Int = 0
   $includeAliases: Boolean = false
 ) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactType(name: $artifactTypeName) {
+  project(name: $project, entityName: $entity) {
+    artifactType(name: $artifactType) {
       # NOTE: The node being aliased is named:
       # - `artifactCollections` for new servers
       # - `artifactSequences` for old servers
       artifactCollections: artifactCollections(after: $cursor) {
-        ...ArtifactCollectionConnectionFragment
+        totalCount
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactCollectionFragment
+          }
+        }
       }
     }
   }
 }
 
 query ProjectArtifactCollection(
-  $entityName: String!
-  $projectName: String!
-  $artifactTypeName: String!
-  $artifactCollectionName: String!
+  $entity: String!
+  $project: String!
+  $artifactType: String!
+  $name: String!
   $aliasesCursor: String
   $aliasesPerPage: Int = 1000
   $includeAliases: Boolean = true
 ) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactType(name: $artifactTypeName) {
+  project(name: $project, entityName: $entity) {
+    artifactType(name: $artifactType) {
       # NOTE: The node being aliased is named:
       # - `artifactCollection` for new servers
       # - `artifactSequence` for old servers
-      artifactCollection: artifactCollection(name: $artifactCollectionName) {
+      artifactCollection: artifactCollection(name: $name) {
         ...ArtifactCollectionFragment
       }
     }

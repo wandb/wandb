@@ -11,6 +11,7 @@ from wandb_gql import gql
 
 from wandb._analytics import tracked
 from wandb.apis.paginator import Paginator
+from wandb.apis.public.artifacts import ArtifactCollection
 from wandb.apis.public.utils import gql_compat
 from wandb.sdk.artifacts._generated import (
     FETCH_REGISTRIES_GQL,
@@ -18,20 +19,23 @@ from wandb.sdk.artifacts._generated import (
     REGISTRY_VERSIONS_GQL,
     ArtifactCollectionType,
     FetchRegistries,
-    RegistryCollectionConnectionFragment,
     RegistryCollections,
     RegistryConnectionFragment,
     RegistryVersionConnectionFragment,
     RegistryVersions,
 )
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
-from wandb.sdk.artifacts._validators import FullArtifactPath, remove_registry_prefix
+from wandb.sdk.artifacts._models.pagination import RegistryCollectionConnection
+from wandb.sdk.artifacts._validators import (
+    SOURCE_ARTIFACT_COLLECTION_TYPE,
+    FullArtifactPath,
+    remove_registry_prefix,
+)
 
 from ._utils import ensure_registry_prefix_on_names
 
 if TYPE_CHECKING:
-    from wandb_gql import Client
-
+    from wandb.apis.public import RetryingClient
     from wandb.sdk.artifacts.artifact import Artifact
 
 
@@ -45,10 +49,10 @@ class Registries(Paginator):
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         organization: str,
         filter: dict[str, Any] | None = None,
-        per_page: int | None = 100,
+        per_page: int = 100,
     ):
         self.client = client
         self.organization = organization
@@ -142,20 +146,20 @@ class Registries(Paginator):
         ]
 
 
-class Collections(Paginator["ArtifactCollection"]):
+class Collections(Paginator[ArtifactCollection]):
     """An lazy iterator of `ArtifactCollection` objects in a Registry."""
 
     QUERY = gql(REGISTRY_COLLECTIONS_GQL)
 
-    last_response: RegistryCollectionConnectionFragment | None
+    last_response: RegistryCollectionConnection | None
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         organization: str,
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
-        per_page: int | None = 100,
+        per_page: int = 100,
     ):
         self.client = client
         self.organization = organization
@@ -192,21 +196,15 @@ class Collections(Paginator["ArtifactCollection"]):
 
     @property
     def length(self):
-        if self.last_response is None:
-            return None
-        return self.last_response.total_count
+        return conn.total_count if (conn := self.last_response) else None
 
     @property
     def more(self):
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
+        return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self):
-        if self.last_response is None:
-            return None
-        return self.last_response.page_info.end_cursor
+        return conn.next_cursor if (conn := self.last_response) else None
 
     @override
     def _update_response(self) -> None:
@@ -219,9 +217,7 @@ class Collections(Paginator["ArtifactCollection"]):
 
         try:
             conn = org_entity.artifact_collections
-            self.last_response = RegistryCollectionConnectionFragment.model_validate(
-                conn
-            )
+            self.last_response = RegistryCollectionConnection.model_validate(conn)
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
@@ -231,20 +227,20 @@ class Collections(Paginator["ArtifactCollection"]):
         if self.last_response is None:
             return []
 
-        nodes = (e.node for e in self.last_response.edges)
         return [
             ArtifactCollection(
                 client=self.client,
-                entity=project.entity_name,
-                project=project.name,
+                entity=node.project.entity_name,
+                project=node.project.name,
                 name=node.name,
                 type=node.default_artifact_type.name,
                 organization=self.organization,
-                attrs=node.model_dump(),
-                is_sequence=False,
+                attrs=node,
             )
-            for node in nodes
-            if (project := node.project)
+            for node in self.last_response.nodes()
+            # We don't _expect_ any registry collections to be
+            # ArtifactSequences, but defensively filter them out anyway.
+            if node.project and (node.typename__ != SOURCE_ARTIFACT_COLLECTION_TYPE)
         ]
 
 
@@ -255,7 +251,7 @@ class Versions(Paginator["Artifact"]):
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         organization: str,
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,

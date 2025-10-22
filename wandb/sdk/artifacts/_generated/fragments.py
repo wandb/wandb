@@ -18,22 +18,16 @@ class ArtifactAliasFragment(GQLResult):
     alias: str
 
 
-class ArtifactCollectionConnectionFragment(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[ArtifactCollectionConnectionFragmentEdges]
-
-
-class ArtifactCollectionConnectionFragmentEdges(GQLResult):
-    node: Optional[ArtifactCollectionFragment]
-
-
 class ArtifactCollectionFragment(GQLResult):
     typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
     id: GQLId
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
+    project: Optional[ProjectInfoFragment]
+    default_artifact_type: ArtifactCollectionFragmentDefaultArtifactType = Field(
+        alias="defaultArtifactType"
+    )
     tags: ArtifactCollectionFragmentTags
     aliases: Optional[ArtifactCollectionFragmentAliases] = None
 
@@ -44,6 +38,10 @@ class ArtifactCollectionFragmentAliases(GQLResult):
 
 class ArtifactCollectionFragmentAliasesEdges(GQLResult):
     node: Optional[ArtifactAliasFragment]
+
+
+class ArtifactCollectionFragmentDefaultArtifactType(GQLResult):
+    name: str
 
 
 class ArtifactCollectionFragmentTags(GQLResult):
@@ -182,27 +180,17 @@ class ProjectInfoFragment(GQLResult):
     entity_name: str = Field(alias="entityName")
 
 
-class RegistryCollectionConnectionFragment(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RegistryCollectionConnectionFragmentEdges]
-
-
-class RegistryCollectionConnectionFragmentEdges(GQLResult):
-    node: Optional[RegistryCollectionFragment]
-
-
 class RegistryCollectionFragment(GQLResult):
     typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
     id: GQLId
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
-    tags: RegistryCollectionFragmentTags
     project: Optional[ProjectInfoFragment]
     default_artifact_type: RegistryCollectionFragmentDefaultArtifactType = Field(
         alias="defaultArtifactType"
     )
+    tags: RegistryCollectionFragmentTags
     aliases: RegistryCollectionFragmentAliases
 
 
@@ -352,11 +340,10 @@ class ArtifactFragment(ArtifactFragmentWithoutAliases):
 
 
 ArtifactAliasFragment.model_rebuild()
-ArtifactCollectionConnectionFragment.model_rebuild()
-ArtifactCollectionConnectionFragmentEdges.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
 ArtifactCollectionFragmentAliases.model_rebuild()
 ArtifactCollectionFragmentAliasesEdges.model_rebuild()
+ArtifactCollectionFragmentDefaultArtifactType.model_rebuild()
 ArtifactCollectionFragmentTags.model_rebuild()
 ArtifactCollectionFragmentTagsEdges.model_rebuild()
 ArtifactCollectionSummary.model_rebuild()
@@ -375,8 +362,6 @@ OrgInfoFragment.model_rebuild()
 OrgInfoFragmentOrgEntity.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectInfoFragment.model_rebuild()
-RegistryCollectionConnectionFragment.model_rebuild()
-RegistryCollectionConnectionFragmentEdges.model_rebuild()
 RegistryCollectionFragment.model_rebuild()
 RegistryCollectionFragmentAliases.model_rebuild()
 RegistryCollectionFragmentAliasesEdges.model_rebuild()

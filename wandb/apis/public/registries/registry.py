@@ -188,9 +188,7 @@ class Registry:
     @tracked
     def collections(self, filter: dict[str, Any] | None = None) -> Collections:
         """Returns the collections belonging to the registry."""
-        registry_filter = {
-            "name": self.full_name,
-        }
+        registry_filter = {"name": self.full_name}
         return Collections(self.client, self.organization, registry_filter, filter)
 
     @tracked

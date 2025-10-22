@@ -12,17 +12,15 @@ from wandb._pydantic import GQLResult
 from .fragments import TagFragment
 
 
-class CreateArtifactCollectionTagAssignments(GQLResult):
+class AddArtifactCollectionTags(GQLResult):
     create_artifact_collection_tag_assignments: Optional[
-        CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments
+        AddArtifactCollectionTagsCreateArtifactCollectionTagAssignments
     ] = Field(alias="createArtifactCollectionTagAssignments")
 
 
-class CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments(
-    GQLResult
-):
+class AddArtifactCollectionTagsCreateArtifactCollectionTagAssignments(GQLResult):
     tags: List[TagFragment]
 
 
-CreateArtifactCollectionTagAssignments.model_rebuild()
-CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments.model_rebuild()
+AddArtifactCollectionTags.model_rebuild()
+AddArtifactCollectionTagsCreateArtifactCollectionTagAssignments.model_rebuild()

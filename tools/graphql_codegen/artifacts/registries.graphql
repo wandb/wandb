@@ -51,20 +51,16 @@ query RegistryCollections(
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryCollectionConnectionFragment
+        totalCount
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...RegistryCollectionFragment
+          }
+        }
       }
-    }
-  }
-}
-
-fragment RegistryCollectionConnectionFragment on ArtifactCollectionConnection {
-  totalCount
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      ...RegistryCollectionFragment
     }
   }
 }
@@ -75,18 +71,18 @@ fragment RegistryCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  defaultArtifactType {
+    name
+  }
   tags {
     edges {
       node {
         ...TagFragment
       }
     }
-  }
-  project {
-    ...ProjectInfoFragment
-  }
-  defaultArtifactType {
-    name
   }
   aliases {
     edges {
