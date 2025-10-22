@@ -27,13 +27,21 @@ const (
 )
 
 // Sidebar constants.
-//
-// We are using the golden ratio `phi` for visually pleasing layout proportions.
 const (
+	// We are using the golden ratio `phi` for visually pleasing layout proportions.
 	SidebarWidthRatio     = 0.382 // 1 - 1/phi
 	SidebarWidthRatioBoth = 0.236 // When both sidebars visible: (1 - 1/phi) / phi ≈ 0.236
 	SidebarMinWidth       = 40
 	SidebarMaxWidth       = 120
+
+	// Sidebar content padding (accounts for borders and internal spacing).
+	rightSidebarContentPadding = 3
+
+	// Default grid height for system metrics when not calculated from terminal height.
+	defaultSystemMetricsGridHeight = 40
+
+	// Mouse click coordinate adjustments for border/padding.
+	rightSidebarMouseClickPaddingOffset = 1
 )
 
 // WANDB brand colors.
@@ -154,6 +162,11 @@ func GraphColors() []string {
 	return colorSchemes[DefaultColorScheme]
 }
 
+// Metrics grid styles.
+var (
+	navInfoStyle = lipgloss.NewStyle().Foreground(colorSubtle)
+)
+
 // Chart styles.
 var (
 	borderStyle = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(colorLayout)
@@ -172,6 +185,23 @@ var (
 // Status bar styles.
 var (
 	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(colorLayoutHighlight)
+)
+
+// Right sidebar styles.
+var (
+	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
+	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(colorLayout)
+	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginLeft(1)
+	LeftBorder              = lipgloss.Border{
+		Top:         " ",
+		Bottom:      " ",
+		Left:        "│",
+		Right:       "",
+		TopLeft:     "|",
+		TopRight:    " ",
+		BottomLeft:  "|",
+		BottomRight: " ",
+	}
 )
 
 // AnimationDuration is the duration for sidebar animations.
