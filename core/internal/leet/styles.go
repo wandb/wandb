@@ -52,6 +52,9 @@ var teal450 = lipgloss.AdaptiveColor{
 // Functional colors not specific to any visual component.
 // Ideally these should be adaptive!
 var (
+	// Color for main items such as chart titles.
+	colorAccent = lipgloss.Color("250")
+
 	// Main text color that appears the most frequently on the screen.
 	colorText = lipgloss.Color("245")
 
@@ -60,14 +63,14 @@ var (
 	colorSubtle = lipgloss.Color("240")
 
 	// Color for layout elements, like borders and separator lines.
-	// colorLayout = lipgloss.Color("238")
+	colorLayout = lipgloss.Color("238")
 
 	// Color for layout elements when they're highlighted or focused.
-	// colorLayoutHighlight = teal450
+	colorLayoutHighlight = teal450
 
 	// Color for top-level headings; least frequent.
 	// Leet logo, help page section headings.
-	// colorHeading = wandbColor
+	colorHeading = wandbColor
 
 	// Color for lower-level headings; more frequent than headings.
 	// Help page keys, metrics grid header.
@@ -148,11 +151,19 @@ var colorSchemes = map[string][]string{
 
 // GraphColors returns the colors for the current color scheme.
 func GraphColors() []string {
-	return colorSchemes["sunset-glow"]
+	return colorSchemes[DefaultColorScheme]
 }
 
 // Chart styles.
 var (
+	borderStyle = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(colorLayout)
+
+	titleStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
+
+	seriesCountStyle = lipgloss.NewStyle().Foreground(colorSubtle)
+
+	focusedBorderStyle = borderStyle.BorderForeground(colorLayoutHighlight)
+
 	axisStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
 	labelStyle = lipgloss.NewStyle().Foreground(colorText)
@@ -160,7 +171,7 @@ var (
 
 // Status bar styles.
 var (
-	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(teal450)
+	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(colorLayoutHighlight)
 )
 
 // AnimationDuration is the duration for sidebar animations.
@@ -175,7 +186,7 @@ var (
 
 	helpDescStyle = lipgloss.NewStyle().Foreground(colorText)
 
-	helpSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(wandbColor)
+	helpSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(colorHeading)
 
 	helpContentStyle = lipgloss.NewStyle().MarginLeft(2).MarginTop(1)
 )

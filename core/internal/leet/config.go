@@ -26,7 +26,14 @@ const (
 	MinGridSize = 1
 	MaxGridSize = 9
 
-	DefaultColorScheme       = "sunset-glow"
+	ColorModePerPlot   = "per_plot"   // Each chart gets next color
+	ColorModePerSeries = "per_series" // All charts use base color, multi-series differentiate
+
+	DefaultColorScheme = "sunset-glow"
+
+	DefaultSystemColorScheme = "wandb-vibe-10"
+	DefaultSystemColorMode   = ColorModePerSeries
+
 	DefaultHeartbeatInterval = 15 // seconds
 )
 
@@ -40,6 +47,14 @@ type Config struct {
 
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme"`
+
+	// SystemColorScheme is the color scheme for system metrics charts.
+	SystemColorScheme string `json:"system_color_scheme"`
+
+	// SystemColorMode determines color assignment strategy.
+	// "per_plot": each chart gets next color from palette
+	// "per_series": all single-series charts use base color, multi-series differentiate
+	SystemColorMode string `json:"system_color_mode"`
 
 	// Heartbeat interval in seconds for live runs.
 	//
@@ -77,6 +92,8 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 			MetricsGrid:       GridConfig{Rows: DefaultMetricsGridRows, Cols: DefaultMetricsGridCols},
 			SystemGrid:        GridConfig{Rows: DefaultSystemGridRows, Cols: DefaultSystemGridCols},
 			ColorScheme:       DefaultColorScheme,
+			SystemColorScheme: DefaultSystemColorScheme,
+			SystemColorMode:   DefaultSystemColorMode,
 			HeartbeatInterval: DefaultHeartbeatInterval,
 		},
 		logger: logger,
@@ -122,6 +139,15 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if _, ok := colorSchemes[cm.config.ColorScheme]; !ok {
 		cm.config.ColorScheme = DefaultColorScheme
+	}
+
+	if _, ok := colorSchemes[cm.config.SystemColorScheme]; !ok {
+		cm.config.SystemColorScheme = DefaultSystemColorScheme
+	}
+
+	if cm.config.SystemColorMode != ColorModePerPlot &&
+		cm.config.SystemColorMode != ColorModePerSeries {
+		cm.config.SystemColorMode = DefaultSystemColorMode
 	}
 
 	if cm.config.HeartbeatInterval <= 0 {
@@ -229,6 +255,45 @@ func (cm *ConfigManager) ColorScheme() string {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.config.ColorScheme
+}
+
+// SystemColorScheme returns the color scheme for system metrics.
+func (cm *ConfigManager) SystemColorScheme() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SystemColorScheme
+}
+
+// SystemColorMode returns the color assignment mode for system metrics.
+func (cm *ConfigManager) SystemColorMode() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SystemColorMode
+}
+
+// SetSystemColorScheme sets the system color scheme.
+func (cm *ConfigManager) SetSystemColorScheme(scheme string) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %s", scheme)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SystemColorScheme = scheme
+	return cm.save()
+}
+
+// SetSystemColorMode sets the system color mode.
+func (cm *ConfigManager) SetSystemColorMode(mode string) error {
+	if mode != ColorModePerPlot && mode != ColorModePerSeries {
+		return fmt.Errorf("invalid color mode: %s (must be %s or %s)",
+			mode, ColorModePerPlot, ColorModePerSeries)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SystemColorMode = mode
+	return cm.save()
 }
 
 // HeartbeatInterval returns the heartbeat interval as a Duration.
