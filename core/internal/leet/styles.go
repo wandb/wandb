@@ -34,6 +34,12 @@ const (
 	SidebarMinWidth       = 40
 	SidebarMaxWidth       = 120
 
+	// Sidebar internal content padding (accounts for borders).
+	leftSidebarContentPadding = 4
+
+	// Key/value column width ratio.
+	leftSidebarKeyWidthRatio = 0.4 // 40% of available width for keys
+
 	// Sidebar content padding (accounts for borders and internal spacing).
 	rightSidebarContentPadding = 3
 
@@ -42,6 +48,18 @@ const (
 
 	// Mouse click coordinate adjustments for border/padding.
 	rightSidebarMouseClickPaddingOffset = 1
+)
+
+// Rune constants for UI drawing.
+const (
+	// verticalLine is ASCII vertical bar U+007C.
+	verticalLine rune = '\u007C' // |
+
+	// BoxLightVertical is U+2502 and is "taller" than verticalLine.
+	boxLightVertical rune = '\u2502' // │
+
+	// unicodeSpace is the regular whitespace.
+	unicodeSpace rune = '\u0020'
 )
 
 // WANDB brand colors.
@@ -83,6 +101,11 @@ var (
 	// Color for lower-level headings; more frequent than headings.
 	// Help page keys, metrics grid header.
 	colorSubheading = lipgloss.Color("230")
+
+	// Colors for key-value pairs such as run summary or config items.
+	colorItemKey   = lipgloss.Color("243")
+	colorItemValue = lipgloss.Color("252")
+	colorSelected  = lipgloss.Color("238")
 )
 
 // ASCII art for the loading screen and the help page.
@@ -187,20 +210,41 @@ var (
 	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(colorLayoutHighlight)
 )
 
+// Left sidebar styles.
+var (
+	sidebarStyle              = lipgloss.NewStyle().Padding(0, 1)
+	sidebarBorderStyle        = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(colorLayout)
+	sidebarHeaderStyle        = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginBottom(1)
+	sidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
+	sidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
+	sidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
+	sidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
+	RightBorder               = lipgloss.Border{
+		Top:         string(unicodeSpace),
+		Bottom:      string(unicodeSpace),
+		Left:        "",
+		Right:       string(verticalLine),
+		TopLeft:     string(unicodeSpace),
+		TopRight:    string(verticalLine),
+		BottomLeft:  string(unicodeSpace),
+		BottomRight: string(verticalLine),
+	}
+)
+
 // Right sidebar styles.
 var (
 	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
 	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(colorLayout)
 	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginLeft(1)
 	LeftBorder              = lipgloss.Border{
-		Top:         " ",
-		Bottom:      " ",
-		Left:        "│",
+		Top:         string(unicodeSpace),
+		Bottom:      string(unicodeSpace),
+		Left:        string(boxLightVertical),
 		Right:       "",
-		TopLeft:     "|",
-		TopRight:    " ",
-		BottomLeft:  "|",
-		BottomRight: " ",
+		TopLeft:     string(verticalLine),
+		TopRight:    string(unicodeSpace),
+		BottomLeft:  string(verticalLine),
+		BottomRight: string(unicodeSpace),
 	}
 )
 
