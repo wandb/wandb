@@ -292,11 +292,7 @@ class Artifact:
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        omit_fields = omit_artifact_fields(client)
-        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
-        query = gql_compat(
-            ARTIFACT_BY_ID_GQL, omit_fields=omit_fields, omit_fragments=omit_fragments
-        )
+        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
 
         data = client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
@@ -325,12 +321,9 @@ class Artifact:
                 "by this version of wandb server. Consider updating to the latest version."
             )
 
-        omit_fields = omit_artifact_fields(client)
-        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         query = gql_compat(
             ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
-            omit_fields=omit_fields,
-            omit_fragments=omit_fragments,
+            omit_fields=omit_artifact_fields(client),
         )
         gql_vars = {"entity": path.prefix, "project": path.project, "name": path.name}
         data = client.execute(query, variable_values=gql_vars)
@@ -365,13 +358,10 @@ class Artifact:
             "name": path.name,
             "enableTracking": enable_tracking,
         }
-        omit_fields = omit_artifact_fields(client)
-        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         query = gql_compat(
             ARTIFACT_BY_NAME_GQL,
             omit_variables=omit_vars,
-            omit_fields=omit_fields,
-            omit_fragments=omit_fragments,
+            omit_fields=omit_artifact_fields(client),
         )
         data = client.execute(query, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
@@ -1238,10 +1228,8 @@ class Artifact:
     def _populate_after_save(self, artifact_id: str) -> None:
         assert self._client is not None
 
-        omit_fields = omit_artifact_fields(self._client)
-        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         query = gql_compat(
-            ARTIFACT_BY_ID_GQL, omit_fields=omit_fields, omit_fragments=omit_fragments
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(self._client)
         )
         data = self._client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
@@ -1282,7 +1270,6 @@ class Artifact:
             ]
 
         omit_fields = omit_artifact_fields(client)
-        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         omit_variables = set()
 
         if {"ttlIsInherited", "ttlDurationSeconds"} & omit_fields:
@@ -1305,9 +1292,7 @@ class Artifact:
 
             omit_variables |= {"tagsToAdd", "tagsToDelete"}
 
-        gql_op = gql_compat(
-            UPDATE_ARTIFACT_GQL, omit_fields=omit_fields, omit_fragments=omit_fragments
-        )
+        gql_op = gql_compat(UPDATE_ARTIFACT_GQL, omit_fields=omit_fields)
         gql_input = UpdateArtifactInput(
             artifact_id=self.id,
             description=self.description,
@@ -2449,21 +2434,11 @@ class Artifact:
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
         if server_supports(client, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE):
-            omit_fragments = set()
+            omit_fields = set()
         else:
-            # FIXME: Make `gql_compat` omit nested fragment definitions recursively (but safely)
-            omit_fragments = {
-                "ArtifactMembershipFragment",
-                "ArtifactFragment",
-                "ArtifactFragmentWithoutAliases",
-                "ProjectInfoFragment",
-                "CollectionInfoFragment",
-                "SourceCollectionInfoFragment",
-                "TagFragment",
-                "ArtifactAliasFragment",
-            }
+            omit_fields = {"artifactMembership"}
 
-        gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fragments=omit_fragments)
+        gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fields=omit_fields)
         data = client.execute(gql_op, variable_values=gql_vars)
         result = LinkArtifact.model_validate(data).link_artifact
 
