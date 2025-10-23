@@ -35,8 +35,8 @@ MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
 ARTIFACT_NAME_MAXLEN: Final[int] = 128
 ARTIFACT_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset({"/"})
 
-LINKED_ARTIFACT_COLLECTION_TYPE: Final[str] = gql_typename(ArtifactPortfolioTypeFields)
-SOURCE_ARTIFACT_COLLECTION_TYPE: Final[str] = gql_typename(ArtifactSequenceTypeFields)
+LINKED_COLLECTION_TYPENAME: Final[str] = gql_typename(ArtifactPortfolioTypeFields)
+SOURCE_COLLECTION_TYPENAME: Final[str] = gql_typename(ArtifactSequenceTypeFields)
 
 
 @dataclass
@@ -88,8 +88,8 @@ def validate_artifact_name(name: str) -> str:
 INVALID_URL_CHARACTERS = ("/", "\\", "#", "?", "%", ":", "\r", "\n")
 
 
-def validate_project_name(name: str) -> None:
-    """Validates a project name according to W&B rules.
+def validate_project_name(name: str) -> str:
+    """Validates a project name according to W&B rules, returning the original name if successful.
 
     Args:
         name: The project name string.
@@ -118,6 +118,7 @@ def validate_project_name(name: str) -> None:
         raise ValueError(
             f"Invalid project/registry name {error_name!r}, cannot contain characters: {invalid_chars_repr!s}"
         )
+    return name
 
 
 def validate_aliases(aliases: Collection[str] | str) -> list[str]:
@@ -136,20 +137,20 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
     return aliases_list
 
 
-def validate_artifact_types_list(artifact_types: list[str]) -> list[str]:
+def validate_artifact_types_list(artifact_types: Collection[str] | str) -> list[str]:
     """Return True if the artifact types list is valid, False otherwise."""
-    artifact_types = always_list(artifact_types)
+    artifact_types_list = always_list(artifact_types)
     invalid_chars = ("/", ":")
     if any(
         char in type or len(type) > 128
-        for type in artifact_types
+        for type in artifact_types_list
         for char in invalid_chars
     ):
         raise ValueError(
             f"""Artifact types must not contain any of the following characters: {", ".join(invalid_chars)}
               and must be less than equal to 128 characters"""
         )
-    return artifact_types
+    return artifact_types_list
 
 
 TAG_REGEX: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")

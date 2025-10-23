@@ -74,7 +74,7 @@ from wandb.sdk.artifacts._models.pagination import (
     RunArtifactConnection,
 )
 from wandb.sdk.artifacts._validators import (
-    SOURCE_ARTIFACT_COLLECTION_TYPE,
+    SOURCE_COLLECTION_TYPENAME,
     FullArtifactPath,
     validate_artifact_name,
     validate_artifact_type,
@@ -374,7 +374,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         return [
             ArtifactCollection(
                 client=self.client,
-                entity=node.project.entity_name,
+                entity=node.project.entity.name,
                 project=node.project.name,
                 name=node.name,
                 type=node.default_artifact_type.name,
@@ -529,7 +529,7 @@ class ArtifactCollection:
 
     def is_sequence(self) -> bool:
         """Return whether the artifact collection is a sequence."""
-        return self._attrs.typename__ == SOURCE_ARTIFACT_COLLECTION_TYPE
+        return self._attrs.typename__ == SOURCE_COLLECTION_TYPENAME
 
     @normalize_exceptions
     def delete(self) -> None:
@@ -657,12 +657,12 @@ class ArtifactCollection:
         if self.is_sequence() and (old_type != new_type):
             self._update_collection_type()
 
-        if (curr_tags := set(self._tags)) != (prev_tags := set(self._saved_tags)):
-            if added_tags := (curr_tags - prev_tags):
+        if (new_tags := set(self._tags)) != (old_tags := set(self._saved_tags)):
+            if added_tags := (new_tags - old_tags):
                 self._add_tags(added_tags)
-            if deleted_tags := (prev_tags - curr_tags):
+            if deleted_tags := (old_tags - new_tags):
                 self._delete_tags(deleted_tags)
-            self._saved_tags = copy(curr_tags)
+            self._saved_tags = copy(new_tags)
 
     def __repr__(self) -> str:
         return f"<ArtifactCollection {self.name} ({self.type})>"
@@ -888,7 +888,7 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         return [
             wandb.Artifact._from_attrs(
                 path=FullArtifactPath(
-                    prefix=proj.entity_name,
+                    prefix=proj.entity.name,
                     project=proj.name,
                     name=f"{artifact_seq.name}:v{node.version_index}",
                 ),

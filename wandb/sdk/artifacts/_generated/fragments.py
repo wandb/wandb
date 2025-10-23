@@ -123,7 +123,6 @@ class ArtifactTypeFragment(GQLResult):
 
 class CollectionInfoFragment(GQLResult):
     typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
-    id: GQLId
     name: str
     project: Optional[ProjectInfoFragment]
 
@@ -174,10 +173,12 @@ class PageInfoFragment(GQLResult):
 
 
 class ProjectInfoFragment(GQLResult):
-    typename__: Typename[Literal["Project"]] = "Project"
-    id: GQLId
     name: str
-    entity_name: str = Field(alias="entityName")
+    entity: ProjectInfoFragmentEntity
+
+
+class ProjectInfoFragmentEntity(GQLResult):
+    name: str
 
 
 class RegistryCollectionFragment(GQLResult):
@@ -214,18 +215,11 @@ class RegistryCollectionFragmentTagsEdges(GQLResult):
     node: TagFragment
 
 
-class RegistryConnectionFragment(GQLResult):
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RegistryConnectionFragmentEdges]
-
-
-class RegistryConnectionFragmentEdges(GQLResult):
-    node: Optional[RegistryFragment]
-
-
 class RegistryFragment(GQLResult):
+    typename__: Typename[Literal["Project"]] = "Project"
     id: GQLId
     name: str
+    entity: RegistryFragmentEntity
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
     updated_at: Optional[str] = Field(alias="updatedAt")
@@ -245,6 +239,15 @@ class RegistryFragmentArtifactTypesEdges(GQLResult):
 
 
 class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
+    name: str
+
+
+class RegistryFragmentEntity(GQLResult):
+    name: str
+    organization: Optional[RegistryFragmentEntityOrganization]
+
+
+class RegistryFragmentEntityOrganization(GQLResult):
     name: str
 
 
@@ -277,7 +280,6 @@ class RunOutputArtifactConnectionFragmentEdges(GQLResult):
 
 class SourceCollectionInfoFragment(GQLResult):
     typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
-    id: GQLId
     name: str
     project: Optional[ProjectInfoFragment]
 
@@ -353,18 +355,19 @@ OrgInfoFragment.model_rebuild()
 OrgInfoFragmentOrgEntity.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectInfoFragment.model_rebuild()
+ProjectInfoFragmentEntity.model_rebuild()
 RegistryCollectionFragment.model_rebuild()
 RegistryCollectionFragmentAliases.model_rebuild()
 RegistryCollectionFragmentAliasesEdges.model_rebuild()
 RegistryCollectionFragmentDefaultArtifactType.model_rebuild()
 RegistryCollectionFragmentTags.model_rebuild()
 RegistryCollectionFragmentTagsEdges.model_rebuild()
-RegistryConnectionFragment.model_rebuild()
-RegistryConnectionFragmentEdges.model_rebuild()
 RegistryFragment.model_rebuild()
 RegistryFragmentArtifactTypes.model_rebuild()
 RegistryFragmentArtifactTypesEdges.model_rebuild()
 RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
+RegistryFragmentEntity.model_rebuild()
+RegistryFragmentEntityOrganization.model_rebuild()
 RunInfoFragment.model_rebuild()
 RunInputArtifactConnectionFragment.model_rebuild()
 RunInputArtifactConnectionFragmentEdges.model_rebuild()

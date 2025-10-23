@@ -9,6 +9,8 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
+from .fragments import RegistryFragment
+
 
 class RenameRegistry(GQLResult):
     rename_project: Optional[RenameRegistryRenameProject] = Field(alias="renameProject")
@@ -16,11 +18,7 @@ class RenameRegistry(GQLResult):
 
 class RenameRegistryRenameProject(GQLResult):
     inserted: Optional[bool]
-    project: Optional[RenameRegistryRenameProjectProject]
-
-
-class RenameRegistryRenameProjectProject(GQLResult):
-    name: str
+    project: Optional[RegistryFragment]
 
 
 RenameRegistry.model_rebuild()
