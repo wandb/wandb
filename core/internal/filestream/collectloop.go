@@ -36,7 +36,7 @@ func (cl CollectLoop) Start(
 		}
 
 		for !isDone {
-			reader, _ := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
+			reader := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
 			output.Push(reader.GetJSON(state))
 			buffer, isDone = reader.Next()
 		}
@@ -94,10 +94,10 @@ func (cl CollectLoop) transmit(
 	output *TransmitChan,
 ) (*FileStreamRequest, bool) {
 	for {
-		reader, isTruncated := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
+		reader := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
 
 		// If we're at max size, stop adding to the buffer.
-		if isTruncated {
+		if reader.IsAtMaxSize() {
 			cl.Logger.Info("filestream: waiting to send request of max size")
 			output.Push(reader.GetJSON(state))
 			return reader.Next()
@@ -122,19 +122,20 @@ func (cl CollectLoop) transmit(
 
 // shouldSendASAP returns a request should be made regardless of rate limits.
 func (cl CollectLoop) shouldSendASAP(request *FileStreamRequest) bool {
-	_, isTruncated := NewRequestReader(request, cl.MaxRequestSizeBytes)
-
 	switch {
-	// If we've accumulated a request of the maximum size, send it immediately.
-	case isTruncated:
-		return true
-
 	// Send the "pre-empting" state immediately.
 	//
 	// This state indicates that the process may be about to yield the
 	// CPU for an unknown amount of time, and we want to let the backend
 	// know ASAP.
 	case request.Preempting:
+		return true
+
+	// If we've accumulated a request of the maximum size, send it immediately.
+	case NewRequestReader(
+		request,
+		cl.MaxRequestSizeBytes,
+	).IsAtMaxSize():
 		return true
 
 	default:

@@ -14,18 +14,31 @@ type FileStreamRequestReader struct {
 	// NOTE: The request must not be modified!
 	request *FileStreamRequest
 
-	historyLinesToSend int // how many history lines to consume
-	eventsLinesToSend  int // how many events lines to consume
+	// selected is the part of the request the reader would consume.
+	selected readerRequestPortion
+
+	// isFullRequest is whether the entire `request` is `selected`.
+	isFullRequest bool
+}
+
+type readerRequestPortion struct {
+	// approxRequestSize is the estimated size in bytes of the request
+	// the reader will produce, and maxRequestSize is its limit.
+	approxRequestSize, maxRequestSize int
+
+	// isTruncatedDueToSize is true if some portion of the request was
+	// not selected because it would have exceeded the request size limit.
+	isTruncatedDueToSize bool
+
+	sendSummary        bool // whether to upload the summary
+	historyLinesToSend int  // how many history lines to consume
+	eventsLinesToSend  int  // how many events lines to consume
 
 	// consoleLineRuns is consecutive runs of console lines.
 	//
 	// The first run is sent; the rest are kept for the next request.
 	consoleLineRuns    []sparselist.Run[string]
 	consoleLinesToSend int // how many lines to send from consoleLineRuns[0]
-
-	// isFullRequest is whether the entire [FileStreamRequest] can
-	// be represented by a single JSON request.
-	isFullRequest bool
 }
 
 // FileStreamState is state necessary to turn a [FileStreamRequest]
@@ -60,78 +73,102 @@ type FileStreamState struct {
 // was consumed).
 //
 // requestSizeLimitBytes is an approximate limit to the amount of
-// data to include in the JSON request. The second return value
-// indicates whether the request would be truncated to fit this.
+// data to include in the JSON request.
 func NewRequestReader(
 	request *FileStreamRequest,
 	requestSizeLimitBytes int,
-) (*FileStreamRequestReader, bool) {
-	requestSizeApprox := 0
-	isTruncatedDueToSize := false
+) *FileStreamRequestReader {
+	reader := &FileStreamRequestReader{request: request}
+	reader.selected.maxRequestSize = requestSizeLimitBytes
 
-	// Increases requestSizeApprox and returns the number of strings to
-	// send from the list.
-	addStringsToRequest := func(data ...string) int {
-		for i, line := range data {
-			nextSize := requestSizeApprox + len(line)
+	reader.isFullRequest =
+		reader.selected.tryAddSummary(request.LatestSummary) &&
+			reader.selected.tryAddHistoryLines(request.HistoryLines) &&
+			reader.selected.tryAddEventsLines(request.EventsLines) &&
+			reader.selected.tryAddConsoleLines(request.ConsoleLines)
 
-			if nextSize <= requestSizeLimitBytes {
-				requestSizeApprox = nextSize
-				continue
-			}
+	return reader
+}
 
-			isTruncatedDueToSize = true
+// IsAtMaxSize returns true if the request is at the maximum size.
+func (r *FileStreamRequestReader) IsAtMaxSize() bool {
+	return r.selected.isTruncatedDueToSize ||
+		// approxRequestSize is the size of the *selected* portion of
+		// the request, which is usually below the max size except when
+		// the request cannot be broken into small enough pieces.
+		r.selected.approxRequestSize >= r.selected.maxRequestSize
+}
 
-			// As a special case, if the first line is larger than the limit
-			// and we're not sending any other data, send the line and hope
-			// it goes through.
-			if requestSizeApprox == 0 {
-				requestSizeApprox = nextSize
-				return 1
-			} else {
-				return i
-			}
+// tryAddSummary adds the run summary to the request and returns
+// whether it was added.
+func (r *readerRequestPortion) tryAddSummary(line string) bool {
+	if r.approxRequestSize > 0 &&
+		r.approxRequestSize+len(line) > r.maxRequestSize {
+		r.isTruncatedDueToSize = true
+		return false
+	}
+
+	r.approxRequestSize += len(line)
+	r.sendSummary = true
+	return true
+}
+
+// tryAddHistoryLines adds history lines to the request and returns
+// whether all of them were added.
+func (r *readerRequestPortion) tryAddHistoryLines(lines []string) bool {
+	for _, line := range lines {
+		if r.approxRequestSize > 0 &&
+			r.approxRequestSize+len(line) > r.maxRequestSize {
+			r.isTruncatedDueToSize = true
+			return false
 		}
 
-		return len(data)
+		r.approxRequestSize += len(line)
+		r.historyLinesToSend++
 	}
 
-	addStringsToRequest(request.LatestSummary)
-	historyLinesToSend := addStringsToRequest(request.HistoryLines...)
-	eventsLinesToSend := addStringsToRequest(request.EventsLines...)
+	return true
+}
 
-	consoleLineRuns := request.ConsoleLines.ToRuns()
-	consoleLinesToSend := 0
-	if len(consoleLineRuns) > 0 {
-		consoleLinesToSend = addStringsToRequest(consoleLineRuns[0].Items...)
+// tryAddEventsLines adds system metrics to the request and returns
+// whether all lines were added.
+func (r *readerRequestPortion) tryAddEventsLines(lines []string) bool {
+	for _, line := range lines {
+		if r.approxRequestSize > 0 &&
+			r.approxRequestSize+len(line) > r.maxRequestSize {
+			r.isTruncatedDueToSize = true
+			return false
+		}
+
+		r.approxRequestSize += len(line)
+		r.eventsLinesToSend++
 	}
 
-	reader := &FileStreamRequestReader{
-		request:            request,
-		historyLinesToSend: historyLinesToSend,
-		eventsLinesToSend:  eventsLinesToSend,
+	return true
+}
 
-		consoleLineRuns:    consoleLineRuns,
-		consoleLinesToSend: consoleLinesToSend,
+// tryAddConsoleLines adds console updates to the request and returns whether
+// all of them were added.
+func (r *readerRequestPortion) tryAddConsoleLines(
+	lines sparselist.SparseList[string],
+) bool {
+	r.consoleLineRuns = lines.ToRuns()
+	if len(r.consoleLineRuns) == 0 {
+		return true
 	}
 
-	switch {
-	case historyLinesToSend != len(request.HistoryLines):
-		reader.isFullRequest = false
-	case eventsLinesToSend != len(request.EventsLines):
-		reader.isFullRequest = false
-	case len(consoleLineRuns) > 1:
-		reader.isFullRequest = false
-	case len(consoleLineRuns) == 1 && consoleLinesToSend != len(consoleLineRuns[0].Items):
-		reader.isFullRequest = false
+	for _, line := range r.consoleLineRuns[0].Items {
+		if r.approxRequestSize > 0 &&
+			r.approxRequestSize+len(line) > r.maxRequestSize {
+			r.isTruncatedDueToSize = true
+			return false
+		}
 
-	default:
-		reader.isFullRequest = true
+		r.approxRequestSize += len(line)
+		r.consoleLinesToSend++
 	}
 
-	// isTruncatedDueToSize is different from isFullRequest: a request could be
-	// partial if it contains nonconsecutive console lines.
-	return reader, isTruncatedDueToSize
+	return len(r.consoleLineRuns) == 1
 }
 
 // GetJSON returns the first JSON request from the sequence represented
@@ -143,31 +180,31 @@ func (r *FileStreamRequestReader) GetJSON(
 		Files: map[string]offsetAndContent{},
 	}
 
-	if r.historyLinesToSend > 0 {
-		json.Files[HistoryFileName] = offsetAndContent{
-			Offset:  state.HistoryLineNum,
-			Content: r.request.HistoryLines[:r.historyLinesToSend],
-		}
-		state.HistoryLineNum += r.historyLinesToSend
-	}
-	if r.eventsLinesToSend > 0 {
-		json.Files[EventsFileName] = offsetAndContent{
-			Offset:  state.EventsLineNum,
-			Content: r.request.EventsLines[:r.eventsLinesToSend],
-		}
-		state.EventsLineNum += r.eventsLinesToSend
-	}
-	if r.request.LatestSummary != "" {
+	if r.selected.sendSummary && r.request.LatestSummary != "" {
 		json.Files[SummaryFileName] = offsetAndContent{
 			Offset:  state.SummaryLineNum,
 			Content: []string{r.request.LatestSummary},
 		}
 	}
-	if len(r.consoleLineRuns) > 0 {
-		run := r.consoleLineRuns[0]
+	if n := r.selected.historyLinesToSend; n > 0 {
+		json.Files[HistoryFileName] = offsetAndContent{
+			Offset:  state.HistoryLineNum,
+			Content: r.request.HistoryLines[:n],
+		}
+		state.HistoryLineNum += n
+	}
+	if n := r.selected.eventsLinesToSend; n > 0 {
+		json.Files[EventsFileName] = offsetAndContent{
+			Offset:  state.EventsLineNum,
+			Content: r.request.EventsLines[:n],
+		}
+		state.EventsLineNum += n
+	}
+	if n := r.selected.consoleLinesToSend; n > 0 {
+		run := r.selected.consoleLineRuns[0]
 		json.Files[OutputFileName] = offsetAndContent{
 			Offset:  state.ConsoleLineOffset + run.Start,
-			Content: run.Items[:r.consoleLinesToSend],
+			Content: run.Items[:n],
 		}
 	}
 
@@ -197,20 +234,20 @@ func (r *FileStreamRequestReader) GetJSON(
 func (r *FileStreamRequestReader) Next() (*FileStreamRequest, bool) {
 	next := &FileStreamRequest{
 		HistoryLines: slices.Clone(
-			r.request.HistoryLines[r.historyLinesToSend:]),
+			r.request.HistoryLines[r.selected.historyLinesToSend:]),
 		EventsLines: slices.Clone(
-			r.request.EventsLines[r.eventsLinesToSend:]),
+			r.request.EventsLines[r.selected.eventsLinesToSend:]),
 	}
 
-	if len(r.consoleLineRuns) > 0 {
+	if len(r.selected.consoleLineRuns) > 0 {
 		// All unsent lines from the first block.
-		run0 := r.consoleLineRuns[0]
-		for i := r.consoleLinesToSend; i < len(run0.Items); i++ {
+		run0 := r.selected.consoleLineRuns[0]
+		for i := r.selected.consoleLinesToSend; i < len(run0.Items); i++ {
 			next.ConsoleLines.Put(run0.Start+i, run0.Items[i])
 		}
 
 		// All other unsent blocks.
-		for _, run := range r.consoleLineRuns[1:] {
+		for _, run := range r.selected.consoleLineRuns[1:] {
 			for i, line := range run.Items {
 				next.ConsoleLines.Put(run.Start+i, line)
 			}

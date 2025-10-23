@@ -8,7 +8,7 @@ import (
 )
 
 func TestSizeLimit_HugeLine_SentAlone(t *testing.T) {
-	reader, isTruncated := NewRequestReader(
+	reader := NewRequestReader(
 		&FileStreamRequest{HistoryLines: []string{"too large", "next"}},
 		0,
 	)
@@ -19,14 +19,14 @@ func TestSizeLimit_HugeLine_SentAlone(t *testing.T) {
 	// Even though "too large" is above the size limit (0) we do want
 	// to eventually send it. There are other guards elsewhere to avoid
 	// this case and inform the user.
-	assert.True(t, isTruncated)
+	assert.True(t, reader.IsAtMaxSize())
 	assert.Equal(t, []string{"too large"}, json.Files[HistoryFileName].Content)
 	assert.Equal(t, []string{"next"}, next.HistoryLines)
 	assert.False(t, done)
 }
 
 func TestSizeLimit_AboveMaxSize(t *testing.T) {
-	reader, isTruncated := NewRequestReader(
+	reader := NewRequestReader(
 		&FileStreamRequest{HistoryLines: []string{"one", "two"}},
 		// "one" will fit, "two" will not, and the size will not be exactly 5
 		5,
@@ -34,24 +34,24 @@ func TestSizeLimit_AboveMaxSize(t *testing.T) {
 
 	json := reader.GetJSON(&FileStreamState{})
 
-	assert.True(t, isTruncated)
+	assert.True(t, reader.IsAtMaxSize())
 	assert.Equal(t, []string{"one"}, json.Files[HistoryFileName].Content)
 }
 
 func TestSizeLimit_BelowMaxSize(t *testing.T) {
-	reader, isTruncated := NewRequestReader(
+	reader := NewRequestReader(
 		&FileStreamRequest{HistoryLines: []string{"one", "two"}},
 		10, // both lines will fit
 	)
 
 	json := reader.GetJSON(&FileStreamState{})
 
-	assert.False(t, isTruncated)
+	assert.False(t, reader.IsAtMaxSize())
 	assert.Equal(t, []string{"one", "two"}, json.Files[HistoryFileName].Content)
 }
 
 func TestHistory_ReadFull(t *testing.T) {
-	reader, _ := NewRequestReader(
+	reader := NewRequestReader(
 		&FileStreamRequest{HistoryLines: []string{"one", "two"}}, 999)
 	state := &FileStreamState{HistoryLineNum: 5}
 
@@ -66,7 +66,7 @@ func TestHistory_ReadFull(t *testing.T) {
 }
 
 func TestHistory_ReadPartial(t *testing.T) {
-	reader, _ := NewRequestReader(
+	reader := NewRequestReader(
 		&FileStreamRequest{HistoryLines: []string{"one", "two"}}, 3)
 	state := &FileStreamState{HistoryLineNum: 5}
 
@@ -81,7 +81,7 @@ func TestHistory_ReadPartial(t *testing.T) {
 }
 
 func TestEvents_ReadFull(t *testing.T) {
-	reader, _ := NewRequestReader(
+	reader := NewRequestReader(
 		&FileStreamRequest{EventsLines: []string{"one", "two"}}, 999)
 	state := &FileStreamState{EventsLineNum: 5}
 
@@ -96,7 +96,7 @@ func TestEvents_ReadFull(t *testing.T) {
 }
 
 func TestEvents_ReadPartial(t *testing.T) {
-	reader, _ := NewRequestReader(
+	reader := NewRequestReader(
 		&FileStreamRequest{EventsLines: []string{"one", "two"}}, 3)
 	state := &FileStreamState{EventsLineNum: 5}
 
@@ -111,7 +111,7 @@ func TestEvents_ReadPartial(t *testing.T) {
 }
 
 func TestSummary_Read(t *testing.T) {
-	reader, _ := NewRequestReader(&FileStreamRequest{LatestSummary: "summary"}, 99)
+	reader := NewRequestReader(&FileStreamRequest{LatestSummary: "summary"}, 99)
 	state := &FileStreamState{SummaryLineNum: 9}
 
 	json := reader.GetJSON(state)
@@ -127,7 +127,7 @@ func TestConsole_ReadFull(t *testing.T) {
 	req := &FileStreamRequest{}
 	req.ConsoleLines.Put(0, "line 0")
 	req.ConsoleLines.Put(1, "line 1")
-	reader, _ := NewRequestReader(req, 999)
+	reader := NewRequestReader(req, 999)
 	state := &FileStreamState{ConsoleLineOffset: 1}
 
 	json := reader.GetJSON(state)
@@ -146,7 +146,7 @@ func TestConsole_ReadPartial_OneLineBlock(t *testing.T) {
 	req := &FileStreamRequest{}
 	req.ConsoleLines.Put(0, "line 0")
 	req.ConsoleLines.Put(1, "line 1")
-	reader, _ := NewRequestReader(req, 6)
+	reader := NewRequestReader(req, 6)
 
 	json := reader.GetJSON(&FileStreamState{})
 	next, done := reader.Next()
@@ -161,7 +161,7 @@ func TestConsole_ReadPartial_ManyLineBlocks(t *testing.T) {
 	req := &FileStreamRequest{}
 	req.ConsoleLines.Put(0, "line 0")
 	req.ConsoleLines.Put(99, "line 99")
-	reader, _ := NewRequestReader(req, 6)
+	reader := NewRequestReader(req, 6)
 
 	json := reader.GetJSON(&FileStreamState{})
 	next, done := reader.Next()
@@ -173,7 +173,7 @@ func TestConsole_ReadPartial_ManyLineBlocks(t *testing.T) {
 }
 
 func TestUploadedFiles_Read(t *testing.T) {
-	reader, _ := NewRequestReader(&FileStreamRequest{
+	reader := NewRequestReader(&FileStreamRequest{
 		UploadedFiles: map[string]struct{}{
 			"file1": {},
 			"file2": {},
@@ -190,7 +190,7 @@ func TestUploadedFiles_Read(t *testing.T) {
 }
 
 func TestExitCode_Read_Done(t *testing.T) {
-	reader, _ := NewRequestReader(
+	reader := NewRequestReader(
 		&FileStreamRequest{Complete: true, ExitCode: 5}, 99)
 
 	json := reader.GetJSON(&FileStreamState{})
@@ -204,7 +204,7 @@ func TestExitCode_Read_NotDone(t *testing.T) {
 	req := &FileStreamRequest{Complete: true, ExitCode: 5}
 	req.ConsoleLines.Put(0, "line 0")
 	req.ConsoleLines.Put(9, "line 9")
-	reader, _ := NewRequestReader(req, 99)
+	reader := NewRequestReader(req, 99)
 
 	json := reader.GetJSON(&FileStreamState{})
 
