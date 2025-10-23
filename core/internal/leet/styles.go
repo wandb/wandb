@@ -143,8 +143,8 @@ var colorSchemes = map[string][]string{
 	},
 }
 
-// GetGraphColors returns the colors for the current color scheme.
-func GetGraphColors() []string {
+// GraphColors returns the colors for the current color scheme.
+func GraphColors() []string {
 	return colorSchemes["sunset-glow"]
 }
 
