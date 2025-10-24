@@ -39,7 +39,7 @@ func TestMetricsGrid_Render_EmptyGridShowsSectionHeader(t *testing.T) {
 
 	dims := grid.CalculateChartDimensions(200, 80)
 
-	out := grid.Render(dims)
+	out := grid.View(dims)
 	require.Contains(t, out, "Metrics", "section header should always be present")
 }
 
@@ -57,7 +57,7 @@ func TestMetricsGrid_Lifecycle(t *testing.T) {
 	grid.UpdateDimensions(w, h)
 
 	dims := grid.CalculateChartDimensions(w, h)
-	out := grid.Render(dims)
+	out := grid.View(dims)
 
 	a := strings.Index(out, "alpha")
 	b := strings.Index(out, "beta")
@@ -69,7 +69,7 @@ func TestMetricsGrid_Lifecycle(t *testing.T) {
 	require.Contains(t, out, " [1-2 of 3]", "expected nav info for 2-wide page over 3 total charts")
 
 	grid.Navigate(1)
-	out = grid.Render(dims)
+	out = grid.View(dims)
 	a = strings.Index(out, "alpha")
 	b = strings.Index(out, "beta")
 	z = strings.Index(out, "zeta")
