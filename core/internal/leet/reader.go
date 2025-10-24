@@ -182,7 +182,7 @@ func (r *WandbReader) recordToMsg(record *spb.Record) tea.Msg {
 
 // ParseHistory extracts metrics from a history record.
 func ParseHistory(history *spb.HistoryRecord) tea.Msg {
-	metrics := make(map[string]float64)
+	metrics := make(map[string]float64, len(history.GetItem()))
 	var step int
 
 	for _, item := range history.GetItem() {
@@ -195,7 +195,11 @@ func ParseHistory(history *spb.HistoryRecord) tea.Msg {
 		}
 
 		if key == "_step" {
-			if val, err := strconv.Atoi(strings.Trim(item.ValueJson, `"`)); err == nil {
+			v := item.ValueJson
+			if n := len(v); n >= 2 && v[0] == '"' && v[n-1] == '"' {
+				v = v[1 : n-1]
+			}
+			if val, err := strconv.Atoi(v); err == nil {
 				step = val
 			}
 			continue
@@ -205,7 +209,11 @@ func ParseHistory(history *spb.HistoryRecord) tea.Msg {
 			continue
 		}
 
-		if value, err := strconv.ParseFloat(strings.Trim(item.ValueJson, `"`), 64); err == nil {
+		v := item.ValueJson
+		if n := len(v); n >= 2 && v[0] == '"' && v[n-1] == '"' {
+			v = v[1 : n-1]
+		}
+		if value, err := strconv.ParseFloat(v, 64); err == nil {
 			metrics[key] = value
 		}
 	}
@@ -222,7 +230,7 @@ func ParseStats(stats *spb.StatsRecord) tea.Msg {
 		return nil
 	}
 
-	metrics := make(map[string]float64)
+	metrics := make(map[string]float64, len(stats.Item))
 	var timestamp int64
 
 	if stats.Timestamp != nil {
@@ -234,7 +242,11 @@ func ParseStats(stats *spb.StatsRecord) tea.Msg {
 			continue
 		}
 
-		if value, err := strconv.ParseFloat(strings.Trim(item.ValueJson, `"`), 64); err == nil {
+		v := item.ValueJson
+		if n := len(v); n >= 2 && v[0] == '"' && v[n-1] == '"' {
+			v = v[1 : n-1]
+		}
+		if value, err := strconv.ParseFloat(v, 64); err == nil {
 			metrics[item.Key] = value
 		}
 	}
