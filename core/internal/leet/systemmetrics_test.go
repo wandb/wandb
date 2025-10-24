@@ -1,6 +1,7 @@
 package leet_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,10 +10,10 @@ import (
 
 func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 	cases := []struct {
-		name      string
-		metric    string
-		wantTitle string
-		wantUnit  string
+		name     string
+		metric   string
+		wantName string
+		wantUnit string
 	}{
 		{"CPU core %", "cpu.0.cpu_percent", "CPU Core", "%"},
 		{"GPU temp", "gpu.1.temp", "GPU Temp", "°C"},
@@ -26,7 +27,7 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			def := leet.MatchMetricDef(tc.metric)
-			require.Equal(t, tc.wantTitle, def.Title, "metric: %s", tc.metric)
+			require.Equal(t, fmt.Sprintf("%s (%s)", tc.wantName, tc.wantUnit), def.Title(), "metric: %s", tc.metric)
 			require.Equal(t, tc.wantUnit, def.Unit, "metric: %s", tc.metric)
 		})
 	}
