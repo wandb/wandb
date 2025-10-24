@@ -21,3 +21,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - `wandb.Image()` no longer prints a deprecation warning (@jacobromero in https://github.com/wandb/wandb/pull/10880)
 - `Registry.description` and `ArtifactCollection.description` no longer reject empty strings (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10891)
+- Apply http headers specified using `WANDB__EXTRA_HTTP_HEADERS` for file uploads using presigned url. (@pingleiwandb in https://github.com/wandb/wandb/pull/10761)
