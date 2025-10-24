@@ -132,14 +132,14 @@ func (s *LeftSidebar) View(height int) string {
 	allLines := slices.Concat(headerLines, sectionLines)
 	content := strings.Join(allLines, "\n")
 
-	styledContent := sidebarStyle.
+	styledContent := leftSidebarStyle.
 		Width(s.animState.Width() - 1).
 		Height(height).
 		MaxWidth(s.animState.Width() - 1).
 		MaxHeight(height).
 		Render(content)
 
-	return sidebarBorderStyle.
+	return leftSidebarBorderStyle.
 		Width(s.animState.Width()).
 		Height(height).
 		MaxWidth(s.animState.Width()).
@@ -273,26 +273,26 @@ func (s *LeftSidebar) buildHeaderLines() []string {
 	lines := make([]string, 0, sidebarHeaderLines)
 
 	// Title.
-	lines = append(lines, sidebarHeaderStyle.Render(runOverviewHeader))
+	lines = append(lines, leftSidebarHeaderStyle.Render(runOverviewHeader))
 
 	// Run state from data model.
 	stateLabel := "State: "
 	stateValue := s.runStateString()
 	lines = append(lines,
-		sidebarKeyStyle.Render(stateLabel)+sidebarValueStyle.Render(stateValue))
+		leftSidebarKeyStyle.Render(stateLabel)+leftSidebarValueStyle.Render(stateValue))
 
 	// Optional metadata from data model (only if present).
 	if id := s.runOverview.ID(); id != "" {
 		lines = append(lines,
-			sidebarKeyStyle.Render("ID: ")+sidebarValueStyle.Render(id))
+			leftSidebarKeyStyle.Render("ID: ")+leftSidebarValueStyle.Render(id))
 	}
 	if name := s.runOverview.DisplayName(); name != "" {
 		lines = append(lines,
-			sidebarKeyStyle.Render("Name: ")+sidebarValueStyle.Render(name))
+			leftSidebarKeyStyle.Render("Name: ")+leftSidebarValueStyle.Render(name))
 	}
 	if project := s.runOverview.Project(); project != "" {
 		lines = append(lines,
-			sidebarKeyStyle.Render("Project: ")+sidebarValueStyle.Render(project))
+			leftSidebarKeyStyle.Render("Project: ")+leftSidebarValueStyle.Render(project))
 	}
 
 	// Blank separator line.
@@ -346,9 +346,9 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 
 // renderSectionHeader renders the section title with pagination info.
 func (s *LeftSidebar) renderSectionHeader(section *SectionView) string {
-	titleStyle := sidebarSectionStyle
+	titleStyle := leftSidebarSectionStyle
 	if section.Active {
-		titleStyle = sidebarSectionHeaderStyle
+		titleStyle = leftSidebarSectionHeaderStyle
 	}
 
 	totalItems := len(section.Items)
@@ -417,8 +417,8 @@ func (s *LeftSidebar) renderItem(
 	section *SectionView,
 	maxKeyWidth, maxValueWidth int,
 ) string {
-	keyStyle := sidebarKeyStyle
-	valueStyle := sidebarValueStyle
+	keyStyle := leftSidebarKeyStyle
+	valueStyle := leftSidebarValueStyle
 
 	// Highlight selected item.
 	if section.Active && posInPage == section.CursorPos {

@@ -20,17 +20,17 @@ func TestMetricsGridFilter_ApplyAndClear(t *testing.T) {
 	})
 	dims := grid.CalculateChartDimensions(w, h)
 
-	out := grid.Render(dims)
+	out := grid.View(dims)
 	require.Contains(t, out, "train/loss")
 	require.Contains(t, out, "accuracy")
 
 	grid.ApplyFilter("loss")
-	out = grid.Render(dims)
+	out = grid.View(dims)
 	require.Contains(t, out, "train/loss")
 	require.NotContains(t, out, "accuracy")
 
 	grid.ClearFilter()
-	out = grid.Render(dims)
+	out = grid.View(dims)
 	require.Contains(t, out, "train/loss")
 	require.Contains(t, out, "val/accuracy")
 }
@@ -46,7 +46,7 @@ func TestMetricsGridFilter_NewChartsRespectActiveFilter(t *testing.T) {
 	dims := grid.CalculateChartDimensions(w, h)
 
 	grid.ApplyFilter("loss")
-	out := grid.Render(dims)
+	out := grid.View(dims)
 	require.Contains(t, out, "train/loss")
 	require.NotContains(t, out, "accuracy")
 
@@ -56,7 +56,7 @@ func TestMetricsGridFilter_NewChartsRespectActiveFilter(t *testing.T) {
 		"val/accuracy": 0.6,
 	})
 
-	out = grid.Render(dims)
+	out = grid.View(dims)
 	require.Contains(t, out, "val/loss")
 	require.NotContains(t, out, "val/accuracy")
 }
@@ -72,13 +72,13 @@ func TestMetricsGridFilter_SwitchFilter(t *testing.T) {
 	dims := grid.CalculateChartDimensions(w, h)
 
 	grid.ApplyFilter("loss")
-	out := grid.Render(dims)
+	out := grid.View(dims)
 	require.Contains(t, out, "train/loss")
 	require.NotContains(t, out, "accuracy")
 
 	// Switch to "acc".
 	grid.ApplyFilter("acc")
-	out = grid.Render(dims)
+	out = grid.View(dims)
 	require.NotContains(t, out, "train/loss")
 	require.Contains(t, out, "accuracy")
 	require.Contains(t, out, "val/accuracy")
@@ -138,7 +138,7 @@ func TestMetricsGridFilter_EdgeCases(t *testing.T) {
 			dims := grid.CalculateChartDimensions(w, h)
 
 			grid.ApplyFilter(tt.filter)
-			view := grid.Render(dims)
+			view := grid.View(dims)
 
 			for _, chart := range tt.expectVisible {
 				require.Contains(t, view, chart, "chart should be visible")
@@ -167,7 +167,7 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 	require.GreaterOrEqual(t, grid.FilteredChartCount(), 1)
 	grid.ExitFilterMode(false) // cancel
 
-	view := grid.Render(dims)
+	view := grid.View(dims)
 	require.Contains(t, view, "loss")
 	require.Contains(t, view, "acc")
 	require.Contains(t, view, "val/acc")
@@ -180,7 +180,7 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 	})
 	grid.ExitFilterMode(true)
 
-	view = grid.Render(dims)
+	view = grid.View(dims)
 	require.Contains(t, view, "acc")
 	require.Contains(t, view, "val/acc")
 	require.NotContains(t, view, "loss")     // filtered out
@@ -212,7 +212,7 @@ func TestMetricsGridFilter_ConcurrentApplyAndUpdate_NoDeadlock(t *testing.T) {
 
 	wg.Wait()
 
-	out := grid.Render(grid.CalculateChartDimensions(w, h))
+	out := grid.View(grid.CalculateChartDimensions(w, h))
 	require.NotEmpty(t, out, "grid should render")
 	require.True(t, strings.Contains(out, "Metrics"), "section header should render")
 }
