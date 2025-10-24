@@ -31,7 +31,7 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator, SizedPaginator
 from wandb.errors.term import termlog
-from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.artifacts._generated import (
     ADD_ARTIFACT_COLLECTION_TAGS_GQL,
@@ -66,7 +66,7 @@ from wandb.sdk.artifacts._generated import (
     UpdateArtifactPortfolioInput,
     UpdateArtifactSequenceInput,
 )
-from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields, server_supports
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.artifacts._models.pagination import (
     ArtifactCollectionConnection,
@@ -75,7 +75,6 @@ from wandb.sdk.artifacts._models.pagination import (
     RunArtifactConnection,
 )
 from wandb.sdk.artifacts._validators import FullArtifactPath, validate_artifact_type
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
 from .utils import gql_compat
@@ -917,8 +916,8 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         names: Sequence[str] | None = None,
         per_page: int = 50,
     ):
-        self.query_via_membership = InternalApi()._server_supports(
-            ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+        self.query_via_membership = server_supports(
+            client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         )
         self.artifact = artifact
 
