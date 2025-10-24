@@ -1,11 +1,13 @@
 package leet
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/pkg/leveldb"
@@ -14,6 +16,9 @@ import (
 )
 
 const wandbStoreVersion = 0
+
+// Reuse buffers to reduce per-record allocations during preload.
+var bufPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
 
 // LiveStore is the persistent store for a stream that may be actively
 // written to by another process.
@@ -55,15 +60,18 @@ func (lr *LiveStore) Read() (*spb.Record, error) {
 		return nil, err // include io.EOF (soft)
 	}
 
-	buf, err := io.ReadAll(rdr)
-	if err != nil {
+	// Read into a pooled buffer to avoid per-record []byte allocations.
+	b := bufPool.Get().(*bytes.Buffer)
+	b.Reset()
+	defer bufPool.Put(b)
+	if _, err := b.ReadFrom(rdr); err != nil {
 		return nil, fmt.Errorf("livestore: read record body: %w", err)
 	}
 
 	msg := &spb.Record{}
-	if err := proto.Unmarshal(buf, msg); err != nil {
+	if err := proto.Unmarshal(b.Bytes(), msg); err != nil {
 		// Helpful debug: print first bytes of the payload
-		head := buf
+		head := b.Bytes()
 		if len(head) > 32 {
 			head = head[:32]
 		}
