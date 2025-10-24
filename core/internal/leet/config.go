@@ -2,9 +2,11 @@ package leet
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,9 +24,11 @@ const (
 )
 
 const (
+	envConfigDir   = "WANDB_CONFIG_DIR"
+	leetConfigName = "wandb-leet.json"
+
 	// Chart grid size constraints.
-	MinGridSize = 1
-	MaxGridSize = 9
+	MinGridSize, MaxGridSize = 1, 9
 
 	ColorModePerPlot   = "per_plot"   // Each chart gets next color
 	ColorModePerSeries = "per_series" // All charts use base color, multi-series differentiate
@@ -344,4 +348,85 @@ func (cm *ConfigManager) SetRightSidebarVisible(visible bool) error {
 	defer cm.mu.Unlock()
 	cm.config.RightSidebarVisible = visible
 	return cm.save()
+}
+
+// leetConfigPath returns the path where the config should be stored.
+//
+// Matches the Python logic (same directory as the system "settings" file),
+// with fallbacks to UserConfigDir and a temp dir.
+func leetConfigPath() string {
+	// 1) Honor WANDB_CONFIG_DIR (like in Python)
+	if raw := strings.TrimSpace(os.Getenv(envConfigDir)); raw != "" {
+		if p, ok := configPathFromDir(raw); ok {
+			return p
+		}
+	}
+
+	// 2) Default to ~/.config/wandb (like in Python)
+	if home, err := os.UserHomeDir(); err == nil {
+		if p, ok := configPathFromDir(filepath.Join(home, ".config", "wandb")); ok {
+			return p
+		}
+	}
+
+	// 3) Fallback: OS user config dir (/wandb)
+	if base, err := os.UserConfigDir(); err == nil {
+		if p, ok := configPathFromDir(filepath.Join(base, "wandb")); ok {
+			return p
+		}
+	}
+
+	// 4) Last resort: a fresh temp dir
+	if tmp, err := os.MkdirTemp("", "wandb-leet-*"); err == nil {
+		return filepath.Join(tmp, leetConfigName)
+	}
+
+	// Extremely unlikely final fallback
+	return filepath.Join(os.TempDir(), leetConfigName)
+}
+
+func configPathFromDir(dir string) (string, bool) {
+	d := expandAndClean(dir)
+	if err := ensureWritableDir(d); err != nil {
+		return "", false
+	}
+	return filepath.Join(d, leetConfigName), true
+}
+
+func expandAndClean(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return p
+	}
+	if strings.HasPrefix(p, "~") {
+		if home, err := os.UserHomeDir(); err == nil {
+			if len(p) == 1 {
+				p = home
+			} else if p[1] == '/' || p[1] == '\\' {
+				p = filepath.Join(home, p[2:])
+			}
+		}
+	}
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	return filepath.Clean(p)
+}
+
+// ensureWritableDir verifies directory writability without leaving files behind.
+func ensureWritableDir(dir string) error {
+	if dir == "" {
+		return errors.New("empty dir")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(dir, ".wandb-leet-writecheck-*")
+	if err != nil {
+		return err
+	}
+	name := f.Name()
+	_ = f.Close()
+	_ = os.Remove(name)
+	return nil
 }
