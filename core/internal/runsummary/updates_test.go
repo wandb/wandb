@@ -36,6 +36,15 @@ func TestUpdates_Apply_InsertsRemovesAndCollectsErrors(t *testing.T) {
 	assert.ErrorContains(t, err, "oops")
 }
 
+func TestUpdates_Apply_NilMakesNoChanges(t *testing.T) {
+	rs := runsummary.New()
+
+	var nilUpdates *runsummary.Updates
+	err := nilUpdates.Apply(rs)
+
+	assert.NoError(t, err)
+}
+
 func TestUpdates_Merge(t *testing.T) {
 	u1 := runsummary.FromProto(&spb.SummaryRecord{
 		Update: []*spb.SummaryItem{

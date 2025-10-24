@@ -83,6 +83,10 @@ func (u *Updates) Merge(newUpdates *Updates) {
 // A partial success is possible if some values' JSON strings cannot be
 // unmarshaled.
 func (u *Updates) Apply(rs *RunSummary) error {
+	if u == nil {
+		return nil
+	}
+
 	var errs []error
 
 	u.update.ForEachLeaf(
