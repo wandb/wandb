@@ -69,3 +69,6 @@ type ChunkedBatchMsg struct {
 
 // HeartbeatMsg is sent periodically for live runs to ensure we don't miss data.
 type HeartbeatMsg struct{}
+
+// RightSidebarAnimationMsg is sent during right sidebar animations.
+type RightSidebarAnimationMsg struct{}
