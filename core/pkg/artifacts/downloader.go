@@ -1,7 +1,9 @@
 package artifacts
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -20,6 +22,7 @@ const (
 	MAX_BACKLOG int = 5000
 )
 
+// ArtifactDownloader downloads
 type ArtifactDownloader struct {
 	// Resources
 	Ctx             context.Context
@@ -64,7 +67,8 @@ func NewArtifactDownloader(
 	}
 }
 
-func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest Manifest, rerr error) {
+func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (Manifest, error) {
+	// Get manifest json download (presigned) url
 	response, err := gql.ArtifactManifest(
 		ad.Ctx,
 		ad.GraphqlClient,
@@ -73,7 +77,7 @@ func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest M
 	if err != nil {
 		return Manifest{}, err
 	} else if response == nil {
-		return Manifest{}, fmt.Errorf("could not get manifest for artifact")
+		return Manifest{}, fmt.Errorf("could not get manifest download url for artifact")
 	}
 	artifact := response.Artifact
 	if artifact == nil {
@@ -84,9 +88,15 @@ func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest M
 		return Manifest{}, fmt.Errorf("could not access manifest for artifact")
 	}
 	directURL := artifactManifest.GetFile().DirectUrl
-	manifest, err = loadManifestFromURL(directURL)
-	if err != nil {
-		return Manifest{}, err
+
+	// Download and decode json
+	var buf bytes.Buffer
+	if err := ad.DownloadManager.DownloadTo(directURL, &buf); err != nil {
+		return Manifest{}, fmt.Errorf("download artifact manifest failed: %s", err)
+	}
+	var manifest Manifest
+	if err = json.Unmarshal(buf.Bytes(), &manifest); err != nil {
+		return Manifest{}, fmt.Errorf("decode manifest JSON failed: %s", err)
 	}
 	return manifest, nil
 }
