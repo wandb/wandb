@@ -13,6 +13,9 @@ const (
 	MinChartHeight       = 5
 	MinMetricChartWidth  = 18
 	MinMetricChartHeight = 4
+	ChartBorderSize      = 2
+	ChartTitleHeight     = 1
+	ChartHeaderHeight    = 2
 )
 
 // Default grid sizes
