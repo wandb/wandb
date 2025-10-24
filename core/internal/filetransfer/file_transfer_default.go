@@ -112,6 +112,26 @@ func attachErrorResponseBody(errPrefix string, resp *http.Response) error {
 	return fmt.Errorf("%s: body: %s", errPrefix, string(body))
 }
 
+// DownloadTo download a small file directly to a writer (e.g. in memory buffer).
+// It is currently used for downloading artifact manifest json file.
+func (ft *DefaultFileTransfer) DownloadTo(u string, w io.Writer) error {
+	req, err := ft.newRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := ft.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return attachErrorResponseBody("file transfer: downloadTo: failed to download: status: "+resp.Status,
+			resp)
+	}
+	_, err = io.Copy(w, resp.Body)
+	return err
+}
+
 // Download implements FileTransfer.Download
 func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)

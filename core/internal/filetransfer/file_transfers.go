@@ -1,18 +1,23 @@
 package filetransfer
 
 import (
+	"io"
+
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+// FileTransfer handles run files and normal aritfacts.
 type FileTransfer interface {
 	// Upload uploads a file to the server.
 	Upload(task *DefaultUploadTask) error
 
 	// Download downloads a file from the server
 	Download(task *DefaultDownloadTask) error
+	DownloadTo(u string, w io.Writer) error
 }
 
+// ArtifactFileTransfer handles reference artifacts.
 type ArtifactFileTransfer interface {
 	// Upload uploads a file to the server.
 	Upload(task *DefaultUploadTask) error
