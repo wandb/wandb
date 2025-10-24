@@ -961,8 +961,8 @@ class Api:
             entity: Name of the entity requested.  If None, will fall back to
                 the default entity passed to `Api`.  If no default entity,
                 will raise a `ValueError`.
-            per_page: Sets the page size for query pagination. If set to `None`,
-                use the default size. Usually there is no reason to change this.
+            per_page: Sets the page size for query pagination.
+                Usually there is no reason to change this.
 
         Returns:
             A `Projects` object which is an iterable collection of `Project`objects.
@@ -1018,9 +1018,8 @@ class Api:
                 entity that created the project as a prefix followed by a
                 forward slash.
             name: Name of the report requested.
-            per_page: Sets the page size for query pagination. If set to
-                `None`, use the default size. Usually there is no reason to
-                change this.
+            per_page: Sets the page size for query pagination.
+                Usually there is no reason to change this.
 
         Returns:
             A `Reports` object which is an iterable collection of
@@ -1383,7 +1382,7 @@ class Api:
         Args:
             project_name: The name of the project to filter on.
             type_name: The name of the artifact type to filter on.
-            per_page: Sets the page size for query pagination.  None will use the default size.
+            per_page: Sets the page size for query pagination.
                 Usually there is no reason to change this.
 
         Returns:
@@ -1486,9 +1485,8 @@ class Api:
         name: The artifact's collection name. Optionally append the
             entity that logged the artifact as a prefix followed by
             a forward slash.
-        per_page: Sets the page size for query pagination. If set to
-            `None`, use the default size. Usually there is no reason
-            to change this.
+        per_page: Sets the page size for query pagination. Usually
+            there is no reason to change this.
         tags: Only return artifacts with all of these tags.
 
         Returns:
@@ -1791,6 +1789,7 @@ class Api:
         self,
         organization: str | None = None,
         filter: dict[str, Any] | None = None,
+        per_page: int = 100,
     ) -> Registries:
         """Returns a lazy iterator of `Registry` objects.
 
@@ -1807,6 +1806,7 @@ class Api:
                     `name`, `tag`, `description`, `created_at`, `updated_at`
                 Fields available to filter for versions are
                     `tag`, `alias`, `created_at`, `updated_at`, `metadata`
+            per_page: Sets the page size for query pagination.
 
         Returns:
             A lazy iterator of `Registry` objects.
@@ -1852,7 +1852,9 @@ class Api:
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
-        return Registries(self.client, organization, filter)
+        return Registries(
+            self.client, organization=organization, filter=filter, per_page=per_page
+        )
 
     @tracked
     def registry(self, name: str, organization: str | None = None) -> Registry:
