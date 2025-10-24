@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Collection, Literal, Mapping, Sequence
 
 from wandb._strutils import ensureprefix
 from wandb.sdk.artifacts._validators import (
@@ -28,7 +28,7 @@ class Visibility(str, Enum):
 
 
 def format_gql_artifact_types_input(
-    artifact_types: list[str] | None,
+    artifact_types: Collection[str] | None,
 ) -> list[dict[str, str]]:
     """Format the artifact types for the GQL input.
 
@@ -38,7 +38,7 @@ def format_gql_artifact_types_input(
     Returns:
         The artifact types for the GQL input.
     """
-    if artifact_types is None:
+    if not artifact_types:
         return []
     return [{"name": typ} for typ in validate_artifact_types_list(artifact_types)]
 

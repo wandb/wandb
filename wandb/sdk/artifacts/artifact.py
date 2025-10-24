@@ -111,7 +111,7 @@ from ._gqlutils import (
 )
 from ._models.pagination import FileWithUrlConnection
 from ._validators import (
-    LINKED_ARTIFACT_COLLECTION_TYPE,
+    LINKED_COLLECTION_TYPENAME,
     ArtifactPath,
     FullArtifactPath,
     _LinkArtifactFields,
@@ -303,7 +303,7 @@ class Artifact:
         src_collection = artifact.artifact_sequence
         src_project = src_collection.project
 
-        entity_name = src_project.entity_name if src_project else ""
+        entity_name = src_project.entity.name if src_project else ""
         project_name = src_project.name if src_project else ""
 
         name = f"{src_collection.name}:v{artifact.version_index}"
@@ -398,7 +398,7 @@ class Artifact:
                 f"Your request was redirected to the corresponding artifact {name!r} in the new registry. "
                 f"Please update your paths to point to the migrated registry directly, '{proj.name}/{name}'."
             )
-            new_target = replace(target, prefix=proj.entity_name, project=proj.name)
+            new_target = replace(target, prefix=proj.entity.name, project=proj.name)
         else:
             new_target = copy(target)
 
@@ -446,7 +446,7 @@ class Artifact:
         src_collection = art.artifact_sequence
         src_project = src_collection.project
 
-        self._source_entity = src_project.entity_name if src_project else ""
+        self._source_entity = src_project.entity.name if src_project else ""
         self._source_project = src_project.name if src_project else ""
         self._source_name = f"{src_collection.name}:v{art.version_index}"
         self._source_version = f"v{art.version_index}"
@@ -483,7 +483,7 @@ class Artifact:
                 if (
                     (coll := art_alias.artifact_collection)
                     and (proj := coll.project)
-                    and proj.entity_name == entity
+                    and proj.entity.name == entity
                     and proj.name == project
                     and coll.name == collection
                 )
@@ -2514,7 +2514,7 @@ class Artifact:
         ):
             run_nodes = (e.node for e in edges)
             return [
-                Run(self._client, proj.entity_name, proj.name, run.name)
+                Run(self._client, proj.entity.name, proj.name, run.name)
                 for run in run_nodes
                 if (proj := run.project)
             ]
@@ -2544,7 +2544,7 @@ class Artifact:
             and (name := creator.name)
             and (project := creator.project)
         ):
-            return Run(self._client, project.entity_name, project.name, name)
+            return Run(self._client, project.entity.name, project.name, name)
         return None
 
     @ensure_logged
@@ -2619,7 +2619,7 @@ class Artifact:
             if (
                 (node := edge.node)
                 and (col := node.artifact_collection)
-                and (col.typename__ == LINKED_ARTIFACT_COLLECTION_TYPE)
+                and (col.typename__ == LINKED_COLLECTION_TYPENAME)
             )
         )
         for node in linked_nodes:
@@ -2635,12 +2635,12 @@ class Artifact:
                 node
                 and (col := node.artifact_collection)
                 and (proj := col.project)
-                and (proj.entity_name and proj.name)
+                and (proj.entity.name and proj.name)
             ):
                 raise ValueError("Unable to fetch fields for linked artifact")
 
             link_fields = _LinkArtifactFields(
-                entity_name=proj.entity_name,
+                entity_name=proj.entity.name,
                 project_name=proj.name,
                 name=f"{col.name}:{version}",
                 version=version,

@@ -33,7 +33,7 @@ query RegistryCollections(
   $organization: String!
   $registryFilter: JSONString
   $collectionFilter: JSONString
-  $collectionTypes: [ArtifactCollectionType!]
+  $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO]
   $cursor: String
   $perPage: Int
 ) {
@@ -105,28 +105,30 @@ query FetchRegistries(
 ) {
   organization(name: $organization) {
     orgEntity {
-      name
       projects(filters: $filters, after: $cursor, first: $perPage) {
-        ...RegistryConnectionFragment
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...RegistryFragment
+          }
+        }
       }
     }
   }
 }
 
-fragment RegistryConnectionFragment on ProjectConnection {
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      ...RegistryFragment
-    }
-  }
-}
-
 fragment RegistryFragment on Project {
+  __typename
   id
   name
+  entity {
+    name
+    organization {
+      name
+    }
+  }
   description
   createdAt
   updatedAt
@@ -147,7 +149,7 @@ mutation RenameRegistry($input: RenameProjectInput!) {
   renameProject(input: $input) {
     inserted
     project {
-      name
+      ...RegistryFragment
     }
   }
 }

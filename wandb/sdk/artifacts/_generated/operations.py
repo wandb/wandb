@@ -209,10 +209,10 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment TagFragment on Tag {
@@ -269,10 +269,10 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment TagFragment on Tag {
@@ -535,7 +535,6 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
 
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -549,15 +548,14 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment SourceCollectionInfoFragment on ArtifactSequence {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -639,7 +637,6 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
 
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -653,10 +650,10 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
@@ -673,7 +670,6 @@ fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
 
 fragment SourceCollectionInfoFragment on ArtifactSequence {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -742,7 +738,6 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
 
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -756,10 +751,10 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
@@ -776,7 +771,6 @@ fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
 
 fragment SourceCollectionInfoFragment on ArtifactSequence {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -796,10 +790,10 @@ query FetchLinkedArtifacts($artifactID: ID!) {
     artifactMemberships {
       edges {
         node {
+          versionIndex
           aliases {
             ...ArtifactAliasFragment
           }
-          versionIndex
           artifactCollection {
             __typename
             ...CollectionInfoFragment
@@ -818,7 +812,6 @@ fragment ArtifactAliasFragment on ArtifactAlias {
 
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -826,10 +819,10 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 """
 
@@ -900,7 +893,6 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
 
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -908,15 +900,14 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment SourceCollectionInfoFragment on ArtifactSequence {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -983,7 +974,6 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
 
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -991,15 +981,14 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment SourceCollectionInfoFragment on ArtifactSequence {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -1081,7 +1070,6 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
 
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -1089,15 +1077,14 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment SourceCollectionInfoFragment on ArtifactSequence {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -1125,10 +1112,10 @@ query ArtifactUsedBy($id: ID!) {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment RunInfoFragment on Run {
@@ -1154,10 +1141,10 @@ query ArtifactCreatedBy($id: ID!) {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment RunInfoFragment on Run {
@@ -1251,7 +1238,6 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
 
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -1259,15 +1245,14 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment SourceCollectionInfoFragment on ArtifactSequence {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -1360,7 +1345,6 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
 
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -1368,15 +1352,14 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment SourceCollectionInfoFragment on ArtifactSequence {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -1525,7 +1508,6 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
 
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -1539,15 +1521,14 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment SourceCollectionInfoFragment on ArtifactSequence {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -1562,7 +1543,7 @@ fragment TagFragment on Tag {
 """
 
 REGISTRY_COLLECTIONS_GQL = """
-query RegistryCollections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $collectionTypes: [ArtifactCollectionType!], $cursor: String, $perPage: Int) {
+query RegistryCollections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO], $cursor: String, $perPage: Int) {
   organization(name: $organization) {
     orgEntity {
       name
@@ -1601,10 +1582,10 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 fragment RegistryCollectionFragment on ArtifactCollection {
@@ -1652,8 +1633,15 @@ query FetchRegistry($name: String, $entity: String) {
 }
 
 fragment RegistryFragment on Project {
+  __typename
   id
   name
+  entity {
+    name
+    organization {
+      name
+    }
+  }
   description
   createdAt
   updatedAt
@@ -1673,9 +1661,15 @@ FETCH_REGISTRIES_GQL = """
 query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
   organization(name: $organization) {
     orgEntity {
-      name
       projects(filters: $filters, after: $cursor, first: $perPage) {
-        ...RegistryConnectionFragment
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...RegistryFragment
+          }
+        }
       }
     }
   }
@@ -1687,20 +1681,16 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
-fragment RegistryConnectionFragment on ProjectConnection {
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      ...RegistryFragment
-    }
-  }
-}
-
 fragment RegistryFragment on Project {
+  __typename
   id
   name
+  entity {
+    name
+    organization {
+      name
+    }
+  }
   description
   createdAt
   updatedAt
@@ -1721,7 +1711,31 @@ mutation RenameRegistry($input: RenameProjectInput!) {
   renameProject(input: $input) {
     inserted
     project {
+      ...RegistryFragment
+    }
+  }
+}
+
+fragment RegistryFragment on Project {
+  __typename
+  id
+  name
+  entity {
+    name
+    organization {
       name
+    }
+  }
+  description
+  createdAt
+  updatedAt
+  access
+  allowAllArtifactTypesInRegistry
+  artifactTypes(includeAll: true) {
+    edges {
+      node {
+        name
+      }
     }
   }
 }
@@ -1738,8 +1752,15 @@ mutation UpsertRegistry($input: UpsertModelInput!) {
 }
 
 fragment RegistryFragment on Project {
+  __typename
   id
   name
+  entity {
+    name
+    organization {
+      name
+    }
+  }
   description
   createdAt
   updatedAt

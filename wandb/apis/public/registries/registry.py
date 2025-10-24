@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
+from pydantic import PositiveInt
 from wandb_gql import gql
 
 import wandb
@@ -13,13 +14,19 @@ from wandb.sdk.artifacts._generated import (
     RENAME_REGISTRY_GQL,
     UPSERT_REGISTRY_GQL,
     DeleteRegistry,
+    FetchRegistry,
+    RegistryFragment,
     RenameProjectInput,
     RenameRegistry,
     UpsertModelInput,
     UpsertRegistry,
 )
 from wandb.sdk.artifacts._gqlutils import server_supports
-from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
+from wandb.sdk.artifacts._validators import (
+    REGISTRY_PREFIX,
+    remove_registry_prefix,
+    validate_project_name,
+)
 
 from ._freezable_list import AddOnlyArtifactTypesList
 from ._utils import (
@@ -43,7 +50,7 @@ class Registry:
         organization: str,
         entity: str,
         name: str,
-        attrs: dict[str, Any] | None = None,
+        attrs: RegistryFragment | None = None,
     ):
         self.client = client
         self._name = name
@@ -53,22 +60,25 @@ class Registry:
         if attrs is not None:
             self._update_attributes(attrs)
 
-    def _update_attributes(self, attrs: dict[str, Any]) -> None:
+    def _update_attributes(self, attrs: RegistryFragment) -> None:
         """Helper method to update instance attributes from a dictionary."""
-        self._id = attrs.get("id", "")
-        if self._id is None:
-            raise ValueError(f"Registry {self.name}'s id is not found")
+        self._id = attrs.id
 
-        self._description = attrs.get("description", "")
-        self._allow_all_artifact_types = attrs.get(
-            "allowAllArtifactTypesInRegistry", False
-        )
+        registry_name = remove_registry_prefix(attrs.name)
+        self._saved_name = registry_name
+        self._name = registry_name
+
+        self._entity = attrs.entity.name
+        self._organization = attrs.entity.organization.name
+
+        self._description = attrs.description
+        self._allow_all_artifact_types = attrs.allow_all_artifact_types_in_registry
         self._artifact_types = AddOnlyArtifactTypesList(
-            t["node"]["name"] for t in attrs.get("artifactTypes", {}).get("edges", [])
+            node.name for edge in attrs.artifact_types.edges if (node := edge.node)
         )
-        self._created_at = attrs.get("createdAt", "")
-        self._updated_at = attrs.get("updatedAt", "")
-        self._visibility = gql_to_registry_visibility(attrs.get("access", ""))
+        self._created_at = attrs.created_at
+        self._updated_at = attrs.updated_at or ""
+        self._visibility = gql_to_registry_visibility(attrs.access or "")
 
     @property
     def full_name(self) -> str:
@@ -186,16 +196,31 @@ class Registry:
         self._visibility = value
 
     @tracked
-    def collections(self, filter: dict[str, Any] | None = None) -> Collections:
+    def collections(
+        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
+    ) -> Collections:
         """Returns the collections belonging to the registry."""
-        registry_filter = {"name": self.full_name}
-        return Collections(self.client, self.organization, registry_filter, filter)
+        return Collections(
+            client=self.client,
+            organization=self.organization,
+            registry_filter={"name": self.full_name},
+            collection_filter=filter,
+            per_page=per_page,
+        )
 
     @tracked
-    def versions(self, filter: dict[str, Any] | None = None) -> Versions:
+    def versions(
+        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
+    ) -> Versions:
         """Returns the versions belonging to the registry."""
-        registry_filter = {"name": self.full_name}
-        return Versions(self.client, self.organization, registry_filter, None, filter)
+        return Versions(
+            client=self.client,
+            organization=self.organization,
+            registry_filter={"name": self.full_name},
+            collection_filter=None,
+            artifact_filter=filter,
+            per_page=per_page,
+        )
 
     @classmethod
     @tracked
@@ -228,79 +253,73 @@ class Registry:
             ValueError: If a registry with the same name already exists in the
                 organization or if the creation fails.
         """
-        org_entity = fetch_org_entity_from_organization(client, organization)
-        full_name = REGISTRY_PREFIX + name
-        validate_project_name(full_name)
-        accepted_artifact_types = []
-        if artifact_types:
-            accepted_artifact_types = format_gql_artifact_types_input(artifact_types)
-        visibility_value = registry_visibility_to_gql(visibility)
-        registry_creation_error = (
+        failed_msg = (
             f"Failed to create registry {name!r} in organization {organization!r}."
         )
+
+        org_entity = fetch_org_entity_from_organization(client, organization)
+        project_name = validate_project_name(f"{REGISTRY_PREFIX}{name}")
+        accepted_artifact_types = format_gql_artifact_types_input(artifact_types)
+        visibility_value = registry_visibility_to_gql(visibility)
+
+        gql_op = gql(UPSERT_REGISTRY_GQL)
+        gql_input = UpsertModelInput(
+            description=description,
+            entity_name=org_entity,
+            name=project_name,
+            access=visibility_value,
+            allow_all_artifact_types_in_registry=not artifact_types,
+            artifact_types=accepted_artifact_types,
+        )
+        gql_vars = {"input": gql_input.model_dump()}
         try:
-            gql_input = UpsertModelInput(
-                description=description,
-                entity_name=org_entity,
-                name=full_name,
-                access=visibility_value,
-                allow_all_artifact_types_in_registry=not accepted_artifact_types,
-                artifact_types=accepted_artifact_types,
-            )
-            response = client.execute(
-                gql(UPSERT_REGISTRY_GQL),
-                variable_values={"input": gql_input.model_dump()},
-            )
-        except Exception:
-            raise ValueError(registry_creation_error)
-        if not response["upsertModel"]["inserted"]:
-            raise ValueError(registry_creation_error)
+            data = client.execute(gql_op, variable_values=gql_vars)
+            result = UpsertRegistry.model_validate(data).upsert_model
+        except Exception as e:
+            raise ValueError(failed_msg) from e
+        if not (result and result.inserted and result.project):
+            raise ValueError(failed_msg)
 
         return Registry(
             client,
-            organization,
-            org_entity,
-            name,
-            response["upsertModel"]["project"],
+            organization=organization,
+            entity=org_entity,
+            name=name,
+            attrs=result.project,
         )
 
     @tracked
     def delete(self) -> None:
         """Delete the registry. This is irreversible."""
+        failed_msg = f"Failed to delete registry {self.name!r} in organization {self.organization!r}"
+
+        gql_op = gql(DELETE_REGISTRY_GQL)
+        gql_vars = {"id": self._id}
         try:
-            response = self.client.execute(
-                gql(DELETE_REGISTRY_GQL), variable_values={"id": self._id}
-            )
-            result = DeleteRegistry.model_validate(response)
-        except Exception:
-            raise ValueError(
-                f"Failed to delete registry: {self.name!r} in organization: {self.organization!r}"
-            )
-        if not result.delete_model.success:
-            raise ValueError(
-                f"Failed to delete registry: {self.name!r} in organization: {self.organization!r}"
-            )
+            data = self.client.execute(gql_op, variable_values=gql_vars)
+            result = DeleteRegistry.model_validate(data).delete_model
+        except Exception as e:
+            raise ValueError(failed_msg) from e
+        if not (result and result.success):
+            raise ValueError(failed_msg)
 
     @tracked
     def load(self) -> None:
         """Load the registry attributes from the backend to reflect the latest saved state."""
-        load_failure_message = (
-            f"Failed to load registry {self.name!r} "
-            f"in organization {self.organization!r}."
-        )
+        failed_msg = f"Failed to load registry {self.name!r} in organization {self.organization!r}."
+
+        gql_op = gql(FETCH_REGISTRY_GQL)
+        gql_vars = {"name": self.full_name, "entity": self.entity}
         try:
-            response = self.client.execute(
-                gql(FETCH_REGISTRY_GQL),
-                variable_values={"name": self.full_name, "entity": self.entity},
-            )
-        except Exception:
-            raise ValueError(load_failure_message)
-        if response["entity"] is None:
-            raise ValueError(load_failure_message)
-        self.attrs = response["entity"]["project"]
-        if self.attrs is None:
-            raise ValueError(load_failure_message)
-        self._update_attributes(self.attrs)
+            data = self.client.execute(gql_op, variable_values=gql_vars)
+            result = FetchRegistry.model_validate(data)
+        except Exception as e:
+            raise ValueError(failed_msg) from e
+
+        if not ((entity := result.entity) and (registry_project := entity.project)):
+            raise ValueError(failed_msg)
+
+        self._update_attributes(registry_project)
 
     @tracked
     def save(self) -> None:
@@ -309,7 +328,7 @@ class Registry:
             self.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
             raise RuntimeError(
-                "saving the registry is not enabled on this wandb server version. "
+                "Saving the registry is not enabled on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
@@ -318,50 +337,60 @@ class Registry:
                 f"Cannot update artifact types when `allows_all_artifact_types` is {True!r}. Set it to {False!r} first."
             )
 
-        validate_project_name(self.full_name)
-        visibility_value = registry_visibility_to_gql(self.visibility)
+        failed_msg = f"Failed to save and update registry {self.name!r} in organization {self.organization!r}"
+
+        old_project_name = validate_project_name(f"{REGISTRY_PREFIX}{self._saved_name}")
+        new_project_name = validate_project_name(self.full_name)
+
+        visibility = registry_visibility_to_gql(self.visibility)
         newly_added_types = format_gql_artifact_types_input(self.artifact_types.draft)
-        registry_save_error = f"Failed to save and update registry: {self.name} in organization: {self.organization}"
-        full_saved_name = f"{REGISTRY_PREFIX}{self._saved_name}"
+
+        upsert_op = gql(UPSERT_REGISTRY_GQL)
+        upsert_input = UpsertModelInput(
+            description=self.description,
+            entity_name=self.entity,
+            name=old_project_name,
+            access=visibility,
+            allow_all_artifact_types_in_registry=self.allow_all_artifact_types,
+            artifact_types=newly_added_types,
+        )
+        upsert_vars = {"input": upsert_input.model_dump()}
         try:
-            gql_input = UpsertModelInput(
-                description=self.description,
-                entity_name=self.entity,
-                name=full_saved_name,
-                access=visibility_value,
-                allow_all_artifact_types_in_registry=self.allow_all_artifact_types,
-                artifact_types=newly_added_types,
-            )
-            response = self.client.execute(
-                gql(UPSERT_REGISTRY_GQL),
-                variable_values={"input": gql_input.model_dump()},
-            )
-            result = UpsertRegistry.model_validate(response)
-        except Exception:
-            raise ValueError(registry_save_error)
-        if result.upsert_model.inserted:
+            data = self.client.execute(upsert_op, variable_values=upsert_vars)
+            result = UpsertRegistry.model_validate(data).upsert_model
+        except Exception as e:
+            raise ValueError(failed_msg) from e
+
+        if result and result.inserted:
             # This is not suppose trigger unless the user has messed with the `_saved_name` variable
             wandb.termlog(
                 f"Created registry {self.name!r} in organization {self.organization!r} on save"
             )
-        self._update_attributes(response["upsertModel"]["project"])
+
+        if not (result and (registry_project := result.project)):
+            raise ValueError(failed_msg)
+
+        self._update_attributes(registry_project)
 
         # Update the name of the registry if it has changed
-        if self._saved_name != self.name:
-            gql_input = RenameProjectInput(
+        if old_project_name != new_project_name:
+            rename_op = gql(RENAME_REGISTRY_GQL)
+            rename_input = RenameProjectInput(
                 entity_name=self.entity,
-                old_project_name=full_saved_name,
-                new_project_name=self.full_name,
+                old_project_name=old_project_name,
+                new_project_name=new_project_name,
             )
-            response = self.client.execute(
-                gql(RENAME_REGISTRY_GQL),
-                variable_values={"input": gql_input.model_dump()},
-            )
-            result = RenameRegistry.model_validate(response)
-            self._saved_name = self.name
-            if result.rename_project.inserted:
+            rename_vars = {"input": rename_input.model_dump()}
+            data = self.client.execute(rename_op, variable_values=rename_vars)
+            result = RenameRegistry.model_validate(data).rename_project
+            if not (result and (registry_project := result.project)):
+                raise ValueError(failed_msg)
+
+            if result.inserted:
                 # This is not suppose trigger unless the user has messed with the `_saved_name` variable
                 wandb.termlog(f"Created new registry {self.name!r} on save")
+
+            self._update_attributes(registry_project)
 
     def _no_updating_registry_types(self) -> bool:
         # artifact types draft means user assigned types to add that are not yet saved

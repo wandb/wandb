@@ -38,7 +38,6 @@ fragment ArtifactCollectionSummary on ArtifactCollection {
 mutation DeleteArtifactSequence($id: ID!) {
   deleteArtifactSequence(input: { artifactSequenceID: $id }) {
     artifactCollection {
-      __typename
       state
     }
   }
@@ -47,7 +46,6 @@ mutation DeleteArtifactSequence($id: ID!) {
 mutation DeleteArtifactPortfolio($id: ID!) {
   deleteArtifactPortfolio(input: { artifactPortfolioID: $id }) {
     artifactCollection {
-      __typename
       state
     }
   }

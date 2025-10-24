@@ -144,26 +144,22 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
         aliases=[
             {
                 "id": "FAKE_ALIAS_ID",
+                "alias": "v0",
                 "artifactCollection": {
                     "__typename": "ArtifactSequence",
-                    "id": "FAKE_SEQUENCE_ID",
-                    "project": {
-                        "id": "FAKE_PROJECT_ID",
-                        "entityName": path.prefix,
-                        "name": path.project,
-                    },
                     "name": path.name,
+                    "project": {
+                        "name": path.project,
+                        "entity": {"name": path.prefix},
+                    },
                 },
-                "alias": "v0",
             }
         ],
         artifactSequence={
-            "id": "FAKE_SEQUENCE_ID",
             "name": "FAKE_SEQUENCE_NAME",
             "project": {
-                "id": "FAKE_PROJECT_ID",
-                "entityName": path.prefix,
                 "name": path.project,
+                "entity": {"name": path.prefix},
             },
         },
         versionIndex=0,
