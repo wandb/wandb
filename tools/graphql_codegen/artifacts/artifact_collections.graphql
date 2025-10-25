@@ -19,17 +19,8 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   }
 }
 
-# A smaller fragment on ArtifactCollection that only includes minimal descriptive fields.
-fragment ArtifactCollectionSummary on ArtifactCollection {
-  __typename
-  id
-  name
-  description
-  createdAt
-}
-
 mutation DeleteArtifactSequence($id: ID!) {
-  deleteArtifactSequence(input: { artifactSequenceID: $id }) {
+  result: deleteArtifactSequence(input: { artifactSequenceID: $id }) {
     artifactCollection {
       state
     }
@@ -37,7 +28,7 @@ mutation DeleteArtifactSequence($id: ID!) {
 }
 
 mutation DeleteArtifactPortfolio($id: ID!) {
-  deleteArtifactPortfolio(input: { artifactPortfolioID: $id }) {
+  result: deleteArtifactPortfolio(input: { artifactPortfolioID: $id }) {
     artifactCollection {
       state
     }
@@ -45,31 +36,31 @@ mutation DeleteArtifactPortfolio($id: ID!) {
 }
 
 mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
-  updateArtifactSequence(input: $input) {
+  result: updateArtifactSequence(input: $input) {
     artifactCollection {
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
 
 mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
-  updateArtifactPortfolio(input: $input) {
+  result: updateArtifactPortfolio(input: $input) {
     artifactCollection {
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
 
-mutation UpdateArtifactCollectionType($input: MoveArtifactSequenceInput!) {
-  moveArtifactSequence(input: $input) {
+mutation UpdateArtifactSequenceType($input: MoveArtifactSequenceInput!) {
+  result: moveArtifactSequence(input: $input) {
     artifactCollection {
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
 
 mutation AddArtifactCollectionTags($input: CreateArtifactCollectionTagAssignmentsInput!) {
-  createArtifactCollectionTagAssignments(input: $input) {
+  result: createArtifactCollectionTagAssignments(input: $input) {
     tags {
       ...TagFragment
     }
@@ -77,7 +68,7 @@ mutation AddArtifactCollectionTags($input: CreateArtifactCollectionTagAssignment
 }
 
 mutation DeleteArtifactCollectionTags($input: DeleteArtifactCollectionTagAssignmentsInput!) {
-  deleteArtifactCollectionTagAssignments(input: $input) {
+  result: deleteArtifactCollectionTagAssignments(input: $input) {
     success
   }
 }

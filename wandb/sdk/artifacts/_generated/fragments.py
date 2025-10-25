@@ -41,14 +41,6 @@ class ArtifactCollectionFragmentType(GQLResult):
     name: str
 
 
-class ArtifactCollectionSummary(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
-    id: GQLId
-    name: str
-    description: Optional[str]
-    created_at: str = Field(alias="createdAt")
-
-
 class ArtifactFragment(GQLResult):
     typename__: Typename[Literal["Artifact"]] = "Artifact"
     id: GQLId
@@ -309,7 +301,6 @@ ArtifactCollectionFragment.model_rebuild()
 ArtifactCollectionFragmentTags.model_rebuild()
 ArtifactCollectionFragmentTagsEdges.model_rebuild()
 ArtifactCollectionFragmentType.model_rebuild()
-ArtifactCollectionSummary.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragmentArtifactType.model_rebuild()
 ArtifactMembershipFragment.model_rebuild()

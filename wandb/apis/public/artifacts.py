@@ -25,7 +25,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb._iterutils import always_list
-from wandb._pydantic import ConnectionWithTotal, Edge
+from wandb._pydantic import Connection, ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
@@ -48,9 +48,10 @@ from wandb.sdk.artifacts._generated import (
     PROJECT_ARTIFACTS_GQL,
     RUN_INPUT_ARTIFACTS_GQL,
     RUN_OUTPUT_ARTIFACTS_GQL,
-    UPDATE_ARTIFACT_COLLECTION_TYPE_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
     UPDATE_ARTIFACT_SEQUENCE_GQL,
+    UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL,
+    ArtifactAliasFragment,
     ArtifactCollectionAliases,
     ArtifactCollectionFragment,
     ArtifactCollectionMembershipFiles,
@@ -71,7 +72,6 @@ from wandb.sdk.artifacts._generated import (
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.artifacts._models.pagination import (
-    ArtifactAliasConnection,
     ArtifactCollectionConnection,
     ArtifactFileConnection,
     ArtifactTypeConnection,
@@ -99,7 +99,7 @@ class _ArtifactCollectionAliases(Paginator[str]):
 
     QUERY = gql(ARTIFACT_COLLECTION_ALIASES_GQL)
 
-    last_response: ArtifactAliasConnection | None
+    last_response: Connection[ArtifactAliasFragment] | None
 
     def __init__(self, client: Client, collection_id: str, per_page: int = 1_000):
         variable_values = {"id": collection_id}
@@ -113,7 +113,7 @@ class _ArtifactCollectionAliases(Paginator[str]):
         if not ((coll := result.artifact_collection) and (conn := coll.aliases)):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = ArtifactAliasConnection.model_validate(conn)
+        self.last_response = Connection[ArtifactAliasFragment].model_validate(conn)
 
     @property
     def more(self) -> bool:
@@ -469,14 +469,19 @@ class ArtifactCollection:
         self.client = client
 
         # FIXME: Make this lazy, so we don't (re-)fetch the attributes until they are needed
-        fragment = attrs or self.load(entity, project, type, name)
+        self._update_data(attrs or self.load(entity, project, type, name))
 
+        self.organization = organization
+
+    def _update_data(self, fragment: ArtifactCollectionFragment) -> None:
+        """Update the saved/current state of the artifact collection with the given fragment.
+
+        Typically called after a mutation or query that returns new and/or updated ArtifactCollection data.
+        """
         # Separate "saved" vs "current" copies of the artifact collection data
         validated = ArtifactCollectionData.from_fragment(fragment)
         self._saved = validated
         self._current = validated.model_copy(deep=True)
-
-        self.organization = organization
 
     @property
     def id(self) -> str:
@@ -579,7 +584,7 @@ class ArtifactCollection:
 
         termlog(f"Changing artifact collection type of {old_type!r} to {new_type!r}")
 
-        gql_op = gql(UPDATE_ARTIFACT_COLLECTION_TYPE_GQL)
+        gql_op = gql(UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL)
         gql_input = MoveArtifactSequenceInput(
             artifact_sequence_id=self.id,
             destination_artifact_type_name=new_type,
@@ -663,9 +668,10 @@ class ArtifactCollection:
             )
         self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
         self._saved.name = self._current.name
+        self._saved.description = self._current.description
 
-    def _update_collection_type(self) -> None:
-        gql_op = gql(UPDATE_ARTIFACT_COLLECTION_TYPE_GQL)
+    def _update_sequence_type(self) -> None:
+        gql_op = gql(UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL)
         gql_input = MoveArtifactSequenceInput(
             artifact_sequence_id=self.id,
             destination_artifact_type_name=self.type,
@@ -716,7 +722,7 @@ class ArtifactCollection:
         self._update_collection()
 
         if self.is_sequence() and (old_type != new_type):
-            self._update_collection_type()
+            self._update_sequence_type()
 
         if (new_tags := set(self._current.tags)) != (old_tags := set(self._saved.tags)):
             if added_tags := (new_tags - old_tags):
