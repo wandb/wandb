@@ -25,7 +25,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb._iterutils import always_list
-from wandb._pydantic import ConnectionWithTotal, Edge
+from wandb._pydantic import Connection, ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
@@ -35,6 +35,7 @@ from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._generated import (
     ADD_ARTIFACT_COLLECTION_TAGS_GQL,
+    ARTIFACT_COLLECTION_ALIASES_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
     ARTIFACT_VERSION_FILES_GQL,
     DELETE_ARTIFACT_COLLECTION_TAGS_GQL,
@@ -50,6 +51,8 @@ from wandb.sdk.artifacts._generated import (
     UPDATE_ARTIFACT_COLLECTION_TYPE_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
     UPDATE_ARTIFACT_SEQUENCE_GQL,
+    ArtifactAliasFragment,
+    ArtifactCollectionAliases,
     ArtifactCollectionFragment,
     ArtifactCollectionMembershipFiles,
     ArtifactFragment,
@@ -86,6 +89,56 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
     from . import RetryingClient, Run
+
+
+class _ArtifactCollectionAliases(Paginator[str]):
+    """An internal iterator of collection alias names.
+
+    <!-- lazydoc-ignore-init: internal -->
+    """
+
+    QUERY = gql(ARTIFACT_COLLECTION_ALIASES_GQL)
+
+    last_response: Connection[ArtifactAliasFragment] | None
+
+    def __init__(self, client: Client, collection_id: str, per_page: int = 1_000):
+        variable_values = {"id": collection_id}
+        super().__init__(client, variable_values, per_page)
+
+    def _update_response(self) -> None:
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        result = ArtifactCollectionAliases.model_validate(data)
+
+        # Extract the inner `*Connection` result for faster/easier access.
+        if not ((coll := result.artifact_collection) and (conn := coll.aliases)):
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
+
+        self.last_response = Connection[ArtifactAliasFragment].model_validate(conn)
+
+    @property
+    def more(self) -> bool:
+        """Returns whether there are more alias names to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        return (conn := self.last_response) is None or conn.has_next
+
+    @property
+    def cursor(self) -> str | None:
+        """Returns the cursor for the next page of results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        return conn.next_cursor if (conn := self.last_response) else None
+
+    def convert_objects(self) -> list[str]:
+        """Convert the raw response data into a list of alias names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if self.last_response is None:
+            return []
+        return [node.alias for node in self.last_response.nodes()]
 
 
 class ArtifactTypes(Paginator["ArtifactType"]):
@@ -455,7 +508,14 @@ class ArtifactCollection:
 
     @property
     def aliases(self) -> list[str]:
-        """Artifact Collection Aliases."""
+        """The aliases for all artifact versions contained in this collection."""
+        if self._saved.aliases is None:
+            aliases = list(
+                _ArtifactCollectionAliases(self.client, collection_id=self.id)
+            )
+            self._saved.aliases = aliases
+            self._current.aliases = aliases.copy()
+
         return list(self._saved.aliases)
 
     @property

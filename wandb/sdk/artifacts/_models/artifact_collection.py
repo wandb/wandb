@@ -101,9 +101,5 @@ class ArtifactCollectionData(ArtifactsBase):
             project=obj.project.name,
             entity=obj.project.entity.name,
             tags=[e.node.name for e in obj.tags.edges if e.node],
-            aliases=(
-                [e.node.alias for e in obj.aliases.edges if e.node]
-                if obj.aliases
-                else []
-            ),
+            aliases=None,
         )

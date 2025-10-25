@@ -27,15 +27,6 @@ class ArtifactCollectionFragment(GQLResult):
     project: Optional[ProjectInfoFragment]
     type: ArtifactCollectionFragmentType
     tags: ArtifactCollectionFragmentTags
-    aliases: Optional[ArtifactCollectionFragmentAliases] = None
-
-
-class ArtifactCollectionFragmentAliases(GQLResult):
-    edges: List[ArtifactCollectionFragmentAliasesEdges]
-
-
-class ArtifactCollectionFragmentAliasesEdges(GQLResult):
-    node: Optional[ArtifactAliasFragment]
 
 
 class ArtifactCollectionFragmentTags(GQLResult):
@@ -188,15 +179,6 @@ class RegistryCollectionFragment(GQLResult):
     project: Optional[ProjectInfoFragment]
     type: RegistryCollectionFragmentType
     tags: RegistryCollectionFragmentTags
-    aliases: RegistryCollectionFragmentAliases
-
-
-class RegistryCollectionFragmentAliases(GQLResult):
-    edges: List[RegistryCollectionFragmentAliasesEdges]
-
-
-class RegistryCollectionFragmentAliasesEdges(GQLResult):
-    node: Optional[ArtifactAliasFragment]
 
 
 class RegistryCollectionFragmentTags(GQLResult):
@@ -324,8 +306,6 @@ class ArtifactFragmentAliases(ArtifactAliasFragment):
 
 ArtifactAliasFragment.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
-ArtifactCollectionFragmentAliases.model_rebuild()
-ArtifactCollectionFragmentAliasesEdges.model_rebuild()
 ArtifactCollectionFragmentTags.model_rebuild()
 ArtifactCollectionFragmentTagsEdges.model_rebuild()
 ArtifactCollectionFragmentType.model_rebuild()
@@ -347,8 +327,6 @@ PageInfoFragment.model_rebuild()
 ProjectInfoFragment.model_rebuild()
 ProjectInfoFragmentEntity.model_rebuild()
 RegistryCollectionFragment.model_rebuild()
-RegistryCollectionFragmentAliases.model_rebuild()
-RegistryCollectionFragmentAliasesEdges.model_rebuild()
 RegistryCollectionFragmentTags.model_rebuild()
 RegistryCollectionFragmentTagsEdges.model_rebuild()
 RegistryCollectionFragmentType.model_rebuild()
