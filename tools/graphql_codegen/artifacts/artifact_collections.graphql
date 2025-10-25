@@ -19,15 +19,6 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   }
 }
 
-# A smaller fragment on ArtifactCollection that only includes minimal descriptive fields.
-fragment ArtifactCollectionSummary on ArtifactCollection {
-  __typename
-  id
-  name
-  description
-  createdAt
-}
-
 mutation DeleteArtifactSequence($id: ID!) {
   result: deleteArtifactSequence(input: { artifactSequenceID: $id }) {
     artifactCollection {
@@ -47,7 +38,7 @@ mutation DeleteArtifactPortfolio($id: ID!) {
 mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
   result: updateArtifactSequence(input: $input) {
     artifactCollection {
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
@@ -55,7 +46,7 @@ mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
 mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
   result: updateArtifactPortfolio(input: $input) {
     artifactCollection {
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
@@ -63,7 +54,7 @@ mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
 mutation UpdateArtifactSequenceType($input: MoveArtifactSequenceInput!) {
   result: moveArtifactSequence(input: $input) {
     artifactCollection {
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }

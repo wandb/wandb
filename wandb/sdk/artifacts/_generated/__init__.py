@@ -121,7 +121,6 @@ __all__ = [
     "UpsertModelInput",
     "ArtifactAliasFragment",
     "ArtifactCollectionFragment",
-    "ArtifactCollectionSummary",
     "ArtifactFragment",
     "ArtifactMembershipFragment",
     "ArtifactPortfolioTypeFields",
@@ -184,7 +183,6 @@ from .fetch_registry import FetchRegistry
 from .fragments import (
     ArtifactAliasFragment,
     ArtifactCollectionFragment,
-    ArtifactCollectionSummary,
     ArtifactFragment,
     ArtifactMembershipFragment,
     ArtifactPortfolioTypeFields,

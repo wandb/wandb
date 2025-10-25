@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactCollectionSummary
+from .fragments import ArtifactCollectionFragment
 
 
 class UpdateArtifactSequenceType(GQLResult):
@@ -17,7 +17,7 @@ class UpdateArtifactSequenceType(GQLResult):
 
 
 class UpdateArtifactSequenceTypeResult(GQLResult):
-    artifact_collection: Optional[ArtifactCollectionSummary] = Field(
+    artifact_collection: Optional[ArtifactCollectionFragment] = Field(
         alias="artifactCollection"
     )
 

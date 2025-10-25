@@ -25,7 +25,7 @@ from typing_extensions import override
 from wandb_gql import gql
 
 from wandb._iterutils import always_list
-from wandb._pydantic import ConnectionWithTotal, Edge
+from wandb._pydantic import Connection, ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator, SizedPaginator
@@ -43,6 +43,7 @@ if TYPE_CHECKING:
 
     from wandb.apis import public
     from wandb.sdk.artifacts._generated import (
+        ArtifactAliasFragment,
         ArtifactCollectionFragment,
         ArtifactTypeFragment,
     )
@@ -81,15 +82,28 @@ class _ArtifactCollectionAliases(Paginator[str]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY = gql(ARTIFACT_COLLECTION_ALIASES_GQL)
+    last_response: Connection[ArtifactAliasFragment] | None
 
-    last_response: ArtifactAliasConnection | None
+    _QUERY = None
+
+    @property
+    def QUERY(self):  # noqa: N802
+        if self._QUERY is None:
+            from wandb.sdk.artifacts._generated import ARTIFACT_COLLECTION_ALIASES_GQL
+
+            type(self)._QUERY = gql(ARTIFACT_COLLECTION_ALIASES_GQL)
+        return self._QUERY
 
     def __init__(self, client: Client, collection_id: str, per_page: int = 1_000):
         variable_values = {"id": collection_id}
         super().__init__(client, variable_values, per_page)
 
     def _update_response(self) -> None:
+        from wandb.sdk.artifacts._generated import (
+            ArtifactAliasFragment,
+            ArtifactCollectionAliases,
+        )
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = ArtifactCollectionAliases.model_validate(data)
 
@@ -97,7 +111,7 @@ class _ArtifactCollectionAliases(Paginator[str]):
         if not ((coll := result.artifact_collection) and (conn := coll.aliases)):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = ArtifactAliasConnection.model_validate(conn)
+        self.last_response = Connection[ArtifactAliasFragment].model_validate(conn)
 
     @property
     def more(self) -> bool:

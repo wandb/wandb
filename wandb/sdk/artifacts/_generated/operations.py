@@ -79,17 +79,43 @@ mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
   result: updateArtifactSequence(input: $input) {
     artifactCollection {
       __typename
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
 
-fragment ArtifactCollectionSummary on ArtifactCollection {
+fragment ArtifactCollectionFragment on ArtifactCollection {
   __typename
   id
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  type: defaultArtifactType {
+    name
+  }
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+}
+
+fragment ProjectInfoFragment on Project {
+  name
+  entity {
+    name
+  }
+}
+
+fragment TagFragment on Tag {
+  __typename
+  id
+  name
 }
 """
 
@@ -98,17 +124,43 @@ mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
   result: updateArtifactPortfolio(input: $input) {
     artifactCollection {
       __typename
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
 
-fragment ArtifactCollectionSummary on ArtifactCollection {
+fragment ArtifactCollectionFragment on ArtifactCollection {
   __typename
   id
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  type: defaultArtifactType {
+    name
+  }
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+}
+
+fragment ProjectInfoFragment on Project {
+  name
+  entity {
+    name
+  }
+}
+
+fragment TagFragment on Tag {
+  __typename
+  id
+  name
 }
 """
 
@@ -117,17 +169,43 @@ mutation UpdateArtifactSequenceType($input: MoveArtifactSequenceInput!) {
   result: moveArtifactSequence(input: $input) {
     artifactCollection {
       __typename
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
 
-fragment ArtifactCollectionSummary on ArtifactCollection {
+fragment ArtifactCollectionFragment on ArtifactCollection {
   __typename
   id
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  type: defaultArtifactType {
+    name
+  }
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+}
+
+fragment ProjectInfoFragment on Project {
+  name
+  entity {
+    name
+  }
+}
+
+fragment TagFragment on Tag {
+  __typename
+  id
+  name
 }
 """
 
