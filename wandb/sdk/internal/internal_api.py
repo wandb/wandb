@@ -278,10 +278,12 @@ class Api:
 
         # todo: remove these hacky hacks after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
+        # TODO: https://github.com/wandb/wandb/pull/8986 already broke this adding x_ for settings environment variable?
         self._extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
         self._extra_http_headers.update(_thread_local_api_settings.headers or {})
+        logger.debug("InternalApi._extra_http_headers: %s", self._extra_http_headers)
 
         auth = None
         api_key = api_key or self.default_settings.get("api_key")
@@ -540,6 +542,9 @@ class Api:
                 ),
             }
         )
+        # Set x_extra_http_headers for public API
+        if hasattr(self, "_extra_http_headers") and self._extra_http_headers:
+            result["x_extra_http_headers"] = self._extra_http_headers
 
         return result if key is None else result[key]  # type: ignore
 

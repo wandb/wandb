@@ -32,14 +32,17 @@ class ArtifactManifest(ArtifactsBase, ABC):
     @classmethod
     @abstractmethod
     def from_manifest_json(
-        cls, manifest_json: dict[str, Any], api: InternalApi | None = None
+        cls,
+        manifest_json: dict[str, Any],
+        api: InternalApi | None = None,
+        extra_http_headers: dict[str, str] | None = None,
     ) -> ArtifactManifest:
         if (version := manifest_json.get("version")) is None:
             raise ValueError("Invalid manifest format. Must contain version field.")
 
         for sub in cls.__subclasses__():
             if sub.version() == version:
-                return sub.from_manifest_json(manifest_json, api=api)
+                return sub.from_manifest_json(manifest_json, api=api, extra_http_headers=extra_http_headers)
         raise ValueError("Invalid manifest version.")
 
     def __len__(self) -> int:
