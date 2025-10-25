@@ -250,15 +250,3 @@ def test_notebook_creates_repo_job(notebook):
     used_artifacts = run.used_artifacts()
     assert len(used_artifacts) == 1
     assert used_artifacts[0].name == "job-test-test_one_cell_set_git.ipynb:v0"
-
-
-def test_notebook_with_jupyter_server(notebook):
-    # Start jupyter server
-    jupyter_server = subprocess.Popen(
-        ["jupyter-lab", "--port", "8888", "--IdentityProvider.token=''"]
-    )
-    import requests
-
-    response = requests.get("http://localhost:8888/api/sessions")
-    print(response.json())
-    jupyter_server.terminate()

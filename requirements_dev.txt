@@ -27,6 +27,7 @@ tenacity
 
 ipython
 ipython<8.13; python_version < '3.9'
+jupyter
 ipykernel
 nbclient~=0.10.1
 

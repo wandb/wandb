@@ -1,6 +1,5 @@
 import json
-import os
-import sys
+import socket
 import tempfile
 import threading
 import time
@@ -9,10 +8,15 @@ from typing import Callable, Generator, Tuple
 
 import jupyter_core
 import nbformat
+import nest_asyncio
 import pytest
 import requests
 from jupyter_client.blocking.client import BlockingKernelClient
 from jupyter_server.serverapp import ServerApp
+
+# Since Jupyter uses asyncio, this is necessary to allow the server to run
+# with wandb_backend which uses asyncio as well.
+nest_asyncio.apply()
 
 
 class JupyterServerManager:
@@ -31,49 +35,52 @@ class JupyterServerManager:
     def __init__(
         self,
         server_dir: Path,
-        port: int = 8891,
-        token: str = "test_token",
     ):
+        self.port = self.get_port()
         self.root_dir = server_dir
         self.runtime_dir = server_dir / "runtime"
         self.root_dir.mkdir(parents=True, exist_ok=True)
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
 
-        starting_port = port
         self.server_app = ServerApp()
+
         self.server_app.initialize(
             argv=[
                 "--port",
-                str(starting_port),
+                str(self.port),
+                "--port-retries",
+                "50",
                 "--no-browser",
                 f"--ServerApp.root_dir={server_dir}",
                 "--ServerApp.disable_check_xsrf=True",
+                "--allow-root",  # CircleCI runs as root
             ]
         )
-
         self.server_thread = threading.Thread(target=self.server_app.start, daemon=True)
         self.server_thread.start()
 
         self.port = self.server_app.port
         self.server_url = self.server_app.connection_url
         self.token = self.server_app.token
+
         assert self._is_ready(), "Server failed to start"
 
-    def start(self):
-        """Start the jupyter server process."""
-        with open(os.devnull, "w") as devnull:
-            old_stdout = sys.stdout
-            sys.stdout = devnull
-            try:
-                self.server_app.start()
-            finally:
-                sys.stdout = old_stdout
+    def get_port(self) -> int:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+        s.close()
+        return port
 
     def _is_ready(self) -> bool:
         """Wait for Jupyter server to be ready."""
         start_time = time.monotonic()
         timeout = 30
         while True:
+            self.port = self.server_app.port
+            self.server_url = self.server_app.connection_url
+            self.token = self.server_app.token
             try:
                 response = requests.get(
                     f"{self.server_url}/api/status",
@@ -81,6 +88,8 @@ class JupyterServerManager:
                 )
                 if response.status_code == 200:
                     return True
+                else:
+                    print(f"Server status: {response.status_code} {response.text}")
             except requests.ConnectionError:
                 pass
 
