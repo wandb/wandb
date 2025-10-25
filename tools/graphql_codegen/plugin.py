@@ -9,16 +9,13 @@ from __future__ import annotations
 
 import ast
 import sys
-from collections import defaultdict, deque
 from contextlib import suppress
-from itertools import chain, groupby
-from operator import attrgetter
+from itertools import chain
 from pathlib import Path
 from shutil import rmtree
 from typing import Any, ClassVar, Iterable, Iterator, Mapping
 
 from ariadne_codegen import Plugin
-from graphlib import TopologicalSorter  # Run this only with python 3.9+
 from graphql import (
     ExecutableDefinitionNode,
     FragmentDefinitionNode,
@@ -37,7 +34,6 @@ from .plugin_utils import (
     make_all_assignment,
     make_import_from,
     make_literal,
-    make_model_rebuild,
     remove_module_files,
 )
 
@@ -55,76 +51,6 @@ TYPING_EXTENSIONS_TYPES = ("override", "Annotated")
 
 # Misc
 ID = "ID"  #: The GraphQL name of the ID type
-
-
-class FixFragmentOrder(Plugin):
-    """Plugin to ensure consistent ordering in the fragments module.
-
-    HACK: At the time of implementation, the fragments module has inconsistent ordering of
-    - class definitions
-    - `Class.model_rebuild()` statements
-
-    See: https://github.com/mirumee/ariadne-codegen/issues/315.
-    This plugin is a workaround in the meantime.
-    """
-
-    def generate_fragments_module(self, module: ast.Module, *_, **__) -> ast.Module:
-        return self._ensure_class_order(module)
-
-    @staticmethod
-    def _ensure_class_order(module: ast.Module) -> ast.Module:
-        # Separate the statements into the following expected groups:
-        # - imports
-        # - class definitions
-        # - Model.model_rebuild() statements
-        grouped_stmts: dict[type[ast.stmt], deque[ast.stmt]] = defaultdict(deque)
-        for stmt_type, stmts in groupby(module.body, type):
-            grouped_stmts[stmt_type].extend(stmts)
-
-        imports = grouped_stmts.pop(ast.ImportFrom)
-        class_defs = grouped_stmts.pop(ast.ClassDef)
-
-        # Drop the `.model_rebuild()` statements (we'll regenerate them)
-        grouped_stmts.pop(ast.Expr)
-
-        # Since we've popped all the expected statement groups, verify there's nothing left
-        if grouped_stmts:
-            raise ValueError(f"Unexpected statements in module: {list(grouped_stmts)}")
-
-        # Deterministically reorder the class definitions/model_rebuild() statements,
-        # ensuring parent classes are defined first
-        class_defs = ClassDefSorter(class_defs).sort_class_defs(class_defs)
-
-        # For safety, we're going to apply `.model_rebuild()` to all generated fragment types
-        # This'll prevent errors that pop up in pydantic v1 like:
-        #
-        #   pydantic.errors.ConfigError: field "node" not yet prepared so type is still a
-        #   ForwardRef, you might need to call FilesFragmentEdges.update_forward_refs().
-        model_rebuilds = [make_model_rebuild(cls_def.name) for cls_def in class_defs]
-
-        module.body = [*imports, *class_defs, *model_rebuilds]
-        return module
-
-
-class ClassDefSorter:
-    """A sorter for a collection of class definitions."""
-
-    def __init__(self, class_defs: Iterable[ast.ClassDef]) -> None:
-        # Topologically sort the class definitions (which may depend on each other)
-        # Class definitions are pre-sorted so that the final order is deterministic.
-        class_dependencies = {  # Maps {class_name -> [base_class_names]}
-            cls_def.name: base_class_names(cls_def)
-            for cls_def in sorted(class_defs, key=attrgetter("name"))
-        }
-
-        # The deterministic, topologically sorted order of class names
-        self.names = list(TopologicalSorter(class_dependencies).static_order())
-
-    def sort_class_defs(self, class_defs: Iterable[ast.ClassDef]) -> list[ast.ClassDef]:
-        """Return the class definitions in topologically sorted order."""
-        return sorted(
-            class_defs, key=lambda class_def: self.names.index(class_def.name)
-        )
 
 
 class GraphQLCodegenPlugin(Plugin):
