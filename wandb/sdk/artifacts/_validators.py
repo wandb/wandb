@@ -6,7 +6,17 @@ import json
 import re
 from dataclasses import dataclass, field, replace
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Literal,
+    Optional,
+    TypeVar,
+    cast,
+)
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Concatenate, ParamSpec, Self
@@ -164,7 +174,7 @@ TAG_REGEX: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
 """Regex pattern for valid tag names."""
 
 
-def validate_tags(tags: Collection[str] | str) -> list[str]:
+def validate_tags(tags: Iterable[str] | str) -> list[str]:
     """Validate the artifact tag names and return them as a deduped list.
 
     In the case of duplicates, only keep the first tag, and otherwise maintain the order of appearance.
