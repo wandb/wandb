@@ -25,7 +25,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb._iterutils import always_list
-from wandb._pydantic import ConnectionWithTotal, Edge
+from wandb._pydantic import Connection, ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
@@ -51,6 +51,7 @@ from wandb.sdk.artifacts._generated import (
     UPDATE_ARTIFACT_COLLECTION_TYPE_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
     UPDATE_ARTIFACT_SEQUENCE_GQL,
+    ArtifactAliasFragment,
     ArtifactCollectionAliases,
     ArtifactCollectionFragment,
     ArtifactCollectionMembershipFiles,
@@ -71,7 +72,6 @@ from wandb.sdk.artifacts._generated import (
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.artifacts._models.pagination import (
-    ArtifactAliasConnection,
     ArtifactCollectionConnection,
     ArtifactFileConnection,
     ArtifactTypeConnection,
@@ -99,7 +99,7 @@ class _ArtifactCollectionAliases(Paginator[str]):
 
     QUERY = gql(ARTIFACT_COLLECTION_ALIASES_GQL)
 
-    last_response: ArtifactAliasConnection | None
+    last_response: Connection[ArtifactAliasFragment] | None
 
     def __init__(self, client: Client, collection_id: str, per_page: int = 1_000):
         variable_values = {"id": collection_id}
@@ -113,7 +113,7 @@ class _ArtifactCollectionAliases(Paginator[str]):
         if not ((coll := result.artifact_collection) and (conn := coll.aliases)):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = ArtifactAliasConnection.model_validate(conn)
+        self.last_response = Connection[ArtifactAliasFragment].model_validate(conn)
 
     @property
     def more(self) -> bool:
