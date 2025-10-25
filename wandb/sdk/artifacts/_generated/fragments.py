@@ -58,13 +58,12 @@ class ArtifactCollectionSummary(GQLResult):
     created_at: str = Field(alias="createdAt")
 
 
-class ArtifactFragmentWithoutAliases(GQLResult):
+class ArtifactFragment(GQLResult):
+    typename__: Typename[Literal["Artifact"]] = "Artifact"
     id: GQLId
     artifact_sequence: SourceCollectionInfoFragment = Field(alias="artifactSequence")
     version_index: Optional[int] = Field(alias="versionIndex")
-    artifact_type: ArtifactFragmentWithoutAliasesArtifactType = Field(
-        alias="artifactType"
-    )
+    artifact_type: ArtifactFragmentArtifactType = Field(alias="artifactType")
     description: Optional[str]
     metadata: Optional[str]
     ttl_duration_seconds: Optional[int] = Field(
@@ -80,9 +79,10 @@ class ArtifactFragmentWithoutAliases(GQLResult):
     file_count: int = Field(alias="fileCount")
     created_at: str = Field(alias="createdAt")
     updated_at: Optional[str] = Field(alias="updatedAt")
+    aliases: Optional[List[ArtifactFragmentAliases]] = None
 
 
-class ArtifactFragmentWithoutAliasesArtifactType(GQLResult):
+class ArtifactFragmentArtifactType(GQLResult):
     name: str
 
 
@@ -322,10 +322,6 @@ class ArtifactFragmentAliases(ArtifactAliasFragment):
     )
 
 
-class ArtifactFragment(ArtifactFragmentWithoutAliases):
-    aliases: Optional[List[ArtifactFragmentAliases]] = None
-
-
 ArtifactAliasFragment.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
 ArtifactCollectionFragmentAliases.model_rebuild()
@@ -334,8 +330,8 @@ ArtifactCollectionFragmentTags.model_rebuild()
 ArtifactCollectionFragmentTagsEdges.model_rebuild()
 ArtifactCollectionFragmentType.model_rebuild()
 ArtifactCollectionSummary.model_rebuild()
-ArtifactFragmentWithoutAliases.model_rebuild()
-ArtifactFragmentWithoutAliasesArtifactType.model_rebuild()
+ArtifactFragment.model_rebuild()
+ArtifactFragmentArtifactType.model_rebuild()
 ArtifactMembershipFragment.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()
 ArtifactSequenceTypeFields.model_rebuild()
@@ -376,4 +372,3 @@ TypeInfoFragmentInputFields.model_rebuild()
 VersionedArtifactConnectionFragment.model_rebuild()
 VersionedArtifactConnectionFragmentEdges.model_rebuild()
 ArtifactFragmentAliases.model_rebuild()
-ArtifactFragment.model_rebuild()
