@@ -30,6 +30,10 @@ const (
 	// See https://github.com/wandb/core/pull/7339 for history.
 	defaultMaxFileLineBytes = (10 << 20) - (100 << 10)
 
+	// defaultMaxRequestSizeBytes is a default approximate maximum size in bytes
+	// for a FileStream request.
+	defaultMaxRequestSizeBytes = 10 << 20
+
 	// Retry filestream requests for 7 days before dropping chunk
 	// retry_count = seconds_in_7_days / max_retry_time + num_retries_until_max_60_sec
 	//             = 7 * 86400 / 60 + ceil(log2(60/2))

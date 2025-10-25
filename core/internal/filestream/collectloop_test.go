@@ -15,16 +15,17 @@ func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 	requests := make(chan *FileStreamRequest)
 	defer close(requests)
 	loop := CollectLoop{
-		Logger:              observability.NewNoOpLogger(),
-		TransmitRateLimit:   rate.NewLimiter(rate.Inf, 1),
-		MaxRequestSizeBytes: 99999,
+		Logger:            observability.NewNoOpLogger(),
+		Printer:           observability.NewPrinter(),
+		TransmitRateLimit: rate.NewLimiter(rate.Inf, 1),
 	}
+	state := &FileStreamState{MaxRequestSizeBytes: 99999}
 
 	set := func(s string) map[string]struct{} {
 		return map[string]struct{}{s: {}}
 	}
 
-	transmissions := loop.Start(&FileStreamState{}, requests)
+	transmissions := loop.Start(state, requests)
 	requests <- &FileStreamRequest{UploadedFiles: set("one")}
 	requests <- &FileStreamRequest{UploadedFiles: set("two")}
 	requests <- &FileStreamRequest{UploadedFiles: set("three")}
@@ -42,12 +43,13 @@ func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 	requests := make(chan *FileStreamRequest)
 	// Use a rate limiter that never lets requests through.
 	loop := CollectLoop{
-		Logger:              observability.NewNoOpLogger(),
-		TransmitRateLimit:   &rate.Limiter{},
-		MaxRequestSizeBytes: 99999,
+		Logger:            observability.NewNoOpLogger(),
+		Printer:           observability.NewPrinter(),
+		TransmitRateLimit: &rate.Limiter{},
 	}
+	state := &FileStreamState{MaxRequestSizeBytes: 99999}
 
-	transmissions := loop.Start(&FileStreamState{}, requests)
+	transmissions := loop.Start(state, requests)
 	close(requests)
 	request1, ok1 := transmissions.NextRequest(waiting.NewStopwatch(time.Second))
 	request2, ok2 := transmissions.NextRequest(waiting.NewStopwatch(time.Second))
@@ -61,12 +63,13 @@ func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 func TestCollectLoop_BlocksOnceAtMaxSize(t *testing.T) {
 	requests := make(chan *FileStreamRequest)
 	loop := CollectLoop{
-		Logger:              observability.NewNoOpLogger(),
-		TransmitRateLimit:   rate.NewLimiter(rate.Inf, 1),
-		MaxRequestSizeBytes: 5,
+		Logger:            observability.NewNoOpLogger(),
+		Printer:           observability.NewPrinter(),
+		TransmitRateLimit: rate.NewLimiter(rate.Inf, 1),
 	}
+	state := &FileStreamState{MaxRequestSizeBytes: 5}
 
-	transmissions := loop.Start(&FileStreamState{}, requests)
+	transmissions := loop.Start(state, requests)
 	requests <- &FileStreamRequest{HistoryLines: []string{`{"x": "12345"}`}}
 
 	// Verify that the loop blocks since the above request is above max size.
