@@ -1,0 +1,139 @@
+package wbapi
+
+import (
+	"sync/atomic"
+
+	"github.com/wandb/wandb/core/internal/runhistoryreader"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+// RunHistoryAPIHandler handles api requests
+// related to reading a run's history.
+type RunHistoryAPIHandler struct {
+	// currentRequestId is the id of the last scan init request made.
+	//
+	// It is used to provide a unique id for each scan request
+	// and track the associated history reader.
+	currentRequestId atomic.Int32
+
+	// scanHistoryReaders is a map of request ids to history readers.
+	//
+	// It allows us to reuse existing
+	// history readers for subsequent scan requests.
+	scanHistoryReaders map[int32]*runhistoryreader.HistoryReader
+}
+
+func NewRunHistoryAPIHandler() *RunHistoryAPIHandler {
+	return &RunHistoryAPIHandler{
+		currentRequestId:   atomic.Int32{},
+		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
+	}
+}
+
+func (f *RunHistoryAPIHandler) HandleRequest(
+	request *spb.ReadRunHistoryRequest,
+) *spb.ApiResponse {
+	switch request.Request.(type) {
+	case *spb.ReadRunHistoryRequest_ScanRunHistoryInit:
+		return f.handleScanRunHistoryInit(request.GetScanRunHistoryInit())
+	case *spb.ReadRunHistoryRequest_ScanRunHistory:
+		return f.handleScanRunHistoryRead(request.GetScanRunHistory())
+	case *spb.ReadRunHistoryRequest_ScanRunHistoryCleanup:
+		f.handleScanRunHistoryCleanup(request.GetScanRunHistoryCleanup())
+	}
+
+	return nil
+}
+
+// handleScanRunHistoryInit handles a request to initialize
+// a scan over a run's history.
+//
+// It creates a new history reader for the run,
+// and caches it for subsequent scan requests.
+// It returns an Id correlating subsequent scan requests
+// with the history reader.
+func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
+	request *spb.ScanRunHistoryInit,
+) *spb.ApiResponse {
+	requestId := f.currentRequestId.Add(1)
+
+	historyReader := runhistoryreader.New(
+		request.Entity,
+		request.Project,
+		request.RunId,
+	)
+	f.scanHistoryReaders[requestId] = historyReader
+
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_ReadRunHistoryResponse{
+			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_ScanRunHistoryInit{
+					ScanRunHistoryInit: &spb.ScanRunHistoryInitResponse{
+						RequestId: requestId,
+					},
+				},
+			},
+		},
+	}
+}
+
+// handleScanRunHistoryRead handles a request to scan
+// over a portion of a run's history.
+func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
+	request *spb.ScanRunHistory,
+) *spb.ApiResponse {
+	requestId := request.GetRequestId()
+
+	historyReader := f.scanHistoryReaders[requestId]
+
+	if historyReader == nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: "Run history scan not initialized.",
+				},
+			},
+		}
+	}
+
+	keys := request.Keys
+	minStep := request.MinStep
+	maxStep := request.MaxStep
+
+	// TODO: return history steps
+	_ = historyReader.GetHistorySteps(keys, minStep, maxStep)
+
+	// Generate some fake history rows for now
+	historyRows := make([]*spb.HistoryRow, 0, maxStep-minStep)
+	for i := minStep; i < maxStep; i++ {
+		historyRows = append(historyRows, &spb.HistoryRow{
+			HistoryItems: []*spb.ParquetHistoryItem{
+				{
+					Key:       "loss",
+					ValueJson: "1.0",
+				},
+			},
+		})
+	}
+
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_ReadRunHistoryResponse{
+			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_RunHistoryResponse{
+					RunHistoryResponse: &spb.RunHistoryResponse{
+						HistoryRows: historyRows,
+					},
+				},
+			},
+		},
+	}
+}
+
+// handleScanRunHistoryCleanup cleans up resources
+// associated with a history scan.
+func (f *RunHistoryAPIHandler) handleScanRunHistoryCleanup(
+	request *spb.ScanRunHistoryCleanup,
+) {
+	requestId := request.GetRequestId()
+	delete(f.scanHistoryReaders, requestId)
+}
