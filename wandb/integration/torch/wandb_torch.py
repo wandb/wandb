@@ -74,7 +74,7 @@ class TorchHistory:
         global torch
         torch = wandb.util.get_module("torch", "Could not import torch")
         self._hook_handles = {}
-        self._num_bins = 64 
+        self._num_bins = 64
         self._is_cuda_histc_supported = None
         self.hook_torch = TorchGraph.hook_torch
 
