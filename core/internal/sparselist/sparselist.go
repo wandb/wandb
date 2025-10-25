@@ -1,6 +1,7 @@
 package sparselist
 
 import (
+	"iter"
 	"maps"
 	"math"
 	"slices"
@@ -115,6 +116,36 @@ func (l *SparseList[T]) Update(other SparseList[T]) {
 
 	maps.Copy(l.items, other.items)
 	l.boundsCached = false
+}
+
+// FirstRun returns an iterator over the first run of consecutive values
+// in the list.
+//
+// It is valid to modify the list while iterating through this.
+func (l *SparseList[T]) FirstRun() iter.Seq2[int, T] {
+	return func(yield func(idx int, value T) bool) {
+		if l.Len() == 0 {
+			return
+		}
+
+		for i := l.FirstIndex(); i <= l.LastIndex(); i++ {
+			value, ok := l.Get(i)
+			if !ok || !yield(i, value) {
+				return
+			}
+		}
+	}
+}
+
+// FirstRunValues is like FirstRun but without indices.
+func (l *SparseList[T]) FirstRunValues() iter.Seq[T] {
+	return func(yield func(value T) bool) {
+		for _, value := range l.FirstRun() {
+			if !yield(value) {
+				return
+			}
+		}
+	}
 }
 
 // ForEach invokes a callback on each value in the list.
