@@ -123,7 +123,7 @@ class OrgInfo:
 
 def resolve_org_entity_name(
     client: RetryingClient,
-    non_org_entity: str,
+    non_org_entity: str | None,
     org_or_entity: str | None = None,
 ) -> str:
     # resolveOrgEntityName fetches the portfolio's org entity's name.
