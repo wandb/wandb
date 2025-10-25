@@ -108,7 +108,7 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
                     "name": entity_name,
                 },
             },
-            default_artifact_type={"name": collection_type},
+            type={"name": collection_type},
             description="This is a fake artifact collection.",
             aliases={"edges": []},
             createdAt="2021-01-01T00:00:00Z",

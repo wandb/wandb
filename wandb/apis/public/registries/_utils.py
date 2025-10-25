@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 from enum import Enum
-from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Collection, Literal, Mapping, Sequence
+from functools import lru_cache, partial
+from typing import TYPE_CHECKING, Any, Collection
 
 from wandb._strutils import ensureprefix
-from wandb.sdk.artifacts._validators import (
-    REGISTRY_PREFIX,
-    validate_artifact_types_list,
-)
+from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_artifact_types
 
 if TYPE_CHECKING:
     from wandb_gql import Client
@@ -24,12 +21,35 @@ class Visibility(str, Enum):
 
     @classmethod
     def _missing_(cls, value: object) -> Any:
-        return next((e for e in cls if e.name == value), None)
+        # Allow instantiation from enum names too (e.g. "organization" or "restricted")
+        return cls.__members__.get(value)
+
+    @classmethod
+    def from_gql(cls, value: str) -> Visibility:
+        """Convert a GraphQL `visibility` value to a Visibility enum."""
+        try:
+            return cls(value)
+        except ValueError:
+            expected = ",".join(repr(e.value) for e in cls)
+            raise ValueError(
+                f"Invalid visibility {value!r} from backend. Expected one of: {expected}"
+            ) from None
+
+    @classmethod
+    def from_python(cls, name: str) -> Visibility:
+        """Convert a visibility string (e.g. user-provided or python default value) to a Visibility enum."""
+        try:
+            return cls(name)
+        except ValueError:
+            expected = ",".join(repr(e.name) for e in cls)
+            raise ValueError(
+                f"Invalid visibility {name!r}. Expected one of: {expected}"
+            ) from None
 
 
-def format_gql_artifact_types_input(
+def prepare_artifact_types_input(
     artifact_types: Collection[str] | None,
-) -> list[dict[str, str]]:
+) -> list[dict[str, str]] | None:
     """Format the artifact types for the GQL input.
 
     Args:
@@ -38,39 +58,9 @@ def format_gql_artifact_types_input(
     Returns:
         The artifact types for the GQL input.
     """
-    if not artifact_types:
-        return []
-    return [{"name": typ} for typ in validate_artifact_types_list(artifact_types)]
-
-
-def gql_to_registry_visibility(
-    visibility: str,
-) -> Literal["organization", "restricted"]:
-    """Convert the GQL visibility to the registry visibility.
-
-    Args:
-        visibility: The GQL visibility.
-
-    Returns:
-        The registry visibility.
-    """
-    try:
-        return Visibility(visibility).name
-    except ValueError:
-        raise ValueError(f"Invalid visibility: {visibility!r} from backend")
-
-
-def registry_visibility_to_gql(
-    visibility: Literal["organization", "restricted"],
-) -> str:
-    """Convert the registry visibility to the GQL visibility."""
-    try:
-        return Visibility[visibility].value
-    except LookupError:
-        allowed_str = ", ".join(map(repr, (e.name for e in Visibility)))
-        raise ValueError(
-            f"Invalid visibility: {visibility!r}. Must be one of: {allowed_str}"
-        )
+    if artifact_types:
+        return [{"name": typ} for typ in validate_artifact_types(artifact_types)]
+    return None
 
 
 def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
@@ -81,25 +71,21 @@ def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
     EX: {"name": "model"} -> {"name": "wandb-registry-model"}
     """
     if isinstance((txt := query), str):
-        if in_name:
-            return ensureprefix(txt, REGISTRY_PREFIX)
-        return txt
-    if isinstance((dct := query), Mapping):
+        return ensureprefix(txt, REGISTRY_PREFIX) if in_name else txt
+    if isinstance((dct := query), dict):
         new_dict = {}
         for key, obj in dct.items():
-            if key == "name":
-                new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=True)
-            elif key == "$regex":
+            if key == "$regex":
                 # For regex operator, we skip transformation of its value.
                 new_dict[key] = obj
+            elif key == "name":
+                new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=True)
             else:
                 # For any other key, propagate the in_name and skip_transform flags as-is.
                 new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=in_name)
         return new_dict
-    if isinstance((objs := query), Sequence):
-        return list(
-            map(lambda x: ensure_registry_prefix_on_names(x, in_name=in_name), objs)
-        )
+    if isinstance((seq := query), (list, tuple)):
+        return list(map(partial(ensure_registry_prefix_on_names, in_name=in_name), seq))
     return query
 
 

@@ -85,7 +85,10 @@ def validate_artifact_name(name: str) -> str:
     return name
 
 
-INVALID_URL_CHARACTERS = ("/", "\\", "#", "?", "%", ":", "\r", "\n")
+INVALID_URL_CHARACTERS: Final[frozenset[str]] = frozenset("/\\#?%:\r\n")
+
+PROJECT_NAME_MAXLEN: Final[int] = 128
+REGISTRY_NAME_MAXLEN: Final[int] = PROJECT_NAME_MAXLEN - len(REGISTRY_PREFIX)
 
 
 def validate_project_name(name: str) -> str:
@@ -97,18 +100,16 @@ def validate_project_name(name: str) -> str:
     Raises:
         ValueError: If the name is invalid (too long or contains invalid characters).
     """
-    max_len = 128
-
     if not name:
         raise ValueError("Project name cannot be empty")
     if not (registry_name := removeprefix(name, REGISTRY_PREFIX)):
         raise ValueError("Registry name cannot be empty")
 
-    if len(name) > max_len:
+    if len(name) > PROJECT_NAME_MAXLEN:
         if registry_name != name:
-            msg = f"Invalid registry name {registry_name!r}, must be {max_len - len(REGISTRY_PREFIX)} characters or less"
+            msg = f"Invalid registry name {registry_name!r}, must be {REGISTRY_NAME_MAXLEN} characters or less"
         else:
-            msg = f"Invalid project name {name!r}, must be {max_len} characters or less"
+            msg = f"Invalid project name {name!r}, must be {PROJECT_NAME_MAXLEN} characters or less"
         raise ValueError(msg)
 
     # Find the first occurrence of any invalid character
@@ -121,6 +122,9 @@ def validate_project_name(name: str) -> str:
     return name
 
 
+ALIAS_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset("/:")
+
+
 def validate_aliases(aliases: Collection[str] | str) -> list[str]:
     """Validate the artifact aliases and return them as a list.
 
@@ -128,27 +132,30 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
         ValueError: If any of the aliases contain invalid characters.
     """
     aliases_list = always_list(aliases)
-
-    invalid_chars = ("/", ":")
-    if any(char in alias for alias in aliases_list for char in invalid_chars):
+    if any(ALIAS_NAME_INVALID_CHARS.intersection(alias) for alias in aliases_list):
+        invalid_repr = ", ".join(sorted(map(repr, ALIAS_NAME_INVALID_CHARS)))
         raise ValueError(
-            f"Aliases must not contain any of the following characters: {', '.join(invalid_chars)}"
+            f"Aliases must not contain any of the following characters: {invalid_repr}"
         )
     return aliases_list
 
 
-def validate_artifact_types_list(artifact_types: Collection[str] | str) -> list[str]:
-    """Return True if the artifact types list is valid, False otherwise."""
+ARTIFACT_TYPE_NAME_MAXLEN: Final[int] = 128
+ARTIFACT_TYPE_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset("/:")
+
+
+def validate_artifact_types(artifact_types: Collection[str] | str) -> list[str]:
+    """Validate the artifact type names and return them as a list."""
     artifact_types_list = always_list(artifact_types)
-    invalid_chars = ("/", ":")
     if any(
-        char in type or len(type) > 128
-        for type in artifact_types_list
-        for char in invalid_chars
+        len(name) > ARTIFACT_TYPE_NAME_MAXLEN
+        or ARTIFACT_TYPE_NAME_INVALID_CHARS.intersection(name)
+        for name in artifact_types_list
     ):
+        invalid_repr = ", ".join(sorted(map(repr, ARTIFACT_TYPE_NAME_INVALID_CHARS)))
         raise ValueError(
-            f"""Artifact types must not contain any of the following characters: {", ".join(invalid_chars)}
-              and must be less than equal to 128 characters"""
+            f"Artifact types must not contain any of the following characters: {invalid_repr}"
+            f"and must be less than or equal to {ARTIFACT_TYPE_NAME_MAXLEN!r} characters"
         )
     return artifact_types_list
 

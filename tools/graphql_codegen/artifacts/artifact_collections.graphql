@@ -7,7 +7,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   project {
     ...ProjectInfoFragment
   }
-  defaultArtifactType {
+  type: defaultArtifactType {
     name
   }
   tags {

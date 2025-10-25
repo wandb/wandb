@@ -52,7 +52,7 @@ def test_registry_create_edit(default_organization, api: Api):
     assert registry.organization == default_organization
     assert registry.description == initial_description
     assert registry.visibility == "organization"
-    assert registry.allow_all_artifact_types
+    assert registry.allow_all_artifact_types is True
     assert len(registry.artifact_types) == 0
 
     # This doesn't do anything but want to make sure it doesn't raise unexpected errors
@@ -61,7 +61,7 @@ def test_registry_create_edit(default_organization, api: Api):
     assert registry.name == registry_name
     assert registry.description == initial_description
     assert registry.visibility == "organization"
-    assert registry.allow_all_artifact_types
+    assert registry.allow_all_artifact_types is True
 
     # === Edit ===
     registry.description = updated_description
@@ -116,7 +116,7 @@ def test_registry_create_edit_artifact_types(default_organization, api: Api):
         artifact_types=None,  # Test default: allow all
     )
     assert registry
-    assert registry.allow_all_artifact_types
+    assert registry.allow_all_artifact_types is True
     assert registry.artifact_types == []
 
     # Test restriction: Cannot add types if allow_all is True
@@ -128,6 +128,7 @@ def test_registry_create_edit_artifact_types(default_organization, api: Api):
         registry.save()
     # Reset for valid save
     registry.allow_all_artifact_types = False
+    assert registry.allow_all_artifact_types is False
     registry.save()
     assert registry.artifact_types == [artifact_type_1]
     assert registry.artifact_types.draft == ()
@@ -315,12 +316,16 @@ def test_edit_registry_name(mock_termlog, default_organization, api: Api):
         description="This is the initial description",
     )
 
+    assert registry.name == registry_name
+
     new_registry_name = "new-name"
+
     registry.name = new_registry_name
-    assert registry._saved_name == registry_name
-    registry.save()
     assert registry.name == new_registry_name
-    assert registry._saved_name == new_registry_name
+
+    registry.save()
+
+    assert registry.name == new_registry_name
     assert registry.description == "This is the initial description"
 
     # Double check we didn't create a new registry instead of renaming the old one

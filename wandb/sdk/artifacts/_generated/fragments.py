@@ -25,9 +25,7 @@ class ArtifactCollectionFragment(GQLResult):
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
     project: Optional[ProjectInfoFragment]
-    default_artifact_type: ArtifactCollectionFragmentDefaultArtifactType = Field(
-        alias="defaultArtifactType"
-    )
+    type: ArtifactCollectionFragmentType
     tags: ArtifactCollectionFragmentTags
     aliases: Optional[ArtifactCollectionFragmentAliases] = None
 
@@ -40,16 +38,16 @@ class ArtifactCollectionFragmentAliasesEdges(GQLResult):
     node: Optional[ArtifactAliasFragment]
 
 
-class ArtifactCollectionFragmentDefaultArtifactType(GQLResult):
-    name: str
-
-
 class ArtifactCollectionFragmentTags(GQLResult):
     edges: List[ArtifactCollectionFragmentTagsEdges]
 
 
 class ArtifactCollectionFragmentTagsEdges(GQLResult):
     node: TagFragment
+
+
+class ArtifactCollectionFragmentType(GQLResult):
+    name: str
 
 
 class ArtifactCollectionSummary(GQLResult):
@@ -188,9 +186,7 @@ class RegistryCollectionFragment(GQLResult):
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
     project: Optional[ProjectInfoFragment]
-    default_artifact_type: RegistryCollectionFragmentDefaultArtifactType = Field(
-        alias="defaultArtifactType"
-    )
+    type: RegistryCollectionFragmentType
     tags: RegistryCollectionFragmentTags
     aliases: RegistryCollectionFragmentAliases
 
@@ -203,16 +199,16 @@ class RegistryCollectionFragmentAliasesEdges(GQLResult):
     node: Optional[ArtifactAliasFragment]
 
 
-class RegistryCollectionFragmentDefaultArtifactType(GQLResult):
-    name: str
-
-
 class RegistryCollectionFragmentTags(GQLResult):
     edges: List[RegistryCollectionFragmentTagsEdges]
 
 
 class RegistryCollectionFragmentTagsEdges(GQLResult):
     node: TagFragment
+
+
+class RegistryCollectionFragmentType(GQLResult):
+    name: str
 
 
 class RegistryFragment(GQLResult):
@@ -224,9 +220,7 @@ class RegistryFragment(GQLResult):
     created_at: str = Field(alias="createdAt")
     updated_at: Optional[str] = Field(alias="updatedAt")
     access: Optional[str]
-    allow_all_artifact_types_in_registry: bool = Field(
-        alias="allowAllArtifactTypesInRegistry"
-    )
+    allow_all_artifact_types: bool = Field(alias="allowAllArtifactTypes")
     artifact_types: RegistryFragmentArtifactTypes = Field(alias="artifactTypes")
 
 
@@ -336,9 +330,9 @@ ArtifactAliasFragment.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
 ArtifactCollectionFragmentAliases.model_rebuild()
 ArtifactCollectionFragmentAliasesEdges.model_rebuild()
-ArtifactCollectionFragmentDefaultArtifactType.model_rebuild()
 ArtifactCollectionFragmentTags.model_rebuild()
 ArtifactCollectionFragmentTagsEdges.model_rebuild()
+ArtifactCollectionFragmentType.model_rebuild()
 ArtifactCollectionSummary.model_rebuild()
 ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactFragmentWithoutAliasesArtifactType.model_rebuild()
@@ -359,9 +353,9 @@ ProjectInfoFragmentEntity.model_rebuild()
 RegistryCollectionFragment.model_rebuild()
 RegistryCollectionFragmentAliases.model_rebuild()
 RegistryCollectionFragmentAliasesEdges.model_rebuild()
-RegistryCollectionFragmentDefaultArtifactType.model_rebuild()
 RegistryCollectionFragmentTags.model_rebuild()
 RegistryCollectionFragmentTagsEdges.model_rebuild()
+RegistryCollectionFragmentType.model_rebuild()
 RegistryFragment.model_rebuild()
 RegistryFragmentArtifactTypes.model_rebuild()
 RegistryFragmentArtifactTypesEdges.model_rebuild()
