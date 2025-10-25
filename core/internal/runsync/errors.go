@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // SyncError is a failure that prevents syncing a run.
@@ -23,15 +24,6 @@ func (e *SyncError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Message, e.Err.Error())
 }
 
-// LogOrCapture logs the error, capturing it if UserText is unset.
-func (e *SyncError) LogOrCapture(logger *observability.CoreLogger) {
-	if e.UserText == "" {
-		logger.CaptureError(e)
-	} else {
-		logger.Error(e.Error())
-	}
-}
-
 // logSyncFailure logs and possibly captures an error that prevents sync
 // from succeeding.
 func logSyncFailure(logger *observability.CoreLogger, err error) {
@@ -45,5 +37,24 @@ func logSyncFailure(logger *observability.CoreLogger, err error) {
 		// the error happens and wrap it in a SyncError with
 		// proper UserText. Or fix it so it can't happen.
 		logger.CaptureError(err)
+	}
+}
+
+// toUserText returns user-facing text for the error, which may be a SyncError.
+func toUserText(err error) string {
+	syncErr, ok := err.(*SyncError)
+	if !ok || syncErr.UserText == "" {
+		return fmt.Sprintf("Internal error: %v", err)
+	} else {
+		return syncErr.UserText
+	}
+}
+
+// toSyncErrorMessage converts the error, which may be a SyncError,
+// into a ServerSyncMessage to display to the user.
+func toSyncErrorMessage(err error) *spb.ServerSyncMessage {
+	return &spb.ServerSyncMessage{
+		Severity: spb.ServerSyncMessage_SEVERITY_ERROR,
+		Content:  toUserText(err),
 	}
 }
