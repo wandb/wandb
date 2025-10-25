@@ -21,13 +21,21 @@ from ariadne_codegen import Plugin
 from graphlib import TopologicalSorter  # Run this only with python 3.9+
 from graphql import (
     ExecutableDefinitionNode,
+    FieldNode,
     FragmentDefinitionNode,
+    GraphQLField,
+    GraphQLInputField,
     GraphQLSchema,
     SelectionSetNode,
+    TypeInfo,
+    TypeInfoVisitor,
     TypeMetaFieldDef,
+    Visitor,
+    visit,
 )
 
 from .plugin_utils import (
+    apply_field_constraints,
     apply_ruff,
     base_class_names,
     imported_names,
@@ -243,6 +251,15 @@ class GraphQLCodegenPlugin(Plugin):
     def generate_enums_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
 
+    def generate_input_field(
+        self,
+        field_implementation: ast.AnnAssign,
+        input_field: GraphQLInputField,
+        field_name: str,
+    ) -> ast.AnnAssign:
+        # Apply any `@constraints` from the GraphQL schema to this pydantic field.
+        return apply_field_constraints(field_implementation, input_field, self.schema)
+
     def generate_input_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
         # Replace the default base class: `BaseModel` -> `GQLInput`
         return ClassReplacer(rename_map={BASE_MODEL: GQL_INPUT}).visit(class_def)
@@ -266,6 +283,50 @@ class GraphQLCodegenPlugin(Plugin):
         }
 
         return schema
+
+    def generate_result_field(
+        self,
+        field_implementation: ast.AnnAssign,
+        operation_definition: ExecutableDefinitionNode,
+        field: FieldNode,
+    ) -> ast.AnnAssign:
+        # Apply any `@constraints` from the GraphQL schema to this pydantic field.
+        if gql_field := self._get_field_def(field, operation_definition):
+            return apply_field_constraints(field_implementation, gql_field, self.schema)
+        return field_implementation
+
+    def _get_field_def(
+        self, field: FieldNode, defn: ExecutableDefinitionNode
+    ) -> GraphQLField | None:
+        """Get the original GraphQL definition of a field from an operation definition."""
+        # NOTE: The `field` node is parsed from the GraphQL _definition_ (query, mutation,
+        # fragment definition), BUT it doesn't know about the underlying, original field
+        # definition from the _schema_. The Visitor logic below is needed to:
+        #
+        # - traverse the operation (query/mutation) to find the current field, and
+        # - map it back to the `GraphQLField` definition from the schema.
+        #
+        # It's a bit convoluted, but it's better than implementing (and maintaining)
+        # the traversal logic from scratch.
+
+        class FieldLocator(Visitor):
+            def __init__(self, type_info: TypeInfo) -> None:
+                super().__init__()
+                self.type_info = type_info
+                self.gql_field: GraphQLField | None = None
+
+            # On reaching the exact node we want, `TypeInfo.get_field_def()` returns the
+            # original `GraphQLField` from the schema.  If this happens, we're done, so
+            # `BREAK` immediately.
+            def enter_field(self, node: FieldNode, *_: Any) -> Any:
+                if node is field:
+                    self.gql_field = self.type_info.get_field_def()
+                    return self.BREAK
+
+        type_info = TypeInfo(self.schema)
+        locator = FieldLocator(type_info)
+        visit(defn, TypeInfoVisitor(type_info, locator))
+        return locator.gql_field
 
     def generate_result_class(
         self,
