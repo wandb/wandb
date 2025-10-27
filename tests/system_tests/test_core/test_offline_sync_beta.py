@@ -120,6 +120,10 @@ class _Tester:
         self,
         paths: set[pathlib.Path],
         settings: wandb.Settings,
+        *,
+        entity: str,
+        project: str,
+        run_id: str,
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
         return await self._make_handle(
             self._init_sync_addrs,
@@ -380,6 +384,9 @@ def test_prints_status_updates(skip_asyncio_sleep, tmp_path, emulated_terminal):
                 beta_sync._do_sync(
                     set([wandb_file]),
                     service=tester,  # type: ignore (we only mock used methods)
+                    entity="",
+                    project="",
+                    run_id="",
                     settings=wandb.Settings(),
                     printer=new_printer(),
                     parallelism=1,

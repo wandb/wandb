@@ -26,7 +26,8 @@ type RunReaderFactory struct {
 
 // RunReader gets information out of .wandb files.
 type RunReader struct {
-	path string // transaction log path
+	path    string          // transaction log path
+	updates *RunSyncUpdates // modifications to make to records
 
 	seenExit bool // whether we've processed an exit record yet
 
@@ -37,11 +38,13 @@ type RunReader struct {
 
 func (f *RunReaderFactory) New(
 	path string,
+	updates *RunSyncUpdates,
 	recordParser stream.RecordParser,
 	runWork runwork.RunWork,
 ) *RunReader {
 	return &RunReader{
-		path: path,
+		path:    path,
+		updates: updates,
 
 		logger:       f.Logger,
 		recordParser: recordParser,
@@ -53,14 +56,14 @@ func (f *RunReaderFactory) New(
 func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
 	r.logger.Info("runsync: getting info", "path", r.path)
 
-	store, err := r.open()
+	reader, err := r.open()
 	if err != nil {
 		return nil, err
 	}
-	defer store.Close()
+	defer reader.Close()
 
 	for {
-		record, err := store.Read()
+		record, err := r.nextUpdatedRecord(reader)
 		if err != nil {
 			return nil, &SyncError{
 				Err:      err,
@@ -98,7 +101,7 @@ func (r *RunReader) ProcessTransactionLog() error {
 	defer reader.Close()
 
 	for {
-		record, err := reader.Read()
+		record, err := r.nextUpdatedRecord(reader)
 		if errors.Is(err, io.EOF) {
 			r.logger.Info("runsync: done reading", "path", r.path)
 			return nil
@@ -160,7 +163,7 @@ func (r *RunReader) open() (*transactionlog.Reader, error) {
 
 	syncErr := &SyncError{
 		Err:     err,
-		Message: "failed to open store",
+		Message: "failed to open reader",
 	}
 
 	switch {
@@ -175,6 +178,20 @@ func (r *RunReader) open() (*transactionlog.Reader, error) {
 	}
 
 	return nil, syncErr
+}
+
+// nextUpdatedRecord returns the next record in the reader,
+// with modifications applied.
+func (r *RunReader) nextUpdatedRecord(
+	reader *transactionlog.Reader,
+) (record *spb.Record, err error) {
+	record, err = reader.Read()
+	if err != nil {
+		return
+	}
+
+	r.updates.Modify(record)
+	return
 }
 
 // parseAndAddWork parses the record and pushes it to RunWork.

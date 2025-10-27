@@ -37,6 +37,7 @@ func (m *RunSyncManager) InitSync(
 	m.nextID++
 	m.pendingSyncOps[id] = m.runSyncOperationFactory.New(
 		request.Path,
+		UpdatesFromRequest(request),
 		request.Settings,
 	)
 
