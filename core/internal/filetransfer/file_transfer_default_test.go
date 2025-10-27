@@ -363,7 +363,12 @@ func newFileTransferWithExtraHeaders(t *testing.T, extraHeaders map[string]strin
 	return newFileTransfer(t, nil, extraHeaders)
 }
 
+// verifyHeadersInRequest verifies that the HTTP request contains the expected headers.
+// We use r.Header.Get(key) instead of assert.EqualValues() because:
+// - r.Header is of type http.Header (map[string][]string)
+// - expectedHeaders is of type map[string]string
 func verifyHeadersInRequest(t *testing.T, r *http.Request, expectedHeaders map[string]string) {
+	t.Helper() // You need t.Helper() to show the caller's location when assert fails inside a helper function.
 	for key, expectedValue := range expectedHeaders {
 		assert.Equal(t, expectedValue, r.Header.Get(key), "Header %s should have value %s", key, expectedValue)
 	}
@@ -400,7 +405,7 @@ func TestDefaultFileTransfer_DownloadWithExtraHeaders(t *testing.T) {
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(task.Path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, contentExpected, content)
 	assert.Equal(t, http.StatusOK, task.Response.StatusCode)
 }

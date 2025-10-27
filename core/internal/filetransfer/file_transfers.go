@@ -11,7 +11,7 @@ import (
 type FileTransfer interface {
 	Upload(task *DefaultUploadTask) error
 	Download(task *DefaultDownloadTask) error
-	DownloadTo(u string, w io.Writer) error
+	DownloadTo(url string, dst io.Writer) error
 }
 
 // ArtifactFileTransfer handles reference artifacts.

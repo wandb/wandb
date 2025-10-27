@@ -24,7 +24,7 @@ type FileTransferManager interface {
 	// DownloadTo downloads a (small) file directly to a writer (e.g. in memory buffer).
 	// It is currently (only) used for downloading artifact manifest json file.
 	// It is a blocking call, not async like [AddTask].
-	DownloadTo(u string, w io.Writer) error
+	DownloadTo(url string, dst io.Writer) error
 
 	// Close waits for all tasks to complete.
 	Close()
@@ -111,8 +111,8 @@ func (fm *fileTransferManager) Close() {
 	fm.logger.Info("fileTransfer: Close: file transfer manager closed")
 }
 
-func (fm *fileTransferManager) DownloadTo(u string, w io.Writer) error {
-	return fm.fileTransfers.Default.DownloadTo(u, w)
+func (fm *fileTransferManager) DownloadTo(url string, dst io.Writer) error {
+	return fm.fileTransfers.Default.DownloadTo(url, dst)
 }
 
 // Uploads or downloads a file.
