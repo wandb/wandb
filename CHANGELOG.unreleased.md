@@ -16,21 +16,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - The automations API now supports creating and editing automations that trigger on run states (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10848)
-- The automations API now support basic zscore automation events (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10931)
-- Regex support in metrics and run overview filters in W&B LEET TUI (@dmitryduev in https://github.com/wandb/wandb/pull/10919)
-- Simplified the syntax for creating z-score metric automation triggers in the automations API (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10953)
-
-### Changed
-
-- `wandb.Api()` now raises a `UsageError` if `WANDB_IDENTITY_TOKEN_FILE` is set and an explicit API key is not provided (@timoffex in https://app.graphite.com/github/pr/wandb/wandb/10970)
-  - `wandb.Api()` has only ever worked using an API key
-
-### Deprecated
-
-- Anonymous mode, including the `anonymous` setting, the `WANDB_ANONYMOUS` environment variable, `wandb.init(anonymous=...)`, `wandb login --anonymously` and `wandb.login(anonymous=...)` is deprecated and will emit warnings (@timoffex in https://github.com/wandb/wandb/pull/10909)
+- Apply http headers specified using `WANDB_X_EXTRA_HTTP_HEADERS` for file uploads using presigned url. (@pingleiwandb in https://github.com/wandb/wandb/pull/10761)
 
 ### Fixed
 
 - `wandb.Image()` no longer prints a deprecation warning (@jacobromero in https://github.com/wandb/wandb/pull/10880)
 - `Registry.description` and `ArtifactCollection.description` no longer reject empty strings (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10891)
-- Apply http headers specified using `WANDB__EXTRA_HTTP_HEADERS` for file uploads using presigned url. (@pingleiwandb in https://github.com/wandb/wandb/pull/10761)
+- File upload/download now respects `WANDB_X_EXTRA_HTTP_HEADERS` except for [reference artifacts](https://docs.wandb.ai/models/artifacts/track-external-files). (@pingleiwandb in https://github.com/wandb/wandb/pull/10761)

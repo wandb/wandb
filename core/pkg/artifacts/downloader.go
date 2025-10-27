@@ -22,7 +22,7 @@ const (
 	MAX_BACKLOG int = 5000
 )
 
-// ArtifactDownloader downloads
+// ArtifactDownloader downloads artifact manifest and files.
 type ArtifactDownloader struct {
 	// Resources
 	Ctx             context.Context

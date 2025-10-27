@@ -19,7 +19,7 @@ type FakeFileTransferManager struct {
 
 	// DownloadToFunc is a custom function to handle DownloadTo calls.
 	// If nil, a default implementation returns an empty JSON object.
-	DownloadToFunc func(u string, w io.Writer) error
+	DownloadToFunc func(url string, dst io.Writer) error
 }
 
 func NewFakeFileTransferManager() *FakeFileTransferManager {
@@ -70,13 +70,13 @@ func (m *FakeFileTransferManager) AddTask(t filetransfer.Task) {
 	}
 }
 
-func (m *FakeFileTransferManager) DownloadTo(u string, w io.Writer) error {
+func (m *FakeFileTransferManager) DownloadTo(url string, dst io.Writer) error {
 	if m.DownloadToFunc != nil {
-		return m.DownloadToFunc(u, w)
+		return m.DownloadToFunc(url, dst)
 	}
 
 	// Default: return a minimal valid manifest JSON
 	defaultManifest := `{"version":1,"storagePolicy":"wandb-storage-policy-v1","storagePolicyConfig":{"storageLayout":"V2"},"contents":{}}`
-	_, err := w.Write([]byte(defaultManifest))
+	_, err := dst.Write([]byte(defaultManifest))
 	return err
 }
