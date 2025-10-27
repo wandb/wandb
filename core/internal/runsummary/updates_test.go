@@ -79,6 +79,14 @@ func TestUpdates_Merge(t *testing.T) {
 		rs.ToNestedMaps())
 }
 
+func TestUpdates_Merge_NilMakesNoChanges(t *testing.T) {
+	u := runsummary.NoUpdates()
+
+	u.Merge(nil)
+
+	assert.True(t, u.IsEmpty())
+}
+
 func TestUpdates_FromProto(t *testing.T) {
 	rs := runsummary.New()
 

@@ -63,6 +63,10 @@ func FromProto(record *spb.SummaryRecord) *Updates {
 // so that `u1.Apply(rs); u2.Apply(rs)` has the same effect on `rs` as
 // `u1.Merge(u2); u1.Apply(rs)`.
 func (u *Updates) Merge(newUpdates *Updates) {
+	if newUpdates == nil {
+		return
+	}
+
 	newUpdates.update.ForEachLeaf(
 		func(path pathtree.TreePath, valueJSON string) bool {
 			u.remove.Remove(path)
