@@ -19,9 +19,10 @@ type CollectLoop struct {
 
 // Start ingests requests and outputs rate-limited, batched requests.
 func (cl CollectLoop) Start(
+	state *FileStreamState,
 	requests <-chan *FileStreamRequest,
-) <-chan *FileStreamRequestReader {
-	transmissions := make(chan *FileStreamRequestReader)
+) *TransmitChan {
+	output := NewTransmitChan()
 
 	go func() {
 		buffer := &FileStreamRequest{}
@@ -31,19 +32,19 @@ func (cl CollectLoop) Start(
 			buffer.Merge(request)
 
 			cl.waitForRateLimit(buffer, requests)
-			buffer, isDone = cl.transmit(buffer, requests, transmissions)
+			buffer, isDone = cl.transmit(state, buffer, requests, output)
 		}
 
 		for !isDone {
 			reader, _ := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
-			transmissions <- reader
+			output.Push(reader.GetJSON(state))
 			buffer, isDone = reader.Next()
 		}
 
-		close(transmissions)
+		output.Close()
 	}()
 
-	return transmissions
+	return output
 }
 
 // waitForRateLimit merges requests until the rate limit allows us
@@ -87,9 +88,10 @@ func (cl CollectLoop) waitForRateLimit(
 
 // transmit accumulates incoming requests until a transmission goes through.
 func (cl CollectLoop) transmit(
+	state *FileStreamState,
 	buffer *FileStreamRequest,
 	requests <-chan *FileStreamRequest,
-	transmissions chan<- *FileStreamRequestReader,
+	output *TransmitChan,
 ) (*FileStreamRequest, bool) {
 	for {
 		reader, isTruncated := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
@@ -97,18 +99,19 @@ func (cl CollectLoop) transmit(
 		// If we're at max size, stop adding to the buffer.
 		if isTruncated {
 			cl.Logger.Info("filestream: waiting to send request of max size")
-			transmissions <- reader
+			output.Push(reader.GetJSON(state))
 			return reader.Next()
 		}
 
 		// Otherwise, either send the buffer or add to it.
 		select {
-		case transmissions <- reader:
+		case pushChan := <-output.PreparePush():
+			pushChan <- reader.GetJSON(state)
 			return reader.Next()
 
 		case request, ok := <-requests:
 			if !ok {
-				transmissions <- reader
+				output.Push(reader.GetJSON(state))
 				return reader.Next()
 			}
 

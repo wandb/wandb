@@ -7,3 +7,8 @@ func (m *Model) TestLeftSidebarVisible() bool {
 	// TODO
 	return true
 }
+
+// TestSeriesCount returns the number of series in the chart
+func (c *TimeSeriesLineChart) TestSeriesCount() int {
+	return len(c.series)
+}

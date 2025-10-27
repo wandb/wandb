@@ -428,6 +428,16 @@ func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
 }
 
+// Size-based rollover threshold for multipart console logs, in bytes.
+func (s *Settings) GetConsoleChunkMaxBytes() int32 {
+	return s.Proto.ConsoleChunkMaxBytes.GetValue()
+}
+
+// Time-based rollover threshold for multipart console logs, in seconds.
+func (s *Settings) GetConsoleChunkMaxSeconds() int32 {
+	return s.Proto.ConsoleChunkMaxSeconds.GetValue()
+}
+
 // Whether to capture console logs in multipart format.
 //
 // This is used to make sure we don't overwrite the console log file if it

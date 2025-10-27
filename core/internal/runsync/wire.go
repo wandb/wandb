@@ -23,7 +23,6 @@ import (
 )
 
 func InjectRunSyncerFactory(
-	operations *wboperation.WandbOperations,
 	settings *settings.Settings,
 ) *RunSyncerFactory {
 	wire.Build(runSyncerFactoryBindings)
@@ -51,6 +50,7 @@ var runSyncerFactoryBindings = wire.NewSet(
 	stream.SenderProviders,
 	tensorboard.TBHandlerProviders,
 	todoLogger,
+	wboperation.NewOperations,
 )
 
 func todoLogger() *observability.CoreLogger {

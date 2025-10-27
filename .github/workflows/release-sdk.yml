@@ -462,6 +462,9 @@ jobs:
         with:
           app-id: ${{ vars.WANDBOT_3000_APP_ID }}
           private-key: ${{ secrets.WANDBOT_3000_PRIVATE_KEY }}
+          owner: wandb
+          repositories: |
+            core
 
       - name: Repository dispatch
         uses: peter-evans/repository-dispatch@v2

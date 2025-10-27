@@ -562,14 +562,14 @@ run.finish()
 
 Weights & Biases is available in the cloud or installed on your private infrastructure. Set up a W&B Server in a production environment in one of three ways:
 
-1. [Production Cloud](https://docs.wandb.ai/guides/hosting/hosting-options/self-managed#on-prem-private-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Set up a production deployment on a private cloud in just a few steps using terraform scripts provided by W&B.
-2. [Dedicated Cloud](https://docs.wandb.ai/guides/hosting/hosting-options/wb-managed#dedicated-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): A managed, dedicated deployment on W&B's single-tenant infrastructure in your choice of cloud region.
-3. [On-Prem/Bare Metal](https://docs.wandb.ai/guides/hosting/how-to-guides/bare-metal?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): W&B supports setting up a production server on most bare metal servers in your on-premise data centers. Quickly get started by running `wandb server` to easily start hosting W&B on your local infrastructure.
+1. [Multi-tenant Cloud](https://docs.wandb.ai/platform/hosting/hosting-options/multi_tenant_cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Fully managed platform deployed in W&B’s Google Cloud Platform (GCP) account in GCP’s North America regions.
+2. [Dedicated Cloud](https://docs.wandb.ai/platform/hosting/hosting-options/dedicated_cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Single-tenant, fully managed platform deployed in W&B’s AWS, GCP, or Azure cloud accounts. Each Dedicated Cloud instance has its own isolated network, compute and storage from other W&B Dedicated Cloud instances.
+3. [Self-Managed](https://docs.wandb.ai/platform/hosting/hosting-options/self-managed?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Deploy W&B Server on your AWS, GCP, or Azure cloud account or within your on-premises infrastructure.
 
 See the [Hosting documentation](https://docs.wandb.ai/guides/hosting?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting) in the W&B Developer Guide for more information.
 
 <!-- &nbsp;
-
+    <br />
 # Tutorials
 
 Explore example Colab Notebooks at [wandb/examples GitHub repository](https://github.com/wandb/examples/tree/master/colabs). Here are some of our favorites:
@@ -578,10 +578,9 @@ Explore example Colab Notebooks at [wandb/examples GitHub repository](https://gi
 
 &nbsp;
 
-
 # Python Version Support
 
-We are committed to supporting our minimum required Python version for *at least* six months after its official end-of-life (EOL) date, as defined by the Python Software Foundation. You can find a list of Python EOL dates [here](https://devguide.python.org/versions/).
+We are committed to supporting our minimum required Python version for _at least_ six months after its official end-of-life (EOL) date, as defined by the Python Software Foundation. You can find a list of Python EOL dates [here](https://devguide.python.org/versions/).
 
 When we discontinue support for a Python version, we will increment the library’s minor version number to reflect this change.
 

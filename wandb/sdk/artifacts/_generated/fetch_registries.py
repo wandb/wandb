@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import RegistryConnectionFragment
+from .fragments import PageInfoFragment, RegistryFragment
 
 
 class FetchRegistries(GQLResult):
@@ -23,10 +23,20 @@ class FetchRegistriesOrganization(GQLResult):
 
 
 class FetchRegistriesOrganizationOrgEntity(GQLResult):
-    name: str
-    projects: Optional[RegistryConnectionFragment]
+    projects: Optional[FetchRegistriesOrganizationOrgEntityProjects]
+
+
+class FetchRegistriesOrganizationOrgEntityProjects(GQLResult):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[FetchRegistriesOrganizationOrgEntityProjectsEdges]
+
+
+class FetchRegistriesOrganizationOrgEntityProjectsEdges(GQLResult):
+    node: Optional[RegistryFragment]
 
 
 FetchRegistries.model_rebuild()
 FetchRegistriesOrganization.model_rebuild()
 FetchRegistriesOrganizationOrgEntity.model_rebuild()
+FetchRegistriesOrganizationOrgEntityProjects.model_rebuild()
+FetchRegistriesOrganizationOrgEntityProjectsEdges.model_rebuild()

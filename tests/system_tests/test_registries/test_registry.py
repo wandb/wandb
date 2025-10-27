@@ -52,7 +52,7 @@ def test_registry_create_edit(default_organization, api: Api):
     assert registry.organization == default_organization
     assert registry.description == initial_description
     assert registry.visibility == "organization"
-    assert registry.allow_all_artifact_types
+    assert registry.allow_all_artifact_types is True
     assert len(registry.artifact_types) == 0
 
     # This doesn't do anything but want to make sure it doesn't raise unexpected errors
@@ -61,7 +61,7 @@ def test_registry_create_edit(default_organization, api: Api):
     assert registry.name == registry_name
     assert registry.description == initial_description
     assert registry.visibility == "organization"
-    assert registry.allow_all_artifact_types
+    assert registry.allow_all_artifact_types is True
 
     # === Edit ===
     registry.description = updated_description
@@ -116,7 +116,7 @@ def test_registry_create_edit_artifact_types(default_organization, api: Api):
         artifact_types=None,  # Test default: allow all
     )
     assert registry
-    assert registry.allow_all_artifact_types
+    assert registry.allow_all_artifact_types is True
     assert registry.artifact_types == []
 
     # Test restriction: Cannot add types if allow_all is True
@@ -128,6 +128,7 @@ def test_registry_create_edit_artifact_types(default_organization, api: Api):
         registry.save()
     # Reset for valid save
     registry.allow_all_artifact_types = False
+    assert registry.allow_all_artifact_types is False
     registry.save()
     assert registry.artifact_types == [artifact_type_1]
     assert registry.artifact_types.draft == ()
@@ -315,12 +316,16 @@ def test_edit_registry_name(mock_termlog, default_organization, api: Api):
         description="This is the initial description",
     )
 
+    assert registry.name == registry_name
+
     new_registry_name = "new-name"
+
     registry.name = new_registry_name
-    assert registry._saved_name == registry_name
-    registry.save()
     assert registry.name == new_registry_name
-    assert registry._saved_name == new_registry_name
+
+    registry.save()
+
+    assert registry.name == new_registry_name
     assert registry.description == "This is the initial description"
 
     # Double check we didn't create a new registry instead of renaming the old one
@@ -335,7 +340,7 @@ def test_edit_registry_name(mock_termlog, default_organization, api: Api):
 
 
 @mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_fetch_registries(team: str, org: str, api: Api):
+def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
     num_registries = 3
 
     for registry_idx in range(num_registries):
@@ -345,9 +350,17 @@ def test_fetch_registries(team: str, org: str, api: Api):
             visibility="organization",
         )
 
-    registries = list(api.registries(organization=org))
+    # Sort the registries by name for predictable assertions
+    registries = sorted(api.registries(organization=org), key=lambda r: r.name)
 
     assert len(registries) == num_registries
+
+    for i, registry in enumerate(registries):
+        assert registry.entity == org_entity
+        assert registry.organization == org
+        assert registry.full_name == f"wandb-registry-test-{i}"
+        assert registry.full_name == f"{REGISTRY_PREFIX}test-{i}"
+        assert registry.visibility == "organization"
 
 
 @fixture
@@ -389,7 +402,12 @@ def test_registries_collections(
 
 @mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
 def test_registries_versions(
-    org: str, api: Api, source_artifacts: list[Artifact], target_registry: Registry
+    org: str,
+    org_entity: str,
+    team: str,
+    api: Api,
+    source_artifacts: list[Artifact],
+    target_registry: Registry,
 ):
     # Each version linked to the same registry collection
     for artifact in source_artifacts:
@@ -400,7 +418,24 @@ def test_registries_versions(
     versions = sorted(registries.versions(), key=lambda v: v.name)
     assert len(versions) == len(source_artifacts)
 
+    # Sanity check: all source artifacts were logged from the same project
+    source_projects = list(set(src.project for src in source_artifacts))
+    assert len(source_projects) == 1
+    source_project = source_projects[0]
+
     # Check that the versions are linked to the correct registry collection
     for i, registry_version in enumerate(versions):
         assert registry_version.source_name == f"test-artifact-{i}:v0"
+        assert registry_version.source_project == source_project
+        assert registry_version.source_entity == team
+        assert registry_version.source_version == "v0"
+
         assert registry_version.name == f"reg-collection:v{i}"
+        assert registry_version.project == target_registry.full_name
+        assert registry_version.entity == org_entity
+        assert registry_version.version == f"v{i}"
+
+        if i == len(versions) - 1:
+            assert registry_version.aliases == ["latest"]
+        else:
+            assert registry_version.aliases == []

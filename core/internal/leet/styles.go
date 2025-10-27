@@ -13,6 +13,9 @@ const (
 	MinChartHeight       = 5
 	MinMetricChartWidth  = 18
 	MinMetricChartHeight = 4
+	ChartBorderSize      = 2
+	ChartTitleHeight     = 1
+	ChartHeaderHeight    = 2
 )
 
 // Default grid sizes
@@ -35,9 +38,40 @@ const (
 
 // WANDB brand colors.
 const (
-	// Primary
+	// Primary colors.
 	moon900    = lipgloss.Color("#171A1F")
 	wandbColor = lipgloss.Color("#FCBC32")
+)
+
+// Secondary colors.
+var teal450 = lipgloss.AdaptiveColor{
+	Light: "#10BFCC",
+	Dark:  "#E1F7FA",
+}
+
+// Functional colors not specific to any visual component.
+// Ideally these should be adaptive!
+var (
+	// Main text color that appears the most frequently on the screen.
+	colorText = lipgloss.Color("245")
+
+	// Color for extra or parenthetical text or information.
+	// Axis lines in charts.
+	colorSubtle = lipgloss.Color("240")
+
+	// Color for layout elements, like borders and separator lines.
+	// colorLayout = lipgloss.Color("238")
+
+	// Color for layout elements when they're highlighted or focused.
+	// colorLayoutHighlight = teal450
+
+	// Color for top-level headings; least frequent.
+	// Leet logo, help page section headings.
+	// colorHeading = wandbColor
+
+	// Color for lower-level headings; more frequent than headings.
+	// Help page keys, metrics grid header.
+	colorSubheading = lipgloss.Color("230")
 )
 
 // ASCII art for the loading screen and the help page.
@@ -112,28 +146,21 @@ var colorSchemes = map[string][]string{
 	},
 }
 
-// GetGraphColors returns the colors for the current color scheme.
-func GetGraphColors() []string {
+// GraphColors returns the colors for the current color scheme.
+func GraphColors() []string {
 	return colorSchemes["sunset-glow"]
 }
 
 // Chart styles.
 var (
-	axisStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")) // gray
+	axisStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
-	labelStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245")) // light gray
+	labelStyle = lipgloss.NewStyle().Foreground(colorText)
 )
 
 // Status bar styles.
 var (
-	statusBarStyle = lipgloss.NewStyle().
-		Foreground(moon900).
-		Background(lipgloss.AdaptiveColor{
-			Light: "#10BFCC", // teal450 - W&B secondary color
-			Dark:  "#E1F7FA",
-		})
+	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(teal450)
 )
 
 // AnimationDuration is the duration for sidebar animations.
@@ -141,3 +168,14 @@ const AnimationDuration = 150 * time.Millisecond
 
 // AnimationSteps is the number of steps in sidebar animations.
 const AnimationSteps = 10
+
+// Help screen styles.
+var (
+	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).Width(20)
+
+	helpDescStyle = lipgloss.NewStyle().Foreground(colorText)
+
+	helpSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(wandbColor)
+
+	helpContentStyle = lipgloss.NewStyle().MarginLeft(2).MarginTop(1)
+)

@@ -12,7 +12,8 @@ from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._generated import (
     ArtifactByName,
     ArtifactFragment,
-    ArtifactViaMembershipByName,
+    ArtifactMembershipByName,
+    ArtifactMembershipFragment,
 )
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
@@ -24,23 +25,45 @@ def mock_artifact_fragment_data() -> dict[str, Any]:
         versionIndex=0,  # NOTE: relevant
         artifactType={"name": "model"},
         artifactSequence={
-            "id": "PLACEHOLDER",
             "name": "test-collection",
             "project": {
-                "id": "PLACEHOLDER",
-                "entityName": "test-team",
                 "name": "orig-project",
+                "entity": {"name": "test-team"},
             },
         },
         id="PLACEHOLDER",
         description="PLACEHOLDER",
         metadata="{}",
         state="COMMITTED",
-        currentManifest=None,
+        size=0,
+        digest="FAKE_DIGEST",
         fileCount=0,
         commitHash="PLACEHOLDER",
         createdAt="PLACEHOLDER",
         updatedAt=None,
+    )
+    return fragment.model_dump()
+
+
+@fixture
+def mock_membership_fragment_data(
+    mock_artifact_fragment_data: dict[str, Any],
+) -> dict[str, Any]:
+    fragment = ArtifactMembershipFragment(
+        id="PLACEHOLDER",
+        artifact=mock_artifact_fragment_data,
+        artifactCollection={
+            "__typename": "ArtifactPortfolio",
+            "name": "test-collection",  # NOTE: relevant
+            "project": {
+                "name": "wandb-registry-model",  # NOTE: relevant
+                "entity": {"name": "org-entity-name"},  # NOTE: relevant
+            },
+        },
+        versionIndex=1,
+        aliases=[
+            {"id": "PLACEHOLDER", "alias": "my-alias"},
+        ],
     )
     return fragment.model_dump()
 
@@ -61,26 +84,13 @@ def mock_artifact_rsp_data(
 
 @fixture
 def mock_membership_rsp_data(
-    mock_artifact_fragment_data: dict[str, Any],
+    mock_membership_fragment_data: dict[str, Any],
 ) -> dict[str, Any]:
-    """Return the mocked response for the GQL ArtifactViaMembershipByName query."""
+    """Return the mocked response for the GQL ArtifactMembershipByName query."""
     return {
         "data": {
             "project": {
-                "artifactCollectionMembership": {
-                    "id": "PLACEHOLDER",
-                    "artifact": mock_artifact_fragment_data,
-                    "artifactCollection": {
-                        "__typename": "ArtifactPortfolio",
-                        "id": "PLACEHOLDER",
-                        "name": "test-collection",  # NOTE: relevant
-                        "project": {
-                            "id": "PLACEHOLDER",
-                            "entityName": "org-entity-name",  # NOTE: relevant
-                            "name": "wandb-registry-model",  # NOTE: relevant
-                        },
-                    },
-                },
+                "artifactCollectionMembership": mock_membership_fragment_data,
             }
         }
     }
@@ -104,7 +114,7 @@ def test_fetch_migrated_registry_artifact(
     # Setup: Stub the appropriate GQL response (depending on server version)
     # to return the artifact in the new org registry
     if server_supports_artifact_via_membership:
-        op_name = nameof(ArtifactViaMembershipByName)
+        op_name = nameof(ArtifactMembershipByName)
         mock_rsp = wandb_backend_spy.gql.Constant(content=mock_membership_rsp_data)
     else:
         op_name = nameof(ArtifactByName)

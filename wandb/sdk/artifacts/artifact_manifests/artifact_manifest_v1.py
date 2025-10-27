@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from operator import itemgetter
-from typing import Any, Dict, Literal, final
+from typing import Any, ClassVar, Dict, Literal, final
 
 from pydantic import Field
 from typing_extensions import Annotated
@@ -62,10 +62,15 @@ class ArtifactManifestV1(ArtifactManifest):
             },
         }
 
+    _DIGEST_HEADER: ClassVar[bytes] = b"wandb-artifact-manifest-v1\n"
+    """Encoded prefix/header for the ArtifactManifest digest."""
+
     def digest(self) -> HexMD5:
-        hasher = _md5()
-        hasher.update(b"wandb-artifact-manifest-v1\n")
+        hasher = _md5(self._DIGEST_HEADER)
         # sort by key (path)
-        for name, entry in sorted(self.entries.items(), key=itemgetter(0)):
-            hasher.update(f"{name}:{entry.digest}\n".encode())
-        return HexMD5(hasher.hexdigest())
+        for path, entry in sorted(self.entries.items(), key=itemgetter(0)):
+            hasher.update(f"{path}:{entry.digest}\n".encode())
+        return hasher.hexdigest()
+
+    def size(self) -> int:
+        return sum(entry.size for entry in self.entries.values() if entry.size)

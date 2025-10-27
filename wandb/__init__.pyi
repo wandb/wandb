@@ -580,7 +580,7 @@ def log(
         run.log({"accuracy": 0.8}, step=current_step)
         current_step += 1
         run.log({"train-loss": 0.4}, step=current_step)
-        run.log({"accuracy": 0.9}, step=current_step)
+        run.log({"accuracy": 0.9}, step=current_step, commit=True)
     ```
 
     Args:

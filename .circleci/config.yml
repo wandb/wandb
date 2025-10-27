@@ -14,7 +14,7 @@ parameters:
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
   server_image_tag:
     type: string
-    default: "96f3ecb397dbeff1a36909f19039d913b30e791c"
+    default: "master"
 
 executors:
   macos:
@@ -250,7 +250,7 @@ commands:
                 command: |
                   wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
                   chmod +x dotnet-install.sh
-                  ./dotnet-install.sh --version latest
+                  ./dotnet-install.sh --channel 9.0
                   echo 'export PATH="$HOME/.dotnet:$PATH"' >> "$BASH_ENV"
                 no_output_timeout: 5m
 

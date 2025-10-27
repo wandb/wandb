@@ -11,6 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waiting"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"golang.org/x/sync/errgroup"
 )
@@ -22,6 +23,7 @@ var runSyncerProviders = wire.NewSet(
 // RunSyncerFactory creates RunSyncer.
 type RunSyncerFactory struct {
 	Logger              *observability.CoreLogger
+	Operations          *wboperation.WandbOperations
 	Printer             *observability.Printer
 	RecordParserFactory *stream.RecordParserFactory
 	RunReaderFactory    *RunReaderFactory
@@ -36,11 +38,12 @@ type RunSyncer struct {
 
 	path string
 
-	logger    *observability.CoreLogger
-	printer   *observability.Printer
-	runReader *RunReader
-	runWork   runwork.RunWork
-	sender    *stream.Sender
+	logger     *observability.CoreLogger
+	operations *wboperation.WandbOperations
+	printer    *observability.Printer
+	runReader  *RunReader
+	runWork    runwork.RunWork
+	sender     *stream.Sender
 }
 
 // New initializes a sync operation without starting it.
@@ -61,11 +64,12 @@ func (f *RunSyncerFactory) New(path string) *RunSyncer {
 	return &RunSyncer{
 		path: path,
 
-		logger:    f.Logger,
-		printer:   f.Printer,
-		runReader: runReader,
-		runWork:   runWork,
-		sender:    sender,
+		logger:     f.Logger,
+		operations: f.Operations,
+		printer:    f.Printer,
+		runReader:  runReader,
+		runWork:    runWork,
+		sender:     sender,
 	}
 }
 
@@ -100,8 +104,21 @@ func (rs *RunSyncer) Sync() {
 		// TODO: Emit error.
 		logSyncFailure(rs.logger, err)
 	} else {
-		rs.printer.Write("Finished syncing run.")
+		rs.printer.Writef("Finished syncing %s", rs.path)
 	}
+}
+
+// AddStats inserts the sync operation's status info into the map
+// keyed by the run's path.
+func (rs *RunSyncer) AddStats(status map[string]*spb.OperationStats) {
+	rs.mu.Lock()
+	runInfo := rs.runInfo
+	rs.mu.Unlock()
+	if runInfo == nil {
+		return
+	}
+
+	status[runInfo.Path()] = rs.operations.ToProto()
 }
 
 // PopMessages returns any new messages for the sync operation.
@@ -119,7 +136,7 @@ func (rs *RunSyncer) PopMessages() []*spb.ServerSyncMessage {
 			&spb.ServerSyncMessage{
 				// TODO: Existing code assumes printer messages are warnings.
 				Severity: spb.ServerSyncMessage_SEVERITY_INFO,
-				Content:  fmt.Sprintf("[%s] %s", runInfo.RunID, msg),
+				Content:  fmt.Sprintf("[%s] %s", runInfo.Path(), msg),
 			})
 	}
 	return messages

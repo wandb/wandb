@@ -8,7 +8,12 @@ import wandb
 from wandb._strutils import nameof
 from wandb.errors.errors import CommError
 from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk.artifacts._generated import ArtifactByName, ArtifactViaMembershipByName
+from wandb.sdk.artifacts._generated import (
+    ArtifactByName,
+    ArtifactFragment,
+    ArtifactMembershipByName,
+    ArtifactMembershipFragment,
+)
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
@@ -410,34 +415,46 @@ def test_fetch_registry_artifact(
         return_value=resolve_org_entity_name,
     )
 
-    mock_artifact_fragment_data = {
-        "name": "test-collection",  # NOTE: relevant
-        "versionIndex": 0,  # NOTE: relevant
+    mock_artifact_fragment_data = ArtifactFragment(
+        name="test-collection",  # NOTE: relevant
+        version_index=0,  # NOTE: relevant
         # ------------------------------------------------------------------------------
         # NOTE: Remaining artifact fields are placeholders and not as relevant to the test
-        "artifactType": {
-            "name": "model",
-        },
-        "artifactSequence": {
-            "id": "PLACEHOLDER",
+        artifact_type={"name": "model"},
+        artifact_sequence={
             "name": "test-collection",
             "project": {
-                "id": "PLACEHOLDER",
-                "entityName": "test-team",
                 "name": "orig-project",
+                "entity": {"name": "test-team"},
             },
         },
-        "id": "PLACEHOLDER",
-        "description": "PLACEHOLDER",
-        "metadata": "{}",
-        "state": "COMMITTED",
-        "currentManifest": None,
-        "fileCount": 0,
-        "commitHash": "PLACEHOLDER",
-        "createdAt": "PLACEHOLDER",
-        "updatedAt": None,
+        id="PLACEHOLDER",
+        description="PLACEHOLDER",
+        metadata="{}",
+        state="COMMITTED",
+        size=0,
+        digest="FAKE_DIGEST",
+        file_count=0,
+        commit_hash="PLACEHOLDER",
+        created_at="PLACEHOLDER",
+        updated_at=None,
         # ------------------------------------------------------------------------------
-    }
+    ).model_dump()
+
+    mock_membership_fragment_data = ArtifactMembershipFragment(
+        id="PLACEHOLDER",
+        artifact=mock_artifact_fragment_data,
+        artifact_collection={
+            "__typename": "ArtifactPortfolio",
+            "name": "test-collection",
+            "project": {
+                "name": "wandb-registry-model",  # NOTE: relevant
+                "entity": {"name": "org-entity-name"},  # NOTE: relevant
+            },
+        },
+        version_index=1,
+        aliases=[{"id": "PLACEHOLDER", "alias": "my-alias"}],
+    ).model_dump()
 
     mock_empty_rsp_data = {"data": {"project": {}}}
 
@@ -453,20 +470,7 @@ def test_fetch_registry_artifact(
         "data": {
             "project": {
                 "artifact": mock_artifact_fragment_data,
-                "artifactCollectionMembership": {
-                    "id": "PLACEHOLDER",
-                    "artifact": mock_artifact_fragment_data,
-                    "artifactCollection": {
-                        "__typename": "ArtifactPortfolio",
-                        "id": "PLACEHOLDER",
-                        "name": "test-collection",
-                        "project": {
-                            "id": "PLACEHOLDER",
-                            "entityName": "org-entity-name",  # NOTE: relevant
-                            "name": "wandb-registry-model",  # NOTE: relevant
-                        },
-                    },
-                },
+                "artifactCollectionMembership": mock_membership_fragment_data,
             }
         }
     }
@@ -474,7 +478,7 @@ def test_fetch_registry_artifact(
     # Set up the mock response for the appropriate GQL operation
     # Return equivalent payload for either membership or by-name fetches
     if server_supports_artifact_via_membership:
-        op_name = nameof(ArtifactViaMembershipByName)
+        op_name = nameof(ArtifactMembershipByName)
         mock_rsp = mock_membership_rsp_data
     else:
         op_name = nameof(ArtifactByName)

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/getsentry/sentry-go/internal/debuglog"
 )
 
 const (
@@ -347,6 +349,58 @@ func (s *Span) SetDynamicSamplingContext(dsc DynamicSamplingContext) {
 	}
 }
 
+// shouldIgnoreStatusCode checks if the transaction should be ignored based on HTTP status code.
+func (s *Span) shouldIgnoreStatusCode() bool {
+	if !s.IsTransaction() {
+		return false
+	}
+
+	ignoreStatusCodes := s.clientOptions().TraceIgnoreStatusCodes
+	if len(ignoreStatusCodes) == 0 {
+		return false
+	}
+
+	s.mu.Lock()
+	statusCodeData, exists := s.Data["http.response.status_code"]
+	s.mu.Unlock()
+
+	if !exists {
+		return false
+	}
+
+	statusCode, ok := statusCodeData.(int)
+	if !ok {
+		return false
+	}
+
+	for _, ignoredRange := range ignoreStatusCodes {
+		switch len(ignoredRange) {
+		case 1:
+			// Single status code
+			if statusCode == ignoredRange[0] {
+				s.mu.Lock()
+				s.Sampled = SampledFalse
+				s.mu.Unlock()
+				debuglog.Printf("dropping transaction with status code %v: found in TraceIgnoreStatusCodes", statusCode)
+				return true
+			}
+		case 2:
+			// Range of status codes [min, max]
+			if ignoredRange[0] <= statusCode && statusCode <= ignoredRange[1] {
+				s.mu.Lock()
+				s.Sampled = SampledFalse
+				s.mu.Unlock()
+				debuglog.Printf("dropping transaction with status code %v: found in TraceIgnoreStatusCodes range [%d, %d]", statusCode, ignoredRange[0], ignoredRange[1])
+				return true
+			}
+		default:
+			debuglog.Printf("incorrect TraceIgnoreStatusCodes format: %v", ignoredRange)
+		}
+	}
+
+	return false
+}
+
 // doFinish runs the actual Span.Finish() logic.
 func (s *Span) doFinish() {
 	if s.EndTime.IsZero() {
@@ -358,6 +412,10 @@ func (s *Span) doFinish() {
 		if s.parent != nil {
 			hub.Scope().SetSpan(s.parent)
 		}
+	}
+
+	if s.shouldIgnoreStatusCode() {
+		return
 	}
 
 	if !s.Sampled.Bool() {
@@ -449,14 +507,14 @@ func (s *Span) sample() Sampled {
 	// https://develop.sentry.dev/sdk/performance/#sampling
 	// #1 tracing is not enabled.
 	if !clientOptions.EnableTracing {
-		DebugLogger.Printf("Dropping transaction: EnableTracing is set to %t", clientOptions.EnableTracing)
+		debuglog.Printf("Dropping transaction: EnableTracing is set to %t", clientOptions.EnableTracing)
 		s.sampleRate = 0.0
 		return SampledFalse
 	}
 
 	// #2 explicit sampling decision via StartSpan/StartTransaction options.
 	if s.explicitSampled != SampledUndefined {
-		DebugLogger.Printf("Using explicit sampling decision from StartSpan/StartTransaction: %v", s.explicitSampled)
+		debuglog.Printf("Using explicit sampling decision from StartSpan/StartTransaction: %v", s.explicitSampled)
 		switch s.explicitSampled {
 		case SampledTrue:
 			s.sampleRate = 1.0
@@ -489,25 +547,25 @@ func (s *Span) sample() Sampled {
 			s.dynamicSamplingContext.Entries["sample_rate"] = strconv.FormatFloat(tracesSamplerSampleRate, 'f', -1, 64)
 		}
 		if tracesSamplerSampleRate < 0.0 || tracesSamplerSampleRate > 1.0 {
-			DebugLogger.Printf("Dropping transaction: Returned TracesSampler rate is out of range [0.0, 1.0]: %f", tracesSamplerSampleRate)
+			debuglog.Printf("Dropping transaction: Returned TracesSampler rate is out of range [0.0, 1.0]: %f", tracesSamplerSampleRate)
 			return SampledFalse
 		}
 		if tracesSamplerSampleRate == 0.0 {
-			DebugLogger.Printf("Dropping transaction: Returned TracesSampler rate is: %f", tracesSamplerSampleRate)
+			debuglog.Printf("Dropping transaction: Returned TracesSampler rate is: %f", tracesSamplerSampleRate)
 			return SampledFalse
 		}
 
 		if rng.Float64() < tracesSamplerSampleRate {
 			return SampledTrue
 		}
-		DebugLogger.Printf("Dropping transaction: TracesSampler returned rate: %f", tracesSamplerSampleRate)
+		debuglog.Printf("Dropping transaction: TracesSampler returned rate: %f", tracesSamplerSampleRate)
 
 		return SampledFalse
 	}
 
 	// #4 inherit parent decision.
 	if s.Sampled != SampledUndefined {
-		DebugLogger.Printf("Using sampling decision from parent: %v", s.Sampled)
+		debuglog.Printf("Using sampling decision from parent: %v", s.Sampled)
 		switch s.Sampled {
 		case SampledTrue:
 			s.sampleRate = 1.0
@@ -525,11 +583,11 @@ func (s *Span) sample() Sampled {
 		s.dynamicSamplingContext.Entries["sample_rate"] = strconv.FormatFloat(sampleRate, 'f', -1, 64)
 	}
 	if sampleRate < 0.0 || sampleRate > 1.0 {
-		DebugLogger.Printf("Dropping transaction: TracesSampleRate out of range [0.0, 1.0]: %f", sampleRate)
+		debuglog.Printf("Dropping transaction: TracesSampleRate out of range [0.0, 1.0]: %f", sampleRate)
 		return SampledFalse
 	}
 	if sampleRate == 0.0 {
-		DebugLogger.Printf("Dropping transaction: TracesSampleRate rate is: %f", sampleRate)
+		debuglog.Printf("Dropping transaction: TracesSampleRate rate is: %f", sampleRate)
 		return SampledFalse
 	}
 
@@ -552,7 +610,7 @@ func (s *Span) toEvent() *Event {
 	finished := make([]*Span, 0, len(children))
 	for _, child := range children {
 		if child.EndTime.IsZero() {
-			DebugLogger.Printf("Dropped unfinished span: Op=%q TraceID=%s SpanID=%s", child.Op, child.TraceID, child.SpanID)
+			debuglog.Printf("Dropped unfinished span: Op=%q TraceID=%s SpanID=%s", child.Op, child.TraceID, child.SpanID)
 			continue
 		}
 		finished = append(finished, child)

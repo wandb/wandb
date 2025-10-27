@@ -28,6 +28,7 @@ from wandb.automations import (
 from wandb.automations._utils import EXCLUDED_INPUT_ACTIONS, EXCLUDED_INPUT_EVENTS
 from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
 from wandb.automations.events import InputEvent, SavedEvent
+from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
 
 # default Hypothesis settings
 settings.register_profile("default", max_examples=100)
@@ -87,21 +88,32 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     For unit-testing purposes, this has been heavily mocked.
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
+    collection_name = "test-collection"
+    project_name = "test-project"
+    entity_name = "test-entity"
+    collection_type = "dataset"
     collection = ArtifactCollection(
         client=mock_client,
-        entity="test-entity",
-        project="test-project",
-        name="test-collection",
-        type="dataset",
-        attrs={
-            "id": make_graphql_id(prefix="ArtifactCollection"),
-            "type": "dataset",
-            "description": "This is a fake artifact collection.",
-            "aliases": {"edges": []},
-            "createdAt": "2021-01-01T00:00:00Z",
-            "tags": {"edges": []},
-        },
-        is_sequence=False,
+        entity=entity_name,
+        project=project_name,
+        name=collection_name,
+        type=collection_type,
+        attrs=ArtifactCollectionFragment(
+            typename__="ArtifactPortfolio",
+            id=make_graphql_id(prefix="ArtifactCollection"),
+            name=collection_name,
+            project={
+                "name": project_name,
+                "entity": {
+                    "name": entity_name,
+                },
+            },
+            type={"name": collection_type},
+            description="This is a fake artifact collection.",
+            aliases={"edges": []},
+            createdAt="2021-01-01T00:00:00Z",
+            tags={"edges": []},
+        ),
     )
 
     return collection

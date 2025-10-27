@@ -1,7 +1,6 @@
 package runsync
 
 import (
-	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"golang.org/x/sync/errgroup"
 )
@@ -14,8 +13,7 @@ type RunSyncOperationFactory struct{}
 //
 // This is needed because the server can sync multiple paths simultaneously.
 type RunSyncOperation struct {
-	syncers    []*RunSyncer
-	operations *wboperation.WandbOperations
+	syncers []*RunSyncer
 }
 
 func (f *RunSyncOperationFactory) New(
@@ -24,11 +22,9 @@ func (f *RunSyncOperationFactory) New(
 ) *RunSyncOperation {
 	op := &RunSyncOperation{}
 
-	op.operations = wboperation.NewOperations()
-
 	for _, path := range paths {
 		settings := MakeSyncSettings(globalSettings, path)
-		factory := InjectRunSyncerFactory(op.operations, settings)
+		factory := InjectRunSyncerFactory(settings)
 		op.syncers = append(op.syncers, factory.New(path))
 	}
 
@@ -56,8 +52,13 @@ func (op *RunSyncOperation) Do(parallelism int) *spb.ServerSyncResponse {
 
 // Status returns the operation's status.
 func (op *RunSyncOperation) Status() *spb.ServerSyncStatusResponse {
+	stats := make(map[string]*spb.OperationStats, len(op.syncers))
+	for _, syncer := range op.syncers {
+		syncer.AddStats(stats)
+	}
+
 	return &spb.ServerSyncStatusResponse{
-		Stats:       op.operations.ToProto(),
+		Stats:       stats,
 		NewMessages: op.popMessages(),
 	}
 }

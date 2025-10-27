@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import RegistryCollectionConnectionFragment
+from .fragments import PageInfoFragment, RegistryCollectionFragment
 
 
 class RegistryCollections(GQLResult):
@@ -24,11 +24,23 @@ class RegistryCollectionsOrganization(GQLResult):
 
 class RegistryCollectionsOrganizationOrgEntity(GQLResult):
     name: str
-    artifact_collections: Optional[RegistryCollectionConnectionFragment] = Field(
-        alias="artifactCollections"
-    )
+    artifact_collections: Optional[
+        RegistryCollectionsOrganizationOrgEntityArtifactCollections
+    ] = Field(alias="artifactCollections")
+
+
+class RegistryCollectionsOrganizationOrgEntityArtifactCollections(GQLResult):
+    total_count: int = Field(alias="totalCount")
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[RegistryCollectionsOrganizationOrgEntityArtifactCollectionsEdges]
+
+
+class RegistryCollectionsOrganizationOrgEntityArtifactCollectionsEdges(GQLResult):
+    node: Optional[RegistryCollectionFragment]
 
 
 RegistryCollections.model_rebuild()
 RegistryCollectionsOrganization.model_rebuild()
 RegistryCollectionsOrganizationOrgEntity.model_rebuild()
+RegistryCollectionsOrganizationOrgEntityArtifactCollections.model_rebuild()
+RegistryCollectionsOrganizationOrgEntityArtifactCollectionsEdges.model_rebuild()

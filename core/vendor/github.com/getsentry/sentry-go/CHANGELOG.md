@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.36.1
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.36.1.
+
+### Bug Fixes
+
+- Prevent panic when converting error chains containing non-comparable error types by using a safe fallback for visited detection in exception conversion ([#1113](https://github.com/getsentry/sentry-go/pull/1113))
+
+## 0.36.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.36.0.
+
+### Breaking Changes
+
+- Behavioral change for the `MaxBreadcrumbs` client option. Removed the hard limit of 100 breadcrumbs, allowing users to set a larger limit and also changed the default limit from 30 to 100 ([#1106](https://github.com/getsentry/sentry-go/pull/1106)))
+
+- The changes to error handling ([#1075](https://github.com/getsentry/sentry-go/pull/1075)) will affect issue grouping. It is expected that any wrapped and complex errors will be grouped under a new issue group.
+
+### Features
+
+- Add support for improved issue grouping with enhanced error chain handling ([#1075](https://github.com/getsentry/sentry-go/pull/1075))
+
+  The SDK now provides better handling of complex error scenarios, particularly when dealing with multiple related errors or error chains. This feature automatically detects and properly structures errors created with Go's `errors.Join()` function and other multi-error patterns.
+
+  ```go
+  // Multiple errors are now properly grouped and displayed in Sentry
+  err1 := errors.New("err1")
+  err2 := errors.New("err2") 
+  combinedErr := errors.Join(err1, err2)
+  
+  // When captured, these will be shown as related exceptions in Sentry
+  sentry.CaptureException(combinedErr)
+  ```
+
+- Add `TraceIgnoreStatusCodes` option to allow filtering of HTTP transactions based on status codes ([#1089](https://github.com/getsentry/sentry-go/pull/1089))
+  - Configure which HTTP status codes should not be traced by providing single codes or ranges
+  - Example: `TraceIgnoreStatusCodes: [][]int{{404}, {500, 599}}` ignores 404 and server errors 500-599
+
+### Bug Fixes
+
+- Fix logs being incorrectly filtered by `BeforeSend` callback ([#1109](https://github.com/getsentry/sentry-go/pull/1109))
+  - Logs now bypass the `processEvent` method and are sent directly to the transport
+  - This ensures logs are only filtered by `BeforeSendLog`, not by the error/message `BeforeSend` callback
+
+### Misc
+
+- Add support for Go 1.25 and drop support for Go 1.22 ([#1103](https://github.com/getsentry/sentry-go/pull/1103))
+
 ## 0.35.3
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.35.3.

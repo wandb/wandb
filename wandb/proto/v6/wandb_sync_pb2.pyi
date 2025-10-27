@@ -146,11 +146,31 @@ class ServerSyncStatusResponse(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    @typing.final
+    class StatsEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: builtins.str
+        @property
+        def value(self) -> wandb.proto.wandb_internal_pb2.OperationStats: ...
+        def __init__(
+            self,
+            *,
+            key: builtins.str = ...,
+            value: wandb.proto.wandb_internal_pb2.OperationStats | None = ...,
+        ) -> None: ...
+        def HasField(self, field_name: typing.Literal["value", b"value"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing.Literal["key", b"key", "value", b"value"]) -> None: ...
+
     STATS_FIELD_NUMBER: builtins.int
     NEW_MESSAGES_FIELD_NUMBER: builtins.int
     @property
-    def stats(self) -> wandb.proto.wandb_internal_pb2.OperationStats:
-        """The status of any ongoing work (such as network requests)."""
+    def stats(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, wandb.proto.wandb_internal_pb2.OperationStats]:
+        """The status of any ongoing work (such as network requests),
+        keyed by the run path (entity/project/id).
+        """
 
     @property
     def new_messages(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerSyncMessage]:
@@ -159,10 +179,9 @@ class ServerSyncStatusResponse(google.protobuf.message.Message):
     def __init__(
         self,
         *,
-        stats: wandb.proto.wandb_internal_pb2.OperationStats | None = ...,
+        stats: collections.abc.Mapping[builtins.str, wandb.proto.wandb_internal_pb2.OperationStats] | None = ...,
         new_messages: collections.abc.Iterable[global___ServerSyncMessage] | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["stats", b"stats"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing.Literal["new_messages", b"new_messages", "stats", b"stats"]) -> None: ...
 
 global___ServerSyncStatusResponse = ServerSyncStatusResponse

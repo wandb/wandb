@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactCollectionConnectionFragment
+from .fragments import ArtifactCollectionFragment, PageInfoFragment
 
 
 class ProjectArtifactCollections(GQLResult):
@@ -23,11 +23,23 @@ class ProjectArtifactCollectionsProject(GQLResult):
 
 
 class ProjectArtifactCollectionsProjectArtifactType(GQLResult):
-    artifact_collections: Optional[ArtifactCollectionConnectionFragment] = Field(
-        alias="artifactCollections"
-    )
+    artifact_collections: Optional[
+        ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections
+    ] = Field(alias="artifactCollections")
+
+
+class ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections(GQLResult):
+    total_count: int = Field(alias="totalCount")
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges]
+
+
+class ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges(GQLResult):
+    node: Optional[ArtifactCollectionFragment]
 
 
 ProjectArtifactCollections.model_rebuild()
 ProjectArtifactCollectionsProject.model_rebuild()
 ProjectArtifactCollectionsProjectArtifactType.model_rebuild()
+ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections.model_rebuild()
+ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges.model_rebuild()

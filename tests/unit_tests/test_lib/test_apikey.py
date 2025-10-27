@@ -7,14 +7,24 @@ from wandb import wandb, wandb_lib
 from wandb.sdk.lib.apikey import _api_key_prompt_str
 
 
-def test_write_netrc(mock_wandb_log):
-    api_key = "X" * 40
+@pytest.mark.parametrize("api_key", ["X" * 40, "X" * 86])
+def test_write_netrc(mock_wandb_log, api_key):
     wandb_lib.apikey.write_netrc("http://localhost", "vanpelt", api_key)
     assert mock_wandb_log.logged("No netrc file found, creating one.")
     with open(wandb_lib.apikey.get_netrc_file_path()) as f:
         assert f.read() == (
             f"machine localhost\n  login vanpelt\n  password {api_key}\n"
         )
+
+
+def test_write_netrc_short_api_key_error(mock_wandb_log):
+    api_key = "X" * 39
+    with pytest.raises(ValueError) as expected_error:
+        wandb_lib.apikey.write_netrc("http://localhost", "vanpelt", api_key)
+    assert (
+        str(expected_error.value)
+        == f"API-key must be at least 40 characters long: {api_key} ({len(api_key)} chars)"
+    )
 
 
 def test_write_netrc_update_existing(tmp_path):
