@@ -9,6 +9,7 @@ import google.protobuf.descriptor
 import google.protobuf.internal.containers
 import google.protobuf.message
 import typing
+import wandb.proto.wandb_settings_pb2
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
@@ -138,17 +139,26 @@ class ScanRunHistoryInit(google.protobuf.message.Message):
     ENTITY_FIELD_NUMBER: builtins.int
     PROJECT_FIELD_NUMBER: builtins.int
     RUN_ID_FIELD_NUMBER: builtins.int
+    KEYS_FIELD_NUMBER: builtins.int
+    SETTINGS_FIELD_NUMBER: builtins.int
     entity: builtins.str
     project: builtins.str
     run_id: builtins.str
+    @property
+    def keys(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    @property
+    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
     def __init__(
         self,
         *,
         entity: builtins.str = ...,
         project: builtins.str = ...,
         run_id: builtins.str = ...,
+        keys: collections.abc.Iterable[builtins.str] | None = ...,
+        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["entity", b"entity", "project", b"project", "run_id", b"run_id"]) -> None: ...
+    def HasField(self, field_name: typing.Literal["settings", b"settings"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["entity", b"entity", "keys", b"keys", "project", b"project", "run_id", b"run_id", "settings", b"settings"]) -> None: ...
 
 global___ScanRunHistoryInit = ScanRunHistoryInit
 
@@ -175,24 +185,20 @@ class ScanRunHistory(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    KEYS_FIELD_NUMBER: builtins.int
     MIN_STEP_FIELD_NUMBER: builtins.int
     MAX_STEP_FIELD_NUMBER: builtins.int
     REQUEST_ID_FIELD_NUMBER: builtins.int
     min_step: builtins.int
     max_step: builtins.int
     request_id: builtins.int
-    @property
-    def keys(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
         self,
         *,
-        keys: collections.abc.Iterable[builtins.str] | None = ...,
         min_step: builtins.int = ...,
         max_step: builtins.int = ...,
         request_id: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["keys", b"keys", "max_step", b"max_step", "min_step", b"min_step", "request_id", b"request_id"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["max_step", b"max_step", "min_step", b"min_step", "request_id", b"request_id"]) -> None: ...
 
 global___ScanRunHistory = ScanRunHistory
 
