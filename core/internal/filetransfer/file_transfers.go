@@ -14,7 +14,7 @@ type FileTransfer interface {
 
 	// Download downloads a file from the server
 	Download(task *DefaultDownloadTask) error
-	DownloadTo(u string, w io.Writer) error
+	DownloadTo(url string, dst io.Writer) error
 }
 
 // ArtifactFileTransfer handles reference artifacts.
