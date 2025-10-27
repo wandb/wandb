@@ -2062,12 +2062,12 @@ class Artifact:
                 logger.debug(str(e))
                 return
             except IsADirectoryError:
-                logger.debug(
+                wandb.termwarn(
                     f"Unable to download file {entry.path!r} as there is a directory with the same path, skipping."
                 )
                 return
             except NotADirectoryError:
-                logger.debug(
+                wandb.termwarn(
                     f"Unable to download file {entry.path!r} as there is a file with the same path as a directory this file is expected to be in, skipping."
                 )
                 return
