@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package wandb_internal;
 
-import "wandb/proto/wandb_base.proto";
+import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
@@ -53,6 +53,8 @@ message ScanRunHistoryInit {
   string entity = 1;
   string project = 2;
   string run_id = 3;
+  repeated string keys = 4;
+  Settings settings = 5;
 }
 
 message ScanRunHistoryInitResponse {
@@ -62,10 +64,9 @@ message ScanRunHistoryInitResponse {
 // ScanRunHistoryApiRequest is a request to scan
 // over a portion of a run's history.
 message ScanRunHistory {
-  repeated string keys = 1;
-  int64 min_step = 2;
-  int64 max_step = 3;
-  int32 request_id = 4;
+  int64 min_step = 1;
+  int64 max_step = 2;
+  int32 request_id = 3;
 }
 
 message RunHistoryResponse {

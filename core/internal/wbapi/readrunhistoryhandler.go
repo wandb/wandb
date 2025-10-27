@@ -1,9 +1,15 @@
 package wbapi
 
 import (
+	"context"
+	"net/http"
 	"sync/atomic"
 
+	"github.com/wandb/simplejsonext"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
+	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -56,11 +62,25 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 	request *spb.ScanRunHistoryInit,
 ) *spb.ApiResponse {
 	requestId := f.currentRequestId.Add(1)
+	requestKeys := request.GetKeys()
+	settings := settings.From(request.GetSettings())
+
+	backend := stream.NewBackend(observability.NewNoOpLogger(), settings)
+	graphqlClient := stream.NewGraphQLClient(
+		backend,
+		settings,
+		&observability.Peeker{},
+		"", /*clientId*/
+	)
 
 	historyReader := runhistoryreader.New(
+		context.Background(),
 		request.Entity,
 		request.Project,
 		request.RunId,
+		graphqlClient,
+		http.DefaultClient,
+		requestKeys,
 	)
 	f.scanHistoryReaders[requestId] = historyReader
 
@@ -96,23 +116,43 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 		}
 	}
 
-	keys := request.Keys
 	minStep := request.MinStep
 	maxStep := request.MaxStep
 
 	// TODO: return history steps
-	_ = historyReader.GetHistorySteps(keys, minStep, maxStep)
-
-	// Generate some fake history rows for now
-	historyRows := make([]*spb.HistoryRow, 0, maxStep-minStep)
-	for i := minStep; i < maxStep; i++ {
-		historyRows = append(historyRows, &spb.HistoryRow{
-			HistoryItems: []*spb.ParquetHistoryItem{
-				{
-					Key:       "loss",
-					ValueJson: "1.0",
+	historySteps, err := historyReader.GetHistorySteps(minStep, maxStep)
+	if err != nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: err.Error(),
 				},
 			},
+		}
+	}
+
+	historyRows := make([]*spb.HistoryRow, 0, len(historySteps))
+	for _, historyStep := range historySteps {
+		historyItems := make([]*spb.ParquetHistoryItem, 0, len(historyStep))
+		for _, historyItem := range historyStep {
+			valueJson, err := simplejsonext.MarshalToString(historyItem.Value)
+			if err != nil {
+				return &spb.ApiResponse{
+					Response: &spb.ApiResponse_ApiErrorResponse{
+						ApiErrorResponse: &spb.ApiErrorResponse{
+							Message: err.Error(),
+						},
+					},
+				}
+			}
+
+			historyItems = append(historyItems, &spb.ParquetHistoryItem{
+				Key:       historyItem.Key,
+				ValueJson: valueJson,
+			})
+		}
+		historyRows = append(historyRows, &spb.HistoryRow{
+			HistoryItems: historyItems,
 		})
 	}
 
