@@ -301,6 +301,7 @@ class Api:
                 or configured in the environment.
         """
         self.settings = InternalApi().settings()
+        self._settings = wandb.sdk.wandb_settings.Settings()
 
         _overrides = overrides or {}
         self.settings.update(_overrides)
@@ -312,6 +313,8 @@ class Api:
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = _overrides["username"]
+
+        self._settings.update_from_dict(self.settings)
 
         use_api_key = api_key is not None or _thread_local_api_settings.cookies is None
 
@@ -368,9 +371,9 @@ class Api:
 
         self._stream_id = str(runid.generate_id())
         singleton = wandb_setup.singleton()
-        settings = singleton.settings.model_copy()
-        settings.base_url = self.settings["base_url"]
-        settings.silent = True
+        self._settings = singleton.settings.model_copy()
+        self._settings.base_url = self.settings["base_url"]
+        self._settings.silent = True
 
         self._service = singleton.ensure_service()
 
@@ -1288,6 +1291,7 @@ class Api:
                 run_id,
                 lazy=False,
                 service=self._service,
+                settings=self._settings,
             )
         return self._runs[path]
 

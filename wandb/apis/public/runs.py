@@ -561,6 +561,7 @@ class Run(Attrs):
         entity: str,
         project: str,
         run_id: str,
+        settings: wandb.sdk.wandb_settings.Settings,
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
         lazy: bool = True,
@@ -584,6 +585,7 @@ class Run(Attrs):
         self._lazy = lazy
         self._full_data_loaded = False  # Track if we've loaded full data
         self.dir = os.path.join(self._base_dir, *self.path)
+        self.settings = settings
         try:
             os.makedirs(self.dir)
         except OSError:
@@ -1507,5 +1509,6 @@ class Run(Attrs):
             max_step=max_step,
             keys=keys,
             page_size=page_size,
+            settings=self.settings,
         )
         return beta_history_scan

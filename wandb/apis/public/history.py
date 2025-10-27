@@ -37,6 +37,7 @@ class BetaHistoryScan:
         max_step: int,
         keys: list[str] | None = None,
         page_size: int = 1000,
+        settings: wandb.sdk.wandb_settings.Settings | None = None,
     ):
         if keys is None:
             keys = []
@@ -47,12 +48,16 @@ class BetaHistoryScan:
         self.keys = keys
         self.page_size = page_size
         self.service = service
-
+        self.settings = (
+            settings if settings is not None else wandb.sdk.wandb_settings.Settings()
+        )
         # Tell wandb-core to initialize resources to scan the run's history.
         scan_run_history_init = apb.ScanRunHistoryInit(
             entity=self.run.entity,
             project=self.run.project,
             run_id=self.run.id,
+            keys=self.keys,
+            settings=self.settings.to_proto(),
         )
         scan_run_history_init_request = apb.ReadRunHistoryRequest(
             scan_run_history_init=scan_run_history_init
