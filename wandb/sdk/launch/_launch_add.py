@@ -25,9 +25,15 @@ def push_to_queue(
     template_variables: Optional[dict],
     project_queue: str,
     priority: Optional[int] = None,
+    queue_entity: Optional[str] = None,
 ) -> Any:
     return api.push_to_run_queue(
-        queue_name, launch_spec, template_variables, project_queue, priority
+        queue_name,
+        launch_spec,
+        template_variables,
+        project_queue,
+        priority,
+        queue_entity,
     )
 
 
@@ -152,6 +158,7 @@ def _launch_add(
     sweep_id: Optional[str] = None,
     author: Optional[str] = None,
     priority: Optional[int] = None,
+    queue_entity: Optional[str] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         None,
