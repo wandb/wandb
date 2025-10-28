@@ -2117,7 +2117,9 @@ class Settings(BaseModel, validate_assignment=True):
         if not util.are_paths_on_same_drive(root, program):
             return None
 
-        full_path_to_program = os.path.abspath(os.path.join(root, program))
+        full_path_to_program = os.path.join(
+            root, os.path.relpath(os.getcwd(), root), program
+        )
         if os.path.exists(full_path_to_program):
             relative_path = os.path.relpath(full_path_to_program, start=root)
             if "../" in relative_path:

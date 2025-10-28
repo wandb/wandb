@@ -31,4 +31,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Fixed an issue where TensorBoard sync would sometimes stop working if the tfevents files were being written live (@timoffex in https://github.com/wandb/wandb/pull/10625)
 - `Artifact.manifest` delays downloading **and** generating the download URL for the artifact manifest until it's first used.  If the manifest has not been locally modified, `Artifact.size` and `Artifact.digest` can return without waiting to fetch the full manifest (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10680)
 - Fixed uploading GCS folder references via `artifact.add_reference` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/10679)
-- The SDK now automatically saves ipython notebooks when running notebooks in a directory below where the server was started (@jacobromero in https://github.com/wandb/wandb/pull/10709)
+- The SDK now correctly infers notebooks paths in Jupyter sessions, using th server's root directory, so code saving works in subdirectories (e.g. code/nested/<notebook>.ipynb) (@jacobromero in https://github.com/wandb/wandb/pull/10709)
