@@ -61,10 +61,6 @@ class Api:
     def default_entity(self):
         return self.api.default_entity
 
-    @property
-    def git(self):
-        return self.api.git
-
     def validate_api_key(self) -> bool:
         """Returns whether the API key stored on initialization is valid."""
         return self.api.validate_api_key()

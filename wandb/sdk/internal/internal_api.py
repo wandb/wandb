@@ -52,7 +52,6 @@ from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import credentials, retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
-from ..lib.gitlib import GitRepo
 from . import context
 from .progress import Progress
 
@@ -268,7 +267,6 @@ class Api:
             load_settings=load_settings,
             root_dir=self.default_settings.get("root_dir"),
         )
-        self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
             "system_sample_seconds": 2,
@@ -1446,8 +1444,6 @@ class Api:
                 "id": id,
             },
         )
-        # TODO(jhr): Commenting out 'repo' field for cling, add back
-        #   'description': description, 'repo': self.git.remote_url, 'id': id})
         result: Dict[str, Any] = response["upsertModel"]["model"]
         return result
 
