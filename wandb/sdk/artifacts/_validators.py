@@ -26,7 +26,12 @@ from wandb._pydantic import from_json, gql_typename
 from wandb._strutils import nameof, removeprefix
 from wandb.util import json_friendly_val
 
-from ._generated import ArtifactPortfolioTypeFields, ArtifactSequenceTypeFields
+from ._generated import (
+    ArtifactFragment,
+    ArtifactMembershipFragment,
+    ArtifactPortfolioTypeFields,
+    ArtifactSequenceTypeFields,
+)
 from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
 
 if TYPE_CHECKING:
@@ -354,3 +359,23 @@ class FullArtifactPath(ArtifactPath):
     name: str
     project: str
     prefix: str
+
+    @classmethod
+    def from_artifact_fragment(cls, obj: ArtifactFragment) -> Self:
+        if not obj.artifact_sequence.project:
+            raise ValueError("Project info not found in artifact fragment")
+        return cls(
+            prefix=obj.artifact_sequence.project.entity.name,
+            project=obj.artifact_sequence.project.name,
+            name=obj.artifact_sequence.name,
+        )
+
+    @classmethod
+    def from_membership_fragment(cls, obj: ArtifactMembershipFragment) -> Self:
+        if not (obj.artifact_collection and obj.artifact_collection.project):
+            raise ValueError("Project info not found in artifact membership fragment")
+        return cls(
+            prefix=obj.artifact_collection.project.entity.name,
+            project=obj.artifact_collection.project.name,
+            name=obj.artifact_collection.name,
+        )
