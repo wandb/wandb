@@ -315,7 +315,7 @@ def api_key(settings: Settings | None = None) -> str | None:
     if settings is None:
         settings = wandb_setup.singleton().settings
     if settings.api_key:
-        return settings.api_key
+        return settings.api_key.get_secret_value()
 
     netrc_access = check_netrc_access(get_netrc_file_path())
     if netrc_access.exists and not netrc_access.read_access:

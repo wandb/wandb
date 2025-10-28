@@ -20,7 +20,7 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple
 from urllib.parse import quote, unquote, urlencode
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from typing_extensions import Self
 
 import wandb
@@ -219,7 +219,7 @@ class Settings(BaseModel, validate_assignment=True):
        signed-up user account.
     """
 
-    api_key: Optional[str] = None
+    api_key: Optional[SecretStr] = None
     """The W&B API key."""
 
     azure_account_url_to_access_key: Optional[Dict[str, str]] = None
@@ -1071,7 +1071,9 @@ class Settings(BaseModel, validate_assignment=True):
 
         <!-- lazydoc-ignore-classmethod: internal -->
         """
-        if value is not None and (len(value) > len(value.strip())):
+        if value is not None and (
+            len(value.get_secret_value()) > len(value.get_secret_value().strip())
+        ):
             raise UsageError("API key cannot start or end with whitespace")
         return value
 
@@ -2066,6 +2068,10 @@ class Settings(BaseModel, validate_assignment=True):
                 getattr(settings_proto, k).CopyFrom(DoubleValue(value=v))
             elif isinstance(v, str):
                 getattr(settings_proto, k).CopyFrom(StringValue(value=v))
+            elif isinstance(v, SecretStr):
+                getattr(settings_proto, k).CopyFrom(
+                    StringValue(value=v.get_secret_value())
+                )
             elif isinstance(v, (list, set, tuple)):
                 # we only support sequences of strings for now
                 sequence = getattr(settings_proto, k)
