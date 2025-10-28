@@ -2898,7 +2898,7 @@ def eval(ctx, path, queue, project, entity, job):
         entity=entity,
     ) as run:
         artifact = wandb.Artifact(name=f"eval-preds-{run.id}", type="evaluation")
-        artifact.add_file(path, name="preds.json")
+        artifact.add_file(path, name="preds.jsonl")
         run.log_artifact(artifact)
         artifact.wait()
         artifact_name = artifact.source_qualified_name
