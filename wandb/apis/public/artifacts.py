@@ -31,8 +31,8 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator, SizedPaginator
 from wandb.errors.term import termlog
-from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.artifacts._generated import (
     ADD_ARTIFACT_COLLECTION_TAGS_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
@@ -76,7 +76,7 @@ from wandb.sdk.artifacts._models.pagination import (
 )
 from wandb.sdk.artifacts._validators import FullArtifactPath, validate_artifact_type
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.lib import deprecate
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
 from .utils import gql_compat
 
@@ -498,9 +498,9 @@ class ArtifactCollection:
     @normalize_exceptions
     def change_type(self, new_type: str) -> None:
         """Deprecated, change type directly with `save` instead."""
-        deprecate.deprecate(
-            field_name=Deprecated.artifact_collection__change_type,
-            warning_message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
+        warn_and_record_deprecation(
+            feature=Deprecated(artifact_collection__change_type=True),
+            message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
         )
 
         if (old_type := self._saved.type) != new_type:

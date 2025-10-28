@@ -39,14 +39,14 @@ from wandb.errors import CommError
 from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto.wandb_deprecated import Deprecated
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_setup
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import retry, runid, telemetry
-from wandb.sdk.lib.deprecate import deprecate
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import check_exists, system_preferred_path
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
@@ -254,9 +254,9 @@ class Artifact:
         self._distributed_id: str | None = None
         self._incremental: bool = incremental
         if use_as is not None:
-            deprecate(
-                field_name=Deprecated.artifact__init_use_as,
-                warning_message=(
+            warn_and_record_deprecation(
+                feature=Deprecated(artifact__init_use_as=True),
+                message=(
                     "`use_as` argument is deprecated and does not affect the behaviour of `wandb.Artifact()`"
                 ),
             )
@@ -1001,9 +1001,9 @@ class Artifact:
     @property
     def use_as(self) -> str | None:
         """Deprecated."""
-        deprecate(
-            field_name=Deprecated.artifact__use_as,
-            warning_message=("The use_as property of Artifact is deprecated."),
+        warn_and_record_deprecation(
+            feature=Deprecated(artifact__use_as=True),
+            message=("The use_as property of Artifact is deprecated."),
         )
         return self._use_as
 
@@ -1804,9 +1804,9 @@ class Artifact:
 
     def get_path(self, name: StrPath) -> ArtifactManifestEntry:
         """Deprecated. Use `get_entry(name)`."""
-        deprecate(
-            field_name=Deprecated.artifact__get_path,
-            warning_message="Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead.",
+        warn_and_record_deprecation(
+            feature=Deprecated(artifact__get_path=True),
+            message="Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead.",
         )
         return self.get_entry(name)
 

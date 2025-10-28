@@ -32,7 +32,7 @@ from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker, weave
-from wandb.proto.wandb_deprecated import Deprecated
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import progress, runid, wb_logging
 from wandb.sdk.lib.paths import StrPath
@@ -41,7 +41,7 @@ from wandb.util import _is_artifact_representation
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
-from .lib.deprecate import deprecate
+from .lib.deprecation import warn_and_record_deprecation
 from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
@@ -160,7 +160,7 @@ class _WandbInit:
         self._teardown_hooks: list[TeardownHook] = []
         self.notebook: wandb.jupyter.Notebook | None = None
 
-        self.deprecated_features_used: dict[str, str] = dict()
+        self.deprecated_features_used: list[tuple[Deprecated, str]] = []
 
     @property
     def _logger(self) -> wandb_setup.Logger:
@@ -445,16 +445,22 @@ class _WandbInit:
             Initial values for the run's config.
         """
         if config_exclude_keys:
-            self.deprecated_features_used["init__config_exclude_keys"] = (
-                "config_exclude_keys is deprecated. Use"
-                " `config=wandb.helper.parse_config(config_object,"
-                " exclude=('key',))` instead."
+            self.deprecated_features_used.append(
+                (
+                    Deprecated(init__config_exclude_keys=True),
+                    "config_exclude_keys is deprecated. Use"
+                    " `config=wandb.helper.parse_config(config_object,"
+                    " exclude=('key',))` instead.",
+                )
             )
         if config_include_keys:
-            self.deprecated_features_used["init__config_include_keys"] = (
-                "config_include_keys is deprecated. Use"
-                " `config=wandb.helper.parse_config(config_object,"
-                " include=('key',))` instead."
+            self.deprecated_features_used.append(
+                (
+                    Deprecated(init__config_include_keys=True),
+                    "config_include_keys is deprecated. Use"
+                    " `config=wandb.helper.parse_config(config_object,"
+                    " include=('key',))` instead.",
+                )
             )
         config = parse_config(
             config or dict(),
@@ -952,10 +958,10 @@ class _WandbInit:
             else:
                 run._label_probe_main()
 
-        for deprecated_feature, msg in self.deprecated_features_used.items():
-            deprecate(
-                field_name=getattr(Deprecated, deprecated_feature),
-                warning_message=msg,
+        for deprecated_feature, msg in self.deprecated_features_used:
+            warn_and_record_deprecation(
+                feature=deprecated_feature,
+                message=msg,
                 run=run,
             )
 
@@ -1518,9 +1524,12 @@ def init(  # noqa: C901
         run_settings, show_warnings = wi.make_run_settings(init_settings)
 
         if isinstance(run_settings.reinit, bool):
-            wi.deprecated_features_used["run__reinit_bool"] = (
-                "Using a boolean value for 'reinit' is deprecated."
-                " Use 'return_previous' or 'finish_previous' instead."
+            wi.deprecated_features_used.append(
+                (
+                    Deprecated(run__reinit_bool=True),
+                    "Using a boolean value for 'reinit' is deprecated."
+                    " Use 'return_previous' or 'finish_previous' instead.",
+                )
             )
 
         if run_settings.run_id is not None:

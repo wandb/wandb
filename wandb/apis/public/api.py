@@ -42,8 +42,8 @@ from wandb.apis.public.utils import (
     gql_compat,
     parse_org_from_registry_path,
 )
-from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts._validators import (
     ArtifactPath,
@@ -54,7 +54,7 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
-from wandb.sdk.lib.deprecate import deprecate
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.gql_request import GraphQLSession
 
 if TYPE_CHECKING:
@@ -1461,9 +1461,9 @@ class Api:
     @normalize_exceptions
     def artifact_versions(self, type_name, name, per_page=50):
         """Deprecated. Use `Api.artifacts(type_name, name)` method instead."""
-        deprecate(
-            field_name=Deprecated.api__artifact_versions,
-            warning_message=(
+        warn_and_record_deprecation(
+            feature=Deprecated(api__artifact_versions=True),
+            message=(
                 "Api.artifact_versions(type_name, name) is deprecated, "
                 "use Api.artifacts(type_name, name) instead."
             ),
