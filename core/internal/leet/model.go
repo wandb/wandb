@@ -122,6 +122,7 @@ func (m *Model) Init() tea.Cmd {
 // Implements tea.Model.Update.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer m.logPanic("Update")
+	defer timeit(m.logger, "Model.Update")()
 	m.stateMu.Lock()
 	defer m.stateMu.Unlock()
 
@@ -397,11 +398,9 @@ func (m *Model) renderStatusBar() string {
 	statusText := m.buildStatusText()
 	helpText := m.buildHelpText()
 
-	rightAligned := lipgloss.PlaceHorizontal(
-		m.width-lipgloss.Width(statusText),
-		lipgloss.Right,
-		helpText,
-	)
+	innerWidth := max(m.width-2*StatusBarPadding, 0)
+	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
+	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
 
 	fullStatus := statusText + rightAligned
 
@@ -434,7 +433,7 @@ func (m *Model) buildOverviewFilterStatus() string {
 	if filterInfo == "" {
 		filterInfo = "no matches"
 	}
-	return fmt.Sprintf(" Overview filter: %s_ [%s] (@e/@c/@s for sections • Enter to apply)",
+	return fmt.Sprintf("Overview filter: %s_ [%s] (@e/@c/@s for sections • Enter to apply)",
 		m.leftSidebar.FilterQuery(), filterInfo)
 }
 
@@ -444,7 +443,7 @@ func (m *Model) buildMetricsFilterStatus() string {
 	m.metricsGrid.mu.RLock()
 	totalCount := len(m.metricsGrid.all)
 	m.metricsGrid.mu.RUnlock()
-	return fmt.Sprintf(" Filter: %s_ [%d/%d matches] (Enter to apply)",
+	return fmt.Sprintf("Filter: %s_ [%d/%d matches] (Enter to apply)",
 		m.metricsGrid.filter.draft, matchCount, totalCount)
 }
 
@@ -452,13 +451,13 @@ func (m *Model) buildMetricsFilterStatus() string {
 func (m *Model) buildGridConfigStatus() string {
 	switch m.pendingGridConfig {
 	case gridConfigMetricsCols:
-		return " Press 1-9 to set metrics grid columns (ESC to cancel)"
+		return "Press 1-9 to set metrics grid columns (ESC to cancel)"
 	case gridConfigMetricsRows:
-		return " Press 1-9 to set metrics grid rows (ESC to cancel)"
+		return "Press 1-9 to set metrics grid rows (ESC to cancel)"
 	case gridConfigSystemCols:
-		return " Press 1-9 to set system grid columns (ESC to cancel)"
+		return "Press 1-9 to set system grid columns (ESC to cancel)"
 	case gridConfigSystemRows:
-		return " Press 1-9 to set system grid rows (ESC to cancel)"
+		return "Press 1-9 to set system grid rows (ESC to cancel)"
 	default:
 		return ""
 	}
@@ -471,10 +470,10 @@ func (m *Model) buildLoadingStatus() string {
 	m.metricsGrid.mu.RUnlock()
 
 	if m.recordsLoaded > 0 {
-		return fmt.Sprintf(" Loading data... [%d records, %d metrics]",
+		return fmt.Sprintf("Loading data... [%d records, %d metrics]",
 			m.recordsLoaded, chartCount)
 	}
-	return " Loading data..."
+	return "Loading data..."
 }
 
 // buildActiveStatus builds status for active (non-loading, non-filter) mode.
@@ -514,16 +513,16 @@ func (m *Model) buildActiveStatus() string {
 	}
 
 	if len(parts) == 0 {
-		return " "
+		return ""
 	}
 
-	return " " + strings.Join(parts, " • ")
+	return strings.Join(parts, " • ")
 }
 
 // buildHelpText builds the help text for the status bar.
 func (m *Model) buildHelpText() string {
 	if !m.metricsGrid.filter.inputActive && !m.leftSidebar.filter.inputActive {
-		return "h: help "
+		return "h: help"
 	}
 	return ""
 }
@@ -545,4 +544,12 @@ func (m *Model) computeViewports() Layout {
 	contentH := max(m.height-StatusBarHeight, 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
+}
+
+// timeit logs a debug timing line on exit for the given scope.
+func timeit(logger *observability.CoreLogger, scope string) func() {
+	start := time.Now()
+	return func() {
+		logger.Debug(fmt.Sprintf("perf: %s took %s", scope, time.Since(start)))
+	}
 }

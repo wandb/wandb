@@ -95,7 +95,7 @@ func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) G
 // creating charts as needed, resorting, reapplying filters, and reloading the page.
 // It preserves focus on the previously focused chart when possible.
 // Returns true if there was anything to draw.
-func (mg *MetricsGrid) ProcessHistory(step int, metrics map[string]float64) bool {
+func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 	if len(metrics) == 0 {
 		return false
 	}
@@ -107,7 +107,9 @@ func (mg *MetricsGrid) ProcessHistory(step int, metrics map[string]float64) bool
 	dims := mg.CalculateChartDimensions(mg.width, mg.height)
 
 	mg.mu.Lock()
-	for name, val := range metrics {
+	var wg sync.WaitGroup
+
+	for name, data := range metrics {
 		chart, exists := mg.byTitle[name]
 		if !exists {
 			chart = NewEpochLineChart(dims.CellW, dims.CellH, name)
@@ -119,8 +121,12 @@ func (mg *MetricsGrid) ProcessHistory(step int, metrics map[string]float64) bool
 				mg.logger.Debug(fmt.Sprintf("metricsgrid: created %d charts", len(mg.all)))
 			}
 		}
-		chart.AddPoint(float64(step), val)
+		wg.Go(func() {
+			chart.AddData(data)
+		})
 	}
+
+	wg.Wait()
 
 	// Keep ordering, colors, maps and filtered set in sync.
 	if needsSort {

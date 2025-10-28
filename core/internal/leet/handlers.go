@@ -12,9 +12,14 @@ import (
 func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	defer m.logPanic("processRecordMsg")
 
+	start := time.Now()
+	defer func() {
+		m.logger.Debug(fmt.Sprintf("perf: processRecordMsg(%T) took %s", msg, time.Since(start)))
+	}()
+
 	switch msg := msg.(type) {
 	case HistoryMsg:
-		m.logger.Debug(fmt.Sprintf("model: processing HistoryMsg with step %d", msg.Step))
+		m.logger.Debug("model: processing HistoryMsg")
 		if m.runState == RunStateRunning && !m.fileComplete {
 			m.heartbeatMgr.Reset(m.isRunning)
 		}
@@ -81,8 +86,9 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 
 // handleHistoryMsg processes new history data.
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
+	defer timeit(m.logger, "Model.handleHistoryMsg")()
 	// Route to the grid; it handles sorting/filtering/pagination/focus itself.
-	shouldDraw := m.metricsGrid.ProcessHistory(int(msg.Step), msg.Metrics)
+	shouldDraw := m.metricsGrid.ProcessHistory(msg.Metrics)
 	if m.isLoading && m.metricsGrid.ChartCount() > 0 {
 		m.isLoading = false
 	}
@@ -94,6 +100,8 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 // handleMouseMsg processes mouse events, routing by region.
 func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
+	defer timeit(m.logger, "Model.handleMouseMsg")()
+
 	layout := m.computeViewports()
 
 	if m.isInLeftSidebar(msg, layout) {
@@ -524,6 +532,8 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 
 // handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
 func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
+	defer timeit(m.logger, "Model.handleRecordsBatch")()
+
 	var cmds []tea.Cmd
 
 	prev := m.suppressDraw
@@ -557,9 +567,12 @@ func (m *Model) onInit(msg InitMsg) []tea.Cmd {
 
 // onChunkedBatch handles boot-load chunked batches.
 func (m *Model) onChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
+	defer timeit(m.logger, "Model.onChunkedBatch")()
+
 	m.logger.Debug(
 		fmt.Sprintf("model: ChunkedBatchMsg received with %d messages, hasMore=%v",
 			len(msg.Msgs), msg.HasMore))
+
 	m.recordsLoaded += msg.Progress
 
 	cmds := m.handleRecordsBatch(msg.Msgs, false)

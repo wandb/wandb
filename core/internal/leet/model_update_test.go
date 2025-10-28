@@ -38,7 +38,7 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	})
 
 	model.TestProcessRecordMsg(leet.SummaryMsg{
-		Summary: &spb.SummaryRecord{},
+		Summary: []*spb.SummaryRecord{{}},
 	})
 
 	model.TestProcessRecordMsg(leet.FileCompleteMsg{ExitCode: 0})
@@ -51,9 +51,17 @@ func TestFocus_Clicks_SetClear(t *testing.T) {
 	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
-	m, _ = m.Update(leet.HistoryMsg{
-		Metrics: map[string]float64{"a": 1, "b": 2},
-	})
+	d := map[string]leet.MetricData{
+		"a": {
+			X: []float64{0},
+			Y: []float64{1},
+		},
+		"b": {
+			X: []float64{0},
+			Y: []float64{2},
+		},
+	}
+	m, _ = m.Update(leet.HistoryMsg{Metrics: d})
 
 	model := m.(*leet.Model)
 	model.TestSetMainChartFocus(0, 0)
@@ -203,11 +211,17 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 		}(),
 	})
 
-	// Simulate initial data load
+	// Simulate initial data load.
+	d := map[string]leet.MetricData{
+		"loss": {
+			X: []float64{0},
+			Y: []float64{0.1},
+		},
+	}
 	model, _ = model.Update(leet.ChunkedBatchMsg{
 		Msgs: []tea.Msg{
 			leet.RunMsg{ID: "heartbeat-test", DisplayName: "Heartbeat Test"},
-			leet.HistoryMsg{Metrics: map[string]float64{"loss": 0.1}, Step: 0},
+			leet.HistoryMsg{Metrics: d},
 		},
 		HasMore: false,
 	})
@@ -331,11 +345,14 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 		heartbeatReceived = true
 	}
 
-	// Now send new data (should reset heartbeat)
-	model, _ = model.Update(leet.HistoryMsg{
-		Metrics: map[string]float64{"metric": 1.0},
-		Step:    1,
-	})
+	// Now send new data (should reset heartbeat).
+	d := map[string]leet.MetricData{
+		"metric": {
+			X: []float64{1},
+			Y: []float64{1.0},
+		},
+	}
+	model, _ = model.Update(leet.HistoryMsg{Metrics: d})
 
 	// The heartbeat should have been reset internally
 	// We can't directly test the timer reset, but we can verify
@@ -387,14 +404,22 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		var model tea.Model = m
 		model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-		// Add metrics data
-		model, _ = model.Update(leet.HistoryMsg{
-			Metrics: map[string]float64{
-				"loss":     1.0,
-				"accuracy": 0.9,
-				"val_loss": 1.2,
+		// Add metrics data.
+		d := map[string]leet.MetricData{
+			"loss": {
+				X: []float64{0},
+				Y: []float64{1.0},
 			},
-		})
+			"accuracy": {
+				X: []float64{0},
+				Y: []float64{0.9},
+			},
+			"val_loss": {
+				X: []float64{0},
+				Y: []float64{1.2},
+			},
+		}
+		model, _ = model.Update(leet.HistoryMsg{Metrics: d})
 
 		// Process stats multiple times to ensure system charts are created and drawn
 		model, _ = model.Update(leet.StatsMsg{

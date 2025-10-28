@@ -48,11 +48,21 @@ func TestMetricsGrid_Lifecycle(t *testing.T) {
 	w, h := 200, 20
 	grid := newMetricsGrid(t, 1, 2, w, h, nil)
 
-	created := grid.ProcessHistory(1, map[string]float64{
-		"zeta":  1.0,
-		"alpha": 2.0,
-		"beta":  3.0,
-	})
+	d := map[string]leet.MetricData{
+		"zeta": {
+			X: []float64{1},
+			Y: []float64{1.0},
+		},
+		"alpha": {
+			X: []float64{1},
+			Y: []float64{2.0},
+		},
+		"beta": {
+			X: []float64{1},
+			Y: []float64{3.0},
+		},
+	}
+	created := grid.ProcessHistory(d)
 	require.True(t, created, "ingestion should report that there is something to draw")
 	grid.UpdateDimensions(w, h)
 
@@ -84,7 +94,17 @@ func TestMetricsGrid_Navigate_ClearsMainChartFocus(t *testing.T) {
 	w, h := 120, 20
 	// 1 row x 1 cols so 2 charts produce 2 pages.
 	grid := newMetricsGrid(t, 1, 1, w, h, f)
-	grid.ProcessHistory(1, map[string]float64{"alpha": 1, "beta": 2})
+	d := map[string]leet.MetricData{
+		"alpha": {
+			X: []float64{1},
+			Y: []float64{1},
+		},
+		"beta": {
+			X: []float64{1},
+			Y: []float64{2},
+		},
+	}
+	grid.ProcessHistory(d)
 	grid.UpdateDimensions(w, h)
 
 	// Focus on the first metric chart.
@@ -100,7 +120,17 @@ func TestMetricsGrid_PreservesFocusAcrossHistoryUpdates(t *testing.T) {
 	f := &leet.Focus{}
 	w, h := 120, 20
 	grid := newMetricsGrid(t, 2, 2, w, h, f)
-	grid.ProcessHistory(1, map[string]float64{"alpha": 1, "beta": 2})
+	d := map[string]leet.MetricData{
+		"alpha": {
+			X: []float64{1},
+			Y: []float64{1},
+		},
+		"beta": {
+			X: []float64{1},
+			Y: []float64{2},
+		},
+	}
+	grid.ProcessHistory(d)
 	grid.UpdateDimensions(w, h)
 
 	// Focus on the first metric chart.
@@ -108,6 +138,12 @@ func TestMetricsGrid_PreservesFocusAcrossHistoryUpdates(t *testing.T) {
 	f.Row, f.Col = 0, 0
 	f.Title = "alpha"
 
-	grid.ProcessHistory(2, map[string]float64{"gamma": 3})
+	d = map[string]leet.MetricData{
+		"gamma": {
+			X: []float64{2},
+			Y: []float64{3},
+		},
+	}
+	grid.ProcessHistory(d)
 	require.Equal(t, "alpha", f.Title, "expected focus restored to previous title")
 }
