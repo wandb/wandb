@@ -5,6 +5,7 @@ __all__ = [
     "ADD_ARTIFACT_COLLECTION_TAGS_GQL",
     "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_BY_NAME_GQL",
+    "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
     "ARTIFACT_CREATED_BY_GQL",
@@ -37,20 +38,21 @@ __all__ = [
     "RUN_OUTPUT_ARTIFACTS_GQL",
     "TYPE_INFO_GQL",
     "UNLINK_ARTIFACT_GQL",
-    "UPDATE_ARTIFACT_COLLECTION_TYPE_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
+    "UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL",
     "UPSERT_REGISTRY_GQL",
     "DeleteArtifactSequence",
     "DeleteArtifactPortfolio",
     "UpdateArtifactSequence",
     "UpdateArtifactPortfolio",
-    "UpdateArtifactCollectionType",
+    "UpdateArtifactSequenceType",
     "AddArtifactCollectionTags",
     "DeleteArtifactCollectionTags",
     "ProjectArtifactCollections",
     "ProjectArtifactCollection",
+    "ArtifactCollectionAliases",
     "ArtifactVersionFiles",
     "ArtifactCollectionMembershipFiles",
     "ArtifactCollectionMembershipFileUrls",
@@ -103,7 +105,6 @@ __all__ = [
     "UpsertModelInput",
     "ArtifactAliasFragment",
     "ArtifactCollectionFragment",
-    "ArtifactCollectionSummary",
     "ArtifactFragment",
     "ArtifactMembershipFragment",
     "ArtifactPortfolioTypeFields",
@@ -133,6 +134,7 @@ from .add_aliases import AddAliases
 from .add_artifact_collection_tags import AddArtifactCollectionTags
 from .artifact_by_id import ArtifactByID
 from .artifact_by_name import ArtifactByName
+from .artifact_collection_aliases import ArtifactCollectionAliases
 from .artifact_collection_membership_file_urls import (
     ArtifactCollectionMembershipFileUrls,
 )
@@ -158,7 +160,6 @@ from .fetch_registry import FetchRegistry
 from .fragments import (
     ArtifactAliasFragment,
     ArtifactCollectionFragment,
-    ArtifactCollectionSummary,
     ArtifactFragment,
     ArtifactMembershipFragment,
     ArtifactPortfolioTypeFields,
@@ -207,6 +208,7 @@ from .operations import (
     ADD_ARTIFACT_COLLECTION_TAGS_GQL,
     ARTIFACT_BY_ID_GQL,
     ARTIFACT_BY_NAME_GQL,
+    ARTIFACT_COLLECTION_ALIASES_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
     ARTIFACT_CREATED_BY_GQL,
@@ -239,10 +241,10 @@ from .operations import (
     RUN_OUTPUT_ARTIFACTS_GQL,
     TYPE_INFO_GQL,
     UNLINK_ARTIFACT_GQL,
-    UPDATE_ARTIFACT_COLLECTION_TYPE_GQL,
     UPDATE_ARTIFACT_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
     UPDATE_ARTIFACT_SEQUENCE_GQL,
+    UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL,
     UPSERT_REGISTRY_GQL,
 )
 from .project_artifact_collection import ProjectArtifactCollection
@@ -258,7 +260,7 @@ from .run_output_artifacts import RunOutputArtifacts
 from .type_info import TypeInfo
 from .unlink_artifact import UnlinkArtifact
 from .update_artifact import UpdateArtifact
-from .update_artifact_collection_type import UpdateArtifactCollectionType
 from .update_artifact_portfolio import UpdateArtifactPortfolio
 from .update_artifact_sequence import UpdateArtifactSequence
+from .update_artifact_sequence_type import UpdateArtifactSequenceType
 from .upsert_registry import UpsertRegistry
