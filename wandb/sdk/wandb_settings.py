@@ -1971,24 +1971,7 @@ class Settings(BaseModel, validate_assignment=True):
         program = self.program or self._get_program()
 
         if program is not None:
-            try:
-                root = (
-                    GitRepo().root or os.getcwd()
-                    if not self.disable_git
-                    else os.getcwd()
-                )
-            except Exception:
-                # if the git command fails, fall back to the current working directory
-                root = os.getcwd()
-
-            self.program_relpath = self.program_relpath or self._get_program_relpath(
-                program, root
-            )
-            program_abspath = os.path.abspath(
-                os.path.join(root, os.path.relpath(os.getcwd(), root), program)
-            )
-            if os.path.exists(program_abspath):
-                self.program_abspath = program_abspath
+            self._setup_code_paths(program)
         else:
             program = "<python with no main file>"
 
@@ -2253,3 +2236,46 @@ class Settings(BaseModel, validate_assignment=True):
             This is a compatibility property for Pydantic v1 to mimic v2's model_fields_set.
             """
             return getattr(self, "__fields_set__", set())
+
+    def _setup_code_paths(self, program: str):
+        """Sets the program_abspath and program_relpath settings."""
+        if self._jupyter and self.x_jupyter_root:
+            self._infer_code_paths_for_jupyter(program)
+        else:
+            self._infer_code_path_for_program(program)
+
+    def _infer_code_path_for_program(self, program: str):
+        """Finds the program's absolute and relative paths."""
+        try:
+            root = (
+                GitRepo().root or os.getcwd() if not self.disable_git else os.getcwd()
+            )
+        except Exception:
+            # if the git command fails, fall back to the current working directory
+            root = os.getcwd()
+
+        self.program_relpath = self.program_relpath or self._get_program_relpath(
+            program, root
+        )
+
+        program_abspath = os.path.abspath(
+            os.path.join(root, os.path.relpath(os.getcwd(), root), program)
+        )
+
+        if os.path.exists(program_abspath):
+            self.program_abspath = program_abspath
+
+    def _infer_code_paths_for_jupyter(self, program: str):
+        """Find the notebook's absolute and relative paths.
+
+        Since the notebook's execution environment
+        is not the same as the current working directory.
+        We utilize the metadata provided by the jupyter server.
+        """
+        if not self.x_jupyter_root or not program:
+            return None
+
+        self.program_abspath = os.path.abspath(
+            os.path.join(self.x_jupyter_root, program)
+        )
+        self.program_relpath = program
