@@ -2,6 +2,7 @@ package leet
 
 import (
 	"math"
+	"slices"
 	"sort"
 	"strings"
 
@@ -39,9 +40,6 @@ type EpochLineChart struct {
 	// title is the metric name shown in the chart header and used for sorting and lookups.
 	title string
 
-	// minValue/maxValue are the observed Y bounds used to compute padded Y axes.
-	minValue, maxValue float64
-
 	// dirty marks the chart as needing a redraw.
 	dirty bool
 
@@ -54,10 +52,13 @@ type EpochLineChart struct {
 	// intent can be preserved across updates.
 	userViewMinX, userViewMaxX float64
 
-	// xMinData/xMaxData track the observed X bounds of the data.
+	// xMin/xMax track the observed X bounds of the data.
 	//
 	// Used to set the axis domain and to clamp/anchor zooming near the tail.
-	xMinData, xMaxData float64
+	xMin, xMax float64
+
+	// yMin/yMax are the observed Y bounds used to compute padded Y axes.
+	yMin, yMax float64
 }
 
 func NewEpochLineChart(width, height int, title string) *EpochLineChart {
@@ -78,14 +79,11 @@ func NewEpochLineChart(width, height int, title string) *EpochLineChart {
 		xData:      make([]float64, 0, 1000),
 		yData:      make([]float64, 0, 1000),
 		graphStyle: graphStyle,
-		focused:    false,
 		title:      title,
-		minValue:   math.Inf(1),
-		maxValue:   math.Inf(-1),
-		dirty:      false,
-		isZoomed:   false,
-		xMinData:   math.Inf(1),
-		xMaxData:   math.Inf(-1),
+		xMin:       math.Inf(1),
+		xMax:       math.Inf(-1),
+		yMin:       math.Inf(1),
+		yMax:       math.Inf(-1),
 	}
 
 	chart.AxisStyle = axisStyle
@@ -94,25 +92,20 @@ func NewEpochLineChart(width, height int, title string) *EpochLineChart {
 	return chart
 }
 
-// AddPoint adds a new (x, y) data point (x is commonly _step).
+// AddData adds a set of new (x, y) data points (x is commonly _step).
 //
 // X values should be appended in non-decreasing order for efficient rendering.
-func (c *EpochLineChart) AddPoint(x, y float64) {
-	c.xData = append(c.xData, x)
-	c.yData = append(c.yData, y)
+func (c *EpochLineChart) AddData(data MetricData) {
+	c.xData = slices.Concat(c.xData, data.X)
+	c.yData = slices.Concat(c.yData, data.Y)
 
-	if y < c.minValue {
-		c.minValue = y
-	}
-	if y > c.maxValue {
-		c.maxValue = y
-	}
-	if x < c.xMinData {
-		c.xMinData = x
-	}
-	if x > c.xMaxData {
-		c.xMaxData = x
-	}
+	xMin, xMax := slices.Min(data.X), slices.Max(data.X)
+	yMin, yMax := slices.Min(data.Y), slices.Max(data.Y)
+
+	c.yMin = math.Min(c.yMin, yMin)
+	c.yMax = math.Max(c.yMax, yMax)
+	c.xMin = math.Min(c.xMin, xMin)
+	c.xMax = math.Max(c.xMax, xMax)
 
 	c.updateRanges()
 	c.dirty = true
@@ -125,24 +118,24 @@ func (c *EpochLineChart) updateRanges() {
 	}
 
 	// Y range with padding.
-	valueRange := c.maxValue - c.minValue
+	valueRange := c.yMax - c.yMin
 	padding := c.calculatePadding(valueRange)
 
-	newMinY := c.minValue - padding
-	newMaxY := c.maxValue + padding
+	newYMin := c.yMin - padding
+	newYMax := c.yMax + padding
 
 	// Don't go negative for non-negative data.
-	if c.minValue >= 0 && newMinY < 0 {
-		newMinY = 0
+	if c.yMin >= 0 && newYMin < 0 {
+		newYMin = 0
 	}
 
 	// X domain.
 	// Round up the observed max X to a "nice" domain for axis display.
-	dataMaxX := c.xMaxData
-	if !isFinite(dataMaxX) {
-		dataMaxX = 0
+	dataXMax := c.xMax
+	if !isFinite(dataXMax) {
+		dataXMax = 0
 	}
-	niceMax := dataMaxX
+	niceMax := dataXMax
 	if niceMax < defaultMaxX {
 		// Keep a decent default domain early in a run.
 		niceMax = defaultMaxX
@@ -152,26 +145,26 @@ func (c *EpochLineChart) updateRanges() {
 	}
 
 	// Update axis ranges
-	c.SetYRange(newMinY, newMaxY)
-	c.SetViewYRange(newMinY, newMaxY)
+	c.SetYRange(newYMin, newYMax)
+	c.SetViewYRange(newYMin, newYMax)
 
 	// Always ensure X range covers the nice domain; only alter view if not zoomed.
 	c.SetXRange(0, niceMax)
 	if !c.isZoomed {
-		viewMin := c.xMinData
+		viewMin := c.xMin
 		if !isFinite(viewMin) {
 			viewMin = 0
 		}
 		c.SetViewXRange(viewMin, niceMax)
 	}
 
-	c.SetXYRange(c.MinX(), c.MaxX(), newMinY, newMaxY)
+	c.SetXYRange(c.MinX(), c.MaxX(), newYMin, newYMax)
 }
 
 // calculatePadding determines appropriate padding for the Y axis
 func (c *EpochLineChart) calculatePadding(valueRange float64) float64 {
 	if valueRange == 0 {
-		absValue := math.Abs(c.maxValue)
+		absValue := math.Abs(c.yMax)
 		switch {
 		case absValue < 0.001:
 			return 0.0001
@@ -230,12 +223,12 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	newMax := stepUnderMouse + newRange*(1-mouseProportion)
 
 	// Only apply tail nudge when zooming in AND mouse is at the far right
-	if direction == "in" && mouseProportion >= tailAnchorMouseThreshold && isFinite(c.xMaxData) {
+	if direction == "in" && mouseProportion >= tailAnchorMouseThreshold && isFinite(c.xMax) {
 		// Check if we're losing the tail
 		rightPad := c.pixelEpsX(newRange) * 2 // Small padding for the last data point
-		if newMax < c.xMaxData-rightPad {
+		if newMax < c.xMax-rightPad {
 			// Adjust to include the tail
-			shift := (c.xMaxData + rightPad) - newMax
+			shift := (c.xMax + rightPad) - newMax
 			newMin += shift
 			newMax += shift
 		}

@@ -125,6 +125,7 @@ func (m *Model) Init() tea.Cmd {
 // Implements tea.Model.Update.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer m.logPanic("Update")
+	defer timeit(m.logger, "Model.Update")()
 	m.stateMu.Lock()
 	defer m.stateMu.Unlock()
 
@@ -547,4 +548,12 @@ func (m *Model) computeViewports() Layout {
 	contentH := max(m.height-StatusBarHeight, 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
+}
+
+// timeit logs a debug timing line on exit for the given scope.
+func timeit(logger *observability.CoreLogger, scope string) func() {
+	start := time.Now()
+	return func() {
+		logger.Debug(fmt.Sprintf("perf: %s took %s", scope, time.Since(start)))
+	}
 }

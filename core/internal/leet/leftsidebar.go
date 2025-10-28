@@ -160,7 +160,7 @@ func (s *LeftSidebar) ProcessSystemInfoMsg(record *spb.EnvironmentRecord) {
 }
 
 // ProcessSummaryMsg delegates to the data model and updates UI.
-func (s *LeftSidebar) ProcessSummaryMsg(summary *spb.SummaryRecord) {
+func (s *LeftSidebar) ProcessSummaryMsg(summary []*spb.SummaryRecord) {
 	s.runOverview.ProcessSummaryMsg(summary)
 	s.updateSections()
 }
