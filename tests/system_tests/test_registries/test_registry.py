@@ -6,6 +6,7 @@ from unittest.mock import patch
 import wandb
 from pytest import fixture, mark, raises
 from wandb import Api, Artifact
+from wandb._strutils import b64decode_ascii
 from wandb.apis.public.registries.registry import Registry
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
@@ -35,6 +36,10 @@ def test_registry_create_edit(default_organization, make_registry, api: Api):
     )
 
     assert registry is not None
+
+    registry_id = registry.id
+    assert b64decode_ascii(registry_id).startswith("Project:")
+
     assert registry.name == registry_name
     assert registry.full_name == f"{REGISTRY_PREFIX}{registry_name}"
     assert registry.organization == default_organization
@@ -46,6 +51,7 @@ def test_registry_create_edit(default_organization, make_registry, api: Api):
     # This doesn't do anything but want to make sure it doesn't raise unexpected errors
     # as users can call load() on a registry whenever they want
     registry.load()
+    assert registry.id == registry_id
     assert registry.name == registry_name
     assert registry.description == initial_description
     assert registry.visibility == "organization"
@@ -59,9 +65,16 @@ def test_registry_create_edit(default_organization, make_registry, api: Api):
 
     fetched_registry = api.registry(registry_name, default_organization)
     assert fetched_registry
+    assert fetched_registry.id == registry_id
     assert fetched_registry.description == updated_description
     assert fetched_registry.allow_all_artifact_types is False
     assert artifact_type_1 in fetched_registry.artifact_types
+
+    # Registry ID should be read-only
+    with raises(AttributeError):
+        fetched_registry.id = "new-id"
+    fetched_registry.save()
+    assert api.registry(registry_name, default_organization).id == registry_id
 
 
 def test_delete_registry(default_organization, make_registry, api: Api):
