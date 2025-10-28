@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Callable, Iterator
 from pytest import fixture, mark
 from wandb import Api
 from wandb.apis.public import Registry, Team, User
+from wandb.apis.public.registries._members import MemberKind
 
 if TYPE_CHECKING:
     from tests.system_tests.backend_fixtures import BackendFixtureFactory
@@ -88,9 +89,6 @@ def test_registry_add_user_members(
     added_users = make_wandb_users(3)
     other_users = make_wandb_users(2)
 
-    expected_users = [admin_user, *added_users]
-    excluded_users = other_users
-
     # Add the user and verify they show up in user_members()
     registry.add_members(*added_users)
 
@@ -99,14 +97,18 @@ def test_registry_add_user_members(
 
     # Since the allowed `User` attributes aren't well-constrained for now,
     # equality checks on `User` objects are brittle.  Check usernames/ids instead.
+    expected_users = {admin_user, *added_users}
+
     actual_user_names = {u.username for u in actual_member_users}
     actual_user_ids = {u.id for u in actual_member_users}
 
     assert {u.username for u in expected_users} == actual_user_names
     assert {u.id for u in expected_users} == actual_user_ids
+    assert len(expected_users) == len(actual_members)
 
-    assert not {u.username for u in excluded_users}.intersection(actual_user_names)
-    assert not {u.id for u in excluded_users}.intersection(actual_user_ids)
+    # Check that the other users are definitely not members
+    assert {u.username for u in other_users}.isdisjoint(actual_user_names)
+    assert {u.id for u in other_users}.isdisjoint(actual_user_ids)
 
 
 def test_registry_add_team_members(registry: Registry, make_wandb_teams):
@@ -114,9 +116,6 @@ def test_registry_add_team_members(registry: Registry, make_wandb_teams):
     # Create teams to add as registry members, and other teams that aren't added
     added_teams = make_wandb_teams(3)
     other_teams = make_wandb_teams(2)
-
-    expected_teams = added_teams
-    excluded_teams = other_teams
 
     # Add the team and verify they show up in team_members()
     registry.add_members(*added_teams)
@@ -126,14 +125,57 @@ def test_registry_add_team_members(registry: Registry, make_wandb_teams):
 
     # Since the allowed `Team` attributes aren't well-constrained for now,
     # equality checks on `Team` objects are brittle.  Check names/ids instead.
+    expected_teams = added_teams
+
     actual_team_names = {t.name for t in actual_member_teams}
     actual_team_ids = {t.id for t in actual_member_teams}
 
     assert {t.name for t in expected_teams} == actual_team_names
     assert {t.id for t in expected_teams} == actual_team_ids
+    assert len(expected_teams) == len(actual_members)
 
-    assert not {t.name for t in excluded_teams}.intersection(actual_team_names)
-    assert not {t.id for t in excluded_teams}.intersection(actual_team_ids)
+    # Check that the other teams are definitely not members
+    assert {t.name for t in other_teams}.isdisjoint(actual_team_names)
+    assert {t.id for t in other_teams}.isdisjoint(actual_team_ids)
+
+
+def test_registry_add_members_with_mixed_args(
+    admin_user: User, registry: Registry, make_wandb_users, make_wandb_teams
+):
+    """Check that mixed user and team members can be added to a registry, and by object or ID."""
+    # Create both users and teams to add as registry members
+    added_teams = make_wandb_teams(3)
+    added_users = make_wandb_users(3)
+
+    team1, team2, team3 = added_teams
+    user1, user2, user3 = added_users
+
+    # Add the teams and users and verify they show up in members()
+    # Mix up the order of the arguments, as well as whether they're passed as objects or IDs
+    added = [team1, user1, team2.id, user2, team3, user3.id]
+    registry.add_members(*added)
+
+    expected_member_teams = added_teams
+    expected_member_users = [admin_user, *added_users]
+
+    actual_members = registry.members()
+    actual_member_teams = [m.team for m in actual_members if m.kind is MemberKind.TEAM]
+    actual_member_users = [m.user for m in actual_members if m.kind is MemberKind.USER]
+
+    actual_team_names = {t.name for t in actual_member_teams}
+    actual_team_ids = {t.id for t in actual_member_teams}
+
+    actual_user_names = {u.username for u in actual_member_users}
+    actual_user_ids = {u.id for u in actual_member_users}
+
+    assert {t.name for t in expected_member_teams} == actual_team_names
+    assert {t.id for t in expected_member_teams} == actual_team_ids
+
+    assert {u.username for u in expected_member_users} == actual_user_names
+    assert {u.id for u in expected_member_users} == actual_user_ids
+
+    expected_member_count = len(expected_member_teams) + len(expected_member_users)
+    assert expected_member_count == len(actual_members)
 
 
 @mark.parametrize("target_role", ["admin", "member", "viewer", "restricted_viewer"])
@@ -197,11 +239,10 @@ def test_registry_update_team_member_role(
 def test_registry_user_members_add_and_remove(make_wandb_users, registry: Registry):
     """Check that sequential add and remove operations work as expected."""
     # Create two users and add them via different accepted argument shapes
-    users = make_wandb_users(2)
-    user1, user2 = users
+    user1, user2 = make_wandb_users(2)
 
     # Add one via User object, one via ID
-    registry.add_members(user1, user2.id)
+    registry.add_members(user1, user2)
 
     members_after_add = registry.user_members()
     usernames_after_add = {u.user.username for u in members_after_add}
@@ -223,3 +264,10 @@ def test_registry_user_members_add_and_remove(make_wandb_users, registry: Regist
     usernames_after_remove2 = {u.user.username for u in members_after_remove2}
     assert user1.username not in usernames_after_remove2
     assert user2.username not in usernames_after_remove2
+
+    # Removing the 2nd user again shouldn't do anything, but shouldn't error (idempotence)
+    registry.remove_members(user2)
+    members_after_remove3 = registry.user_members()
+    usernames_after_remove3 = {u.user.username for u in members_after_remove3}
+    assert user1.username not in usernames_after_remove3
+    assert user2.username not in usernames_after_remove3

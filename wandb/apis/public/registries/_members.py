@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from base64 import b64decode, b64encode
 from collections import defaultdict
 from enum import Enum
 from functools import singledispatchmethod
@@ -10,7 +9,7 @@ from typing import Iterable, Literal, Union
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from wandb._strutils import nameof
+from wandb._strutils import b64decodestr, b64encodestr, nameof
 from wandb.sdk.artifacts._models import ArtifactsBase
 
 from ..teams import Team
@@ -22,6 +21,8 @@ class MemberKind(str, Enum):
 
     USER = "User"
     ENTITY = "Entity"
+
+    TEAM = ENTITY  # Convenience alias
 
 
 class MemberRole(str, Enum):
@@ -72,9 +73,7 @@ class MemberId:
 
     def encode(self) -> str:
         """Converts this parsed ID to a base64-encoded GraphQL ID."""
-        return b64encode(f"{self.kind.value}:{self.index}".encode("ascii")).decode(
-            "ascii"
-        )
+        return b64encodestr(f"{self.kind.value}:{self.index}")
 
     @singledispatchmethod
     @classmethod
@@ -107,5 +106,5 @@ class MemberId:
     @classmethod
     def _from_id(cls, id_: str, /) -> MemberId:
         # Parse the ID to figure out if it's a team or user ID
-        kind, index = b64decode(id_).decode("ascii").split(":", maxsplit=1)
+        kind, index = b64decodestr(id_).split(":", maxsplit=1)
         return cls(kind=kind, index=index)

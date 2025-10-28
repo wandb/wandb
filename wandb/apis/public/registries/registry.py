@@ -413,8 +413,12 @@ class Registry:
         # artifact types draft means user assigned types to add that are not yet saved
         return len(self.artifact_types.draft) > 0 and self.allow_all_artifact_types
 
+    def members(self) -> list[UserMember | TeamMember]:
+        """Returns the current member users and teams of this registry."""
+        return [*self.user_members(), *self.team_members()]
+
     def user_members(self) -> list[UserMember]:
-        """Returns the current user members belonging to the registry."""
+        """Returns the current member users of this registry."""
         gql_op = gql(REGISTRY_USER_MEMBERS_GQL)
         gql_vars = {"project": self.full_name, "entity": self.entity}
         data = self.client.execute(gql_op, variable_values=gql_vars)
@@ -438,7 +442,7 @@ class Registry:
         ]
 
     def team_members(self) -> list[TeamMember]:
-        """Returns the current teams belonging to the registry."""
+        """Returns the current member teams of this registry."""
         gql_op = gql(REGISTRY_TEAM_MEMBERS_GQL)
         gql_vars = {"project": self.full_name, "entity": self.entity}
         data = self.client.execute(gql_op, variable_values=gql_vars)
@@ -461,14 +465,22 @@ class Registry:
         ]
 
     def add_members(self, *members: User | Team | str) -> Self:
-        """Adds users or teams to this registry and returns self for further chaining if needed."""
+        """Adds users or teams to this registry and returns self for further chaining if needed.
+
+        Args:
+            *members: The users or teams to add to the registry. Can be passed as `User` or `Team` objects, or their string IDs.
+
+        Returns:
+            This registry instance for further method chaining, if needed.
+
+        Raises:
+            ValueError: If unable to infer the user or team IDs, or if the members cannot be added to the registry.
+        """
         user_ids, team_ids = parse_member_ids(members)
 
         gql_op = gql(CREATE_REGISTRY_MEMBERS_GQL)
         gql_input = CreateProjectMembersInput(
-            user_ids=user_ids,
-            team_ids=team_ids,
-            project_id=self._saved.id,
+            user_ids=user_ids, team_ids=team_ids, project_id=self._saved.id
         )
         gql_vars = {"input": gql_input.model_dump()}
         data = self.client.execute(gql_op, variable_values=gql_vars)
@@ -479,14 +491,22 @@ class Registry:
         return self
 
     def remove_members(self, *members: User | Team | str) -> Self:
-        """Removes the users or teams from this registry and returns self for further chaining if needed."""
+        """Removes the users or teams from this registry and returns self for further chaining if needed.
+
+        Args:
+            *members: The users or teams to remove from the registry. Can be passed as `User` or `Team` objects, or their string IDs.
+
+        Returns:
+            This registry instance for further method chaining, if needed.
+
+        Raises:
+            ValueError: If unable to infer the user or team IDs, or if the members cannot be removed from the registry.
+        """
         user_ids, team_ids = parse_member_ids(members)
 
         gql_op = gql(DELETE_REGISTRY_MEMBERS_GQL)
         gql_input = DeleteProjectMembersInput(
-            user_ids=user_ids,
-            team_ids=team_ids,
-            project_id=self._saved.id,
+            user_ids=user_ids, team_ids=team_ids, project_id=self._saved.id
         )
         gql_vars = {"input": gql_input.model_dump()}
         data = self.client.execute(gql_op, variable_values=gql_vars)
@@ -501,27 +521,38 @@ class Registry:
         member: User | Team | str,
         role: MemberRole | str,
     ) -> Self:
-        """Updates the role of a team or user member within this registry."""
-        parsed_id = MemberId.from_obj(member)
+        """Updates the role of a team or user member within this registry.
 
-        if parsed_id.kind is MemberKind.USER:
+        Args:
+            member: The user or team to update the role of. Can be passed as `User` or `Team` object, or their string ID.
+            role: The new role to assign to the member. One of:
+                - "admin"
+                - "member"
+                - "viewer"
+                - "restricted_viewer" (if supported by the W&B server)
+
+        Returns:
+            This registry instance for further method chaining, if needed.
+
+        Raises:
+            ValueError: If unable to infer the user or team ID, or if the member cannot be updated in the registry.
+        """
+        id_ = MemberId.from_obj(member)
+
+        if id_.kind is MemberKind.USER:
             gql_op = gql(UPDATE_USER_REGISTRY_ROLE_GQL)
             gql_input = UpdateProjectMemberInput(
-                user_id=parsed_id.encode(),
-                project_id=self._saved.id,
-                user_project_role=role,
+                user_id=id_.encode(), project_id=self._saved.id, user_project_role=role
             )
             result_cls = UpdateUserRegistryRole
-        elif parsed_id.kind is MemberKind.ENTITY:
+        elif id_.kind is MemberKind.ENTITY:
             gql_op = gql(UPDATE_TEAM_REGISTRY_ROLE_GQL)
             gql_input = UpdateProjectTeamMemberInput(
-                team_id=parsed_id.encode(),
-                project_id=self._saved.id,
-                team_project_role=role,
+                team_id=id_.encode(), project_id=self._saved.id, team_project_role=role
             )
             result_cls = UpdateTeamRegistryRole
         else:
-            assert_never(parsed_id.kind)
+            assert_never(id_.kind)
 
         gql_vars = {"input": gql_input.model_dump()}
         data = self.client.execute(gql_op, variable_values=gql_vars)
