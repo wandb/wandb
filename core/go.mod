@@ -1,6 +1,6 @@
 module github.com/wandb/wandb/core
 
-go 1.25.2
+go 1.25.3
 
 require (
 	cloud.google.com/go/storage v1.57.0
