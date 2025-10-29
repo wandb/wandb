@@ -1,5 +1,6 @@
 import os
 import platform
+import random
 import string
 from contextlib import nullcontext
 
@@ -18,7 +19,6 @@ from wandb.sdk.artifacts._generated import (
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.internal.internal_api import Api as InternalApi
-import random
 
 
 @pytest.fixture
