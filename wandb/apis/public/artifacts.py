@@ -66,7 +66,7 @@ from wandb.sdk.artifacts._generated import (
     UpdateArtifactPortfolioInput,
     UpdateArtifactSequenceInput,
 )
-from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields, server_supports
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.artifacts._models.pagination import (
     ArtifactCollectionConnection,
