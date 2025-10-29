@@ -1034,7 +1034,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
             # Older server versions don't correctly support totalCount
             return f"<ArtifactFiles {path_str}>"
         else:
-            return f"<ArtifactFiles {path_str} {total})>"
+            return f"<ArtifactFiles {path_str} ({total}))>"
 
 
 def server_supports_artifact_collections_gql_edges(
