@@ -14,6 +14,7 @@ from wandb.sdk.artifacts._generated import (
     ArtifactMembershipByName,
     ArtifactMembershipFragment,
 )
+from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
@@ -93,9 +94,15 @@ def test_artifact_file(user, api, sample_data):
 
 def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     art = api.artifact("mnist:v0", type="dataset")
-    assert (
-        str(art.files()) == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
-    )
+    if server_supports(api.client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
+        assert (
+            str(art.files())
+            == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
+        )
+    else:
+        assert (
+            str(art.files()) == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0>"
+        )
     paths = [f.storage_path for f in art.files()]
     assert paths[0].startswith("wandb_artifacts/")
 
