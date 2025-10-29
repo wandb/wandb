@@ -33,7 +33,7 @@ query ArtifactVersionFiles(
               ...FileFragment
             }
           }
-          totalCount
+          totalCount  @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
         }
       }
     }
@@ -61,7 +61,7 @@ query ArtifactCollectionMembershipFiles(
               ...FileFragment
             }
           }
-          totalCount
+          totalCount  @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
         }
       }
     }

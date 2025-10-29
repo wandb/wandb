@@ -985,6 +985,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         """
         if self.last_response is None:
             self._load_page()
+        print(self.last_response)
         return self.artifact.file_count
 
     @property
