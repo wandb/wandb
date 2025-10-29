@@ -1,8 +1,5 @@
 from typing import Any
 
-from wandb.proto.wandb_deprecated import Deprecated
-from wandb.sdk.lib import deprecate
-
 
 class SummaryDisabled(dict):
     __setattr__ = dict.__setitem__
@@ -23,6 +20,9 @@ class RunDisabled:
     """Compatibility class for integrations that explicitly check for wandb.RunDisabled."""
 
     def __getattr__(self, name: str) -> Any:
+        from wandb.proto.wandb_deprecated import Deprecated
+        from wandb.sdk.lib import deprecate
+
         deprecate.deprecate(
             field_name=Deprecated.run_disabled,
             warning_message="RunDisabled is deprecated and is a no-op. "
