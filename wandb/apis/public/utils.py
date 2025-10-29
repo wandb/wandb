@@ -11,7 +11,6 @@ from wandb_graphql.language import ast, visitor
 from wandb_graphql.validation.validation import ValidationContext
 
 from wandb._iterutils import one
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
@@ -68,6 +67,8 @@ def parse_org_from_registry_path(path: str, path_type: PathType) -> str:
         artifact path like <entity>/<project>/<artifact> or <project>/<artifact> or <artifact>
         path_type (PathType): The type of path to parse.
     """
+    from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
     parts = path.split("/")
     expected_parts = 3 if path_type == PathType.ARTIFACT else 2
 
