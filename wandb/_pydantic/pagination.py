@@ -26,6 +26,7 @@ class Edge(GQLResult, Generic[NodeT]):
 class Connection(GQLResult, Generic[NodeT]):
     edges: List[Edge[NodeT]]
     page_info: PageInfo
+    total_count: Optional[NonNegativeInt] = None
 
     def nodes(self) -> Iterator[NodeT]:
         """Returns an iterator over the nodes in the connection."""
@@ -44,7 +45,3 @@ class Connection(GQLResult, Generic[NodeT]):
 
 class ConnectionWithTotal(Connection[NodeT], Generic[NodeT]):
     total_count: NonNegativeInt
-
-
-class ConnectionWithOptionalTotal(Connection[NodeT], Generic[NodeT]):
-    total_count: Optional[NonNegativeInt]

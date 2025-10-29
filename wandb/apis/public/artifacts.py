@@ -919,9 +919,6 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         self.query_via_membership = server_supports(
             client, ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         )
-        self.file_count = server_supports(
-            client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION
-        )
 
         if self.query_via_membership:
             query_str = ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL
@@ -942,19 +939,19 @@ class ArtifactFiles(SizedPaginator["public.File"]):
                 "fileNames": names,
             }
 
-        omit_fileds = []
+        omit_fields = []
 
         # The server must advertise at least SDK 0.12.21
         # to get storagePath
         if not client.version_supported("0.12.21"):
-            omit_fileds.append("storagePath")
+            omit_fields.append("storagePath")
 
-        if not self.file_count:
-            omit_fileds.append("totalCount")
+        if not server_supports(client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
+            omit_fields.append("totalCount")
 
         self.QUERY = gql_compat(
             query_str,
-            omit_fields=omit_fileds,
+            omit_fields=omit_fields,
         )
 
         super().__init__(client, variables, per_page)
@@ -989,8 +986,10 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         """
         if self.last_response is None:
             self._load_page()
-        if self.file_count:
-            return self.last_response.total_count
+
+        if (conn := self.last_response) and (total := conn.total_count) is not None:
+            return total
+
         raise NotImplementedError
 
     @property
@@ -1028,7 +1027,13 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
     def __repr__(self) -> str:
         path_str = "/".join(self.path)
-        return f"<ArtifactFiles {path_str} ({len(self)})>"
+        try:
+            total = len(self)
+        except NotImplementedError:
+            # Older server versions don't correctly support totalCount
+            return f"<ArtifactFiles {path_str}>"
+        else:
+            return f"<ArtifactFiles {path_str} {total})>"
 
 
 def server_supports_artifact_collections_gql_edges(

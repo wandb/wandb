@@ -1,6 +1,6 @@
 """Artifacts-specific data models for handling paginated results from GraphQL queries."""
 
-from wandb._pydantic import Connection, ConnectionWithOptionalTotal, ConnectionWithTotal
+from wandb._pydantic import Connection, ConnectionWithTotal
 
 from .._generated.fragments import (
     ArtifactCollectionFragment,
@@ -18,7 +18,7 @@ ArtifactCollectionConnection = ConnectionWithTotal[ArtifactCollectionFragment]
 ArtifactMembershipConnection = Connection[ArtifactMembershipFragment]
 
 FileWithUrlConnection = Connection[FileWithUrlFragment]
-ArtifactFileConnection = ConnectionWithOptionalTotal[FileFragment]
+ArtifactFileConnection = Connection[FileFragment]
 
 RunArtifactConnection = ConnectionWithTotal[ArtifactFragment]
 
