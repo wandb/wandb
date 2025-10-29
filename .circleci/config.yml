@@ -424,8 +424,11 @@ jobs:
             uv pip install .
             python -c 'import wandb'
       - run:
-          name: Check wandb-core binary size vs latest release on PyPI
+          name: Check wandb-core binary size vs main branch
           command: nox -s wandb-core-size-check
+      - run:
+          name: Check wandb library import time vs main branch
+          command: nox -s wandb-import-time-check
       - save-test-results
 
   unit-tests-go:
