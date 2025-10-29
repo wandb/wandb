@@ -198,6 +198,8 @@ run = wandb.init(
 # [optional] use wandb.config as your config
 config = run.config
 
+#PH 1
+
 # get the data
 mnist = tf.keras.datasets.mnist
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
