@@ -18,6 +18,9 @@ from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
+# List of artifacts to use in tests
+MNIST_ARTIFACTS = ["mnist:v0", "mnist:v1", "mnist:v2"]
+
 
 @pytest.fixture
 def sample_data():
@@ -46,19 +49,14 @@ def sample_data():
         wandb.run.log_artifact(artifact)
 
     with wandb.init(id="second_run", settings={"silent": True}):
-        wandb.run.use_artifact("mnist:v0")
-        wandb.run.use_artifact("mnist:v1")
-        wandb.run.use_artifact("mnist:v2")
+        for artifact_name in MNIST_ARTIFACTS:
+            wandb.run.use_artifact(artifact_name)
 
 
 def test_artifact_versions(user, api, sample_data):
     versions = api.artifact_versions("dataset", "mnist")
-    assert len(versions) == 3
-    assert {version.name for version in versions} == {
-        "mnist:v0",
-        "mnist:v1",
-        "mnist:v2",
-    }
+    assert len(versions) == len(MNIST_ARTIFACTS)
+    assert {version.name for version in versions} == set(MNIST_ARTIFACTS)
 
 
 def test_artifact_type(user, api, sample_data):
@@ -161,9 +159,15 @@ def test_artifact_download(user, api, sample_data):
 
 
 def test_artifact_exists(user, api, sample_data):
-    assert api.artifact_exists("mnist:v0") is True
-    assert api.artifact_exists("mnist:v3") is False
-    assert api.artifact_exists("mnist-fake:v0") is False
+    # Test that an existing artifact version returns True
+    assert api.artifact_exists(MNIST_ARTIFACTS[0]) is True
+
+    # Test that a non-existent version (one beyond what was created) returns False
+    next_version = len(MNIST_ARTIFACTS)  # This would be v3 since we have v0, v1, v2
+    assert api.artifact_exists(f"mnist:v{next_version}") is False
+
+    # Test that a completely non-existent artifact returns False
+    assert api.artifact_exists("nonexistent-artifact:v0") is False
 
 
 def test_artifact_collection_exists(user, api, sample_data):
@@ -260,15 +264,15 @@ def test_artifact_checkout(user, api, sample_data):
 def test_artifact_run_used(user, api, sample_data):
     run = api.run("uncategorized/second_run")
     arts = run.used_artifacts()
-    assert len(arts) == 3
-    assert {art.name for art in arts} == {"mnist:v0", "mnist:v1", "mnist:v2"}
+    assert len(arts) == len(MNIST_ARTIFACTS)
+    assert {art.name for art in arts} == set(MNIST_ARTIFACTS)
 
 
 def test_artifact_run_logged(user, api, sample_data):
     run = api.run("uncategorized/first_run")
     arts = run.logged_artifacts()
-    assert len(arts) == 3
-    assert {art.name for art in arts} == {"mnist:v0", "mnist:v1", "mnist:v2"}
+    assert len(arts) == len(MNIST_ARTIFACTS)
+    assert {art.name for art in arts} == set(MNIST_ARTIFACTS)
 
 
 def test_artifact_run_logged_cursor(user, api, sample_data):
