@@ -12,3 +12,7 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Added
+
+- Download artifact files in parallel in core when file is larger than 2GB. Download using core is not enabled yet. (@pingleiwandb in https://github.com/wandb/wandb/pull/10439)

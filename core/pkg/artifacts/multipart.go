@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -16,9 +17,9 @@ import (
 )
 
 const (
-	S3MinMultiUploadSize = 2 << 30   // 2 GiB, the threshold we've chosen to switch to multipart
-	S3MaxMultiUploadSize = 5 << 40   // 5 TiB, maximum possible object size
-	S3DefaultChunkSize   = 100 << 20 // 100 MiB
+	S3MinMultiUploadSize = filetransfer.DefaultMultipartDownloadThreshold // 2 GiB, the threshold we've chosen to switch to multipart, same for upload and download
+	S3MaxMultiUploadSize = 5 << 40                                        // 5 TiB, maximum possible object size
+	S3DefaultPartSize    = filetransfer.DefaultMultipartDownloadPartSize  // 100 MiB, use same size for upload and download per S3 recommendation.
 	S3MaxParts           = 10000
 )
 
@@ -44,18 +45,18 @@ func createMultiPartRequest(
 		return nil, fmt.Errorf("file size exceeds maximum S3 object size: %v", fileSize)
 	}
 
-	return computeMultipartHashes(logger, path, fileSize, getChunkSize(fileSize), runtime.NumCPU())
+	return computeMultipartHashes(logger, path, fileSize, getPartSize(fileSize), runtime.NumCPU())
 }
 
-func getChunkSize(fileSize int64) int64 {
-	if fileSize < S3DefaultChunkSize*S3MaxParts {
-		return S3DefaultChunkSize
+func getPartSize(fileSize int64) int64 {
+	if fileSize < S3DefaultPartSize*S3MaxParts {
+		return S3DefaultPartSize
 	}
 	// Use a larger chunk size if we would need more than 10,000 chunks.
-	chunkSize := int64(math.Ceil(float64(fileSize) / float64(S3MaxParts)))
+	partSize := int64(math.Ceil(float64(fileSize) / float64(S3MaxParts)))
 	// Round up to the nearest multiple of 4096.
-	chunkSize = int64(math.Ceil(float64(chunkSize)/4096) * 4096)
-	return chunkSize
+	partSize = int64(math.Ceil(float64(partSize)/4096) * 4096)
+	return partSize
 }
 
 // computeMultipartHashes split tasks for workers and wait until all workers finish or one of them fails.
@@ -63,25 +64,27 @@ func computeMultipartHashes(
 	logger *observability.CoreLogger,
 	path string,
 	fileSize int64,
-	chunkSize int64,
+	partSize int64,
 	numWorkers int,
 ) ([]gql.UploadPartsInput, error) {
 	if numWorkers < 1 {
 		return nil, fmt.Errorf("number of workers is less than 1: %d", numWorkers)
 	}
-	if chunkSize < 1 {
-		return nil, fmt.Errorf("chunk size is less than 1: %d", chunkSize)
+	if partSize < 1 {
+		return nil, fmt.Errorf("part size is less than 1: %d", partSize)
 	}
-	if fileSize < chunkSize {
-		return nil, fmt.Errorf("file size is less than chunk size: %d < %d", fileSize, chunkSize)
+	if fileSize < partSize {
+		return nil, fmt.Errorf("file size is less than part size: %d < %d", fileSize, partSize)
 	}
 
-	numParts := int(fileSize / chunkSize)
-	if fileSize%chunkSize != 0 {
+	numParts := int(fileSize / partSize)
+	if fileSize%partSize != 0 {
 		numParts++
 	}
-	numWorkers = min(numWorkers, numParts)
-	workerTasks := splitHashTasks(numParts, numWorkers)
+	workerTasks, err := filetransfer.SplitWorkerTasks(numParts, numWorkers)
+	if err != nil {
+		return nil, err
+	}
 	partsInfo := make([]gql.UploadPartsInput, numParts)
 
 	startTime := time.Now()
@@ -90,10 +93,10 @@ func computeMultipartHashes(
 	for i, task := range workerTasks {
 		g.Go(func() error {
 			worker := multipartHashWorker{
-				id:        i,
-				path:      path,
-				fileSize:  fileSize,
-				chunkSize: chunkSize,
+				id:       i,
+				path:     path,
+				fileSize: fileSize,
+				partSize: partSize,
 			}
 			return worker.hashFileParts(ctx, task, partsInfo)
 		})
@@ -111,52 +114,22 @@ func computeMultipartHashes(
 		"numWorkers", numWorkers,
 		"numParts", len(partsInfo),
 		"fileSize", fileSize,
-		"chunkSize", chunkSize,
+		"partSize", partSize,
 	)
 	return partsInfo, nil
 }
 
-type hashWorkerTask struct {
-	startPart int // inclusive
-	endPart   int // exclusive
-}
-
-// splitHashTasks distributes parts evenly among workers for parallel processing.
-// If parts cannot be divided evenly, extra parts are distributed to earlier workers.
-func splitHashTasks(numParts int, numWorkers int) []hashWorkerTask {
-	partsPerWorker := numParts / numWorkers
-	workersWithOneMorePart := numParts % numWorkers
-
-	var workerTasks []hashWorkerTask
-	// NOTE: We start from 0, and only switch to 1-indexed when assiging the partNumber for server request
-	for i := range numWorkers {
-		var start, end int
-		if i < workersWithOneMorePart {
-			start = (partsPerWorker + 1) * i // All the previous workers get one more part
-			end = start + partsPerWorker + 1
-		} else {
-			start = workersWithOneMorePart + partsPerWorker*i
-			end = start + partsPerWorker
-		}
-		workerTasks = append(workerTasks, hashWorkerTask{
-			startPart: start,
-			endPart:   end,
-		})
-	}
-	return workerTasks
-}
-
 type multipartHashWorker struct {
-	id        int
-	path      string
-	fileSize  int64
-	chunkSize int64
+	id       int
+	path     string
+	fileSize int64
+	partSize int64
 }
 
 // hashFileParts hash the md5 of consecutive parts of the file in serial.
 func (worker *multipartHashWorker) hashFileParts(
 	ctx context.Context,
-	task hashWorkerTask,
+	task filetransfer.WorkerTaskRange,
 	partsInfo []gql.UploadPartsInput,
 ) error {
 	// One open file per worker so they seek in sequential order within its own file handler
@@ -167,7 +140,7 @@ func (worker *multipartHashWorker) hashFileParts(
 	}
 	defer file.Close()
 
-	for part := task.startPart; part < task.endPart; part++ {
+	for part := task.Start; part < task.End; part++ {
 		// Return early if other worker had error
 		select {
 		case <-ctx.Done():
@@ -175,8 +148,8 @@ func (worker *multipartHashWorker) hashFileParts(
 		default:
 		}
 
-		offset := int64(part) * worker.chunkSize
-		partSize := min(worker.chunkSize, worker.fileSize-offset)
+		offset := int64(part) * worker.partSize
+		partSize := min(worker.partSize, worker.fileSize-offset)
 		hexMD5, err := hashencode.ComputeReaderHexMD5(io.NewSectionReader(file, offset, partSize))
 		if err != nil {
 			return fmt.Errorf("worker %d failed to compute hash for part %d: %w", worker.id, part, err)

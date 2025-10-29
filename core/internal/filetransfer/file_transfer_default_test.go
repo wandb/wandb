@@ -2,10 +2,12 @@ package filetransfer_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
@@ -370,4 +373,129 @@ func impatientClient() *retryablehttp.Client {
 	client.RetryMax = 1
 	client.RetryWaitMin = 1 * time.Millisecond
 	return client
+}
+
+func TestDefaultFileTransfer_DownloadMultipart(t *testing.T) {
+	// Create a test file to serveFile
+	contentSize := int64(5*1024*1024 + 100) // 5MB + 100 bytes
+	partSize := int64(2 * 1024 * 1024)      // 2MB
+	sourcePath, content := createSourceFile(t, contentSize)
+	defer os.Remove(sourcePath)
+
+	server := httptest.NewServer(http.FileServer(http.Dir(filepath.Dir(sourcePath))))
+	defer server.Close()
+
+	ft := filetransfer.NewTestDefaultFileTransfer(contentSize, partSize)
+	downloadedPath := createDownloadFile(t)
+	defer os.Remove(downloadedPath)
+
+	task := &filetransfer.DefaultDownloadTask{
+		Path:    downloadedPath,
+		Url:     server.URL + "/" + filepath.Base(sourcePath),
+		Size:    contentSize,
+		Context: context.Background(),
+	}
+	err := ft.Download(task)
+	require.NoError(t, err)
+	verifyFileContent(t, downloadedPath, content)
+}
+
+func TestDefaultFileTransfer_DownloadMultipartCancelContext(t *testing.T) {
+	// No need to create the source file since the server
+	// cancel the context directly without serving anything.
+	ctx, cancel := context.WithCancel(context.Background())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+	}))
+	defer server.Close()
+	contentSize := int64(5*1024*1024 + 100) // 5MB + 100 bytes
+	chunkSize := int64(2 * 1024 * 1024)
+
+	downloadedPath := createDownloadFile(t)
+	defer os.Remove(downloadedPath)
+
+	ft := filetransfer.NewTestDefaultFileTransfer(contentSize, chunkSize)
+	task := &filetransfer.DefaultDownloadTask{
+		Path:    downloadedPath,
+		Url:     server.URL,
+		Size:    contentSize,
+		Context: ctx,
+	}
+	err := ft.Download(task)
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+type errorFileWriter struct {
+	failAtOffset int64
+}
+
+func (e *errorFileWriter) WriteAt(p []byte, off int64) (n int, err error) {
+	if off == e.failAtOffset {
+		return 0, fmt.Errorf("injected file write error at offset %d", off)
+	}
+	return len(p), nil
+}
+
+func TestDefaultFileTransfer_DownloadMultipartFileWriteError(t *testing.T) {
+	// Create a test file to serveFile
+	contentSize := int64(5*1024*1024 + 100) // 5MB + 100 bytes
+	partSize := int64(2 * 1024 * 1024)      // 2MB
+	sourcePath, _ := createSourceFile(t, contentSize)
+	defer os.Remove(sourcePath)
+
+	server := httptest.NewServer(http.FileServer(http.Dir(filepath.Dir(sourcePath))))
+	defer server.Close()
+	url := server.URL + "/" + filepath.Base(sourcePath)
+	ft := filetransfer.NewTestDefaultFileTransfer(contentSize, partSize)
+	task := &filetransfer.DefaultDownloadTask{
+		Path:    "doesn't matter, we use mock file",
+		Url:     url,
+		Size:    contentSize,
+		Context: context.Background(),
+	}
+
+	downloadedFile := errorFileWriter{failAtOffset: partSize}
+	err := ft.DownloadMultipart(task, &downloadedFile)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "injected file write error at offset")
+}
+
+// Helper functions for multipart download tests
+
+func createSourceFile(t *testing.T, contentSize int64) (string, []byte) {
+	sourceFile, err := os.CreateTemp("", "test-multipart-source-*.bin")
+	require.NoError(t, err)
+	sourcePath := sourceFile.Name()
+	content := generateTestContent(contentSize)
+	_, err = sourceFile.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, sourceFile.Close())
+	return sourcePath, content
+}
+
+func createDownloadFile(t *testing.T) string {
+	downloadFile, err := os.CreateTemp("", "test-multipart-downloaded-*.bin")
+	require.NoError(t, err)
+	downloadPath := downloadFile.Name()
+	downloadFile.Close()
+	return downloadPath
+}
+
+// generateTestContent creates a file with fixed pattern.
+// we don't need random content for the test.
+func generateTestContent(size int64) []byte {
+	content := make([]byte, size)
+	pattern := []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	for i := int64(0); i < size; i++ {
+		content[i] = pattern[i%int64(len(pattern))]
+	}
+	return content
+}
+
+// verifyFileContent checks if downloaded file matches expected content
+func verifyFileContent(t *testing.T, filePath string, expectedContent []byte) {
+	actualContent, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	assert.Equal(t, expectedContent, actualContent, "File content mismatch")
 }

@@ -498,7 +498,7 @@ func (as *ArtifactSaver) uploadMultipart(
 	if err != nil {
 		return uploadResult{name: fileInfo.name, err: err}
 	}
-	chunkSize := getChunkSize(statInfo.Size())
+	chunkSize := getPartSize(statInfo.Size())
 
 	type partResponse struct {
 		partNumber int64
@@ -598,7 +598,7 @@ func (as *ArtifactSaver) uploadMultipart(
 		"uploadSpeedMBps", uploadSpeedMBps,
 		"numParts", len(partData),
 		"fileSize", statInfo.Size(),
-		"chunkSize", chunkSize,
+		"partSize", chunkSize,
 	)
 
 	return uploadResult{name: fileInfo.name, err: err}

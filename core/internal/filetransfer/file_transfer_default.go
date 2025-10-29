@@ -1,20 +1,31 @@
 package filetransfer
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/wboperation"
+	"golang.org/x/sync/errgroup"
 )
 
-// DefaultFileTransfer uploads or downloads files to/from the server
+const (
+	DefaultMultipartDownloadThreshold = 2 * 1024 * 1024 * 1024 // 2 GiB
+	DefaultMultipartDownloadPartSize  = 100 * 1024 * 1024      // 100 MiB
+	httpStreamingChunkSize            = 1 * 1024 * 1024        // 1 MiB for streaming chunks
+)
+
+// DefaultFileTransfer uploads or downloads files to/from the server.
+// It handles upload/download of normal artifacts (i.e. object store managed/acessed by wandb).
+// It also handles download of reference artifacts using http(s).
 type DefaultFileTransfer struct {
 	// client is the HTTP client for the file transfer
 	client *retryablehttp.Client
@@ -24,6 +35,14 @@ type DefaultFileTransfer struct {
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
+
+	// multipartDownloadThreshold is the minimum size for download in multipart mode with parallel http range requests
+	// Currently it always uses [DefaultMultipartDownloadThreshold] except for test.
+	multipartDownloadThreshold int64
+
+	// multipartDownloadPartSize is the size of each http range request
+	// Currently it always uses [DefaultMultipartDownloadPartSize] except for test.
+	multipartDownloadPartSize int64
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
@@ -33,11 +52,24 @@ func NewDefaultFileTransfer(
 	fileTransferStats FileTransferStats,
 ) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
-		logger:            logger,
-		client:            client,
-		fileTransferStats: fileTransferStats,
+		logger:                     logger,
+		client:                     client,
+		fileTransferStats:          fileTransferStats,
+		multipartDownloadThreshold: DefaultMultipartDownloadThreshold,
+		multipartDownloadPartSize:  DefaultMultipartDownloadPartSize,
 	}
 	return fileTransfer
+}
+
+// NewTestDefaultFileTransfer creates a new fileTransfer for testing with smaller files.
+func NewTestDefaultFileTransfer(minMultipartDownloadSize int64, multipartDownloadChunkSize int64) *DefaultFileTransfer {
+	return &DefaultFileTransfer{
+		logger:                     observability.NewNoOpLogger(),
+		client:                     retryablehttp.NewClient(),
+		fileTransferStats:          NewFileTransferStats(),
+		multipartDownloadThreshold: minMultipartDownloadSize,
+		multipartDownloadPartSize:  multipartDownloadChunkSize,
+	}
 }
 
 // Upload uploads a file to the server
@@ -124,13 +156,6 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 
-	// TODO: redo it to use the progress writer, to track the download progress
-	resp, err := ft.client.Get(task.Url)
-	if err != nil {
-		return err
-	}
-	task.Response = resp
-
 	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
 	if err != nil {
@@ -147,6 +172,21 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		}
 	}(file)
 
+	if task.Size >= ft.multipartDownloadThreshold {
+		return ft.DownloadMultipart(task, file)
+	}
+	return ft.downloadSerial(task, file)
+}
+
+// downloadSerial copy the http response body to the file using single request.
+func (ft *DefaultFileTransfer) downloadSerial(task *DefaultDownloadTask, file *os.File) error {
+	// TODO: redo it to use the progress writer, to track the download progress
+	resp, err := ft.client.Get(task.Url)
+	if err != nil {
+		return err
+	}
+	task.Response = resp
+
 	defer func(file io.ReadCloser) {
 		if err := file.Close(); err != nil {
 			ft.logger.CaptureError(
@@ -161,6 +201,112 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+// DownloadMultipart download the file using multiple http range requests.
+// You should always use [Download] instead of this method unless you are testing file write errorh handling.
+func (ft *DefaultFileTransfer) DownloadMultipart(task *DefaultDownloadTask, file WriterAt) error {
+	// Split file into multiple http range requests and distribute to multiple workers
+	requests := SplitHttpRanges(task.Size, ft.multipartDownloadPartSize)
+	numWorkers := min(runtime.NumCPU(), len(requests))
+	workerTasks, err := SplitWorkerTasks(len(requests), numWorkers)
+	if err != nil {
+		return fmt.Errorf("file transfer: download multipart: failed to split worker tasks: %w", err)
+	}
+	// Use channel to stream the chunks from download workers to the single file writer
+	chunkChan := make(chan *FileChunk, numWorkers*10)
+
+	// TODO: We should change the signature to pass the ctx as first argument instead of part of task struct
+	ctx := task.Context
+
+	// We have two error groups. One for download to make sure it close the channel to signal success completion to the file writer.
+	// Another for download and file writer to make sure if one of the has error, the other one would stop.
+	wg, ctx := errgroup.WithContext(ctx)
+	wg.Go(func() error {
+		defer close(chunkChan)
+
+		downloadGroup, ctx := errgroup.WithContext(ctx)
+		for workerID := range numWorkers {
+			taskRange := workerTasks[workerID]
+			downloadGroup.Go(func() error {
+				for i, req := range requests[taskRange.Start:taskRange.End] {
+					select {
+					case <-ctx.Done():
+						// One of the download worker or file writer has error, stop early
+						return ctx.Err()
+					default:
+					}
+
+					err := ft.downloadPart(ctx, task.Url, req, chunkChan)
+					if err != nil {
+						return fmt.Errorf("worker %d failed to download part %d: %w", workerID, taskRange.Start+i, err)
+					}
+				}
+				return nil
+			})
+		}
+		return downloadGroup.Wait()
+	})
+
+	// Flush file in a single goroutine.
+	wg.Go(func() error {
+		return WriteChunksToFile(ctx, file, chunkChan)
+	})
+	return wg.Wait()
+}
+
+// downloadPart downloads a single part using HTTP Range request and streams response body out to channel.
+func (ft *DefaultFileTransfer) downloadPart(
+	ctx context.Context,
+	url string,
+	reqRange httpRange,
+	chunkChan chan<- *FileChunk,
+) error {
+	req, err := retryablehttp.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	req = req.WithContext(ctx)
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", reqRange.start, reqRange.end))
+
+	resp, err := ft.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Stream the response in small buffer instead of entire response body.
+	buffer := make([]byte, httpStreamingChunkSize)
+	offset := reqRange.start
+
+	for {
+		n, err := resp.Body.Read(buffer)
+		if n > 0 {
+			chunk := &FileChunk{
+				Offset: offset,
+				Data:   make([]byte, n),
+			}
+			copy(chunk.Data, buffer[:n])
+
+			// Make sure we can cancel via context instead of blocking on writing to channel.
+			select {
+			case chunkChan <- chunk:
+				offset += int64(n)
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
