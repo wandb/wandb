@@ -36,7 +36,6 @@ from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
 from .lib import apikey, credentials, ipython
-from .lib.gitlib import GitRepo
 from .lib.run_moment import RunMoment
 
 validate_url: Callable[[str], None]
@@ -2246,6 +2245,8 @@ class Settings(BaseModel, validate_assignment=True):
 
     def _infer_code_path_for_program(self, program: str):
         """Finds the program's absolute and relative paths."""
+        from .lib.gitlib import GitRepo
+
         try:
             root = (
                 GitRepo().root or os.getcwd() if not self.disable_git else os.getcwd()
