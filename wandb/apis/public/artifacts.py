@@ -943,15 +943,20 @@ class ArtifactFiles(SizedPaginator["public.File"]):
                 "fileNames": names,
             }
 
+        omit_fileds = []
+
         # The server must advertise at least SDK 0.12.21
         # to get storagePath
         if not client.version_supported("0.12.21"):
-            self.QUERY = gql_compat(query_str, omit_fields={"storagePath"})
-        else:
-            self.QUERY = gql(query_str)
+            omit_fileds.append("storagePath")
 
         if not self.file_count:
-            self.QUERY = gql_compat(self.QUERY, omit_fields={"totalCount"})
+            omit_fileds.append("totalCount")
+
+        self.QUERY = gql_compat(
+            query_str,
+            omit_fields=omit_fileds,
+        )
 
         super().__init__(client, variables, per_page)
 
@@ -985,8 +990,9 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         """
         if self.last_response is None:
             self._load_page()
-        print(self.last_response)
-        return self.artifact.file_count
+        if self.file_count:
+            return self.last_response.total_count
+        raise NotImplementedError
 
     @property
     def more(self) -> bool:

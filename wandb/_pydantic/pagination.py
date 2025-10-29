@@ -44,3 +44,7 @@ class Connection(GQLResult, Generic[NodeT]):
 
 class ConnectionWithTotal(Connection[NodeT], Generic[NodeT]):
     total_count: NonNegativeInt
+
+
+class ConnectionWithOptionalTotal(Connection[NodeT], Generic[NodeT]):
+    total_count: Optional[NonNegativeInt]
