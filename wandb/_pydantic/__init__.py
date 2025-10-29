@@ -28,8 +28,8 @@ from .base import CompatBaseModel, GQLBase, GQLInput, GQLResult, JsonableModel
 from .field_types import GQLId, Typename
 from .pagination import (
     Connection,
-    ConnectionWithTotal,
     ConnectionWithOptionalTotal,
+    ConnectionWithTotal,
     Edge,
     PageInfo,
 )

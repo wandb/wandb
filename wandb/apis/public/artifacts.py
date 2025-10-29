@@ -80,7 +80,6 @@ from wandb.sdk.artifacts._validators import (
     validate_artifact_type,
     validate_tags,
 )
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
 
 from .utils import gql_compat
