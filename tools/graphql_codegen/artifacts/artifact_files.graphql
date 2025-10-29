@@ -33,6 +33,7 @@ query ArtifactVersionFiles(
               ...FileFragment
             }
           }
+          totalCount
         }
       }
     }
@@ -60,6 +61,7 @@ query ArtifactCollectionMembershipFiles(
               ...FileFragment
             }
           }
+          totalCount
         }
       }
     }

@@ -66,7 +66,7 @@ from wandb.sdk.artifacts._generated import (
     UpdateArtifactPortfolioInput,
     UpdateArtifactSequenceInput,
 )
-from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields, server_supports
 from wandb.sdk.artifacts._models.pagination import (
     ArtifactCollectionConnection,
     ArtifactFileConnection,
@@ -916,10 +916,13 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         names: Sequence[str] | None = None,
         per_page: int = 50,
     ):
-        self.query_via_membership = InternalApi()._server_supports(
-            ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
-        )
         self.artifact = artifact
+        self.query_via_membership = server_supports(
+            client, ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+        )
+        self.file_count = server_supports(
+            client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION
+        )
 
         if self.query_via_membership:
             query_str = ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL
@@ -946,6 +949,9 @@ class ArtifactFiles(SizedPaginator["public.File"]):
             self.QUERY = gql_compat(query_str, omit_fields={"storagePath"})
         else:
             self.QUERY = gql(query_str)
+
+        if not self.file_count:
+            self.QUERY = gql_compat(self.QUERY, omit_fields={"totalCount"})
 
         super().__init__(client, variables, per_page)
 

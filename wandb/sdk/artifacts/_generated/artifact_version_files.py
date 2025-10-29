@@ -33,6 +33,7 @@ class ArtifactVersionFilesProjectArtifactTypeArtifact(GQLResult):
 class ArtifactVersionFilesProjectArtifactTypeArtifactFiles(GQLResult):
     page_info: PageInfoFragment = Field(alias="pageInfo")
     edges: List[ArtifactVersionFilesProjectArtifactTypeArtifactFilesEdges]
+    total_count: int = Field(alias="totalCount")
 
 
 class ArtifactVersionFilesProjectArtifactTypeArtifactFilesEdges(GQLResult):

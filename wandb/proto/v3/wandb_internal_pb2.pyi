@@ -62,7 +62,7 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
     mutation.
     """
-    ARTIFACT_TOTAL_FILE_COUNT_IN_FILE_CONNECTION: _ServerFeature.ValueType  # 15
+    TOTAL_COUNT_IN_FILE_CONNECTION: _ServerFeature.ValueType  # 15
     """Indicates that the server supports returning the total file count in a file connection."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
@@ -105,7 +105,7 @@ ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE: ServerFeature.ValueType  # 14
 """Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
 mutation.
 """
-ARTIFACT_TOTAL_FILE_COUNT_IN_FILE_CONNECTION: ServerFeature.ValueType  # 15
+TOTAL_COUNT_IN_FILE_CONNECTION: ServerFeature.ValueType  # 15
 """Indicates that the server supports returning the total file count in a file connection."""
 global___ServerFeature = ServerFeature
 

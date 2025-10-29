@@ -296,6 +296,7 @@ query ArtifactVersionFiles($entityName: String!, $projectName: String!, $artifac
               ...FileFragment
             }
           }
+          totalCount
         }
       }
     }
@@ -338,6 +339,7 @@ query ArtifactCollectionMembershipFiles($entityName: String!, $projectName: Stri
               ...FileFragment
             }
           }
+          totalCount
         }
       }
     }
