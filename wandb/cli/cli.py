@@ -2945,7 +2945,6 @@ def eval(
         artifact_name = artifact.source_qualified_name
 
     job = job or default_job
-    print(instance_ids)
     config = {
         "overrides": {
             "run_config": {
