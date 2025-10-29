@@ -2897,7 +2897,9 @@ cli.add_command(beta)
 )
 @click.pass_context
 @display_error
-def eval(ctx, path, queue, project, entity, dataset_name, split, verbose, instance_ids, job):
+def eval(
+    ctx, path, queue, project, entity, dataset_name, split, verbose, instance_ids, job
+):
     """Publish an evaluation artifact and launch an eval job."""
     from wandb.sdk.launch.agent.agent import HIDDEN_AGENT_RUN_TYPE
 
@@ -2916,17 +2918,18 @@ def eval(ctx, path, queue, project, entity, dataset_name, split, verbose, instan
         project = "uncategorized"
         wandb.termlog("Project not specified, using 'uncategorized'.")
 
-
     if not os.path.exists(path):
         wandb.termerror(f"Path {path} does not exist")
         sys.exit(1)
-    
+
     if not os.path.isfile(path):
         wandb.termerror(f"Path {path} is not a file")
         sys.exit(1)
-    
+
     if not path.endswith(".jsonl"):
-        wandb.termerror(f"Path {path} is not a .jsonl file, swebench predictions should be in .jsonl format")
+        wandb.termerror(
+            f"Path {path} is not a .jsonl file, swebench predictions should be in .jsonl format"
+        )
         sys.exit(1)
 
     with wandb.init(
