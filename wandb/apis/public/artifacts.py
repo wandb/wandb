@@ -940,15 +940,15 @@ class ArtifactFiles(SizedPaginator["public.File"]):
                 "fileNames": names,
             }
 
-        omit_fields = []
+        omit_fields = set()
 
         # The server must advertise at least SDK 0.12.21
         # to get storagePath
         if not client.version_supported("0.12.21"):
-            omit_fields.append("storagePath")
+            omit_fields.add("storagePath")
 
         if not server_supports(client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
-            omit_fields.append("totalCount")
+            omit_fields.add("totalCount")
 
         self.QUERY = gql_compat(
             query_str,
