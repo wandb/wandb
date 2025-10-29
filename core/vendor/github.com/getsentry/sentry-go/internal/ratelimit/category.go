@@ -57,3 +57,47 @@ func (c Category) String() string {
 		return rv
 	}
 }
+
+// Priority represents the importance level of a category for buffer management.
+type Priority int
+
+const (
+	PriorityCritical Priority = iota + 1
+	PriorityHigh
+	PriorityMedium
+	PriorityLow
+	PriorityLowest
+)
+
+func (p Priority) String() string {
+	switch p {
+	case PriorityCritical:
+		return "critical"
+	case PriorityHigh:
+		return "high"
+	case PriorityMedium:
+		return "medium"
+	case PriorityLow:
+		return "low"
+	case PriorityLowest:
+		return "lowest"
+	default:
+		return "unknown"
+	}
+}
+
+// GetPriority returns the priority level for this category.
+func (c Category) GetPriority() Priority {
+	switch c {
+	case CategoryError:
+		return PriorityCritical
+	case CategoryMonitor:
+		return PriorityHigh
+	case CategoryLog:
+		return PriorityMedium
+	case CategoryTransaction:
+		return PriorityLow
+	default:
+		return PriorityMedium
+	}
+}
