@@ -1,10 +1,10 @@
-from ray import train, tune
+from ray import tune
 from ray.air.integrations.wandb import WandbLoggerCallback
 
 
 def train_fc(config):
     for i in range(10):
-        train.report({"mean_accuracy": (i + config["alpha"]) / 10})
+        tune.report({"mean_accuracy": (i + config["alpha"]) / 10})
 
 
 search_space = {
