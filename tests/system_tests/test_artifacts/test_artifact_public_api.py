@@ -54,7 +54,11 @@ def sample_data():
 def test_artifact_versions(user, api, sample_data):
     versions = api.artifact_versions("dataset", "mnist")
     assert len(versions) == 3
-    assert {version.name for version in versions} == {"mnist:v0", "mnist:v1", "mnist:v2"}
+    assert {version.name for version in versions} == {
+        "mnist:v0",
+        "mnist:v1",
+        "mnist:v2",
+    }
 
 
 def test_artifact_type(user, api, sample_data):
