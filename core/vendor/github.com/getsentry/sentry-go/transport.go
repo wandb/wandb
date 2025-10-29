@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go/internal/debuglog"
+	httpinternal "github.com/getsentry/sentry-go/internal/http"
+	"github.com/getsentry/sentry-go/internal/protocol"
 	"github.com/getsentry/sentry-go/internal/ratelimit"
 )
 
@@ -228,13 +230,13 @@ func getRequestFromEvent(ctx context.Context, event *Event, dsn *Dsn) (r *http.R
 			r.Header.Set("Content-Type", "application/x-sentry-envelope")
 
 			auth := fmt.Sprintf("Sentry sentry_version=%s, "+
-				"sentry_client=%s/%s, sentry_key=%s", apiVersion, event.Sdk.Name, event.Sdk.Version, dsn.publicKey)
+				"sentry_client=%s/%s, sentry_key=%s", apiVersion, event.Sdk.Name, event.Sdk.Version, dsn.GetPublicKey())
 
 			// The key sentry_secret is effectively deprecated and no longer needs to be set.
 			// However, since it was required in older self-hosted versions,
 			// it should still passed through to Sentry if set.
-			if dsn.secretKey != "" {
-				auth = fmt.Sprintf("%s, sentry_secret=%s", auth, dsn.secretKey)
+			if dsn.GetSecretKey() != "" {
+				auth = fmt.Sprintf("%s, sentry_secret=%s", auth, dsn.GetSecretKey())
 			}
 
 			r.Header.Set("X-Sentry-Auth", auth)
@@ -410,8 +412,8 @@ func (t *HTTPTransport) SendEventWithContext(ctx context.Context, event *Event) 
 			"Sending %s [%s] to %s project: %s",
 			eventType,
 			event.EventID,
-			t.dsn.host,
-			t.dsn.projectID,
+			t.dsn.GetHost(),
+			t.dsn.GetProjectID(),
 		)
 	default:
 		debuglog.Println("Event dropped due to transport buffer being full.")
@@ -665,8 +667,8 @@ func (t *HTTPSyncTransport) SendEventWithContext(ctx context.Context, event *Eve
 		"Sending %s [%s] to %s project: %s",
 		eventIdentifier,
 		event.EventID,
-		t.dsn.host,
-		t.dsn.projectID,
+		t.dsn.GetHost(),
+		t.dsn.GetProjectID(),
 	)
 
 	response, err := t.client.Do(request)
@@ -743,3 +745,60 @@ func (noopTransport) FlushWithContext(context.Context) bool {
 }
 
 func (noopTransport) Close() {}
+
+// ================================
+// Internal Transport Adapters
+// ================================
+
+// newInternalAsyncTransport creates a new AsyncTransport from internal/http
+// wrapped to satisfy the Transport interface.
+//
+// This is not yet exposed in the public API and is for internal experimentation.
+func newInternalAsyncTransport() Transport {
+	return &internalAsyncTransportAdapter{}
+}
+
+// internalAsyncTransportAdapter wraps the internal AsyncTransport to implement
+// the root-level Transport interface.
+type internalAsyncTransportAdapter struct {
+	transport protocol.TelemetryTransport
+	dsn       *protocol.Dsn
+}
+
+func (a *internalAsyncTransportAdapter) Configure(options ClientOptions) {
+	transportOptions := httpinternal.TransportOptions{
+		Dsn:           options.Dsn,
+		HTTPClient:    options.HTTPClient,
+		HTTPTransport: options.HTTPTransport,
+		HTTPProxy:     options.HTTPProxy,
+		HTTPSProxy:    options.HTTPSProxy,
+		CaCerts:       options.CaCerts,
+	}
+
+	a.transport = httpinternal.NewAsyncTransport(transportOptions)
+
+	if options.Dsn != "" {
+		dsn, err := protocol.NewDsn(options.Dsn)
+		if err != nil {
+			debuglog.Printf("Failed to parse DSN in adapter: %v\n", err)
+		} else {
+			a.dsn = dsn
+		}
+	}
+}
+
+func (a *internalAsyncTransportAdapter) SendEvent(event *Event) {
+	a.transport.SendEvent(event)
+}
+
+func (a *internalAsyncTransportAdapter) Flush(timeout time.Duration) bool {
+	return a.transport.Flush(timeout)
+}
+
+func (a *internalAsyncTransportAdapter) FlushWithContext(ctx context.Context) bool {
+	return a.transport.FlushWithContext(ctx)
+}
+
+func (a *internalAsyncTransportAdapter) Close() {
+	a.transport.Close()
+}

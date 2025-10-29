@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go/attribute"
-	debuglog "github.com/getsentry/sentry-go/internal/debuglog"
+	"github.com/getsentry/sentry-go/internal/debuglog"
 )
 
 type LogLevel string
@@ -90,20 +90,30 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	if message == "" {
 		return
 	}
-	hub := GetHubFromContext(ctx)
-	if hub == nil {
-		hub = CurrentHub()
-	}
-
 	var traceID TraceID
 	var spanID SpanID
 	var span *Span
 	var user User
 
+	span = SpanFromContext(ctx)
+	if span == nil {
+		span = SpanFromContext(l.ctx)
+	}
+	hub := GetHubFromContext(ctx)
+	if hub == nil {
+		hub = GetHubFromContext(l.ctx)
+	}
+	if hub == nil {
+		hub = CurrentHub()
+	}
+
 	scope := hub.Scope()
 	if scope != nil {
 		scope.mu.Lock()
-		span = scope.span
+		// Use span from hub only as last resort
+		if span == nil {
+			span = scope.span
+		}
 		if span != nil {
 			traceID = span.TraceID
 			spanID = span.SpanID
