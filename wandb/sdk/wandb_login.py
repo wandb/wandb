@@ -3,29 +3,28 @@
 This authenticates your machine to log data to your account.
 """
 
+from __future__ import annotations
+
 import enum
 import os
-from typing import Literal, Optional, Tuple
+from typing import Literal
 
 import click
-from requests.exceptions import ConnectionError
 
 import wandb
 from wandb.errors import AuthenticationError, UsageError
 from wandb.old.settings import Settings as OldSettings
 from wandb.sdk import wandb_setup
 
-from ..apis import InternalApi
-from .internal.internal_api import Api
-from .lib import apikey
 
-
-def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
+def _handle_host_wandb_setting(host: str | None, cloud: bool = False) -> None:
     """Write the host parameter to the global settings file.
 
     This takes the parameter from wandb.login or wandb login for use by the
     application's APIs.
     """
+    from ..apis import InternalApi
+
     _api = InternalApi()
     if host == "https://api.wandb.ai" or (host is None and cloud):
         _api.clear_setting("base_url", globally=True, persist=True)
@@ -39,14 +38,14 @@ def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None
 
 
 def login(
-    anonymous: Optional[Literal["must", "allow", "never"]] = None,
-    key: Optional[str] = None,
-    relogin: Optional[bool] = None,
-    host: Optional[str] = None,
-    force: Optional[bool] = None,
-    timeout: Optional[int] = None,
+    anonymous: Literal["must", "allow", "never"] | None = None,
+    key: str | None = None,
+    relogin: bool | None = None,
+    host: str | None = None,
+    force: bool | None = None,
+    timeout: int | None = None,
     verify: bool = False,
-    referrer: Optional[str] = None,
+    referrer: str | None = None,
 ) -> bool:
     """Set up W&B login credentials.
 
@@ -100,12 +99,12 @@ class ApiKeyStatus(enum.Enum):
 class _WandbLogin:
     def __init__(
         self,
-        anonymous: Optional[Literal["must", "allow", "never"]] = None,
-        force: Optional[bool] = None,
-        host: Optional[str] = None,
-        key: Optional[str] = None,
-        relogin: Optional[bool] = None,
-        timeout: Optional[int] = None,
+        anonymous: Literal["must", "allow", "never"] | None = None,
+        force: bool | None = None,
+        host: str | None = None,
+        key: str | None = None,
+        relogin: bool | None = None,
+        timeout: int | None = None,
     ):
         self._relogin = relogin
 
@@ -123,6 +122,8 @@ class _WandbLogin:
         self._settings = self._wandb_setup.settings
 
     def _update_global_anonymous_setting(self) -> None:
+        from ..apis import InternalApi
+
         api = InternalApi()
         if self.is_anonymous:
             api.set_setting("anonymous", "must", globally=True, persist=True)
@@ -131,6 +132,8 @@ class _WandbLogin:
 
     def is_apikey_configured(self) -> bool:
         """Returns whether an API key is set or can be inferred."""
+        from .lib import apikey
+
         return apikey.api_key(settings=self._settings) is not None
 
     def _print_logged_in_message(self) -> None:
@@ -170,6 +173,8 @@ class _WandbLogin:
 
     def try_save_api_key(self, key: str) -> None:
         """Saves the API key to disk for future use."""
+        from .lib import apikey
+
         if self._settings._notebook and not self._settings.silent:
             wandb.termwarn(
                 "If you're specifying your api key in code, ensure this "
@@ -185,7 +190,7 @@ class _WandbLogin:
 
     def update_session(
         self,
-        key: Optional[str],
+        key: str | None,
         status: ApiKeyStatus = ApiKeyStatus.VALID,
     ) -> None:
         """Updates mode and API key settings on the global setup object.
@@ -206,8 +211,11 @@ class _WandbLogin:
             self._wandb_setup.update_user_settings()
 
     def _prompt_api_key(
-        self, referrer: Optional[str] = None
-    ) -> Tuple[Optional[str], ApiKeyStatus]:
+        self, referrer: str | None = None
+    ) -> tuple[str | None, ApiKeyStatus]:
+        from .internal.internal_api import Api
+        from .lib import apikey
+
         api = Api(self._settings)
         while True:
             try:
@@ -232,8 +240,8 @@ class _WandbLogin:
             return key, ApiKeyStatus.VALID
 
     def prompt_api_key(
-        self, referrer: Optional[str] = None
-    ) -> Tuple[Optional[str], ApiKeyStatus]:
+        self, referrer: str | None = None
+    ) -> tuple[str | None, ApiKeyStatus]:
         """Updates the global API key by prompting the user."""
         key, status = self._prompt_api_key(referrer)
         if status == ApiKeyStatus.NOTTY:
@@ -249,18 +257,18 @@ class _WandbLogin:
 
 def _login(
     *,
-    anonymous: Optional[Literal["allow", "must", "never"]] = None,
-    key: Optional[str] = None,
-    relogin: Optional[bool] = None,
-    host: Optional[str] = None,
-    force: Optional[bool] = None,
-    timeout: Optional[int] = None,
+    anonymous: Literal["allow", "must", "never"] | None = None,
+    key: str | None = None,
+    relogin: bool | None = None,
+    host: str | None = None,
+    force: bool | None = None,
+    timeout: int | None = None,
     verify: bool = False,
     referrer: str = "models",
     update_api_key: bool = True,
-    _silent: Optional[bool] = None,
-    _disable_warning: Optional[bool] = None,
-) -> (bool, Optional[str]):
+    _silent: bool | None = None,
+    _disable_warning: bool | None = None,
+) -> tuple[bool, str | None]:
     """Logs in to W&B.
 
     This is the internal implementation of wandb.login(),
@@ -280,6 +288,8 @@ def _login(
         str: The API key used to log in,
             or None if the api key was not verified during the login process.
     """
+    from .lib import apikey
+
     if wandb.run is not None:
         if not _disable_warning:
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
@@ -335,6 +345,10 @@ def _login(
 
 
 def _verify_login(key: str, base_url: str) -> None:
+    from requests.exceptions import ConnectionError
+
+    from ..apis import InternalApi
+
     api = InternalApi(
         api_key=key,
         default_settings={"base_url": base_url},

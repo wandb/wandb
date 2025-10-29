@@ -31,11 +31,6 @@ def test_saved_model_pytorch(mocker):
     )
 
 
-# TODO: uncomment this once the test is fixed
-# @pytest.mark.skipif(
-#     platform.system() == "Windows",
-#     reason="TODO: Windows is legitimately busted",
-# )
 @pytest.mark.skip(reason="New keras release broke this test")
 def test_saved_model_keras(mocker):
     saved_model_test(mocker, keras_model())
@@ -63,11 +58,6 @@ def test_pytorch_saved_model():
     )
 
 
-# TODO: uncomment this once the test is fixed
-# @pytest.mark.skipif(
-#     platform.system() == "Windows",
-#     reason="TODO: Windows is legitimately busted",
-# )
 @pytest.mark.skip(reason="New keras release broke this test")
 def test_tensorflow_keras_saved_model():
     subclass_test(
@@ -85,13 +75,6 @@ def test_tensorflow_keras_saved_model():
         "save_fn",
     ),
     [
-        # TODO: Uncomment once _TensorflowKerasSavedModel._serialize is fixed.
-        # (
-        #     keras_model,
-        #     saved_model._TensorflowKerasSavedModel,
-        #     "keras",
-        #     lambda model, path: model.save(path),
-        # ),
         (
             sklearn_model,
             saved_model._SklearnSavedModel,

@@ -19,15 +19,12 @@ from enum import IntEnum
 from types import TracebackType
 from typing import TYPE_CHECKING, Callable, Sequence, TextIO, TypeVar
 
-import requests
 from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec
 
 import wandb
 import wandb.env
 import wandb.util
 from wandb import trigger
-from wandb.apis import internal, public
-from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
@@ -39,9 +36,6 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.internal import job_builder
 from wandb.sdk.lib import wb_logging
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -59,12 +53,6 @@ from wandb.util import (
 )
 
 from . import wandb_config, wandb_metric, wandb_summary
-from .artifacts._validators import (
-    MAX_ARTIFACT_METADATA_KEYS,
-    ArtifactPath,
-    validate_aliases,
-    validate_tags,
-)
 from .data_types._dtypes import TypeRegistry
 from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
@@ -90,7 +78,6 @@ from .mailbox import (
     wait_with_progress,
 )
 from .wandb_alerts import AlertLevel
-from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
@@ -98,14 +85,17 @@ if TYPE_CHECKING:
 
     import torch  # type: ignore [import-not-found]
 
-    import wandb.apis.public
     import wandb.sdk.backend.backend
     import wandb.sdk.interface.interface_queue
+    from wandb.apis.public import Api as PublicApi
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
         InternalMessagesResponse,
         SampledHistoryResponse,
     )
+    from wandb.sdk.artifacts.artifact import Artifact
+
+    from .wandb_settings import Settings
 
     class GitSourceDict(TypedDict):
         remote: str
@@ -1138,6 +1128,8 @@ class Run:
         Returns:
             An `Artifact` object if code was logged
         """
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
         if name is None:
             if self.settings._jupyter:
                 notebook_name = None
@@ -1395,6 +1387,9 @@ class Run:
     def _config_artifact_callback(
         self, key: str, val: str | Artifact | dict
     ) -> Artifact:
+        from wandb.apis import public
+        from wandb.sdk.artifacts.artifact import Artifact
+
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown
         # in wandb.util.artifact_to_json
@@ -2620,6 +2615,9 @@ class Run:
         installed_packages_list: list[str],
         patch_path: os.PathLike | None = None,
     ) -> Artifact:
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+        from wandb.sdk.internal import job_builder
+
         job_artifact = InternalArtifact(name, job_builder.JOB_ARTIFACT_TYPE)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(patch_path), "diff.patch")
@@ -2958,6 +2956,8 @@ class Run:
             The linked artifact.
 
         """
+        from .artifacts._validators import ArtifactPath
+
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
 
@@ -3033,6 +3033,9 @@ class Run:
         ```
 
         """
+        from wandb.apis import internal
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if self._settings._offline:
             raise TypeError("Cannot use artifact when in offline mode.")
 
@@ -3261,6 +3264,12 @@ class Run:
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> Artifact:
+        from .artifacts._validators import (
+            MAX_ARTIFACT_METADATA_KEYS,
+            validate_aliases,
+            validate_tags,
+        )
+
         if self._settings.anonymous in ["allow", "must"]:
             wandb.termwarn(
                 "Artifacts logged anonymously cannot be claimed and expire after 7 days."
@@ -3323,6 +3332,8 @@ class Run:
         return artifact
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:
+        from wandb.apis import public
+
         overrides = {"run": self._settings.run_id}  # type: ignore
         if not self._settings._offline:
             overrides["entity"] = self._settings.entity or ""
@@ -3331,6 +3342,10 @@ class Run:
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
+        import requests
+
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if self._settings._offline:
             return
         try:
@@ -3368,6 +3383,8 @@ class Run:
         type: str | None = None,
         aliases: list[str] | None = None,
     ) -> tuple[Artifact, list[str]]:
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if isinstance(artifact_or_path, (str, os.PathLike)):
             name = (
                 name
@@ -4007,6 +4024,8 @@ def restore(
         CommError: If W&B can't connect to the W&B backend.
         ValueError: If the file is not found or can't find run_path.
     """
+    from wandb.apis import public
+
     is_disabled = wandb.run is not None and wandb.run.disabled
     run = None if is_disabled else wandb.run
     if run_path is None:

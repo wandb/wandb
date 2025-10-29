@@ -9,8 +9,6 @@ import threading
 import time
 from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
 
-from requests import HTTPError
-
 import wandb
 import wandb.errors
 from wandb.util import CheckRetryFnType
@@ -183,6 +181,8 @@ class Retry(Generic[_R]):
         Args:
             exception: The most recent exception we will retry.
         """
+        from requests import HTTPError
+
         if (
             isinstance(exception, HTTPError)
             and exception.response is not None

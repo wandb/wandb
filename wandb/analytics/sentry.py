@@ -9,7 +9,7 @@ import os
 import pathlib
 import sys
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import Any, Callable, Literal
 from urllib.parse import quote
 
 import sentry_sdk  # type: ignore
@@ -20,9 +20,6 @@ from typing_extensions import Never
 import wandb
 import wandb.env
 import wandb.util
-
-if TYPE_CHECKING:
-    import wandb.sdk.internal.settings_static
 
 SENTRY_DEFAULT_DSN = (
     "https://2592b1968ea94cca9b5ef5e348e094a7@o151352.ingest.sentry.io/4504800232407040"
@@ -164,7 +161,8 @@ class Sentry:
     @_safe_noop
     def start_session(self) -> None:
         """Start a new session."""
-        assert self.scope is not None
+        if self.scope is None:
+            return
         # get the current client and scope
         session = self.scope._session
 
@@ -175,7 +173,8 @@ class Sentry:
     @_safe_noop
     def end_session(self) -> None:
         """End the current session."""
-        assert self.scope is not None
+        if self.scope is None:
+            return
         # get the current client and scope
         client = self.scope.get_client()
         session = self.scope._session
@@ -187,7 +186,8 @@ class Sentry:
     @_safe_noop
     def mark_session(self, status: SessionStatus | None = None) -> None:
         """Mark the current session with a status."""
-        assert self.scope is not None
+        if self.scope is None:
+            return
         session = self.scope._session
 
         if session is not None:
@@ -206,7 +206,8 @@ class Sentry:
         all events sent from this thread. It also tries to start a session
         if one doesn't already exist for this thread.
         """
-        assert self.scope is not None
+        if self.scope is None:
+            return
         settings_tags = (
             "entity",
             "project",
@@ -219,11 +220,9 @@ class Sentry:
             "_platform",
         )
 
-        # set context
         if process_context:
             self.scope.set_tag("process_context", process_context)
 
-        # apply settings tags
         if tags is None:
             return None
 
@@ -242,7 +241,7 @@ class Sentry:
             python_runtime = "python"
         self.scope.set_tag("python_runtime", python_runtime)
 
-        # Construct run_url and sweep_url given run_id and sweep_id
+        # Construct run_url and sweep_url given run_id and sweep_id.
         for obj in ("run", "sweep"):
             obj_id, obj_url = f"{obj}_id", f"{obj}_url"
             if tags.get(obj_url, None):
@@ -261,7 +260,5 @@ class Sentry:
         email = tags.get("email")
         if email:
             self.scope.user = {"email": email}
-
-        # todo: add back the option to pass general tags see: c645f625d1c1a3db4a6b0e2aa8e924fee101904c (wandb/util.py)
 
         self.start_session()
