@@ -12,3 +12,6 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+- `Artifact.files()` now correctly returns the length when providing specific file names via the `names` parameter (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10796)

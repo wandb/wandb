@@ -260,15 +260,15 @@ def test_artifact_checkout(user, api, sample_data):
 def test_artifact_run_used(user, api, sample_data):
     run = api.run("uncategorized/second_run")
     arts = run.used_artifacts()
-    assert len(arts) == 2
-    assert {art.name for art in arts} == {"mnist:v0", "mnist:v1"}
+    assert len(arts) == 3
+    assert {art.name for art in arts} == {"mnist:v0", "mnist:v1", "mnist:v2"}
 
 
 def test_artifact_run_logged(user, api, sample_data):
     run = api.run("uncategorized/first_run")
     arts = run.logged_artifacts()
-    assert len(arts) == 2
-    assert {art.name for art in arts} == {"mnist:v0", "mnist:v1"}
+    assert len(arts) == 3
+    assert {art.name for art in arts} == {"mnist:v0", "mnist:v1", "mnist:v2"}
 
 
 def test_artifact_run_logged_cursor(user, api, sample_data):
