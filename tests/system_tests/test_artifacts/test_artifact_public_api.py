@@ -38,15 +38,23 @@ def sample_data():
         artifact.add(table, name="t")
         wandb.run.log_artifact(artifact)
 
+        artifact = wandb.Artifact("mnist", type="dataset")
+        with artifact.new_file("file1.txt") as f:
+            f.write("v0")
+        with artifact.new_file("file2.txt") as f:
+            f.write("v1")
+        wandb.run.log_artifact(artifact)
+
     with wandb.init(id="second_run", settings={"silent": True}):
         wandb.run.use_artifact("mnist:v0")
         wandb.run.use_artifact("mnist:v1")
+        wandb.run.use_artifact("mnist:v2")
 
 
 def test_artifact_versions(user, api, sample_data):
     versions = api.artifact_versions("dataset", "mnist")
-    assert len(versions) == 2
-    assert {version.name for version in versions} == {"mnist:v0", "mnist:v1"}
+    assert len(versions) == 3
+    assert {version.name for version in versions} == {"mnist:v0", "mnist:v1", "mnist:v2"}
 
 
 def test_artifact_type(user, api, sample_data):
@@ -129,6 +137,14 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     assert files.cursor is not None
 
 
+def test_artifacts_files_name(user, api, sample_data, wandb_backend_spy):
+    if not server_supports(api.client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
+        pytest.skip()
+    art = api.artifact("mnist:v2", type="dataset")
+    assert len(art.files()) == 2
+    assert len(art.files(names="file1.txt")) == 1
+
+
 def test_artifact_download(user, api, sample_data):
     art = api.artifact("mnist:v0", type="dataset")
     path = art.download()
@@ -142,7 +158,7 @@ def test_artifact_download(user, api, sample_data):
 
 def test_artifact_exists(user, api, sample_data):
     assert api.artifact_exists("mnist:v0") is True
-    assert api.artifact_exists("mnist:v2") is False
+    assert api.artifact_exists("mnist:v3") is False
     assert api.artifact_exists("mnist-fake:v0") is False
 
 
