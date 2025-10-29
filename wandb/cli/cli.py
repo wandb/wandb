@@ -2595,6 +2595,7 @@ def pull(run, project, entity):
 @display_error
 def restore(ctx, run, no_git, branch, project, entity):
     from wandb.old.core import wandb_dir
+    from wandb.sdk.lib.gitlib import GitRepo
 
     api = _get_cling_api()
     if ":" in run:
@@ -2614,9 +2615,12 @@ def restore(ctx, run, no_git, branch, project, entity):
     image = metadata.get("docker")
     restore_message = f"""`wandb restore` needs to be run from the same git repository as the original run.
 Run `git clone {repo}` and restore from there or pass the --no-git flag."""
+
+    git = GitRepo(remote=api.settings("git_remote"))
+
     if no_git:
         commit = None
-    elif not api.git.enabled:
+    elif not git.enabled:
         if repo:
             raise ClickException(restore_message)
         elif image:
@@ -2624,11 +2628,11 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                 "Original run has no git history.  Just restoring config and docker"
             )
 
-    if commit and api.git.enabled:
+    if commit and git.enabled:
         wandb.termlog(f"Fetching origin and finding commit: {commit}")
         subprocess.check_call(["git", "fetch", "--all"])
         try:
-            api.git.repo.commit(commit)
+            git.repo.commit(commit)
         except ValueError:
             wandb.termlog(f"Couldn't find original commit: {commit}")
             commit = None
@@ -2639,7 +2643,7 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                 ):
                     commit = filename[len("upstream_diff_") : -len(".patch")]
                     try:
-                        api.git.repo.commit(commit)
+                        git.repo.commit(commit)
                     except ValueError:
                         commit = None
                     else:
@@ -2659,22 +2663,22 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                 patch_path = None
 
         branch_name = f"wandb/{run}"
-        if branch and branch_name not in api.git.repo.branches:
-            api.git.repo.git.checkout(commit, b=branch_name)
+        if branch and branch_name not in git.repo.branches:
+            git.repo.git.checkout(commit, b=branch_name)
             wandb.termlog(f"Created branch {click.style(branch_name, bold=True)}")
         elif branch:
             wandb.termlog(
                 f"Using existing branch, run `git branch -D {branch_name}` from master for a clean checkout"
             )
-            api.git.repo.git.checkout(branch_name)
+            git.repo.git.checkout(branch_name)
         else:
             wandb.termlog(f"Checking out {commit} in detached mode")
-            api.git.repo.git.checkout(commit)
+            git.repo.git.checkout(commit)
 
         if patch_path:
             # we apply the patch from the repository root so git doesn't exclude
             # things outside the current directory
-            root = api.git.root
+            root = git.root
             patch_rel_path = os.path.relpath(patch_path, start=root)
             # --reject is necessary or else this fails any time a binary file
             # occurs in the diff
