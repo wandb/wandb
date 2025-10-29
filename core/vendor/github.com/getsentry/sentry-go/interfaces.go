@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go/attribute"
+	"github.com/getsentry/sentry-go/internal/protocol"
 	"github.com/getsentry/sentry-go/internal/ratelimit"
 )
 
@@ -38,18 +39,8 @@ const (
 )
 
 // SdkInfo contains all metadata about the SDK.
-type SdkInfo struct {
-	Name         string       `json:"name,omitempty"`
-	Version      string       `json:"version,omitempty"`
-	Integrations []string     `json:"integrations,omitempty"`
-	Packages     []SdkPackage `json:"packages,omitempty"`
-}
-
-// SdkPackage describes a package that was installed.
-type SdkPackage struct {
-	Name    string `json:"name,omitempty"`
-	Version string `json:"version,omitempty"`
-}
+type SdkInfo = protocol.SdkInfo
+type SdkPackage = protocol.SdkPackage
 
 // TODO: This type could be more useful, as map of interface{} is too generic
 // and requires a lot of type assertions in beforeBreadcrumb calls
@@ -246,11 +237,11 @@ var sensitiveHeaders = map[string]struct{}{
 // NewRequest avoids operations that depend on network access. In particular, it
 // does not read r.Body.
 func NewRequest(r *http.Request) *Request {
-	protocol := schemeHTTP
+	prot := protocol.SchemeHTTP
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		protocol = schemeHTTPS
+		prot = protocol.SchemeHTTPS
 	}
-	url := fmt.Sprintf("%s://%s%s", protocol, r.Host, r.URL.Path)
+	url := fmt.Sprintf("%s://%s%s", prot, r.Host, r.URL.Path)
 
 	var cookies string
 	var env map[string]string
@@ -428,6 +419,78 @@ func (e *Event) SetException(exception error, maxErrorDepth int) {
 	}
 
 	e.Exception = exceptions
+}
+
+// ToEnvelope converts the Event to a Sentry envelope.
+// This includes the event data and any attachments as separate envelope items.
+func (e *Event) ToEnvelope(dsn *protocol.Dsn) (*protocol.Envelope, error) {
+	return e.ToEnvelopeWithTime(dsn, time.Now())
+}
+
+// ToEnvelopeWithTime converts the Event to a Sentry envelope with a specific sentAt time.
+// This is primarily useful for testing with predictable timestamps.
+func (e *Event) ToEnvelopeWithTime(dsn *protocol.Dsn, sentAt time.Time) (*protocol.Envelope, error) {
+	// Create envelope header with trace context
+	trace := make(map[string]string)
+	if dsc := e.sdkMetaData.dsc; dsc.HasEntries() {
+		for k, v := range dsc.Entries {
+			trace[k] = v
+		}
+	}
+
+	header := &protocol.EnvelopeHeader{
+		EventID: string(e.EventID),
+		SentAt:  sentAt,
+		Trace:   trace,
+	}
+
+	if dsn != nil {
+		header.Dsn = dsn.String()
+	}
+
+	header.Sdk = &e.Sdk
+
+	envelope := protocol.NewEnvelope(header)
+
+	eventBody, err := json.Marshal(e)
+	if err != nil {
+		// Try fallback: remove problematic fields and retry
+		e.Breadcrumbs = nil
+		e.Contexts = nil
+		e.Extra = map[string]interface{}{
+			"info": fmt.Sprintf("Could not encode original event as JSON. "+
+				"Succeeded by removing Breadcrumbs, Contexts and Extra. "+
+				"Please verify the data you attach to the scope. "+
+				"Error: %s", err),
+		}
+
+		eventBody, err = json.Marshal(e)
+		if err != nil {
+			return nil, fmt.Errorf("event could not be marshaled even with fallback: %w", err)
+		}
+
+		DebugLogger.Printf("Event marshaling succeeded with fallback after removing problematic fields")
+	}
+
+	var mainItem *protocol.EnvelopeItem
+	switch e.Type {
+	case transactionType:
+		mainItem = protocol.NewEnvelopeItem(protocol.EnvelopeItemTypeTransaction, eventBody)
+	case checkInType:
+		mainItem = protocol.NewEnvelopeItem(protocol.EnvelopeItemTypeCheckIn, eventBody)
+	case logEvent.Type:
+		mainItem = protocol.NewLogItem(len(e.Logs), eventBody)
+	default:
+		mainItem = protocol.NewEnvelopeItem(protocol.EnvelopeItemTypeEvent, eventBody)
+	}
+
+	envelope.AddItem(mainItem)
+	for _, attachment := range e.Attachments {
+		attachmentItem := protocol.NewAttachmentItem(attachment.Filename, attachment.ContentType, attachment.Payload)
+		envelope.AddItem(attachmentItem)
+	}
+
+	return envelope, nil
 }
 
 // TODO: Event.Contexts map[string]interface{} => map[string]EventContext,

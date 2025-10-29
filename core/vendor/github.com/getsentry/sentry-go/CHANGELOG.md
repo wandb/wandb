@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.36.2
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.36.2.
+
+### Bug Fixes
+
+- Fix context propagation for logs to ensure logger instances correctly inherit span and hub information from their creation context ([#1118](https://github.com/getsentry/sentry-go/pull/1118))
+  - Logs now properly propagate trace context from the logger's original context, even when emitted in a different context
+  - The logger will first check the emission context, then fall back to its creation context, and finally to the current hub
+
 ## 0.36.1
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.36.1.

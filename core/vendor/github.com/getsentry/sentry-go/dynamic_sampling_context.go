@@ -60,7 +60,7 @@ func DynamicSamplingContextFromTransaction(span *Span) DynamicSamplingContext {
 	}
 
 	if dsn := client.dsn; dsn != nil {
-		if publicKey := dsn.publicKey; publicKey != "" {
+		if publicKey := dsn.GetPublicKey(); publicKey != "" {
 			entries["public_key"] = publicKey
 		}
 	}
@@ -136,7 +136,7 @@ func DynamicSamplingContextFromScope(scope *Scope, client *Client) DynamicSampli
 	}
 
 	if dsn := client.dsn; dsn != nil {
-		if publicKey := dsn.publicKey; publicKey != "" {
+		if publicKey := dsn.GetPublicKey(); publicKey != "" {
 			entries["public_key"] = publicKey
 		}
 	}

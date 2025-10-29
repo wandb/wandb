@@ -16,7 +16,7 @@ require (
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/getsentry/sentry-go v0.36.1
+	github.com/getsentry/sentry-go v0.36.2
 	github.com/go-git/go-git/v5 v5.16.3
 	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.15.0
