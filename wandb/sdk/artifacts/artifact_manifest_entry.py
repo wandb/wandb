@@ -19,8 +19,8 @@ from typing_extensions import Annotated, Self
 
 from wandb._pydantic import field_validator, model_validator
 from wandb._strutils import nameof
-from wandb.proto.wandb_deprecated import Deprecated
-from wandb.sdk.lib.deprecate import deprecate
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.lib.hashutil import (
     B64MD5,
@@ -137,9 +137,9 @@ class ArtifactManifestEntry(ArtifactsBase):
     @property
     def name(self) -> LogicalPath:
         """Deprecated; use `path` instead."""
-        deprecate(
-            field_name=Deprecated.artifactmanifestentry__name,
-            warning_message="ArtifactManifestEntry.name is deprecated, use .path instead.",
+        warn_and_record_deprecation(
+            feature=Deprecated(artifactmanifestentry__name=True),
+            message="ArtifactManifestEntry.name is deprecated, use .path instead.",
         )
         return self.path
 

@@ -9,11 +9,11 @@ from typing_extensions import deprecated
 
 import wandb
 from wandb.data_types import WBValue, _SavedModel
-from wandb.proto.wandb_deprecated import Deprecated
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.lib.deprecate import deprecate as wandb_deprecate
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
 warnings.warn(
     message=f"The {__name__!r} module is deprecated and will be removed in a future version. Please use the equivalent 'wandb.Run' methods instead.",
@@ -181,9 +181,9 @@ def log_model(
         ```
 
     """
-    wandb_deprecate(
-        field_name=Deprecated.beta__workflows__log_model,
-        warning_message=_LOG_MODEL_DEPRECATION_MSG,
+    warn_and_record_deprecation(
+        feature=Deprecated(beta__workflows__log_model=True),
+        message=_LOG_MODEL_DEPRECATION_MSG,
     )
 
     model = _SavedModel.init(model_obj, **kwargs)
@@ -231,9 +231,9 @@ def use_model(aliased_path: str, unsafe: bool = False) -> _SavedModel:
         model = sm.model_obj()
         ```
     """
-    wandb_deprecate(
-        field_name=Deprecated.beta__workflows__use_model,
-        warning_message=_USE_MODEL_DEPRECATION_MSG,
+    warn_and_record_deprecation(
+        feature=Deprecated(beta__workflows__use_model=True),
+        message=_USE_MODEL_DEPRECATION_MSG,
     )
 
     if not unsafe:
@@ -292,9 +292,9 @@ def link_model(
         link_model(sm, "my-portfolio")
 
     """
-    wandb_deprecate(
-        field_name=Deprecated.beta__workflows__link_model,
-        warning_message=_LINK_MODEL_DEPRECATION_MSG,
+    warn_and_record_deprecation(
+        feature=Deprecated(beta__workflows__link_model=True),
+        message=_LINK_MODEL_DEPRECATION_MSG,
     )
 
     aliases = wandb.util._resolve_aliases(aliases)

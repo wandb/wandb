@@ -20,11 +20,11 @@ class RunDisabled:
     """Compatibility class for integrations that explicitly check for wandb.RunDisabled."""
 
     def __getattr__(self, name: str) -> Any:
-        from wandb.proto.wandb_deprecated import Deprecated
-        from wandb.sdk.lib import deprecate
+        from wandb.proto.wandb_telemetry_pb2 import Deprecated
+        from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
-        deprecate.deprecate(
-            field_name=Deprecated.run_disabled,
-            warning_message="RunDisabled is deprecated and is a no-op. "
+        warn_and_record_deprecation(
+            feature=Deprecated(run_disabled=True),
+            message="RunDisabled is deprecated and is a no-op. "
             '`wandb.init(mode="disabled")` now returns an instance of `wandb.Run`.',
         )
