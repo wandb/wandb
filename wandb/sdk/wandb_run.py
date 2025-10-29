@@ -32,13 +32,13 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
-from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
     Result,
     RunRecord,
 )
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
@@ -70,7 +70,7 @@ from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
 from .lib import (
     config_util,
-    deprecate,
+    deprecation,
     filenames,
     filesystem,
     interrupt,
@@ -1033,9 +1033,9 @@ class Run:
 
         <!-- lazydoc-ignore: internal -->
         """
-        deprecate.deprecate(
-            field_name=Deprecated.run__project_name,
-            warning_message=(
+        deprecation.warn_and_record_deprecation(
+            feature=Deprecated(run__project_name=True),
+            message=(
                 "The project_name method is deprecated and will be removed in a"
                 " future release. Please use `run.project` instead."
             ),
@@ -1059,9 +1059,9 @@ class Run:
 
         <!-- lazydoc-ignore: internal -->
         """
-        deprecate.deprecate(
-            field_name=Deprecated.run__get_project_url,
-            warning_message=(
+        deprecation.warn_and_record_deprecation(
+            feature=Deprecated(run__get_project_url=True),
+            message=(
                 "The get_project_url method is deprecated and will be removed in a"
                 " future release. Please use `run.project_url` instead."
             ),
@@ -1193,9 +1193,9 @@ class Run:
 
         <!-- lazydoc-ignore: internal -->
         """
-        deprecate.deprecate(
-            field_name=Deprecated.run__get_sweep_url,
-            warning_message=(
+        deprecation.warn_and_record_deprecation(
+            feature=Deprecated(run__get_sweep_url=True),
+            message=(
                 "The get_sweep_url method is deprecated and will be removed in a"
                 " future release. Please use `run.sweep_url` instead."
             ),
@@ -1222,9 +1222,9 @@ class Run:
 
         <!-- lazydoc-ignore: internal -->
         """
-        deprecate.deprecate(
-            field_name=Deprecated.run__get_url,
-            warning_message=(
+        deprecation.warn_and_record_deprecation(
+            feature=Deprecated(run__get_url=True),
+            message=(
                 "The get_url method is deprecated and will be removed in a"
                 " future release. Please use `run.url` instead."
             ),
@@ -2249,9 +2249,9 @@ class Run:
             quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
         """
         if quiet is not None:
-            deprecate.deprecate(
-                field_name=Deprecated.run__finish_quiet,
-                warning_message=(
+            deprecation.warn_and_record_deprecation(
+                feature=Deprecated(run__finish_quiet=True),
+                message=(
                     "The `quiet` argument to `wandb.run.finish()` is deprecated, "
                     "use `wandb.Settings(quiet=...)` to set this instead."
                 ),
@@ -2788,18 +2788,18 @@ class Run:
             An object that represents this call but can otherwise be discarded.
         """
         if summary and "copy" in summary:
-            deprecate.deprecate(
-                Deprecated.run__define_metric_copy,
-                "define_metric(summary='copy') is deprecated and will be removed.",
-                self,
+            deprecation.warn_and_record_deprecation(
+                feature=Deprecated(run__define_metric_copy=True),
+                message="define_metric(summary='copy') is deprecated and will be removed.",
+                run=self,
             )
 
         if (summary and "best" in summary) or goal is not None:
-            deprecate.deprecate(
-                Deprecated.run__define_metric_best_goal,
-                "define_metric(summary='best', goal=...) is deprecated and will be removed. "
+            deprecation.warn_and_record_deprecation(
+                feature=Deprecated(run__define_metric_best_goal=True),
+                message="define_metric(summary='best', goal=...) is deprecated and will be removed. "
                 "Use define_metric(summary='min') or define_metric(summary='max') instead.",
-                self,
+                run=self,
             )
 
         return self._define_metric(
@@ -3045,9 +3045,9 @@ class Run:
         api.set_current_run_id(self._settings.run_id)
 
         if use_as is not None:
-            deprecate.deprecate(
-                field_name=Deprecated.run__use_artifact_use_as,
-                warning_message=(
+            deprecation.warn_and_record_deprecation(
+                feature=Deprecated(run__use_artifact_use_as=True),
+                message=(
                     "`use_as` argument is deprecated and does not affect the behaviour of `run.use_artifact`"
                 ),
             )

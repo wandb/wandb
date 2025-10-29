@@ -513,14 +513,6 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         session.run("python", "wandb_generate_proto.py")
 
 
-@nox.session(name="generate-deprecated", tags=["proto"], python="3.10")
-def generate_deprecated_class_definition(session: nox.Session) -> None:
-    session.install("-e", ".")
-
-    with session.chdir("wandb/proto"):
-        session.run("python", "wandb_generate_deprecated.py")
-
-
 def _ensure_no_diff(
     session: nox.Session,
     after: Callable[[], None],

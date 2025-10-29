@@ -315,19 +315,20 @@ where `x.y` is the first version that includes all features you need.
 
 ##### Marking a feature as deprecated
 
-To mark a feature as deprecated (and to be removed in the next major release), please follow these steps:
+To mark a feature as deprecated and track its usage in telemetry:
 
-- Add a new field to the `Deprecated` message definition in `wandb/proto/wandb_telemetry.proto`,
-  which will be used to track the to-be-deprecated feature usage.
-- Rebuild protocol buffers and re-generate `wandb/proto/wandb_deprecated.py` by running `nox -t proto`.
-- Finally, to mark a feature as deprecated, call `wandb.sdk.lib.deprecate` in your code:
+1. Add a new boolean field `<deprecated_feature>` to the
+`Deprecated` message in `wandb/proto/wandb_telemetry.proto`.
+2. Rebuild protocol buffer files by running `nox -t proto`.
+3. Call `wandb.sdk.lib.deprecation.warn_and_record_deprecation` in your code:
 
 ```python
-from wandb.sdk.lib import deprecate
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
-deprecate.deprecate(
-    field_name=deprecate.Deprecated.deprecated_field_name,  # new_field_name from step 1
-    warning_message="This feature is deprecated and will be removed in a future release.",
+warn_and_record_deprecation(
+    feature=Deprecated(deprecated_feature=True),  # field name from step 1
+    message="This feature is deprecated and will be removed in a future release.",
 )
 ```
 
