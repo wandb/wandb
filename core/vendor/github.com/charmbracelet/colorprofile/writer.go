@@ -2,6 +2,7 @@ package colorprofile
 
 import (
 	"bytes"
+	"fmt"
 	"image/color"
 	"io"
 	"strconv"
@@ -37,11 +38,13 @@ type Writer struct {
 func (w *Writer) Write(p []byte) (int, error) {
 	switch w.Profile {
 	case TrueColor:
-		return w.Forward.Write(p)
+		return w.Forward.Write(p) //nolint:wrapcheck
 	case NoTTY:
-		return io.WriteString(w.Forward, ansi.Strip(string(p)))
-	default:
+		return io.WriteString(w.Forward, ansi.Strip(string(p))) //nolint:wrapcheck
+	case Ascii, ANSI, ANSI256:
 		return w.downsample(p)
+	default:
+		return 0, fmt.Errorf("invalid profile: %v", w.Profile)
 	}
 }
 
@@ -63,7 +66,7 @@ func (w *Writer) downsample(p []byte) (int, error) {
 		default:
 			// If we're not a style SGR sequence, just write the bytes.
 			if n, err := buf.Write(seq); err != nil {
-				return n, err
+				return n, err //nolint:wrapcheck
 			}
 		}
 
@@ -71,7 +74,7 @@ func (w *Writer) downsample(p []byte) (int, error) {
 		state = newState
 	}
 
-	return w.Forward.Write(buf.Bytes())
+	return w.Forward.Write(buf.Bytes()) //nolint:wrapcheck
 }
 
 // WriteString writes the given text to the underlying writer.

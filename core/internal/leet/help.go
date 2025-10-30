@@ -58,7 +58,7 @@ func NewHelp() *HelpModel {
 // generateHelpContent generates the help screen content.
 func (h *HelpModel) generateHelpContent() string {
 	artStyle := lipgloss.NewStyle().
-		Foreground(wandbColor).
+		Foreground(colorHeading).
 		Bold(true)
 
 	// Build the ASCII art section separately
