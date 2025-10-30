@@ -25,11 +25,12 @@ func TestSidebarFilter_WithPrefixes(t *testing.T) {
 		},
 	})
 
-	s.ProcessSummaryMsg(&spb.SummaryRecord{
+	sr := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
 		},
-	})
+	}
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
 		WriterId: "writer-1",
@@ -75,12 +76,13 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 		},
 	})
 
-	s.ProcessSummaryMsg(&spb.SummaryRecord{
+	sr := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
 			{NestedKey: []string{"loss"}, ValueJson: "0.5"},
 		},
-	})
+	}
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	// Live preview on summary, then apply it.
 	s.StartFilter()
@@ -119,12 +121,13 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 		},
 	})
 
-	s.ProcessSummaryMsg(&spb.SummaryRecord{
+	sr := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"acc"}, ValueJson: "0.91"},
 			{NestedKey: []string{"val", "acc"}, ValueJson: "0.88"},
 		},
-	})
+	}
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
 		WriterId: "writer-1",
@@ -172,12 +175,13 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 		},
 	})
 
-	s.ProcessSummaryMsg(&spb.SummaryRecord{
+	sr := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
 			{NestedKey: []string{"loss"}, ValueJson: "0.1"},
 		},
-	})
+	}
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	// Start in Environment; Tab to Config (navigateSection).
 	s.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -225,11 +229,12 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 		},
 	})
 
-	s.ProcessSummaryMsg(&spb.SummaryRecord{
+	sr := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"acc"}, ValueJson: "0.91"},
 		},
-	})
+	}
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
 		WriterId: "writer-1",

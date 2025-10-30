@@ -7,17 +7,29 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/leet"
 )
 
 func TestMetricsGridFilter_ApplyAndClear(t *testing.T) {
 	w, h := 240, 80
 	grid := newMetricsGrid(t, 2, 2, w, h, nil)
 
-	grid.ProcessHistory(1, map[string]float64{
-		"train/loss":   0.9,
-		"accuracy":     0.71,
-		"val/accuracy": 0.69,
-	})
+	d := map[string]leet.MetricData{
+		"train/loss": {
+			X: []float64{1},
+			Y: []float64{0.9},
+		},
+		"accuracy": {
+			X: []float64{1},
+			Y: []float64{0.71},
+		},
+		"val/accuracy": {
+			X: []float64{1},
+			Y: []float64{0.69},
+		},
+	}
+	grid.ProcessHistory(d)
+
 	dims := grid.CalculateChartDimensions(w, h)
 
 	out := grid.View(dims)
@@ -39,10 +51,17 @@ func TestMetricsGridFilter_NewChartsRespectActiveFilter(t *testing.T) {
 	w, h := 80, 60
 	grid := newMetricsGrid(t, 2, 2, w, h, nil)
 
-	grid.ProcessHistory(1, map[string]float64{
-		"train/loss": 1.0,
-		"accuracy":   0.5,
-	})
+	d := map[string]leet.MetricData{
+		"train/loss": {
+			X: []float64{1},
+			Y: []float64{1.0},
+		},
+		"accuracy": {
+			X: []float64{1},
+			Y: []float64{0.5},
+		},
+	}
+	grid.ProcessHistory(d)
 	dims := grid.CalculateChartDimensions(w, h)
 
 	grid.ApplyFilter("loss")
@@ -51,10 +70,17 @@ func TestMetricsGridFilter_NewChartsRespectActiveFilter(t *testing.T) {
 	require.NotContains(t, out, "accuracy")
 
 	// New charts arrive after filter applied.
-	grid.ProcessHistory(2, map[string]float64{
-		"val/loss":     0.8,
-		"val/accuracy": 0.6,
-	})
+	d = map[string]leet.MetricData{
+		"val/loss": {
+			X: []float64{2},
+			Y: []float64{0.8},
+		},
+		"val/accuracy": {
+			X: []float64{0.8},
+			Y: []float64{0.6},
+		},
+	}
+	grid.ProcessHistory(d)
 
 	out = grid.View(dims)
 	require.Contains(t, out, "val/loss")
@@ -64,11 +90,21 @@ func TestMetricsGridFilter_NewChartsRespectActiveFilter(t *testing.T) {
 func TestMetricsGridFilter_SwitchFilter(t *testing.T) {
 	w, h := 240, 80
 	grid := newMetricsGrid(t, 2, 2, w, h, nil)
-	grid.ProcessHistory(1, map[string]float64{
-		"train/loss":   0.9,
-		"accuracy":     0.7,
-		"val/accuracy": 0.65,
-	})
+	d := map[string]leet.MetricData{
+		"train/loss": {
+			X: []float64{1},
+			Y: []float64{0.9},
+		},
+		"accuracy": {
+			X: []float64{1},
+			Y: []float64{0.7},
+		},
+		"val/accuracy": {
+			X: []float64{1},
+			Y: []float64{0.65},
+		},
+	}
+	grid.ProcessHistory(d)
 	dims := grid.CalculateChartDimensions(w, h)
 
 	grid.ApplyFilter("loss")
@@ -87,7 +123,7 @@ func TestMetricsGridFilter_SwitchFilter(t *testing.T) {
 func TestMetricsGridFilter_EdgeCases(t *testing.T) {
 	type tc struct {
 		name          string
-		metrics       map[string]float64
+		metrics       map[string]leet.MetricData
 		filter        string
 		expectVisible []string
 		expectHidden  []string
@@ -96,24 +132,31 @@ func TestMetricsGridFilter_EdgeCases(t *testing.T) {
 	tests := []tc{
 		{
 			name: "empty_filter_shows_all",
-			metrics: map[string]float64{
-				"a": 1, "b": 2, "c": 3,
+			metrics: map[string]leet.MetricData{
+				"a": {X: []float64{0}, Y: []float64{1}},
+				"b": {X: []float64{0}, Y: []float64{2}},
+				"c": {X: []float64{0}, Y: []float64{3}},
 			},
 			filter:        "",
 			expectVisible: []string{"a", "b", "c"},
 		},
 		{
 			name: "wildcard_star_shows_all",
-			metrics: map[string]float64{
-				"train/loss": 1, "val/loss": 2, "accuracy": 3,
+			metrics: map[string]leet.MetricData{
+				"train/loss": {X: []float64{0}, Y: []float64{1}},
+				"val/loss":   {X: []float64{0}, Y: []float64{2}},
+				"accuracy":   {X: []float64{0}, Y: []float64{3}},
 			},
 			filter:        "*",
 			expectVisible: []string{"train/loss", "val/loss", "accuracy"},
 		},
 		{
 			name: "glob_pattern_with_star",
-			metrics: map[string]float64{
-				"train/loss": 1, "train/acc": 2, "val/loss": 3, "test": 4,
+			metrics: map[string]leet.MetricData{
+				"train/loss": {X: []float64{0}, Y: []float64{1}},
+				"train/acc":  {X: []float64{0}, Y: []float64{2}},
+				"val/loss":   {X: []float64{0}, Y: []float64{3}},
+				"test":       {X: []float64{0}, Y: []float64{4}},
 			},
 			filter:        "train/*",
 			expectVisible: []string{"train/loss", "train/acc"},
@@ -121,8 +164,10 @@ func TestMetricsGridFilter_EdgeCases(t *testing.T) {
 		},
 		{
 			name: "case_insensitive_match",
-			metrics: map[string]float64{
-				"Train/Loss": 1, "TRAIN/ACC": 2, "val/LOSS": 3,
+			metrics: map[string]leet.MetricData{
+				"Train/Loss": {X: []float64{0}, Y: []float64{1}},
+				"TRAIN/ACC":  {X: []float64{0}, Y: []float64{2}},
+				"val/LOSS":   {X: []float64{0}, Y: []float64{3}},
 			},
 			filter:        "train",
 			expectVisible: []string{"Train/Loss", "TRAIN/ACC"},
@@ -134,7 +179,7 @@ func TestMetricsGridFilter_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w, h := 240, 80
 			grid := newMetricsGrid(t, 2, 2, w, h, nil)
-			grid.ProcessHistory(1, tt.metrics)
+			grid.ProcessHistory(tt.metrics)
 			dims := grid.CalculateChartDimensions(w, h)
 
 			grid.ApplyFilter(tt.filter)
@@ -153,11 +198,11 @@ func TestMetricsGridFilter_EdgeCases(t *testing.T) {
 func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 	w, h := 240, 80
 	grid := newMetricsGrid(t, 2, 2, w, h, nil)
-	grid.ProcessHistory(1, map[string]float64{
-		"loss":        1.0,
-		"acc":         0.5,
-		"val/acc":     0.6,
-		"unrelated/x": 1.1,
+	grid.ProcessHistory(map[string]leet.MetricData{
+		"loss":        {X: []float64{0}, Y: []float64{1}},
+		"acc":         {X: []float64{0}, Y: []float64{2}},
+		"val/acc":     {X: []float64{0}, Y: []float64{3}},
+		"unrelated/x": {X: []float64{0}, Y: []float64{4}},
 	})
 	dims := grid.CalculateChartDimensions(w, h)
 
@@ -175,8 +220,8 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 	// Start another filter "acc", add data while typing, then apply.
 	grid.EnterFilterMode()
 	grid.SetFilterDraft("acc")
-	grid.ProcessHistory(2, map[string]float64{
-		"val/loss": 1.1,
+	grid.ProcessHistory(map[string]leet.MetricData{
+		"val/loss": {X: []float64{1}, Y: []float64{5}},
 	})
 	grid.ExitFilterMode(true)
 
@@ -190,15 +235,19 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 func TestMetricsGridFilter_ConcurrentApplyAndUpdate_NoDeadlock(t *testing.T) {
 	w, h := 140, 60
 	grid := newMetricsGrid(t, 2, 2, w, h, nil)
-
-	grid.ProcessHistory(1, map[string]float64{"train/loss": 0.5, "accuracy": 0.8})
-
+	grid.ProcessHistory(map[string]leet.MetricData{
+		"train/loss": {X: []float64{1}, Y: []float64{0.5}},
+		"accuracy":   {X: []float64{1}, Y: []float64{0.8}},
+	})
 	var wg sync.WaitGroup
 
 	wg.Go(func() {
 		for i := range 50 {
-			grid.ProcessHistory(2+i, map[string]float64{
-				"metric_" + fmt.Sprint('a'+(i%3)): float64(i) * 0.1,
+			grid.ProcessHistory(map[string]leet.MetricData{
+				"metric_" + fmt.Sprint('a'+(i%3)): {
+					X: []float64{float64(2 + i)},
+					Y: []float64{float64(i) * 0.1},
+				},
 			})
 		}
 	})
