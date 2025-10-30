@@ -13,12 +13,14 @@ __all__ = [
     "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
+    "CREATE_REGISTRY_MEMBERS_GQL",
     "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAGS_GQL",
     "DELETE_ARTIFACT_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "DELETE_REGISTRY_GQL",
+    "DELETE_REGISTRY_MEMBERS_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
@@ -31,6 +33,8 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
     "REGISTRY_COLLECTIONS_GQL",
+    "REGISTRY_TEAM_MEMBERS_GQL",
+    "REGISTRY_USER_MEMBERS_GQL",
     "REGISTRY_VERSIONS_GQL",
     "RENAME_REGISTRY_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
@@ -41,6 +45,8 @@ __all__ = [
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
+    "UPDATE_TEAM_REGISTRY_ROLE_GQL",
+    "UPDATE_USER_REGISTRY_ROLE_GQL",
     "UPSERT_REGISTRY_GQL",
     "DeleteArtifactSequence",
     "DeleteArtifactPortfolio",
@@ -83,14 +89,22 @@ __all__ = [
     "RenameRegistry",
     "UpsertRegistry",
     "DeleteRegistry",
+    "RegistryUserMembers",
+    "RegistryTeamMembers",
+    "CreateRegistryMembers",
+    "DeleteRegistryMembers",
+    "UpdateUserRegistryRole",
+    "UpdateTeamRegistryRole",
     "AddAliasesInput",
     "ArtifactAliasInput",
     "ArtifactCollectionAliasInput",
     "ArtifactTypeInput",
     "CreateArtifactCollectionTagAssignmentsInput",
+    "CreateProjectMembersInput",
     "DeleteAliasesInput",
     "DeleteArtifactCollectionTagAssignmentsInput",
     "DeleteArtifactInput",
+    "DeleteProjectMembersInput",
     "LinkArtifactInput",
     "MoveArtifactSequenceInput",
     "RateLimitsInput",
@@ -100,6 +114,8 @@ __all__ = [
     "UpdateArtifactInput",
     "UpdateArtifactPortfolioInput",
     "UpdateArtifactSequenceInput",
+    "UpdateProjectMemberInput",
+    "UpdateProjectTeamMemberInput",
     "UpsertModelInput",
     "ArtifactAliasFragment",
     "ArtifactCollectionFragment",
@@ -118,12 +134,17 @@ __all__ = [
     "ProjectInfoFragment",
     "RegistryCollectionFragment",
     "RegistryFragment",
+    "RegistryRoleFragment",
     "RunInfoFragment",
     "RunInputArtifactConnectionFragment",
     "RunOutputArtifactConnectionFragment",
     "SourceCollectionInfoFragment",
     "TagFragment",
+    "TeamFragment",
+    "TeamMemberFragment",
+    "TeamRegistryMemberFragment",
     "TypeInfoFragment",
+    "UserRegistryMemberFragment",
     "VersionedArtifactConnectionFragment",
     "ArtifactCollectionState",
     "ArtifactCollectionType",
@@ -143,12 +164,14 @@ from .artifact_membership_by_name import ArtifactMembershipByName
 from .artifact_type import ArtifactType
 from .artifact_used_by import ArtifactUsedBy
 from .artifact_version_files import ArtifactVersionFiles
+from .create_registry_members import CreateRegistryMembers
 from .delete_aliases import DeleteAliases
 from .delete_artifact import DeleteArtifact
 from .delete_artifact_collection_tags import DeleteArtifactCollectionTags
 from .delete_artifact_portfolio import DeleteArtifactPortfolio
 from .delete_artifact_sequence import DeleteArtifactSequence
 from .delete_registry import DeleteRegistry
+from .delete_registry_members import DeleteRegistryMembers
 from .enums import ArtifactCollectionState, ArtifactCollectionType, ArtifactState
 from .fetch_artifact_manifest import FetchArtifactManifest
 from .fetch_linked_artifacts import FetchLinkedArtifacts
@@ -173,12 +196,17 @@ from .fragments import (
     ProjectInfoFragment,
     RegistryCollectionFragment,
     RegistryFragment,
+    RegistryRoleFragment,
     RunInfoFragment,
     RunInputArtifactConnectionFragment,
     RunOutputArtifactConnectionFragment,
     SourceCollectionInfoFragment,
     TagFragment,
+    TeamFragment,
+    TeamMemberFragment,
+    TeamRegistryMemberFragment,
     TypeInfoFragment,
+    UserRegistryMemberFragment,
     VersionedArtifactConnectionFragment,
 )
 from .input_types import (
@@ -187,9 +215,11 @@ from .input_types import (
     ArtifactCollectionAliasInput,
     ArtifactTypeInput,
     CreateArtifactCollectionTagAssignmentsInput,
+    CreateProjectMembersInput,
     DeleteAliasesInput,
     DeleteArtifactCollectionTagAssignmentsInput,
     DeleteArtifactInput,
+    DeleteProjectMembersInput,
     LinkArtifactInput,
     MoveArtifactSequenceInput,
     RateLimitsInput,
@@ -199,6 +229,8 @@ from .input_types import (
     UpdateArtifactInput,
     UpdateArtifactPortfolioInput,
     UpdateArtifactSequenceInput,
+    UpdateProjectMemberInput,
+    UpdateProjectTeamMemberInput,
     UpsertModelInput,
 )
 from .link_artifact import LinkArtifact
@@ -215,12 +247,14 @@ from .operations import (
     ARTIFACT_TYPE_GQL,
     ARTIFACT_USED_BY_GQL,
     ARTIFACT_VERSION_FILES_GQL,
+    CREATE_REGISTRY_MEMBERS_GQL,
     DELETE_ALIASES_GQL,
     DELETE_ARTIFACT_COLLECTION_TAGS_GQL,
     DELETE_ARTIFACT_GQL,
     DELETE_ARTIFACT_PORTFOLIO_GQL,
     DELETE_ARTIFACT_SEQUENCE_GQL,
     DELETE_REGISTRY_GQL,
+    DELETE_REGISTRY_MEMBERS_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     FETCH_ORG_INFO_FROM_ENTITY_GQL,
@@ -233,6 +267,8 @@ from .operations import (
     PROJECT_ARTIFACT_TYPES_GQL,
     PROJECT_ARTIFACTS_GQL,
     REGISTRY_COLLECTIONS_GQL,
+    REGISTRY_TEAM_MEMBERS_GQL,
+    REGISTRY_USER_MEMBERS_GQL,
     REGISTRY_VERSIONS_GQL,
     RENAME_REGISTRY_GQL,
     RUN_INPUT_ARTIFACTS_GQL,
@@ -243,6 +279,8 @@ from .operations import (
     UPDATE_ARTIFACT_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
     UPDATE_ARTIFACT_SEQUENCE_GQL,
+    UPDATE_TEAM_REGISTRY_ROLE_GQL,
+    UPDATE_USER_REGISTRY_ROLE_GQL,
     UPSERT_REGISTRY_GQL,
 )
 from .project_artifact_collection import ProjectArtifactCollection
@@ -251,6 +289,8 @@ from .project_artifact_type import ProjectArtifactType
 from .project_artifact_types import ProjectArtifactTypes
 from .project_artifacts import ProjectArtifacts
 from .registry_collections import RegistryCollections
+from .registry_team_members import RegistryTeamMembers
+from .registry_user_members import RegistryUserMembers
 from .registry_versions import RegistryVersions
 from .rename_registry import RenameRegistry
 from .run_input_artifacts import RunInputArtifacts
@@ -261,4 +301,6 @@ from .update_artifact import UpdateArtifact
 from .update_artifact_collection_type import UpdateArtifactCollectionType
 from .update_artifact_portfolio import UpdateArtifactPortfolio
 from .update_artifact_sequence import UpdateArtifactSequence
+from .update_team_registry_role import UpdateTeamRegistryRole
+from .update_user_registry_role import UpdateUserRegistryRole
 from .upsert_registry import UpsertRegistry

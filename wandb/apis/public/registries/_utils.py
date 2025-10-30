@@ -4,13 +4,13 @@ from enum import Enum
 from functools import lru_cache, partial
 from typing import TYPE_CHECKING, Any, Collection
 
+from wandb_gql import gql
+
 from wandb._strutils import ensureprefix
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_artifact_types
 
 if TYPE_CHECKING:
     from wandb_gql import Client
-
-from wandb_gql import gql
 
 
 class Visibility(str, Enum):

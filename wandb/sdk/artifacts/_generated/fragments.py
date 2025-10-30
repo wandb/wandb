@@ -245,6 +245,10 @@ class RegistryFragmentEntityOrganization(GQLResult):
     name: str
 
 
+class RegistryRoleFragment(GQLResult):
+    name: str
+
+
 class RunInfoFragment(GQLResult):
     typename__: Typename[Literal["Run"]] = "Run"
     id: GQLId
@@ -284,6 +288,41 @@ class TagFragment(GQLResult):
     name: str
 
 
+class TeamFragment(GQLResult):
+    typename__: Typename[Literal["Entity"]] = "Entity"
+    id: GQLId
+    name: str
+    available: Optional[bool]
+    photo_url: Optional[str] = Field(alias="photoUrl")
+    read_only: Optional[bool] = Field(alias="readOnly")
+    read_only_admin: bool = Field(alias="readOnlyAdmin")
+    is_team: bool = Field(alias="isTeam")
+    private_only: bool = Field(alias="privateOnly")
+    storage_bytes: int = Field(alias="storageBytes")
+    code_saving_enabled: bool = Field(alias="codeSavingEnabled")
+    default_access: str = Field(alias="defaultAccess")
+    is_paid: Optional[bool] = Field(alias="isPaid")
+    members: List[TeamMemberFragment]
+
+
+class TeamMemberFragment(GQLResult):
+    typename__: Typename[Literal["Member"]] = "Member"
+    id: Optional[str]
+    role: Optional[str]
+    pending: Optional[bool]
+    email: Optional[str]
+    username: Optional[str]
+    name: str
+    photo_url: Optional[str] = Field(alias="photoUrl")
+    account_type: Optional[str] = Field(alias="accountType")
+    api_key: Optional[str] = Field(alias="apiKey")
+
+
+class TeamRegistryMemberFragment(GQLResult):
+    team: TeamFragment
+    role: RegistryRoleFragment
+
+
 class TypeInfoFragment(GQLResult):
     name: Optional[str]
     fields: Optional[List[TypeInfoFragmentFields]]
@@ -303,6 +342,14 @@ class TypeInfoFragmentFieldsArgs(GQLResult):
 
 class TypeInfoFragmentInputFields(GQLResult):
     name: str
+
+
+class UserRegistryMemberFragment(GQLResult):
+    id: GQLId
+    name: Optional[str]
+    username: Optional[str]
+    email: Optional[str]
+    role: RegistryRoleFragment
 
 
 class VersionedArtifactConnectionFragment(GQLResult):
@@ -358,6 +405,7 @@ RegistryFragmentArtifactTypesEdges.model_rebuild()
 RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
 RegistryFragmentEntity.model_rebuild()
 RegistryFragmentEntityOrganization.model_rebuild()
+RegistryRoleFragment.model_rebuild()
 RunInfoFragment.model_rebuild()
 RunInputArtifactConnectionFragment.model_rebuild()
 RunInputArtifactConnectionFragmentEdges.model_rebuild()
@@ -365,10 +413,14 @@ RunOutputArtifactConnectionFragment.model_rebuild()
 RunOutputArtifactConnectionFragmentEdges.model_rebuild()
 SourceCollectionInfoFragment.model_rebuild()
 TagFragment.model_rebuild()
+TeamFragment.model_rebuild()
+TeamMemberFragment.model_rebuild()
+TeamRegistryMemberFragment.model_rebuild()
 TypeInfoFragment.model_rebuild()
 TypeInfoFragmentFields.model_rebuild()
 TypeInfoFragmentFieldsArgs.model_rebuild()
 TypeInfoFragmentInputFields.model_rebuild()
+UserRegistryMemberFragment.model_rebuild()
 VersionedArtifactConnectionFragment.model_rebuild()
 VersionedArtifactConnectionFragmentEdges.model_rebuild()
 ArtifactFragmentAliases.model_rebuild()
