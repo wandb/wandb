@@ -4,6 +4,7 @@ import os
 import tempfile
 from typing import Any, Optional
 
+import wandb
 from wandb import env
 from wandb.old import core
 from wandb.sdk.lib import filesystem
@@ -163,6 +164,11 @@ class Settings:
                     try_create_dir(config_dir)
                 else:
                     config_dir = temp_config_dir
+                wandb.termwarn(
+                    f"Error creating global config settings in: {home_config_dir}."
+                    " Settings will not be persisted.",
+                    repeat=False,
+                )
             else:
                 config_dir = home_config_dir
 
