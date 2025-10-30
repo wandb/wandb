@@ -1,36 +1,48 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pytest import fixture, mark, raises
 from wandb.errors import UnsupportedError
-from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._gqlutils import (
+    allowed_fields,
+    resolve_org_entity_name,
+    server_supports,
+)
 
 if TYPE_CHECKING:
     from wandb import Api
 
+    from tests.system_tests.wandb_backend_spy import WandbBackendSpy
+
+    class GQLResponseMocker(Protocol):
+        def __call__(
+            self, operation: str, variables: dict[str, Any], data: dict[str, Any]
+        ) -> None: ...
+
 
 @fixture
-def mock_gql_response(wandb_backend_spy):
+def mock_gql_response(wandb_backend_spy: WandbBackendSpy) -> GQLResponseMocker:
     """Factory fixture for setting up a mock GQL response."""
+    from tests.system_tests.wandb_backend_spy.gql_match import Constant, Matcher
 
-    def _stub_response(
+    def stub_response(
         *,
         operation: str,
         variables: dict[str, Any],
         data: dict[str, Any],
     ) -> None:
-        gql = wandb_backend_spy.gql
         wandb_backend_spy.stub_gql(
-            gql.Matcher(operation=operation, variables=variables),
-            gql.Constant(content={"data": data}),
+            Matcher(operation=operation, variables=variables),
+            Constant(content={"data": data}),
         )
 
-    return _stub_response
+    return stub_response
 
 
 @fixture
-def mock_org_entity_support(mock_gql_response):
+def mock_org_entity_support(mock_gql_response: GQLResponseMocker):
     mock_gql_response(
         operation="TypeInfo",
         variables={"name": "Organization"},
@@ -48,7 +60,7 @@ def mock_org_entity_support(mock_gql_response):
 
 
 @fixture
-def mock_no_org_entity_support(mock_gql_response):
+def mock_no_org_entity_support(mock_gql_response: GQLResponseMocker):
     mock_gql_response(
         operation="TypeInfo",
         variables={"name": "Organization"},
@@ -72,7 +84,7 @@ def mock_no_org_entity_support(mock_gql_response):
 )
 @mark.usefixtures(mock_org_entity_support.__name__)
 def test_resolve_org_entity_name_with_team_org_success(
-    mock_gql_response,
+    mock_gql_response: GQLResponseMocker,
     api: Api,
     entity,
     input_org,
@@ -96,7 +108,9 @@ def test_resolve_org_entity_name_with_team_org_success(
 
 
 @mark.usefixtures(mock_org_entity_support.__name__)
-def test_resolve_org_entity_name_with_team_org_invalid_org(mock_gql_response, api: Api):
+def test_resolve_org_entity_name_with_team_org_invalid_org(
+    mock_gql_response: GQLResponseMocker, api: Api
+):
     entity = "entity"
 
     mock_gql_response(
@@ -127,7 +141,7 @@ def test_resolve_org_entity_name_with_team_org_invalid_org(mock_gql_response, ap
 )
 @mark.usefixtures(mock_org_entity_support.__name__)
 def test_resolve_org_entity_name_with_single_personal_org_success(
-    mock_gql_response,
+    mock_gql_response: GQLResponseMocker,
     api: Api,
     entity,
     input_org,
@@ -153,7 +167,7 @@ def test_resolve_org_entity_name_with_single_personal_org_success(
 
 @mark.usefixtures(mock_org_entity_support.__name__)
 def test_resolve_org_entity_name_with_single_personal_org_invalid_org(
-    mock_gql_response, api: Api
+    mock_gql_response: GQLResponseMocker, api: Api
 ):
     entity = "entity"
 
@@ -180,7 +194,7 @@ def test_resolve_org_entity_name_with_single_personal_org_invalid_org(
 
 @mark.usefixtures(mock_org_entity_support.__name__)
 def test_resolve_org_entity_name_with_multiple_orgs_no_org_specified(
-    mock_gql_response, api: Api
+    mock_gql_response: GQLResponseMocker, api: Api
 ):
     entity = "entity"
 
@@ -207,7 +221,7 @@ def test_resolve_org_entity_name_with_multiple_orgs_no_org_specified(
 
 @mark.usefixtures(mock_org_entity_support.__name__)
 def test_resolve_org_entity_name_with_multiple_orgs_display_name(
-    mock_gql_response, api: Api
+    mock_gql_response: GQLResponseMocker, api: Api
 ):
     entity = "entity"
 
@@ -232,7 +246,7 @@ def test_resolve_org_entity_name_with_multiple_orgs_display_name(
 
 @mark.usefixtures(mock_org_entity_support.__name__)
 def test_resolve_org_entity_name_with_multiple_orgs_entity_name(
-    mock_gql_response, api: Api
+    mock_gql_response: GQLResponseMocker, api: Api
 ):
     entity = "entity"
 
@@ -257,7 +271,7 @@ def test_resolve_org_entity_name_with_multiple_orgs_entity_name(
 
 @mark.usefixtures(mock_org_entity_support.__name__)
 def test_resolve_org_entity_name_with_multiple_orgs_invalid_org(
-    mock_gql_response, api: Api
+    mock_gql_response: GQLResponseMocker, api: Api
 ):
     entity = "entity"
 
@@ -281,7 +295,9 @@ def test_resolve_org_entity_name_with_multiple_orgs_invalid_org(
 
 
 @mark.usefixtures(mock_org_entity_support.__name__)
-def test_resolve_org_entity_name_with_nonexistent_entity(mock_gql_response, api: Api):
+def test_resolve_org_entity_name_with_nonexistent_entity(
+    mock_gql_response: GQLResponseMocker, api: Api
+):
     entity = "missing-entity"
 
     mock_gql_response(
@@ -316,7 +332,7 @@ def test_resolve_org_entity_name_with_old_server(api: Api):
 
 @mark.usefixtures(mock_org_entity_support.__name__)
 def test_resolve_org_entity_name_with_single_org_missing_entity_errors(
-    mock_gql_response, api: Api
+    mock_gql_response: GQLResponseMocker, api: Api
 ):
     entity = ""
 
@@ -325,3 +341,47 @@ def test_resolve_org_entity_name_with_single_org_missing_entity_errors(
         ValueError, match="Entity name is required to resolve org entity name."
     ):
         resolve_org_entity_name(api.client, entity)
+
+
+@fixture
+def server_info_has_features_field(api: Api) -> bool:
+    """True if the field "features" is present in the ServerInfo response.
+
+    This will only return False in CI jobs running against a sufficiently old server version.
+    """
+    return "features" in allowed_fields(api.client, "ServerInfo")
+
+
+@mark.parametrize(
+    "feature",
+    (
+        pb.LARGE_FILENAMES,
+        "LARGE_FILENAMES",
+        pb.ARTIFACT_TAGS,
+        "ARTIFACT_TAGS",
+    ),
+)
+def test_server_supports_known_feature(
+    user: str,
+    api: Api,
+    feature: int | str,
+    server_info_has_features_field: bool,
+):
+    """Test that server_supports() returns True when expected on features that were added at the same time as the `ServerInfo.features` field."""
+    assert server_supports(api.client, feature) is server_info_has_features_field
+
+
+@mark.parametrize(
+    "feature",
+    (
+        "NOT_A_REAL_FEATURE",
+        2**31 - 1,  # Simulates an unimplemented ServerFeature value (max int32)
+    ),
+)
+def test_server_supports_unknown_feature(
+    user: str,
+    api: Api,
+    feature: int | str,
+):
+    """Test that server_supports() returns False when passed an unknown feature."""
+    assert server_supports(api.client, feature) is False

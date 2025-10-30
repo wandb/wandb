@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Callable, Generator, Iterator
 
 import pytest
+from pytest_mock import MockerFixture
 
 from .backend_fixtures import (
     BackendFixtureFactory,
@@ -107,7 +108,7 @@ class UserOrg:
 
 @pytest.fixture
 def user_in_orgs_factory(
-    mocker: pytest.MonkeyPatch, backend_fixture_factory: BackendFixtureFactory
+    mocker: MockerFixture, backend_fixture_factory: BackendFixtureFactory
 ) -> Iterator[Callable[[int], UserOrg]]:
     """Fixture that provides a factory function to create a user and associated orgs.
 
