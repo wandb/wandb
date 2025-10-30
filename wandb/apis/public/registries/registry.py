@@ -415,10 +415,6 @@ class Registry:
 
             self._update_attributes(registry_project)
 
-    def _no_updating_registry_types(self) -> bool:
-        # artifact types draft means user assigned types to add that are not yet saved
-        return len(self.artifact_types.draft) > 0 and self.allow_all_artifact_types
-
     def members(self) -> list[UserMember | TeamMember]:
         """Returns the current members (users and teams) of this registry."""
         return [*self.user_members(), *self.team_members()]
