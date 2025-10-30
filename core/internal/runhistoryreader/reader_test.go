@@ -16,7 +16,6 @@ import (
 
 // mockRoundTripper is a mock implementation of http.RoundTripper for testing
 type mockRoundTripper struct {
-	requestURL     string
 	responseBody   []byte
 	responseStatus int
 	capturedURL    string
@@ -88,7 +87,6 @@ func TestHistoryReader_DownloadRunHistoryFile(t *testing.T) {
 	expectedURL := "https://example.com/" + expectedFileName
 	expectedContent := []byte("test parquet file content")
 	mockTransport := &mockRoundTripper{
-		requestURL:     expectedURL,
 		responseBody:   expectedContent,
 		responseStatus: http.StatusOK,
 	}
@@ -116,4 +114,5 @@ func TestHistoryReader_DownloadRunHistoryFile(t *testing.T) {
 	content, err := os.ReadFile(downloadedFilePath)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedContent, content)
+	assert.Equal(t, mockTransport.capturedURL, expectedURL)
 }
