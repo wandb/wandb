@@ -9,7 +9,7 @@ from typing import Iterable, Literal, Union
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from wandb._strutils import b64decodestr, b64encodestr, nameof
+from wandb._strutils import b64decode_ascii, b64encode_ascii, nameof
 from wandb.sdk.artifacts._models import ArtifactsBase
 
 from ..teams import Team
@@ -73,7 +73,7 @@ class MemberId:
 
     def encode(self) -> str:
         """Converts this parsed ID to a base64-encoded GraphQL ID."""
-        return b64encodestr(f"{self.kind.value}:{self.index}")
+        return b64encode_ascii(f"{self.kind.value}:{self.index}")
 
     @singledispatchmethod
     @classmethod
@@ -106,5 +106,5 @@ class MemberId:
     @classmethod
     def _from_id(cls, id_: str, /) -> MemberId:
         # Parse the ID to figure out if it's a team or user ID
-        kind, index = b64decodestr(id_).split(":", maxsplit=1)
+        kind, index = b64decode_ascii(id_).split(":", maxsplit=1)
         return cls(kind=kind, index=index)

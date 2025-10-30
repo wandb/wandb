@@ -8,6 +8,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb._analytics import tracked
+from wandb._strutils import nameof
 from wandb.apis.public.teams import Team
 from wandb.apis.public.users import User
 from wandb.proto import wandb_internal_pb2 as pb
@@ -414,7 +415,7 @@ class Registry:
         return len(self.artifact_types.draft) > 0 and self.allow_all_artifact_types
 
     def members(self) -> list[UserMember | TeamMember]:
-        """Returns the current member users and teams of this registry."""
+        """Returns the current members (users and teams) of this registry."""
         return [*self.user_members(), *self.team_members()]
 
     def user_members(self) -> list[UserMember]:
@@ -464,18 +465,43 @@ class Registry:
             for m in project.team_members
         ]
 
-    def add_members(self, *members: User | Team | str) -> Self:
-        """Adds users or teams to this registry and returns self for further chaining if needed.
+    def add_members(
+        self, *members: User | UserMember | Team | TeamMember | str
+    ) -> Self:
+        """Adds users or teams to this registry.
 
         Args:
-            *members: The users or teams to add to the registry. Can be passed as `User` or `Team` objects, or their string IDs.
+            members: The users or teams to add to the registry. Accepts
+                `User` objects, `Team` objects, or their string IDs.
 
         Returns:
-            This registry instance for further method chaining, if needed.
+            This registry for further method chaining, if needed.
 
         Raises:
-            ValueError: If unable to infer the user or team IDs, or if the members cannot be added to the registry.
+            TypeError: If no members are passed as arguments.
+            ValueError: If unable to infer or parse the user or team IDs.
+
+        Examples:
+        ```python
+        import wandb
+
+        api = wandb.Api()
+
+        # Fetch an existing registry
+        registry = api.registry(name="my-registry", organization="my-org")
+
+        user1 = api.user(username="some-user")
+        user2 = api.user(username="other-user")
+        registry.add_members(user1, user2)
+
+        my_team = api.team(name="my-team")
+        registry.add_members(my_team)
+        ```
         """
+        if not members:
+            raise TypeError(
+                f"Must provide at least one member to {nameof(self.add_members)!r}."
+            )
         user_ids, team_ids = parse_member_ids(members)
 
         gql_op = gql(CREATE_REGISTRY_MEMBERS_GQL)
@@ -490,18 +516,43 @@ class Registry:
             raise ValueError(f"Failed to add members to registry {self.name!r}")
         return self
 
-    def remove_members(self, *members: User | Team | str) -> Self:
-        """Removes the users or teams from this registry and returns self for further chaining if needed.
+    def remove_members(
+        self, *members: User | UserMember | Team | TeamMember | str
+    ) -> Self:
+        """Removes users or teams from this registry.
 
         Args:
-            *members: The users or teams to remove from the registry. Can be passed as `User` or `Team` objects, or their string IDs.
+            members: The users or teams to remove from the registry. Accepts
+                `User` objects, `Team` objects, or their string IDs.
 
         Returns:
-            This registry instance for further method chaining, if needed.
+            This registry for further method chaining, if needed.
 
         Raises:
-            ValueError: If unable to infer the user or team IDs, or if the members cannot be removed from the registry.
+            TypeError: If no members are passed as arguments.
+            ValueError: If unable to infer or parse the user or team IDs.
+
+        Examples:
+        ```python
+        import wandb
+
+        api = wandb.Api()
+
+        # Fetch an existing registry
+        registry = api.registry(name="my-registry", organization="my-org")
+
+        user1 = api.user(username="some-user")
+        user2 = api.user(username="other-user")
+        registry.remove_members(user1, user2)
+
+        old_team = api.team(name="old-team")
+        registry.remove_members(old_team)
+        ```
         """
+        if not members:
+            raise TypeError(
+                f"Must provide at least one member to {nameof(self.add_members)!r}."
+            )
         user_ids, team_ids = parse_member_ids(members)
 
         gql_op = gql(DELETE_REGISTRY_MEMBERS_GQL)
@@ -518,24 +569,39 @@ class Registry:
 
     def update_member(
         self,
-        member: User | Team | str,
+        member: User | UserMember | Team | TeamMember | str,
         role: MemberRole | str,
     ) -> Self:
-        """Updates the role of a team or user member within this registry.
+        """Updates the role of a member (user or team) within this registry.
 
         Args:
-            member: The user or team to update the role of. Can be passed as `User` or `Team` object, or their string ID.
-            role: The new role to assign to the member. One of:
+            member: The user or team to update the role of.
+                Accepts a `User` object, `Team` object, or their string ID.
+            role: The new role to assign to the member. May be one of:
                 - "admin"
                 - "member"
                 - "viewer"
                 - "restricted_viewer" (if supported by the W&B server)
 
         Returns:
-            This registry instance for further method chaining, if needed.
+            This registry for further method chaining, if needed.
 
         Raises:
-            ValueError: If unable to infer the user or team ID, or if the member cannot be updated in the registry.
+            ValueError: If unable to infer the user or team ID.
+
+        Examples:
+        Make all users in the registry admins:
+        ```python
+        import wandb
+
+        api = wandb.Api()
+
+        # Fetch an existing registry
+        registry = api.registry(name="my-registry", organization="my-org")
+
+        for member in registry.user_members():
+            registry.update_member(member.user, role="admin")
+        ```
         """
         id_ = MemberId.from_obj(member)
 

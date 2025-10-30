@@ -41,17 +41,17 @@ def nameof(obj: Any, full: bool = True) -> str:
     return getattr(obj, "__qualname__", obj.__name__) if full else obj.__name__
 
 
-def b64decodestr(s: str) -> str:
-    """Returns a decoded string from a base64-encoded string.
+def b64decode_ascii(s: str) -> str:
+    """Returns the decoded base64 string interpreted as ASCII.
 
-    Convenience function for directly converting `str -> str` without converting to/from bytes.
+    Convenience function for directly converting `str -> str`.
     """
     return b64decode(s).decode("ascii")
 
 
-def b64encodestr(s: str) -> str:
-    """Returns a base64-encoded string from a decoded string.
+def b64encode_ascii(s: str) -> str:
+    """Returns the base64 encoding of the string's ASCII bytes.
 
-    Convenience function for directly converting `str -> str` without converting to/from bytes.
+    Convenience function for directly converting `str -> str`.
     """
     return b64encode(s.encode("ascii")).decode("ascii")
