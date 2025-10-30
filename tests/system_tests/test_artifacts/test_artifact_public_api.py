@@ -1,5 +1,7 @@
 import os
 import platform
+import random
+import string
 from contextlib import nullcontext
 
 import pytest
@@ -14,6 +16,7 @@ from wandb.sdk.artifacts._generated import (
     ArtifactMembershipByName,
     ArtifactMembershipFragment,
 )
+from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
@@ -93,9 +96,15 @@ def test_artifact_file(user, api, sample_data):
 
 def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     art = api.artifact("mnist:v0", type="dataset")
-    assert (
-        str(art.files()) == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
-    )
+    if server_supports(api.client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
+        assert (
+            str(art.files())
+            == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
+        )
+    else:
+        assert (
+            str(art.files()) == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0>"
+        )
     paths = [f.storage_path for f in art.files()]
     assert paths[0].startswith("wandb_artifacts/")
 
@@ -120,6 +129,28 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     assert files.last_response is not None
     assert files.more is True
     assert files.cursor is not None
+
+
+def test_artifacts_files_filtered_length(user, api, sample_data, wandb_backend_spy):
+    if not server_supports(api.client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
+        pytest.skip("Server doesn't support FileConnection.totalCount")
+
+    # creating a new artifact with files
+    artifact_name = "".join(
+        random.choice(string.ascii_letters + string.digits) for _ in range(10)
+    )
+    artifact = wandb.Artifact(name=artifact_name, type="text")
+    number_of_files = 10
+    for i in range(number_of_files):
+        with artifact.new_file(f"file{i}.txt") as f:
+            f.write(str(i))
+    artifact.save()
+    artifact.wait()
+
+    assert_artifact = wandb.Api().artifact(artifact.qualified_name)
+    assert len(assert_artifact.files()) == number_of_files
+    assert len(assert_artifact.files(names=["file0.txt"])) == 1
+    assert len(assert_artifact.files(names=["file0.txt", "file1.txt"])) == 2
 
 
 def test_artifact_download(user, api, sample_data):

@@ -66,7 +66,7 @@ from wandb.sdk.artifacts._generated import (
     UpdateArtifactPortfolioInput,
     UpdateArtifactSequenceInput,
 )
-from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields, server_supports
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.artifacts._models.pagination import (
     ArtifactCollectionConnection,
@@ -75,7 +75,6 @@ from wandb.sdk.artifacts._models.pagination import (
     RunArtifactConnection,
 )
 from wandb.sdk.artifacts._validators import FullArtifactPath, validate_artifact_type
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
 from .utils import gql_compat
@@ -917,10 +916,10 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         names: Sequence[str] | None = None,
         per_page: int = 50,
     ):
-        self.query_via_membership = InternalApi()._server_supports(
-            ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
-        )
         self.artifact = artifact
+        self.query_via_membership = server_supports(
+            client, ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+        )
 
         if self.query_via_membership:
             query_str = ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL
@@ -941,12 +940,20 @@ class ArtifactFiles(SizedPaginator["public.File"]):
                 "fileNames": names,
             }
 
+        omit_fields = set()
+
         # The server must advertise at least SDK 0.12.21
         # to get storagePath
         if not client.version_supported("0.12.21"):
-            self.QUERY = gql_compat(query_str, omit_fields={"storagePath"})
-        else:
-            self.QUERY = gql(query_str)
+            omit_fields.add("storagePath")
+
+        if not server_supports(client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
+            omit_fields.add("totalCount")
+
+        self.QUERY = gql_compat(
+            query_str,
+            omit_fields=omit_fields,
+        )
 
         super().__init__(client, variables, per_page)
 
@@ -980,7 +987,11 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         """
         if self.last_response is None:
             self._load_page()
-        return self.artifact.file_count
+
+        if (conn := self.last_response) and (total := conn.total_count) is not None:
+            return total
+
+        raise NotImplementedError
 
     @property
     def more(self) -> bool:
@@ -1017,7 +1028,13 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
     def __repr__(self) -> str:
         path_str = "/".join(self.path)
-        return f"<ArtifactFiles {path_str} ({len(self)})>"
+        try:
+            total = len(self)
+        except NotImplementedError:
+            # Older server versions don't correctly support totalCount
+            return f"<ArtifactFiles {path_str}>"
+        else:
+            return f"<ArtifactFiles {path_str} ({total})>"
 
 
 def server_supports_artifact_collections_gql_edges(

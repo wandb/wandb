@@ -46,6 +46,7 @@ class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembersh
     edges: List[
         ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges
     ]
+    total_count: Optional[int] = Field(alias="totalCount", default=None)
 
 
 class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges(
