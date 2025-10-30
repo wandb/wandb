@@ -49,8 +49,8 @@ func (h *HistoryReader) GetHistorySteps(
 	return fmt.Errorf("not implemented")
 }
 
-// getRunHistoryFileUrls gets signed URLs for a run's history files.
-// These URLs can be used to download the files, or read remotely.
+// getRunHistoryFileUrls gets URLs
+// that can be used to download a run's history files.
 func (h *HistoryReader) getRunHistoryFileUrls(keys []string) ([]string, error) {
 	response, err := gql.RunParquetHistory(
 		context.Background(),
