@@ -16,3 +16,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - The registry API now supports programmatic management of user and team members of individual registries. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10542)
+- `Registry.id` has been added as a (read-only) property of `Registry` objects (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10785).

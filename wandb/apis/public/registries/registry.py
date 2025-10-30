@@ -102,6 +102,11 @@ class Registry:
         self._current = saved.model_copy(deep=True)
 
     @property
+    def id(self) -> str:
+        """The unique ID for this registry."""
+        return self._current.id
+
+    @property
     def full_name(self) -> str:
         """Full name of the registry including the `wandb-registry-` prefix."""
         return self._current.full_name
@@ -312,7 +317,7 @@ class Registry:
         failed_msg = f"Failed to delete registry {self.name!r} in organization {self.organization!r}"
 
         gql_op = gql(DELETE_REGISTRY_GQL)
-        gql_vars = {"id": self._saved.id}
+        gql_vars = {"id": self.id}
         try:
             data = self.client.execute(gql_op, variable_values=gql_vars)
             result = DeleteRegistry.model_validate(data).delete_model
@@ -410,10 +415,6 @@ class Registry:
 
             self._update_attributes(registry_project)
 
-    def _no_updating_registry_types(self) -> bool:
-        # artifact types draft means user assigned types to add that are not yet saved
-        return len(self.artifact_types.draft) > 0 and self.allow_all_artifact_types
-
     def members(self) -> list[UserMember | TeamMember]:
         """Returns the current members (users and teams) of this registry."""
         return [*self.user_members(), *self.team_members()]
@@ -506,7 +507,7 @@ class Registry:
 
         gql_op = gql(CREATE_REGISTRY_MEMBERS_GQL)
         gql_input = CreateProjectMembersInput(
-            user_ids=user_ids, team_ids=team_ids, project_id=self._saved.id
+            user_ids=user_ids, team_ids=team_ids, project_id=self.id
         )
         gql_vars = {"input": gql_input.model_dump()}
         data = self.client.execute(gql_op, variable_values=gql_vars)
@@ -557,7 +558,7 @@ class Registry:
 
         gql_op = gql(DELETE_REGISTRY_MEMBERS_GQL)
         gql_input = DeleteProjectMembersInput(
-            user_ids=user_ids, team_ids=team_ids, project_id=self._saved.id
+            user_ids=user_ids, team_ids=team_ids, project_id=self.id
         )
         gql_vars = {"input": gql_input.model_dump()}
         data = self.client.execute(gql_op, variable_values=gql_vars)
@@ -608,13 +609,13 @@ class Registry:
         if id_.kind is MemberKind.USER:
             gql_op = gql(UPDATE_USER_REGISTRY_ROLE_GQL)
             gql_input = UpdateProjectMemberInput(
-                user_id=id_.encode(), project_id=self._saved.id, user_project_role=role
+                user_id=id_.encode(), project_id=self.id, user_project_role=role
             )
             result_cls = UpdateUserRegistryRole
         elif id_.kind is MemberKind.ENTITY:
             gql_op = gql(UPDATE_TEAM_REGISTRY_ROLE_GQL)
             gql_input = UpdateProjectTeamMemberInput(
-                team_id=id_.encode(), project_id=self._saved.id, team_project_role=role
+                team_id=id_.encode(), project_id=self.id, team_project_role=role
             )
             result_cls = UpdateTeamRegistryRole
         else:
