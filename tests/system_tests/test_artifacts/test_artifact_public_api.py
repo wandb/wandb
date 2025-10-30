@@ -133,7 +133,7 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
 
 def test_artifacts_files_filtered_length(user, api, sample_data, wandb_backend_spy):
     if not server_supports(api.client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
-        pytest.skip()
+        pytest.skip("Server doesn't support FileConnection.totalCount")
 
     # creating a new artifact with files
     artifact_name = "".join(
