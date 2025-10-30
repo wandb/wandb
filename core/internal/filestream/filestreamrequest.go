@@ -3,6 +3,7 @@ package filestream
 import (
 	"maps"
 
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sparselist"
 )
 
@@ -21,8 +22,8 @@ type FileStreamRequest struct {
 	// Each line is a JSON object mapping metric names to values.
 	EventsLines []string
 
-	// LatestSummary is the run's most recent summary, JSON-encoded.
-	LatestSummary string
+	// SummaryUpdates contains changes to the run's summary.
+	SummaryUpdates *runsummary.Updates
 
 	// ConsoleLines is updates to make to the run's output logs.
 	//
@@ -62,8 +63,10 @@ func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
 	r.HistoryLines = append(r.HistoryLines, next.HistoryLines...)
 	r.EventsLines = append(r.EventsLines, next.EventsLines...)
 
-	if next.LatestSummary != "" {
-		r.LatestSummary = next.LatestSummary
+	if r.SummaryUpdates == nil {
+		r.SummaryUpdates = next.SummaryUpdates
+	} else {
+		r.SummaryUpdates.Merge(next.SummaryUpdates)
 	}
 
 	r.ConsoleLines.Update(next.ConsoleLines)

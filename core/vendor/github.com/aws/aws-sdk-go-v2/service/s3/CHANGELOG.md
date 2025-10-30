@@ -1,3 +1,7 @@
+# v1.89.0 (2025-10-28)
+
+* **Feature**: Amazon Simple Storage Service / Features: Add conditional writes in CopyObject on destination key to prevent unintended object modifications.
+
 # v1.88.7 (2025-10-23)
 
 * **Dependency Update**: Updated to the latest SDK module versions

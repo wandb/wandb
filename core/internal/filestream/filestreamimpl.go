@@ -64,12 +64,17 @@ func (fs *fileStream) startTransmitting(
 	requests <-chan *FileStreamRequest,
 	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
-	maxRequestSizeBytes := fs.settings.GetFileStreamMaxBytes()
-	if maxRequestSizeBytes <= 0 {
-		maxRequestSizeBytes = 10 << 20 // 10 MB
+	state := &FileStreamState{
+		MaxRequestSizeBytes: max(
+			int(fs.settings.GetFileStreamMaxBytes()),
+			defaultMaxRequestSizeBytes,
+		),
+		MaxFileLineSize: max(
+			int(fs.settings.GetFileStreamMaxLineBytes()),
+			defaultMaxFileLineBytes,
+		),
 	}
 
-	state := &FileStreamState{}
 	if initialOffsets != nil {
 		state.HistoryLineNum = initialOffsets[HistoryChunk]
 		state.EventsLineNum = initialOffsets[EventsChunk]
@@ -78,9 +83,9 @@ func (fs *fileStream) startTransmitting(
 	}
 
 	transmissions := CollectLoop{
-		Logger:              fs.logger,
-		TransmitRateLimit:   fs.transmitRateLimit,
-		MaxRequestSizeBytes: int(maxRequestSizeBytes),
+		Logger:            fs.logger,
+		Printer:           fs.printer,
+		TransmitRateLimit: fs.transmitRateLimit,
 	}.Start(state, requests)
 
 	feedback := TransmitLoop{

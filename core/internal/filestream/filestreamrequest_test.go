@@ -5,7 +5,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	. "github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sparselist"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestHistory_MergeAppends(t *testing.T) {
@@ -26,22 +28,54 @@ func TestEvents_MergeAppends(t *testing.T) {
 	assert.Equal(t, []string{"original", "new"}, req1.EventsLines)
 }
 
-func TestSummary_MergeTakesLatest(t *testing.T) {
-	req1 := &FileStreamRequest{LatestSummary: "first"}
-	req2 := &FileStreamRequest{LatestSummary: "second"}
-
-	req1.Merge(req2)
-
-	assert.Equal(t, "second", req1.LatestSummary)
-}
-
-func TestSummary_MergeIgnoresEmpty(t *testing.T) {
-	req1 := &FileStreamRequest{LatestSummary: "first"}
+func TestSummary_MergeNil_NoChange(t *testing.T) {
+	req1 := &FileStreamRequest{
+		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
+			Update: []*spb.SummaryItem{{Key: "xyz", ValueJson: `1`}},
+		}),
+	}
 	req2 := &FileStreamRequest{}
 
 	req1.Merge(req2)
 
-	assert.Equal(t, "first", req1.LatestSummary)
+	assert.NotNil(t, req1.SummaryUpdates)
+}
+
+func TestSummary_MergeNilAndNonNil_UsesLatest(t *testing.T) {
+	req1 := &FileStreamRequest{}
+	req2 := &FileStreamRequest{
+		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
+			Update: []*spb.SummaryItem{{Key: "xyz", ValueJson: `3`}},
+		}),
+	}
+
+	req1.Merge(req2)
+
+	assert.Equal(t, req2.SummaryUpdates, req1.SummaryUpdates)
+}
+
+func TestSummary_Merge_CombinesUpdates(t *testing.T) {
+	req1 := &FileStreamRequest{
+		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
+			Update: []*spb.SummaryItem{{Key: "abc", ValueJson: `1`}},
+		}),
+	}
+	req2 := &FileStreamRequest{
+		SummaryUpdates: runsummary.FromProto(&spb.SummaryRecord{
+			Update: []*spb.SummaryItem{{Key: "xyz", ValueJson: `2`}},
+		}),
+	}
+
+	req1.Merge(req2)
+
+	assert.Equal(t,
+		runsummary.FromProto(&spb.SummaryRecord{
+			Update: []*spb.SummaryItem{
+				{Key: "abc", ValueJson: `1`},
+				{Key: "xyz", ValueJson: `2`},
+			},
+		}),
+		req1.SummaryUpdates)
 }
 
 func TestConsole_MergeUpdatesPreferringLast(t *testing.T) {

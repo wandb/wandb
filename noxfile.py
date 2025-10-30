@@ -5,6 +5,8 @@ import pathlib
 import platform
 import re
 import shutil
+import subprocess
+import textwrap
 import time
 from contextlib import contextmanager
 from typing import Any, Callable
@@ -337,8 +339,6 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     nox -s local-testcontainer-registry -- <release_tag>
     """
     tags: list[str] = session.posargs or []
-
-    import subprocess
 
     def query_github(payload: dict[str, Any]) -> dict[str, Any]:
         import json
@@ -762,9 +762,9 @@ def importer_tests(session: nox.Session, importer: str):
 @nox.session(name="wandb-core-size-check", python="3.12")
 def wandb_core_size_check(session: nox.Session) -> None:
     """Compare wandb-core binary size against main branch."""
-    # Build and install main branch version
+    # Build and install main branch version.
     session.run("git", "fetch", "origin", "main", external=True)
-    session.run("git", "checkout", "origin/main", external=True)
+    session.run("git", "switch", "--detach", "origin/main", external=True)
     install_wandb(session, dev=False)
 
     main_binary = list(
@@ -772,8 +772,8 @@ def wandb_core_size_check(session: nox.Session) -> None:
     )[0]
     main_size = main_binary.stat().st_size
 
-    # Build and install current branch version
-    session.run("git", "checkout", "-", external=True)
+    # Build and install current branch version.
+    session.run("git", "switch", "-", external=True)
     install_wandb(session, dev=False)
 
     current_binary = list(
@@ -781,7 +781,6 @@ def wandb_core_size_check(session: nox.Session) -> None:
     )[0]
     current_size = current_binary.stat().st_size
 
-    # Format and display results
     def fmt_size(b: int) -> str:
         for unit in ["B", "KB", "MB"]:
             if b < 1024:
@@ -790,24 +789,82 @@ def wandb_core_size_check(session: nox.Session) -> None:
         return f"{b:.1f} GB"
 
     diff = current_size - main_size
-    pct = (diff / main_size * 100) if main_size else 0
+    pct = (diff / main_size) if main_size else 0
 
     session.log("=" * 60)
     session.log(f"Main branch:  {fmt_size(main_size)} ({main_size:,} bytes)")
     session.log(f"Current:      {fmt_size(current_size)} ({current_size:,} bytes)")
-    session.log(
-        f"Difference:   {fmt_size(abs(diff))} ({'+' if diff > 0 else ''}{pct:+.1f}%)"
-    )
+    session.log(f"Difference:   {fmt_size(abs(diff))} ({pct:+.0%})")
     session.log("=" * 60)
 
     if pct > 10:
-        session.log("")
-        session.log("❌ Binary size increased beyond acceptable threshold!")
-        session.log("")
-        session.log("If this increase is necessary and optimized:")
-        session.log("  1. Verify the increase is justified")
-        session.log("  2. Document the reason in your PR description")
-        session.log("")
+        session.log(
+            textwrap.dedent("""\
+
+                ❌ Binary size increased beyond acceptable threshold!
+
+                If this increase is necessary and optimized:
+                  1. Verify the increase is justified.
+                  2. Document the reason in your PR description.
+            """)
+        )
         session.error(f"Binary size increased by {pct:.1f}% (>10% threshold)")
     elif pct > 5:
         session.warn(f"Binary size increased by {pct:.1f}%")
+
+
+@nox.session(name="wandb-import-time-check", python="3.12")
+def wandb_import_time_check(session: nox.Session) -> None:
+    """Compare wandb import time against main branch."""
+
+    def measure_import_time(num_samples: int = 5) -> float:
+        """Measure the average time to import wandb across multiple samples."""
+        times = []
+        for _ in range(num_samples):
+            result = session.run(
+                "python",
+                "-c",
+                "import time; tic = time.perf_counter(); import wandb; print(time.perf_counter() - tic)",
+                external=True,
+                silent=True,
+            )
+            times.append(float(result.strip()))
+        return sum(times) / len(times)
+
+    session.run("git", "fetch", "origin", "main", external=True)
+    session.run("git", "switch", "--detach", "origin/main", external=True)
+    install_wandb(session, dev=False)
+    main_time = measure_import_time()
+
+    session.run("git", "switch", "-", external=True)
+    install_wandb(session, dev=False)
+    current_time = measure_import_time()
+
+    diff = current_time - main_time
+    pct = (diff / main_time) if main_time else 0
+
+    session.log("=" * 60)
+    session.log(f"Main branch:  {main_time:.2g}s")
+    session.log(f"Current:      {current_time:.2g}")
+    session.log(f"Difference:   {abs(diff):.2g} ({pct:+.0%})")
+    session.log("=" * 60)
+
+    if pct > 20:
+        session.log(
+            textwrap.dedent("""\
+
+                ❌ Import time increased beyond acceptable threshold!
+
+                If this increase is necessary:
+                  1. Verify the increase is justified.
+                  2. Consider lazy imports or module reorganization.
+                  3. Document the reason in your PR description.
+
+                To debug import time issues:
+                  uv pip install -U pyinstrument
+                  pyinstrument -r html -c 'import wandb'
+            """)
+        )
+        session.error(f"Import time increased by {pct:+.0%} (>20% threshold)")
+    elif pct > 10:
+        session.warn(f"Import time increased by {pct:+.0%}")

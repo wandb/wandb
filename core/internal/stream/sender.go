@@ -13,7 +13,6 @@ import (
 	"github.com/google/wire"
 
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -36,11 +35,6 @@ import (
 	"github.com/wandb/wandb/core/pkg/launch"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-)
-
-const (
-	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
-	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
 
 var SenderProviders = wire.NewSet(
@@ -111,9 +105,6 @@ type Sender struct {
 
 	// artifactWG is a wait group for artifact-related goroutines
 	artifactWG sync.WaitGroup
-
-	// summaryDebouncer is the debouncer for summary updates
-	summaryDebouncer *debounce.Debouncer
 
 	// runHandle is parts of the Stream initialized after the first RunRecord
 	runHandle *runhandle.RunHandle
@@ -201,17 +192,12 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
 			).Enabled,
 		),
-		networkPeeker: f.Peeker,
-		graphqlClient: f.GraphqlClient,
-		mailbox:       f.Mailbox,
-		runHandle:     f.RunHandle,
-		runSummary:    runsummary.New(),
-		outChan:       make(chan *spb.Result, BufferSize),
-		summaryDebouncer: debounce.NewDebouncer(
-			summaryDebouncerRateLimit,
-			summaryDebouncerBurstSize,
-			f.Logger,
-		),
+		networkPeeker:     f.Peeker,
+		graphqlClient:     f.GraphqlClient,
+		mailbox:           f.Mailbox,
+		runHandle:         f.RunHandle,
+		runSummary:        runsummary.New(),
+		outChan:           make(chan *spb.Result, BufferSize),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
@@ -248,9 +234,6 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 
 		s.mu.Lock()
 		work.Process(s.sendRecord, s.outChan)
-
-		// TODO: reevaluate the logic here
-		s.summaryDebouncer.Debounce(s.streamSummary)
 		s.mu.Unlock()
 
 		hangDetectionOutChan <- struct{}{}
@@ -601,8 +584,6 @@ func (s *Sender) finishRunSync() {
 
 	// Upload the run's finalized summary and config.
 	s.mu.Lock()
-	s.summaryDebouncer.Flush(s.streamSummary)
-	s.summaryDebouncer.Stop()
 	s.uploadSummaryFile()
 
 	upserter, _ := s.runHandle.Upserter()
@@ -827,24 +808,6 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
 }
 
-func (s *Sender) streamSummary() {
-	if s.fileStream == nil {
-		return
-	}
-
-	summaryJSON, err := s.runSummary.Serialize()
-
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: error serializing summary: %v", err))
-		return
-	}
-
-	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
-		SummaryJSON: string(summaryJSON),
-	})
-}
-
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	if s.exitRecord != nil {
 		s.logCalledAfterExit("sendSummary")
@@ -857,7 +820,9 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 			fmt.Errorf("sender: error updating summary: %v", err))
 	}
 
-	s.summaryDebouncer.SetNeedsDebounce()
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+	}
 }
 
 func (s *Sender) uploadSummaryFile() {
