@@ -12,9 +12,9 @@ import (
 // This batches all incoming requests while waiting for transmissions
 // to go through.
 type CollectLoop struct {
-	Logger              *observability.CoreLogger
-	TransmitRateLimit   *rate.Limiter
-	MaxRequestSizeBytes int
+	Logger            *observability.CoreLogger
+	Printer           *observability.Printer
+	TransmitRateLimit *rate.Limiter
 }
 
 // Start ingests requests and outputs rate-limited, batched requests.
@@ -22,6 +22,15 @@ func (cl CollectLoop) Start(
 	state *FileStreamState,
 	requests <-chan *FileStreamRequest,
 ) *TransmitChan {
+	switch {
+	case cl.Logger == nil:
+		panic("filestream: CollectLoop.Logger is nil")
+	case cl.Printer == nil:
+		panic("filestream: CollectLoop.Printer is nil")
+	case cl.TransmitRateLimit == nil:
+		panic("filestream: CollectLoop.TransmitRateLimit is nil")
+	}
+
 	output := NewTransmitChan()
 
 	go func() {
@@ -37,7 +46,7 @@ func (cl CollectLoop) Start(
 
 		for hasMore {
 			var json *FileStreamRequestJSON
-			json, hasMore = state.Pop(buffer, cl.MaxRequestSizeBytes)
+			json, hasMore = cl.pop(state, buffer)
 			output.Push(json)
 		}
 
@@ -98,9 +107,9 @@ func (cl CollectLoop) transmit(
 ) bool {
 	for {
 		// If we're at max size, stop adding to the buffer.
-		if state.IsAtSizeLimit(buffer, cl.MaxRequestSizeBytes) {
+		if state.IsAtSizeLimit(buffer) {
 			cl.Logger.Info("filestream: waiting to send request of max size")
-			json, hasMore := state.Pop(buffer, cl.MaxRequestSizeBytes)
+			json, hasMore := cl.pop(state, buffer)
 			output.Push(json)
 			return hasMore
 		}
@@ -108,13 +117,13 @@ func (cl CollectLoop) transmit(
 		// Otherwise, either send the buffer or add to it.
 		select {
 		case pushChan := <-output.PreparePush():
-			json, hasMore := state.Pop(buffer, cl.MaxRequestSizeBytes)
+			json, hasMore := cl.pop(state, buffer)
 			pushChan <- json
 			return hasMore
 
 		case request, ok := <-requests:
 			if !ok {
-				json, hasMore := state.Pop(buffer, cl.MaxRequestSizeBytes)
+				json, hasMore := cl.pop(state, buffer)
 				output.Push(json)
 				return hasMore
 			}
@@ -122,6 +131,19 @@ func (cl CollectLoop) transmit(
 			buffer.Merge(request)
 		}
 	}
+}
+
+// pop calls [FileStreamState.Pop], extracting a JSON value to send from the
+// request and returning whether the request contains more data.
+func (cl CollectLoop) pop(
+	state *FileStreamState,
+	request *FileStreamRequest,
+) (*FileStreamRequestJSON, bool) {
+	return state.Pop(
+		request,
+		cl.Logger,
+		cl.Printer,
+	)
 }
 
 // shouldSendASAP returns a request should be made regardless of rate limits.
@@ -139,7 +161,7 @@ func (cl CollectLoop) shouldSendASAP(
 		return true
 
 	// If we've accumulated a request of the maximum size, send it immediately.
-	case state.IsAtSizeLimit(request, cl.MaxRequestSizeBytes):
+	case state.IsAtSizeLimit(request):
 		return true
 
 	default:
