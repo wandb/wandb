@@ -31,7 +31,7 @@ func LocalParquetFile(
 }
 
 // RemoteParquetFile provides a pqarrow.FileReader for accessing a parquet file
-// that is stored in a remote remotely.
+// that is stored remotely.
 func RemoteParquetFile(
 	ctx context.Context,
 	reader parquet.ReaderAtSeeker,
