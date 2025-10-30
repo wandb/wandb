@@ -73,14 +73,14 @@ class ArtifactCollectionSummary(GQLResult):
     created_at: str = Field(alias="createdAt")
 
 
-class SourceCollectionInfoFragment(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
+class CollectionInfoFragment(GQLResult):
+    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
     name: str
     project: Optional[ProjectInfoFragment]
 
 
-class CollectionInfoFragment(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
+class SourceCollectionInfoFragment(GQLResult):
+    typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
     name: str
     project: Optional[ProjectInfoFragment]
 
@@ -374,8 +374,8 @@ ProjectInfoFragment.model_rebuild()
 TagFragment.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
 ArtifactCollectionSummary.model_rebuild()
-SourceCollectionInfoFragment.model_rebuild()
 CollectionInfoFragment.model_rebuild()
+SourceCollectionInfoFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactMembershipFragment.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()

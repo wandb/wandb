@@ -26,51 +26,12 @@ class ArtifactSequenceScopeFields(GQLResult):
     name: str
 
 
-class QueueJobActionFields(GQLResult):
-    typename__: Typename[Literal["QueueJobTriggeredAction"]] = "QueueJobTriggeredAction"
-    queue: Optional[QueueJobActionFieldsQueue]
-    template: str
-
-
-class QueueJobActionFieldsQueue(GQLResult):
-    id: GQLId
-    name: str
-
-
-class ProjectScopeFields(GQLResult):
-    typename__: Typename[Literal["Project"]] = "Project"
-    id: GQLId
-    name: str
-
-
-class SlackIntegrationFields(GQLResult):
-    typename__: Typename[Literal["SlackIntegration"]] = "SlackIntegration"
-    id: GQLId
-    team_name: str = Field(alias="teamName")
-    channel_name: str = Field(alias="channelName")
-
-
-class NotificationActionFields(GQLResult):
-    typename__: Typename[Literal["NotificationTriggeredAction"]] = (
-        "NotificationTriggeredAction"
+class FilterEventFields(GQLResult):
+    typename__: Typename[Literal["FilterEventTriggeringCondition"]] = (
+        "FilterEventTriggeringCondition"
     )
-    integration: Union[
-        NotificationActionFieldsIntegrationIntegration, SlackIntegrationFields
-    ] = Field(discriminator="typename__")
-    title: Optional[str]
-    message: Optional[str]
-    severity: Optional[AlertSeverity]
-
-
-class NotificationActionFieldsIntegrationIntegration(GQLResult):
-    typename__: Typename[
-        Literal["GenericWebhookIntegration", "GitHubOAuthIntegration", "Integration"]
-    ]
-
-
-class NoOpActionFields(GQLResult):
-    typename__: Typename[Literal["NoOpTriggeredAction"]] = "NoOpTriggeredAction"
-    no_op: Optional[bool] = Field(alias="noOp")
+    event_type: EventTriggeringConditionType = Field(alias="eventType")
+    filter: str
 
 
 class GenericWebhookIntegrationFields(GQLResult):
@@ -99,12 +60,51 @@ class GenericWebhookActionFieldsIntegrationIntegration(GQLResult):
     ]
 
 
-class FilterEventFields(GQLResult):
-    typename__: Typename[Literal["FilterEventTriggeringCondition"]] = (
-        "FilterEventTriggeringCondition"
+class NoOpActionFields(GQLResult):
+    typename__: Typename[Literal["NoOpTriggeredAction"]] = "NoOpTriggeredAction"
+    no_op: Optional[bool] = Field(alias="noOp")
+
+
+class SlackIntegrationFields(GQLResult):
+    typename__: Typename[Literal["SlackIntegration"]] = "SlackIntegration"
+    id: GQLId
+    team_name: str = Field(alias="teamName")
+    channel_name: str = Field(alias="channelName")
+
+
+class NotificationActionFields(GQLResult):
+    typename__: Typename[Literal["NotificationTriggeredAction"]] = (
+        "NotificationTriggeredAction"
     )
-    event_type: EventTriggeringConditionType = Field(alias="eventType")
-    filter: str
+    integration: Union[
+        NotificationActionFieldsIntegrationIntegration, SlackIntegrationFields
+    ] = Field(discriminator="typename__")
+    title: Optional[str]
+    message: Optional[str]
+    severity: Optional[AlertSeverity]
+
+
+class NotificationActionFieldsIntegrationIntegration(GQLResult):
+    typename__: Typename[
+        Literal["GenericWebhookIntegration", "GitHubOAuthIntegration", "Integration"]
+    ]
+
+
+class ProjectScopeFields(GQLResult):
+    typename__: Typename[Literal["Project"]] = "Project"
+    id: GQLId
+    name: str
+
+
+class QueueJobActionFields(GQLResult):
+    typename__: Typename[Literal["QueueJobTriggeredAction"]] = "QueueJobTriggeredAction"
+    queue: Optional[QueueJobActionFieldsQueue]
+    template: str
+
+
+class QueueJobActionFieldsQueue(GQLResult):
+    id: GQLId
+    name: str
 
 
 class TriggerFields(GQLResult):
@@ -242,14 +242,14 @@ class UpdateAutomationResult(GQLResult):
 
 ArtifactPortfolioScopeFields.model_rebuild()
 ArtifactSequenceScopeFields.model_rebuild()
-QueueJobActionFields.model_rebuild()
-ProjectScopeFields.model_rebuild()
-SlackIntegrationFields.model_rebuild()
-NotificationActionFields.model_rebuild()
-NoOpActionFields.model_rebuild()
+FilterEventFields.model_rebuild()
 GenericWebhookIntegrationFields.model_rebuild()
 GenericWebhookActionFields.model_rebuild()
-FilterEventFields.model_rebuild()
+NoOpActionFields.model_rebuild()
+SlackIntegrationFields.model_rebuild()
+NotificationActionFields.model_rebuild()
+ProjectScopeFields.model_rebuild()
+QueueJobActionFields.model_rebuild()
 TriggerFields.model_rebuild()
 CreateAutomationResult.model_rebuild()
 DeleteAutomationResult.model_rebuild()
