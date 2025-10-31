@@ -114,9 +114,9 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 ) *spb.ApiResponse {
 	requestId := request.GetRequestId()
 
-	historyReader := f.scanHistoryReaders[requestId]
+	historyReader, ok := f.scanHistoryReaders[requestId]
 
-	if historyReader == nil {
+	if !ok  || historyReader == nil {
 		return &spb.ApiResponse{
 			Response: &spb.ApiResponse_ApiErrorResponse{
 				ApiErrorResponse: &spb.ApiErrorResponse{
