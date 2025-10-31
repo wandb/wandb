@@ -18,7 +18,6 @@ import (
 
 // HistoryReader downloads and reads an exisiting run's logged metrics.
 type HistoryReader struct {
-	ctx           context.Context
 	entity        string
 	graphqlClient graphql.Client
 	httpClient    *http.Client
@@ -38,9 +37,8 @@ func New(
 	graphqlClient graphql.Client,
 	httpClient *http.Client,
 	keys []string,
-) *HistoryReader {
-	return &HistoryReader{
-		ctx:           ctx,
+) (*HistoryReader, error) {
+	historyReader := &HistoryReader{
 		entity:        entity,
 		graphqlClient: graphqlClient,
 		httpClient:    httpClient,
@@ -48,64 +46,23 @@ func New(
 		runId:         runId,
 		keys:          keys,
 	}
+
+	err := historyReader.initParquetFiles(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
+
+	return historyReader, nil
 }
 
 // GetHistorySteps gets all history rows for the given keys
 // that fall between minStep and maxStep.
 // Returns a list of KVMapLists, where each item in the list is a history row.
 func (h *HistoryReader) GetHistorySteps(
+	ctx context.Context,
 	minStep int64,
 	maxStep int64,
 ) ([]iterator.KeyValueList, error) {
-	if len(h.parquetFiles) == 0 {
-		signedUrls, err := h.getRunHistoryFileUrls(h.keys)
-		if err != nil {
-			return nil, err
-		}
-
-		for i, url := range signedUrls {
-			var parquetFile *pqarrow.FileReader
-
-			// When the user doesn't specify any keys,
-			// It is faster to download the entire parquet file
-			// and process it locally.
-			if len(h.keys) == 0 {
-				tmpDir := os.TempDir()
-				fileName := fmt.Sprintf("run_history_%d.parquet", i)
-
-				err := h.downloadRunHistoryFile(url, tmpDir, fileName)
-				if err != nil {
-					return nil, err
-				}
-
-				parquetFilePath := filepath.Join(tmpDir, fileName)
-				parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				httpFileReader, err := remote.NewHttpFileReader(
-					context.Background(),
-					h.httpClient,
-					url,
-				)
-				if err != nil {
-					return nil, err
-				}
-
-				parquetFile, err = parquet.RemoteParquetFile(
-					context.Background(),
-					httpFileReader,
-				)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			h.parquetFiles = append(h.parquetFiles, parquetFile)
-		}
-	}
-
 	partitions := make([]iterator.RowIterator, len(h.parquetFiles))
 	for i, parquetFile := range h.parquetFiles {
 		selectedRows := iterator.SelectRows(
@@ -127,12 +84,15 @@ func (h *HistoryReader) GetHistorySteps(
 		}
 
 		rowIterator, err := iterator.NewRowIterator(
-			context.Background(),
+			ctx,
 			parquetFile,
 			selectedRows,
 			selectedColumns,
 		)
 		if err != nil {
+			for _, partition := range partitions {
+				partition.Release()
+			}
 			return nil, err
 		}
 		partitions[i] = rowIterator
@@ -142,24 +102,32 @@ func (h *HistoryReader) GetHistorySteps(
 	defer multiIterator.Release()
 
 	results := []iterator.KeyValueList{}
-	next, err := multiIterator.Next()
-	for ; next && err == nil; next, err = multiIterator.Next() {
+	for {
+		next, err := multiIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		if !next {
+			return results, nil
+		}
+
 		select {
-		case <-h.ctx.Done():
-			return nil, h.ctx.Err()
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		default:
 			results = append(results, multiIterator.Value())
 		}
 	}
-
-	return results, nil
 }
 
 // getRunHistoryFileUrls gets URLs
 // that can be used to download a run's history files.
-func (h *HistoryReader) getRunHistoryFileUrls(keys []string) ([]string, error) {
+func (h *HistoryReader) getRunHistoryFileUrls(
+	ctx context.Context,
+	keys []string,
+) ([]string, error) {
 	response, err := gql.RunParquetHistory(
-		context.Background(),
+		ctx,
 		h.graphqlClient,
 		h.entity,
 		h.project,
@@ -203,6 +171,61 @@ func (h *HistoryReader) downloadRunHistoryFile(
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// initParquetFiles creates a parquet file reader
+// for each of the run's history files.
+func (h *HistoryReader) initParquetFiles(
+	ctx context.Context,
+	keys []string,
+) error {
+	signedUrls, err := h.getRunHistoryFileUrls(ctx, keys)
+	if err != nil {
+		return err
+	}
+
+	for i, url := range signedUrls {
+		var parquetFile *pqarrow.FileReader
+
+		// When the user doesn't specify any keys,
+		// It is faster to download the entire parquet file
+		// and process it locally.
+		if len(h.keys) == 0 {
+			tmpDir := os.TempDir()
+			fileName := fmt.Sprintf("run_history_%d.parquet", i)
+
+			err := h.downloadRunHistoryFile(url, tmpDir, fileName)
+			if err != nil {
+				return err
+			}
+
+			parquetFilePath := filepath.Join(tmpDir, fileName)
+			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
+			if err != nil {
+				return err
+			}
+		} else {
+			httpFileReader, err := remote.NewHttpFileReader(
+				ctx,
+				h.httpClient,
+				url,
+			)
+			if err != nil {
+				return err
+			}
+
+			parquetFile, err = parquet.RemoteParquetFile(
+				httpFileReader,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		h.parquetFiles = append(h.parquetFiles, parquetFile)
 	}
 
 	return nil
