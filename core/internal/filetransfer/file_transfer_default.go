@@ -40,7 +40,7 @@ func NewDefaultFileTransfer(
 	return fileTransfer
 }
 
-// Upload uploads a file to the server
+// Upload implements FileTransfer.Upload
 func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)
 
@@ -107,7 +107,7 @@ func attachErrorResponseBody(errPrefix string, resp *http.Response) error {
 	return fmt.Errorf("%s: body: %s", errPrefix, string(body))
 }
 
-// Download downloads a file from the server
+// Download implements FileTransfer.Download
 func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
 	dir := path.Dir(task.Path)
