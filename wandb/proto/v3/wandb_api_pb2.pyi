@@ -130,7 +130,7 @@ global___ReadRunHistoryResponse = ReadRunHistoryResponse
 
 @typing_extensions.final
 class ScanRunHistoryInit(google.protobuf.message.Message):
-    """ScanRunHistoryInitApiRequest is a request to initialize
+    """ScanRunHistoryInit is a request to initialize
     a scan over a run's history.
 
     Because scan history request will be made over a series of requests,
@@ -183,7 +183,7 @@ global___ScanRunHistoryInitResponse = ScanRunHistoryInitResponse
 
 @typing_extensions.final
 class ScanRunHistory(google.protobuf.message.Message):
-    """ScanRunHistoryApiRequest is a request to scan
+    """ScanRunHistory is a request to scan
     over a portion of a run's history.
     """
 
@@ -258,7 +258,7 @@ global___ParquetHistoryItem = ParquetHistoryItem
 
 @typing_extensions.final
 class ScanRunHistoryCleanup(google.protobuf.message.Message):
-    """ScanRunHistoryCleanupApiRequest is a request to cleanup
+    """ScanRunHistoryCleanup is a request to cleanup
     any resources associated with a scan request.
     """
 

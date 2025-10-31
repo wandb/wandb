@@ -394,7 +394,7 @@ func (*ReadRunHistoryResponse_ScanRunHistoryInit) isReadRunHistoryResponse_Respo
 
 func (*ReadRunHistoryResponse_RunHistoryResponse) isReadRunHistoryResponse_Response() {}
 
-// ScanRunHistoryInitApiRequest is a request to initialize
+// ScanRunHistoryInit is a request to initialize
 // a scan over a run's history.
 //
 // Because scan history request will be made over a series of requests,
@@ -526,7 +526,7 @@ func (x *ScanRunHistoryInitResponse) GetRequestId() int32 {
 	return 0
 }
 
-// ScanRunHistoryApiRequest is a request to scan
+// ScanRunHistory is a request to scan
 // over a portion of a run's history.
 type ScanRunHistory struct {
 	state         protoimpl.MessageState
@@ -740,7 +740,7 @@ func (x *ParquetHistoryItem) GetValueJson() string {
 	return ""
 }
 
-// ScanRunHistoryCleanupApiRequest is a request to cleanup
+// ScanRunHistoryCleanup is a request to cleanup
 // any resources associated with a scan request.
 type ScanRunHistoryCleanup struct {
 	state         protoimpl.MessageState
