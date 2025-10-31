@@ -3,17 +3,18 @@ package runhistoryreader
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
 )
 
@@ -28,22 +29,25 @@ func respondWithParquetContent(
 
 		// Handle range requests for remote reading
 		rangeHeader := request.Header.Get("Range")
-		if rangeHeader != "" {
-			var start, end int64
-			_, err := fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end)
-			require.NoError(t, err)
-			min := int64(math.Min(float64(end+1), float64(len(parquetContent))))
-			responseWriter.Header().Set(
-				"Content-Range",
-				fmt.Sprintf("bytes %d-%d/%d", start, end, len(parquetContent)),
-			)
-			responseWriter.WriteHeader(http.StatusPartialContent)
-			_, err = responseWriter.Write(parquetContent[start:min])
-			require.NoError(t, err)
-		} else {
+		if rangeHeader == "" {
 			_, err := responseWriter.Write(parquetContent)
 			require.NoError(t, err)
+			return
 		}
+
+		var start, end int64
+		_, err := fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end)
+		require.NoError(t, err)
+		responseWriter.Header().Set(
+			"Content-Range",
+			fmt.Sprintf("bytes %d-%d/%d", start, end, len(parquetContent)),
+		)
+		responseWriter.WriteHeader(http.StatusPartialContent)
+
+		pqLen := int64(len(parquetContent))
+		min := slices.Min([]int64{end+1, pqLen})
+		_, err = responseWriter.Write(parquetContent[start:min])
+		require.NoError(t, err)
 	}
 }
 
@@ -103,7 +107,7 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 	mockGQL := mockGraphQLWithParquetUrls(
 		[]string{server.URL + "/test.parquet"},
 	)
-	reader := New(
+	reader, err := New(
 		ctx,
 		"test-entity",
 		"test-project",
@@ -112,17 +116,28 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 		http.DefaultClient,
 		[]string{},
 	)
+	require.NoError(t, err)
 
-	results, err := reader.GetHistorySteps(0, 10)
+	results, err := reader.GetHistorySteps(ctx, 0, 10)
 
 	assert.NoError(t, err)
 	assert.Len(t, results, 3)
-	for i, row := range results {
-		metricMap := make(map[string]any)
-		for _, kv := range row {
-			metricMap[kv.Key] = kv.Value
-		}
-		assert.Equal(t, data[i], metricMap)
+	expectedResults := []iterator.KeyValueList{
+		{
+			{Key: "_step", Value: int64(0)},
+			{Key: "metric1", Value: 1.0},
+		},
+		{
+			{Key: "_step", Value: int64(1)},
+			{Key: "metric1", Value: 2.0},
+		},
+		{
+			{Key: "_step", Value: int64(2)},
+			{Key: "metric1", Value: 3.0},
+		},
+	}
+	for i, result := range results {
+		assert.ElementsMatch(t, expectedResults[i], result)
 	}
 }
 
@@ -159,7 +174,7 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 		servers[0].URL + "/test1.parquet",
 		servers[1].URL + "/test2.parquet",
 	})
-	reader := New(
+	reader, err := New(
 		ctx,
 		"test-entity",
 		"test-project",
@@ -168,19 +183,24 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 		http.DefaultClient,
 		[]string{},
 	)
+	require.NoError(t, err)
 
-	results, err := reader.GetHistorySteps(1, 4)
+	results, err := reader.GetHistorySteps(ctx, 1, 4)
 
 	assert.NoError(t, err)
 	assert.Len(t, results, 2)
-	expectedResults := make([]map[string]any, 0)
-	expectedResults = append(expectedResults, data1[1], data2[0])
-	for i, row := range results {
-		metricMap := make(map[string]any)
-		for _, kv := range row {
-			metricMap[kv.Key] = kv.Value
-		}
-		assert.Equal(t, expectedResults[i], metricMap)
+	expectedResults := []iterator.KeyValueList{
+		{
+			{Key: "_step", Value: int64(1)},
+			{Key: "metric1", Value: 1.0},
+		},
+		{
+			{Key: "_step", Value: int64(3)},
+			{Key: "metric1", Value: 3.0},
+		},
+	}
+	for i, result := range results {
+		assert.ElementsMatch(t, expectedResults[i], result)
 	}
 }
 
@@ -208,7 +228,7 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 	mockGQL := mockGraphQLWithParquetUrls([]string{
 		server.URL + "/test.parquet",
 	})
-	reader := New(
+	reader, err := New(
 		ctx,
 		"test-entity",
 		"test-project",
@@ -217,24 +237,27 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 		http.DefaultClient,
 		[]string{"metric1"},
 	)
+	require.NoError(t, err)
 
-	results, err := reader.GetHistorySteps(0, 10)
+	results, err := reader.GetHistorySteps(ctx, 0, 10)
 
 	assert.NoError(t, err)
 	assert.Len(t, results, 3)
-	for i, row := range results {
-		metricMap := make(map[string]float64)
-		for _, kv := range row {
-			if val, ok := kv.Value.(float64); ok {
-				metricMap[kv.Key] = val
-			}
-		}
-
-		assert.Equal(t, 1, len(metricMap))
-		assert.Equal(t, data[i]["metric1"], metricMap["metric1"])
-		_, hasMetric2 := metricMap["metric2"]
-		assert.False(t, hasMetric2)
-		_, hasStep := metricMap["_step"]
-		assert.False(t, hasStep)
+	expectedResults := []iterator.KeyValueList{
+		{
+			{Key: "_step", Value: int64(0)},
+			{Key: "metric1", Value: 1.0},
+		},
+		{
+			{Key: "_step", Value: int64(1)},
+			{Key: "metric1", Value: 2.0},
+		},
+		{
+			{Key: "_step", Value: int64(2)},
+			{Key: "metric1", Value: 3.0},
+		},
+	}
+	for i, result := range results {
+		assert.ElementsMatch(t, expectedResults[i], result)
 	}
 }
