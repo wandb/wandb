@@ -182,8 +182,8 @@ class _WandbInit:
         run_settings = self._wl.settings.model_copy()
         run_settings.update_from_settings(init_settings)
 
-        self._logger.info(f"maybe_login: init_settings.api_key = {init_settings.api_key[:10] + '...' if init_settings.api_key else None}")
-        self._logger.info(f"maybe_login: run_settings.api_key = {run_settings.api_key[:10] + '...' if run_settings.api_key else None}")
+        self._logger.info(f"maybe_login: init_settings.api_key = {'<set>' if init_settings.api_key else '<not set>'}")
+        self._logger.info(f"maybe_login: run_settings.api_key = {'<set>' if run_settings.api_key else '<not set>'}")
 
         # NOTE: _noop or _offline can become true after _login().
         #   _noop happens if _login hits a timeout.

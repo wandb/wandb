@@ -305,3 +305,72 @@ def test_new_attributes(mock_run):
     removed_attributes = REFERENCE_ATTRIBUTES - current_attributes
     assert not added_attributes, f"New attributes: {added_attributes}"
     assert not removed_attributes, f"Removed attributes: {removed_attributes}"
+
+
+def test_public_api_caching(mock_run, mocker):
+    """Test that _public_api() returns cached instance on subsequent calls"""
+    # Mock _verify_login to prevent network calls
+    mocker.patch('wandb.sdk.wandb_login._verify_login')
+
+    run = mock_run(settings=wandb.Settings(mode="offline"))
+
+    # First call
+    api1 = run._public_api()
+
+    # Second call should return same instance
+    api2 = run._public_api()
+
+    assert api1 is api2, "Should return cached instance"
+    assert run._cached_public_api is not None, "Cache should be set"
+
+
+def test_public_api_with_explicit_api_key(mock_run, mocker):
+    """Test that _public_api() uses API key from run settings"""
+    api_key = "Z" * 40
+
+    # Mock _verify_login to prevent network calls
+    mocker.patch('wandb.sdk.wandb_login._verify_login')
+
+    # Mock public.Api to track what parameters it receives
+    from wandb.apis import public
+    mock_api_class = mocker.patch.object(public, 'Api')
+    mock_api_instance = mocker.MagicMock()
+    mock_api_class.return_value = mock_api_instance
+
+    run = mock_run(settings=wandb.Settings(mode="offline", api_key=api_key))
+
+    # Call _public_api which should pass the API key
+    result = run._public_api()
+
+    # Verify Api was called with the api_key
+    mock_api_class.assert_called_once()
+    call_kwargs = mock_api_class.call_args.kwargs
+    assert call_kwargs.get('api_key') == api_key, "API key should be passed to public.Api"
+    assert result is mock_api_instance
+
+
+def test_public_api_without_explicit_api_key(mock_run, mocker):
+    """Test that _public_api() doesn't pass api_key when not set in settings"""
+    # Mock _verify_login to prevent network calls
+    mocker.patch('wandb.sdk.wandb_login._verify_login')
+
+    from wandb.apis import public
+    mock_api_class = mocker.patch.object(public, 'Api')
+    mock_api_instance = mocker.MagicMock()
+    mock_api_class.return_value = mock_api_instance
+
+    run = mock_run(settings=wandb.Settings(mode="offline"))
+
+    # Ensure api_key is not set
+    run._settings.api_key = None
+    run._cached_public_api = None  # Clear cache
+
+    # Call _public_api
+    result = run._public_api()
+
+    # Verify Api was called without api_key parameter or with None
+    mock_api_class.assert_called_once()
+    call_kwargs = mock_api_class.call_args.kwargs
+    # api_key should either not be in kwargs or be None
+    assert call_kwargs.get('api_key') is None, "API key should not be set when not in settings"
+    assert result is mock_api_instance
