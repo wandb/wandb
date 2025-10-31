@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -44,9 +43,8 @@ func respondWithParquetContent(
 		)
 		responseWriter.WriteHeader(http.StatusPartialContent)
 
-		pqLen := int64(len(parquetContent))
-		min := slices.Min([]int64{end+1, pqLen})
-		_, err = responseWriter.Write(parquetContent[start:min])
+		minLength := min(end+1, int64(len(parquetContent)))
+		_, err = responseWriter.Write(parquetContent[start:minLength])
 		require.NoError(t, err)
 	}
 }
