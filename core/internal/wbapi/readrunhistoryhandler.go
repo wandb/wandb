@@ -73,7 +73,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 		"", /*clientId*/
 	)
 
-	historyReader := runhistoryreader.New(
+	historyReader, err := runhistoryreader.New(
 		context.Background(),
 		request.Entity,
 		request.Project,
@@ -82,6 +82,16 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 		http.DefaultClient,
 		requestKeys,
 	)
+	if err != nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: err.Error(),
+				},
+			},
+		}
+	}
+
 	f.scanHistoryReaders[requestId] = historyReader
 
 	return &spb.ApiResponse{
@@ -119,8 +129,11 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 	minStep := request.MinStep
 	maxStep := request.MaxStep
 
-	// TODO: return history steps
-	historySteps, err := historyReader.GetHistorySteps(minStep, maxStep)
+	historySteps, err := historyReader.GetHistorySteps(
+		context.Background(),
+		minStep,
+		maxStep,
+	)
 	if err != nil {
 		return &spb.ApiResponse{
 			Response: &spb.ApiResponse_ApiErrorResponse{
