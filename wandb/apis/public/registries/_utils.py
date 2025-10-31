@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Collection
 from wandb_gql import gql
 
 from wandb._strutils import ensureprefix
-from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_artifact_types
 
 if TYPE_CHECKING:
     from wandb_gql import Client
@@ -58,6 +57,8 @@ def prepare_artifact_types_input(
     Returns:
         The artifact types for the GQL input.
     """
+    from wandb.sdk.artifacts._validators import validate_artifact_types
+
     if artifact_types:
         return [{"name": typ} for typ in validate_artifact_types(artifact_types)]
     return None
@@ -70,6 +71,8 @@ def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
 
     EX: {"name": "model"} -> {"name": "wandb-registry-model"}
     """
+    from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+
     if isinstance((txt := query), str):
         return ensureprefix(txt, REGISTRY_PREFIX) if in_name else txt
     if isinstance((dct := query), dict):

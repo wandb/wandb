@@ -10,7 +10,6 @@ Note:
 
 from __future__ import annotations
 
-import requests
 from wandb_gql import gql
 
 from wandb.apis.attrs import Attrs
@@ -46,6 +45,8 @@ class Member(Attrs):
         Returns:
             Boolean indicating success
         """
+        import requests
+
         try:
             return self._client.execute(
                 self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
@@ -168,6 +169,8 @@ class Team(Attrs):
         Returns:
             A `Team` object
         """
+        import requests
+
         try:
             api.client.execute(
                 cls.CREATE_TEAM_MUTATION,
@@ -189,6 +192,8 @@ class Team(Attrs):
         Returns:
             `True` on success, `False` if user was already invited or didn't exist.
         """
+        import requests
+
         variables = {"entityName": self.name, "admin": admin}
         if "@" in username_or_email:
             variables["email"] = username_or_email
@@ -209,6 +214,8 @@ class Team(Attrs):
         Returns:
             The service account `Member` object, or None on failure
         """
+        import requests
+
         try:
             self._client.execute(
                 self.CREATE_SERVICE_ACCOUNT_MUTATION,

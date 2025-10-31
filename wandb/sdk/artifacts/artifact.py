@@ -23,7 +23,6 @@ from pathlib import Path, PurePosixPath
 from typing import IO, TYPE_CHECKING, Any, Final, Iterator, Literal, Sequence, Type
 from urllib.parse import quote, urljoin, urlparse
 
-import requests
 from pydantic import NonNegativeInt
 
 import wandb
@@ -33,7 +32,7 @@ from wandb._pydantic import from_json
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
-from wandb.apis.public.utils import gql_compat
+from wandb.apis.public.utils import _RequestException, gql_compat
 from wandb.data_types import WBValue
 from wandb.errors import CommError
 from wandb.errors.errors import UnsupportedError
@@ -43,7 +42,6 @@ from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_setup
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import retry, runid, telemetry
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
@@ -62,45 +60,6 @@ from wandb.util import (
 )
 
 from ._factories import make_storage_policy
-from ._generated import (
-    ADD_ALIASES_GQL,
-    ARTIFACT_BY_ID_GQL,
-    ARTIFACT_BY_NAME_GQL,
-    ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
-    ARTIFACT_CREATED_BY_GQL,
-    ARTIFACT_FILE_URLS_GQL,
-    ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
-    ARTIFACT_TYPE_GQL,
-    ARTIFACT_USED_BY_GQL,
-    DELETE_ALIASES_GQL,
-    DELETE_ARTIFACT_GQL,
-    FETCH_ARTIFACT_MANIFEST_GQL,
-    FETCH_LINKED_ARTIFACTS_GQL,
-    LINK_ARTIFACT_GQL,
-    UNLINK_ARTIFACT_GQL,
-    UPDATE_ARTIFACT_GQL,
-    AddAliasesInput,
-    ArtifactAliasInput,
-    ArtifactByID,
-    ArtifactByName,
-    ArtifactCollectionMembershipFileUrls,
-    ArtifactCreatedBy,
-    ArtifactFileUrls,
-    ArtifactFragment,
-    ArtifactMembershipByName,
-    ArtifactMembershipFragment,
-    ArtifactType,
-    ArtifactUsedBy,
-    DeleteAliasesInput,
-    DeleteArtifactInput,
-    FetchArtifactManifest,
-    FetchLinkedArtifacts,
-    LinkArtifact,
-    LinkArtifactInput,
-    UnlinkArtifactInput,
-    UpdateArtifact,
-    UpdateArtifactInput,
-)
 from ._gqlutils import (
     omit_artifact_fields,
     org_info_from_entity,
@@ -109,23 +68,7 @@ from ._gqlutils import (
     supports_enable_tracking_var,
     type_info,
 )
-from ._models.pagination import FileWithUrlConnection
-from ._validators import (
-    LINKED_COLLECTION_TYPENAME,
-    ArtifactPath,
-    FullArtifactPath,
-    _LinkArtifactFields,
-    ensure_logged,
-    ensure_not_finalized,
-    is_artifact_registry_project,
-    remove_registry_prefix,
-    validate_aliases,
-    validate_artifact_name,
-    validate_artifact_type,
-    validate_metadata,
-    validate_tags,
-    validate_ttl_duration_seconds,
-)
+from ._validators import ensure_logged, ensure_not_finalized
 from .artifact_download_logger import ArtifactDownloadLogger
 from .artifact_instance_cache import artifact_instance_cache
 from .artifact_manifest import ArtifactManifest
@@ -151,6 +94,10 @@ reset_path()
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient
+
+    from ._generated import ArtifactFragment, ArtifactMembershipFragment
+    from ._models.pagination import FileWithUrlConnection
+    from ._validators import FullArtifactPath, _LinkArtifactFields
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +154,12 @@ class Artifact:
         storage_region: str | None = None,
     ) -> None:
         from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
+        from ._validators import (
+            validate_artifact_name,
+            validate_artifact_type,
+            validate_metadata,
+        )
 
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -289,6 +242,9 @@ class Artifact:
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Artifact | None:
+        from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
+        from ._validators import FullArtifactPath
+
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
@@ -315,6 +271,11 @@ class Artifact:
     def _membership_from_name(
         cls, *, path: FullArtifactPath, client: RetryingClient
     ) -> Artifact:
+        from ._generated import (
+            ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
+            ArtifactMembershipByName,
+        )
+
         if not server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
             raise UnsupportedError(
                 "Querying for the artifact collection membership is not supported "
@@ -348,6 +309,8 @@ class Artifact:
         client: RetryingClient,
         enable_tracking: bool = False,
     ) -> Artifact:
+        from ._generated import ARTIFACT_BY_NAME_GQL, ArtifactByName
+
         if server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
             return cls._membership_from_name(path=path, client=client)
 
@@ -383,6 +346,8 @@ class Artifact:
         target: FullArtifactPath,
         client: RetryingClient,
     ) -> Artifact:
+        from ._validators import is_artifact_registry_project
+
         if not (
             (collection := membership.artifact_collection)
             and (name := collection.name)
@@ -441,6 +406,8 @@ class Artifact:
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
+        from ._validators import validate_metadata, validate_ttl_duration_seconds
+
         self._id = art.id
 
         src_collection = art.artifact_sequence
@@ -707,8 +674,10 @@ class Artifact:
     def linked_artifacts(self) -> list[Artifact]:
         """Returns a list of all the linked artifacts of a source artifact.
 
-        If the artifact is a link artifact (`artifact.is_link == True`), it will return an empty list.
-        Limited to 500 results."""
+        If the artifact is a link artifact (`artifact.is_link == True`),
+        it will return an empty list.
+        Limited to 500 results.
+        """
         if not self.is_link:
             self._linked_artifacts = self._fetch_linked_artifacts()
         return self._linked_artifacts
@@ -718,7 +687,11 @@ class Artifact:
     def source_artifact(self) -> Artifact:
         """Returns the source artifact. The source artifact is the original logged artifact.
 
-        If the artifact itself is a source artifact (`artifact.is_link == False`), it will return itself."""
+        If the artifact itself is a source artifact (`artifact.is_link == False`),
+        it will return itself.
+        """
+        from ._validators import FullArtifactPath
+
         if not self.is_link:
             return self
         if self._source_artifact is None:
@@ -752,6 +725,8 @@ class Artifact:
         Returns:
             str: The URL of the artifact.
         """
+        from ._validators import is_artifact_registry_project
+
         try:
             base_url = self._client.app_url  # type: ignore[union-attr]
         except AttributeError:
@@ -783,6 +758,8 @@ class Artifact:
         )
 
     def _construct_registry_url(self, base_url: str) -> str:
+        from ._validators import remove_registry_prefix
+
         if not all(
             [
                 base_url,
@@ -871,6 +848,8 @@ class Artifact:
         Args:
             metadata: Structured data associated with the artifact.
         """
+        from ._validators import validate_metadata
+
         if self.is_link:
             wandb.termwarn(
                 "Editing the metadata of this linked artifact will edit the metadata for the source artifact and it's linked artifacts as well."
@@ -957,6 +936,8 @@ class Artifact:
     @ensure_logged
     def aliases(self, aliases: list[str]) -> None:
         """Set the aliases associated with this artifact."""
+        from ._validators import validate_aliases
+
         self._aliases = validate_aliases(aliases)
 
     @property
@@ -972,6 +953,8 @@ class Artifact:
 
         Editing tags will apply the changes to the source artifact and all linked artifacts associated with it.
         """
+        from ._validators import validate_tags
+
         if self.is_link:
             wandb.termwarn(
                 "Editing tags will apply the changes to the source artifact and all linked artifacts associated with it."
@@ -1025,6 +1008,10 @@ class Artifact:
 
     def _fetch_manifest(self) -> ArtifactManifest:
         """Fetch, parse, and load the full ArtifactManifest."""
+        import requests
+
+        from ._generated import FETCH_ARTIFACT_MANIFEST_GQL, FetchArtifactManifest
+
         if self._client is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
@@ -1226,6 +1213,8 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
+        from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
+
         assert self._client is not None
 
         query = gql_compat(
@@ -1245,6 +1234,9 @@ class Artifact:
     @normalize_exceptions
     def _update(self) -> None:
         """Persists artifact changes to the wandb backend."""
+        from ._generated import UPDATE_ARTIFACT_GQL, UpdateArtifact, UpdateArtifactInput
+        from ._validators import FullArtifactPath, validate_tags
+
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
@@ -1313,6 +1305,8 @@ class Artifact:
         self._ttl_changed = False  # Reset after updating artifact
 
     def _add_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
+        from ._generated import ADD_ALIASES_GQL, AddAliasesInput
+
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
@@ -1335,6 +1329,8 @@ class Artifact:
             ) from e
 
     def _delete_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
+        from ._generated import DELETE_ALIASES_GQL, DeleteAliasesInput
+
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
@@ -2153,44 +2149,62 @@ class Artifact:
 
     @retry.retriable(
         retry_timedelta=timedelta(minutes=3),
-        retryable_exceptions=(requests.RequestException),
+        retryable_exceptions=(_RequestException),
     )
     def _fetch_file_urls(
         self, cursor: str | None, per_page: int = 5000
     ) -> FileWithUrlConnection:
+        from ._generated import (
+            ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
+            ARTIFACT_FILE_URLS_GQL,
+            ArtifactCollectionMembershipFileUrls,
+            ArtifactFileUrls,
+        )
+
         if self._client is None:
             raise RuntimeError("Client not initialized")
 
-        if server_supports(self._client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES):
-            query = gql(ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL)
-            gql_vars = {
-                "entityName": self.entity,
-                "projectName": self.project,
-                "artifactName": self.name.split(":")[0],
-                "artifactVersionIndex": self.version,
-                "cursor": cursor,
-                "perPage": per_page,
-            }
-            data = self._client.execute(query, variable_values=gql_vars, timeout=60)
-            result = ArtifactCollectionMembershipFileUrls.model_validate(data)
+        import requests
 
-            if not (
-                (project := result.project)
-                and (collection := project.artifact_collection)
-                and (membership := collection.artifact_membership)
-                and (files := membership.files)
-            ):
-                raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
-            return FileWithUrlConnection.model_validate(files)
-        else:
-            query = gql(ARTIFACT_FILE_URLS_GQL)
-            gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
-            data = self._client.execute(query, variable_values=gql_vars, timeout=60)
-            result = ArtifactFileUrls.model_validate(data)
+        from ._models.pagination import FileWithUrlConnection
 
-            if not ((artifact := result.artifact) and (files := artifact.files)):
-                raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
-            return FileWithUrlConnection.model_validate(files)
+        try:
+            if server_supports(self._client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES):
+                query = gql(ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL)
+                gql_vars = {
+                    "entityName": self.entity,
+                    "projectName": self.project,
+                    "artifactName": self.name.split(":")[0],
+                    "artifactVersionIndex": self.version,
+                    "cursor": cursor,
+                    "perPage": per_page,
+                }
+                data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+                result = ArtifactCollectionMembershipFileUrls.model_validate(data)
+
+                if not (
+                    (project := result.project)
+                    and (collection := project.artifact_collection)
+                    and (membership := collection.artifact_membership)
+                    and (files := membership.files)
+                ):
+                    raise ValueError(
+                        f"Unable to fetch files for artifact: {self.name!r}"
+                    )
+                return FileWithUrlConnection.model_validate(files)
+            else:
+                query = gql(ARTIFACT_FILE_URLS_GQL)
+                gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
+                data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+                result = ArtifactFileUrls.model_validate(data)
+
+                if not ((artifact := result.artifact) and (files := artifact.files)):
+                    raise ValueError(
+                        f"Unable to fetch files for artifact: {self.name!r}"
+                    )
+                return FileWithUrlConnection.model_validate(files)
+        except requests.RequestException as e:
+            raise _RequestException() from e
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
@@ -2357,6 +2371,8 @@ class Artifact:
 
     @normalize_exceptions
     def _delete(self, delete_aliases: bool = False) -> None:
+        from ._generated import DELETE_ARTIFACT_GQL, DeleteArtifactInput
+
         if self._client is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
@@ -2390,6 +2406,15 @@ class Artifact:
             The linked artifact.
         """
         from wandb import Api
+        from wandb.sdk.internal.internal_api import Api as InternalApi
+
+        from ._generated import (
+            LINK_ARTIFACT_GQL,
+            ArtifactAliasInput,
+            LinkArtifact,
+            LinkArtifactInput,
+        )
+        from ._validators import ArtifactPath, FullArtifactPath
 
         if self.is_link:
             wandb.termwarn(
@@ -2486,6 +2511,8 @@ class Artifact:
 
     @normalize_exceptions
     def _unlink(self) -> None:
+        from ._generated import UNLINK_ARTIFACT_GQL, UnlinkArtifactInput
+
         if self._client is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
@@ -2512,6 +2539,8 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
+        from ._generated import ARTIFACT_USED_BY_GQL, ArtifactUsedBy
+
         if self._client is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
@@ -2543,6 +2572,8 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
+        from ._generated import ARTIFACT_CREATED_BY_GQL, ArtifactCreatedBy
+
         if self._client is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
@@ -2574,6 +2605,8 @@ class Artifact:
         entity_name: str, project_name: str, name: str, client: RetryingClient
     ) -> str | None:
         """Returns the expected type for a given artifact name and project."""
+        from ._generated import ARTIFACT_TYPE_GQL, ArtifactType
+
         query = gql(ARTIFACT_TYPE_GQL)
         gql_vars = {
             "entityName": entity_name,
@@ -2606,6 +2639,15 @@ class Artifact:
 
     def _fetch_linked_artifacts(self) -> list[Artifact]:
         """Fetches all linked artifacts from the server."""
+        from wandb._pydantic import gql_typename
+
+        from ._generated import (
+            FETCH_LINKED_ARTIFACTS_GQL,
+            ArtifactPortfolioTypeFields,
+            FetchLinkedArtifacts,
+        )
+        from ._validators import _LinkArtifactFields
+
         if self.id is None:
             raise ValueError(
                 "Unable to find any artifact memberships for artifact without an ID"
@@ -2632,7 +2674,7 @@ class Artifact:
             if (
                 (node := edge.node)
                 and (col := node.artifact_collection)
-                and (col.typename__ == LINKED_COLLECTION_TYPENAME)
+                and (col.typename__ == gql_typename(ArtifactPortfolioTypeFields))
             )
         )
         for node in linked_nodes:

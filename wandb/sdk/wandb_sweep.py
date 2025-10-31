@@ -3,8 +3,6 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
 import wandb
 from wandb import env
-from wandb.apis import InternalApi
-from wandb.sdk.launch.sweeps.utils import handle_sweep_config_violations
 
 from . import wandb_login
 
@@ -67,6 +65,9 @@ def sweep(
     Returns:
       str: A unique identifier for the sweep.
     """
+    from wandb.apis import InternalApi
+    from wandb.sdk.launch.sweeps.utils import handle_sweep_config_violations
+
     if callable(sweep):
         sweep = sweep()
     """Sweep create for controller api and jupyter (eventually for cli)."""

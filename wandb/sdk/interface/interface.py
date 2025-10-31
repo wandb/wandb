@@ -1,29 +1,16 @@
+from __future__ import annotations
+
 import abc
 import gzip
 import logging
 import time
 from pathlib import Path
 from secrets import token_hex
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Iterable,
-    List,
-    Literal,
-    NewType,
-    Optional,
-    Tuple,
-    TypedDict,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Iterable, Literal, NewType, TypedDict
 
 from wandb import termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
-from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
 from wandb.util import (
@@ -48,17 +35,20 @@ PolicyName = Literal["now", "live", "end"]
 
 
 class FilesDict(TypedDict):
-    files: Iterable[Tuple[GlobStr, PolicyName]]
+    files: Iterable[tuple[GlobStr, PolicyName]]
 
 
 if TYPE_CHECKING:
+    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+
     from ..wandb_run import Run
 
 
 logger = logging.getLogger("wandb")
 
 
-def file_policy_to_enum(policy: "PolicyName") -> "pb.FilesItem.PolicyType.V":
+def file_policy_to_enum(policy: PolicyName) -> pb.FilesItem.PolicyType.V:
     if policy == "now":
         enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
@@ -68,7 +58,7 @@ def file_policy_to_enum(policy: "PolicyName") -> "pb.FilesItem.PolicyType.V":
     return enum
 
 
-def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
+def file_enum_to_policy(enum: pb.FilesItem.PolicyType.V) -> PolicyName:
     if enum == pb.FilesItem.PolicyType.NOW:
         policy: PolicyName = "now"
     elif enum == pb.FilesItem.PolicyType.END:
@@ -130,10 +120,10 @@ class InterfaceBase(abc.ABC):
 
     def _make_config(
         self,
-        data: Optional[dict] = None,
-        key: Optional[Union[Tuple[str, ...], str]] = None,
-        val: Optional[Any] = None,
-        obj: Optional[pb.ConfigRecord] = None,
+        data: dict | None = None,
+        key: tuple[str, ...] | str | None = None,
+        val: Any | None = None,
+        obj: pb.ConfigRecord | None = None,
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
         if data:
@@ -151,7 +141,7 @@ class InterfaceBase(abc.ABC):
             update.value_json = json_dumps_safer(json_friendly(val)[0])
         return config
 
-    def _make_run(self, run: "Run") -> pb.RunRecord:  # noqa: C901
+    def _make_run(self, run: Run) -> pb.RunRecord:  # noqa: C901
         proto_run = pb.RunRecord()
         if run._settings.entity is not None:
             proto_run.entity = run._settings.entity
@@ -204,7 +194,7 @@ class InterfaceBase(abc.ABC):
             proto_run.runtime = run._start_runtime
         return proto_run
 
-    def publish_run(self, run: "Run") -> None:
+    def publish_run(self, run: Run) -> None:
         run_record = self._make_run(run)
         self._publish_run(run_record)
 
@@ -222,9 +212,9 @@ class InterfaceBase(abc.ABC):
 
     def publish_config(
         self,
-        data: Optional[dict] = None,
-        key: Optional[Union[Tuple[str, ...], str]] = None,
-        val: Optional[Any] = None,
+        data: dict | None = None,
+        key: tuple[str, ...] | str | None = None,
+        val: Any | None = None,
     ) -> None:
         cfg = self._make_config(data=data, key=key, val=val)
 
@@ -250,7 +240,7 @@ class InterfaceBase(abc.ABC):
         self,
         value: Any,
         path_from_root: str,
-        run: "Run",
+        run: Run,
     ) -> dict:
         """Normalize, compress, and encode sub-objects for backend storage.
 
@@ -291,7 +281,7 @@ class InterfaceBase(abc.ABC):
     def _make_summary(
         self,
         summary_record: sr.SummaryRecord,
-        run: "Run",
+        run: Run,
     ) -> pb.SummaryRecord:
         pb_summary_record = pb.SummaryRecord()
 
@@ -334,7 +324,7 @@ class InterfaceBase(abc.ABC):
 
     def publish_summary(
         self,
-        run: "Run",
+        run: Run,
         summary_record: sr.SummaryRecord,
     ) -> None:
         pb_summary_record = self._make_summary(summary_record, run=run)
@@ -344,7 +334,7 @@ class InterfaceBase(abc.ABC):
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:
         raise NotImplementedError
 
-    def _make_files(self, files_dict: "FilesDict") -> pb.FilesRecord:
+    def _make_files(self, files_dict: FilesDict) -> pb.FilesRecord:
         files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
@@ -352,7 +342,7 @@ class InterfaceBase(abc.ABC):
             f.policy = file_policy_to_enum(policy)
         return files
 
-    def publish_files(self, files_dict: "FilesDict") -> None:
+    def publish_files(self, files_dict: FilesDict) -> None:
         files = self._make_files(files_dict)
         self._publish_files(files)
 
@@ -372,7 +362,7 @@ class InterfaceBase(abc.ABC):
     ) -> None:
         raise NotImplementedError
 
-    def _make_artifact(self, artifact: "Artifact") -> pb.ArtifactRecord:
+    def _make_artifact(self, artifact: Artifact) -> pb.ArtifactRecord:
         proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
@@ -398,7 +388,7 @@ class InterfaceBase(abc.ABC):
     def _make_artifact_manifest(
         self,
         artifact_manifest: ArtifactManifest,
-        obj: Optional[pb.ArtifactManifest] = None,
+        obj: pb.ArtifactManifest | None = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
         proto_manifest.version = artifact_manifest.version()
@@ -439,6 +429,8 @@ class InterfaceBase(abc.ABC):
         return proto_manifest
 
     def _write_artifact_manifest_file(self, manifest: ArtifactManifest) -> str:
+        from wandb.sdk.artifacts.staging import get_staging_dir
+
         manifest_dir = Path(get_staging_dir()) / "artifact_manifests"
         manifest_dir.mkdir(parents=True, exist_ok=True)
         # It would be simpler to use `manifest.to_json()`, but that gets very slow for
@@ -452,12 +444,12 @@ class InterfaceBase(abc.ABC):
 
     def deliver_link_artifact(
         self,
-        artifact: "Artifact",
+        artifact: Artifact,
         portfolio_name: str,
         aliases: Iterable[str],
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        organization: Optional[str] = None,
+        entity: str | None = None,
+        project: str | None = None,
+        organization: str | None = None,
     ) -> MailboxHandle[pb.Result]:
         link_artifact = pb.LinkArtifactRequest()
         if artifact.is_draft():
@@ -480,7 +472,7 @@ class InterfaceBase(abc.ABC):
 
     @staticmethod
     def _make_partial_source_str(
-        source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
+        source: Any, job_info: dict[str, Any], metadata: dict[str, Any]
     ) -> str:
         """Construct use_artifact.partial.source_info.source as str."""
         source_type = job_info.get("source_type", "").strip()
@@ -518,8 +510,8 @@ class InterfaceBase(abc.ABC):
         self,
         use_artifact: pb.UseArtifactRecord,
         job_name: str,
-        job_info: Dict[str, Any],
-        metadata: Dict[str, Any],
+        job_info: dict[str, Any],
+        metadata: dict[str, Any],
     ) -> pb.UseArtifactRecord:
         use_artifact.partial.job_name = job_name
         use_artifact.partial.source_info._version = job_info.get("_version", "")
@@ -537,7 +529,7 @@ class InterfaceBase(abc.ABC):
 
     def publish_use_artifact(
         self,
-        artifact: "Artifact",
+        artifact: Artifact,
     ) -> None:
         assert artifact.id is not None, "Artifact must have an id"
 
@@ -585,15 +577,17 @@ class InterfaceBase(abc.ABC):
 
     def deliver_artifact(
         self,
-        run: "Run",
-        artifact: "Artifact",
+        run: Run,
+        artifact: Artifact,
         aliases: Iterable[str],
-        tags: Optional[Iterable[str]] = None,
-        history_step: Optional[int] = None,
+        tags: Iterable[str] | None = None,
+        history_step: int | None = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
     ) -> MailboxHandle[pb.Result]:
+        from wandb.sdk.artifacts.staging import get_staging_dir
+
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -627,7 +621,7 @@ class InterfaceBase(abc.ABC):
         download_root: str,
         allow_missing_references: bool,
         skip_cache: bool,
-        path_prefix: Optional[str],
+        path_prefix: str | None,
     ) -> MailboxHandle[pb.Result]:
         download_artifact = pb.DownloadArtifactRequest()
         download_artifact.artifact_id = artifact_id
@@ -646,10 +640,10 @@ class InterfaceBase(abc.ABC):
 
     def publish_artifact(
         self,
-        run: "Run",
-        artifact: "Artifact",
+        run: Run,
+        artifact: Artifact,
         aliases: Iterable[str],
-        tags: Optional[Iterable[str]] = None,
+        tags: Iterable[str] | None = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
@@ -694,11 +688,11 @@ class InterfaceBase(abc.ABC):
 
     def publish_partial_history(
         self,
-        run: "Run",
+        run: Run,
         data: dict,
         user_step: int,
-        step: Optional[int] = None,
-        flush: Optional[bool] = None,
+        step: int | None = None,
+        flush: bool | None = None,
         publish_step: bool = True,
     ) -> None:
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
@@ -727,9 +721,9 @@ class InterfaceBase(abc.ABC):
 
     def publish_history(
         self,
-        run: "Run",
+        run: Run,
         data: dict,
-        step: Optional[int] = None,
+        step: int | None = None,
         publish_step: bool = True,
     ) -> None:
         data = history_dict_to_json(run, data, step=step)
@@ -843,13 +837,13 @@ class InterfaceBase(abc.ABC):
     def _publish_alert(self, alert: pb.AlertRecord) -> None:
         raise NotImplementedError
 
-    def _make_exit(self, exit_code: Optional[int]) -> pb.RunExitRecord:
+    def _make_exit(self, exit_code: int | None) -> pb.RunExitRecord:
         exit = pb.RunExitRecord()
         if exit_code is not None:
             exit.exit_code = exit_code
         return exit
 
-    def publish_exit(self, exit_code: Optional[int]) -> None:
+    def publish_exit(self, exit_code: int | None) -> None:
         exit_data = self._make_exit(exit_code)
         self._publish_exit(exit_data)
 
@@ -867,9 +861,9 @@ class InterfaceBase(abc.ABC):
 
     def publish_job_input(
         self,
-        include_paths: List[List[str]],
-        exclude_paths: List[List[str]],
-        input_schema: Optional[dict],
+        include_paths: list[list[str]],
+        exclude_paths: list[list[str]],
+        input_schema: dict | None,
         run_config: bool = False,
         file_path: str = "",
     ):
@@ -954,7 +948,7 @@ class InterfaceBase(abc.ABC):
     def _deliver_shutdown(self) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_run(self, run: "Run") -> MailboxHandle[pb.Result]:
+    def deliver_run(self, run: Run) -> MailboxHandle[pb.Result]:
         run_record = self._make_run(run)
         return self._deliver_run(run_record)
 
@@ -974,7 +968,7 @@ class InterfaceBase(abc.ABC):
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_run_start(self, run: "Run") -> MailboxHandle[pb.Result]:
+    def deliver_run_start(self, run: Run) -> MailboxHandle[pb.Result]:
         run_start = pb.RunStartRequest(run=self._make_run(run))
         return self._deliver_run_start(run_start)
 
@@ -1048,7 +1042,7 @@ class InterfaceBase(abc.ABC):
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle[pb.Result]:
+    def deliver_exit(self, exit_code: int | None) -> MailboxHandle[pb.Result]:
         exit_data = self._make_exit(exit_code)
         return self._deliver_exit(exit_data)
 

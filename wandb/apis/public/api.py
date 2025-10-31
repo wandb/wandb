@@ -20,7 +20,6 @@ import urllib
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, Iterator, Literal
 
-import requests
 from pydantic import ValidationError
 from typing_extensions import Unpack
 from wandb_gql import Client, gql
@@ -45,17 +44,14 @@ from wandb.apis.public.utils import (
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login
-from wandb.sdk.artifacts._validators import (
-    ArtifactPath,
-    FullArtifactPath,
-    is_artifact_registry_project,
-)
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.gql_request import GraphQLSession
+
+from .utils import _RequestException
 
 if TYPE_CHECKING:
     from wandb.automations import (
@@ -115,13 +111,17 @@ class RetryingClient:
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
+        retryable_exceptions=(RetryError, _RequestException),
     )
     def execute(
         self, *args, **kwargs
     ):  # User not encouraged to use this class directly
+        import requests
+
         try:
             return self._client.execute(*args, **kwargs)
+        except requests.RequestException as e:
+            raise _RequestException() from e
         except requests.exceptions.ReadTimeout:
             if "timeout" not in kwargs:
                 timeout = self._client.transport.default_timeout
@@ -373,6 +373,8 @@ class Api:
             4. Netrc file
             5. Prompt for api key using wandb.login
         """
+        import requests
+
         # Use explicit key before thread local.
         # This allow user switching keys without picking up the wrong key from thread local.
         if init_api_key is not None:
@@ -400,6 +402,8 @@ class Api:
         return prompted_key
 
     def _configure_sentry(self) -> None:
+        import requests
+
         try:
             viewer = self.viewer
         except (ValueError, requests.RequestException):
@@ -943,6 +947,8 @@ class Api:
 
     def _parse_artifact_path(self, path):
         """Return project, entity and artifact name for project specified by path."""
+        from wandb.sdk.artifacts._validators import ArtifactPath
+
         project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
@@ -991,6 +997,8 @@ class Api:
         Returns:
             A `Project` object.
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         # For registry artifacts, capture potential org user inputted before resolving entity
         org = entity if is_artifact_registry_project(name) else ""
 
@@ -1336,6 +1344,8 @@ class Api:
         Returns:
             An iterable `ArtifactTypes` object.
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         from .artifacts import ArtifactTypes
 
         project_path = project
@@ -1360,6 +1370,8 @@ class Api:
         Returns:
             An `ArtifactType` object.
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         from .artifacts import ArtifactType
 
         project_path = project
@@ -1388,6 +1400,8 @@ class Api:
         Returns:
             An iterable `ArtifactCollections` object.
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         from .artifacts import ArtifactCollections
 
         entity, project = self._parse_project_path(project_name)
@@ -1438,6 +1452,8 @@ class Api:
         artifact_example.download()
         ```
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         from .artifacts import ArtifactCollection
 
         entity, project, collection_name = self._parse_artifact_path(name)
@@ -1504,6 +1520,8 @@ class Api:
         wandb.Api().artifacts(type_name="type", name="entity/project/artifact_name")
         ```
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         from .artifacts import Artifacts
 
         entity, project, collection_name = self._parse_artifact_path(name)
@@ -1528,6 +1546,10 @@ class Api:
     def _artifact(
         self, name: str, type: str | None = None, enable_tracking: bool = False
     ) -> Artifact:
+        from wandb.sdk.artifacts._validators import (
+            FullArtifactPath,
+            is_artifact_registry_project,
+        )
         from wandb.sdk.artifacts.artifact import Artifact
 
         if name is None:
@@ -1645,6 +1667,8 @@ class Api:
         Returns:
             A list of matching jobs.
         """
+        import requests
+
         if entity is None:
             raise ValueError("Specify an entity when listing jobs")
         if project is None:
@@ -1742,6 +1766,8 @@ class Api:
         ```
 
         """
+        import requests
+
         try:
             self._artifact(name, type)
         except wandb.errors.CommError as e:
@@ -1776,6 +1802,8 @@ class Api:
         wandb.Api.artifact_collection_exists(type="type", name="collection_name")
         ```
         """
+        import requests
+
         try:
             self.artifact_collection(type, name)
         except wandb.errors.CommError as e:
@@ -2310,6 +2338,8 @@ class Api:
         )
         ```
         """
+        import requests
+
         from wandb.automations import Automation
         from wandb.automations._generated import CREATE_AUTOMATION_GQL, CreateAutomation
         from wandb.automations._utils import prepare_to_create
@@ -2419,6 +2449,8 @@ class Api:
         )
         ```
         """
+        import requests
+
         from wandb.automations import ActionType, Automation
         from wandb.automations._generated import UPDATE_AUTOMATION_GQL, UpdateAutomation
         from wandb.automations._utils import prepare_to_update

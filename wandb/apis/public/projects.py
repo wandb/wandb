@@ -33,7 +33,6 @@ Note:
 
 from __future__ import annotations
 
-from requests import HTTPError
 from wandb_gql import gql
 
 from wandb.apis import public
@@ -205,6 +204,8 @@ class Project(Attrs):
         self.entity = entity
 
     def _load(self):
+        from requests import HTTPError
+
         variable_values = {"project": self.name, "entity": self.entity}
         try:
             response = self.client.execute(self.QUERY, variable_values)

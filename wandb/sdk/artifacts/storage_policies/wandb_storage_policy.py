@@ -12,8 +12,6 @@ from operator import itemgetter
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
-import requests
-
 from wandb.errors.term import termwarn
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts.artifact_file_cache import (
@@ -42,6 +40,8 @@ from wandb.sdk.lib.paths import FilePathStr, URIStr
 from ._factories import make_http_session, make_storage_handlers
 
 if TYPE_CHECKING:
+    import requests
+
     from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry

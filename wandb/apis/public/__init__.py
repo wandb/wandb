@@ -41,7 +41,7 @@ __all__ = (
 )
 
 
-from wandb.apis.public.api import Api, RetryingClient, requests
+from wandb.apis.public.api import Api, RetryingClient
 from wandb.apis.public.artifacts import (
     ArtifactCollection,
     ArtifactCollections,

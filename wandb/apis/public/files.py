@@ -37,7 +37,6 @@ from __future__ import annotations
 import io
 import os
 
-import requests
 from wandb_gql import gql
 from wandb_gql.client import RetryError
 
@@ -51,6 +50,8 @@ from wandb.apis.public.api import Api, RetryingClient
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.runs import Run, _server_provides_internal_id_for_project
 from wandb.sdk.lib import retry
+
+from .utils import _RequestException
 
 FILE_FRAGMENT = """fragment RunFilesFragment on Run {
     files(names: $fileNames, after: $fileCursor, first: $fileLimit, pattern: $pattern) {
@@ -297,7 +298,7 @@ class File(Attrs):
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
+        retryable_exceptions=(RetryError, _RequestException),
     )
     def download(
         self,
@@ -322,20 +323,25 @@ class File(Attrs):
             `ValueError` if file already exists, `replace=False` and
             `exist_ok=False`.
         """
-        if api is None:
-            api = wandb.Api()
+        import requests
 
-        path = os.path.join(root, self.name)
-        if os.path.exists(path) and not replace:
-            if exist_ok:
-                return open(path)
-            else:
-                raise ValueError(
-                    "File already exists, pass replace=True to overwrite or exist_ok=True to leave it as is and don't error."
-                )
+        try:
+            if api is None:
+                api = wandb.Api()
 
-        util.download_file_from_url(path, self.url, api.api_key)
-        return open(path)
+            path = os.path.join(root, self.name)
+            if os.path.exists(path) and not replace:
+                if exist_ok:
+                    return open(path)
+                else:
+                    raise ValueError(
+                        "File already exists, pass replace=True to overwrite or exist_ok=True to leave it as is and don't error."
+                    )
+
+            util.download_file_from_url(path, self.url, api.api_key)
+            return open(path)
+        except requests.RequestException as e:
+            raise _RequestException() from e
 
     @normalize_exceptions
     def delete(self):
