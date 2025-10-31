@@ -218,13 +218,13 @@ func getUploadRequestBody(
 
 		requestBody = NewProgressReader(
 			io.NewSectionReader(file, task.Offset, task.Size),
-			int(task.Size),
-			func(processed int, total int) {
+			task.Size,
+			func(processed, total int64) {
 				if task.ProgressCallback != nil {
-					task.ProgressCallback(processed, total)
+					task.ProgressCallback(int(processed), int(total))
 				}
 
-				progress.SetBytesOfTotal(processed, total)
+				progress.SetBytesOfTotal(int(processed), int(total))
 
 				fileTransferStats.UpdateUploadStats(FileUploadInfo{
 					FileKind:      task.FileKind,
@@ -239,37 +239,55 @@ func getUploadRequestBody(
 }
 
 type ProgressReader struct {
-	io.ReadSeeker
-	len      int
-	read     int
-	callback func(processed, total int)
+	reader   io.ReadSeeker
+	len      int64
+	read     int64
+	callback func(processed, total int64)
 }
 
 func NewProgressReader(
 	reader io.ReadSeeker,
-	size int,
-	callback func(processed, total int),
+	size int64,
+	callback func(processed, total int64),
 ) *ProgressReader {
 	return &ProgressReader{
-		ReadSeeker: reader,
-		len:        size,
-		callback:   callback,
+		reader:   reader,
+		len:      size,
+		callback: callback,
 	}
 }
 
-func (pr *ProgressReader) Read(p []byte) (int, error) {
-	n, err := pr.ReadSeeker.Read(p)
-	if err != nil {
-		return n, err // Return early if there's an error
+// Seek implements io.Seeker.
+func (pr *ProgressReader) Seek(offset int64, whence int) (n int64, err error) {
+	n, err = pr.reader.Seek(offset, whence)
+
+	if err == nil {
+		pr.read = n
+		pr.invokeCallback()
 	}
 
-	pr.read += n
+	return
+}
+
+// Read implements io.Reader.
+func (pr *ProgressReader) Read(p []byte) (n int, err error) {
+	n, err = pr.reader.Read(p)
+
+	if err == nil {
+		pr.read += int64(n)
+		pr.invokeCallback()
+	}
+
+	return
+}
+
+// Len implements retryablehttp.LenReader.
+func (pr *ProgressReader) Len() int {
+	return int(pr.len)
+}
+
+func (pr *ProgressReader) invokeCallback() {
 	if pr.callback != nil {
 		pr.callback(pr.read, pr.len)
 	}
-	return n, err
-}
-
-func (pr *ProgressReader) Len() int {
-	return int(pr.len)
 }
