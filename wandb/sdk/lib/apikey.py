@@ -314,17 +314,24 @@ def write_key(
 def api_key(settings: Settings | None = None) -> str | None:
     if settings is None:
         settings = wandb_setup.singleton().settings
+    wandb.termlog(f"[DEBUG apikey.api_key] settings.api_key={'<set>' if settings.api_key else None}")
     if settings.api_key:
+        wandb.termlog("[DEBUG apikey.api_key] Returning api_key from settings")
         return settings.api_key
 
-    netrc_access = check_netrc_access(get_netrc_file_path())
+    netrc_path = get_netrc_file_path()
+    wandb.termlog(f"[DEBUG apikey.api_key] Checking netrc at: {netrc_path}")
+    netrc_access = check_netrc_access(netrc_path)
+    wandb.termlog(f"[DEBUG apikey.api_key] Netrc exists: {netrc_access.exists}, read_access: {netrc_access.read_access}")
     if netrc_access.exists and not netrc_access.read_access:
-        wandb.termwarn(f"Cannot access {get_netrc_file_path()}.")
+        wandb.termwarn(f"Cannot access {netrc_path}.")
         return None
 
     if netrc_access.exists:
         auth = get_netrc_auth(settings.base_url)
+        wandb.termlog(f"[DEBUG apikey.api_key] get_netrc_auth returned: {'<found>' if auth else None}")
         if auth:
             return auth[-1]
 
+    wandb.termlog("[DEBUG apikey.api_key] No API key found, returning None")
     return None

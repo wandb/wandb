@@ -182,16 +182,26 @@ class _WandbInit:
         run_settings = self._wl.settings.model_copy()
         run_settings.update_from_settings(init_settings)
 
+        self._logger.info(f"maybe_login: init_settings.api_key = {init_settings.api_key[:10] + '...' if init_settings.api_key else None}")
+        self._logger.info(f"maybe_login: run_settings.api_key = {run_settings.api_key[:10] + '...' if run_settings.api_key else None}")
+
         # NOTE: _noop or _offline can become true after _login().
         #   _noop happens if _login hits a timeout.
         #   _offline can be selected by the user at the login prompt.
         if run_settings._noop or run_settings._offline:
             return
 
+        # If API key was explicitly provided in init_settings, don't write it to .netrc
+        # This is because the user is providing the key programmatically and likely
+        # doesn't want it persisted to disk.
+        update_api_key = init_settings.api_key is None
+
         wandb_login._login(
             anonymous=run_settings.anonymous,
             host=run_settings.base_url,
             force=run_settings.force,
+            key=run_settings.api_key,
+            update_api_key=update_api_key,
             _disable_warning=True,
             _silent=run_settings.quiet or run_settings.silent,
         )

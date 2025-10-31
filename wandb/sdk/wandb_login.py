@@ -285,6 +285,8 @@ def _login(
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
         return True, None
 
+    wandb.termlog(f"[DEBUG] _login called with key={'<provided>' if key else None}, update_api_key={update_api_key}")
+
     wlogin = _WandbLogin(
         anonymous=anonymous,
         force=force,
@@ -293,6 +295,8 @@ def _login(
         relogin=relogin,
         timeout=timeout,
     )
+
+    wandb.termlog(f"[DEBUG] After _WandbLogin init, wlogin._settings.api_key={'<set>' if wlogin._settings.api_key else None}")
 
     if wlogin._settings._noop:
         return True, None
@@ -312,19 +316,27 @@ def _login(
     key_is_pre_configured = False
     key_status = None
     if key is None:
+        wandb.termlog("[DEBUG] key is None, checking apikey.api_key()")
         # Check if key is already set in the settings, or configured in the users .netrc file.
         key = apikey.api_key(settings=wlogin._settings)
+        wandb.termlog(f"[DEBUG] apikey.api_key() returned: {'<found>' if key else None}")
         if key and not relogin:
             key_is_pre_configured = True
         else:
+            wandb.termlog("[DEBUG] Prompting for API key")
             key, key_status = wlogin.prompt_api_key(referrer=referrer)
+    else:
+        wandb.termlog("[DEBUG] key was provided, not prompting")
 
     if verify:
         _verify_login(key, wlogin._settings.base_url)
 
     if not key_is_pre_configured:
         if update_api_key:
+            wandb.termlog("[DEBUG] Writing API key to .netrc")
             wlogin.try_save_api_key(key)
+        else:
+            wandb.termlog("[DEBUG] Skipping .netrc write (update_api_key=False)")
         wlogin.update_session(key, status=key_status)
         wlogin._update_global_anonymous_setting()
 
