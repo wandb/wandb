@@ -43,7 +43,7 @@ message ReadRunHistoryResponse {
   }
 }
 
-// ScanRunHistoryInitApiRequest is a request to initialize
+// ScanRunHistoryInit is a request to initialize
 // a scan over a run's history.
 //
 // Because scan history request will be made over a series of requests,
@@ -61,7 +61,7 @@ message ScanRunHistoryInitResponse {
   int32 request_id = 1;
 }
 
-// ScanRunHistoryApiRequest is a request to scan
+// ScanRunHistory is a request to scan
 // over a portion of a run's history.
 message ScanRunHistory {
   int64 min_step = 1;
@@ -82,7 +82,7 @@ message ParquetHistoryItem {
   string value_json = 16;
 }
 
-// ScanRunHistoryCleanupApiRequest is a request to cleanup
+// ScanRunHistoryCleanup is a request to cleanup
 // any resources associated with a scan request.
 message ScanRunHistoryCleanup {
   int32 request_id = 1;
