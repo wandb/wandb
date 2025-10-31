@@ -11,7 +11,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.sdk.lib.credentials import _expires_at_fmt
+from wandb.sdk.lib.auth.credentials import _expires_at_fmt
 
 
 @pytest.fixture
