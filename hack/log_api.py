@@ -32,6 +32,12 @@ def main():
         artifact.add_file("time.md")
         run.log_artifact(artifact)
 
+    # Check if .netrc exists
+    if os.path.exists(netrc_path):
+        print(f"{netrc_path} exists")
+    else:
+        print(f"{netrc_path} does not exist")
+
 
 if __name__ == "__main__":
     main()
