@@ -51,6 +51,9 @@ func (h *HistoryReader) GetHistorySteps(
 
 // getRunHistoryFileUrls gets URLs
 // that can be used to download a run's history files.
+//
+// The order of the URLs returned is not guaranteed
+// to be the same order as the order the run history partitions were created in.
 func (h *HistoryReader) getRunHistoryFileUrls(keys []string) ([]string, error) {
 	response, err := gql.RunParquetHistory(
 		context.Background(),
