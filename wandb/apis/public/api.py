@@ -301,6 +301,7 @@ class Api:
                 or configured in the environment.
         """
         self.settings = InternalApi().settings()
+        self._settings = wandb.sdk.wandb_settings.Settings()
 
         _overrides = overrides or {}
         self.settings.update(_overrides)
@@ -312,6 +313,8 @@ class Api:
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = _overrides["username"]
+
+        self._settings.update_from_dict(self.settings)
 
         use_api_key = api_key is not None or _thread_local_api_settings.cookies is None
 
@@ -358,6 +361,21 @@ class Api:
         self._client = RetryingClient(self._base_client)
         self._sentry = wandb.analytics.sentry.Sentry()
         self._configure_sentry()
+
+        self._backend: wandb.sdk.backend.backend.Backend | None = None
+        if _overrides.get("beta_start_service", False):
+            self._start_service()
+
+    def _start_service(self):
+        from wandb.sdk import wandb_setup
+
+        self._stream_id = str(runid.generate_id())
+        singleton = wandb_setup.singleton()
+        self._settings = singleton.settings.model_copy()
+        self._settings.base_url = self.settings["base_url"]
+        self._settings.silent = True
+
+        self._service = singleton.ensure_service()
 
     def _load_api_key(
         self,
@@ -1247,6 +1265,7 @@ class Api:
             per_page=per_page,
             include_sweeps=include_sweeps,
             lazy=lazy,
+            service=self._service,
         )
         return self._runs[key]
 
@@ -1266,7 +1285,13 @@ class Api:
         if not self._runs.get(path):
             # Individual runs should load full data by default
             self._runs[path] = public.Run(
-                self.client, entity, project, run_id, lazy=False
+                self.client,
+                entity,
+                project,
+                run_id,
+                lazy=False,
+                service=self._service,
+                settings=self._settings,
             )
         return self._runs[path]
 
