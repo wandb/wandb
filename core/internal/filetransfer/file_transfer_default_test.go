@@ -1,6 +1,7 @@
 package filetransfer_test
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -331,6 +332,35 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 	assert.Nil(t, task.Response)
 	assert.Contains(t, err.Error(), "connection refused")
 	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
+}
+
+func TestProgressReader_TracksProgress(t *testing.T) {
+	var lastProcessed, lastTotal int64
+	callback := func(processed, total int64) {
+		lastProcessed = processed
+		lastTotal = total
+	}
+	data := bytes.NewReader([]byte("some data"))
+	progressReader := filetransfer.NewProgressReader(
+		data,
+		int64(data.Len()),
+		callback,
+	)
+
+	_, err := progressReader.Read(make([]byte, 2))
+	assert.NoError(t, err)
+	assert.EqualValues(t, 2, lastProcessed)
+	assert.EqualValues(t, 9, lastTotal)
+
+	_, err = progressReader.Seek(2, io.SeekCurrent)
+	assert.NoError(t, err)
+	assert.EqualValues(t, 4, lastProcessed)
+	assert.EqualValues(t, 9, lastTotal)
+
+	_, err = progressReader.Seek(0, io.SeekStart)
+	assert.NoError(t, err)
+	assert.EqualValues(t, 0, lastProcessed)
+	assert.EqualValues(t, 9, lastTotal)
 }
 
 // Start test server and count number of times the handler was called
