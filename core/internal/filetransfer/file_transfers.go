@@ -6,12 +6,18 @@ import (
 )
 
 type FileTransfer interface {
+	// Upload uploads a file to the server.
 	Upload(task *DefaultUploadTask) error
+
+	// Download downloads a file from the server
 	Download(task *DefaultDownloadTask) error
 }
 
 type ArtifactFileTransfer interface {
+	// Upload uploads a file to the server.
 	Upload(task *DefaultUploadTask) error
+
+	// Download downloads a file from the server
 	Download(task *ReferenceArtifactDownloadTask) error
 }
 

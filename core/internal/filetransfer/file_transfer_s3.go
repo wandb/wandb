@@ -76,14 +76,14 @@ func (ft *S3FileTransfer) SetupClient() {
 	})
 }
 
-// Upload uploads a file to the server.
+// Upload implements ArtifactFileTransfer.Upload
 func (ft *S3FileTransfer) Upload(task *DefaultUploadTask) error {
 	ft.logger.Debug("S3 file transfer: uploading file", "path", task.Path)
 
 	return nil
 }
 
-// Download downloads a file from the server.
+// Download implements ArtifactFileTransfer.Download
 func (ft *S3FileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	ft.logger.Debug(
 		"s3 file transfer: downloading file",

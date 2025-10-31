@@ -194,7 +194,7 @@ func setupBlobClient(
 	return client, nil
 }
 
-// Upload uploads a file to the server.
+// Upload implements ArtifactFileTransfer.Upload
 func (ft *AzureFileTransfer) Upload(task *DefaultUploadTask) error {
 	ft.logger.Debug("Azure file transfer: uploading file", "path", task.Path, "url", task.Url)
 
@@ -310,7 +310,7 @@ type ParsedBlobInfo struct {
 	BlobPrefix string
 }
 
-// Download downloads a file from the server.
+// Download implements ArtifactFileTransfer.Download
 func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	ft.logger.Debug(
 		"Azure file transfer: downloading file",
