@@ -77,15 +77,6 @@ def is_import_from(stmt: ast.stmt) -> TypeGuard[ast.ImportFrom]:
     return isinstance(stmt, ast.ImportFrom)
 
 
-def make_model_rebuild(class_name: str) -> ast.Expr:
-    """Generate the AST node for a `PydanticModel.model_rebuild()` statement."""
-    return ast.Expr(
-        ast.Call(
-            ast.Attribute(ast.Name(class_name), "model_rebuild"), args=[], keywords=[]
-        )
-    )
-
-
 def make_all_assignment(names: Iterable[str]) -> ast.Assign:
     """Generate an `__all__ = [...]` statement to export the given names from __init__.py."""
     return make_assign("__all__", ast.List([ast.Constant(n) for n in names]))
