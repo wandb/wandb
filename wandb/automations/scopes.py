@@ -36,7 +36,7 @@ class _ArtifactSequenceScope(_BaseScope, ArtifactSequenceScopeFields):
 
 
 class _ArtifactPortfolioScope(_BaseScope, ArtifactPortfolioScopeFields):
-    """An automation scope defined by a specific `ArtifactPortfolio` (e.g. a registry collection)."""
+    """Automation scope defined by an `ArtifactPortfolio` (e.g. a registry collection)."""
 
     scope_type: Literal[ScopeType.ARTIFACT_COLLECTION] = ScopeType.ARTIFACT_COLLECTION
 

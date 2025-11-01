@@ -96,7 +96,7 @@ class Registry:
             self._update_attributes(attrs)
 
     def _update_attributes(self, fragment: RegistryFragment) -> None:
-        """Internal helper method to update instance attributes from GraphQL fragment data."""
+        """Update instance attributes from a GraphQL fragment."""
         saved = RegistryData.from_fragment(fragment)
         self._saved = saved
         self._current = saved.model_copy(deep=True)
@@ -142,10 +142,10 @@ class Registry:
 
     @property
     def allow_all_artifact_types(self) -> bool:
-        """Returns whether all artifact types are allowed in the registry.
+        """Return whether all artifact types are allowed in the registry.
 
-        If `True` then artifacts of any type can be added to this registry.
-        If `False` then artifacts are restricted to the types in `artifact_types` for this registry.
+        If `True`, artifacts of any type can be added. If `False`, artifacts are
+        restricted to the types listed in `artifact_types`.
         """
         return self._current.allow_all_artifact_types
 
@@ -328,8 +328,11 @@ class Registry:
 
     @tracked
     def load(self) -> None:
-        """Load the registry attributes from the backend to reflect the latest saved state."""
-        failed_msg = f"Failed to load registry {self.name!r} in organization {self.organization!r}."
+        """Load registry attributes from the backend."""
+        failed_msg = (
+            f"Failed to load registry {self.name!r} in organization"
+            f" {self.organization!r}."
+        )
 
         gql_op = gql(FETCH_REGISTRY_GQL)
         gql_vars = {"name": self.full_name, "entity": self.entity}
@@ -355,7 +358,8 @@ class Registry:
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        # If `artifact_types.draft` has items, it means the user has added artifact types that aren't saved yet.
+        # If `artifact_types.draft` has items, the user added types that are not
+        # yet saved.
         if (
             new_artifact_types := self.artifact_types.draft
         ) and self.allow_all_artifact_types:
@@ -385,7 +389,7 @@ class Registry:
             raise ValueError(failed_msg) from e
 
         if result and result.inserted:
-            # This is not suppose trigger unless the user has messed with the `_saved_name` variable
+            # This should only trigger if `_saved_name` was modified unexpectedly.
             wandb.termlog(
                 f"Created registry {self.name!r} in organization {self.organization!r} on save"
             )
@@ -410,7 +414,7 @@ class Registry:
                 raise ValueError(failed_msg)
 
             if result.inserted:
-                # This is not suppose trigger unless the user has messed with the `_saved_name` variable
+                # This should only trigger if `_saved_name` was modified unexpectedly.
                 wandb.termlog(f"Created new registry {self.name!r} on save")
 
             self._update_attributes(registry_project)
@@ -433,9 +437,8 @@ class Registry:
             UserMember(
                 user=User(
                     client=self.client,
-                    # The `User` class currently requires an unstructured attribute dict :\
-                    # To conform to the existing User class, exclude `.role` from the dict,
-                    # as it's specific to this user's membership in this registry, not the user itself.
+                    # The `User` class requires an unstructured attribute dict.
+                    # Exclude `.role`, which is specific to this registry membership.
                     attrs=m.model_dump(exclude_none=True, exclude={"role"}),
                 ),
                 role=m.role.name,
@@ -458,7 +461,7 @@ class Registry:
                 team=Team(
                     client=self.client,
                     name=m.team.name,
-                    # The `Team` class currently requires an unstructured attribute dict :\
+                    # The `Team` class currently requires an unstructured attribute dict.
                     attrs=m.team.model_dump(exclude_none=True),
                 ),
                 role=m.role.name,

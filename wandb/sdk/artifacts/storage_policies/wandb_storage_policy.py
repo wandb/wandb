@@ -102,11 +102,10 @@ class WandbStoragePolicy(StoragePolicy):
         """Use cache or download the file using signed url.
 
         Args:
-            executor: Passed from caller, artifact has a thread pool for multi file download.
-                Reuse the thread pool for multi part download. The thread pool is closed when
-                artifact download is done.
-
-                If this is None, download the file serially.
+            executor: A thread pool provided by the caller for multi-file
+                downloads. Reuse the thread pool for multipart downloads; it is
+                closed when the artifact download completes. If this is `None`,
+                download the file serially.
         """
         if dest_path is not None:
             self._cache._override_cache_path = dest_path

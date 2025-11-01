@@ -173,21 +173,24 @@ class Artifact:
             The name must be unique across a project.
         type (str): The artifact's type. Use the type of an artifact to both organize
             and differentiate artifacts. You can use any string that contains letters,
-            numbers, underscores, hyphens, and dots. Common types include `dataset` or `model`.
-            Include `model` within your type string if you want to link the artifact
-            to the W&B Model Registry. Note that some types reserved for internal use
-            and cannot be set by users. Such types include `job` and types that start with `wandb-`.
-        description (str | None) = None: A description of the artifact. For Model or Dataset Artifacts,
-            add documentation for your standardized team model or dataset card. View
-            an artifact's description programmatically with the `Artifact.description`
-            attribute or programmatically with the W&B App UI. W&B renders the
-            description as markdown in the W&B App.
-        metadata (dict[str, Any] | None) = None: Additional information about an artifact. Specify metadata as a
-            dictionary of key-value pairs. You can specify no more than 100 total keys.
+            numbers, underscores, hyphens, and dots. Common types include `dataset` or
+            `model`. Include `model` within your type string if you want to link the
+            artifact to the W&B Model Registry.
+            Note that some types reserved for internal use and cannot be set by users.
+            Such types include `job` and types that start with `wandb-`.
+        description (str | None) = None: A description of the artifact. For Model or
+            Dataset Artifacts, add documentation for your standardized team model or
+            dataset card. View an artifact's description programmatically with the
+            `Artifact.description` attribute or programmatically with the W&B App UI.
+            W&B renders the description as markdown in the W&B App.
+        metadata (dict[str, Any] | None) = None: Additional information about an artifact.
+            Specify metadata as a dictionary of key-value pairs. You can specify no more
+            than 100 total keys.
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
         use_as: Deprecated.
-        is_link: Boolean indication of if the artifact is a linked artifact(`True`) or source artifact(`False`).
+        is_link: Boolean indication of whether the artifact is a linked
+            artifact (`True`) or source artifact (`False`).
 
     Returns:
         An `Artifact` object.
@@ -263,9 +266,9 @@ class Artifact:
         self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
 
-        # NOTE: These fields will only reflect the last fetched response from the server, if any.
-        # If the ArtifactManifest has already been fetched and/or populated locally, it should
-        # take priority for determining these values.
+        # NOTE: These fields only reflect the last fetched response from the
+        # server, if any. If the ArtifactManifest has already been fetched and/or
+        # populated locally, it should take priority when determining these values.
         self._size: NonNegativeInt | None = None
         self._digest: str | None = None
 
@@ -603,7 +606,8 @@ class Artifact:
     def name(self) -> str:
         """The artifact name and version of the artifact.
 
-        A string with the format `{collection}:{alias}`. If fetched before an artifact is logged/saved, the name won't contain the alias.
+        A string with the format `{collection}:{alias}`. If fetched before an artifact is
+        logged/saved, the name won't contain the alias.
         If the artifact is a link, the name will be the name of the linked artifact.
         """
         return self._name
@@ -612,7 +616,8 @@ class Artifact:
     def qualified_name(self) -> str:
         """The entity/project/name of the artifact.
 
-        If the artifact is a link, the qualified name will be the qualified name of the linked artifact path.
+        If the artifact is a link, the qualified name will be the qualified name of the
+        linked artifact path.
         """
         return f"{self.entity}/{self.project}/{self.name}"
 
@@ -622,7 +627,7 @@ class Artifact:
         """The artifact's version.
 
         A string with the format `v{number}`.
-        If the artifact is a link artifact, the version will be from the linked collection.
+        If this is a link artifact, the version will be from the linked collection.
         """
         assert self._version is not None
         return self._version
@@ -661,8 +666,8 @@ class Artifact:
     def source_name(self) -> str:
         """The artifact name and version of the source artifact.
 
-        A string with the format `{source_collection}:{alias}`. Before the artifact is saved,
-        contains only the name since the version is not yet known.
+        A string with the format `{source_collection}:{alias}`. Before the artifact
+        is saved, contains only the name since the version is not yet known.
         """
         return self._source_name
 
@@ -707,8 +712,11 @@ class Artifact:
     def linked_artifacts(self) -> list[Artifact]:
         """Returns a list of all the linked artifacts of a source artifact.
 
-        If the artifact is a link artifact (`artifact.is_link == True`), it will return an empty list.
-        Limited to 500 results."""
+        If this artifact is a link artifact (`artifact.is_link == True`),
+        it will return an empty list.
+
+        Limited to 500 results.
+        """
         if not self.is_link:
             self._linked_artifacts = self._fetch_linked_artifacts()
         return self._linked_artifacts
@@ -716,9 +724,11 @@ class Artifact:
     @property
     @ensure_logged
     def source_artifact(self) -> Artifact:
-        """Returns the source artifact. The source artifact is the original logged artifact.
+        """Returns the source artifact, which is the original logged artifact.
 
-        If the artifact itself is a source artifact (`artifact.is_link == False`), it will return itself."""
+        If this artifact is a source artifact (`artifact.is_link == False`),
+        it will return itself.
+        """
         if not self.is_link:
             return self
         if self._source_artifact is None:
@@ -839,7 +849,8 @@ class Artifact:
         standardized team model or dataset card. In the W&B UI the
         description is rendered as markdown.
 
-        Editing the description will apply the changes to the source artifact and all linked artifacts associated with it.
+        Editing the description will apply the changes to the source artifact
+        and all linked artifacts associated with it.
 
         Args:
             description: Free text that offers a description of the artifact.
@@ -866,7 +877,8 @@ class Artifact:
         the class distribution of a dataset.
 
         Note: There is currently a limit of 100 total keys.
-        Editing the metadata will apply the changes to the source artifact and all linked artifacts associated with it.
+        Editing the metadata will apply the changes to the source artifact
+        and all linked artifacts associated with it.
 
         Args:
             metadata: Structured data associated with the artifact.
@@ -909,8 +921,8 @@ class Artifact:
         TTL and there is no custom policy set on an artifact.
 
         Args:
-            ttl: The duration as a positive Python `datetime.timedelta` Type
-                that represents how long the artifact will remain active from its creation.
+            ttl: The duration as a positive `datetime.timedelta` that represents
+                how long the artifact will remain active from its creation.
 
         """
         if self.type == "wandb-history":
@@ -970,7 +982,8 @@ class Artifact:
     def tags(self, tags: list[str]) -> None:
         """Set the tags associated with this artifact.
 
-        Editing tags will apply the changes to the source artifact and all linked artifacts associated with it.
+        Editing tags will apply the changes to the source artifact
+        and all linked artifacts associated with it.
         """
         if self.is_link:
             wandb.termwarn(
@@ -1037,9 +1050,10 @@ class Artifact:
         # Now fetch the actual manifest contents from the directUrl.
         if (artifact := result.artifact) and (manifest := artifact.current_manifest):
             # FIXME: For successive/repeated calls to `manifest`, figure out how to reuse a single
-            # `requests.Session` within the constraints of the current artifacts API.  Right now,
-            # `requests.get()` creates a new session for _each_ fetch.  This is wasteful and introduces a
-            # noticeable perf overhead when e.g. downloading many artifacts sequentially or concurrently.
+            # `requests.Session` within the constraints of the current artifacts API.
+            # Right now, `requests.get()` creates a new session for _each_ fetch.
+            # This is wasteful and introduces a noticeable perf overhead when e.g.
+            # downloading many artifacts sequentially or concurrently.
             response = requests.get(manifest.file.direct_url)
             return ArtifactManifest.from_manifest_json(from_json(response.content))
 
@@ -1052,9 +1066,10 @@ class Artifact:
         The digest is the checksum of the artifact's contents. If an artifact has the
         same digest as the current `latest` version, then `log_artifact` is a no-op.
         """
-        # Use the last fetched value of `Artifact.digest` ONLY if present AND the manifest has not been
-        # fetched and/or populated locally.  Otherwise, use the manifest directly to recalculate
-        # the digest, as its contents may have been locally modified.
+        # Use the last fetched value of `Artifact.digest` ONLY if present AND the manifest
+        # has not been fetched and/or populated locally.
+        # Otherwise, use the manifest directly to recalculate the digest, as its contents
+        # may have been locally modified.
         return (
             self._digest
             if (self._manifest is None) and (self._digest is not None)
@@ -1067,11 +1082,13 @@ class Artifact:
 
         Includes any references tracked by this artifact.
         """
-        # Use the last fetched value of `Artifact.size` ONLY if present AND the manifest has not been
-        # fetched and/or populated locally.  Otherwise, use the manifest directly to recalculate
-        # the size, as its contents may have been locally modified.
+        # Use the last fetched value of `Artifact.size` ONLY if present AND the manifest
+        # has not been fetched and/or populated locally.
+        # Otherwise, use the manifest directly to recalculate the size, as its contents
+        # may have been locally modified.
         #
-        # NOTE: The `Artifact.size` GQL field includes references, `Artifact.storageBytes` does not.
+        # NOTE on choice of GQL field: `Artifact.size` counts references, while
+        # `Artifact.storageBytes` does not.
         return (
             self._size
             if (self._manifest is None) and (self._size is not None)
@@ -1109,7 +1126,7 @@ class Artifact:
     @property
     @ensure_logged
     def history_step(self) -> int | None:
-        """The nearest step at which history metrics were logged for the source run of the artifact.
+        """The nearest step which logged history metrics for this artifact's source run.
 
         Examples:
         ```python
@@ -1238,8 +1255,9 @@ class Artifact:
             raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
 
         # _populate_after_save is only called on source artifacts, not linked artifacts
-        # We have to manually set is_link because we aren't fetching the collection the artifact.
-        # That requires greater refactoring for commitArtifact to return the artifact collection type.
+        # We have to manually set is_link because we aren't fetching the collection
+        # the artifact. That requires greater refactoring for commitArtifact to return
+        # the artifact collection type.
         self._assign_attrs(artifact, is_link=False)
 
     @normalize_exceptions
@@ -1509,12 +1527,16 @@ class Artifact:
             skip_cache: If set to `True`, W&B will not copy/move files to
                 the cache while uploading
             policy: By default, "mutable".
-            - mutable: Create a temporary copy of the file to prevent corruption during upload.
-            - immutable: Disable protection, rely on the user not to delete or change the file.
-            merge: If `False` (default), throws ValueError if a file was already added in a previous add_dir call
-                and its content has changed. If `True`, overwrites existing files with changed content.
-                Always adds new files and never removes files. To replace an entire directory, pass a name when adding the directory
-                using `add_dir(local_path, name=my_prefix)` and call `remove(my_prefix)` to remove the directory, then add it again.
+                - mutable: Create a temporary copy of the file to prevent
+                    corruption during upload.
+                - immutable: Disable protection, rely on the user not to delete
+                    or change the file.
+            merge: If `False` (default), throws ValueError if a file was already added
+                in a previous add_dir call and its content has changed. If `True`,
+                overwrites existing files with changed content. Always adds new files
+                and never removes files. To replace an entire directory, pass a name
+                when adding the directory using `add_dir(local_path, name=my_prefix)`
+                and call `remove(my_prefix)` to remove the directory, then add it again.
 
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current
@@ -1598,10 +1620,11 @@ class Artifact:
             checksum: Whether or not to checksum the resource(s) located at the
                 reference URI. Checksumming is strongly recommended as it enables
                 automatic integrity validation. Disabling checksumming will speed up
-                artifact creation but reference directories will not iterated through so the
-                objects in the directory will not be saved to the artifact. We recommend
-                setting `checksum=False` when adding reference objects, in which case
-                a new version will only be created if the reference URI changes.
+                artifact creation but reference directories will not iterated through so
+                the objects in the directory will not be saved to the artifact.
+                We recommend setting `checksum=False` when adding reference objects,
+                in which case a new version will only be created if the reference URI
+                changes.
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix.
                 By default, the maximum number of objects allowed for Amazon S3,
@@ -1937,8 +1960,8 @@ class Artifact:
             path_prefix: If specified, only files with a path that starts with the given
                 prefix will be downloaded. Uses unix format (forward slashes).
             multipart: If set to `None` (default), the artifact will be downloaded
-                in parallel using multipart download if individual file size is greater than
-                2GB. If set to `True` or `False`, the artifact will be downloaded in
+                in parallel using multipart download if individual file size is greater
+                than 2GB. If set to `True` or `False`, the artifact will be downloaded in
                 parallel or serially regardless of the file size.
 
         Returns:
@@ -2120,11 +2143,11 @@ class Artifact:
                 # - Even though the ThreadPoolExecutor limits the number of
                 #   concurrently-executed tasks, its internal task queue is unbounded.
                 #   The code below seems intended to ensure that at most `batch_size`
-                #   "backlogged" futures are held in memory at any given time.  This seems like
-                #   a reasonable safeguard against unbounded memory consumption.
+                #   "backlogged" futures are held in memory at any given time.  This seems
+                #   like a reasonable safeguard against unbounded memory consumption.
                 #
-                # - We should probably use a builtin (bounded) Queue or Semaphore here instead.
-                #   Consider this for a future change, or (depending on risk and risk tolerance)
+                # - We should probably use a builtin bounded Queue or Semaphore instead.
+                #   Consider this for a future change, or (depending on appetite for risk)
                 #   managing this logic via asyncio instead, if viable.
                 if len(active_futures) > batch_size:
                     for future in as_completed(active_futures):
@@ -2336,7 +2359,8 @@ class Artifact:
         If called on a linked artifact, only the link is deleted, and the
         source artifact is unaffected.
 
-        Use `artifact.unlink()` instead of `artifact.delete()` to remove a link between a source artifact and a linked artifact.
+        Use `artifact.unlink()` instead of `artifact.delete()` to remove a link between a
+        source artifact and a linked artifact.
 
         Args:
             delete_aliases: If set to `True`, deletes all aliases associated
@@ -2417,8 +2441,8 @@ class Artifact:
         # Parse the entity (first part of the path) appropriately,
         # depending on whether we're linking to a registry
         if target.is_registry_path():
-            # In a Registry linking, the entity is used to fetch the organization of the artifact
-            # therefore the source artifact's entity is passed to the backend
+            # In a Registry linking, the entity is used to fetch the organization of the
+            # artifact, therefore the source artifact's entity is passed to the backend
             org = target.prefix or settings.get("organization") or None
             target.prefix = resolve_org_entity_name(client, self.source_entity, org)
         else:
@@ -2459,7 +2483,7 @@ class Artifact:
         if result and (membership := result.artifact_membership):
             return self._from_membership(membership, target=target, client=client)
 
-        # Fallback to old behavior, which requires re-fetching the linked artifact to return it
+        # Old behavior, which requires re-fetching the linked artifact to return it
         if not (result and (version_idx := result.version_index) is not None):
             raise ValueError("Unable to parse linked artifact version from response")
 
@@ -2468,7 +2492,7 @@ class Artifact:
 
     @ensure_logged
     def unlink(self) -> None:
-        """Unlink this artifact if it is currently a member of a promoted collection of artifacts.
+        """Unlink this artifact if it is a linked member of an artifact collection.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2592,9 +2616,10 @@ class Artifact:
         return None
 
     def _ttl_duration_seconds_to_gql(self) -> int | None:
-        # Set artifact ttl value to ttl_duration_seconds if the user set a value
-        # otherwise use ttl_status to indicate the backend INHERIT(-1) or DISABLED(-2) when the TTL is None
-        # When ttl_change = None its a no op since nothing changed
+        # Set the artifact TTL to `ttl_duration_seconds` if the user provided a value.
+        # Otherwise, use `ttl_status` to indicate backend values INHERIT (-1) or
+        # DISABLED (-2) when the TTL is None.
+        # When `ttl_change is None`, nothing changed and this is a no-op.
         INHERIT = -1  # noqa: N806
         DISABLED = -2  # noqa: N806
 

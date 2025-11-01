@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 def make_storage_policy(storage_region: str | None = None) -> StoragePolicy:
-    """A factory function that returns the default StoragePolicy for the current environment."""
+    """Return the default `StoragePolicy` for the current environment."""
     layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
     config = {"storageLayout": layout}
     # Only set storage region if is not None for backward compatibility

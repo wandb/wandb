@@ -238,7 +238,7 @@ class ArtifactSaver:
 
         commit_result: concurrent.futures.Future[None] = concurrent.futures.Future()
 
-        # This will queue the commit. It will only happen after all the file uploads are done
+        # Queue the commit. It will only happen after all file uploads finish.
         self._file_pusher.commit_artifact(
             artifact_id,
             finalize=finalize,
