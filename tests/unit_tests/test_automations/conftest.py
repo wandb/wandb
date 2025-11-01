@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import secrets
-from base64 import b64encode
 from functools import lru_cache
 from typing import Union
 from unittest.mock import Mock
@@ -10,6 +9,7 @@ from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
 from typing_extensions import TypeAlias
+from wandb._strutils import b64encode_ascii
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
     ActionType,
@@ -52,7 +52,7 @@ def make_graphql_id(prefix: str) -> str:
     - "ArtifactCollection:101"
     """
     random_index: int = secrets.randbelow(1_000_000)
-    return b64encode(f"{prefix}:{random_index:d}".encode()).decode()
+    return b64encode_ascii(f"{prefix}:{random_index:d}")
 
 
 # ---------------------------------------------------------------------------
