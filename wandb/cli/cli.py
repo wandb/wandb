@@ -33,6 +33,7 @@ from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.internal.internal_api import Api as SDKInternalApi
 from wandb.sdk.launch import utils as launch_utils
+from wandb.sdk.launch._launch import _launch
 from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
@@ -2912,3 +2913,172 @@ def verify(host):
 
 
 cli.add_command(beta)
+
+
+@cli.command(help="Run an evaluation and launch a job.")
+@click.option(
+    "--path",
+    "-p",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to the predictions file.",
+)
+@click.option(
+    "--queue",
+    "-q",
+    default=None,
+    help="The name of a queue to push the launch job to.",
+)
+@click.option(
+    "--project",
+    default=None,
+    help="The project to log the data to.",
+)
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    help="The entity to log the data to.",
+)
+@click.option(
+    "--dataset_name",
+    "-d",
+    default="princeton-nlp/SWE-bench_Lite",
+    help="The name of the dataset to evaluate on.",
+)
+@click.option(
+    "--split",
+    "-s",
+    default=None,
+    help="The split to evaluate on. One of: dev, test if not provided, will evaluate on all splits",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    default=False,
+    help="The verbosity of the evaluation. 0: no verbose, 1: verbose, 2: debug",
+)
+@click.option(
+    "--instance_ids",
+    "-i",
+    default=None,
+    callback=lambda ctx, param, value: [] if not value else value.split(),
+    help="The instance ids to evaluate on, as a quoted space separated list. If not provided, will evaluate on all instances",
+)
+@click.option(
+    "--job",
+    "-j",
+    default=None,
+    help="The job to launch.",
+)
+@click.pass_context
+@display_error
+def eval(
+    ctx, path, queue, project, entity, dataset_name, split, verbose, instance_ids, job
+):
+    """Publish an evaluation artifact and launch an eval job."""
+    from wandb.sdk.launch.agent.agent import HIDDEN_AGENT_RUN_TYPE
+
+    public_queue_entity = "wandb"
+    default_job = "wandb/hackoween_test/mock_job:v1"
+    api = _get_cling_api()
+    try:
+        launch_utils.check_logged_in(api)
+    except Exception:
+        wandb.termerror(f"Error running job: {traceback.format_exc()}")
+
+    entity = entity or api.settings("entity") or api.default_entity
+    project = project or api.settings("project")
+
+    if not project:
+        project = "uncategorized"
+        wandb.termlog("Project not specified, using 'uncategorized'.")
+
+    if not os.path.exists(path):
+        wandb.termerror(f"Path {path} does not exist")
+        sys.exit(1)
+
+    if not os.path.isfile(path):
+        wandb.termerror(f"Path {path} is not a file")
+        sys.exit(1)
+
+    if not path.endswith(".jsonl"):
+        wandb.termerror(
+            f"Path {path} is not a .jsonl file, swebench predictions should be in .jsonl format"
+        )
+        sys.exit(1)
+
+    with wandb.init(
+        job_type=HIDDEN_AGENT_RUN_TYPE,
+        settings=wandb.Settings(silent="true"),
+        project=project,
+        entity=entity,
+    ) as run:
+        artifact = wandb.Artifact(name=f"eval-preds-{run.id}", type="swe-bench-dataset")
+        artifact.add_file(path)
+        run.log_artifact(artifact)
+        artifact.wait()
+        artifact_name = artifact.source_qualified_name
+
+    job = job or default_job
+    config = {
+        "overrides": {
+            "run_config": {
+                "predictions": artifact_name,
+                "dataset_name": dataset_name,
+                "instance_ids": instance_ids,
+                "split": split,
+                "verbose": verbose,
+            }
+        }
+    }
+
+    if queue:
+        wandb.termlog(f"Adding job to queue '{public_queue_entity}/{queue}'...")
+        _launch_add(
+            api=api,
+            job=job,
+            queue_name=queue,
+            project=project,
+            entity=entity,
+            config=config,
+            template_variables=None,
+            resource=None,
+            entry_point=None,
+            name=None,
+            version=None,
+            docker_image=None,
+            project_queue=None,
+            resource_args=None,
+            queue_entity=public_queue_entity,
+        )
+    else:
+        wandb.termlog("Launching job directly...")
+        try:
+            run = asyncio.run(
+                _launch(
+                    api,
+                    job=job,
+                    project=project,
+                    entity=entity,
+                    launch_config=config,
+                    synchronous=True,
+                )
+            )
+            if asyncio.run(run.get_status()).state in [
+                "failed",
+                "stopped",
+                "preempted",
+            ]:
+                wandb.termerror("Launched run exited with non-zero status")
+                sys.exit(1)
+        except LaunchError as e:
+            logger.exception("An error occurred.")
+            wandb._sentry.exception(e)
+            sys.exit(e)
+        except ExecutionError as e:
+            logger.exception("An error occurred.")
+            wandb._sentry.exception(e)
+            sys.exit(e)
+        except asyncio.CancelledError:
+            sys.exit(0)
