@@ -11,4 +11,4 @@ if TYPE_CHECKING:
 
 def make_storage_policy(region: str | None = None) -> StoragePolicy:
     """Returns the default `StoragePolicy` for the current environment."""
-    return WandbStoragePolicy(StoragePolicyConfig.from_env(region=region))
+    return WandbStoragePolicy(config=StoragePolicyConfig.from_env(region=region))
