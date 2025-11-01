@@ -13,6 +13,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Changed
+
+- `wandb.Api()` now supports an optional `session` argument which can be set to any object compatible with `requests.Session`. This allows advanced users to override HTTP client settings which are not otherwise/directly exposed through public interfaces.
+
 ### Fixed
 - `Artifact.files()` now has a correct `len()` when filtering by the `names` parameter (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10796)
 - The numerator for file upload progress no longer occasionally exceeds the total file size (@timoffex in https://github.com/wandb/wandb/pull/10812)
