@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from urllib.parse import ParseResult
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import Self
 
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
-from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
@@ -19,6 +21,21 @@ if TYPE_CHECKING:
 
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
+
+
+@pydantic_dataclass
+class _ParsedEntryInfo:
+    """Partial ArtifactManifestEntry fields parsed from HTTP response headers."""
+
+    digest: Optional[str]  # noqa: UP045
+    size: Optional[int]  # noqa: UP045
+
+    @classmethod
+    def from_headers(cls, hdrs: CaseInsensitiveDict) -> Self:
+        return cls(
+            digest=etag.strip('"') if (etag := hdrs.get("etag")) else None,
+            size=hdrs.get("content-length"),
+        )
 
 
 class HTTPHandler(StorageHandler):
@@ -39,33 +56,33 @@ class HTTPHandler(StorageHandler):
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> URIStr | FilePathStr:
-        if not local:
-            assert manifest_entry.ref is not None
-            return manifest_entry.ref
+        if (ref_url := manifest_entry.ref) is None:
+            raise ValueError("Missing URL on artifact manifest entry")
 
-        assert manifest_entry.ref is not None
+        if not local:
+            return ref_url
+
+        expected_digest = manifest_entry.digest
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            URIStr(manifest_entry.ref),
-            ETag(manifest_entry.digest),
+            ref_url,
+            expected_digest,
             manifest_entry.size or 0,
         )
         if hit:
             return path
 
         response = self._session.get(
-            manifest_entry.ref,
+            ref_url,
             stream=True,
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         )
-
-        digest: ETag | FilePathStr | URIStr | None
-        digest, size, extra = self._entry_from_headers(response.headers)
-        digest = digest or manifest_entry.ref
-        if manifest_entry.digest != digest:
+        entry_info = _ParsedEntryInfo.from_headers(response.headers)
+        actual_digest = entry_info.digest or ref_url
+        if expected_digest != actual_digest:
             raise ValueError(
-                f"Digest mismatch for url {manifest_entry.ref}: expected {manifest_entry.digest} but found {digest}"
+                f"Digest mismatch for url {ref_url!r}: expected {expected_digest!r} but found {actual_digest!r}"
             )
 
         with cache_open(mode="wb") as file:
@@ -91,27 +108,14 @@ class HTTPHandler(StorageHandler):
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         ) as response:
-            digest: ETag | FilePathStr | URIStr | None
-            digest, size, extra = self._entry_from_headers(response.headers)
-            digest = digest or path
+            entry_info = _ParsedEntryInfo.from_headers(response.headers)
+
         return [
             ArtifactManifestEntry(
-                path=name, ref=path, digest=digest, size=size, extra=extra
+                path=name,
+                ref=path,
+                digest=entry_info.digest or path,
+                size=entry_info.size,
+                extra={"etag": etag} if (etag := entry_info.digest) else {},
             )
         ]
-
-    def _entry_from_headers(
-        self, headers: CaseInsensitiveDict
-    ) -> tuple[ETag | None, int | None, dict[str, str]]:
-        response_headers = {k.lower(): v for k, v in headers.items()}
-        size = None
-        if response_headers.get("content-length", None):
-            size = int(response_headers["content-length"])
-
-        digest = response_headers.get("etag", None)
-        extra = {}
-        if digest:
-            extra["etag"] = digest
-        if digest and digest[:1] == '"' and digest[-1:] == '"':
-            digest = digest[1:-1]  # trim leading and trailing quotes around etag
-        return digest, size, extra
