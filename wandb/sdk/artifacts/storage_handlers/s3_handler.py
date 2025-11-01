@@ -189,9 +189,10 @@ class S3Handler(StorageHandler):
         if key != "":
             try:
                 objs[0].load()
-                # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
-                # trigger a recursive upload.
-                # we should check the object's metadata says it is a directory and do a multi file upload if it is
+                # S3 lacks true folders, but a folder key can reference a valid
+                # file, which prevents recursive uploads. Check whether the
+                # object's metadata marks it as a directory and perform a
+                # multi-file upload if so.
                 if "x-directory" in objs[0].content_type:
                     multi = True
             except self._botocore.exceptions.ClientError as e:

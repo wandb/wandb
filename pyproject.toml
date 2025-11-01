@@ -171,10 +171,6 @@ target-version = "py38"
 [tool.ruff.format]
 docstring-code-format = true
 
-[tool.ruff.pycodestyle]
-ignore-overlong-task-comments = true
-max-doc-length = 90  # Consider this an 80-character limit with buffer
-
 [tool.ruff.lint]
 select = [
     "F",      # Pyflakes
@@ -223,6 +219,10 @@ classmethod-decorators = [
     "pydantic.field_validator",
     "wandb._pydantic.field_validator",
 ]
+
+[tool.ruff.lint.pycodestyle]
+ignore-overlong-task-comments = true
+max-doc-length = 90  # Consider this an 80-character limit with buffer
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -323,16 +323,6 @@ ignore-decorators = [
 "wandb/sdk/wandb_*.py" = ["W505"]
 "wandb/wandb_*.py" = ["W505"]
 "wandb/util.py" = ["W505"]
-
-# TODO(tonyyli): for art-reg-eng to remove
-"wandb/_pydantic/*.py" = ["W505"]
-"wandb/apis/public/artifacts.py" = ["W505"]
-"wandb/apis/public/registries/*.py" = ["W505"]
-"wandb/sdk/artifacts/storage_policies/*.py" = ["W505"]
-"wandb/sdk/artifacts/storage_handlers/*.py" = ["W505"]
-"wandb/sdk/artifacts/*.py" = ["W505"]
-"wandb/sdk/artifacts/_models/*.py" = ["W505"]
-"wandb/automations/*.py" = ["W505"]
 
 # Ignore specific naming rules on codegen scripts or plugins.
 # Codegen logic relies on Python's `ast` module, in which implementing a custom

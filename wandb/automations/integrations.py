@@ -12,10 +12,10 @@ from wandb.automations._generated import (
 
 class SlackIntegration(SlackIntegrationFields):
     team_name: str
-    """The name of the Slack workspace (not the W&B team) that this integration is associated with."""
+    """Slack workspace (not W&B team) where this integration will post messages."""
 
     channel_name: str
-    """The name of the Slack channel that this integration will post messages to."""
+    """Slack channel where this integration will post messages."""
 
 
 class WebhookIntegration(GenericWebhookIntegrationFields):

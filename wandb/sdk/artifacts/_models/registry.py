@@ -56,9 +56,11 @@ class RegistryData(ArtifactsBase):
     )
     """The artifact types allowed in the registry.
 
-    The meaning of this list depends on the value of `allow_all_artifact_types`:
-    - If True: `artifact_types` are the previously-saved or currently-used types in the registry.
-    - If False: `artifact_types` are the only allowed artifact types in the registry.
+    The meaning of this list depends on `allow_all_artifact_types`:
+    - If True: `artifact_types` are the previously saved or currently used
+      types in the registry.
+    - If False: `artifact_types` are the only allowed artifact types in the
+      registry.
     """
 
     visibility: Visibility = Field(alias="access")
@@ -66,7 +68,7 @@ class RegistryData(ArtifactsBase):
 
     @property
     def full_name(self) -> str:
-        """The full project name of the registry, including the expected `wandb-registry-` prefix."""
+        """The project name with the expected `wandb-registry-` prefix."""
         return f"{REGISTRY_PREFIX}{self.name}"
 
     @field_validator("artifact_types", mode="plain")

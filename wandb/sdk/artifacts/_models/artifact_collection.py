@@ -23,9 +23,9 @@ class ArtifactCollectionData(ArtifactsBase):
     to more easily ensure continuity in the public `ArtifactCollection` API.
 
     Note:
-        In a future change, consider making _this_ the public `ArtifactCollection` instead, i.e.:
-        - Replace the _existing_ `ArtifactCollection` class with this one
-        - Rename _this_ class to `ArtifactCollection`
+        In a future change, consider making this the public `ArtifactCollection` class:
+        - Replace the existing `ArtifactCollection` class with this one.
+        - Rename this class to `ArtifactCollection`.
         Note that this would be a breaking change.
     """
 
@@ -61,14 +61,15 @@ class ArtifactCollectionData(ArtifactsBase):
     """All aliases assigned to artifact versions within this collection.
 
     Note:
-        `None` should signal that aliases haven't been (or couldn't be) fetched and parsed yet,
-        for any reason, NOT the actual absence of aliases in this collection.
+        `None` indicates that aliases have not been fetched or parsed yet for
+        any reason, NOT that aliases are absent in this collection.
     """
 
     tags: List[str] = Field(default_factory=list)
     """The tags assigned to this collection.
 
-    Note that this is distinct from any tags assigned to individual artifact versions within this collection.
+    Note that this is distinct from tags assigned to individual artifact
+    versions within the collection.
     """
 
     @field_validator("name", mode="plain")
@@ -82,7 +83,7 @@ class ArtifactCollectionData(ArtifactsBase):
 
     @property
     def is_sequence(self) -> bool:
-        """Returns True if the artifact collection is an ArtifactSequence (source collection)."""
+        """Return True if this collection is an `ArtifactSequence` (source collection)."""
         return self.typename__ == SOURCE_COLLECTION_TYPENAME
 
     @classmethod

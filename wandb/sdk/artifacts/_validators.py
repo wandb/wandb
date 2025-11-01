@@ -51,7 +51,7 @@ SOURCE_COLLECTION_TYPENAME: Final[str] = gql_typename(ArtifactSequenceTypeFields
 
 @dataclass
 class _LinkArtifactFields:
-    """Keep this list updated with fields where the linked artifact and the source artifact differ."""
+    """Keep this list updated with fields where linked and source artifacts differ."""
 
     entity_name: str
     project_name: str
@@ -59,9 +59,7 @@ class _LinkArtifactFields:
     version: str
     aliases: list[str]
 
-    # These fields shouldn't be set as they should always be
-    # these values for a linked artifact
-    # These fields shouldn't be set by the user as they should always be these values for a linked artifact
+    # These fields shouldn't be user-editable, linked artifacts always have these values
     _is_link: Literal[True] = field(init=False, default=True)
     _linked_artifacts: list[Artifact] = field(init=False, default_factory=list)
 
@@ -102,7 +100,9 @@ REGISTRY_NAME_MAXLEN: Final[int] = PROJECT_NAME_MAXLEN - len(REGISTRY_PREFIX)
 
 
 def validate_project_name(name: str) -> str:
-    """Validates a project name according to W&B rules, returning the original name if successful.
+    """Validate a project name according to W&B rules.
+
+    Return the original name if successful.
 
     Args:
         name: The project name string.
@@ -175,9 +175,10 @@ TAG_REGEX: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
 
 
 def validate_tags(tags: Iterable[str] | str) -> list[str]:
-    """Validate the artifact tag names and return them as a deduped list.
+    """Validate artifact tag names and return them as a deduped list.
 
-    In the case of duplicates, only keep the first tag, and otherwise maintain the order of appearance.
+    In the case of duplicates, keep the first tag and maintain the order of
+    appearance.
 
     Raises:
         ValueError: If any of the tags contain invalid characters.
@@ -235,8 +236,8 @@ def validate_metadata(metadata: dict[str, Any] | str | None) -> dict[str, Any]:
 
 def validate_ttl_duration_seconds(gql_ttl_duration_seconds: int | None) -> int | None:
     """Validate the `ttlDurationSeconds` value (if any) from a GraphQL response."""
-    # If gql_ttl_duration_seconds is not positive, its indicating that TTL is DISABLED(-2)
-    # gql_ttl_duration_seconds only returns None if the server is not compatible with setting Artifact TTLs
+    # A non-positive value indicates that TTL is DISABLED (-2).
+    # `None` only occurs when the server does not support artifact TTLs.
     if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
         return gql_ttl_duration_seconds
     return None
@@ -248,9 +249,10 @@ MethodT = Callable[Concatenate[SelfT, P], R]
 
 
 def ensure_logged(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT, P, R]:
-    """Decorator to ensure that an Artifact method can only be called if the artifact has been logged.
+    """Ensure an artifact method runs only if the artifact has been logged.
 
-    If the method is called on an artifact that's not logged, `ArtifactNotLoggedError` is raised.
+    If the method is called on an artifact that's not logged, `ArtifactNotLoggedError`
+    is raised.
     """
     # For clarity, use the qualified (full) name of the method
     method_fullname = nameof(method)
@@ -265,9 +267,10 @@ def ensure_logged(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT, P, R]:
 
 
 def ensure_not_finalized(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT, P, R]:
-    """Decorator to ensure that an `Artifact` method can only be called if the artifact isn't finalized.
+    """Ensure an `Artifact` method runs only if the artifact is not finalized.
 
-    If the method is called on an artifact that's not logged, `ArtifactFinalizedError` is raised.
+    If the method is called on an artifact that's not logged, `ArtifactFinalizedError`
+    is raised.
     """
     # For clarity, use the qualified (full) name of the method
     method_fullname = nameof(method)

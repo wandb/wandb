@@ -1,6 +1,6 @@
-"""Definitions and utilities for client-side handling of "relay-style" GraphQL types for pagination.
+"""Utilities for client-side handling of "relay-style" GraphQL pagination.
 
-For formal specs and definitions, see: https://relay.dev/graphql/connections.htm
+For formal specs and definitions, see https://relay.dev/graphql/connections.htm.
 """
 
 from typing import Generic, Iterator, List, Literal, Optional, TypeVar

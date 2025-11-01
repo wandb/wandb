@@ -185,8 +185,9 @@ class ArtifactType:
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact types.
         type_name: The name of the artifact type.
-        attrs: Optional mapping of attributes to initialize the artifact type. If not provided,
-            the object will load its attributes from W&B upon initialization.
+        attrs: Optional attributes to initialize the ArtifactType.
+            If omitted, the object will load its attributes from W&B upon
+            initialization.
 
     <!-- lazydoc-ignore-init: internal -->
     """
@@ -446,7 +447,8 @@ class ArtifactCollection:
             client=self.client,
             entity=self.entity,
             project=self.project,
-            # Use the saved name and type, since they're mutable and may have been edited locally.
+            # Use the saved name and type, as they're mutable attributes
+            # and may have been edited locally.
             collection_name=self._saved.name,
             type=self._saved.type,
             per_page=per_page,

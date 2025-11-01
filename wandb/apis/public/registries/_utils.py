@@ -37,7 +37,7 @@ class Visibility(str, Enum):
 
     @classmethod
     def from_python(cls, name: str) -> Visibility:
-        """Convert a visibility string (e.g. user-provided or python default value) to a Visibility enum."""
+        """Convert a visibility string to a `Visibility` enum."""
         try:
             return cls(name)
         except ValueError:
@@ -64,7 +64,7 @@ def prepare_artifact_types_input(
 
 
 def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
-    """Traverse the filter to prepend the `name` key value with the registry prefix unless the value is a regex.
+    """Recursively the registry prefix to values under "name" keys, excluding regex ops.
 
     - in_name: True if we are under a "name" key (or propagating from one).
 
@@ -81,7 +81,7 @@ def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
             elif key == "name":
                 new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=True)
             else:
-                # For any other key, propagate the in_name and skip_transform flags as-is.
+                # For any other key, propagate flags as-is.
                 new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=in_name)
         return new_dict
     if isinstance((seq := query), (list, tuple)):

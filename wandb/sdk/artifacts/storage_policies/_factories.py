@@ -32,7 +32,7 @@ def raise_for_status(response: Response, *_, **__) -> None:
 
 
 def make_http_session() -> Session:
-    """A factory that returns a `requests.Session` for use with artifact storage handlers."""
+    """Return a `requests.Session` configured for artifact storage handlers."""
     session = Session()
 
     # Explicitly configure the retry strategy for http/https adapters.

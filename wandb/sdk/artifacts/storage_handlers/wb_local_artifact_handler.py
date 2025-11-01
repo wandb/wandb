@@ -54,7 +54,8 @@ class WBLocalArtifactHandler(StorageHandler):
             name (str): If specified, the logical name that should map to `path`
 
         Returns:
-            (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
+            list[ArtifactManifestEntry]: Manifest entries to store in the
+                artifact.
         """
         client_id = util.host_from_path(path)
         target_path = util.uri_from_path(path)

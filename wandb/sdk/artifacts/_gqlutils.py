@@ -90,7 +90,7 @@ def server_supports(client: RetryingClient, feature: str | int) -> bool:
 
 
 def supports_enable_tracking_var(client: RetryingClient) -> bool:
-    """Returns True if the server supports the `enableTracking` variable for the `Project.artifact(...)` field."""
+    """Return True if `Project.artifact` accepts `enableTracking`."""
     typ = type_info(client, "Project")
     if (
         typ
@@ -108,7 +108,7 @@ def allowed_fields(client: RetryingClient, typename: str) -> set[str]:
 
 
 def omit_artifact_fields(client: RetryingClient) -> set[str]:
-    """Return names of Artifact fields to remove from GraphQL requests (for server compatibility)."""
+    """Return Artifact fields to omit from GraphQL requests for compatibility."""
     return set(OMITTABLE_ARTIFACT_FIELDS) - allowed_fields(client, "Artifact")
 
 
@@ -126,14 +126,15 @@ def resolve_org_entity_name(
     non_org_entity: str,
     org_or_entity: str | None = None,
 ) -> str:
-    # resolveOrgEntityName fetches the portfolio's org entity's name.
+    # Resolve the portfolio's org entity name.
     #
-    # The org_or_org_entity parameter may be empty, an org's display name, or an org entity name.
+    # The `org_or_org_entity` parameter may be empty, an org display name, or an
+    # org entity name.
     #
-    # If the server doesn't support fetching the org name of a portfolio, then this returns
-    # the org_or_org_entity parameter, or an error if it is empty. Otherwise, this returns the
-    # fetched value after validating that the given organization, if not empty, matches
-    # either the org's display or entity name.
+    # If the server cannot fetch the portfolio's org name, return the provided
+    # value or raise an error if it is empty. Otherwise, return the fetched
+    # value after validating that the given organization, if provided, matches
+    # either the display or entity name.
     if not non_org_entity:
         raise ValueError("Entity name is required to resolve org entity name.")
 
@@ -149,21 +150,25 @@ def resolve_org_entity_name(
             "Please upgrade your server to 0.50.0 or later."
         )
 
-    # Otherwise, fetch candidate orgs to verify/identify the correct orgEntity name, if possible.
+    # Otherwise, fetch candidate orgs to verify or identify the correct orgEntity
+    # name when possible.
     entity = org_info_from_entity(client, non_org_entity)
 
     # Parse possible organization(s) from the response
 
     # ----------------------------------------------------------------------------
-    # If a team entity was provided, there should be a single organization under team/org entity type.
+    # If a team entity was provided, a single organization should exist under
+    # the team/org entity type.
     if entity and (org := entity.organization) and (org_entity := org.org_entity):
-        # Make sure the org_or_org_entity name, if given, matches the org or org entity name before returning the org entity.
+        # Ensure the provided name, if given, matches the org or org entity name before
+        # returning the org entity.
         org_info = OrgInfo(org_name=org.name, entity_name=org_entity.name)
         if (not org_or_entity) or (org_or_entity in org_info):
             return org_entity.name
 
     # ----------------------------------------------------------------------------
-    # If a personal entity was provided, there may be multiple organizations that the user belongs to
+    # If a personal entity was provided, the user may belong to multiple
+    # organizations.
     if entity and (user := entity.user) and (orgs := user.organizations):
         org_infos = [
             OrgInfo(org_name=org.name, entity_name=org_entity.name)

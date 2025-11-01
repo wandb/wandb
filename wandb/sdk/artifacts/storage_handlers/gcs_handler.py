@@ -86,7 +86,8 @@ class GCSHandler(StorageHandler):
             )
 
         obj = None
-        # First attempt to get the generation specified, this will return None if versioning is not enabled
+        # First attempt to fetch the specified generation. This returns None if
+        # versioning is not enabled.
         if version is not None:
             obj = self._client.bucket(bucket).get_blob(key, generation=version)
 
@@ -133,7 +134,8 @@ class GCSHandler(StorageHandler):
         obj = self._client.bucket(bucket).get_blob(key, generation=version)
         if obj is None and version is not None:
             raise ValueError(f"Object does not exist: {path}#{version}")
-        # HNS buckets have blobs for directories, so we also check the blob name to see if its a directory
+        # HNS buckets store directory markers as blobs, so check the blob name
+        # to see if it represents a directory.
         multi = obj is None or obj.name.endswith("/")
         if multi:
             start_time = time.monotonic()
@@ -217,11 +219,10 @@ class GCSHandler(StorageHandler):
         assert manifest_entry.ref is not None
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
         bucket_obj = self._client.bucket(bucket)
-        # A gcs folder key should end with a forward slash on gcloud, but
-        # we previously saved these refs without the forward slash in the manifest entry
-        # To check whether the entry corresponds to a folder, we check the size and extension,
-        # make sure there is no file with this reference, and that the ref with the slash
-        # exists on gcloud as a folder
+        # A GCS folder key should end with a forward slash, but older manifest
+        # entries may omit it. To detect folders, check the size and extension,
+        # ensure there is no file with this reference, and confirm that the
+        # slash-suffixed reference exists as a folder in GCS.
         return key.endswith("/") or (
             not (manifest_entry.size or PurePosixPath(key).suffix)
             and bucket_obj.get_blob(key) is None
