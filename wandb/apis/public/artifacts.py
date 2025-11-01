@@ -926,19 +926,19 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         if self.query_via_membership:
             query_str = ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL
             variables = {
-                "entityName": artifact.entity,
-                "projectName": artifact.project,
-                "artifactName": artifact.name.split(":")[0],
-                "artifactVersionIndex": artifact.version,
+                "entity": artifact.entity,
+                "project": artifact.project,
+                "collection": artifact.name.split(":")[0],
+                "alias": artifact.version,
                 "fileNames": names,
             }
         else:
             query_str = ARTIFACT_VERSION_FILES_GQL
             variables = {
-                "entityName": artifact.source_entity,
-                "projectName": artifact.source_project,
-                "artifactName": artifact.source_name,
-                "artifactTypeName": artifact.type,
+                "entity": artifact.source_entity,
+                "project": artifact.source_project,
+                "name": artifact.source_name,
+                "artifactType": artifact.type,
                 "fileNames": names,
             }
 

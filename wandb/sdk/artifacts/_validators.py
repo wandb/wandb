@@ -42,8 +42,11 @@ P = ParamSpec("P")
 REGISTRY_PREFIX: Final[str] = "wandb-registry-"
 MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
 
-ARTIFACT_NAME_MAXLEN: Final[int] = 128
-ARTIFACT_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset({"/"})
+NAME_MAXLEN: Final[int] = 128
+
+INVALID_ARTIFACT_NAME_CHARS: Final[frozenset[str]] = frozenset("/")
+INVALID_URL_CHARS: Final[frozenset[str]] = frozenset("/\\#?%:\r\n")
+ARTIFACT_SEP_CHARS: Final[frozenset[str]] = frozenset("/:")
 
 LINKED_COLLECTION_TYPENAME: Final[str] = gql_typename(ArtifactPortfolioTypeFields)
 SOURCE_COLLECTION_TYPENAME: Final[str] = gql_typename(ArtifactSequenceTypeFields)
@@ -78,25 +81,19 @@ def validate_artifact_name(name: str) -> str:
     Raises:
         ValueError: If the artifact name is invalid.
     """
-    if len(name) > ARTIFACT_NAME_MAXLEN:
-        short_name = f"{name[:ARTIFACT_NAME_MAXLEN]} ..."
+    if len(name) > NAME_MAXLEN:
+        trunc_name = f"{name[:NAME_MAXLEN]} ..."
         raise ValueError(
-            f"Artifact name is longer than {ARTIFACT_NAME_MAXLEN} characters: {short_name!r}"
+            f"Artifact name is longer than {NAME_MAXLEN!r} characters: {trunc_name!r}"
         )
 
-    if ARTIFACT_NAME_INVALID_CHARS.intersection(name):
+    if INVALID_ARTIFACT_NAME_CHARS.intersection(name):
         raise ValueError(
             "Artifact names must not contain any of the following characters: "
-            f"{', '.join(sorted(ARTIFACT_NAME_INVALID_CHARS))}.  Got: {name!r}"
+            f"{', '.join(sorted(INVALID_ARTIFACT_NAME_CHARS))}.  Got: {name!r}"
         )
 
     return name
-
-
-INVALID_URL_CHARACTERS: Final[frozenset[str]] = frozenset("/\\#?%:\r\n")
-
-PROJECT_NAME_MAXLEN: Final[int] = 128
-REGISTRY_NAME_MAXLEN: Final[int] = PROJECT_NAME_MAXLEN - len(REGISTRY_PREFIX)
 
 
 def validate_project_name(name: str) -> str:
@@ -115,24 +112,21 @@ def validate_project_name(name: str) -> str:
     if not (registry_name := removeprefix(name, REGISTRY_PREFIX)):
         raise ValueError("Registry name cannot be empty")
 
-    if len(name) > PROJECT_NAME_MAXLEN:
+    if len(name) > NAME_MAXLEN:
         if registry_name != name:
-            msg = f"Invalid registry name {registry_name!r}, must be {REGISTRY_NAME_MAXLEN} characters or less"
+            msg = f"Invalid registry name {registry_name!r}, must be {NAME_MAXLEN - len(REGISTRY_PREFIX)!r} characters or less"
         else:
-            msg = f"Invalid project name {name!r}, must be {PROJECT_NAME_MAXLEN} characters or less"
+            msg = f"Invalid project name {name!r}, must be {NAME_MAXLEN!r} characters or less"
         raise ValueError(msg)
 
     # Find the first occurrence of any invalid character
-    if invalid_chars := set(INVALID_URL_CHARACTERS).intersection(name):
+    if invalid_chars := set(INVALID_URL_CHARS).intersection(name):
         error_name = registry_name or name
         invalid_chars_repr = ", ".join(sorted(map(repr, invalid_chars)))
         raise ValueError(
             f"Invalid project/registry name {error_name!r}, cannot contain characters: {invalid_chars_repr!s}"
         )
     return name
-
-
-ALIAS_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset("/:")
 
 
 def validate_aliases(aliases: Collection[str] | str) -> list[str]:
@@ -142,32 +136,27 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
         ValueError: If any of the aliases contain invalid characters.
     """
     aliases_list = always_list(aliases)
-    if any(ALIAS_NAME_INVALID_CHARS.intersection(alias) for alias in aliases_list):
-        invalid_repr = ", ".join(sorted(map(repr, ALIAS_NAME_INVALID_CHARS)))
+    if any(ARTIFACT_SEP_CHARS.intersection(name) for name in aliases_list):
+        invalid_chars = ", ".join(sorted(map(repr, ARTIFACT_SEP_CHARS)))
         raise ValueError(
-            f"Aliases must not contain any of the following characters: {invalid_repr}"
+            f"Aliases must not contain any of the following characters: {invalid_chars}"
         )
     return aliases_list
 
 
-ARTIFACT_TYPE_NAME_MAXLEN: Final[int] = 128
-ARTIFACT_TYPE_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset("/:")
-
-
-def validate_artifact_types(artifact_types: Collection[str] | str) -> list[str]:
+def validate_artifact_types(types: Collection[str] | str) -> list[str]:
     """Validate the artifact type names and return them as a list."""
-    artifact_types_list = always_list(artifact_types)
-    if any(
-        len(name) > ARTIFACT_TYPE_NAME_MAXLEN
-        or ARTIFACT_TYPE_NAME_INVALID_CHARS.intersection(name)
-        for name in artifact_types_list
-    ):
-        invalid_repr = ", ".join(sorted(map(repr, ARTIFACT_TYPE_NAME_INVALID_CHARS)))
+    types_list = always_list(types)
+    if any(ARTIFACT_SEP_CHARS.intersection(name) for name in types_list):
+        invalid_chars = ", ".join(sorted(map(repr, ARTIFACT_SEP_CHARS)))
         raise ValueError(
-            f"Artifact types must not contain any of the following characters: {invalid_repr}"
-            f"and must be less than or equal to {ARTIFACT_TYPE_NAME_MAXLEN!r} characters"
+            f"Artifact types must not contain any of the following characters: {invalid_chars}"
         )
-    return artifact_types_list
+    if any(len(name) > NAME_MAXLEN for name in types_list):
+        raise ValueError(
+            f"Artifact types must be less than or equal to {NAME_MAXLEN!r} characters"
+        )
+    return types_list
 
 
 TAG_REGEX: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
@@ -291,7 +280,7 @@ def is_artifact_registry_project(project: str) -> bool:
 def remove_registry_prefix(project: str) -> str:
     if not is_artifact_registry_project(project):
         raise ValueError(
-            f"Project {project!r} does not have the prefix {REGISTRY_PREFIX}. It is not a registry project"
+            f"Project {project!r} is not a registry project. Must start with: {REGISTRY_PREFIX!r}"
         )
     return removeprefix(project, REGISTRY_PREFIX)
 

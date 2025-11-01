@@ -12,10 +12,7 @@ from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts._validators import (
-    ARTIFACT_NAME_MAXLEN,
-    RESERVED_ARTIFACT_TYPE_PREFIX,
-)
+from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import md5_string
@@ -80,7 +77,7 @@ def test_artifact_error_for_invalid_aliases(user):
 @pytest.mark.parametrize(
     "invalid_name",
     [
-        "a" * (ARTIFACT_NAME_MAXLEN + 1),  # Name too long
+        "a" * (NAME_MAXLEN + 1),  # Name too long
         "my/artifact",  # Invalid character(s)
     ],
 )

@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Optional, Union
+from typing import List, Optional, Union
 
 from pydantic import Field
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Literal
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 

@@ -22,8 +22,7 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 
 class Opener(Protocol):
-    def __call__(self, mode: str = ...) -> ContextManager[IO]:
-        pass
+    def __call__(self, mode: str = ...) -> ContextManager[IO]: ...
 
 
 def artifacts_cache_dir() -> Path:

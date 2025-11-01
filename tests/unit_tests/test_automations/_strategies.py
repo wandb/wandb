@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from base64 import b64encode
 from enum import Enum
 from secrets import choice
 from string import ascii_letters, digits, punctuation
@@ -28,6 +27,7 @@ from hypothesis.strategies import (
     sampled_from,
     text,
 )
+from wandb._strutils import b64encode_ascii
 from wandb.automations import MetricChangeFilter, MetricThresholdFilter
 from wandb.automations._filters.run_metrics import Agg, ChangeDir, ChangeType
 
@@ -44,7 +44,7 @@ def gql_ids(
     name = draw(prefix) if isinstance(prefix, SearchStrategy) else prefix
 
     index = draw(integers(min_value=0, max_value=1_000_000))
-    return b64encode(f"{name}:{index:d}".encode()).decode()
+    return b64encode_ascii(f"{name}:{index:d}")
 
 
 def jsonables() -> SearchStrategy[Any]:

@@ -13,9 +13,12 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 import requests
+from typing_extensions import assert_never
 
 from wandb.errors.term import termwarn
-from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._gqlutils import server_supports
+from wandb.sdk.artifacts._models.storage import StoragePolicyConfig
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
     get_artifact_file_cache,
@@ -57,20 +60,20 @@ class WandbStoragePolicy(StoragePolicy):
 
     @classmethod
     def from_config(
-        cls, config: dict[str, Any], api: InternalApi | None = None
+        cls,
+        config: StoragePolicyConfig,
+        api: InternalApi | None = None,
     ) -> WandbStoragePolicy:
         return cls(config=config, api=api)
 
     def __init__(
         self,
-        config: dict[str, Any] | None = None,
+        config: StoragePolicyConfig | None = None,
         cache: ArtifactFileCache | None = None,
         api: InternalApi | None = None,
         session: requests.Session | None = None,
     ) -> None:
-        self._config = config or {}
-        if (storage_region := self._config.get("storageRegion")) is not None:
-            self._validate_storage_region(storage_region)
+        self._config = StoragePolicyConfig.model_validate(config or {})
         self._cache = cache or get_artifact_file_cache()
         self._session = session or make_http_session()
         self._api = api or InternalApi()
@@ -79,16 +82,8 @@ class WandbStoragePolicy(StoragePolicy):
             default_handler=TrackingHandler(),
         )
 
-    def _validate_storage_region(self, storage_region: Any) -> None:
-        if not isinstance(storage_region, str):
-            raise TypeError(
-                f"storageRegion must be a string, got {type(storage_region).__name__}: {storage_region!r}"
-            )
-        if not storage_region.strip():
-            raise ValueError("storageRegion must be a non-empty string")
-
     def config(self) -> dict[str, Any]:
-        return self._config
+        return self._config.model_dump(exclude_none=True)
 
     def load_file(
         self,
@@ -143,7 +138,7 @@ class WandbStoragePolicy(StoragePolicy):
             else:
                 auth = ("api", self._api.api_key or "")
 
-            file_url = self._file_url(self._api, artifact, manifest_entry)
+            file_url = self._file_url(artifact, manifest_entry)
             response = self._session.get(
                 file_url, auth=auth, cookies=cookies, headers=headers, stream=True
             )
@@ -177,36 +172,32 @@ class WandbStoragePolicy(StoragePolicy):
             used_handler._cache._override_cache_path = dest_path
         return self._handler.load_path(manifest_entry, local)
 
-    def _file_url(
-        self,
-        api: InternalApi,
-        artifact: Artifact,
-        entry: ArtifactManifestEntry,
-    ) -> str:
-        layout = self._config.get("storageLayout", StorageLayout.V1)
-        region = self._config.get("storageRegion", "default")
-
-        entity_name = artifact.entity
-        project_name = artifact.project
-        artifact_name = artifact.name.split(":")[0]
-
-        md5_hex = b64_to_hex_id(entry.digest)
-
+    def _file_url(self, artifact: Artifact, entry: ArtifactManifestEntry) -> str:
+        api = self._api
         base_url: str = api.settings("base_url")
 
-        if layout == StorageLayout.V1:
-            return f"{base_url}/artifacts/{entity_name}/{md5_hex}"
+        layout = self._config.storage_layout or StorageLayout.V1
+        region = self._config.storage_region or "default"
 
-        if layout == StorageLayout.V2:
+        entity = artifact.entity
+        project = artifact.project
+        collection = artifact.name.split(":")[0]
+
+        hexhash = b64_to_hex_id(entry.digest)
+
+        if layout is StorageLayout.V1:
+            return f"{base_url}/artifacts/{entity}/{hexhash}"
+
+        if layout is StorageLayout.V2:
             birth_artifact_id = entry.birth_artifact_id or ""
-            if api._server_supports(
-                ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
+            if server_supports(
+                api.client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
             ):
-                return f"{base_url}/artifactsV2/{region}/{quote(entity_name)}/{quote(project_name)}/{quote(artifact_name)}/{quote(birth_artifact_id)}/{md5_hex}/{entry.path.name}"
+                return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(project)}/{quote(collection)}/{quote(birth_artifact_id)}/{hexhash}/{entry.path.name}"
 
-            return f"{base_url}/artifactsV2/{region}/{entity_name}/{quote(birth_artifact_id)}/{md5_hex}"
+            return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(birth_artifact_id)}/{hexhash}"
 
-        raise ValueError(f"unrecognized storage layout: {layout!r}")
+        assert_never(layout)
 
     def s3_multipart_file_upload(
         self,

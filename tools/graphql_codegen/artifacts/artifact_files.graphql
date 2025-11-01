@@ -13,17 +13,17 @@ fragment FileFragment on File {
 }
 
 query ArtifactVersionFiles(
-  $entityName: String!
-  $projectName: String!
-  $artifactTypeName: String!
-  $artifactName: String!
+  $entity: String!
+  $project: String!
+  $artifactType: String!
+  $name: String!
   $fileNames: [String!]
   $cursor: String
   $perPage: Int = 50
 ) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactType(name: $artifactTypeName) {
-      artifact(name: $artifactName) {
+  project(name: $project, entityName: $entity) {
+    artifactType(name: $artifactType) {
+      artifact(name: $name) {
         files(names: $fileNames, after: $cursor, first: $perPage) {
           pageInfo {
             ...PageInfoFragment
@@ -33,7 +33,7 @@ query ArtifactVersionFiles(
               ...FileFragment
             }
           }
-          totalCount  @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
+          totalCount @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
         }
       }
     }
@@ -41,17 +41,17 @@ query ArtifactVersionFiles(
 }
 
 query ArtifactCollectionMembershipFiles(
-  $entityName: String!
-  $projectName: String!
-  $artifactName: String!
-  $artifactVersionIndex: String!
+  $entity: String!
+  $project: String!
+  $collection: String!
+  $alias: String!
   $fileNames: [String!]
   $cursor: String
   $perPage: Int = 50
 ) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactCollection(name: $artifactName) {
-      artifactMembership(aliasName: $artifactVersionIndex) {
+  project(name: $project, entityName: $entity) {
+    artifactCollection(name: $collection) {
+      artifactMembership(aliasName: $alias) {
         files(names: $fileNames, after: $cursor, first: $perPage) {
           pageInfo {
             ...PageInfoFragment
@@ -61,7 +61,7 @@ query ArtifactCollectionMembershipFiles(
               ...FileFragment
             }
           }
-          totalCount  @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
+          totalCount @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
         }
       }
     }
@@ -75,16 +75,16 @@ fragment FileWithUrlFragment on File {
 }
 
 query ArtifactCollectionMembershipFileUrls(
-  $entityName: String!
-  $projectName: String!
-  $artifactName: String!
-  $artifactVersionIndex: String!
+  $entity: String!
+  $project: String!
+  $collection: String!
+  $alias: String!
   $cursor: String
   $perPage: Int
 ) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactCollection(name: $artifactName) {
-      artifactMembership(aliasName: $artifactVersionIndex) {
+  project(name: $project, entityName: $entity) {
+    artifactCollection(name: $collection) {
+      artifactMembership(aliasName: $alias) {
         files(after: $cursor, first: $perPage) {
           pageInfo {
             ...PageInfoFragment

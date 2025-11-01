@@ -273,7 +273,7 @@ class Artifact:
         self._digest: str | None = None
 
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(
-            storage_policy=make_storage_policy(storage_region)
+            storage_policy=make_storage_policy(region=storage_region)
         )
 
         self._commit_hash: str | None = None
@@ -2187,10 +2187,10 @@ class Artifact:
         if server_supports(self._client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES):
             query = gql(ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL)
             gql_vars = {
-                "entityName": self.entity,
-                "projectName": self.project,
-                "artifactName": self.name.split(":")[0],
-                "artifactVersionIndex": self.version,
+                "entity": self.entity,
+                "project": self.project,
+                "collection": self.name.split(":")[0],
+                "alias": self.version,
                 "cursor": cursor,
                 "perPage": per_page,
             }
