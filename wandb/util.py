@@ -1992,7 +1992,8 @@ def working_set() -> Iterable[InstalledDistribution]:
             # From Sentry events we observed that UnicodeDecodeError can occur when
             # trying to decode the metadata of a distribution. To handle this, we catch
             # the exception and skip those distributions.
-            yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
+            if d.metadata is not None: # Sometimes metadata is None
+                yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
         except (KeyError, UnicodeDecodeError):
             pass
 
