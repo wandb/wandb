@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import responses
 from wandb import errors
-from wandb.sdk.lib.credentials import _expires_at_fmt, access_token
+from wandb.sdk.lib.auth.credentials import _expires_at_fmt, access_token
 
 
 def write_credentials(data: dict, credentials_file: Path):

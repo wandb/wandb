@@ -35,7 +35,8 @@ from wandb._pydantic import (
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
-from .lib import apikey, credentials, ipython
+from .lib import apikey, ipython
+from .lib.auth import credentials
 from .lib.run_moment import RunMoment
 
 validate_url: Callable[[str], None]

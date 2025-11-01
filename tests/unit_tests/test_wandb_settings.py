@@ -13,7 +13,7 @@ import wandb
 from pydantic.version import VERSION as PYDANTIC_VERSION
 from wandb import Settings
 from wandb.errors import UsageError
-from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
+from wandb.sdk.lib.auth.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
 from wandb.sdk.lib.run_moment import RunMoment
 
 is_pydantic_v1 = int(PYDANTIC_VERSION[0]) == 1

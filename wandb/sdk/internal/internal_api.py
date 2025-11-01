@@ -50,7 +50,8 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import credentials, retry
+from ..lib import retry
+from ..lib.auth import credentials
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from . import context
 from .progress import Progress
