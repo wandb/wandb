@@ -630,6 +630,9 @@ class Run:
         self._hooks = None
         self._teardown_hooks = []
 
+        # Cache for public API instance to avoid re-creating it multiple times
+        self._cached_public_api = None
+
         self._output_writer = None
         self._out_redir = None
         self._err_redir = None
@@ -3323,11 +3326,26 @@ class Run:
         return artifact
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:
+        # Return cached instance if available
+        if self._cached_public_api is not None:
+            wandb.termlog("[DEBUG _public_api] Returning cached public API instance")
+            return self._cached_public_api
+
         overrides = {"run": self._settings.run_id}  # type: ignore
         if not self._settings._offline:
             overrides["entity"] = self._settings.entity or ""
             overrides["project"] = self._settings.project or ""
-        return public.Api(overrides)
+
+        # Only pass api_key if it was explicitly set in settings
+        # This allows public.Api() to do its normal resolution otherwise
+        if self._settings.api_key:
+            wandb.termlog("[DEBUG _public_api] Creating public API with explicit api_key from settings")
+            self._cached_public_api = public.Api(overrides, api_key=self._settings.api_key)
+        else:
+            wandb.termlog("[DEBUG _public_api] Creating public API without explicit api_key (will use default resolution)")
+            self._cached_public_api = public.Api(overrides)
+
+        return self._cached_public_api
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
