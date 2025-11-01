@@ -111,7 +111,7 @@ class WBArtifactHandler(StorageHandler):
             target_artifact = Artifact._from_id(artifact_id, self.client.client)
             assert target_artifact is not None
 
-            entry = target_artifact.manifest.get_entry_by_path(artifact_file_path)
+            entry = target_artifact.manifest.entries.get(artifact_file_path)
             assert entry is not None
             curr_path = entry.ref
 
