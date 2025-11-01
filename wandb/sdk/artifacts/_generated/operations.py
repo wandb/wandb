@@ -289,10 +289,10 @@ fragment TagFragment on Tag {
 """
 
 ARTIFACT_VERSION_FILES_GQL = """
-query ArtifactVersionFiles($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactName: String!, $fileNames: [String!], $cursor: String, $perPage: Int = 50) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactType(name: $artifactTypeName) {
-      artifact(name: $artifactName) {
+query ArtifactVersionFiles($entity: String!, $project: String!, $artifactType: String!, $name: String!, $fileNames: [String!], $cursor: String, $perPage: Int = 50) {
+  project(name: $project, entityName: $entity) {
+    artifactType(name: $artifactType) {
+      artifact(name: $name) {
         files(names: $fileNames, after: $cursor, first: $perPage) {
           pageInfo {
             ...PageInfoFragment
@@ -331,11 +331,11 @@ fragment PageInfoFragment on PageInfo {
 """
 
 ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL = """
-query ArtifactCollectionMembershipFiles($entityName: String!, $projectName: String!, $artifactName: String!, $artifactVersionIndex: String!, $fileNames: [String!], $cursor: String, $perPage: Int = 50) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactCollection(name: $artifactName) {
+query ArtifactCollectionMembershipFiles($entity: String!, $project: String!, $collection: String!, $alias: String!, $fileNames: [String!], $cursor: String, $perPage: Int = 50) {
+  project(name: $project, entityName: $entity) {
+    artifactCollection(name: $collection) {
       __typename
-      artifactMembership(aliasName: $artifactVersionIndex) {
+      artifactMembership(aliasName: $alias) {
         files(names: $fileNames, after: $cursor, first: $perPage) {
           pageInfo {
             ...PageInfoFragment
@@ -374,11 +374,11 @@ fragment PageInfoFragment on PageInfo {
 """
 
 ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL = """
-query ArtifactCollectionMembershipFileUrls($entityName: String!, $projectName: String!, $artifactName: String!, $artifactVersionIndex: String!, $cursor: String, $perPage: Int) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactCollection(name: $artifactName) {
+query ArtifactCollectionMembershipFileUrls($entity: String!, $project: String!, $collection: String!, $alias: String!, $cursor: String, $perPage: Int) {
+  project(name: $project, entityName: $entity) {
+    artifactCollection(name: $collection) {
       __typename
-      artifactMembership(aliasName: $artifactVersionIndex) {
+      artifactMembership(aliasName: $alias) {
         files(after: $cursor, first: $perPage) {
           pageInfo {
             ...PageInfoFragment
