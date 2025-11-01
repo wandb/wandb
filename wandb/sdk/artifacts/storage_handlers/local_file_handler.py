@@ -60,8 +60,7 @@ class LocalFileHandler(StorageHandler):
         if hit:
             return path
 
-        md5 = md5_file_b64(local_path)
-        if md5 != manifest_entry.digest:
+        if (md5 := md5_file_b64(local_path)) != manifest_entry.digest:
             raise ValueError(
                 f"Local file reference: Digest mismatch for path {local_path}: expected {manifest_entry.digest} but found {md5}"
             )
@@ -142,5 +141,5 @@ class LocalFileHandler(StorageHandler):
             entries.append(entry)
         else:
             # TODO: update error message if we don't allow directories.
-            raise ValueError(f'Path "{path}" must be a valid file or directory path')
+            raise ValueError(f"Path {path!r} must be a valid file or directory path")
         return entries
