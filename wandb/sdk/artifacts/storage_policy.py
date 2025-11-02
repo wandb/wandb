@@ -21,6 +21,8 @@ _POLICY_REGISTRY: dict[str, type[StoragePolicy]] = {}
 
 
 class StoragePolicy(ABC):
+    _api: InternalApi | None
+
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         _POLICY_REGISTRY[cls.name()] = cls

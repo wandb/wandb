@@ -72,16 +72,47 @@ class WandbStoragePolicy(StoragePolicy):
         config: StoragePolicyConfig | None = None,
         cache: ArtifactFileCache | None = None,
         api: InternalApi | None = None,
-        session: requests.Session | None = None,
     ) -> None:
         self._config = StoragePolicyConfig.model_validate(config or {})
-        self._cache = cache or get_artifact_file_cache()
-        self._session = session or make_http_session()
-        self._api = api or InternalApi()
-        self._handler = MultiHandler(
-            handlers=make_storage_handlers(self._session),
-            default_handler=TrackingHandler(),
-        )
+
+        # Don't instantiate these right away if missing, instead defer to the
+        # first time they're needed. Otherwise, at the time of writing, this
+        # significantly slows down `Artifact.__init__()`.
+        self._maybe_cache = cache
+        self._maybe_api = api
+        self._maybe_session: requests.Session | None = None
+        self._maybe_handler: MultiHandler | None = None
+
+    @property
+    def _cache(self) -> ArtifactFileCache:
+        if self._maybe_cache is None:
+            self._maybe_cache = get_artifact_file_cache()
+        return self._maybe_cache
+
+    @property
+    def _api(self) -> InternalApi:
+        if self._maybe_api is None:
+            self._maybe_api = InternalApi()
+        return self._maybe_api
+
+    @_api.setter
+    def _api(self, api: InternalApi) -> None:
+        self._maybe_api = api
+
+    @property
+    def _session(self) -> requests.Session:
+        if self._maybe_session is None:
+            self._maybe_session = make_http_session()
+        return self._maybe_session
+
+    @property
+    def _handler(self) -> MultiHandler:
+        if self._maybe_handler is None:
+            self._maybe_handler = MultiHandler(
+                handlers=make_storage_handlers(self._session),
+                default_handler=TrackingHandler(),
+            )
+        return self._maybe_handler
 
     def config(self) -> dict[str, Any]:
         return self._config.model_dump(exclude_none=True)

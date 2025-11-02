@@ -195,8 +195,6 @@ class Artifact:
         self._base_id: str | None = None
         # Properties.
         self._id: str | None = None
-        self._client_id: str = runid.generate_id(128)
-        self._sequence_client_id: str = runid.generate_id(128)
         self._entity: str | None = None
         self._project: str | None = None
         self._name: str = validate_artifact_name(name)  # includes version after saving
@@ -249,8 +247,44 @@ class Artifact:
 
         self._fetch_file_urls_decorated: Callable[..., Any] | None = None
 
-        # Cache.
-        artifact_instance_cache[self._client_id] = self
+        # Defer these to the first time they're needed, if ever.
+        # Repeat calls to runid.generate_id() are expensive and wasteful
+        # when these are unused.
+        self._maybe_client_id: str | None = None
+        self._maybe_sequence_client_id: str | None = None
+
+    @property
+    def _client_id(self) -> str:
+        if self._maybe_client_id is None:
+            # NOTE(tonyyli, 2025-11-02): Notes after necessary perf refactor:
+            #
+            # There is prior, legacy logic that depends on accessing the artifact
+            # FROM `artifact_instance_cache` by client ID.
+            #
+            # This is unfortunate, because it means:
+            # - `artifact_instance_cache` is keyed by BOTH `artifactID` and `clientID`
+            #   in the SAME dict. While the risk of collisions between `artifactID` vs
+            #   `clientID` is virtually zero, this is still a major anti-pattern,
+            #   as it muddles the cache's keyspace, making it harder to reason about the
+            #   cache contents and making cache behavior inherently more error-prone.
+            # - The size of `artifact_instance_cache` is capped (to 100 instances).
+            #   As currently designed, this means that legacy code which must
+            #   access `artifact_instance_cache[client_id]` is fundamentally vulnerable to
+            #   race conditions, in which an instance can be evicted from the cache before
+            #   the code that needs it has a chance to access it.
+            #
+            # For now, we keep this logic in place to minimize risk of breaking things,
+            # but we should find a way to deprecate, remove and avoid this anti-pattern.
+            self._maybe_client_id = runid.generate_id(128)
+            artifact_instance_cache[self._maybe_client_id] = self
+
+        return self._maybe_client_id
+
+    @property
+    def _sequence_client_id(self) -> str:
+        if self._maybe_sequence_client_id is None:
+            self._maybe_sequence_client_id = runid.generate_id(128)
+        return self._maybe_sequence_client_id
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
