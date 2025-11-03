@@ -13,7 +13,10 @@ from .base_model import ArtifactsBase
 
 class StoragePolicyConfig(ArtifactsBase):
     model_config = ConfigDict(
-        alias_generator=to_camel, str_min_length=1, str_strip_whitespace=True
+        frozen=True,
+        alias_generator=to_camel,
+        str_min_length=1,
+        str_strip_whitespace=True,
     )
 
     storage_layout: Optional[StorageLayout] = None

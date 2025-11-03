@@ -21,7 +21,7 @@ _POLICY_REGISTRY: dict[str, type[StoragePolicy]] = {}
 
 
 class StoragePolicy(ABC):
-    _api: InternalApi | None
+    _api: InternalApi | None = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -40,9 +40,7 @@ class StoragePolicy(ABC):
 
     @classmethod
     @abstractmethod
-    def from_config(
-        cls, config: StoragePolicyConfig, api: InternalApi | None = None
-    ) -> StoragePolicy:
+    def from_config(cls, config: StoragePolicyConfig) -> StoragePolicy:
         raise NotImplementedError
 
     @abstractmethod

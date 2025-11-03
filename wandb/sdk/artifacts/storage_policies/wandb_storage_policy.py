@@ -60,12 +60,8 @@ class WandbStoragePolicy(StoragePolicy):
         return WANDB_STORAGE_POLICY
 
     @classmethod
-    def from_config(
-        cls,
-        config: StoragePolicyConfig,
-        api: InternalApi | None = None,
-    ) -> WandbStoragePolicy:
-        return cls(config=config, api=api)
+    def from_config(cls, config: StoragePolicyConfig) -> WandbStoragePolicy:
+        return cls(config=config)
 
     def __init__(
         self,

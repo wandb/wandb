@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
 import wandb
-from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
+from wandb.sdk.artifacts.artifact_instance_cache import (
+    artifact_instance_cache_by_client_id,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -62,7 +64,7 @@ class WBLocalArtifactHandler(StorageHandler):
         client_id = parsed.netloc
         target_path = parsed.path.lstrip("/")
 
-        target_artifact = artifact_instance_cache.get(client_id)
+        target_artifact = artifact_instance_cache_by_client_id.get(client_id)
         if not isinstance(target_artifact, wandb.Artifact):
             raise TypeError("Artifact passed to store_path() must be a wandb.Artifact.")
         target_entry = target_artifact.manifest.entries[target_path]  # type: ignore
