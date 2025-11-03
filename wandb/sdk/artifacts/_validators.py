@@ -6,17 +6,7 @@ import json
 import re
 from dataclasses import dataclass, field, replace
 from functools import wraps
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    Literal,
-    Optional,
-    TypeVar,
-    cast,
-)
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Concatenate, ParamSpec, Self
@@ -29,7 +19,7 @@ from wandb.util import json_friendly_val
 from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
 
 if TYPE_CHECKING:
-    from typing import Collection, Final
+    from typing import Final, Iterable
 
     from wandb.sdk.artifacts.artifact import Artifact
 
@@ -49,7 +39,7 @@ ARTIFACT_SEP_CHARS: Final[frozenset[str]] = frozenset("/:")
 
 
 @dataclass
-class _LinkArtifactFields:
+class LinkArtifactFields:
     """Keep this list updated with fields where linked and source artifacts differ."""
 
     entity_name: str
@@ -125,7 +115,7 @@ def validate_project_name(name: str) -> str:
     return name
 
 
-def validate_aliases(aliases: Collection[str] | str) -> list[str]:
+def validate_aliases(aliases: Iterable[str] | str) -> list[str]:
     """Validate the artifact aliases and return them as a list.
 
     Raises:
@@ -140,7 +130,7 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
     return aliases_list
 
 
-def validate_artifact_types(types: Collection[str] | str) -> list[str]:
+def validate_artifact_types(types: Iterable[str] | str) -> list[str]:
     """Validate the artifact type names and return them as a list."""
     types_list = always_list(types)
     if any(ARTIFACT_SEP_CHARS.intersection(name) for name in types_list):
