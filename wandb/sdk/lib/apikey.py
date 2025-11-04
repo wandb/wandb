@@ -9,7 +9,7 @@ import stat
 import sys
 import textwrap
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
 import click
@@ -101,11 +101,9 @@ def _api_key_prompt_str(app_url: str, referrer: str | None = None) -> str:
     return f"You can find your API key in your browser here: {app_url}/authorize{ref}"
 
 
-def prompt_api_key(  # noqa: C901
+def prompt_api_key(
     settings: Settings,
     api: InternalApi | None = None,
-    input_callback: Callable | None = None,
-    browser_callback: Callable | None = None,
     no_offline: bool = False,
     no_create: bool = False,
     local: bool = False,
@@ -118,7 +116,6 @@ def prompt_api_key(  # noqa: C901
         None - if dryrun is selected
         False - if unconfigured (notty)
     """
-    input_callback = input_callback or getpass
     log_string = term.LOG_STRING
     api = api or InternalApi(settings)
     anon_mode = _fixup_anon_mode(settings.anonymous)  # type: ignore
@@ -150,7 +147,7 @@ def prompt_api_key(  # noqa: C901
             choices, input_timeout=settings.login_timeout, jupyter=jupyter
         )
 
-    key = None
+    key: str | None = None
     api_ask = (
         f"{log_string}: Paste an API key from your profile and hit enter"
         if jupyter
@@ -159,40 +156,26 @@ def prompt_api_key(  # noqa: C901
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
     elif result == LOGIN_CHOICE_NEW:
-        key = browser_callback(signup=True) if browser_callback else None
-
-        if not key:
-            ref = f"&ref={referrer}" if referrer else ""
-            wandb.termlog(
-                f"Create an account here: {app_url}/authorize?signup=true{ref}"
-            )
-            key = input_callback(api_ask).strip()
+        ref = f"&ref={referrer}" if referrer else ""
+        wandb.termlog(f"Create an account here: {app_url}/authorize?signup=true{ref}")
+        key = getpass(api_ask).strip()
     elif result == LOGIN_CHOICE_EXISTS:
-        key = browser_callback() if browser_callback else None
-
-        if not key:
-            if not (settings.is_local or local):
-                host = app_url
-                for prefix in ("http://", "https://"):
-                    if app_url.startswith(prefix):
-                        host = app_url[len(prefix) :]
-                wandb.termlog(
-                    f"Logging into {host}. (Learn how to deploy a W&B server "
-                    f"locally: {url_registry.url('wandb-server')})"
-                )
-            wandb.termlog(_api_key_prompt_str(app_url, referrer))
-            key = input_callback(api_ask).strip()
+        if not (settings.is_local or local):
+            host = app_url
+            for prefix in ("http://", "https://"):
+                if app_url.startswith(prefix):
+                    host = app_url[len(prefix) :]
+            wandb.termlog(
+                f"Logging into {host}. (Learn how to deploy a W&B server "
+                + f"locally: {url_registry.url('wandb-server')})"
+            )
+        wandb.termlog(_api_key_prompt_str(app_url, referrer))
+        key = getpass(api_ask).strip()
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
         return False
     elif result == LOGIN_CHOICE_DRYRUN:
         return None
-    else:
-        # Jupyter environments don't have a tty, but we can still try logging in using
-        # the browser callback if one is supplied.
-        key, anonymous = (
-            browser_callback() if jupyter and browser_callback else (None, False)
-        )
 
     if not key:
         raise ValueError("No API key specified.")
