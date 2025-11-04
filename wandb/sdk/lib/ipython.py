@@ -71,36 +71,6 @@ def in_notebook() -> bool:
     return _get_python_type() != "python"
 
 
-def in_vscode_notebook() -> bool:
-    """Returns True if we're running in a Jupyter notebook in VSCode.
-
-    The Jupyter notebook extention creates a temporary files to start the kernel
-    and the extension creates a user namespace variable
-    to store the actual notebook path.
-    """
-    try:
-        from IPython import get_ipython  # type: ignore
-
-        return "__vsc_ipynb_file__" in get_ipython().user_ns
-    except Exception:
-        return False
-
-
-def get_vscode_notebook_path() -> Optional[str]:
-    """Returns the path to the notebook when running in VSCode's notebook extension.
-
-    The Jupyter notebook extention creates a temporary files to start the kernel
-    and the extension creates a user namespace variable
-    to store the actual notebook path.
-    """
-    try:
-        from IPython import get_ipython  # type: ignore
-
-        return get_ipython().user_ns.get("__vsc_ipynb_file__")
-    except Exception:
-        return None
-
-
 class ProgressWidget:
     """A simple wrapper to render a nice progress bar with a label."""
 
