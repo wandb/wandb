@@ -54,7 +54,7 @@ class LenientStrEnum(str, Enum):
 
 
 def default_if_none(v: Any) -> Any:
-    """A before-validator validator that coerces `None` to the default field value instead."""
+    """Before validator that coerces `None` to the field default."""
     # https://docs.pydantic.dev/2.11/api/pydantic_core/#pydantic_core.PydanticUseDefault
     if v is None:
         raise PydanticUseDefault
@@ -67,7 +67,7 @@ def upper_if_str(v: Any) -> Any:
 
 # ----------------------------------------------------------------------------
 def to_scope(v: Any) -> Any:
-    """Convert eligible objects, including pre-existing `wandb` types, to an automation scope."""
+    """Convert eligible objects (including wandb types) to an automation scope."""
     from wandb.apis.public import ArtifactCollection, Project
 
     from .scopes import ProjectScope, _ArtifactPortfolioScope, _ArtifactSequenceScope

@@ -3,28 +3,10 @@
 from __future__ import annotations
 
 import ast
-import subprocess
-import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable
 
 if TYPE_CHECKING:
     from typing_extensions import TypeGuard
-
-
-def remove_module_files(root: Path, module_names: Iterable[str]) -> None:
-    sys.stdout.write("\n========== Removing files we don't need ==========\n")
-    for name in module_names:
-        path = (root / name).with_suffix(".py")
-        sys.stdout.write(f"Removing: {path!s}\n")
-        path.unlink(missing_ok=True)
-
-
-def apply_ruff(path: str | Path) -> None:
-    path = str(path)
-    sys.stdout.write(f"\n========== Reformatting: {path} ==========\n")
-    subprocess.run(["ruff", "check", "--fix", "--unsafe-fixes", path], check=True)
-    subprocess.run(["ruff", "format", path], check=True)
 
 
 def imported_names(stmt: ast.Import | ast.ImportFrom) -> list[str]:
@@ -37,7 +19,7 @@ def base_class_names(class_def: ast.ClassDef) -> list[str]:
     return [base.id for base in class_def.bases]
 
 
-def is_redundant_class_def(stmt: ast.stmt) -> TypeGuard[ast.ClassDef]:
+def is_redundant_class(stmt: ast.stmt) -> TypeGuard[ast.ClassDef]:
     """Return True if this class definition is a redundant subclass definition.
 
     A redundant subclass will look like:
@@ -75,15 +57,6 @@ def is_class_def(stmt: ast.stmt) -> TypeGuard[ast.ClassDef]:
 def is_import_from(stmt: ast.stmt) -> TypeGuard[ast.ImportFrom]:
     """Return True if this node is a `from ... import ...` statement."""
     return isinstance(stmt, ast.ImportFrom)
-
-
-def make_model_rebuild(class_name: str) -> ast.Expr:
-    """Generate the AST node for a `PydanticModel.model_rebuild()` statement."""
-    return ast.Expr(
-        ast.Call(
-            ast.Attribute(ast.Name(class_name), "model_rebuild"), args=[], keywords=[]
-        )
-    )
 
 
 def make_all_assignment(names: Iterable[str]) -> ast.Assign:

@@ -8,13 +8,15 @@ import threading
 from concurrent.futures import FIRST_EXCEPTION, Executor, wait
 from dataclasses import dataclass, field
 from queue import Queue
-from typing import Any, Final, Iterator, Union
+from typing import TYPE_CHECKING, Any, Final, Iterator, Union
 
-from requests import Session
 from typing_extensions import TypeAlias, TypeIs, final
 
 from wandb import env
 from wandb.sdk.artifacts.artifact_file_cache import Opener
+
+if TYPE_CHECKING:
+    from requests import Session
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,8 @@ MAX_MULTI_UPLOAD_SIZE = 5 * TiB
 # Minimum size to switch to multipart download, same threshold as upload.
 MIN_MULTI_DOWNLOAD_SIZE = MIN_MULTI_UPLOAD_SIZE
 
-# Multipart download part size is same as multpart upload size, which is hard coded to 100MB.
+# Multipart download part size matches the upload size and is hard coded to
+# 100 MB.
 # https://github.com/wandb/wandb/blob/7b2a13cb8efcd553317167b823c8e52d8c3f7c4e/core/pkg/artifacts/saver.go#L496
 # https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance-guidelines.html#optimizing-performance-guidelines-get-range
 MULTI_DEFAULT_PART_SIZE = 100 * MiB
@@ -42,13 +45,14 @@ RSP_CHUNK_SIZE = 1 * MiB
 
 @final
 class _ChunkSentinel:
-    """Signals the end of the multipart chunk queue.
+    """Signal the end of the multipart chunk queue.
 
-    Queue consumer(s) (file writer) should terminate on receiving an item of this type from the queue.
-    Do not instantiate this class directly, use the `END_CHUNK` constant as a pseudo-singleton instead.
+    Queue consumers terminate when they receive this item from the queue. Do
+    not instantiate this class directly; use the `END_CHUNK` constant as a
+    pseudo-singleton instead.
 
-    NOTE: As implemented, this should only be used in multi-threaded (not multi-process) contexts, as
-    it's not currently guaranteed to be process-safe.
+    NOTE: Use this only in multi-threaded (not multi-process) contexts because
+    it is not guaranteed to be process-safe.
     """
 
     def __repr__(self) -> str:
@@ -121,8 +125,8 @@ def multipart_download(
                 return
 
             # https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
-            # Start and end are both inclusive, empty end means use the actual end of the file.
-            # e.g. "bytes=0-499"
+            # Start and end are both inclusive. An empty end uses the actual end
+            # of the file. Example string: "bytes=0-499".
             bytes_range = f"{start}-" if (end is None) else f"{start}-{end}"
             headers = {"Range": f"bytes={bytes_range}"}
             with session.get(url=url, headers=headers, stream=True) as rsp:
@@ -158,8 +162,8 @@ def multipart_download(
         download_futures = set()
         for start in range(0, size, part_size):
             # https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
-            # Start and end are both inclusive, empty end means use the actual end of the file.
-            # e.g. bytes=0-499
+            # Start and end are both inclusive. An empty end uses the actual end
+            # of the file. Example string: "bytes=0-499".
             end = end if (end := (start + part_size - 1)) < size else None
             download_futures.add(executor.submit(download_chunk, start=start, end=end))
 

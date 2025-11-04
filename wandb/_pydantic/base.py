@@ -54,17 +54,21 @@ class CompatBaseModel(PydanticCompatMixin, BaseModel):
 
 
 class JsonableModel(CompatBaseModel, ABC):
-    # Base class with sensible default behavior for classes that need to convert to/from JSON.
+    # Base class with sensible defaults for converting to and from JSON.
     #
-    # Automatically parse/serialize "raw" API data (e.g. automatically convert to/from camelCase keys):
-    # - `.model_{dump,dump_json}()` should return "JSON-ready" dicts or JSON strings
-    # - `.model_{validate,validate_json}()` should accept "JSON-ready" dicts or JSON strings
+    # Automatically parse or serialize "raw" API data (e.g. convert to and from
+    # camelCase keys):
+    # - `.model_{dump,dump_json}()` should return JSON-ready dicts or JSON
+    #   strings.
+    # - `.model_{validate,validate_json}()` should accept JSON-ready dicts or
+    #   JSON strings.
     #
     # Ensure round-trip serialization <-> deserialization between:
     # - `model_dump()` <-> `model_validate()`
     # - `model_dump_json()` <-> `model_validate_json()`
     #
-    # These behaviors are useful for models that need to predictably handle e.g. GraphQL request/response data.
+    # These behaviors help models predictably handle GraphQL request or response
+    # data.
 
     model_config = ConfigDict(
         # ---------------------------------------------------------------------------
@@ -81,9 +85,10 @@ class JsonableModel(CompatBaseModel, ABC):
         from_attributes=True,
     )
 
-    # Custom defaults keyword args for `JsonableModel.model_{dump,dump_json}`:
-    # - by_alias: Convert keys to JSON-ready names and objects to JSON-ready dicts.
-    # - round_trip: Ensure round-trippable result
+    # Custom default kwargs for `JsonableModel.model_{dump,dump_json}`:
+    # - by_alias: Convert keys to JSON-ready names and objects to JSON-ready
+    #   dicts.
+    # - round_trip: Ensure the result can round-trip.
     __DUMP_DEFAULTS: ClassVar[Dict[str, Any]] = dict(by_alias=True, round_trip=True)
 
     @overload  # Actual signature
@@ -128,9 +133,11 @@ class GQLResult(GQLBase, ABC):
     )
 
 
-# Base class for GraphQL input types, i.e. prepared GraphQL variables or input objects for queries and mutations.
+# Base class for GraphQL input types, i.e. prepared variables or input objects
+# for queries and mutations.
 class GQLInput(GQLBase, ABC):
-    # For GraphQL input types, exclude null input values when preparing the JSON-able request data.
+    # For GraphQL inputs, exclude null values when preparing JSON-able request
+    # data.
     __DUMP_DEFAULTS: ClassVar[Dict[str, Any]] = dict(exclude_none=True)
 
     @override

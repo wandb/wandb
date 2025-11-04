@@ -22,11 +22,10 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Concatenate, ParamSpec, Self
 
 from wandb._iterutils import always_list, unique_list
-from wandb._pydantic import from_json, gql_typename
+from wandb._pydantic import from_json
 from wandb._strutils import nameof, removeprefix
 from wandb.util import json_friendly_val
 
-from ._generated import ArtifactPortfolioTypeFields, ArtifactSequenceTypeFields
 from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
 
 if TYPE_CHECKING:
@@ -42,16 +41,16 @@ P = ParamSpec("P")
 REGISTRY_PREFIX: Final[str] = "wandb-registry-"
 MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
 
-ARTIFACT_NAME_MAXLEN: Final[int] = 128
-ARTIFACT_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset({"/"})
+NAME_MAXLEN: Final[int] = 128
 
-LINKED_COLLECTION_TYPENAME: Final[str] = gql_typename(ArtifactPortfolioTypeFields)
-SOURCE_COLLECTION_TYPENAME: Final[str] = gql_typename(ArtifactSequenceTypeFields)
+INVALID_ARTIFACT_NAME_CHARS: Final[frozenset[str]] = frozenset("/")
+INVALID_URL_CHARS: Final[frozenset[str]] = frozenset("/\\#?%:\r\n")
+ARTIFACT_SEP_CHARS: Final[frozenset[str]] = frozenset("/:")
 
 
 @dataclass
 class _LinkArtifactFields:
-    """Keep this list updated with fields where the linked artifact and the source artifact differ."""
+    """Keep this list updated with fields where linked and source artifacts differ."""
 
     entity_name: str
     project_name: str
@@ -59,9 +58,7 @@ class _LinkArtifactFields:
     version: str
     aliases: list[str]
 
-    # These fields shouldn't be set as they should always be
-    # these values for a linked artifact
-    # These fields shouldn't be set by the user as they should always be these values for a linked artifact
+    # These fields shouldn't be user-editable, linked artifacts always have these values
     _is_link: Literal[True] = field(init=False, default=True)
     _linked_artifacts: list[Artifact] = field(init=False, default_factory=list)
 
@@ -80,29 +77,25 @@ def validate_artifact_name(name: str) -> str:
     Raises:
         ValueError: If the artifact name is invalid.
     """
-    if len(name) > ARTIFACT_NAME_MAXLEN:
-        short_name = f"{name[:ARTIFACT_NAME_MAXLEN]} ..."
+    if len(name) > NAME_MAXLEN:
+        trunc_name = f"{name[:NAME_MAXLEN]} ..."
         raise ValueError(
-            f"Artifact name is longer than {ARTIFACT_NAME_MAXLEN} characters: {short_name!r}"
+            f"Artifact name is longer than {NAME_MAXLEN!r} characters: {trunc_name!r}"
         )
 
-    if ARTIFACT_NAME_INVALID_CHARS.intersection(name):
+    if INVALID_ARTIFACT_NAME_CHARS.intersection(name):
         raise ValueError(
             "Artifact names must not contain any of the following characters: "
-            f"{', '.join(sorted(ARTIFACT_NAME_INVALID_CHARS))}.  Got: {name!r}"
+            f"{', '.join(sorted(INVALID_ARTIFACT_NAME_CHARS))}.  Got: {name!r}"
         )
 
     return name
 
 
-INVALID_URL_CHARACTERS: Final[frozenset[str]] = frozenset("/\\#?%:\r\n")
-
-PROJECT_NAME_MAXLEN: Final[int] = 128
-REGISTRY_NAME_MAXLEN: Final[int] = PROJECT_NAME_MAXLEN - len(REGISTRY_PREFIX)
-
-
 def validate_project_name(name: str) -> str:
-    """Validates a project name according to W&B rules, returning the original name if successful.
+    """Validate a project name according to W&B rules.
+
+    Return the original name if successful.
 
     Args:
         name: The project name string.
@@ -115,24 +108,21 @@ def validate_project_name(name: str) -> str:
     if not (registry_name := removeprefix(name, REGISTRY_PREFIX)):
         raise ValueError("Registry name cannot be empty")
 
-    if len(name) > PROJECT_NAME_MAXLEN:
+    if len(name) > NAME_MAXLEN:
         if registry_name != name:
-            msg = f"Invalid registry name {registry_name!r}, must be {REGISTRY_NAME_MAXLEN} characters or less"
+            msg = f"Invalid registry name {registry_name!r}, must be {NAME_MAXLEN - len(REGISTRY_PREFIX)!r} characters or less"
         else:
-            msg = f"Invalid project name {name!r}, must be {PROJECT_NAME_MAXLEN} characters or less"
+            msg = f"Invalid project name {name!r}, must be {NAME_MAXLEN!r} characters or less"
         raise ValueError(msg)
 
     # Find the first occurrence of any invalid character
-    if invalid_chars := set(INVALID_URL_CHARACTERS).intersection(name):
+    if invalid_chars := set(INVALID_URL_CHARS).intersection(name):
         error_name = registry_name or name
         invalid_chars_repr = ", ".join(sorted(map(repr, invalid_chars)))
         raise ValueError(
             f"Invalid project/registry name {error_name!r}, cannot contain characters: {invalid_chars_repr!s}"
         )
     return name
-
-
-ALIAS_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset("/:")
 
 
 def validate_aliases(aliases: Collection[str] | str) -> list[str]:
@@ -142,32 +132,27 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
         ValueError: If any of the aliases contain invalid characters.
     """
     aliases_list = always_list(aliases)
-    if any(ALIAS_NAME_INVALID_CHARS.intersection(alias) for alias in aliases_list):
-        invalid_repr = ", ".join(sorted(map(repr, ALIAS_NAME_INVALID_CHARS)))
+    if any(ARTIFACT_SEP_CHARS.intersection(name) for name in aliases_list):
+        invalid_chars = ", ".join(sorted(map(repr, ARTIFACT_SEP_CHARS)))
         raise ValueError(
-            f"Aliases must not contain any of the following characters: {invalid_repr}"
+            f"Aliases must not contain any of the following characters: {invalid_chars}"
         )
     return aliases_list
 
 
-ARTIFACT_TYPE_NAME_MAXLEN: Final[int] = 128
-ARTIFACT_TYPE_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset("/:")
-
-
-def validate_artifact_types(artifact_types: Collection[str] | str) -> list[str]:
+def validate_artifact_types(types: Collection[str] | str) -> list[str]:
     """Validate the artifact type names and return them as a list."""
-    artifact_types_list = always_list(artifact_types)
-    if any(
-        len(name) > ARTIFACT_TYPE_NAME_MAXLEN
-        or ARTIFACT_TYPE_NAME_INVALID_CHARS.intersection(name)
-        for name in artifact_types_list
-    ):
-        invalid_repr = ", ".join(sorted(map(repr, ARTIFACT_TYPE_NAME_INVALID_CHARS)))
+    types_list = always_list(types)
+    if any(ARTIFACT_SEP_CHARS.intersection(name) for name in types_list):
+        invalid_chars = ", ".join(sorted(map(repr, ARTIFACT_SEP_CHARS)))
         raise ValueError(
-            f"Artifact types must not contain any of the following characters: {invalid_repr}"
-            f"and must be less than or equal to {ARTIFACT_TYPE_NAME_MAXLEN!r} characters"
+            f"Artifact types must not contain any of the following characters: {invalid_chars}"
         )
-    return artifact_types_list
+    if any(len(name) > NAME_MAXLEN for name in types_list):
+        raise ValueError(
+            f"Artifact types must be less than or equal to {NAME_MAXLEN!r} characters"
+        )
+    return types_list
 
 
 TAG_REGEX: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
@@ -175,9 +160,10 @@ TAG_REGEX: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
 
 
 def validate_tags(tags: Iterable[str] | str) -> list[str]:
-    """Validate the artifact tag names and return them as a deduped list.
+    """Validate artifact tag names and return them as a deduped list.
 
-    In the case of duplicates, only keep the first tag, and otherwise maintain the order of appearance.
+    In the case of duplicates, keep the first tag and maintain the order of
+    appearance.
 
     Raises:
         ValueError: If any of the tags contain invalid characters.
@@ -235,8 +221,8 @@ def validate_metadata(metadata: dict[str, Any] | str | None) -> dict[str, Any]:
 
 def validate_ttl_duration_seconds(gql_ttl_duration_seconds: int | None) -> int | None:
     """Validate the `ttlDurationSeconds` value (if any) from a GraphQL response."""
-    # If gql_ttl_duration_seconds is not positive, its indicating that TTL is DISABLED(-2)
-    # gql_ttl_duration_seconds only returns None if the server is not compatible with setting Artifact TTLs
+    # A non-positive value indicates that TTL is DISABLED (-2).
+    # `None` only occurs when the server does not support artifact TTLs.
     if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
         return gql_ttl_duration_seconds
     return None
@@ -248,9 +234,10 @@ MethodT = Callable[Concatenate[SelfT, P], R]
 
 
 def ensure_logged(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT, P, R]:
-    """Decorator to ensure that an Artifact method can only be called if the artifact has been logged.
+    """Ensure an artifact method runs only if the artifact has been logged.
 
-    If the method is called on an artifact that's not logged, `ArtifactNotLoggedError` is raised.
+    If the method is called on an artifact that's not logged, `ArtifactNotLoggedError`
+    is raised.
     """
     # For clarity, use the qualified (full) name of the method
     method_fullname = nameof(method)
@@ -265,9 +252,10 @@ def ensure_logged(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT, P, R]:
 
 
 def ensure_not_finalized(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT, P, R]:
-    """Decorator to ensure that an `Artifact` method can only be called if the artifact isn't finalized.
+    """Ensure an `Artifact` method runs only if the artifact is not finalized.
 
-    If the method is called on an artifact that's not logged, `ArtifactFinalizedError` is raised.
+    If the method is called on an artifact that's not logged, `ArtifactFinalizedError`
+    is raised.
     """
     # For clarity, use the qualified (full) name of the method
     method_fullname = nameof(method)
@@ -288,7 +276,7 @@ def is_artifact_registry_project(project: str) -> bool:
 def remove_registry_prefix(project: str) -> str:
     if not is_artifact_registry_project(project):
         raise ValueError(
-            f"Project {project!r} does not have the prefix {REGISTRY_PREFIX}. It is not a registry project"
+            f"Project {project!r} is not a registry project. Must start with: {REGISTRY_PREFIX!r}"
         )
     return removeprefix(project, REGISTRY_PREFIX)
 

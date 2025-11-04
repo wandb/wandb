@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import ConfigDict, Field
 from typing_extensions import Self
@@ -9,11 +9,11 @@ from wandb._pydantic import GQLId, field_validator
 from wandb._strutils import nameof
 from wandb.apis.public.registries._freezable_list import AddOnlyArtifactTypesList
 from wandb.apis.public.registries._utils import Visibility
-from wandb.sdk.artifacts._generated import RegistryFragment
-from wandb.sdk.artifacts._generated.fragments import RegistryFragmentArtifactTypes
-from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
 
 from .base_model import ArtifactsBase
+
+if TYPE_CHECKING:
+    from wandb.sdk.artifacts._generated import RegistryFragment
 
 
 class RegistryData(ArtifactsBase):
@@ -56,9 +56,11 @@ class RegistryData(ArtifactsBase):
     )
     """The artifact types allowed in the registry.
 
-    The meaning of this list depends on the value of `allow_all_artifact_types`:
-    - If True: `artifact_types` are the previously-saved or currently-used types in the registry.
-    - If False: `artifact_types` are the only allowed artifact types in the registry.
+    The meaning of this list depends on `allow_all_artifact_types`:
+    - If True: `artifact_types` are the previously saved or currently used
+      types in the registry.
+    - If False: `artifact_types` are the only allowed artifact types in the
+      registry.
     """
 
     visibility: Visibility = Field(alias="access")
@@ -66,12 +68,18 @@ class RegistryData(ArtifactsBase):
 
     @property
     def full_name(self) -> str:
-        """The full project name of the registry, including the expected `wandb-registry-` prefix."""
+        """The project name with the expected `wandb-registry-` prefix."""
+        from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+
         return f"{REGISTRY_PREFIX}{self.name}"
 
     @field_validator("artifact_types", mode="plain")
     def _validate_artifact_types(cls, v: Any) -> AddOnlyArtifactTypesList:
         """Coerce `artifact_types` to an AddOnlyArtifactTypesList."""
+        from wandb.sdk.artifacts._generated.fragments import (
+            RegistryFragmentArtifactTypes,
+        )
+
         if isinstance(v, RegistryFragmentArtifactTypes):
             # This is a GQL connection object, so we need to extract the node names
             return AddOnlyArtifactTypesList(e.node.name for e in v.edges if e.node)
@@ -81,6 +89,8 @@ class RegistryData(ArtifactsBase):
 
     @classmethod
     def from_fragment(cls, obj: RegistryFragment) -> Self:
+        from wandb.sdk.artifacts._validators import remove_registry_prefix
+
         if not obj.entity.organization:
             raise ValueError(
                 f"Unable to parse registry organization from {nameof(type(obj))!r} object"

@@ -50,7 +50,11 @@ class Agg(LenientStrEnum):  # from: Aggregation
 
 
 class ChangeType(LenientStrEnum):  # from: RunMetricChangeType
-    """Describes the metric change as absolute (arithmetic difference) or relative (decimal percentage)."""
+    """Describes the type of metric change as absolute or relative.
+
+    ABSOLUTE: The arithmetic difference between the current vs. prior values.
+    RELATIVE: The percentage change between the current vs. prior values.
+    """
 
     ABSOLUTE = "ABSOLUTE"
     RELATIVE = "RELATIVE"
@@ -80,51 +84,54 @@ class BaseMetricFilter(GQLBase, ABC, extra="forbid"):
     """Aggregate operation, if any, to apply over the window size."""
 
     window: PositiveInt
-    """Size of the window over which the metric is aggregated (ignored if `agg is None`)."""
+    """Size of the metric aggregation window (ignored if `agg` is ``None``)."""
 
     # ------------------------------------------------------------------------------
     cmp: Optional[str]
-    """Comparison between the metric expression (left) vs. the threshold or target value (right)."""
+    """Comparison operator between the metric expression (left) vs. the threshold or target (right)."""  # noqa: W505
 
     # ------------------------------------------------------------------------------
     threshold: Union[StrictInt, StrictFloat]
     """Threshold value to compare against."""
 
     def __and__(self, other: Any) -> RunMetricFilter:
-        """Implements `(metric_filter & run_filter) -> RunMetricFilter`."""
+        """Returns `(metric_filter & run_filter)` as a `RunMetricFilter`."""
         from wandb.automations.events import RunMetricFilter
 
         if isinstance(run_filter := other, (BaseOp, FilterExpr)):
-            # Assume `other` is a run filter, and we are building a RunMetricEvent.
-            # For the metric filter, delegate to the inner validator(s) to further wrap/nest as appropriate.
+            # Treat `other` as a run filter and build a RunMetricEvent. Let the
+            # metric filter validators wrap or nest as appropriate.
             return RunMetricFilter(run=run_filter, metric=self)
         return NotImplemented
 
     def __rand__(self, other: BaseOp | FilterExpr) -> RunMetricFilter:
-        """Ensures `&` is commutative: `(run_filter & metric_filter) == (metric_filter & run_filter)`."""
+        """Ensures `&` is commutative for run and metric filters.
+
+        I.e. `(run_filter & metric_filter) == (metric_filter & run_filter)`.
+        """
         return self.__and__(other)
 
     @abstractmethod
     def __repr__(self) -> str:
-        """The text representation of the metric filter."""
+        """Returns the text representation of the metric filter."""
         raise NotImplementedError
 
     @override
     def __rich_repr__(self) -> RichReprResult:
-        """The representation of the metric filter when using `rich` for pretty-printing."""
+        """Returns the `rich` pretty-print representation of the metric filter."""
         # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
         yield None, repr(self)
 
 
 class MetricThresholdFilter(BaseMetricFilter):  # from: RunMetricThresholdFilter
-    """Defines a filter that compares a run metric against a user-defined threshold value."""
+    """Filter that compares a metric value against a user-defined threshold."""
 
     name: str
     agg: Annotated[Optional[Agg], Field(alias="agg_op")] = None
     window: Annotated[PositiveInt, Field(alias="window_size")] = 1
 
     cmp: Annotated[Literal["$gte", "$gt", "$lt", "$lte"], Field(alias="cmp_op")]
-    """Comparison operator used to compare the metric value (left) vs. the threshold value (right)."""
+    """Comparison operator between the metric value (left) vs. the threshold (right)."""
 
     threshold: Union[StrictInt, StrictFloat]
 
@@ -140,7 +147,7 @@ class MetricThresholdFilter(BaseMetricFilter):  # from: RunMetricThresholdFilter
 
 
 class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
-    """Defines a filter that compares a change in a run metric against a user-defined threshold.
+    """Filter that compares a **change** in a metric value to a user-defined threshold.
 
     The change is calculated over "tumbling" windows, i.e. the difference
     between the current window and the non-overlapping prior window.
@@ -156,7 +163,7 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
         # By default, set `window -> prior_window` if the latter wasn't provided.
         Field(alias="prior_window_size", default_factory=lambda data: data["window"]),
     ]
-    """Size of the prior window over which the metric is aggregated (ignored if `agg is None`).
+    """Size of the "prior" metric aggregation window (ignored if `agg` is ``None``).
 
     If omitted, defaults to the size of the current window.
     """
@@ -190,19 +197,19 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
 
 class BaseMetricOperand(GQLBase, extra="forbid"):
     def gt(self, value: int | float, /) -> MetricThresholdFilter:
-        """Defines a `MetricThresholdFilter` that observes for `metric_expr > threshold`."""
+        """Returns a filter that watches for `metric_expr > threshold`."""
         return self > value
 
     def lt(self, value: int | float, /) -> MetricThresholdFilter:
-        """Defines a `MetricThresholdFilter` that observes for `metric_expr < threshold`."""
+        """Returns a filter that watches for `metric_expr < threshold`."""
         return self < value
 
     def gte(self, value: int | float, /) -> MetricThresholdFilter:
-        """Defines a `MetricThresholdFilter` that observes for `metric_expr >= threshold`."""
+        """Returns a filter that watches for `metric_expr >= threshold`."""
         return self >= value
 
     def lte(self, value: int | float, /) -> MetricThresholdFilter:
-        """Defines a `MetricThresholdFilter` that observes for `metric_expr <= threshold`."""
+        """Returns a filter that watches for `metric_expr <= threshold`."""
         return self <= value
 
     # Overloads to implement:
@@ -245,18 +252,16 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
         frac: PosNum | None = None,
         _dir: ChangeDir = ChangeDir.ANY,
     ) -> MetricChangeFilter:
-        """Defines a filter that observes for any change (increase OR decrease) in a run metric.
+        """Returns a filter that watches for a numerical increase OR decrease in a metric.
 
-        Exactly one of the keyword arguments `frac` or `diff` must be provided.
+        Exactly one of `frac` or `diff` must be provided.
 
         Args:
-            diff:
-                If given, the arithmetic difference that must be observed
-                in the metric.  Must be a positive number.
-            frac:
-                If given, the fractional (relative) change that must be observed
-                in the metric.  Must be a positive number.  E.g. `frac=0.1`
-                denotes a 10% relative increase OR decrease.
+            diff: If given, arithmetic difference that must be observed in the metric.
+                Must be positive.
+            frac: If given, fractional (relative) change that must be observed in the
+                metric. Must be positive. For example, `frac=0.1` denotes a 10% relative
+                increase or decrease.
         """
         # Enforce mutually exclusive keyword args
         if (frac is None) is (diff is None):
@@ -282,9 +287,9 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
     def increases_by(
         self, *, diff: PosNum | None = None, frac: PosNum | None = None
     ) -> MetricChangeFilter:
-        """Defines a filter that observes for an increase in the numerical value of a run metric.
+        """Returns a filter that watches for a numerical increase in a metric.
 
-        Arguments are the same as for `.changes_by()`.
+        Arguments mirror those of `.changes_by()`.
         """
         return self.changes_by(diff=diff, frac=frac, _dir=ChangeDir.INC)
 
@@ -295,19 +300,19 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
     def decreases_by(
         self, *, diff: PosNum | None = None, frac: PosNum | None = None
     ) -> MetricChangeFilter:
-        """Defines a filter that observes for a decrease in the numerical value of a run metric.
+        """Returns a filter that watches for a numerical decrease in a metric.
 
-        Arguments are the same as for `.changes_by()`.
+        Arguments mirror those of `.changes_by()`.
         """
         return self.changes_by(diff=diff, frac=frac, _dir=ChangeDir.DEC)
 
 
 class MetricVal(BaseMetricOperand):
-    """Represents a single, unaggregated metric value when defining a metric filter."""
+    """A single, unaggregated metric value for defining filters."""
 
     name: str
 
-    # Allow users to convert this single-value metric into an aggregated metric expression.
+    # Allow conversion of a single-value metric into an aggregated expression.
     def max(self, window: int) -> MetricAgg:
         return MetricAgg(name=self.name, agg=Agg.MAX, window=window)
 
@@ -323,7 +328,7 @@ class MetricVal(BaseMetricOperand):
 
 
 class MetricAgg(BaseMetricOperand):
-    """Represents an aggregated metric value when defining a metric filter."""
+    """Aggregated metric value for defining metric filters."""
 
     name: str
     agg: Annotated[Agg, Field(alias="agg_op")]

@@ -102,7 +102,8 @@ class ArtifactManifestEntry(ArtifactsBase):
 
     skip_cache: bool = False
 
-    # Note: Pydantic considers these private attributes, omitting them from validation and comparison logic.
+    # Note: Pydantic treats these as private attributes, omitting them from
+    # validation and comparison logic.
     _parent_artifact: Optional[Artifact] = None
     _download_url: Optional[str] = None
 
@@ -110,9 +111,9 @@ class ArtifactManifestEntry(ArtifactsBase):
     def _validate_path(cls, v: Any) -> LogicalPath:
         """Coerce `path` to a LogicalPath.
 
-        LogicalPath doesn't implement its own pydantic validator, and implementing one for
-        both pydantic V1 _and_ V2 would add too much boilerplate. Until we drop V1 support,
-        just coerce to LogicalPath in the field validator here.
+        LogicalPath does not implement its own pydantic validator, and adding
+        one for both pydantic V1 and V2 would add excessive boilerplate. Until
+        we drop V1 support, coerce to LogicalPath in this field validator.
         """
         return LogicalPath(v)
 

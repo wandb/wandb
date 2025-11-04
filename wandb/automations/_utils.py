@@ -77,7 +77,7 @@ ACTION_CONFIG_KEYS: dict[ActionType, str] = {
 
 
 class InputActionConfig(TriggeredActionConfig):
-    """A `TriggeredActionConfig` that prepares the action config for saving an automation."""
+    """Prepares action configuration data for saving an automation."""
 
     # NOTE: `QueueJobActionInput` for defining a Launch job is deprecated,
     # so while it's allowed here to update EXISTING mutations, we don't
@@ -90,11 +90,11 @@ class InputActionConfig(TriggeredActionConfig):
 
 
 def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any]:
-    """Prepare the `TriggeredActionConfig` input, nesting the action input inside the appropriate key.
+    """Nests the action input under the correct key for `TriggeredActionConfig`.
 
     This is necessary to conform to the schemas for:
-    - CreateFilterTriggerInput
-    - UpdateFilterTriggerInput
+    - `CreateFilterTriggerInput`
+    - `UpdateFilterTriggerInput`
     """
     # Delegate to inner validators to convert SavedAction -> InputAction types, if needed.
     obj = to_input_action(obj)
@@ -104,11 +104,11 @@ def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any
 def prepare_event_filter_input(
     obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter,
 ) -> str:
-    """Prepare the `EventFilter` input, unnesting the filter if needed and serializing to JSON.
+    """Unnests (if needed) and serializes an `EventFilter` input to JSON.
 
     This is necessary to conform to the schemas for:
-    - CreateFilterTriggerInput
-    - UpdateFilterTriggerInput
+    - `CreateFilterTriggerInput`
+    - `UpdateFilterTriggerInput`
     """
     # Input event filters are nested one level deeper than saved event filters.
     # Note that this is NOT the case for run/run metric filters.

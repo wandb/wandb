@@ -19,7 +19,8 @@ if TYPE_CHECKING:
 
 
 class ArtifactManifest(ArtifactsBase, ABC):
-    # Note: this can't be named "version" since it conflicts with the prior `version()` classmethod.
+    # Note: we can't name this "version" since it conflicts with the prior
+    # `version()` classmethod.
     manifest_version: Annotated[Any, Field(repr=False)]
     entries: Dict[str, ArtifactManifestEntry] = Field(default_factory=dict)  # noqa: UP006
 

@@ -132,7 +132,7 @@ class SendNotification(_BaseActionInput, NotificationActionInput):
     integration_id: GQLId
     """The ID of the Slack integration that will be used to send the notification."""
 
-    # Note: Validation aliases are meant to provide continuity with prior `wandb.alert()` API.
+    # Note: Validation aliases preserve continuity with the prior `wandb.alert()` API.
     title: str = ""
     """The title of the sent notification."""
 

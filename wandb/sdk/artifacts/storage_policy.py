@@ -11,6 +11,7 @@ from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
     from wandb.filesync.step_prepare import StepPrepare
+    from wandb.sdk.artifacts._models.storage import StoragePolicyConfig
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
     from wandb.sdk.internal.progress import ProgressFn
@@ -38,7 +39,7 @@ class StoragePolicy(ABC):
     @classmethod
     @abstractmethod
     def from_config(
-        cls, config: dict[str, Any], api: InternalApi | None = None
+        cls, config: StoragePolicyConfig, api: InternalApi | None = None
     ) -> StoragePolicy:
         raise NotImplementedError
 

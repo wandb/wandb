@@ -15,6 +15,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 - `Artifact.files()` now has a correct `len()` when filtering by the `names` parameter (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10796)
+- The numerator for file upload progress no longer occasionally exceeds the total file size (@timoffex in https://github.com/wandb/wandb/pull/10812)
 
 ### Added
 - The registry API now supports programmatic management of user and team members of individual registries. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10542)
