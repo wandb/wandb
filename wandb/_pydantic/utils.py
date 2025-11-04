@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from contextlib import suppress
+from functools import lru_cache
 from typing import Any, Type
 
 import pydantic
@@ -20,6 +21,7 @@ IS_PYDANTIC_V2: bool = int(pydantic_major) >= 2
 BaseModelType: TypeAlias = Type[BaseModel]
 
 
+@lru_cache
 def gql_typename(cls: type[BaseModel]) -> str:
     """Get the GraphQL typename for a Pydantic model."""
     if (field := cls.model_fields.get("typename__")) and (typename := field.default):

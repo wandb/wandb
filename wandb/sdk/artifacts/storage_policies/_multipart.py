@@ -8,13 +8,15 @@ import threading
 from concurrent.futures import FIRST_EXCEPTION, Executor, wait
 from dataclasses import dataclass, field
 from queue import Queue
-from typing import Any, Final, Iterator, Union
+from typing import TYPE_CHECKING, Any, Final, Iterator, Union
 
-from requests import Session
 from typing_extensions import TypeAlias, TypeIs, final
 
 from wandb import env
 from wandb.sdk.artifacts.artifact_file_cache import Opener
+
+if TYPE_CHECKING:
+    from requests import Session
 
 logger = logging.getLogger(__name__)
 

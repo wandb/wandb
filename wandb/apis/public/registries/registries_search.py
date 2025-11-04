@@ -11,41 +11,35 @@ from wandb_gql import gql
 
 from wandb._analytics import tracked
 from wandb.apis.paginator import Paginator
-from wandb.apis.public.artifacts import ArtifactCollection
 from wandb.apis.public.utils import gql_compat
-from wandb.sdk.artifacts._generated import (
-    FETCH_REGISTRIES_GQL,
-    REGISTRY_COLLECTIONS_GQL,
-    REGISTRY_VERSIONS_GQL,
-    FetchRegistries,
-    RegistryCollections,
-    RegistryVersions,
-)
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
-from wandb.sdk.artifacts._models.pagination import (
-    ArtifactMembershipConnection,
-    RegistryCollectionConnection,
-    RegistryConnection,
-)
-from wandb.sdk.artifacts._validators import (
-    SOURCE_COLLECTION_TYPENAME,
-    FullArtifactPath,
-    remove_registry_prefix,
-)
 
 from ._utils import ensure_registry_prefix_on_names
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient
+    from wandb.sdk.artifacts._models.pagination import (
+        ArtifactMembershipConnection,
+        RegistryCollectionConnection,
+        RegistryConnection,
+    )
     from wandb.sdk.artifacts.artifact import Artifact
 
 
 class Registries(Paginator):
-    """An lazy iterator of `Registry` objects."""
-
-    QUERY = gql(FETCH_REGISTRIES_GQL)
+    """A lazy iterator of `Registry` objects."""
 
     last_response: RegistryConnection | None
+
+    _QUERY = None
+
+    @property
+    def QUERY(self):  # noqa: N802
+        if self._QUERY is None:
+            from wandb.sdk.artifacts._generated import FETCH_REGISTRIES_GQL
+
+            type(self)._QUERY = gql(FETCH_REGISTRIES_GQL)
+        return self._QUERY
 
     def __init__(
         self,
@@ -112,6 +106,9 @@ class Registries(Paginator):
 
     @override
     def _update_response(self) -> None:
+        from wandb.sdk.artifacts._generated import FetchRegistries
+        from wandb.sdk.artifacts._models.pagination import RegistryConnection
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = FetchRegistries.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
@@ -127,6 +124,7 @@ class Registries(Paginator):
 
     def convert_objects(self):
         from wandb.apis.public.registries.registry import Registry
+        from wandb.sdk.artifacts._validators import remove_registry_prefix
 
         if self.last_response is None:
             return []
@@ -143,12 +141,20 @@ class Registries(Paginator):
         ]
 
 
-class Collections(Paginator[ArtifactCollection]):
+class Collections(Paginator["ArtifactCollection"]):
     """An lazy iterator of `ArtifactCollection` objects in a Registry."""
 
-    QUERY = gql(REGISTRY_COLLECTIONS_GQL)
-
     last_response: RegistryCollectionConnection | None
+
+    _QUERY = None
+
+    @property
+    def QUERY(self):  # noqa: N802
+        if self._QUERY is None:
+            from wandb.sdk.artifacts._generated import REGISTRY_COLLECTIONS_GQL
+
+            type(self)._QUERY = gql(REGISTRY_COLLECTIONS_GQL)
+        return self._QUERY
 
     def __init__(
         self,
@@ -207,6 +213,9 @@ class Collections(Paginator[ArtifactCollection]):
 
     @override
     def _update_response(self) -> None:
+        from wandb.sdk.artifacts._generated import RegistryCollections
+        from wandb.sdk.artifacts._models.pagination import RegistryCollectionConnection
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = RegistryCollections.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
@@ -221,7 +230,9 @@ class Collections(Paginator[ArtifactCollection]):
             raise ValueError("Unexpected response data") from e
 
     def convert_objects(self):
+        from wandb._pydantic import gql_typename
         from wandb.apis.public import ArtifactCollection
+        from wandb.sdk.artifacts._generated import ArtifactSequenceTypeFields
 
         if self.last_response is None:
             return []
@@ -239,7 +250,8 @@ class Collections(Paginator[ArtifactCollection]):
             for node in self.last_response.nodes()
             # We don't _expect_ any registry collections to be
             # ArtifactSequences, but defensively filter them out anyway.
-            if node.project and (node.typename__ != SOURCE_COLLECTION_TYPENAME)
+            if node.project
+            and (node.typename__ != gql_typename(ArtifactSequenceTypeFields))
         ]
 
 
@@ -257,6 +269,8 @@ class Versions(Paginator["Artifact"]):
         artifact_filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
     ):
+        from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
+
         self.client = client
         self.organization = organization
         self.registry_filter = registry_filter
@@ -300,6 +314,9 @@ class Versions(Paginator["Artifact"]):
 
     @override
     def _update_response(self) -> None:
+        from wandb.sdk.artifacts._generated import RegistryVersions
+        from wandb.sdk.artifacts._models.pagination import ArtifactMembershipConnection
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = RegistryVersions.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
@@ -314,6 +331,7 @@ class Versions(Paginator["Artifact"]):
             raise ValueError("Unexpected response data") from e
 
     def convert_objects(self) -> list[Artifact]:
+        from wandb.sdk.artifacts._validators import FullArtifactPath
         from wandb.sdk.artifacts.artifact import Artifact
 
         if self.last_response is None:

@@ -60,8 +60,6 @@ _cleanup_media_tmp_dir()
 from wandb.data_types import Graph
 from wandb.data_types import Image
 from wandb.data_types import Plotly
-
-# from wandb.data_types import Bokeh # keeping out of top level for now since Bokeh plots have poor UI
 from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table

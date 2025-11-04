@@ -22,11 +22,10 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Concatenate, ParamSpec, Self
 
 from wandb._iterutils import always_list, unique_list
-from wandb._pydantic import from_json, gql_typename
+from wandb._pydantic import from_json
 from wandb._strutils import nameof, removeprefix
 from wandb.util import json_friendly_val
 
-from ._generated import ArtifactPortfolioTypeFields, ArtifactSequenceTypeFields
 from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
 
 if TYPE_CHECKING:
@@ -47,9 +46,6 @@ NAME_MAXLEN: Final[int] = 128
 INVALID_ARTIFACT_NAME_CHARS: Final[frozenset[str]] = frozenset("/")
 INVALID_URL_CHARS: Final[frozenset[str]] = frozenset("/\\#?%:\r\n")
 ARTIFACT_SEP_CHARS: Final[frozenset[str]] = frozenset("/:")
-
-LINKED_COLLECTION_TYPENAME: Final[str] = gql_typename(ArtifactPortfolioTypeFields)
-SOURCE_COLLECTION_TYPENAME: Final[str] = gql_typename(ArtifactSequenceTypeFields)
 
 
 @dataclass

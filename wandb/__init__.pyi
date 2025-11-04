@@ -446,14 +446,14 @@ def finish(
     ...
 
 def login(
-    anonymous: Optional[Literal["must", "allow", "never"]] = None,
-    key: Optional[str] = None,
-    relogin: Optional[bool] = None,
-    host: Optional[str] = None,
-    force: Optional[bool] = None,
-    timeout: Optional[int] = None,
+    anonymous: Literal["must", "allow", "never"] | None = None,
+    key: str | None = None,
+    relogin: bool | None = None,
+    host: str | None = None,
+    force: bool | None = None,
+    timeout: int | None = None,
     verify: bool = False,
-    referrer: Optional[str] = None,
+    referrer: str | None = None,
 ) -> bool:
     """Set up W&B login credentials.
 

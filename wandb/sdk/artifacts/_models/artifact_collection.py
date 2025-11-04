@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-from typing import Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 from pydantic import ConfigDict, Field
 from typing_extensions import Self
 
 from wandb._pydantic import field_validator
-from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
-from wandb.sdk.artifacts._validators import (
-    SOURCE_COLLECTION_TYPENAME,
-    validate_artifact_name,
-    validate_tags,
-)
 
 from .base_model import ArtifactsBase
+
+if TYPE_CHECKING:
+    from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
 
 
 class ArtifactCollectionData(ArtifactsBase):
@@ -74,17 +71,24 @@ class ArtifactCollectionData(ArtifactsBase):
 
     @field_validator("name", mode="plain")
     def _validate_name(cls, v: str) -> str:
+        from wandb.sdk.artifacts._validators import validate_artifact_name
+
         return validate_artifact_name(v)
 
     @field_validator("tags", mode="plain")
     def _validate_tags(cls, v: Any) -> list[str]:
         """Ensure tags is a validated, deduped list of (str) tag names."""
+        from wandb.sdk.artifacts._validators import validate_tags
+
         return validate_tags(v)
 
     @property
     def is_sequence(self) -> bool:
         """Return True if this collection is an `ArtifactSequence` (source collection)."""
-        return self.typename__ == SOURCE_COLLECTION_TYPENAME
+        from wandb._pydantic import gql_typename
+        from wandb.sdk.artifacts._generated import ArtifactSequenceTypeFields
+
+        return self.typename__ == gql_typename(ArtifactSequenceTypeFields)
 
     @classmethod
     def from_fragment(cls, obj: ArtifactCollectionFragment) -> Self:

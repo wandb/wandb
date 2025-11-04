@@ -9,13 +9,10 @@ import stat
 import sys
 import textwrap
 from functools import partial
-
-# import Literal
 from typing import TYPE_CHECKING, Callable, Literal
 from urllib.parse import urlparse
 
 import click
-from requests.utils import NETRC_FILES, get_netrc_auth
 
 import wandb
 from wandb.apis import InternalApi
@@ -67,7 +64,8 @@ def _fixup_anon_mode(default: Mode | None) -> Mode | None:
 
 def get_netrc_file_path() -> str:
     """Return the path to the netrc file."""
-    # if the NETRC environment variable is set, use that
+    from requests.utils import NETRC_FILES
+
     netrc_file = os.environ.get("NETRC")
     if netrc_file:
         return os.path.expanduser(netrc_file)
@@ -312,6 +310,8 @@ def write_key(
 
 
 def api_key(settings: Settings | None = None) -> str | None:
+    from requests.utils import get_netrc_auth
+
     if settings is None:
         settings = wandb_setup.singleton().settings
     if settings.api_key:
