@@ -377,7 +377,7 @@ def _log_to_run(
     """
 
     @functools.wraps(func)
-    def wrapper(self: Run, *args, **kwargs) -> _T:
+    def wrapper(self: Run, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         # In "attach" usage, many properties of the Run are not initially
         # populated.
         if hasattr(self, "_settings"):
@@ -404,7 +404,7 @@ def _attach(
     """
 
     @functools.wraps(func)
-    def wrapper(self: Run, *args, **kwargs) -> _T:
+    def wrapper(self: Run, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         global _is_attaching
 
         # The _attach_id attribute is only None when running in the "disable
@@ -422,7 +422,7 @@ def _attach(
             if _is_attaching:
                 raise RuntimeError(
                     f"Trying to attach `{func.__name__}`"
-                    f" while in the middle of attaching `{_is_attaching}`"
+                    + f" while in the middle of attaching `{_is_attaching}`"
                 )
 
             _is_attaching = func.__name__
@@ -442,7 +442,7 @@ def _raise_if_finished(
     """Decorate a Run method to raise an error after the run is finished."""
 
     @functools.wraps(func)
-    def wrapper_fn(self: Run, *args, **kwargs) -> _T:
+    def wrapper_fn(self: Run, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         if not getattr(self, "_is_finished", False):
             return func(self, *args, **kwargs)
 
