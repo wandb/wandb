@@ -1037,30 +1037,31 @@ class Artifact:
 
     def _fetch_manifest(self) -> ArtifactManifest:
         """Fetch, parse, and load the full ArtifactManifest."""
-        import requests
-
-        from ._generated import FETCH_ARTIFACT_MANIFEST_GQL, FetchArtifactManifest
-
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
+        import requests
+
+        from ._client import parse_result
+        from ._generated import FETCH_ARTIFACT_MANIFEST_GQL, DeferredManifestFragment
+
         # From the GraphQL API, get the (expiring) directUrl for downloading the manifest.
         gql_op = gql(FETCH_ARTIFACT_MANIFEST_GQL)
-        gql_vars = {"id": self.id}
-        data = client.execute(gql_op, variable_values=gql_vars)
-        result = FetchArtifactManifest.model_validate(data)
+        data = client.execute(gql_op, variable_values={"id": self.id})
+        manifest = parse_result(
+            data, cls=DeferredManifestFragment, path=("artifact", "currentManifest")
+        )
 
         # Now fetch the actual manifest contents from the directUrl.
-        if (artifact := result.artifact) and (manifest := artifact.current_manifest):
-            # FIXME: For successive/repeated calls to `manifest`, figure out how to reuse a single
-            # `requests.Session` within the constraints of the current artifacts API.
-            # Right now, `requests.get()` creates a new session for _each_ fetch.
-            # This is wasteful and introduces a noticeable perf overhead when e.g.
-            # downloading many artifacts sequentially or concurrently.
-            response = requests.get(manifest.file.direct_url)
-            return ArtifactManifest.from_manifest_json(from_json(response.content))
-
-        raise ValueError("Failed to fetch artifact manifest")
+        #
+        # FIXME: For successive/repeated calls to `manifest`, figure out how to reuse a single
+        # `requests.Session` within the constraints of the current artifacts API.
+        # Right now, `requests.get()` creates a new session for _each_ fetch.
+        # This is wasteful and introduces a noticeable perf overhead when e.g.
+        # downloading many artifacts sequentially or concurrently.
+        manifest_url = manifest.file.direct_url
+        response = requests.get(manifest_url)
+        return ArtifactManifest.from_manifest_json(from_json(response.content))
 
     @property
     def digest(self) -> str:
@@ -1246,17 +1247,17 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
-
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
-        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
-        data = client.execute(query, variable_values={"id": artifact_id})
-        result = ArtifactByID.model_validate(data)
+        from ._client import parse_result
+        from ._generated import ARTIFACT_BY_ID_GQL, ArtifactFragment
 
-        if not (artifact := result.artifact):
-            raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
+        gql_op = gql_compat(
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client)
+        )
+        data = client.execute(gql_op, variable_values={"id": artifact_id})
+        artifact = parse_result(data, cls=ArtifactFragment, path=("artifact",))
 
         # _populate_after_save is only called on source artifacts, not linked artifacts
         # We have to manually set is_link because we aren't fetching the collection

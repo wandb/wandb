@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from enum import Enum
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable
 from urllib.parse import urlparse
 
 from wandb_gql import gql
@@ -120,12 +120,10 @@ class _GQLCompatRewriter(visitor.Visitor):
         omit_variables: Iterable[str] | None = None,
         omit_fragments: Iterable[str] | None = None,
         omit_fields: Iterable[str] | None = None,
-        rename_fields: Mapping[str, str] | None = None,
     ):
         self.omit_variables = set(omit_variables or ())
         self.omit_fragments = set(omit_fragments or ())
         self.omit_fields = set(omit_fields or ())
-        self.rename_fields = dict(rename_fields or {})
 
     def leave_Document(self, node: ast.Document, *_, **__) -> Any:  # noqa: N802
         # After rewriting the GQL document, prune "orphan" (unused) fragment definitions.
@@ -190,8 +188,6 @@ class _GQLCompatRewriter(visitor.Visitor):
     def enter_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
         if node.name.value in self.omit_fields:
             return visitor.REMOVE
-        if new_name := self.rename_fields.get(node.name.value):
-            node.name.value = new_name
 
     def leave_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
         # If the field had a selection set, but now it's empty, remove the field entirely
@@ -204,7 +200,6 @@ def gql_compat(
     omit_variables: Iterable[str] | None = None,
     omit_fragments: Iterable[str] | None = None,
     omit_fields: Iterable[str] | None = None,
-    rename_fields: Mapping[str, str] | None = None,
 ) -> ast.Document:
     """Rewrite a GraphQL request string to ensure compatibility with older server versions.
 
@@ -213,8 +208,6 @@ def gql_compat(
         omit_variables (Iterable[str] | None): Names of variables to remove from the request string.
         omit_fragments (Iterable[str] | None): Names of fragments to remove from the request string.
         omit_fields (Iterable[str] | None): Names of fields to remove from the request string.
-        rename_fields (Mapping[str, str] | None):
-            A mapping of fields to rename in the request string, given as `{old_name -> new_name}`.
 
     Returns:
         str: Modified GraphQL request string with fragments on omitted types removed.
@@ -222,7 +215,7 @@ def gql_compat(
     # Parse the request into a GraphQL AST
     doc = gql(request_string)
 
-    if not (omit_variables or omit_fragments or omit_fields or rename_fields):
+    if not (omit_variables or omit_fragments or omit_fields):
         return doc
 
     # Visit the AST with our visitor to filter out unwanted fragments
@@ -230,6 +223,5 @@ def gql_compat(
         omit_variables=omit_variables,
         omit_fragments=omit_fragments,
         omit_fields=omit_fields,
-        rename_fields=rename_fields,
     )
     return visitor.visit(doc, rewriter)

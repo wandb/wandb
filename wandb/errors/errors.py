@@ -36,5 +36,9 @@ class UnsupportedError(UsageError):
     """Raised when trying to use a feature that is not supported."""
 
 
+class ResponseError(CommError):
+    """Raised when we receive invalid or unexpected response data from the server."""
+
+
 class WandbCoreNotAvailableError(Error):
     """Raised when wandb core is not available."""
