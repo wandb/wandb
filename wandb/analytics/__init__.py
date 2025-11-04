@@ -1,3 +1,3 @@
-__all__ = ("Sentry",)
+__all__ = ("get_sentry",)
 
-from .sentry import Sentry
+from .sentry import get_sentry

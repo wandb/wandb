@@ -88,12 +88,6 @@ RE_DOCKER_IMAGE_NAME_SEPARATOR_END = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "$
 RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "{2,}")
 RE_DOCKER_IMAGE_NAME_CHARS = re.compile(r"[^a-z0-9._\-]")
 
-# these match the environments for gorilla
-if IS_GIT:
-    SENTRY_ENV = "development"
-else:
-    SENTRY_ENV = "production"
-
 
 POW_10_BYTES = [
     ("B", 10**0),

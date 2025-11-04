@@ -8,7 +8,7 @@ import sys
 import click
 from typing_extensions import Never
 
-import wandb
+from wandb.analytics import get_sentry
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.sdk import wandb_setup
 from wandb.util import get_core_path
@@ -47,7 +47,7 @@ def _wandb_file_path(path: str | None) -> str:
 
 
 def launch(path: str | None) -> Never:
-    wandb._sentry.configure_scope(process_context="leet")
+    get_sentry().configure_scope(process_context="leet")
 
     wandb_file = _wandb_file_path(path)
 
@@ -72,4 +72,4 @@ def launch(path: str | None) -> Never:
         sys.exit(result.returncode)
 
     except Exception as e:
-        wandb._sentry.reraise(e)
+        get_sentry().reraise(e)
