@@ -359,7 +359,7 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
-        self._sentry = wandb.analytics.sentry.Sentry()
+        self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
 
     def _load_api_key(

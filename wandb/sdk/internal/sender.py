@@ -30,6 +30,7 @@ import requests
 
 import wandb
 from wandb import util
+from wandb.analytics import get_sentry
 from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
@@ -1126,7 +1127,7 @@ class SendManager:
         run_settings = message_to_dict(self._run)
         _settings = dict(self._settings)
         _settings.update(run_settings)
-        wandb._sentry.configure_scope(tags=_settings, process_context="internal")
+        get_sentry().configure_scope(tags=_settings, process_context="internal")
 
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
@@ -1609,7 +1610,7 @@ class SendManager:
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
-        wandb._sentry.end_session()
+        get_sentry().end_session()
 
     def _max_cli_version(self) -> Optional[str]:
         server_info = self.get_server_info()

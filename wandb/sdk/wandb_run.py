@@ -25,6 +25,7 @@ import wandb
 import wandb.env
 import wandb.util
 from wandb import trigger
+from wandb.analytics import get_sentry
 from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
@@ -652,7 +653,7 @@ class Run:
 
         # Initial scope setup for sentry.
         # This might get updated when the actual run comes back.
-        wandb._sentry.configure_scope(
+        get_sentry().configure_scope(
             tags=dict(self._settings),
             process_context="user",
         )
@@ -1667,7 +1668,7 @@ class Run:
         if run_obj.forked:
             self._forked = run_obj.forked
 
-        wandb._sentry.configure_scope(
+        get_sentry().configure_scope(
             process_context="user",
             tags=dict(self._settings),
         )
@@ -2301,7 +2302,7 @@ class Run:
         finally:
             if wandb.run is self:
                 module.unset_globals()
-            wandb._sentry.end_session()
+            get_sentry().end_session()
 
     @_log_to_run
     @_raise_if_finished

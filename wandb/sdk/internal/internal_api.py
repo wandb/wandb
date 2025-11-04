@@ -35,6 +35,7 @@ from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import env, util
+from wandb.analytics import get_sentry
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -3001,7 +3002,7 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                wandb._sentry.reraise(e)
+                get_sentry().reraise(e)
         return response
 
     def upload_file(
@@ -3070,7 +3071,7 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                wandb._sentry.reraise(e)
+                get_sentry().reraise(e)
 
         return response
 

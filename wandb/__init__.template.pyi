@@ -75,7 +75,6 @@ from typing import (
 )
 
 import wandb.plot as plot
-from wandb.analytics import Sentry
 from wandb.apis import InternalApi
 from wandb.apis import PublicApi as Api
 from wandb.data_types import (
@@ -114,7 +113,6 @@ config: wandb_config.Config
 summary: wandb_summary.Summary
 
 # private attributes
-_sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
 

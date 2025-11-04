@@ -28,6 +28,7 @@ from typing_extensions import Any, Literal, Protocol, Self
 import wandb
 import wandb.env
 from wandb import env, trigger
+from wandb.analytics import get_sentry
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
@@ -1599,6 +1600,4 @@ def init(  # noqa: C901
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
 
-        # Need to build delay into this sentry capture because our exit hooks
-        # mess with sentry's ability to send out errors before the program ends.
-        wandb._sentry.reraise(e)
+        get_sentry().reraise(e)
