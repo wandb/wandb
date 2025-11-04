@@ -6,7 +6,6 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from wandb import util
-from wandb.apis import InternalApi
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
@@ -17,6 +16,8 @@ class Server:
         self,
         settings: Settings,
     ) -> None:
+        from wandb.apis import InternalApi
+
         self._api = InternalApi(default_settings=settings)
         self._viewer: dict[str, Any] = {}
         self._flags: dict[str, Any] = {}

@@ -12,13 +12,8 @@ import time
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
-import yaml
-
 import wandb
 from wandb import util, wandb_lib, wandb_sdk
-from wandb.agents.pyagent import pyagent
-from wandb.apis import InternalApi
-from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.lib import ipython
 
 logger = logging.getLogger(__name__)
@@ -218,6 +213,8 @@ class Agent:
 
     def run(self):  # noqa: C901
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
+        import yaml
+
         sweep_obj = self._api.sweep(self._sweep_id, "{}")
         if sweep_obj:
             sweep_yaml = sweep_obj.get("config")
@@ -374,6 +371,8 @@ class Agent:
         return response
 
     def _command_run(self, command):
+        from wandb.sdk.launch.sweeps import utils as sweep_utils
+
         logger.info(
             "Agent starting run with config:\n"
             + "\n".join(
@@ -512,6 +511,9 @@ class AgentApi:
 def run_agent(
     sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
 ):
+    from wandb.apis import InternalApi
+    from wandb.sdk.launch.sweeps import utils as sweep_utils
+
     parts = dict(entity=entity, project=project, name=sweep_id)
     err = sweep_utils.parse_sweep_id(parts)
     if err:
@@ -585,6 +587,8 @@ def agent(
             run is sent to a project labeled "Uncategorized".
         count: The number of sweep config trials to try.
     """
+    from wandb.agents.pyagent import pyagent
+
     global _INSTANCES
     _INSTANCES += 1
     try:

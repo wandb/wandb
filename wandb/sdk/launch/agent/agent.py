@@ -12,8 +12,6 @@ from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import yaml
-
 import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
@@ -141,6 +139,8 @@ def construct_agent_configs(
     launch_config: Optional[Dict] = None,
     build_config: Optional[Dict] = None,
 ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
+    import yaml
+
     registry_config = None
     environment_config = None
     if launch_config is not None:
