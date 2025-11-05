@@ -1,3 +1,12 @@
+# v1.90.0 (2025-11-05)
+
+* **Feature**: Launch IPv6 dual-stack support for S3 Express
+
+# v1.89.2 (2025-11-04)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+* **Dependency Update**: Upgrade to smithy-go v1.23.2 which should convey some passive reduction of overall allocations, especially when not using the metrics system.
+
 # v1.89.1 (2025-10-30)
 
 * **Dependency Update**: Updated to the latest SDK module versions
