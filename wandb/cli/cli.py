@@ -2904,7 +2904,7 @@ def eval(
     from wandb.sdk.launch.agent.agent import HIDDEN_AGENT_RUN_TYPE
 
     public_queue_entity = "wandb"
-    default_job = "wandb/hackoween_test/mock_job:v1"
+    default_job = "wandb/hackoween-25-swebaas-test/job-ghcr.io_iiilisan_inspect_modal_sandbox_wandb-swebench:latest"
     api = _get_cling_api()
     try:
         launch_utils.check_logged_in(api)
@@ -2926,9 +2926,9 @@ def eval(
         wandb.termerror(f"Path {path} is not a file")
         sys.exit(1)
 
-    if not path.endswith(".jsonl"):
+    if not path.endswith(".json"):
         wandb.termerror(
-            f"Path {path} is not a .jsonl file, swebench predictions should be in .jsonl format"
+            f"Path {path} is not a .json file, swebench predictions should be in .json format"
         )
         sys.exit(1)
 
@@ -2948,7 +2948,7 @@ def eval(
     config = {
         "overrides": {
             "run_config": {
-                "predictions": artifact_name,
+                "artifact_id": artifact_name,
                 "dataset_name": dataset_name,
                 "instance_ids": instance_ids,
                 "split": split,
