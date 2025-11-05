@@ -12,39 +12,37 @@ func TestAnimationState_ToggleStartsAnimation(t *testing.T) {
 	anim := leet.NewAnimationState(false, 40)
 	anim.Toggle()
 	require.True(t, anim.IsAnimating())
-	require.True(t, anim.IsVisible())
-
 	for anim.IsAnimating() {
 		time.Sleep(20 * time.Millisecond)
-		anim.Update()
+		anim.Update(time.Now())
 	}
-
+	require.True(t, anim.IsVisible())
+	require.True(t, anim.IsExpanded())
 	require.Equal(t, 40, anim.Width())
-	require.Equal(t, leet.SidebarExpanded, anim.State())
 
 	anim.Toggle()
 	require.True(t, anim.IsAnimating())
-
 	for anim.IsAnimating() {
 		time.Sleep(20 * time.Millisecond)
-		anim.Update()
+		anim.Update(time.Now())
 	}
-
+	require.True(t, anim.IsCollapsed())
+	require.False(t, anim.IsVisible())
 	require.Equal(t, 0, anim.Width())
-	require.Equal(t, leet.SidebarCollapsed, anim.State())
 }
 
 func TestAnimationState_UpdateAnimatesToCompletion(t *testing.T) {
 	anim := leet.NewAnimationState(false, 50)
-	anim.Toggle()
 
-	widthsSeen := make(map[int]bool)
+	widthsSeen := make(map[int]struct{})
 	maxIterations := 100
 	iterations := 0
 
+	anim.Toggle()
+
 	for anim.IsAnimating() && iterations < maxIterations {
-		complete := anim.Update()
-		widthsSeen[anim.Width()] = true
+		complete := anim.Update(time.Now())
+		widthsSeen[anim.Width()] = struct{}{}
 
 		if !complete {
 			time.Sleep(10 * time.Millisecond)
@@ -64,22 +62,39 @@ func TestAnimationState_ToggleDuringAnimation(t *testing.T) {
 
 	// Let it animate partway.
 	time.Sleep(50 * time.Millisecond)
-	anim.Update()
+	anim.Update(time.Now())
 
 	partialWidth := anim.Width()
 	require.Greater(t, partialWidth, 0, "should have started expanding")
 	require.Less(t, partialWidth, 50, "should not be fully expanded")
 
-	// Toggle during animation does nothing (only works from stable states).
+	// Toggle during animation should revert back to the original state.
 	anim.Toggle()
-	time.Sleep(50 * time.Millisecond)
-	anim.Update()
-
-	// Should continue expanding to completion.
 	for anim.IsAnimating() {
 		time.Sleep(10 * time.Millisecond)
-		anim.Update()
+		anim.Update(time.Now())
 	}
+	require.Equal(t, 0, anim.Width())
+}
 
-	require.Equal(t, 50, anim.Width())
+func TestAnimationState_SetExpandedWidth_SnapsWhenAlreadyExpanded(t *testing.T) {
+	anim := leet.NewAnimationState(true, 40) // expanded at 40
+	require.True(t, anim.IsExpanded())
+	require.Equal(t, 40, anim.Width())
+
+	anim.SetExpandedWidth(80) // first WindowSizeMsg computes larger target
+
+	// Should snap immediately because we were stably expanded.
+	require.True(t, anim.IsExpanded())
+	require.Equal(t, 80, anim.Width())
+}
+
+func TestAnimationState_SetExpandedWidth_DoesNotSnapWhenCollapsed(t *testing.T) {
+	anim := leet.NewAnimationState(false, 40) // collapsed
+	require.False(t, anim.IsVisible())
+
+	anim.SetExpandedWidth(80)
+	// Still collapsed; only the future target changed.
+	require.False(t, anim.IsVisible())
+	require.Equal(t, 0, anim.Width())
 }

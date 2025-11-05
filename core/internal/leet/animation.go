@@ -1,87 +1,60 @@
 package leet
 
-import (
-	"time"
-)
+import "time"
 
-// SidebarState represents the UI state of a sidebar.
-type SidebarState int
-
-const (
-	SidebarCollapsed SidebarState = iota
-	SidebarExpanded
-	SidebarCollapsing
-	SidebarExpanding
-)
-
-// AnimationState manages sidebar animation state.
-//
-// Note: the state at startup (expanded or collapsed) is defined in the app config.
+// AnimationState manages a sidebar's animated width.
 type AnimationState struct {
-	state         SidebarState
-	currentWidth  int
-	targetWidth   int
+	// currentWidth is the current rendered width (px/cols).
+	currentWidth int
+
+	// targetWidth is the desired width we're animating toward.
+	targetWidth int
+
+	// expandedWidth is the desired width when expanded.
 	expandedWidth int
-	timer         time.Time
+
+	// animationStartTime indicates when the current animation started.
+	animationStartTime time.Time
 }
 
 func NewAnimationState(expanded bool, expandedWidth int) *AnimationState {
-	state := SidebarCollapsed
-	currentWidth := 0
-	targetWidth := 0
-
+	a := &AnimationState{expandedWidth: expandedWidth}
 	if expanded {
-		state = SidebarExpanded
-		currentWidth = expandedWidth
-		targetWidth = expandedWidth
+		a.currentWidth = expandedWidth
+		a.targetWidth = expandedWidth
 	}
-
-	return &AnimationState{
-		state:         state,
-		currentWidth:  currentWidth,
-		targetWidth:   targetWidth,
-		expandedWidth: expandedWidth,
-	}
+	return a
 }
 
-// Toggle toggles between expanded and collapsed states.
-func (a *AnimationState) Toggle() {
-	switch a.state {
-	case SidebarCollapsed:
-		a.state = SidebarExpanding
-		a.targetWidth = a.expandedWidth
-		a.timer = time.Now()
-	case SidebarExpanded:
-		a.state = SidebarCollapsing
-		a.targetWidth = 0
-		a.timer = time.Now()
-	default:
-		// No-op if not in a terminal state.
-	}
-}
-
-// Update updates the animation state and returns whether animation is complete.
+// Toggle toggles between expanded and collapsed targets.
 //
-// Caller is responsible for creating continuation commands for the UI if needed.
-func (a *AnimationState) Update() bool {
-	if a.state != SidebarExpanding && a.state != SidebarCollapsing {
+// No-op while animating to match current model gating semantics.
+func (a *AnimationState) Toggle() {
+	a.animationStartTime = time.Now()
+
+	if a.targetWidth == 0 {
+		a.targetWidth = a.expandedWidth
+
+	} else {
+		a.targetWidth = 0
+	}
+}
+
+// Update advances the animation given a wall-clock time and returns
+// whether the animation is complete.
+func (a *AnimationState) Update(now time.Time) bool {
+	if !a.IsAnimating() {
 		return true
 	}
-
-	elapsed := time.Since(a.timer)
+	elapsed := now.Sub(a.animationStartTime)
 	progress := float64(elapsed) / float64(AnimationDuration)
-
-	if progress >= 1.0 {
+	if progress >= 1 {
 		a.currentWidth = a.targetWidth
-		if a.state == SidebarExpanding {
-			a.state = SidebarExpanded
-		} else {
-			a.state = SidebarCollapsed
-		}
+		a.animationStartTime = time.Time{}
 		return true
 	}
 
-	if a.state == SidebarExpanding {
+	if a.IsExpanding() {
 		a.currentWidth = int(easeOutCubic(progress) * float64(a.expandedWidth))
 	} else {
 		a.currentWidth = int((1 - easeOutCubic(progress)) * float64(a.expandedWidth))
@@ -90,37 +63,46 @@ func (a *AnimationState) Update() bool {
 	return false
 }
 
-// SetExpandedWidth updates the expanded width.
+// SetExpandedWidth updates the desired expanded width.
 func (a *AnimationState) SetExpandedWidth(width int) {
+	// Capture state before mutating fields so IsExpanded() is meaningful.
+	wasExpanded := a.IsExpanded()
+
 	a.expandedWidth = width
-	if a.state == SidebarExpanded {
+	if a.targetWidth > 0 {
 		a.targetWidth = width
+	}
+	if wasExpanded {
+		// We were stably expanded; snap immediately to the new width.
 		a.currentWidth = width
 	}
 }
 
 // Width returns the current width.
-func (a *AnimationState) Width() int {
-	return a.currentWidth
+func (a *AnimationState) Width() int { return a.currentWidth }
+
+// IsAnimating reports whether currentWidth != targetWidth.
+func (a *AnimationState) IsAnimating() bool { return a.currentWidth != a.targetWidth }
+
+// IsVisible returns true if any width is visible on screen.
+func (a *AnimationState) IsVisible() bool { return a.currentWidth > 0 }
+
+// IsExpanded returns true if we're stably at expanded width.
+func (a *AnimationState) IsExpanded() bool { return a.targetWidth > 0 && !a.IsAnimating() }
+
+// IsCollapsed returns true if we're stably collapsed.
+func (a *AnimationState) IsCollapsed() bool {
+	return a.targetWidth == 0 && a.currentWidth == 0 && !a.IsAnimating()
 }
 
-// State returns the current state.
-func (a *AnimationState) State() SidebarState {
-	return a.state
-}
+// IsExpanding/IsCollapsing are derived from the direction to the target.
+func (a *AnimationState) IsExpanding() bool  { return a.currentWidth < a.targetWidth }
+func (a *AnimationState) IsCollapsing() bool { return a.currentWidth > a.targetWidth }
 
-// IsVisible returns whether the sidebar is visible.
-func (a *AnimationState) IsVisible() bool {
-	return a.state != SidebarCollapsed
-}
-
-// IsAnimating returns whether the sidebar is currently animating.
-func (a *AnimationState) IsAnimating() bool {
-	return a.state == SidebarExpanding || a.state == SidebarCollapsing
-}
-
-// easeOutCubic provides smooth deceleration for animations.
+// easeOutCubic maps t c [0, 1] -> [0, 1] with deceleration near the end.
+//
+// Values outside [0,1] are acceptable; callers clamp at 1.
 func easeOutCubic(t float64) float64 {
-	t--
-	return t*t*t + 1
+	// (t-1)^3 + 1
+	return (t-1)*(t-1)*(t-1) + 1
 }
