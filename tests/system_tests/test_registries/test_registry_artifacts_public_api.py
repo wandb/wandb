@@ -15,7 +15,7 @@ from wandb.sdk.artifacts._generated import (
     ArtifactMembershipByName,
     ArtifactMembershipFragment,
 )
-from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.artifacts._gqlutils import server_supports
 
 
 @fixture
@@ -105,8 +105,8 @@ def test_fetch_migrated_registry_artifact(
     mock_artifact_rsp_data: dict[str, Any],
     mock_membership_rsp_data: dict[str, Any],
 ):
-    server_supports_artifact_via_membership = InternalApi()._server_supports(
-        ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
+    server_supports_artifact_via_membership = server_supports(
+        api.client, ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
     )
 
     mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")

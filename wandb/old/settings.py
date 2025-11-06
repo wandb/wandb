@@ -97,9 +97,7 @@ class Settings:
                 self._local_settings, Settings._local_path(self.root_dir), persist
             )
 
-    def items(self, section=None):
-        section = section if section is not None else Settings.DEFAULT_SECTION
-
+    def items(self, section: str = DEFAULT_SECTION):
         result = {"section": section}
 
         try:

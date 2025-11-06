@@ -30,7 +30,7 @@ from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator, SizedPaginator
 from wandb.errors.term import termlog, termwarn
-from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._models import ArtifactCollectionData
@@ -985,10 +985,10 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         )
         from wandb.sdk.artifacts._gqlutils import server_supports
 
-        self.artifact = artifact
         self.query_via_membership = server_supports(
-            client, ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+            client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         )
+        self.artifact = artifact
 
         if self.query_via_membership:
             query_str = ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL
@@ -1016,7 +1016,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         if not client.version_supported("0.12.21"):
             omit_fields.add("storagePath")
 
-        if not server_supports(client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
+        if not server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
             omit_fields.add("totalCount")
 
         self.QUERY = gql_compat(

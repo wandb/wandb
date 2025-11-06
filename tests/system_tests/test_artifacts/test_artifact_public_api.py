@@ -9,16 +9,16 @@ import requests
 import wandb
 from wandb._strutils import nameof
 from wandb.errors.errors import CommError
-from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
     ArtifactByName,
     ArtifactFragment,
     ArtifactMembershipByName,
     ArtifactMembershipFragment,
+    FetchOrgInfoFromEntity,
 )
-from wandb.sdk.artifacts._gqlutils import server_supports
+from wandb.sdk.artifacts._gqlutils import allowed_fields, server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
-from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
 @pytest.fixture
@@ -96,7 +96,7 @@ def test_artifact_file(user, api, sample_data):
 
 def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     art = api.artifact("mnist:v0", type="dataset")
-    if server_supports(api.client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
+    if server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         assert (
             str(art.files())
             == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
@@ -132,7 +132,7 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
 
 
 def test_artifacts_files_filtered_length(user, api, sample_data, wandb_backend_spy):
-    if not server_supports(api.client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
+    if not server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         pytest.skip("Server doesn't support FileConnection.totalCount")
 
     # creating a new artifact with files
@@ -435,16 +435,33 @@ def test_fetch_registry_artifact(
     is_registry_project,
     expected_artifact_fetched,
 ):
-    server_supports_artifact_via_membership = InternalApi()._server_supports(
-        ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
+    from tests.system_tests.wandb_backend_spy.gql_match import Constant, Matcher
+
+    if "orgEntity" not in allowed_fields(api.client, "Organization"):
+        pytest.skip("Must test against server that supports `Organization.orgEntity`")
+
+    server_supports_artifact_via_membership = server_supports(
+        api.client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
     )
 
     mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
 
-    mock__resolve_org_entity_name = mocker.patch(
-        "wandb.sdk.internal.internal_api.Api._resolve_org_entity_name",
-        return_value=resolve_org_entity_name,
+    # Stub the query for orgEntity name(s)
+    mock_org_entity_info_responder = Constant(
+        content={
+            "data": {
+                "entity": {
+                    "organization": {
+                        "name": "org-name",
+                        "orgEntity": {"name": resolve_org_entity_name},
+                    },
+                    "user": None,
+                },
+            }
+        }
     )
+    op_matcher = Matcher(operation=nameof(FetchOrgInfoFromEntity))
+    wandb_backend_spy.stub_gql(match=op_matcher, respond=mock_org_entity_info_responder)
 
     mock_artifact_fragment_data = ArtifactFragment(
         name="test-collection",  # NOTE: relevant
@@ -520,22 +537,26 @@ def test_fetch_registry_artifact(
         mock_rsp = mock_empty_rsp_data
 
     # Now stub the actual GQL request/response we expect to make
-    op_matcher = wandb_backend_spy.gql.Matcher(operation=op_name)
-    mock_responder = wandb_backend_spy.gql.Constant(content=mock_rsp)
+    op_matcher = Matcher(operation=op_name)
+    mock_responder = Constant(content=mock_rsp)
     wandb_backend_spy.stub_gql(match=op_matcher, respond=mock_responder)
 
-    expectation = (
-        nullcontext()
-        if expected_artifact_fetched
-        else pytest.raises(wandb.errors.CommError)
-    )
+    if expected_artifact_fetched:
+        expectation = nullcontext()
+    else:
+        expectation = pytest.raises(CommError)
+
     with expectation:
         api.artifact(artifact_path)
 
     if is_registry_project:
-        mock__resolve_org_entity_name.assert_called_once()
+        # Calls may be cached, so we expect at most one call
+        assert mock_org_entity_info_responder.total_calls <= 1
     else:
-        mock__resolve_org_entity_name.assert_not_called()
+        assert mock_org_entity_info_responder.total_calls == 0
 
     # Ensure at least one of the artifact queries was exercised
-    assert mock_responder.total_calls == 1
+    if expected_artifact_fetched:
+        assert mock_responder.total_calls == 1
+    else:
+        assert mock_responder.total_calls == 0

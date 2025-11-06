@@ -41,9 +41,10 @@ from wandb.apis.public.utils import (
     gql_compat,
     parse_org_from_registry_path,
 )
-from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login
+from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -1011,8 +1012,8 @@ class Api:
         # For registry artifacts, resolve org-based entity
         if is_artifact_registry_project(name):
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return public.Project(self.client, entity, name, {})
 
@@ -1357,8 +1358,8 @@ class Api:
         if is_artifact_registry_project(project):
             settings_entity = self.settings["entity"] or self.default_entity
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactTypes(self.client, entity, project)
 
@@ -1383,8 +1384,8 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactType(self.client, entity, project, type_name)
 
@@ -1412,8 +1413,8 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_name, PathType.PROJECT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
@@ -1464,8 +1465,8 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
 
         if entity is None:
@@ -1532,8 +1533,8 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return Artifacts(
             self.client,
@@ -1570,8 +1571,8 @@ class Api:
             settings_entity = self.settings["entity"] or self.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
             # we need to fetch the org entity to for the user behind the scenes.
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=organization
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=organization
             )
 
         if entity is None:
@@ -1874,7 +1875,7 @@ class Api:
         )
         ```
         """
-        if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
+        if not server_supports(self.client, pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "Registry search API is not enabled on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
@@ -1914,7 +1915,7 @@ class Api:
         registry.save()
         ```
         """
-        if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
+        if not server_supports(self.client, pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "api.registry() is not enabled on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
@@ -1971,8 +1972,8 @@ class Api:
         )
         ```
         """
-        if not InternalApi()._server_supports(
-            ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
+        if not server_supports(
+            self.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
             raise RuntimeError(
                 "create_registry api is not enabled on this wandb server version. "
@@ -2126,16 +2127,15 @@ class Api:
             ALWAYS_SUPPORTED_EVENTS,
         )
 
-        api = InternalApi()
         supports_event = (
             (event is None)
             or (event in ALWAYS_SUPPORTED_EVENTS)
-            or api._server_supports(f"AUTOMATION_EVENT_{event.value}")
+            or server_supports(self.client, f"AUTOMATION_EVENT_{event.value}")
         )
         supports_action = (
             (action is None)
             or (action in ALWAYS_SUPPORTED_ACTIONS)
-            or api._server_supports(f"AUTOMATION_ACTION_{action.value}")
+            or server_supports(self.client, f"AUTOMATION_ACTION_{action.value}")
         )
         return supports_event and supports_action
 

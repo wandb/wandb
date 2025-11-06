@@ -26,6 +26,7 @@ from typing import (
     Sequence,
     TextIO,
     Union,
+    overload,
 )
 
 import click
@@ -470,7 +471,14 @@ class Api:
     def default_entity(self) -> str:
         return self.viewer().get("entity")  # type: ignore
 
-    def settings(self, key: str | None = None, section: str | None = None) -> Any:
+    @overload
+    def settings(self, key: str = ..., section: str = ...) -> Any: ...
+    @overload
+    def settings(self, key: None = None, section: str = ...) -> dict[str, Any]: ...
+
+    def settings(
+        self, key: str | None = None, section: str = Settings.DEFAULT_SECTION
+    ) -> Any:
         """The settings overridden from the wandb/settings file.
 
         Args:
