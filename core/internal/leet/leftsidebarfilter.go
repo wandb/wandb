@@ -92,22 +92,6 @@ func (s *LeftSidebar) FilterInfo() string {
 	return strings.Join(matchInfo, ", ")
 }
 
-// clearFilter clears the active filter.
-// func (s *LeftSidebar) clearFilter() {
-// 	s.filter.active = false
-// 	s.filter.draft = ""
-// 	s.filter.applied = ""
-
-// 	for i := range s.sections {
-// 		s.sections[i].FilteredItems = s.sections[i].Items
-// 		s.sections[i].CurrentPage = 0
-// 		s.sections[i].CursorPos = 0
-// 		s.sections[i].FilterMatches = 0
-// 	}
-
-// 	s.calculateSectionHeights()
-// }
-
 // applyFilter filters items based on current filter query.
 func (s *LeftSidebar) applyFilter() {
 	query := s.filterQuery()
