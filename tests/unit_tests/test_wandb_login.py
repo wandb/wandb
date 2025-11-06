@@ -57,7 +57,7 @@ def mock_tty(monkeypatch):
             fds["stdin"] = open(fname)
             monkeypatch.setattr("sys.stdin", fds["stdin"])
             sys.stdin.isatty = lambda: True
-            sys.stdout.isatty = lambda: True
+            sys.stderr.isatty = lambda: True
 
         yield setup_fn
 
@@ -70,7 +70,7 @@ def mock_tty(monkeypatch):
             stdin.close()
 
     del sys.stdin.isatty
-    del sys.stdout.isatty
+    del sys.stderr.isatty
 
 
 def test_login_timeout(mock_tty):

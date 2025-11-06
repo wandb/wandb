@@ -284,9 +284,11 @@ def dummy_api_key() -> str:
 
 @pytest.fixture
 def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
-    mocker.patch.object(wandb.sdk.lib.apikey, "isatty", return_value=True)
-    mocker.patch.object(wandb.sdk.lib.apikey, "input", return_value=1)
-    mocker.patch.object(wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key)
+    mocker.patch.object(
+        wandb.sdk.lib.apikey,
+        "prompt_api_key",
+        return_value=dummy_api_key,
+    )
 
 
 @pytest.fixture
@@ -305,12 +307,12 @@ def skip_verify_login(monkeypatch):
 @pytest.fixture
 def patch_prompt(monkeypatch):
     monkeypatch.setattr(
-        wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=False: x[0]
+        wandb.util, "prompt_choices", lambda x, input_timeout=None: x[0]
     )
     monkeypatch.setattr(
         wandb.wandb_lib.apikey,
         "prompt_choices",
-        lambda x, input_timeout=None, jupyter=False: x[0],
+        lambda x, input_timeout=None: x[0],
     )
 
 
