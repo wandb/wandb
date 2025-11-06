@@ -2953,12 +2953,11 @@ class Run:
 
         Args:
             artifact: The artifact object to link to the collection.
-            target_path: The path of the collection. Takes the following
-                forms `{collection}`, `{project}/{collection}`,
-                or `{entity}/{project}/{collection}`.
-            aliases: Add one or more aliases to the linked artifact.
-                Apply the alias "latest" to the latest artifact version\
-                that is linked.
+            target_path: The path of the collection. Path consists of the prefix
+                "wandb-registry-" along with the registry name and the
+                collection name `wandb-registry-{REGISTRY_NAME}/{COLLECTION_NAME}`.
+            aliases: Add one or more aliases to the linked artifact. Apply
+                the alias "latest" to the latest artifact version that is linked.
 
         Returns:
             The linked artifact.

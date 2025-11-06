@@ -619,7 +619,7 @@ class Artifact:
         """The collection this artifact was retrieved from.
 
         A collection is an ordered group of artifact versions.
-        If this artifact was retrieved from a portfolio / linked collection, that
+        If this artifact was retrieved from a linked collection, that
         collection will be returned rather than the collection
         that an artifact version originated from. The collection
         that an artifact originates from is known as the source sequence.
@@ -2393,7 +2393,7 @@ class Artifact:
             delete_aliases: If set to `True`, deletes all aliases associated
                 with the artifact. Otherwise, this raises an exception if
                 the artifact has existing aliases. This parameter is ignored
-                if the artifact is linked (a member of a portfolio collection).
+                if the artifact is linked to a collection.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2422,19 +2422,14 @@ class Artifact:
 
     @normalize_exceptions
     def link(self, target_path: str, aliases: Iterable[str] | None = None) -> Artifact:
-        """Link this artifact to a portfolio (a promoted collection of artifacts).
+        """Link this artifact to a collection.
 
         Args:
-            target_path: The path to the portfolio inside a project.
-                The target path must adhere to one of the following
-                schemas `{portfolio}`, `{project}/{portfolio}` or
-                `{entity}/{project}/{portfolio}`.
-                To link the artifact to the Model Registry, rather than to a generic
-                portfolio inside a project, set `target_path` to the following
-                schema `{"model-registry"}/{Registered Model Name}` or
-                `{entity}/{"model-registry"}/{Registered Model Name}`.
-            aliases: Optional string aliases that will uniquely identify the artifact
-                inside the specified portfolio.
+            target_path: The path of the collection. Path consists of the prefix
+                "wandb-registry-" along with the registry name and the
+                collection name `wandb-registry-{REGISTRY_NAME}/{COLLECTION_NAME}`.
+            aliases: Add one or more aliases to the linked artifact. Apply
+                the alias "latest" to the latest artifact version that is linked.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2533,7 +2528,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
             ValueError: If the artifact is not linked, in other words,
-            it is not a member of a portfolio collection.
+            it is not a member of a collection.
         """
         # Fail early if this isn't a linked artifact to begin with
         if not self.is_link:
