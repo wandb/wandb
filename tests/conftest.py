@@ -188,10 +188,7 @@ def skip_verify_login(monkeypatch):
 @pytest.fixture
 def patch_prompt(monkeypatch):
     monkeypatch.setattr(
-        wandb.util, "prompt_choices", lambda x, input_timeout=None: x[0]
-    )
-    monkeypatch.setattr(
-        wandb.wandb_lib.apikey,
+        wandb.util,
         "prompt_choices",
         lambda x, input_timeout=None: x[0],
     )

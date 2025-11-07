@@ -277,6 +277,13 @@ def can_use_terminput() -> bool:
     if _silent or not _show_info or _is_term_dumb():
         return False
 
+    from wandb import util
+
+    # TODO: Verify the databricks check is still necessary.
+    # Originally added to fix WB-5264.
+    if util._is_databricks():
+        return False
+
     # isatty() returns false in Jupyter, but it's OK to output ANSI color
     # sequences and to read from stdin.
     return _in_jupyter() or (_sys_stderr_isatty() and _sys_stdin_isatty())
