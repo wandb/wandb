@@ -124,8 +124,8 @@ func (mg *MetricsGrid) ProcessHistory(step int, metrics map[string]float64) bool
 
 	// Keep ordering, colors, maps and filtered set in sync.
 	if needsSort {
-		mg.sortChartsNoLock() // re-sorts + assigns stable colors
-		// mg.applyFilterNoLock(mg.filter.applied) // keep filtered mirror / subset
+		mg.sortChartsNoLock()                   // re-sorts + assigns stable colors
+		mg.applyFilterNoLock(mg.filter.applied) // keep filtered mirror / subset
 	} else {
 		// No new charts; keep pagination but refresh visible page contents.
 		mg.loadCurrentPageNoLock()
