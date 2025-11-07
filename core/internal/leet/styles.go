@@ -187,7 +187,13 @@ func GraphColors() []string {
 
 // Metrics grid styles.
 var (
+	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
+
 	navInfoStyle = lipgloss.NewStyle().Foreground(colorSubtle)
+
+	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(1).MarginBottom(0)
+
+	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginRight(1)
 )
 
 // Chart styles.
