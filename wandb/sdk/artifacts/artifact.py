@@ -614,13 +614,15 @@ class Artifact:
     @property
     @ensure_logged
     def collection(self) -> ArtifactCollection:
-        """The collection this artifact was retrieved from.
+        """The collection this artifact is retrieved from.
 
         A collection is an ordered group of artifact versions.
-        If this artifact was retrieved from a portfolio / linked collection, that
-        collection will be returned rather than the collection
-        that an artifact version originated from. The collection
-        that an artifact originates from is known as the source sequence.
+        If this artifact is retrieved from a collection that it is linked to,
+        return that collection. Otherwise, return the collection
+        that the artifact version originates from.
+
+        The collection that an artifact originates from is known as
+        the source sequence.
         """
         base_name = self.name.split(":")[0]
         return ArtifactCollection(
@@ -2384,14 +2386,14 @@ class Artifact:
         If called on a linked artifact, only the link is deleted, and the
         source artifact is unaffected.
 
-        Use `artifact.unlink()` instead of `artifact.delete()` to remove a link between a
-        source artifact and a linked artifact.
+        Use `Artifact.unlink()` instead of `Artifact.delete()` to remove a
+        link between a source artifact and a collection.
 
         Args:
-            delete_aliases: If set to `True`, deletes all aliases associated
-                with the artifact. Otherwise, this raises an exception if
+            delete_aliases: If set to `True`, delete all aliases associated
+                with the artifact. If `False`, raise an exception if
                 the artifact has existing aliases. This parameter is ignored
-                if the artifact is linked (a member of a portfolio collection).
+                if the artifact is retrieved from a collection it is linked to.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2420,19 +2422,15 @@ class Artifact:
 
     @normalize_exceptions
     def link(self, target_path: str, aliases: Iterable[str] | None = None) -> Artifact:
-        """Link this artifact to a portfolio (a promoted collection of artifacts).
+        """Link this artifact to a collection.
 
         Args:
-            target_path: The path to the portfolio inside a project.
-                The target path must adhere to one of the following
-                schemas `{portfolio}`, `{project}/{portfolio}` or
-                `{entity}/{project}/{portfolio}`.
-                To link the artifact to the Model Registry, rather than to a generic
-                portfolio inside a project, set `target_path` to the following
-                schema `{"model-registry"}/{Registered Model Name}` or
-                `{entity}/{"model-registry"}/{Registered Model Name}`.
-            aliases: Optional string aliases that will uniquely identify the artifact
-                inside the specified portfolio.
+            target_path: The path of the collection. Path consists of the prefix
+                "wandb-registry-" along with the registry name and the
+                collection name `wandb-registry-{REGISTRY_NAME}/{COLLECTION_NAME}`.
+            aliases: Add one or more aliases to the linked artifact. The
+                "latest" alias is automatically applied to the most recent artifact
+                you link.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2530,8 +2528,7 @@ class Artifact:
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
-            ValueError: If the artifact is not linked, in other words,
-            it is not a member of a portfolio collection.
+            ValueError: If the artifact is not linked to any collection.
         """
         # Fail early if this isn't a linked artifact to begin with
         if not self.is_link:

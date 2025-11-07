@@ -2943,17 +2943,22 @@ class Run:
         target_path: str,
         aliases: list[str] | None = None,
     ) -> Artifact:
-        """Link the given artifact to a portfolio (a promoted collection of artifacts).
+        """Link the artifact to a collection.
 
-        Linked artifacts are visible in the UI for the specified portfolio.
+        The term “link” refers to pointers that connect where W&B stores the
+        artifact and where the artifact is accessible in the registry. W&B
+        does not duplicate artifacts when you link an artifact to a collection.
+
+        View linked artifacts in the Registry UI for the specified collection.
 
         Args:
-            artifact: the (public or local) artifact which will be linked
-            target_path: `str` - takes the following forms: `{portfolio}`, `{project}/{portfolio}`,
-                or `{entity}/{project}/{portfolio}`
-            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
-                                   inside the portfolio.
-            The alias "latest" will always be applied to the latest version of an artifact that is linked.
+            artifact: The artifact object to link to the collection.
+            target_path: The path of the collection. Path consists of the prefix
+                "wandb-registry-" along with the registry name and the
+                collection name `wandb-registry-{REGISTRY_NAME}/{COLLECTION_NAME}`.
+            aliases: Add one or more aliases to the linked artifact. The
+                "latest" alias is automatically applied to the most recent artifact
+                you link.
 
         Returns:
             The linked artifact.
