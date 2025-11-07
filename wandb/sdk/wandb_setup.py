@@ -36,7 +36,6 @@ import wandb.integration.sagemaker as sagemaker
 from wandb.env import CONFIG_DIR
 from wandb.sdk.lib import asyncio_manager, import_hooks, wb_logging
 
-from . import wandb_settings
 from .lib import config_util, server
 
 if TYPE_CHECKING:
@@ -204,7 +203,9 @@ class _WandbSetup:
                 SageMaker.
             overrides: Additional settings to apply to the global settings.
         """
-        self._settings = wandb_settings.Settings()
+        from wandb.sdk.wandb_settings import Settings
+
+        self._settings = Settings()
 
         # the pid of the process to monitor for system stats
         pid = os.getpid()
@@ -297,7 +298,7 @@ class _WandbSetup:
         return self._logger
 
     @property
-    def settings(self) -> wandb_settings.Settings:
+    def settings(self) -> Settings:
         """The global wandb settings.
 
         Initializes settings if they have not yet been loaded.
@@ -312,7 +313,7 @@ class _WandbSetup:
         return self._settings
 
     @property
-    def settings_if_loaded(self) -> wandb_settings.Settings | None:
+    def settings_if_loaded(self) -> Settings | None:
         """The global wandb settings, or None if not yet loaded."""
         return self._settings
 

@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import Callable
 
-import requests
-from urllib3.exceptions import InsecureRequestWarning
-
 import wandb
 from wandb import env, util
 
 
 def _disable_ssl() -> Callable[[], None]:
+    import requests
+    from urllib3.exceptions import InsecureRequestWarning
+
     # Because third party libraries may also use requests, we monkey patch it globally
     # and turn off urllib3 warnings instead printing a global warning to the user.
     wandb.termwarn(

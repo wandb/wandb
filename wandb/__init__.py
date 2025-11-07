@@ -6,7 +6,7 @@ For guides and examples, see https://docs.wandb.ai.
 
 For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
-For reference documentation, see https://docs.wandb.com/ref/python.
+For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 from __future__ import annotations
 
@@ -52,7 +52,6 @@ _lazyloader = wandb.wandb_lib.lazyloader  # type: ignore
 
 from wandb.integration.torch import wandb_torch
 
-# Move this (keras.__init__ expects it at top level)
 from wandb.sdk.data_types._private import _cleanup_media_tmp_dir
 
 _cleanup_media_tmp_dir()
@@ -60,8 +59,6 @@ _cleanup_media_tmp_dir()
 from wandb.data_types import Graph
 from wandb.data_types import Image
 from wandb.data_types import Plotly
-
-# from wandb.data_types import Bokeh # keeping out of top level for now since Bokeh plots have poor UI
 from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
@@ -151,10 +148,9 @@ def ensure_configured():
 
 
 def set_trace():
-    import pdb  # TODO: support other debuggers
+    import pdb
 
-    #  frame = sys._getframe().f_back
-    pdb.set_trace()  # TODO: pass the parent stack...
+    pdb.set_trace()
 
 
 def load_ipython_extension(ipython):
@@ -167,8 +163,6 @@ if wandb_sdk.lib.ipython.in_notebook():
     load_ipython_extension(get_ipython())
 
 
-from .analytics import Sentry as _Sentry
-
 if "dev" in __version__:
     import wandb.env
     import os
@@ -178,9 +172,6 @@ if "dev" in __version__:
         wandb.env.ERROR_REPORTING,
         "false",
     )
-
-_sentry = _Sentry()
-_sentry.setup()
 
 
 __all__ = (

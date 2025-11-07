@@ -8,73 +8,32 @@ from __future__ import annotations
 
 import json
 from copy import copy
+from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
     Any,
-    ClassVar,
     Collection,
     Iterable,
     List,
     Literal,
     Mapping,
     Sequence,
+    TypeVar,
 )
 
 from typing_extensions import override
 from wandb_gql import gql
 
-import wandb
 from wandb._iterutils import always_list
 from wandb._pydantic import ConnectionWithTotal, Edge
 from wandb._strutils import nameof
-from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator, SizedPaginator
-from wandb.errors.term import termlog
-from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.errors.term import termlog, termwarn
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.artifacts._generated import (
-    ADD_ARTIFACT_COLLECTION_TAGS_GQL,
-    ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
-    ARTIFACT_VERSION_FILES_GQL,
-    DELETE_ARTIFACT_COLLECTION_TAGS_GQL,
-    DELETE_ARTIFACT_PORTFOLIO_GQL,
-    DELETE_ARTIFACT_SEQUENCE_GQL,
-    PROJECT_ARTIFACT_COLLECTION_GQL,
-    PROJECT_ARTIFACT_COLLECTIONS_GQL,
-    PROJECT_ARTIFACT_TYPE_GQL,
-    PROJECT_ARTIFACT_TYPES_GQL,
-    PROJECT_ARTIFACTS_GQL,
-    RUN_INPUT_ARTIFACTS_GQL,
-    RUN_OUTPUT_ARTIFACTS_GQL,
-    UPDATE_ARTIFACT_COLLECTION_TYPE_GQL,
-    UPDATE_ARTIFACT_PORTFOLIO_GQL,
-    UPDATE_ARTIFACT_SEQUENCE_GQL,
-    ArtifactCollectionFragment,
-    ArtifactCollectionMembershipFiles,
-    ArtifactFragment,
-    ArtifactTypeFragment,
-    ArtifactVersionFiles,
-    CreateArtifactCollectionTagAssignmentsInput,
-    DeleteArtifactCollectionTagAssignmentsInput,
-    MoveArtifactSequenceInput,
-    ProjectArtifactCollection,
-    ProjectArtifactCollections,
-    ProjectArtifacts,
-    ProjectArtifactType,
-    ProjectArtifactTypes,
-    UpdateArtifactPortfolioInput,
-    UpdateArtifactSequenceInput,
-)
-from wandb.sdk.artifacts._gqlutils import omit_artifact_fields, server_supports
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._models import ArtifactCollectionData
-from wandb.sdk.artifacts._models.pagination import (
-    ArtifactCollectionConnection,
-    ArtifactFileConnection,
-    ArtifactTypeConnection,
-    RunArtifactConnection,
-)
-from wandb.sdk.artifacts._validators import FullArtifactPath, validate_artifact_type
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
 from .utils import gql_compat
@@ -82,9 +41,38 @@ from .utils import gql_compat
 if TYPE_CHECKING:
     from wandb_gql import Client
 
+    from wandb.apis import public
+    from wandb.sdk.artifacts._generated import (
+        ArtifactCollectionFragment,
+        ArtifactTypeFragment,
+    )
+    from wandb.sdk.artifacts._models.pagination import (
+        ArtifactCollectionConnection,
+        ArtifactFileConnection,
+        ArtifactTypeConnection,
+        RunArtifactConnection,
+    )
     from wandb.sdk.artifacts.artifact import Artifact
 
     from . import RetryingClient, Run
+
+
+TNode = TypeVar("TNode")
+
+
+@lru_cache(maxsize=1)
+def _run_artifacts_mode_to_gql() -> dict[Literal["logged", "used"], str]:
+    """Lazily import and cache the run artifact GQL query strings.
+
+    This keeps import-time light and only loads the generated GQL
+    when RunArtifacts is actually used.
+    """
+    from wandb.sdk.artifacts._generated import (
+        RUN_INPUT_ARTIFACTS_GQL,
+        RUN_OUTPUT_ARTIFACTS_GQL,
+    )
+
+    return {"logged": RUN_OUTPUT_ARTIFACTS_GQL, "used": RUN_INPUT_ARTIFACTS_GQL}
 
 
 class ArtifactTypes(Paginator["ArtifactType"]):
@@ -93,9 +81,17 @@ class ArtifactTypes(Paginator["ArtifactType"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
-
     last_response: ArtifactTypeConnection | None
+
+    _QUERY = None
+
+    @property
+    def QUERY(self):  # noqa: N802
+        if self._QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_TYPES_GQL
+
+            type(self)._QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
+        return self._QUERY
 
     def __init__(
         self,
@@ -116,6 +112,9 @@ class ArtifactTypes(Paginator["ArtifactType"]):
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
+        from wandb.sdk.artifacts._generated import ProjectArtifactTypes
+        from wandb.sdk.artifacts._models.pagination import ArtifactTypeConnection
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = ProjectArtifactTypes.model_validate(data)
 
@@ -202,6 +201,8 @@ class ArtifactType:
         type_name: str,
         attrs: ArtifactTypeFragment | None = None,
     ):
+        from wandb.sdk.artifacts._generated import ArtifactTypeFragment
+
         self.client = client
         self.entity = entity
         self.project = project
@@ -215,6 +216,12 @@ class ArtifactType:
 
         <!-- lazydoc-ignore: internal -->
         """
+        from wandb.sdk.artifacts._generated import (
+            PROJECT_ARTIFACT_TYPE_GQL,
+            ArtifactTypeFragment,
+            ProjectArtifactType,
+        )
+
         gql_op = gql(PROJECT_ARTIFACT_TYPE_GQL)
         gql_vars = {
             "entityName": self.entity,
@@ -293,6 +300,8 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         type_name: str,
         per_page: int = 50,
     ):
+        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+
         self.entity = entity
         self.project = project
         self.type_name = type_name
@@ -313,6 +322,9 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
+        from wandb.sdk.artifacts._generated import ProjectArtifactCollections
+        from wandb.sdk.artifacts._models.pagination import ArtifactCollectionConnection
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = ProjectArtifactCollections.model_validate(data)
 
@@ -471,6 +483,11 @@ class ArtifactCollection:
 
         <!-- lazydoc-ignore: internal -->
         """
+        from wandb.sdk.artifacts._generated import (
+            PROJECT_ARTIFACT_COLLECTION_GQL,
+            ProjectArtifactCollection,
+        )
+
         if server_supports_artifact_collections_gql_edges(self.client):
             rename_fields = None
         else:
@@ -499,6 +516,12 @@ class ArtifactCollection:
     @normalize_exceptions
     def change_type(self, new_type: str) -> None:
         """Deprecated, change type directly with `save` instead."""
+        from wandb.sdk.artifacts._generated import (
+            UPDATE_ARTIFACT_COLLECTION_TYPE_GQL,
+            MoveArtifactSequenceInput,
+        )
+        from wandb.sdk.artifacts._validators import validate_artifact_type
+
         warn_and_record_deprecation(
             feature=Deprecated(artifact_collection__change_type=True),
             message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
@@ -536,6 +559,11 @@ class ArtifactCollection:
     @normalize_exceptions
     def delete(self) -> None:
         """Delete the entire artifact collection."""
+        from wandb.sdk.artifacts._generated import (
+            DELETE_ARTIFACT_PORTFOLIO_GQL,
+            DELETE_ARTIFACT_SEQUENCE_GQL,
+        )
+
         gql_op = gql(
             DELETE_ARTIFACT_SEQUENCE_GQL
             if self.is_sequence()
@@ -588,6 +616,13 @@ class ArtifactCollection:
         self._current.type = type
 
     def _update_collection(self) -> None:
+        from wandb.sdk.artifacts._generated import (
+            UPDATE_ARTIFACT_PORTFOLIO_GQL,
+            UPDATE_ARTIFACT_SEQUENCE_GQL,
+            UpdateArtifactPortfolioInput,
+            UpdateArtifactSequenceInput,
+        )
+
         if self.is_sequence():
             gql_op = gql(UPDATE_ARTIFACT_SEQUENCE_GQL)
             gql_input = UpdateArtifactSequenceInput(
@@ -606,6 +641,11 @@ class ArtifactCollection:
         self._saved.name = self._current.name
 
     def _update_collection_type(self) -> None:
+        from wandb.sdk.artifacts._generated import (
+            UPDATE_ARTIFACT_COLLECTION_TYPE_GQL,
+            MoveArtifactSequenceInput,
+        )
+
         gql_op = gql(UPDATE_ARTIFACT_COLLECTION_TYPE_GQL)
         gql_input = MoveArtifactSequenceInput(
             artifact_sequence_id=self.id,
@@ -615,6 +655,11 @@ class ArtifactCollection:
         self._saved.type = self._current.type
 
     def _add_tags(self, tag_names: Iterable[str]) -> None:
+        from wandb.sdk.artifacts._generated import (
+            ADD_ARTIFACT_COLLECTION_TAGS_GQL,
+            CreateArtifactCollectionTagAssignmentsInput,
+        )
+
         gql_op = gql(ADD_ARTIFACT_COLLECTION_TAGS_GQL)
         gql_input = CreateArtifactCollectionTagAssignmentsInput(
             entity_name=self.entity,
@@ -625,6 +670,11 @@ class ArtifactCollection:
         self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
 
     def _delete_tags(self, tag_names: Iterable[str]) -> None:
+        from wandb.sdk.artifacts._generated import (
+            DELETE_ARTIFACT_COLLECTION_TAGS_GQL,
+            DeleteArtifactCollectionTagAssignmentsInput,
+        )
+
         gql_op = gql(DELETE_ARTIFACT_COLLECTION_TAGS_GQL)
         gql_input = DeleteArtifactCollectionTagAssignmentsInput(
             entity_name=self.entity,
@@ -637,6 +687,8 @@ class ArtifactCollection:
     @normalize_exceptions
     def save(self) -> None:
         """Persist any changes made to the artifact collection."""
+        from wandb.sdk.artifacts._validators import validate_artifact_type
+
         if (old_type := self._saved.type) != (new_type := self.type):
             try:
                 validate_artifact_type(new_type, self.name)
@@ -670,12 +722,12 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
 
-class _ArtifactEdge(Edge[ArtifactFragment]):
+class _ArtifactEdgeGeneric(Edge[TNode]):
     version: str  # Extra field defined only on VersionedArtifactEdge
 
 
-class _ArtifactConnection(ConnectionWithTotal[ArtifactFragment]):
-    edges: List[_ArtifactEdge]  # noqa: UP006
+class _ArtifactConnectionGeneric(ConnectionWithTotal[TNode]):
+    edges: List[_ArtifactEdgeGeneric]  # noqa: UP006
 
 
 class Artifacts(SizedPaginator["Artifact"]):
@@ -698,7 +750,8 @@ class Artifacts(SizedPaginator["Artifact"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    last_response: _ArtifactConnection | None
+    # Loosely-annotated to avoid importing heavy types at module import time.
+    last_response: _ArtifactConnectionGeneric | None
 
     def __init__(
         self,
@@ -712,6 +765,8 @@ class Artifacts(SizedPaginator["Artifact"]):
         per_page: int = 50,
         tags: str | list[str] | None = None,
     ):
+        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
+
         self.entity = entity
         self.collection_name = collection_name
         self.type = type
@@ -743,6 +798,8 @@ class Artifacts(SizedPaginator["Artifact"]):
 
     @override
     def _update_response(self) -> None:
+        from wandb.sdk.artifacts._generated import ArtifactFragment, ProjectArtifacts
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = ProjectArtifacts.model_validate(data)
 
@@ -755,7 +812,9 @@ class Artifacts(SizedPaginator["Artifact"]):
         ):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = _ArtifactConnection.model_validate(conn)
+        self.last_response = _ArtifactConnectionGeneric[
+            ArtifactFragment
+        ].model_validate(conn)
 
     @property
     def _length(self) -> int:
@@ -788,12 +847,15 @@ class Artifacts(SizedPaginator["Artifact"]):
 
         <!-- lazydoc-ignore: internal -->
         """
+        from wandb.sdk.artifacts._validators import FullArtifactPath
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if self.last_response is None:
             return []
 
         artifact_edges = (edge for edge in self.last_response.edges if edge.node)
         artifacts = (
-            wandb.Artifact._from_attrs(
+            Artifact._from_attrs(
                 path=FullArtifactPath(
                     prefix=self.entity,
                     project=self.project,
@@ -816,12 +878,6 @@ class RunArtifacts(SizedPaginator["Artifact"]):
 
     last_response: RunArtifactConnection | None
 
-    _mode2gqlstr: ClassVar[dict[Literal["logged", "used"], str]] = {
-        "logged": RUN_OUTPUT_ARTIFACTS_GQL,
-        "used": RUN_INPUT_ARTIFACTS_GQL,
-    }
-    """Maps the mode ("logged" or "used") to the corresponding GraphQL query string."""
-
     def __init__(
         self,
         client: Client,
@@ -832,7 +888,7 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         self.run = run
 
         try:
-            query_str = self._mode2gqlstr[mode]
+            query_str = _run_artifacts_mode_to_gql()[mode]
         except LookupError:
             raise ValueError("mode must be logged or used")
         else:
@@ -847,6 +903,8 @@ class RunArtifacts(SizedPaginator["Artifact"]):
 
     @override
     def _update_response(self) -> None:
+        from wandb.sdk.artifacts._models.pagination import RunArtifactConnection
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
 
         # Extract the inner `*Connection` result for faster/easier access.
@@ -884,11 +942,14 @@ class RunArtifacts(SizedPaginator["Artifact"]):
 
         <!-- lazydoc-ignore: internal -->
         """
+        from wandb.sdk.artifacts._validators import FullArtifactPath
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if self.last_response is None:
             return []
 
         return [
-            wandb.Artifact._from_attrs(
+            Artifact._from_attrs(
                 path=FullArtifactPath(
                     prefix=proj.entity.name,
                     project=proj.name,
@@ -918,10 +979,16 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         names: Sequence[str] | None = None,
         per_page: int = 50,
     ):
-        self.artifact = artifact
-        self.query_via_membership = server_supports(
-            client, ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+        from wandb.sdk.artifacts._generated import (
+            ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
+            ARTIFACT_VERSION_FILES_GQL,
         )
+        from wandb.sdk.artifacts._gqlutils import server_supports
+
+        self.query_via_membership = server_supports(
+            client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+        )
+        self.artifact = artifact
 
         if self.query_via_membership:
             query_str = ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL
@@ -949,7 +1016,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         if not client.version_supported("0.12.21"):
             omit_fields.add("storagePath")
 
-        if not server_supports(client, ServerFeature.TOTAL_COUNT_IN_FILE_CONNECTION):
+        if not server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
             omit_fields.add("totalCount")
 
         self.QUERY = gql_compat(
@@ -961,6 +1028,12 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
     @override
     def _update_response(self) -> None:
+        from wandb.sdk.artifacts._generated import (
+            ArtifactCollectionMembershipFiles,
+            ArtifactVersionFiles,
+        )
+        from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
 
         # Extract the inner `*Connection` result for faster/easier access.
@@ -1016,6 +1089,8 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
+        from wandb.apis import public
+
         if self.last_response is None:
             return []
 
@@ -1052,7 +1127,8 @@ def server_supports_artifact_collections_gql_edges(
     supported = client.version_supported("0.12.11")  # edges were merged on
     if not supported and warn:
         # First local release to include the above is 0.9.50: https://github.com/wandb/local/releases/tag/0.9.50
-        wandb.termwarn(
-            "W&B Local Server version does not support ArtifactCollection gql edges; falling back to using legacy ArtifactSequence. Please update server to at least version 0.9.50."
+        termwarn(
+            "W&B Local Server version does not support ArtifactCollection gql edges; "
+            "falling back to using legacy ArtifactSequence. Please update server to at least version 0.9.50."
         )
     return supported

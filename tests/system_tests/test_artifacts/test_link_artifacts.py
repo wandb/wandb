@@ -50,10 +50,34 @@ def test_link_artifact_from_run_logs_draft_artifacts_first(user):
         assert artifact.is_draft() is True
 
         linked_artifact = run.link_artifact(artifact, "test-collection")
+
+        # Check that neither the artifact nor the linked artifact are drafts
         assert artifact.is_draft() is False
+        assert linked_artifact.is_draft() is False
+        assert linked_artifact.source_artifact.is_draft() is False
 
         assert linked_artifact.id == artifact.id
-        assert linked_artifact.source_artifact.is_draft() is False
+        assert linked_artifact.is_link is True
+        assert linked_artifact.qualified_name != artifact.qualified_name
+        assert linked_artifact.source_qualified_name == artifact.qualified_name
+
+
+def test_link_artifact_without_run_logs_draft_artifacts_first(user):
+    artifact = wandb.Artifact("test-artifact", "test-type")
+
+    assert artifact.is_draft() is True
+
+    linked_artifact = artifact.link("test-collection")
+
+    # Check that neither the artifact nor the linked artifact are drafts
+    assert artifact.is_draft() is False
+    assert linked_artifact.is_draft() is False
+    assert linked_artifact.source_artifact.is_draft() is False
+
+    assert linked_artifact.id == artifact.id
+    assert linked_artifact.is_link is True
+    assert linked_artifact.qualified_name != artifact.qualified_name
+    assert linked_artifact.source_qualified_name == artifact.qualified_name
 
 
 def test_link_artifact_from_run_infers_target_path_from_run(user):

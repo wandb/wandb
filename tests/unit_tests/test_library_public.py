@@ -150,7 +150,7 @@ SYMBOLS_TYPING = {
 
 SYMBOLS_SERVICE = {"attach", "_attach", "teardown", "_teardown"}
 
-SYMBOLS_ANALYTICS = {"analytics", "_Sentry", "_sentry"}
+SYMBOLS_ANALYTICS = {"analytics"}
 
 
 def test_library_root():
@@ -176,7 +176,6 @@ SYMBOLS_RUN = {
     "project",
     "name",
     "id",
-    "join",  # deprecate in favor of finish()
     "finish",
     "watch",
     "unwatch",
@@ -195,8 +194,6 @@ SYMBOLS_RUN = {
     "alert",
     "define_metric",
     # "summary",   # really this should be here
-    # mode stuff
-    "mode",  # deprecated
     "disabled",
     "offline",
     "save",

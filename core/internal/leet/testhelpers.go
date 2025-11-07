@@ -12,3 +12,8 @@ func (m *Model) TestLeftSidebarVisible() bool {
 func (c *TimeSeriesLineChart) TestSeriesCount() int {
 	return len(c.series)
 }
+
+// CurrentPage returns the current grid of charts.
+func (g *SystemMetricsGrid) CurrentPage() [][]*TimeSeriesLineChart {
+	return g.currentPage
+}

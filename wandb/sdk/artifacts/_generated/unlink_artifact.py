@@ -5,18 +5,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLResult
 
 
 class UnlinkArtifact(GQLResult):
-    unlink_artifact: Optional[UnlinkArtifactUnlinkArtifact] = Field(
-        alias="unlinkArtifact"
-    )
+    result: Optional[UnlinkArtifactResult]
 
 
-class UnlinkArtifactUnlinkArtifact(GQLResult):
+class UnlinkArtifactResult(GQLResult):
     success: bool
 
 

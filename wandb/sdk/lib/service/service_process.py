@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from typing import TYPE_CHECKING
 
-from wandb import _sentry
+from wandb.analytics import get_sentry
 from wandb.env import core_debug, dcgm_profiling_enabled, error_reporting_enabled
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk.lib.service import ipc_support
@@ -27,12 +27,12 @@ def start(settings: Settings) -> ServiceProcess:
     Returns:
         A handle to the process.
     """
-    _sentry.configure_scope(tags=dict(settings), process_context="service")
+    get_sentry().configure_scope(tags=dict(settings), process_context="service")
 
     try:
         return _launch_server(settings)
     except Exception as e:
-        _sentry.reraise(e)
+        get_sentry().reraise(e)
 
 
 class ServiceProcess:
@@ -75,7 +75,7 @@ def _launch_server(settings: Settings) -> ServiceProcess:
         try:
             core_path = get_core_path()
         except WandbCoreNotAvailableError as e:
-            _sentry.reraise(e)
+            get_sentry().reraise(e)
 
         service_args.extend([core_path])
 

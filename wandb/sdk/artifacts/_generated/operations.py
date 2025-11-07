@@ -1148,8 +1148,8 @@ fragment RunInfoFragment on Run {
 """
 
 ARTIFACT_TYPE_GQL = """
-query ArtifactType($entityName: String, $projectName: String, $name: String!) {
-  project(name: $projectName, entityName: $entityName) {
+query ArtifactType($entity: String, $project: String, $name: String!) {
+  project(name: $project, entityName: $entity) {
     artifact(name: $name) {
       artifactType {
         name
@@ -1161,7 +1161,7 @@ query ArtifactType($entityName: String, $projectName: String, $name: String!) {
 
 ADD_ALIASES_GQL = """
 mutation AddAliases($input: AddAliasesInput!) {
-  addAliases(input: $input) {
+  result: addAliases(input: $input) {
     success
   }
 }
@@ -1169,7 +1169,7 @@ mutation AddAliases($input: AddAliasesInput!) {
 
 DELETE_ALIASES_GQL = """
 mutation DeleteAliases($input: DeleteAliasesInput!) {
-  deleteAliases(input: $input) {
+  result: deleteAliases(input: $input) {
     success
   }
 }
@@ -1177,7 +1177,7 @@ mutation DeleteAliases($input: DeleteAliasesInput!) {
 
 UPDATE_ARTIFACT_GQL = """
 mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean = true) {
-  updateArtifact(input: $input) {
+  result: updateArtifact(input: $input) {
     artifact {
       ...ArtifactFragment
     }
@@ -1255,7 +1255,7 @@ fragment TagFragment on Tag {
 
 DELETE_ARTIFACT_GQL = """
 mutation DeleteArtifact($input: DeleteArtifactInput!) {
-  deleteArtifact(input: $input) {
+  result: deleteArtifact(input: $input) {
     artifact {
       id
     }
@@ -1265,7 +1265,7 @@ mutation DeleteArtifact($input: DeleteArtifactInput!) {
 
 LINK_ARTIFACT_GQL = """
 mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true) {
-  linkArtifact(input: $input) {
+  result: linkArtifact(input: $input) {
     versionIndex
     artifactMembership @include(if: true) {
       ...ArtifactMembershipFragment
@@ -1359,7 +1359,7 @@ fragment TagFragment on Tag {
 
 UNLINK_ARTIFACT_GQL = """
 mutation UnlinkArtifact($input: UnlinkArtifactInput!) {
-  unlinkArtifact(input: $input) {
+  result: unlinkArtifact(input: $input) {
     success
   }
 }

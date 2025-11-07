@@ -10,21 +10,14 @@ from wandb_gql import gql
 from wandb._iterutils import one
 from wandb.errors import UnsupportedError
 from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk.artifacts._generated.fetch_org_info_from_entity import (
-    FetchOrgInfoFromEntityEntity,
-)
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
-
-from ._generated import (
-    FETCH_ORG_INFO_FROM_ENTITY_GQL,
-    TYPE_INFO_GQL,
-    FetchOrgInfoFromEntity,
-    TypeInfo,
-    TypeInfoFragment,
-)
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient
+    from wandb.sdk.artifacts._generated import TypeInfoFragment
+    from wandb.sdk.artifacts._generated.fetch_org_info_from_entity import (
+        FetchOrgInfoFromEntityEntity,
+    )
 
 OMITTABLE_ARTIFACT_FIELDS = frozenset(
     {
@@ -40,6 +33,8 @@ OMITTABLE_ARTIFACT_FIELDS = frozenset(
 @lru_cache(maxsize=16)
 def type_info(client: RetryingClient, typename: str) -> TypeInfoFragment | None:
     """Returns the type info for a given GraphQL type."""
+    from ._generated import TYPE_INFO_GQL, TypeInfo
+
     data = client.execute(gql(TYPE_INFO_GQL), variable_values={"name": typename})
     return TypeInfo.model_validate(data).type
 
@@ -49,6 +44,8 @@ def org_info_from_entity(
     client: RetryingClient, entity: str
 ) -> FetchOrgInfoFromEntityEntity | None:
     """Returns the organization info for a given entity."""
+    from ._generated import FETCH_ORG_INFO_FROM_ENTITY_GQL, FetchOrgInfoFromEntity
+
     gql_op = gql(FETCH_ORG_INFO_FROM_ENTITY_GQL)
     data = client.execute(gql_op, variable_values={"entity": entity})
     return FetchOrgInfoFromEntity.model_validate(data).entity
@@ -85,8 +82,11 @@ def server_supports(client: RetryingClient, feature: str | int) -> bool:
     # as the keys here, since:
     # - the server identifies features by their name, rather than (client-side) enum value
     # - the defined list of client-side flags may be behind the server-side list of flags
-    feature_name = ServerFeature.Name(feature) if isinstance(feature, int) else feature
-    return server_features(client).get(feature_name) or False
+    try:
+        name = ServerFeature.Name(feature) if isinstance(feature, int) else feature
+    except ValueError:
+        return False  # Invalid int-like value, assume unsupported
+    return server_features(client).get(name) or False
 
 
 def supports_enable_tracking_var(client: RetryingClient) -> bool:
@@ -123,7 +123,7 @@ class OrgInfo:
 
 def resolve_org_entity_name(
     client: RetryingClient,
-    non_org_entity: str,
+    non_org_entity: str | None,
     org_or_entity: str | None = None,
 ) -> str:
     # Resolve the portfolio's org entity name.

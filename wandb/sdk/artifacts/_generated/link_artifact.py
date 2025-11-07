@@ -13,10 +13,10 @@ from .fragments import ArtifactMembershipFragment
 
 
 class LinkArtifact(GQLResult):
-    link_artifact: Optional[LinkArtifactLinkArtifact] = Field(alias="linkArtifact")
+    result: Optional[LinkArtifactResult]
 
 
-class LinkArtifactLinkArtifact(GQLResult):
+class LinkArtifactResult(GQLResult):
     version_index: Optional[int] = Field(alias="versionIndex")
     artifact_membership: Optional[ArtifactMembershipFragment] = Field(
         alias="artifactMembership", default=None
@@ -24,4 +24,4 @@ class LinkArtifactLinkArtifact(GQLResult):
 
 
 LinkArtifact.model_rebuild()
-LinkArtifactLinkArtifact.model_rebuild()
+LinkArtifactResult.model_rebuild()

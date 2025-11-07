@@ -16,6 +16,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 - `Artifact.files()` now has a correct `len()` when filtering by the `names` parameter (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10796)
 - The numerator for file upload progress no longer occasionally exceeds the total file size (@timoffex in https://github.com/wandb/wandb/pull/10812)
+- `Artifact.link()` now logs unsaved artifacts instead of raising an error, consistent with the behavior of `Run.link_artifact()` (@tonyyli-wandb in https://github.com/wandb/wandb/10822)
+- Automatic code saving now works when running ipython notebooks in VSCode's Jupyter notebook extension (@jacobromero in https://github.com/wandb/wandb/pull/10746)
 
 ### Added
 - The registry API now supports programmatic management of user and team members of individual registries. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10542)

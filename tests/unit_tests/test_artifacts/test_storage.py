@@ -318,7 +318,6 @@ def test_local_file_handler_load_path_uses_cache(artifact_file_cache, tmp_path):
         f.write("hello")
 
     handler = LocalFileHandler()
-    handler._cache = artifact_file_cache
 
     local_path = handler.load_path(
         ArtifactManifestEntry(
@@ -341,7 +340,6 @@ def test_s3_storage_handler_load_path_uses_cache(artifact_file_cache):
         f.write(123 * "a")
 
     handler = S3Handler()
-    handler._cache = artifact_file_cache
 
     local_path = handler.load_path(
         ArtifactManifestEntry(
@@ -381,7 +379,6 @@ def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
         f.write(123 * "a")
 
     handler = GCSHandler()
-    handler._cache = artifact_file_cache
 
     local_path = handler.load_path(
         ArtifactManifestEntry(
