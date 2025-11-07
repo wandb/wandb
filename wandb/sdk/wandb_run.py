@@ -2956,8 +2956,9 @@ class Run:
             target_path: The path of the collection. Path consists of the prefix
                 "wandb-registry-" along with the registry name and the
                 collection name `wandb-registry-{REGISTRY_NAME}/{COLLECTION_NAME}`.
-            aliases: Add one or more aliases to the linked artifact. Apply
-                the alias "latest" to the latest artifact version that is linked.
+            aliases: Add one or more aliases to the linked artifact. The
+                "latest" alias is automatically applied to the most recent artifact
+                you link.
 
         Returns:
             The linked artifact.

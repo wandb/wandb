@@ -616,13 +616,15 @@ class Artifact:
     @property
     @ensure_logged
     def collection(self) -> ArtifactCollection:
-        """The collection this artifact was retrieved from.
+        """The collection this artifact is retrieved from.
 
         A collection is an ordered group of artifact versions.
-        If this artifact was retrieved from a linked collection, that
-        collection will be returned rather than the collection
-        that an artifact version originated from. The collection
-        that an artifact originates from is known as the source sequence.
+        If this artifact is retrieved from a collection that it is linked to,
+        return that collection. Otherwise, return the collection
+        that the artifact version originates from.
+
+        The collection that an artifact originates from is known as
+        the source sequence.
         """
         base_name = self.name.split(":")[0]
         return ArtifactCollection(
@@ -2386,14 +2388,14 @@ class Artifact:
         If called on a linked artifact, only the link is deleted, and the
         source artifact is unaffected.
 
-        Use `artifact.unlink()` instead of `artifact.delete()` to remove a link between a
-        source artifact and a linked artifact.
+        Use `Artifact.unlink()` instead of `Artifact.delete()` to remove a
+        link between a source artifact and a linked artifact.
 
         Args:
-            delete_aliases: If set to `True`, deletes all aliases associated
-                with the artifact. Otherwise, this raises an exception if
+            delete_aliases: If set to `True`, delete all aliases associated
+                with the artifact. Otherwise, raise an exception if
                 the artifact has existing aliases. This parameter is ignored
-                if the artifact is linked to a collection.
+                if the artifact is retrieved from a collection it is linked to.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2428,8 +2430,9 @@ class Artifact:
             target_path: The path of the collection. Path consists of the prefix
                 "wandb-registry-" along with the registry name and the
                 collection name `wandb-registry-{REGISTRY_NAME}/{COLLECTION_NAME}`.
-            aliases: Add one or more aliases to the linked artifact. Apply
-                the alias "latest" to the latest artifact version that is linked.
+            aliases: Add one or more aliases to the linked artifact. The
+                "latest" alias is automatically applied to the most recent artifact
+                you link.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2527,8 +2530,7 @@ class Artifact:
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
-            ValueError: If the artifact is not linked, in other words,
-            it is not a member of a collection.
+            ValueError: If the artifact is not linked to any collection.
         """
         # Fail early if this isn't a linked artifact to begin with
         if not self.is_link:
