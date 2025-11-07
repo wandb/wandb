@@ -2389,11 +2389,11 @@ class Artifact:
         source artifact is unaffected.
 
         Use `Artifact.unlink()` instead of `Artifact.delete()` to remove a
-        link between a source artifact and a linked artifact.
+        link between a source artifact and a collection.
 
         Args:
             delete_aliases: If set to `True`, delete all aliases associated
-                with the artifact. Otherwise, raise an exception if
+                with the artifact. If `False`, raise an exception if
                 the artifact has existing aliases. This parameter is ignored
                 if the artifact is retrieved from a collection it is linked to.
 
