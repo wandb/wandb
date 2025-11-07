@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import ParseResult
@@ -17,6 +16,8 @@ from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHand
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64, md5_string
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+
+from ._timing import TimedIf
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -99,38 +100,36 @@ class LocalFileHandler(StorageHandler):
 
         if os.path.isdir(local_path):
             i = 0
-            start_time = time.monotonic()
-            if checksum:
-                termlog(
-                    f'Generating checksum for up to {max_objects} files in "{local_path}"... ',
-                    newline=False,
-                )
-            for root, _, files in os.walk(local_path):
-                for sub_path in files:
-                    i += 1
-                    if i > max_objects:
-                        raise ValueError(
-                            f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
-                        )
-                    physical_path = os.path.join(root, sub_path)
-                    # TODO(spencerpearson): this is not a "logical path" in the sense that
-                    # `LogicalPath` returns a "logical path"; it's a relative path
-                    # **on the local filesystem**.
-                    file_path = os.path.relpath(physical_path, start=local_path)
-                    if name is not None:
-                        artifact_path = os.path.join(name, file_path)
-                    else:
-                        artifact_path = file_path
-
-                    entry = ArtifactManifestEntry(
-                        path=artifact_path,
-                        ref=FilePathStr(os.path.join(path, file_path)),
-                        size=os.path.getsize(physical_path),
-                        digest=md5(physical_path),
+            with TimedIf(checksum):
+                if checksum:
+                    termlog(
+                        f'Generating checksum for up to {max_objects} files in "{local_path}"... ',
+                        newline=False,
                     )
-                    entries.append(entry)
-            if checksum:
-                termlog("Done. %.1fs" % (time.monotonic() - start_time), prefix=False)
+                for root, _, files in os.walk(local_path):
+                    for sub_path in files:
+                        i += 1
+                        if i > max_objects:
+                            raise ValueError(
+                                f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
+                            )
+                        physical_path = os.path.join(root, sub_path)
+                        # TODO(spencerpearson): this is not a "logical path" in the sense that
+                        # `LogicalPath` returns a "logical path"; it's a relative path
+                        # **on the local filesystem**.
+                        file_path = os.path.relpath(physical_path, start=local_path)
+                        if name is not None:
+                            artifact_path = os.path.join(name, file_path)
+                        else:
+                            artifact_path = file_path
+
+                        entry = ArtifactManifestEntry(
+                            path=artifact_path,
+                            ref=FilePathStr(os.path.join(path, file_path)),
+                            size=os.path.getsize(physical_path),
+                            digest=md5(physical_path),
+                        )
+                        entries.append(entry)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
