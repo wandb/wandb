@@ -8,6 +8,10 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qsl, urlparse
 
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import Never, Self
+
+import wandb
 from wandb import util
 from wandb._strutils import ensureprefix
 from wandb.errors import CommError
@@ -15,8 +19,8 @@ from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
-from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+from wandb.util import logger
 
 from ._timing import TimedIf
 
@@ -36,6 +40,34 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 
 
+def _handle_import_error(exc: ImportError) -> Never:
+    # We handle the ImportError this way for continuity/backward compatibility, but
+    # consider a future, albeit breaking, change that just raises a proper `ImportError`.
+    logger.exception(f"Error importing optional module {exc.name!r}")
+    raise wandb.Error(
+        "s3:// references require the boto3 library, run pip install wandb[aws]"
+    )
+
+
+@pydantic_dataclass
+class _S3Path:
+    """A parsed S3 path."""
+
+    bucket: str
+    key: str
+    version: str | None
+
+    @classmethod
+    def from_uri(cls, uri: str) -> Self:
+        url = urlparse(uri)
+        params = dict(parse_qsl(url.query))
+        return cls(
+            bucket=url.netloc,
+            key=url.path.lstrip("/"),  # trim leading slash
+            version=params.get("versionId"),
+        )
+
+
 class S3Handler(StorageHandler):
     _scheme: str
     _cache: ArtifactFileCache
@@ -52,105 +84,94 @@ class S3Handler(StorageHandler):
     def init_boto(self) -> boto3.resources.base.ServiceResource:
         if self._s3 is not None:
             return self._s3
-        boto: boto3 = util.get_module(
-            "boto3",
-            required="s3:// references requires the boto3 library, run pip install wandb[aws]",
-            lazy=False,
-        )
+
+        try:
+            import boto3
+        except ImportError as e:
+            _handle_import_error(e)
 
         from botocore.client import Config  # type: ignore
 
         s3_endpoint = os.getenv("AWS_S3_ENDPOINT_URL")
-        config = (
+        s3_config = (
             Config(s3={"addressing_style": "virtual"})
             if s3_endpoint and self._is_coreweave_endpoint(s3_endpoint)
             else None
         )
-        self._s3 = boto.session.Session().resource(
+        self._s3 = boto3.session.Session().resource(
             "s3",
             endpoint_url=s3_endpoint,
             region_name=os.getenv("AWS_REGION"),
-            config=config,
+            config=s3_config,
         )
         self._botocore = util.get_module("botocore")
         return self._s3
-
-    def _parse_uri(self, uri: str) -> tuple[str, str, str | None]:
-        url = urlparse(uri)
-        query = dict(parse_qsl(url.query))
-
-        bucket = url.netloc
-        key = url.path[1:]  # strip leading slash
-        version = query.get("versionId")
-
-        return bucket, key, version
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> URIStr | FilePathStr:
+        if (ref_uri := manifest_entry.ref) is None:
+            raise ValueError("Missing reference path/URI on artifact manifest entry")
         if not local:
-            assert manifest_entry.ref is not None
-            return manifest_entry.ref
+            return ref_uri
 
-        assert manifest_entry.ref is not None
+        expected_digest = manifest_entry.digest
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            URIStr(manifest_entry.ref),
-            ETag(manifest_entry.digest),
+            ref_uri,
+            expected_digest,
             manifest_entry.size or 0,
         )
         if hit:
             return path
 
-        self.init_boto()
-        assert self._s3 is not None  # mypy: unwraps optionality
-        bucket, key, _ = self._parse_uri(manifest_entry.ref)
-        version = manifest_entry.extra.get("versionID")
-
-        extra_args = {}
-        if version:
-            obj_version = self._s3.ObjectVersion(bucket, key, version)
-            extra_args["VersionId"] = version
-            obj = obj_version.Object()
-        else:
-            obj = self._s3.Object(bucket, key)
+        s3 = self.init_boto()
+        s3path = _S3Path.from_uri(ref_uri)
 
         try:
-            etag = (
-                obj_version.head()["ETag"][1:-1]  # escape leading and trailing
-                if version
-                else self._etag_from_obj(obj)
-            )
+            if (version := manifest_entry.extra.get("versionID")) is not None:
+                obj_version = s3.ObjectVersion(s3path.bucket, s3path.key, version)
+
+                obj = obj_version.Object()
+                etag = obj_version.head()["ETag"].strip('"')  # trim enclosing quotes
+                extra_args = {"VersionId": version}
+            else:
+                obj = s3.Object(s3path.bucket, s3path.key)
+                etag = obj.e_tag.strip('"')  # trim enclosing quotes
+                extra_args = {}
+
         except self._botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "404":
-                raise FileNotFoundError(
-                    f"Unable to find {manifest_entry.path} at s3://{bucket}/{key}"
-                ) from e
+                msg = f"Unable to find {manifest_entry.path} at s3://{s3path.bucket}/{s3path.key}"
+                raise FileNotFoundError(msg) from e
             raise
 
-        if etag != manifest_entry.digest:
+        if etag != expected_digest:
             # Try to match the etag with some other version.
             if version:
                 raise ValueError(
-                    f"Digest mismatch for object {manifest_entry.ref} with version {version}: expected {manifest_entry.digest} but found {etag}"
+                    f"Digest mismatch for object {ref_uri!r} with version {version!r}: expected {expected_digest!r} but found {etag!r}"
                 )
-            obj = None
-            object_versions = self._s3.Bucket(bucket).object_versions.filter(Prefix=key)
-            for object_version in object_versions:
-                if manifest_entry.extra.get("etag") == self._etag_from_obj(
-                    object_version
-                ):
-                    obj = object_version.Object()
-                    extra_args["VersionId"] = object_version.version_id
-                    break
-            if obj is None:
+
+            object_versions = s3.Bucket(s3path.bucket).object_versions.filter(
+                Prefix=s3path.key
+            )
+            expected_etag = manifest_entry.extra.get("etag")
+
+            try:
+                obj = next(
+                    objv.Object()
+                    for objv in object_versions
+                    if expected_etag == objv.e_tag.strip('"')
+                )
+            except StopIteration:
                 raise FileNotFoundError(
-                    "Couldn't find object version for {}/{} matching etag {}".format(
-                        bucket, key, manifest_entry.extra.get("etag")
-                    )
-                )
+                    f"Couldn't find object version for {s3path.bucket}/{s3path.key} matching etag {expected_etag!r}"
+                ) from None
+            else:
+                extra_args["VersionId"] = obj.version_id
 
         with cache_open(mode="wb") as f:
             obj.download_fileobj(f, ExtraArgs=extra_args)
@@ -164,29 +185,29 @@ class S3Handler(StorageHandler):
         checksum: bool = True,
         max_objects: int | None = None,
     ) -> list[ArtifactManifestEntry]:
-        self.init_boto()
-        assert self._s3 is not None  # mypy: unwraps optionality
+        s3 = self.init_boto()
 
         # The passed in path might have query string parameters.
         # We only need to care about a subset, like version, when
         # parsing. Once we have that, we can store the rest of the
         # metadata in the artifact entry itself.
-        bucket, key, version = self._parse_uri(path)
-        path = URIStr(f"{self._scheme}://{bucket}/{key}")
+        s3path = _S3Path.from_uri(path)
+
+        path = f"{self._scheme}://{s3path.bucket}/{s3path.key}"
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
-            entry_path = name or (key if key != "" else bucket)
+            entry_path = name or s3path.key or s3path.bucket
             return [ArtifactManifestEntry(path=entry_path, ref=path, digest=path)]
 
         # If an explicit version is specified, use that. Otherwise, use the head version.
-        objs = (
-            [self._s3.ObjectVersion(bucket, key, version).Object()]
-            if version
-            else [self._s3.Object(bucket, key)]
-        )
+        objs = [
+            s3.ObjectVersion(s3path.bucket, s3path.key, s3path.version).Object()
+            if s3path.version
+            else s3.Object(s3path.bucket, s3path.key)
+        ]
         multi = False
-        if key != "":
+        if s3path.key:
             try:
                 objs[0].load()
                 # S3 lacks true folders, but a folder key can reference a valid
@@ -196,54 +217,48 @@ class S3Handler(StorageHandler):
                 if "x-directory" in objs[0].content_type:
                     multi = True
             except self._botocore.exceptions.ClientError as e:
-                if e.response["Error"]["Code"] == "404":
+                if (errinfo := e.response.get("Error")) and (errinfo["Code"] == "404"):
                     multi = True
-                else:
+                elif errinfo:
                     raise CommError(
-                        f"Unable to connect to S3 ({e.response['Error']['Code']}): "
-                        f"{e.response['Error']['Message']}. Check that your "
-                        "authentication credentials are valid and that your region is "
-                        "set correctly."
+                        f"Unable to connect to S3 ({errinfo['Code']}): {errinfo['Message']}. "
+                        "Check that your authentication credentials are valid "
+                        "and that your region is set correctly."
                     )
+                else:
+                    raise
         else:
             multi = True
 
         with TimedIf(multi):
             if multi:
                 termlog(
-                    f'Generating checksum for up to {max_objects} objects in "{bucket}/{key}"... ',
+                    f'Generating checksum for up to {max_objects} objects in "{s3path.bucket}/{s3path.key}"... ',
                     newline=False,
                 )
-                if key != "":
-                    objs = (
-                        self._s3.Bucket(bucket)
-                        .objects.filter(Prefix=key)
-                        .limit(max_objects)
-                    )
+                bucket_objs = s3.Bucket(s3path.bucket).objects
+                if s3path.key:
+                    objs = bucket_objs.filter(Prefix=s3path.key).limit(max_objects)
                 else:
-                    objs = self._s3.Bucket(bucket).objects.limit(max_objects)
+                    objs = bucket_objs.limit(max_objects)
             # Weird iterator scoping makes us assign this to a local function
-            size = self._size_from_obj
+            getsize = self._size_from_obj
             entries = [
-                self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
+                self._entry_from_obj(obj, path, name, prefix=s3path.key, multi=multi)
                 for obj in objs
-                if size(obj) > 0
+                if getsize(obj) > 0
             ]
+            if len(entries) > max_objects:
+                raise ValueError(
+                    f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
+                )
+            return entries
 
-        if len(entries) > max_objects:
-            raise ValueError(
-                f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
-            )
-        return entries
-
-    def _size_from_obj(self, obj: boto3.s3.Object | boto3.s3.ObjectSummary) -> int:
+    @staticmethod
+    def _size_from_obj(obj: boto3.s3.Object | boto3.s3.ObjectSummary) -> int:
         # ObjectSummary has size, Object has content_length
-        size: int
-        if hasattr(obj, "size"):
-            size = obj.size
-        else:
-            size = obj.content_length
-        return size
+        size = getattr(obj, "size", None)
+        return obj.content_length if (size is None) else size
 
     def _entry_from_obj(
         self,
@@ -262,11 +277,11 @@ class S3Handler(StorageHandler):
             prefix: The prefix to add (will be the same as `path` for directories)
             multi: Whether or not this is a multi-object add.
         """
-        bucket, key, _ = self._parse_uri(path)
+        s3path = _S3Path.from_uri(path)
 
         # Always use posix paths, since that's what S3 uses.
         posix_key = PurePosixPath(obj.key)  # the bucket key
-        posix_path = PurePosixPath(bucket) / key  # the path, with the scheme stripped
+        posix_path = PurePosixPath(s3path.bucket, s3path.key)  # path without the scheme
         posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
         posix_name = PurePosixPath(name or "")
         posix_ref = posix_path
@@ -286,29 +301,23 @@ class S3Handler(StorageHandler):
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
             path=posix_name,
-            ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
-            digest=ETag(self._etag_from_obj(obj)),
+            ref=f"{self._scheme}://{posix_ref}",
+            digest=obj.e_tag.strip('"'),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
         )
 
-    @staticmethod
-    def _etag_from_obj(obj: boto3.s3.Object | boto3.s3.ObjectSummary) -> ETag:
-        etag: ETag
-        etag = obj.e_tag[1:-1]  # escape leading and trailing quote
-        return etag
-
     def _extra_from_obj(
         self, obj: boto3.s3.Object | boto3.s3.ObjectSummary
     ) -> dict[str, str]:
-        extra = {
-            "etag": obj.e_tag[1:-1],  # escape leading and trailing quote
-        }
+        extra = {"etag": obj.e_tag.strip('"')}  # trim leading and trailing quote
         if not hasattr(obj, "version_id"):
             # Convert ObjectSummary to Object to get the version_id.
             obj = self._s3.Object(obj.bucket_name, obj.key)  # type: ignore[union-attr]
-        if hasattr(obj, "version_id") and obj.version_id and obj.version_id != "null":
-            extra["versionID"] = obj.version_id
+
+        if (version_id := getattr(obj, "version_id", None)) and (version_id != "null"):
+            extra["versionID"] = version_id
+
         return extra
 
     _CW_LEGACY_NETLOC_REGEX: re.Pattern[str] = re.compile(
