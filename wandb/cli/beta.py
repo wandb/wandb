@@ -9,7 +9,7 @@ import pathlib
 
 import click
 
-import wandb
+from wandb.analytics import get_sentry
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
@@ -20,12 +20,12 @@ def beta():
 
     These commands may change or even completely break in any release of wandb.
     """
-    wandb._sentry.configure_scope(process_context="wandb_beta")
+    get_sentry().configure_scope(process_context="wandb_beta")
 
     try:
         get_core_path()
     except WandbCoreNotAvailableError as e:
-        wandb._sentry.exception(f"using `wandb beta`. failed with {e}")
+        get_sentry().exception(f"using `wandb beta`. failed with {e}")
         click.secho(
             (e),
             fg="red",

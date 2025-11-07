@@ -27,13 +27,39 @@ const (
 )
 
 // Sidebar constants.
-//
-// We are using the golden ratio `phi` for visually pleasing layout proportions.
 const (
+	// We are using the golden ratio `phi` for visually pleasing layout proportions.
 	SidebarWidthRatio     = 0.382 // 1 - 1/phi
 	SidebarWidthRatioBoth = 0.236 // When both sidebars visible: (1 - 1/phi) / phi ≈ 0.236
 	SidebarMinWidth       = 40
 	SidebarMaxWidth       = 120
+
+	// Sidebar internal content padding (accounts for borders).
+	leftSidebarContentPadding = 4
+
+	// Key/value column width ratio.
+	leftSidebarKeyWidthRatio = 0.4 // 40% of available width for keys
+
+	// Sidebar content padding (accounts for borders and internal spacing).
+	rightSidebarContentPadding = 3
+
+	// Default grid height for system metrics when not calculated from terminal height.
+	defaultSystemMetricsGridHeight = 40
+
+	// Mouse click coordinate adjustments for border/padding.
+	rightSidebarMouseClickPaddingOffset = 1
+)
+
+// Rune constants for UI drawing.
+const (
+	// verticalLine is ASCII vertical bar U+007C.
+	verticalLine rune = '\u007C' // |
+
+	// BoxLightVertical is U+2502 and is "taller" than verticalLine.
+	boxLightVertical rune = '\u2502' // │
+
+	// unicodeSpace is the regular whitespace.
+	unicodeSpace rune = '\u0020'
 )
 
 // WANDB brand colors.
@@ -52,6 +78,9 @@ var teal450 = lipgloss.AdaptiveColor{
 // Functional colors not specific to any visual component.
 // Ideally these should be adaptive!
 var (
+	// Color for main items such as chart titles.
+	colorAccent = lipgloss.Color("250")
+
 	// Main text color that appears the most frequently on the screen.
 	colorText = lipgloss.Color("245")
 
@@ -60,18 +89,23 @@ var (
 	colorSubtle = lipgloss.Color("240")
 
 	// Color for layout elements, like borders and separator lines.
-	// colorLayout = lipgloss.Color("238")
+	colorLayout = lipgloss.Color("238")
 
 	// Color for layout elements when they're highlighted or focused.
-	// colorLayoutHighlight = teal450
+	colorLayoutHighlight = teal450
 
 	// Color for top-level headings; least frequent.
 	// Leet logo, help page section headings.
-	// colorHeading = wandbColor
+	colorHeading = wandbColor
 
 	// Color for lower-level headings; more frequent than headings.
 	// Help page keys, metrics grid header.
 	colorSubheading = lipgloss.Color("230")
+
+	// Colors for key-value pairs such as run summary or config items.
+	colorItemKey   = lipgloss.Color("243")
+	colorItemValue = lipgloss.Color("252")
+	colorSelected  = lipgloss.Color("238")
 )
 
 // ASCII art for the loading screen and the help page.
@@ -148,11 +182,30 @@ var colorSchemes = map[string][]string{
 
 // GraphColors returns the colors for the current color scheme.
 func GraphColors() []string {
-	return colorSchemes["sunset-glow"]
+	return colorSchemes[DefaultColorScheme]
 }
+
+// Metrics grid styles.
+var (
+	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
+
+	navInfoStyle = lipgloss.NewStyle().Foreground(colorSubtle)
+
+	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(1).MarginBottom(0)
+
+	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginRight(1)
+)
 
 // Chart styles.
 var (
+	borderStyle = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(colorLayout)
+
+	titleStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
+
+	seriesCountStyle = lipgloss.NewStyle().Foreground(colorSubtle)
+
+	focusedBorderStyle = borderStyle.BorderForeground(colorLayoutHighlight)
+
 	axisStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
 	labelStyle = lipgloss.NewStyle().Foreground(colorText)
@@ -160,7 +213,45 @@ var (
 
 // Status bar styles.
 var (
-	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(teal450)
+	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(colorLayoutHighlight)
+)
+
+// Left sidebar styles.
+var (
+	sidebarStyle              = lipgloss.NewStyle().Padding(0, 1)
+	sidebarBorderStyle        = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(colorLayout)
+	sidebarHeaderStyle        = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginBottom(1)
+	sidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
+	sidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
+	sidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
+	sidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
+	RightBorder               = lipgloss.Border{
+		Top:         string(unicodeSpace),
+		Bottom:      string(unicodeSpace),
+		Left:        "",
+		Right:       string(verticalLine),
+		TopLeft:     string(unicodeSpace),
+		TopRight:    string(verticalLine),
+		BottomLeft:  string(unicodeSpace),
+		BottomRight: string(verticalLine),
+	}
+)
+
+// Right sidebar styles.
+var (
+	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
+	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(colorLayout)
+	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginLeft(1)
+	LeftBorder              = lipgloss.Border{
+		Top:         string(unicodeSpace),
+		Bottom:      string(unicodeSpace),
+		Left:        string(boxLightVertical),
+		Right:       "",
+		TopLeft:     string(verticalLine),
+		TopRight:    string(unicodeSpace),
+		BottomLeft:  string(verticalLine),
+		BottomRight: string(unicodeSpace),
+	}
 )
 
 // AnimationDuration is the duration for sidebar animations.
@@ -175,7 +266,7 @@ var (
 
 	helpDescStyle = lipgloss.NewStyle().Foreground(colorText)
 
-	helpSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(wandbColor)
+	helpSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(colorHeading)
 
 	helpContentStyle = lipgloss.NewStyle().MarginLeft(2).MarginTop(1)
 )

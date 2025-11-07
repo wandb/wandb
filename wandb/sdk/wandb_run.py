@@ -19,15 +19,13 @@ from enum import IntEnum
 from types import TracebackType
 from typing import TYPE_CHECKING, Callable, Sequence, TextIO, TypeVar
 
-import requests
 from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec
 
 import wandb
 import wandb.env
 import wandb.util
 from wandb import trigger
-from wandb.apis import internal, public
-from wandb.apis.public import Api as PublicApi
+from wandb.analytics import get_sentry
 from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
@@ -39,9 +37,6 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.internal import job_builder
 from wandb.sdk.lib import wb_logging
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -59,12 +54,6 @@ from wandb.util import (
 )
 
 from . import wandb_config, wandb_metric, wandb_summary
-from .artifacts._validators import (
-    MAX_ARTIFACT_METADATA_KEYS,
-    ArtifactPath,
-    validate_aliases,
-    validate_tags,
-)
 from .data_types._dtypes import TypeRegistry
 from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
@@ -90,7 +79,6 @@ from .mailbox import (
     wait_with_progress,
 )
 from .wandb_alerts import AlertLevel
-from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
@@ -98,14 +86,17 @@ if TYPE_CHECKING:
 
     import torch  # type: ignore [import-not-found]
 
-    import wandb.apis.public
     import wandb.sdk.backend.backend
     import wandb.sdk.interface.interface_queue
+    from wandb.apis.public import Api as PublicApi
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
         InternalMessagesResponse,
         SampledHistoryResponse,
     )
+    from wandb.sdk.artifacts.artifact import Artifact
+
+    from .wandb_settings import Settings
 
     class GitSourceDict(TypedDict):
         remote: str
@@ -293,11 +284,13 @@ class RunStatusChecker:
 
     def check_stop_status(self) -> None:
         def _process_stop_status(result: Result) -> None:
+            from wandb.agents import pyagent
+
             stop_status = result.response.stop_status_response
             if stop_status.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
-                if not wandb.agents.pyagent.is_running():  # type: ignore
+                if not pyagent.is_running():  # type: ignore
                     interrupt.interrupt_main()
                     return
 
@@ -385,7 +378,7 @@ def _log_to_run(
     """
 
     @functools.wraps(func)
-    def wrapper(self: Run, *args, **kwargs) -> _T:
+    def wrapper(self: Run, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         # In "attach" usage, many properties of the Run are not initially
         # populated.
         if hasattr(self, "_settings"):
@@ -412,7 +405,7 @@ def _attach(
     """
 
     @functools.wraps(func)
-    def wrapper(self: Run, *args, **kwargs) -> _T:
+    def wrapper(self: Run, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         global _is_attaching
 
         # The _attach_id attribute is only None when running in the "disable
@@ -430,7 +423,7 @@ def _attach(
             if _is_attaching:
                 raise RuntimeError(
                     f"Trying to attach `{func.__name__}`"
-                    f" while in the middle of attaching `{_is_attaching}`"
+                    + f" while in the middle of attaching `{_is_attaching}`"
                 )
 
             _is_attaching = func.__name__
@@ -450,7 +443,7 @@ def _raise_if_finished(
     """Decorate a Run method to raise an error after the run is finished."""
 
     @functools.wraps(func)
-    def wrapper_fn(self: Run, *args, **kwargs) -> _T:
+    def wrapper_fn(self: Run, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         if not getattr(self, "_is_finished", False):
             return func(self, *args, **kwargs)
 
@@ -660,7 +653,7 @@ class Run:
 
         # Initial scope setup for sentry.
         # This might get updated when the actual run comes back.
-        wandb._sentry.configure_scope(
+        get_sentry().configure_scope(
             tags=dict(self._settings),
             process_context="user",
         )
@@ -1138,6 +1131,8 @@ class Run:
         Returns:
             An `Artifact` object if code was logged
         """
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
         if name is None:
             if self.settings._jupyter:
                 notebook_name = None
@@ -1395,6 +1390,9 @@ class Run:
     def _config_artifact_callback(
         self, key: str, val: str | Artifact | dict
     ) -> Artifact:
+        from wandb.apis import public
+        from wandb.sdk.artifacts.artifact import Artifact
+
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown
         # in wandb.util.artifact_to_json
@@ -1670,7 +1668,7 @@ class Run:
         if run_obj.forked:
             self._forked = run_obj.forked
 
-        wandb._sentry.configure_scope(
+        get_sentry().configure_scope(
             process_context="user",
             tags=dict(self._settings),
         )
@@ -2304,7 +2302,7 @@ class Run:
         finally:
             if wandb.run is self:
                 module.unset_globals()
-            wandb._sentry.end_session()
+            get_sentry().end_session()
 
     @_log_to_run
     @_raise_if_finished
@@ -2620,6 +2618,9 @@ class Run:
         installed_packages_list: list[str],
         patch_path: os.PathLike | None = None,
     ) -> Artifact:
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+        from wandb.sdk.internal import job_builder
+
         job_artifact = InternalArtifact(name, job_builder.JOB_ARTIFACT_TYPE)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(patch_path), "diff.patch")
@@ -2942,22 +2943,29 @@ class Run:
         target_path: str,
         aliases: list[str] | None = None,
     ) -> Artifact:
-        """Link the given artifact to a portfolio (a promoted collection of artifacts).
+        """Link the artifact to a collection.
 
-        Linked artifacts are visible in the UI for the specified portfolio.
+        The term “link” refers to pointers that connect where W&B stores the
+        artifact and where the artifact is accessible in the registry. W&B
+        does not duplicate artifacts when you link an artifact to a collection.
+
+        View linked artifacts in the Registry UI for the specified collection.
 
         Args:
-            artifact: the (public or local) artifact which will be linked
-            target_path: `str` - takes the following forms: `{portfolio}`, `{project}/{portfolio}`,
-                or `{entity}/{project}/{portfolio}`
-            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
-                                   inside the portfolio.
-            The alias "latest" will always be applied to the latest version of an artifact that is linked.
+            artifact: The artifact object to link to the collection.
+            target_path: The path of the collection. Path consists of the prefix
+                "wandb-registry-" along with the registry name and the
+                collection name `wandb-registry-{REGISTRY_NAME}/{COLLECTION_NAME}`.
+            aliases: Add one or more aliases to the linked artifact. The
+                "latest" alias is automatically applied to the most recent artifact
+                you link.
 
         Returns:
             The linked artifact.
 
         """
+        from .artifacts._validators import ArtifactPath
+
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
 
@@ -3033,6 +3041,9 @@ class Run:
         ```
 
         """
+        from wandb.apis import internal
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if self._settings._offline:
             raise TypeError("Cannot use artifact when in offline mode.")
 
@@ -3261,6 +3272,12 @@ class Run:
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> Artifact:
+        from .artifacts._validators import (
+            MAX_ARTIFACT_METADATA_KEYS,
+            validate_aliases,
+            validate_tags,
+        )
+
         if self._settings.anonymous in ["allow", "must"]:
             wandb.termwarn(
                 "Artifacts logged anonymously cannot be claimed and expire after 7 days."
@@ -3323,6 +3340,8 @@ class Run:
         return artifact
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:
+        from wandb.apis import public
+
         overrides = {"run": self._settings.run_id}  # type: ignore
         if not self._settings._offline:
             overrides["entity"] = self._settings.entity or ""
@@ -3331,6 +3350,10 @@ class Run:
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
+        import requests
+
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if self._settings._offline:
             return
         try:
@@ -3368,6 +3391,8 @@ class Run:
         type: str | None = None,
         aliases: list[str] | None = None,
     ) -> tuple[Artifact, list[str]]:
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if isinstance(artifact_or_path, (str, os.PathLike)):
             name = (
                 name
@@ -4007,6 +4032,8 @@ def restore(
         CommError: If W&B can't connect to the W&B backend.
         ValueError: If the file is not found or can't find run_path.
     """
+    from wandb.apis import public
+
     is_disabled = wandb.run is not None and wandb.run.disabled
     run = None if is_disabled else wandb.run
     if run_path is None:

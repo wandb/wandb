@@ -1,7 +1,6 @@
 package leet_test
 
 import (
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -110,15 +109,13 @@ func TestLiveStore_ReadAfterClose(t *testing.T) {
 	ls, err := leet.NewLiveStore(path, observability.NewNoOpLogger())
 	require.NoError(t, err)
 
-	// Close the LiveStore
+	// Close the LiveStore.
 	ls.Close()
 
-	// Try to read after close
+	// Try to read after close.
 	_, err = ls.Read()
 	require.Error(t, err)
-	if !errors.Is(err, os.ErrClosed) && err.Error() != "livestore: db is closed" {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	require.Equal(t, err.Error(), "livestore: db is closed")
 }
 
 // TestLiveStore_LiveRead_ConcurrentWriterFlushes writes records in one goroutine
@@ -259,9 +256,7 @@ func TestLiveStore_LiveRead_OpenedBeforeWriter(t *testing.T) {
 				time.Sleep(1 * time.Millisecond)
 				continue
 			}
-			if err != nil {
-				t.Fatalf("Read: %v", err)
-			}
+			require.NoError(t, err)
 			require.Equal(t, rec.Num, int64(1))
 			wg.Wait()
 			return

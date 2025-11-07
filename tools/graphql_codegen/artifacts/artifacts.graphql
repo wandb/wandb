@@ -267,8 +267,8 @@ query ArtifactCreatedBy($id: ID!) {
   }
 }
 
-query ArtifactType($entityName: String, $projectName: String, $name: String!) {
-  project(name: $projectName, entityName: $entityName) {
+query ArtifactType($entity: String, $project: String, $name: String!) {
+  project(name: $project, entityName: $entity) {
     artifact(name: $name) {
       artifactType {
         name
@@ -279,18 +279,18 @@ query ArtifactType($entityName: String, $projectName: String, $name: String!) {
 
 # ---------------------------------------------------------------------------
 mutation AddAliases($input: AddAliasesInput!) {
-  addAliases(input: $input) {
+  result: addAliases(input: $input) {
     success
   }
 }
 mutation DeleteAliases($input: DeleteAliasesInput!) {
-  deleteAliases(input: $input) {
+  result: deleteAliases(input: $input) {
     success
   }
 }
 
 mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean = true) {
-  updateArtifact(input: $input) {
+  result: updateArtifact(input: $input) {
     artifact {
       ...ArtifactFragment
     }
@@ -298,7 +298,7 @@ mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean =
 }
 
 mutation DeleteArtifact($input: DeleteArtifactInput!) {
-  deleteArtifact(input: $input) {
+  result: deleteArtifact(input: $input) {
     artifact {
       id
     }
@@ -306,7 +306,7 @@ mutation DeleteArtifact($input: DeleteArtifactInput!) {
 }
 
 mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true) {
-  linkArtifact(input: $input) {
+  result: linkArtifact(input: $input) {
     versionIndex
     artifactMembership @include(if: true) {
       # Workaround: ensures generated pydantic field defaults to `None`
@@ -316,7 +316,7 @@ mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = tru
 }
 
 mutation UnlinkArtifact($input: UnlinkArtifactInput!) {
-  unlinkArtifact(input: $input) {
+  result: unlinkArtifact(input: $input) {
     success
   }
 }

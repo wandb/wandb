@@ -3,8 +3,6 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import requests.utils
-
 from wandb.errors import AuthenticationError
 
 DEFAULT_WANDB_CREDENTIALS_FILE = Path(
@@ -109,6 +107,8 @@ def _create_access_token(base_url: str, token_file: Path) -> dict:
         OSError: If there is an issue reading the token file.
         AuthenticationError: If the server fails to provide an access token.
     """
+    import requests
+
     try:
         with open(token_file) as file:
             token = file.read().strip()
