@@ -289,14 +289,23 @@ def terminput(
             set, or wandb is configured in 'silent' mode.
         KeyboardInterrupt: If the user pressed Ctrl+C during the prompt.
     """
+    prefixed_prompt = f"{LOG_STRING}: {prompt}"
+    return _terminput(prefixed_prompt, timeout=timeout, hide=hide)
+
+
+def _terminput(
+    prefixed_prompt: str,
+    *,
+    timeout: float | None = None,
+    hide: bool = False,
+) -> str:
+    """Implements terminput() and can be patched by tests."""
     if not can_use_terminput():
         raise NotATerminalError
 
     if hide and timeout is not None:
         # Only click.prompt() can hide, and only timed_input can time out.
         raise NotImplementedError
-
-    prefixed_prompt = f"{LOG_STRING}: {prompt}"
 
     if timeout is not None:
         # Lazy import to avoid circular imports.
