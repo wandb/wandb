@@ -3272,11 +3272,7 @@ class Run:
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> Artifact:
-        from .artifacts._validators import (
-            MAX_ARTIFACT_METADATA_KEYS,
-            validate_aliases,
-            validate_tags,
-        )
+        from .artifacts._validators import validate_aliases, validate_tags
 
         if self._settings.anonymous in ["allow", "must"]:
             wandb.termwarn(
@@ -3297,10 +3293,7 @@ class Run:
             artifact_or_path, name, type, aliases
         )
 
-        if len(artifact.metadata) > MAX_ARTIFACT_METADATA_KEYS:
-            raise ValueError(
-                f"Artifact must not have more than {MAX_ARTIFACT_METADATA_KEYS} metadata keys."
-            )
+        artifact.metadata = {**artifact.metadata}  # triggers validation
 
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)

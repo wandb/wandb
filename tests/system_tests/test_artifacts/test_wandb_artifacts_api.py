@@ -427,6 +427,69 @@ def test_log_artifact_with_above_max_metadata_keys(user):
             run.log_artifact(artifact)
 
 
+def test_log_artifact_with_inf_metadata_values(user, api):
+    # NOTE: The backend doesn't currently handle JS-compatible `Infinity/-Infinity`, values.
+    # At the time of writing, we'll forbid them to avoid surprises, but revisit if we add backend support in the future.
+    draft_metadata = {
+        "finite_number": 123,
+        "pos_inf": float("inf"),
+        "neg_inf": float("-inf"),
+        "nested": {
+            "normal_string": "hello",
+            "pos_inf": float("inf"),
+            "neg_inf": float("-inf"),
+        },
+    }
+
+    # In-place update
+    with pytest.raises(ValueError):
+        artifact1 = wandb.Artifact(name="test-artifact-1", type="test")
+        artifact1.metadata.update(draft_metadata)
+        artifact1.save()
+
+    # Proper attribute assignment
+    with pytest.raises(ValueError):
+        artifact2 = wandb.Artifact(name="test-artifact-2", type="test")
+        artifact2.metadata = draft_metadata
+        artifact2.save()
+
+
+def test_log_artifact_with_nan_metadata_values(user, api):
+    """Check that NaN values are encoded as None (JSON null) values."""
+    import numpy as np
+
+    draft_metadata = {
+        "finite_number": 123,
+        "python_nan": float("nan"),
+        "nested": {
+            "normal_string": "hello",
+            "numpy_nan": np.nan,
+        },
+    }
+    expected_saved_metadata = {
+        "finite_number": 123,
+        "python_nan": None,
+        "nested": {
+            "normal_string": "hello",
+            "numpy_nan": None,
+        },
+    }
+
+    # In-place update
+    artifact1 = wandb.Artifact(name="test-artifact-1", type="test")
+    artifact1.metadata.update(draft_metadata)
+    artifact1.save()
+    artifact1.wait()
+    assert api.artifact(artifact1.qualified_name).metadata == expected_saved_metadata
+
+    # Proper attribute assignment
+    artifact2 = wandb.Artifact(name="test-artifact-2", type="test")
+    artifact2.metadata = draft_metadata
+    artifact2.save()
+    artifact2.wait()
+    assert api.artifact(artifact2.qualified_name).metadata == expected_saved_metadata
+
+
 def test_run_log_artifact(user):
     # Prepare data.
     with wandb.init() as run:

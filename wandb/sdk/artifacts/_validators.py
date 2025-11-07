@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field, replace
-from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
+from functools import singledispatch, wraps
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TypeVar
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Concatenate, ParamSpec, Self
@@ -198,15 +198,29 @@ def validate_artifact_type(typ: str, name: str) -> str:
     return typ
 
 
+@singledispatch
 def validate_metadata(metadata: dict[str, Any] | str | None) -> dict[str, Any]:
     """Validate the artifact metadata and return it as a dict."""
-    if metadata is None:
-        return {}
-    if isinstance(metadata, str):
-        return from_json(metadata) if metadata else {}
-    if isinstance(metadata, dict):
-        return cast(Dict[str, Any], json.loads(json.dumps(json_friendly_val(metadata))))
-    raise TypeError(f"metadata must be dict, not {type(metadata)}")
+    raise TypeError(f"Cannot parse {type(metadata)} as artifact metadata")
+
+
+@validate_metadata.register(type(None))
+@validate_metadata.register(str)
+def _(metadata: str | None) -> dict[str, Any]:
+    return validate_metadata(from_json(metadata)) if metadata else {}
+
+
+@validate_metadata.register(dict)
+def _(metadata: dict[str, Any]) -> dict[str, Any]:
+    # NOTE: The backend doesn't currently allow JS-compatible `+/-Infinity` values.
+    # Forbid them here to avoid surprises, but revisit if we add future backend support.
+    # Note that prior behavior already converts `NaN` values to `None` (client-side).
+    metadata = from_json(json.dumps(json_friendly_val(metadata), allow_nan=False))
+    if len(metadata) > MAX_ARTIFACT_METADATA_KEYS:
+        raise ValueError(
+            f"Artifact must not have more than {MAX_ARTIFACT_METADATA_KEYS!r} metadata keys."
+        )
+    return metadata
 
 
 def validate_ttl_duration_seconds(gql_ttl_duration_seconds: int | None) -> int | None:
