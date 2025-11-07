@@ -599,6 +599,9 @@ pub struct Deprecated {
     /// wandb.beta.workflows.link_model() called
     #[prost(bool, tag = "30")]
     pub beta_workflows_link_model: bool,
+    /// wandb.sdk.artifacts.artifact_manifest.ArtifactManifest.get_entry_by_path() called
+    #[prost(bool, tag = "31")]
+    pub artifact_manifest_get_entry_by_path: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {

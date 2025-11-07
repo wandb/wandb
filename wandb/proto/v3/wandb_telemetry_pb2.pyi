@@ -802,6 +802,7 @@ class Deprecated(google.protobuf.message.Message):
     BETA__WORKFLOWS__LOG_MODEL_FIELD_NUMBER: builtins.int
     BETA__WORKFLOWS__USE_MODEL_FIELD_NUMBER: builtins.int
     BETA__WORKFLOWS__LINK_MODEL_FIELD_NUMBER: builtins.int
+    ARTIFACT_MANIFEST__GET_ENTRY_BY_PATH_FIELD_NUMBER: builtins.int
     keras_callback__data_type: builtins.bool
     """wandb.integration.keras.WandbCallback(data_type=...) called"""
     plots: builtins.bool
@@ -854,6 +855,8 @@ class Deprecated(google.protobuf.message.Message):
     """wandb.beta.workflows.use_model() called"""
     beta__workflows__link_model: builtins.bool
     """wandb.beta.workflows.link_model() called"""
+    artifact_manifest__get_entry_by_path: builtins.bool
+    """wandb.sdk.artifacts.artifact_manifest.ArtifactManifest.get_entry_by_path() called"""
     def __init__(
         self,
         *,
@@ -883,8 +886,9 @@ class Deprecated(google.protobuf.message.Message):
         beta__workflows__log_model: builtins.bool = ...,
         beta__workflows__use_model: builtins.bool = ...,
         beta__workflows__link_model: builtins.bool = ...,
+        artifact_manifest__get_entry_by_path: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact__init_use_as", b"artifact__init_use_as", "artifact__use_as", b"artifact__use_as", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "beta__workflows__link_model", b"beta__workflows__link_model", "beta__workflows__log_model", b"beta__workflows__log_model", "beta__workflows__use_model", b"beta__workflows__use_model", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__finish_quiet", b"run__finish_quiet", "run__get_project_url", b"run__get_project_url", "run__get_sweep_url", b"run__get_sweep_url", "run__get_url", b"run__get_url", "run__project_name", b"run__project_name", "run__reinit_bool", b"run__reinit_bool", "run__use_artifact_use_as", b"run__use_artifact_use_as", "run_disabled", b"run_disabled"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact__init_use_as", b"artifact__init_use_as", "artifact__use_as", b"artifact__use_as", "artifact_collection__change_type", b"artifact_collection__change_type", "artifact_manifest__get_entry_by_path", b"artifact_manifest__get_entry_by_path", "artifactmanifestentry__name", b"artifactmanifestentry__name", "beta__workflows__link_model", b"beta__workflows__link_model", "beta__workflows__log_model", b"beta__workflows__log_model", "beta__workflows__use_model", b"beta__workflows__use_model", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__finish_quiet", b"run__finish_quiet", "run__get_project_url", b"run__get_project_url", "run__get_sweep_url", b"run__get_sweep_url", "run__get_url", b"run__get_url", "run__project_name", b"run__project_name", "run__reinit_bool", b"run__reinit_bool", "run__use_artifact_use_as", b"run__use_artifact_use_as", "run_disabled", b"run_disabled"]) -> None: ...
 
 global___Deprecated = Deprecated
 
