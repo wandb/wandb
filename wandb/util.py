@@ -4,7 +4,6 @@ import colorsys
 import contextlib
 import dataclasses
 import enum
-import functools
 import gzip
 import importlib
 import importlib.util
@@ -54,8 +53,8 @@ from wandb.errors import (
     CommError,
     UsageError,
     WandbCoreNotAvailableError,
-    term,
 )
+from wandb.errors.term import terminput
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.json_util import dump, dumps
@@ -1319,53 +1318,38 @@ def class_colors(class_count: int) -> list[list[int]]:
     ]
 
 
-def _prompt_choice(
-    input_timeout: int | float | None = None,
-    jupyter: bool = False,
-) -> str:
-    input_fn: Callable = input
-    prompt = term.LOG_STRING
-    if input_timeout is not None:
-        # delayed import to mitigate risk of timed_input complexity
-        from wandb.sdk.lib import timed_input
-
-        input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
-        # timed_input doesn't handle enhanced prompts
-        if platform.system() == "Windows":
-            prompt = "wandb"
-
-    text = f"{prompt}: Enter your choice: "
-    if input_fn == input:
-        choice = input_fn(text)
-    else:
-        choice = input_fn(text, jupyter=jupyter)
-    return choice  # type: ignore
-
-
 def prompt_choices(
     choices: Sequence[str],
-    input_timeout: int | float | None = None,
-    jupyter: bool = False,
+    input_timeout: float | None = None,
 ) -> str:
-    """Allow a user to choose from a list of options."""
-    for i, choice in enumerate(choices):
-        wandb.termlog(f"({i + 1}) {choice}")
+    """Prompt the user to choose from a list of options.
 
-    idx = -1
-    while idx < 0 or idx > len(choices) - 1:
-        choice = _prompt_choice(input_timeout=input_timeout, jupyter=jupyter)
+    Raises:
+        TimeoutError: if input_timeout is specified and expires.
+        NotATerminalError: if the output device is not capable.
+        KeyboardInterrupt: if the user aborts by pressing Ctrl+C.
+    """
+    for i, choice_str in enumerate(choices):
+        wandb.termlog(f"({i + 1}) {choice_str}")
+
+    while True:
+        choice = terminput("Enter your choice: ", timeout=input_timeout)
+
+        # If the user presses enter without typing anything, try again.
         if not choice:
             continue
+
         idx = -1
-        try:
+        with contextlib.suppress(ValueError):
             idx = int(choice) - 1
-        except ValueError:
-            pass
+
         if idx < 0 or idx > len(choices) - 1:
             wandb.termwarn("Invalid choice")
-    result = choices[idx]
-    wandb.termlog(f"You chose {result!r}")
-    return result
+            continue
+
+        result = choices[idx]
+        wandb.termlog(f"You chose {result!r}")
+        return result
 
 
 def guess_data_type(shape: Sequence[int], risky: bool = False) -> str | None:

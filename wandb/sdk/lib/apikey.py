@@ -6,20 +6,16 @@ import dataclasses
 import os
 import platform
 import stat
-import sys
 import textwrap
-from functools import partial
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
-
-import click
 
 import wandb
 from wandb.apis import InternalApi
 from wandb.errors import term
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup
-from wandb.util import _is_databricks, isatty, prompt_choices
+from wandb.util import _is_databricks, prompt_choices
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
@@ -49,9 +45,6 @@ class WriteNetrcError(Exception):
 
 
 Mode = Literal["allow", "must", "never", "false", "true"]
-
-
-getpass = partial(click.prompt, hide_input=True, err=True)
 
 
 def _fixup_anon_mode(default: Mode | None) -> Mode | None:
@@ -116,7 +109,6 @@ def prompt_api_key(
         None - if dryrun is selected
         False - if unconfigured (notty)
     """
-    log_string = term.LOG_STRING
     api = api or InternalApi(settings)
     anon_mode = _fixup_anon_mode(settings.anonymous)  # type: ignore
     jupyter = settings._jupyter or False
@@ -134,31 +126,26 @@ def prompt_api_key(
     if anon_mode == "must":
         result = LOGIN_CHOICE_ANON
     # If we're not in an interactive environment, default to dry-run.
-    elif (
-        not jupyter and (not isatty(sys.stdout) or not isatty(sys.stdin))
-    ) or _is_databricks():
+    elif not term.can_use_terminput() or _is_databricks():
         result = LOGIN_CHOICE_NOTTY
     elif local:
         result = LOGIN_CHOICE_EXISTS
     elif len(choices) == 1:
         result = choices[0]
     else:
-        result = prompt_choices(
-            choices, input_timeout=settings.login_timeout, jupyter=jupyter
-        )
+        result = prompt_choices(choices, input_timeout=settings.login_timeout)
 
     key: str | None = None
-    api_ask = (
-        f"{log_string}: Paste an API key from your profile and hit enter"
-        if jupyter
-        else f"{log_string}: Paste an API key from your profile and hit enter, or press ctrl+c to quit"
-    )
+    api_ask = "Paste an API key from your profile and hit enter"
+    if not jupyter:
+        api_ask += ", or press ctrl+c to quit"
+
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
     elif result == LOGIN_CHOICE_NEW:
         ref = f"&ref={referrer}" if referrer else ""
         wandb.termlog(f"Create an account here: {app_url}/authorize?signup=true{ref}")
-        key = getpass(api_ask).strip()
+        key = term.terminput(api_ask, hide=True).strip()
     elif result == LOGIN_CHOICE_EXISTS:
         if not (settings.is_local or local):
             host = app_url
@@ -170,7 +157,7 @@ def prompt_api_key(
                 + f"locally: {url_registry.url('wandb-server')})"
             )
         wandb.termlog(_api_key_prompt_str(app_url, referrer))
-        key = getpass(api_ask).strip()
+        key = term.terminput(api_ask, hide=True).strip()
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
         return False

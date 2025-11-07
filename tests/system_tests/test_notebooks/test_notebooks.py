@@ -9,18 +9,9 @@ from unittest import mock
 import pytest
 import wandb
 import wandb.sdk.lib.apikey
-import wandb.util
 
 
-def test_login_timeout(notebook, monkeypatch):
-    monkeypatch.setattr(
-        wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=True: x[0]
-    )
-    monkeypatch.setattr(
-        wandb.wandb_lib.apikey,
-        "prompt_choices",
-        lambda x, input_timeout=None, jupyter=True: x[0],
-    )
+def test_login_timeout(notebook):
     with notebook("login_timeout.ipynb", skip_api_key_env=True) as nb:
         nb.execute_all()
         output = nb.cell_output_text(1)
