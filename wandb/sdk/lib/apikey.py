@@ -136,9 +136,14 @@ def prompt_api_key(
         result = prompt_choices(choices, input_timeout=settings.login_timeout)
 
     key: str | None = None
-    api_ask = "Paste an API key from your profile and hit enter"
+
     if not jupyter:
-        api_ask += ", or press ctrl+c to quit"
+        api_ask = (
+            "Paste an API key from your profile and hit enter,"
+            " or press ctrl+c to quit: "
+        )
+    else:
+        api_ask = "Paste an API key from your profile and hit enter: "
 
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
