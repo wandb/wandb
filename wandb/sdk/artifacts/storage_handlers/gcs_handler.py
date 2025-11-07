@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Optional
 from urllib.parse import ParseResult, urlparse
@@ -17,6 +16,8 @@ from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 from wandb.util import logger
+
+from ._timing import TimedIf
 
 if TYPE_CHECKING:
     from google.cloud import storage  # type: ignore[import-not-found]
@@ -131,9 +132,9 @@ class GCSHandler(StorageHandler):
                 f"Unable to download object {ref_uri!r} with generation {version_id!r}"
             )
 
-        if (actual_digest := obj.etag) != expected_digest:
+        if (digest := obj.etag) != expected_digest:
             raise ValueError(
-                f"Digest mismatch for object {ref_uri!r}: expected {expected_digest!r} but found {actual_digest!r}"
+                f"Digest mismatch for object {ref_uri!r}: expected {expected_digest!r} but found {digest!r}"
             )
 
         with cache_open(mode="wb") as f:
@@ -162,7 +163,6 @@ class GCSHandler(StorageHandler):
                 ArtifactManifestEntry(path=name or gcs_path.key, ref=path, digest=path)
             ]
 
-        start_time = None
         bucket = client.bucket(gcs_path.bucket)
         obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
         if (obj is None) and (gcs_path.version is not None):
@@ -170,23 +170,23 @@ class GCSHandler(StorageHandler):
 
         # HNS buckets store directory markers as blobs, so check the blob name
         # to see if it represents a directory.
-        if multi := ((obj is None) or obj.name.endswith("/")):
-            start_time = time.monotonic()
-            termlog(
-                f"Generating checksum for up to {max_objects} objects with prefix {gcs_path.key!r}... ",
-                newline=False,
-            )
-            objects = bucket.list_blobs(prefix=gcs_path.key, max_results=max_objects)
-        else:
-            objects = [obj]
+        with TimedIf(multi := ((obj is None) or obj.name.endswith("/"))):
+            if multi:
+                termlog(
+                    f"Generating checksum for up to {max_objects} objects with prefix {gcs_path.key!r}... ",
+                    newline=False,
+                )
+                objects = bucket.list_blobs(
+                    prefix=gcs_path.key, max_results=max_objects
+                )
+            else:
+                objects = [obj]
 
-        entries = [
-            self._entry_from_obj(obj, path, name, prefix=gcs_path.key, multi=multi)
-            for obj in objects
-            if obj and not obj.name.endswith("/")
-        ]
-        if start_time is not None:
-            termlog("Done. %.1fs" % (time.monotonic() - start_time), prefix=False)
+            entries = [
+                self._entry_from_obj(obj, path, name, prefix=gcs_path.key, multi=multi)
+                for obj in objects
+                if obj and not obj.name.endswith("/")
+            ]
 
         if len(entries) > max_objects:
             raise ValueError(

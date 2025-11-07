@@ -266,36 +266,6 @@ def mock_azure_handler():  # noqa: C901
         yield
 
 
-def mock_http(artifact, path=False, headers=None):
-    headers = headers or {}
-
-    class Response:
-        def __init__(self, headers):
-            self.headers = headers
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            pass
-
-        def raise_for_status(self):
-            pass
-
-    class Session:
-        def __init__(self, name="file1.txt", headers=headers):
-            self.headers = headers
-
-        def get(self, path, *args, **kwargs):
-            return Response(self.headers)
-
-    mock = Session()
-    for handler in artifact.manifest.storage_policy._handler._handlers:
-        if isinstance(handler, HTTPHandler):
-            handler._session = mock
-    return mock
-
-
 @pytest.fixture
 def artifact() -> Artifact:
     return Artifact(type="dataset", name="data-artifact")
@@ -1126,14 +1096,18 @@ def test_add_azure_reference_max_objects(mock_azure_handler):
         assert entries[1].extra == {"etag": "my-dir/b version None"}
 
 
+@responses.activate
 def test_add_http_reference_path(artifact):
-    mock_http(
-        artifact,
+    # Mock the HTTP response. NOTE: Using `responses` here assumes
+    # that the `requests` library is responsible for sending the HTTP request(s).
+    responses.get(
+        url="http://example.com/file1.txt",
         headers={
-            "ETag": '"abc"',
+            "ETag": '"abc"',  # quoting is intentional
             "Content-Length": "256",
         },
     )
+
     artifact.add_reference("http://example.com/file1.txt")
 
     assert artifact.digest == "48237ccc050a88af9dcd869dd5a7e9f4"

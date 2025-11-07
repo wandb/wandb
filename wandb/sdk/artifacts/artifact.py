@@ -148,8 +148,6 @@ class Artifact:
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
         use_as: Deprecated.
-        is_link: Boolean indication of whether the artifact is a linked
-            artifact (`True`) or source artifact (`False`).
 
     Returns:
         An `Artifact` object.
