@@ -5,19 +5,26 @@ __all__ = [
     "CREATE_AUTOMATION_GQL",
     "CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL",
     "DELETE_AUTOMATION_GQL",
-    "GENERIC_WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL",
     "GET_AUTOMATIONS_BY_ENTITY_GQL",
     "GET_AUTOMATIONS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
     "SLACK_INTEGRATIONS_BY_ENTITY_GQL",
     "UPDATE_AUTOMATION_GQL",
+    "WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL",
 ]
 
 GET_AUTOMATIONS_GQL = """
 query GetAutomations($cursor: String, $perPage: Int) {
-  searchScope: viewer {
+  scope: viewer {
     projects(after: $cursor, first: $perPage) {
-      ...ProjectConnectionFields
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...ProjectTriggersFields
+        }
+      }
     }
   }
 }
@@ -43,17 +50,9 @@ fragment FilterEventFields on FilterEventTriggeringCondition {
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
   __typename
   integration {
-    __typename
-    ...GenericWebhookIntegrationFields
+    ...WebhookIntegrationFields
   }
   requestPayload
-}
-
-fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
-  id
-  name
-  urlEndpoint
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -64,7 +63,6 @@ fragment NoOpActionFields on NoOpTriggeredAction {
 fragment NotificationActionFields on NotificationTriggeredAction {
   __typename
   integration {
-    __typename
     ...SlackIntegrationFields
   }
   title
@@ -77,25 +75,17 @@ fragment PageInfoFields on PageInfo {
   hasNextPage
 }
 
-fragment ProjectConnectionFields on ProjectConnection {
-  __typename
-  pageInfo {
-    ...PageInfoFields
-  }
-  edges {
-    cursor
-    node {
-      triggers {
-        ...TriggerFields
-      }
-    }
-  }
-}
-
 fragment ProjectScopeFields on Project {
   __typename
   id
   name
+}
+
+fragment ProjectTriggersFields on Project {
+  __typename
+  triggers {
+    ...TriggerFields
+  }
 }
 
 fragment QueueJobActionFields on QueueJobTriggeredAction {
@@ -123,30 +113,41 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
-    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
   }
   event: triggeringCondition {
-    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
-    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
   }
+}
+
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
 }
 """
 
 GET_AUTOMATIONS_BY_ENTITY_GQL = """
 query GetAutomationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  searchScope: entity(name: $entityName) {
+  scope: entity(name: $entityName) {
     projects(after: $cursor, first: $perPage) {
-      ...ProjectConnectionFields
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...ProjectTriggersFields
+        }
+      }
     }
   }
 }
@@ -172,17 +173,9 @@ fragment FilterEventFields on FilterEventTriggeringCondition {
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
   __typename
   integration {
-    __typename
-    ...GenericWebhookIntegrationFields
+    ...WebhookIntegrationFields
   }
   requestPayload
-}
-
-fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
-  id
-  name
-  urlEndpoint
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -193,7 +186,6 @@ fragment NoOpActionFields on NoOpTriggeredAction {
 fragment NotificationActionFields on NotificationTriggeredAction {
   __typename
   integration {
-    __typename
     ...SlackIntegrationFields
   }
   title
@@ -206,25 +198,17 @@ fragment PageInfoFields on PageInfo {
   hasNextPage
 }
 
-fragment ProjectConnectionFields on ProjectConnection {
-  __typename
-  pageInfo {
-    ...PageInfoFields
-  }
-  edges {
-    cursor
-    node {
-      triggers {
-        ...TriggerFields
-      }
-    }
-  }
-}
-
 fragment ProjectScopeFields on Project {
   __typename
   id
   name
+}
+
+fragment ProjectTriggersFields on Project {
+  __typename
+  triggers {
+    ...TriggerFields
+  }
 }
 
 fragment QueueJobActionFields on QueueJobTriggeredAction {
@@ -252,29 +236,35 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
-    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
   }
   event: triggeringCondition {
-    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
-    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
   }
+}
+
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
 }
 """
 
 CREATE_AUTOMATION_GQL = """
 mutation CreateAutomation($input: CreateFilterTriggerInput!) {
   result: createFilterTrigger(input: $input) {
-    ...CreateAutomationResult
+    trigger {
+      ...TriggerFields
+    }
   }
 }
 
@@ -290,13 +280,6 @@ fragment ArtifactSequenceScopeFields on ArtifactSequence {
   name
 }
 
-fragment CreateAutomationResult on CreateFilterTriggerPayload {
-  __typename
-  trigger {
-    ...TriggerFields
-  }
-}
-
 fragment FilterEventFields on FilterEventTriggeringCondition {
   __typename
   eventType
@@ -306,17 +289,9 @@ fragment FilterEventFields on FilterEventTriggeringCondition {
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
   __typename
   integration {
-    __typename
-    ...GenericWebhookIntegrationFields
+    ...WebhookIntegrationFields
   }
   requestPayload
-}
-
-fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
-  id
-  name
-  urlEndpoint
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -327,7 +302,6 @@ fragment NoOpActionFields on NoOpTriggeredAction {
 fragment NotificationActionFields on NotificationTriggeredAction {
   __typename
   integration {
-    __typename
     ...SlackIntegrationFields
   }
   title
@@ -366,29 +340,35 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
-    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
   }
   event: triggeringCondition {
-    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
-    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
   }
+}
+
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
 }
 """
 
 UPDATE_AUTOMATION_GQL = """
 mutation UpdateAutomation($input: UpdateFilterTriggerInput!) {
   result: updateFilterTrigger(input: $input) {
-    ...UpdateAutomationResult
+    trigger {
+      ...TriggerFields
+    }
   }
 }
 
@@ -413,17 +393,9 @@ fragment FilterEventFields on FilterEventTriggeringCondition {
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
   __typename
   integration {
-    __typename
-    ...GenericWebhookIntegrationFields
+    ...WebhookIntegrationFields
   }
   requestPayload
-}
-
-fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
-  id
-  name
-  urlEndpoint
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -434,7 +406,6 @@ fragment NoOpActionFields on NoOpTriggeredAction {
 fragment NotificationActionFields on NotificationTriggeredAction {
   __typename
   integration {
-    __typename
     ...SlackIntegrationFields
   }
   title
@@ -473,17 +444,14 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
-    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
   }
   event: triggeringCondition {
-    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
-    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
@@ -491,24 +459,19 @@ fragment TriggerFields on Trigger {
   }
 }
 
-fragment UpdateAutomationResult on UpdateFilterTriggerPayload {
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
   __typename
-  trigger {
-    ...TriggerFields
-  }
+  id
+  name
+  urlEndpoint
 }
 """
 
 DELETE_AUTOMATION_GQL = """
 mutation DeleteAutomation($id: ID!) {
   result: deleteTrigger(input: {triggerID: $id}) {
-    ...DeleteAutomationResult
+    success
   }
-}
-
-fragment DeleteAutomationResult on DeleteTriggerPayload {
-  __typename
-  success
 }
 """
 
@@ -516,29 +479,16 @@ INTEGRATIONS_BY_ENTITY_GQL = """
 query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
   entity(name: $entityName) {
     integrations(after: $cursor, first: $perPage) {
-      ...IntegrationConnectionFields
-    }
-  }
-}
-
-fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
-  id
-  name
-  urlEndpoint
-}
-
-fragment IntegrationConnectionFields on IntegrationConnection {
-  __typename
-  pageInfo {
-    ...PageInfoFields
-  }
-  edges {
-    cursor
-    node {
-      __typename
-      ...SlackIntegrationFields
-      ...GenericWebhookIntegrationFields
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          __typename
+          ...SlackIntegrationFields
+          ...WebhookIntegrationFields
+        }
+      }
     }
   }
 }
@@ -553,6 +503,13 @@ fragment SlackIntegrationFields on SlackIntegration {
   id
   teamName
   channelName
+}
+
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
 }
 """
 
@@ -560,7 +517,15 @@ SLACK_INTEGRATIONS_BY_ENTITY_GQL = """
 query SlackIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
   entity(name: $entityName) {
     integrations(after: $cursor, first: $perPage) {
-      ...SlackIntegrationConnectionFields
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          __typename
+          ...SlackIntegrationFields
+        }
+      }
     }
   }
 }
@@ -568,20 +533,6 @@ query SlackIntegrationsByEntity($entityName: String!, $cursor: String, $perPage:
 fragment PageInfoFields on PageInfo {
   endCursor
   hasNextPage
-}
-
-fragment SlackIntegrationConnectionFields on IntegrationConnection {
-  __typename
-  pageInfo {
-    ...PageInfoFields
-  }
-  edges {
-    cursor
-    node {
-      __typename
-      ...SlackIntegrationFields
-    }
-  }
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
@@ -592,39 +543,33 @@ fragment SlackIntegrationFields on SlackIntegration {
 }
 """
 
-GENERIC_WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL = """
-query GenericWebhookIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
+WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL = """
+query WebhookIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
   entity(name: $entityName) {
     integrations(after: $cursor, first: $perPage) {
-      ...GenericWebhookIntegrationConnectionFields
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          __typename
+          ...WebhookIntegrationFields
+        }
+      }
     }
   }
-}
-
-fragment GenericWebhookIntegrationConnectionFields on IntegrationConnection {
-  __typename
-  pageInfo {
-    ...PageInfoFields
-  }
-  edges {
-    cursor
-    node {
-      __typename
-      ...GenericWebhookIntegrationFields
-    }
-  }
-}
-
-fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
-  id
-  name
-  urlEndpoint
 }
 
 fragment PageInfoFields on PageInfo {
   endCursor
   hasNextPage
+}
+
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
 }
 """
 
@@ -633,12 +578,12 @@ mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegration
   createGenericWebhookIntegration(input: $input) {
     integration {
       __typename
-      ...GenericWebhookIntegrationFields
+      ...WebhookIntegrationFields
     }
   }
 }
 
-fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
   __typename
   id
   name

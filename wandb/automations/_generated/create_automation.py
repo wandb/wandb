@@ -7,11 +7,16 @@ from typing import Optional
 
 from wandb._pydantic import GQLResult
 
-from .fragments import CreateAutomationResult
+from .fragments import TriggerFields
 
 
 class CreateAutomation(GQLResult):
     result: Optional[CreateAutomationResult]
 
 
+class CreateAutomationResult(GQLResult):
+    trigger: Optional[TriggerFields]
+
+
 CreateAutomation.model_rebuild()
+CreateAutomationResult.model_rebuild()

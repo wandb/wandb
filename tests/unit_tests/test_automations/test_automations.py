@@ -7,8 +7,8 @@ from pydantic import ValidationError
 from pytest import FixtureRequest, fixture, mark, raises
 from wandb.automations import ActionType, EventType, NewAutomation
 from wandb.automations._utils import (
-    EXCLUDED_INPUT_ACTIONS,
-    EXCLUDED_INPUT_EVENTS,
+    INVALID_INPUT_ACTIONS,
+    INVALID_INPUT_EVENTS,
     prepare_to_create,
 )
 from wandb.automations.actions import InputAction
@@ -63,7 +63,7 @@ class TestPrepareToCreate:
 
         assert expected_gql_input == gql_input_via_obj_and_kwargs
 
-    @mark.parametrize("invalid_event_type", EXCLUDED_INPUT_EVENTS)
+    @mark.parametrize("invalid_event_type", INVALID_INPUT_EVENTS)
     def test_prepare_to_create_rejects_excluded_event_types(
         self,
         input_event,
@@ -84,7 +84,7 @@ class TestPrepareToCreate:
             automation_to_create.event.event_type = invalid_event_type
             prepare_to_create(automation_to_create)
 
-    @mark.parametrize("invalid_action_type", EXCLUDED_INPUT_ACTIONS)
+    @mark.parametrize("invalid_action_type", INVALID_INPUT_ACTIONS)
     def test_prepare_to_create_rejects_excluded_action_types(
         self,
         input_event,

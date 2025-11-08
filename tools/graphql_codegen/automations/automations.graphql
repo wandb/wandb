@@ -4,7 +4,7 @@ fragment SlackIntegrationFields on SlackIntegration {
   teamName
   channelName
 }
-fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
   __typename
   id
   name
@@ -44,24 +44,25 @@ fragment QueueJobActionFields on QueueJobTriggeredAction {
   }
   template
 }
+
 fragment NotificationActionFields on NotificationTriggeredAction {
   __typename
   integration {
-    __typename
     ...SlackIntegrationFields
   }
   title
   message
   severity
 }
+
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
   __typename
   integration {
-    __typename
-    ...GenericWebhookIntegrationFields
+    ...WebhookIntegrationFields
   }
   requestPayload
 }
+
 fragment NoOpActionFields on NoOpTriggeredAction {
   __typename
   noOp # GraphQL doesn't support empty objects, so this should be an ignored placeholder field
@@ -80,17 +81,14 @@ fragment TriggerFields on Trigger {
   enabled
 
   scope {
-    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
   }
   event: triggeringCondition {
-    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
-    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
@@ -105,18 +103,10 @@ fragment PageInfoFields on PageInfo {
 }
 
 # ------------------------------------------------------------------------------
-fragment ProjectConnectionFields on ProjectConnection {
+fragment ProjectTriggersFields on Project {
   __typename
-  pageInfo {
-    ...PageInfoFields
-  }
-  edges {
-    cursor
-    node {
-      triggers {
-        ...TriggerFields
-      }
-    }
+  triggers {
+    ...TriggerFields
   }
 }
 
@@ -126,115 +116,100 @@ fragment ProjectConnectionFields on ProjectConnection {
 # an individual project or collection is a bit awkward, but has historically been
 # needed to support the UI alone.
 query GetAutomations($cursor: String, $perPage: Int) {
-  searchScope: viewer {
+  scope: viewer {
     projects(after: $cursor, first: $perPage) {
-      ...ProjectConnectionFields
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...ProjectTriggersFields
+        }
+      }
     }
   }
 }
 query GetAutomationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  searchScope: entity(name: $entityName) {
+  scope: entity(name: $entityName) {
     projects(after: $cursor, first: $perPage) {
-      ...ProjectConnectionFields
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...ProjectTriggersFields
+        }
+      }
     }
   }
 }
 
 # ------------------------------------------------------------------------------
-fragment CreateAutomationResult on CreateFilterTriggerPayload {
-  __typename
-  trigger {
-    ...TriggerFields
-  }
-}
 mutation CreateAutomation($input: CreateFilterTriggerInput!) {
   result: createFilterTrigger(input: $input) {
-    ...CreateAutomationResult
+    trigger {
+      ...TriggerFields
+    }
   }
 }
 
-fragment UpdateAutomationResult on UpdateFilterTriggerPayload {
-  __typename
-  trigger {
-    ...TriggerFields
-  }
-}
 mutation UpdateAutomation($input: UpdateFilterTriggerInput!) {
   result: updateFilterTrigger(input: $input) {
-    ...UpdateAutomationResult
+    trigger {
+      ...TriggerFields
+    }
   }
 }
 
-fragment DeleteAutomationResult on DeleteTriggerPayload {
-  __typename
-  success
-}
 mutation DeleteAutomation($id: ID!) {
   result: deleteTrigger(input: { triggerID: $id }) {
-    ...DeleteAutomationResult
+    success
   }
 }
 
 # ------------------------------------------------------------------------------
-fragment IntegrationConnectionFields on IntegrationConnection {
-  __typename
-  pageInfo {
-    ...PageInfoFields
-  }
-  edges {
-    cursor
-    node {
-      __typename
-      ...SlackIntegrationFields
-      ...GenericWebhookIntegrationFields
-    }
-  }
-}
-fragment SlackIntegrationConnectionFields on IntegrationConnection {
-  __typename
-  pageInfo {
-    ...PageInfoFields
-  }
-  edges {
-    cursor
-    node {
-      __typename
-      ...SlackIntegrationFields
-    }
-  }
-}
-fragment GenericWebhookIntegrationConnectionFields on IntegrationConnection {
-  __typename
-  pageInfo {
-    ...PageInfoFields
-  }
-  edges {
-    cursor
-    node {
-      __typename
-      ...GenericWebhookIntegrationFields
-    }
-  }
-}
-
 query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
   entity(name: $entityName) {
     integrations(after: $cursor, first: $perPage) {
-      ...IntegrationConnectionFields
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...SlackIntegrationFields
+          ...WebhookIntegrationFields
+        }
+      }
     }
   }
 }
+
 query SlackIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
   entity(name: $entityName) {
     integrations(after: $cursor, first: $perPage) {
-      ...SlackIntegrationConnectionFields
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...SlackIntegrationFields
+        }
+      }
     }
   }
 }
-query GenericWebhookIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
+
+query WebhookIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
   entity(name: $entityName) {
     integrations(after: $cursor, first: $perPage) {
-      ...GenericWebhookIntegrationConnectionFields
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...WebhookIntegrationFields
+        }
+      }
     }
   }
 }
@@ -242,7 +217,7 @@ query GenericWebhookIntegrationsByEntity($entityName: String!, $cursor: String, 
 mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegrationInput!) {
   createGenericWebhookIntegration(input: $input) {
     integration {
-      ...GenericWebhookIntegrationFields
+      ...WebhookIntegrationFields
     }
   }
 }

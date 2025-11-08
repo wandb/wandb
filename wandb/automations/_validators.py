@@ -26,10 +26,15 @@ def ensure_json(v: Any) -> Any:
     return v if isinstance(v, (str, bytes)) else to_json(v)
 
 
-# Allow lenient instantiation/validation: incoming data may already be deserialized.
 SerializedToJson = Annotated[
     Json[T], BeforeValidator(ensure_json), PlainSerializer(to_json)
 ]
+"""A Pydantic type that's always serialized to a JSON string.
+
+Unlike `pydantic.Json[T]`, this is more lenient on validation and instantiation.
+It doesn't strictly require the incoming value to be an encoded JSON string, and
+accepts values that may _already_ be deserialized from JSON (e.g. a dict).
+"""
 
 
 class LenientStrEnum(str, Enum):

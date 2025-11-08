@@ -25,7 +25,7 @@ from wandb.automations import (
     SendNotification,
     SendWebhook,
 )
-from wandb.automations._utils import EXCLUDED_INPUT_ACTIONS, EXCLUDED_INPUT_EVENTS
+from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
 from wandb.automations.events import InputEvent, SavedEvent
 from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
@@ -144,11 +144,11 @@ def valid_scopes() -> list[ScopeType]:
 
 
 def valid_input_events() -> list[EventType]:
-    return sorted(set(EventType) - EXCLUDED_INPUT_EVENTS)
+    return sorted(set(EventType) - set(INVALID_INPUT_EVENTS))
 
 
 def valid_input_actions() -> list[ActionType]:
-    return sorted(set(ActionType) - EXCLUDED_INPUT_ACTIONS)
+    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS))
 
 
 # Invalid (event, scope) combinations that should be skipped
@@ -161,13 +161,13 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     }
 
 
-@fixture(params=valid_scopes(), ids=lambda x: x.value)
+@fixture(params=valid_scopes(), ids=lambda x: f"scope={x.value}")
 def scope_type(request: FixtureRequest) -> ScopeType:
     """An automation scope type."""
     return request.param
 
 
-@fixture(params=valid_input_events(), ids=lambda x: x.value)
+@fixture(params=valid_input_events(), ids=lambda x: f"event={x.value}")
 def event_type(request: FixtureRequest, scope_type: ScopeType) -> EventType:
     """An automation event type."""
     event_type = request.param
@@ -178,8 +178,8 @@ def event_type(request: FixtureRequest, scope_type: ScopeType) -> EventType:
     return event_type
 
 
-@fixture(params=valid_input_actions(), ids=lambda x: x.value)
-def action_type(request: type[FixtureRequest]) -> ActionType:
+@fixture(params=valid_input_actions(), ids=lambda x: f"action={x.value}")
+def action_type(request: FixtureRequest) -> ActionType:
     """An automation action type."""
     return request.param
 

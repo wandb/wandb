@@ -27,19 +27,19 @@ from .automations import Automation, NewAutomation
 from .events import EventType, InputEvent, RunMetricFilter, _WrappedSavedEventFilter
 from .scopes import AutomationScope, ScopeType
 
-EXCLUDED_INPUT_EVENTS: Final[Collection[EventType]] = frozenset(
-    {
-        EventType.UPDATE_ARTIFACT_ALIAS,
-    }
-)
-"""Event types that should not be assigned when creating/updating automations."""
+INVALID_INPUT_EVENTS: Final[Collection[EventType]] = (EventType.UPDATE_ARTIFACT_ALIAS,)
+"""Event types that should NOT be allowed as new values on new or edited automations.
 
-EXCLUDED_INPUT_ACTIONS: Final[Collection[ActionType]] = frozenset(
-    {
-        ActionType.QUEUE_JOB,
-    }
-)
-"""Action types that should not be assigned when creating/updating automations."""
+While we forbid new/edited automations from assigning these event types,
+they're defined so that we can still parse existing automations that may use them.
+"""
+
+INVALID_INPUT_ACTIONS: Final[Collection[ActionType]] = (ActionType.QUEUE_JOB,)
+"""Action types that should NOT be allowed as new values on new or edited automations.
+
+While we forbid new/edited automations from assigning these action types,
+they're defined so that we can still parse existing automations that may use them.
+"""
 
 ALWAYS_SUPPORTED_EVENTS: Final[Collection[EventType]] = frozenset(
     {
@@ -48,7 +48,7 @@ ALWAYS_SUPPORTED_EVENTS: Final[Collection[EventType]] = frozenset(
         EventType.ADD_ARTIFACT_ALIAS,
     }
 )
-"""Event types that we can safely assume all contemporary server versions support."""
+"""Event types that should be supported by all current **non-EOL** server versions."""
 
 ALWAYS_SUPPORTED_ACTIONS: Final[Collection[ActionType]] = frozenset(
     {
@@ -56,7 +56,7 @@ ALWAYS_SUPPORTED_ACTIONS: Final[Collection[ActionType]] = frozenset(
         ActionType.GENERIC_WEBHOOK,
     }
 )
-"""Action types that we can safely assume all contemporary server versions support."""
+"""Action types that should be supported by all current **non-EOL** server versions."""
 
 
 class HasId(Protocol):
@@ -178,13 +178,13 @@ class ValidatedCreateInput(GQLInput, extra="forbid", frozen=True):
     # Custom validation
     @model_validator(mode="after")
     def _forbid_legacy_event_types(self) -> Self:
-        if (type_ := self.event.event_type) in EXCLUDED_INPUT_EVENTS:
+        if (type_ := self.event.event_type) in INVALID_INPUT_EVENTS:
             raise ValueError(f"{type_!r} events cannot be assigned to automations.")
         return self
 
     @model_validator(mode="after")
     def _forbid_legacy_action_types(self) -> Self:
-        if (type_ := self.action.action_type) in EXCLUDED_INPUT_ACTIONS:
+        if (type_ := self.action.action_type) in INVALID_INPUT_ACTIONS:
             raise ValueError(f"{type_!r} actions cannot be assigned to automations.")
         return self
 

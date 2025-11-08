@@ -3,11 +3,14 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional, Union
 
-from wandb._pydantic import GQLResult
+from pydantic import Field
+from typing_extensions import Annotated, Literal
 
-from .fragments import IntegrationConnectionFields
+from wandb._pydantic import GQLResult, Typename
+
+from .fragments import PageInfoFields, SlackIntegrationFields, WebhookIntegrationFields
 
 
 class IntegrationsByEntity(GQLResult):
@@ -15,8 +18,32 @@ class IntegrationsByEntity(GQLResult):
 
 
 class IntegrationsByEntityEntity(GQLResult):
-    integrations: Optional[IntegrationConnectionFields]
+    integrations: Optional[IntegrationsByEntityEntityIntegrations]
+
+
+class IntegrationsByEntityEntityIntegrations(GQLResult):
+    page_info: PageInfoFields = Field(alias="pageInfo")
+    edges: List[IntegrationsByEntityEntityIntegrationsEdges]
+
+
+class IntegrationsByEntityEntityIntegrationsEdges(GQLResult):
+    node: Optional[
+        Annotated[
+            Union[
+                IntegrationsByEntityEntityIntegrationsEdgesNodeIntegration,
+                WebhookIntegrationFields,
+                SlackIntegrationFields,
+            ],
+            Field(discriminator="typename__"),
+        ]
+    ]
+
+
+class IntegrationsByEntityEntityIntegrationsEdgesNodeIntegration(GQLResult):
+    typename__: Typename[Literal["GitHubOAuthIntegration", "Integration"]]
 
 
 IntegrationsByEntity.model_rebuild()
 IntegrationsByEntityEntity.model_rebuild()
+IntegrationsByEntityEntityIntegrations.model_rebuild()
+IntegrationsByEntityEntityIntegrationsEdges.model_rebuild()
