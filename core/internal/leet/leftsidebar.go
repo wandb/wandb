@@ -127,17 +127,17 @@ func (s *LeftSidebar) View(height int) string {
 	content := strings.Join(allLines, "\n")
 
 	styledContent := leftSidebarStyle.
-		Width(s.animState.Width() - 1).
-		Height(height).
-		MaxWidth(s.animState.Width() - 1).
-		MaxHeight(height).
+		Width(s.animState.Width()).
+		Height(height + 1).
+		MaxWidth(s.animState.Width()).
+		MaxHeight(height + 1).
 		Render(content)
 
 	return leftSidebarBorderStyle.
-		Width(s.animState.Width()).
-		Height(height).
+		Width(s.animState.Width() - 2).
+		Height(height + 2).
 		MaxWidth(s.animState.Width()).
-		MaxHeight(height).
+		MaxHeight(height + 2).
 		Render(styledContent)
 }
 
@@ -154,7 +154,7 @@ func (s *LeftSidebar) ProcessSystemInfoMsg(record *spb.EnvironmentRecord) {
 }
 
 // ProcessSummaryMsg delegates to the data model and updates UI.
-func (s *LeftSidebar) ProcessSummaryMsg(summary *spb.SummaryRecord) {
+func (s *LeftSidebar) ProcessSummaryMsg(summary []*spb.SummaryRecord) {
 	s.runOverview.ProcessSummaryMsg(summary)
 	s.updateSections()
 }
@@ -246,7 +246,7 @@ func (s *LeftSidebar) updateSections() {
 
 // animationCmd returns a command to continue the animation on section toggle.
 func (s *LeftSidebar) animationCmd() tea.Cmd {
-	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
+	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
 		return LeftSidebarAnimationMsg{}
 	})
 }

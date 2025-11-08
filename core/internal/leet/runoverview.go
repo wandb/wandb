@@ -70,12 +70,11 @@ func (ro *RunOverview) ProcessSystemInfoMsg(record *spb.EnvironmentRecord) {
 }
 
 // ProcessSummaryMsg processes summary data.
-func (ro *RunOverview) ProcessSummaryMsg(summary *spb.SummaryRecord) {
-	if summary == nil {
-		return
+func (ro *RunOverview) ProcessSummaryMsg(summary []*spb.SummaryRecord) {
+	for _, s := range summary {
+		_ = runsummary.FromProto(s).Apply(ro.runSummary)
 	}
 
-	_ = runsummary.FromProto(summary).Apply(ro.runSummary)
 }
 
 // SetRunState sets the run state.
