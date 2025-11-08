@@ -216,7 +216,7 @@ func (rs *RightSidebar) buildNavigationInfo() string {
 
 // animationCmd returns a command to continue the animation.
 func (rs *RightSidebar) animationCmd() tea.Cmd {
-	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
+	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
 		return RightSidebarAnimationMsg{}
 	})
 }

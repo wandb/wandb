@@ -8,7 +8,10 @@ import (
 
 // Immutable UI constants.
 const (
-	StatusBarHeight      = 1
+	StatusBarHeight = 1
+	// Horizontal padding for the status bar (left and right).
+	StatusBarPadding = 1
+
 	MinChartWidth        = 20
 	MinChartHeight       = 5
 	MinMetricChartWidth  = 18
@@ -213,41 +216,44 @@ var (
 
 // Status bar styles.
 var (
-	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(colorLayoutHighlight)
+	statusBarStyle = lipgloss.NewStyle().
+		Foreground(moon900).
+		Background(colorLayoutHighlight).
+		Padding(0, StatusBarPadding)
 )
 
 // Left sidebar styles.
 var (
-	sidebarStyle              = lipgloss.NewStyle().Padding(0, 1)
-	sidebarBorderStyle        = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(colorLayout)
-	sidebarHeaderStyle        = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginBottom(1)
-	sidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
-	sidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
-	sidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
-	sidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
-	RightBorder               = lipgloss.Border{
+	leftSidebarStyle              = lipgloss.NewStyle().Padding(0, 1)
+	leftSidebarBorderStyle        = lipgloss.NewStyle().Border(RightBorder).BorderForeground(colorLayout)
+	leftSidebarHeaderStyle        = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginBottom(1)
+	leftSidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
+	leftSidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
+	leftSidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
+	leftSidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
+	RightBorder                   = lipgloss.Border{
 		Top:         string(unicodeSpace),
 		Bottom:      string(unicodeSpace),
 		Left:        "",
-		Right:       string(verticalLine),
+		Right:       string(boxLightVertical),
 		TopLeft:     string(unicodeSpace),
-		TopRight:    string(verticalLine),
+		TopRight:    string(unicodeSpace),
 		BottomLeft:  string(unicodeSpace),
-		BottomRight: string(verticalLine),
+		BottomRight: string(boxLightVertical),
 	}
 )
 
 // Right sidebar styles.
 var (
 	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
-	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(colorLayout)
+	rightSidebarBorderStyle = lipgloss.NewStyle().Border(LeftBorder).BorderForeground(colorLayout)
 	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginLeft(1)
 	LeftBorder              = lipgloss.Border{
 		Top:         string(unicodeSpace),
 		Bottom:      string(unicodeSpace),
 		Left:        string(boxLightVertical),
 		Right:       "",
-		TopLeft:     string(verticalLine),
+		TopLeft:     string(unicodeSpace),
 		TopRight:    string(unicodeSpace),
 		BottomLeft:  string(verticalLine),
 		BottomRight: string(unicodeSpace),
@@ -259,6 +265,9 @@ const AnimationDuration = 150 * time.Millisecond
 
 // AnimationSteps is the number of steps in sidebar animations.
 const AnimationSteps = 10
+
+// AnimationFrame is the tick interval used for sidebar animations.
+const AnimationFrame = AnimationDuration / AnimationSteps
 
 // Help screen styles.
 var (

@@ -16,8 +16,8 @@ import (
 
 func TestWatcherManager_FileChangeDetection(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	wcChan := make(chan tea.Msg, 10)
-	wm := leet.NewWatcherManager(wcChan, logger)
+	watcherChan := make(chan tea.Msg, 10)
+	wm := leet.NewWatcherManager(watcherChan, logger)
 	require.False(t, wm.IsStarted())
 
 	path := filepath.Join(t.TempDir(), "test.wandb")

@@ -25,11 +25,12 @@ func TestSidebarFilter_WithPrefixes(t *testing.T) {
 		},
 	})
 
-	s.ProcessSummaryMsg(&spb.SummaryRecord{
+	sr := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
 		},
-	})
+	}
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
 		WriterId: "writer-1",
@@ -71,12 +72,13 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 		},
 	})
 
-	s.ProcessSummaryMsg(&spb.SummaryRecord{
+	sr := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
 			{NestedKey: []string{"loss"}, ValueJson: "0.5"},
 		},
-	})
+	}
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	// Live preview on summary, then apply it.
 	s.StartFilter()
@@ -98,6 +100,7 @@ func expandSidebar(t *testing.T, s *leet.LeftSidebar, termWidth int, rightVisibl
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 120, false)
 
@@ -113,12 +116,13 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 		},
 	})
 
-	s.ProcessSummaryMsg(&spb.SummaryRecord{
+	sr := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"acc"}, ValueJson: "0.91"},
 			{NestedKey: []string{"val", "acc"}, ValueJson: "0.88"},
 		},
-	})
+	}
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
 		WriterId: "writer-1",
@@ -141,6 +145,7 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 120, false)
 
@@ -159,12 +164,13 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 		},
 	})
 
-	s.ProcessSummaryMsg(&spb.SummaryRecord{
+	sr := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
 			{NestedKey: []string{"loss"}, ValueJson: "0.1"},
 		},
-	})
+	}
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	// Start in Environment; Tab to Config (navigateSection).
 	s.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -192,6 +198,7 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 120, false)
 
@@ -204,11 +211,12 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 		},
 	})
 
-	s.ProcessSummaryMsg(&spb.SummaryRecord{
+	sr := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"acc"}, ValueJson: "0.91"},
 		},
-	})
+	}
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
 		WriterId: "writer-1",
@@ -232,6 +240,7 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 
 func TestSidebar_TruncateValue(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
 
