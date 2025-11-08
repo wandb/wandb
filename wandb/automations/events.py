@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
-from pydantic import Field
-from typing_extensions import Annotated, Self, get_args
+from pydantic import AfterValidator, Field
+from typing_extensions import Annotated, get_args
 
 from wandb._pydantic import (
     GQLBase,
@@ -18,8 +18,15 @@ from wandb._strutils import nameof
 from ._filters import And, MongoLikeFilter, Or
 from ._filters.expressions import FilterableField
 from ._filters.run_metrics import MetricChangeFilter, MetricThresholdFilter, MetricVal
+from ._filters.run_states import StateFilter
 from ._generated import FilterEventFields
-from ._validators import LenientStrEnum, SerializedToJson, ensure_json, simplify_op
+from ._validators import (
+    JsonEncoded,
+    LenientStrEnum,
+    ensure_json,
+    simplify_op,
+    wrap_run_filter,
+)
 from .actions import InputAction, InputActionTypes, SavedActionTypes
 from .scopes import ArtifactCollectionScope, AutomationScope, ProjectScope
 
@@ -45,6 +52,7 @@ class EventType(LenientStrEnum):
     # Events triggered by Run conditions
     RUN_METRIC_THRESHOLD = "RUN_METRIC"
     RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
+    RUN_STATE = "RUN_STATE"
 
 
 # ------------------------------------------------------------------------------
@@ -54,52 +62,60 @@ class EventType(LenientStrEnum):
 # Note: In GQL responses containing saved automation data, the filter is wrapped
 # in an extra `filter` key.
 class _WrappedSavedEventFilter(GQLBase):  # from: TriggeringFilterEvent
-    filter: SerializedToJson[MongoLikeFilter] = And()
+    filter: JsonEncoded[MongoLikeFilter] = And()
 
 
-class _WrappedMetricFilter(GQLBase):  # from: RunMetricFilter
-    threshold_filter: Optional[MetricThresholdFilter] = None
-    change_filter: Optional[MetricChangeFilter] = None
+class _WrappedMetricThresholdFilter(GQLBase):  # from: RunMetricFilter
+    event_type: Annotated[
+        Literal[EventType.RUN_METRIC_THRESHOLD],
+        Field(exclude=True, repr=False),
+    ] = EventType.RUN_METRIC_THRESHOLD
+
+    threshold_filter: MetricThresholdFilter
 
     @model_validator(mode="before")
     @classmethod
-    def _wrap_metric_filter(cls, v: Any) -> Any:
+    def _nest_inner_filter(cls, v: Any) -> Any:
+        # Yeah, we've got a lot of nesting due to backend schema constraints.
         if pydantic_isinstance(v, MetricThresholdFilter):
             return cls(threshold_filter=v)
+        return v
+
+
+class _WrappedMetricChangeFilter(GQLBase):  # from: RunMetricFilter
+    event_type: Annotated[
+        Literal[EventType.RUN_METRIC_CHANGE],
+        Field(exclude=True, repr=False),
+    ] = EventType.RUN_METRIC_CHANGE
+
+    change_filter: MetricChangeFilter
+
+    @model_validator(mode="before")
+    @classmethod
+    def _nest_inner_filter(cls, v: Any) -> Any:
+        # Yeah, we've got a lot of nesting due to backend schema constraints.
         if pydantic_isinstance(v, MetricChangeFilter):
             return cls(change_filter=v)
         return v
 
-    @model_validator(mode="after")
-    def _ensure_exactly_one_set(self) -> Self:
-        set_fields = [name for name, val in self if (val is not None)]
-
-        if not set_fields:
-            all_names = ", ".join(map(repr, type(self).model_fields))
-            raise ValueError(f"Expected one of: {all_names}")
-
-        if len(set_fields) > 1:
-            set_names = ", ".join(map(repr, set_fields))
-            raise ValueError(f"Expected exactly one metric filter, got: {set_names}")
-
-        return self
-
-    @property
-    def event_type(self) -> EventType:
-        if self.threshold_filter is not None:
-            return EventType.RUN_METRIC_THRESHOLD
-        if self.change_filter is not None:
-            return EventType.RUN_METRIC_CHANGE
-        raise RuntimeError("Expected one of: `threshold_filter` or `change_filter`")
-
 
 class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
-    run: Annotated[SerializedToJson[MongoLikeFilter], Field(alias="run_filter")] = And()
-    metric: Annotated[_WrappedMetricFilter, Field(alias="run_metric_filter")]
+    run: Annotated[
+        JsonEncoded[MongoLikeFilter],
+        AfterValidator(wrap_run_filter),
+        Field(alias="run_filter"),
+    ] = And()
+    """Filters that must match any runs that will trigger this event."""
+
+    metric: Annotated[
+        Union[_WrappedMetricThresholdFilter, _WrappedMetricChangeFilter],
+        Field(alias="run_metric_filter"),
+    ]
+    """Metric condition(s) that must be satisfied for this event to trigger."""
 
     # ------------------------------------------------------------------------------
     legacy_metric_filter: Annotated[
-        Optional[SerializedToJson[MetricThresholdFilter]],
+        Optional[JsonEncoded[MetricThresholdFilter]],
         Field(alias="metric_filter", deprecated=True),
     ] = None
     """Deprecated legacy field for defining run metric threshold events.
@@ -109,18 +125,33 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
 
     @model_validator(mode="before")
     @classmethod
-    def _wrap_metric_filter(cls, v: Any) -> Any:
+    def _nest_metric_filter(cls, v: Any) -> Any:
+        # If no run filter is given, automatically nest the metric filter and
+        # let inner validators reshape further as needed.
         if pydantic_isinstance(v, (MetricThresholdFilter, MetricChangeFilter)):
-            # If only an (unnested) metric filter is given, nest it under the
-            # `metric` field and let inner validators wrap or nest as needed to
-            # conform to the backend schema.
             return cls(metric=v)
         return v
 
-    @field_validator("run", mode="after")
-    def _wrap_run_filter(cls, v: MongoLikeFilter) -> Any:
-        v_new = simplify_op(v)
-        return v_new if pydantic_isinstance(v_new, And) else And(and_=[v_new])
+
+class RunStateFilter(GQLBase):  # from: TriggeringRunStateEvent
+    run: Annotated[
+        JsonEncoded[MongoLikeFilter],
+        AfterValidator(wrap_run_filter),
+        Field(alias="run_filter"),
+    ] = And()
+    """Filters that must match any runs that will trigger this event."""
+
+    state: Annotated[StateFilter, Field(alias="run_state_filter")]
+    """Run state condition(s) that must be satisfied for this event to trigger."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _nest_state_filter(cls, v: Any) -> Any:
+        # If no run filter is given, automatically nest the state filter and
+        # let inner validators reshape further as needed.
+        if pydantic_isinstance(v, StateFilter):
+            return cls(state=v)
+        return v
 
 
 class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
@@ -130,7 +161,9 @@ class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
 
     # We override the type of the `filter` field in order to enforce the expected
     # structure for the JSON data when validating and serializing.
-    filter: SerializedToJson[Union[_WrappedSavedEventFilter, RunMetricFilter]]
+    filter: JsonEncoded[
+        Union[_WrappedSavedEventFilter, RunMetricFilter, RunStateFilter]
+    ]
     """The condition(s) under which this event triggers an automation."""
 
 
@@ -146,7 +179,7 @@ class _BaseEventInput(GQLBase):
     scope: AutomationScope
     """The scope of the event."""
 
-    filter: SerializedToJson[Any]
+    filter: JsonEncoded[Any]
 
     def then(self, action: InputAction) -> NewAutomation:
         """Define a new Automation in which this event triggers the given action."""
@@ -165,7 +198,7 @@ class _BaseEventInput(GQLBase):
 # ------------------------------------------------------------------------------
 # Events that trigger on specific mutations in the backend
 class _BaseMutationEventInput(_BaseEventInput):
-    filter: SerializedToJson[MongoLikeFilter] = And()
+    filter: JsonEncoded[MongoLikeFilter] = And()
     """Additional conditions(s), if any, that are required for this event to trigger."""
 
     @field_validator("filter", mode="after")
@@ -180,19 +213,71 @@ class _BaseMutationEventInput(_BaseEventInput):
 
 
 class OnLinkArtifact(_BaseMutationEventInput):
-    """A new artifact is linked to a collection."""
+    """A new artifact is linked to a collection.
+
+    Examples:
+        Define an event that triggers when an artifact is linked to the
+        collection "my-collection" with the alias "prod":
+
+        ```python
+        from wandb import Api
+        from wandb.automations import OnLinkArtifact, ArtifactEvent
+
+        api = Api()
+        collection = api.artifact_collection(name="my-collection", type_name="model")
+
+        event = OnLinkArtifact(
+            scope=collection,
+            filter=ArtifactEvent.alias.eq("prod"),
+        )
+        ```
+    """
 
     event_type: Literal[EventType.LINK_ARTIFACT] = EventType.LINK_ARTIFACT
 
 
 class OnAddArtifactAlias(_BaseMutationEventInput):
-    """A new alias is assigned to an artifact."""
+    """A new alias is assigned to an artifact.
+
+    Examples:
+        Define an event that triggers whenever the alias "prod" is assigned to
+        any artifact in the collection "my-collection":
+
+        ```python
+        from wandb import Api
+        from wandb.automations import OnAddArtifactAlias, ArtifactEvent
+
+        api = Api()
+        collection = api.artifact_collection(name="my-collection", type_name="model")
+
+        event = OnAddArtifactAlias(
+            scope=collection,
+            filter=ArtifactEvent.alias.eq("prod"),
+        )
+        ```
+
+    """
 
     event_type: Literal[EventType.ADD_ARTIFACT_ALIAS] = EventType.ADD_ARTIFACT_ALIAS
 
 
 class OnCreateArtifact(_BaseMutationEventInput):
-    """A new artifact is created."""
+    """A new artifact is created.
+
+    Examples:
+        Define an event that triggers when a new artifact is created in the
+        collection "my-collection":
+
+        ```python
+        from wandb import Api
+        from wandb.automations import OnCreateArtifact
+
+        api = Api()
+        collection = api.artifact_collection(name="my-collection", type_name="model")
+
+        event = OnCreateArtifact(scope=collection)
+        ```
+    """
 
     event_type: Literal[EventType.CREATE_ARTIFACT] = EventType.CREATE_ARTIFACT
 
@@ -208,11 +293,29 @@ class _BaseRunEventInput(_BaseEventInput):
 
 
 class OnRunMetric(_BaseRunEventInput):
-    """A run metric satisfies a user-defined condition."""
+    """A run metric satisfies a user-defined condition.
+
+    Examples:
+        Define an event that triggers for any run in project "my-project" when
+        the average of the last 5 values of metric "my-metric" exceeds 123.45:
+
+        ```python
+        from wandb import Api
+        from wandb.automations import OnRunMetric
+
+        api = Api()
+        project = api.project(name="my-project")
+
+        event = OnRunMetric(
+            scope=project,
+            filter=RunEvent.metric("my-metric").avg(5).gt(123.45),
+        )
+        ```
+    """
 
     event_type: Literal[EventType.RUN_METRIC_THRESHOLD, EventType.RUN_METRIC_CHANGE]
 
-    filter: SerializedToJson[RunMetricFilter]
+    filter: JsonEncoded[RunMetricFilter]
     """Run and/or metric condition(s) that must be satisfied for this event to trigger."""
 
     @model_validator(mode="before")
@@ -231,6 +334,33 @@ class OnRunMetric(_BaseRunEventInput):
         return data
 
 
+class OnRunState(_BaseRunEventInput):
+    """A run state changes.
+
+    Examples:
+        Define an event that triggers for any run in project "my-project" when
+        its state changes to "finished" (i.e. succeeded) or "failed":
+
+        ```python
+        from wandb import Api
+        from wandb.automations import OnRunState
+
+        api = Api()
+        project = api.project(name="my-project")
+
+        event = OnRunState(
+            scope=project,
+            filter=RunEvent.state.in_(["finished", "failed"]),
+        )
+        ```
+    """
+
+    event_type: Literal[EventType.RUN_STATE] = EventType.RUN_STATE
+
+    filter: JsonEncoded[RunStateFilter]
+    """Run state condition(s) that must be satisfied for this event to trigger."""
+
+
 # for type annotations
 InputEvent = Annotated[
     Union[
@@ -238,6 +368,7 @@ InputEvent = Annotated[
         OnAddArtifactAlias,
         OnCreateArtifact,
         OnRunMetric,
+        OnRunState,
     ],
     Field(discriminator="event_type"),
 ]
