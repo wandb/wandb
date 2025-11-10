@@ -3,6 +3,9 @@ import tempfile
 
 import pytest
 import wandb
+from wandb.sdk.lib import telemetry
+from wandb.sdk.wandb_init import _WandbInit
+from wandb.sdk.wandb_setup import singleton
 
 
 def test_no_root_dir_access__uses_temp_dir(tmp_path, monkeypatch):
@@ -64,3 +67,18 @@ def test_avoids_sync_dir_conflict(mocker):
 
     assert run2.settings.sync_dir == run1.settings.sync_dir + "-1"
     assert run3.settings.sync_dir == run1.settings.sync_dir + "-2"
+
+
+def test_api_key_passed_to_login(mocker):
+    mock_login = mocker.patch("wandb.sdk.wandb_login._login")
+    test_api_key = "test_api_key_12345"
+
+    wandb_setup = singleton()
+    init_settings = wandb.Settings(api_key=test_api_key)
+
+    wandb_init = _WandbInit(wandb_setup, telemetry.TelemetryRecord())
+    wandb_init.maybe_login(init_settings)
+
+    mock_login.assert_called_once()
+    call_kwargs = mock_login.call_args.kwargs
+    assert call_kwargs["key"] == test_api_key

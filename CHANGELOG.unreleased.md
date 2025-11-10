@@ -26,3 +26,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `Artifact.link()` now logs unsaved artifacts instead of raising an error, consistent with the behavior of `Run.link_artifact()` (@tonyyli-wandb in https://github.com/wandb/wandb/10822)
 - Automatic code saving now works when running ipython notebooks in VSCode's Jupyter notebook extension (@jacobromero in https://github.com/wandb/wandb/pull/10746)
 - Logging an artifact with infinite floats in `Artifact.metadata` now raises a `ValueError` early, instead of waiting on request retries to time out (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10845).
+- User-provided API key is now correctly passed through during initialization, preventing unnecessary login prompts
