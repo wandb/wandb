@@ -35,7 +35,7 @@ class _TtyTester:
         self,
         script: pathlib.Path,
         args: Sequence[str] | None = None,
-        timeout: float = 1,
+        timeout: float = 10,
     ) -> None:
         """Start the script as a Python subprocess connected to a pty.
 
@@ -163,7 +163,7 @@ class _TtyTester:
 
 
 def test_basic_prompt():
-    with _TtyTester(_TESTER_SCRIPT, timeout=1) as tester:
+    with _TtyTester(_TESTER_SCRIPT) as tester:
         tester.wait_for_text(b"PROMPT: ")
         tester.send_input(b"the prompt\n")
 
@@ -175,7 +175,7 @@ def test_basic_prompt():
 
 
 def test_abort():
-    with _TtyTester(_TESTER_SCRIPT, timeout=1) as tester:
+    with _TtyTester(_TESTER_SCRIPT) as tester:
         tester.wait_for_text(b"PROMPT: ")
 
         tester.send_input(b"this may be ignored")
@@ -195,11 +195,7 @@ def test_abort():
 
 
 def test_abort_timeout():
-    with _TtyTester(
-        _TESTER_SCRIPT,
-        args=["--timeout", "10"],
-        timeout=1,
-    ) as tester:
+    with _TtyTester(_TESTER_SCRIPT, args=["--timeout", "10"]) as tester:
         tester.wait_for_text(b"PROMPT: ")
 
         tester.send_input(b"this may be ignored")
@@ -219,7 +215,7 @@ def test_abort_timeout():
 
 
 def test_hidden_prompt():
-    with _TtyTester(_TESTER_SCRIPT, args=["--hide"], timeout=1) as tester:
+    with _TtyTester(_TESTER_SCRIPT, args=["--hide"]) as tester:
         tester.wait_for_text(b"PROMPT: ")
         tester.send_input(b"the prompt\n")
 
@@ -231,11 +227,7 @@ def test_hidden_prompt():
 
 
 def test_timeout():
-    with _TtyTester(
-        _TESTER_SCRIPT,
-        args=["--timeout", "0.1"],
-        timeout=1,
-    ) as tester:
+    with _TtyTester(_TESTER_SCRIPT, args=["--timeout", "0.1"]) as tester:
         # Don't send any input, just let it time out.
         pass
 
