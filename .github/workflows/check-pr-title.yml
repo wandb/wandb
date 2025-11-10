@@ -27,6 +27,8 @@ jobs:
           # Product based scopes
           scopes: |
             artifacts
+            registries
+            automations
             integrations
             launch
             sdk
