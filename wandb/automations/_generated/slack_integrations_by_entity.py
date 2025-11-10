@@ -3,11 +3,14 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional, Union
 
-from wandb._pydantic import GQLResult
+from pydantic import Field
+from typing_extensions import Annotated, Literal
 
-from .fragments import SlackIntegrationConnectionFields
+from wandb._pydantic import GQLResult, Typename
+
+from .fragments import PageInfoFields, SlackIntegrationFields
 
 
 class SlackIntegrationsByEntity(GQLResult):
@@ -15,8 +18,33 @@ class SlackIntegrationsByEntity(GQLResult):
 
 
 class SlackIntegrationsByEntityEntity(GQLResult):
-    integrations: Optional[SlackIntegrationConnectionFields]
+    integrations: Optional[SlackIntegrationsByEntityEntityIntegrations]
+
+
+class SlackIntegrationsByEntityEntityIntegrations(GQLResult):
+    page_info: PageInfoFields = Field(alias="pageInfo")
+    edges: List[SlackIntegrationsByEntityEntityIntegrationsEdges]
+
+
+class SlackIntegrationsByEntityEntityIntegrationsEdges(GQLResult):
+    node: Optional[
+        Annotated[
+            Union[
+                SlackIntegrationsByEntityEntityIntegrationsEdgesNodeIntegration,
+                SlackIntegrationFields,
+            ],
+            Field(discriminator="typename__"),
+        ]
+    ]
+
+
+class SlackIntegrationsByEntityEntityIntegrationsEdgesNodeIntegration(GQLResult):
+    typename__: Typename[
+        Literal["GenericWebhookIntegration", "GitHubOAuthIntegration", "Integration"]
+    ]
 
 
 SlackIntegrationsByEntity.model_rebuild()
 SlackIntegrationsByEntityEntity.model_rebuild()
+SlackIntegrationsByEntityEntityIntegrations.model_rebuild()
+SlackIntegrationsByEntityEntityIntegrationsEdges.model_rebuild()

@@ -9,7 +9,8 @@ from pydantic import NonNegativeInt
 
 from .base import GQLResult
 
-NodeT = TypeVar("NodeT", bound=GQLResult)
+# NodeT = TypeVar("NodeT", bound=GQLResult)
+NodeT = TypeVar("NodeT")
 """A generic type variable for a GraphQL relay node."""
 
 
