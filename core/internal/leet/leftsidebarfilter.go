@@ -7,7 +7,7 @@ import (
 
 // StartFilter activates filter mode.
 func (s *LeftSidebar) StartFilter() {
-	s.filter.active = true
+	s.filter.inputActive = true
 	if s.filter.applied != "" {
 		s.filter.draft = s.filter.applied
 	} else {
@@ -25,29 +25,27 @@ func (s *LeftSidebar) UpdateFilter(query string) {
 // ConfirmFilter applies the filter (on Enter).
 func (s *LeftSidebar) ConfirmFilter() {
 	s.filter.applied = s.filter.draft
-	s.filter.active = false
+	s.filter.inputActive = false
 	s.applyFilter()
 	s.calculateSectionHeights()
 }
 
 // CancelFilter cancels the current filter input and restores the previous state.
 func (s *LeftSidebar) CancelFilter() {
-	s.filter.active = false
+	s.filter.inputActive = false
 	s.filter.draft = ""
 	if s.filter.applied != "" {
 		s.filter.draft = s.filter.applied
-		s.applyFilter()
-		s.calculateSectionHeights()
 	} else {
 		s.filter.draft = ""
-		s.applyFilter()
-		s.calculateSectionHeights()
 	}
+	s.applyFilter()
+	s.calculateSectionHeights()
 }
 
 // IsFilterMode returns true if the sidebar is currently in filter input mode.
 func (s *LeftSidebar) IsFilterMode() bool {
-	return s.filter.active
+	return s.filter.inputActive
 }
 
 // FilterDraft returns the current filter input being typed.
@@ -70,7 +68,7 @@ func (s *LeftSidebar) FilterQuery() string {
 
 // FilterInfo returns formatted filter information for status bar.
 func (s *LeftSidebar) FilterInfo() string {
-	if (!s.filter.active && s.filter.applied == "") || (s.filter.draft == "" && s.filter.applied == "") {
+	if (!s.filter.inputActive && s.filter.applied == "") || (s.filter.draft == "" && s.filter.applied == "") {
 		return ""
 	}
 
@@ -93,20 +91,20 @@ func (s *LeftSidebar) FilterInfo() string {
 }
 
 // clearFilter clears the active filter.
-// func (s *LeftSidebar) clearFilter() {
-// 	s.filter.active = false
-// 	s.filter.draft = ""
-// 	s.filter.applied = ""
+func (s *LeftSidebar) clearFilter() {
+	s.filter.inputActive = false
+	s.filter.draft = ""
+	s.filter.applied = ""
 
-// 	for i := range s.sections {
-// 		s.sections[i].FilteredItems = s.sections[i].Items
-// 		s.sections[i].CurrentPage = 0
-// 		s.sections[i].CursorPos = 0
-// 		s.sections[i].FilterMatches = 0
-// 	}
+	for i := range s.sections {
+		s.sections[i].FilteredItems = s.sections[i].Items
+		s.sections[i].CurrentPage = 0
+		s.sections[i].CursorPos = 0
+		s.sections[i].FilterMatches = 0
+	}
 
-// 	s.calculateSectionHeights()
-// }
+	s.calculateSectionHeights()
+}
 
 // applyFilter filters items based on current filter query.
 func (s *LeftSidebar) applyFilter() {
@@ -115,7 +113,7 @@ func (s *LeftSidebar) applyFilter() {
 	query = strings.ToLower(query)
 
 	for i := range s.sections {
-		s.filterSection(i, sectionFilter, query)
+		s.filterSection(&s.sections[i], sectionFilter, query)
 	}
 
 	// Auto-focus section with most matches.
@@ -151,24 +149,22 @@ func (s *LeftSidebar) extractSectionFilter(query *string) string {
 }
 
 // filterSection filters a single section based on the query and section filter.
-func (s *LeftSidebar) filterSection(idx int, sectionFilter, query string) {
-	section := &s.sections[idx]
-
+func (s *LeftSidebar) filterSection(sv *SectionView, filter, query string) {
 	// Skip section if section filter doesn't match.
-	if sectionFilter != "" {
-		sectionName := strings.ToLower(section.Title)
-		if !strings.HasPrefix(sectionName, sectionFilter) {
-			section.FilteredItems = []KeyValuePair{}
-			section.FilterMatches = 0
-			section.CurrentPage = 0
-			section.CursorPos = 0
+	if filter != "" {
+		sectionName := strings.ToLower(sv.Title)
+		if !strings.HasPrefix(sectionName, filter) {
+			sv.FilteredItems = []KeyValuePair{}
+			sv.FilterMatches = 0
+			sv.CurrentPage = 0
+			sv.CursorPos = 0
 			return
 		}
 	}
 
 	// Filter items based on query.
 	filtered := make([]KeyValuePair, 0)
-	for _, item := range section.Items {
+	for _, item := range sv.Items {
 		if query == "" ||
 			strings.Contains(strings.ToLower(item.Key), query) ||
 			strings.Contains(strings.ToLower(item.Value), query) {
@@ -176,10 +172,10 @@ func (s *LeftSidebar) filterSection(idx int, sectionFilter, query string) {
 		}
 	}
 
-	section.FilteredItems = filtered
-	section.FilterMatches = len(filtered)
-	section.CurrentPage = 0
-	section.CursorPos = 0
+	sv.FilteredItems = filtered
+	sv.FilterMatches = len(filtered)
+	sv.CurrentPage = 0
+	sv.CursorPos = 0
 }
 
 // focusBestMatchSection focuses the section with the most filter matches.

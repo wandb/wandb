@@ -67,12 +67,13 @@ func TestRunOverview_ProcessSystemInfoMsg_YieldsEnvironmentItems(t *testing.T) {
 func TestRunOverview_ProcessSummaryMsg_FlattensAndSorts(t *testing.T) {
 	ro := leet.NewRunOverview()
 
-	ro.ProcessSummaryMsg(&spb.SummaryRecord{
+	s := &spb.SummaryRecord{
 		Update: []*spb.SummaryItem{
 			{NestedKey: []string{"val", "acc"}, ValueJson: "0.88"},
 			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
 		},
-	})
+	}
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{s})
 
 	items := ro.SummaryItems()
 	require.Len(t, items, 2)

@@ -14,8 +14,8 @@ from typing import Any, Callable, Generator, Iterable, Iterator
 
 import pyte
 import pyte.modes
-from pytest_mock import MockerFixture
 from wandb.errors import term
+from wandb.sdk import wandb_login
 
 # Don't write to Sentry in wandb.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
@@ -181,9 +181,10 @@ class EmulatedTerminal:
         self._screen = pyte.Screen(80, 24)
         self._screen.set_mode(pyte.modes.LNM)  # \n implies \r
         self._stream = pyte.Stream(self._screen)
+        self._inputs: list[str] = []
 
     def reset_capsys(self) -> None:
-        """Resets pytest's captured stderr and stdout buffers."""
+        """Reset pytest's captured stderr and stdout buffers."""
         self._capsys.readouterr()
 
     def read_stderr(self) -> list[str]:
@@ -197,7 +198,7 @@ class EmulatedTerminal:
         NOTE: This resets pytest's stderr and stdout buffers. You should not
         use this with anything else that uses capsys.
         """
-        self._stream.feed(self._capsys.readouterr().err)
+        self._process_captured_text()
 
         lines = [line.rstrip() for line in self._screen.display]
 
@@ -206,27 +207,71 @@ class EmulatedTerminal:
         n_empty_at_end = sum(1 for _ in takewhile(lambda line: not line, lines[::-1]))
         return lines[n_empty_at_start:-n_empty_at_end]
 
+    def queue_input(self, text: str) -> None:
+        """Queue the next terminput return value."""
+        self._inputs.append(text)
+
+    def terminput(
+        self,
+        prefixed_prompt: str,
+        *,
+        timeout: float | None = None,
+        hide: bool = False,
+    ) -> str:
+        """A fake implementation of term._terminput().
+
+        Raises an assertion error if no inputs are queued.
+        """
+        # Simulate printing the prompt.
+        self._process_captured_text()
+        self._stream.feed(prefixed_prompt)
+
+        if not self._inputs:
+            if timeout is not None:
+                raise TimeoutError
+            else:
+                raise AssertionError("terminput() used, but no inputs queued.")
+
+        input = self._inputs.pop(0)
+
+        # Simulate printing the input and the return key press.
+        if not hide:
+            self._stream.feed(f"{input}\n")
+        else:
+            self._stream.feed("\n")
+
+        return input
+
+    def _process_captured_text(self) -> None:
+        """Read capsys and update the terminal state."""
+        self._stream.feed(self._capsys.readouterr().err)
+
 
 @pytest.fixture()
 def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
     """Emulates a terminal for the duration of a test.
 
     This makes functions in the `wandb.errors.term` module act as if
-    stderr is a terminal.
+    we're connected to a terminal.
 
     NOTE: This resets pytest's stderr and stdout buffers. You should not
     use this with anything else that uses capsys.
     """
+    terminal = EmulatedTerminal(capsys)
 
+    # Allow dynamic_text().
     monkeypatch.setenv("TERM", "xterm")
-
     monkeypatch.setattr(term, "_sys_stderr_isatty", lambda: True)
+
+    # Allow terminput().
+    monkeypatch.setattr(term, "can_use_terminput", lambda: True)
+    monkeypatch.setattr(term, "_terminput", terminal.terminput)
 
     # Make click pretend we're a TTY, so it doesn't strip ANSI sequences.
     # This is fragile and could break when click is updated.
     monkeypatch.setattr("click._compat.isatty", lambda *args, **kwargs: True)
 
-    return EmulatedTerminal(capsys)
+    return terminal
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -283,10 +328,15 @@ def dummy_api_key() -> str:
 
 
 @pytest.fixture
-def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
-    mocker.patch.object(wandb.sdk.lib.apikey, "isatty", return_value=True)
-    mocker.patch.object(wandb.sdk.lib.apikey, "input", return_value=1)
-    mocker.patch.object(wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key)
+def patch_apikey(monkeypatch: pytest.MonkeyPatch, dummy_api_key: str) -> None:
+    monkeypatch.setattr(
+        wandb_login._WandbLogin,
+        "prompt_api_key",
+        lambda *args, **kwargs: (
+            dummy_api_key,
+            wandb_login.ApiKeyStatus.VALID,
+        ),
+    )
 
 
 @pytest.fixture
@@ -305,12 +355,12 @@ def skip_verify_login(monkeypatch):
 @pytest.fixture
 def patch_prompt(monkeypatch):
     monkeypatch.setattr(
-        wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=False: x[0]
+        wandb.util, "prompt_choices", lambda x, input_timeout=None: x[0]
     )
     monkeypatch.setattr(
         wandb.wandb_lib.apikey,
         "prompt_choices",
-        lambda x, input_timeout=None, jupyter=False: x[0],
+        lambda x, input_timeout=None: x[0],
     )
 
 

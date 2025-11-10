@@ -1,13 +1,11 @@
-from typing import Union
+from __future__ import annotations
 
-from pydantic import Field
+from typing import List, Union
+
+from pydantic import Field, TypeAdapter
 from typing_extensions import Annotated
 
-from wandb._pydantic import GQLBase
-from wandb.automations._generated import (
-    GenericWebhookIntegrationFields,
-    SlackIntegrationFields,
-)
+from ._generated import SlackIntegrationFields, WebhookIntegrationFields
 
 
 class SlackIntegration(SlackIntegrationFields):
@@ -18,7 +16,7 @@ class SlackIntegration(SlackIntegrationFields):
     """Slack channel where this integration will post messages."""
 
 
-class WebhookIntegration(GenericWebhookIntegrationFields):
+class WebhookIntegration(WebhookIntegrationFields):
     name: str
     """The name of this webhook integration."""
 
@@ -31,11 +29,8 @@ Integration = Annotated[
     Field(discriminator="typename__"),
 ]
 
-
-# For parsing integration instances from paginated responses
-class _IntegrationEdge(GQLBase):
-    cursor: str
-    node: Integration
+# INTERNAL USE ONLY: For parsing integrations from paginated responses
+IntegrationListAdapter: TypeAdapter[list[Integration]] = TypeAdapter(List[Integration])
 
 
 __all__ = [
