@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
@@ -18,7 +19,7 @@ import (
 // related to reading a run's history.
 type RunHistoryAPIHandler struct {
 	graphqlClient graphql.Client
-	httpClient    *http.Client
+	httpClient    *retryablehttp.Client
 
 	// currentRequestId is the id of the last scan init request made.
 	//
@@ -42,9 +43,15 @@ func NewRunHistoryAPIHandler(settings *settings.Settings) *RunHistoryAPIHandler 
 		"",
 	)
 
+	httpClient := retryablehttp.NewClient()
+	httpClient.RetryMax = int(settings.GetFileTransferMaxRetries())
+	httpClient.RetryWaitMin = settings.GetFileTransferRetryWaitMin()
+	httpClient.RetryWaitMax = settings.GetFileTransferRetryWaitMax()
+	httpClient.HTTPClient.Timeout = settings.GetFileTransferTimeout()
+
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,
-		httpClient:         http.DefaultClient,
+		httpClient:         httpClient,
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
 	}
