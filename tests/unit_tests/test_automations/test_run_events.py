@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any, Iterable
 
 from hypothesis import given
 from hypothesis.strategies import DrawFn, SearchStrategy, composite, lists, sampled_from
@@ -417,3 +418,75 @@ def test_declarative_metric_change_filter_requires_positive_delta(
         metric.decreases_by(frac=invalid_delta)
     with raises(ValueError):
         metric.decreases_by(diff=invalid_delta)
+
+
+@given(state=run_states)
+def test_declarative_state_filter_on_single_valid_state(state: str | ReportedRunState):
+    """Check that a `StateFilter` on a single valid run state works as expected."""
+    assert isinstance(state, (str, ReportedRunState))  # sanity check
+
+    # When serialized, a valid state should be converted to an all-caps string
+    expected_state_str = ReportedRunState(state).value.upper()
+
+    expected_filter = StateFilter(states=[state])
+    expected_dict = {"states": [expected_state_str]}
+
+    # via the `==` operator
+    state_filter = RunEvent.state == state
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+    # via the `.eq()` method
+    state_filter = RunEvent.state.eq(state)
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+    # via the `.in_()` method
+    state_filter = RunEvent.state.in_([state])
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+
+@given(states=lists(run_states, min_size=1, max_size=10))
+def test_declarative_state_filter_on_multiple_valid_states(
+    states: list[str | ReportedRunState],
+):
+    """Check that a `StateFilter` on multiple valid run states works as expected."""
+
+    # sanity checks -- states should be an iterable of valid states, not a single state
+    assert isinstance(states, Iterable)
+    assert not isinstance(states, (str, ReportedRunState))
+
+    # When serialized, valid states should be converted to all-caps strings and deduplicated
+    expected_state_strs = sorted(set(ReportedRunState(s).value.upper() for s in states))
+
+    expected_filter = StateFilter(states=states)
+    expected_dict = {"states": expected_state_strs}
+
+    # via the `.in_()` method
+    state_filter = RunEvent.state.in_(states)
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+
+_INVALID_RUN_STATES: list[Any] = [None, 123, "", "INVALID", "not-a-real-state"]
+
+
+@given(state=sampled_from(_INVALID_RUN_STATES))
+def test_declarative_state_filter_on_single_invalid_state(state: Any):
+    """Check that a `StateFilter` on a single invalid state raises a ValueError."""
+    with raises((ValueError, TypeError)):  # via the `==` operator
+        _ = RunEvent.state == state
+
+    with raises((ValueError, TypeError)):  # via the `.eq()` method
+        _ = RunEvent.state.eq(state)
+
+    with raises((ValueError, TypeError)):  # via the `.in_()` method
+        _ = RunEvent.state.in_([state])
+
+
+@given(states=lists(sampled_from(_INVALID_RUN_STATES), min_size=1, max_size=10))
+def test_declarative_state_filter_on_multiple_invalid_states(states: list[Any]):
+    """Check that a `StateFilter` on multiple invalid states raises a ValueError."""
+    with raises(ValueError):  # via the `.in_()` method
+        _ = RunEvent.state.in_(states)

@@ -18,7 +18,7 @@ from wandb._strutils import nameof
 from ._filters import And, MongoLikeFilter, Or
 from ._filters.expressions import FilterableField
 from ._filters.run_metrics import MetricChangeFilter, MetricThresholdFilter, MetricVal
-from ._filters.run_states import StateFilter
+from ._filters.run_states import StateFilter, StateOperand
 from ._generated import FilterEventFields
 from ._validators import (
     JsonEncoded,
@@ -384,6 +384,8 @@ class RunEvent:
     # `Run.name` is actually filtered on `Run.display_name` in the backend.
     # We can't reasonably expect users to know this a priori, so
     # automatically fix it here.
+
+    state = StateOperand()
 
     @staticmethod
     def metric(name: str) -> MetricVal:

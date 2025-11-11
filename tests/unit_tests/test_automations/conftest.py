@@ -25,7 +25,6 @@ from wandb.automations import (
     SendNotification,
     SendWebhook,
 )
-from wandb.automations._filters.run_states import ReportedRunState, StateFilter
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
 from wandb.automations.events import InputEvent, OnRunState, SavedEvent
@@ -244,10 +243,10 @@ def on_run_metric_change(scope: ScopableWandbType) -> OnRunMetric:
 
 @fixture
 def on_run_state(scope: ScopableWandbType) -> OnRunState:
-    run_filter = RunEvent.name.contains("my-run")
-    # TODO: Use declarative syntax for state filter
-    state_filter = StateFilter(states=[ReportedRunState.FAILED])
-    return OnRunState(scope=scope, filter=run_filter & state_filter)
+    return OnRunState(
+        scope=scope,
+        filter=RunEvent.name.contains("my-run") & (RunEvent.state == "failed"),
+    )
 
 
 @fixture
