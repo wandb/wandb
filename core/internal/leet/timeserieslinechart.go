@@ -20,7 +20,7 @@ type TimeSeriesLineChart struct {
 
 	// colorProvider yields the next color for additional series on this chart.
 	// It is anchored to the chart's base color so multi-series colors are stable per chart.
-	colorProvider func() string
+	colorProvider func() lipgloss.AdaptiveColor
 
 	lastUpdate         time.Time
 	minValue, maxValue float64
@@ -29,13 +29,13 @@ type TimeSeriesLineChart struct {
 type TimeSeriesLineChartParams struct {
 	Width, Height int
 	Def           *MetricDef
-	BaseColor     string
-	ColorProvider func() string
+	BaseColor     lipgloss.AdaptiveColor
+	ColorProvider func() lipgloss.AdaptiveColor
 	Now           time.Time
 }
 
 func NewTimeSeriesLineChart(params TimeSeriesLineChartParams) *TimeSeriesLineChart {
-	graphStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(params.BaseColor))
+	graphStyle := lipgloss.NewStyle().Foreground(params.BaseColor)
 
 	// Show the most recent 10 minutes (slight look-back).
 	// TODO: make this configurable.
@@ -92,7 +92,7 @@ func (c *TimeSeriesLineChart) ensureSeries(seriesName string) {
 	// Additional datasets advance the palette via the chart-local provider,
 	// which is anchored to the base color.
 	if len(c.series) > 0 {
-		seriesStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(c.colorProvider()))
+		seriesStyle := lipgloss.NewStyle().Foreground(c.colorProvider())
 		c.chart.SetDataSetStyle(seriesName, seriesStyle)
 	}
 
