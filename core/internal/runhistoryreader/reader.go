@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,6 +27,10 @@ type HistoryReader struct {
 
 	keys         []string
 	parquetFiles []*pqarrow.FileReader
+
+	// Stores the minimum step where live (not yet exported) data starts.
+	// This is used to determine if we need to query the W&B backend for data.
+	minLiveStep int64
 }
 
 // New returns a new HistoryReader.
@@ -45,6 +50,8 @@ func New(
 		project:       project,
 		runId:         runId,
 		keys:          keys,
+
+		minLiveStep: math.MaxInt64,
 	}
 
 	err := historyReader.initParquetFiles(ctx)
@@ -55,7 +62,7 @@ func New(
 	return historyReader, nil
 }
 
-// GetHistorySteps gets all history rows for the given keys
+// GetHistorySteps gets all history rows for HistoryReader's keys
 // that fall between minStep and maxStep.
 // Returns a list of KVMapLists, where each item in the list is a history row.
 func (h *HistoryReader) GetHistorySteps(
@@ -63,45 +70,49 @@ func (h *HistoryReader) GetHistorySteps(
 	minStep int64,
 	maxStep int64,
 ) ([]iterator.KeyValueList, error) {
-	partitions := make([]iterator.RowIterator, len(h.parquetFiles))
-	for i, parquetFile := range h.parquetFiles {
-		selectedRows := iterator.SelectRows(
-			parquetFile,
-			iterator.StepKey,
-			float64(minStep),
-			float64(maxStep),
-			false,
-		)
-		selectAllColumns := len(h.keys) == 0
-		selectedColumns, err := iterator.SelectColumns(
-			iterator.StepKey,
-			h.keys,
-			parquetFile.ParquetReader().MetaData().Schema,
-			selectAllColumns,
-		)
-		if err != nil {
-			return nil, err
-		}
+	results := []iterator.KeyValueList{}
+	selectAllColumns := len(h.keys) == 0
 
-		rowIterator, err := iterator.NewRowIterator(
-			ctx,
-			parquetFile,
-			selectedRows,
-			selectedColumns,
-		)
-		if err != nil {
-			for _, partition := range partitions {
-				partition.Release()
-			}
-			return nil, err
-		}
-		partitions[i] = rowIterator
+	parquetHistory, err := h.getParquetHistory(
+		ctx,
+		minStep,
+		maxStep,
+		selectAllColumns,
+	)
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, parquetHistory...)
+
+	liveHistory, err := h.getLiveData(ctx, minStep, maxStep, selectAllColumns)
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, liveHistory...)
+
+	return results, nil
+}
+
+func (h *HistoryReader) getParquetHistory(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+	selectAllColumns bool,
+) ([]iterator.KeyValueList, error) {
+	results := []iterator.KeyValueList{}
+
+	partitions, err := h.getRowIteratorsFromFiles(
+		ctx,
+		minStep,
+		maxStep,
+		selectAllColumns,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	multiIterator := iterator.NewMultiIterator(partitions)
 	defer multiIterator.Release()
-
-	results := []iterator.KeyValueList{}
 	for {
 		next, err := multiIterator.Next()
 		if err != nil {
@@ -142,6 +153,32 @@ func (h *HistoryReader) getRunHistoryFileUrls(
 
 	if response.GetProject() == nil || response.GetProject().GetRun() == nil {
 		return nil, fmt.Errorf("no parquet history found for run %s", h.runId)
+	}
+
+	for _, liveData := range response.GetProject().GetRun().GetParquetHistory().LiveData {
+		liveDataMap, ok := liveData.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("expected LiveData to be map[string]any")
+		}
+
+		stepValue, ok := liveDataMap[iterator.StepKey]
+		if !ok {
+			return nil, fmt.Errorf("expected LiveData to contain step key")
+		}
+
+		var stepIntValue int64
+		switch x := stepValue.(type) {
+		case float64:
+			stepIntValue = int64(x)
+		case int64:
+			stepIntValue = x
+		default:
+			return nil, fmt.Errorf("expected step value to be convertible to int")
+		}
+
+		if stepIntValue < h.minLiveStep {
+			h.minLiveStep = stepIntValue
+		}
 	}
 
 	signedUrls := response.GetProject().GetRun().GetParquetHistory().ParquetUrls
@@ -228,4 +265,47 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (h *HistoryReader) getRowIteratorsFromFiles(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+	selectAllColumns bool,
+) ([]iterator.RowIterator, error) {
+	partitions := make([]iterator.RowIterator, 0, len(h.parquetFiles))
+	for _, parquetFile := range h.parquetFiles {
+		selectedRows := iterator.SelectRows(
+			parquetFile,
+			iterator.StepKey,
+			float64(minStep),
+			float64(maxStep),
+			false,
+		)
+		selectedColumns, err := iterator.SelectColumns(
+			iterator.StepKey,
+			h.keys,
+			parquetFile.ParquetReader().MetaData().Schema,
+			selectAllColumns,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		rowIterator, err := iterator.NewRowIterator(
+			ctx,
+			parquetFile,
+			selectedRows,
+			selectedColumns,
+		)
+		if err != nil {
+			for _, partition := range partitions {
+				partition.Release()
+			}
+			return nil, err
+		}
+		partitions = append(partitions, rowIterator)
+	}
+
+	return partitions, nil
 }

@@ -259,3 +259,355 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 		assert.ElementsMatch(t, expectedResults[i], result)
 	}
 }
+
+func TestHistoryReader_GetHistorySteps_AllLiveData(t *testing.T) {
+	ctx := t.Context()
+	mockGQL := gqlmock.NewMockClient()
+
+	// Mock RunParquetHistory with no parquet files, only live data
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunParquetHistory"),
+		`{
+			"project": {
+				"run": {
+					"parquetHistory": {
+						"parquetUrls": [],
+						"liveData": [
+							{"_step": 0},
+							{"_step": 1}
+						]
+					}
+				}
+			}
+		}`,
+	)
+
+	// Mock HistoryPage for the live data request (no keys specified)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("HistoryPage"),
+		`{
+			"project": {
+				"run": {
+					"history": [
+						"{\"_step\":0,\"metric1\":1.0}",
+						"{\"_step\":1,\"metric1\":2.0}"
+					]
+				}
+			}
+		}`,
+	)
+
+	reader, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		http.DefaultClient,
+		[]string{},
+	)
+	require.NoError(t, err)
+
+	results, err := reader.GetHistorySteps(ctx, 0, 10)
+
+	assert.NoError(t, err)
+	assert.Len(t, results, 2)
+	assert.ElementsMatch(t, results[0], iterator.KeyValueList{
+		{Key: "_step", Value: int64(0)},
+		{Key: "metric1", Value: 1.0},
+	})
+	assert.ElementsMatch(t, results[1], iterator.KeyValueList{
+		{Key: "_step", Value: int64(1)},
+		{Key: "metric1", Value: 2.0},
+	})
+}
+
+func TestHistoryReader_GetHistorySteps_AllLiveData_WithKeys(t *testing.T) {
+	ctx := t.Context()
+	mockGQL := gqlmock.NewMockClient()
+
+	// Mock RunParquetHistory with no parquet files, only live data
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunParquetHistory"),
+		`{
+			"project": {
+				"run": {
+					"parquetHistory": {
+						"parquetUrls": [],
+						"liveData": [
+							{"_step": 0},
+							{"_step": 1}
+						]
+					}
+				}
+			}
+		}`,
+	)
+
+	// Mock SampledHistoryPage for the live data request with specific keys
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("SampledHistoryPage"),
+		`{
+			"project": {
+				"run": {
+					"sampledHistory": [
+						[
+							{"_step":0,"metric1":1.0},
+							{"_step":1,"metric1":2.0}
+						]
+					]
+				}
+			}
+		}`,
+	)
+
+	reader, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		http.DefaultClient,
+		[]string{"metric1"},
+	)
+	require.NoError(t, err)
+
+	results, err := reader.GetHistorySteps(ctx, 0, 10)
+
+	assert.NoError(t, err)
+	assert.Len(t, results, 2)
+	assert.ElementsMatch(t, results[0], iterator.KeyValueList{
+		{Key: "_step", Value: int64(0)},
+		{Key: "metric1", Value: 1.0},
+	})
+	assert.ElementsMatch(t, results[1], iterator.KeyValueList{
+		{Key: "_step", Value: int64(1)},
+		{Key: "metric1", Value: 2.0},
+	})
+}
+
+func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
+	ctx := t.Context()
+	tempDir := t.TempDir()
+
+	// Create parquet file with steps 0-2
+	schema := arrow.NewSchema(
+		[]arrow.Field{
+			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
+			{Name: "metric1", Type: arrow.PrimitiveTypes.Float64},
+		},
+		nil,
+	)
+	data := []map[string]any{
+		{"_step": int64(0), "metric1": 1.0},
+	}
+	parquetFilePath := filepath.Join(tempDir, "test.parquet")
+	iteratortest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+	parquetContent, err := os.ReadFile(parquetFilePath)
+	require.NoError(t, err)
+	server := createHttpServer(t, respondWithParquetContent(t, parquetContent))
+
+	mockGQL := gqlmock.NewMockClient()
+
+	// Mock RunParquetHistory with parquet files AND live data for steps 3-4
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunParquetHistory"),
+		fmt.Sprintf(`{
+			"project": {
+				"run": {
+					"parquetHistory": {
+						"parquetUrls": ["%s/test.parquet"],
+						"liveData": [
+							{"_step": 1}
+						]
+					}
+				}
+			}
+		}`, server.URL),
+	)
+
+	// Mock HistoryPage for the live data request (steps 3-4)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("HistoryPage"),
+		`{
+			"project": {
+				"run": {
+					"history": [
+						"{\"_step\":1,\"metric1\":2.0}"
+					]
+				}
+			}
+		}`,
+	)
+
+	reader, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		http.DefaultClient,
+		[]string{},
+	)
+	require.NoError(t, err)
+
+	// Request data that spans both parquet (0-2) and live data (3-4)
+	results, err := reader.GetHistorySteps(ctx, 0, 2)
+
+	assert.NoError(t, err)
+	assert.Len(t, results, 2)
+	assert.ElementsMatch(t, results[0], iterator.KeyValueList{
+		{Key: "_step", Value: int64(0)},
+		{Key: "metric1", Value: 1.0},
+	})
+	assert.ElementsMatch(t, results[1], iterator.KeyValueList{
+		{Key: "_step", Value: int64(1)},
+		{Key: "metric1", Value: 2.0},
+	})
+}
+
+func TestHistoryReader_GetHistorySteps_NoPanicOnInvalidLiveData(t *testing.T) {
+	ctx := t.Context()
+	mockGQL := gqlmock.NewMockClient()
+
+	// Mock RunParquetHistory with no parquet files, only live data
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunParquetHistory"),
+		`{
+			"project": {
+				"run": {
+					"parquetHistory": {
+						"parquetUrls": [],
+						"liveData": ["invalid"]
+					}
+				}
+			}
+		}`,
+	)
+
+	_, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		http.DefaultClient,
+		[]string{},
+	)
+	assert.ErrorContains(t, err, "expected LiveData to be map[string]any")
+}
+
+func TestHistoryReader_GetHistorySteps_NoPanicOnMissingStepKey(t *testing.T) {
+	ctx := t.Context()
+	mockGQL := gqlmock.NewMockClient()
+
+	// Mock RunParquetHistory with no parquet files, only live data
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunParquetHistory"),
+		`{
+			"project": {
+				"run": {
+					"parquetHistory": {
+						"parquetUrls": [],
+						"liveData": [{"metric1": 1.0}]
+					}
+				}
+			}
+		}`,
+	)
+
+	_, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		http.DefaultClient,
+		[]string{},
+	)
+	assert.ErrorContains(t, err, "expected LiveData to contain step key")
+}
+
+func TestHistoryReader_GetHistorySteps_NoPanicOnNonConvertibleStepValue(t *testing.T) {
+	ctx := t.Context()
+	mockGQL := gqlmock.NewMockClient()
+
+	// Mock RunParquetHistory with no parquet files, only live data
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunParquetHistory"),
+		`{
+			"project": {
+				"run": {
+					"parquetHistory": {
+						"parquetUrls": [],
+						"liveData": [{"_step": "invalid"}]
+					}
+				}
+			}
+		}`,
+	)
+
+	_, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		http.DefaultClient,
+		[]string{},
+	)
+	assert.ErrorContains(t, err, "expected step value to be convertible to int")
+}
+
+func TestHistoryReader_GetHistorySteps_ConvertsStepValueToInt(t *testing.T) {
+	tests := []struct {
+		name          string
+		stepValue     string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "int value should work",
+			stepValue:   "1",
+			expectError: false,
+		},
+		{
+			name:        "float64 value should work",
+			stepValue:   "1.0",
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			mockGQL := gqlmock.NewMockClient()
+
+			// Mock RunParquetHistory with no parquet files, only live data
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("RunParquetHistory"),
+				fmt.Sprintf(`{
+					"project": {
+						"run": {
+							"parquetHistory": {
+								"parquetUrls": [],
+								"liveData": [{"_step": %s}]
+							}
+						}
+					}
+				}`, tt.stepValue),
+			)
+
+			_, err := New(
+				ctx,
+				"test-entity",
+				"test-project",
+				"test-run-id",
+				mockGQL,
+				http.DefaultClient,
+				[]string{},
+			)
+			assert.NoError(t, err)
+		})
+	}
+}
