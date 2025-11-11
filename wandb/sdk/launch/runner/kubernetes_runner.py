@@ -82,6 +82,56 @@ API_KEY_SECRET_MAX_RETRIES = 5
 _logger = logging.getLogger(__name__)
 
 
+async def delete_auxiliary_resources_by_label(
+    apps_api: "AppsV1Api",
+    core_api: "CoreV1Api",
+    network_api: "NetworkingV1Api",
+    batch_api: "BatchV1Api",
+    namespace: str,
+    auxiliary_resource_label_value: str,
+) -> None:
+    label_selector = (
+        f"{WANDB_K8S_LABEL_AUXILIARY_RESOURCE}={auxiliary_resource_label_value}"
+    )
+
+    resource_cleanups = [
+        (core_api, "service"),
+        (batch_api, "job"),
+        (core_api, "pod"),
+        (core_api, "secret"),
+        (apps_api, "deployment"),
+        (network_api, "network_policy"),
+    ]
+
+    for api_client, resource_type in resource_cleanups:
+        try:
+            list_method = getattr(api_client, f"list_namespaced_{resource_type}")
+            delete_method = getattr(api_client, f"delete_namespaced_{resource_type}")
+
+            # List resources with our label
+            resources = await list_method(
+                namespace=namespace, label_selector=label_selector
+            )
+
+            # Delete each resource
+            for resource in resources.items:
+                try:
+                    await delete_method(
+                        name=resource.metadata.name, namespace=namespace
+                    )
+                    wandb.termlog(
+                        f"{LOG_PREFIX}Cleaned up {resource_type}: {resource.metadata.name}"
+                    )
+                except ApiException as e:
+                    if e.status != 404:  # Ignore if already deleted
+                        wandb.termwarn(
+                            f"{LOG_PREFIX}Could not delete {resource_type} {resource.metadata.name}: {e}"
+                        )
+
+        except (AttributeError, ApiException) as e:
+            wandb.termwarn(f"{LOG_PREFIX}Could not clean up {resource_type}: {e}")
+
+
 SOURCE_CODE_PVC_MOUNT_PATH = os.environ.get("WANDB_LAUNCH_CODE_PVC_MOUNT_PATH")
 SOURCE_CODE_PVC_NAME = os.environ.get("WANDB_LAUNCH_CODE_PVC_NAME")
 
@@ -239,46 +289,19 @@ class KubernetesSubmittedRun(AbstractRun):
             self.wandb_team_secrets_secret = None
 
     async def _delete_auxiliary_resources_by_label(self) -> None:
-        if self.auxiliary_resource_label_key is None:
+        """Delete auxiliary resources using the shared helper function."""
+        if self.auxiliary_resource_label_key is None or self.namespace is None:
             return
 
-        label_selector = (
-            f"{WANDB_K8S_LABEL_AUXILIARY_RESOURCE}={self.auxiliary_resource_label_key}"
-        )
-
         try:
-            resource_cleanups = [
-                (self.core_api, "service"),
-                (self.batch_api, "job"),
-                (self.core_api, "pod"),
-                (self.core_api, "secret"),
-                (self.apps_api, "deployment"),
-                (self.network_api, "network_policy"),
-            ]
-
-            for api_client, resource_type in resource_cleanups:
-                try:
-                    list_method = getattr(
-                        api_client, f"list_namespaced_{resource_type}"
-                    )
-                    delete_method = getattr(
-                        api_client, f"delete_namespaced_{resource_type}"
-                    )
-
-                    # List resources with our label
-                    resources = await list_method(
-                        namespace=self.namespace, label_selector=label_selector
-                    )
-
-                    # Delete each resource
-                    for resource in resources.items:
-                        await delete_method(
-                            name=resource.metadata.name, namespace=self.namespace
-                        )
-
-                except (AttributeError, ApiException) as e:
-                    wandb.termwarn(f"Could not clean up {resource_type}: {e}")
-
+            await delete_auxiliary_resources_by_label(
+                self.apps_api,
+                self.core_api,
+                self.network_api,
+                self.batch_api,
+                self.namespace,
+                self.auxiliary_resource_label_key,
+            )
         except Exception as e:
             wandb.termwarn(f"Failed to clean up some auxiliary resources: {e}")
 
@@ -1074,23 +1097,39 @@ class KubernetesRunner(AbstractRunner):
             wait_for_ready = resource_args.get("wait_for_ready", True)
             wait_timeout = resource_args.get("wait_timeout", 300)
 
-            await asyncio.gather(
-                *[
-                    self._prepare_resource(
-                        api_client,
-                        resource.get("config", {}),
-                        namespace,
-                        launch_project.run_id,
-                        launch_project,
-                        secret,
-                        wait_for_ready,
-                        wait_timeout,
-                        auxiliary_resource_label_value,
-                    )
-                    for resource in additional_services
-                    if resource.get("config", {})
-                ]
-            )
+            try:
+                await asyncio.gather(
+                    *[
+                        self._prepare_resource(
+                            api_client,
+                            resource.get("config", {}),
+                            namespace,
+                            launch_project.run_id,
+                            launch_project,
+                            secret,
+                            wait_for_ready,
+                            wait_timeout,
+                            auxiliary_resource_label_value,
+                        )
+                        for resource in additional_services
+                        if resource.get("config", {})
+                    ]
+                )
+            except LaunchError:
+                # If additional services fail to become ready (e.g., deployment stuck pending),
+                # clean up any resources that were created before re-raising the error
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Additional services failed to become ready. Cleaning up auxiliary resources..."
+                )
+                await delete_auxiliary_resources_by_label(
+                    apps_api,
+                    core_api,
+                    network_api,
+                    batch_api,
+                    namespace,
+                    auxiliary_resource_label_value,
+                )
+                raise
 
         msg = "Creating Kubernetes job"
         if "name" in resource_args:

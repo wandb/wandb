@@ -230,8 +230,12 @@ class MockBatchApi:
     async def delete_namespaced_job(self, name, namespace):
         del self.jobs[name]
 
-    async def list_namespaced_job(self, namespace, field_selector=None):
-        return [self.jobs[name] for name in self.jobs]
+    async def list_namespaced_job(
+        self, namespace, field_selector=None, label_selector=None
+    ):
+        mock_list = MagicMock()
+        mock_list.items = [self.jobs[name] for name in self.jobs]
+        return mock_list
 
     async def create_job(self, body):
         self.jobs[body["metadata"]["generateName"]] = body
@@ -242,6 +246,7 @@ class MockCoreV1Api:
     def __init__(self):
         self.pods = dict()
         self.secrets = []
+        self.services = []
         self.calls = {"delete": 0}
         self.namespaces = []
 
@@ -255,6 +260,27 @@ class MockCoreV1Api:
 
     async def read_namespaced_pod(self, name, namespace):
         return self.pods[name]
+
+    async def delete_namespaced_pod(self, name, namespace):
+        if name in self.pods:
+            del self.pods[name]
+        self.calls["delete"] += 1
+
+    async def list_namespaced_service(self, namespace, label_selector=None):
+        mock_list = MagicMock()
+        mock_list.items = self.services
+        return mock_list
+
+    async def delete_namespaced_service(self, name, namespace):
+        self.services = [s for s in self.services if s.metadata.name != name]
+        self.calls["delete"] += 1
+
+    async def list_namespaced_secret(self, namespace, label_selector=None):
+        mock_list = MagicMock()
+        # Filter by namespace
+        filtered = [s[1] for s in self.secrets if s[0] == namespace]
+        mock_list.items = filtered
+        return mock_list
 
     async def delete_namespaced_secret(self, namespace, name):
         self.secrets = list(
@@ -1821,6 +1847,19 @@ async def test_kubernetes_submitted_run_cleanup_noop_when_no_additional_services
     mock_network_api.delete_namespaced_network_policy.assert_not_called()
 
 
+def make_mock_resource_list(resource_names):
+    """Helper to create mock resource lists."""
+
+    mock_list = MagicMock()
+    mock_items = []
+    for name in resource_names:
+        mock_item = MagicMock()
+        mock_item.metadata.name = name
+        mock_items.append(mock_item)
+    mock_list.items = mock_items
+    return mock_list
+
+
 @pytest.mark.asyncio
 async def test_kubernetes_submitted_run_cleanup_with_additional_services(
     monkeypatch,
@@ -1840,17 +1879,6 @@ async def test_kubernetes_submitted_run_cleanup_with_additional_services(
     that has additional_services, the returned KubernetesSubmittedRun has
     auxiliary_resource_label_key and cleanup methods call delete APIs.
     """
-
-    # Helper to create mock resource lists
-    def make_mock_resource_list(resource_names):
-        mock_list = MagicMock()
-        mock_items = []
-        for name in resource_names:
-            mock_item = MagicMock()
-            mock_item.metadata.name = name
-            mock_items.append(mock_item)
-        mock_list.items = mock_items
-        return mock_list
 
     # Override mock API methods to return resources with items
     mock_core_api.list_namespaced_service = AsyncMock(
@@ -1918,6 +1946,126 @@ async def test_kubernetes_submitted_run_cleanup_with_additional_services(
     mock_core_api.delete_namespaced_service.assert_called_once_with(
         name="aux-service-1", namespace="default"
     )
+
+
+@pytest.mark.asyncio
+async def test_runner_cleanup_additional_services_on_creation_timeout(
+    monkeypatch,
+    mock_create_from_dict,
+    mock_batch_api,
+    mock_core_api,
+    mock_apps_api,
+    mock_network_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    clean_agent,
+    clean_monitor,
+):
+    """Test that runner cleans up auxiliary resources when additional services creation times out."""
+
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=make_mock_resource_list(["deploy-test-run"])
+    )
+    mock_core_api.list_namespaced_service = AsyncMock(
+        return_value=make_mock_resource_list(["evals-test-run"])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=make_mock_resource_list(
+            ["job-policy-test", "resource-policy-test"]
+        )
+    )
+
+    # Mock delete methods
+    mock_apps_api.delete_namespaced_deployment = AsyncMock()
+    mock_core_api.delete_namespaced_service = AsyncMock()
+    mock_network_api.delete_namespaced_network_policy = AsyncMock()
+
+    # Mock helper functions
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.ensure_api_key_secret",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_wandb_team_secrets_secret",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.ensure_initialized",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.monitor_namespace",
+        MagicMock(),
+    )
+
+    # Mock _wait_for_resource_ready to raise LaunchError (simulate timeout)
+    async def mock_wait_for_resource_ready(
+        self, api_client, config, namespace, timeout_seconds=300
+    ):
+        # Simulate deployment timeout
+        if config.get("kind") == "Deployment":
+            raise LaunchError(
+                f"Resource '{config.get('metadata', {}).get('name')}' not ready within {timeout_seconds} seconds"
+            )
+
+    # Patch the wait method
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.KubernetesRunner._wait_for_resource_ready",
+        mock_wait_for_resource_ready,
+    )
+
+    # Create launch project WITH additional_services that will timeout
+    launch_project = MagicMock()
+    launch_project.target_entity = "test-entity"
+    launch_project.target_project = "test-project"
+    launch_project.run_id = "test-run-id"
+    launch_project.name = "test-name"
+    launch_project.author = "test-author"
+    launch_project.resource_args = {"kubernetes": {"kind": "Job"}}
+    launch_project.launch_spec = {
+        "_resume_count": 0,
+        "additional_services": [
+            {
+                "name": "deployment",
+                "config": {
+                    "kind": "Deployment",
+                    "metadata": {"name": "deploy-test-run"},
+                    "spec": {"replicas": 1},
+                },
+            }
+        ],
+    }
+    launch_project.override_args = []
+    launch_project.override_entrypoint = None
+    launch_project.get_single_entry_point.return_value = None
+    launch_project.fill_macros = lambda image_uri: {"kubernetes": {"kind": "Job"}}
+    launch_project.docker_config = {}
+    launch_project.job_base_image = None
+    launch_project.get_env_vars_dict = lambda _, __: {}
+    launch_project.get_secrets_dict = lambda: {}
+
+    # Create the runner
+    api = MagicMock()
+    environment = MagicMock()
+    registry = MagicMock()
+    backend_config = {"SYNCHRONOUS": False}
+
+    runner = KubernetesRunner(api, backend_config, environment, registry)
+
+    # Run should raise LaunchError due to timeout
+    with pytest.raises(LaunchError, match="not ready within 300 seconds"):
+        await runner.run(launch_project, "test-image:latest")
+
+    # Verify cleanup was called for all resource types
+    # Since deployment timed out, cleanup should delete it
+    mock_apps_api.list_namespaced_deployment.assert_called()
+    mock_apps_api.delete_namespaced_deployment.assert_called_once_with(
+        name="deploy-test-run", namespace="default"
+    )
+
+    # Verify cleanup was also called for other resource types
+    mock_core_api.list_namespaced_service.assert_called()
+    mock_network_api.list_namespaced_network_policy.assert_called()
 
 
 @pytest.mark.asyncio
