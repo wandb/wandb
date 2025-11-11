@@ -5,20 +5,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/leet"
 )
 
 // stubColorProvider returns deterministic colors for series creation order.
-func stubColorProvider(colors ...string) func() string {
+func stubColorProvider(colors ...string) func() lipgloss.AdaptiveColor {
 	i := 0
-	return func() string {
+	return func() lipgloss.AdaptiveColor {
 		if len(colors) == 0 {
-			return ""
+			return lipgloss.AdaptiveColor{}
 		}
 		c := colors[i%len(colors)]
 		i++
-		return c
+		return lipgloss.AdaptiveColor{Light: c, Dark: c}
 	}
 }
 
@@ -36,8 +37,8 @@ func TestNewTimeSeriesLineChart_ConstructsAndInitializes(t *testing.T) {
 	ch := leet.NewTimeSeriesLineChart(leet.TimeSeriesLineChartParams{
 		80, 20,
 		def,
-		"#FF00FF",                    // base color
-		stubColorProvider("#00FF00"), // provider for subsequent series
+		lipgloss.AdaptiveColor{Light: "#FF00FF", Dark: "#FF00FF"}, // base color
+		stubColorProvider("#00FF00"),                              // provider for subsequent series
 		now,
 	})
 
@@ -60,7 +61,7 @@ func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
 	}
 	now := time.Unix(1_700_000_000, 0)
 	ch := leet.NewTimeSeriesLineChart(leet.TimeSeriesLineChartParams{
-		80, 20, def, "#ABCDEF", stubColorProvider(), now})
+		80, 20, def, lipgloss.AdaptiveColor{Light: "#ABCDEF", Dark: "#ABCDEF"}, stubColorProvider(), now})
 
 	// First point
 	ts1 := now.Add(-5 * time.Minute).Unix()
@@ -103,7 +104,7 @@ func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 	}
 	now := time.Unix(1_700_000_000, 0)
 	ch := leet.NewTimeSeriesLineChart(leet.TimeSeriesLineChartParams{
-		80, 20, def, "#FF00FF", stubColorProvider("#00FF00", "#0000FF"), now})
+		80, 20, def, lipgloss.AdaptiveColor{Light: "#FF00FF", Dark: "#FF00FF"}, stubColorProvider("#00FF00", "#0000FF"), now})
 
 	ts := now.Unix()
 	ch.AddDataPoint("cpu0", ts, 30)

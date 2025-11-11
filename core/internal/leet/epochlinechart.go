@@ -65,8 +65,7 @@ func NewEpochLineChart(width, height int, title string) *EpochLineChart {
 	graphColors := GraphColors()
 
 	// Temporarily use a default style - it will be updated during sorting.
-	graphStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(graphColors[0]))
+	graphStyle := lipgloss.NewStyle().Foreground(graphColors[0])
 
 	chart := &EpochLineChart{
 		Model: linechart.New(width, height, 0, defaultMaxX, 0, defaultMaxY,
