@@ -41,10 +41,10 @@ __all__ = [
     "RUN_OUTPUT_ARTIFACTS_GQL",
     "TYPE_INFO_GQL",
     "UNLINK_ARTIFACT_GQL",
-    "UPDATE_ARTIFACT_COLLECTION_TYPE_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
+    "UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL",
     "UPDATE_TEAM_REGISTRY_ROLE_GQL",
     "UPDATE_USER_REGISTRY_ROLE_GQL",
     "UPSERT_REGISTRY_GQL",
@@ -52,7 +52,7 @@ __all__ = [
     "DeleteArtifactPortfolio",
     "UpdateArtifactSequence",
     "UpdateArtifactPortfolio",
-    "UpdateArtifactCollectionType",
+    "UpdateArtifactSequenceType",
     "AddArtifactCollectionTags",
     "DeleteArtifactCollectionTags",
     "ProjectArtifactCollections",
@@ -275,10 +275,10 @@ from .operations import (
     RUN_OUTPUT_ARTIFACTS_GQL,
     TYPE_INFO_GQL,
     UNLINK_ARTIFACT_GQL,
-    UPDATE_ARTIFACT_COLLECTION_TYPE_GQL,
     UPDATE_ARTIFACT_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
     UPDATE_ARTIFACT_SEQUENCE_GQL,
+    UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL,
     UPDATE_TEAM_REGISTRY_ROLE_GQL,
     UPDATE_USER_REGISTRY_ROLE_GQL,
     UPSERT_REGISTRY_GQL,
@@ -298,9 +298,9 @@ from .run_output_artifacts import RunOutputArtifacts
 from .type_info import TypeInfo
 from .unlink_artifact import UnlinkArtifact
 from .update_artifact import UpdateArtifact
-from .update_artifact_collection_type import UpdateArtifactCollectionType
 from .update_artifact_portfolio import UpdateArtifactPortfolio
 from .update_artifact_sequence import UpdateArtifactSequence
+from .update_artifact_sequence_type import UpdateArtifactSequenceType
 from .update_team_registry_role import UpdateTeamRegistryRole
 from .update_user_registry_role import UpdateUserRegistryRole
 from .upsert_registry import UpsertRegistry

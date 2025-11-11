@@ -13,14 +13,12 @@ from .fragments import ArtifactCollectionSummary
 
 
 class UpdateArtifactSequence(GQLResult):
-    update_artifact_sequence: Optional[UpdateArtifactSequenceUpdateArtifactSequence] = (
-        Field(alias="updateArtifactSequence")
-    )
+    result: Optional[UpdateArtifactSequenceResult]
 
 
-class UpdateArtifactSequenceUpdateArtifactSequence(GQLResult):
+class UpdateArtifactSequenceResult(GQLResult):
     artifact_collection: ArtifactCollectionSummary = Field(alias="artifactCollection")
 
 
 UpdateArtifactSequence.model_rebuild()
-UpdateArtifactSequenceUpdateArtifactSequence.model_rebuild()
+UpdateArtifactSequenceResult.model_rebuild()
