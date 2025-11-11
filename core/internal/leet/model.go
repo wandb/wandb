@@ -33,15 +33,20 @@ type Model struct {
 	runPath string
 
 	// Run state tracking.
-	fileComplete bool
-	isLoading    bool
-	runState     RunState
+	runState RunState
+
+	// isLoading controls whether the loading screen is displayed.
+	//
+	// Defaults to true and is set to false once a RunRecord is
+	// successfully loaded from the transaction log.
+	isLoading bool
 
 	// Data reader.
 	reader *WandbReader
 
 	// Transaction log (.wandb file) watch and heartbeat managemenmt.
 	watcherMgr   *WatcherManager
+	fileComplete bool
 	heartbeatMgr *HeartbeatManager
 	watcherChan  chan tea.Msg
 
