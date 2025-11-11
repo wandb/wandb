@@ -18,18 +18,21 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	}()
 
 	switch msg := msg.(type) {
+	case RunMsg:
+		m.logger.Debug("model: processing RunMsg")
+		m.leftSidebar.ProcessRunMsg(msg)
+		m.runState = RunStateRunning
+		if m.isLoading {
+			m.isLoading = false
+		}
+		return m, nil
+
 	case HistoryMsg:
 		m.logger.Debug("model: processing HistoryMsg")
 		if m.runState == RunStateRunning && !m.fileComplete {
 			m.heartbeatMgr.Reset(m.isRunning)
 		}
 		return m.handleHistoryMsg(msg)
-
-	case RunMsg:
-		m.logger.Debug("model: processing RunMsg")
-		m.leftSidebar.ProcessRunMsg(msg)
-		m.runState = RunStateRunning
-		return m, nil
 
 	case StatsMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
@@ -89,9 +92,6 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	defer timeit(m.logger, "Model.handleHistoryMsg")()
 	// Route to the grid; it handles sorting/filtering/pagination/focus itself.
 	shouldDraw := m.metricsGrid.ProcessHistory(msg.Metrics)
-	if m.isLoading && m.metricsGrid.ChartCount() > 0 {
-		m.isLoading = false
-	}
 	if shouldDraw && !m.suppressDraw {
 		m.metricsGrid.drawVisible()
 	}
@@ -550,9 +550,6 @@ func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea
 		m.metricsGrid.drawVisible()
 	}
 
-	if m.isLoading && m.metricsGrid.ChartCount() > 0 {
-		m.isLoading = false
-	}
 	return cmds
 }
 
