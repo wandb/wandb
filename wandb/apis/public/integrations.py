@@ -25,7 +25,10 @@ if TYPE_CHECKING:
 
 
 class Integrations(Paginator["Integration"]):
-    """An lazy iterator of `Integration` objects."""
+    """A lazy iterator of `Integration` objects.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
 
     last_response: Connection[SlackIntegrationFields | WebhookIntegrationFields] | None
     _query: Document
@@ -54,7 +57,10 @@ class Integrations(Paginator["Integration"]):
 
     @override
     def _update_response(self) -> None:
-        """Fetch and parse the response data for the current page."""
+        """Fetch and parse the response data for the current page.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         from wandb._pydantic import Connection
         from wandb.automations._generated import IntegrationsByEntity
 
@@ -66,7 +72,10 @@ class Integrations(Paginator["Integration"]):
         self.last_response = Connection.model_validate(conn)
 
     def convert_objects(self) -> Iterable[Integration]:
-        """Parse the page data into a list of integrations."""
+        """Parse the page data into a list of integrations.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         from wandb.automations.integrations import IntegrationListAdapter
 
         if (conn := self.last_response) is None:
@@ -75,8 +84,16 @@ class Integrations(Paginator["Integration"]):
 
 
 class WebhookIntegrations(Integrations):
+    """A lazy iterator of `WebhookIntegration` objects.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
     def convert_objects(self) -> Iterable[WebhookIntegration]:
-        """Parse the page data into a list of webhook integrations."""
+        """Parse the page data into a list of webhook integrations.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # Filter on typename__ since all Integration types are still included
         # in the GQL response, so we have to filter them out client-side.
         typename = "GenericWebhookIntegration"
@@ -84,8 +101,16 @@ class WebhookIntegrations(Integrations):
 
 
 class SlackIntegrations(Integrations):
+    """A lazy iterator of `SlackIntegration` objects.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
     def convert_objects(self) -> Iterable[SlackIntegration]:
-        """Parse the page data into a list of Slack integrations."""
+        """Parse the page data into a list of Slack integrations.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # Filter on typename__ since all Integration types are still included
         # in the GQL response, so we have to filter them out client-side.
         typename = "SlackIntegration"
