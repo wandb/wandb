@@ -11,13 +11,15 @@ from wandb._pydantic import GQLId, GQLInput
 
 
 class UpsertModelInput(GQLInput):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=128)
     description: Optional[str] = None
     id: Optional[str] = None
     framework: Optional[str] = None
     entity_name: Optional[str] = Field(alias="entityName", default=None)
-    docker_image: Optional[str] = Field(alias="dockerImage", default=None)
-    repo: Optional[str] = None
+    docker_image: Optional[str] = Field(
+        alias="dockerImage", default=None, max_length=512
+    )
+    repo: Optional[str] = Field(default=None, max_length=256)
     access: Optional[str] = None
     views: Optional[str] = None
     is_benchmark: Optional[bool] = Field(alias="isBenchmark", default=None)
@@ -52,13 +54,13 @@ class RateLimitsInput(GQLInput):
 
 
 class ArtifactTypeInput(GQLInput):
-    name: str
+    name: str = Field(max_length=128, pattern="^[-\\w]+([ ]*[-.\\w]+)*$")
     description: Optional[str] = None
 
 
 class UpdateArtifactSequenceInput(GQLInput):
     artifact_sequence_id: GQLId = Field(alias="artifactSequenceID")
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=128)
     description: Optional[str] = None
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
 
@@ -71,14 +73,14 @@ class MoveArtifactSequenceInput(GQLInput):
 
 class UpdateArtifactPortfolioInput(GQLInput):
     artifact_portfolio_id: GQLId = Field(alias="artifactPortfolioID")
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=128)
     description: Optional[str] = None
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
 
 
 class ArtifactAliasInput(GQLInput):
     artifact_collection_name: str = Field(alias="artifactCollectionName")
-    alias: str
+    alias: str = Field(max_length=128)
 
 
 class UpdateArtifactInput(GQLInput):
@@ -123,7 +125,7 @@ class UnlinkArtifactInput(GQLInput):
 
 
 class ArtifactCollectionAliasInput(GQLInput):
-    alias: str
+    alias: str = Field(max_length=128)
     entity_name: str = Field(alias="entityName")
     project_name: str = Field(alias="projectName")
     artifact_collection_name: str = Field(alias="artifactCollectionName")
@@ -142,8 +144,15 @@ class DeleteAliasesInput(GQLInput):
 
 
 class TagInput(GQLInput):
-    tag_category_name: Optional[str] = Field(alias="tagCategoryName", default=None)
-    tag_name: str = Field(alias="tagName")
+    tag_category_name: Optional[str] = Field(
+        alias="tagCategoryName",
+        default=None,
+        max_length=128,
+        pattern="^[-\\w]+([ ]+[-\\w]+)*$",
+    )
+    tag_name: str = Field(
+        alias="tagName", max_length=128, pattern="^[-\\w]+([ ]+[-\\w]+)*$"
+    )
     attributes: Optional[str] = None
 
 
@@ -151,7 +160,7 @@ class CreateArtifactCollectionTagAssignmentsInput(GQLInput):
     entity_name: str = Field(alias="entityName")
     project_name: str = Field(alias="projectName")
     artifact_collection_name: str = Field(alias="artifactCollectionName")
-    tags: List[TagInput]
+    tags: List[TagInput] = Field(max_length=20)
     client_mutation_id: Optional[str] = Field(alias="clientMutationID", default=None)
 
 
@@ -159,7 +168,7 @@ class DeleteArtifactCollectionTagAssignmentsInput(GQLInput):
     entity_name: str = Field(alias="entityName")
     project_name: str = Field(alias="projectName")
     artifact_collection_name: str = Field(alias="artifactCollectionName")
-    tags: List[TagInput]
+    tags: List[TagInput] = Field(max_length=20)
     client_mutation_id: Optional[str] = Field(alias="clientMutationID", default=None)
 
 

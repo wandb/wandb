@@ -3,22 +3,20 @@
 from __future__ import annotations
 
 import json
-import sys
 from contextlib import suppress
 from functools import lru_cache
-from typing import Any, Type
+from typing import TYPE_CHECKING
 
 import pydantic
-from pydantic import BaseModel, ValidationError
-from typing_extensions import TypeAlias
+from packaging.version import Version
+from pydantic import ValidationError
 
-PYTHON_VERSION = sys.version_info
+if TYPE_CHECKING:
+    from typing import Any, Final
 
-pydantic_major, *_ = pydantic.VERSION.split(".")
-IS_PYDANTIC_V2: bool = int(pydantic_major) >= 2
+    from pydantic import BaseModel
 
-
-BaseModelType: TypeAlias = Type[BaseModel]
+IS_PYDANTIC_V2: Final[bool] = Version(pydantic.VERSION).major >= 2
 
 
 @lru_cache
@@ -41,7 +39,7 @@ if IS_PYDANTIC_V2:
         return pydantic_core.to_json(v, by_alias=True, round_trip=True).decode("utf-8")
 
     def pydantic_isinstance(
-        v: Any, classinfo: BaseModelType | tuple[BaseModelType, ...]
+        v: Any, classinfo: type[BaseModel] | tuple[type[BaseModel], ...]
     ) -> bool:
         """Return True if the object could be parsed into the given Pydantic type.
 
@@ -72,7 +70,7 @@ else:
         return json.dumps(v, default=pydantic_encoder)
 
     def pydantic_isinstance(
-        v: Any, classinfo: BaseModelType | tuple[BaseModelType, ...]
+        v: Any, classinfo: type[BaseModel] | tuple[type[BaseModel], ...]
     ) -> bool:
         classes = classinfo if isinstance(classinfo, tuple) else (classinfo,)
         for cls in classes:

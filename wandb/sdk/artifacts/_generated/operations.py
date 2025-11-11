@@ -42,10 +42,10 @@ __all__ = [
     "RUN_OUTPUT_ARTIFACTS_GQL",
     "TYPE_INFO_GQL",
     "UNLINK_ARTIFACT_GQL",
-    "UPDATE_ARTIFACT_COLLECTION_TYPE_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
+    "UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL",
     "UPDATE_TEAM_REGISTRY_ROLE_GQL",
     "UPDATE_USER_REGISTRY_ROLE_GQL",
     "UPSERT_REGISTRY_GQL",
@@ -53,7 +53,7 @@ __all__ = [
 
 DELETE_ARTIFACT_SEQUENCE_GQL = """
 mutation DeleteArtifactSequence($id: ID!) {
-  deleteArtifactSequence(input: {artifactSequenceID: $id}) {
+  result: deleteArtifactSequence(input: {artifactSequenceID: $id}) {
     artifactCollection {
       __typename
       state
@@ -64,7 +64,7 @@ mutation DeleteArtifactSequence($id: ID!) {
 
 DELETE_ARTIFACT_PORTFOLIO_GQL = """
 mutation DeleteArtifactPortfolio($id: ID!) {
-  deleteArtifactPortfolio(input: {artifactPortfolioID: $id}) {
+  result: deleteArtifactPortfolio(input: {artifactPortfolioID: $id}) {
     artifactCollection {
       __typename
       state
@@ -75,7 +75,7 @@ mutation DeleteArtifactPortfolio($id: ID!) {
 
 UPDATE_ARTIFACT_SEQUENCE_GQL = """
 mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
-  updateArtifactSequence(input: $input) {
+  result: updateArtifactSequence(input: $input) {
     artifactCollection {
       __typename
       ...ArtifactCollectionSummary
@@ -94,7 +94,7 @@ fragment ArtifactCollectionSummary on ArtifactCollection {
 
 UPDATE_ARTIFACT_PORTFOLIO_GQL = """
 mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
-  updateArtifactPortfolio(input: $input) {
+  result: updateArtifactPortfolio(input: $input) {
     artifactCollection {
       __typename
       ...ArtifactCollectionSummary
@@ -111,9 +111,9 @@ fragment ArtifactCollectionSummary on ArtifactCollection {
 }
 """
 
-UPDATE_ARTIFACT_COLLECTION_TYPE_GQL = """
-mutation UpdateArtifactCollectionType($input: MoveArtifactSequenceInput!) {
-  moveArtifactSequence(input: $input) {
+UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL = """
+mutation UpdateArtifactSequenceType($input: MoveArtifactSequenceInput!) {
+  result: moveArtifactSequence(input: $input) {
     artifactCollection {
       __typename
       ...ArtifactCollectionSummary
@@ -132,7 +132,7 @@ fragment ArtifactCollectionSummary on ArtifactCollection {
 
 ADD_ARTIFACT_COLLECTION_TAGS_GQL = """
 mutation AddArtifactCollectionTags($input: CreateArtifactCollectionTagAssignmentsInput!) {
-  createArtifactCollectionTagAssignments(input: $input) {
+  result: createArtifactCollectionTagAssignments(input: $input) {
     tags {
       ...TagFragment
     }
@@ -148,7 +148,7 @@ fragment TagFragment on Tag {
 
 DELETE_ARTIFACT_COLLECTION_TAGS_GQL = """
 mutation DeleteArtifactCollectionTags($input: DeleteArtifactCollectionTagAssignmentsInput!) {
-  deleteArtifactCollectionTagAssignments(input: $input) {
+  result: deleteArtifactCollectionTagAssignments(input: $input) {
     success
   }
 }
