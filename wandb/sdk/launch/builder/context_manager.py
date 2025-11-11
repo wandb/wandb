@@ -68,7 +68,12 @@ class BuildContextManager:
 
         # get python versions truncated to major.minor to ensure image availability
         if launch_project.python_version:
-            spl = launch_project.python_version.split(".")[:2]
+            parts = launch_project.python_version.split(" ")
+            if len(parts) > 1:
+                version = parts[1]
+            else:
+                version = parts[0]
+            spl = version.split(".")[:2]
             py_version, py_major = (".".join(spl), spl[0])
         else:
             py_version, py_major = get_current_python_version()
