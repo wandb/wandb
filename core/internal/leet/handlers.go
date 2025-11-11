@@ -22,9 +22,7 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 		m.logger.Debug("model: processing RunMsg")
 		m.leftSidebar.ProcessRunMsg(msg)
 		m.runState = RunStateRunning
-		if m.isLoading {
-			m.isLoading = false
-		}
+		m.isLoading = false
 		return m, nil
 
 	case HistoryMsg:
