@@ -193,6 +193,7 @@ class _WandbInit:
             anonymous=run_settings.anonymous,
             host=run_settings.base_url,
             force=run_settings.force,
+            key=run_settings.api_key,
             _disable_warning=True,
             _silent=run_settings.quiet or run_settings.silent,
         )
