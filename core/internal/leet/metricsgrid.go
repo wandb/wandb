@@ -44,7 +44,7 @@ type MetricsGrid struct {
 	filter FilterState
 
 	// Stable color assignment.
-	colorOfTitle map[string]string
+	colorOfTitle map[string]lipgloss.AdaptiveColor
 	nextColorIdx int
 }
 
@@ -63,7 +63,7 @@ func NewMetricsGrid(
 		currentPage:  make([][]*EpochLineChart, gridRows),
 		focus:        focus,
 		logger:       logger,
-		colorOfTitle: make(map[string]string),
+		colorOfTitle: make(map[string]lipgloss.AdaptiveColor),
 	}
 
 	for r := range gridRows {
@@ -176,7 +176,7 @@ func (mg *MetricsGrid) effectiveChartCountNoLock() int {
 }
 
 // colorForNoLock returns a stable color for a given metric title.
-func (mg *MetricsGrid) colorForNoLock(title string) string {
+func (mg *MetricsGrid) colorForNoLock(title string) lipgloss.AdaptiveColor {
 	if c, ok := mg.colorOfTitle[title]; ok {
 		return c
 	}
@@ -201,8 +201,7 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 
 		// Stable color per title (no reshuffling when new charts arrive).
 		col := mg.colorForNoLock(chart.Title())
-		chart.graphStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(col))
+		chart.graphStyle = lipgloss.NewStyle().Foreground(col)
 	}
 
 	// Ensure filtered mirrors all when filter is empty.
