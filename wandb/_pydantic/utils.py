@@ -3,23 +3,23 @@
 from __future__ import annotations
 
 import json
-import sys
 from contextlib import suppress
-from typing import Any, Type
+from functools import lru_cache
+from typing import TYPE_CHECKING
 
 import pydantic
-from pydantic import BaseModel, ValidationError
-from typing_extensions import TypeAlias
+from packaging.version import Version
+from pydantic import ValidationError
 
-PYTHON_VERSION = sys.version_info
+if TYPE_CHECKING:
+    from typing import Any, Final
 
-pydantic_major, *_ = pydantic.VERSION.split(".")
-IS_PYDANTIC_V2: bool = int(pydantic_major) >= 2
+    from pydantic import BaseModel
+
+IS_PYDANTIC_V2: Final[bool] = Version(pydantic.VERSION).major >= 2
 
 
-BaseModelType: TypeAlias = Type[BaseModel]
-
-
+@lru_cache
 def gql_typename(cls: type[BaseModel]) -> str:
     """Get the GraphQL typename for a Pydantic model."""
     if (field := cls.model_fields.get("typename__")) and (typename := field.default):
@@ -30,7 +30,7 @@ def gql_typename(cls: type[BaseModel]) -> str:
 if IS_PYDANTIC_V2:
     import pydantic_core  # pydantic_core is only installed by pydantic v2
 
-    def from_json(s: str) -> Any:
+    def from_json(s: str | bytes) -> Any:
         """Quickly deserialize a JSON string to a Python object."""
         return pydantic_core.from_json(s)
 
@@ -39,7 +39,7 @@ if IS_PYDANTIC_V2:
         return pydantic_core.to_json(v, by_alias=True, round_trip=True).decode("utf-8")
 
     def pydantic_isinstance(
-        v: Any, classinfo: BaseModelType | tuple[BaseModelType, ...]
+        v: Any, classinfo: type[BaseModel] | tuple[type[BaseModel], ...]
     ) -> bool:
         """Return True if the object could be parsed into the given Pydantic type.
 
@@ -63,14 +63,14 @@ else:
 
     from pydantic.json import pydantic_encoder  # Only valid in pydantic v1
 
-    def from_json(s: str) -> Any:
+    def from_json(s: str | bytes) -> Any:
         return json.loads(s)
 
     def to_json(v: Any) -> str:
         return json.dumps(v, default=pydantic_encoder)
 
     def pydantic_isinstance(
-        v: Any, classinfo: BaseModelType | tuple[BaseModelType, ...]
+        v: Any, classinfo: type[BaseModel] | tuple[type[BaseModel], ...]
     ) -> bool:
         classes = classinfo if isinstance(classinfo, tuple) else (classinfo,)
         for cls in classes:

@@ -6,23 +6,16 @@ import dataclasses
 import os
 import platform
 import stat
-import sys
 import textwrap
-from functools import partial
-
-# import Literal
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
-
-import click
-from requests.utils import NETRC_FILES, get_netrc_auth
 
 import wandb
 from wandb.apis import InternalApi
 from wandb.errors import term
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup
-from wandb.util import _is_databricks, isatty, prompt_choices
+from wandb.util import _is_databricks, prompt_choices
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
@@ -54,9 +47,6 @@ class WriteNetrcError(Exception):
 Mode = Literal["allow", "must", "never", "false", "true"]
 
 
-getpass = partial(click.prompt, hide_input=True, err=True)
-
-
 def _fixup_anon_mode(default: Mode | None) -> Mode | None:
     # Convert weird anonymode values from legacy settings files
     # into one of our expected values.
@@ -67,7 +57,8 @@ def _fixup_anon_mode(default: Mode | None) -> Mode | None:
 
 def get_netrc_file_path() -> str:
     """Return the path to the netrc file."""
-    # if the NETRC environment variable is set, use that
+    from requests.utils import NETRC_FILES
+
     netrc_file = os.environ.get("NETRC")
     if netrc_file:
         return os.path.expanduser(netrc_file)
@@ -103,11 +94,9 @@ def _api_key_prompt_str(app_url: str, referrer: str | None = None) -> str:
     return f"You can find your API key in your browser here: {app_url}/authorize{ref}"
 
 
-def prompt_api_key(  # noqa: C901
+def prompt_api_key(
     settings: Settings,
     api: InternalApi | None = None,
-    input_callback: Callable | None = None,
-    browser_callback: Callable | None = None,
     no_offline: bool = False,
     no_create: bool = False,
     local: bool = False,
@@ -120,8 +109,6 @@ def prompt_api_key(  # noqa: C901
         None - if dryrun is selected
         False - if unconfigured (notty)
     """
-    input_callback = input_callback or getpass
-    log_string = term.LOG_STRING
     api = api or InternalApi(settings)
     anon_mode = _fixup_anon_mode(settings.anonymous)  # type: ignore
     jupyter = settings._jupyter or False
@@ -136,71 +123,51 @@ def prompt_api_key(  # noqa: C901
     if (jupyter and not settings.login_timeout) or no_create:
         choices.remove(LOGIN_CHOICE_NEW)
 
-    if jupyter and "google.colab" in sys.modules:
-        log_string = term.LOG_STRING_NOCOLOR
-        key = wandb.jupyter.attempt_colab_login(app_url)  # type: ignore
-        if key is not None:
-            return key  # type: ignore
-
     if anon_mode == "must":
         result = LOGIN_CHOICE_ANON
     # If we're not in an interactive environment, default to dry-run.
-    elif (
-        not jupyter and (not isatty(sys.stdout) or not isatty(sys.stdin))
-    ) or _is_databricks():
+    elif not term.can_use_terminput() or _is_databricks():
         result = LOGIN_CHOICE_NOTTY
     elif local:
         result = LOGIN_CHOICE_EXISTS
     elif len(choices) == 1:
         result = choices[0]
     else:
-        result = prompt_choices(
-            choices, input_timeout=settings.login_timeout, jupyter=jupyter
-        )
+        result = prompt_choices(choices, input_timeout=settings.login_timeout)
 
-    key = None
-    api_ask = (
-        f"{log_string}: Paste an API key from your profile and hit enter"
-        if jupyter
-        else f"{log_string}: Paste an API key from your profile and hit enter, or press ctrl+c to quit"
-    )
+    key: str | None = None
+
+    if not jupyter:
+        api_ask = (
+            "Paste an API key from your profile and hit enter,"
+            " or press ctrl+c to quit: "
+        )
+    else:
+        api_ask = "Paste an API key from your profile and hit enter: "
+
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
     elif result == LOGIN_CHOICE_NEW:
-        key = browser_callback(signup=True) if browser_callback else None
-
-        if not key:
-            ref = f"&ref={referrer}" if referrer else ""
-            wandb.termlog(
-                f"Create an account here: {app_url}/authorize?signup=true{ref}"
-            )
-            key = input_callback(api_ask).strip()
+        ref = f"&ref={referrer}" if referrer else ""
+        wandb.termlog(f"Create an account here: {app_url}/authorize?signup=true{ref}")
+        key = term.terminput(api_ask, hide=True).strip()
     elif result == LOGIN_CHOICE_EXISTS:
-        key = browser_callback() if browser_callback else None
-
-        if not key:
-            if not (settings.is_local or local):
-                host = app_url
-                for prefix in ("http://", "https://"):
-                    if app_url.startswith(prefix):
-                        host = app_url[len(prefix) :]
-                wandb.termlog(
-                    f"Logging into {host}. (Learn how to deploy a W&B server "
-                    f"locally: {url_registry.url('wandb-server')})"
-                )
-            wandb.termlog(_api_key_prompt_str(app_url, referrer))
-            key = input_callback(api_ask).strip()
+        if not (settings.is_local or local):
+            host = app_url
+            for prefix in ("http://", "https://"):
+                if app_url.startswith(prefix):
+                    host = app_url[len(prefix) :]
+            wandb.termlog(
+                f"Logging into {host}. (Learn how to deploy a W&B server "
+                + f"locally: {url_registry.url('wandb-server')})"
+            )
+        wandb.termlog(_api_key_prompt_str(app_url, referrer))
+        key = term.terminput(api_ask, hide=True).strip()
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
         return False
     elif result == LOGIN_CHOICE_DRYRUN:
         return None
-    else:
-        # Jupyter environments don't have a tty, but we can still try logging in using
-        # the browser callback if one is supplied.
-        key, anonymous = (
-            browser_callback() if jupyter and browser_callback else (None, False)
-        )
 
     if not key:
         raise ValueError("No API key specified.")
@@ -236,9 +203,9 @@ def check_netrc_access(
 def write_netrc(host: str, entity: str, key: str):
     """Add our host and key to .netrc."""
     _, key_suffix = key.split("-", 1) if "-" in key else ("", key)
-    if len(key_suffix) != 40:
+    if len(key_suffix) < 40:
         raise ValueError(
-            f"API-key must be exactly 40 characters long: {key_suffix} ({len(key_suffix)} chars)"
+            f"API-key must be at least 40 characters long: {key_suffix} ({len(key_suffix)} chars)"
         )
 
     normalized_host = urlparse(host).netloc
@@ -305,17 +272,21 @@ def write_key(
     # TODO(jhr): api shouldn't be optional or it shouldn't be passed, clean up callers
     api = api or InternalApi()
 
-    # Normal API keys are 40-character hex strings. On-prem API keys have a
-    # variable-length prefix, a dash, then the 40-char string.
+    # API keys are strings of at least 40 characters. On-prem API keys have a
+    # variable-length prefix, a dash, then the string of at least 40 chars.
     _, suffix = key.split("-", 1) if "-" in key else ("", key)
 
-    if len(suffix) != 40:
-        raise ValueError(f"API key must be 40 characters long, yours was {len(key)}")
+    if len(suffix) < 40:
+        raise ValueError(
+            f"API key must be at least 40 characters long, yours was {len(key)}"
+        )
 
     write_netrc(settings.base_url, "user", key)
 
 
 def api_key(settings: Settings | None = None) -> str | None:
+    from requests.utils import get_netrc_auth
+
     if settings is None:
         settings = wandb_setup.singleton().settings
     if settings.api_key:

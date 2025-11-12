@@ -9,27 +9,43 @@ import pathlib
 
 import click
 
+from wandb.analytics import get_sentry
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
 
 @click.group()
 def beta():
-    """Beta versions of wandb CLI commands. Requires wandb-core."""
-    # this is the future that requires wandb-core!
-    import wandb.env
+    """Beta versions of wandb CLI commands.
 
-    wandb._sentry.configure_scope(process_context="wandb_beta")
+    These commands may change or even completely break in any release of wandb.
+    """
+    get_sentry().configure_scope(process_context="wandb_beta")
 
     try:
         get_core_path()
     except WandbCoreNotAvailableError as e:
-        wandb._sentry.exception(f"using `wandb beta`. failed with {e}")
+        get_sentry().exception(f"using `wandb beta`. failed with {e}")
         click.secho(
             (e),
             fg="red",
             err=True,
         )
+
+
+@beta.command()
+@click.argument("path", nargs=1, type=click.Path(exists=True), required=False)
+def leet(path: str | None = None) -> None:
+    """Launch W&B LEET: the Lightweight Experiment Exploration Tool.
+
+    LEET is a terminal UI for viewing a W&B run specified by an optional PATH.
+
+    PATH can include a .wandb file or a run directory containing a .wandb file.
+    If PATH is not provided, the command will look for the latest run.
+    """
+    from . import beta_leet
+
+    beta_leet.launch(path)
 
 
 @beta.command()
@@ -66,6 +82,10 @@ def sync(
     n: int,
 ) -> None:
     """Upload .wandb files specified by PATHS.
+
+    This is a beta re-implementation of `wandb sync`.
+    It is not feature complete, not guaranteed to work, and may change
+    in backward-incompatible ways in any release of wandb.
 
     PATHS can include .wandb files, run directories containing .wandb files,
     and "wandb" directories containing run directories.

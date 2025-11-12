@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,11 +13,9 @@ import (
 	"github.com/google/wire"
 
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/nullify"
@@ -26,6 +23,7 @@ import (
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -37,12 +35,6 @@ import (
 	"github.com/wandb/wandb/core/pkg/launch"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-)
-
-const (
-	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
-	summaryDebouncerBurstSize = 1        // todo: audit burst size
-	ConsoleFileName           = "output.log"
 )
 
 var SenderProviders = wire.NewSet(
@@ -64,7 +56,7 @@ type SenderFactory struct {
 	RunfilesUploaderFactory *runfiles.UploaderFactory
 	GraphqlClient           graphql.Client
 	Peeker                  *observability.Peeker
-	StreamRun               *StreamRun
+	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
 }
 
@@ -114,11 +106,8 @@ type Sender struct {
 	// artifactWG is a wait group for artifact-related goroutines
 	artifactWG sync.WaitGroup
 
-	// summaryDebouncer is the debouncer for summary updates
-	summaryDebouncer *debounce.Debouncer
-
-	// streamRun is this stream's run state.
-	streamRun *StreamRun
+	// runHandle is parts of the Stream initialized after the first RunRecord
+	runHandle *runhandle.RunHandle
 
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
@@ -148,46 +137,6 @@ type Sender struct {
 
 // New returns a new Sender.
 func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
-	// Guaranteed not to fail.
-	maybeOutputFileName, _ := paths.Relative(ConsoleFileName)
-	outputFileName := *maybeOutputFileName
-
-	if f.Settings.GetLabel() != "" {
-		sanitizedLabel := fileutil.SanitizeFilename(f.Settings.GetLabel())
-		// Guaranteed not to fail.
-		// split filename and extension
-		extension := filepath.Ext(string(outputFileName))
-		path, _ := paths.Relative(
-			fmt.Sprintf(
-				"%s_%s%s",
-				strings.TrimSuffix(string(outputFileName), extension),
-				sanitizedLabel,
-				extension,
-			),
-		)
-		outputFileName = *path
-	}
-
-	// If console capture is enabled, we need to create a multipart console log file.
-	if f.Settings.IsConsoleMultipart() {
-		// This is guaranteed not to fail.
-		timestamp := time.Now()
-		extension := filepath.Ext(string(outputFileName))
-		path, _ := paths.Relative(
-			filepath.Join(
-				"logs",
-				fmt.Sprintf(
-					"%s_%s_%09d%s",
-					strings.TrimSuffix(string(outputFileName), extension),
-					timestamp.Format("20060102_150405"),
-					timestamp.Nanosecond(),
-					extension,
-				),
-			),
-		)
-		outputFileName = *path
-	}
-
 	var fileStream fs.FileStream
 	if !f.Settings.IsOffline() {
 		fileStream = NewFileStream(
@@ -209,13 +158,15 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	}
 
 	consoleLogsSenderParams := runconsolelogs.Params{
-		ConsoleOutputFile:     outputFileName,
 		FilesDir:              f.Settings.GetFilesDir(),
 		EnableCapture:         f.Settings.IsConsoleCaptureEnabled(),
 		Logger:                f.Logger,
 		FileStreamOrNil:       fileStream,
 		Label:                 f.Settings.GetLabel(),
 		RunfilesUploaderOrNil: runfilesUploader,
+		Multipart:             f.Settings.IsConsoleMultipart(),
+		ChunkMaxBytes:         f.Settings.GetConsoleChunkMaxBytes(),
+		ChunkMaxSeconds:       f.Settings.GetConsoleChunkMaxSeconds(),
 		Structured: f.FeatureProvider.GetFeature(
 			context.Background(),
 			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
@@ -241,23 +192,18 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
 			).Enabled,
 		),
-		networkPeeker: f.Peeker,
-		graphqlClient: f.GraphqlClient,
-		mailbox:       f.Mailbox,
-		streamRun:     f.StreamRun,
-		runSummary:    runsummary.New(),
-		outChan:       make(chan *spb.Result, BufferSize),
-		summaryDebouncer: debounce.NewDebouncer(
-			summaryDebouncerRateLimit,
-			summaryDebouncerBurstSize,
-			f.Logger,
-		),
+		networkPeeker:     f.Peeker,
+		graphqlClient:     f.GraphqlClient,
+		mailbox:           f.Mailbox,
+		runHandle:         f.RunHandle,
+		runSummary:        runsummary.New(),
+		outChan:           make(chan *spb.Result, BufferSize),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
 	backendOrNil := f.Backend
 	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
-		s.jobBuilder = launch.NewJobBuilder(s.settings.Proto, s.logger, false)
+		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
 	}
 
 	return s
@@ -288,9 +234,6 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 
 		s.mu.Lock()
 		work.Process(s.sendRecord, s.outChan)
-
-		// TODO: reevaluate the logic here
-		s.summaryDebouncer.Debounce(s.streamSummary)
 		s.mu.Unlock()
 
 		hangDetectionOutChan <- struct{}{}
@@ -497,7 +440,7 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings() {
-	upserter, _ := s.streamRun.GetRunUpserter()
+	upserter, _ := s.runHandle.Upserter()
 	if s.settings == nil || upserter == nil {
 		return
 	}
@@ -526,7 +469,7 @@ func (s *Sender) updateSettings() {
 // sendRequestRunStart sends a run start request to start all the stream
 // components that need to be started and to update the settings
 func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
 			fmt.Errorf("sender: sendRequestRunStart: %v", err))
@@ -575,7 +518,7 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendJobFlush: %v", err))
 		return
@@ -641,11 +584,9 @@ func (s *Sender) finishRunSync() {
 
 	// Upload the run's finalized summary and config.
 	s.mu.Lock()
-	s.summaryDebouncer.Flush(s.streamSummary)
-	s.summaryDebouncer.Stop()
 	s.uploadSummaryFile()
 
-	upserter, _ := s.streamRun.GetRunUpserter()
+	upserter, _ := s.runHandle.Upserter()
 	if upserter != nil {
 		upserter.Finish()
 	}
@@ -742,7 +683,7 @@ func (s *Sender) finishFileStream() {
 }
 
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendTelemetry: %v", err))
 		return
@@ -752,7 +693,7 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 }
 
 func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendMetadata: %v", err))
 		return
@@ -774,7 +715,7 @@ func (s *Sender) uploadMetadataFile() {
 		return
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: uploadMetadataFile: %v", err))
 		return
@@ -867,42 +808,21 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
 }
 
-func (s *Sender) streamSummary() {
-	if s.fileStream == nil {
-		return
-	}
-
-	summaryJSON, err := s.runSummary.Serialize()
-
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: error serializing summary: %v", err))
-		return
-	}
-
-	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
-		SummaryJSON: string(summaryJSON),
-	})
-}
-
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	if s.exitRecord != nil {
 		s.logCalledAfterExit("sendSummary")
 		return
 	}
 
-	for _, update := range summary.Update {
-		if err := s.runSummary.SetFromRecord(update); err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf("sender: error updating summary: %v", err))
-		}
+	updates := runsummary.FromProto(summary)
+	if err := updates.Apply(s.runSummary); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: error updating summary: %v", err))
 	}
 
-	for _, remove := range summary.Remove {
-		s.runSummary.RemoveFromRecord(remove)
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 	}
-
-	s.summaryDebouncer.SetNeedsDebounce()
 }
 
 func (s *Sender) uploadSummaryFile() {
@@ -940,7 +860,7 @@ func (s *Sender) uploadConfigFile() {
 		return
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: uploadConfigFile: %v", err))
 		return
@@ -999,7 +919,7 @@ func (s *Sender) scheduleFileUpload(
 
 // sendConfig updates the run's config and schedules an upload.
 func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendConfig: %v", err))
 		return
@@ -1019,7 +939,7 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 		return
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendSystemMetrics: %v", err))
 		return
@@ -1065,7 +985,7 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		return
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureFatalAndPanic(fmt.Errorf("sender: sendAlert: %v", err))
 		return
@@ -1127,7 +1047,7 @@ func (s *Sender) sendExit(record *spb.Record) {
 
 // sendMetric updates the metrics in the run config.
 func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendMetric: %v", err))
 		return
@@ -1198,6 +1118,8 @@ func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifact
 
 		if result.Err != nil {
 			response.ErrorMessage = result.Err.Error()
+			// TODO: it will send error to sentry, do we want it?
+			s.logger.CaptureError(fmt.Errorf("sender: failed to log artifact: %v", result.Err), "artifactID", result.ArtifactID)
 		} else {
 			response.ArtifactId = result.ArtifactID
 		}
@@ -1260,7 +1182,13 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		})
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	// Prefer filestream feedback if available.
+	if s.fileStream != nil && s.fileStream.StopState() != fs.StopUnknown {
+		respondShouldStop(s.fileStream.StopState() == fs.StopTrue)
+		return
+	}
+
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
 			fmt.Errorf("sender: sendRequestStopStatus: %v", err))
@@ -1268,7 +1196,6 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		return
 	}
 
-	// TODO: unify everywhere to use settings
 	runPath := upserter.RunPath()
 	entity := runPath.Entity
 	project := runPath.Project
@@ -1281,6 +1208,7 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		return
 	}
 
+	// Fallback: consult GraphQL when filestream status is unknown.
 	response, err := gql.RunStoppedStatus(
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,

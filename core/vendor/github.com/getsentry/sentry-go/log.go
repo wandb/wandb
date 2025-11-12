@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go/attribute"
+	"github.com/getsentry/sentry-go/internal/debuglog"
 )
 
 type LogLevel string
@@ -74,7 +75,7 @@ func NewLogger(ctx context.Context) Logger {
 		}
 	}
 
-	DebugLogger.Println("fallback to noopLogger: enableLogs disabled")
+	debuglog.Println("fallback to noopLogger: enableLogs disabled")
 	return &noopLogger{} // fallback: does nothing
 }
 
@@ -89,20 +90,30 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	if message == "" {
 		return
 	}
-	hub := GetHubFromContext(ctx)
-	if hub == nil {
-		hub = CurrentHub()
-	}
-
 	var traceID TraceID
 	var spanID SpanID
 	var span *Span
 	var user User
 
+	span = SpanFromContext(ctx)
+	if span == nil {
+		span = SpanFromContext(l.ctx)
+	}
+	hub := GetHubFromContext(ctx)
+	if hub == nil {
+		hub = GetHubFromContext(l.ctx)
+	}
+	if hub == nil {
+		hub = CurrentHub()
+	}
+
 	scope := hub.Scope()
 	if scope != nil {
 		scope.mu.Lock()
-		span = scope.span
+		// Use span from hub only as last resort
+		if span == nil {
+			span = scope.span
+		}
 		if span != nil {
 			traceID = span.TraceID
 			spanID = span.SpanID
@@ -187,7 +198,7 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	}
 
 	if l.client.options.Debug {
-		DebugLogger.Printf(message, args...)
+		debuglog.Printf(message, args...)
 	}
 }
 
@@ -198,7 +209,7 @@ func (l *sentryLogger) SetAttributes(attrs ...attribute.Builder) {
 	for _, v := range attrs {
 		t, ok := mapTypesToStr[v.Value.Type()]
 		if !ok || t == "" {
-			DebugLogger.Printf("invalid attribute type set: %v", t)
+			debuglog.Printf("invalid attribute type set: %v", t)
 			continue
 		}
 

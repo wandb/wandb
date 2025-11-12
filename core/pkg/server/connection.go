@@ -18,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/wbapi"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
@@ -95,6 +96,9 @@ type Connection struct {
 
 	// logLevel is the log level
 	logLevel slog.Level
+
+	// apiRequestHandler handles processing API related requests from clients.
+	wbapi *wbapi.WandbAPI
 }
 
 func NewConnection(
@@ -117,6 +121,7 @@ func NewConnection(
 		sentryClient:       params.SentryClient,
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
+		wbapi:              wbapi.NewWandbAPI(),
 	}
 }
 
@@ -327,6 +332,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleSync(wg, msg.RequestId, x.Sync)
 		case *spb.ServerRequest_SyncStatus:
 			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
+		case *spb.ServerRequest_ApiRequest:
+			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
 			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
@@ -584,6 +591,16 @@ func (nc *Connection) handleSyncStatus(
 		ServerResponseType: &spb.ServerResponse_SyncStatusResponse{
 			SyncStatusResponse: response,
 		},
+	})
+}
+
+func (nc *Connection) handleApi(
+	wg *sync.WaitGroup,
+	id string,
+	request *spb.ApiRequest,
+) {
+	wg.Go(func() {
+		nc.wbapi.HandleRequest(id, request, nc.Respond)
 	})
 }
 

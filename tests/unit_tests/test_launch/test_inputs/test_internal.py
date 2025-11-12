@@ -413,6 +413,134 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
             },
             [],
         ),
+        # --- Placeholder field tests ---
+        # Test basic placeholder field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "placeholder": "Enter your username",
+                        "title": "Username",
+                        "description": "Your account username",
+                    }
+                },
+            },
+            [],
+        ),
+        # --- Label field tests ---
+        # Test basic label field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "api_key": {
+                        "type": "string",
+                        "label": "API Key",
+                        "placeholder": "sk-...",
+                        "required": True,
+                        "format": "secret",
+                    }
+                },
+            },
+            [],
+        ),
+        # Test nested object with label and placeholder fields
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "database": {
+                        "type": "object",
+                        "label": "Database Configuration",
+                        "properties": {
+                            "host": {
+                                "type": "string",
+                                "label": "Database Host",
+                                "placeholder": "localhost",
+                                "description": "Database host",
+                            },
+                            "port": {
+                                "type": "integer",
+                                "label": "Database Port",
+                                "placeholder": "5432",
+                                "minimum": 1,
+                            },
+                        },
+                    }
+                },
+            },
+            [],
+        ),
+        # --- Required field tests ---
+        # Test basic required field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "api_key": {
+                        "type": "string",
+                        "required": True,
+                        "title": "API Key",
+                        "description": "Required API key",
+                    },
+                    "optional_field": {
+                        "type": "string",
+                        "required": False,
+                        "description": "Optional field",
+                    },
+                },
+            },
+            [],
+        ),
+        # Test required field with different types
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "required": True,
+                        "minimum": 1,
+                    },
+                    "threshold": {
+                        "type": "number",
+                        "required": True,
+                        "minimum": 0.0,
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "required": False,
+                    },
+                },
+            },
+            [],
+        ),
+        # Test nested object with required fields
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "config": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "required": True,
+                                "description": "Configuration name",
+                            },
+                            "version": {
+                                "type": "string",
+                                "required": False,
+                                "placeholder": "1.0.0",
+                            },
+                        },
+                    }
+                },
+            },
+            [],
+        ),
         # --- Warning cases ---
         # Test using a float as a minimum for an integer
         (
@@ -437,6 +565,64 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
                 "properties": {"key1": {"type": "integer", "default": 5}},
             },
             ["Unevaluated properties are not allowed ('default' was unexpected)"],
+        ),
+        # --- Placeholder field tests for all types ---
+        # Test placeholder on boolean field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "field1": {
+                        "type": "boolean",
+                        "placeholder": "Enable this feature",
+                    }
+                },
+            },
+            [],
+        ),
+        # Test placeholder on array field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "field1": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["a", "b", "c"],
+                        },
+                        "placeholder": "Select options...",
+                    }
+                },
+            },
+            [],
+        ),
+        # --- Invalid UI field tests ---
+        # Test placeholder with wrong type (must be string)
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "field1": {
+                        "type": "string",
+                        "placeholder": 123,  # Should be string
+                    }
+                },
+            },
+            ["123 is not of type 'string'"],
+        ),
+        # Test label with wrong type (must be string)
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "field1": {
+                        "type": "string",
+                        "label": 456,  # Should be string
+                    }
+                },
+            },
+            ["456 is not of type 'string'"],
         ),
         # --- Array passing cases ---
         # Array: string enum multi-select with bounds and uniqueness
@@ -493,6 +679,37 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
                             }
                         },
                     }
+                },
+            },
+            [],
+        ),
+        # Array with label, placeholder and required fields
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["dev", "prod", "test"],
+                        },
+                        "label": "Environment Tags",
+                        "placeholder": "Select environment tags...",
+                        "required": True,
+                        "minItems": 1,
+                        "uniqueItems": True,
+                    },
+                    "optional_list": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "enum": [1, 2, 3, 4, 5],
+                        },
+                        "label": "Optional Numbers",
+                        "placeholder": "Choose numbers (optional)",
+                        "required": False,
+                    },
                 },
             },
             [],

@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 func TestCreateMultiPartRequest_EmptyFile(t *testing.T) {
@@ -19,7 +19,10 @@ func TestCreateMultiPartRequest_EmptyFile(t *testing.T) {
 	defer tempFile.Close()
 
 	// Returns nil, nil for empty file (and any file that is smaller than 2GB)
-	parts, err := createMultiPartRequest(observability.NewNoOpLogger(), tempFile.Name())
+	parts, err := createMultiPartRequest(
+		observabilitytest.NewTestLogger(t),
+		tempFile.Name(),
+	)
 	require.NoError(t, err)
 	assert.Nil(t, parts)
 }
@@ -74,7 +77,7 @@ func TestComputeMultipartHashes(t *testing.T) {
 	require.NoError(t, err)
 
 	p := tempFile.Name()
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 
 	// Invalid chunk size, larger than file, e.g. 22MB
 	_, err = computeMultipartHashes(logger, p, fileSize, fileSize+1, 1)
@@ -115,7 +118,7 @@ func TestComputeMultipartHashes(t *testing.T) {
 }
 
 func TestComputeMultipartHashesInvalidFile(t *testing.T) {
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 
 	// Test with a non-existent file path
 	invalidPath := t.TempDir() + "/must_be_404.txt"

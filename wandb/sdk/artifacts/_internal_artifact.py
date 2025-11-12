@@ -31,11 +31,11 @@ def sanitize_artifact_name(name: str) -> str:
 
 
 class InternalArtifact(Artifact):
-    """InternalArtifact is used to create artifacts that are intended for internal use.
+    """An Artifact intended for internal use only.
 
-    This includes artifacts of type: `job`, `code`(with `source-` prefix in the collection name),
-    `run_table` (with `run-` prefix in the collection name), and artifacts that start with `wandb-`.
-    Users should not use this class directly.
+    Includes artifacts of type `job`, `code` (with a `source-` collection name
+    prefix), `run_table` (with a `run-` collection name prefix), and any type that starts
+    with `wandb-`. Users should not use this class directly.
     """
 
     def __init__(

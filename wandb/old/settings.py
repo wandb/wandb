@@ -4,6 +4,7 @@ import os
 import tempfile
 from typing import Any, Optional
 
+import wandb
 from wandb import env
 from wandb.old import core
 from wandb.sdk.lib import filesystem
@@ -51,15 +52,15 @@ class Settings:
         # write a temp file and then move it to the settings path
         target_dir = os.path.dirname(settings_path)
         with tempfile.NamedTemporaryFile(
-            "w+", suffix=".tmp", delete=False, dir=target_dir
+            mode="w", suffix=".tmp", delete=False, dir=target_dir
         ) as fp:
-            path = os.path.abspath(fp.name)
-            with open(path, "w+") as f:
-                settings.write(f)
+            settings.write(fp)
+            temp_path = fp.name
+
         try:
-            os.replace(path, settings_path)
+            os.replace(temp_path, settings_path)
         except AttributeError:
-            os.rename(path, settings_path)
+            os.rename(temp_path, settings_path)
 
     def set(self, section, key, value, globally=False, persist=False) -> None:
         """Persist settings to disk if persist = True"""
@@ -96,9 +97,7 @@ class Settings:
                 self._local_settings, Settings._local_path(self.root_dir), persist
             )
 
-    def items(self, section=None):
-        section = section if section is not None else Settings.DEFAULT_SECTION
-
+    def items(self, section: str = DEFAULT_SECTION):
         result = {"section": section}
 
         try:
@@ -151,6 +150,12 @@ class Settings:
                 return os.path.join(os.getenv(env.CONFIG_DIR), "settings")
 
             if not try_create_dir(home_config_dir):
+                wandb.termwarn(
+                    f"Failed to create global config settings in: {home_config_dir}."
+                    " Settings will not be persisted.",
+                    repeat=False,
+                )
+
                 temp_config_dir = os.path.join(
                     tempfile.gettempdir(), ".config", "wandb"
                 )

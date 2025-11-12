@@ -1,14 +1,34 @@
-# Base artifact fragment that excludes the `aliases` field.  Necessary for compatibility with both:
-# - the pre-existing `ArtifactFragment` fragment
-# - the `RegistryVersionsPage` fragment, which omits `Artifact.aliases` but includes `ArtifactCollectionMembership.aliases`
-fragment ArtifactFragmentWithoutAliases on Artifact {
+# A fragment on ArtifactCollection that only includes minimal identifying fields.
+fragment CollectionInfoFragment on ArtifactCollection {
+  __typename
+  name
+  project {
+    ...ProjectInfoFragment
+  }
+}
+
+# A fragment on ArtifactSequence that only includes minimal identifying fields.
+fragment SourceCollectionInfoFragment on ArtifactSequence {
+  __typename
+  name
+  project {
+    ...ProjectInfoFragment
+  }
+}
+
+# A fragment on Project that only includes minimal identifying fields.
+fragment ProjectInfoFragment on Project {
+  name
+  entity {
+    name
+  }
+}
+
+fragment ArtifactFragment on Artifact {
+  __typename
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
-    name
+    ...SourceCollectionInfoFragment
   }
   versionIndex
   artifactType {
@@ -20,66 +40,56 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   ttlIsInherited @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
   tags @include(if: true) {
     # Workaround: ensures generated pydantic field defaults to `None`
-    name
+    ...TagFragment
   }
   historyStep @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
   updatedAt
-}
-
-fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    # Workaround: ensures generated pydantic field defaults to `None`
+  aliases @include(if: $includeAliases) {
     artifactCollection {
-      __typename
-      project {
-        entityName
-        name
-      }
-      name
+      ...CollectionInfoFragment
     }
-    alias
+    ...ArtifactAliasFragment
   }
 }
 
-fragment MembershipWithArtifact on ArtifactCollectionMembership {
+# An ArtifactManifest with a download URL to fetch the full manifest contents.
+fragment DeferredManifestFragment on ArtifactManifest {
+  file {
+    directUrl
+  }
+}
+
+fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
+  __typename
   id
+  versionIndex
+  aliases {
+    ...ArtifactAliasFragment
+  }
   artifactCollection {
-    __typename
-    id
-    name
-    project {
-      id
-      entityName
-      name
-    }
+    ...CollectionInfoFragment
   }
   artifact {
     ...ArtifactFragment
   }
 }
 
-fragment ArtifactsFragment on VersionedArtifactConnection {
+fragment VersionedArtifactConnectionFragment on VersionedArtifactConnection {
   totalCount
+  pageInfo {
+    ...PageInfoFragment
+  }
   edges {
     node {
       ...ArtifactFragment
     }
     version
-    cursor
-  }
-  pageInfo {
-    endCursor
-    hasNextPage
   }
 }
 
@@ -92,6 +102,7 @@ query ProjectArtifacts(
   $perPage: Int = 50
   $order: String
   $filters: JSONString
+  $includeAliases: Boolean = true
 ) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $type) {
@@ -99,11 +110,34 @@ query ProjectArtifacts(
       # - `artifactCollection` for new servers
       # - `artifactSequence` for old servers
       artifactCollection: artifactCollection(name: $collection) {
-        name
         artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-          ...ArtifactsFragment
+          ...VersionedArtifactConnectionFragment
         }
       }
+    }
+  }
+}
+
+fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
+  totalCount
+  pageInfo {
+    ...PageInfoFragment
+  }
+  edges {
+    node {
+      ...ArtifactFragment
+    }
+  }
+}
+
+fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
+  totalCount
+  pageInfo {
+    ...PageInfoFragment
+  }
+  edges {
+    node {
+      ...ArtifactFragment
     }
   }
 }
@@ -114,21 +148,12 @@ query RunOutputArtifacts(
   $runName: String!
   $cursor: String
   $perPage: Int
+  $includeAliases: Boolean = true
 ) {
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
-      outputArtifacts(after: $cursor, first: $perPage) {
-        totalCount
-        edges {
-          node {
-            ...ArtifactFragment
-          }
-          cursor
-        }
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
+      artifacts: outputArtifacts(after: $cursor, first: $perPage) {
+        ...RunOutputArtifactConnectionFragment
       }
     }
   }
@@ -140,21 +165,12 @@ query RunInputArtifacts(
   $runName: String!
   $cursor: String
   $perPage: Int
+  $includeAliases: Boolean = true
 ) {
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
-      inputArtifacts(after: $cursor, first: $perPage) {
-        totalCount
-        edges {
-          node {
-            ...ArtifactFragment
-          }
-          cursor
-        }
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
+      artifacts: inputArtifacts(after: $cursor, first: $perPage) {
+        ...RunInputArtifactConnectionFragment
       }
     }
   }
@@ -165,17 +181,12 @@ query FetchLinkedArtifacts($artifactID: ID!) {
     artifactMemberships {
       edges {
         node {
-          aliases {
-            alias
-          }
           versionIndex
+          aliases {
+            ...ArtifactAliasFragment
+          }
           artifactCollection {
-            project {
-              entityName
-              name
-            }
-            name
-            __typename
+            ...CollectionInfoFragment
           }
         }
       }
@@ -183,42 +194,54 @@ query FetchLinkedArtifacts($artifactID: ID!) {
   }
 }
 
-query FetchArtifactManifest($entityName: String!, $projectName: String!, $name: String!) {
-  project(entityName: $entityName, name: $projectName) {
-    artifact(name: $name) {
-      currentManifest {
-        file {
-          directUrl
-        }
-      }
+query FetchArtifactManifest($id: ID!) {
+  artifact(id: $id) {
+    currentManifest {
+      ...DeferredManifestFragment
     }
   }
 }
 
-query ArtifactByID($id: ID!) {
+query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
   artifact(id: $id) {
     ...ArtifactFragment
   }
 }
 
 query ArtifactByName(
-  $entityName: String!
-  $projectName: String!
+  $entity: String!
+  $project: String!
   $name: String!
   $enableTracking: Boolean
+  $includeAliases: Boolean = true
 ) {
-  project(name: $projectName, entityName: $entityName) {
+  project(name: $project, entityName: $entity) {
     artifact(name: $name, enableTracking: $enableTracking) {
       ...ArtifactFragment
     }
   }
 }
 
-query ArtifactViaMembershipByName($entityName: String!, $projectName: String!, $name: String!) {
-  project(name: $projectName, entityName: $entityName) {
+query ArtifactMembershipByName(
+  $entity: String!
+  $project: String!
+  $name: String!
+  $includeAliases: Boolean = true
+) {
+  project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
-      ...MembershipWithArtifact
+      ...ArtifactMembershipFragment
     }
+  }
+}
+
+# A fragment on Run that only includes minimal descriptive fields.
+fragment RunInfoFragment on Run {
+  __typename
+  id
+  name
+  project {
+    ...ProjectInfoFragment
   }
 }
 
@@ -227,11 +250,7 @@ query ArtifactUsedBy($id: ID!) {
     usedBy {
       edges {
         node {
-          name
-          project {
-            name
-            entityName
-          }
+          ...RunInfoFragment
         }
       }
     }
@@ -242,18 +261,14 @@ query ArtifactCreatedBy($id: ID!) {
   artifact(id: $id) {
     createdBy {
       ... on Run {
-        name
-        project {
-          name
-          entityName
-        }
+        ...RunInfoFragment
       }
     }
   }
 }
 
-query ArtifactType($entityName: String, $projectName: String, $name: String!) {
-  project(name: $projectName, entityName: $entityName) {
+query ArtifactType($entity: String, $project: String, $name: String!) {
+  project(name: $project, entityName: $entity) {
     artifact(name: $name) {
       artifactType {
         name
@@ -263,65 +278,45 @@ query ArtifactType($entityName: String, $projectName: String, $name: String!) {
 }
 
 # ---------------------------------------------------------------------------
-mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
-  addAliases(input: { artifactID: $artifactID, aliases: $aliases }) {
+mutation AddAliases($input: AddAliasesInput!) {
+  result: addAliases(input: $input) {
     success
   }
 }
-mutation DeleteAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
-  deleteAliases(input: { artifactID: $artifactID, aliases: $aliases }) {
+mutation DeleteAliases($input: DeleteAliasesInput!) {
+  result: deleteAliases(input: $input) {
     success
   }
 }
 
-mutation UpdateArtifact(
-  $artifactID: ID!
-  $description: String
-  $metadata: JSONString
-  $ttlDurationSeconds: Int64
-  $tagsToAdd: [TagInput!]
-  $tagsToDelete: [TagInput!]
-  $aliases: [ArtifactAliasInput!]
-) {
-  updateArtifact(
-    input: {
-      artifactID: $artifactID
-      description: $description
-      metadata: $metadata
-      ttlDurationSeconds: $ttlDurationSeconds
-      tagsToAdd: $tagsToAdd
-      tagsToDelete: $tagsToDelete
-      aliases: $aliases
-    }
-  ) {
+mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean = true) {
+  result: updateArtifact(input: $input) {
     artifact {
       ...ArtifactFragment
     }
   }
 }
 
-mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
-  deleteArtifact(input: { artifactID: $artifactID, deleteAliases: $deleteAliases }) {
+mutation DeleteArtifact($input: DeleteArtifactInput!) {
+  result: deleteArtifact(input: $input) {
     artifact {
       id
     }
   }
 }
 
-mutation LinkArtifact($input: LinkArtifactInput!) {
-  linkArtifact(input: $input) {
+mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true) {
+  result: linkArtifact(input: $input) {
     versionIndex
     artifactMembership @include(if: true) {
       # Workaround: ensures generated pydantic field defaults to `None`
-      ...MembershipWithArtifact
+      ...ArtifactMembershipFragment
     }
   }
 }
 
-mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
-  unlinkArtifact(input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }) {
-    artifactID
+mutation UnlinkArtifact($input: UnlinkArtifactInput!) {
+  result: unlinkArtifact(input: $input) {
     success
-    clientMutationId
   }
 }

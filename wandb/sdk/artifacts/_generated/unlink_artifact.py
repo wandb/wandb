@@ -5,21 +5,15 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLResult
 
 
-class UnlinkArtifact(GQLBase):
-    unlink_artifact: Optional[UnlinkArtifactUnlinkArtifact] = Field(
-        alias="unlinkArtifact"
-    )
+class UnlinkArtifact(GQLResult):
+    result: Optional[UnlinkArtifactResult]
 
 
-class UnlinkArtifactUnlinkArtifact(GQLBase):
-    artifact_id: GQLId = Field(alias="artifactID")
+class UnlinkArtifactResult(GQLResult):
     success: bool
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId")
 
 
 UnlinkArtifact.model_rebuild()

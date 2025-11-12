@@ -11,6 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -23,7 +24,7 @@ type RunReaderFactory struct {
 	Logger *observability.CoreLogger
 }
 
-// RunReader turns .wandb files into Work.
+// RunReader gets information out of .wandb files.
 type RunReader struct {
 	path string // transaction log path
 
@@ -48,6 +49,32 @@ func (f *RunReaderFactory) New(
 	}
 }
 
+// ExtractRunInfo quickly reads and returns basic run information.
+func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
+	r.logger.Info("runsync: getting info", "path", r.path)
+
+	store, err := r.open()
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+
+	for {
+		record, err := store.Read()
+		if err != nil {
+			return nil, fmt.Errorf("runsync: didn't find run info: %v", err)
+		}
+
+		if run := record.GetRun(); run != nil {
+			return &RunInfo{
+				Entity:  run.Entity,
+				Project: run.Project,
+				RunID:   run.RunId,
+			}, nil
+		}
+	}
+}
+
 // ProcessTransactionLog processes the .wandb file and adds to RunWork.
 //
 // Returns an error if it fails to start or on partial success.
@@ -59,14 +86,14 @@ func (r *RunReader) ProcessTransactionLog() error {
 
 	defer r.closeRunWork()
 
-	store, err := r.open()
+	reader, err := r.open()
 	if err != nil {
 		return err
 	}
-	defer store.Close()
+	defer reader.Close()
 
 	for {
-		record, err := store.Read()
+		record, err := reader.Read()
 		if errors.Is(err, io.EOF) {
 			r.logger.Info("runsync: done reading", "path", r.path)
 			return nil
@@ -118,13 +145,12 @@ func (r *RunReader) closeRunWork() {
 	r.runWork.Close()
 }
 
-// open returns an opened Store for reading the transaction log.
-func (r *RunReader) open() (*stream.Store, error) {
-	store := stream.NewStore(r.path)
-	err := store.Open(os.O_RDONLY)
+// open returns an opened transaction log Reader.
+func (r *RunReader) open() (*transactionlog.Reader, error) {
+	reader, err := transactionlog.OpenReader(r.path, r.logger)
 
 	if err == nil {
-		return store, nil
+		return reader, nil
 	}
 
 	syncErr := &SyncError{

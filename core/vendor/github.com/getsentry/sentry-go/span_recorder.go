@@ -2,6 +2,8 @@ package sentry
 
 import (
 	"sync"
+
+	"github.com/getsentry/sentry-go/internal/debuglog"
 )
 
 // A spanRecorder stores a span tree that makes up a transaction. Safe for
@@ -24,7 +26,7 @@ func (r *spanRecorder) record(s *Span) {
 	if len(r.spans) >= maxSpans {
 		r.overflowOnce.Do(func() {
 			root := r.spans[0]
-			DebugLogger.Printf("Too many spans: dropping spans from transaction with TraceID=%s SpanID=%s limit=%d",
+			debuglog.Printf("Too many spans: dropping spans from transaction with TraceID=%s SpanID=%s limit=%d",
 				root.TraceID, root.SpanID, maxSpans)
 		})
 		// TODO(tracing): mark the transaction event in some way to

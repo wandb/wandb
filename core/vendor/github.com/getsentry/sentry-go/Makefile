@@ -54,12 +54,23 @@ test-coverage: $(COVERAGE_REPORT_DIR) clean-report-dir  ## Test with coverage en
 	    $(GO) tool cover -html=$(COVERAGE_PROFILE) -o coverage.html); \
 	done;
 .PHONY: test-coverage clean-report-dir
-
+test-race-coverage: $(COVERAGE_REPORT_DIR) clean-report-dir  ## Run tests with race detection and coverage
+	set -e ; \
+	for dir in $(ALL_GO_MOD_DIRS); do \
+	  echo ">>> Running tests with race detection and coverage for module: $${dir}"; \
+	  DIR_ABS=$$(python -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' $${dir}) ; \
+	  REPORT_NAME=$$(basename $${DIR_ABS}); \
+	  (cd "$${dir}" && \
+	    $(GO) test -count=1 -timeout $(TIMEOUT)s -race -coverpkg=./... -covermode=$(COVERAGE_MODE) -coverprofile="$(COVERAGE_PROFILE)" ./... && \
+		cp $(COVERAGE_PROFILE) "$(COVERAGE_REPORT_DIR_ABS)/$${REPORT_NAME}_$(COVERAGE_PROFILE)" && \
+	    $(GO) tool cover -html=$(COVERAGE_PROFILE) -o coverage.html); \
+	done;
+.PHONY: test-race-coverage
 mod-tidy: ## Check go.mod tidiness
 	set -e ; \
 	for dir in $(ALL_GO_MOD_DIRS); do \
 		echo ">>> Running 'go mod tidy' for module: $${dir}"; \
-		(cd "$${dir}" && go mod tidy -go=1.21 -compat=1.21); \
+		(cd "$${dir}" && go mod tidy -go=1.23 -compat=1.23); \
 	done; \
 	git diff --exit-code;
 .PHONY: mod-tidy

@@ -7,21 +7,21 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
-from .fragments import MembershipWithArtifact
-
-
-class LinkArtifact(GQLBase):
-    link_artifact: Optional[LinkArtifactLinkArtifact] = Field(alias="linkArtifact")
+from .fragments import ArtifactMembershipFragment
 
 
-class LinkArtifactLinkArtifact(GQLBase):
+class LinkArtifact(GQLResult):
+    result: Optional[LinkArtifactResult]
+
+
+class LinkArtifactResult(GQLResult):
     version_index: Optional[int] = Field(alias="versionIndex")
-    artifact_membership: Optional[MembershipWithArtifact] = Field(
+    artifact_membership: Optional[ArtifactMembershipFragment] = Field(
         alias="artifactMembership", default=None
     )
 
 
 LinkArtifact.model_rebuild()
-LinkArtifactLinkArtifact.model_rebuild()
+LinkArtifactResult.model_rebuild()

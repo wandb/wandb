@@ -64,21 +64,35 @@ func (fs *fileStream) startTransmitting(
 	requests <-chan *FileStreamRequest,
 	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
-	maxRequestSizeBytes := fs.settings.GetFileStreamMaxBytes()
-	if maxRequestSizeBytes <= 0 {
-		maxRequestSizeBytes = 10 << 20 // 10 MB
+	state := &FileStreamState{
+		MaxRequestSizeBytes: max(
+			int(fs.settings.GetFileStreamMaxBytes()),
+			defaultMaxRequestSizeBytes,
+		),
+		MaxFileLineSize: max(
+			int(fs.settings.GetFileStreamMaxLineBytes()),
+			defaultMaxFileLineBytes,
+		),
+	}
+
+	if initialOffsets != nil {
+		state.HistoryLineNum = initialOffsets[HistoryChunk]
+		state.EventsLineNum = initialOffsets[EventsChunk]
+		state.SummaryLineNum = initialOffsets[SummaryChunk]
+		state.ConsoleLineOffset = initialOffsets[OutputChunk]
 	}
 
 	transmissions := CollectLoop{
-		TransmitRateLimit:   fs.transmitRateLimit,
-		MaxRequestSizeBytes: int(maxRequestSizeBytes),
-	}.Start(requests)
+		Logger:            fs.logger,
+		Printer:           fs.printer,
+		TransmitRateLimit: fs.transmitRateLimit,
+	}.Start(state, requests)
 
 	feedback := TransmitLoop{
 		HeartbeatStopwatch:     fs.heartbeatStopwatch,
 		Send:                   fs.send,
 		LogFatalAndStopWorking: fs.logFatalAndStopWorking,
-	}.Start(transmissions, initialOffsets)
+	}.Start(transmissions)
 
 	return feedback
 }
@@ -95,7 +109,17 @@ func (fs *fileStream) startProcessingFeedback(
 	go func() {
 		defer wg.Done()
 
-		for range feedback {
+		for res := range feedback {
+			if v, ok := res["stopped"]; ok {
+				if b, ok := v.(bool); ok {
+					if b {
+						fs.state.Store(uint32(StopTrue))
+					} else if StopState(fs.state.Load()) == StopUnknown {
+						// Only set false if we haven't observed any value yet.
+						fs.state.Store(uint32(StopFalse))
+					}
+				}
+			}
 		}
 	}()
 }

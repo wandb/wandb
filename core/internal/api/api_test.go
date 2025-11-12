@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/apitest"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -120,7 +120,7 @@ func newClient(
 
 	credentialProvider, err := api.NewCredentialProvider(
 		settings,
-		observability.NewNoOpLogger().Logger,
+		observabilitytest.NewTestLogger(t).Logger,
 	)
 	require.NoError(t, err)
 
@@ -146,12 +146,15 @@ func TestNewClientWithProxy(t *testing.T) {
 	settings := wbsettings.From(&spb.Settings{
 		ApiKey: &wrapperspb.StringValue{Value: "test_api_key"},
 	})
-	credentialProvider, err := api.NewCredentialProvider(settings, observability.NewNoOpLogger().Logger)
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
 	require.NoError(t, err)
 
 	backend := api.New(api.BackendOptions{
 		BaseURL:            &url.URL{Scheme: "http", Host: "api.example.com"},
-		Logger:             observability.NewNoOpLogger().Logger,
+		Logger:             observabilitytest.NewTestLogger(t).Logger,
 		CredentialProvider: credentialProvider,
 	})
 

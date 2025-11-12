@@ -147,9 +147,9 @@ def test_login_onprem_key_arg(runner, dummy_api_key):
 
 def test_login_invalid_key_arg(runner, dummy_api_key):
     with runner.isolated_filesystem():
-        invalid_key = "test--" + dummy_api_key
+        invalid_key = "test-" + dummy_api_key[:-5]
         result = runner.invoke(cli.login, [invalid_key])
-        assert "API key must be 40 characters long, yours was" in str(result)
+        assert "API key must be at least 40 characters long, yours was" in str(result)
         assert result.exit_code == 1
 
 
@@ -208,22 +208,6 @@ def test_sync_gc(runner):
             == 0
         )
         assert not os.path.exists(run1_dir)
-
-
-def test_cli_login_reprompts_when_no_key_specified(runner, mocker, dummy_api_key):
-    with runner.isolated_filesystem():
-        mocker.patch("wandb.wandb_lib.apikey.getpass", input)
-        # this first gives login an empty API key, which should cause
-        # it to re-prompt.  this is what we are testing.  we then give
-        # it a valid API key (the dummy API key with a different final
-        # letter to check that our monkeypatch input is working as
-        # expected) to terminate the prompt finally we grep for the
-        # Error: No API key specified to assert that the re-prompt
-        # happened
-        result = runner.invoke(cli.login, input=f"\n{dummy_api_key[:-1]}q\n")
-        with open(get_netrc_file_path()) as f:
-            print(f.read())
-        assert "ERROR No API key specified." in result.output
 
 
 def test_docker_run_digest(runner, docker, monkeypatch):

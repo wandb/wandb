@@ -54,6 +54,26 @@ type Work interface {
 	DebugInfo() string
 }
 
+// MaybeSavedWork is work that may have been written to the transaction log.
+//
+// Some work (like the work for a Request) is not saved.
+//
+// This should be passed by value.
+type MaybeSavedWork struct {
+	Work Work
+
+	// IsSaved is true if the work has been successfully written to the
+	// transaction log.
+	IsSaved bool
+
+	// SavedOffset is the byte offset in the transaction log where the record
+	// was written.
+	SavedOffset int64
+
+	// RecordNumber is the record's index in the transaction log.
+	RecordNumber int64
+}
+
 // SimpleScheduleMixin implements Work.Schedule by immediately invoking
 // the callback.
 type SimpleScheduleMixin struct{}

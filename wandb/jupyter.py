@@ -169,6 +169,27 @@ class WandBMagics(Magics):
 
 
 def notebook_metadata_from_jupyter_servers_and_kernel_id():
+    # When running in VS Code's notebook extension,
+    # the extension creates a temporary file to start the kernel.
+    # This file is not actually the same as the notebook file.
+    #
+    # The real notebook path is stored in the user namespace
+    # under the key "__vsc_ipynb_file__"
+    try:
+        from IPython import get_ipython
+
+        ipython = get_ipython()
+        if ipython is not None:
+            notebook_path = ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__")
+            if notebook_path:
+                return {
+                    "root": os.path.dirname(notebook_path),
+                    "path": notebook_path,
+                    "name": os.path.basename(notebook_path),
+                }
+    except ModuleNotFoundError:
+        return None
+
     servers, kernel_id = jupyter_servers_and_kernel_id()
     for s in servers:
         if s.get("password"):
@@ -186,21 +207,6 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
                     }
 
     if not kernel_id:
-        return None
-
-    # Built-in notebook server in VS Code
-    try:
-        from IPython import get_ipython
-
-        ipython = get_ipython()
-        notebook_path = ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__")
-        if notebook_path:
-            return {
-                "root": os.path.dirname(notebook_path),
-                "path": notebook_path,
-                "name": os.path.basename(notebook_path),
-            }
-    except Exception:
         return None
 
 
@@ -303,57 +309,6 @@ def attempt_kaggle_load_ipynb():
         return None
 
     return parsed
-
-
-def attempt_colab_login(
-    app_url: str,
-    referrer: str | None = None,
-):
-    """This renders an iframe to wandb in the hopes it posts back an api key."""
-    from google.colab import output  # type: ignore
-    from google.colab._message import MessageError  # type: ignore
-    from IPython import display
-
-    display.display(
-        display.Javascript(
-            """
-        window._wandbApiKey = new Promise((resolve, reject) => {{
-            function loadScript(url) {{
-            return new Promise(function(resolve, reject) {{
-                let newScript = document.createElement("script");
-                newScript.onerror = reject;
-                newScript.onload = resolve;
-                document.body.appendChild(newScript);
-                newScript.src = url;
-            }});
-            }}
-            loadScript("https://cdn.jsdelivr.net/npm/postmate/build/postmate.min.js").then(() => {{
-            const iframe = document.createElement('iframe')
-            iframe.style.cssText = "width:0;height:0;border:none"
-            document.body.appendChild(iframe)
-            const handshake = new Postmate({{
-                container: iframe,
-                url: '{}/authorize{}'
-            }});
-            const timeout = setTimeout(() => reject("Couldn't auto authenticate"), 5000)
-            handshake.then(function(child) {{
-                child.on('authorize', data => {{
-                    clearTimeout(timeout)
-                    resolve(data)
-                }});
-            }});
-            }})
-        }});
-    """.format(
-                app_url.replace("http:", "https:"),
-                f"?ref={referrer}" if referrer else "",
-            )
-        )
-    )
-    try:
-        return output.eval_js("_wandbApiKey")
-    except MessageError:
-        return None
 
 
 class Notebook:

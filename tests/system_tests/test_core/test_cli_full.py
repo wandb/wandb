@@ -4,6 +4,7 @@ from unittest import mock
 
 import pytest
 import wandb
+import wandb.errors.term
 from click.testing import CliRunner
 from wandb.cli import cli
 from wandb.sdk.lib.apikey import get_netrc_file_path
@@ -205,7 +206,7 @@ def test_login_key_arg(runner):
 
 
 def test_login_key_prompt(monkeypatch):
-    monkeypatch.setattr(wandb.sdk.lib.apikey, "isatty", lambda _: True)
+    monkeypatch.setattr(wandb.errors.term, "can_use_terminput", lambda: True)
     monkeypatch.delenv("WANDB_API_KEY", raising=False)
     runner = CliRunner()
 

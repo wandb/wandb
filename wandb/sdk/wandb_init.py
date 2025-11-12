@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import functools
 import json
 import logging
 import os
@@ -27,11 +28,12 @@ from typing_extensions import Any, Literal, Protocol, Self
 import wandb
 import wandb.env
 from wandb import env, trigger
+from wandb.analytics import get_sentry
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker, weave
-from wandb.proto.wandb_deprecated import Deprecated
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import progress, runid, wb_logging
 from wandb.sdk.lib.paths import StrPath
@@ -40,7 +42,7 @@ from wandb.util import _is_artifact_representation
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
-from .lib.deprecate import deprecate
+from .lib.deprecation import warn_and_record_deprecation
 from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
@@ -159,7 +161,7 @@ class _WandbInit:
         self._teardown_hooks: list[TeardownHook] = []
         self.notebook: wandb.jupyter.Notebook | None = None
 
-        self.deprecated_features_used: dict[str, str] = dict()
+        self.deprecated_features_used: list[tuple[Deprecated, str]] = []
 
     @property
     def _logger(self) -> wandb_setup.Logger:
@@ -406,6 +408,25 @@ class _WandbInit:
                 run_id=settings.run_id,
             )
 
+    def set_sync_dir_suffix(self, settings: Settings) -> None:
+        """Add a suffix to sync_dir if it already exists.
+
+        The sync_dir uses a timestamp with second-level precision which can
+        result in conflicts if a run with the same ID is initialized within the
+        same second. This is most likely to happen in tests.
+
+        This can't prevent conflicts from multiple processes attempting
+        to create a wandb run simultaneously.
+
+        Args:
+            settings: Fully initialized settings other than the
+                x_sync_dir_suffix setting which will be modified.
+        """
+        index = 1
+        while pathlib.Path(settings.sync_dir).exists():
+            settings.x_sync_dir_suffix = f"{index}"
+            index += 1
+
     def make_run_config(
         self,
         settings: Settings,
@@ -425,16 +446,22 @@ class _WandbInit:
             Initial values for the run's config.
         """
         if config_exclude_keys:
-            self.deprecated_features_used["init__config_exclude_keys"] = (
-                "config_exclude_keys is deprecated. Use"
-                " `config=wandb.helper.parse_config(config_object,"
-                " exclude=('key',))` instead."
+            self.deprecated_features_used.append(
+                (
+                    Deprecated(init__config_exclude_keys=True),
+                    "config_exclude_keys is deprecated. Use"
+                    " `config=wandb.helper.parse_config(config_object,"
+                    " exclude=('key',))` instead.",
+                )
             )
         if config_include_keys:
-            self.deprecated_features_used["init__config_include_keys"] = (
-                "config_include_keys is deprecated. Use"
-                " `config=wandb.helper.parse_config(config_object,"
-                " include=('key',))` instead."
+            self.deprecated_features_used.append(
+                (
+                    Deprecated(init__config_include_keys=True),
+                    "config_include_keys is deprecated. Use"
+                    " `config=wandb.helper.parse_config(config_object,"
+                    " include=('key',))` instead.",
+                )
             )
         config = parse_config(
             config or dict(),
@@ -708,7 +735,7 @@ class _WandbInit:
         drun = Run(
             settings=Settings(
                 mode="disabled",
-                x_files_dir=tempfile.gettempdir(),
+                root_dir=tempfile.gettempdir(),
                 run_id=run_id,
                 run_tags=tuple(),
                 run_notes=None,
@@ -839,6 +866,13 @@ class _WandbInit:
                     " and reinit is set to 'create_new', so continuing"
                 )
 
+            elif settings.resume == "must":
+                raise wandb.Error(
+                    "Cannot resume a run while another run is active."
+                    " You must either finish it using run.finish(),"
+                    " or use reinit='create_new' when calling wandb.init()."
+                )
+
             else:
                 run_printer.display(
                     "wandb.init() called while a run is active and reinit is"
@@ -864,7 +898,6 @@ class _WandbInit:
         backend.ensure_launched()
         self._logger.info("backend started and connected")
 
-        # resuming needs access to the server, check server_status()?
         run = Run(
             config=config.base_no_artifacts,
             settings=settings,
@@ -926,10 +959,10 @@ class _WandbInit:
             else:
                 run._label_probe_main()
 
-        for deprecated_feature, msg in self.deprecated_features_used.items():
-            deprecate(
-                field_name=getattr(Deprecated, deprecated_feature),
-                warning_message=msg,
+        for deprecated_feature, msg in self.deprecated_features_used:
+            warn_and_record_deprecation(
+                feature=deprecated_feature,
+                message=msg,
                 run=run,
             )
 
@@ -963,24 +996,20 @@ class _WandbInit:
 
         run_init_handle = backend.interface.deliver_run(run)
 
-        async def display_init_message() -> None:
-            assert backend.interface
-
+        try:
             with progress.progress_printer(
                 run_printer,
                 default_text="Waiting for wandb.init()...",
             ) as progress_printer:
-                await progress.loop_printing_operation_stats(
-                    progress_printer,
-                    backend.interface,
+                result = wait_with_progress(
+                    run_init_handle,
+                    timeout=timeout,
+                    display_progress=functools.partial(
+                        progress.loop_printing_operation_stats,
+                        progress_printer,
+                        backend.interface,
+                    ),
                 )
-
-        try:
-            result = wait_with_progress(
-                run_init_handle,
-                timeout=timeout,
-                display_progress=display_init_message,
-            )
 
         except TimeoutError:
             run_init_handle.cancel(backend.interface)
@@ -1018,6 +1047,8 @@ class _WandbInit:
             run_start_handle.wait_or(timeout=30)
         except TimeoutError:
             pass
+
+        backend.interface.publish_probe_system_info()
 
         assert self._wl is not None
         self.run = run
@@ -1074,7 +1105,6 @@ def _attach(
         raise UsageError(
             "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
         )
-    wandb._assert_is_user_process()  # type: ignore
 
     _wl = wandb_setup.singleton()
     logger = _wl._get_logger()
@@ -1399,8 +1429,8 @@ def init(  # noqa: C901
             enable on your settings page.
         tensorboard: Deprecated. Use `sync_tensorboard` instead.
         sync_tensorboard: Enables automatic syncing of W&B logs from TensorBoard
-            or TensorBoardX, saving relevant event files for viewing in the W&B UI.
-            saving relevant event files for viewing in the W&B UI. (Default: `False`)
+            or TensorBoardX, saving relevant event files for viewing in
+            the W&B UI.
         monitor_gym: Enables automatic logging of videos of the environment when
             using OpenAI Gym.
         settings: Specifies a dictionary or `wandb.Settings` object with advanced
@@ -1432,8 +1462,6 @@ def init(  # noqa: C901
         run.log({"accuracy": acc, "loss": loss})
     ```
     """
-    wandb._assert_is_user_process()  # type: ignore
-
     init_telemetry = telemetry.TelemetryRecord()
 
     init_settings = Settings()
@@ -1497,9 +1525,12 @@ def init(  # noqa: C901
         run_settings, show_warnings = wi.make_run_settings(init_settings)
 
         if isinstance(run_settings.reinit, bool):
-            wi.deprecated_features_used["run__reinit_bool"] = (
-                "Using a boolean value for 'reinit' is deprecated."
-                " Use 'return_previous' or 'finish_previous' instead."
+            wi.deprecated_features_used.append(
+                (
+                    Deprecated(run__reinit_bool=True),
+                    "Using a boolean value for 'reinit' is deprecated."
+                    " Use 'return_previous' or 'finish_previous' instead.",
+                )
             )
 
         if run_settings.run_id is not None:
@@ -1516,6 +1547,7 @@ def init(  # noqa: C901
             init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
+        wi.set_sync_dir_suffix(run_settings)
         run_printer = printer.new_printer(run_settings)
         show_warnings(run_printer)
 
@@ -1568,6 +1600,4 @@ def init(  # noqa: C901
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
 
-        # Need to build delay into this sentry capture because our exit hooks
-        # mess with sentry's ability to send out errors before the program ends.
-        wandb._sentry.reraise(e)
+        get_sentry().reraise(e)

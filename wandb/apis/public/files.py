@@ -36,8 +36,8 @@ from __future__ import annotations
 
 import io
 import os
+from typing import Any, Callable
 
-import requests
 from wandb_gql import gql
 from wandb_gql.client import RetryError
 
@@ -49,7 +49,7 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
 from wandb.apis.public.api import Api, RetryingClient
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.runs import Run
+from wandb.apis.public.runs import Run, _server_provides_internal_id_for_project
 from wandb.sdk.lib import retry
 
 FILE_FRAGMENT = """fragment RunFilesFragment on Run {
@@ -103,21 +103,24 @@ class Files(SizedPaginator["File"]):
     ```
     """
 
-    QUERY = gql(
-        """
-        query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
-            $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
-            project(name: $project, entityName: $entity) {{
-                internalId
-                run(name: $name) {{
-                    fileCount
-                    ...RunFilesFragment
+    def _get_query(self):
+        """Generate query dynamically based on server capabilities."""
+        with_internal_id = _server_provides_internal_id_for_project(self.client)
+        return gql(
+            f"""
+            query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
+                $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
+                project(name: $project, entityName: $entity) {{
+                    {"internalId" if with_internal_id else ""}
+                    run(name: $name) {{
+                        fileCount
+                        ...RunFilesFragment
+                    }}
                 }}
             }}
-        }}
-        {}
-        """.format(FILE_FRAGMENT)
-    )
+            {FILE_FRAGMENT}
+            """
+        )
 
     def __init__(
         self,
@@ -133,15 +136,15 @@ class Files(SizedPaginator["File"]):
         Files are retrieved in pages from the W&B server as needed.
 
         Args:
-        client: The run object that contains the files
-        run: The run object that contains the files
-        names (list, optional): A list of file names to filter the files
-        per_page (int, optional): The number of files to fetch per page
-        upload (bool, optional): If `True`, fetch the upload URL for each file
-        pattern (str, optional): Pattern to match when returning files from W&B
-            This pattern uses mySQL's LIKE syntax,
-            so matching all files that end with .json would be "%.json".
-            If both names and pattern are provided, a ValueError will be raised.
+            client: The run object that contains the files
+            run: The run object that contains the files
+            names (list, optional): A list of file names to filter the files
+            per_page (int, optional): The number of files to fetch per page
+            upload (bool, optional): If `True`, fetch the upload URL for each file
+            pattern (str, optional): Pattern to match when returning files from W&B
+                This pattern uses mySQL's LIKE syntax,
+                so matching all files that end with .json would be "%.json".
+                If both names and pattern are provided, a ValueError will be raised.
         """
         if names and pattern:
             raise ValueError(
@@ -159,6 +162,12 @@ class Files(SizedPaginator["File"]):
             "pattern": pattern,
         }
         super().__init__(client, variables, per_page)
+
+    def _update_response(self) -> None:
+        """Fetch and store the response data for the next page using dynamic query."""
+        self.last_response = self.client.execute(
+            self._get_query(), variable_values=self.variables
+        )
 
     @property
     def _length(self):
@@ -244,7 +253,7 @@ class File(Attrs):
         attrs (dict): A dictionary of attributes that define the file
         run: The run object that contains the file
 
-    <!-- lazydoc-ignore-class: internal -->
+    <!-- lazydoc-ignore-init: internal -->
     """
 
     def __init__(self, client, attrs, run=None):
@@ -252,6 +261,7 @@ class File(Attrs):
         self._attrs = attrs
         self.run = run
         self.server_supports_delete_file_with_project_id: bool | None = None
+        self._download_decorated: Callable[..., Any] | None = None
         super().__init__(dict(attrs))
 
     @property
@@ -284,12 +294,38 @@ class File(Attrs):
             wandb.termwarn("path_uri is only available for files stored in S3")
             return ""
 
+    def _build_download_wrapper(self):
+        import requests
+
+        @retry.retriable(
+            retry_timedelta=RETRY_TIMEDELTA,
+            check_retry_fn=util.no_retry_auth,
+            retryable_exceptions=(RetryError, requests.RequestException),
+        )
+        def _impl(
+            root: str = ".",
+            replace: bool = False,
+            exist_ok: bool = False,
+            api: Api | None = None,
+        ) -> io.TextIOWrapper:
+            if api is None:
+                api = wandb.Api()
+
+            path = os.path.join(root, self.name)
+            if os.path.exists(path) and not replace:
+                if exist_ok:
+                    return open(path)
+                raise ValueError(
+                    "File already exists, pass replace=True to overwrite "
+                    "or exist_ok=True to leave it as is and don't error."
+                )
+
+            util.download_file_from_url(path, self.url, api.api_key)
+            return open(path)
+
+        return _impl
+
     @normalize_exceptions
-    @retry.retriable(
-        retry_timedelta=RETRY_TIMEDELTA,
-        check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
-    )
     def download(
         self,
         root: str = ".",
@@ -313,20 +349,9 @@ class File(Attrs):
             `ValueError` if file already exists, `replace=False` and
             `exist_ok=False`.
         """
-        if api is None:
-            api = wandb.Api()
-
-        path = os.path.join(root, self.name)
-        if os.path.exists(path) and not replace:
-            if exist_ok:
-                return open(path)
-            else:
-                raise ValueError(
-                    "File already exists, pass replace=True to overwrite or exist_ok=True to leave it as is and don't error."
-                )
-
-        util.download_file_from_url(path, self.url, api.api_key)
-        return open(path)
+        if self._download_decorated is None:
+            self._download_decorated = self._build_download_wrapper()
+        return self._download_decorated(root, replace, exist_ok, api)
 
     @normalize_exceptions
     def delete(self):

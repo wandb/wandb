@@ -33,8 +33,10 @@ TupleOf: TypeAlias = Tuple[T, ...]
 # This is done to ensure the descriptions are omitted from generated API docs.
 
 
-# Mixin to support syntactic sugar for MongoDB expressions with (bitwise) logical operators,
-# e.g. `a | b` -> `{"$or": [a, b]}` or `~a` -> `{"$not": a}`.
+# Mixin to support syntactic sugar for MongoDB expressions with bitwise
+# logical operators, e.g.:
+#   `a | b` -> `{"$or": [a, b]}`
+#   `~a` -> `{"$not": a}`
 class SupportsLogicalOpSyntax:
     def __or__(self, other: Any) -> Or:
         """Syntactic sugar for: `a | b` -> `Or(a, b)`."""

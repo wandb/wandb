@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -26,30 +27,31 @@ import (
 
 // Injectors from wire.go:
 
-func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *settings.Settings) *RunSyncerFactory {
+func InjectRunSyncerFactory(settings2 *settings.Settings) *RunSyncerFactory {
 	coreLogger := todoLogger()
+	wandbOperations := wboperation.NewOperations()
+	printer := observability.NewPrinter()
 	backend := stream.NewBackend(coreLogger, settings2)
 	peeker := &observability.Peeker{}
 	clientID := sharedmode.RandomClientID()
 	client := stream.NewGraphQLClient(backend, settings2, peeker, clientID)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(client, coreLogger)
-	streamRun := stream.NewStreamRun()
+	runHandle := runhandle.New()
 	recordParserFactory := &stream.RecordParserFactory{
 		FeatureProvider:    serverFeaturesCache,
 		GraphqlClientOrNil: client,
 		Logger:             coreLogger,
-		Operations:         operations,
-		Run:                streamRun,
+		Operations:         wandbOperations,
+		RunHandle:          runHandle,
 		ClientID:           clientID,
 		Settings:           settings2,
 	}
 	runReaderFactory := &RunReaderFactory{
 		Logger: coreLogger,
 	}
-	printer := observability.NewPrinter()
 	fileStreamFactory := &filestream.FileStreamFactory{
 		Logger:     coreLogger,
-		Operations: operations,
+		Operations: wandbOperations,
 		Printer:    printer,
 		Settings:   settings2,
 	}
@@ -61,14 +63,15 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 		FileWatcher:  watcher,
 		GraphQL:      client,
 		Logger:       coreLogger,
-		Operations:   operations,
+		Operations:   wandbOperations,
+		RunHandle:    runHandle,
 		Settings:     settings2,
 	}
 	mailboxMailbox := mailbox.New()
 	senderFactory := &stream.SenderFactory{
 		ClientID:                clientID,
 		Logger:                  coreLogger,
-		Operations:              operations,
+		Operations:              wandbOperations,
 		Settings:                settings2,
 		Backend:                 backend,
 		FeatureProvider:         serverFeaturesCache,
@@ -79,7 +82,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 		RunfilesUploaderFactory: uploaderFactory,
 		GraphqlClient:           client,
 		Peeker:                  peeker,
-		StreamRun:               streamRun,
+		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
@@ -88,6 +91,8 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 	}
 	runSyncerFactory := &RunSyncerFactory{
 		Logger:              coreLogger,
+		Operations:          wandbOperations,
+		Printer:             printer,
 		RecordParserFactory: recordParserFactory,
 		RunReaderFactory:    runReaderFactory,
 		SenderFactory:       senderFactory,
@@ -98,8 +103,8 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 
 // wire.go:
 
-var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, observability.NewPrinter, provideFileWatcher, runfiles.UploaderProviders, runReaderProviders,
-	runSyncerProviders, sharedmode.RandomClientID, stream.NewBackend, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.NewStreamRun, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, todoLogger,
+var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, observability.NewPrinter, provideFileWatcher, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
+	runSyncerProviders, sharedmode.RandomClientID, stream.NewBackend, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, todoLogger, wboperation.NewOperations,
 )
 
 func todoLogger() *observability.CoreLogger {

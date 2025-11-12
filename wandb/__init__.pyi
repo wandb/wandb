@@ -75,7 +75,6 @@ from typing import (
 )
 
 import wandb.plot as plot
-from wandb.analytics import Sentry
 from wandb.apis import InternalApi
 from wandb.apis import PublicApi as Api
 from wandb.data_types import (
@@ -107,14 +106,13 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.21.4.dev1"
+__version__: str = "0.23.1.dev1"
 
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
 
 # private attributes
-_sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
 
@@ -388,8 +386,8 @@ def init(
             enable on your settings page.
         tensorboard: Deprecated. Use `sync_tensorboard` instead.
         sync_tensorboard: Enables automatic syncing of W&B logs from TensorBoard
-            or TensorBoardX, saving relevant event files for viewing in the W&B UI.
-            saving relevant event files for viewing in the W&B UI. (Default: `False`)
+            or TensorBoardX, saving relevant event files for viewing in
+            the W&B UI.
         monitor_gym: Enables automatic logging of videos of the environment when
             using OpenAI Gym.
         settings: Specifies a dictionary or `wandb.Settings` object with advanced
@@ -446,14 +444,14 @@ def finish(
     ...
 
 def login(
-    anonymous: Optional[Literal["must", "allow", "never"]] = None,
-    key: Optional[str] = None,
-    relogin: Optional[bool] = None,
-    host: Optional[str] = None,
-    force: Optional[bool] = None,
-    timeout: Optional[int] = None,
+    anonymous: Literal["must", "allow", "never"] | None = None,
+    key: str | None = None,
+    relogin: bool | None = None,
+    host: str | None = None,
+    force: bool | None = None,
+    timeout: int | None = None,
     verify: bool = False,
-    referrer: Optional[str] = None,
+    referrer: str | None = None,
 ) -> bool:
     """Set up W&B login credentials.
 
@@ -580,7 +578,7 @@ def log(
         run.log({"accuracy": 0.8}, step=current_step)
         current_step += 1
         run.log({"train-loss": 0.4}, step=current_step)
-        run.log({"accuracy": 0.9}, step=current_step)
+        run.log({"accuracy": 0.9}, step=current_step, commit=True)
     ```
 
     Args:
@@ -754,6 +752,9 @@ def save(
     When given an absolute path or glob and no `base_path`, one
     directory level is preserved as in the example above.
 
+    Files are automatically deduplicated: calling `save()` multiple times
+    on the same file without modifications will not re-upload it.
+
     Args:
         glob_str: A relative or absolute path or Unix glob.
         base_path: A path to use to infer a directory structure; see examples.
@@ -778,10 +779,10 @@ def save(
     run.save("these/are/myfiles/*", base_path="these")
     # => Saves files in an "are/myfiles/" folder in the run.
 
-    run.save("/User/username/Documents/run123/*.txt")
+    run.save("/Users/username/Documents/run123/*.txt")
     # => Saves files in a "run123/" folder in the run. See note below.
 
-    run.save("/User/username/Documents/run123/*.txt", base_path="/User")
+    run.save("/Users/username/Documents/run123/*.txt", base_path="/Users")
     # => Saves files in a "username/Documents/run123/" folder in the run.
 
     run.save("files/*/saveme.txt")

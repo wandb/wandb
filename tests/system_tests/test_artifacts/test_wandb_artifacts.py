@@ -20,10 +20,7 @@ import wandb.sdk.internal.sender
 from wandb import Artifact, util
 from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts._validators import (
-    ARTIFACT_NAME_MAXLEN,
-    RESERVED_ARTIFACT_TYPE_PREFIX,
-)
+from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
@@ -141,7 +138,13 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
             )
 
         def list_blobs(self, *args, **kwargs):
-            return [Blob(), Blob(name="my_other_object.pb")]
+            if override_blob_name.endswith("/"):
+                return [
+                    Blob(name=override_blob_name),
+                    Blob(name=os.path.join(override_blob_name, "my_other_object.pb")),
+                ]
+            else:
+                return [Blob(), Blob(name="my_other_object.pb")]
 
     class GSClient:
         def bucket(self, bucket):
@@ -261,36 +264,6 @@ def mock_azure_handler():  # noqa: C901
         new=_get_module,
     ):
         yield
-
-
-def mock_http(artifact, path=False, headers=None):
-    headers = headers or {}
-
-    class Response:
-        def __init__(self, headers):
-            self.headers = headers
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            pass
-
-        def raise_for_status(self):
-            pass
-
-    class Session:
-        def __init__(self, name="file1.txt", headers=headers):
-            self.headers = headers
-
-        def get(self, path, *args, **kwargs):
-            return Response(self.headers)
-
-    mock = Session()
-    for handler in artifact.manifest.storage_policy._handler._handlers:
-        if isinstance(handler, HTTPHandler):
-            handler._session = mock
-    return mock
 
 
 @pytest.fixture
@@ -937,7 +910,16 @@ def test_add_gs_reference_with_dir_paths(artifact):
     mock_gcs(artifact, override_blob_name="my_folder/")
     artifact.add_reference("gs://my-bucket/my_folder/")
 
-    assert len(artifact.manifest.entries) == 0
+    # uploading a reference to a folder path should add entries for
+    # everything returned by the list_blobs call
+    assert len(artifact.manifest.entries) == 1
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["my_other_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "gs://my-bucket/my_folder/my_other_object.pb",
+        "extra": {"versionID": "1"},
+        "size": 10,
+    }
 
 
 def test_load_gs_reference_with_dir_paths(artifact):
@@ -1114,14 +1096,18 @@ def test_add_azure_reference_max_objects(mock_azure_handler):
         assert entries[1].extra == {"etag": "my-dir/b version None"}
 
 
+@responses.activate
 def test_add_http_reference_path(artifact):
-    mock_http(
-        artifact,
+    # Mock the HTTP response. NOTE: Using `responses` here assumes
+    # that the `requests` library is responsible for sending the HTTP request(s).
+    responses.get(
+        url="http://example.com/file1.txt",
         headers={
-            "ETag": '"abc"',
+            "ETag": '"abc"',  # quoting is intentional
             "Content-Length": "256",
         },
     )
+
     artifact.add_reference("http://example.com/file1.txt")
 
     assert artifact.digest == "48237ccc050a88af9dcd869dd5a7e9f4"
@@ -1708,7 +1694,7 @@ def test_change_type_of_internal_artifact_collection(user):
 @pytest.mark.parametrize(
     "invalid_name",
     [
-        "a" * (ARTIFACT_NAME_MAXLEN + 1),  # Name too long
+        "a" * (NAME_MAXLEN + 1),  # Name too long
         "my/artifact",  # Invalid character(s)
     ],
 )
