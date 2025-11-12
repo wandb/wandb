@@ -29,6 +29,8 @@ type HistoryReader struct {
 	parquetFiles []*pqarrow.FileReader
 
 	minLiveStep int64 // The minimum step that where live data is available.
+
+	partitions []iterator.RowIterator
 }
 
 // New returns a new HistoryReader.
@@ -56,6 +58,41 @@ func New(
 	if err != nil {
 		return nil, err
 	}
+
+	partitions := make([]iterator.RowIterator, len(historyReader.parquetFiles))
+	for i, parquetFile := range historyReader.parquetFiles {
+		selectedRows := iterator.SelectRows(
+			parquetFile,
+			iterator.StepKey,
+			0,
+			float64(math.MaxInt64),
+			true,
+		)
+		selectedColumns, err := iterator.SelectColumns(
+			iterator.StepKey,
+			historyReader.keys,
+			parquetFile.ParquetReader().MetaData().Schema,
+			len(historyReader.keys) == 0,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		rowIterator, err := iterator.NewRowIterator(
+			ctx,
+			parquetFile,
+			selectedRows,
+			selectedColumns,
+		)
+		if err != nil {
+			for _, partition := range partitions {
+				partition.Release()
+			}
+			return nil, err
+		}
+		partitions[i] = rowIterator
+	}
+	historyReader.partitions = partitions
 
 	return historyReader, nil
 }
@@ -97,41 +134,19 @@ func (h *HistoryReader) GetHistorySteps(
 		}
 	}
 
-	partitions := make([]iterator.RowIterator, len(h.parquetFiles))
-	for i, parquetFile := range h.parquetFiles {
-		selectedRows := iterator.SelectRows(
-			parquetFile,
-			iterator.StepKey,
+	for _, partition := range h.partitions {
+		parquetDataIterator, ok := partition.(*iterator.ParquetDataIterator)
+		if !ok {
+			return nil, fmt.Errorf("partition is not a ParquetDataIterator")
+		}
+		parquetDataIterator.UpdateQueryRange(
 			float64(minStep),
 			float64(maxStep),
 			false,
 		)
-		selectedColumns, err := iterator.SelectColumns(
-			iterator.StepKey,
-			h.keys,
-			parquetFile.ParquetReader().MetaData().Schema,
-			selectAllColumns,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		rowIterator, err := iterator.NewRowIterator(
-			ctx,
-			parquetFile,
-			selectedRows,
-			selectedColumns,
-		)
-		if err != nil {
-			for _, partition := range partitions {
-				partition.Release()
-			}
-			return nil, err
-		}
-		partitions[i] = rowIterator
 	}
 
-	multiIterator := iterator.NewMultiIterator(partitions)
+	multiIterator := iterator.NewMultiIterator(h.partitions)
 	defer multiIterator.Release()
 
 	for {

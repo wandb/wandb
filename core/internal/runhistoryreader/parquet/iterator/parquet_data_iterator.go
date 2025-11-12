@@ -62,6 +62,16 @@ func NewParquetDataIterator(
 	}, nil
 }
 
+func (r *ParquetDataIterator) UpdateQueryRange(
+	minValue float64,
+	maxValue float64,
+	selectAll bool,
+) {
+	r.selectedRows.minValue = minValue
+	r.selectedRows.maxValue = maxValue
+	r.selectedRows.selectAll = selectAll
+}
+
 // Next implements RowIterator.Next.
 func (r *ParquetDataIterator) Next() (bool, error) {
 	for {
