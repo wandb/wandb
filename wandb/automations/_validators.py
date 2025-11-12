@@ -70,17 +70,39 @@ def upper_if_str(v: Any) -> Any:
 # ----------------------------------------------------------------------------
 def parse_scope(v: Any) -> Any:
     """Convert eligible objects (including wandb types) to an automation scope."""
-    from wandb.apis.public import ArtifactCollection, Organization, Project, Team
+    from wandb.apis.public import (
+        ArtifactCollection,
+        Organization,
+        Project,
+        Registry,
+        Team,
+    )
+    from wandb.sdk.artifacts._validators import is_artifact_registry_project
 
+    from ._generated import ProjectScopeFields
     from .scopes import (
         OrgScope,
         ProjectScope,
+        RegistryScope,
         TeamScope,
         _ArtifactPortfolioScope,
         _ArtifactSequenceScope,
+        _BaseScope,
     )
 
     match v:
+        # Already parsed as an automation scope
+        case _BaseScope():
+            return v
+
+        # GraphQL fragments
+        case ProjectScopeFields(name=name) if is_artifact_registry_project(name):
+            return RegistryScope.model_validate(v)
+        case ProjectScopeFields():
+            return ProjectScope.model_validate(v)
+
+        case Registry():
+            return RegistryScope.model_validate(v)
         case Project():
             return ProjectScope.model_validate(v)
 
