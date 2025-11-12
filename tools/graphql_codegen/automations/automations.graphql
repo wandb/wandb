@@ -184,36 +184,6 @@ query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int)
   }
 }
 
-query SlackIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  entity(name: $entityName) {
-    integrations(after: $cursor, first: $perPage) {
-      pageInfo {
-        ...PageInfoFields
-      }
-      edges {
-        node {
-          ...SlackIntegrationFields
-        }
-      }
-    }
-  }
-}
-
-query WebhookIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  entity(name: $entityName) {
-    integrations(after: $cursor, first: $perPage) {
-      pageInfo {
-        ...PageInfoFields
-      }
-      edges {
-        node {
-          ...WebhookIntegrationFields
-        }
-      }
-    }
-  }
-}
-
 mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegrationInput!) {
   createGenericWebhookIntegration(input: $input) {
     integration {
