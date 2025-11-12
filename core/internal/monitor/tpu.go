@@ -143,7 +143,7 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 		deviceID := duty.GetAttribute().GetValue().GetIntAttr()
 		dutyCycle := duty.GetGauge().GetAsDouble()
 		if t.chip.DevicesPerChip == 2 {
-			// For v2/v3 chips, distribute duty cycle to both devices
+			// For v2/v3/v7x chips, distribute duty cycle to both devices
 			dutyCyclesPerCore[deviceID*2] = dutyCycle
 			dutyCyclesPerCore[deviceID*2+1] = dutyCycle
 		} else {
@@ -265,6 +265,8 @@ func tpuChipFromPCIDeviceID(deviceID, subsystemID string) (TPUChip, error) {
 		return TPUChip{Name: "v5p", HbmGiB: 95, DevicesPerChip: 1}, nil
 	case "0x006f":
 		return TPUChip{Name: "v6e", HbmGiB: 32, DevicesPerChip: 1}, nil
+	case "0x0076":
+		return TPUChip{Name: "7x", HbmGiB: 192, DevicesPerChip: 2}, nil
 	}
 
 	return TPUChip{}, fmt.Errorf("unknown TPU chip")
