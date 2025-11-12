@@ -14,25 +14,21 @@ from .fragments import WebhookIntegrationFields
 
 
 class CreateGenericWebhookIntegration(GQLResult):
-    create_generic_webhook_integration: Optional[
-        CreateGenericWebhookIntegrationCreateGenericWebhookIntegration
-    ] = Field(alias="createGenericWebhookIntegration")
+    result: Optional[CreateGenericWebhookIntegrationResult]
 
 
-class CreateGenericWebhookIntegrationCreateGenericWebhookIntegration(GQLResult):
+class CreateGenericWebhookIntegrationResult(GQLResult):
     integration: Union[
-        CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationIntegration,
+        CreateGenericWebhookIntegrationResultIntegrationIntegration,
         WebhookIntegrationFields,
     ] = Field(discriminator="typename__")
 
 
-class CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationIntegration(
-    GQLResult
-):
+class CreateGenericWebhookIntegrationResultIntegrationIntegration(GQLResult):
     typename__: Typename[
         Literal["GitHubOAuthIntegration", "Integration", "SlackIntegration"]
     ]
 
 
 CreateGenericWebhookIntegration.model_rebuild()
-CreateGenericWebhookIntegrationCreateGenericWebhookIntegration.model_rebuild()
+CreateGenericWebhookIntegrationResult.model_rebuild()

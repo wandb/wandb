@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import ValidationError
 from pytest import FixtureRequest, fixture, mark, raises
-from wandb.automations import ActionType, EventType, NewAutomation
+from wandb.automations import ActionType, EventType, NewAutomation, ScopeType
 from wandb.automations._utils import (
     INVALID_INPUT_ACTIONS,
     INVALID_INPUT_EVENTS,
@@ -140,10 +140,10 @@ class TestPrepareToCreate:
         # This only checks the simpler key-value pairs (without nested payloads).
         # We've omitted the more complicated event/action payloads, which will be checked separately.
         expected_subset = {
-            "scopeType": scope_type,
+            "scopeType": ScopeType[scope_type].value,
             "scopeID": scope.id,
-            "triggeringEventType": event_type,
-            "triggeredActionType": action_type,
+            "triggeringEventType": EventType[event_type].value,
+            "triggeredActionType": ActionType[action_type].value,
             **input_kwargs,
         }
         # Expected defaults, if they weren't provided

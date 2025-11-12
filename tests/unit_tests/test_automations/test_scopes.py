@@ -2,7 +2,7 @@ from wandb._pydantic import CompatBaseModel
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import ArtifactCollectionScope, ProjectScope, ScopeType
 from wandb.automations._generated import TriggerScopeType
-from wandb.automations.scopes import ArtifactCollectionScopeTypes, AutomationScope
+from wandb.automations.scopes import AutomationScope
 
 
 class HasScope(CompatBaseModel):
@@ -42,7 +42,6 @@ def test_scope_can_validate_from_wandb_artifact_collection(
     # - https://docs.python.org/3/library/stdtypes.html#union-type
     # - https://peps.python.org/pep-0604/
 
-    assert isinstance(validated_scope, ArtifactCollectionScopeTypes)
     assert validated_scope.scope_type == ScopeType.ARTIFACT_COLLECTION
     assert validated_scope.id == artifact_collection.id
     assert validated_scope.name == artifact_collection.name
@@ -50,7 +49,6 @@ def test_scope_can_validate_from_wandb_artifact_collection(
     validated = HasScope(scope=artifact_collection)
     validated_scope = validated.scope
 
-    assert isinstance(validated_scope, ArtifactCollectionScopeTypes)
     assert validated_scope.scope_type == ScopeType.ARTIFACT_COLLECTION
     assert validated_scope.id == artifact_collection.id
     assert validated_scope.name == artifact_collection.name
