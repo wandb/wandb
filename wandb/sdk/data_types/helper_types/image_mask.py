@@ -166,11 +166,23 @@ class ImageMask(Media):
             ext = "." + self.type_name() + ".png"
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ext)
 
+            from packaging.version import parse
+
             pil_image = util.get_module(
                 "PIL.Image",
                 required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
             )
-            image = pil_image.fromarray(val["mask_data"].astype(np.int8), mode="L")
+
+            data = val["mask_data"].astype(np.int8)
+
+            # PIL.Image.fromarray deprecated the mode paramater in version 11.3.0.
+            fromarray_mode_deprecated = parse(pil_image.__version__) >= parse("11.3.0")
+
+            image = (
+                pil_image.fromarray(data)
+                if fromarray_mode_deprecated
+                else pil_image.fromarray(data, mode="L")
+            )
 
             image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True, extension=ext)

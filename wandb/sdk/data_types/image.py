@@ -389,10 +389,15 @@ class Image(BatchableMedia):
         file_type: Optional[str] = None,
         normalize: bool = True,
     ) -> None:
+        from packaging.version import parse
+
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
         )
+
+        # PIL.Image.fromarray deprecated the mode paramater in version 11.3.0.
+        fromarray_mode_deprecated = parse(pil_image.__version__) >= parse("11.3.0")
 
         accepted_formats = ["png", "jpg", "jpeg", "bmp"]
         self.format = file_type or "png"
@@ -424,9 +429,10 @@ class Image(BatchableMedia):
             if data.ndim > 2:
                 data = data.squeeze()
 
-            self._image = pil_image.fromarray(
-                data,
-                mode=mode,
+            self._image = (
+                pil_image.fromarray(data)
+                if fromarray_mode_deprecated
+                else pil_image.fromarray(data, mode=mode)
             )
         else:
             if hasattr(data, "numpy"):  # TF data eager tensors
@@ -440,9 +446,10 @@ class Image(BatchableMedia):
             mode = mode or self.guess_mode(data, file_type)
             data = _guess_and_rescale_to_0_255(data) if normalize else data  # type: ignore [arg-type]
             data = _convert_to_uint8(data)  # type: ignore [arg-type]
-            self._image = pil_image.fromarray(
-                data,
-                mode=mode,
+            self._image = (
+                pil_image.fromarray(data)
+                if fromarray_mode_deprecated
+                else pil_image.fromarray(data, mode=mode)
             )
 
         assert self._image is not None

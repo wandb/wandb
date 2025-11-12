@@ -285,11 +285,8 @@ const AnimationFrame = AnimationDuration / AnimationSteps
 
 // Help screen styles.
 var (
-	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).Width(20)
-
-	helpDescStyle = lipgloss.NewStyle().Foreground(colorText)
-
+	helpKeyStyle     = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).Width(20)
+	helpDescStyle    = lipgloss.NewStyle().Foreground(colorText)
 	helpSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(colorHeading)
-
 	helpContentStyle = lipgloss.NewStyle().MarginLeft(2).MarginTop(1)
 )
