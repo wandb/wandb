@@ -162,7 +162,7 @@ def test_image_array_old_wandb(
         wb_image = [wandb.Image(np.zeros((28, 28))) for i in range(5)]
         run.log({"logged_images": wb_image})
 
-    assert mock_wandb_log.warned("Unable to log image array filenames.")
+    mock_wandb_log.assert_warned("Unable to log image array filenames.")
 
     with wandb_backend_spy.freeze() as snapshot:
         summary = snapshot.summary(run_id=run.id)
@@ -181,7 +181,7 @@ def test_image_array_old_wandb_mp_warning(
         run._init_pid += 1
         run.log({"logged_images": wb_image})
 
-    assert mock_wandb_log.warned(
+    mock_wandb_log.assert_warned(
         "Attempting to log a sequence of Image objects from multiple processes"
         " might result in data loss. Please upgrade your wandb server"
     )
