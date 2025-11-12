@@ -7,13 +7,10 @@ import shutil
 import sys
 import time
 import unittest.mock
-from itertools import takewhile
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Iterable, Iterator
+from typing import Any, Callable, Generator, Iterator
 
-import pyte
-import pyte.modes
 from wandb.errors import term
 from wandb.sdk import wandb_login
 
@@ -32,6 +29,11 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.lib import filesystem, module, runid
 from wandb.sdk.lib.gitlib import GitRepo
 from wandb.sdk.lib.paths import StrPath
+
+pytest_plugins = [
+    "tests.fixtures.emulated_terminal",
+    "tests.fixtures.mock_wandb_log",
+]
 
 # --------------------------------
 # Global pytest configuration
@@ -103,175 +105,6 @@ def reset_logger():
     """Resets the `wandb.errors.term` module before each test."""
     wandb.termsetup(wandb.Settings(silent=False), None)
     term._dynamic_blocks = []
-
-
-class MockWandbTerm:
-    """Helper to test wandb.term*() calls.
-
-    See the `mock_wandb_log` fixture.
-    """
-
-    def __init__(
-        self,
-        termlog: unittest.mock.MagicMock,
-        termwarn: unittest.mock.MagicMock,
-        termerror: unittest.mock.MagicMock,
-    ):
-        self._termlog = termlog
-        self._termwarn = termwarn
-        self._termerror = termerror
-
-    def logged(self, msg: str) -> bool:
-        """Returns whether the message was included in a termlog()."""
-        return self._logged(self._termlog, msg)
-
-    def warned(self, msg: str) -> bool:
-        """Returns whether the message was included in a termwarn()."""
-        return self._logged(self._termwarn, msg)
-
-    def errored(self, msg: str) -> bool:
-        """Returns whether the message was included in a termerror()."""
-        return self._logged(self._termerror, msg)
-
-    def _logged(self, termfunc: unittest.mock.MagicMock, msg: str) -> bool:
-        return any(msg in logged for logged in self._logs(termfunc))
-
-    def _logs(self, termfunc: unittest.mock.MagicMock) -> Iterable[str]:
-        # All the term*() functions have a similar API: the message is the
-        # first argument, which may also be passed as a keyword argument called
-        # "string".
-        for call in termfunc.call_args_list:
-            if "string" in call.kwargs:
-                yield call.kwargs["string"]
-            else:
-                yield call.args[0]
-
-
-@pytest.fixture()
-def mock_wandb_log() -> Generator[MockWandbTerm, None, None]:
-    """Mocks the wandb.term*() methods for a test.
-
-    This patches the termlog() / termwarn() / termerror() methods and returns
-    a `MockWandbTerm` object that can be used to assert on their usage.
-
-    The logging functions mutate global state (for repeat=False), making
-    them unsuitable for tests. Use this fixture to assert that a message
-    was logged.
-    """
-    # NOTE: This only stubs out calls like "wandb.termlog()", NOT
-    # "from wandb.errors.term import termlog; termlog()".
-    with unittest.mock.patch.multiple(
-        "wandb",
-        termlog=unittest.mock.DEFAULT,
-        termwarn=unittest.mock.DEFAULT,
-        termerror=unittest.mock.DEFAULT,
-    ) as patched:
-        yield MockWandbTerm(
-            patched["termlog"],
-            patched["termwarn"],
-            patched["termerror"],
-        )
-
-
-class EmulatedTerminal:
-    """The return value of the emulated_terminal fixture."""
-
-    def __init__(self, capsys: pytest.CaptureFixture[str]):
-        self._capsys = capsys
-        self._screen = pyte.Screen(80, 24)
-        self._screen.set_mode(pyte.modes.LNM)  # \n implies \r
-        self._stream = pyte.Stream(self._screen)
-        self._inputs: list[str] = []
-
-    def reset_capsys(self) -> None:
-        """Reset pytest's captured stderr and stdout buffers."""
-        self._capsys.readouterr()
-
-    def read_stderr(self) -> list[str]:
-        """Returns the text in the emulated terminal.
-
-        This processes the stderr text captured by pytest since the last
-        invocation and returns the updated state of the screen. Empty lines
-        at the top and bottom of the screen and empty text at the end of
-        any line are trimmed.
-
-        NOTE: This resets pytest's stderr and stdout buffers. You should not
-        use this with anything else that uses capsys.
-        """
-        self._process_captured_text()
-
-        lines = [line.rstrip() for line in self._screen.display]
-
-        # Trim empty lines from the start and end of the screen.
-        n_empty_at_start = sum(1 for _ in takewhile(lambda line: not line, lines))
-        n_empty_at_end = sum(1 for _ in takewhile(lambda line: not line, lines[::-1]))
-        return lines[n_empty_at_start:-n_empty_at_end]
-
-    def queue_input(self, text: str) -> None:
-        """Queue the next terminput return value."""
-        self._inputs.append(text)
-
-    def terminput(
-        self,
-        prefixed_prompt: str,
-        *,
-        timeout: float | None = None,
-        hide: bool = False,
-    ) -> str:
-        """A fake implementation of term._terminput().
-
-        Raises an assertion error if no inputs are queued.
-        """
-        # Simulate printing the prompt.
-        self._process_captured_text()
-        self._stream.feed(prefixed_prompt)
-
-        if not self._inputs:
-            if timeout is not None:
-                raise TimeoutError
-            else:
-                raise AssertionError("terminput() used, but no inputs queued.")
-
-        input = self._inputs.pop(0)
-
-        # Simulate printing the input and the return key press.
-        if not hide:
-            self._stream.feed(f"{input}\n")
-        else:
-            self._stream.feed("\n")
-
-        return input
-
-    def _process_captured_text(self) -> None:
-        """Read capsys and update the terminal state."""
-        self._stream.feed(self._capsys.readouterr().err)
-
-
-@pytest.fixture()
-def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
-    """Emulates a terminal for the duration of a test.
-
-    This makes functions in the `wandb.errors.term` module act as if
-    we're connected to a terminal.
-
-    NOTE: This resets pytest's stderr and stdout buffers. You should not
-    use this with anything else that uses capsys.
-    """
-    terminal = EmulatedTerminal(capsys)
-
-    # Allow dynamic_text().
-    monkeypatch.setenv("TERM", "xterm")
-    monkeypatch.setattr(term, "_sys_stderr_isatty", lambda: True)
-
-    # Allow terminput().
-    monkeypatch.setattr(term, "can_use_terminput", lambda: True)
-    monkeypatch.setattr(term, "_terminput", terminal.terminput)
-
-    # Make click pretend we're a TTY, so it doesn't strip ANSI sequences.
-    # This is fragile and could break when click is updated.
-    monkeypatch.setattr("click._compat.isatty", lambda *args, **kwargs: True)
-
-    return terminal
 
 
 @pytest.fixture(scope="function", autouse=True)

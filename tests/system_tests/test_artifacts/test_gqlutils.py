@@ -14,7 +14,7 @@ from wandb.sdk.artifacts._gqlutils import (
 if TYPE_CHECKING:
     from wandb import Api
 
-    from tests.system_tests.wandb_backend_spy import WandbBackendSpy
+    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
     class GQLResponseMocker(Protocol):
         def __call__(
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 @fixture
 def mock_gql_response(wandb_backend_spy: WandbBackendSpy) -> GQLResponseMocker:
     """Factory fixture for setting up a mock GQL response."""
-    from tests.system_tests.wandb_backend_spy.gql_match import Constant, Matcher
+    from tests.fixtures.wandb_backend_spy.gql_match import Constant, Matcher
 
     def stub_response(
         *,
