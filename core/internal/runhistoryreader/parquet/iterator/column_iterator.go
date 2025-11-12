@@ -77,7 +77,16 @@ func newStructIterator(data arrow.Array) (*structIterator, error) {
 	}, nil
 }
 
-func (s *structIterator) Next() bool {
+func (s *structIterator) Next() (ok bool) {
+	defer func() {
+		if recover() != nil {
+			// Panic occurred, likely due to accessing freed memory
+			ok = false
+		}
+	}()
+	if s == nil || s.data == nil {
+		return false
+	}
 	s.offset++
 	if s.offset >= s.data.Len() {
 		return false
@@ -91,6 +100,9 @@ func (s *structIterator) Next() bool {
 }
 
 func (s *structIterator) Value() interface{} {
+	if s == nil || s.data == nil {
+		return nil
+	}
 	if s.data.IsNull(s.offset) {
 		return nil
 	}
@@ -120,12 +132,24 @@ func newListIterator(data arrow.Array) (*listIterator, error) {
 	}, nil
 }
 
-func (c *listIterator) Next() bool {
+func (c *listIterator) Next() (ok bool) {
+	defer func() {
+		if recover() != nil {
+			// Panic occurred, likely due to accessing freed memory
+			ok = false
+		}
+	}()
+	if c == nil || c.data == nil {
+		return false
+	}
 	c.offset++
 	return c.offset < c.data.Len()
 }
 
 func (c *listIterator) Value() any {
+	if c == nil || c.data == nil {
+		return nil
+	}
 	if c.data.IsNull(c.offset) {
 		return nil
 	}
@@ -168,7 +192,17 @@ func newScalarIterator(data arrow.Array, accessor accessorFunc) *scalarIterator 
 	}
 }
 
-func (c *scalarIterator) Next() bool {
+func (c *scalarIterator) Next() (ok bool) {
+	defer func() {
+		if recover() != nil {
+			// Panic occurred, likely due to accessing freed memory
+			ok = false
+		}
+	}()
+	if c == nil || c.data == nil {
+		return false
+	}
+
 	c.offset++
 	return c.offset < c.data.Len()
 }
@@ -183,6 +217,9 @@ func (c *scalarIterator) Value() (value any) {
 			value = nil
 		}
 	}()
+	if c == nil || c.data == nil || c.accessor == nil {
+		return nil
+	}
 	if c.data.IsNull(c.offset) {
 		return nil
 	}
