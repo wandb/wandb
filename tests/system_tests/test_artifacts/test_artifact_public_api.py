@@ -435,7 +435,7 @@ def test_fetch_registry_artifact(
     is_registry_project,
     expected_artifact_fetched,
 ):
-    from tests.system_tests.wandb_backend_spy.gql_match import Constant, Matcher
+    from tests.fixtures.wandb_backend_spy.gql_match import Constant, Matcher
 
     if "orgEntity" not in allowed_fields(api.client, "Organization"):
         pytest.skip("Must test against server that supports `Organization.orgEntity`")

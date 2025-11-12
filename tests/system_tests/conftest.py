@@ -6,12 +6,17 @@ from typing import Callable, Generator, Iterator
 
 import pytest
 
+from tests.fixtures.wandb_backend_spy import (
+    WandbBackendProxy,
+    WandbBackendSpy,
+    spy_proxy,
+)
+
 from .backend_fixtures import (
     BackendFixtureFactory,
     LocalWandbBackendAddress,
     connect_to_local_wandb_backend,
 )
-from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 
 
 @pytest.fixture(scope="session")
