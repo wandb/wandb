@@ -10,7 +10,7 @@ import wandb
 from pytest import FixtureRequest, fixture, skip
 from wandb import Artifact
 from wandb._filters import FilterExpr
-from wandb.apis.public import ArtifactCollection, Organization, Project, Team
+from wandb.apis.public import ArtifactCollection, Organization, Project, Registry, Team
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -51,7 +51,9 @@ if TYPE_CHECKING:
         TeamAndOrgNames,
     )
 
-ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team | Organization
+ScopableWandbType: TypeAlias = (
+    ArtifactCollection | Project | Registry | Team | Organization
+)
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:
@@ -140,6 +142,20 @@ def project(
     return project
 
 
+@fixture
+def registry(
+    team_and_org: TeamAndOrgNames,
+    module_api: wandb.Api,
+    make_name: Callable[[str], str],
+) -> Registry:
+    """A registry in the same organization as the other automation scopes."""
+    return module_api.create_registry(
+        name=make_name("test-registry"),
+        visibility="organization",
+        organization=team_and_org.org,
+    )
+
+
 @fixture(scope="module")
 def artifact(team: Team, project: Project, make_name) -> Artifact:
     name = make_name("test-artifact")
@@ -178,14 +194,16 @@ def make_webhook_integration(
         gql_input = CreateGenericWebhookIntegrationInput(
             name=name, entity_name=entity, url_endpoint=url
         )
-        gql_op = CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL
-        gql_vars = {"input": gql_input.model_dump()}
-        api = make_module_api()
-        data = api._service_api.execute_graphql(gql_op, variables=gql_vars)
-
-        result = CreateGenericWebhookIntegration(**data)
-        integration = result.create_generic_webhook_integration.integration
-        return WebhookIntegration.model_validate(integration)
+        result = (
+            make_module_api()
+            ._service_api.execute_graphql(
+                CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
+                variables={"input": gql_input.model_dump()},
+                parse=CreateGenericWebhookIntegration.model_validate_json,
+            )
+            .result
+        )
+        return WebhookIntegration.model_validate(result.integration)
 
     return _make_webhook
 

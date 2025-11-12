@@ -25,6 +25,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Added a `--term-timeout` flag to `wandb agent` (@nathancy-wandb in https://github.com/wandb/wandb/pull/12246)
 - Added `run.sync_dir` (@timoffex in https://github.com/wandb/wandb/pull/12319)
 - The automations API now supports team and organization scopes. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12197, https://github.com/wandb/wandb/pull/12194)
+- The automations API now supports creating and editing automations whose scope is a `Registry` object (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10867)
 
 ## Changed
 

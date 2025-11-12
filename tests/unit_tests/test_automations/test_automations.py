@@ -19,7 +19,9 @@ from wandb.automations import (
     OnRemoveCollectionTag,
     OnRunMetric,
     OnUnlinkArtifact,
+    RegistryScope,
     RunEvent,
+    ScopeType,
 )
 from wandb.automations._utils import (
     INVALID_INPUT_ACTIONS,
@@ -79,6 +81,20 @@ class TestPrepareToCreate:
         gql_input_via_obj_and_kwargs = prepare_to_create(orig_obj, **attrs)
 
         assert expected_gql_input == gql_input_via_obj_and_kwargs
+
+    def test_registry_scoped_artifact_event(self, registry, do_nothing):
+        event = OnLinkArtifact(
+            scope=registry,
+            filter=ArtifactEvent.alias == "prod",
+        )
+
+        assert isinstance(event.scope, RegistryScope)
+        assert event.scope.is_registry is True
+
+        prepared = prepare_to_create(event >> do_nothing, name="test-automation")
+        prepared_vars = prepared.model_dump()
+        assert prepared_vars["scopeType"] == ScopeType.PROJECT.value
+        assert prepared_vars["scopeID"] == registry.id
 
     @mark.parametrize("invalid_event_type", INVALID_INPUT_EVENTS)
     def test_prepare_to_create_rejects_excluded_event_types(

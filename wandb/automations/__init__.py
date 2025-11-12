@@ -25,6 +25,7 @@ from .scopes import (
     EntityScope,
     OrgScope,
     ProjectScope,
+    RegistryScope,
     ScopeType,
     TeamScope,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "ScopeType",  # doc:exclude
     "ArtifactCollectionScope",  # doc:exclude
     "ProjectScope",  # doc:exclude
+    "RegistryScope",  # doc:exclude
     "OrgScope",  # doc:exclude
     "TeamScope",  # doc:exclude
     "EntityScope",  # doc:exclude
