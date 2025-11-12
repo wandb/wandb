@@ -1676,7 +1676,7 @@ def test_log_uint8_image():
 def test_init_image_jpeg_removes_transparency(data, file_type, mock_wandb_log):
     wandb_img = wandb.Image(data, file_type=file_type)
 
-    assert mock_wandb_log.warned(
+    mock_wandb_log.assert_warned(
         "JPEG format does not support transparency. Ignoring alpha channel.",
     )
     assert wandb_img.format == file_type
