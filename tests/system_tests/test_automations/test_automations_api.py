@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 import wandb
 from pytest import FixtureRequest, fixture, mark, raises, skip
-from wandb.apis.public import ArtifactCollection, Project
+from wandb.apis.public import ArtifactCollection, Project, Registry
 from wandb.automations import (
     ActionType,
     Automation,
@@ -20,6 +20,7 @@ from wandb.automations import (
     OnRunState,
     ProjectScope,
     RunEvent,
+    ScopeType,
     SendWebhook,
     WebhookIntegration,
 )
@@ -27,7 +28,6 @@ from wandb.automations._filters.run_metrics import ChangeDir
 from wandb.automations._filters.run_states import ReportedRunState, StateFilter
 from wandb.automations.actions import SavedNoOpAction, SavedWebhookAction
 from wandb.automations.events import RunMetricFilter, RunStateFilter
-from wandb.automations.scopes import ArtifactCollectionScopeTypes
 from wandb.errors.errors import CommError
 
 
@@ -612,6 +612,19 @@ class TestUpdateAutomation:
         assert updated_scope.id == project.id
         assert updated_scope.name == project.name
 
+    def test_update_scope_to_registry(
+        self, api: wandb.Api, old_automation: Automation, registry: Registry
+    ):
+        old_automation.scope = registry
+
+        new_automation = api.update_automation(old_automation)
+        updated_scope = new_automation.scope
+
+        assert isinstance(updated_scope, ProjectScope)
+        assert updated_scope.id == registry.id
+        assert updated_scope.name == registry.full_name
+        assert updated_scope.name.startswith("wandb-registry-")
+
     @mark.parametrize(
         # Run events don't support ArtifactCollection scope, so we'll test those separately.
         "event_type",
@@ -640,7 +653,7 @@ class TestUpdateAutomation:
 
         updated_scope = new_automation.scope
 
-        assert isinstance(updated_scope, ArtifactCollectionScopeTypes)
+        assert updated_scope.scope_type == ScopeType.ARTIFACT_COLLECTION
         assert updated_scope.id == artifact_collection.id
         assert updated_scope.name == artifact_collection.name
 

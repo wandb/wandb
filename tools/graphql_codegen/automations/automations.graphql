@@ -185,7 +185,7 @@ query IntegrationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
 }
 
 mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegrationInput!) {
-  createGenericWebhookIntegration(input: $input) {
+  result: createGenericWebhookIntegration(input: $input) {
     integration {
       ...WebhookIntegrationFields
     }

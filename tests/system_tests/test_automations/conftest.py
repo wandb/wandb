@@ -9,7 +9,8 @@ import wandb
 from pytest import FixtureRequest, MonkeyPatch, fixture, skip
 from typing_extensions import TypeAlias
 from wandb import Artifact
-from wandb.apis.public import ArtifactCollection, Project
+from wandb._strutils import nameof
+from wandb.apis.public import ArtifactCollection, Project, Registry
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -87,6 +88,24 @@ def api(user: str) -> wandb.Api:
 
 
 @fixture(scope="module")
+def registry(user, api, make_name) -> Registry:
+    """A wandb Registry for tests in this module."""
+    # Create the project first if it doesn't exist yet
+    name = make_name("test-registry")
+    api.create_registry(name=name, visibility="organization")
+    return api.registry(name=name)
+
+
+@fixture(scope="module")
+def registry(user, api, make_name) -> Registry:
+    """A wandb Registry for tests in this module."""
+    # Create the project first if it doesn't exist yet
+    name = make_name("test-registry")
+    api.create_registry(name=name, visibility="organization")
+    return api.registry(name=name)
+
+
+@fixture(scope="module")
 def project(user, api, make_name) -> Project:
     """A wandb Project for tests in this module."""
     # Create the project first if it doesn't exist yet
@@ -111,9 +130,7 @@ def artifact_collection(artifact, api) -> ArtifactCollection:
 
 
 @fixture(scope="module")
-def make_webhook_integration(
-    api: wandb.Api,
-) -> Callable[[str, str, str], WebhookIntegration]:
+def make_webhook_integration(api: wandb.Api) -> Callable[..., WebhookIntegration]:
     """A module-scoped factory for creating WebhookIntegrations."""
     from wandb.automations._generated import CreateGenericWebhookIntegrationInput
 
@@ -130,9 +147,8 @@ def make_webhook_integration(
         gql_vars = {"input": gql_input.model_dump()}
         data = api.client.execute(gql_op, variable_values=gql_vars)
 
-        result = CreateGenericWebhookIntegration(**data)
-        integration = result.create_generic_webhook_integration.integration
-        return WebhookIntegration.model_validate(integration)
+        result = CreateGenericWebhookIntegration(**data).result
+        return WebhookIntegration.model_validate(result.integration)
 
     return _make_webhook
 
@@ -140,13 +156,13 @@ def make_webhook_integration(
 @fixture(scope="module")
 def webhook(
     api,
-    make_webhook_integration: Callable[[str, str, str], WebhookIntegration],
+    make_webhook_integration: Callable[..., WebhookIntegration],
     make_name: Callable[[str], str],
 ) -> Iterator[WebhookIntegration]:
     """A "registered" webhook integration for automation system tests."""
-    name = make_name("test-webhook")
-    entity = api.default_entity
-    yield make_webhook_integration(name=name, entity=entity, url="fake-url")
+    yield make_webhook_integration(
+        name=make_name("test-webhook"), entity=api.default_entity, url="fake-url"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -281,13 +297,13 @@ def on_run_state(scope) -> OnRunState:
 def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     """An event object for defining a **new** automation."""
     event2fixture: dict[EventType, str] = {
-        EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
-        EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
-        EventType.LINK_ARTIFACT: on_link_artifact.__name__,
-        EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
-        EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
-        EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,
-        EventType.RUN_STATE: on_run_state.__name__,
+        EventType.CREATE_ARTIFACT: nameof(on_create_artifact),
+        EventType.ADD_ARTIFACT_ALIAS: nameof(on_add_artifact_alias),
+        EventType.LINK_ARTIFACT: nameof(on_link_artifact),
+        EventType.RUN_METRIC_THRESHOLD: nameof(on_run_metric_threshold),
+        EventType.RUN_METRIC_CHANGE: nameof(on_run_metric_change),
+        EventType.RUN_METRIC_ZSCORE: nameof(on_run_metric_zscore),
+        EventType.RUN_STATE: nameof(on_run_state),
     }
     return request.getfixturevalue(event2fixture[event_type])
 
@@ -316,8 +332,8 @@ def do_nothing() -> DoNothing:
 def action(request: FixtureRequest, action_type: ActionType):
     """An action object for defining a **new** automation."""
     action2fixture: dict[ActionType, str] = {
-        ActionType.NOTIFICATION: send_notification.__name__,
-        ActionType.GENERIC_WEBHOOK: send_webhook.__name__,
-        ActionType.NO_OP: do_nothing.__name__,
+        ActionType.NOTIFICATION: nameof(send_notification),
+        ActionType.GENERIC_WEBHOOK: nameof(send_webhook),
+        ActionType.NO_OP: nameof(do_nothing),
     }
     return request.getfixturevalue(action2fixture[action_type])
