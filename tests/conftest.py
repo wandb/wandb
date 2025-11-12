@@ -21,7 +21,6 @@ import git
 import pytest
 import wandb
 import wandb.old.settings
-import wandb.sdk.lib.apikey
 import wandb.util
 from click.testing import CliRunner
 from wandb import Api
