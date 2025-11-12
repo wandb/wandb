@@ -101,8 +101,11 @@ RowSearch:
 			}
 		}
 
-		if !t.selectedRows.IsRowValid(t.columns) {
+		if !t.selectedRows.IsRowGreaterThanMinValue(t.columns) {
 			continue
+		}
+		if !t.selectedRows.IsRowLessThanMaxValue(t.columns) {
+			return false, nil
 		}
 
 		// Only return the row if it has all the selected columns
