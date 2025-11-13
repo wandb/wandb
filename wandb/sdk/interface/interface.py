@@ -6,12 +6,13 @@ import logging
 import time
 from pathlib import Path
 from secrets import token_hex
-from typing import TYPE_CHECKING, Any, Iterable, Literal, NewType, TypedDict
+from typing import TYPE_CHECKING, Any, Iterable
 
 from wandb import termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.lib import json_util as json
+from wandb.sdk.lib.filesystem import FilesDict, PolicyName
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
 from wandb.util import (
     WandBJSONEncoderOld,
@@ -27,16 +28,6 @@ from ..data_types.utils import history_dict_to_json, val_to_json
 from . import summary_record as sr
 
 MANIFEST_FILE_SIZE_THRESHOLD = 100_000
-
-GlobStr = NewType("GlobStr", str)
-
-
-PolicyName = Literal["now", "live", "end"]
-
-
-class FilesDict(TypedDict):
-    files: Iterable[tuple[GlobStr, PolicyName]]
-
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact

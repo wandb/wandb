@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import functools
 import glob
 import json
@@ -38,6 +39,15 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib import wb_logging
+from wandb.sdk.lib.filesystem import (
+    FilesDict,
+    GlobStr,
+    LinkStats,
+    PolicyName,
+    link_or_copy_with_policy,
+    unlink_path,
+    validate_glob_path,
+)
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -55,7 +65,7 @@ from wandb.util import (
 
 from . import wandb_config, wandb_metric, wandb_summary
 from .data_types._dtypes import TypeRegistry
-from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
+from .interface.interface import InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     config_util,
@@ -2133,78 +2143,84 @@ class Run:
         base_path: pathlib.PurePath,
         policy: PolicyName,
     ) -> list[str]:
-        # Can't use is_relative_to() because that's added in Python 3.9,
-        # but we support down to Python 3.8.
-        if not str(glob_path).startswith(str(base_path)):
-            raise ValueError("Glob may not walk above the base path")
+        """Materialize matched files into the run's files/ dir for syncing.
 
-        if glob_path == base_path:
-            raise ValueError("Glob cannot be the same as the base path")
+        Strategy:
+        1) If settings.symlink is True, try symlink.
+        2) Else (or if symlink fails), try hardlink (same-volume files).
+        3) Else copy and, if requested policy == "live", downgrade those files to "now".
+
+        Args:
+            glob_path: Absolute path glob pattern for files to save.
+            base_path: Base path to determine relative directory structure.
+            policy: Upload policy - "live", "now", or "end".
+
+        Returns:
+            List of absolute paths to files in the wandb run directory.
+
+        Raises:
+            ValueError: If glob_path is invalid relative to base_path.
+        """
+        validate_glob_path(glob_path, base_path)
 
         relative_glob = glob_path.relative_to(base_path)
-        if relative_glob.parts[0] == "*":
-            raise ValueError("Glob may not start with '*' relative to the base path")
         relative_glob_str = GlobStr(str(relative_glob))
 
         with telemetry.context(run=self) as tel:
             tel.feature.save = True
 
-        # Files in the files directory matched by the glob, including old and
-        # new ones.
-        globbed_files = set(
-            pathlib.Path(
-                self._settings.files_dir,
-            ).glob(relative_glob_str)
-        )
+        files_root = pathlib.Path(self._settings.files_dir)
+        preexisting = set(files_root.glob(relative_glob_str))
 
-        had_symlinked_files = len(globbed_files) > 0
-        is_star_glob = "*" in relative_glob_str
+        # Expand sources deterministically.
+        src_paths = [
+            pathlib.Path(p).absolute()
+            for p in sorted(glob.glob(GlobStr(str(base_path / relative_glob_str))))
+        ]
 
-        # The base_path may itself be a glob, so we can't do
-        #     base_path.glob(relative_glob_str)
-        for path_str in glob.glob(str(base_path / relative_glob_str)):
-            source_path = pathlib.Path(path_str).absolute()
+        stats = LinkStats()
+        publish_entries = []
+        created_targets = set()
 
-            # We can't use relative_to() because base_path may be a glob.
-            relative_path = pathlib.Path(*source_path.parts[len(base_path.parts) :])
+        for src in src_paths:
+            # Preserve directory structure under base_path.
+            rel = pathlib.Path(*src.parts[len(base_path.parts) :])
+            dst = files_root / rel
+            created_targets.add(dst)
 
-            target_path = pathlib.Path(self._settings.files_dir, relative_path)
-            globbed_files.add(target_path)
+            # If already the same file, just publish with requested policy.
+            with contextlib.suppress(OSError):
+                if dst.exists() and src.samefile(dst):
+                    publish_entries.append(
+                        (GlobStr(str(dst.relative_to(files_root))), policy)
+                    )
+                    continue
 
-            # If the file is already where it needs to be, don't create a symlink.
-            if source_path.resolve() == target_path.resolve():
-                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            unlink_path(dst)
 
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Delete the symlink if it exists.
-            target_path.unlink(missing_ok=True)
-
-            target_path.symlink_to(source_path)
-
-        # Inform users that new files aren't detected automatically.
-        if not had_symlinked_files and is_star_glob:
-            file_str = f"{len(globbed_files)} file"
-            if len(globbed_files) > 1:
-                file_str += "s"
-            wandb.termwarn(
-                f"Symlinked {file_str} into the W&B run directory, "
-                "call wandb.save again to sync new files."
+            effective_policy = link_or_copy_with_policy(
+                self._settings, src, dst, policy, stats
+            )
+            publish_entries.append(
+                (GlobStr(str(dst.relative_to(files_root))), effective_policy)
             )
 
-        files_dict: FilesDict = {
-            "files": [
-                (
-                    GlobStr(str(f.relative_to(self._settings.files_dir))),
-                    policy,
+        # Include pre-existing matches we didn't touch.
+        for p in sorted(preexisting):
+            if p not in created_targets:
+                publish_entries.append(
+                    (GlobStr(str(p.relative_to(files_root))), policy)
                 )
-                for f in globbed_files
-            ]
-        }
+
+        stats.emit_warnings()
+
+        files_dict: FilesDict = {"files": publish_entries}
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
 
-        return [str(f) for f in globbed_files]
+        abs_targets = {files_root / pathlib.Path(g) for (g, _pol) in publish_entries}
+        return [str(p) for p in sorted(abs_targets)]
 
     @_log_to_run
     @_attach

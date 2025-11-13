@@ -35,7 +35,7 @@ from wandb._pydantic import (
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
-from .lib import credentials, ipython
+from .lib import credentials, filesystem, ipython
 from .lib.run_moment import RunMoment
 
 validate_url: Callable[[str], None]
@@ -2107,9 +2107,11 @@ class Settings(BaseModel, validate_assignment=True):
         if not root:
             return None
 
-        # For windows if the root and program are on different drives,
+        # For windows, if the root and program are on different drives,
         # os.path.relpath will raise a ValueError.
-        if not util.are_paths_on_same_drive(root, program):
+        if not filesystem.are_paths_on_same_drive(
+            pathlib.Path(root), pathlib.Path(program)
+        ):
             return None
 
         full_path_to_program = os.path.join(
