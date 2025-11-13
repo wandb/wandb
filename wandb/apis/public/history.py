@@ -30,10 +30,10 @@ class BetaHistoryScan:
 
     def __init__(
         self,
+        api: public.Api,
         run: runs.Run,
         min_step: int,
         max_step: int,
-        api: public.Api,
         keys: list[str] | None = None,
         page_size: int = 1000,
     ):

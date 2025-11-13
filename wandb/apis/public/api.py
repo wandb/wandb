@@ -369,6 +369,7 @@ class Api:
         self._service = None
 
     def _start_backend_service(self):
+        """Starts the backend service and initializes resources to enable handling API requests."""
         from wandb.sdk import wandb_setup
 
         self._stream_id = str(runid.generate_id())
@@ -434,6 +435,14 @@ class Api:
         self,
         request: ApiRequest,
     ) -> ApiResponse:
+        """Sends an API request to the backend service.
+
+        Creates the backend service attribute if it has not been created yet.
+
+        TODO: remove this helper function once all requests are routed through wandb-core.
+        The backend service should be created and initalized
+        during the instantiation of the Api object.
+        """
         if self._service is None:
             self._start_backend_service()
 

@@ -139,10 +139,7 @@ class ServiceConnection:
         self,
         settings: wandb_settings_pb2.Settings,
     ) -> None:
-        """Send a ServerApiInitRequest.
-
-        Telling wandb-core to initialize resources for handling API requests.
-        """
+        """Tells wandb-core to initialize resources for handling API requests."""
         api_init_request = wandb_api_pb2.ServerApiInitRequest(settings=settings)
         request = spb.ServerRequest(api_init_request=api_init_request)
         handle = self._asyncer.run(lambda: self._client.deliver(request))
