@@ -54,7 +54,6 @@ message ScanRunHistoryInit {
   string project = 2;
   string run_id = 3;
   repeated string keys = 4;
-  Settings settings = 5;
 }
 
 message ScanRunHistoryInitResponse {

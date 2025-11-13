@@ -8,7 +8,6 @@ import google.protobuf.descriptor
 import google.protobuf.internal.containers
 import google.protobuf.message
 import sys
-import wandb.proto.wandb_settings_pb2
 
 if sys.version_info >= (3, 8):
     import typing as typing_extensions
@@ -144,14 +143,11 @@ class ScanRunHistoryInit(google.protobuf.message.Message):
     PROJECT_FIELD_NUMBER: builtins.int
     RUN_ID_FIELD_NUMBER: builtins.int
     KEYS_FIELD_NUMBER: builtins.int
-    SETTINGS_FIELD_NUMBER: builtins.int
     entity: builtins.str
     project: builtins.str
     run_id: builtins.str
     @property
     def keys(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    @property
-    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
     def __init__(
         self,
         *,
@@ -159,10 +155,8 @@ class ScanRunHistoryInit(google.protobuf.message.Message):
         project: builtins.str = ...,
         run_id: builtins.str = ...,
         keys: collections.abc.Iterable[builtins.str] | None = ...,
-        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["entity", b"entity", "keys", b"keys", "project", b"project", "run_id", b"run_id", "settings", b"settings"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["entity", b"entity", "keys", b"keys", "project", b"project", "run_id", b"run_id"]) -> None: ...
 
 global___ScanRunHistoryInit = ScanRunHistoryInit
 

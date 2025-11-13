@@ -6,10 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/wandb/simplejsonext"
-	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
-	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -63,22 +60,13 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 ) *spb.ApiResponse {
 	requestId := f.currentRequestId.Add(1)
 	requestKeys := request.GetKeys()
-	settings := settings.From(request.GetSettings())
-
-	backend := stream.NewBackend(observability.NewNoOpLogger(), settings)
-	graphqlClient := stream.NewGraphQLClient(
-		backend,
-		settings,
-		&observability.Peeker{},
-		"", /*clientId*/
-	)
 
 	historyReader, err := runhistoryreader.New(
 		context.Background(),
 		request.Entity,
 		request.Project,
 		request.RunId,
-		graphqlClient,
+		nil,
 		http.DefaultClient,
 		requestKeys,
 	)
