@@ -11,6 +11,7 @@ Note:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import weakref
 
@@ -71,6 +72,10 @@ class BetaHistoryScan:
 
         # Add cleanup hook to clean up resources in wandb-core
         # when this scan object is deleted.
+        #
+        # Using weakref.finalize ensures that references to objects needed during cleanup
+        # are not garbage collected before being used.
+        # see: https://docs.python.org/3/library/weakref.html#comparing-finalizers-with-del-methods
         weakref.finalize(
             self,
             self.cleanup,
@@ -99,9 +104,7 @@ class BetaHistoryScan:
     def _load_next(self):
         from wandb.proto import wandb_api_pb2 as apb
 
-        max_step = self.page_offset + self.page_size
-        if max_step > self.max_step:
-            max_step = self.max_step
+        max_step = min(self.page_offset + self.page_size, self.max_step)
 
         read_run_history_request = apb.ReadRunHistoryRequest(
             scan_run_history=apb.ScanRunHistory(
@@ -140,14 +143,12 @@ class BetaHistoryScan:
             scan_run_history_cleanup=scan_run_history_cleanup
         )
 
-        try:
+        with contextlib.suppress(ConnectionResetError):
             api._send_api_request(
                 apb.ApiRequest(
                     read_run_history_request=scan_run_history_cleanup_request
                 )
             )
-        except ConnectionResetError:
-            pass
 
 
 class HistoryScan:
