@@ -289,14 +289,14 @@ func (t *TPU) getMetrics(metricName TPUMetricName) ([]*tpuproto.Metric, error) {
 }
 
 // Probe returns the TPU metadata.
-func (t *TPU) Probe(_ context.Context) *spb.EnvironmentRecord {
+func (t *TPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
 	if t.count == 0 {
 		return nil
 	}
 
 	// Log available metric names.
 	req := &tpuproto.ListSupportedMetricsRequest{}
-	resp, err := t.client.ListSupportedMetrics(context.Background(), req)
+	resp, err := t.client.ListSupportedMetrics(ctx, req)
 	if err == nil {
 		supportedMetrics := []string{}
 		for _, sm := range resp.SupportedMetric {
