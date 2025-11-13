@@ -45,8 +45,16 @@ type TPUChip struct {
 }
 
 type RuntimeMetricServiceClient interface {
-	GetRuntimeMetric(ctx context.Context, in *tpuproto.MetricRequest, opts ...grpc.CallOption) (*tpuproto.MetricResponse, error)
-	ListSupportedMetrics(ctx context.Context, in *tpuproto.ListSupportedMetricsRequest, opts ...grpc.CallOption) (*tpuproto.ListSupportedMetricsResponse, error)
+	GetRuntimeMetric(
+		ctx context.Context,
+		in *tpuproto.MetricRequest,
+		opts ...grpc.CallOption,
+	) (*tpuproto.MetricResponse, error)
+	ListSupportedMetrics(
+		ctx context.Context,
+		in *tpuproto.ListSupportedMetricsRequest,
+		opts ...grpc.CallOption,
+	) (*tpuproto.ListSupportedMetricsResponse, error)
 }
 
 // TPU represents a TPU resource with gRPC connection and client.
