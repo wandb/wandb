@@ -15,8 +15,10 @@ DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
 @typing.final
 class ServerApiInitRequest(google.protobuf.message.Message):
-    """ApiInitRequest provides settings from the client to the backend process.
-    this should be sent once prior to sending any ApiRequests.
+    """ServerApiInitRequest instructs the backend process
+    to initialize resources to handle ApiRequests.
+
+    This should be sent once prior to sending any ApiRequests.
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor

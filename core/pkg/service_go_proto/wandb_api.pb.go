@@ -20,8 +20,10 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ApiInitRequest provides settings from the client to the backend process.
-// this should be sent once prior to sending any ApiRequests.
+// ServerApiInitRequest instructs the backend process
+// to initialize resources to handle ApiRequests.
+//
+// This should be sent once prior to sending any ApiRequests.
 type ServerApiInitRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

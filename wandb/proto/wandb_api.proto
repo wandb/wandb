@@ -6,8 +6,10 @@ import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
-// ApiInitRequest provides settings from the client to the backend process.
-// this should be sent once prior to sending any ApiRequests.
+// ServerApiInitRequest instructs the backend process
+// to initialize resources to handle ApiRequests.
+//
+// This should be sent once prior to sending any ApiRequests.
 message ServerApiInitRequest {
   Settings settings = 1;
 }
