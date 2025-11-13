@@ -18,7 +18,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
-	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
@@ -423,7 +422,7 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 	case *spb.Request_SenderRead:
 		// TODO: implement this
 	case *spb.Request_StopStatus:
-		s.sendRequestStopStatus(record, x.StopStatus)
+		s.sendRequestStopStatus(record)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
 	case *spb.Request_RunFinishWithoutExit:
@@ -1171,74 +1170,14 @@ func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.Downlo
 		})
 }
 
-func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequest) {
-	respondShouldStop := func(shouldStop bool) {
-		s.respond(record, &spb.Response{
-			ResponseType: &spb.Response_StopStatusResponse{
-				StopStatusResponse: &spb.StopStatusResponse{
-					RunShouldStop: shouldStop,
-				},
+func (s *Sender) sendRequestStopStatus(record *spb.Record) {
+	s.respond(record, &spb.Response{
+		ResponseType: &spb.Response_StopStatusResponse{
+			StopStatusResponse: &spb.StopStatusResponse{
+				RunShouldStop: s.fileStream != nil && s.fileStream.IsStopped(),
 			},
-		})
-	}
-
-	// Prefer filestream feedback if available.
-	if s.fileStream != nil && s.fileStream.StopState() != fs.StopUnknown {
-		respondShouldStop(s.fileStream.StopState() == fs.StopTrue)
-		return
-	}
-
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: sendRequestStopStatus: %v", err))
-		respondShouldStop(false)
-		return
-	}
-
-	runPath := upserter.RunPath()
-	entity := runPath.Entity
-	project := runPath.Project
-	runId := runPath.RunID
-
-	// if any of the entity, project or runId is empty, we can't make the request
-	if entity == "" || project == "" || runId == "" {
-		s.logger.Error("sender: sendStopStatus: entity, project, runId are empty")
-		respondShouldStop(false)
-		return
-	}
-
-	// Fallback: consult GraphQL when filestream status is unknown.
-	response, err := gql.RunStoppedStatus(
-		s.runWork.BeforeEndCtx(),
-		s.graphqlClient,
-		&entity,
-		&project,
-		runId,
-	)
-
-	if err != nil {
-		// if there is an error, we don't know if the run should stop
-		s.logger.CaptureError(
-			fmt.Errorf(
-				"sender: sendStopStatus: failed to get run stopped status: %v",
-				err,
-			))
-		respondShouldStop(false)
-		return
-	}
-
-	if response != nil &&
-		response.GetProject() != nil &&
-		response.GetProject().GetRun() != nil {
-		respondShouldStop(
-			nullify.ZeroIfNil(response.GetProject().GetRun().GetStopped()),
-		)
-		return
-	}
-
-	// By default, don't stop the run.
-	respondShouldStop(false)
+		},
+	})
 }
 
 func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
