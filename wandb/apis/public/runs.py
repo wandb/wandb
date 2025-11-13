@@ -1473,9 +1473,9 @@ class Run(Attrs):
     ) -> public.BetaHistoryScan:
         """Returns an iterable collection of all history records for a run.
 
-        This function uses wandb-core to read history from a run's exported
+        This function is still in development and may not work as expected.
+        It uses wandb-core to read history from a run's exported
         parquet history locally.
-        This function is still in development and should not be used yet.
 
         Args:
             keys: list of metrics to read from the run's history.
@@ -1491,16 +1491,11 @@ class Run(Attrs):
         if self._api is None:
             raise ValueError("Object was not initialized with an api instance")
 
-        if keys is None:
-            keys = []
-        if max_step is None:
-            max_step = self.lastHistoryStep + 1
-
         beta_history_scan = public.BetaHistoryScan(
             api=self._api,
             run=self,
             min_step=min_step,
-            max_step=max_step,
+            max_step=max_step or self.lastHistoryStep + 1,
             keys=keys,
             page_size=page_size,
         )

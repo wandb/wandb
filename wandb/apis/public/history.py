@@ -38,8 +38,6 @@ class BetaHistoryScan:
         keys: list[str] | None = None,
         page_size: int = 1000,
     ):
-        if keys is None:
-            keys = []
         self.run = run
         self.min_step = min_step
         self.max_step = max_step
