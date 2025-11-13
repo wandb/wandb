@@ -302,7 +302,7 @@ func (t *TPU) Probe(_ context.Context) *spb.EnvironmentRecord {
 		for _, sm := range resp.SupportedMetric {
 			supportedMetrics = append(supportedMetrics, sm.MetricName)
 		}
-		t.logger.Info("monitor: tpu: supported metrics", "metrics", supportedMetrics)
+		t.logger.Debug("tpu: supported metrics", "metrics", supportedMetrics)
 	}
 
 	return &spb.EnvironmentRecord{
