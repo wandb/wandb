@@ -8,6 +8,7 @@ import google.protobuf.descriptor
 import google.protobuf.internal.containers
 import google.protobuf.message
 import sys
+import wandb.proto.wandb_settings_pb2
 
 if sys.version_info >= (3, 8):
     import typing as typing_extensions

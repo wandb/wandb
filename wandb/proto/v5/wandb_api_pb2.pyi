@@ -9,6 +9,7 @@ import google.protobuf.descriptor
 import google.protobuf.internal.containers
 import google.protobuf.message
 import typing
+import wandb.proto.wandb_settings_pb2
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
