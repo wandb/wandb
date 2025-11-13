@@ -809,6 +809,9 @@ def wandb_core_size_check(session: nox.Session) -> None:
             """)
         )
         session.error(f"Binary size increased by {pct:.1f}% (>10% threshold)")
+    # If the binary size has increased due to lib upgrades
+    # It maybe related to some locally modified changes in the vendored arrow-go code.
+    # See: https://github.com/wandb/wandb/pull/10712 for the files that were modified.
     elif pct > 0.05:
         session.warn(f"Binary size increased by {pct:.1f}%")
 
