@@ -433,7 +433,7 @@ jobs:
 
   unit-tests-go:
     docker:
-      - image: cimg/go:<<pipeline.parameters.go_version>>
+      - image: golang:<<pipeline.parameters.go_version>>
     steps:
       - checkout
       - run:
