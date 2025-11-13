@@ -30,6 +30,7 @@ from hypothesis.strategies import (
 from wandb._strutils import b64encode_ascii
 from wandb.automations import MetricChangeFilter, MetricThresholdFilter
 from wandb.automations._filters.run_metrics import Agg, ChangeDir, ChangeType
+from wandb.automations._filters.run_states import ReportedRunState
 
 
 @composite
@@ -231,6 +232,9 @@ window_sizes: SearchStrategy[int] = integers(min_value=1, max_value=100)
 aggs: SearchStrategy[Agg | str | None] = none() | sample_with_randomcase(Agg)
 change_types: SearchStrategy[ChangeType | str] = sample_with_randomcase(ChangeType)
 change_dirs: SearchStrategy[ChangeDir | str] = sample_with_randomcase(ChangeDir)
+run_states: SearchStrategy[ReportedRunState | str] = sample_with_randomcase(
+    ReportedRunState
+)
 
 
 pos_numbers: SearchStrategy[int | float] = one_of(
