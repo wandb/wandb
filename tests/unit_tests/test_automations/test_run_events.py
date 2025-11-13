@@ -99,7 +99,7 @@ def test_metric_threshold_binop_vs_method_is_equivalent(
     assert repr(metric <= threshold) == repr(metric.lte(threshold))
 
 
-def test_run_metric_threshold_cannot_be_aggregated_twice():
+def test_metric_threshold_cannot_be_aggregated_twice():
     """Check that run metric thresholds forbid multiple aggregations."""
     with raises(AttributeError):
         RunEvent.metric("my-metric").avg(5).average(10)
@@ -203,7 +203,7 @@ def test_metric_change_filter_repr(metric: MetricVal | MetricAgg, delta: float):
 
 
 @given(states=lists(run_states, max_size=10))
-def test_run_state_filter_serialization(states: list[str | ReportedRunState]):
+def test_state_filter_serialization(states: list[str | ReportedRunState]):
     """Check that a normally-instantiated `RunStateFilter` produces the expected JSON-serializable dict."""
     # When serialized, valid states should be converted to all-caps strings and deduplicated
     expected_state_strs = sorted(set(ReportedRunState(s).value.upper() for s in states))
