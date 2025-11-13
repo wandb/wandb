@@ -1,11 +1,12 @@
 """normalize."""
 
+from __future__ import annotations
+
 import ast
 import sys
 from functools import wraps
 from typing import Callable, TypeVar
 
-import requests
 from wandb_gql.client import RetryError
 
 from wandb import env
@@ -20,6 +21,8 @@ def normalize_exceptions(func: _F) -> _F:
 
     @wraps(func)
     def wrapper(*args, **kwargs):
+        import requests
+
         message = "Whoa, you found a bug."
         try:
             return func(*args, **kwargs)

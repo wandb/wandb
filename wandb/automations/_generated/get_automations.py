@@ -3,22 +3,33 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
-from .fragments import ProjectConnectionFields
-
-
-class GetAutomations(GQLBase):
-    search_scope: Optional[GetAutomationsSearchScope] = Field(alias="searchScope")
+from .fragments import PageInfoFields, ProjectTriggersFields
 
 
-class GetAutomationsSearchScope(GQLBase):
-    projects: Optional[ProjectConnectionFields]
+class GetAutomations(GQLResult):
+    scope: Optional[GetAutomationsScope]
+
+
+class GetAutomationsScope(GQLResult):
+    projects: Optional[GetAutomationsScopeProjects]
+
+
+class GetAutomationsScopeProjects(GQLResult):
+    page_info: PageInfoFields = Field(alias="pageInfo")
+    edges: List[GetAutomationsScopeProjectsEdges]
+
+
+class GetAutomationsScopeProjectsEdges(GQLResult):
+    node: Optional[ProjectTriggersFields]
 
 
 GetAutomations.model_rebuild()
-GetAutomationsSearchScope.model_rebuild()
+GetAutomationsScope.model_rebuild()
+GetAutomationsScopeProjects.model_rebuild()
+GetAutomationsScopeProjectsEdges.model_rebuild()

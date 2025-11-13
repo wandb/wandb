@@ -51,7 +51,8 @@ class EventType(LenientStrEnum):
 # Saved types: for parsing response data from saved automations
 
 
-# Note: In GQL responses containing saved automation data, the filter is wrapped in an extra `filter` key.
+# Note: In GQL responses containing saved automation data, the filter is wrapped
+# in an extra `filter` key.
 class _WrappedSavedEventFilter(GQLBase):  # from: TriggeringFilterEvent
     filter: SerializedToJson[MongoLikeFilter] = And()
 
@@ -101,9 +102,9 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
         Optional[SerializedToJson[MetricThresholdFilter]],
         Field(alias="metric_filter", deprecated=True),
     ] = None
-    """Deprecated legacy field that was previously used to define run metric threshold events.
+    """Deprecated legacy field for defining run metric threshold events.
 
-    For new automations, use the `metric` field (`run_metric_filter` JSON alias) instead.
+    For new automations, use the `metric` field (JSON alias `run_metric_filter`).
     """
 
     @model_validator(mode="before")
@@ -111,9 +112,8 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
     def _wrap_metric_filter(cls, v: Any) -> Any:
         if pydantic_isinstance(v, (MetricThresholdFilter, MetricChangeFilter)):
             # If only an (unnested) metric filter is given, nest it under the
-            # `metric` field, delegating to inner validator(s) for further
-            # wrapping/nesting, if needed.
-            # This is necessary to conform to the expected backend schema.
+            # `metric` field and let inner validators wrap or nest as needed to
+            # conform to the backend schema.
             return cls(metric=v)
         return v
 
@@ -138,8 +138,8 @@ class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
 # Input types: for creating or updating automations
 
 
-# Note: The GQL input for "eventFilter" does NOT wrap the filter in an extra `filter` key, unlike the
-# eventFilter returned in responses for saved automations.
+# Note: The GQL input for `eventFilter` does NOT wrap the filter in an extra
+# `filter` key, unlike the `eventFilter` in GQL responses for saved automations.
 class _BaseEventInput(GQLBase):
     event_type: EventType
 
@@ -158,7 +158,7 @@ class _BaseEventInput(GQLBase):
         raise TypeError(f"Expected a valid action, got: {nameof(type(action))!r}")
 
     def __rshift__(self, other: InputAction) -> NewAutomation:
-        """Implements `event >> action` to define an Automation with this event and action."""
+        """Implement `event >> action` to define an automation."""
         return self.then(other)
 
 
@@ -166,13 +166,13 @@ class _BaseEventInput(GQLBase):
 # Events that trigger on specific mutations in the backend
 class _BaseMutationEventInput(_BaseEventInput):
     filter: SerializedToJson[MongoLikeFilter] = And()
-    """Additional condition(s), if any, that must be met for this event to trigger an automation."""
+    """Additional conditions(s), if any, that are required for this event to trigger."""
 
     @field_validator("filter", mode="after")
     def _wrap_filter(cls, v: Any) -> Any:
-        """Ensure the given filter is wrapped like: `{"$or": [{"$and": [<original_filter>]}]}`.
+        """Wrap filters as `{"$or": [{"$and": [<original_filter>]}]}`.
 
-        This is awkward but necessary, because the frontend expects this format.
+        This awkward format is necessary because the frontend expects it.
         """
         v_new = simplify_op(v)
         v_new = v_new if pydantic_isinstance(v_new, And) else And(and_=[v_new])
@@ -197,14 +197,14 @@ class OnCreateArtifact(_BaseMutationEventInput):
     event_type: Literal[EventType.CREATE_ARTIFACT] = EventType.CREATE_ARTIFACT
 
     scope: ArtifactCollectionScope
-    """The scope of the event: only artifact collections are valid scopes for this event."""
+    """The scope of the event: must be an artifact collection."""
 
 
 # ------------------------------------------------------------------------------
 # Events that trigger on run conditions
 class _BaseRunEventInput(_BaseEventInput):
     scope: ProjectScope
-    """The scope of the event: only projects are valid scopes for this event."""
+    """The scope of the event: must be a project."""
 
 
 class OnRunMetric(_BaseRunEventInput):
@@ -213,16 +213,15 @@ class OnRunMetric(_BaseRunEventInput):
     event_type: Literal[EventType.RUN_METRIC_THRESHOLD, EventType.RUN_METRIC_CHANGE]
 
     filter: SerializedToJson[RunMetricFilter]
-    """Run and/or metric condition(s) that must be satisfied for this event to trigger an automation."""
+    """Run and/or metric condition(s) that must be satisfied for this event to trigger."""
 
     @model_validator(mode="before")
     @classmethod
     def _infer_event_type(cls, data: Any) -> Any:
-        """Infer the event type at validation time from the inner filter.
+        """Infer the event type from the inner filter during validation.
 
-        This allows this class to accommodate both "threshold" and "change" metric
-        filter types, which are can only be determined after parsing and validating
-        the inner JSON data.
+        This supports both "threshold" and "change" metric filters, which can
+        only be determined after parsing and validating the inner JSON data.
         """
         if isinstance(data, dict) and (raw_filter := data.get("filter")):
             # At this point, `raw_filter` may or may not be JSON-serialized

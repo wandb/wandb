@@ -12,10 +12,7 @@ from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts._validators import (
-    ARTIFACT_NAME_MAXLEN,
-    RESERVED_ARTIFACT_TYPE_PREFIX,
-)
+from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import md5_string
@@ -66,10 +63,10 @@ def test_artifact_error_for_invalid_aliases(user):
     for aliases in error_aliases:
         with pytest.raises(ValueError) as e_info:
             run.log_artifact(artifact, aliases=aliases)
-            assert (
-                str(e_info.value)
-                == "Aliases must not contain any of the following characters: /, :"
-            )
+        assert (
+            str(e_info.value)
+            == "Aliases must not contain any of the following characters: '/', ':'"
+        )
 
     for aliases in [["latest", "boom_test-q"]]:
         run.log_artifact(artifact, aliases=aliases)
@@ -80,7 +77,7 @@ def test_artifact_error_for_invalid_aliases(user):
 @pytest.mark.parametrize(
     "invalid_name",
     [
-        "a" * (ARTIFACT_NAME_MAXLEN + 1),  # Name too long
+        "a" * (NAME_MAXLEN + 1),  # Name too long
         "my/artifact",  # Invalid character(s)
     ],
 )
@@ -789,3 +786,38 @@ def test_internal_artifacts(user):
 
         artifact = InternalArtifact(name="test-artifact", type=internal_type)
         run.log_artifact(artifact)
+
+
+def test_storage_policy_storage_region(user, api, tmp_path):
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("test data")
+    project = "test"
+    with wandb.init(entity=user, project=project) as run:
+        # Set in onprem/local/scripts/env.txt when building the test container from gorilla.
+        art = wandb.Artifact(
+            "test-storage-region", type="dataset", storage_region="minio-local"
+        )
+        art.add_file(file_path)
+        run.log_artifact(art)
+        art.wait()
+
+    # Able to download the file
+    art = api.artifact(f"{user}/{project}/test-storage-region:latest")
+    art.download()
+    assert os.path.exists(file_path)
+    assert open(file_path).read() == "test data"
+
+    # Manifest should have the storage region
+    manifest = art.manifest.to_manifest_json()
+    assert manifest["storagePolicyConfig"]["storageRegion"] == "minio-local"
+
+
+def test_storage_policy_storage_region_not_available(user):
+    with wandb.init() as run:
+        # NOTE: We match on the region name instead of exact API error because different versions of server fails at different APIs.
+        # In latest version, storageRegion is passed in `CreateArtifact` and it would return soemthing like `CreateArtifact invalid storageRegion: coreweave-us`
+        # In previous version, storageRegion is ignored in graphql APIs but used in `CommitArtifact` from manifest json and ther error is `malformed region: coreweave-us`
+        with pytest.raises(ValueError, match="coreweave-us"):
+            art = wandb.Artifact("test", type="dataset", storage_region="coreweave-us")
+            run.log_artifact(art)
+            art.wait()

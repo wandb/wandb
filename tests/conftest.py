@@ -7,15 +7,12 @@ import shutil
 import sys
 import time
 import unittest.mock
-from itertools import takewhile
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Iterable, Iterator
+from typing import Any, Callable, Generator, Iterator
 
-import pyte
-import pyte.modes
-from pytest_mock import MockerFixture
 from wandb.errors import term
+from wandb.sdk import wandb_login
 
 # Don't write to Sentry in wandb.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
@@ -32,6 +29,11 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.lib import filesystem, module, runid
 from wandb.sdk.lib.gitlib import GitRepo
 from wandb.sdk.lib.paths import StrPath
+
+pytest_plugins = [
+    "tests.fixtures.emulated_terminal",
+    "tests.fixtures.mock_wandb_log",
+]
 
 # --------------------------------
 # Global pytest configuration
@@ -105,130 +107,6 @@ def reset_logger():
     term._dynamic_blocks = []
 
 
-class MockWandbTerm:
-    """Helper to test wandb.term*() calls.
-
-    See the `mock_wandb_log` fixture.
-    """
-
-    def __init__(
-        self,
-        termlog: unittest.mock.MagicMock,
-        termwarn: unittest.mock.MagicMock,
-        termerror: unittest.mock.MagicMock,
-    ):
-        self._termlog = termlog
-        self._termwarn = termwarn
-        self._termerror = termerror
-
-    def logged(self, msg: str) -> bool:
-        """Returns whether the message was included in a termlog()."""
-        return self._logged(self._termlog, msg)
-
-    def warned(self, msg: str) -> bool:
-        """Returns whether the message was included in a termwarn()."""
-        return self._logged(self._termwarn, msg)
-
-    def errored(self, msg: str) -> bool:
-        """Returns whether the message was included in a termerror()."""
-        return self._logged(self._termerror, msg)
-
-    def _logged(self, termfunc: unittest.mock.MagicMock, msg: str) -> bool:
-        return any(msg in logged for logged in self._logs(termfunc))
-
-    def _logs(self, termfunc: unittest.mock.MagicMock) -> Iterable[str]:
-        # All the term*() functions have a similar API: the message is the
-        # first argument, which may also be passed as a keyword argument called
-        # "string".
-        for call in termfunc.call_args_list:
-            if "string" in call.kwargs:
-                yield call.kwargs["string"]
-            else:
-                yield call.args[0]
-
-
-@pytest.fixture()
-def mock_wandb_log() -> Generator[MockWandbTerm, None, None]:
-    """Mocks the wandb.term*() methods for a test.
-
-    This patches the termlog() / termwarn() / termerror() methods and returns
-    a `MockWandbTerm` object that can be used to assert on their usage.
-
-    The logging functions mutate global state (for repeat=False), making
-    them unsuitable for tests. Use this fixture to assert that a message
-    was logged.
-    """
-    # NOTE: This only stubs out calls like "wandb.termlog()", NOT
-    # "from wandb.errors.term import termlog; termlog()".
-    with unittest.mock.patch.multiple(
-        "wandb",
-        termlog=unittest.mock.DEFAULT,
-        termwarn=unittest.mock.DEFAULT,
-        termerror=unittest.mock.DEFAULT,
-    ) as patched:
-        yield MockWandbTerm(
-            patched["termlog"],
-            patched["termwarn"],
-            patched["termerror"],
-        )
-
-
-class EmulatedTerminal:
-    """The return value of the emulated_terminal fixture."""
-
-    def __init__(self, capsys: pytest.CaptureFixture[str]):
-        self._capsys = capsys
-        self._screen = pyte.Screen(80, 24)
-        self._screen.set_mode(pyte.modes.LNM)  # \n implies \r
-        self._stream = pyte.Stream(self._screen)
-
-    def reset_capsys(self) -> None:
-        """Resets pytest's captured stderr and stdout buffers."""
-        self._capsys.readouterr()
-
-    def read_stderr(self) -> list[str]:
-        """Returns the text in the emulated terminal.
-
-        This processes the stderr text captured by pytest since the last
-        invocation and returns the updated state of the screen. Empty lines
-        at the top and bottom of the screen and empty text at the end of
-        any line are trimmed.
-
-        NOTE: This resets pytest's stderr and stdout buffers. You should not
-        use this with anything else that uses capsys.
-        """
-        self._stream.feed(self._capsys.readouterr().err)
-
-        lines = [line.rstrip() for line in self._screen.display]
-
-        # Trim empty lines from the start and end of the screen.
-        n_empty_at_start = sum(1 for _ in takewhile(lambda line: not line, lines))
-        n_empty_at_end = sum(1 for _ in takewhile(lambda line: not line, lines[::-1]))
-        return lines[n_empty_at_start:-n_empty_at_end]
-
-
-@pytest.fixture()
-def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
-    """Emulates a terminal for the duration of a test.
-
-    This makes functions in the `wandb.errors.term` module act as if
-    stderr is a terminal.
-
-    NOTE: This resets pytest's stderr and stdout buffers. You should not
-    use this with anything else that uses capsys.
-    """
-
-    monkeypatch.setenv("TERM", "xterm")
-
-    monkeypatch.setattr(term, "_sys_stderr_isatty", lambda: True)
-
-    # Make click pretend we're a TTY, so it doesn't strip ANSI sequences.
-    # This is fragile and could break when click is updated.
-    monkeypatch.setattr("click._compat.isatty", lambda *args, **kwargs: True)
-
-    return EmulatedTerminal(capsys)
-
-
 @pytest.fixture(scope="function", autouse=True)
 def filesystem_isolate(tmp_path, monkeypatch):
     # isolated_filesystem() changes the current working directory, which is
@@ -283,10 +161,15 @@ def dummy_api_key() -> str:
 
 
 @pytest.fixture
-def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
-    mocker.patch.object(wandb.sdk.lib.apikey, "isatty", return_value=True)
-    mocker.patch.object(wandb.sdk.lib.apikey, "input", return_value=1)
-    mocker.patch.object(wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key)
+def patch_apikey(monkeypatch: pytest.MonkeyPatch, dummy_api_key: str) -> None:
+    monkeypatch.setattr(
+        wandb_login._WandbLogin,
+        "prompt_api_key",
+        lambda *args, **kwargs: (
+            dummy_api_key,
+            wandb_login.ApiKeyStatus.VALID,
+        ),
+    )
 
 
 @pytest.fixture
@@ -296,7 +179,7 @@ def skip_verify_login(monkeypatch):
     This method is called whenever wandb.login is called.
     """
     monkeypatch.setattr(
-        wandb.sdk.wandb_login._WandbLogin,
+        wandb.sdk.wandb_login,
         "_verify_login",
         unittest.mock.MagicMock(),
     )
@@ -305,12 +188,12 @@ def skip_verify_login(monkeypatch):
 @pytest.fixture
 def patch_prompt(monkeypatch):
     monkeypatch.setattr(
-        wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=False: x[0]
+        wandb.util, "prompt_choices", lambda x, input_timeout=None: x[0]
     )
     monkeypatch.setattr(
         wandb.wandb_lib.apikey,
         "prompt_choices",
-        lambda x, input_timeout=None, jupyter=False: x[0],
+        lambda x, input_timeout=None: x[0],
     )
 
 
@@ -361,7 +244,7 @@ def clean_up():
 def api() -> Api:
     with unittest.mock.patch.object(
         wandb.sdk.wandb_login,
-        "_login",
+        "_verify_login",
         return_value=True,
     ):
         return Api()

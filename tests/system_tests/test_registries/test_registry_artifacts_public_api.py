@@ -1,82 +1,137 @@
 from __future__ import annotations
 
+from typing import Any
 from urllib.parse import quote
 
 import wandb
+from pytest import fixture
 from wandb import Api, Artifact, util
+from wandb._strutils import nameof
 from wandb.apis.public.registries.registry import Registry
 from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.artifacts._generated import (
+    ArtifactByName,
+    ArtifactFragment,
+    ArtifactMembershipByName,
+    ArtifactMembershipFragment,
+)
+from wandb.sdk.artifacts._gqlutils import server_supports
+
+
+@fixture
+def mock_artifact_fragment_data() -> dict[str, Any]:
+    fragment = ArtifactFragment(
+        name="test-collection",  # NOTE: relevant
+        versionIndex=0,  # NOTE: relevant
+        artifactType={"name": "model"},
+        artifactSequence={
+            "name": "test-collection",
+            "project": {
+                "name": "orig-project",
+                "entity": {"name": "test-team"},
+            },
+        },
+        id="PLACEHOLDER",
+        description="PLACEHOLDER",
+        metadata="{}",
+        state="COMMITTED",
+        size=0,
+        digest="FAKE_DIGEST",
+        fileCount=0,
+        commitHash="PLACEHOLDER",
+        createdAt="PLACEHOLDER",
+        updatedAt=None,
+    )
+    return fragment.model_dump()
+
+
+@fixture
+def mock_membership_fragment_data(
+    mock_artifact_fragment_data: dict[str, Any],
+) -> dict[str, Any]:
+    fragment = ArtifactMembershipFragment(
+        id="PLACEHOLDER",
+        artifact=mock_artifact_fragment_data,
+        artifactCollection={
+            "__typename": "ArtifactPortfolio",
+            "name": "test-collection",  # NOTE: relevant
+            "project": {
+                "name": "wandb-registry-model",  # NOTE: relevant
+                "entity": {"name": "org-entity-name"},  # NOTE: relevant
+            },
+        },
+        versionIndex=1,
+        aliases=[
+            {"id": "PLACEHOLDER", "alias": "my-alias"},
+        ],
+    )
+    return fragment.model_dump()
+
+
+@fixture
+def mock_artifact_rsp_data(
+    mock_artifact_fragment_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the mocked response for the GQL ArtifactByName query."""
+    return {
+        "data": {
+            "project": {
+                "artifact": mock_artifact_fragment_data,
+            }
+        }
+    }
+
+
+@fixture
+def mock_membership_rsp_data(
+    mock_membership_fragment_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the mocked response for the GQL ArtifactMembershipByName query."""
+    return {
+        "data": {
+            "project": {
+                "artifactCollectionMembership": mock_membership_fragment_data,
+            }
+        }
+    }
 
 
 def test_fetch_migrated_registry_artifact(
     user,
+    wandb_backend_spy,
     api,
     mocker,
     capsys,
+    mock_artifact_rsp_data: dict[str, Any],
+    mock_membership_rsp_data: dict[str, Any],
 ):
-    mocker.patch(
-        "wandb.sdk.artifacts.artifact.Artifact._from_attrs",
+    server_supports_artifact_via_membership = server_supports(
+        api.client, ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
     )
-    mock_fetch_artifact_by_name = mocker.patch.object(api.client, "execute")
 
-    mock_artifact_fragment_data = {
-        "name": "test-collection",  # NOTE: relevant
-        "versionIndex": 0,  # NOTE: relevant
-        # ------------------------------------------------------------------------------
-        # NOTE: Remaining artifact fields are placeholders and not as relevant to the test
-        "artifactType": {
-            "name": "model",
-        },
-        "artifactSequence": {
-            "id": "PLACEHOLDER",
-            "name": "test-collection",
-            "project": {
-                "id": "PLACEHOLDER",
-                "entityName": "test-team",
-                "name": "orig-project",
-            },
-        },
-        "id": "PLACEHOLDER",
-        "description": "PLACEHOLDER",
-        "metadata": "{}",
-        "state": "COMMITTED",
-        "currentManifest": None,
-        "fileCount": 0,
-        "commitHash": "PLACEHOLDER",
-        "createdAt": "PLACEHOLDER",
-        "updatedAt": None,
-        # ------------------------------------------------------------------------------
-    }
+    mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
 
-    # Mock the GQL response to return the version in the new org registry
-    mock_fetch_artifact_by_name.return_value = {
-        "project": {
-            "artifact": mock_artifact_fragment_data,
-            "artifactCollectionMembership": {
-                "id": "PLACEHOLDER",
-                "artifact": mock_artifact_fragment_data,
-                "artifactCollection": {
-                    "__typename": "ArtifactPortfolio",
-                    "id": "PLACEHOLDER",
-                    "name": "test-collection",  # NOTE: relevant
-                    "project": {
-                        "id": "PLACEHOLDER",
-                        "entityName": "org-entity-name",  # NOTE: relevant
-                        "name": "wandb-registry-model",  # NOTE: relevant
-                    },
-                },
-            },
-        }
-    }
+    # Setup: Stub the appropriate GQL response (depending on server version)
+    # to return the artifact in the new org registry
+    if server_supports_artifact_via_membership:
+        op_name = nameof(ArtifactMembershipByName)
+        mock_rsp = wandb_backend_spy.gql.Constant(content=mock_membership_rsp_data)
+    else:
+        op_name = nameof(ArtifactByName)
+        mock_rsp = wandb_backend_spy.gql.Constant(content=mock_artifact_rsp_data)
+
+    wandb_backend_spy.stub_gql(
+        match=wandb_backend_spy.gql.Matcher(operation=op_name),
+        respond=mock_rsp,
+    )
 
     # Fetching an artifact from the legacy model registry
     api.artifact("test-team/model-registry/test-collection:v0")
-    mock_fetch_artifact_by_name.assert_called_once()
+
+    assert mock_rsp.total_calls == 1
+
     captured = capsys.readouterr()
-    if InternalApi()._server_supports(
-        ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
-    ):
+    if server_supports_artifact_via_membership:
         assert (
             "This model registry has been migrated and will be discontinued"
             in captured.err

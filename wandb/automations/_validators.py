@@ -26,10 +26,15 @@ def ensure_json(v: Any) -> Any:
     return v if isinstance(v, (str, bytes)) else to_json(v)
 
 
-# Allow lenient instantiation/validation: incoming data may already be deserialized.
 SerializedToJson = Annotated[
     Json[T], BeforeValidator(ensure_json), PlainSerializer(to_json)
 ]
+"""A Pydantic type that's always serialized to a JSON string.
+
+Unlike `pydantic.Json[T]`, this is more lenient on validation and instantiation.
+It doesn't strictly require the incoming value to be an encoded JSON string, and
+accepts values that may _already_ be deserialized from JSON (e.g. a dict).
+"""
 
 
 class LenientStrEnum(str, Enum):
@@ -54,7 +59,7 @@ class LenientStrEnum(str, Enum):
 
 
 def default_if_none(v: Any) -> Any:
-    """A before-validator validator that coerces `None` to the default field value instead."""
+    """Before validator that coerces `None` to the field default."""
     # https://docs.pydantic.dev/2.11/api/pydantic_core/#pydantic_core.PydanticUseDefault
     if v is None:
         raise PydanticUseDefault
@@ -67,7 +72,7 @@ def upper_if_str(v: Any) -> Any:
 
 # ----------------------------------------------------------------------------
 def to_scope(v: Any) -> Any:
-    """Convert eligible objects, including pre-existing `wandb` types, to an automation scope."""
+    """Convert eligible objects (including wandb types) to an automation scope."""
     from wandb.apis.public import ArtifactCollection, Project
 
     from .scopes import ProjectScope, _ArtifactPortfolioScope, _ArtifactSequenceScope

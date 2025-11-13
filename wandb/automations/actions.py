@@ -74,12 +74,12 @@ class _SavedActionWebhookIntegration(GQLBase, extra="allow"):
     id: GQLId
 
 
-class SavedNotificationAction(NotificationActionFields):
+class SavedNotificationAction(NotificationActionFields, frozen=False):
     action_type: Literal[ActionType.NOTIFICATION] = ActionType.NOTIFICATION
     integration: _SavedActionSlackIntegration
 
 
-class SavedWebhookAction(GenericWebhookActionFields):
+class SavedWebhookAction(GenericWebhookActionFields, frozen=False):
     action_type: Literal[ActionType.GENERIC_WEBHOOK] = ActionType.GENERIC_WEBHOOK
     integration: _SavedActionWebhookIntegration
 
@@ -92,7 +92,7 @@ class SavedWebhookAction(GenericWebhookActionFields):
     ] = None  # type: ignore[assignment]
 
 
-class SavedNoOpAction(NoOpActionFields, frozen=True):
+class SavedNoOpAction(NoOpActionFields, frozen=False):
     action_type: Literal[ActionType.NO_OP] = ActionType.NO_OP
 
     no_op: Annotated[bool, BeforeValidator(default_if_none)] = True
@@ -132,7 +132,7 @@ class SendNotification(_BaseActionInput, NotificationActionInput):
     integration_id: GQLId
     """The ID of the Slack integration that will be used to send the notification."""
 
-    # Note: Validation aliases are meant to provide continuity with prior `wandb.alert()` API.
+    # Note: Validation aliases preserve continuity with the prior `wandb.alert()` API.
     title: str = ""
     """The title of the sent notification."""
 

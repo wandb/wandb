@@ -1,12 +1,8 @@
-"""InterfaceShared - Derived from InterfaceBase - shared with InterfaceQueue and InterfaceSock.
-
-See interface.py for how interface classes relate to each other.
-
-"""
-
+import abc
 import logging
-from abc import abstractmethod
 from typing import Any, Optional, cast
+
+from typing_extensions import override
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -18,22 +14,70 @@ from .interface import InterfaceBase
 logger = logging.getLogger("wandb")
 
 
-class InterfaceShared(InterfaceBase):
+class InterfaceShared(InterfaceBase, abc.ABC):
+    """Partially implemented InterfaceBase.
+
+    There is little reason for this to exist separately from InterfaceBase,
+    which itself is not a pure abstract class and has no other direct
+    subclasses. Most methods are implemented in this class in terms of the
+    protected _publish and _deliver methods defined by subclasses.
+    """
+
     def __init__(self) -> None:
         super().__init__()
 
-    def _publish_output(self, outdata: pb.OutputRecord) -> None:
+    @abc.abstractmethod
+    def _publish(
+        self,
+        record: pb.Record,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        """Send a record to the internal service.
+
+        Args:
+            record: The record to send. This method assigns its stream ID.
+            nowait: If true, this does not block on socket IO and is safe
+                to call in W&B's asyncio thread, but it will also not slow
+                down even if the socket is blocked and allow data to accumulate
+                in the Python memory.
+        """
+
+    @abc.abstractmethod
+    def _deliver(self, record: pb.Record) -> "MailboxHandle[pb.Result]":
+        """Send a record to the internal service and return a response handle.
+
+        Args:
+            record: The record to send. This method assigns its stream ID.
+
+        Returns:
+            A mailbox handle for waiting for a response.
+        """
+
+    @override
+    def _publish_output(
+        self,
+        outdata: pb.OutputRecord,
+        *,
+        nowait: bool = False,
+    ) -> None:
         rec = pb.Record()
         rec.output.CopyFrom(outdata)
-        self._publish(rec)
+        self._publish(rec, nowait=nowait)
+
+    @override
+    def _publish_output_raw(
+        self,
+        outdata: pb.OutputRawRecord,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        rec = pb.Record()
+        rec.output_raw.CopyFrom(outdata)
+        self._publish(rec, nowait=nowait)
 
     def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
         rec = self._make_request(cancel=cancel)
-        self._publish(rec)
-
-    def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
-        rec = pb.Record()
-        rec.output_raw.CopyFrom(outdata)
         self._publish(rec)
 
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
@@ -87,7 +131,6 @@ class InterfaceShared(InterfaceBase):
         stop_status: Optional[pb.StopStatusRequest] = None,
         internal_messages: Optional[pb.InternalMessagesRequest] = None,
         network_status: Optional[pb.NetworkStatusRequest] = None,
-        operation_stats: Optional[pb.OperationStatsRequest] = None,
         poll_exit: Optional[pb.PollExitRequest] = None,
         partial_history: Optional[pb.PartialHistoryRequest] = None,
         sampled_history: Optional[pb.SampledHistoryRequest] = None,
@@ -112,6 +155,7 @@ class InterfaceShared(InterfaceBase):
         python_packages: Optional[pb.PythonPackagesRequest] = None,
         job_input: Optional[pb.JobInputRequest] = None,
         run_finish_without_exit: Optional[pb.RunFinishWithoutExitRequest] = None,
+        probe_system_info: Optional[pb.ProbeSystemInfoRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if get_summary:
@@ -128,8 +172,6 @@ class InterfaceShared(InterfaceBase):
             request.internal_messages.CopyFrom(internal_messages)
         elif network_status:
             request.network_status.CopyFrom(network_status)
-        elif operation_stats:
-            request.operations.CopyFrom(operation_stats)
         elif poll_exit:
             request.poll_exit.CopyFrom(poll_exit)
         elif partial_history:
@@ -178,6 +220,8 @@ class InterfaceShared(InterfaceBase):
             request.job_input.CopyFrom(job_input)
         elif run_finish_without_exit:
             request.run_finish_without_exit.CopyFrom(run_finish_without_exit)
+        elif probe_system_info:
+            request.probe_system_info.CopyFrom(probe_system_info)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -258,17 +302,11 @@ class InterfaceShared(InterfaceBase):
             raise Exception("Invalid record")
         return record
 
-    @abstractmethod
-    def _publish(self, record: pb.Record, local: Optional[bool] = None) -> None:
-        raise NotImplementedError
-
-    def _deliver(self, record: pb.Record) -> "MailboxHandle[pb.Result]":
-        raise NotImplementedError
-
     def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
-        self._publish(rec, local=True)
+        rec.control.local = True
+        self._publish(rec)
 
     def publish_defer(self, state: int = 0) -> None:
         self._publish_defer(cast("pb.DeferRequest.DeferState.V", state))
@@ -329,6 +367,12 @@ class InterfaceShared(InterfaceBase):
     def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> Any:
         rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
+
+    def _publish_probe_system_info(
+        self, probe_system_info: pb.ProbeSystemInfoRequest
+    ) -> None:
+        record = self._make_request(probe_system_info=probe_system_info)
+        self._publish(record)
 
     def _deliver_artifact(
         self,
@@ -413,10 +457,6 @@ class InterfaceShared(InterfaceBase):
         exit_data: pb.RunExitRecord,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_record(exit=exit_data)
-        return self._deliver(record)
-
-    def deliver_operation_stats(self):
-        record = self._make_request(operation_stats=pb.OperationStatsRequest())
         return self._deliver(record)
 
     def _deliver_poll_exit(

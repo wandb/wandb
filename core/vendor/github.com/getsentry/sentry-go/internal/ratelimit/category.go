@@ -14,12 +14,14 @@ import (
 // and, therefore, rate limited.
 type Category string
 
-// Known rate limit categories. As a special case, the CategoryAll applies to
-// all known payload types.
+// Known rate limit categories that are specified in rate limit headers.
 const (
-	CategoryAll         Category = ""
+	CategoryUnknown     Category = "unknown" // Unknown category should not get rate limited
+	CategoryAll         Category = ""        // Special category for empty categories (applies to all)
 	CategoryError       Category = "error"
 	CategoryTransaction Category = "transaction"
+	CategoryLog         Category = "log_item"
+	CategoryMonitor     Category = "monitor"
 )
 
 // knownCategories is the set of currently known categories. Other categories
@@ -28,18 +30,74 @@ var knownCategories = map[Category]struct{}{
 	CategoryAll:         {},
 	CategoryError:       {},
 	CategoryTransaction: {},
+	CategoryLog:         {},
+	CategoryMonitor:     {},
 }
 
 // String returns the category formatted for debugging.
 func (c Category) String() string {
-	if c == "" {
+	switch c {
+	case CategoryAll:
 		return "CategoryAll"
+	case CategoryError:
+		return "CategoryError"
+	case CategoryTransaction:
+		return "CategoryTransaction"
+	case CategoryLog:
+		return "CategoryLog"
+	case CategoryMonitor:
+		return "CategoryMonitor"
+	default:
+		// For unknown categories, use the original formatting logic
+		caser := cases.Title(language.English)
+		rv := "Category"
+		for _, w := range strings.Fields(string(c)) {
+			rv += caser.String(w)
+		}
+		return rv
 	}
+}
 
-	caser := cases.Title(language.English)
-	rv := "Category"
-	for _, w := range strings.Fields(string(c)) {
-		rv += caser.String(w)
+// Priority represents the importance level of a category for buffer management.
+type Priority int
+
+const (
+	PriorityCritical Priority = iota + 1
+	PriorityHigh
+	PriorityMedium
+	PriorityLow
+	PriorityLowest
+)
+
+func (p Priority) String() string {
+	switch p {
+	case PriorityCritical:
+		return "critical"
+	case PriorityHigh:
+		return "high"
+	case PriorityMedium:
+		return "medium"
+	case PriorityLow:
+		return "low"
+	case PriorityLowest:
+		return "lowest"
+	default:
+		return "unknown"
 	}
-	return rv
+}
+
+// GetPriority returns the priority level for this category.
+func (c Category) GetPriority() Priority {
+	switch c {
+	case CategoryError:
+		return PriorityCritical
+	case CategoryMonitor:
+		return PriorityHigh
+	case CategoryLog:
+		return PriorityMedium
+	case CategoryTransaction:
+		return PriorityLow
+	default:
+		return PriorityMedium
+	}
 }

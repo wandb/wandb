@@ -9,8 +9,6 @@ import threading
 import time
 from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
 
-from requests import HTTPError
-
 import wandb
 import wandb.errors
 from wandb.util import CheckRetryFnType
@@ -77,8 +75,9 @@ class Retry(Generic[_R]):
             self._retryable_exceptions = retryable_exceptions
         else:
             self._retryable_exceptions = (TransientError,)
-        self._index = 0
         self.retry_callback = retry_callback
+
+        self._num_iter = 0
 
     def _sleep_check_cancelled(
         self, wait_seconds: float, cancel_event: Optional[threading.Event]
@@ -182,6 +181,8 @@ class Retry(Generic[_R]):
         Args:
             exception: The most recent exception we will retry.
         """
+        from requests import HTTPError
+
         if (
             isinstance(exception, HTTPError)
             and exception.response is not None
@@ -194,7 +195,7 @@ class Retry(Generic[_R]):
         else:
             wandb.termlog(
                 f"{self._error_prefix}"
-                f" ({exception.__class__.__name__}), entering retry loop."
+                + f" ({exception.__class__.__name__}), entering retry loop."
             )
 
     def _print_recovered(self, start_time: datetime.datetime) -> None:

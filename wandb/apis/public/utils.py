@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 import re
 from enum import Enum
-from typing import Any, Dict, Iterable, Mapping, Optional, Set
+from typing import Any, Iterable, Mapping
 from urllib.parse import urlparse
 
 from wandb_gql import gql
+from wandb_graphql import TypeInfo
 from wandb_graphql.language import ast, visitor
+from wandb_graphql.validation.validation import ValidationContext
 
 from wandb._iterutils import one
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
@@ -64,6 +67,8 @@ def parse_org_from_registry_path(path: str, path_type: PathType) -> str:
         artifact path like <entity>/<project>/<artifact> or <project>/<artifact> or <artifact>
         path_type (PathType): The type of path to parse.
     """
+    from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
     parts = path.split("/")
     expected_parts = 3 if path_type == PathType.ARTIFACT else 2
 
@@ -75,7 +80,7 @@ def parse_org_from_registry_path(path: str, path_type: PathType) -> str:
 
 
 def fetch_org_from_settings_or_entity(
-    settings: dict, default_entity: Optional[str] = None
+    settings: dict, default_entity: str | None = None
 ) -> str:
     """Fetch the org from either the settings or deriving it from the entity.
 
@@ -110,43 +115,64 @@ def fetch_org_from_settings_or_entity(
 class _GQLCompatRewriter(visitor.Visitor):
     """GraphQL AST visitor to rewrite queries/mutations to be compatible with older server versions."""
 
-    omit_variables: Set[str]
-    omit_fragments: Set[str]
-    omit_fields: Set[str]
-    rename_fields: Dict[str, str]
-
     def __init__(
         self,
-        omit_variables: Optional[Iterable[str]] = None,
-        omit_fragments: Optional[Iterable[str]] = None,
-        omit_fields: Optional[Iterable[str]] = None,
-        rename_fields: Optional[Mapping[str, str]] = None,
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+        rename_fields: Mapping[str, str] | None = None,
     ):
         self.omit_variables = set(omit_variables or ())
         self.omit_fragments = set(omit_fragments or ())
         self.omit_fields = set(omit_fields or ())
         self.rename_fields = dict(rename_fields or {})
 
-    def enter_VariableDefinition(self, node: ast.VariableDefinition, *_, **__) -> Any:  # noqa: N802
-        if node.variable.name.value in self.omit_variables:
-            return visitor.REMOVE
-        # return node
+    def leave_Document(self, node: ast.Document, *_, **__) -> Any:  # noqa: N802
+        # After rewriting the GQL document, prune "orphan" (unused) fragment definitions.
+        # Note: The ValidationContext doesn't require a schema here, as we only use it to check for reachable fragments.
+        ctx = ValidationContext(schema=None, ast=node, type_info=TypeInfo(schema=None))
+        operation_defns = {
+            dfn for dfn in node.definitions if isinstance(dfn, ast.OperationDefinition)
+        }
+        used_fragment_defns = {
+            frag
+            for op in operation_defns
+            for frag in ctx.get_recursively_referenced_fragments(op)
+        }
+        # Preserve original defintion order
+        allowed_defns = operation_defns | used_fragment_defns
+        node.definitions = [dfn for dfn in node.definitions if (dfn in allowed_defns)]
 
-    def enter_ObjectField(self, node: ast.ObjectField, *_, **__) -> Any:  # noqa: N802
-        # For context, note that e.g.:
+    def enter_Variable(self, node: ast.Variable, *_, **__) -> Any:  # noqa: N802
+        if node.name.value in self.omit_variables:
+            return visitor.REMOVE
+
+    def leave_VariableDefinition(self, node: ast.VariableDefinition, *_, **__) -> Any:  # noqa: N802
+        # For context, consider the `$varName: String` variable definition below:
+        #   (..., $varName: String, ...)
         #
-        #   {description: $description
-        #   ...}
+        # On ENTERING, the AST looks like:
+        #     VariableDefinition(variable=Variable(name=Name(value='varName')), ...)
         #
-        # Is parsed as:
+        # On LEAVING, if `$varName` was removed, the AST looks like:
+        #     VariableDefinition(variable=REMOVE, ...)
+        if node.variable is visitor.REMOVE:
+            return visitor.REMOVE
+
+    def leave_ObjectField(self, node: ast.ObjectField, *_, **__) -> Any:  # noqa: N802
+        # For context, consider `argName: $varName` in the input args below:
+        #   input: {..., argName: $varName, ...}
         #
-        #   ObjectValue(fields=[
-        #     ObjectField(name=Name(value='description'), value=Variable(name=Name(value='description'))),
-        #   ...])
-        if (
-            isinstance(var := node.value, ast.Variable)
-            and var.name.value in self.omit_variables
-        ):
+        # On ENTERING, the AST for `argName: $varName` looks like:
+        #     ObjectField(
+        #       name=Name(value='argName'), value=Variable(name=Name(value='varName')),
+        #     )
+        #
+        # On LEAVING, if `$varName` was removed, the AST looks like:
+        #     ObjectField(
+        #       name=Name(value='argName'), value=REMOVE,
+        #     )
+        if node.value is visitor.REMOVE:
             return visitor.REMOVE
 
     def enter_Argument(self, node: ast.Argument, *_, **__) -> Any:  # noqa: N802
@@ -166,7 +192,6 @@ class _GQLCompatRewriter(visitor.Visitor):
             return visitor.REMOVE
         if new_name := self.rename_fields.get(node.name.value):
             node.name.value = new_name
-            return node
 
     def leave_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
         # If the field had a selection set, but now it's empty, remove the field entirely
@@ -176,10 +201,10 @@ class _GQLCompatRewriter(visitor.Visitor):
 
 def gql_compat(
     request_string: str,
-    omit_variables: Optional[Iterable[str]] = None,
-    omit_fragments: Optional[Iterable[str]] = None,
-    omit_fields: Optional[Iterable[str]] = None,
-    rename_fields: Optional[Mapping[str, str]] = None,
+    omit_variables: Iterable[str] | None = None,
+    omit_fragments: Iterable[str] | None = None,
+    omit_fields: Iterable[str] | None = None,
+    rename_fields: Mapping[str, str] | None = None,
 ) -> ast.Document:
     """Rewrite a GraphQL request string to ensure compatibility with older server versions.
 

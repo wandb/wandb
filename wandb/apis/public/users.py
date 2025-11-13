@@ -7,7 +7,8 @@ Note:
     users and their authentication. Some operations require admin privileges.
 """
 
-import requests
+from __future__ import annotations
+
 from wandb_gql import gql
 
 import wandb
@@ -134,6 +135,8 @@ class User(Attrs):
         Raises:
             ValueError if the api_key couldn't be found
         """
+        import requests
+
         idx = self.api_keys.index(api_key)
         try:
             self._client.execute(
@@ -154,6 +157,8 @@ class User(Attrs):
         Returns:
             The new api key, or None on failure
         """
+        import requests
+
         try:
             # We must make this call using credentials from the original user
             key = self.user_api.client.execute(

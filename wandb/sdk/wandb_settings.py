@@ -35,8 +35,7 @@ from wandb._pydantic import (
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
-from .lib import apikey, credentials, ipython
-from .lib.gitlib import GitRepo
+from .lib import credentials, ipython
 from .lib.run_moment import RunMoment
 
 validate_url: Callable[[str], None]
@@ -157,9 +156,12 @@ def _path_convert(*args: str) -> str:
 
 
 CLIENT_ONLY_SETTINGS = (
-    "reinit",
+    "files_dir",
     "max_end_of_run_history_metrics",
     "max_end_of_run_summary_metrics",
+    "reinit",
+    "x_files_dir",
+    "x_sync_dir_suffix",
 )
 """Python-only keys that are not fields on the settings proto."""
 
@@ -238,25 +240,53 @@ class Settings(BaseModel, validate_assignment=True):
     """The type of console capture to be applied.
 
     Possible values are:
-      "auto" - Automatically selects the console capture method based on the
+    - "auto" - Automatically selects the console capture method based on the
       system environment and settings.
-
-      "off" - Disables console capture.
-
-      "redirect" - Redirects low-level file descriptors for capturing output.
-
-      "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+    - "off" - Disables console capture.
+    - "redirect" - Redirects low-level file descriptors for capturing output.
+    - "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
       mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
-
-      "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+    - "wrap_raw" - Same as "wrap" but captures raw output directly instead of
       through an emulator. Derived from the `wrap` setting and should not be set manually.
-
-      "wrap_emu" - Same as "wrap" but captures output through an emulator.
+    - "wrap_emu" - Same as "wrap" but captures output through an emulator.
       Derived from the `wrap` setting and should not be set manually.
     """
 
     console_multipart: bool = False
-    """Whether to produce multipart console log files."""
+    """Enable multipart console logging.
+
+    When True, the SDK writes console output to timestamped files
+    under the `logs/` directory instead of a single `output.log`.
+
+    Each part is uploaded as soon as it is closed, giving users live
+    access to logs while the run is active. Rollover cadence is
+    controlled by `console_chunk_max_bytes` and/or `console_chunk_max_seconds`.
+    If both limits are `0`, all logs are uploaded once at run finish.
+
+    Note: Uploaded chunks are immutable; terminal control sequences
+    that modify previous lines (e.g., progress bars using carriage returns)
+    only affect the current chunk.
+    """
+
+    console_chunk_max_bytes: int = 0
+    """Size-based rollover threshold for multipart console logs, in bytes.
+
+    Starts a new console log file when the current part reaches this
+    size. Has an effect only when `console_multipart` is `True`.
+    Can be combined with `console_chunk_max_seconds`; whichever limit is
+    hit first triggers the rollover. A value of `0` disables the
+    size-based limit.
+    """
+
+    console_chunk_max_seconds: int = 0
+    """Time-based rollover threshold for multipart console logs, in seconds.
+
+    Starts a new console log file after this many seconds have elapsed
+    since the current part began. Requires `console_multipart` to be
+    `True`.  May be used with `console_chunk_max_bytes`; the first limit
+    reached closes the part. A value of `0` disables the time-based
+    limit.
+    """
 
     credentials_file: str = Field(
         default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
@@ -660,6 +690,9 @@ class Settings(BaseModel, validate_assignment=True):
     x_files_dir: Optional[str] = None
     """Override setting for the computed files_dir.
 
+    DEPRECATED, DO NOT USE. This private setting is not respected by wandb-core
+    but will continue to work for some legacy Python code.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -941,6 +974,13 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
+    x_sync_dir_suffix: str = ""
+    """Suffix to add to the run's directory name (sync_dir).
+
+    This is set in wandb.init() to avoid naming conflicts.
+    If set, it is joined to the default name with a dash.
+    """
+
     x_update_finish_state: bool = True
     """Flag to indicate whether this process can update the run's final state on the server.
 
@@ -954,6 +994,8 @@ class Settings(BaseModel, validate_assignment=True):
         """Check if a private field is provided and assign to the corresponding public one.
 
         This is a compatibility layer to handle previous versions of the settings.
+
+        <!-- lazydoc-ignore: internal -->
         """
         new_values = {}
         for key in values:
@@ -988,6 +1030,10 @@ class Settings(BaseModel, validate_assignment=True):
 
         @model_validator(mode="after")
         def validate_skip_transaction_log(self):
+            """Validate x_skip_transaction_log.
+
+            <!-- lazydoc-ignore: internal -->
+            """
             if self._offline and self.x_skip_transaction_log:
                 raise ValueError("Cannot skip transaction log in offline mode")
             return self
@@ -1069,6 +1115,30 @@ class Settings(BaseModel, validate_assignment=True):
             return value
 
         return "wrap"
+
+    @field_validator("console_chunk_max_bytes", mode="after")
+    @classmethod
+    def validate_console_chunk_max_bytes(cls, value):
+        """Validate the console_chunk_max_bytes value.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if value < 0:
+            raise ValueError("console_chunk_max_bytes must be non-negative")
+
+        return value
+
+    @field_validator("console_chunk_max_seconds", mode="after")
+    @classmethod
+    def validate_console_chunk_max_seconds(cls, value):
+        """Validate the console_chunk_max_seconds value.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if value < 0:
+            raise ValueError("console_chunk_max_seconds must be non-negative")
+
+        return value
 
     @field_validator("x_executable", mode="before")
     @classmethod
@@ -1445,6 +1515,8 @@ class Settings(BaseModel, validate_assignment=True):
         - Converts single string values to tuple format
         - Preserves None values
 
+        <!-- lazydoc-ignore-classmethod: internal -->
+
         Args:
             value: A string, list, tuple, or None representing tags
 
@@ -1453,8 +1525,6 @@ class Settings(BaseModel, validate_assignment=True):
 
         Raises:
             ValueError: If any tag is empty or exceeds 64 characters
-
-        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value is None:
             return None
@@ -1638,6 +1708,7 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def files_dir(self) -> str:
         """Absolute path to the local directory where the run's files are stored."""
+        # Must match the logic in settings.go in the service process.
         return self.x_files_dir or _path_convert(self.sync_dir, "files")
 
     @computed_field  # type: ignore[prop-decorator]
@@ -1733,10 +1804,12 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def sync_dir(self) -> str:
         """The directory for storing the run's files."""
-        return _path_convert(
-            self.wandb_dir,
-            f"{self.run_mode}-{self.timespec}-{self.run_id}",
-        )
+        name = f"{self.run_mode}-{self.timespec}-{self.run_id}"
+
+        if self.x_sync_dir_suffix:
+            name += f"-{self.x_sync_dir_suffix}"
+
+        return _path_convert(self.wandb_dir, name)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1776,7 +1849,10 @@ class Settings(BaseModel, validate_assignment=True):
     # wandb/sdk/wandb_setup.py::_WandbSetup._settings_setup.
 
     def update_from_system_config_file(self):
-        """Update settings from the system config file."""
+        """Update settings from the system config file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if not self.settings_system or not os.path.exists(self.settings_system):
             return
         for key, value in self._load_config_file(self.settings_system).items():
@@ -1784,7 +1860,10 @@ class Settings(BaseModel, validate_assignment=True):
                 setattr(self, key, value)
 
     def update_from_workspace_config_file(self):
-        """Update settings from the workspace config file."""
+        """Update settings from the workspace config file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if not self.settings_workspace or not os.path.exists(self.settings_workspace):
             return
         for key, value in self._load_config_file(self.settings_workspace).items():
@@ -1792,7 +1871,10 @@ class Settings(BaseModel, validate_assignment=True):
                 setattr(self, key, value)
 
     def update_from_env_vars(self, environ: Dict[str, Any]):
-        """Update settings from environment variables."""
+        """Update settings from environment variables.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         env_prefix: str = "WANDB_"
         private_env_prefix: str = env_prefix + "_"
         special_env_var_names = {
@@ -1829,7 +1911,10 @@ class Settings(BaseModel, validate_assignment=True):
                 setattr(self, key, value)
 
     def update_from_system_environment(self):
-        """Update settings from the system environment."""
+        """Update settings from the system environment.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
         if (self.save_code is True or self.save_code is None) and (
@@ -1885,37 +1970,26 @@ class Settings(BaseModel, validate_assignment=True):
         program = self.program or self._get_program()
 
         if program is not None:
-            try:
-                root = (
-                    GitRepo().root or os.getcwd()
-                    if not self.disable_git
-                    else os.getcwd()
-                )
-            except Exception:
-                # if the git command fails, fall back to the current working directory
-                root = os.getcwd()
-
-            self.program_relpath = self.program_relpath or self._get_program_relpath(
-                program, root
-            )
-            program_abspath = os.path.abspath(
-                os.path.join(root, os.path.relpath(os.getcwd(), root), program)
-            )
-            if os.path.exists(program_abspath):
-                self.program_abspath = program_abspath
+            self._setup_code_paths(program)
         else:
             program = "<python with no main file>"
 
         self.program = program
 
     def update_from_dict(self, settings: Dict[str, Any]) -> None:
-        """Update settings from a dictionary."""
+        """Update settings from a dictionary.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         for key, value in dict(settings).items():
             if value is not None:
                 setattr(self, key, value)
 
     def update_from_settings(self, settings: Settings) -> None:
-        """Update settings from another instance of `Settings`."""
+        """Update settings from another instance of `Settings`.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         d = {field: getattr(settings, field) for field in settings.model_fields_set}
         if d:
             self.update_from_dict(d)
@@ -1923,7 +1997,10 @@ class Settings(BaseModel, validate_assignment=True):
     # Helper methods.
 
     def to_proto(self) -> wandb_settings_pb2.Settings:
-        """Generate a protobuf representation of the settings."""
+        """Generate a protobuf representation of the settings.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         settings_proto = wandb_settings_pb2.Settings()
         for k, v in self.model_dump(exclude_none=True).items():
             if k in CLIENT_ONLY_SETTINGS:
@@ -2073,9 +2150,11 @@ class Settings(BaseModel, validate_assignment=True):
 
     def _get_url_query_string(self) -> str:
         """Construct the query string for project, run, and sweep URLs."""
-        # TODO: remove dependency on Api()
         if self.anonymous not in ["allow", "must"]:
             return ""
+
+        # TODO: remove dependency on Api()
+        from .lib import apikey
 
         api_key = apikey.api_key(settings=self)
 
@@ -2158,3 +2237,48 @@ class Settings(BaseModel, validate_assignment=True):
             This is a compatibility property for Pydantic v1 to mimic v2's model_fields_set.
             """
             return getattr(self, "__fields_set__", set())
+
+    def _setup_code_paths(self, program: str):
+        """Sets the program_abspath and program_relpath settings."""
+        if self._jupyter and self.x_jupyter_root:
+            self._infer_code_paths_for_jupyter(program)
+        else:
+            self._infer_code_path_for_program(program)
+
+    def _infer_code_path_for_program(self, program: str):
+        """Finds the program's absolute and relative paths."""
+        from .lib.gitlib import GitRepo
+
+        try:
+            root = (
+                GitRepo().root or os.getcwd() if not self.disable_git else os.getcwd()
+            )
+        except Exception:
+            # if the git command fails, fall back to the current working directory
+            root = os.getcwd()
+
+        self.program_relpath = self.program_relpath or self._get_program_relpath(
+            program, root
+        )
+
+        program_abspath = os.path.abspath(
+            os.path.join(root, os.path.relpath(os.getcwd(), root), program)
+        )
+
+        if os.path.exists(program_abspath):
+            self.program_abspath = program_abspath
+
+    def _infer_code_paths_for_jupyter(self, program: str):
+        """Find the notebook's absolute and relative paths.
+
+        Since the notebook's execution environment
+        is not the same as the current working directory.
+        We utilize the metadata provided by the jupyter server.
+        """
+        if not self.x_jupyter_root or not program:
+            return None
+
+        self.program_abspath = os.path.abspath(
+            os.path.join(self.x_jupyter_root, program)
+        )
+        self.program_relpath = program

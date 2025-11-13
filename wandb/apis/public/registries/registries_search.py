@@ -5,50 +5,48 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
-from pydantic import ValidationError
+from pydantic import PositiveInt, ValidationError
 from typing_extensions import override
 from wandb_gql import gql
 
 from wandb._analytics import tracked
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.utils import gql_compat
-from wandb.sdk.artifacts._generated import (
-    FETCH_REGISTRIES_GQL,
-    REGISTRY_COLLECTIONS_GQL,
-    REGISTRY_VERSIONS_GQL,
-    ArtifactCollectionType,
-    FetchRegistries,
-    RegistriesPage,
-    RegistryCollections,
-    RegistryCollectionsPage,
-    RegistryVersions,
-    RegistryVersionsPage,
-)
-from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
-from wandb.sdk.artifacts._validators import remove_registry_prefix
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 
 from ._utils import ensure_registry_prefix_on_names
 
 if TYPE_CHECKING:
-    from wandb_gql import Client
-
+    from wandb.apis.public import RetryingClient
+    from wandb.sdk.artifacts._models.pagination import (
+        ArtifactMembershipConnection,
+        RegistryCollectionConnection,
+        RegistryConnection,
+    )
     from wandb.sdk.artifacts.artifact import Artifact
 
 
 class Registries(Paginator):
-    """An lazy iterator of `Registry` objects."""
+    """A lazy iterator of `Registry` objects."""
 
-    QUERY = gql(FETCH_REGISTRIES_GQL)
+    last_response: RegistryConnection | None
 
-    last_response: RegistriesPage | None
-    _last_org_entity: str | None
+    _QUERY = None
+
+    @property
+    def QUERY(self):  # noqa: N802
+        if self._QUERY is None:
+            from wandb.sdk.artifacts._generated import FETCH_REGISTRIES_GQL
+
+            type(self)._QUERY = gql(FETCH_REGISTRIES_GQL)
+        return self._QUERY
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         organization: str,
         filter: dict[str, Any] | None = None,
-        per_page: int | None = 100,
+        per_page: PositiveInt = 100,
     ):
         self.client = client
         self.organization = organization
@@ -57,10 +55,7 @@ class Registries(Paginator):
             "organization": organization,
             "filters": json.dumps(self.filter),
         }
-
         super().__init__(client, variables, per_page)
-
-        self._last_org_entity = None
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
@@ -71,22 +66,28 @@ class Registries(Paginator):
         return self.objects[self.index]
 
     @tracked
-    def collections(self, filter: dict[str, Any] | None = None) -> Collections:
+    def collections(
+        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
+    ) -> Collections:
         return Collections(
             client=self.client,
             organization=self.organization,
             registry_filter=self.filter,
             collection_filter=filter,
+            per_page=per_page,
         )
 
     @tracked
-    def versions(self, filter: dict[str, Any] | None = None) -> Versions:
+    def versions(
+        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
+    ) -> Versions:
         return Versions(
             client=self.client,
             organization=self.organization,
             registry_filter=self.filter,
             collection_filter=None,
             artifact_filter=filter,
+            per_page=per_page,
         )
 
     @property
@@ -97,18 +98,17 @@ class Registries(Paginator):
 
     @property
     def more(self):
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
+        return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self):
-        if self.last_response is None:
-            return None
-        return self.last_response.page_info.end_cursor
+        return conn.next_cursor if (conn := self.last_response) else None
 
     @override
     def _update_response(self) -> None:
+        from wandb.sdk.artifacts._generated import FetchRegistries
+        from wandb.sdk.artifacts._models.pagination import RegistryConnection
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = FetchRegistries.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
@@ -117,45 +117,52 @@ class Registries(Paginator):
             )
 
         try:
-            page_data = org_entity.projects
-            self.last_response = RegistriesPage.model_validate(page_data)
-            self._last_org_entity = org_entity.name
+            conn = org_entity.projects
+            self.last_response = RegistryConnection.model_validate(conn)
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
     def convert_objects(self):
         from wandb.apis.public.registries.registry import Registry
+        from wandb.sdk.artifacts._validators import remove_registry_prefix
 
-        if (self.last_response is None) or (self._last_org_entity is None):
+        if self.last_response is None:
             return []
 
-        nodes = (e.node for e in self.last_response.edges)
         return [
             Registry(
                 client=self.client,
                 organization=self.organization,
-                entity=self._last_org_entity,
+                entity=node.entity.name,
                 name=remove_registry_prefix(node.name),
-                attrs=node.model_dump(),
+                attrs=node,
             )
-            for node in nodes
+            for node in self.last_response.nodes()
         ]
 
 
 class Collections(Paginator["ArtifactCollection"]):
     """An lazy iterator of `ArtifactCollection` objects in a Registry."""
 
-    QUERY = gql(REGISTRY_COLLECTIONS_GQL)
+    last_response: RegistryCollectionConnection | None
 
-    last_response: RegistryCollectionsPage | None
+    _QUERY = None
+
+    @property
+    def QUERY(self):  # noqa: N802
+        if self._QUERY is None:
+            from wandb.sdk.artifacts._generated import REGISTRY_COLLECTIONS_GQL
+
+            type(self)._QUERY = gql(REGISTRY_COLLECTIONS_GQL)
+        return self._QUERY
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         organization: str,
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
-        per_page: int | None = 100,
+        per_page: PositiveInt = 100,
     ):
         self.client = client
         self.organization = organization
@@ -166,7 +173,6 @@ class Collections(Paginator["ArtifactCollection"]):
             "registryFilter": json.dumps(f) if (f := registry_filter) else None,
             "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
             "organization": organization,
-            "collectionTypes": [ArtifactCollectionType.PORTFOLIO],
             "perPage": per_page,
         }
 
@@ -181,88 +187,90 @@ class Collections(Paginator["ArtifactCollection"]):
         return self.objects[self.index]
 
     @tracked
-    def versions(self, filter: dict[str, Any] | None = None) -> Versions:
+    def versions(
+        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
+    ) -> Versions:
         return Versions(
             client=self.client,
             organization=self.organization,
             registry_filter=self.registry_filter,
             collection_filter=self.collection_filter,
             artifact_filter=filter,
+            per_page=per_page,
         )
 
     @property
     def length(self):
-        if self.last_response is None:
-            return None
-        return self.last_response.total_count
+        return conn.total_count if (conn := self.last_response) else None
 
     @property
     def more(self):
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
+        return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self):
-        if self.last_response is None:
-            return None
-        return self.last_response.page_info.end_cursor
+        return conn.next_cursor if (conn := self.last_response) else None
 
     @override
     def _update_response(self) -> None:
+        from wandb.sdk.artifacts._generated import RegistryCollections
+        from wandb.sdk.artifacts._models.pagination import RegistryCollectionConnection
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = RegistryCollections.model_validate(data)
-        if not (
-            (org_data := result.organization)
-            and (org_entity_data := org_data.org_entity)
-        ):
+        if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
                 f"Organization {self.organization!r} not found. Please verify the organization name is correct."
             )
 
         try:
-            page_data = org_entity_data.artifact_collections
-            self.last_response = RegistryCollectionsPage.model_validate(page_data)
+            conn = org_entity.artifact_collections
+            self.last_response = RegistryCollectionConnection.model_validate(conn)
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
     def convert_objects(self):
+        from wandb._pydantic import gql_typename
         from wandb.apis.public import ArtifactCollection
+        from wandb.sdk.artifacts._generated import ArtifactSequenceTypeFields
 
         if self.last_response is None:
             return []
 
-        nodes = (e.node for e in self.last_response.edges)
         return [
             ArtifactCollection(
                 client=self.client,
-                entity=project.entity.name,
-                project=project.name,
+                entity=node.project.entity.name,
+                project=node.project.name,
                 name=node.name,
-                type=node.default_artifact_type.name,
+                type=node.type.name,
                 organization=self.organization,
-                attrs=node.model_dump(),
-                is_sequence=False,
+                attrs=node,
             )
-            for node in nodes
-            if (project := node.project)
+            for node in self.last_response.nodes()
+            # We don't _expect_ any registry collections to be
+            # ArtifactSequences, but defensively filter them out anyway.
+            if node.project
+            and (node.typename__ != gql_typename(ArtifactSequenceTypeFields))
         ]
 
 
 class Versions(Paginator["Artifact"]):
     """An lazy iterator of `Artifact` objects in a Registry."""
 
-    last_response: RegistryVersionsPage | None
+    last_response: ArtifactMembershipConnection | None
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         organization: str,
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
         artifact_filter: dict[str, Any] | None = None,
-        per_page: int = 100,
+        per_page: PositiveInt = 100,
     ):
+        from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
+
         self.client = client
         self.organization = organization
         self.registry_filter = registry_filter
@@ -270,7 +278,7 @@ class Versions(Paginator["Artifact"]):
         self.artifact_filter = artifact_filter or {}
 
         self.QUERY = gql_compat(
-            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields()
+            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields(client)
         )
 
         variables = {
@@ -298,54 +306,51 @@ class Versions(Paginator["Artifact"]):
 
     @property
     def more(self) -> bool:
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
+        return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self) -> str | None:
-        if self.last_response is None:
-            return None
-        return self.last_response.page_info.end_cursor
+        return conn.next_cursor if (conn := self.last_response) else None
 
     @override
     def _update_response(self) -> None:
+        from wandb.sdk.artifacts._generated import RegistryVersions
+        from wandb.sdk.artifacts._models.pagination import ArtifactMembershipConnection
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = RegistryVersions.model_validate(data)
-        if not (
-            (org_data := result.organization)
-            and (org_entity_data := org_data.org_entity)
-        ):
+        if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
                 f"Organization {self.organization!r} not found. Please verify the organization name is correct."
             )
 
         try:
-            page_data = org_entity_data.artifact_memberships
-            self.last_response = RegistryVersionsPage.model_validate(page_data)
+            conn = org_entity.artifact_memberships
+            self.last_response = ArtifactMembershipConnection.model_validate(conn)
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
     def convert_objects(self) -> list[Artifact]:
+        from wandb.sdk.artifacts._validators import FullArtifactPath
         from wandb.sdk.artifacts.artifact import Artifact
 
         if self.last_response is None:
             return []
-
-        nodes = (e.node for e in self.last_response.edges)
         return [
-            Artifact._from_attrs(
-                entity=project.entity.name,
-                project=project.name,
-                name=f"{collection.name}:v{node.version_index}",
-                attrs=artifact,
+            Artifact._from_membership(
+                membership=membership,
+                target=FullArtifactPath(
+                    prefix=project.entity.name,
+                    project=project.name,
+                    name=f"{collection.name}:v{version_idx}",
+                ),
                 client=self.client,
-                aliases=[alias.alias for alias in node.aliases],
             )
-            for node in nodes
+            for membership in self.last_response.nodes()
             if (
-                (collection := node.artifact_collection)
+                (collection := membership.artifact_collection)
                 and (project := collection.project)
-                and (artifact := node.artifact)
+                and membership.artifact
+                and (version_idx := membership.version_index) is not None
             )
         ]

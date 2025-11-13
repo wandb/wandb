@@ -30,7 +30,7 @@ from wandb.automations._generated import (
     CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
     CreateGenericWebhookIntegration,
 )
-from wandb.automations._utils import EXCLUDED_INPUT_ACTIONS, EXCLUDED_INPUT_EVENTS
+from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
 from wandb_gql import gql
 
@@ -86,7 +86,7 @@ def api(user: str) -> wandb.Api:
     with unittest.mock.patch.object(
         wandb.sdk.wandb_login,
         "_login",
-        return_value=True,
+        return_value=(True, None),
     ):
         yield wandb.Api()
 
@@ -120,6 +120,7 @@ def make_webhook_integration(
     api: wandb.Api,
 ) -> Callable[[str, str, str], WebhookIntegration]:
     """A module-scoped factory for creating WebhookIntegrations."""
+    from wandb.automations._generated import CreateGenericWebhookIntegrationInput
 
     # HACK: Set up a placeholder webhook integration and return it
     # At the time of testing/implementation, this is the action with
@@ -127,11 +128,12 @@ def make_webhook_integration(
     # to patch/mock/stub/spy/intercept
 
     def _make_webhook(name: str, entity: str, url: str) -> WebhookIntegration:
-        params = {"name": name, "entityName": entity, "urlEndpoint": url}
-        data = api.client.execute(
-            gql(CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL),
-            variable_values={"params": params},
+        gql_input = CreateGenericWebhookIntegrationInput(
+            name=name, entity_name=entity, url_endpoint=url
         )
+        gql_op = gql(CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL)
+        gql_vars = {"input": gql_input.model_dump()}
+        data = api.client.execute(gql_op, variable_values=gql_vars)
 
         result = CreateGenericWebhookIntegration(**data)
         integration = result.create_generic_webhook_integration.integration
@@ -159,11 +161,11 @@ def valid_input_scopes() -> list[ScopeType]:
 
 
 def valid_input_events() -> list[EventType]:
-    return sorted(set(EventType) - EXCLUDED_INPUT_EVENTS)
+    return sorted(set(EventType) - set(INVALID_INPUT_EVENTS))
 
 
 def valid_input_actions() -> list[ActionType]:
-    return sorted(set(ActionType) - EXCLUDED_INPUT_ACTIONS)
+    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS))
 
 
 # Invalid (event, scope) combinations that should be skipped
@@ -176,13 +178,13 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     }
 
 
-@fixture(params=valid_input_scopes(), ids=lambda x: f"SCOPE[{x.value}]")
+@fixture(params=valid_input_scopes(), ids=lambda x: f"scope={x.value}")
 def scope_type(request: FixtureRequest) -> ScopeType:
     """A fixture that parametrizes over all valid scope types."""
     return request.param
 
 
-@fixture(params=valid_input_events(), ids=lambda x: f"EVENT[{x.value}]")
+@fixture(params=valid_input_events(), ids=lambda x: f"event={x.value}")
 def event_type(
     request: FixtureRequest, scope_type: ScopeType, api: wandb.Api
 ) -> EventType:
@@ -199,7 +201,7 @@ def event_type(
     return event_type
 
 
-@fixture(params=valid_input_actions(), ids=lambda x: f"ACTION[{x.value}]")
+@fixture(params=valid_input_actions(), ids=lambda x: f"action={x.value}")
 def action_type(request: type[FixtureRequest], api: wandb.Api) -> ActionType:
     """A fixture that parametrizes over all valid action types."""
     action_type = request.param

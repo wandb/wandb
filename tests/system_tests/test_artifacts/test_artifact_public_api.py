@@ -1,9 +1,23 @@
 import os
 import platform
+import random
+import string
 from contextlib import nullcontext
 
 import pytest
+import requests
 import wandb
+from wandb._strutils import nameof
+from wandb.errors.errors import CommError
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._generated import (
+    ArtifactByName,
+    ArtifactFragment,
+    ArtifactMembershipByName,
+    ArtifactMembershipFragment,
+    FetchOrgInfoFromEntity,
+)
+from wandb.sdk.artifacts._gqlutils import allowed_fields, server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 
 
@@ -82,9 +96,15 @@ def test_artifact_file(user, api, sample_data):
 
 def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     art = api.artifact("mnist:v0", type="dataset")
-    assert (
-        str(art.files()) == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
-    )
+    if server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
+        assert (
+            str(art.files())
+            == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
+        )
+    else:
+        assert (
+            str(art.files()) == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0>"
+        )
     paths = [f.storage_path for f in art.files()]
     assert paths[0].startswith("wandb_artifacts/")
 
@@ -111,6 +131,28 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     assert files.cursor is not None
 
 
+def test_artifacts_files_filtered_length(user, api, sample_data, wandb_backend_spy):
+    if not server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
+        pytest.skip("Server doesn't support FileConnection.totalCount")
+
+    # creating a new artifact with files
+    artifact_name = "".join(
+        random.choice(string.ascii_letters + string.digits) for _ in range(10)
+    )
+    artifact = wandb.Artifact(name=artifact_name, type="text")
+    number_of_files = 10
+    for i in range(number_of_files):
+        with artifact.new_file(f"file{i}.txt") as f:
+            f.write(str(i))
+    artifact.save()
+    artifact.wait()
+
+    assert_artifact = wandb.Api().artifact(artifact.qualified_name)
+    assert len(assert_artifact.files()) == number_of_files
+    assert len(assert_artifact.files(names=["file0.txt"])) == 1
+    assert len(assert_artifact.files(names=["file0.txt", "file1.txt"])) == 2
+
+
 def test_artifact_download(user, api, sample_data):
     art = api.artifact("mnist:v0", type="dataset")
     path = art.download()
@@ -123,14 +165,58 @@ def test_artifact_download(user, api, sample_data):
 
 
 def test_artifact_exists(user, api, sample_data):
-    assert api.artifact_exists("mnist:v0")
-    assert not api.artifact_exists("mnist:v2")
-    assert not api.artifact_exists("mnist-fake:v0")
+    assert api.artifact_exists("mnist:v0") is True
+    assert api.artifact_exists("mnist:v2") is False
+    assert api.artifact_exists("mnist-fake:v0") is False
 
 
 def test_artifact_collection_exists(user, api, sample_data):
-    assert api.artifact_collection_exists("mnist", "dataset")
-    assert not api.artifact_collection_exists("mnist-fake", "dataset")
+    assert api.artifact_collection_exists("mnist", "dataset") is True
+    assert api.artifact_collection_exists("mnist-fake", "dataset") is False
+
+
+def test_artifact_exists_raises_on_timeout(mocker, user, api, sample_data):
+    # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
+    # actual python methods, but this is complicated by the fact that we need to instantiate
+    # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
+    #
+    # Mocking every single one of them makes test setup quite brittle and error prone.
+    # Moreover, the interaction between @normalize_exceptions and our home-grown retry
+    # logic isn't readily configurable, so this test can easily become flaky and/or timeout.
+    # The following will have to do for now.
+    mocker.patch.object(api, "_artifact", side_effect=requests.Timeout())
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_exists("mnist:v0")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_exists("mnist-fake:v0")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+    with pytest.raises(CommError):
+        api.artifact_exists("mnist-fake:v0")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+
+def test_artifact_collection_exists_raises_on_timeout(mocker, user, api, sample_data):
+    # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
+    # actual python methods, but this is complicated by the fact that we need to instantiate
+    # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
+    #
+    # Mocking every single one of them makes test setup quite brittle and error prone.
+    # Moreover, the interaction between @normalize_exceptions and our home-grown retry
+    # logic isn't readily configurable, so this test can easily become flaky and/or timeout.
+    # The following will have to do for now.
+    mocker.patch.object(api, "artifact_collection", side_effect=requests.Timeout())
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_collection_exists("mnist", "dataset")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_collection_exists("mnist-fake", "dataset")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
 
 
 def test_artifact_delete(user, api, sample_data):
@@ -341,6 +427,7 @@ def test_parse_artifact_path(user, api):
 )
 def test_fetch_registry_artifact(
     user,
+    wandb_backend_spy,
     api,
     mocker,
     artifact_path,
@@ -348,80 +435,128 @@ def test_fetch_registry_artifact(
     is_registry_project,
     expected_artifact_fetched,
 ):
-    mocker.patch(
-        "wandb.sdk.artifacts.artifact.Artifact._from_attrs",
+    from tests.fixtures.wandb_backend_spy.gql_match import Constant, Matcher
+
+    if "orgEntity" not in allowed_fields(api.client, "Organization"):
+        pytest.skip("Must test against server that supports `Organization.orgEntity`")
+
+    server_supports_artifact_via_membership = server_supports(
+        api.client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
     )
 
-    mock__resolve_org_entity_name = mocker.patch(
-        "wandb.sdk.internal.internal_api.Api._resolve_org_entity_name",
-        return_value=resolve_org_entity_name,
-    )
+    mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
 
-    mock_fetch_artifact_by_name = mocker.patch.object(api.client, "execute")
-
-    mock_artifact_fragment_data = {
-        "name": "test-collection",  # NOTE: relevant
-        "versionIndex": 0,  # NOTE: relevant
-        # ------------------------------------------------------------------------------
-        # NOTE: Remaining artifact fields are placeholders and not as relevant to the test
-        "artifactType": {
-            "name": "model",
-        },
-        "artifactSequence": {
-            "id": "PLACEHOLDER",
-            "name": "test-collection",
-            "project": {
-                "id": "PLACEHOLDER",
-                "entityName": "test-team",
-                "name": "orig-project",
-            },
-        },
-        "id": "PLACEHOLDER",
-        "description": "PLACEHOLDER",
-        "metadata": "{}",
-        "state": "COMMITTED",
-        "currentManifest": None,
-        "fileCount": 0,
-        "commitHash": "PLACEHOLDER",
-        "createdAt": "PLACEHOLDER",
-        "updatedAt": None,
-        # ------------------------------------------------------------------------------
-    }
-
-    if expected_artifact_fetched:
-        mock_fetch_artifact_by_name.return_value = {
-            "project": {
-                "artifact": mock_artifact_fragment_data,
-                "artifactCollectionMembership": {
-                    "id": "PLACEHOLDER",
-                    "artifact": mock_artifact_fragment_data,
-                    "artifactCollection": {
-                        "__typename": "ArtifactPortfolio",
-                        "id": "PLACEHOLDER",
-                        "name": "test-collection",
-                        "project": {
-                            "id": "PLACEHOLDER",
-                            "entityName": "org-entity-name",  # NOTE: relevant
-                            "name": "wandb-registry-model",  # NOTE: relevant
-                        },
+    # Stub the query for orgEntity name(s)
+    mock_org_entity_info_responder = Constant(
+        content={
+            "data": {
+                "entity": {
+                    "organization": {
+                        "name": "org-name",
+                        "orgEntity": {"name": resolve_org_entity_name},
                     },
+                    "user": None,
                 },
             }
         }
-    else:
-        mock_fetch_artifact_by_name.return_value = {"data": {"project": {}}}
-
-    expectation = (
-        nullcontext()
-        if expected_artifact_fetched
-        else pytest.raises(wandb.errors.CommError)
     )
+    op_matcher = Matcher(operation=nameof(FetchOrgInfoFromEntity))
+    wandb_backend_spy.stub_gql(match=op_matcher, respond=mock_org_entity_info_responder)
+
+    mock_artifact_fragment_data = ArtifactFragment(
+        name="test-collection",  # NOTE: relevant
+        version_index=0,  # NOTE: relevant
+        # ------------------------------------------------------------------------------
+        # NOTE: Remaining artifact fields are placeholders and not as relevant to the test
+        artifact_type={"name": "model"},
+        artifact_sequence={
+            "name": "test-collection",
+            "project": {
+                "name": "orig-project",
+                "entity": {"name": "test-team"},
+            },
+        },
+        id="PLACEHOLDER",
+        description="PLACEHOLDER",
+        metadata="{}",
+        state="COMMITTED",
+        size=0,
+        digest="FAKE_DIGEST",
+        file_count=0,
+        commit_hash="PLACEHOLDER",
+        created_at="PLACEHOLDER",
+        updated_at=None,
+        # ------------------------------------------------------------------------------
+    ).model_dump()
+
+    mock_membership_fragment_data = ArtifactMembershipFragment(
+        id="PLACEHOLDER",
+        artifact=mock_artifact_fragment_data,
+        artifact_collection={
+            "__typename": "ArtifactPortfolio",
+            "name": "test-collection",
+            "project": {
+                "name": "wandb-registry-model",  # NOTE: relevant
+                "entity": {"name": "org-entity-name"},  # NOTE: relevant
+            },
+        },
+        version_index=1,
+        aliases=[{"id": "PLACEHOLDER", "alias": "my-alias"}],
+    ).model_dump()
+
+    mock_empty_rsp_data = {"data": {"project": {}}}
+
+    mock_artifact_rsp_data = {
+        "data": {
+            "project": {
+                "artifact": mock_artifact_fragment_data,
+            }
+        }
+    }
+
+    mock_membership_rsp_data = {
+        "data": {
+            "project": {
+                "artifact": mock_artifact_fragment_data,
+                "artifactCollectionMembership": mock_membership_fragment_data,
+            }
+        }
+    }
+
+    # Set up the mock response for the appropriate GQL operation
+    # Return equivalent payload for either membership or by-name fetches
+    if server_supports_artifact_via_membership:
+        op_name = nameof(ArtifactMembershipByName)
+        mock_rsp = mock_membership_rsp_data
+    else:
+        op_name = nameof(ArtifactByName)
+        mock_rsp = mock_artifact_rsp_data
+
+    # If we aren't simulating a successfully-fetched artifact, override the mock response with an empty one
+    if not expected_artifact_fetched:
+        mock_rsp = mock_empty_rsp_data
+
+    # Now stub the actual GQL request/response we expect to make
+    op_matcher = Matcher(operation=op_name)
+    mock_responder = Constant(content=mock_rsp)
+    wandb_backend_spy.stub_gql(match=op_matcher, respond=mock_responder)
+
+    if expected_artifact_fetched:
+        expectation = nullcontext()
+    else:
+        expectation = pytest.raises(CommError)
+
     with expectation:
         api.artifact(artifact_path)
 
     if is_registry_project:
-        mock__resolve_org_entity_name.assert_called_once()
+        # Calls may be cached, so we expect at most one call
+        assert mock_org_entity_info_responder.total_calls <= 1
     else:
-        mock__resolve_org_entity_name.assert_not_called()
+        assert mock_org_entity_info_responder.total_calls == 0
 
-    mock_fetch_artifact_by_name.assert_called_once()
+    # Ensure at least one of the artifact queries was exercised
+    if expected_artifact_fetched:
+        assert mock_responder.total_calls == 1
+    else:
+        assert mock_responder.total_calls == 0

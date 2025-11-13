@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -58,10 +60,6 @@ class Api:
     @property
     def default_entity(self):
         return self.api.default_entity
-
-    @property
-    def git(self):
-        return self.api.git
 
     def validate_api_key(self) -> bool:
         """Returns whether the API key stored on initialization is valid."""

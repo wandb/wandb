@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Literal
 
 import wandb
 from wandb import util
@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 
 class WBLocalArtifactHandler(StorageHandler):
     """Handles loading and storing Artifact reference-type files."""
+
+    _scheme: Literal["wandb-client-artifact"]
 
     def __init__(self) -> None:
         self._scheme = "wandb-client-artifact"
@@ -43,7 +45,7 @@ class WBLocalArtifactHandler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         """Store the file or directory at the given path within the specified artifact.
 
         Args:
@@ -52,7 +54,8 @@ class WBLocalArtifactHandler(StorageHandler):
             name (str): If specified, the logical name that should map to `path`
 
         Returns:
-            (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
+            list[ArtifactManifestEntry]: Manifest entries to store in the
+                artifact.
         """
         client_id = util.host_from_path(path)
         target_path = util.uri_from_path(path)

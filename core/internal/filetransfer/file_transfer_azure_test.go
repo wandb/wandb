@@ -21,7 +21,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 // the mockAzureClients mock the azure client with the following containers/blobs:
@@ -143,7 +143,7 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 			AccountClients: accountClients,
 			BlobClient:     &mockAzureBlobClient{azureFile1Latest},
 		},
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -152,7 +152,7 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 			AccountClients: accountClients,
 			BlobClient:     &mockAzureBlobClient{azureFile1v0},
 		},
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -161,7 +161,7 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 			AccountClients: accountClients,
 			BlobClient:     &mockAzureBlobClient{azureFile2},
 		},
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -313,7 +313,7 @@ func TestAzureFileTransfer_Upload(t *testing.T) {
 		&filetransfer.AzureClientOverrides{
 			BlockBlobClient: &mockAzureBlockBlobClient,
 		},
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -349,7 +349,7 @@ func TestAzureFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 		&filetransfer.AzureClientOverrides{
 			BlockBlobClient: &mockAzureBlockBlobClient{},
 		},
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -392,7 +392,7 @@ func TestAzureFileTransfer_UploadClientError(t *testing.T) {
 		&filetransfer.AzureClientOverrides{
 			BlockBlobClient: &mockAzureBlockBlobClient,
 		},
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 

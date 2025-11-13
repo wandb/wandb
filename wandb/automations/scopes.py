@@ -8,12 +8,12 @@ from pydantic import BeforeValidator, Field
 from typing_extensions import Annotated, TypeAlias, get_args
 
 from wandb._pydantic import GQLBase
-from wandb.automations._generated import (
+
+from ._generated import (
     ArtifactPortfolioScopeFields,
     ArtifactSequenceScopeFields,
     ProjectScopeFields,
 )
-
 from ._validators import LenientStrEnum, to_scope
 
 
@@ -36,7 +36,7 @@ class _ArtifactSequenceScope(_BaseScope, ArtifactSequenceScopeFields):
 
 
 class _ArtifactPortfolioScope(_BaseScope, ArtifactPortfolioScopeFields):
-    """An automation scope defined by a specific `ArtifactPortfolio` (e.g. a registry collection)."""
+    """Automation scope defined by an `ArtifactPortfolio` (e.g. a registry collection)."""
 
     scope_type: Literal[ScopeType.ARTIFACT_COLLECTION] = ScopeType.ARTIFACT_COLLECTION
 

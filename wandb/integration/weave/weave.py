@@ -73,21 +73,11 @@ def setup(entity: str | None, project: str | None) -> None:
         return
 
     # If weave has already been imported, initialize immediately
-    with _weave_init_lock:
-        try:
-            # This import should have already happened, so it's effectively a no-op.
-            # We just import to keep the symbol for the init that follows
-            import weave
-        except ImportError:
-            # This should never happen; but we don't raise here to avoid
-            # breaking the wandb run init flow just in case
-            return
-
-        wandb.termlog("Initializing weave.")
-        try:
-            weave.init(project_path)
-        except Exception as e:
-            wandb.termwarn(f"Failed to automatically initialize Weave: {e}")
+    wandb.termlog("Initializing weave.")
+    try:
+        _weave_init(project_path)
+    except Exception as e:
+        wandb.termwarn(f"Failed to automatically initialize weave: {e}")
 
 
 def _maybe_suggest_weave_installation() -> None:
@@ -116,3 +106,16 @@ def _maybe_suggest_weave_installation() -> None:
         "For more information, check out the docs at: https://weave-docs.wandb.ai/",
         repeat=False,
     )
+
+
+def _weave_init(project_path: str) -> None:
+    """Call weave.init(), assuming weave has been imported.
+
+    Patched in tests.
+    """
+    # Lock because weave.init() is not thread-safe.
+    with _weave_init_lock:
+        # The import is fast because weave should have been imported.
+        import weave
+
+        weave.init(project_path)

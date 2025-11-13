@@ -162,7 +162,8 @@ func InitRun(
 		environment: environment,
 	}
 
-	operation := upserter.operations.New("creating run")
+	operation := upserter.operations.New(
+		fmt.Sprintf("setting up run %s", runParams.RunID))
 	defer operation.Finish()
 	ctx := operation.Context(upserter.beforeRunEndCtx)
 
@@ -176,7 +177,7 @@ func InitRun(
 	branchPoint := runRecord.BranchPoint
 	switch {
 	case params.Settings.GetResume() != "":
-		err := upserter.updateMetadataForResume(params.Settings.GetResume())
+		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
 
 		if err != nil {
 			return nil, runUpdateErrorFromBranchError(err)
@@ -184,7 +185,7 @@ func InitRun(
 
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
 		// Branching a run from an earlier point in its history is rewinding.
-		err := upserter.updateMetadataForRewind(branchPoint)
+		err := upserter.updateMetadataForRewind(ctx, branchPoint)
 
 		if err != nil {
 			return nil, runUpdateErrorFromBranchError(err)
@@ -420,6 +421,7 @@ func (upserter *RunUpserter) signalDirty() {
 // updateMetadataForResume updates run metadata based on the existing run
 // that's being resumed.
 func (upserter *RunUpserter) updateMetadataForResume(
+	ctx context.Context,
 	resumeSetting string,
 ) error {
 	if upserter.graphqlClientOrNil == nil {
@@ -432,7 +434,7 @@ func (upserter *RunUpserter) updateMetadataForResume(
 	}
 
 	return runbranch.NewResumeBranch(
-		upserter.beforeRunEndCtx,
+		ctx,
 		upserter.graphqlClientOrNil,
 		resumeSetting,
 	).UpdateForResume(
@@ -444,10 +446,11 @@ func (upserter *RunUpserter) updateMetadataForResume(
 // updateMetadataForRewind updates run metadata based on the existing run
 // that's being rewound.
 func (upserter *RunUpserter) updateMetadataForRewind(
+	ctx context.Context,
 	rewindSetting *spb.BranchPoint,
 ) error {
 	return runbranch.NewRewindBranch(
-		upserter.beforeRunEndCtx,
+		ctx,
 		upserter.graphqlClientOrNil,
 		rewindSetting.Run,
 		rewindSetting.Metric,

@@ -12,13 +12,8 @@ import time
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
-import yaml
-
 import wandb
 from wandb import util, wandb_lib, wandb_sdk
-from wandb.agents.pyagent import pyagent
-from wandb.apis import InternalApi
-from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.lib import ipython
 
 logger = logging.getLogger(__name__)
@@ -42,11 +37,42 @@ class AgentProcess:
         if command:
             if platform.system() == "Windows":
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                env.pop(wandb.env.SERVICE, None)
+                # TODO: Determine if we need the same stdin workaround as POSIX case below.
+                self._popen = subprocess.Popen(command, env=env, **kwargs)
             else:
-                kwargs = dict(preexec_fn=os.setpgrp)
-            if env.get(wandb.env.SERVICE):
-                env.pop(wandb.env.SERVICE)
-            self._popen = subprocess.Popen(command, env=env, **kwargs)
+                if sys.version_info >= (3, 11):
+                    # preexec_fn=os.setpgrp is not thread-safe; process_group was introduced in
+                    # python 3.11 to replace it, so use that when possible
+                    kwargs = dict(process_group=0)
+                else:
+                    kwargs = dict(preexec_fn=os.setpgrp)
+                env.pop(wandb.env.SERVICE, None)
+                # Upon spawning the subprocess in a new process group, the child's process group is
+                # not connected to the controlling terminal's stdin. If it tries to access stdin,
+                # it gets a SIGTTIN and blocks until we give it the terminal, which we don't want
+                # to do.
+                #
+                # By using subprocess.PIPE, we give it an independent stdin. However, it will still
+                # block if it tries to read from stdin, because we're not writing anything to it.
+                # We immediately close the subprocess's stdin here so it can fail fast and get an
+                # EOF.
+                #
+                # (One situation that makes this relevant is that importing `readline` even
+                # indirectly can cause the child to attempt to access stdin, which can trigger the
+                # deadlock. In Python 3.13, `import torch` indirectly imports `readline` via `pdb`,
+                # meaning `import torch` in a run script can deadlock unless we override stdin.
+                # See https://github.com/wandb/wandb/pull/10489 description for more details.)
+                #
+                # Also, we avoid spawning a new session because that breaks preempted child process
+                # handling.
+                self._popen = subprocess.Popen(
+                    command,
+                    env=env,
+                    stdin=subprocess.PIPE,
+                    **kwargs,
+                )
+                self._popen.stdin.close()
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
@@ -187,6 +213,8 @@ class Agent:
 
     def run(self):  # noqa: C901
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
+        import yaml
+
         sweep_obj = self._api.sweep(self._sweep_id, "{}")
         if sweep_obj:
             sweep_yaml = sweep_obj.get("config")
@@ -343,6 +371,8 @@ class Agent:
         return response
 
     def _command_run(self, command):
+        from wandb.sdk.launch.sweeps import utils as sweep_utils
+
         logger.info(
             "Agent starting run with config:\n"
             + "\n".join(
@@ -481,6 +511,9 @@ class AgentApi:
 def run_agent(
     sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
 ):
+    from wandb.apis import InternalApi
+    from wandb.sdk.launch.sweeps import utils as sweep_utils
+
     parts = dict(entity=entity, project=project, name=sweep_id)
     err = sweep_utils.parse_sweep_id(parts)
     if err:
@@ -554,6 +587,8 @@ def agent(
             run is sent to a project labeled "Uncategorized".
         count: The number of sweep config trials to try.
     """
+    from wandb.agents.pyagent import pyagent
+
     global _INSTANCES
     _INSTANCES += 1
     try:

@@ -132,6 +132,7 @@ def get_min_supported_for_source_dict(
 
 class JobBuilder:
     _settings: SettingsStatic
+    _files_dir: str
     _metadatafile_path: Optional[str]
     _requirements_path: Optional[str]
     _config: Optional[Dict[str, Any]]
@@ -146,8 +147,26 @@ class JobBuilder:
     _verbose: bool
     _services: Dict[str, str]
 
-    def __init__(self, settings: SettingsStatic, verbose: bool = False):
+    def __init__(
+        self,
+        settings: SettingsStatic,
+        verbose: bool = False,
+        *,
+        files_dir: str,
+    ):
+        """Instantiate a JobBuilder.
+
+        Args:
+            settings: Parameters for the job builder.
+                In a run, this is the run's settings.
+                Otherwise, this is a set of undocumented parameters,
+                all of which should be made explicit like files_dir.
+            files_dir: The directory where to write files.
+                In a run, this should be the run's files directory.
+        """
         self._settings = settings
+        self._files_dir = files_dir
+
         self._metadatafile_path = None
         self._requirements_path = None
         self._config = None
@@ -460,9 +479,7 @@ class JobBuilder:
             )
             return None
 
-        if not os.path.exists(
-            os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
-        ):
+        if not os.path.exists(os.path.join(self._files_dir, REQUIREMENTS_FNAME)):
             self._log_if_verbose(
                 "No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
                 "warn",
@@ -471,7 +488,7 @@ class JobBuilder:
         metadata = self._handle_metadata_file()
         if metadata is None:
             self._log_if_verbose(
-                f"Ensure read and write access to run files dir: {self._settings.files_dir}, control this via the WANDB_DIR env var. See https://docs.wandb.ai/guides/track/environment-variables",
+                f"Ensure read and write access to run files dir: {self._files_dir}, control this via the WANDB_DIR env var. See https://docs.wandb.ai/guides/track/environment-variables",
                 "warn",
             )
             return None
@@ -560,15 +577,15 @@ class JobBuilder:
             f.write(json.dumps(source_info, indent=4))
 
         artifact.add_file(
-            os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME),
+            os.path.join(self._files_dir, REQUIREMENTS_FNAME),
             name=FROZEN_REQUIREMENTS_FNAME,
         )
 
         if source_type == "repo":
             # add diff
-            if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
+            if os.path.exists(os.path.join(self._files_dir, DIFF_FNAME)):
                 artifact.add_file(
-                    os.path.join(self._settings.files_dir, DIFF_FNAME),
+                    os.path.join(self._files_dir, DIFF_FNAME),
                     name=DIFF_FNAME,
                 )
 
@@ -619,8 +636,8 @@ class JobBuilder:
     def _handle_metadata_file(
         self,
     ) -> Optional[Dict]:
-        if os.path.exists(os.path.join(self._settings.files_dir, METADATA_FNAME)):
-            with open(os.path.join(self._settings.files_dir, METADATA_FNAME)) as f:
+        if os.path.exists(os.path.join(self._files_dir, METADATA_FNAME)):
+            with open(os.path.join(self._files_dir, METADATA_FNAME)) as f:
                 metadata: Dict = json.load(f)
             return metadata
 

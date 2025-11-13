@@ -5,13 +5,17 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from typing import Iterable, Iterator, NoReturn
+from typing import Iterator, NoReturn
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface import interface
 from wandb.sdk.lib import asyncio_compat
 
 from . import printer as p
+
+_INDENT = "  "
+_MAX_LINES_TO_PRINT = 6
+_MAX_OPS_TO_PRINT = 5
 
 
 async def loop_printing_operation_stats(
@@ -45,7 +49,11 @@ async def loop_printing_operation_stats(
         while True:
             start_time = time.monotonic()
 
-            handle = interface.deliver_operation_stats()
+            handle = await interface.deliver_async(
+                pb.Record(
+                    request=pb.Request(operations=pb.OperationStatsRequest()),
+                )
+            )
             result = await handle.wait_async(timeout=None)
             stats = result.response.operations_response.operation_stats
 
@@ -89,169 +97,192 @@ class ProgressPrinter:
         progress_text_area: p.DynamicText | None,
         default_text: str,
     ) -> None:
-        self._show_operation_stats = True
         self._printer = printer
         self._progress_text_area = progress_text_area
         self._default_text = default_text
-        self._tick = 0
+        self._tick = -1
         self._last_printed_line = ""
 
     def update(
         self,
-        progress: list[pb.PollExitResponse] | pb.OperationStats,
+        stats_or_groups: pb.OperationStats | dict[str, pb.OperationStats],
     ) -> None:
-        """Update the displayed information."""
-        if not progress:
-            return
+        """Update the displayed information.
 
-        if isinstance(progress, pb.OperationStats):
-            self._update_operation_stats([progress])
-        elif self._show_operation_stats:
-            self._update_operation_stats(
-                list(response.operation_stats for response in progress)
-            )
-        elif len(progress) == 1:
-            self._update_single_run(progress[0])
-        else:
-            self._update_multiple_runs(progress)
-
+        Args:
+            stats_or_groups: A single group of operations, or zero or more
+                labeled operation groups.
+        """
         self._tick += 1
 
-    def _update_operation_stats(self, stats_list: list[pb.OperationStats]) -> None:
-        if self._progress_text_area:
-            _DynamicOperationStatsPrinter(
+        if not self._progress_text_area:
+            line = self._to_static_text(stats_or_groups)
+            if line and line != self._last_printed_line:
+                self._printer.display(line)
+                self._last_printed_line = line
+            return
+
+        lines = self._to_dynamic_text(stats_or_groups)
+        if not lines:
+            loading_symbol = self._printer.loading_symbol(self._tick)
+            if loading_symbol:
+                lines = [f"{loading_symbol} {self._default_text}"]
+            else:
+                lines = [self._default_text]
+
+        self._progress_text_area.set_text("\n".join(lines))
+
+    def _to_dynamic_text(
+        self,
+        stats_or_groups: pb.OperationStats | dict[str, pb.OperationStats],
+    ) -> list[str]:
+        """Returns text to show in a dynamic text area."""
+        loading_symbol = self._printer.loading_symbol(self._tick)
+
+        if isinstance(stats_or_groups, dict):
+            return _GroupedOperationStatsPrinter(
                 self._printer,
-                self._progress_text_area,
-                max_lines=6,
-                loading_symbol=self._printer.loading_symbol(self._tick),
-                default_text=self._default_text,
-            ).display(stats_list)
+                _MAX_LINES_TO_PRINT,
+                loading_symbol,
+            ).render(stats_or_groups)
 
         else:
-            top_level_operations: list[str] = []
-            extra_operations = 0
-            for stats in stats_list:
-                for op in stats.operations:
-                    if len(top_level_operations) < 5:
-                        top_level_operations.append(op.desc)
-                    else:
-                        extra_operations += 1
+            return _OperationStatsPrinter(
+                self._printer,
+                _MAX_LINES_TO_PRINT,
+                loading_symbol,
+            ).render(stats_or_groups)
 
-            line = "; ".join(top_level_operations)
-            if extra_operations > 0:
-                line += f" (+ {extra_operations} more)"
-
-            if line != self._last_printed_line:
-                self._printer.display(line)
-
-            self._last_printed_line = line
-
-    def _update_single_run(
+    def _to_static_text(
         self,
-        progress: pb.PollExitResponse,
-    ) -> None:
-        stats = progress.pusher_stats
-        line = (
-            f"{_megabytes(stats.uploaded_bytes):.3f} MB"
-            f" of {_megabytes(stats.total_bytes):.3f} MB uploaded"
-        )
-
-        if stats.deduped_bytes > 0:
-            line += f" ({_megabytes(stats.deduped_bytes):.3f} MB deduped)"
-
-        if stats.total_bytes > 0:
-            self._update_progress_text(
-                line,
-                stats.uploaded_bytes / stats.total_bytes,
+        stats_or_groups: pb.OperationStats | dict[str, pb.OperationStats],
+    ) -> str:
+        """Returns a single line of text to print out."""
+        if isinstance(stats_or_groups, dict):
+            sorted_prefixed_stats = list(
+                (f"[{group}] ", stats)  #
+                for group, stats in sorted(stats_or_groups.items())
             )
         else:
-            self._update_progress_text(line, 1.0)
+            sorted_prefixed_stats = [("", stats_or_groups)]
 
-    def _update_multiple_runs(
-        self,
-        progress_list: list[pb.PollExitResponse],
-    ) -> None:
-        total_files = 0
-        uploaded_bytes = 0
-        total_bytes = 0
+        group_strs: list[str] = []
+        total_operations = 0
+        total_printed = 0
 
-        for progress in progress_list:
-            total_files += progress.file_counts.wandb_count
-            total_files += progress.file_counts.media_count
-            total_files += progress.file_counts.artifact_count
-            total_files += progress.file_counts.other_count
+        for prefix, stats in sorted_prefixed_stats:
+            total_operations += stats.total_operations
+            if not stats.operations:
+                continue
 
-            uploaded_bytes += progress.pusher_stats.uploaded_bytes
-            total_bytes += progress.pusher_stats.total_bytes
+            group_ops: list[str] = []
+            i = 0
+            while total_printed < _MAX_OPS_TO_PRINT and i < len(stats.operations):
+                group_ops.append(stats.operations[i].desc)
+                total_printed += 1
+                i += 1
 
-        line = (
-            f"Processing {len(progress_list)} runs with {total_files} files"
-            f" ({_megabytes(uploaded_bytes):.2f} MB"
-            f" / {_megabytes(total_bytes):.2f} MB)"
-        )
+            if group_ops:
+                group_strs.append(prefix + "; ".join(group_ops))
 
-        if total_bytes > 0:
-            self._update_progress_text(line, uploaded_bytes / total_bytes)
-        else:
-            self._update_progress_text(line, 1.0)
+        line = "; ".join(group_strs)
+        remaining = total_operations - total_printed
+        if total_printed > 0 and remaining > 0:
+            line += f" (+ {remaining} more)"
 
-    def _update_progress_text(self, text: str, progress: float) -> None:
-        if text == self._last_printed_line:
-            return
-        self._last_printed_line = text
-
-        if self._progress_text_area:
-            self._progress_text_area.set_text(text)
-        else:
-            self._printer.progress_update(text + "\r", progress)
+        return line
 
 
-class _DynamicOperationStatsPrinter:
-    """Single-use object that writes operation stats into a text area."""
+class _GroupedOperationStatsPrinter:
+    """Renders a list of labeled operation stats groups into lines of text."""
 
     def __init__(
         self,
         printer: p.Printer,
-        text_area: p.DynamicText,
         max_lines: int,
         loading_symbol: str,
-        default_text: str,
     ) -> None:
         self._printer = printer
-        self._text_area = text_area
         self._max_lines = max_lines
         self._loading_symbol = loading_symbol
-        self._default_text = default_text
+
+    def render(self, groups: dict[str, pb.OperationStats]) -> list[str]:
+        """Convert labeled operation stats groups into text to display.
+
+        Args:
+            groups: A mapping from group labels to stats for that group.
+
+        Returns:
+            The lines of text to print. The lines do not end with the newline
+            character. Returns an empty list if there are no operations.
+        """
+        lines: list[str] = []
+
+        for key, stats in sorted(groups.items()):
+            # Don't display empty groups.
+            if not stats.operations:
+                continue
+
+            # Ensure enough space left for the group header and at least
+            # one line of content.
+            remaining_lines = self._max_lines - len(lines)
+            if remaining_lines < 2:
+                break
+
+            # Group header.
+            lines.append(key)
+
+            # Group content.
+            stats_lines = _OperationStatsPrinter(
+                printer=self._printer,
+                max_lines=remaining_lines - 1,  # minus one for the header
+                loading_symbol=self._loading_symbol,
+            ).render(stats)
+            for line in stats_lines:
+                lines.append(f"{_INDENT}{line}")
+
+        return lines
+
+
+class _OperationStatsPrinter:
+    """Renders operation stats into lines of text."""
+
+    def __init__(
+        self,
+        printer: p.Printer,
+        max_lines: int,
+        loading_symbol: str,
+    ) -> None:
+        self._printer = printer
+        self._max_lines = max_lines
+        self._loading_symbol = loading_symbol
 
         self._lines: list[str] = []
         self._ops_shown = 0
 
-    def display(
-        self,
-        stats_list: Iterable[pb.OperationStats],
-    ) -> None:
-        """Show the given stats in the text area."""
-        total_operations = 0
-        for stats in stats_list:
-            for op in stats.operations:
-                self._add_operation(op, is_subtask=False, indent="")
-            total_operations += stats.total_operations
+    def render(self, stats: pb.OperationStats) -> list[str]:
+        """Convert the stats into a list of lines to display.
 
-        if self._ops_shown < total_operations:
+        Args:
+            stats: Collection of operations to display.
+
+        Returns:
+            The lines of text to print. The lines do not end with the newline
+            character. Returns an empty list if there are no operations.
+        """
+        for op in stats.operations:
+            self._add_operation(op, is_subtask=False, indent="")
+
+        if self._ops_shown < stats.total_operations:
             if 1 <= self._max_lines <= len(self._lines):
+                self._ops_shown -= 1
                 self._lines.pop()
 
-            remaining = total_operations - self._ops_shown
+            remaining = stats.total_operations - self._ops_shown
 
             self._lines.append(f"+ {remaining} more task(s)")
 
-        if len(self._lines) == 0:
-            if self._loading_symbol:
-                self._text_area.set_text(f"{self._loading_symbol} {self._default_text}")
-            else:
-                self._text_area.set_text(self._default_text)
-        else:
-            self._text_area.set_text("\n".join(self._lines))
+        return self._lines
 
     def _add_operation(self, op: pb.Operation, is_subtask: bool, indent: str) -> None:
         """Add the operation to `self._lines`."""
@@ -261,14 +292,17 @@ class _DynamicOperationStatsPrinter:
         if not is_subtask:
             self._ops_shown += 1
 
-        parts = []
+        status_indent_level = 0  # alignment for the status message, if any
+        parts: list[str] = []
 
         # Subtask indicator.
         if is_subtask and self._printer.supports_unicode:
+            status_indent_level += 2  # +1 for space
             parts.append("↳")
 
         # Loading symbol.
         if self._loading_symbol:
+            status_indent_level += 2  # +1 for space
             parts.append(self._loading_symbol)
 
         # Task name.
@@ -286,14 +320,14 @@ class _DynamicOperationStatsPrinter:
         if op.error_status:
             error_word = self._printer.error("ERROR")
             error_desc = self._printer.secondary_text(op.error_status)
-            subtask_indent = "  " if is_subtask else ""
+            status_indent = " " * status_indent_level
             self._lines.append(
-                f"{indent}{subtask_indent}  {error_word} {error_desc}",
+                f"{indent}{status_indent}{error_word} {error_desc}",
             )
 
         # Subtasks.
         if op.subtasks:
-            subtask_indent = indent + "  "
+            subtask_indent = indent + _INDENT
             for task in op.subtasks:
                 self._add_operation(
                     task,
@@ -315,8 +349,3 @@ def _time_to_string(seconds: float) -> str:
     hours = int(seconds / (60 * 60))
     minutes = int((seconds / 60) % 60)
     return f"{hours}h{minutes}m"
-
-
-def _megabytes(bytes: int) -> float:
-    """Returns the number of megabytes in `bytes`."""
-    return bytes / (1 << 20)

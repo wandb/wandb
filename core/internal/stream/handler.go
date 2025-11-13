@@ -179,9 +179,9 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 }
 
 func (h *Handler) Close() {
+	h.logger.Info("handler: closed", "stream_id", h.settings.GetRunID())
 	close(h.outChan)
 	close(h.fwdChan)
-	h.logger.Info("handler: closed", "stream_id", h.settings.GetRunID())
 }
 
 // respond sends a response to the client
@@ -341,6 +341,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestRunFinishWithoutExit(record)
 	case *spb.Request_Operations:
 		h.handleRequestOperations(record)
+	case *spb.Request_ProbeSystemInfo:
+		h.handleRequestProbeSystemInfo(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -485,8 +487,6 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 			errors.New("handleRunStart: failed to clone run"))
 	}
 	h.fwdRecord(record)
-	// NOTE: once this request arrives in the sender,
-	// the latter will start its filestream and uploader
 
 	// TODO: Move computation of git state to wandb-core.
 	var git *spb.GitRepoRecord
@@ -507,6 +507,10 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	}
 
 	h.respond(record, &spb.Response{})
+}
+
+func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
+	h.systemMonitor.Probe()
 }
 
 func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.PythonPackagesRequest) {
@@ -784,16 +788,9 @@ func (h *Handler) handleRequestJobInput(record *spb.Record) {
 //   - Records from the transaction log when syncing
 //   - `updateRunTiming`
 func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
-	for _, update := range summary.Update {
-		err := h.runSummary.SetFromRecord(update)
-		if err != nil {
-			h.logger.CaptureError(
-				fmt.Errorf("handler: error processing summary: %v", err))
-		}
-	}
-
-	for _, remove := range summary.Remove {
-		h.runSummary.RemoveFromRecord(remove)
+	if err := runsummary.FromProto(summary).Apply(h.runSummary); err != nil {
+		h.logger.CaptureError(
+			fmt.Errorf("handler: error processing summary: %v", err))
 	}
 }
 

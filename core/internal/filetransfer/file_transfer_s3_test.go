@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 // mockS3Client mocks the s3 client with the following buckets/objects:
@@ -240,7 +240,7 @@ func TestS3FileTransfer_Download(t *testing.T) {
 
 	ft := filetransfer.NewS3FileTransfer(
 		mockS3Client,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 

@@ -3,31 +3,43 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactCollectionsFragment
+from .fragments import ArtifactCollectionFragment, PageInfoFragment
 
 
-class ProjectArtifactCollections(GQLBase):
+class ProjectArtifactCollections(GQLResult):
     project: Optional[ProjectArtifactCollectionsProject]
 
 
-class ProjectArtifactCollectionsProject(GQLBase):
+class ProjectArtifactCollectionsProject(GQLResult):
     artifact_type: Optional[ProjectArtifactCollectionsProjectArtifactType] = Field(
         alias="artifactType"
     )
 
 
-class ProjectArtifactCollectionsProjectArtifactType(GQLBase):
-    artifact_collections: Optional[ArtifactCollectionsFragment] = Field(
-        alias="artifactCollections"
-    )
+class ProjectArtifactCollectionsProjectArtifactType(GQLResult):
+    artifact_collections: Optional[
+        ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections
+    ] = Field(alias="artifactCollections")
+
+
+class ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections(GQLResult):
+    total_count: int = Field(alias="totalCount")
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges]
+
+
+class ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges(GQLResult):
+    node: Optional[ArtifactCollectionFragment]
 
 
 ProjectArtifactCollections.model_rebuild()
 ProjectArtifactCollectionsProject.model_rebuild()
 ProjectArtifactCollectionsProjectArtifactType.model_rebuild()
+ProjectArtifactCollectionsProjectArtifactTypeArtifactCollections.model_rebuild()
+ProjectArtifactCollectionsProjectArtifactTypeArtifactCollectionsEdges.model_rebuild()

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import secrets
-from base64 import b64encode
 from functools import lru_cache
 from typing import Union
 from unittest.mock import Mock
@@ -10,6 +9,7 @@ from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
 from typing_extensions import TypeAlias
+from wandb._strutils import b64encode_ascii
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import (
     ActionType,
@@ -25,9 +25,10 @@ from wandb.automations import (
     SendNotification,
     SendWebhook,
 )
-from wandb.automations._utils import EXCLUDED_INPUT_ACTIONS, EXCLUDED_INPUT_EVENTS
+from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
 from wandb.automations.events import InputEvent, SavedEvent
+from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
 
 # default Hypothesis settings
 settings.register_profile("default", max_examples=100)
@@ -51,7 +52,7 @@ def make_graphql_id(prefix: str) -> str:
     - "ArtifactCollection:101"
     """
     random_index: int = secrets.randbelow(1_000_000)
-    return b64encode(f"{prefix}:{random_index:d}".encode()).decode()
+    return b64encode_ascii(f"{prefix}:{random_index:d}")
 
 
 # ---------------------------------------------------------------------------
@@ -87,21 +88,32 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     For unit-testing purposes, this has been heavily mocked.
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
+    collection_name = "test-collection"
+    project_name = "test-project"
+    entity_name = "test-entity"
+    collection_type = "dataset"
     collection = ArtifactCollection(
         client=mock_client,
-        entity="test-entity",
-        project="test-project",
-        name="test-collection",
-        type="dataset",
-        attrs={
-            "id": make_graphql_id(prefix="ArtifactCollection"),
-            "type": "dataset",
-            "description": "This is a fake artifact collection.",
-            "aliases": {"edges": []},
-            "createdAt": "2021-01-01T00:00:00Z",
-            "tags": {"edges": []},
-        },
-        is_sequence=False,
+        entity=entity_name,
+        project=project_name,
+        name=collection_name,
+        type=collection_type,
+        attrs=ArtifactCollectionFragment(
+            typename__="ArtifactPortfolio",
+            id=make_graphql_id(prefix="ArtifactCollection"),
+            name=collection_name,
+            project={
+                "name": project_name,
+                "entity": {
+                    "name": entity_name,
+                },
+            },
+            type={"name": collection_type},
+            description="This is a fake artifact collection.",
+            aliases={"edges": []},
+            createdAt="2021-01-01T00:00:00Z",
+            tags={"edges": []},
+        ),
     )
 
     return collection
@@ -132,11 +144,11 @@ def valid_scopes() -> list[ScopeType]:
 
 
 def valid_input_events() -> list[EventType]:
-    return sorted(set(EventType) - EXCLUDED_INPUT_EVENTS)
+    return sorted(set(EventType) - set(INVALID_INPUT_EVENTS))
 
 
 def valid_input_actions() -> list[ActionType]:
-    return sorted(set(ActionType) - EXCLUDED_INPUT_ACTIONS)
+    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS))
 
 
 # Invalid (event, scope) combinations that should be skipped
@@ -149,13 +161,13 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     }
 
 
-@fixture(params=valid_scopes(), ids=lambda x: x.value)
+@fixture(params=valid_scopes(), ids=lambda x: f"scope={x.value}")
 def scope_type(request: FixtureRequest) -> ScopeType:
     """An automation scope type."""
     return request.param
 
 
-@fixture(params=valid_input_events(), ids=lambda x: x.value)
+@fixture(params=valid_input_events(), ids=lambda x: f"event={x.value}")
 def event_type(request: FixtureRequest, scope_type: ScopeType) -> EventType:
     """An automation event type."""
     event_type = request.param
@@ -166,8 +178,8 @@ def event_type(request: FixtureRequest, scope_type: ScopeType) -> EventType:
     return event_type
 
 
-@fixture(params=valid_input_actions(), ids=lambda x: x.value)
-def action_type(request: type[FixtureRequest]) -> ActionType:
+@fixture(params=valid_input_actions(), ids=lambda x: f"action={x.value}")
+def action_type(request: FixtureRequest) -> ActionType:
     """An automation action type."""
     return request.param
 

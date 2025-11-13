@@ -6,15 +6,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	. "github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 )
 
 func TestTransmitLoop_Sends(t *testing.T) {
 	outputs := make(chan *FileStreamRequestJSON)
-	heartbeat := waitingtest.NewFakeStopwatch()
-	heartbeat.SetDoneForever()
 	loop := TransmitLoop{
-		HeartbeatStopwatch:     heartbeat,
+		HeartbeatStopwatch:     waiting.NewStopwatch(time.Second),
 		LogFatalAndStopWorking: func(err error) {},
 		Send: func(
 			ftd *FileStreamRequestJSON,
@@ -24,16 +23,17 @@ func TestTransmitLoop_Sends(t *testing.T) {
 			return nil
 		},
 	}
-	testInput, _ := NewRequestReader(&FileStreamRequest{Preempting: true}, 999)
+	trueValue := true
+	inputRequest := &FileStreamRequestJSON{Preempting: &trueValue}
 
-	inputs := make(chan *FileStreamRequestReader, 1)
-	inputs <- testInput
-	close(inputs)
-	_ = loop.Start(inputs, FileStreamOffsetMap{})
+	inputs := NewTransmitChan()
+	_ = loop.Start(inputs)
+	inputs.Push(inputRequest)
+	inputs.Close()
 
 	select {
-	case result := <-outputs:
-		assert.True(t, *result.Preempting)
+	case outputRequest := <-outputs:
+		assert.Same(t, inputRequest, outputRequest)
 	case <-time.After(time.Second):
 		t.Error("timeout after 1 second")
 	}
@@ -41,8 +41,8 @@ func TestTransmitLoop_Sends(t *testing.T) {
 
 func TestTransmitLoop_SendsHeartbeats(t *testing.T) {
 	heartbeat := waitingtest.NewFakeStopwatch()
-	inputs := make(chan *FileStreamRequestReader)
-	defer close(inputs)
+	inputs := NewTransmitChan()
+	defer inputs.Close()
 	outputs := make(chan *FileStreamRequestJSON)
 	loop := TransmitLoop{
 		HeartbeatStopwatch:     heartbeat,
@@ -56,7 +56,7 @@ func TestTransmitLoop_SendsHeartbeats(t *testing.T) {
 		},
 	}
 
-	loop.Start(inputs, FileStreamOffsetMap{})
+	loop.Start(inputs)
 	heartbeat.SetDone()
 
 	select {

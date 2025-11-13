@@ -9,12 +9,12 @@ from pydantic import ValidationError
 from typing_extensions import override
 from wandb_graphql.language.ast import Document
 
-from wandb._strutils import nameof
 from wandb.apis.paginator import Paginator, _Client
 
 if TYPE_CHECKING:
+    from wandb._pydantic import Connection
     from wandb.automations import Automation
-    from wandb.automations._generated import ProjectConnectionFields
+    from wandb.automations._generated import ProjectTriggersFields
 
 
 class Automations(Paginator["Automation"]):
@@ -23,7 +23,7 @@ class Automations(Paginator["Automation"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    last_response: ProjectConnectionFields | None
+    last_response: Connection[ProjectTriggersFields] | None
     _query: Document
 
     def __init__(
@@ -31,11 +31,10 @@ class Automations(Paginator["Automation"]):
         client: _Client,
         variables: Mapping[str, Any],
         per_page: int = 50,
-        _query: Document | None = None,
+        *,
+        _query: Document,  # internal use only, but required
     ):
-        super().__init__(client, variables, per_page=per_page)
-        if _query is None:
-            raise RuntimeError(f"Query required for {nameof(type(self))}")
+        super().__init__(client, variables=variables, per_page=per_page)
         self._query = _query
 
     @property
@@ -44,9 +43,7 @@ class Automations(Paginator["Automation"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
+        return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self) -> str | None:
@@ -54,21 +51,19 @@ class Automations(Paginator["Automation"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response is None:
-            return None
-        return self.last_response.page_info.end_cursor
+        return conn.next_cursor if (conn := self.last_response) else None
 
     @override
     def _update_response(self) -> None:
         """Fetch the raw response data for the current page."""
-        from wandb.automations._generated import ProjectConnectionFields
+        from wandb._pydantic import Connection
+        from wandb.automations._generated import ProjectTriggersFields
 
-        data: dict[str, Any] = self.client.execute(
-            self._query, variable_values=self.variables
-        )
+        data = self.client.execute(self._query, variable_values=self.variables)
         try:
-            page_data = data["searchScope"]["projects"]
-            self.last_response = ProjectConnectionFields.model_validate(page_data)
+            conn_data = data["scope"]["projects"]
+            conn = Connection[ProjectTriggersFields].model_validate(conn_data)
+            self.last_response = conn
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
@@ -79,8 +74,9 @@ class Automations(Paginator["Automation"]):
         """
         from wandb.automations import Automation
 
-        page = self.last_response
+        if (conn := self.last_response) is None:
+            return []
         return [
             Automation.model_validate(obj)
-            for obj in chain.from_iterable(edge.node.triggers for edge in page.edges)
+            for obj in chain.from_iterable(node.triggers for node in conn.nodes())
         ]

@@ -623,6 +623,9 @@ message Request {
     // Requests information about tasks the service is performing.
     OperationStatsRequest operations = 82;
 
+    // Requests collecting information about the system environment and resources.
+    ProbeSystemInfoRequest probe_system_info = 83;
+
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -1236,6 +1239,8 @@ message CancelResponse {}
 /*
  * Run environment including system, hardware, software, and execution parameters.
  */
+message ProbeSystemInfoRequest {}
+
 message DiskInfo {
   uint64 total = 1;
   uint64 used = 2;
@@ -1493,6 +1498,9 @@ enum ServerFeature {
   // Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
   // mutation.
   ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE = 14;
+
+  // Indicates that the server supports returning the total file count in a file connection.
+  TOTAL_COUNT_IN_FILE_CONNECTION = 15;
 }
 
 /**
