@@ -42,6 +42,7 @@ from wandb.errors import AuthenticationError, CommError, UnsupportedError, Usage
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk import wandb_setup
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
@@ -415,20 +416,23 @@ class Api:
 
     @property
     def api_key(self) -> str | None:
-        import requests
-
         if _thread_local_api_settings.api_key:
             return _thread_local_api_settings.api_key
-        auth = requests.utils.get_netrc_auth(self.api_url)
-        key = None
-        if auth:
-            key = auth[-1]
 
-        # Environment should take precedence
-        env_key: str | None = self._environ.get(env.API_KEY)
-        sagemaker_key: str | None = parse_sm_secrets().get(env.API_KEY)
-        default_key: str | None = self.default_settings.get("api_key")
-        return env_key or key or sagemaker_key or default_key
+        if (  #
+            (settings := wandb_setup.singleton().settings_if_loaded)
+            and (api_key := settings.api_key)
+        ):
+            return api_key
+
+        from wandb.sdk.lib import auth
+
+        return (
+            os.getenv(env.API_KEY)
+            or auth.read_netrc_auth(host=self.api_url)
+            or parse_sm_secrets().get(env.API_KEY)
+            or self.default_settings.get("api_key")
+        )
 
     @property
     def access_token(self) -> str | None:

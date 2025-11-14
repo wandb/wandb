@@ -11,9 +11,6 @@ from pathlib import Path
 from queue import Queue
 from typing import Any, Callable, Generator, Iterator
 
-from wandb.errors import term
-from wandb.sdk import wandb_login
-
 # Don't write to Sentry in wandb.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
@@ -24,6 +21,8 @@ import wandb.old.settings
 import wandb.util
 from click.testing import CliRunner
 from wandb import Api
+from wandb.errors import term
+from wandb.sdk import wandb_setup
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.lib import filesystem, module, runid
 from wandb.sdk.lib.gitlib import GitRepo
@@ -160,15 +159,8 @@ def dummy_api_key() -> str:
 
 
 @pytest.fixture
-def patch_apikey(monkeypatch: pytest.MonkeyPatch, dummy_api_key: str) -> None:
-    monkeypatch.setattr(
-        wandb_login._WandbLogin,
-        "prompt_api_key",
-        lambda *args, **kwargs: (
-            dummy_api_key,
-            wandb_login.ApiKeyStatus.VALID,
-        ),
-    )
+def patch_apikey(dummy_api_key: str) -> None:
+    wandb_setup.singleton().settings.api_key = dummy_api_key
 
 
 @pytest.fixture
@@ -194,7 +186,7 @@ def patch_prompt(monkeypatch):
 
 
 @pytest.fixture
-def runner(patch_apikey, patch_prompt):
+def runner():
     return CliRunner()
 
 
@@ -238,11 +230,7 @@ def clean_up():
 
 @pytest.fixture
 def api() -> Api:
-    with unittest.mock.patch.object(
-        wandb.sdk.wandb_login,
-        "_verify_login",
-        return_value=True,
-    ):
+    with unittest.mock.patch("wandb.sdk.wandb_login._verify_login"):
         return Api()
 
 
