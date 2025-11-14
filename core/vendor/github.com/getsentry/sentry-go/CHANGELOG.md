@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased Changes 
+
+### Breaking Changes
+
+## 0.37.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.37.0.
+
+### Breaking Changes
+
+- Behavioral change for the `TraceIgnoreStatusCodes` option. The option now defaults to ignoring 404 status codes ([#1122](https://github.com/getsentry/sentry-go/pull/1122)).
+
+### Features
+
+- Add `sentry.origin` attribute to structured logs to identify log origin for `slog` and `logrus` integrations (`auto.log.slog`, `auto.log.logrus`) ([#1121](https://github.com/getsentry/sentry-go/pull/1121)).
+
+### Bug Fixes
+
+- Fix `slog` event handler to use the initial context, ensuring events use the correct hub/span when the emission context lacks one ([#1133](https://github.com/getsentry/sentry-go/pull/1133)).
+- Improve exception chain processing by checking pointer values when tracking visited errors, avoiding instability for certain wrapped errors ([#1132](https://github.com/getsentry/sentry-go/pull/1132)).
+
+### Misc
+
+- Bump `golang.org/x/net` to v0.38.0 ([#1126](https://github.com/getsentry/sentry-go/pull/1126)).
+
 ## 0.36.2
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.36.2.
