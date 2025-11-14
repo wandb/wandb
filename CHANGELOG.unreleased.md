@@ -20,3 +20,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - `wandb.Image()` no longer prints a deprecation warning (@jacobromero in https://github.com/wandb/wandb/pull/10880)
+- `Registry.description` and `ArtifactCollection.description` now allow empty strings (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10891)
