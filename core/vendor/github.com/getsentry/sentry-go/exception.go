@@ -14,21 +14,18 @@ const (
 )
 
 type visited struct {
-	comparable map[error]struct{}
-	msgs       map[string]struct{}
+	ptrs map[uintptr]struct{}
+	msgs map[string]struct{}
 }
 
 func (v *visited) seenError(err error) bool {
-	t := reflect.TypeOf(err)
-	if t == nil {
-		return false
-	}
-
-	if t.Comparable() {
-		if _, ok := v.comparable[err]; ok {
+	t := reflect.ValueOf(err)
+	if t.Kind() == reflect.Ptr && !t.IsNil() {
+		ptr := t.Pointer()
+		if _, ok := v.ptrs[ptr]; ok {
 			return true
 		}
-		v.comparable[err] = struct{}{}
+		v.ptrs[ptr] = struct{}{}
 		return false
 	}
 
@@ -43,8 +40,8 @@ func (v *visited) seenError(err error) bool {
 func convertErrorToExceptions(err error, maxErrorDepth int) []Exception {
 	var exceptions []Exception
 	vis := &visited{
-		make(map[error]struct{}),
-		make(map[string]struct{}),
+		ptrs: make(map[uintptr]struct{}),
+		msgs: make(map[string]struct{}),
 	}
 	convertErrorDFS(err, &exceptions, nil, "", vis, maxErrorDepth, 0)
 
