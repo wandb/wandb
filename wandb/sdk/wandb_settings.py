@@ -17,7 +17,7 @@ from datetime import datetime
 # Dict, List, and Tuple are used for backwards compatibility
 # with pydantic v1 and Python<3.9.
 from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
-from urllib.parse import quote, unquote, urlencode
+from urllib.parse import quote, unquote
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import BaseModel, ConfigDict, Field
@@ -1754,9 +1754,7 @@ class Settings(BaseModel, validate_assignment=True):
         if not project_url:
             return ""
 
-        query = self._get_url_query_string()
-
-        return f"{project_url}{query}"
+        return project_url
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1778,10 +1776,9 @@ class Settings(BaseModel, validate_assignment=True):
         if not all([project_url, self.run_id]):
             return ""
 
-        query = self._get_url_query_string()
         # Exclude specific safe characters from URL encoding to prevent 404 errors
         safe_chars = "=+&$@"
-        return f"{project_url}/runs/{quote(self.run_id or '', safe=safe_chars)}{query}"
+        return f"{project_url}/runs/{quote(self.run_id or '', safe=safe_chars)}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1797,8 +1794,7 @@ class Settings(BaseModel, validate_assignment=True):
         if not all([project_url, self.sweep_id]):
             return ""
 
-        query = self._get_url_query_string()
-        return f"{project_url}/sweeps/{quote(self.sweep_id or '')}{query}"
+        return f"{project_url}/sweeps/{quote(self.sweep_id or '')}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -2147,18 +2143,6 @@ class Settings(BaseModel, validate_assignment=True):
 
         app_url = util.app_url(self.base_url)
         return f"{app_url}/{quote(self.entity or '')}/{quote(self.project or '')}"
-
-    def _get_url_query_string(self) -> str:
-        """Construct the query string for project, run, and sweep URLs."""
-        if self.anonymous not in ["allow", "must"]:
-            return ""
-
-        # TODO: remove dependency on Api()
-        from .lib import apikey
-
-        api_key = apikey.api_key(settings=self)
-
-        return f"?{urlencode({'apiKey': api_key})}"
 
     @staticmethod
     def _runmoment_preprocessor(

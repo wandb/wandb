@@ -18,7 +18,6 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.lib import auth
 
 from ..apis import InternalApi
-from .lib import apikey
 
 
 def _handle_host_wandb_setting(host: str | None, cloud: bool = False) -> None:
@@ -132,10 +131,6 @@ class _WandbLogin:
         else:
             api.clear_setting("anonymous", globally=True, persist=True)
 
-    def is_apikey_configured(self) -> bool:
-        """Returns whether an API key is set or can be inferred."""
-        return apikey.api_key(settings=self._settings) is not None
-
     def _print_logged_in_message(self) -> None:
         """Prints a message telling the user they are logged in."""
         username = self._wandb_setup._get_username()
@@ -175,16 +170,16 @@ class _WandbLogin:
         """Saves the API key to disk for future use."""
         if self._settings._notebook and not self._settings.silent:
             wandb.termwarn(
-                "If you're specifying your api key in code, ensure this "
-                "code is not shared publicly.\nConsider setting the "
-                "WANDB_API_KEY environment variable, or running "
-                "`wandb login` from the command line."
+                "If you're specifying your api key in code, ensure this"
+                + " code is not shared publicly."
+                + "\nConsider setting the WANDB_API_KEY environment variable,"
+                + " or running `wandb login` from the command line."
             )
-        if key:
-            try:
-                apikey.write_key(self._settings, key)
-            except apikey.WriteNetrcError as e:
-                wandb.termwarn(str(e))
+
+        try:
+            auth.write_netrc_auth(host=self._settings.base_url, api_key=key)
+        except auth.WriteNetrcError as e:
+            wandb.termwarn(str(e))
 
     def update_session(
         self,
@@ -317,21 +312,34 @@ def _login(
     if wlogin._settings.identity_token_file:
         return True, None
 
+    key_status = ApiKeyStatus.VALID
     key_is_pre_configured = False
-    key_status = None
-    if key is None:
-        # Check if key is already set in the settings, or configured in the users .netrc file.
-        key = apikey.api_key(settings=wlogin._settings)
-        if key and not relogin:
-            key_is_pre_configured = True
-        else:
-            key, key_status = wlogin.prompt_api_key(referrer=referrer)
 
-    if verify:
+    # Validate the format of any explicitly-given API key.
+    if key and (problems := auth.check_api_key(key)):
+        raise AuthenticationError(problems)
+
+    # Read the session key if one was not explicitly provided,
+    # unless relogin is set.
+    if not key and not relogin:
+        if settings_key := wlogin._settings.api_key:
+            key = settings_key
+        else:
+            key = auth.read_netrc_auth(host=wlogin._settings.base_url)
+
+        key_is_pre_configured = bool(key)
+
+    # If there's no explicit or session key, prompt interactively,
+    # raising an error if that's not possible.
+    if not key:
+        key, key_status = wlogin.prompt_api_key(referrer=referrer)
+
+    # Ignore the verify param when offline mode is selected interactively.
+    if key and verify:
         _verify_login(key, wlogin._settings.base_url)
 
     if not key_is_pre_configured:
-        if update_api_key:
+        if key and update_api_key:
             wlogin.try_save_api_key(key)
         wlogin.update_session(key, status=key_status)
         wlogin._update_global_anonymous_setting()
