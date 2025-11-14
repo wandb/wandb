@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Iterator
+from typing import Callable, Iterator
 from unittest.mock import patch
 
 import wandb
-from pytest import fixture, mark, raises
+from pytest import fixture, mark, param, raises
 from wandb import Api, Artifact
 from wandb._strutils import b64decode_ascii
 from wandb.apis.public.registries.registry import Registry
@@ -18,13 +18,23 @@ def default_organization(user_in_orgs_factory) -> Iterator[str]:
     yield user_in_orgs.organization_names[0]
 
 
-@mark.parametrize("initial_description", [None, "", "Initial registry description."])
+@mark.parametrize(
+    "orig_description",
+    [
+        param(None, id="null"),
+        param("", id="empty string"),
+        param("Original registry description.", id="non-empty string"),
+    ],
+)
 def test_registry_create_edit(
-    default_organization, make_registry, api: Api, initial_description: str | None
+    default_organization: str,
+    make_registry: Callable[..., Registry],
+    api: Api,
+    orig_description: str | None,
 ):
     """Tests the basic CRUD operations for a registry."""
     registry_name = "test"
-    updated_description = "Updated registry description."
+    new_description = "New registry description."
     artifact_type_1 = "model-1"
 
     # TODO: Setting visibility to restricted is giving permission errors.
@@ -33,7 +43,7 @@ def test_registry_create_edit(
         name=registry_name,
         visibility="organization",
         organization=default_organization,
-        description=initial_description,
+        description=orig_description,
         artifact_types=None,  # Test default: allow all
     )
 
@@ -45,7 +55,7 @@ def test_registry_create_edit(
     assert registry.name == registry_name
     assert registry.full_name == f"{REGISTRY_PREFIX}{registry_name}"
     assert registry.organization == default_organization
-    assert registry.description == initial_description
+    assert registry.description == orig_description
     assert registry.visibility == "organization"
     assert registry.allow_all_artifact_types is True
     assert len(registry.artifact_types) == 0
@@ -55,12 +65,12 @@ def test_registry_create_edit(
     registry.load()
     assert registry.id == registry_id
     assert registry.name == registry_name
-    assert registry.description == initial_description
+    assert registry.description == orig_description
     assert registry.visibility == "organization"
     assert registry.allow_all_artifact_types is True
 
     # === Edit ===
-    registry.description = updated_description
+    registry.description = new_description
     registry.allow_all_artifact_types = False
     registry.artifact_types.append(artifact_type_1)
     registry.save()
@@ -68,7 +78,7 @@ def test_registry_create_edit(
     fetched_registry = api.registry(registry_name, default_organization)
     assert fetched_registry
     assert fetched_registry.id == registry_id
-    assert fetched_registry.description == updated_description
+    assert fetched_registry.description == new_description
     assert fetched_registry.allow_all_artifact_types is False
     assert artifact_type_1 in fetched_registry.artifact_types
 
@@ -176,12 +186,10 @@ def test_registry_create_duplicate_name(default_organization, api: Api):
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
 def test_registry_create_empty_name(default_organization, api: Api):
     """Tests that creating a registry with an empty name fails."""
-    registry_name = ""
-
     with raises(ValueError):
         api.create_registry(
             organization=default_organization,
-            name=registry_name,
+            name="",
             visibility="organization",
             description="Registry with empty name",
         )
