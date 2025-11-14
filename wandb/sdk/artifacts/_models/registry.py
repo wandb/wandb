@@ -38,7 +38,7 @@ class RegistryData(ArtifactsBase):
     entity: str = Field(frozen=True)
     """The organization entity of the registry."""
 
-    name: str = Field(min_length=1)  # Empty names are not allowed
+    name: str = Field(min_length=1)  # Disallow empty strings
     """The name of the registry without the `wandb-registry-` project prefix."""
 
     description: Optional[str] = None
