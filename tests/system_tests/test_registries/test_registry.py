@@ -18,10 +18,12 @@ def default_organization(user_in_orgs_factory) -> Iterator[str]:
     yield user_in_orgs.organization_names[0]
 
 
-def test_registry_create_edit(default_organization, make_registry, api: Api):
+@mark.parametrize("initial_description", [None, "", "Initial registry description."])
+def test_registry_create_edit(
+    default_organization, make_registry, api: Api, initial_description: str | None
+):
     """Tests the basic CRUD operations for a registry."""
     registry_name = "test"
-    initial_description = "Initial registry description."
     updated_description = "Updated registry description."
     artifact_type_1 = "model-1"
 
@@ -168,6 +170,20 @@ def test_registry_create_duplicate_name(default_organization, api: Api):
             name=registry_name,
             visibility="organization",
             description="Duplicate registry",
+        )
+
+
+@mark.usefixtures("skip_if_server_does_not_support_create_registry")
+def test_registry_create_empty_name(default_organization, api: Api):
+    """Tests that creating a registry with an empty name fails."""
+    registry_name = ""
+
+    with raises(ValueError):
+        api.create_registry(
+            organization=default_organization,
+            name=registry_name,
+            visibility="organization",
+            description="Registry with empty name",
         )
 
 

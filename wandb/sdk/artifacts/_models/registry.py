@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 from typing_extensions import Self
 
 from wandb._pydantic import GQLId, field_validator
@@ -23,10 +23,6 @@ class RegistryData(ArtifactsBase):
     to more easily ensure continuity in the public `Registry` API.
     """
 
-    model_config = ConfigDict(
-        str_min_length=1,  # Strings cannot be empty
-    )
-
     id: GQLId = Field(frozen=True)
     """The unique, encoded ID for this registry."""
 
@@ -42,7 +38,7 @@ class RegistryData(ArtifactsBase):
     entity: str = Field(frozen=True)
     """The organization entity of the registry."""
 
-    name: str
+    name: str = Field(min_length=1)  # Empty names are not allowed
     """The name of the registry without the `wandb-registry-` project prefix."""
 
     description: Optional[str] = None
