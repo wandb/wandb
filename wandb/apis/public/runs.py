@@ -1489,7 +1489,7 @@ class Run(Attrs):
             which can be iterator over to get history records.
         """
         if self._api is None:
-            raise ValueError("Object was not initialized with an api instance")
+            self._api = public.Api()
 
         beta_history_scan = public.BetaHistoryScan(
             api=self._api,

@@ -21,8 +21,10 @@ from . import service_process, service_token
 class WandbAttachFailedError(Exception):
     """Failed to attach to a run."""
 
+
 class WandbApiFailedError(Exception):
     """Failed to execute an API request to wandb-core."""
+
 
 def connect_to_service(
     asyncer: asyncio_manager.AsyncioManager,
