@@ -14,7 +14,7 @@ from ._generated import (
     TriggeredActionConfig,
     UpdateFilterTriggerInput,
 )
-from ._validators import to_input_action
+from ._validators import as_input_action
 from .actions import (
     ActionType,
     DoNothing,
@@ -97,7 +97,7 @@ def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any
     - `UpdateFilterTriggerInput`
     """
     # Delegate to inner validators to convert SavedAction -> InputAction types, if needed.
-    obj = to_input_action(obj)
+    obj = as_input_action(obj)
     return InputActionConfig(**{ACTION_CONFIG_KEYS[obj.action_type]: obj}).model_dump()
 
 
@@ -115,10 +115,9 @@ def prepare_event_filter_input(
     #
     # Yes, this is confusing.  It's also necessary to conform to under-the-hood
     # schemas and logic in the backend.
-    filter_to_serialize = (
-        obj.filter if isinstance(obj, _WrappedSavedEventFilter) else obj
-    )
-    return to_json(filter_to_serialize)
+    if isinstance(obj, _WrappedSavedEventFilter):
+        return to_json(obj.filter)
+    return to_json(obj)
 
 
 class WriteAutomationsKwargs(TypedDict, total=False):
@@ -198,16 +197,9 @@ def prepare_to_create(
     # Validate all input variables, and prepare as expected by the GraphQL request.
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
-
-    # NOTE: `exclude_none=True` drops fields that are still `None`.
-    #
-    # This assumes that `None` is good enough for now as a sentinel
-    # "unset" value.  If this proves insufficient, revisit in the future,
-    # as it should be reasonably easy to implement a custom sentinel
-    # type later on.
     obj_dict = {**obj.model_dump(), **kwargs} if obj else kwargs
-    validated = ValidatedCreateInput(**obj_dict)
-    return CreateFilterTriggerInput.model_validate(validated)
+    vobj = ValidatedCreateInput(**obj_dict)
+    return CreateFilterTriggerInput.model_validate(vobj)
 
 
 def prepare_to_update(
@@ -219,17 +211,16 @@ def prepare_to_update(
     # Validate all values:
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
-    v_obj = Automation(**{**dict(obj or {}), **kwargs})
-
+    vobj = Automation(**{**dict(obj or {}), **kwargs})
     return UpdateFilterTriggerInput(
-        id=v_obj.id,
-        name=v_obj.name,
-        description=v_obj.description,
-        enabled=v_obj.enabled,
-        scope_type=v_obj.scope.scope_type,
-        scope_id=v_obj.scope.id,
-        triggering_event_type=v_obj.event.event_type,
-        event_filter=prepare_event_filter_input(v_obj.event.filter),
-        triggered_action_type=v_obj.action.action_type,
-        triggered_action_config=prepare_action_config_input(v_obj.action),
+        id=vobj.id,
+        name=vobj.name,
+        description=vobj.description,
+        enabled=vobj.enabled,
+        scope_type=vobj.scope.scope_type,
+        scope_id=vobj.scope.id,
+        triggering_event_type=vobj.event.event_type,
+        event_filter=prepare_event_filter_input(vobj.event.filter),
+        triggered_action_type=vobj.action.action_type,
+        triggered_action_config=prepare_action_config_input(vobj.action),
     )

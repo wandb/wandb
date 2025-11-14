@@ -65,9 +65,7 @@ def test_fetch_webhook_integrations(
     # Create multiple webhook integrations
     created_hooks = [
         make_webhook_integration(
-            name=make_name("test-webhook"),
-            entity=api.default_entity,
-            url="fake-url",
+            name=make_name("test-webhook"), entity=api.default_entity, url="fake-url"
         )
         for _ in range(3)
     ]
@@ -234,7 +232,10 @@ def test_create_automation_for_run_metric_threshold_event(
             & RunEvent.name.contains(run_name)
         ),
     )
-    action = SendWebhook.from_integration(webhook)
+    action = SendWebhook.from_integration(
+        webhook,
+        payload={"test": {"key": "value"}},
+    )
 
     server_supports_event = api._supports_automation(event=event.event_type)
 
@@ -256,6 +257,7 @@ def test_create_automation_for_run_metric_threshold_event(
         refetched = api.automation(name=automation_name)
         assert isinstance(refetched, Automation)
         assert refetched.event.filter == expected_filter
+        assert refetched.action.request_payload == {"test": {"key": "value"}}
 
 
 @mark.usefixtures(reset_automations.__name__)

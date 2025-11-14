@@ -14,7 +14,7 @@ from ._generated import (
     ArtifactSequenceScopeFields,
     ProjectScopeFields,
 )
-from ._validators import LenientStrEnum, to_scope
+from ._validators import LenientStrEnum, as_scope
 
 
 # NOTE: Re-defined publicly with a more readable name for easier access
@@ -44,7 +44,7 @@ class _ArtifactPortfolioScope(_BaseScope, ArtifactPortfolioScopeFields):
 # for type annotations
 ArtifactCollectionScope = Annotated[
     Union[_ArtifactSequenceScope, _ArtifactPortfolioScope],
-    BeforeValidator(to_scope),
+    BeforeValidator(as_scope),
     Field(discriminator="typename__"),
 ]
 """An automation scope defined by a specific `ArtifactCollection`."""
@@ -64,12 +64,11 @@ class ProjectScope(_BaseScope, ProjectScopeFields):
 # for type annotations
 AutomationScope: TypeAlias = Annotated[
     Union[_ArtifactSequenceScope, _ArtifactPortfolioScope, ProjectScope],
-    BeforeValidator(to_scope),
+    BeforeValidator(as_scope),
     Field(discriminator="typename__"),
 ]
 # for runtime type checks
 AutomationScopeTypes: tuple[type, ...] = get_args(AutomationScope.__origin__)  # type: ignore[attr-defined]
-
 
 __all__ = [
     "ScopeType",

@@ -96,7 +96,15 @@ class FilterableField:
     def not_in(self, values: Iterable[Scalar]) -> FilterExpr:
         return FilterExpr(field=self._name, op=NotIn(nin_=values))
 
-    # Override the default behavior of comparison operators: <, >=, ==, etc
+    # Deliberately override the default behavior of comparison operator symbols,
+    # (`<`, `>`, `<=`, `>=`, `==`, `!=`), to allow defining filter expressions
+    # idiomatically, e.g. `field == "value"`.
+    #
+    # See similar overrides of built-in dunder methods in common libraries like
+    # `sqlalchemy`, `polars`, `pandas`, `numpy`, etc.
+    #
+    # As an illustrative example from `sqlalchemy`, see:
+    # https://github.com/sqlalchemy/sqlalchemy/blob/f21ae633486380a26dc0b67b70ae1c0efc6b4dc4/lib/sqlalchemy/orm/descriptor_props.py#L808-L812
     def __lt__(self, other: Any) -> FilterExpr:
         if isinstance(other, ScalarTypes):
             return self.lt(other)  # type: ignore[arg-type]
@@ -117,12 +125,6 @@ class FilterableField:
             return self.gte(other)  # type: ignore[arg-type]
         raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
 
-    # Operator behavior is intentionally overridden to allow defining
-    # filter expressions like `field == "value"`.  See similar overrides
-    # of built-in dunder methods in sqlalchemy, polars, pandas, numpy, etc.
-    #
-    # sqlalchemy example for illustrative purposes:
-    # https://github.com/sqlalchemy/sqlalchemy/blob/f21ae633486380a26dc0b67b70ae1c0efc6b4dc4/lib/sqlalchemy/orm/descriptor_props.py#L808-L812
     def __eq__(self, other: Any) -> FilterExpr:
         if isinstance(other, ScalarTypes):
             return self.eq(other)  # type: ignore[arg-type]
@@ -161,7 +163,7 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
             and len(data) == 1
             and not any(key.startswith("$") for key in data)
         ):
-            # This looks like a MongoDB filter dict.  E.g.:
+            # This looks like a MongoDB filter expression on a single field.  E.g.:
             # - in:  `{"display_name": {"$contains": "my-run"}}`
             # - out: `FilterExpr(field="display_name", op=Contains(contains_="my-run"))`
             ((field, op),) = data.items()
@@ -169,7 +171,7 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
         return data
 
     @model_serializer(mode="plain")
-    def _serialize(self) -> dict[str, Any]:
+    def _to_mongo_dict(self) -> dict[str, Any]:
         """Return a MongoDB dict representation of the expression."""
         from pydantic_core import to_jsonable_python  # Only valid in pydantic v2
 

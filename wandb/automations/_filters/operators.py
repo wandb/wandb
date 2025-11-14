@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, Tuple, TypeVar, Union
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
-from typing_extensions import TypeAlias, get_args
+from typing_extensions import TypeAlias, get_args, override
 
 from wandb._pydantic import GQLBase
 from wandb._strutils import nameof
@@ -85,6 +85,7 @@ class And(BaseOp):
 class Or(BaseOp):
     or_: TupleOf[Any] = Field(default=(), alias="$or")
 
+    @override
     def __invert__(self) -> Nor:
         """Syntactic sugar for: `~Or(a, b)` -> `Nor(a, b)`."""
         return Nor(nor_=self.or_)
@@ -93,6 +94,7 @@ class Or(BaseOp):
 class Nor(BaseOp):
     nor_: TupleOf[Any] = Field(default=(), alias="$nor")
 
+    @override
     def __invert__(self) -> Or:
         """Syntactic sugar for: `~Nor(a, b)` -> `Or(a, b)`."""
         return Or(or_=self.nor_)
@@ -101,6 +103,7 @@ class Nor(BaseOp):
 class Not(BaseOp):
     not_: Any = Field(alias="$not")
 
+    @override
     def __invert__(self) -> Any:
         """Syntactic sugar for: `~Not(a)` -> `a`."""
         return self.not_
@@ -118,6 +121,7 @@ class Not(BaseOp):
 class Lt(BaseOp):
     lt_: Scalar = Field(alias="$lt")
 
+    @override
     def __invert__(self) -> Gte:
         """Syntactic sugar for: `~Lt(a)` -> `Gte(a)`."""
         return Gte(gte_=self.lt_)
@@ -126,6 +130,7 @@ class Lt(BaseOp):
 class Gt(BaseOp):
     gt_: Scalar = Field(alias="$gt")
 
+    @override
     def __invert__(self) -> Lte:
         """Syntactic sugar for: `~Gt(a)` -> `Lte(a)`."""
         return Lte(lte_=self.gt_)
@@ -134,6 +139,7 @@ class Gt(BaseOp):
 class Lte(BaseOp):
     lte_: Scalar = Field(alias="$lte")
 
+    @override
     def __invert__(self) -> Gt:
         """Syntactic sugar for: `~Lte(a)` -> `Gt(a)`."""
         return Gt(gt_=self.lte_)
@@ -142,6 +148,7 @@ class Lte(BaseOp):
 class Gte(BaseOp):
     gte_: Scalar = Field(alias="$gte")
 
+    @override
     def __invert__(self) -> Lt:
         """Syntactic sugar for: `~Gte(a)` -> `Lt(a)`."""
         return Lt(lt_=self.gte_)
@@ -150,6 +157,7 @@ class Gte(BaseOp):
 class Eq(BaseOp):
     eq_: Scalar = Field(alias="$eq")
 
+    @override
     def __invert__(self) -> Ne:
         """Syntactic sugar for: `~Eq(a)` -> `Ne(a)`."""
         return Ne(ne_=self.eq_)
@@ -158,6 +166,7 @@ class Eq(BaseOp):
 class Ne(BaseOp):
     ne_: Scalar = Field(alias="$ne")
 
+    @override
     def __invert__(self) -> Eq:
         """Syntactic sugar for: `~Ne(a)` -> `Eq(a)`."""
         return Eq(eq_=self.ne_)
@@ -166,6 +175,7 @@ class Ne(BaseOp):
 class In(BaseOp):
     in_: TupleOf[Scalar] = Field(default=(), alias="$in")
 
+    @override
     def __invert__(self) -> NotIn:
         """Syntactic sugar for: `~In(a)` -> `NotIn(a)`."""
         return NotIn(nin_=self.in_)
@@ -174,6 +184,7 @@ class In(BaseOp):
 class NotIn(BaseOp):
     nin_: TupleOf[Scalar] = Field(default=(), alias="$nin")
 
+    @override
     def __invert__(self) -> In:
         """Syntactic sugar for: `~NotIn(a)` -> `In(a)`."""
         return In(in_=self.nin_)
