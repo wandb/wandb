@@ -49,6 +49,7 @@ from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_suppor
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
+from wandb.sdk.lib import auth as wbauth
 from wandb.sdk.lib import retry, runid
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.gql_request import GraphQLSession
@@ -377,20 +378,26 @@ class Api:
         if _thread_local_api_settings.api_key:
             return _thread_local_api_settings.api_key
 
-        _, key = wandb_login._login(
+        auth = wbauth.authenticate_session(
             host=base_url,
-            force=True,
-            update_api_key=False,
-            _silent=(
-                self.settings.get("silent", False)  #
-                or self.settings.get("quiet", False)
-            ),
+            source="wandb.Api()",
+            no_offline=True,
+            no_create=False,
+            input_timeout=None,  # TODO: Consult settings?
         )
 
-        if not key:
+        if not auth:
             raise UsageError("No API key configured. Use `wandb login` to log in.")
+        if not isinstance(auth, wbauth.AuthApiKey):
+            message = (
+                "wandb.Api() can only use API key authentication, but you have"
+                " another form of credentials configured."
+                " Check if you have set WANDB_IDENTITY_TOKEN_FILE."
+                f" Current credentials: {auth}"
+            )
+            raise UsageError(message)
 
-        return key
+        return auth.api_key
 
     def _configure_sentry(self) -> None:
         if not env.error_reporting_enabled():

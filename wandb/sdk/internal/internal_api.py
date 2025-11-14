@@ -42,7 +42,6 @@ from wandb.errors import AuthenticationError, CommError, UnsupportedError, Usage
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk import wandb_setup
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
@@ -419,17 +418,16 @@ class Api:
         if _thread_local_api_settings.api_key:
             return _thread_local_api_settings.api_key
 
-        if (  #
-            (settings := wandb_setup.singleton().settings_if_loaded)
-            and (api_key := settings.api_key)
-        ):
-            return api_key
+        from wandb.sdk.lib import auth as wbauth
 
-        from wandb.sdk.lib import auth
+        if (  #
+            (auth := wbauth.session_credentials(host=self.api_url))
+            and isinstance(auth, wbauth.AuthApiKey)
+        ):
+            return auth.api_key
 
         return (
             os.getenv(env.API_KEY)
-            or auth.read_netrc_auth(host=self.api_url)
             or parse_sm_secrets().get(env.API_KEY)
             or self.default_settings.get("api_key")
         )
