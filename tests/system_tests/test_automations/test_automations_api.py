@@ -16,13 +16,15 @@ from wandb.automations import (
     MetricThresholdFilter,
     OnLinkArtifact,
     OnRunMetric,
+    OnRunState,
     ProjectScope,
     RunEvent,
     SendWebhook,
     WebhookIntegration,
 )
+from wandb.automations._filters.run_states import ReportedRunState, StateFilter
 from wandb.automations.actions import SavedNoOpAction, SavedWebhookAction
-from wandb.automations.events import RunMetricFilter
+from wandb.automations.events import RunMetricFilter, RunStateFilter
 from wandb.automations.scopes import ArtifactCollectionScopeTypes
 from wandb.errors.errors import CommError
 
@@ -314,6 +316,51 @@ def test_create_automation_for_run_metric_change_event(
         assert refetched.event.filter == expected_filter
 
 
+@mark.usefixtures(reset_automations.__name__)
+def test_create_automation_for_run_state_event(
+    project,
+    webhook,
+    api: wandb.Api,
+    automation_name: str,
+):
+    """Check that creating an automation for the `RUN_STATE` event works, and the automation is saved with the expected filter."""
+    run_name = "my-run"
+    state = ReportedRunState.FAILED
+
+    expected_filter = RunStateFilter(
+        run={
+            "$and": [{"display_name": {"$contains": run_name}}],
+        },
+        state=StateFilter(states=[state]),
+    )
+
+    event = OnRunState(
+        scope=project,
+        filter=(RunEvent.name.contains(run_name) & StateFilter(states=state)),
+    )
+    action = SendWebhook.from_integration(webhook)
+
+    server_supports_event = api._supports_automation(event=event.event_type)
+
+    if not server_supports_event:
+        with raises(CommError):
+            api.create_automation(
+                (event >> action), name=automation_name, description="test description"
+            )
+    else:
+        # The server supports the event, so there should be an automation to check
+        created = api.create_automation(
+            (event >> action), name=automation_name, description="test description"
+        )
+        assert isinstance(created, Automation)
+        assert created.event.filter == expected_filter
+
+        # Refetch it to be sure
+        refetched = api.automation(name=automation_name)
+        assert isinstance(refetched, Automation)
+        assert refetched.event.filter == expected_filter
+
+
 @fixture
 def created_automation(
     api: wandb.Api, reset_automations, event, action, automation_name: str
@@ -502,11 +549,15 @@ class TestUpdateAutomation:
         assert updated_scope.name == project.name
 
     @mark.parametrize(
-        # Run (metric) events don't support ArtifactCollection scope, so we'll test those separately.
+        # Run events don't support ArtifactCollection scope, so we'll test those separately.
         "event_type",
         sorted(
             set(EventType)
-            - {EventType.RUN_METRIC_THRESHOLD, EventType.RUN_METRIC_CHANGE}
+            - {
+                EventType.RUN_METRIC_THRESHOLD,
+                EventType.RUN_METRIC_CHANGE,
+                EventType.RUN_STATE,
+            }
         ),
         indirect=True,
     )
@@ -530,7 +581,11 @@ class TestUpdateAutomation:
 
     @mark.parametrize(
         "event_type",
-        [EventType.RUN_METRIC_THRESHOLD, EventType.RUN_METRIC_CHANGE],
+        [
+            EventType.RUN_METRIC_THRESHOLD,
+            EventType.RUN_METRIC_CHANGE,
+            EventType.RUN_STATE,
+        ],
         indirect=True,
     )
     def test_update_scope_to_artifact_collection_fails_for_incompatible_event(

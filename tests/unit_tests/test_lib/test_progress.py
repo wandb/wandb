@@ -140,7 +140,7 @@ def test_minimal_operations_static(mock_wandb_log, static_progress_printer):
         ),
     )
 
-    assert mock_wandb_log.logged("op 1; op 2; op 3; op 4; op 5 (+ 195 more)")
+    mock_wandb_log.assert_logged("op 1; op 2; op 3; op 4; op 5 (+ 195 more)")
 
 
 def test_grouped_operations_static(
@@ -174,7 +174,7 @@ def test_grouped_operations_static(
         }
     )
 
-    assert mock_wandb_log.logged("[run1] op 1; op 2; [run3] op 3 (+ 121 more)")
+    mock_wandb_log.assert_logged("[run1] op 1; op 2; [run3] op 3 (+ 121 more)")
 
 
 def test_does_not_print_empty_lines(capsys, static_progress_printer):

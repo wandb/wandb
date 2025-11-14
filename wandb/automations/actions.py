@@ -21,8 +21,8 @@ from ._generated import (
     QueueJobActionFields,
 )
 from ._validators import (
+    JsonEncoded,
     LenientStrEnum,
-    SerializedToJson,
     default_if_none,
     to_input_action,
     to_saved_action,
@@ -87,7 +87,7 @@ class SavedWebhookAction(GenericWebhookActionFields, frozen=False):
     # schema (and generated class) effectively defines it as a string, when we know
     # and need to anticipate the expected structure of the JSON-serialized data.
     request_payload: Annotated[
-        Optional[SerializedToJson[dict[str, Any]]],
+        Optional[JsonEncoded[dict[str, Any]]],
         Field(alias="requestPayload"),
     ] = None  # type: ignore[assignment]
 
@@ -173,7 +173,7 @@ class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
     """The ID of the webhook integration that will be used to send the request."""
 
     # overrides the generated field type to parse/serialize JSON strings
-    request_payload: Optional[SerializedToJson[dict[str, Any]]] = Field(  # type: ignore[assignment]
+    request_payload: Optional[JsonEncoded[dict[str, Any]]] = Field(  # type: ignore[assignment]
         default=None, alias="requestPayload"
     )
     """The payload, possibly with template variables, to send in the webhook request."""
@@ -183,7 +183,7 @@ class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
         cls,
         integration: WebhookIntegration,
         *,
-        payload: Optional[SerializedToJson[dict[str, Any]]] = None,
+        payload: Optional[JsonEncoded[dict[str, Any]]] = None,
     ) -> Self:
         """Define a webhook action that sends to the given (webhook) integration."""
         return cls(integration_id=integration.id, request_payload=payload)

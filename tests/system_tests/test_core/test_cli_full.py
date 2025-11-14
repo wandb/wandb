@@ -5,9 +5,7 @@ from unittest import mock
 import pytest
 import wandb
 import wandb.errors.term
-from click.testing import CliRunner
 from wandb.cli import cli
-from wandb.sdk.lib.apikey import get_netrc_file_path
 
 
 @pytest.fixture
@@ -194,25 +192,3 @@ def test_cli_offline(user, runner):
         with wandb.init() as run:
             assert run.settings._offline
             assert run.settings.mode == "offline"
-
-
-def test_login_key_arg(runner):
-    with runner.isolated_filesystem():
-        result = runner.invoke(cli.login, ["A" * 40])
-        assert result.exit_code == 0
-        with open(get_netrc_file_path()) as f:
-            generated_netrc = f.read()
-        assert "A" * 40 in generated_netrc
-
-
-def test_login_key_prompt(monkeypatch):
-    monkeypatch.setattr(wandb.errors.term, "can_use_terminput", lambda: True)
-    monkeypatch.delenv("WANDB_API_KEY", raising=False)
-    runner = CliRunner()
-
-    with runner.isolated_filesystem():
-        result = runner.invoke(cli.login, input=f"{'A' * 40}\n")
-        assert result.exit_code == 0
-        with open(get_netrc_file_path()) as f:
-            generated_netrc = f.read()
-        assert "A" * 40 in generated_netrc

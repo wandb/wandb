@@ -244,16 +244,16 @@ def test_run_history_keys_bad_arg(stub_run_gql_once, mock_wandb_log):
     run = Api().run("test/test/test")
 
     run.history(keys="acc", pandas=False)
-    mock_wandb_log.errored("keys must be specified in a list")
+    mock_wandb_log.assert_errored("keys must be specified in a list")
 
     run.history(keys=[["acc"]], pandas=False)
-    mock_wandb_log.errored("keys argument must be a list of strings")
+    mock_wandb_log.assert_errored("keys argument must be a list of strings")
 
     run.scan_history(keys="acc")
-    mock_wandb_log.errored("keys must be specified in a list")
+    mock_wandb_log.assert_errored("keys must be specified in a list")
 
     run.scan_history(keys=[["acc"]])
-    mock_wandb_log.errored("keys argument must be a list of strings")
+    mock_wandb_log.assert_errored("keys argument must be a list of strings")
 
 
 def test_run_summary(wandb_backend_spy):

@@ -52,7 +52,7 @@ def test_resume__offline__warns(resume, mock_wandb_log):
     with wandb.init(mode="offline", resume=resume):
         pass
 
-    assert mock_wandb_log.warned(
+    mock_wandb_log.assert_warned(
         "`resume` will be ignored since W&B syncing is set to `offline`"
     )
 

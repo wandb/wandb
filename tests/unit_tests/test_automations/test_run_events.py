@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 
 from hypothesis import given
-from hypothesis.strategies import DrawFn, SearchStrategy, composite, sampled_from
+from hypothesis.strategies import DrawFn, SearchStrategy, composite, lists, sampled_from
 from pytest import raises
 from wandb.automations import MetricChangeFilter, MetricThresholdFilter, RunEvent
 from wandb.automations._filters.run_metrics import Agg, MetricAgg, MetricVal
+from wandb.automations._filters.run_states import ReportedRunState
+from wandb.automations.events import StateFilter
 
 from ._strategies import (
     aggs,
@@ -16,6 +18,7 @@ from ._strategies import (
     metric_names,
     nonpos_numbers,
     pos_numbers,
+    run_states,
     window_sizes,
 )
 
@@ -96,7 +99,7 @@ def test_metric_threshold_binop_vs_method_is_equivalent(
     assert repr(metric <= threshold) == repr(metric.lte(threshold))
 
 
-def test_run_metric_threshold_cannot_be_aggregated_twice():
+def test_metric_threshold_cannot_be_aggregated_twice():
     """Check that run metric thresholds forbid multiple aggregations."""
     with raises(AttributeError):
         RunEvent.metric("my-metric").avg(5).average(10)
@@ -199,6 +202,20 @@ def test_metric_change_filter_repr(metric: MetricVal | MetricAgg, delta: float):
     assert metric_filter_repr == repr(f"{expected_lhs} decreases {delta}")
 
 
+@given(states=lists(run_states, max_size=10))
+def test_state_filter_serialization(states: list[str | ReportedRunState]):
+    """Check that a normally-instantiated `RunStateFilter` produces the expected JSON-serializable dict."""
+    # When serialized, valid states should be converted to all-caps strings and deduplicated
+    expected_state_strs = sorted(set(ReportedRunState(s).value.upper() for s in states))
+    expected_dict = {"states": expected_state_strs}
+
+    state_filter = StateFilter(states=states)
+
+    assert state_filter.model_dump() == expected_dict
+    assert json.loads(state_filter.model_dump_json()) == expected_dict
+
+
+# ---------------------------------------------------------------------------
 @given(
     name=metric_names,
     window=window_sizes,

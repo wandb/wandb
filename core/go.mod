@@ -11,13 +11,13 @@ require (
 	github.com/NimbleMarkets/ntcharts v0.3.1
 	github.com/apache/arrow-go/v18 v18.4.1
 	github.com/aws/aws-sdk-go-v2 v1.39.6
-	github.com/aws/aws-sdk-go-v2/config v1.31.19
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.1
+	github.com/aws/aws-sdk-go-v2/config v1.31.20
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.2
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20251023181713-f594ac034d6b
-	github.com/getsentry/sentry-go v0.36.2
+	github.com/getsentry/sentry-go v0.37.0
 	github.com/go-git/go-git/v5 v5.16.3
 	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.15.0
@@ -65,7 +65,7 @@ require (
 	github.com/apache/thrift v0.22.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.3 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.18.23 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.24 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.13 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.18.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.13 // indirect
@@ -76,9 +76,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.30.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.40.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.30.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.40.2 // indirect
 	github.com/aws/smithy-go v1.23.2 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymanbagabas/go-udiff v0.3.1 // indirect

@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from functools import singledispatch
 from itertools import chain
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BeforeValidator, Json, PlainSerializer
 from pydantic_core import PydanticUseDefault
@@ -12,6 +12,9 @@ from typing_extensions import Annotated
 from wandb._pydantic import to_json
 
 from ._filters import And, FilterExpr, In, Nor, Not, NotIn, Op, Or
+
+if TYPE_CHECKING:
+    from ._filters import MongoLikeFilter
 
 T = TypeVar("T")
 
@@ -26,9 +29,7 @@ def ensure_json(v: Any) -> Any:
     return v if isinstance(v, (str, bytes)) else to_json(v)
 
 
-SerializedToJson = Annotated[
-    Json[T], BeforeValidator(ensure_json), PlainSerializer(to_json)
-]
+JsonEncoded = Annotated[Json[T], BeforeValidator(ensure_json), PlainSerializer(to_json)]
 """A Pydantic type that's always serialized to a JSON string.
 
 Unlike `pydantic.Json[T]`, this is more lenient on validation and instantiation.
@@ -140,6 +141,15 @@ def to_input_action(v: Any) -> Any:
 
 
 # ----------------------------------------------------------------------------
+def wrap_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
+    """Wrap a run filter in an `And` operator if it's not already.
+
+    This is a necessary constraint imposed elsewhere by backend/frontend code.
+    """
+    f_new = simplify_op(f)
+    return f_new if isinstance(f_new, And) else And(and_=[f_new])
+
+
 @singledispatch
 def simplify_op(op: Op | FilterExpr) -> Op | FilterExpr:
     """Simplify a MongoDB filter by removing and unnesting redundant operators."""
