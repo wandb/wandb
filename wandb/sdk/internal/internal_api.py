@@ -421,17 +421,17 @@ class Api:
 
     @property
     def api_key(self) -> str | None:
-        if (  #
-            (settings := wandb_setup.singleton().settings_if_loaded)
-            and (api_key := settings.api_key)
-        ):
-            return api_key
+        from wandb.sdk.lib import auth as wbauth
 
-        from wandb.sdk.lib import auth
+        if (  #
+            (auth := wbauth.session_credentials(host=self.api_url))
+            and isinstance(auth, wbauth.AuthApiKey)
+        ):
+            return auth.api_key
 
         return (
             os.getenv(env.API_KEY)
-            or auth.read_netrc_auth(host=self.api_url)
+            or wbauth.read_netrc_auth(host=self.api_url)
             or parse_sm_secrets().get(env.API_KEY)
             or self.default_settings.get("api_key")
         )

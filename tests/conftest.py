@@ -11,6 +11,8 @@ from pathlib import Path
 from queue import Queue
 from typing import Any, Callable, Generator, Iterator
 
+from wandb.sdk import wandb_setup
+
 # Don't write to Sentry in wandb.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
@@ -21,8 +23,8 @@ import wandb.util
 from click.testing import CliRunner
 from wandb import Api
 from wandb.errors import term
-from wandb.sdk import wandb_setup
 from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.lib import auth as wbauth
 from wandb.sdk.lib import filesystem, module, runid
 from wandb.sdk.lib.gitlib import GitRepo
 from wandb.sdk.lib.paths import StrPath
@@ -152,18 +154,30 @@ def dummy_api_key() -> str:
 
 
 @pytest.fixture
-def patch_apikey(dummy_api_key: str) -> None:
-    wandb_setup.singleton().settings.api_key = dummy_api_key
+def patch_apikey(dummy_api_key: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Use a fake API key and W&B server URL in a test."""
+    dummy_url = "https://dummy"
+
+    # Both are needed because of the way InternalApi gets the base URL.
+    monkeypatch.setenv("WANDB_BASE_URL", dummy_url)
+    wandb_setup.singleton().settings.base_url = dummy_url
+
+    # Api tries to load the default entity from the fake URL in unit tests.
+    monkeypatch.setenv("WANDB_ENTITY", "test-entity")
+
+    wbauth.use_explicit_auth(
+        auth=wbauth.AuthApiKey(api_key=dummy_api_key, host=dummy_url),
+        source="test",
+    )
 
 
 @pytest.fixture
-def skip_verify_login(monkeypatch):
-    """Patches the `_verify_login` method to do nothing.
+def skip_verify_login(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Patch `wandb.Api` to not verify the API key."""
+    from wandb.apis.public import api
 
-    This method is called whenever wandb.login is called.
-    """
     monkeypatch.setattr(
-        wandb.sdk.wandb_login,
+        api.wandb_login,
         "_verify_login",
         unittest.mock.MagicMock(),
     )
