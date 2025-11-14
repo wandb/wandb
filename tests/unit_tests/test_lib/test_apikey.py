@@ -4,7 +4,6 @@ from unittest import mock
 
 import pytest
 from wandb import wandb, wandb_lib
-from wandb.sdk.lib.apikey import _api_key_prompt_str
 
 
 @pytest.mark.parametrize("api_key", ["X" * 40, "X" * 86])
@@ -153,11 +152,3 @@ def test_read_apikey_no_netrc_access(tmp_path, monkeypatch, mock_wandb_log):
         api_key = wandb_lib.apikey.api_key(settings)
         assert api_key is None
         mock_wandb_log.assert_warned(f"Cannot access {netrc_path}.")
-
-
-def test_apikey_prompt_str():
-    app_url = "http://localhost"
-    auth_base = f"{app_url}/authorize"
-    prompt_str = f"You can find your API key in your browser here: {auth_base}"
-    assert _api_key_prompt_str(app_url) == prompt_str
-    assert _api_key_prompt_str(app_url, "weave") == f"{prompt_str}?ref=weave"

@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 import wandb
-import wandb.sdk.lib.apikey
+import wandb.util
 
 
 def test_login_timeout(notebook):
@@ -151,16 +151,13 @@ def test_notebook_not_exists(mocked_ipython, user, capsys):
         run.finish()
 
 
-def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
+def test_databricks_notebook_doesnt_hang_on_wandb_login(monkeypatch):
     # test for WB-5264
     # when we try to call wandb.login(), should fail with no-tty
-    with mock.patch.object(
-        wandb.sdk.lib.apikey,
-        "_is_databricks",
-        return_value=True,
-    ):
-        with pytest.raises(wandb.UsageError, match="tty"):
-            wandb.login()
+    monkeypatch.setattr(wandb.util, "_is_databricks", lambda: True)
+
+    with pytest.raises(wandb.UsageError, match="No API key configured"):
+        wandb.login()
 
 
 def test_mocked_notebook_html_default(user, run_id, mocked_ipython):

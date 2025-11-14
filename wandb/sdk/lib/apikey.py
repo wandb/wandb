@@ -7,30 +7,16 @@ import os
 import platform
 import stat
 import textwrap
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import wandb
 from wandb.apis import InternalApi
-from wandb.errors import term
-from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup
-from wandb.util import _is_databricks, prompt_choices
+from wandb.sdk.lib import auth
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
-
-LOGIN_CHOICE_ANON = "Private W&B dashboard, no account required"
-LOGIN_CHOICE_NEW = "Create a W&B account"
-LOGIN_CHOICE_EXISTS = "Use an existing W&B account"
-LOGIN_CHOICE_DRYRUN = "Don't visualize my results"
-LOGIN_CHOICE_NOTTY = "Unconfigured"
-LOGIN_CHOICES = [
-    LOGIN_CHOICE_ANON,
-    LOGIN_CHOICE_NEW,
-    LOGIN_CHOICE_EXISTS,
-    LOGIN_CHOICE_DRYRUN,
-]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -42,17 +28,6 @@ class _NetrcPermissions:
 
 class WriteNetrcError(Exception):
     """Raised when we cannot write to the netrc file."""
-
-
-Mode = Literal["allow", "must", "never", "false", "true"]
-
-
-def _fixup_anon_mode(default: Mode | None) -> Mode | None:
-    # Convert weird anonymode values from legacy settings files
-    # into one of our expected values.
-    anon_mode = default or "never"
-    mapping: dict[Mode, Mode] = {"true": "allow", "false": "never"}
-    return mapping.get(anon_mode, anon_mode)
 
 
 def get_netrc_file_path() -> str:
@@ -73,105 +48,6 @@ def get_netrc_file_path() -> str:
     netrc_file = ".netrc" if platform.system() != "Windows" else "_netrc"
 
     return os.path.join(os.path.expanduser("~"), netrc_file)
-
-
-def _api_key_prompt_str(app_url: str, referrer: str | None = None) -> str:
-    """Generate a prompt string for API key authorization.
-
-    Creates a URL string that directs users to the authorization page where they
-    can find their API key.
-
-    Args:
-        app_url: The base URL of the W&B application.
-        referrer: Optional referrer parameter to include in the URL.
-
-    Returns:
-        A formatted string with instructions and the authorization URL.
-    """
-    ref = ""
-    if referrer:
-        ref = f"?ref={referrer}"
-    return f"You can find your API key in your browser here: {app_url}/authorize{ref}"
-
-
-def prompt_api_key(
-    settings: Settings,
-    api: InternalApi | None = None,
-    no_offline: bool = False,
-    no_create: bool = False,
-    local: bool = False,
-    referrer: str | None = None,
-) -> str | bool | None:
-    """Prompt for api key.
-
-    Returns:
-        str - if key is configured
-        None - if dryrun is selected
-        False - if unconfigured (notty)
-    """
-    api = api or InternalApi(settings)
-    anon_mode = _fixup_anon_mode(settings.anonymous)  # type: ignore
-    jupyter = settings._jupyter or False
-    app_url = api.app_url
-
-    choices = [choice for choice in LOGIN_CHOICES]
-    if anon_mode == "never":
-        # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
-        choices.remove(LOGIN_CHOICE_ANON)
-    if (jupyter and not settings.login_timeout) or no_offline:
-        choices.remove(LOGIN_CHOICE_DRYRUN)
-    if (jupyter and not settings.login_timeout) or no_create:
-        choices.remove(LOGIN_CHOICE_NEW)
-
-    if anon_mode == "must":
-        result = LOGIN_CHOICE_ANON
-    # If we're not in an interactive environment, default to dry-run.
-    elif not term.can_use_terminput() or _is_databricks():
-        result = LOGIN_CHOICE_NOTTY
-    elif local:
-        result = LOGIN_CHOICE_EXISTS
-    elif len(choices) == 1:
-        result = choices[0]
-    else:
-        result = prompt_choices(choices, input_timeout=settings.login_timeout)
-
-    key: str | None = None
-
-    if not jupyter:
-        api_ask = (
-            "Paste an API key from your profile and hit enter,"
-            " or press ctrl+c to quit: "
-        )
-    else:
-        api_ask = "Paste an API key from your profile and hit enter: "
-
-    if result == LOGIN_CHOICE_ANON:
-        key = api.create_anonymous_api_key()
-    elif result == LOGIN_CHOICE_NEW:
-        ref = f"&ref={referrer}" if referrer else ""
-        wandb.termlog(f"Create an account here: {app_url}/authorize?signup=true{ref}")
-        key = term.terminput(api_ask, hide=True).strip()
-    elif result == LOGIN_CHOICE_EXISTS:
-        if not (settings.is_local or local):
-            host = app_url
-            for prefix in ("http://", "https://"):
-                if app_url.startswith(prefix):
-                    host = app_url[len(prefix) :]
-            wandb.termlog(
-                f"Logging into {host}. (Learn how to deploy a W&B server "
-                + f"locally: {url_registry.url('wandb-server')})"
-            )
-        wandb.termlog(_api_key_prompt_str(app_url, referrer))
-        key = term.terminput(api_ask, hide=True).strip()
-    elif result == LOGIN_CHOICE_NOTTY:
-        # TODO: Needs refactor as this needs to be handled by caller
-        return False
-    elif result == LOGIN_CHOICE_DRYRUN:
-        return None
-
-    if not key:
-        raise ValueError("No API key specified.")
-    return key
 
 
 def check_netrc_access(
@@ -269,17 +145,8 @@ def write_key(
     if not key:
         raise ValueError("No API key specified.")
 
-    # TODO(jhr): api shouldn't be optional or it shouldn't be passed, clean up callers
-    api = api or InternalApi()
-
-    # API keys are strings of at least 40 characters. On-prem API keys have a
-    # variable-length prefix, a dash, then the string of at least 40 chars.
-    _, suffix = key.split("-", 1) if "-" in key else ("", key)
-
-    if len(suffix) < 40:
-        raise ValueError(
-            f"API key must be at least 40 characters long, yours was {len(key)}"
-        )
+    if problems := auth.check_api_key(key):
+        raise ValueError(problems)
 
     write_netrc(settings.base_url, "user", key)
 

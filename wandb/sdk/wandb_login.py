@@ -12,12 +12,12 @@ from typing import Literal
 import click
 
 import wandb
-from wandb.errors import AuthenticationError, UsageError
+from wandb.errors import AuthenticationError, UsageError, term
 from wandb.old.settings import Settings as OldSettings
 from wandb.sdk import wandb_setup
+from wandb.sdk.lib import auth
 
 from ..apis import InternalApi
-from .internal.internal_api import Api
 from .lib import apikey
 
 
@@ -208,46 +208,51 @@ class _WandbLogin:
         if not self._wandb_setup.settings._offline:
             self._wandb_setup.update_user_settings()
 
-    def _prompt_api_key(
-        self, referrer: str | None = None
-    ) -> tuple[str | None, ApiKeyStatus]:
-        api = Api(self._settings)
-        while True:
-            try:
-                key = apikey.prompt_api_key(
-                    self._settings,
-                    api=api,
-                    no_offline=self._settings.force if self._settings else None,
-                    no_create=self._settings.force if self._settings else None,
-                    referrer=referrer,
-                )
-            except ValueError as e:
-                # invalid key provided, try again
-                wandb.termerror(e.args[0])
-                continue
-            except TimeoutError:
-                wandb.termlog("W&B disabled due to login timeout.")
-                return None, ApiKeyStatus.DISABLED
-            if key is False:
-                return None, ApiKeyStatus.NOTTY
-            if not key:
-                return None, ApiKeyStatus.OFFLINE
-            return key, ApiKeyStatus.VALID
-
     def prompt_api_key(
-        self, referrer: str | None = None
+        self,
+        referrer: str,
     ) -> tuple[str | None, ApiKeyStatus]:
-        """Updates the global API key by prompting the user."""
-        key, status = self._prompt_api_key(referrer)
-        if status == ApiKeyStatus.NOTTY:
-            directive = (
-                "wandb login [your_api_key]"
-                if self._settings.x_cli_only_mode
-                else "wandb.login(key=[your_api_key])"
-            )
-            raise UsageError("api_key not configured (no-tty). call " + directive)
+        """Prompt the user for an API key.
 
-        return key, status
+        Returns:
+            (key, VALID) if a key was provided or anonymous mode was used.
+            (None, OFFLINE) if the user selected offline mode.
+            (None, DISABLED) if a timeout occurred.
+
+        Raises:
+            UsageError: If interactive prompting is unavailable.
+            Exception: If forcing anonymous mode and an error occurs.
+        """
+        if self._settings.anonymous == "must":
+            return (
+                auth.make_anonymous_api_key(host=self._settings.base_url),
+                ApiKeyStatus.VALID,
+            )
+
+        allow_anonymous = self._settings.anonymous in ("allow", "true")
+
+        try:
+            key = auth.prompt_api_key(
+                host=self._settings.base_url,
+                no_anonymous=not allow_anonymous,
+                no_offline=self._settings.force,
+                no_create=self._settings.force,
+                referrer=referrer,
+                input_timeout=self._settings.login_timeout,
+            )
+
+        except TimeoutError:
+            wandb.termlog("W&B disabled due to login timeout.")
+            return None, ApiKeyStatus.DISABLED
+
+        except term.NotATerminalError:
+            message = "No API key configured. Use `wandb login` to log in."
+            raise UsageError(message) from None
+
+        if not key:
+            return None, ApiKeyStatus.OFFLINE
+
+        return key, ApiKeyStatus.VALID
 
 
 def _login(
