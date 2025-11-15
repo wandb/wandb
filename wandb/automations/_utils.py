@@ -48,7 +48,7 @@ ALWAYS_SUPPORTED_EVENTS: Final[Collection[EventType]] = frozenset(
         EventType.ADD_ARTIFACT_ALIAS,
     }
 )
-"""Event types that should be supported by all current **non-EOL** server versions."""
+"""Event types that should be supported by all current, non-EOL server versions."""
 
 ALWAYS_SUPPORTED_ACTIONS: Final[Collection[ActionType]] = frozenset(
     {
@@ -56,7 +56,7 @@ ALWAYS_SUPPORTED_ACTIONS: Final[Collection[ActionType]] = frozenset(
         ActionType.GENERIC_WEBHOOK,
     }
 )
-"""Action types that should be supported by all current **non-EOL** server versions."""
+"""Action types that should be supported by all current, non-EOL server versions."""
 
 
 class HasId(Protocol):

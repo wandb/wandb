@@ -338,7 +338,7 @@ def test_create_automation_for_run_state_event(
 
     event = OnRunState(
         scope=project,
-        filter=(RunEvent.name.contains(run_name) & StateFilter(states=state)),
+        filter=RunEvent.name.contains(run_name) & RunEvent.state.eq(state),
     )
     action = SendWebhook.from_integration(webhook)
 
