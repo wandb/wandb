@@ -1325,11 +1325,16 @@ def prompt_choices(
 ) -> str:
     """Prompt the user to choose from a list of options.
 
+    If exactly one choice is given, it is returned immediately.
+
     Raises:
         TimeoutError: if input_timeout is specified and expires.
         NotATerminalError: if the output device is not capable.
         KeyboardInterrupt: if the user aborts by pressing Ctrl+C.
     """
+    if len(choices) == 1:
+        return choices[0]
+
     for i, choice_str in enumerate(choices):
         wandb.termlog(f"({i + 1}) {choice_str}")
 

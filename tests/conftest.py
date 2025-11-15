@@ -21,7 +21,6 @@ import git
 import pytest
 import wandb
 import wandb.old.settings
-import wandb.sdk.lib.apikey
 import wandb.util
 from click.testing import CliRunner
 from wandb import Api
@@ -188,10 +187,7 @@ def skip_verify_login(monkeypatch):
 @pytest.fixture
 def patch_prompt(monkeypatch):
     monkeypatch.setattr(
-        wandb.util, "prompt_choices", lambda x, input_timeout=None: x[0]
-    )
-    monkeypatch.setattr(
-        wandb.wandb_lib.apikey,
+        wandb.util,
         "prompt_choices",
         lambda x, input_timeout=None: x[0],
     )

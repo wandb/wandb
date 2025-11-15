@@ -12,13 +12,12 @@ from typing import Literal
 import click
 
 import wandb
-from wandb.errors import AuthenticationError, UsageError
+from wandb.errors import AuthenticationError, UsageError, term
 from wandb.old.settings import Settings as OldSettings
 from wandb.sdk import wandb_setup
+from wandb.sdk.lib import auth
 
 from ..apis import InternalApi
-from .internal.internal_api import Api
-from .lib import apikey
 
 
 def _handle_host_wandb_setting(host: str | None, cloud: bool = False) -> None:
@@ -132,10 +131,6 @@ class _WandbLogin:
         else:
             api.clear_setting("anonymous", globally=True, persist=True)
 
-    def is_apikey_configured(self) -> bool:
-        """Returns whether an API key is set or can be inferred."""
-        return apikey.api_key(settings=self._settings) is not None
-
     def _print_logged_in_message(self) -> None:
         """Prints a message telling the user they are logged in."""
         username = self._wandb_setup._get_username()
@@ -175,16 +170,16 @@ class _WandbLogin:
         """Saves the API key to disk for future use."""
         if self._settings._notebook and not self._settings.silent:
             wandb.termwarn(
-                "If you're specifying your api key in code, ensure this "
-                "code is not shared publicly.\nConsider setting the "
-                "WANDB_API_KEY environment variable, or running "
-                "`wandb login` from the command line."
+                "If you're specifying your api key in code, ensure this"
+                + " code is not shared publicly."
+                + "\nConsider setting the WANDB_API_KEY environment variable,"
+                + " or running `wandb login` from the command line."
             )
-        if key:
-            try:
-                apikey.write_key(self._settings, key)
-            except apikey.WriteNetrcError as e:
-                wandb.termwarn(str(e))
+
+        try:
+            auth.write_netrc_auth(host=self._settings.base_url, api_key=key)
+        except auth.WriteNetrcError as e:
+            wandb.termwarn(str(e))
 
     def update_session(
         self,
@@ -208,46 +203,51 @@ class _WandbLogin:
         if not self._wandb_setup.settings._offline:
             self._wandb_setup.update_user_settings()
 
-    def _prompt_api_key(
-        self, referrer: str | None = None
-    ) -> tuple[str | None, ApiKeyStatus]:
-        api = Api(self._settings)
-        while True:
-            try:
-                key = apikey.prompt_api_key(
-                    self._settings,
-                    api=api,
-                    no_offline=self._settings.force if self._settings else None,
-                    no_create=self._settings.force if self._settings else None,
-                    referrer=referrer,
-                )
-            except ValueError as e:
-                # invalid key provided, try again
-                wandb.termerror(e.args[0])
-                continue
-            except TimeoutError:
-                wandb.termlog("W&B disabled due to login timeout.")
-                return None, ApiKeyStatus.DISABLED
-            if key is False:
-                return None, ApiKeyStatus.NOTTY
-            if not key:
-                return None, ApiKeyStatus.OFFLINE
-            return key, ApiKeyStatus.VALID
-
     def prompt_api_key(
-        self, referrer: str | None = None
+        self,
+        referrer: str,
     ) -> tuple[str | None, ApiKeyStatus]:
-        """Updates the global API key by prompting the user."""
-        key, status = self._prompt_api_key(referrer)
-        if status == ApiKeyStatus.NOTTY:
-            directive = (
-                "wandb login [your_api_key]"
-                if self._settings.x_cli_only_mode
-                else "wandb.login(key=[your_api_key])"
-            )
-            raise UsageError("api_key not configured (no-tty). call " + directive)
+        """Prompt the user for an API key.
 
-        return key, status
+        Returns:
+            (key, VALID) if a key was provided or anonymous mode was used.
+            (None, OFFLINE) if the user selected offline mode.
+            (None, DISABLED) if a timeout occurred.
+
+        Raises:
+            UsageError: If interactive prompting is unavailable.
+            Exception: If forcing anonymous mode and an error occurs.
+        """
+        if self._settings.anonymous == "must":
+            return (
+                auth.make_anonymous_api_key(host=self._settings.base_url),
+                ApiKeyStatus.VALID,
+            )
+
+        allow_anonymous = self._settings.anonymous in ("allow", "true")
+
+        try:
+            key = auth.prompt_api_key(
+                host=self._settings.base_url,
+                no_anonymous=not allow_anonymous,
+                no_offline=self._settings.force,
+                no_create=self._settings.force,
+                referrer=referrer,
+                input_timeout=self._settings.login_timeout,
+            )
+
+        except TimeoutError:
+            wandb.termlog("W&B disabled due to login timeout.")
+            return None, ApiKeyStatus.DISABLED
+
+        except term.NotATerminalError:
+            message = "No API key configured. Use `wandb login` to log in."
+            raise UsageError(message) from None
+
+        if not key:
+            return None, ApiKeyStatus.OFFLINE
+
+        return key, ApiKeyStatus.VALID
 
 
 def _login(
@@ -312,21 +312,34 @@ def _login(
     if wlogin._settings.identity_token_file:
         return True, None
 
+    key_status = ApiKeyStatus.VALID
     key_is_pre_configured = False
-    key_status = None
-    if key is None:
-        # Check if key is already set in the settings, or configured in the users .netrc file.
-        key = apikey.api_key(settings=wlogin._settings)
-        if key and not relogin:
-            key_is_pre_configured = True
-        else:
-            key, key_status = wlogin.prompt_api_key(referrer=referrer)
 
-    if verify:
+    # Validate the format of any explicitly-given API key.
+    if key and (problems := auth.check_api_key(key)):
+        raise AuthenticationError(problems)
+
+    # Read the session key if one was not explicitly provided,
+    # unless relogin is set.
+    if not key and not relogin:
+        if settings_key := wlogin._settings.api_key:
+            key = settings_key
+        else:
+            key = auth.read_netrc_auth(host=wlogin._settings.base_url)
+
+        key_is_pre_configured = bool(key)
+
+    # If there's no explicit or session key, prompt interactively,
+    # raising an error if that's not possible.
+    if not key:
+        key, key_status = wlogin.prompt_api_key(referrer=referrer)
+
+    # Ignore the verify param when offline mode is selected interactively.
+    if key and verify:
         _verify_login(key, wlogin._settings.base_url)
 
     if not key_is_pre_configured:
-        if update_api_key:
+        if key and update_api_key:
             wlogin.try_save_api_key(key)
         wlogin.update_session(key, status=key_status)
         wlogin._update_global_anonymous_setting()
