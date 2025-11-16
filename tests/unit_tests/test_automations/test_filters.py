@@ -23,6 +23,7 @@ from wandb.automations._filters import (
     Or,
     Regex,
 )
+from wandb.automations._validators import simplify_op
 
 from ._strategies import (
     and_dicts,
@@ -52,21 +53,21 @@ from ._strategies import (
 
 
 # Variadic logical ops
-@given(op=builds(And, and_=lists(logical_op_operands)))
+@given(op=builds(And, exprs=lists(logical_op_operands)))
 def test_and_from_validated_op(op: And):
     assert op.model_dump().keys() == {"$and"}
     assert And.model_validate(op.model_dump()) == op
     assert And.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Or, or_=lists(logical_op_operands)))
+@given(op=builds(Or, exprs=lists(logical_op_operands)))
 def test_or_from_validated_op(op: Or):
     assert op.model_dump().keys() == {"$or"}
     assert Or.model_validate(op.model_dump()) == op
     assert Or.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Nor, nor_=lists(logical_op_operands)))
+@given(op=builds(Nor, exprs=lists(logical_op_operands)))
 def test_nor_from_validated_op(op: Nor):
     assert op.model_dump().keys() == {"$nor"}
     assert Nor.model_validate(op.model_dump()) == op
@@ -74,7 +75,7 @@ def test_nor_from_validated_op(op: Nor):
 
 
 # Unary logical ops
-@given(op=builds(Not, not_=logical_op_operands))
+@given(op=builds(Not, expr=logical_op_operands))
 def test_not_from_validated_op(op: Not):
     assert op.model_dump().keys() == {"$not"}
     assert Not.model_validate(op.model_dump()) == op
@@ -273,3 +274,101 @@ def test_filter_dict_json_roundtrip_with_unknown_ops(orig_json: str):
     assert json.loads(orig_json) == json.loads(
         FilterExpr.model_validate(json.loads(orig_json)).model_dump_json()
     )
+
+
+# ----------------------------------------------------------------------------
+def test_simplify_and_op_with_single_expr():
+    expr = FilterExpr(field="a", op=Eq(eq_=1))
+    orig = And(exprs=[expr])
+    assert simplify_op(orig) == expr
+
+
+def test_simplify_or_op_with_single_expr():
+    expr = FilterExpr(field="a", op=Eq(eq_=1))
+    orig = Or(exprs=[expr])
+    assert simplify_op(orig) == expr
+
+
+def test_simplify_and_op_with_nested_exprs():
+    expr1 = FilterExpr(field="a", op=Eq(eq_=1))
+    expr2 = FilterExpr(field="b", op=Eq(eq_=2))
+
+    orig = And(
+        exprs=[
+            And(
+                exprs=[
+                    And(
+                        exprs=[
+                            expr1,  # Expect to keep this
+                        ]
+                    )
+                ]
+            ),
+            And(),
+            And(exprs=[And(), And()]),
+            Or(
+                exprs=[
+                    expr2,  # Expect to keep this
+                ]
+            ),
+        ],
+    )
+    expected = And(exprs=[expr1, expr2])
+    assert simplify_op(orig) == expected
+
+
+def test_simplify_or_op_with_nested_exprs():
+    kept_expr1 = FilterExpr(field="a", op=Eq(eq_=1))
+    kept_expr2 = FilterExpr(field="b", op=Eq(eq_=2))
+
+    orig = Or(
+        exprs=[
+            Or(
+                exprs=[
+                    Or(
+                        exprs=[
+                            kept_expr1,
+                        ]
+                    )
+                ]
+            ),
+            Or(),
+            Or(exprs=[Or(), Or()]),
+            And(
+                exprs=[
+                    kept_expr2,
+                ],
+            ),
+        ],
+    )
+    expected = Or(exprs=[kept_expr1, kept_expr2])
+    assert simplify_op(orig) == expected
+
+
+def test_simplify_not_op_on_invertible_ops():
+    eq_op = Eq(eq_=1)
+    ne_op = Ne(ne_=1)
+
+    assert eq_op != ne_op  # sanity check
+
+    assert simplify_op(Not(expr=eq_op)) == ne_op
+    assert simplify_op(Not(expr=ne_op)) == eq_op
+
+    # TODO: Fill this in + parametrize on other negated operators
+
+
+def test_simplify_not_op_with_nested_exprs():
+    expr = And(
+        exprs=[
+            FilterExpr(field="a", op=Eq(eq_=1)),
+            FilterExpr(field="b", op=Eq(eq_=2)),
+        ]
+    )
+
+    # An even number of nested Not ops should cancel out
+    orig = Not(expr=Not(expr=Not(expr=Not(expr=expr))))
+    assert simplify_op(orig) == expr
+
+    # An odd number of nested Not ops should keep a single Not op
+    orig = Not(expr=Not(expr=Not(expr=Not(expr=Not(expr=expr)))))
+    assert simplify_op(orig) == Not(expr=expr)

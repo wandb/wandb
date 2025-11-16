@@ -44,19 +44,19 @@ TupleOf: TypeAlias = Tuple[T, ...]
 class SupportsBitwiseLogicalOps:
     def __or__(self, other: Any) -> Or:
         """Implements default `|` behavior: `a | b -> Or(a, b)`."""
-        return Or(or_=[self, other])
+        return Or(exprs=[self, other])
 
     def __and__(self, other: Any) -> And:
         """Implements default `&` behavior: `a & b -> And(a, b)`."""
         from .expressions import FilterExpr
 
         if isinstance(other, (BaseOp, FilterExpr)):
-            return And(and_=[self, other])
+            return And(exprs=[self, other])
         return NotImplemented
 
     def __invert__(self) -> Not:
         """Implements default `~` behavior: `~a -> Not(a)`."""
-        return Not(not_=self)
+        return Not(expr=self)
 
 
 # Base type for parsing MongoDB filter operators, e.g. from dicts like
@@ -90,35 +90,39 @@ class BaseOp(GQLBase, SupportsBitwiseLogicalOps, ABC):
 # https://www.mongodb.com/docs/manual/reference/operator/query/or/
 # https://www.mongodb.com/docs/manual/reference/operator/query/nor/
 # https://www.mongodb.com/docs/manual/reference/operator/query/not/
-class And(BaseOp):
-    and_: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$and")
+class BaseVariadicOp(BaseOp):
+    exprs: TupleOf[Union[FilterExpr, Op]]
 
 
-class Or(BaseOp):
-    or_: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$or")
+class And(BaseVariadicOp):
+    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$and")
+
+
+class Or(BaseVariadicOp):
+    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$or")
 
     @override
     def __invert__(self) -> Nor:
         """Implements `~Or(a, b) -> Nor(a, b)`."""
-        return Nor(nor_=self.or_)
+        return Nor(exprs=self.exprs)
 
 
-class Nor(BaseOp):
-    nor_: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$nor")
+class Nor(BaseVariadicOp):
+    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$nor")
 
     @override
     def __invert__(self) -> Or:
         """Implements `~Nor(a, b) -> Or(a, b)`."""
-        return Or(or_=self.nor_)
+        return Or(exprs=self.exprs)
 
 
 class Not(BaseOp):
-    not_: Union[FilterExpr, Op] = Field(alias="$not")
+    expr: Union[FilterExpr, Op] = Field(alias="$not")
 
     @override
     def __invert__(self) -> Union[FilterExpr, Op]:
         """Implements `~Not(a) -> a`."""
-        return self.not_
+        return self.expr
 
 
 # Comparison operator(s)
