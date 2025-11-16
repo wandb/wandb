@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Tuple, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Iterable, Tuple, TypeVar, Union
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from typing_extensions import TypeAlias, get_args, override
 
 from wandb._pydantic import GQLBase
 from wandb._strutils import nameof
+
+if TYPE_CHECKING:
+    from .expressions import FilterExpr
 
 # for type annotations
 Scalar = Union[StrictStr, StrictInt, StrictFloat, StrictBool]
@@ -39,11 +42,11 @@ TupleOf: TypeAlias = Tuple[T, ...]
 #   `~a` -> `{"$not": a}`
 class SupportsLogicalOpSyntax:
     def __or__(self, other: Any) -> Or:
-        """Syntactic sugar for: `a | b` -> `Or(a, b)`."""
+        """Implements default behavior: `a | b -> Or(a, b)`."""
         return Or(or_=[self, other])
 
     def __and__(self, other: Any) -> And:
-        """Syntactic sugar for: `a & b` -> `And(a, b)`."""
+        """Implements default behavior: `a & b -> And(a, b)`."""
         from .expressions import FilterExpr
 
         if isinstance(other, (BaseOp, FilterExpr)):
@@ -51,26 +54,30 @@ class SupportsLogicalOpSyntax:
         return NotImplemented
 
     def __invert__(self) -> Not:
-        """Syntactic sugar for: `~a` -> `Not(a)`."""
+        """Implements default behavior: `~a -> Not(a)`."""
         return Not(not_=self)
 
 
-# Base class for parsed MongoDB filter/query operators, e.g. `{"$and": [...]}`.
+# Base type for parsing MongoDB filter operators, e.g. from dicts like
+# `{"$and": [...]}`, `{"$or": [...]}`, `{"$gt": 1.0}`, etc.
+# Instances are frozen for easier comparison and more predictable behavior.
 class BaseOp(GQLBase, SupportsLogicalOpSyntax):
     model_config = ConfigDict(
         extra="forbid",
-        frozen=True,  # Make pseudo-immutable for easier comparison and hashing
+        frozen=True,
     )
 
     def __repr__(self) -> str:
-        # Display operand as a positional arg
-        values_repr = ", ".join(map(repr, self.model_dump().values()))
+        # Display the operand(s) as positional args
+        # Note that BaseModels implement `__iter__`:
+        #   https://docs.pydantic.dev/latest/concepts/serialization/#iterating-over-models
+        values_repr = ", ".join(repr(v) for _, v in self)
         return f"{nameof(type(self))}({values_repr})"
 
     def __rich_repr__(self) -> RichReprResult:
         # Display field values as positional args:
         # https://rich.readthedocs.io/en/stable/pretty.html
-        yield from ((None, v) for v in self.model_dump().values())
+        yield from ((None, v) for _, v in self)
 
 
 # Logical operator(s)
@@ -79,33 +86,33 @@ class BaseOp(GQLBase, SupportsLogicalOpSyntax):
 # https://www.mongodb.com/docs/manual/reference/operator/query/nor/
 # https://www.mongodb.com/docs/manual/reference/operator/query/not/
 class And(BaseOp):
-    and_: TupleOf[Any] = Field(default=(), alias="$and")
+    and_: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$and")
 
 
 class Or(BaseOp):
-    or_: TupleOf[Any] = Field(default=(), alias="$or")
+    or_: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$or")
 
     @override
     def __invert__(self) -> Nor:
-        """Syntactic sugar for: `~Or(a, b)` -> `Nor(a, b)`."""
+        """Implements `~Or(a, b) -> Nor(a, b)`."""
         return Nor(nor_=self.or_)
 
 
 class Nor(BaseOp):
-    nor_: TupleOf[Any] = Field(default=(), alias="$nor")
+    nor_: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$nor")
 
     @override
     def __invert__(self) -> Or:
-        """Syntactic sugar for: `~Nor(a, b)` -> `Or(a, b)`."""
+        """Implements `~Nor(a, b) -> Or(a, b)`."""
         return Or(or_=self.nor_)
 
 
 class Not(BaseOp):
-    not_: Any = Field(alias="$not")
+    not_: Union[FilterExpr, Op] = Field(alias="$not")
 
     @override
-    def __invert__(self) -> Any:
-        """Syntactic sugar for: `~Not(a)` -> `a`."""
+    def __invert__(self) -> Union[FilterExpr, Op]:
+        """Implements `~Not(a) -> a`."""
         return self.not_
 
 
@@ -123,7 +130,7 @@ class Lt(BaseOp):
 
     @override
     def __invert__(self) -> Gte:
-        """Syntactic sugar for: `~Lt(a)` -> `Gte(a)`."""
+        """Implements `~Lt(a) -> Gte(a)`."""
         return Gte(gte_=self.lt_)
 
 
@@ -132,7 +139,7 @@ class Gt(BaseOp):
 
     @override
     def __invert__(self) -> Lte:
-        """Syntactic sugar for: `~Gt(a)` -> `Lte(a)`."""
+        """Implements `~Gt(a) -> Lte(a)`."""
         return Lte(lte_=self.gt_)
 
 
@@ -141,7 +148,7 @@ class Lte(BaseOp):
 
     @override
     def __invert__(self) -> Gt:
-        """Syntactic sugar for: `~Lte(a)` -> `Gt(a)`."""
+        """Implements `~Lte(a) -> Gt(a)`."""
         return Gt(gt_=self.lte_)
 
 
@@ -150,7 +157,7 @@ class Gte(BaseOp):
 
     @override
     def __invert__(self) -> Lt:
-        """Syntactic sugar for: `~Gte(a)` -> `Lt(a)`."""
+        """Implements `~Gte(a) -> Lt(a)`."""
         return Lt(lt_=self.gte_)
 
 
@@ -159,7 +166,7 @@ class Eq(BaseOp):
 
     @override
     def __invert__(self) -> Ne:
-        """Syntactic sugar for: `~Eq(a)` -> `Ne(a)`."""
+        """Implements `~Eq(a) -> Ne(a)`."""
         return Ne(ne_=self.eq_)
 
 
@@ -168,7 +175,7 @@ class Ne(BaseOp):
 
     @override
     def __invert__(self) -> Eq:
-        """Syntactic sugar for: `~Ne(a)` -> `Eq(a)`."""
+        """Implements `~Ne(a) -> Eq(a)`."""
         return Eq(eq_=self.ne_)
 
 
@@ -177,7 +184,7 @@ class In(BaseOp):
 
     @override
     def __invert__(self) -> NotIn:
-        """Syntactic sugar for: `~In(a)` -> `NotIn(a)`."""
+        """Implements `~In(a) -> NotIn(a)`."""
         return NotIn(nin_=self.in_)
 
 
@@ -186,7 +193,7 @@ class NotIn(BaseOp):
 
     @override
     def __invert__(self) -> In:
-        """Syntactic sugar for: `~NotIn(a)` -> `In(a)`."""
+        """Implements `~NotIn(a) -> In(a)`."""
         return In(in_=self.nin_)
 
 
@@ -195,34 +202,23 @@ class NotIn(BaseOp):
 class Exists(BaseOp):
     exists_: bool = Field(alias="$exists")
 
+    @override
+    def __invert__(self) -> Exists:
+        """Implements `~Exists(True) -> Exists(False)` and vice versa."""
+        return Exists(exists_=not self.exists_)
+
 
 # Evaluation operator(s)
 # https://www.mongodb.com/docs/manual/reference/operator/query/regex/
 #
-# Note: "$contains" is NOT a formal MongoDB operator, but the backend recognizes and
-# executes it as a substring-match filter.
+# Note: `$contains` is NOT a formal MongoDB operator, but the W&B backend
+# recognizes and executes it as a substring-match filter.
 class Regex(BaseOp):
     regex_: str = Field(alias="$regex")  #: The regex expression to match against.
 
 
 class Contains(BaseOp):
     contains_: str = Field(alias="$contains")  #: The substring to match against.
-
-
-And.model_rebuild()
-Or.model_rebuild()
-Not.model_rebuild()
-Lt.model_rebuild()
-Gt.model_rebuild()
-Lte.model_rebuild()
-Gte.model_rebuild()
-Eq.model_rebuild()
-Ne.model_rebuild()
-In.model_rebuild()
-NotIn.model_rebuild()
-Exists.model_rebuild()
-Regex.model_rebuild()
-Contains.model_rebuild()
 
 
 # ------------------------------------------------------------------------------
@@ -247,7 +243,8 @@ KEY_TO_OP: dict[str, type[BaseOp]] = {
 }
 
 
-KnownOp = Union[
+# for type annotations
+Op = Union[
     And,
     Or,
     Nor,
@@ -264,9 +261,3 @@ KnownOp = Union[
     Regex,
     Contains,
 ]
-UnknownOp = Dict[str, Any]
-
-# for type annotations
-Op = Union[KnownOp, UnknownOp]
-# for runtime type checks
-OpTypes: tuple[type, ...] = (*get_args(KnownOp), dict)

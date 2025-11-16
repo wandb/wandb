@@ -208,7 +208,7 @@ class _BaseMutationEventInput(_BaseEventInput):
         This awkward format is necessary because the frontend expects it.
         """
         v_new = simplify_op(v)
-        v_new = v_new if pydantic_isinstance(v_new, And) else And(and_=[v_new])
+        v_new = v_new if isinstance(v_new, And) else And(and_=[v_new])
         return Or(or_=[v_new])
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from functools import singledispatch
 from itertools import chain
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BeforeValidator, Json, PlainSerializer
 from pydantic_core import PydanticUseDefault
@@ -11,10 +11,7 @@ from typing_extensions import Annotated
 
 from wandb._pydantic import to_json
 
-from ._filters import And, FilterExpr, In, Nor, Not, NotIn, Op, Or
-
-if TYPE_CHECKING:
-    from ._filters import MongoLikeFilter
+from ._filters import And, In, MongoLikeFilter, Nor, Not, NotIn, Or
 
 T = TypeVar("T")
 
@@ -143,13 +140,13 @@ def wrap_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
 
 
 @singledispatch
-def simplify_op(op: Op | FilterExpr) -> Op | FilterExpr:
+def simplify_op(op: MongoLikeFilter) -> MongoLikeFilter:
     """Simplify a MongoDB filter by removing and unnesting redundant operators."""
     return op
 
 
 @simplify_op.register
-def _(op: And) -> Op:
+def _(op: And) -> MongoLikeFilter:
     # {"$and": []} -> {"$and": []}
     if not (args := op.and_):
         return op
@@ -164,7 +161,7 @@ def _(op: And) -> Op:
 
 
 @simplify_op.register
-def _(op: Or) -> Op:
+def _(op: Or) -> MongoLikeFilter:
     # {"$or": []} -> {"$or": []}
     if not (args := op.or_):
         return op
@@ -179,7 +176,7 @@ def _(op: Or) -> Op:
 
 
 @simplify_op.register
-def _(op: Not) -> Op:
+def _(op: Not) -> MongoLikeFilter:
     inner = op.not_
 
     # {"$not": {"$not": op}} -> op

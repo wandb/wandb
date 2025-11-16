@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Union
+from typing import Any, Dict, Union
 
 from pydantic import ConfigDict, model_serializer
-from typing_extensions import Self, TypeAlias, get_args
+from typing_extensions import Self, TypeAlias
 
 from wandb._pydantic import CompatBaseModel, model_validator
 from wandb._strutils import nameof
 
 from .operators import (
+    And,
     Contains,
     Eq,
     Exists,
@@ -21,12 +22,14 @@ from .operators import (
     Lt,
     Lte,
     Ne,
+    Nor,
+    Not,
     NotIn,
     Op,
+    Or,
     Regex,
     RichReprResult,
     Scalar,
-    ScalarTypes,
     SupportsLogicalOpSyntax,
 )
 
@@ -63,37 +66,37 @@ class FilterableField:
         return f"{nameof(type(self))}({self._name!r})"
 
     # Methods to define filter expressions through chaining
-    def matches_regex(self, pattern: str) -> FilterExpr:
+    def matches_regex(self, pattern: str, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Regex(regex_=pattern))
 
-    def contains(self, text: str) -> FilterExpr:
+    def contains(self, text: str, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Contains(contains_=text))
 
-    def exists(self, exists: bool = True) -> FilterExpr:
+    def exists(self, exists: bool = True, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Exists(exists_=exists))
 
-    def lt(self, value: Scalar) -> FilterExpr:
+    def lt(self, value: Scalar, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Lt(lt_=value))
 
-    def gt(self, value: Scalar) -> FilterExpr:
+    def gt(self, value: Scalar, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Gt(gt_=value))
 
-    def lte(self, value: Scalar) -> FilterExpr:
+    def lte(self, value: Scalar, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Lte(lte_=value))
 
-    def gte(self, value: Scalar) -> FilterExpr:
+    def gte(self, value: Scalar, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Gte(gte_=value))
 
-    def ne(self, value: Scalar) -> FilterExpr:
+    def ne(self, value: Scalar, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Ne(ne_=value))
 
-    def eq(self, value: Scalar) -> FilterExpr:
+    def eq(self, value: Scalar, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Eq(eq_=value))
 
-    def in_(self, values: Iterable[Scalar]) -> FilterExpr:
+    def in_(self, values: Iterable[Scalar], /) -> FilterExpr:
         return FilterExpr(field=self._name, op=In(in_=values))
 
-    def not_in(self, values: Iterable[Scalar]) -> FilterExpr:
+    def not_in(self, values: Iterable[Scalar], /) -> FilterExpr:
         return FilterExpr(field=self._name, op=NotIn(nin_=values))
 
     # Deliberately override the default behavior of comparison operator symbols,
@@ -106,34 +109,22 @@ class FilterableField:
     # As an illustrative example from `sqlalchemy`, see:
     # https://github.com/sqlalchemy/sqlalchemy/blob/f21ae633486380a26dc0b67b70ae1c0efc6b4dc4/lib/sqlalchemy/orm/descriptor_props.py#L808-L812
     def __lt__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.lt(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.lt(other)
 
     def __gt__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.gt(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.gt(other)
 
     def __le__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.lte(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.lte(other)
 
     def __ge__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.gte(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.gte(other)
 
     def __eq__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.eq(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.eq(other)
 
     def __ne__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.ne(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.ne(other)
 
 
 # ------------------------------------------------------------------------------
@@ -145,7 +136,7 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
     )
 
     field: str
-    op: Op
+    op: Union[Op, Dict[str, Any]]
 
     def __repr__(self) -> str:
         return f"{nameof(type(self))}({self.field!s}: {self.op!r})"
@@ -178,7 +169,12 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
         return {self.field: to_jsonable_python(self.op, by_alias=True, round_trip=True)}
 
 
+# Some of the MongoDB op types need to be rebuilt after defining FilterExpr,
+# due to forward references.
+And.model_rebuild()
+Or.model_rebuild()
+Nor.model_rebuild()
+Not.model_rebuild()
+
 # for type annotations
-MongoLikeFilter: TypeAlias = Union[Op, FilterExpr]
-# for runtime type checks
-MongoLikeFilterTypes: tuple[type, ...] = get_args(MongoLikeFilter)
+MongoLikeFilter: TypeAlias = Union[Op, FilterExpr, Dict[str, Any]]
