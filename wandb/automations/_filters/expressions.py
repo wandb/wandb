@@ -30,7 +30,7 @@ from .operators import (
     Regex,
     RichReprResult,
     Scalar,
-    SupportsLogicalOpSyntax,
+    SupportsBitwiseLogicalOps,
 )
 
 
@@ -128,7 +128,7 @@ class FilterableField:
 
 
 # ------------------------------------------------------------------------------
-class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
+class FilterExpr(CompatBaseModel, SupportsBitwiseLogicalOps):
     """A MongoDB filter expression on a specific field."""
 
     model_config = ConfigDict(

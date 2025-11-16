@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from abc import ABC
 from typing import TYPE_CHECKING, Any, Iterable, Tuple, TypeVar, Union
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
@@ -36,17 +37,17 @@ TupleOf: TypeAlias = Tuple[T, ...]
 # This is done to ensure the descriptions are omitted from generated API docs.
 
 
-# Mixin to support syntactic sugar for MongoDB expressions with bitwise
-# logical operators, e.g.:
+# Mixin class to support building MongoDB expressions idiomatically
+# with bitwise logical operators, e.g.:
 #   `a | b` -> `{"$or": [a, b]}`
 #   `~a` -> `{"$not": a}`
-class SupportsLogicalOpSyntax:
+class SupportsBitwiseLogicalOps:
     def __or__(self, other: Any) -> Or:
-        """Implements default behavior: `a | b -> Or(a, b)`."""
+        """Implements default `|` behavior: `a | b -> Or(a, b)`."""
         return Or(or_=[self, other])
 
     def __and__(self, other: Any) -> And:
-        """Implements default behavior: `a & b -> And(a, b)`."""
+        """Implements default `&` behavior: `a & b -> And(a, b)`."""
         from .expressions import FilterExpr
 
         if isinstance(other, (BaseOp, FilterExpr)):
@@ -54,29 +55,33 @@ class SupportsLogicalOpSyntax:
         return NotImplemented
 
     def __invert__(self) -> Not:
-        """Implements default behavior: `~a -> Not(a)`."""
+        """Implements default `~` behavior: `~a -> Not(a)`."""
         return Not(not_=self)
 
 
 # Base type for parsing MongoDB filter operators, e.g. from dicts like
 # `{"$and": [...]}`, `{"$or": [...]}`, `{"$gt": 1.0}`, etc.
 # Instances are frozen for easier comparison and more predictable behavior.
-class BaseOp(GQLBase, SupportsLogicalOpSyntax):
+class BaseOp(GQLBase, SupportsBitwiseLogicalOps, ABC):
     model_config = ConfigDict(
         extra="forbid",
         frozen=True,
     )
 
     def __repr__(self) -> str:
-        # Display the operand(s) as positional args
-        # Note that BaseModels implement `__iter__`:
-        #   https://docs.pydantic.dev/latest/concepts/serialization/#iterating-over-models
-        values_repr = ", ".join(repr(v) for _, v in self)
-        return f"{nameof(type(self))}({values_repr})"
+        """Returns the operator's repr string, with operand(s) as positional args.
+
+        Note that BaseModels implement `__iter__()`:
+          https://docs.pydantic.dev/latest/concepts/serialization/#iterating-over-models
+        """
+        return f"{nameof(type(self))}({', '.join(repr(v) for _, v in self)})"
 
     def __rich_repr__(self) -> RichReprResult:
+        """Returns the operator's rich repr, if pretty-printing via `rich`.
+
+        See: https://rich.readthedocs.io/en/stable/pretty.html
+        """
         # Display field values as positional args:
-        # https://rich.readthedocs.io/en/stable/pretty.html
         yield from ((None, v) for _, v in self)
 
 
@@ -243,7 +248,7 @@ KEY_TO_OP: dict[str, type[BaseOp]] = {
 }
 
 
-# for type annotations
+# Known, implemented MongoDB operators for type annotations.
 Op = Union[
     And,
     Or,
