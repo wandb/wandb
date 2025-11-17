@@ -18,6 +18,7 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
+from wandb.sdk.launch.runner.kubernetes_cleanup import KubernetesResourceCleanup
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
@@ -266,6 +267,41 @@ class LaunchAgent:
         )
         self._name = agent_response["name"]
         self._init_agent_run()
+
+        # Initialize Kubernetes resource cleanup manager if enabled
+        self._k8s_cleanup_manager: Optional[Any] = None
+        self._last_cleanup_time: float = 0.0
+        self._cleanup_initial_delay: int = 60  # Wait 60s before first cleanup
+        self._cleanup_interval: int = 1200  # Run cleanup every 20 minutes
+
+        if os.environ.get("WANDB_LAUNCH_CLEANUP_ENABLED", "").lower() == "true":
+            try:
+                min_age = int(
+                    os.environ.get(
+                        "WANDB_LAUNCH_CLEANUP_MIN_RESOURCE_AGE_SECONDS", "900"
+                    )
+                )
+                self._cleanup_interval = int(
+                    os.environ.get("WANDB_LAUNCH_CLEANUP_INTERVAL_SECONDS", "1200")
+                )
+                self._cleanup_initial_delay = int(
+                    os.environ.get("WANDB_LAUNCH_CLEANUP_INITIAL_DELAY_SECONDS", "60")
+                )
+
+                self._k8s_cleanup_manager = KubernetesResourceCleanup(
+                    minimum_resource_age_seconds=min_age,
+                )
+                _logger.info(
+                    f"Initialized Kubernetes resource cleanup: "
+                    f"initial_delay={self._cleanup_initial_delay}s, "
+                    f"interval={self._cleanup_interval}s, min_age={min_age}s"
+                )
+            except Exception as e:
+                _logger.warning(f"Failed to initialize Kubernetes cleanup: {e}")
+        else:
+            _logger.debug(
+                "Kubernetes cleanup not enabled (set WANDB_LAUNCH_CLEANUP_ENABLED=true to enable)"
+            )
 
     def _is_scheduler_job(self, run_spec: Dict[str, Any]) -> bool:
         """Determine whether a job/runSpec is a sweep scheduler."""
@@ -600,6 +636,39 @@ class LaunchAgent:
                 "but the job specification attempts to override it."
             )
 
+    async def _run_cleanup_if_needed(self, agent_start_time: float) -> None:
+        """Run Kubernetes cleanup if enabled and interval has passed.
+
+        Args:
+            agent_start_time: Time when the agent started
+        """
+        if not self._k8s_cleanup_manager:
+            return
+
+        current_time = time.time()
+        time_since_start = current_time - agent_start_time
+        time_since_last_cleanup = current_time - self._last_cleanup_time
+
+        # First cleanup after initial delay, subsequent cleanups at interval
+        should_run_cleanup = False
+        if (
+            self._last_cleanup_time == 0
+            and time_since_start >= self._cleanup_initial_delay
+        ):
+            should_run_cleanup = True
+        elif (
+            self._last_cleanup_time > 0
+            and time_since_last_cleanup >= self._cleanup_interval
+        ):
+            should_run_cleanup = True
+
+        if should_run_cleanup:
+            try:
+                await self._k8s_cleanup_manager.run_cleanup_cycle()
+                self._last_cleanup_time = current_time
+            except Exception as e:
+                _logger.warning(f"Kubernetes cleanup cycle failed: {e}", exc_info=True)
+
     async def loop(self) -> None:
         """Loop infinitely to poll for jobs and run them.
 
@@ -607,6 +676,10 @@ class LaunchAgent:
             KeyboardInterrupt: if the agent is requested to stop.
         """
         self.print_status()
+
+        # Initialize cleanup timing
+        agent_start_time = time.time()
+
         if self._verbosity == 0:
             print_interval = DEFAULT_PRINT_INTERVAL
         else:
@@ -615,6 +688,10 @@ class LaunchAgent:
             while True:
                 job = None
                 self._ticks += 1
+
+                # Run Kubernetes cleanup if enabled and interval has passed
+                await self._run_cleanup_if_needed(agent_start_time)
+
                 agent_response = self._launch_api_provider.agent_api.get_launch_agent(
                     self._id, self.gorilla_supports_agents
                 )
