@@ -30,14 +30,14 @@ def read_netrc_auth(*, host: str) -> str | None:
         netrc_file = netrc.netrc(path)
     except FileNotFoundError:
         return None
-    except netrc.NetrcParseError as e:
-        if e.lineno is None:
-            term.termwarn(f"Failed to read netrc file at {path}: {e.msg}")
-        else:
+    except (netrc.NetrcParseError, OSError) as e:
+        if isinstance(e, netrc.NetrcParseError) and e.lineno is not None:
             term.termwarn(
                 f"Failed to read netrc file at {path},"
                 + f" error on line {e.lineno}: {e.msg}"
             )
+        else:
+            term.termwarn(f"Failed to read netrc file at {path}: {e}")
 
         return None
 

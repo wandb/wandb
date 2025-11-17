@@ -53,6 +53,18 @@ def test_read_parse_error(
     mock_wandb_log.assert_warned("Failed to read netrc file")
 
 
+def test_read_unreadable(
+    fake_netrc_path: pathlib.Path,
+    mock_wandb_log: MockWandbLog,
+):
+    fake_netrc_path.mkdir()
+
+    result = wbnetrc.read_netrc_auth(host="https://test-host")
+
+    assert result is None
+    mock_wandb_log.assert_warned("Failed to read netrc file")
+
+
 def test_write(fake_netrc_path: pathlib.Path):
     fake_netrc_path.write_text(
         textwrap.dedent("""\
