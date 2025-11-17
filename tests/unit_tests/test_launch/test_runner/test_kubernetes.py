@@ -2211,3 +2211,81 @@ async def test_launch_additional_services(
         labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE]
         == "123e4567-e89b-12d3-a456-426614174000"
     )
+
+
+@pytest.mark.asyncio
+@patch(
+    "wandb.sdk.launch.runner.kubernetes_runner.uuid.uuid4",
+    return_value=uuid.UUID("12345678-1234-5678-1234-567812345678"),
+)
+async def test_resource_role_labels_on_job_and_auxiliary_resources(
+    mock_uuid4,
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    manifest,
+    clean_monitor,
+    clean_agent,
+):
+    """Verify that Jobs get resource-role: primary and auxiliary resources get resource-role: auxiliary."""
+    additional_service = {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {"name": "test-service"},
+        "spec": {"ports": [{"port": 80}]},
+    }
+
+    manifest["wait_for_ready"] = False
+
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={
+            "additional_services": [{"config": additional_service, "name": "svc"}]
+        },
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+    )
+
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    await runner.run(project, "test_image")
+
+    calls = mock_create_from_dict.call_args_list
+    assert len(calls) == 2  # one service, one job
+
+    job_call = next(c for c in calls if c[0][1].get("kind") == "Job")
+    job_manifest = job_call[0][1]
+    job_labels = job_manifest["metadata"]["labels"]
+
+    service_call = next(c for c in calls if c[0][1].get("kind") == "Service")
+    service_manifest = service_call[0][1]
+    service_labels = service_manifest["metadata"]["labels"]
+
+    # job should have resource-role: primary and NO auxiliary-resource label
+    assert "wandb.ai/resource-role" in job_labels
+    assert job_labels["wandb.ai/resource-role"] == "primary"
+    assert "wandb.ai/auxiliary-resource" not in job_labels
+
+    # service should have resource-role: auxiliary and auxiliary-resource UUID
+    assert "wandb.ai/resource-role" in service_labels
+    assert service_labels["wandb.ai/resource-role"] == "auxiliary"
+    assert "wandb.ai/auxiliary-resource" in service_labels
+    assert (
+        service_labels["wandb.ai/auxiliary-resource"]
+        == "12345678-1234-5678-1234-567812345678"
+    )

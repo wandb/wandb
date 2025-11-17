@@ -24,6 +24,7 @@ from wandb.sdk.launch.runner.kubernetes_monitor import (
     WANDB_K8S_LABEL_AGENT,
     WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
     WANDB_K8S_LABEL_MONITOR,
+    WANDB_K8S_LABEL_RESOURCE_ROLE,
     WANDB_K8S_RUN_ID,
     CustomResource,
     LaunchKubernetesMonitor,
@@ -491,6 +492,7 @@ class KubernetesRunner(AbstractRunner):
         job_metadata.setdefault("labels", {})
         job_metadata["labels"][WANDB_K8S_RUN_ID] = launch_project.run_id
         job_metadata["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
+        job_metadata["labels"][WANDB_K8S_LABEL_RESOURCE_ROLE] = "primary"
         if LaunchAgent.initialized():
             job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = LaunchAgent.name()
         # name precedence: name in spec > generated name
@@ -617,6 +619,13 @@ class KubernetesRunner(AbstractRunner):
             job,
             WANDB_K8S_LABEL_MONITOR,
             "true",
+        )
+
+        # Add resource-role: primary to all pods from primary Job
+        add_label_to_pods(
+            job,
+            WANDB_K8S_LABEL_RESOURCE_ROLE,
+            "primary",
         )
 
         if launch_project.job_base_image:
@@ -877,6 +886,7 @@ class KubernetesRunner(AbstractRunner):
         config["metadata"]["labels"][WANDB_K8S_RUN_ID] = run_id
         config["metadata"]["labels"]["wandb.ai/created-by"] = "launch-agent"
         if auxiliary_resource_label_value:
+            config["metadata"]["labels"][WANDB_K8S_LABEL_RESOURCE_ROLE] = "auxiliary"
             config["metadata"]["labels"][WANDB_K8S_LABEL_AUXILIARY_RESOURCE] = (
                 auxiliary_resource_label_value
             )
@@ -896,6 +906,12 @@ class KubernetesRunner(AbstractRunner):
                 config,
                 WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
                 auxiliary_resource_label_value,
+            )
+            # Add resource-role: auxiliary to all pods from auxiliary resources
+            add_label_to_pods(
+                config,
+                WANDB_K8S_LABEL_RESOURCE_ROLE,
+                "auxiliary",
             )
 
         if api_key_secret:
