@@ -106,6 +106,7 @@ def test_login_invalid_key_arg(runner, dummy_api_key):
         assert "API key must have 40+ characters, has 35." in result.output
 
 
+@pytest.mark.usefixtures("patch_apikey")
 def test_sync_gc(runner):
     with runner.isolated_filesystem():
         if not os.path.isdir("wandb"):

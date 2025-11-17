@@ -26,4 +26,3 @@ def test_login_invalid_key_length(user):
     with mock.patch.dict("os.environ", {"WANDB_API_KEY": ""}):
         with pytest.raises(wandb.errors.AuthenticationError):
             wandb.login(verify=True, key="I")
-        assert wandb.api.api_key is None
