@@ -2211,3 +2211,106 @@ async def test_launch_additional_services(
         labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE]
         == "123e4567-e89b-12d3-a456-426614174000"
     )
+
+
+@pytest.mark.asyncio
+async def test_runner_cleanup_on_job_creation_failure_due_to_long_name(
+    monkeypatch,
+    mock_batch_api,
+    mock_core_api,
+    mock_apps_api,
+    mock_network_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    clean_agent,
+    clean_monitor,
+):
+    """Test that auxiliary resources are cleaned up when job creation fails due to long job name."""
+
+    # Setup mock resources to be returned by list operations
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=make_mock_resource_list(["mock-deployment"])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=make_mock_resource_list(["mock-policy"])
+    )
+    mock_core_api.list_namespaced_service = AsyncMock(
+        return_value=make_mock_resource_list([])
+    )
+
+    # Mock helper functions
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.ensure_api_key_secret",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_wandb_team_secrets_secret",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.ensure_initialized",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.monitor_namespace",
+        MagicMock(),
+    )
+
+    # Mock create_from_dict to raise FailToCreateError simulating a long job name
+    from kubernetes_asyncio.client.rest import ApiException
+    from kubernetes_asyncio.utils import FailToCreateError
+
+    async def mock_create_from_dict_failure(*args, **kwargs):
+        exc = ApiException(status=422, reason="Unprocessable Entity")
+        exc.body = '{"message": "Job.batch \\"test-job\\" is invalid: metadata.labels: Invalid value: must be no more than 63 characters", "code": 422}'
+        raise FailToCreateError([exc])
+
+    monkeypatch.setattr(
+        "kubernetes_asyncio.utils.create_from_dict",
+        mock_create_from_dict_failure,
+    )
+
+    # Create launch project WITH additional_services
+    launch_project = MagicMock()
+    launch_project.target_entity = "test-entity"
+    launch_project.target_project = "test-project"
+    launch_project.run_id = "test-run-id"
+    launch_project.name = "test-name"
+    launch_project.author = "test-author"
+    launch_project.resource_args = {"kubernetes": {"kind": "Job"}}
+    launch_project.launch_spec = {
+        "_resume_count": 0,
+        "additional_services": [
+            {
+                "config": {
+                    "apiVersion": "v1",
+                    "kind": "Service",
+                    "metadata": {"name": "test-service"},
+                }
+            }
+        ],
+    }
+    launch_project.override_args = []
+    launch_project.override_entrypoint = None
+    launch_project.get_single_entry_point.return_value = None
+    launch_project.fill_macros = lambda image_uri: {"kubernetes": {"kind": "Job"}}
+    launch_project.docker_config = {}
+    launch_project.job_base_image = None
+    launch_project.get_env_vars_dict = lambda _, __: {}
+    launch_project.get_secrets_dict = lambda: {}
+
+    # Create the runner
+    api = MagicMock()
+    environment = MagicMock()
+    registry = MagicMock()
+    backend_config = {"SYNCHRONOUS": False}
+
+    runner = KubernetesRunner(api, backend_config, environment, registry)
+
+    # Run should raise LaunchError due to job creation failure
+    with pytest.raises(LaunchError, match="Failed to create Kubernetes resource"):
+        await runner.run(launch_project, "test-image:latest")
+
+    # Verify that delete methods were called for auxiliary resources
+    mock_apps_api.delete_namespaced_deployment.assert_called()
+    mock_network_api.delete_namespaced_network_policy.assert_called()

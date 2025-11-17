@@ -10,9 +10,8 @@ import time
 import uuid
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-import yaml
-
 import wandb
+import yaml
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -1136,10 +1135,23 @@ class KubernetesRunner(AbstractRunner):
             msg += f": {resource_args['name']}"
         _logger.info(msg)
         try:
+            sanitize_identifiers_for_k8s(job)
             response = await kubernetes_asyncio.utils.create_from_dict(
                 api_client, job, namespace=namespace
             )
         except kubernetes_asyncio.utils.FailToCreateError as e:
+            if additional_services:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Job creation failed. Cleaning up auxiliary resources..."
+                )
+                await delete_auxiliary_resources_by_label(
+                    apps_api,
+                    core_api,
+                    network_api,
+                    batch_api,
+                    namespace,
+                    auxiliary_resource_label_value,
+                )
             for exc in e.api_exceptions:
                 resp = json.loads(exc.body)
                 msg = resp.get("message")
@@ -1148,6 +1160,18 @@ class KubernetesRunner(AbstractRunner):
                     f"Failed to create Kubernetes job for run {launch_project.run_id} ({code} {exc.reason}): {msg}"
                 )
         except Exception as e:
+            if additional_services:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Unexpected error creating job. Cleaning up auxiliary resources..."
+                )
+                await delete_auxiliary_resources_by_label(
+                    apps_api,
+                    core_api,
+                    network_api,
+                    batch_api,
+                    namespace,
+                    auxiliary_resource_label_value,
+                )
             raise LaunchError(
                 f"Unexpected exception when creating Kubernetes job: {str(e)}\n"
             )
