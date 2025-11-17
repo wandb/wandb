@@ -3422,25 +3422,6 @@ class Api:
         warnings = response["upsertSweep"].get("configValidationWarnings", [])
         return response["upsertSweep"]["sweep"]["name"], warnings
 
-    @normalize_exceptions
-    def create_anonymous_api_key(self) -> str:
-        """Create a new API key belonging to a new anonymous user."""
-        mutation = gql(
-            """
-        mutation CreateAnonymousApiKey {
-            createAnonymousEntity(input: {}) {
-                apiKey {
-                    name
-                }
-            }
-        }
-        """
-        )
-
-        response = self.gql(mutation, variable_values={})
-        key: str = str(response["createAnonymousEntity"]["apiKey"]["name"])
-        return key
-
     @staticmethod
     def file_current(fname: str, md5: B64MD5) -> bool:
         """Checksum a file and compare the md5 with the known md5."""

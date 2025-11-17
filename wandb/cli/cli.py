@@ -254,7 +254,13 @@ def projects(entity, display=True):
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
-@click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
+@click.option(
+    "--anonymously",
+    default=False,
+    hidden=True,
+    is_flag=True,
+    help="Log in anonymously",
+)
 @click.option(
     "--verify/--no-verify",
     default=False,
@@ -274,7 +280,12 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     the `login` command with host parameters.
     """
     # TODO: handle no_offline
-    anon_mode = "must" if anonymously else "never"
+    if anonymously:
+        wandb.termwarn(
+            "The --anonymously parameter has no effect and will be removed"
+            + " in a future version.",
+            repeat=False,
+        )
 
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
     # A change in click or the test harness means key can be none...
@@ -286,7 +297,6 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     global_settings.x_disable_viewer = relogin and not verify
 
     wandb.login(
-        anonymous=anon_mode,
         force=True,
         host=host,
         key=key,

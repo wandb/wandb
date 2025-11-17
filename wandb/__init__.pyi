@@ -11,6 +11,8 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 
 from __future__ import annotations
 
+from wandb.sdk.lib.deprecation import UNSET, DoNotSet
+
 __all__ = (
     "__version__",  # doc:exclude
     "init",
@@ -220,7 +222,6 @@ def init(
     job_type: str | None = None,
     mode: Literal["online", "offline", "disabled", "shared"] | None = None,
     force: bool | None = None,
-    anonymous: Literal["never", "allow", "must"] | None = None,
     reinit: (
         bool
         | Literal[
@@ -239,6 +240,7 @@ def init(
     sync_tensorboard: bool | None = None,
     monitor_gym: bool | None = None,
     settings: Settings | dict[str, Any] | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> Run:
     r"""Start a new run to track and log to W&B.
 
@@ -335,16 +337,6 @@ def init(
             the user must be logged in to W&B; otherwise, the script will not
             proceed. If `False` (default), the script can proceed without a login,
             switching to offline mode if the user is not logged in.
-        anonymous: Specifies the level of control over anonymous data logging.
-            Available options are:
-        - `"never"` (default): Requires you to link your W&B account before
-            tracking the run. This prevents unintentional creation of anonymous
-            runs by ensuring each run is associated with an account.
-        - `"allow"`: Enables a logged-in user to track runs with their account,
-            but also allows someone running the script without a W&B account
-            to view the charts and data in the UI.
-        - `"must"`: Forces the run to be logged to an anonymous account, even
-            if the user is logged in.
         reinit: Shorthand for the "reinit" setting. Determines the behavior of
             `wandb.init()` when a run is active.
         resume: Controls the behavior when resuming a run with the specified `id`.
@@ -444,7 +436,6 @@ def finish(
     ...
 
 def login(
-    anonymous: Literal["must", "allow", "never"] | None = None,
     key: str | None = None,
     relogin: bool | None = None,
     host: str | None = None,
@@ -452,6 +443,7 @@ def login(
     timeout: int | None = None,
     verify: bool = False,
     referrer: str | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> bool:
     """Set up W&B login credentials.
 
@@ -460,11 +452,6 @@ def login(
     `verify=True`.
 
     Args:
-        anonymous: Set to "must", "allow", or "never".
-            If set to "must", always log a user in anonymously. If set to
-            "allow", only create an anonymous user if the user
-            isn't already logged in. If set to "never", never log a
-            user anonymously. Default set to "never". Defaults to `None`.
         key: The API key to use.
         relogin: If true, will re-prompt for API key.
         host: The host to connect to.
@@ -472,7 +459,6 @@ def login(
         timeout: Number of seconds to wait for user input.
         verify: Verify the credentials with the W&B server.
         referrer: The referrer to use in the URL login request.
-
 
     Returns:
         bool: If `key` is configured.

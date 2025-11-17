@@ -52,7 +52,7 @@ message RunMoment {
 //
 // Next ID: 202
 message Settings {
-  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 70, 91, 94, 100, 136, 137, 173, 176, 180;
+  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
 
   // The W&B API key.
   //
@@ -451,7 +451,6 @@ message Settings {
   google.protobuf.StringValue _tmp_code_dir = 49;
   google.protobuf.BoolValue _windows = 52;
   google.protobuf.BoolValue allow_val_change = 53;
-  google.protobuf.StringValue anonymous = 54;
   MapStringKeyStringValue azure_account_url_to_access_key = 56;
   google.protobuf.StringValue code_dir = 58;
   ListStringValue config_paths = 59;

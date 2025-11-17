@@ -6,16 +6,14 @@ from urllib.parse import urlsplit, urlunsplit
 from wandb import util
 from wandb.errors import links, term
 
-from . import anon, saas, validation
+from . import saas, validation
 
 _logger = logging.getLogger(__name__)
 
-_LOGIN_CHOICE_ANON = "Private W&B dashboard, no account required"
 _LOGIN_CHOICE_NEW = "Create a W&B account"
 _LOGIN_CHOICE_EXISTS = "Use an existing W&B account"
 _LOGIN_CHOICE_OFFLINE = "Don't visualize my results"
 _LOGIN_CHOICES = [
-    _LOGIN_CHOICE_ANON,
     _LOGIN_CHOICE_NEW,
     _LOGIN_CHOICE_EXISTS,
     _LOGIN_CHOICE_OFFLINE,
@@ -25,7 +23,6 @@ _LOGIN_CHOICES = [
 def prompt_api_key(
     *,
     host: str,
-    no_anonymous: bool = False,
     no_offline: bool = False,
     no_create: bool = False,
     referrer: str = "",
@@ -35,7 +32,6 @@ def prompt_api_key(
 
     Args:
         host: The URL to the W&B server, like 'https://api.wandb.ai'.
-        no_anonymous: If true, do not show an anonymous login option.
         no_offline: If true, do not show an option to skip logging in.
         no_create: If true, do not show an option to create a new account.
         referrer: A referrer string to tack on as a query parameter to
@@ -53,8 +49,6 @@ def prompt_api_key(
         raise term.NotATerminalError
 
     choices = list(_LOGIN_CHOICES)
-    if no_anonymous:
-        choices.remove(_LOGIN_CHOICE_ANON)
     if no_offline:
         choices.remove(_LOGIN_CHOICE_OFFLINE)
     if no_create:
@@ -63,14 +57,7 @@ def prompt_api_key(
     while True:
         choice = util.prompt_choices(choices, input_timeout=input_timeout)
 
-        if choice == _LOGIN_CHOICE_ANON:
-            try:
-                return anon.make_anonymous_api_key(host=host)
-            except Exception as e:
-                term.termerror(f"Error creating an anonymous API key: {e}")
-                term.termerror("Please try again or select another option.")
-
-        elif choice == _LOGIN_CHOICE_NEW:
+        if choice == _LOGIN_CHOICE_NEW:
             key = _create_new_account(host=host, referrer=referrer)
             if problems := validation.check_api_key(key):
                 term.termerror(f"Invalid API key: {problems}")
