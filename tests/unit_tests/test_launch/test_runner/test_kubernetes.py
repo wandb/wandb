@@ -3,9 +3,11 @@ import base64
 import json
 import platform
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import kubernetes_asyncio
 import pytest
 import wandb
 import wandb.sdk.launch.runner.kubernetes_runner
@@ -995,9 +997,8 @@ async def test_launch_kube_api_secret_failed(
     )
     mock_la = MagicMock()
     mock_la.initialized = MagicMock(return_value=True)
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.kubernetes_runner.LaunchAgent", mock_la
-    )
+
+    monkeypatch.setattr("wandb.sdk.launch.agent.agent.LaunchAgent", mock_la)
 
     async def mock_create_namespaced_secret(*args, **kwargs):
         raise Exception("Test exception")
@@ -2282,6 +2283,11 @@ async def test_resource_role_labels_on_job_and_auxiliary_resources(
     assert job_labels["wandb.ai/resource-role"] == "primary"
     assert "wandb.ai/auxiliary-resource" not in job_labels
 
+    # job's pod template should also have resource-role: primary
+    job_pod_labels = job_manifest["spec"]["template"]["metadata"]["labels"]
+    assert "wandb.ai/resource-role" in job_pod_labels
+    assert job_pod_labels["wandb.ai/resource-role"] == "primary"
+
     # service should have resource-role: auxiliary and auxiliary-resource UUID
     assert "wandb.ai/resource-role" in service_labels
     assert service_labels["wandb.ai/resource-role"] == "auxiliary"
@@ -2294,7 +2300,6 @@ async def test_resource_role_labels_on_job_and_auxiliary_resources(
 
 def test_cleanup_manager_initialization():
     """Test that cleanup manager initializes with correct configuration."""
-
     # Test with defaults
     cleanup = KubernetesResourceCleanup()
     assert cleanup._minimum_age == 900
@@ -2311,7 +2316,6 @@ def test_cleanup_manager_initialization():
 
 def test_cleanup_manager_namespace_parsing():
     """Test that namespace configuration is parsed correctly."""
-
     # Test whitespace handling
     cleanup = KubernetesResourceCleanup(monitored_namespaces=" ns1 , ns2 ,  ns3  ")
     assert cleanup._monitored_namespaces == {"ns1", "ns2", "ns3"}
@@ -2327,8 +2331,613 @@ def test_cleanup_manager_namespace_parsing():
 
 def test_cleanup_manager_environment_variable(monkeypatch):
     """Test that cleanup manager reads from environment variable."""
-
     monkeypatch.setenv("WANDB_LAUNCH_MONITORED_NAMESPACES", "env-ns1,env-ns2")
 
     cleanup = KubernetesResourceCleanup()
     assert cleanup._monitored_namespaces == {"env-ns1", "env-ns2"}
+
+
+@pytest.mark.asyncio
+async def test_cleanup_get_active_job_run_ids():
+    """Test getting active job run-ids from Kubernetes."""
+    # Create mock batch API with jobs
+    mock_batch_api = MagicMock()
+
+    # Create mock jobs with run-id labels
+    mock_job1 = MagicMock()
+    mock_job1.metadata.labels = {
+        "wandb.ai/run-id": "run-123",
+        "wandb.ai/resource-role": "primary",
+    }
+
+    mock_job2 = MagicMock()
+    mock_job2.metadata.labels = {
+        "wandb.ai/run-id": "run-456",
+        "wandb.ai/resource-role": "primary",
+    }
+
+    mock_job3 = MagicMock()
+    mock_job3.metadata.labels = {
+        "wandb.ai/resource-role": "primary"
+        # No run-id label
+    }
+
+    mock_list = MagicMock()
+    mock_list.items = [mock_job1, mock_job2, mock_job3]
+    mock_batch_api.list_namespaced_job = AsyncMock(return_value=mock_list)
+
+    cleanup = KubernetesResourceCleanup()
+    active_run_ids = await cleanup._get_active_job_run_ids(mock_batch_api, "default")
+
+    assert active_run_ids == {"run-123", "run-456"}
+    mock_batch_api.list_namespaced_job.assert_called_once_with(
+        namespace="default", label_selector="wandb.ai/resource-role=primary"
+    )
+
+
+@pytest.mark.asyncio
+async def test_cleanup_get_active_job_run_ids_with_agent_tracker(monkeypatch):
+    """Test dual-source detection: Kubernetes + agent job tracker."""
+    # Mock Kubernetes Jobs
+    mock_batch_api = MagicMock()
+    mock_job = MagicMock()
+    mock_job.metadata.labels = {"wandb.ai/run-id": "run-from-k8s"}
+    mock_list = MagicMock()
+    mock_list.items = [mock_job]
+    mock_batch_api.list_namespaced_job = AsyncMock(return_value=mock_list)
+
+    # Mock agent returning additional run-ids (e.g., job being launched)
+    mock_agent_class = MagicMock()
+    mock_agent_class.initialized.return_value = True
+    mock_agent_class.get_active_run_ids.return_value = {
+        "run-from-agent",
+        "run-launching",
+    }
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.agent.LaunchAgent.initialized",
+        mock_agent_class.initialized,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.agent.LaunchAgent.get_active_run_ids",
+        mock_agent_class.get_active_run_ids,
+    )
+
+    cleanup = KubernetesResourceCleanup()
+    active_run_ids = await cleanup._get_active_job_run_ids(mock_batch_api, "default")
+
+    # Should have run-ids from BOTH sources
+    assert active_run_ids == {"run-from-k8s", "run-from-agent", "run-launching"}
+
+
+@pytest.mark.asyncio
+async def test_cleanup_skips_aux_resources_when_job_launching(monkeypatch):
+    """Test the scenario: aux resources exist, no K8s Job yet, but agent tracker has it.
+
+    This tests the race condition window where:
+    1. Agent starts launching job (in tracker)
+    2. Auxiliary resources created
+    3. K8s Job not yet created ← cleanup runs HERE
+
+    Result: Should NOT delete aux resources because agent tracker has the run-id.
+    """
+    cleanup = KubernetesResourceCleanup(minimum_resource_age_seconds=900)
+
+    # Mock Kubernetes APIs
+    mock_batch_api = MagicMock()
+    mock_core_api = MagicMock()
+    mock_apps_api = MagicMock()
+    mock_network_api = MagicMock()
+
+    # NO Kubernetes Job exists yet (launching window)
+    mock_batch_api.list_namespaced_job = AsyncMock(
+        return_value=MagicMock(items=[])  # Empty - no Job yet!
+    )
+
+    # But agent tracker HAS this run-id (job is launching)
+    mock_agent_class = MagicMock()
+    mock_agent_class.initialized.return_value = True
+    mock_agent_class.get_active_run_ids.return_value = {"run-launching"}
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.agent.LaunchAgent.initialized",
+        mock_agent_class.initialized,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.agent.LaunchAgent.get_active_run_ids",
+        mock_agent_class.get_active_run_ids,
+    )
+
+    # Auxiliary resources exist (old enough to clean)
+    old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
+    mock_aux_service = MagicMock()
+    mock_aux_service.metadata.labels = {
+        "wandb.ai/run-id": "run-launching",  # Matches agent tracker!
+        "wandb.ai/auxiliary-resource": "uuid-launching",
+    }
+    mock_aux_service.metadata.creation_timestamp = old_time
+    mock_aux_service.metadata.name = "launching-service"
+
+    mock_core_api.list_namespaced_secret = AsyncMock(return_value=MagicMock(items=[]))
+    mock_core_api.list_namespaced_service = AsyncMock(
+        return_value=MagicMock(items=[mock_aux_service])
+    )
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+
+    # Get active run-ids (should include agent tracker)
+    active_run_ids = await cleanup._get_active_job_run_ids(mock_batch_api, "default")
+    assert active_run_ids == {"run-launching"}  # From agent tracker
+
+    # Find orphaned UUIDs
+    orphaned = await cleanup._find_orphaned_uuids(
+        mock_core_api,
+        mock_apps_api,
+        mock_network_api,
+        mock_batch_api,
+        "default",
+        active_run_ids,
+    )
+
+    # CRITICAL: Should be EMPTY - resource is NOT orphaned because agent tracker has it!
+    assert orphaned == set()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_deletes_aux_resources_when_no_job_and_no_tracker(monkeypatch):
+    """Test that aux resources ARE deleted when NEITHER K8s Job NOR agent tracker has the run-id.
+
+    This is the opposite case - truly orphaned resources.
+    """
+    cleanup = KubernetesResourceCleanup(minimum_resource_age_seconds=900)
+
+    # Mock Kubernetes APIs
+    mock_batch_api = MagicMock()
+    mock_core_api = MagicMock()
+    mock_apps_api = MagicMock()
+    mock_network_api = MagicMock()
+
+    # NO Kubernetes Job exists
+    mock_batch_api.list_namespaced_job = AsyncMock(return_value=MagicMock(items=[]))
+
+    # Agent tracker does NOT have this run-id
+    mock_agent_class = MagicMock()
+    mock_agent_class.initialized.return_value = True
+    mock_agent_class.get_active_run_ids.return_value = set()  # Empty!
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.agent.LaunchAgent.initialized",
+        mock_agent_class.initialized,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.agent.LaunchAgent.get_active_run_ids",
+        mock_agent_class.get_active_run_ids,
+    )
+
+    # Orphaned auxiliary resources exist
+    old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
+    mock_aux_service = MagicMock()
+    mock_aux_service.metadata.labels = {
+        "wandb.ai/run-id": "run-orphaned",
+        "wandb.ai/auxiliary-resource": "uuid-orphaned",
+    }
+    mock_aux_service.metadata.creation_timestamp = old_time
+    mock_aux_service.metadata.name = "orphaned-service"
+
+    mock_core_api.list_namespaced_secret = AsyncMock(return_value=MagicMock(items=[]))
+    mock_core_api.list_namespaced_service = AsyncMock(
+        return_value=MagicMock(items=[mock_aux_service])
+    )
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+
+    # Get active run-ids (should be empty)
+    active_run_ids = await cleanup._get_active_job_run_ids(mock_batch_api, "default")
+    assert active_run_ids == set()  # No active jobs!
+
+    # Find orphaned UUIDs
+    orphaned = await cleanup._find_orphaned_uuids(
+        mock_core_api,
+        mock_apps_api,
+        mock_network_api,
+        mock_batch_api,
+        "default",
+        active_run_ids,
+    )
+
+    assert orphaned == {"uuid-orphaned"}
+
+
+@pytest.mark.asyncio
+async def test_cleanup_get_active_job_run_ids_api_failure():
+    """Test that API failure returns None (safety mechanism)."""
+    mock_batch_api = MagicMock()
+    mock_batch_api.list_namespaced_job = AsyncMock(
+        side_effect=ApiException(status=403, reason="Forbidden")
+    )
+
+    cleanup = KubernetesResourceCleanup()
+    active_run_ids = await cleanup._get_active_job_run_ids(mock_batch_api, "default")
+
+    assert active_run_ids is None  # Returns None on failure
+
+
+@pytest.mark.asyncio
+async def test_cleanup_find_orphaned_uuids_basic():
+    """Test finding orphaned UUIDs - basic case."""
+    cleanup = KubernetesResourceCleanup(minimum_resource_age_seconds=900)
+
+    # Create mock APIs
+    mock_core_api = MagicMock()
+    mock_apps_api = MagicMock()
+    mock_network_api = MagicMock()
+
+    # Mock service with orphaned UUID (old enough)
+    old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
+    mock_service = MagicMock()
+    mock_service.metadata.labels = {
+        "wandb.ai/run-id": "run-orphaned",
+        "wandb.ai/auxiliary-resource": "uuid-orphaned",
+        "wandb.ai/resource-role": "auxiliary",
+    }
+    mock_service.metadata.creation_timestamp = old_time
+    mock_service.metadata.name = "test-service"
+
+    mock_list = MagicMock()
+    mock_list.items = [mock_service]
+
+    # Setup mock responses
+    mock_core_api.list_namespaced_secret = AsyncMock(return_value=MagicMock(items=[]))
+    mock_core_api.list_namespaced_service = AsyncMock(return_value=mock_list)
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+
+    active_run_ids = {"run-active-1", "run-active-2"}  # run-orphaned not in here
+
+    orphaned = await cleanup._find_orphaned_uuids(
+        mock_core_api,
+        mock_apps_api,
+        mock_network_api,
+        mock_batch_api,
+        "default",
+        active_run_ids,
+    )
+
+    assert orphaned == {"uuid-orphaned"}
+
+
+@pytest.mark.asyncio
+async def test_cleanup_find_orphaned_uuids_skips_active():
+    """Test that resources with active Jobs are NOT marked as orphaned."""
+    cleanup = KubernetesResourceCleanup(minimum_resource_age_seconds=900)
+
+    mock_core_api = MagicMock()
+    mock_apps_api = MagicMock()
+    mock_network_api = MagicMock()
+
+    old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
+    mock_service = MagicMock()
+    mock_service.metadata.labels = {
+        "wandb.ai/run-id": "run-active",  # This is active
+        "wandb.ai/auxiliary-resource": "uuid-123",
+        "wandb.ai/resource-role": "auxiliary",
+    }
+    mock_service.metadata.creation_timestamp = old_time
+
+    mock_list = MagicMock()
+    mock_list.items = [mock_service]
+
+    mock_core_api.list_namespaced_secret = AsyncMock(return_value=MagicMock(items=[]))
+    mock_core_api.list_namespaced_service = AsyncMock(return_value=mock_list)
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+
+    active_run_ids = {"run-active"}  # run-active is active
+
+    orphaned = await cleanup._find_orphaned_uuids(
+        mock_core_api,
+        mock_apps_api,
+        mock_network_api,
+        mock_batch_api,
+        "default",
+        active_run_ids,
+    )
+
+    assert orphaned == set()  # Nothing orphaned - all active
+
+
+@pytest.mark.asyncio
+async def test_cleanup_find_orphaned_uuids_skips_recent():
+    """Test that recent resources are NOT marked as orphaned (safety mechanism)."""
+    cleanup = KubernetesResourceCleanup(minimum_resource_age_seconds=900)
+
+    mock_core_api = MagicMock()
+    mock_apps_api = MagicMock()
+    mock_network_api = MagicMock()
+
+    # Resource created 5 minutes ago (too recent - need 15 min)
+    recent_time = datetime.now(timezone.utc) - timedelta(seconds=300)
+    mock_service = MagicMock()
+    mock_service.metadata.labels = {
+        "wandb.ai/run-id": "run-orphaned",
+        "wandb.ai/auxiliary-resource": "uuid-123",
+        "wandb.ai/resource-role": "auxiliary",
+    }
+    mock_service.metadata.creation_timestamp = recent_time
+    mock_service.metadata.name = "test-service"
+
+    mock_list = MagicMock()
+    mock_list.items = [mock_service]
+
+    mock_core_api.list_namespaced_secret = AsyncMock(return_value=MagicMock(items=[]))
+    mock_core_api.list_namespaced_service = AsyncMock(return_value=mock_list)
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+
+    active_run_ids = set()  # No active runs
+
+    orphaned = await cleanup._find_orphaned_uuids(
+        mock_core_api,
+        mock_apps_api,
+        mock_network_api,
+        mock_batch_api,
+        "default",
+        active_run_ids,
+    )
+
+    assert orphaned == set()  # Nothing orphaned - too recent
+
+
+@pytest.mark.asyncio
+async def test_cleanup_find_orphaned_uuids_multiple_resources_same_uuid():
+    """Test that multiple resources with same UUID are grouped correctly."""
+    cleanup = KubernetesResourceCleanup(minimum_resource_age_seconds=900)
+
+    mock_core_api = MagicMock()
+    mock_apps_api = MagicMock()
+    mock_network_api = MagicMock()
+    mock_batch_api = MagicMock()
+
+    old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
+
+    # Create multiple resources with same UUID
+    mock_service = MagicMock()
+    mock_service.metadata.labels = {
+        "wandb.ai/run-id": "run-orphaned",
+        "wandb.ai/auxiliary-resource": "uuid-shared",
+    }
+    mock_service.metadata.creation_timestamp = old_time
+    mock_service.metadata.name = "test-service"
+
+    mock_deployment = MagicMock()
+    mock_deployment.metadata.labels = {
+        "wandb.ai/run-id": "run-orphaned",
+        "wandb.ai/auxiliary-resource": "uuid-shared",  # Same UUID
+    }
+    mock_deployment.metadata.creation_timestamp = old_time
+    mock_deployment.metadata.name = "test-deployment"
+
+    mock_core_api.list_namespaced_secret = AsyncMock(return_value=MagicMock(items=[]))
+    mock_core_api.list_namespaced_service = AsyncMock(
+        return_value=MagicMock(items=[mock_service])
+    )
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=MagicMock(items=[mock_deployment])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+
+    active_run_ids = set()
+
+    orphaned = await cleanup._find_orphaned_uuids(
+        mock_core_api,
+        mock_apps_api,
+        mock_network_api,
+        mock_batch_api,
+        "default",
+        active_run_ids,
+    )
+
+    # Both resources have same UUID, so only one UUID in set
+    assert orphaned == {"uuid-shared"}
+
+
+@pytest.mark.asyncio
+async def test_cleanup_find_orphaned_uuids_missing_run_id():
+    """Test that resources without run-id label are skipped."""
+    cleanup = KubernetesResourceCleanup(minimum_resource_age_seconds=900)
+
+    mock_core_api = MagicMock()
+    mock_apps_api = MagicMock()
+    mock_network_api = MagicMock()
+    mock_batch_api = MagicMock()
+
+    old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
+    mock_service = MagicMock()
+    mock_service.metadata.labels = {
+        # No run-id label
+    }
+    mock_service.metadata.creation_timestamp = old_time
+    mock_service.metadata.name = "test-service"
+
+    mock_list = MagicMock()
+    mock_list.items = [mock_service]
+
+    mock_core_api.list_namespaced_secret = AsyncMock(return_value=MagicMock(items=[]))
+    mock_core_api.list_namespaced_service = AsyncMock(return_value=mock_list)
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+
+    active_run_ids = set()
+
+    orphaned = await cleanup._find_orphaned_uuids(
+        mock_core_api,
+        mock_apps_api,
+        mock_network_api,
+        mock_batch_api,
+        "default",
+        active_run_ids,
+    )
+
+    # Resource skipped due to missing run-id
+    assert orphaned == set()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_namespace_end_to_end(monkeypatch):
+    """Test complete cleanup flow through _cleanup_namespace including deletion."""
+    mock_api_client = MagicMock()
+    mock_batch_api = MagicMock()
+    mock_core_api = MagicMock()
+    mock_apps_api = MagicMock()
+    mock_network_api = MagicMock()
+
+    async def mock_get_kube_context(*args, **kwargs):
+        return None, mock_api_client
+
+    # Create the mock delete function
+    mock_delete = AsyncMock()
+
+    # Patch the function at the runner module where it's accessed from
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.delete_auxiliary_resources_by_label",
+        mock_delete,
+    )
+
+    monkeypatch.setattr(
+        kubernetes_asyncio.client, "BatchV1Api", lambda *args: mock_batch_api
+    )
+    monkeypatch.setattr(
+        kubernetes_asyncio.client, "CoreV1Api", lambda *args: mock_core_api
+    )
+    monkeypatch.setattr(
+        kubernetes_asyncio.client, "AppsV1Api", lambda *args: mock_apps_api
+    )
+    monkeypatch.setattr(
+        kubernetes_asyncio.client, "NetworkingV1Api", lambda *args: mock_network_api
+    )
+
+    # Mock active job for _get_active_job_run_ids call
+    mock_job = MagicMock()
+    mock_job.metadata.labels = {"wandb.ai/run-id": "run-active"}
+
+    # Set up list_namespaced_job to handle different label selectors
+    async def mock_list_jobs(namespace, label_selector=None):
+        if label_selector == "wandb.ai/resource-role=primary":
+            return MagicMock(items=[mock_job])
+        elif label_selector == "wandb.ai/auxiliary-resource":
+            return MagicMock(items=[])
+        return MagicMock(items=[])
+
+    mock_batch_api.list_namespaced_job = AsyncMock(side_effect=mock_list_jobs)
+
+    # Mock orphaned resource
+    old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
+    mock_orphaned_service = MagicMock()
+    mock_orphaned_service.metadata.labels = {
+        "wandb.ai/run-id": "run-orphaned",
+        "wandb.ai/auxiliary-resource": "uuid-orphaned",
+    }
+    mock_orphaned_service.metadata.creation_timestamp = old_time
+    mock_orphaned_service.metadata.name = "orphaned-service"
+
+    mock_core_api.list_namespaced_secret = AsyncMock(return_value=MagicMock(items=[]))
+    mock_core_api.list_namespaced_service = AsyncMock(
+        return_value=MagicMock(items=[mock_orphaned_service])
+    )
+    mock_core_api.list_namespaced_pod = AsyncMock(return_value=MagicMock(items=[]))
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=MagicMock(items=[])
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.utils.get_kube_context_and_api_client",
+        mock_get_kube_context,
+    )
+
+    # Create cleanup instance
+    cleanup = KubernetesResourceCleanup(
+        minimum_resource_age_seconds=900, monitored_namespaces="test-ns"
+    )
+
+    # Run end-to-end cleanup
+    await cleanup._cleanup_namespace("test-ns")
+
+    # Verify delete was called for orphaned UUID
+    assert mock_delete.called, (
+        "delete_auxiliary_resources_by_label should have been called"
+    )
+    mock_delete.assert_called_once()
+    args = mock_delete.call_args[0]
+    assert args[0] == mock_apps_api
+    assert args[1] == mock_core_api
+    assert args[2] == mock_network_api
+    assert args[3] == mock_batch_api
+    assert args[4] == "test-ns"
+    assert args[5] == "uuid-orphaned"
+
+
+@pytest.mark.asyncio
+async def test_cleanup_cycle_multiple_namespaces(monkeypatch):
+    """Test that cleanup cycle processes all namespaces."""
+    cleanup = KubernetesResourceCleanup(monitored_namespaces="ns1,ns2,ns3")
+
+    cleanup_calls = []
+
+    async def mock_cleanup_namespace(namespace):
+        cleanup_calls.append(namespace)
+
+    cleanup._cleanup_namespace = mock_cleanup_namespace
+
+    await cleanup.run_cleanup_cycle()
+
+    assert set(cleanup_calls) == {"ns1", "ns2", "ns3"}
+
+
+@pytest.mark.asyncio
+async def test_cleanup_cycle_continues_on_namespace_error(monkeypatch):
+    """Test that error in one namespace doesn't stop others."""
+    cleanup = KubernetesResourceCleanup(monitored_namespaces="ns1,ns2,ns3")
+
+    cleanup_calls = []
+
+    async def mock_cleanup_namespace(namespace):
+        cleanup_calls.append(namespace)
+        if namespace == "ns2":
+            raise Exception("Test error in ns2")
+
+    cleanup._cleanup_namespace = mock_cleanup_namespace
+
+    # Should not raise - error is caught
+    await cleanup.run_cleanup_cycle()
+
+    # All three namespaces should be attempted
+    assert set(cleanup_calls) == {"ns1", "ns2", "ns3"}
