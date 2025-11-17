@@ -10,7 +10,7 @@ from typing_extensions import Annotated
 from wandb._pydantic import to_json
 
 from ._filters import And, MongoLikeFilter
-from ._filters.simplify import simplify_expr
+from ._filters.filterutils import simplify_expr
 
 T = TypeVar("T")
 
@@ -134,5 +134,5 @@ def wrap_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
 
     This is a necessary constraint imposed elsewhere by backend/frontend code.
     """
-    f_new = simplify_expr(f)
-    return f_new if isinstance(f_new, And) else And(exprs=[f_new])
+    # simplify/flatten first if needed
+    return And.wrap(simplify_expr(f))

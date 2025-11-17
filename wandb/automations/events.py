@@ -17,9 +17,9 @@ from wandb._strutils import nameof
 
 from ._filters import And, MongoLikeFilter, Or
 from ._filters.expressions import FilterableField
+from ._filters.filterutils import simplify_expr
 from ._filters.run_metrics import MetricChangeFilter, MetricThresholdFilter, MetricVal
 from ._filters.run_states import StateFilter, StateOperand
-from ._filters.simplify import simplify_expr
 from ._generated import FilterEventFields
 from ._validators import JsonEncoded, LenientStrEnum, ensure_json, wrap_run_filter
 from .actions import InputAction, InputActionTypes, SavedActionTypes
@@ -202,9 +202,8 @@ class _BaseMutationEventInput(_BaseEventInput):
 
         This awkward format is necessary because the frontend expects it.
         """
-        v_new = simplify_expr(v)
-        v_new = v_new if isinstance(v_new, And) else And(exprs=[v_new])
-        return Or(exprs=[v_new])
+        # simplify/flatten first if needed
+        return Or.wrap(And.wrap(simplify_expr(v)))
 
 
 class OnLinkArtifact(_BaseMutationEventInput):

@@ -6,7 +6,7 @@ from abc import ABC
 from typing import TYPE_CHECKING, Any, Iterable, Tuple, TypeVar, Union
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
-from typing_extensions import TypeAlias, get_args, override
+from typing_extensions import Self, TypeAlias, get_args, override
 
 from wandb._pydantic import GQLBase
 from wandb._strutils import nameof
@@ -44,14 +44,14 @@ TupleOf: TypeAlias = Tuple[T, ...]
 class SupportsBitwiseLogicalOps:
     def __or__(self, other: Any) -> Or:
         """Implements default `|` behavior: `a | b -> Or(a, b)`."""
-        return Or(exprs=[self, other])
+        return Or(exprs=(self, other))
 
     def __and__(self, other: Any) -> And:
         """Implements default `&` behavior: `a & b -> And(a, b)`."""
         from .expressions import FilterExpr
 
         if isinstance(other, (BaseOp, FilterExpr)):
-            return And(exprs=[self, other])
+            return And(exprs=(self, other))
         return NotImplemented
 
     def __invert__(self) -> Not:
@@ -86,8 +86,12 @@ class BaseOp(GQLBase, SupportsBitwiseLogicalOps, ABC):
 
 
 # Base type for logical operators that take a variable number of expressions.
-class BaseVariadicLogicalOp(BaseOp):
+class BaseVariadicLogicalOp(BaseOp, ABC):
     exprs: TupleOf[Union[FilterExpr, Op]]
+
+    @classmethod
+    def wrap(cls, expr: Any) -> Self:
+        return expr if isinstance(expr, cls) else cls(exprs=(expr,))
 
 
 # Logical operator(s)
@@ -136,86 +140,86 @@ class Not(BaseOp):
 # https://www.mongodb.com/docs/manual/reference/operator/query/in/
 # https://www.mongodb.com/docs/manual/reference/operator/query/nin/
 class Lt(BaseOp):
-    lt_: Scalar = Field(alias="$lt")
+    val: Scalar = Field(alias="$lt")
 
     @override
     def __invert__(self) -> Gte:
         """Implements `~Lt(a) -> Gte(a)`."""
-        return Gte(gte_=self.lt_)
+        return Gte(val=self.val)
 
 
 class Gt(BaseOp):
-    gt_: Scalar = Field(alias="$gt")
+    val: Scalar = Field(alias="$gt")
 
     @override
     def __invert__(self) -> Lte:
         """Implements `~Gt(a) -> Lte(a)`."""
-        return Lte(lte_=self.gt_)
+        return Lte(val=self.val)
 
 
 class Lte(BaseOp):
-    lte_: Scalar = Field(alias="$lte")
+    val: Scalar = Field(alias="$lte")
 
     @override
     def __invert__(self) -> Gt:
         """Implements `~Lte(a) -> Gt(a)`."""
-        return Gt(gt_=self.lte_)
+        return Gt(val=self.val)
 
 
 class Gte(BaseOp):
-    gte_: Scalar = Field(alias="$gte")
+    val: Scalar = Field(alias="$gte")
 
     @override
     def __invert__(self) -> Lt:
         """Implements `~Gte(a) -> Lt(a)`."""
-        return Lt(lt_=self.gte_)
+        return Lt(val=self.val)
 
 
 class Eq(BaseOp):
-    eq_: Scalar = Field(alias="$eq")
+    val: Scalar = Field(alias="$eq")
 
     @override
     def __invert__(self) -> Ne:
         """Implements `~Eq(a) -> Ne(a)`."""
-        return Ne(ne_=self.eq_)
+        return Ne(val=self.val)
 
 
 class Ne(BaseOp):
-    ne_: Scalar = Field(alias="$ne")
+    val: Scalar = Field(alias="$ne")
 
     @override
     def __invert__(self) -> Eq:
         """Implements `~Ne(a) -> Eq(a)`."""
-        return Eq(eq_=self.ne_)
+        return Eq(val=self.val)
 
 
 class In(BaseOp):
-    in_: TupleOf[Scalar] = Field(default=(), alias="$in")
+    val: TupleOf[Scalar] = Field(default=(), alias="$in")
 
     @override
     def __invert__(self) -> NotIn:
         """Implements `~In(a) -> NotIn(a)`."""
-        return NotIn(nin_=self.in_)
+        return NotIn(val=self.val)
 
 
 class NotIn(BaseOp):
-    nin_: TupleOf[Scalar] = Field(default=(), alias="$nin")
+    val: TupleOf[Scalar] = Field(default=(), alias="$nin")
 
     @override
     def __invert__(self) -> In:
         """Implements `~NotIn(a) -> In(a)`."""
-        return In(in_=self.nin_)
+        return In(val=self.val)
 
 
 # Element operator(s)
 # https://www.mongodb.com/docs/manual/reference/operator/query/exists/
 class Exists(BaseOp):
-    exists_: bool = Field(alias="$exists")
+    val: bool = Field(alias="$exists")
 
     @override
     def __invert__(self) -> Exists:
         """Implements `~Exists(True) -> Exists(False)` and vice versa."""
-        return Exists(exists_=not self.exists_)
+        return Exists(val=not self.val)
 
 
 # Evaluation operator(s)
@@ -224,11 +228,11 @@ class Exists(BaseOp):
 # Note: `$contains` is NOT a formal MongoDB operator, but the W&B backend
 # recognizes and executes it as a substring-match filter.
 class Regex(BaseOp):
-    regex_: str = Field(alias="$regex")  #: The regex expression to match against.
+    val: str = Field(alias="$regex")  #: The regex expression to match against.
 
 
 class Contains(BaseOp):
-    contains_: str = Field(alias="$contains")  #: The substring to match against.
+    val: str = Field(alias="$contains")  #: The substring to match against.
 
 
 # ------------------------------------------------------------------------------

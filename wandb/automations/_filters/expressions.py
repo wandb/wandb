@@ -67,37 +67,37 @@ class FilterableField:
 
     # Methods to define filter expressions through chaining
     def matches_regex(self, pattern: str, /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Regex(regex_=pattern))
+        return FilterExpr(field=self._name, op=Regex(val=pattern))
 
     def contains(self, text: str, /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Contains(contains_=text))
+        return FilterExpr(field=self._name, op=Contains(val=text))
 
     def exists(self, exists: bool = True, /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Exists(exists_=exists))
+        return FilterExpr(field=self._name, op=Exists(val=exists))
 
     def lt(self, value: Scalar, /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Lt(lt_=value))
+        return FilterExpr(field=self._name, op=Lt(val=value))
 
     def gt(self, value: Scalar, /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Gt(gt_=value))
+        return FilterExpr(field=self._name, op=Gt(val=value))
 
     def lte(self, value: Scalar, /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Lte(lte_=value))
+        return FilterExpr(field=self._name, op=Lte(val=value))
 
     def gte(self, value: Scalar, /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Gte(gte_=value))
+        return FilterExpr(field=self._name, op=Gte(val=value))
 
     def ne(self, value: Scalar, /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Ne(ne_=value))
+        return FilterExpr(field=self._name, op=Ne(val=value))
 
     def eq(self, value: Scalar, /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Eq(eq_=value))
+        return FilterExpr(field=self._name, op=Eq(val=value))
 
     def in_(self, values: Iterable[Scalar], /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=In(in_=values))
+        return FilterExpr(field=self._name, op=In(val=values))
 
     def not_in(self, values: Iterable[Scalar], /) -> FilterExpr:
-        return FilterExpr(field=self._name, op=NotIn(nin_=values))
+        return FilterExpr(field=self._name, op=NotIn(val=values))
 
     # Deliberately override the default behavior of comparison operator symbols,
     # (`<`, `>`, `<=`, `>=`, `==`, `!=`), to allow defining filter expressions
@@ -156,7 +156,7 @@ class FilterExpr(CompatBaseModel, SupportsBitwiseLogicalOps):
         ):
             # This looks like a MongoDB filter expression on a single field.  E.g.:
             # - in:  `{"display_name": {"$contains": "my-run"}}`
-            # - out: `FilterExpr(field="display_name", op=Contains(contains_="my-run"))`
+            # - out: `FilterExpr(field="display_name", op=Contains(val="my-run"))`
             ((field, op),) = data.items()
             return {"field": field, "op": op}
         return data

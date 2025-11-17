@@ -23,7 +23,7 @@ from wandb.automations._filters import (
     Or,
     Regex,
 )
-from wandb.automations._filters.simplify import simplify_expr
+from wandb.automations._filters.filterutils import simplify_expr
 
 from ._strategies import (
     and_dicts,
@@ -83,63 +83,63 @@ def test_not_from_validated_op(op: Not):
 
 
 # Comparison ops
-@given(op=builds(Gt, gt_=comparison_op_operands))
+@given(op=builds(Gt, val=comparison_op_operands))
 def test_gt_from_validated_op(op: Gt):
     assert op.model_dump().keys() == {"$gt"}
     assert Gt.model_validate(op.model_dump()) == op
     assert Gt.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Lt, lt_=comparison_op_operands))
+@given(op=builds(Lt, val=comparison_op_operands))
 def test_lt_from_validated_op(op: Lt):
     assert op.model_dump().keys() == {"$lt"}
     assert Lt.model_validate(op.model_dump()) == op
     assert Lt.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Gte, gte_=comparison_op_operands))
+@given(op=builds(Gte, val=comparison_op_operands))
 def test_gte_from_validated_op(op: Gte):
     assert op.model_dump().keys() == {"$gte"}
     assert Gte.model_validate(op.model_dump()) == op
     assert Gte.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Lte, lte_=comparison_op_operands))
+@given(op=builds(Lte, val=comparison_op_operands))
 def test_lte_from_validated_op(op: Lte):
     assert op.model_dump().keys() == {"$lte"}
     assert Lte.model_validate(op.model_dump()) == op
     assert Lte.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Eq, eq_=comparison_op_operands))
+@given(op=builds(Eq, val=comparison_op_operands))
 def test_eq_from_validated_op(op: Eq):
     assert op.model_dump().keys() == {"$eq"}
     assert Eq.model_validate(op.model_dump()) == op
     assert Eq.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Ne, ne_=comparison_op_operands))
+@given(op=builds(Ne, val=comparison_op_operands))
 def test_ne_from_validated_op(op: Ne):
     assert op.model_dump().keys() == {"$ne"}
     assert Ne.model_validate(op.model_dump()) == op
     assert Ne.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(In, in_=lists(comparison_op_operands)))
+@given(op=builds(In, val=lists(comparison_op_operands)))
 def test_in_from_validated_op(op: In):
     assert op.model_dump().keys() == {"$in"}
     assert In.model_validate(op.model_dump()) == op
     assert In.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(NotIn, nin_=lists(comparison_op_operands)))
+@given(op=builds(NotIn, val=lists(comparison_op_operands)))
 def test_not_in_from_validated_op(op: NotIn):
     assert op.model_dump().keys() == {"$nin"}
     assert NotIn.model_validate(op.model_dump()) == op
     assert NotIn.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Exists, exists_=booleans()))
+@given(op=builds(Exists, val=booleans()))
 def test_exists_from_validated_op(op: Exists):
     assert op.model_dump().keys() == {"$exists"}
     assert Exists.model_validate(op.model_dump()) == op
@@ -147,14 +147,14 @@ def test_exists_from_validated_op(op: Exists):
 
 
 # Evaluation ops
-@given(op=builds(Regex, regex_=printable_text))
+@given(op=builds(Regex, val=printable_text))
 def test_regex_from_validated_op(op: Regex):
     assert op.model_dump().keys() == {"$regex"}
     assert Regex.model_validate(op.model_dump()) == op
     assert Regex.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Contains, contains_=printable_text))
+@given(op=builds(Contains, val=printable_text))
 def test_contains_from_validated_op(op: Contains):
     assert op.model_dump().keys() == {"$contains"}
     assert Contains.model_validate(op.model_dump()) == op
@@ -278,20 +278,20 @@ def test_filter_dict_json_roundtrip_with_unknown_ops(orig_json: str):
 
 # ----------------------------------------------------------------------------
 def test_simplify_and_op_with_single_expr():
-    expr = FilterExpr(field="a", op=Eq(eq_=1))
+    expr = FilterExpr(field="a", op=Eq(val=1))
     orig = And(exprs=[expr])
     assert simplify_expr(orig) == expr
 
 
 def test_simplify_or_op_with_single_expr():
-    expr = FilterExpr(field="a", op=Eq(eq_=1))
+    expr = FilterExpr(field="a", op=Eq(val=1))
     orig = Or(exprs=[expr])
     assert simplify_expr(orig) == expr
 
 
 def test_simplify_and_op_with_nested_exprs():
-    expr1 = FilterExpr(field="a", op=Eq(eq_=1))
-    expr2 = FilterExpr(field="b", op=Eq(eq_=2))
+    expr1 = FilterExpr(field="a", op=Eq(val=1))
+    expr2 = FilterExpr(field="b", op=Eq(val=2))
 
     orig = And(
         exprs=[
@@ -318,8 +318,8 @@ def test_simplify_and_op_with_nested_exprs():
 
 
 def test_simplify_or_op_with_nested_exprs():
-    kept_expr1 = FilterExpr(field="a", op=Eq(eq_=1))
-    kept_expr2 = FilterExpr(field="b", op=Eq(eq_=2))
+    kept_expr1 = FilterExpr(field="a", op=Eq(val=1))
+    kept_expr2 = FilterExpr(field="b", op=Eq(val=2))
 
     orig = Or(
         exprs=[
@@ -346,8 +346,8 @@ def test_simplify_or_op_with_nested_exprs():
 
 
 def test_simplify_not_op_on_invertible_ops():
-    eq_op = Eq(eq_=1)
-    ne_op = Ne(ne_=1)
+    eq_op = Eq(val=1)
+    ne_op = Ne(val=1)
 
     assert eq_op != ne_op  # sanity check
 
@@ -360,8 +360,8 @@ def test_simplify_not_op_on_invertible_ops():
 def test_simplify_not_op_with_nested_exprs():
     expr = And(
         exprs=[
-            FilterExpr(field="a", op=Eq(eq_=1)),
-            FilterExpr(field="b", op=Eq(eq_=2)),
+            FilterExpr(field="a", op=Eq(val=1)),
+            FilterExpr(field="b", op=Eq(val=2)),
         ]
     )
 
