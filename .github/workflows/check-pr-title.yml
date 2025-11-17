@@ -33,6 +33,7 @@ jobs:
             launch
             sdk
             sweeps
+            leet
           requireScope: false
           # Ensures the subject doesn't start with an uppercase character.
           subjectPattern: ^(?![A-Z]).+$

@@ -163,6 +163,7 @@ Which part of the codebase does this change impact? Only certain scopes are perm
 | artifacts    | Artifacts                | Changes related to Artifacts                   |
 | sweeps       | Sweeps                   | Changes related to Sweeps                      |
 | launch       | Launch                   | Changes related to Launch                      |
+| leet         | LEET                     | Changes related to W&B LEET TUI                |
 
 Sometimes a change may span multiple scopes. In this case, please choose the scope that would be most relevant to the user.
 
