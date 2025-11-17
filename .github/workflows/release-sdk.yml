@@ -89,11 +89,6 @@ jobs:
           package-dir: .
           output-dir: dist
         env:
-          # In cp36-*, the wheel name sometimes includes additional dashes that
-          # make it invalid, breaking the job.
-          #
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-* cp37-*
           CIBW_ARCHS_LINUX: aarch64
           CIBW_BEFORE_ALL_LINUX: >
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
@@ -146,11 +141,6 @@ jobs:
           package-dir: .
           output-dir: dist
         env:
-          # In cp36-*, the wheel name sometimes includes additional dashes that
-          # make it invalid, breaking the job.
-          #
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-* cp37-*
           CIBW_ARCHS_LINUX: x86_64 #aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
