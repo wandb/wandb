@@ -10,7 +10,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from multiprocessing import Event
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import yaml
 
@@ -194,6 +194,27 @@ class LaunchAgent:
     def initialized(cls) -> bool:
         """Return whether the agent is initialized."""
         return cls._instance is not None
+
+    @classmethod
+    def get_active_run_ids(cls) -> Set[str]:
+        """Return set of active run-ids from the agent's job tracker.
+
+        This includes jobs that are in the process of being launched
+        (e.g., auxiliary resources created but Job not yet created).
+
+        Returns:
+            Set of run-ids for all tracked jobs
+        """
+        if cls._instance is None:
+            return set()
+
+        active_run_ids = set()
+        with cls._instance._jobs_lock:
+            for job_tracker in cls._instance._jobs.values():
+                if job_tracker.run_id:
+                    active_run_ids.add(job_tracker.run_id)
+
+        return active_run_ids
 
     def __init__(self, api: Api, config: Dict[str, Any]):
         """Initialize a launch agent.
