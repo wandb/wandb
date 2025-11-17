@@ -163,6 +163,7 @@ Which part of the codebase does this change impact? Only certain scopes are perm
 | artifacts    | Artifacts                | Changes related to Artifacts                   |
 | sweeps       | Sweeps                   | Changes related to Sweeps                      |
 | launch       | Launch                   | Changes related to Launch                      |
+| leet         | LEET                     | Changes related to W&B LEET TUI                |
 
 Sometimes a change may span multiple scopes. In this case, please choose the scope that would be most relevant to the user.
 
@@ -212,7 +213,7 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.25.3` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.25.4` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 
 ```shell
 brew install go@1.25

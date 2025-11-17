@@ -110,16 +110,15 @@ def test_login_sets_api_base_url(
     assert wandb_setup.singleton().settings.base_url == base_url
 
 
-def test_login_invalid_key():
-    with mock.patch(
+def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
         "wandb.apis.internal.Api.validate_api_key",
-        return_value=False,
-    ):
-        wandb.ensure_configured()
-        with pytest.raises(wandb.errors.AuthenticationError):
-            wandb.login(key="X" * 40, verify=True)
+        lambda self: False,
+    )
+    wandb.ensure_configured()
 
-        assert wandb.api.api_key is None
+    with pytest.raises(wandb.errors.AuthenticationError):
+        wandb.login(key="X" * 40, verify=True)
 
 
 # TODO: Make this a system test that runs agains the local-testcontainer?

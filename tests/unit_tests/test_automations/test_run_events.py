@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+from typing import Any, Iterable
 
 from hypothesis import given
-from hypothesis.strategies import DrawFn, SearchStrategy, composite, sampled_from
+from hypothesis.strategies import DrawFn, SearchStrategy, composite, lists, sampled_from
 from pytest import raises
 from wandb.automations import MetricChangeFilter, MetricThresholdFilter, RunEvent
 from wandb.automations._filters.run_metrics import Agg, MetricAgg, MetricVal
+from wandb.automations._filters.run_states import ReportedRunState
+from wandb.automations.events import StateFilter
 
 from ._strategies import (
     aggs,
@@ -16,6 +19,7 @@ from ._strategies import (
     metric_names,
     nonpos_numbers,
     pos_numbers,
+    run_states,
     window_sizes,
 )
 
@@ -96,7 +100,7 @@ def test_metric_threshold_binop_vs_method_is_equivalent(
     assert repr(metric <= threshold) == repr(metric.lte(threshold))
 
 
-def test_run_metric_threshold_cannot_be_aggregated_twice():
+def test_metric_threshold_cannot_be_aggregated_twice():
     """Check that run metric thresholds forbid multiple aggregations."""
     with raises(AttributeError):
         RunEvent.metric("my-metric").avg(5).average(10)
@@ -199,6 +203,20 @@ def test_metric_change_filter_repr(metric: MetricVal | MetricAgg, delta: float):
     assert metric_filter_repr == repr(f"{expected_lhs} decreases {delta}")
 
 
+@given(states=lists(run_states, max_size=10))
+def test_state_filter_serialization(states: list[str | ReportedRunState]):
+    """Check that a normally-instantiated `RunStateFilter` produces the expected JSON-serializable dict."""
+    # When serialized, valid states should be converted to all-caps strings and deduplicated
+    expected_state_strs = sorted(set(ReportedRunState(s).value.upper() for s in states))
+    expected_dict = {"states": expected_state_strs}
+
+    state_filter = StateFilter(states=states)
+
+    assert state_filter.model_dump() == expected_dict
+    assert json.loads(state_filter.model_dump_json()) == expected_dict
+
+
+# ---------------------------------------------------------------------------
 @given(
     name=metric_names,
     window=window_sizes,
@@ -400,3 +418,75 @@ def test_declarative_metric_change_filter_requires_positive_delta(
         metric.decreases_by(frac=invalid_delta)
     with raises(ValueError):
         metric.decreases_by(diff=invalid_delta)
+
+
+@given(state=run_states)
+def test_declarative_state_filter_on_single_valid_state(state: str | ReportedRunState):
+    """Check that a `StateFilter` on a single valid run state works as expected."""
+    assert isinstance(state, (str, ReportedRunState))  # sanity check
+
+    # When serialized, a valid state should be converted to an all-caps string
+    expected_state_str = ReportedRunState(state).value.upper()
+
+    expected_filter = StateFilter(states=[state])
+    expected_dict = {"states": [expected_state_str]}
+
+    # via the `==` operator
+    state_filter = RunEvent.state == state
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+    # via the `.eq()` method
+    state_filter = RunEvent.state.eq(state)
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+    # via the `.in_()` method
+    state_filter = RunEvent.state.in_([state])
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+
+@given(states=lists(run_states, min_size=1, max_size=10))
+def test_declarative_state_filter_on_multiple_valid_states(
+    states: list[str | ReportedRunState],
+):
+    """Check that a `StateFilter` on multiple valid run states works as expected."""
+
+    # sanity checks -- states should be an iterable of valid states, not a single state
+    assert isinstance(states, Iterable)
+    assert not isinstance(states, (str, ReportedRunState))
+
+    # When serialized, valid states should be converted to all-caps strings and deduplicated
+    expected_state_strs = sorted(set(ReportedRunState(s).value.upper() for s in states))
+
+    expected_filter = StateFilter(states=states)
+    expected_dict = {"states": expected_state_strs}
+
+    # via the `.in_()` method
+    state_filter = RunEvent.state.in_(states)
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+
+_INVALID_RUN_STATES: list[Any] = [None, 123, "", "INVALID", "not-a-real-state"]
+
+
+@given(state=sampled_from(_INVALID_RUN_STATES))
+def test_declarative_state_filter_on_single_invalid_state(state: Any):
+    """Check that a `StateFilter` on a single invalid state raises a ValueError."""
+    with raises((ValueError, TypeError)):  # via the `==` operator
+        _ = RunEvent.state == state
+
+    with raises((ValueError, TypeError)):  # via the `.eq()` method
+        _ = RunEvent.state.eq(state)
+
+    with raises((ValueError, TypeError)):  # via the `.in_()` method
+        _ = RunEvent.state.in_([state])
+
+
+@given(states=lists(sampled_from(_INVALID_RUN_STATES), min_size=1, max_size=10))
+def test_declarative_state_filter_on_multiple_invalid_states(states: list[Any]):
+    """Check that a `StateFilter` on multiple invalid states raises a ValueError."""
+    with raises(ValueError):  # via the `.in_()` method
+        _ = RunEvent.state.in_(states)

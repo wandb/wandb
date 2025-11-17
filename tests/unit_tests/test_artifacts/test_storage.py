@@ -403,7 +403,7 @@ def test_cache_add_gives_useful_error_when_out_of_space(
         with opener():
             pass
 
-    assert mock_wandb_log.warned("Cache size exceeded. Attempting to reclaim space...")
+    mock_wandb_log.assert_warned("Cache size exceeded. Attempting to reclaim space...")
 
 
 # todo: fix this test

@@ -154,7 +154,7 @@ def _sys_stderr_isatty() -> bool:
 
     Defined here for patching in tests.
     """
-    return sys.stderr.isatty()
+    return _isatty(sys.stderr)
 
 
 def _sys_stdin_isatty() -> bool:
@@ -162,7 +162,27 @@ def _sys_stdin_isatty() -> bool:
 
     Defined here for patching in tests.
     """
-    return sys.stdin.isatty()
+    return _isatty(sys.stdin)
+
+
+def _isatty(stream: object) -> bool:
+    """Returns true if the stream defines isatty and returns true for it.
+
+    This is needed because some people patch `sys.stderr` / `sys.stdin`
+    with incompatible objects, e.g. a Logger.
+
+    Args:
+        stream: An IO object like stdin or stderr.
+    """
+    isatty = getattr(stream, "isatty", None)
+
+    if not isatty or not callable(isatty):
+        return False
+
+    try:
+        return bool(isatty())
+    except TypeError:  # if isatty has required arguments
+        return False
 
 
 def _is_term_dumb() -> bool:
@@ -255,6 +275,13 @@ def _in_jupyter() -> bool:
 def can_use_terminput() -> bool:
     """Returns True if terminput won't raise a NotATerminalError."""
     if _silent or not _show_info or _is_term_dumb():
+        return False
+
+    from wandb import util
+
+    # TODO: Verify the databricks check is still necessary.
+    # Originally added to fix WB-5264.
+    if util._is_databricks():
         return False
 
     # isatty() returns false in Jupyter, but it's OK to output ANSI color

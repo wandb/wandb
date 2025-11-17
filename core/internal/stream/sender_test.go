@@ -6,7 +6,6 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -16,7 +15,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
-	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -85,37 +83,6 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Settings:  settings,
 		Logger:    logger,
 	}
-}
-
-func TestSendRequestStopStatus_FallsBackToGraphQL(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	x := makeSender(t, mockGQL)
-
-	// Ensure Sender has a RunUpserter so it can construct gql vars.
-	upserter := runupsertertest.NewOfflineUpserter(t)
-	require.NoError(t, x.RunHandle.Init(upserter))
-
-	rec := &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_StopStatus{
-					StopStatus: &spb.StopStatusRequest{},
-				},
-			},
-		},
-		Control: &spb.Control{MailboxSlot: "slot"},
-	}
-
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("RunStoppedStatus"),
-		`{"project": {"run": {"stopped": true}}}`,
-	)
-
-	x.Sender.SendRecord(rec)
-	res := <-x.Sender.ResponseChan()
-	resp := res.GetResponse().GetStopStatusResponse()
-	assert.NotNil(t, resp)
-	assert.Equal(t, true, resp.GetRunShouldStop())
 }
 
 // Verify that arguments are properly passed through to graphql

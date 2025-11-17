@@ -20,6 +20,7 @@ from wandb.automations import (
     OnCreateArtifact,
     OnLinkArtifact,
     OnRunMetric,
+    OnRunState,
     RunEvent,
     ScopeType,
     SendWebhook,
@@ -169,12 +170,13 @@ def valid_input_actions() -> list[ActionType]:
 
 
 # Invalid (event, scope) combinations that should be skipped
-@lru_cache(maxsize=None)
+@lru_cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
         (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
+        (EventType.RUN_STATE, ScopeType.ARTIFACT_COLLECTION),
     }
 
 
@@ -259,6 +261,13 @@ def on_run_metric_change(scope) -> OnRunMetric:
 
 
 @fixture
+def on_run_state(scope) -> OnRunState:
+    run_filter = RunEvent.name.contains("my-run")
+    state_filter = RunEvent.state == "failed"
+    return OnRunState(scope=scope, filter=run_filter & state_filter)
+
+
+@fixture
 def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     """An event object for defining a **new** automation."""
     event2fixture: dict[EventType, str] = {
@@ -267,6 +276,7 @@ def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
+        EventType.RUN_STATE: on_run_state.__name__,
     }
     return request.getfixturevalue(event2fixture[event_type])
 

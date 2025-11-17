@@ -20,6 +20,7 @@ import random
 import re
 import secrets
 import shlex
+import socket
 import string
 import sys
 import tarfile
@@ -1324,11 +1325,16 @@ def prompt_choices(
 ) -> str:
     """Prompt the user to choose from a list of options.
 
+    If exactly one choice is given, it is returned immediately.
+
     Raises:
         TimeoutError: if input_timeout is specified and expires.
         NotATerminalError: if the output device is not capable.
         KeyboardInterrupt: if the user aborts by pressing Ctrl+C.
     """
+    if len(choices) == 1:
+        return choices[0]
+
     for i, choice_str in enumerate(choices):
         wandb.termlog(f"({i + 1}) {choice_str}")
 
@@ -1610,6 +1616,21 @@ def _is_kaggle() -> bool:
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules
     )
+
+
+def _has_internet() -> bool:
+    """Returns whether we have internet access.
+
+    Checks for internet access by attempting to open a DNS connection to
+    Google's root servers.
+    """
+    try:
+        s = socket.create_connection(("8.8.8.8", 53), 0.5)
+        s.close()
+    except OSError:
+        return False
+
+    return True
 
 
 def _is_likely_kaggle() -> bool:

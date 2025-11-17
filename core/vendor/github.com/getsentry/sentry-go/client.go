@@ -247,7 +247,10 @@ type ClientOptions struct {
 	//   [][]int{{404}, {500}}                   // ignore status codes 404 and 500
 	//   [][]int{{404}, {400, 405}, {500, 599}}  // ignore 404, range 400-405, and range 500-599
 	//
-	// By default, this is empty and all status codes are traced.
+	// By default, this ignores 404 status codes.
+	//
+	// IMPORTANT: to not ignore any status codes, the option should be an empty slice and not nil. The nil option is
+	// used for defaulting to 404 ignores.
 	TraceIgnoreStatusCodes [][]int
 }
 
@@ -323,6 +326,10 @@ func NewClient(options ClientOptions) (*Client, error) {
 
 	if options.MaxSpans == 0 {
 		options.MaxSpans = defaultMaxSpans
+	}
+
+	if options.TraceIgnoreStatusCodes == nil {
+		options.TraceIgnoreStatusCodes = [][]int{{404}}
 	}
 
 	// SENTRYGODEBUG is a comma-separated list of key=value pairs (similar
