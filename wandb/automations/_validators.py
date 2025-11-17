@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from functools import singledispatch
-from itertools import chain
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BeforeValidator, Json, PlainSerializer
 from pydantic_core import PydanticUseDefault
@@ -11,10 +9,8 @@ from typing_extensions import Annotated
 
 from wandb._pydantic import to_json
 
-from ._filters import And, FilterExpr, In, Nor, Not, NotIn, Op, Or
-
-if TYPE_CHECKING:
-    from ._filters import MongoLikeFilter
+from ._filters import And, MongoLikeFilter, Or
+from ._filters.filterutils import simplify_expr
 
 T = TypeVar("T")
 
@@ -60,8 +56,10 @@ class LenientStrEnum(str, Enum):
 
 
 def default_if_none(v: Any) -> Any:
-    """Before validator that coerces `None` to the field default."""
-    # https://docs.pydantic.dev/2.11/api/pydantic_core/#pydantic_core.PydanticUseDefault
+    """A "before"-mode field validator that coerces `None` to the field default.
+
+    See: https://docs.pydantic.dev/2.11/api/pydantic_core/#pydantic_core.PydanticUseDefault
+    """
     if v is None:
         raise PydanticUseDefault
     return v
@@ -72,21 +70,21 @@ def upper_if_str(v: Any) -> Any:
 
 
 # ----------------------------------------------------------------------------
-def to_scope(v: Any) -> Any:
+def parse_scope(v: Any) -> Any:
     """Convert eligible objects (including wandb types) to an automation scope."""
     from wandb.apis.public import ArtifactCollection, Project
 
     from .scopes import ProjectScope, _ArtifactPortfolioScope, _ArtifactSequenceScope
 
     if isinstance(v, Project):
-        return ProjectScope(id=v.id, name=v.name)
+        return ProjectScope.model_validate(v)
     if isinstance(v, ArtifactCollection):
-        cls = _ArtifactSequenceScope if v.is_sequence() else _ArtifactPortfolioScope
-        return cls(id=v.id, name=v.name)
+        typ = _ArtifactSequenceScope if v.is_sequence() else _ArtifactPortfolioScope
+        return typ.model_validate(v)
     return v
 
 
-def to_saved_action(v: Any) -> Any:
+def parse_saved_action(v: Any) -> Any:
     """If necessary (and possible), convert the object to a saved action."""
     from .actions import (
         DoNothing,
@@ -99,21 +97,18 @@ def to_saved_action(v: Any) -> Any:
 
     if isinstance(v, SendNotification):
         return SavedNotificationAction(
-            integration={"id": v.integration_id},
-            **v.model_dump(exclude={"integration_id"}),
+            integration={"id": v.integration_id}, **v.model_dump()
         )
     if isinstance(v, SendWebhook):
         return SavedWebhookAction(
-            integration={"id": v.integration_id},
-            **v.model_dump(exclude={"integration_id"}),
+            integration={"id": v.integration_id}, **v.model_dump()
         )
     if isinstance(v, DoNothing):
-        return SavedNoOpAction.model_validate(v)
-
+        return SavedNoOpAction(**v.model_dump())
     return v
 
 
-def to_input_action(v: Any) -> Any:
+def parse_input_action(v: Any) -> Any:
     """If necessary (and possible), convert the object to an input action."""
     from .actions import (
         DoNothing,
@@ -125,76 +120,26 @@ def to_input_action(v: Any) -> Any:
     )
 
     if isinstance(v, SavedNotificationAction):
-        return SendNotification(
-            integration_id=v.integration.id,
-            **v.model_dump(exclude={"integration"}),
-        )
+        return SendNotification(integration_id=v.integration.id, **v.model_dump())
     if isinstance(v, SavedWebhookAction):
-        return SendWebhook(
-            integration_id=v.integration.id,
-            **v.model_dump(exclude={"integration"}),
-        )
+        return SendWebhook(integration_id=v.integration.id, **v.model_dump())
     if isinstance(v, SavedNoOpAction):
-        return DoNothing.model_validate(v)
-
+        return DoNothing(**v.model_dump())
     return v
 
 
 # ----------------------------------------------------------------------------
-def wrap_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
+def wrap_run_event_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
     """Wrap a run filter in an `And` operator if it's not already.
 
     This is a necessary constraint imposed elsewhere by backend/frontend code.
     """
-    f_new = simplify_op(f)
-    return f_new if isinstance(f_new, And) else And(and_=[f_new])
+    return And.wrap(simplify_expr(f))  # simplify/flatten first if needed
 
 
-@singledispatch
-def simplify_op(op: Op | FilterExpr) -> Op | FilterExpr:
-    """Simplify a MongoDB filter by removing and unnesting redundant operators."""
-    return op
+def wrap_mutation_event_filter(f: MongoLikeFilter) -> MongoLikeFilter:
+    """Wrap filters as `{"$or": [{"$and": [<original_filter>]}]}`.
 
-
-@simplify_op.register
-def _(op: And) -> Op:
-    # {"$and": []} -> {"$and": []}
-    if not (args := op.and_):
-        return op
-
-    # {"$and": [op]} -> op
-    if len(args) == 1:
-        return simplify_op(args[0])
-
-    # {"$and": [op, {"$and": [op2, ...]}]} -> {"$and": [op, op2, ...]}
-    flattened = chain.from_iterable(x.and_ if isinstance(x, And) else [x] for x in args)
-    return And(and_=map(simplify_op, flattened))
-
-
-@simplify_op.register
-def _(op: Or) -> Op:
-    # {"$or": []} -> {"$or": []}
-    if not (args := op.or_):
-        return op
-
-    # {"$or": [op]} -> op
-    if len(args) == 1:
-        return simplify_op(args[0])
-
-    # {"$or": [op, {"$or": [op2, ...]}]} -> {"$or": [op, op2, ...]}
-    flattened = chain.from_iterable(x.or_ if isinstance(x, Or) else [x] for x in args)
-    return Or(or_=map(simplify_op, flattened))
-
-
-@simplify_op.register
-def _(op: Not) -> Op:
-    inner = op.not_
-
-    # {"$not": {"$not": op}} -> op
-    # {"$not": {"$or": [op, ...]}} -> {"$nor": [op, ...]}
-    # {"$not": {"$nor": [op, ...]}} -> {"$or": [op, ...]}
-    # {"$not": {"$in": [op, ...]}} -> {"$nin": [op, ...]}
-    # {"$not": {"$nin": [op, ...]}} -> {"$in": [op, ...]}
-    if isinstance(inner, (Not, Or, Nor, In, NotIn)):
-        return simplify_op(~inner)
-    return Not(not_=simplify_op(inner))
+    This awkward format is necessary because the frontend expects it.
+    """
+    return Or.wrap(And.wrap(simplify_expr(f)))  # simplify/flatten first if needed

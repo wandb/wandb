@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Iterable
 
 from pydantic import BeforeValidator
 from typing_extensions import Annotated
@@ -59,3 +59,26 @@ class StateFilter(GQLBase):  # from: RunStateFilter
         I.e. `(run_filter & state_filter) == (state_filter & run_filter)`.
         """
         return self.__and__(other)
+
+
+class StateOperand(GQLBase):
+    """Descriptor type, returned on accessing `RunEvent.state`.
+
+    Necessary in order to handle constructing the custom structure for run state filters.
+    """
+
+    def __get__(self, obj: Any, objtype: type) -> StateOperand:
+        return self
+
+    def eq(self, state: str | ReportedRunState, /) -> StateFilter:
+        """Returns a filter that watches for `run_state == state`."""
+        return StateFilter(states=[state])
+
+    def in_(self, states: Iterable[str | ReportedRunState], /) -> StateFilter:
+        """Returns a filter that watches for `run_state in states`."""
+        return StateFilter(states=states)
+
+    def __eq__(self, other: Any) -> StateFilter:
+        if isinstance(other, (str, ReportedRunState)):
+            return self.eq(other)
+        raise TypeError(f"Invalid operand type in run state filter: {type(other)!r}")

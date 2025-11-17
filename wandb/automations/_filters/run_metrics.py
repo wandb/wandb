@@ -124,7 +124,11 @@ class BaseMetricFilter(GQLBase, ABC, extra="forbid"):
 
 
 class MetricThresholdFilter(BaseMetricFilter):  # from: RunMetricThresholdFilter
-    """Filter that compares a metric value against a user-defined threshold."""
+    """Filter that compares an **absolute** metric value against a user-defined threshold.
+
+    The value may be a single value or an aggregated result over a window of
+    multiple values.
+    """
 
     name: str
     agg: Annotated[Optional[Agg], Field(alias="agg_op")] = None
@@ -178,8 +182,8 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     """Ignored."""
 
     # ------------------------------------------------------------------------------
-    change_type: Annotated[ChangeType, Field(alias="change_type")]
-    change_dir: Annotated[ChangeDir, Field(alias="change_dir")]
+    change_type: ChangeType
+    change_dir: ChangeDir
     threshold: Annotated[PosNum, Field(alias="change_amount")]
 
     def __repr__(self) -> str:
@@ -195,7 +199,7 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
         return repr(rf"{metric} {verb} {amt}")
 
 
-class BaseMetricOperand(GQLBase, extra="forbid"):
+class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
     def gt(self, value: int | float, /) -> MetricThresholdFilter:
         """Returns a filter that watches for `metric_expr > threshold`."""
         return self > value
@@ -263,22 +267,24 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
                 metric. Must be positive. For example, `frac=0.1` denotes a 10% relative
                 increase or decrease.
         """
-        # Enforce mutually exclusive keyword args
-        if (frac is None) is (diff is None):
+        if (
+            # Enforce mutually exclusive keyword args
+            ((frac is None) and (diff is None))
+            or ((frac is not None) and (diff is not None))
+        ):
             raise ValueError("Must provide exactly one of `frac` or `diff`")
 
         # Enforce positive values
         if (frac is not None) and (frac <= 0):
-            raise ValueError(f"Expected positive quantity, got: {frac=}")
+            raise ValueError(f"Expected positive threshold, got: {frac=}")
         if (diff is not None) and (diff <= 0):
-            raise ValueError(f"Expected positive quantity, got: {diff=}")
+            raise ValueError(f"Expected positive threshold, got: {diff=}")
 
         if diff is None:
-            change_kws = dict(change_type=ChangeType.REL, threshold=frac)
-            return MetricChangeFilter(**dict(self), change_dir=_dir, **change_kws)
+            kws = dict(change_dir=_dir, change_type=ChangeType.REL, threshold=frac)
         else:
-            change_kws = dict(change_type=ChangeType.ABS, threshold=diff)
-            return MetricChangeFilter(**dict(self), change_dir=_dir, **change_kws)
+            kws = dict(change_dir=_dir, change_type=ChangeType.ABS, threshold=diff)
+        return MetricChangeFilter(**dict(self), **kws)
 
     @overload
     def increases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
@@ -308,7 +314,7 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
 
 
 class MetricVal(BaseMetricOperand):
-    """A single, unaggregated metric value for defining filters."""
+    """Represents a single metric value when defining metric event filters."""
 
     name: str
 
@@ -328,7 +334,7 @@ class MetricVal(BaseMetricOperand):
 
 
 class MetricAgg(BaseMetricOperand):
-    """Aggregated metric value for defining metric filters."""
+    """Represents an aggregated metric value when defining metric event filters."""
 
     name: str
     agg: Annotated[Agg, Field(alias="agg_op")]

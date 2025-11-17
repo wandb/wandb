@@ -7,25 +7,20 @@ from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 from pydantic import AfterValidator, Field
 from typing_extensions import Annotated, get_args
 
-from wandb._pydantic import (
-    GQLBase,
-    field_validator,
-    model_validator,
-    pydantic_isinstance,
-)
+from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
 from wandb._strutils import nameof
 
-from ._filters import And, MongoLikeFilter, Or
+from ._filters import And, MongoLikeFilter
 from ._filters.expressions import FilterableField
 from ._filters.run_metrics import MetricChangeFilter, MetricThresholdFilter, MetricVal
-from ._filters.run_states import StateFilter
+from ._filters.run_states import StateFilter, StateOperand
 from ._generated import FilterEventFields
 from ._validators import (
     JsonEncoded,
     LenientStrEnum,
     ensure_json,
-    simplify_op,
-    wrap_run_filter,
+    wrap_mutation_event_filter,
+    wrap_run_event_run_filter,
 )
 from .actions import InputAction, InputActionTypes, SavedActionTypes
 from .scopes import ArtifactCollectionScope, AutomationScope, ProjectScope
@@ -102,7 +97,7 @@ class _WrappedMetricChangeFilter(GQLBase):  # from: RunMetricFilter
 class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
     run: Annotated[
         JsonEncoded[MongoLikeFilter],
-        AfterValidator(wrap_run_filter),
+        AfterValidator(wrap_run_event_run_filter),
         Field(alias="run_filter"),
     ] = And()
     """Filters that must match any runs that will trigger this event."""
@@ -136,7 +131,7 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
 class RunStateFilter(GQLBase):  # from: TriggeringRunStateEvent
     run: Annotated[
         JsonEncoded[MongoLikeFilter],
-        AfterValidator(wrap_run_filter),
+        AfterValidator(wrap_run_event_run_filter),
         Field(alias="run_filter"),
     ] = And()
     """Filters that must match any runs that will trigger this event."""
@@ -198,18 +193,11 @@ class _BaseEventInput(GQLBase):
 # ------------------------------------------------------------------------------
 # Events that trigger on specific mutations in the backend
 class _BaseMutationEventInput(_BaseEventInput):
-    filter: JsonEncoded[MongoLikeFilter] = And()
+    filter: Annotated[
+        JsonEncoded[MongoLikeFilter],
+        AfterValidator(wrap_mutation_event_filter),
+    ] = And()
     """Additional conditions(s), if any, that are required for this event to trigger."""
-
-    @field_validator("filter", mode="after")
-    def _wrap_filter(cls, v: Any) -> Any:
-        """Wrap filters as `{"$or": [{"$and": [<original_filter>]}]}`.
-
-        This awkward format is necessary because the frontend expects it.
-        """
-        v_new = simplify_op(v)
-        v_new = v_new if pydantic_isinstance(v_new, And) else And(and_=[v_new])
-        return Or(or_=[v_new])
 
 
 class OnLinkArtifact(_BaseMutationEventInput):
@@ -384,6 +372,8 @@ class RunEvent:
     # `Run.name` is actually filtered on `Run.display_name` in the backend.
     # We can't reasonably expect users to know this a priori, so
     # automatically fix it here.
+
+    state = StateOperand()
 
     @staticmethod
     def metric(name: str) -> MetricVal:

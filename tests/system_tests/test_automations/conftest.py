@@ -27,7 +27,6 @@ from wandb.automations import (
     WebhookIntegration,
 )
 from wandb.automations._filters import FilterExpr
-from wandb.automations._filters.run_states import ReportedRunState, StateFilter
 from wandb.automations._generated import (
     CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
     CreateGenericWebhookIntegration,
@@ -171,7 +170,7 @@ def valid_input_actions() -> list[ActionType]:
 
 
 # Invalid (event, scope) combinations that should be skipped
-@lru_cache(maxsize=None)
+@lru_cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
@@ -264,8 +263,7 @@ def on_run_metric_change(scope) -> OnRunMetric:
 @fixture
 def on_run_state(scope) -> OnRunState:
     run_filter = RunEvent.name.contains("my-run")
-    # TODO: Use declarative syntax for state filter
-    state_filter = StateFilter(states=[ReportedRunState.FAILED])
+    state_filter = RunEvent.state == "failed"
     return OnRunState(scope=scope, filter=run_filter & state_filter)
 
 
