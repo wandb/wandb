@@ -9,7 +9,7 @@ from typing_extensions import Annotated
 
 from wandb._pydantic import to_json
 
-from ._filters import And, MongoLikeFilter
+from ._filters import And, MongoLikeFilter, Or
 from ._filters.filterutils import simplify_expr
 
 T = TypeVar("T")
@@ -129,10 +129,17 @@ def parse_input_action(v: Any) -> Any:
 
 
 # ----------------------------------------------------------------------------
-def wrap_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
+def wrap_run_event_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
     """Wrap a run filter in an `And` operator if it's not already.
 
     This is a necessary constraint imposed elsewhere by backend/frontend code.
     """
-    # simplify/flatten first if needed
-    return And.wrap(simplify_expr(f))
+    return And.wrap(simplify_expr(f))  # simplify/flatten first if needed
+
+
+def wrap_mutation_event_filter(f: MongoLikeFilter) -> MongoLikeFilter:
+    """Wrap filters as `{"$or": [{"$and": [<original_filter>]}]}`.
+
+    This awkward format is necessary because the frontend expects it.
+    """
+    return Or.wrap(And.wrap(simplify_expr(f)))  # simplify/flatten first if needed
