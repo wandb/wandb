@@ -23,7 +23,7 @@ from wandb.automations._filters import (
     Or,
     Regex,
 )
-from wandb.automations._validators import simplify_op
+from wandb.automations._filters.simplify import simplify_expr
 
 from ._strategies import (
     and_dicts,
@@ -280,13 +280,13 @@ def test_filter_dict_json_roundtrip_with_unknown_ops(orig_json: str):
 def test_simplify_and_op_with_single_expr():
     expr = FilterExpr(field="a", op=Eq(eq_=1))
     orig = And(exprs=[expr])
-    assert simplify_op(orig) == expr
+    assert simplify_expr(orig) == expr
 
 
 def test_simplify_or_op_with_single_expr():
     expr = FilterExpr(field="a", op=Eq(eq_=1))
     orig = Or(exprs=[expr])
-    assert simplify_op(orig) == expr
+    assert simplify_expr(orig) == expr
 
 
 def test_simplify_and_op_with_nested_exprs():
@@ -314,7 +314,7 @@ def test_simplify_and_op_with_nested_exprs():
         ],
     )
     expected = And(exprs=[expr1, expr2])
-    assert simplify_op(orig) == expected
+    assert simplify_expr(orig) == expected
 
 
 def test_simplify_or_op_with_nested_exprs():
@@ -342,7 +342,7 @@ def test_simplify_or_op_with_nested_exprs():
         ],
     )
     expected = Or(exprs=[kept_expr1, kept_expr2])
-    assert simplify_op(orig) == expected
+    assert simplify_expr(orig) == expected
 
 
 def test_simplify_not_op_on_invertible_ops():
@@ -351,8 +351,8 @@ def test_simplify_not_op_on_invertible_ops():
 
     assert eq_op != ne_op  # sanity check
 
-    assert simplify_op(Not(expr=eq_op)) == ne_op
-    assert simplify_op(Not(expr=ne_op)) == eq_op
+    assert simplify_expr(Not(expr=eq_op)) == ne_op
+    assert simplify_expr(Not(expr=ne_op)) == eq_op
 
     # TODO: Fill this in + parametrize on other negated operators
 
@@ -367,8 +367,8 @@ def test_simplify_not_op_with_nested_exprs():
 
     # An even number of nested Not ops should cancel out
     orig = Not(expr=Not(expr=Not(expr=Not(expr=expr))))
-    assert simplify_op(orig) == expr
+    assert simplify_expr(orig) == expr
 
     # An odd number of nested Not ops should keep a single Not op
     orig = Not(expr=Not(expr=Not(expr=Not(expr=Not(expr=expr)))))
-    assert simplify_op(orig) == Not(expr=expr)
+    assert simplify_expr(orig) == Not(expr=expr)

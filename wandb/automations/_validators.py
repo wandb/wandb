@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from functools import singledispatch
-from typing import Any, Iterator, TypeVar, Union
+from typing import Any, TypeVar
 
 from pydantic import BeforeValidator, Json, PlainSerializer
 from pydantic_core import PydanticUseDefault
@@ -10,20 +9,8 @@ from typing_extensions import Annotated
 
 from wandb._pydantic import to_json
 
-from ._filters import (
-    And,
-    Eq,
-    Exists,
-    FilterExpr,
-    In,
-    MongoLikeFilter,
-    Ne,
-    Nor,
-    Not,
-    NotIn,
-    Op,
-    Or,
-)
+from ._filters import And, MongoLikeFilter
+from ._filters.simplify import simplify_expr
 
 T = TypeVar("T")
 
@@ -83,7 +70,7 @@ def upper_if_str(v: Any) -> Any:
 
 
 # ----------------------------------------------------------------------------
-def as_scope(v: Any) -> Any:
+def parse_scope(v: Any) -> Any:
     """Convert eligible objects (including wandb types) to an automation scope."""
     from wandb.apis.public import ArtifactCollection, Project
 
@@ -97,7 +84,7 @@ def as_scope(v: Any) -> Any:
     return v
 
 
-def as_saved_action(v: Any) -> Any:
+def parse_saved_action(v: Any) -> Any:
     """If necessary (and possible), convert the object to a saved action."""
     from .actions import (
         DoNothing,
@@ -121,7 +108,7 @@ def as_saved_action(v: Any) -> Any:
     return v
 
 
-def as_input_action(v: Any) -> Any:
+def parse_input_action(v: Any) -> Any:
     """If necessary (and possible), convert the object to an input action."""
     from .actions import (
         DoNothing,
@@ -147,56 +134,5 @@ def wrap_run_filter(f: MongoLikeFilter) -> MongoLikeFilter:
 
     This is a necessary constraint imposed elsewhere by backend/frontend code.
     """
-    f_new = simplify_op(f)
+    f_new = simplify_expr(f)
     return f_new if isinstance(f_new, And) else And(exprs=[f_new])
-
-
-@singledispatch
-def simplify_op(op: MongoLikeFilter) -> MongoLikeFilter:
-    """Simplify a MongoDB filter by removing and unnesting redundant operators."""
-    return op
-
-
-@simplify_op.register
-def _(op: And | Or | Nor) -> MongoLikeFilter:
-    op_cls = type(op)
-
-    # Flatten the operator's inner expressions and simplify them recursively.
-    # This will ensure e.g.:
-    #   `{"$and": [op, {"$and": [op2, ...]}]} -> {"$and": [op, op2, ...]}`
-    #   `{"$or": [op, {"$or": [op2, ...]}]} -> {"$or": [op, op2, ...]}`
-    exprs = list(map(simplify_op, flatten_op_exprs(op_cls, op)))
-
-    # Simplify is a no-op for empty $and/$or operators, e.g.:
-    #   `{"$and":[]}`
-    #   `{"$or":[]}`
-    if not exprs:
-        return op
-
-    # "Unnest" single expressions inside $and/$or operators, e.g.:
-    #   `{"$and": [expr]} -> expr`
-    #   `{"$or": [expr]} -> expr`
-    if len(exprs) == 1:
-        return simplify_op(exprs[0])
-
-    return op_cls(exprs=exprs)
-
-
-@simplify_op.register
-def _(op: Not) -> MongoLikeFilter:
-    # {"$not": {"$not": op}} -> op
-    # {"$not": {"$or": [op, ...]}} -> {"$nor": [op, ...]}
-    # {"$not": {"$nor": [op, ...]}} -> {"$or": [op, ...]}
-    # {"$not": {"$in": [op, ...]}} -> {"$nin": [op, ...]}
-    # {"$not": {"$nin": [op, ...]}} -> {"$in": [op, ...]}
-    if isinstance(expr := op.expr, (Not, Or, Nor, In, NotIn, Eq, Ne, Exists)):
-        return simplify_op(~expr)
-    return Not(expr=simplify_op(expr))
-
-
-def flatten_op_exprs(
-    op_cls: type[And | Or | Nor], op: And | Or | Nor
-) -> Iterator[Union[FilterExpr, Op]]:
-    if op.exprs:
-        for x in op.exprs:
-            yield from (flatten_op_exprs(op_cls, x) if isinstance(x, op_cls) else [x])

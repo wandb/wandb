@@ -14,7 +14,7 @@ from ._generated import (
     TriggeredActionConfig,
     UpdateFilterTriggerInput,
 )
-from ._validators import as_input_action
+from ._validators import parse_input_action
 from .actions import (
     ActionType,
     DoNothing,
@@ -97,7 +97,7 @@ def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any
     - `UpdateFilterTriggerInput`
     """
     # Delegate to inner validators to convert SavedAction -> InputAction types, if needed.
-    obj = as_input_action(obj)
+    obj = parse_input_action(obj)
     return InputActionConfig(**{ACTION_CONFIG_KEYS[obj.action_type]: obj}).model_dump()
 
 

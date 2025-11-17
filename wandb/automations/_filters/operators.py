@@ -85,20 +85,21 @@ class BaseOp(GQLBase, SupportsBitwiseLogicalOps, ABC):
         yield from ((None, v) for _, v in self)
 
 
+# Base type for logical operators that take a variable number of expressions.
+class BaseVariadicLogicalOp(BaseOp):
+    exprs: TupleOf[Union[FilterExpr, Op]]
+
+
 # Logical operator(s)
 # https://www.mongodb.com/docs/manual/reference/operator/query/and/
 # https://www.mongodb.com/docs/manual/reference/operator/query/or/
 # https://www.mongodb.com/docs/manual/reference/operator/query/nor/
 # https://www.mongodb.com/docs/manual/reference/operator/query/not/
-class BaseVariadicOp(BaseOp):
-    exprs: TupleOf[Union[FilterExpr, Op]]
-
-
-class And(BaseVariadicOp):
+class And(BaseVariadicLogicalOp):
     exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$and")
 
 
-class Or(BaseVariadicOp):
+class Or(BaseVariadicLogicalOp):
     exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$or")
 
     @override
@@ -107,7 +108,7 @@ class Or(BaseVariadicOp):
         return Nor(exprs=self.exprs)
 
 
-class Nor(BaseVariadicOp):
+class Nor(BaseVariadicLogicalOp):
     exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$nor")
 
     @override

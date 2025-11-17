@@ -23,9 +23,9 @@ from ._generated import (
 from ._validators import (
     JsonEncoded,
     LenientStrEnum,
-    as_input_action,
-    as_saved_action,
     default_if_none,
+    parse_input_action,
+    parse_saved_action,
     upper_if_str,
 )
 from .integrations import SlackIntegration, WebhookIntegration
@@ -121,7 +121,7 @@ SavedAction = Annotated[
         SavedWebhookAction,
         SavedNoOpAction,
     ],
-    BeforeValidator(as_saved_action),
+    BeforeValidator(parse_saved_action),
     Field(discriminator="typename__"),
 ]
 # for runtime type checks
@@ -216,7 +216,7 @@ InputAction = Annotated[
         SendWebhook,
         DoNothing,
     ],
-    BeforeValidator(as_input_action),
+    BeforeValidator(parse_input_action),
     Field(discriminator="action_type"),
 ]
 # for runtime type checks

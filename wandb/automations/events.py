@@ -19,14 +19,9 @@ from ._filters import And, MongoLikeFilter, Or
 from ._filters.expressions import FilterableField
 from ._filters.run_metrics import MetricChangeFilter, MetricThresholdFilter, MetricVal
 from ._filters.run_states import StateFilter, StateOperand
+from ._filters.simplify import simplify_expr
 from ._generated import FilterEventFields
-from ._validators import (
-    JsonEncoded,
-    LenientStrEnum,
-    ensure_json,
-    simplify_op,
-    wrap_run_filter,
-)
+from ._validators import JsonEncoded, LenientStrEnum, ensure_json, wrap_run_filter
 from .actions import InputAction, InputActionTypes, SavedActionTypes
 from .scopes import ArtifactCollectionScope, AutomationScope, ProjectScope
 
@@ -207,7 +202,7 @@ class _BaseMutationEventInput(_BaseEventInput):
 
         This awkward format is necessary because the frontend expects it.
         """
-        v_new = simplify_op(v)
+        v_new = simplify_expr(v)
         v_new = v_new if isinstance(v_new, And) else And(exprs=[v_new])
         return Or(exprs=[v_new])
 
