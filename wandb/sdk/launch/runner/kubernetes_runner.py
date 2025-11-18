@@ -1150,6 +1150,7 @@ class KubernetesRunner(AbstractRunner):
         if "name" in resource_args:
             msg += f": {resource_args['name']}"
         _logger.info(msg)
+        sanitize_identifiers_for_k8s(job)
         try:
             response = await kubernetes_asyncio.utils.create_from_dict(
                 api_client, job, namespace=namespace
