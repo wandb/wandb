@@ -50,7 +50,7 @@ func NewTimeSeriesLineChart(params TimeSeriesLineChartParams) *TimeSeriesLineCha
 		timeserieslinechart.WithUpdateHandler(timeserieslinechart.SecondUpdateHandler(1)),
 		timeserieslinechart.WithXLabelFormatter(timeserieslinechart.HourTimeLabelFormatter()),
 		timeserieslinechart.WithYLabelFormatter(func(i int, v float64) string {
-			return FormatYLabel(v, params.Def.Unit)
+			return params.Def.Unit.Format(v)
 		}),
 		timeserieslinechart.WithXYSteps(2, 3),
 	)

@@ -17,18 +17,17 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 	}{
 		{"CPU core %", "cpu.0.cpu_percent", "CPU Core", "%"},
 		{"GPU temp", "gpu.1.temp", "GPU Temp", "°C"},
-		{"Disk per-device I/O", "disk.disk4.in", "Disk I/O Total", "MB"},
-		{"Disk write total", "disk.out", "Disk Write Total", "MB"},
-		{"RAM used GB", "memory.used", "RAM Used", "GB"},
+		{"Disk per-device I/O", "disk.disk4.in", "Disk I/O Total", "B"},
+		{"Disk write total", "disk.out", "Disk Write Total", "B"},
+		{"RAM used MB", "memory.used", "RAM Used", "B"},
 		{"System memory %", "memory_percent", "System Memory", "%"},
 		{"Network rx bytes", "network.recv", "Network Rx", "B"},
-		{"Process GPU mem bytes", "gpu.process.3.memoryAllocatedBytes", "Process GPU Memory", "GB"},
+		{"Process GPU mem bytes", "gpu.process.3.memoryAllocatedBytes", "Process GPU Memory", "B"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			def := leet.MatchMetricDef(tc.metric)
 			require.Equal(t, fmt.Sprintf("%s (%s)", tc.wantName, tc.wantUnit), def.Title(), "metric: %s", tc.metric)
-			require.Equal(t, tc.wantUnit, def.Unit, "metric: %s", tc.metric)
 		})
 	}
 }
@@ -68,47 +67,35 @@ func TestExtractSeriesName(t *testing.T) {
 	}
 }
 
-func TestFormatYLabel(t *testing.T) {
+func TestUnitFormat(t *testing.T) {
 	cases := []struct {
 		val  float64
-		unit string
+		unit leet.UnitFormatter
 		want string
 	}{
-		// Zero special-case
-		{0, "%", "0"},
-		{0, "°C", "0"},
-		{0, "MB/s", "0"},
-		// Percent
-		{9.99, "%", "9.99%"},
-		{85.5, "%", "85.5%"},
-		{100, "%", "100%"},
-		// Temperature
-		{99.9, "°C", "99.9°C"},
-		{100, "°C", "100°C"},
-		// Frequency
-		{950, "MHz", "950MHz"},
-		{2500, "MHz", "2.5GHz"},
-		// Bytes (binary prefixes)
-		{1024, "B", "1KiB"},
-		{1536, "B", "1.5KiB"},
-		// MB (cumulative, humanized to GB/TB)
-		{512, "MB", "512MiB"},
-		{1536, "MB", "1.5GiB"},
-		{1048576, "MB", "1TiB"},
-		// GB (humanized to TB)
-		{256, "GB", "256GiB"},
-		{1536, "GB", "1.5TiB"},
-		// Rates (decimal prefixes after converting to bytes/s)
-		{2048, "MB/s", "2.1GB/s"},
-		// Default units/precision
-		{0.005, "", "5m"},
-		{0.5, "", "0.5"},
-		{3.14, "", "3.1"},
-		{1200, "", "1.2k"},
-		{1200000, "", "1.2M"},
+		{0, leet.UnitPercent, "0"},
+		{9.99, leet.UnitPercent, "9.99%"},
+		{100, leet.UnitPercent, "100%"},
+		{950, leet.UnitMHz, "950MHz"},
+		{2500, leet.UnitMHz, "2.5GHz"},
+		{1024, leet.UnitBytes, "1KiB"},
+		{1536, leet.UnitBytes, "1.5KiB"},
+		{512, leet.UnitMiB, "512MiB"},
+		{1536, leet.UnitMiB, "1.5GiB"},
+		{1048576, leet.UnitMiB, "1TiB"},
+		{256, leet.UnitGiB, "256GiB"},
+		{1536, leet.UnitGiB, "1.5TiB"},
+		{2048, leet.UnitMiBps, "2.15GB/s"},
+		{0.005, leet.UnitScalar, "0.005"},
+		{0.5, leet.UnitScalar, "0.5"},
+		{3.14, leet.UnitScalar, "3.14"},
+		{-3.14, leet.UnitScalar, "-3.14"},
+		{0.0000031415, leet.UnitScalar, "3.14e-06"},
+		{1200, leet.UnitScalar, "1.2e+03"},
+		{1200000, leet.UnitScalar, "1.2e+06"},
 	}
 	for _, tc := range cases {
-		got := leet.FormatYLabel(tc.val, tc.unit)
+		got := tc.unit.Format(tc.val)
 		require.Equal(t, tc.want, got, "val: %.6g, unit: %q", tc.val, tc.unit)
 	}
 }

@@ -72,7 +72,7 @@ func NewEpochLineChart(width, height int, title string) *EpochLineChart {
 			linechart.WithXYSteps(4, 5),
 			linechart.WithAutoXRange(),
 			linechart.WithYLabelFormatter(func(i int, v float64) string {
-				return FormatYLabel(v, "")
+				return UnitScalar.Format(v)
 			}),
 		),
 		xData:      make([]float64, 0, 1000),
