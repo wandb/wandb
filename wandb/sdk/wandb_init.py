@@ -192,6 +192,9 @@ class _WandbInit:
         wandb_login._login(
             host=run_settings.base_url,
             force=run_settings.force,
+            key=run_settings.api_key,
+            # Do not save an explicitly provided API key to .netrc.
+            update_api_key=run_settings.api_key is None,
             _silent=run_settings.quiet or run_settings.silent,
         )
 

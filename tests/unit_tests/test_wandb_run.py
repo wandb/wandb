@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import wandb_sdk
+from wandb.apis import public
 
 REFERENCE_ATTRIBUTES = set(
     [
@@ -305,3 +306,39 @@ def test_new_attributes(mock_run):
     removed_attributes = REFERENCE_ATTRIBUTES - current_attributes
     assert not added_attributes, f"New attributes: {added_attributes}"
     assert not removed_attributes, f"Removed attributes: {removed_attributes}"
+
+
+def test_public_api_uses_api_key(mock_run, mocker):
+    api_key = "anything"
+
+    mock_api_class = mocker.patch.object(public, "Api")
+    mock_api_instance = mocker.MagicMock()
+    mock_api_class.return_value = mock_api_instance
+    run = mock_run(settings=wandb.Settings(api_key=api_key))
+
+    api = run._public_api()
+
+    mock_api_class.assert_called_once_with(
+        # overrides from mock_run
+        {
+            "run": None,
+            "entity": "",
+            "project": "",
+        },
+        api_key=api_key,
+    )
+    assert api is mock_api_instance
+
+
+def test_public_api_is_cached(mock_run, mocker):
+    mock_api_class = mocker.patch.object(public, "Api")
+    mock_api_instance = mocker.MagicMock()
+    mock_api_class.return_value = mock_api_instance
+    run = mock_run()
+
+    api1 = run._public_api()
+    api2 = run._public_api()
+
+    assert api1 is api2
+    assert api1 is run._cached_public_api
+    mock_api_class.assert_called_once()
