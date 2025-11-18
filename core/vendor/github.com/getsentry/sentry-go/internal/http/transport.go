@@ -33,6 +33,7 @@ const (
 var (
 	ErrTransportQueueFull = errors.New("transport queue full")
 	ErrTransportClosed    = errors.New("transport is closed")
+	ErrEmptyEnvelope      = errors.New("empty envelope provided")
 )
 
 type TransportOptions struct {
@@ -196,31 +197,15 @@ func (t *SyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
 
 func (t *SyncTransport) Close() {}
 
-func (t *SyncTransport) SendEvent(event protocol.EnvelopeConvertible) {
-	envelope, err := event.ToEnvelope(t.dsn)
-	if err != nil {
-		debuglog.Printf("Failed to convert to envelope: %v", err)
-		return
-	}
-
-	if envelope == nil {
-		debuglog.Printf("Error: event with empty envelope")
-		return
-	}
-
-	if err := t.SendEnvelope(envelope); err != nil {
-		debuglog.Printf("Error sending the envelope: %v", err)
-	}
-}
-
 func (t *SyncTransport) IsRateLimited(category ratelimit.Category) bool {
 	return t.disabled(category)
 }
 
+func (t *SyncTransport) HasCapacity() bool { return true }
+
 func (t *SyncTransport) SendEnvelopeWithContext(ctx context.Context, envelope *protocol.Envelope) error {
-	if envelope == nil {
-		debuglog.Printf("Error: provided empty envelope")
-		return nil
+	if envelope == nil || len(envelope.Items) == 0 {
+		return ErrEmptyEnvelope
 	}
 
 	category := categoryFromEnvelope(envelope)
@@ -233,6 +218,14 @@ func (t *SyncTransport) SendEnvelopeWithContext(ctx context.Context, envelope *p
 		debuglog.Printf("There was an issue creating the request: %v", err)
 		return err
 	}
+	debuglog.Printf(
+		"Sending %s [%s] to %s project: %s",
+		envelope.Items[0].Header.Type,
+		envelope.Header.EventID,
+		t.dsn.GetHost(),
+		t.dsn.GetProjectID(),
+	)
+
 	response, err := t.client.Do(request)
 	if err != nil {
 		debuglog.Printf("There was an issue with sending an event: %v", err)
@@ -354,11 +347,28 @@ func (t *AsyncTransport) start() {
 	})
 }
 
+// HasCapacity reports whether the async transport queue appears to have space
+// for at least one more envelope. This is a best-effort, non-blocking check.
+func (t *AsyncTransport) HasCapacity() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	select {
+	case <-t.done:
+		return false
+	default:
+	}
+	return len(t.queue) < cap(t.queue)
+}
+
 func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
 	select {
 	case <-t.done:
 		return ErrTransportClosed
 	default:
+	}
+
+	if envelope == nil || len(envelope.Items) == 0 {
+		return ErrEmptyEnvelope
 	}
 
 	category := categoryFromEnvelope(envelope)
@@ -368,27 +378,17 @@ func (t *AsyncTransport) SendEnvelope(envelope *protocol.Envelope) error {
 
 	select {
 	case t.queue <- envelope:
+		debuglog.Printf(
+			"Sending %s [%s] to %s project: %s",
+			envelope.Items[0].Header.Type,
+			envelope.Header.EventID,
+			t.dsn.GetHost(),
+			t.dsn.GetProjectID(),
+		)
 		return nil
 	default:
 		atomic.AddInt64(&t.droppedCount, 1)
 		return ErrTransportQueueFull
-	}
-}
-
-func (t *AsyncTransport) SendEvent(event protocol.EnvelopeConvertible) {
-	envelope, err := event.ToEnvelope(t.dsn)
-	if err != nil {
-		debuglog.Printf("Failed to convert to envelope: %v", err)
-		return
-	}
-
-	if envelope == nil {
-		debuglog.Printf("Error: event with empty envelope")
-		return
-	}
-
-	if err := t.SendEnvelope(envelope); err != nil {
-		debuglog.Printf("Error sending the envelope: %v", err)
 	}
 }
 
@@ -404,11 +404,14 @@ func (t *AsyncTransport) FlushWithContext(ctx context.Context) bool {
 	case t.flushRequest <- flushResponse:
 		select {
 		case <-flushResponse:
+			debuglog.Println("Buffer flushed successfully.")
 			return true
 		case <-ctx.Done():
+			debuglog.Println("Failed to flush, buffer timed out.")
 			return false
 		}
 	case <-ctx.Done():
+		debuglog.Println("Failed to flush, buffer timed out.")
 		return false
 	}
 }
@@ -550,10 +553,6 @@ func (t *NoopTransport) SendEnvelope(_ *protocol.Envelope) error {
 	return nil
 }
 
-func (t *NoopTransport) SendEvent(_ protocol.EnvelopeConvertible) {
-	debuglog.Println("Event dropped due to NoopTransport usage.")
-}
-
 func (t *NoopTransport) IsRateLimited(_ ratelimit.Category) bool {
 	return false
 }
@@ -569,3 +568,5 @@ func (t *NoopTransport) FlushWithContext(_ context.Context) bool {
 func (t *NoopTransport) Close() {
 	// Nothing to close
 }
+
+func (t *NoopTransport) HasCapacity() bool { return true }

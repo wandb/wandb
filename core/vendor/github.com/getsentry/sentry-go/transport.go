@@ -788,7 +788,29 @@ func (a *internalAsyncTransportAdapter) Configure(options ClientOptions) {
 }
 
 func (a *internalAsyncTransportAdapter) SendEvent(event *Event) {
-	a.transport.SendEvent(event)
+	header := &protocol.EnvelopeHeader{EventID: string(event.EventID), SentAt: time.Now(), Sdk: &protocol.SdkInfo{Name: event.Sdk.Name, Version: event.Sdk.Version}}
+	if a.dsn != nil {
+		header.Dsn = a.dsn.String()
+	}
+	if header.EventID == "" {
+		header.EventID = protocol.GenerateEventID()
+	}
+	envelope := protocol.NewEnvelope(header)
+	item, err := event.ToEnvelopeItem()
+	if err != nil {
+		debuglog.Printf("Failed to convert event to envelope item: %v", err)
+		return
+	}
+	envelope.AddItem(item)
+
+	for _, attachment := range event.Attachments {
+		attachmentItem := protocol.NewAttachmentItem(attachment.Filename, attachment.ContentType, attachment.Payload)
+		envelope.AddItem(attachmentItem)
+	}
+
+	if err := a.transport.SendEnvelope(envelope); err != nil {
+		debuglog.Printf("Error sending envelope: %v", err)
+	}
 }
 
 func (a *internalAsyncTransportAdapter) Flush(timeout time.Duration) bool {
