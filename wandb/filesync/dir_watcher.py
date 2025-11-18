@@ -8,16 +8,16 @@ import time
 from typing import TYPE_CHECKING, Any, Mapping, MutableMapping, MutableSet, Optional
 
 from wandb import util
-from wandb.sdk.interface.interface import GlobStr
+from wandb.sdk.lib.filesystem import GlobStr
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     import wandb.vendor.watchdog_0_9_0.observers.api as wd_api
     import wandb.vendor.watchdog_0_9_0.observers.polling as wd_polling
     import wandb.vendor.watchdog_0_9_0.watchdog.events as wd_events
-    from wandb.sdk.interface.interface import PolicyName
     from wandb.sdk.internal.file_pusher import FilePusher
     from wandb.sdk.internal.settings_static import SettingsStatic
+    from wandb.sdk.lib.filesystem import PolicyName
 else:
     wd_polling = util.vendor_import("wandb_watchdog.observers.polling")
     wd_events = util.vendor_import("wandb_watchdog.events")
