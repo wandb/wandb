@@ -182,6 +182,8 @@ func TestMetricsGridFilter_EdgeCases(t *testing.T) {
 			grid.ProcessHistory(tt.metrics)
 			dims := grid.CalculateChartDimensions(w, h)
 
+			// Switch to glob match mode (defaults to regex).
+			grid.ToggleFilterMode()
 			grid.ApplyFilter(tt.filter)
 			view := grid.View(dims)
 
@@ -264,4 +266,39 @@ func TestMetricsGridFilter_ConcurrentApplyAndUpdate_NoDeadlock(t *testing.T) {
 	out := grid.View(grid.CalculateChartDimensions(w, h))
 	require.NotEmpty(t, out, "grid should render")
 	require.True(t, strings.Contains(out, "Metrics"), "section header should render")
+}
+
+func TestMetricsGrid_RegexFilter(t *testing.T) {
+	w, h := 240, 80
+	grid := newMetricsGrid(t, 2, 2, w, h, nil)
+
+	d := map[string]leet.MetricData{
+		"train/loss": {X: []float64{1}, Y: []float64{0.5}},
+		"val/loss":   {X: []float64{1}, Y: []float64{0.6}},
+		"train/acc":  {X: []float64{1}, Y: []float64{0.9}},
+	}
+	grid.ProcessHistory(d)
+	dims := grid.CalculateChartDimensions(w, h)
+
+	// Default mode is regex. Filter for "ends with loss".
+	grid.ApplyFilter("loss$")
+
+	out := grid.View(dims)
+	require.Contains(t, out, "train/loss")
+	require.Contains(t, out, "val/loss")
+	require.NotContains(t, out, "train/acc")
+
+	// Toggle to glob mode.
+	grid.ToggleFilterMode()
+	grid.ApplyFilter("loss$")
+
+	out = grid.View(dims)
+	require.NotContains(t, out, "train/loss") // Glob shouldn't match regex syntax.
+
+	// Test glob syntax.
+	grid.ApplyFilter("train/*")
+	out = grid.View(dims)
+	require.Contains(t, out, "train/loss")
+	require.Contains(t, out, "train/acc")
+	require.NotContains(t, out, "val/loss")
 }

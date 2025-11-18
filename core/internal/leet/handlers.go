@@ -195,7 +195,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m.handleOverviewFilter(msg)
 	}
 
-	if m.metricsGrid.filter.inputActive {
+	if m.metricsGrid.IsFilterMode() {
 		return m.handleMetricsFilter(msg)
 	}
 
@@ -382,6 +382,10 @@ func (m *Model) handleMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyEnter:
 		m.metricsGrid.ExitFilterMode(true)
+		return m, nil
+	case tea.KeyTab, tea.KeyShiftTab:
+		// Toggle between regex and glob modes while editing.
+		m.metricsGrid.ToggleFilterMode()
 		return m, nil
 	case tea.KeyBackspace:
 		if len(m.metricsGrid.filter.draft) > 0 {

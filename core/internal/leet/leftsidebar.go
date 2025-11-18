@@ -116,7 +116,7 @@ func (s *LeftSidebar) View(height int) string {
 	}
 
 	s.height = height
-	s.calculateSectionHeights()
+	s.updateSectionHeights()
 
 	headerLines := s.buildHeaderLines()
 
@@ -235,7 +235,7 @@ func (s *LeftSidebar) updateSections() {
 		}
 	}
 
-	s.calculateSectionHeights()
+	s.updateSectionHeights()
 
 	if currentKey == "" {
 		s.selectFirstAvailableItem()

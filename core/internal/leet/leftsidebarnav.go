@@ -11,8 +11,8 @@ const (
 	sectionMinHeight = 2
 )
 
-// calculateSectionHeights dynamically allocates heights to sections.
-func (s *LeftSidebar) calculateSectionHeights() {
+// updateSectionHeights dynamically allocates heights to sections.
+func (s *LeftSidebar) updateSectionHeights() {
 	if s.height == 0 {
 		return
 	}

@@ -19,7 +19,7 @@ func (s *LeftSidebar) StartFilter() {
 func (s *LeftSidebar) UpdateFilter(query string) {
 	s.filter.draft = query
 	s.applyFilter()
-	s.calculateSectionHeights()
+	s.updateSectionHeights()
 }
 
 // ConfirmFilter applies the filter (on Enter).
@@ -27,7 +27,7 @@ func (s *LeftSidebar) ConfirmFilter() {
 	s.filter.applied = s.filter.draft
 	s.filter.inputActive = false
 	s.applyFilter()
-	s.calculateSectionHeights()
+	s.updateSectionHeights()
 }
 
 // CancelFilter cancels the current filter input and restores the previous state.
@@ -40,7 +40,7 @@ func (s *LeftSidebar) CancelFilter() {
 		s.filter.draft = ""
 	}
 	s.applyFilter()
-	s.calculateSectionHeights()
+	s.updateSectionHeights()
 }
 
 // IsFilterMode returns true if the sidebar is currently in filter input mode.
@@ -103,7 +103,7 @@ func (s *LeftSidebar) clearFilter() {
 		s.sections[i].FilterMatches = 0
 	}
 
-	s.calculateSectionHeights()
+	s.updateSectionHeights()
 }
 
 // applyFilter filters items based on current filter query.

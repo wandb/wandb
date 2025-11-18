@@ -567,3 +567,8 @@ func (mg *MetricsGrid) HandleWheel(
 	chart.HandleZoom(direction, relativeMouseX)
 	chart.DrawIfNeeded()
 }
+
+// IsFilterMode returns true if the metrics grid is currently in filter input mode.
+func (mg *MetricsGrid) IsFilterMode() bool {
+	return mg.filter.inputActive
+}
