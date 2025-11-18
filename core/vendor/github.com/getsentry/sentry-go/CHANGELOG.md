@@ -1,8 +1,29 @@
 # Changelog
 
-## Unreleased Changes 
+## 0.38.0
 
 ### Breaking Changes
+
+### Features
+
+- Introduce a new async envelope transport and telemetry buffer to prioritize and batch events ([#1094](https://github.com/getsentry/sentry-go/pull/1094), [#1093](https://github.com/getsentry/sentry-go/pull/1093), [#1107](https://github.com/getsentry/sentry-go/pull/1107)).
+  - Advantages:
+    - Prioritized, per-category buffers (errors, transactions, logs, check-ins) reduce starvation and improve resilience under load
+    - Batching for high-volume logs (up to 100 items or 5s) cuts network overhead
+    - Bounded memory with eviction policies
+    - Improved flush behavior with context-aware flushing
+- Add `ClientOptions.DisableTelemetryBuffer` to opt out and fall back to the legacy transport layer (`HTTPTransport` / `HTTPSyncTransport`).
+  
+  ```go
+  err := sentry.Init(sentry.ClientOptions{
+    Dsn: "__DSN__",
+    DisableTelemetryBuffer: true, // fallback to legacy transport
+  })
+  ```
+
+### Notes
+
+- If a custom `Transport` is provided, the SDK automatically disables the telemetry buffer and uses the legacy transport for compatibility.
 
 ## 0.37.0
 

@@ -15,6 +15,10 @@ import (
 
 	"github.com/getsentry/sentry-go/internal/debug"
 	"github.com/getsentry/sentry-go/internal/debuglog"
+	httpInternal "github.com/getsentry/sentry-go/internal/http"
+	"github.com/getsentry/sentry-go/internal/protocol"
+	"github.com/getsentry/sentry-go/internal/ratelimit"
+	"github.com/getsentry/sentry-go/internal/telemetry"
 )
 
 // The identifier of the SDK.
@@ -252,6 +256,8 @@ type ClientOptions struct {
 	// IMPORTANT: to not ignore any status codes, the option should be an empty slice and not nil. The nil option is
 	// used for defaulting to 404 ignores.
 	TraceIgnoreStatusCodes [][]int
+	// DisableTelemetryBuffer disables the telemetry buffer layer for prioritizing events and uses the old transport layer.
+	DisableTelemetryBuffer bool
 }
 
 // Client is the underlying processor that is used by the main API and Hub
@@ -266,8 +272,9 @@ type Client struct {
 	sdkVersion      string
 	// Transport is read-only. Replacing the transport of an existing client is
 	// not supported, create a new client instead.
-	Transport   Transport
-	batchLogger *BatchLogger
+	Transport       Transport
+	batchLogger     *BatchLogger
+	telemetryBuffer *telemetry.Buffer
 }
 
 // NewClient creates and returns an instance of Client configured using
@@ -371,12 +378,15 @@ func NewClient(options ClientOptions) (*Client, error) {
 		sdkVersion:    SDKVersion,
 	}
 
-	if options.EnableLogs {
+	client.setupTransport()
+
+	if !options.DisableTelemetryBuffer {
+		client.setupTelemetryBuffer()
+	} else if options.EnableLogs {
 		client.batchLogger = NewBatchLogger(&client)
 		client.batchLogger.Start()
 	}
 
-	client.setupTransport()
 	client.setupIntegrations()
 
 	return &client, nil
@@ -396,6 +406,52 @@ func (client *Client) setupTransport() {
 
 	transport.Configure(opts)
 	client.Transport = transport
+}
+
+func (client *Client) setupTelemetryBuffer() {
+	if client.options.DisableTelemetryBuffer {
+		return
+	}
+
+	if client.dsn == nil {
+		debuglog.Println("Telemetry buffer disabled: no DSN configured")
+		return
+	}
+
+	// We currently disallow using custom Transport with the new Telemetry Buffer, due to the difference in transport signatures.
+	// The option should be enabled when the new Transport interface signature changes.
+	if client.options.Transport != nil {
+		debuglog.Println("Cannot enable Telemetry Buffer with custom Transport: fallback to old transport")
+		if client.options.EnableLogs {
+			client.batchLogger = NewBatchLogger(client)
+			client.batchLogger.Start()
+		}
+		return
+	}
+
+	transport := httpInternal.NewAsyncTransport(httpInternal.TransportOptions{
+		Dsn:           client.options.Dsn,
+		HTTPClient:    client.options.HTTPClient,
+		HTTPTransport: client.options.HTTPTransport,
+		HTTPProxy:     client.options.HTTPProxy,
+		HTTPSProxy:    client.options.HTTPSProxy,
+		CaCerts:       client.options.CaCerts,
+	})
+	client.Transport = &internalAsyncTransportAdapter{transport: transport}
+
+	storage := map[ratelimit.Category]telemetry.Storage[protocol.EnvelopeItemConvertible]{
+		ratelimit.CategoryError:       telemetry.NewRingBuffer[protocol.EnvelopeItemConvertible](ratelimit.CategoryError, 100, telemetry.OverflowPolicyDropOldest, 1, 0),
+		ratelimit.CategoryTransaction: telemetry.NewRingBuffer[protocol.EnvelopeItemConvertible](ratelimit.CategoryTransaction, 1000, telemetry.OverflowPolicyDropOldest, 1, 0),
+		ratelimit.CategoryLog:         telemetry.NewRingBuffer[protocol.EnvelopeItemConvertible](ratelimit.CategoryLog, 10*100, telemetry.OverflowPolicyDropOldest, 100, 5*time.Second),
+		ratelimit.CategoryMonitor:     telemetry.NewRingBuffer[protocol.EnvelopeItemConvertible](ratelimit.CategoryMonitor, 100, telemetry.OverflowPolicyDropOldest, 1, 0),
+	}
+
+	sdkInfo := &protocol.SdkInfo{
+		Name:    client.sdkIdentifier,
+		Version: client.sdkVersion,
+	}
+
+	client.telemetryBuffer = telemetry.NewBuffer(storage, transport, &client.dsn.Dsn, sdkInfo)
 }
 
 func (client *Client) setupIntegrations() {
@@ -538,7 +594,7 @@ func (client *Client) RecoverWithContext(
 // the network synchronously, configure it to use the HTTPSyncTransport in the
 // call to Init.
 func (client *Client) Flush(timeout time.Duration) bool {
-	if client.batchLogger != nil {
+	if client.batchLogger != nil || client.telemetryBuffer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		return client.FlushWithContext(ctx)
@@ -562,6 +618,9 @@ func (client *Client) FlushWithContext(ctx context.Context) bool {
 	if client.batchLogger != nil {
 		client.batchLogger.Flush(ctx.Done())
 	}
+	if client.telemetryBuffer != nil {
+		return client.telemetryBuffer.FlushWithContext(ctx)
+	}
 	return client.Transport.FlushWithContext(ctx)
 }
 
@@ -570,6 +629,12 @@ func (client *Client) FlushWithContext(ctx context.Context) bool {
 // Close should be called after Flush and before terminating the program
 // otherwise some events may be lost.
 func (client *Client) Close() {
+	if client.telemetryBuffer != nil {
+		client.telemetryBuffer.Close(5 * time.Second)
+	}
+	if client.batchLogger != nil {
+		client.batchLogger.Shutdown()
+	}
 	client.Transport.Close()
 }
 
@@ -690,7 +755,13 @@ func (client *Client) processEvent(event *Event, hint *EventHint, scope EventMod
 		}
 	}
 
-	client.Transport.SendEvent(event)
+	if client.telemetryBuffer != nil {
+		if !client.telemetryBuffer.Add(event) {
+			debuglog.Println("Event dropped: telemetry buffer full or unavailable")
+		}
+	} else {
+		client.Transport.SendEvent(event)
+	}
 
 	return &event.EventID
 }

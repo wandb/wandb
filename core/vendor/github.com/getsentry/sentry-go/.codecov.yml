@@ -16,3 +16,4 @@ coverage:
         informational: true
 ignore:
   - "log_fallback.go"
+  - "internal/testutils"
