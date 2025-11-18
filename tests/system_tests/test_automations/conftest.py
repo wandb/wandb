@@ -33,6 +33,8 @@ from wandb.automations._generated import (
 )
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb_gql import gql
 
 ScopableWandbType: TypeAlias = Union[ArtifactCollection, Project]
@@ -99,6 +101,9 @@ def registry(user, api, make_name) -> Registry:
 @fixture(scope="module")
 def registry(user, api, make_name) -> Registry:
     """A wandb Registry for tests in this module."""
+    if not server_supports(api.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION):
+        skip("Cannot create a test registry on this server version.")
+
     # Create the project first if it doesn't exist yet
     name = make_name("test-registry")
     api.create_registry(name=name, visibility="organization")
