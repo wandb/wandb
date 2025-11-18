@@ -289,7 +289,7 @@ class OnRunMetric(_BaseRunEventInput):
 
         ```python
         from wandb import Api
-        from wandb.automations import OnRunMetric
+        from wandb.automations import OnRunMetric, RunEvent
 
         api = Api()
         project = api.project(name="my-project")
