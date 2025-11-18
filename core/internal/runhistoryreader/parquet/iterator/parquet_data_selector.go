@@ -167,6 +167,8 @@ func (sr *SelectedRows) GetRowGroupIndices() ([]int, error) {
 	return rowGroupIndices, nil
 }
 
+// IsRowGreaterThanMinValue checks if the current row within a row group
+// is greater than the min value for the selected range.
 func (sr *SelectedRows) IsRowGreaterThanMinValue(
 	columnIterators map[string]keyIteratorPair,
 ) bool {
@@ -198,6 +200,8 @@ func (sr *SelectedRows) IsRowGreaterThanMinValue(
 
 }
 
+// IsRowLessThanMaxValue checks if the current row within a row group
+// is less than the max value for the selected range.
 func (sr *SelectedRows) IsRowLessThanMaxValue(
 	columnIterators map[string]keyIteratorPair,
 ) bool {
@@ -223,40 +227,6 @@ func (sr *SelectedRows) IsRowLessThanMaxValue(
 			return false
 		}
 		return colValue < float64(sr.maxValue)
-	default:
-		return false
-	}
-}
-
-// IsRowValid checks if the current row within a row group
-// is valid based on SelectedRows min and max values.
-func (sr *SelectedRows) IsRowValid(
-	columnIterators map[string]keyIteratorPair,
-) bool {
-	if sr.selectAll {
-		return true
-	}
-
-	indexColumnIterator := columnIterators[sr.indexKey].Iterator
-	if indexColumnIterator == nil {
-		return false
-	}
-
-	switch indexColumnIterator.Value().(type) {
-	case int64:
-		minValue := int64(sr.minValue)
-		maxValue := int64(sr.maxValue)
-		colValue, ok := indexColumnIterator.Value().(int64)
-		if !ok {
-			return false
-		}
-		return colValue >= minValue && colValue < maxValue
-	case float64:
-		colValue, ok := indexColumnIterator.Value().(float64)
-		if !ok {
-			return false
-		}
-		return colValue >= sr.minValue && colValue < sr.maxValue
 	default:
 		return false
 	}
