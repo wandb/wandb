@@ -6,6 +6,7 @@ __all__ = [
     "ADD_ARTIFACT_COLLECTION_TAGS_GQL",
     "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_BY_NAME_GQL",
+    "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
     "ARTIFACT_CREATED_BY_GQL",
@@ -78,17 +79,43 @@ mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
   result: updateArtifactSequence(input: $input) {
     artifactCollection {
       __typename
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
 
-fragment ArtifactCollectionSummary on ArtifactCollection {
+fragment ArtifactCollectionFragment on ArtifactCollection {
   __typename
   id
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  type: defaultArtifactType {
+    name
+  }
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+}
+
+fragment ProjectInfoFragment on Project {
+  name
+  entity {
+    name
+  }
+}
+
+fragment TagFragment on Tag {
+  __typename
+  id
+  name
 }
 """
 
@@ -97,17 +124,43 @@ mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
   result: updateArtifactPortfolio(input: $input) {
     artifactCollection {
       __typename
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
 
-fragment ArtifactCollectionSummary on ArtifactCollection {
+fragment ArtifactCollectionFragment on ArtifactCollection {
   __typename
   id
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  type: defaultArtifactType {
+    name
+  }
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+}
+
+fragment ProjectInfoFragment on Project {
+  name
+  entity {
+    name
+  }
+}
+
+fragment TagFragment on Tag {
+  __typename
+  id
+  name
 }
 """
 
@@ -116,17 +169,43 @@ mutation UpdateArtifactSequenceType($input: MoveArtifactSequenceInput!) {
   result: moveArtifactSequence(input: $input) {
     artifactCollection {
       __typename
-      ...ArtifactCollectionSummary
+      ...ArtifactCollectionFragment
     }
   }
 }
 
-fragment ArtifactCollectionSummary on ArtifactCollection {
+fragment ArtifactCollectionFragment on ArtifactCollection {
   __typename
   id
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  type: defaultArtifactType {
+    name
+  }
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+}
+
+fragment ProjectInfoFragment on Project {
+  name
+  entity {
+    name
+  }
+}
+
+fragment TagFragment on Tag {
+  __typename
+  id
+  name
 }
 """
 
@@ -155,7 +234,7 @@ mutation DeleteArtifactCollectionTags($input: DeleteArtifactCollectionTagAssignm
 """
 
 PROJECT_ARTIFACT_COLLECTIONS_GQL = """
-query ProjectArtifactCollections($entity: String!, $project: String!, $artifactType: String!, $cursor: String, $aliasesCursor: String, $aliasesPerPage: Int = 0, $includeAliases: Boolean = false) {
+query ProjectArtifactCollections($entity: String!, $project: String!, $artifactType: String!, $cursor: String) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $artifactType) {
       artifactCollections: artifactCollections(after: $cursor) {
@@ -174,12 +253,6 @@ query ProjectArtifactCollections($entity: String!, $project: String!, $artifactT
   }
 }
 
-fragment ArtifactAliasFragment on ArtifactAlias {
-  __typename
-  id
-  alias
-}
-
 fragment ArtifactCollectionFragment on ArtifactCollection {
   __typename
   id
@@ -196,13 +269,6 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
     edges {
       node {
         ...TagFragment
-      }
-    }
-  }
-  aliases(after: $aliasesCursor, first: $aliasesPerPage) @include(if: $includeAliases) {
-    edges {
-      node {
-        ...ArtifactAliasFragment
       }
     }
   }
@@ -229,7 +295,7 @@ fragment TagFragment on Tag {
 """
 
 PROJECT_ARTIFACT_COLLECTION_GQL = """
-query ProjectArtifactCollection($entity: String!, $project: String!, $artifactType: String!, $name: String!, $aliasesCursor: String, $aliasesPerPage: Int = 1000, $includeAliases: Boolean = true) {
+query ProjectArtifactCollection($entity: String!, $project: String!, $artifactType: String!, $name: String!) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $artifactType) {
       artifactCollection: artifactCollection(name: $name) {
@@ -238,12 +304,6 @@ query ProjectArtifactCollection($entity: String!, $project: String!, $artifactTy
       }
     }
   }
-}
-
-fragment ArtifactAliasFragment on ArtifactAlias {
-  __typename
-  id
-  alias
 }
 
 fragment ArtifactCollectionFragment on ArtifactCollection {
@@ -265,13 +325,6 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
       }
     }
   }
-  aliases(after: $aliasesCursor, first: $aliasesPerPage) @include(if: $includeAliases) {
-    edges {
-      node {
-        ...ArtifactAliasFragment
-      }
-    }
-  }
 }
 
 fragment ProjectInfoFragment on Project {
@@ -285,6 +338,36 @@ fragment TagFragment on Tag {
   __typename
   id
   name
+}
+"""
+
+ARTIFACT_COLLECTION_ALIASES_GQL = """
+query ArtifactCollectionAliases($id: ID!, $cursor: String, $perPage: Int = 1000) {
+  artifactCollection(id: $id) {
+    __typename
+    aliases(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...ArtifactAliasFragment
+        }
+      }
+    }
+  }
+}
+
+fragment ArtifactAliasFragment on ArtifactAlias {
+  __typename
+  id
+  alias
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
@@ -1550,12 +1633,6 @@ query RegistryCollections($organization: String!, $registryFilter: JSONString, $
   }
 }
 
-fragment ArtifactAliasFragment on ArtifactAlias {
-  __typename
-  id
-  alias
-}
-
 fragment PageInfoFragment on PageInfo {
   __typename
   endCursor
@@ -1585,13 +1662,6 @@ fragment RegistryCollectionFragment on ArtifactCollection {
     edges {
       node {
         ...TagFragment
-      }
-    }
-  }
-  aliases {
-    edges {
-      node {
-        ...ArtifactAliasFragment
       }
     }
   }

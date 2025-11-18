@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactCollectionSummary
+from .fragments import ArtifactCollectionFragment
 
 
 class UpdateArtifactPortfolio(GQLResult):
@@ -17,7 +17,7 @@ class UpdateArtifactPortfolio(GQLResult):
 
 
 class UpdateArtifactPortfolioResult(GQLResult):
-    artifact_collection: ArtifactCollectionSummary = Field(alias="artifactCollection")
+    artifact_collection: ArtifactCollectionFragment = Field(alias="artifactCollection")
 
 
 UpdateArtifactPortfolio.model_rebuild()

@@ -81,13 +81,6 @@ fragment RegistryCollectionFragment on ArtifactCollection {
       }
     }
   }
-  aliases {
-    edges {
-      node {
-        ...ArtifactAliasFragment
-      }
-    }
-  }
 }
 
 query FetchRegistry($name: String, $entity: String) {

@@ -43,7 +43,6 @@ class ArtifactCollectionFragment(GQLResult):
     project: Optional[ProjectInfoFragment]
     type: ArtifactCollectionFragmentType
     tags: ArtifactCollectionFragmentTags
-    aliases: Optional[ArtifactCollectionFragmentAliases] = None
 
 
 class ArtifactCollectionFragmentType(GQLResult):
@@ -56,22 +55,6 @@ class ArtifactCollectionFragmentTags(GQLResult):
 
 class ArtifactCollectionFragmentTagsEdges(GQLResult):
     node: TagFragment
-
-
-class ArtifactCollectionFragmentAliases(GQLResult):
-    edges: List[ArtifactCollectionFragmentAliasesEdges]
-
-
-class ArtifactCollectionFragmentAliasesEdges(GQLResult):
-    node: Optional[ArtifactAliasFragment]
-
-
-class ArtifactCollectionSummary(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
-    id: GQLId
-    name: str
-    description: Optional[str]
-    created_at: str = Field(alias="createdAt")
 
 
 class CollectionInfoFragment(GQLResult):
@@ -207,7 +190,6 @@ class RegistryCollectionFragment(GQLResult):
     project: Optional[ProjectInfoFragment]
     type: RegistryCollectionFragmentType
     tags: RegistryCollectionFragmentTags
-    aliases: RegistryCollectionFragmentAliases
 
 
 class RegistryCollectionFragmentType(GQLResult):
@@ -220,14 +202,6 @@ class RegistryCollectionFragmentTags(GQLResult):
 
 class RegistryCollectionFragmentTagsEdges(GQLResult):
     node: TagFragment
-
-
-class RegistryCollectionFragmentAliases(GQLResult):
-    edges: List[RegistryCollectionFragmentAliasesEdges]
-
-
-class RegistryCollectionFragmentAliasesEdges(GQLResult):
-    node: Optional[ArtifactAliasFragment]
 
 
 class RegistryFragment(GQLResult):
@@ -374,7 +348,6 @@ ArtifactAliasFragment.model_rebuild()
 ProjectInfoFragment.model_rebuild()
 TagFragment.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
-ArtifactCollectionSummary.model_rebuild()
 CollectionInfoFragment.model_rebuild()
 SourceCollectionInfoFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
