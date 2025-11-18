@@ -134,6 +134,8 @@ func (h *HistoryReader) GetHistorySteps(
 		}
 	}
 
+	// Update the query range. For consecutive ranges, the iterator will continue
+	// from the current position. For non-consecutive, it will reset.
 	for _, partition := range h.partitions {
 		parquetDataIterator, ok := partition.(*iterator.ParquetDataIterator)
 		if !ok {
@@ -147,12 +149,12 @@ func (h *HistoryReader) GetHistorySteps(
 	}
 
 	multiIterator := iterator.NewMultiIterator(h.partitions)
-	defer multiIterator.Release()
-
 	for {
 		next, err := multiIterator.Next()
 		if err != nil {
-			return nil, err
+			if err != iterator.ErrRowExceedsMaxValue {
+				return nil, err
+			}
 		}
 		if !next {
 			results = append(results, liveHistory...)
@@ -245,19 +247,24 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 	for i, url := range signedUrls {
 		var parquetFile *pqarrow.FileReader
 
-		// When the user doesn't specify any keys,
-		// It is faster to download the entire parquet file
-		// and process it locally.
-		if len(h.keys) == 0 {
-			tmpDir := os.TempDir()
-			fileName := fmt.Sprintf("run_history_%d.parquet", i)
+		tmpDir := os.TempDir()
+		fileName := fmt.Sprintf("run_history_%s_%s_%s_%d.parquet", h.entity, h.project, h.runId, i)
+		parquetFilePath := filepath.Join(tmpDir, fileName)
 
-			err := h.downloadRunHistoryFile(url, tmpDir, fileName)
+		if _, err := os.Stat(parquetFilePath); err == nil {
+			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
+			if err != nil {
+				return err
+			}
+		} else if len(h.keys) == 0 {
+			// When the user doesn't specify any keys,
+			// It is faster to download the entire parquet file
+			// and process it locally.
+			err = h.downloadRunHistoryFile(url, tmpDir, fileName)
 			if err != nil {
 				return err
 			}
 
-			parquetFilePath := filepath.Join(tmpDir, fileName)
 			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
 			if err != nil {
 				return err

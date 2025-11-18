@@ -1,10 +1,13 @@
 package iterator
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/apache/arrow-go/v18/arrow"
 )
+
+var ErrRowExceedsMaxValue = errors.New("row exceeds max value")
 
 type keyIteratorPair struct {
 	Key      string
@@ -19,6 +22,10 @@ type RowGroupIterator struct {
 
 	selectedRows    *SelectedRows
 	selectedColumns *SelectedColumns
+
+	// hasValueFromLastScan indicates whether the iterator currently has a valid value
+	// that should be checked before advancing
+	hasValueFromLastScan bool
 }
 
 func NewRowGroupIterator(
@@ -93,6 +100,23 @@ func (t *RowGroupIterator) Next() (bool, error) {
 	// Clear the cached value for the row before advancing.
 	t.cachedValue = nil
 
+	// If we have a value from a previous scan iteration,
+	// check if it's valid for the current scan range before advancing
+	if t.hasValueFromLastScan {
+		t.hasValueFromLastScan = false
+
+		valid, err := t.checkRowValidity()
+		if err != nil {
+			return false, err
+		}
+		if valid {
+			hasAllColumns := t.checkRowHasAllColumns()
+			if hasAllColumns {
+				return true, nil
+			}
+		}
+	}
+
 RowSearch:
 	for {
 		for _, c := range t.columns {
@@ -101,20 +125,17 @@ RowSearch:
 			}
 		}
 
-		if !t.selectedRows.IsRowGreaterThanMinValue(t.columns) {
-			continue
+		validRow, err := t.checkRowValidity()
+		if err != nil {
+			return false, err
 		}
-		if !t.selectedRows.IsRowLessThanMaxValue(t.columns) {
-			return false, nil
+		if !validRow {
+			continue RowSearch
 		}
 
-		// Only return the row if it has all the selected columns
-		if !t.selectedColumns.selectAll {
-			for k := range t.selectedColumns.GetRequestedColumns() {
-				if t.columns[k].Iterator.Value() == nil {
-					continue RowSearch
-				}
-			}
+		hasAllColumns := t.checkRowHasAllColumns()
+		if !hasAllColumns {
+			continue RowSearch
 		}
 
 		return true, nil
@@ -141,4 +162,30 @@ func (t *RowGroupIterator) Value() KeyValueList {
 // Release implements RowIterator.Release.
 func (t *RowGroupIterator) Release() {
 	t.recordBatch.Release()
+}
+
+func (t *RowGroupIterator) checkRowValidity() (bool, error) {
+	if !t.selectedRows.IsRowGreaterThanMinValue(t.columns) {
+		return false, nil
+	}
+
+	if !t.selectedRows.IsRowLessThanMaxValue(t.columns) {
+		// Mark that we have a valid value for the next iteration
+		t.hasValueFromLastScan = true
+		return false, ErrRowExceedsMaxValue
+	}
+
+	return true, nil
+}
+
+func (t *RowGroupIterator) checkRowHasAllColumns() bool {
+	if t.selectedColumns.selectAll {
+		return true
+	}
+	for k := range t.selectedColumns.GetRequestedColumns() {
+		if t.columns[k].Iterator.Value() == nil {
+			return false
+		}
+	}
+	return true
 }
