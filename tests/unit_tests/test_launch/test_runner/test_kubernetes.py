@@ -2314,3 +2314,149 @@ async def test_runner_cleanup_on_job_creation_failure_due_to_long_name(
     # Verify that delete methods were called for auxiliary resources
     mock_apps_api.delete_namespaced_deployment.assert_called()
     mock_network_api.delete_namespaced_network_policy.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_runner_secrets_not_sanitized_in_secret_refs(
+    monkeypatch,
+    mock_batch_api,
+    mock_core_api,
+    mock_apps_api,
+    mock_network_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    clean_agent,
+    clean_monitor,
+):
+    """Test that secret names and keys in secretKeyRef are not sanitized."""
+
+    # Capture the job spec passed to create_from_dict
+    captured_job_spec = None
+
+    async def mock_create_from_dict(k8s_client, yaml_objects, **kwargs):
+        nonlocal captured_job_spec
+        # yaml_objects can be a single dict or a list
+        if isinstance(yaml_objects, dict) and yaml_objects.get("kind") == "Job":
+            captured_job_spec = yaml_objects
+        elif isinstance(yaml_objects, list):
+            for obj in yaml_objects:
+                if isinstance(obj, dict) and obj.get("kind") == "Job":
+                    captured_job_spec = obj
+                    break
+        # Return mock response - create_from_dict returns a list of created objects
+        mock_job = MagicMock()
+        mock_job.metadata = MagicMock()
+        mock_job.metadata.name = "test-job"
+        return [mock_job]
+
+    monkeypatch.setattr(
+        "kubernetes_asyncio.utils.create_from_dict",
+        mock_create_from_dict,
+    )
+
+    # Mock helper functions
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.ensure_api_key_secret",
+        AsyncMock(return_value=None),
+    )
+
+    # Create a mock secret (should NOT be sanitized in refs)
+    mock_secret = MagicMock()
+    mock_secret.metadata = MagicMock()
+    mock_secret.metadata.name = "wandb-secrets-test-run-id"
+    mock_secret.metadata.namespace = "default"
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_wandb_team_secrets_secret",
+        AsyncMock(return_value=mock_secret),
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.ensure_initialized",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.monitor_namespace",
+        MagicMock(),
+    )
+
+    # Create launch project with secrets that have special characters
+    launch_project = MagicMock()
+    launch_project.target_entity = "test-entity"
+    launch_project.target_project = "test-project"
+    launch_project.run_id = "test-run-id"
+    launch_project.name = "test-name"
+    launch_project.author = "test-author"
+    launch_project.resource_args = {"kubernetes": {"kind": "Job"}}
+    launch_project.launch_spec = {"_resume_count": 0}
+    launch_project.override_args = []
+    launch_project.override_entrypoint = None
+    launch_project.get_single_entry_point.return_value = None
+    launch_project.fill_macros = lambda image_uri: {"kubernetes": {"kind": "Job"}}
+    launch_project.docker_config = {}
+    launch_project.job_base_image = None
+    launch_project.get_env_vars_dict = lambda _, __: {}
+
+    # Secrets with underscores and uppercase - these should NOT be sanitized in secretKeyRef
+    launch_project.get_secrets_dict = lambda: {
+        "DATABASE_URL": "postgresql://user:pass@localhost/db",
+        "API_SECRET_KEY": "secret123",
+        "DEBUG_MODE": "true",
+    }
+
+    # Create the runner
+    api = MagicMock()
+    environment = MagicMock()
+    registry = MagicMock()
+    backend_config = {"SYNCHRONOUS": False}
+
+    runner = KubernetesRunner(api, backend_config, environment, registry)
+
+    # Run the job
+    submitted_run = await runner.run(launch_project, "test-image:latest")
+    assert submitted_run is not None
+
+    # Verify job spec was captured
+    assert captured_job_spec is not None, "Job spec should have been captured"
+
+    # Get the container env vars
+    container_env = captured_job_spec["spec"]["template"]["spec"]["containers"][0][
+        "env"
+    ]
+
+    # Verify that secretKeyRef entries exist and are NOT sanitized
+    expected_secret_refs = [
+        {
+            "name": "DATABASE_URL",  # Should remain uppercase with underscore
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": "wandb-secrets-test-run-id",  # Secret name unchanged
+                    "key": "DATABASE_URL",  # Key should remain uppercase with underscore
+                }
+            },
+        },
+        {
+            "name": "API_SECRET_KEY",  # Should remain uppercase with underscore
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": "wandb-secrets-test-run-id",
+                    "key": "API_SECRET_KEY",  # Key should remain uppercase with underscore
+                }
+            },
+        },
+        {
+            "name": "DEBUG_MODE",  # Should remain uppercase with underscore
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": "wandb-secrets-test-run-id",
+                    "key": "DEBUG_MODE",  # Key should remain uppercase with underscore
+                }
+            },
+        },
+    ]
+
+    # Verify each expected secret ref is in the container env
+    for expected_ref in expected_secret_refs:
+        assert expected_ref in container_env, (
+            f"Expected secret ref {expected_ref} not found in container env"
+        )
