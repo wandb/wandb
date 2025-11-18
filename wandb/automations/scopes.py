@@ -68,7 +68,7 @@ class ProjectScope(_BaseScope, ProjectScopeFields):
 class RegistryScope(ProjectScope):
     """An automation scope defined by a specific `Registry`."""
 
-    scope_type: Literal[ScopeType.REGISTRY] = ScopeType.REGISTRY
+    scope_type: Literal[ScopeType.REGISTRY] = ScopeType.REGISTRY  # type: ignore[assignment]
     name: Annotated[str, Field(validation_alias="full_name")]
 
 
