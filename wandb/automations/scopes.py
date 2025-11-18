@@ -83,4 +83,5 @@ __all__ = [
     "ScopeType",
     "ArtifactCollectionScope",
     "ProjectScope",
+    "RegistryScope",
 ]
