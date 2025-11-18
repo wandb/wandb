@@ -1,6 +1,11 @@
 from wandb._pydantic import CompatBaseModel
-from wandb.apis.public import ArtifactCollection, Project
-from wandb.automations import ArtifactCollectionScope, ProjectScope, ScopeType
+from wandb.apis.public import ArtifactCollection, Project, Registry
+from wandb.automations import (
+    ArtifactCollectionScope,
+    ProjectScope,
+    RegistryScope,
+    ScopeType,
+)
 from wandb.automations._generated import TriggerScopeType
 from wandb.automations.scopes import AutomationScope
 
@@ -15,6 +20,10 @@ class HasCollectionScope(HasScope):
 
 class HasProjectScope(HasScope):
     scope: ProjectScope
+
+
+class HasRegistryScope(HasScope):
+    scope: RegistryScope
 
 
 def test_public_scope_type_enum_is_subset_of_generated():
@@ -54,9 +63,7 @@ def test_scope_can_validate_from_wandb_artifact_collection(
     assert validated_scope.name == artifact_collection.name
 
 
-def test_scope_can_validate_from_wandb_project(
-    project: Project,
-):
+def test_scope_can_validate_from_wandb_project(project: Project):
     """Check that we can parse an automation scope from a pre-existing `Project` type."""
 
     validated = HasProjectScope(scope=project)
@@ -74,3 +81,23 @@ def test_scope_can_validate_from_wandb_project(
     assert validated_scope.scope_type == ScopeType.PROJECT
     assert validated_scope.id == project.id
     assert validated_scope.name == project.name
+
+
+def test_scope_can_validate_from_wandb_registry(registry: Registry):
+    """Check that we can parse an automation scope from a pre-existing `Registry` type."""
+
+    validated = HasRegistryScope(scope=registry)
+    validated_scope = validated.scope
+
+    assert isinstance(validated_scope, ProjectScope)
+    assert validated_scope.scope_type == ScopeType.REGISTRY
+    assert validated_scope.id == registry.id
+    assert validated_scope.name == registry.full_name
+
+    validated = HasScope(scope=registry)
+    validated_scope = validated.scope
+
+    assert isinstance(validated_scope, ProjectScope)
+    assert validated_scope.scope_type == ScopeType.REGISTRY
+    assert validated_scope.id == registry.id
+    assert validated_scope.name == registry.full_name
