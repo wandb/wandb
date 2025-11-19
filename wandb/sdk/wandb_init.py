@@ -42,7 +42,7 @@ from wandb.util import _is_artifact_representation
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
-from .lib.deprecation import warn_and_record_deprecation
+from .lib.deprecation import UNSET, DoNotSet, warn_and_record_deprecation
 from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
@@ -190,7 +190,6 @@ class _WandbInit:
             return
 
         wandb_login._login(
-            anonymous=run_settings.anonymous,
             host=run_settings.base_url,
             force=run_settings.force,
             _disable_warning=True,
@@ -1263,7 +1262,6 @@ def init(  # noqa: C901
     job_type: str | None = None,
     mode: Literal["online", "offline", "disabled", "shared"] | None = None,
     force: bool | None = None,
-    anonymous: Literal["never", "allow", "must"] | None = None,
     reinit: (
         bool
         | Literal[
@@ -1282,6 +1280,7 @@ def init(  # noqa: C901
     sync_tensorboard: bool | None = None,
     monitor_gym: bool | None = None,
     settings: Settings | dict[str, Any] | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> Run:
     r"""Start a new run to track and log to W&B.
 
@@ -1378,16 +1377,6 @@ def init(  # noqa: C901
             the user must be logged in to W&B; otherwise, the script will not
             proceed. If `False` (default), the script can proceed without a login,
             switching to offline mode if the user is not logged in.
-        anonymous: Specifies the level of control over anonymous data logging.
-            Available options are:
-        - `"never"` (default): Requires you to link your W&B account before
-            tracking the run. This prevents unintentional creation of anonymous
-            runs by ensuring each run is associated with an account.
-        - `"allow"`: Enables a logged-in user to track runs with their account,
-            but also allows someone running the script without a W&B account
-            to view the charts and data in the UI.
-        - `"must"`: Forces the run to be logged to an anonymous account, even
-            if the user is logged in.
         reinit: Shorthand for the "reinit" setting. Determines the behavior of
             `wandb.init()` when a run is active.
         resume: Controls the behavior when resuming a run with the specified `id`.
@@ -1489,8 +1478,8 @@ def init(  # noqa: C901
         init_settings.run_name = name
     if notes is not None:
         init_settings.run_notes = notes
-    if anonymous is not None:
-        init_settings.anonymous = anonymous  # type: ignore
+    if anonymous is not UNSET:
+        init_settings.anonymous = anonymous
     if mode is not None:
         init_settings.mode = mode  # type: ignore
     if resume is not None:

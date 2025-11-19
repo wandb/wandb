@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import enum
 import os
-from typing import Literal
 
 import click
 
@@ -16,6 +15,7 @@ from wandb.errors import AuthenticationError, UsageError, term
 from wandb.old.settings import Settings as OldSettings
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import auth
+from wandb.sdk.lib.deprecation import UNSET, DoNotSet
 
 from ..apis import InternalApi
 
@@ -38,8 +38,18 @@ def _handle_host_wandb_setting(host: str | None, cloud: bool = False) -> None:
         _api.set_setting("base_url", host, globally=True, persist=True)
 
 
+def _clear_anonymous_setting() -> None:
+    """Delete the 'anonymous' setting from the global settings file.
+
+    This setting is being removed, and this helps users remove it from their
+    settings file by using `wandb login`. We do it here because `wandb login`
+    used to automatically write the anonymous setting.
+    """
+    api = InternalApi()
+    api.clear_setting("anonymous", globally=True, persist=True)
+
+
 def login(
-    anonymous: Literal["must", "allow", "never"] | None = None,
     key: str | None = None,
     relogin: bool | None = None,
     host: str | None = None,
@@ -47,6 +57,7 @@ def login(
     timeout: int | None = None,
     verify: bool = False,
     referrer: str | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> bool:
     """Set up W&B login credentials.
 
@@ -55,11 +66,6 @@ def login(
     `verify=True`.
 
     Args:
-        anonymous: Set to "must", "allow", or "never".
-            If set to "must", always log a user in anonymously. If set to
-            "allow", only create an anonymous user if the user
-            isn't already logged in. If set to "never", never log a
-            user anonymously. Default set to "never". Defaults to `None`.
         key: The API key to use.
         relogin: If true, will re-prompt for API key.
         host: The host to connect to.
@@ -68,7 +74,6 @@ def login(
         verify: Verify the credentials with the W&B server.
         referrer: The referrer to use in the URL login request.
 
-
     Returns:
         bool: If `key` is configured.
 
@@ -76,9 +81,17 @@ def login(
         AuthenticationError: If `api_key` fails verification with the server.
         UsageError: If `api_key` cannot be configured and no tty.
     """
+    if anonymous is not UNSET:
+        term.termwarn(
+            "The anonymous parameter to wandb.login() has no effect and will"
+            + " be removed in future versions.",
+            repeat=False,
+        )
+
     _handle_host_wandb_setting(host)
+    _clear_anonymous_setting()
+
     logged_in, _ = _login(
-        anonymous=anonymous,
         key=key,
         relogin=relogin,
         host=host,
@@ -100,7 +113,6 @@ class ApiKeyStatus(enum.Enum):
 class _WandbLogin:
     def __init__(
         self,
-        anonymous: Literal["must", "allow", "never"] | None = None,
         force: bool | None = None,
         host: str | None = None,
         key: str | None = None,
@@ -110,26 +122,15 @@ class _WandbLogin:
         self._relogin = relogin
 
         login_settings = {
-            "anonymous": anonymous,
             "api_key": key,
             "base_url": host,
             "force": force,
             "login_timeout": timeout,
         }
-        self.is_anonymous = anonymous == "must"
 
         self._wandb_setup = wandb_setup.singleton()
         self._wandb_setup.settings.update_from_dict(login_settings)
         self._settings = self._wandb_setup.settings
-
-    def _update_global_anonymous_setting(self) -> None:
-        from ..apis import InternalApi
-
-        api = InternalApi()
-        if self.is_anonymous:
-            api.set_setting("anonymous", "must", globally=True, persist=True)
-        else:
-            api.clear_setting("anonymous", globally=True, persist=True)
 
     def _print_logged_in_message(self) -> None:
         """Prints a message telling the user they are logged in."""
@@ -210,26 +211,16 @@ class _WandbLogin:
         """Prompt the user for an API key.
 
         Returns:
-            (key, VALID) if a key was provided or anonymous mode was used.
+            (key, VALID) if a key was provided.
             (None, OFFLINE) if the user selected offline mode.
             (None, DISABLED) if a timeout occurred.
 
         Raises:
             UsageError: If interactive prompting is unavailable.
-            Exception: If forcing anonymous mode and an error occurs.
         """
-        if self._settings.anonymous == "must":
-            return (
-                auth.make_anonymous_api_key(host=self._settings.base_url),
-                ApiKeyStatus.VALID,
-            )
-
-        allow_anonymous = self._settings.anonymous in ("allow", "true")
-
         try:
             key = auth.prompt_api_key(
                 host=self._settings.base_url,
-                no_anonymous=not allow_anonymous,
                 no_offline=self._settings.force,
                 no_create=self._settings.force,
                 referrer=referrer,
@@ -252,7 +243,6 @@ class _WandbLogin:
 
 def _login(
     *,
-    anonymous: Literal["allow", "must", "never"] | None = None,
     key: str | None = None,
     relogin: bool | None = None,
     host: str | None = None,
@@ -289,7 +279,6 @@ def _login(
         return True, None
 
     wlogin = _WandbLogin(
-        anonymous=anonymous,
         force=force,
         host=host,
         key=key,
@@ -342,7 +331,6 @@ def _login(
         if key and update_api_key:
             wlogin.try_save_api_key(key)
         wlogin.update_session(key, status=key_status)
-        wlogin._update_global_anonymous_setting()
 
     if key and not _silent:
         wlogin._print_logged_in_message()
