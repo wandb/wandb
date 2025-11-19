@@ -6,9 +6,16 @@ import (
 	"sync"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/leet"
 )
+
+func typeString(mg *leet.MetricsGrid, s string) {
+	for _, r := range s {
+		mg.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+}
 
 func TestMetricsGridFilter_ApplyAndClear(t *testing.T) {
 	w, h := 240, 80
@@ -36,7 +43,9 @@ func TestMetricsGridFilter_ApplyAndClear(t *testing.T) {
 	require.Contains(t, out, "train/loss")
 	require.Contains(t, out, "accuracy")
 
-	grid.ApplyFilter("loss")
+	grid.EnterFilterMode()
+	typeString(grid, "loss")
+	grid.ExitFilterMode(true)
 	out = grid.View(dims)
 	require.Contains(t, out, "train/loss")
 	require.NotContains(t, out, "accuracy")
@@ -64,7 +73,10 @@ func TestMetricsGridFilter_NewChartsRespectActiveFilter(t *testing.T) {
 	grid.ProcessHistory(d)
 	dims := grid.CalculateChartDimensions(w, h)
 
-	grid.ApplyFilter("loss")
+	grid.EnterFilterMode()
+	typeString(grid, "loss")
+	grid.ExitFilterMode(true)
+
 	out := grid.View(dims)
 	require.Contains(t, out, "train/loss")
 	require.NotContains(t, out, "accuracy")
@@ -107,13 +119,18 @@ func TestMetricsGridFilter_SwitchFilter(t *testing.T) {
 	grid.ProcessHistory(d)
 	dims := grid.CalculateChartDimensions(w, h)
 
-	grid.ApplyFilter("loss")
+	grid.EnterFilterMode()
+	typeString(grid, "loss")
+	grid.ExitFilterMode(true)
 	out := grid.View(dims)
 	require.Contains(t, out, "train/loss")
 	require.NotContains(t, out, "accuracy")
 
 	// Switch to "acc".
-	grid.ApplyFilter("acc")
+	grid.ClearFilter()
+	grid.EnterFilterMode()
+	typeString(grid, "acc")
+	grid.ExitFilterMode(true)
 	out = grid.View(dims)
 	require.NotContains(t, out, "train/loss")
 	require.Contains(t, out, "accuracy")
@@ -183,8 +200,10 @@ func TestMetricsGridFilter_EdgeCases(t *testing.T) {
 			dims := grid.CalculateChartDimensions(w, h)
 
 			// Switch to glob match mode (defaults to regex).
-			grid.ToggleFilterMode()
-			grid.ApplyFilter(tt.filter)
+			grid.ToggleFilterMatchMode()
+			grid.EnterFilterMode()
+			typeString(grid, tt.filter)
+			grid.ExitFilterMode(true)
 			view := grid.View(dims)
 
 			for _, chart := range tt.expectVisible {
@@ -210,7 +229,8 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 
 	// Start typing "lo", then cancel (Esc behavior).
 	grid.EnterFilterMode()
-	grid.SetFilterDraft("lo")
+	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
 	require.GreaterOrEqual(t, grid.FilteredChartCount(), 1)
 	grid.ExitFilterMode(false) // cancel
 
@@ -221,7 +241,9 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 
 	// Start another filter "acc", add data while typing, then apply.
 	grid.EnterFilterMode()
-	grid.SetFilterDraft("acc")
+	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	grid.ProcessHistory(map[string]leet.MetricData{
 		"val/loss": {X: []float64{1}, Y: []float64{5}},
 	})
@@ -257,7 +279,10 @@ func TestMetricsGridFilter_ConcurrentApplyAndUpdate_NoDeadlock(t *testing.T) {
 	wg.Go(func() {
 		patterns := []string{"loss", "acc", "*_1*", ""}
 		for i := range 40 {
-			grid.ApplyFilter(patterns[i%len(patterns)])
+			grid.EnterFilterMode()
+			typeString(grid, patterns[i%len(patterns)])
+			grid.ExitFilterMode(true)
+			grid.ApplyFilter()
 		}
 	})
 
@@ -281,7 +306,9 @@ func TestMetricsGrid_RegexFilter(t *testing.T) {
 	dims := grid.CalculateChartDimensions(w, h)
 
 	// Default mode is regex. Filter for "ends with loss".
-	grid.ApplyFilter("loss$")
+	grid.EnterFilterMode()
+	typeString(grid, "loss$")
+	grid.ExitFilterMode(true)
 
 	out := grid.View(dims)
 	require.Contains(t, out, "train/loss")
@@ -289,14 +316,19 @@ func TestMetricsGrid_RegexFilter(t *testing.T) {
 	require.NotContains(t, out, "train/acc")
 
 	// Toggle to glob mode.
-	grid.ToggleFilterMode()
-	grid.ApplyFilter("loss$")
-
+	grid.ClearFilter()
+	grid.EnterFilterMode()
+	grid.ToggleFilterMatchMode()
+	typeString(grid, "loss$")
+	grid.ExitFilterMode(true)
 	out = grid.View(dims)
 	require.NotContains(t, out, "train/loss") // Glob shouldn't match regex syntax.
 
 	// Test glob syntax.
-	grid.ApplyFilter("train/*")
+	grid.ClearFilter()
+	grid.EnterFilterMode()
+	typeString(grid, "train/*")
+	grid.ExitFilterMode(true)
 	out = grid.View(dims)
 	require.Contains(t, out, "train/loss")
 	require.Contains(t, out, "train/acc")

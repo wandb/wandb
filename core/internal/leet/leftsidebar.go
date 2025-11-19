@@ -45,7 +45,7 @@ type LeftSidebar struct {
 	activeSection int
 
 	// Filter state.
-	filter FilterState
+	filter Filter
 
 	// Dimensions.
 	height int

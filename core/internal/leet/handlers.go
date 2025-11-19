@@ -335,10 +335,10 @@ func (m *Model) handleEnterMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 }
 
 func (m *Model) handleClearMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	if m.metricsGrid.filter.applied != "" {
+	if m.metricsGrid.filter.Query() != "" {
 		m.metricsGrid.ClearFilter()
 	}
-	// TODO: unset focus?
+	m.focus.Reset()
 	return m, nil
 }
 
@@ -383,25 +383,12 @@ func (m *Model) handleMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	case tea.KeyEnter:
 		m.metricsGrid.ExitFilterMode(true)
 		return m, nil
-	case tea.KeyTab, tea.KeyShiftTab:
-		// Toggle between regex and glob modes while editing.
-		m.metricsGrid.ToggleFilterMode()
+	case tea.KeyTab:
+		m.metricsGrid.ToggleFilterMatchMode()
 		return m, nil
-	case tea.KeyBackspace:
-		if len(m.metricsGrid.filter.draft) > 0 {
-			m.metricsGrid.filter.draft = m.metricsGrid.filter.draft[:len(m.metricsGrid.filter.draft)-1]
-			m.metricsGrid.ApplyFilter(m.metricsGrid.filter.draft)
-			m.metricsGrid.drawVisible()
-		}
-		return m, nil
-	case tea.KeyRunes:
-		m.metricsGrid.filter.draft += string(msg.Runes)
-		m.metricsGrid.ApplyFilter(m.metricsGrid.filter.draft)
-		m.metricsGrid.drawVisible()
-		return m, nil
-	case tea.KeySpace:
-		m.metricsGrid.filter.draft += " "
-		m.metricsGrid.ApplyFilter(m.metricsGrid.filter.draft)
+	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
+		m.metricsGrid.UpdateFilterDraft(msg)
+		m.metricsGrid.ApplyFilter()
 		m.metricsGrid.drawVisible()
 		return m, nil
 	default:

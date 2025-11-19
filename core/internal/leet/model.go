@@ -87,20 +87,20 @@ func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogg
 	heartbeatInterval := cfg.HeartbeatInterval()
 	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
 
-	focusState := &Focus{Type: FocusNone, Row: -1, Col: -1}
+	focus := NewFocus()
 	watcherChan := make(chan tea.Msg, 4096)
 
 	m := &Model{
 		config:       cfg,
 		keyMap:       buildKeyMap(),
 		help:         NewHelp(),
-		focus:        focusState,
+		focus:        focus,
 		fileComplete: false,
 		isLoading:    true,
 		runPath:      runPath,
-		metricsGrid:  NewMetricsGrid(cfg, focusState, logger),
+		metricsGrid:  NewMetricsGrid(cfg, focus, logger),
 		leftSidebar:  NewLeftSidebar(cfg),
-		rightSidebar: NewRightSidebar(cfg, focusState, logger),
+		rightSidebar: NewRightSidebar(cfg, focus, logger),
 		watcherMgr:   NewWatcherManager(watcherChan, logger),
 		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, watcherChan, logger),
 		watcherChan:  watcherChan,
@@ -449,12 +449,12 @@ func (m *Model) buildOverviewFilterStatus() string {
 //
 // Should be guarded by the caller's check that filter input is active.
 func (m *Model) buildMetricsFilterStatus() string {
-	matchCount := m.metricsGrid.FilteredChartCount()
-	total := m.metricsGrid.ChartCount()
+	filteredCount := m.metricsGrid.FilteredChartCount()
+	totalCount := m.metricsGrid.ChartCount()
 	return fmt.Sprintf(
 		"Filter (%s): %s_ [%d/%d] (Enter to apply • Tab to toggle mode)",
 		m.metricsGrid.FilterMode().String(),
-		m.metricsGrid.filter.draft, matchCount, total)
+		m.metricsGrid.filter.draft, filteredCount, totalCount)
 }
 
 // buildGridConfigStatus builds status for grid configuration mode.
@@ -475,13 +475,9 @@ func (m *Model) buildGridConfigStatus() string {
 
 // buildLoadingStatus builds status for loading mode.
 func (m *Model) buildLoadingStatus() string {
-	m.metricsGrid.mu.RLock()
-	chartCount := len(m.metricsGrid.all)
-	m.metricsGrid.mu.RUnlock()
-
 	if m.recordsLoaded > 0 {
 		return fmt.Sprintf("Loading data... [%d records, %d metrics]",
-			m.recordsLoaded, chartCount)
+			m.recordsLoaded, m.metricsGrid.ChartCount())
 	}
 	return "Loading data..."
 }
@@ -491,15 +487,14 @@ func (m *Model) buildActiveStatus() string {
 	var parts []string
 
 	// Add filter info if active.
-	if m.metricsGrid.filter.applied != "" {
-		m.metricsGrid.mu.RLock()
-		filteredCount := len(m.metricsGrid.filtered)
-		totalCount := len(m.metricsGrid.all)
-		m.metricsGrid.mu.RUnlock()
+	if m.metricsGrid.IsFiltering() {
+		filteredCount := m.metricsGrid.FilteredChartCount()
+		totalCount := m.metricsGrid.ChartCount()
 		parts = append(parts, fmt.Sprintf(
 			"Filter (%s): \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
 			m.metricsGrid.FilterMode().String(),
-			m.metricsGrid.filter.applied, filteredCount, totalCount))
+			m.metricsGrid.FilterQuery(),
+			filteredCount, totalCount))
 	}
 
 	// Add overview filter info if active.
@@ -533,10 +528,10 @@ func (m *Model) buildActiveStatus() string {
 
 // buildHelpText builds the help text for the status bar.
 func (m *Model) buildHelpText() string {
-	if !m.metricsGrid.IsFilterMode() && !m.leftSidebar.IsFilterMode() {
-		return "h: help"
+	if m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode() {
+		return ""
 	}
-	return ""
+	return "h: help"
 }
 
 // Layout represents the computed layout dimensions for the main UI.

@@ -17,7 +17,7 @@ func (s *LeftSidebar) updateSectionHeights() {
 		return
 	}
 
-	totalAvailable := s.calculateAvailableHeight()
+	totalAvailable := s.availableHeight()
 	if totalAvailable <= 0 {
 		return
 	}
@@ -35,8 +35,8 @@ func (s *LeftSidebar) updateSectionHeights() {
 	s.updateItemsPerPage()
 }
 
-// calculateAvailableHeight returns the height available for sections.
-func (s *LeftSidebar) calculateAvailableHeight() int {
+// availableHeight returns the height available for sections.
+func (s *LeftSidebar) availableHeight() int {
 	availableHeight := s.height - sidebarHeaderLines
 
 	activeSections := s.countActiveSections()
