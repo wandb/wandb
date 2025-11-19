@@ -1819,19 +1819,26 @@ def _list(project, entity):
         wandb.termlog("No jobs found")
         return
 
+    # First pass: collect all job data and find max name length
+    job_data = []
+    max_name_len = 0
     for job in jobs:
-        aliases = []
         if len(job["edges"]) == 0:
             # deleted?
             continue
-
+        
         name = job["edges"][0]["node"]["artifactSequence"]["name"]
+        aliases = []
         for version in job["edges"]:
             aliases += [x["alias"] for x in version["node"]["aliases"]]
-
-        # only list the most recent 10 job versions
+        
+        job_data.append((name, aliases))
+        max_name_len = max(max_name_len, len(name))
+    
+    # Second pass: display with aligned columns
+    for name, aliases in job_data:
         aliases_str = ",".join(aliases[::-1])
-        wandb.termlog(f"{name} -- versions ({len(aliases)}): {aliases_str}")
+        wandb.termlog(f"  {name.ljust(max_name_len)} -- versions ({len(aliases)}): {aliases_str}")
 
 
 @job.command(
