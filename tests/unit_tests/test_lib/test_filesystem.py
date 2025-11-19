@@ -602,8 +602,8 @@ def test_mkdir_allow_fallback_with_warning(wandb_caplog, tmp_path):
 @pytest.mark.parametrize(
     "path1,path2,expected",
     [
-        ("C:\\foo", "C:\\bar", True),
-        ("C:\\foo", "D:\\bar", False),
+        (Path("C:\\foo"), Path("C:\\bar"), True),
+        (Path("C:\\foo"), Path("D:\\bar"), False),
     ],
 )
 def test_are_windows_paths_on_same_drive(path1, path2, expected):
