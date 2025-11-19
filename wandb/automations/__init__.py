@@ -15,6 +15,7 @@ from .events import (
     OnRunState,
     RunEvent,
     RunStateFilter,
+    MetricZScoreFilter,
 )
 from .integrations import Integration, SlackIntegration, WebhookIntegration
 from .scopes import ArtifactCollectionScope, ProjectScope, ScopeType
@@ -62,6 +63,7 @@ __all__ = [
     "MetricThresholdFilter",
     "MetricChangeFilter",
     "RunStateFilter",
+    "MetricZScoreFilter"
     # Actions
     "ActionType",  # doc:exclude
     "SendNotification",

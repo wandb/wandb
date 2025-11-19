@@ -339,3 +339,13 @@ class MetricAgg(BaseMetricOperand):
     name: str
     agg: Annotated[Agg, Field(alias="agg_op")]
     window: Annotated[PositiveInt, Field(alias="window_size")]
+
+
+class MetricZScoreFilter(GQLBase, extra="forbid"):
+    name: str
+    window_size: PositiveInt
+    threshold: PositiveFloat
+    change_dir: ChangeDir
+
+    def __repr__(self) -> str:
+        return repr(rf"z-score({self.name}) > {self.zscore}")

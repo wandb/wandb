@@ -12,7 +12,13 @@ from wandb._strutils import nameof
 
 from ._filters import And, MongoLikeFilter
 from ._filters.expressions import FilterableField
-from ._filters.run_metrics import MetricChangeFilter, MetricThresholdFilter, MetricVal
+from ._filters.run_metrics import (
+    ChangeDir,
+    MetricChangeFilter,
+    MetricThresholdFilter,
+    MetricVal,
+    MetricZScoreFilter,
+)
 from ._filters.run_states import StateFilter, StateOperand
 from ._generated import FilterEventFields
 from ._validators import (
@@ -48,6 +54,7 @@ class EventType(LenientStrEnum):
     RUN_METRIC_THRESHOLD = "RUN_METRIC"
     RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
     RUN_STATE = "RUN_STATE"
+    RUN_METRIC_ZSCORE = "RUN_METRIC_ZSCORE"
 
 
 # ------------------------------------------------------------------------------
@@ -94,6 +101,23 @@ class _WrappedMetricChangeFilter(GQLBase):  # from: RunMetricFilter
         return v
 
 
+class _WrappedMetricZScoreFilter(GQLBase):  # from: RunMetricFilter
+    event_type: Annotated[
+        Literal[EventType.RUN_METRIC_ZSCORE],
+        Field(exclude=True, repr=False),
+    ] = EventType.RUN_METRIC_ZSCORE
+
+    zscore_filter: MetricZScoreFilter
+
+    @model_validator(mode="before")
+    @classmethod
+    def _nest_inner_filter(cls, v: Any) -> Any:
+        # Yeah, we've got a lot of nesting due to backend schema constraints.
+        if pydantic_isinstance(v, MetricZScoreFilter):
+            return cls(zscore_filter=v)
+        return v
+
+
 class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
     run: Annotated[
         JsonEncoded[MongoLikeFilter],
@@ -103,7 +127,11 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
     """Filters that must match any runs that will trigger this event."""
 
     metric: Annotated[
-        Union[_WrappedMetricThresholdFilter, _WrappedMetricChangeFilter],
+        Union[
+            _WrappedMetricThresholdFilter,
+            _WrappedMetricChangeFilter,
+            _WrappedMetricZScoreFilter,
+        ],
         Field(alias="run_metric_filter"),
     ]
     """Metric condition(s) that must be satisfied for this event to trigger."""
@@ -123,7 +151,9 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
     def _nest_metric_filter(cls, v: Any) -> Any:
         # If no run filter is given, automatically nest the metric filter and
         # let inner validators reshape further as needed.
-        if pydantic_isinstance(v, (MetricThresholdFilter, MetricChangeFilter)):
+        if pydantic_isinstance(
+            v, (MetricThresholdFilter, MetricChangeFilter, MetricZScoreFilter)
+        ):
             return cls(metric=v)
         return v
 
@@ -301,7 +331,11 @@ class OnRunMetric(_BaseRunEventInput):
         ```
     """
 
-    event_type: Literal[EventType.RUN_METRIC_THRESHOLD, EventType.RUN_METRIC_CHANGE]
+    event_type: Literal[
+        EventType.RUN_METRIC_THRESHOLD,
+        EventType.RUN_METRIC_CHANGE,
+        EventType.RUN_METRIC_ZSCORE,
+    ]
 
     filter: JsonEncoded[RunMetricFilter]
     """Run and/or metric condition(s) that must be satisfied for this event to trigger."""
@@ -380,6 +414,16 @@ class RunEvent:
         """Define a metric filter condition."""
         return MetricVal(name=name)
 
+    @staticmethod
+    def zscore(name: str, window_size: int) -> MetricZScoreFilter:
+        """Define a z-score filter condition."""
+        return MetricZScoreFilter(
+            name=name,
+            window_size=window_size,
+            threshold=1.96,
+            change_dir=ChangeDir.ANY,
+        )
+
 
 class ArtifactEvent:
     alias = FilterableField()
@@ -387,6 +431,7 @@ class ArtifactEvent:
 
 MetricThresholdFilter.model_rebuild()
 RunMetricFilter.model_rebuild()
+MetricZScoreFilter.model_rebuild()
 _WrappedSavedEventFilter.model_rebuild()
 
 OnLinkArtifact.model_rebuild()
@@ -401,4 +446,5 @@ __all__ = [
     "ArtifactEvent",
     "MetricThresholdFilter",
     "MetricChangeFilter",
+    "MetricZScoreFilter",
 ]
