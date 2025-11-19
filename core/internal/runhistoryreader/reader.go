@@ -71,6 +71,18 @@ func New(
 	return historyReader, nil
 }
 
+func (h *HistoryReader) GetEntity() string {
+	return h.entity
+}
+
+func (h *HistoryReader) GetProject() string {
+	return h.project
+}
+
+func (h *HistoryReader) GetRunId() string {
+	return h.runId
+}
+
 // GetHistorySteps gets all history rows for HistoryReader's keys
 // that fall between minStep and maxStep.
 // Returns a list of KVMapLists, where each item in the list is a history row.

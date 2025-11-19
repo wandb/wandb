@@ -607,7 +607,7 @@ func (nc *Connection) handleSyncStatus(
 
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	settings := settings.From(request.GetSettings())
-	nc.wbapi = wbapi.NewWandbAPI(settings)
+	nc.wbapi = wbapi.NewWandbAPI(settings, nc.sentryClient)
 	nc.Respond(&spb.ServerResponse{
 		RequestId: id,
 		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
