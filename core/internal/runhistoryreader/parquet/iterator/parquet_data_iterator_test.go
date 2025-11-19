@@ -96,7 +96,7 @@ func TestRowIterator_WithHistoryPageRange(t *testing.T) {
 
 	// Verify no more data returned
 	next, err = it.Next()
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrRowExceedsMaxValue)
 	assert.False(t, next, "Expected no more data returned")
 }
 
@@ -141,7 +141,7 @@ func TestRowIterator_WithEventsPageRange(t *testing.T) {
 
 	// Verify no more data returned
 	next, err = it.Next()
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrRowExceedsMaxValue)
 	assert.False(t, next, "Expected no more data returned")
 }
 
