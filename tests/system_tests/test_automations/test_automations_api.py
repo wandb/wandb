@@ -621,6 +621,7 @@ class TestUpdateAutomation:
                 EventType.RUN_METRIC_THRESHOLD,
                 EventType.RUN_METRIC_CHANGE,
                 EventType.RUN_STATE,
+                EventType.RUN_METRIC_ZSCORE,
             }
         ),
         indirect=True,
@@ -649,6 +650,7 @@ class TestUpdateAutomation:
             EventType.RUN_METRIC_THRESHOLD,
             EventType.RUN_METRIC_CHANGE,
             EventType.RUN_STATE,
+            EventType.RUN_METRIC_ZSCORE,
         ],
         indirect=True,
     )
