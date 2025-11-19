@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import os
 import secrets
 from functools import lru_cache
 from string import ascii_lowercase, digits
 from typing import Callable, Iterator, Union
 
 import wandb
-from pytest import FixtureRequest, MonkeyPatch, fixture, skip
+from pytest import FixtureRequest, fixture, skip
 from typing_extensions import TypeAlias
 from wandb import Artifact
 from wandb._strutils import nameof
@@ -60,25 +61,38 @@ def make_name(worker_id: str) -> Callable[[str], str]:
     return _make_name
 
 
+# @fixture
+# def skip_if_server_does_not_support_create_registry(user_in_orgs_factory, api) -> None:
+#     """If requested, skips the test for older server versions that do not support Api.create_registry()."""
+#     if not server_supports(api.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION):
+#         skip("Cannot create a test registry on this server version.")
+
+
 @fixture(scope="module")
-def user(backend_fixture_factory) -> Iterator[str]:
+# def user(module_mocker, user_in_orgs_factory) -> Iterator[str]:
+def user(module_mocker, backend_fixture_factory) -> Iterator[str]:
     """A module-scoped user that overrides the default `user` fixture from the root-level `conftest.py`."""
+    # user_in_orgs = user_in_orgs_factory()
+    # username = user_in_orgs.username
     username = backend_fixture_factory.make_user(admin=True)
 
-    # The `monkeypatch` fixture is strictly function-scoped, so we use a
-    # context manager to patch for this module-scoped fixture
     envvars = dict.fromkeys(
         ("WANDB_API_KEY", "WANDB_ENTITY", "WANDB_USERNAME"), username
     )
-    with MonkeyPatch.context() as mpatch:
-        for k, v in envvars.items():
-            mpatch.setenv(k, v)
-        yield username
+    module_mocker.patch.dict(os.environ, envvars)
+    yield username
+
+    # The `monkeypatch` fixture is strictly function-scoped, so we use a
+    # context manager to patch for this module-scoped fixture
+    # with MonkeyPatch.context() as mpatch:
+    #     for k, v in envvars.items():
+    #         mpatch.setenv(k, v)
+    #     yield username
 
 
 # Request the `user` fixture to ensure env variables are set
 @fixture(scope="module")
-def api(user: str) -> wandb.Api:
+def api(module_mocker, user: str) -> Iterator[wandb.Api]:
     """A redefined, module-scoped `Api` fixture for tests in this module.
 
     Note that this overrides the default `api` fixture from the root-level
@@ -86,19 +100,15 @@ def api(user: str) -> wandb.Api:
     since the default `api` fixture is function-scoped, meaning it does not
     play well with other module-scoped fixtures.
     """
-    return wandb.Api(api_key=user)
+    with module_mocker.patch.object(
+        wandb.sdk.wandb_login,
+        "_login",
+        return_value=(True, None),
+    ):
+        yield wandb.Api()
 
 
-@fixture(scope="module")
-def registry(user, api, make_name) -> Registry:
-    """A wandb Registry for tests in this module."""
-    # Create the project first if it doesn't exist yet
-    name = make_name("test-registry")
-    api.create_registry(name=name, visibility="organization")
-    return api.registry(name=name)
-
-
-@fixture(scope="module")
+@fixture
 def registry(user, api, make_name) -> Registry:
     """A wandb Registry for tests in this module."""
     if not server_supports(api.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION):
@@ -135,7 +145,7 @@ def artifact_collection(artifact, api) -> ArtifactCollection:
 
 
 @fixture(scope="module")
-def make_webhook_integration(api: wandb.Api) -> Callable[..., WebhookIntegration]:
+def make_webhook_integration(user, api: wandb.Api) -> Callable[..., WebhookIntegration]:
     """A module-scoped factory for creating WebhookIntegrations."""
     from wandb.automations._generated import CreateGenericWebhookIntegrationInput
 
