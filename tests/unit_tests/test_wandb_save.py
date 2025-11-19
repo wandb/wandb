@@ -1,5 +1,6 @@
 import os
 import pathlib
+import platform
 
 import pytest
 
@@ -67,7 +68,10 @@ def test_save_relative_path_glob_files(
     run.save("*.rad", policy="now")
 
     _, err = capsys.readouterr()
-    assert "Symlinked 2 files" in err
+    if platform.system() == "Windows":
+        assert "Linked 2 files" in err
+    else:
+        assert "Symlinked 2 files" in err
     assert pathlib.Path(run.dir, "test.rad").exists()
     assert pathlib.Path(run.dir, "foo.rad").exists()
     parsed = parse_records(record_q)
