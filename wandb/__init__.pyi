@@ -445,20 +445,44 @@ def login(
     referrer: str | None = None,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
-    """Set up W&B login credentials.
+    """Log into W&B.
 
-    By default, this will only store credentials locally without
-    verifying them with the W&B server. To verify credentials, pass
-    `verify=True`.
+    You generally don't have to use this because most W&B methods that need
+    authentication can log in implicitly. This is the programmatic counterpart
+    to the `wandb login` CLI.
+
+    This updates global credentials for the session (affecting all wandb usage
+    in the current Python process after this call) and possibly the .netrc file.
+
+    If the identity_token_file setting is set, like through the
+    WANDB_IDENTITY_TOKEN_FILE environment variable, then this is a no-op.
+
+    Otherwise, if an explicit API key is provided, it is used and written to
+    the system .netrc file. If no key is provided, but the session is already
+    authenticated, then the session key is used for verification (if verify
+    is True) and the .netrc file is not updated.
+
+    If none of the above is true, then this gets the API key from the first of:
+
+    - The WANDB_API_KEY environment variable
+    - The api_key setting in a system or workspace settings file
+    - The .netrc file (either ~/.netrc, ~/_netrc or the path specified by the
+      NETRC environment variable)
+    - An interactive prompt (if available)
 
     Args:
         key: The API key to use.
-        relogin: If true, will re-prompt for API key.
-        host: The host to connect to.
-        force: If true, will force a relogin.
-        timeout: Number of seconds to wait for user input.
-        verify: Verify the credentials with the W&B server.
-        referrer: The referrer to use in the URL login request.
+        relogin: If true, get the API key from an interactive prompt, skipping
+            reading .netrc, environment variables, etc.
+        host: The W&B server URL to connect to.
+        force: If true, disallows selecting offline mode in the interactive
+            prompt.
+        timeout: Number of seconds to wait for user input in the interactive
+            prompt. This can be used as a failsafe if an interactive prompt
+            is incorrectly shown in a non-interactive environment.
+        verify: Verify the credentials with the W&B server and raise an
+            AuthenticationError on failure.
+        referrer: The referrer to use in the URL login request for analytics.
 
     Returns:
         bool: If `key` is configured.
