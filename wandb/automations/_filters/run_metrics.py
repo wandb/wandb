@@ -341,6 +341,91 @@ class MetricAgg(BaseMetricOperand):
     window: Annotated[PositiveInt, Field(alias="window_size")]
 
 
+class MetricZScoreDirection(GQLBase, extra="forbid"):
+    """Represents a z-score metric with window and direction specified."""
+
+    name: str
+    window_size: PositiveInt
+    change_dir: ChangeDir
+
+    def gt(self, threshold: float, /) -> MetricZScoreFilter:
+        """Returns a filter for when z-score exceeds threshold."""
+        return MetricZScoreFilter(
+            name=self.name,
+            window_size=self.window_size,
+            threshold=threshold,
+            change_dir=self.change_dir,
+        )
+
+    # Operator overloads for convenience
+    def __gt__(self, threshold: float, /) -> MetricZScoreFilter:
+        """Returns a filter for when z-score exceeds threshold."""
+        return self.gt(threshold)
+
+    def __ge__(self, threshold: float, /) -> MetricZScoreFilter:
+        """Returns a filter for when z-score exceeds threshold."""
+        return self.gt(threshold)
+
+
+class MetricZScoreWindow(GQLBase, extra="forbid"):
+    """Represents a z-score metric with a specified window size."""
+
+    name: str
+    window_size: PositiveInt
+
+    def any(self) -> MetricZScoreDirection:
+        """Detect changes in any direction (increase or decrease)."""
+        return MetricZScoreDirection(
+            name=self.name,
+            window_size=self.window_size,
+            change_dir=ChangeDir.ANY,
+        )
+
+    def increases(self) -> MetricZScoreDirection:
+        """Detect increases only."""
+        return MetricZScoreDirection(
+            name=self.name,
+            window_size=self.window_size,
+            change_dir=ChangeDir.INC,
+        )
+
+    def decreases(self) -> MetricZScoreDirection:
+        """Detect decreases only."""
+        return MetricZScoreDirection(
+            name=self.name,
+            window_size=self.window_size,
+            change_dir=ChangeDir.DEC,
+        )
+
+    # Convenience shortcuts
+    def increases_by(self, threshold: float, /) -> MetricZScoreFilter:
+        """Shortcut for .increases() > threshold."""
+        return self.increases() > threshold
+
+    def decreases_by(self, threshold: float, /) -> MetricZScoreFilter:
+        """Shortcut for .decreases() > threshold."""
+        return self.decreases() > threshold
+
+    # Default operators (defaults to ANY direction)
+    def __gt__(self, threshold: float, /) -> MetricZScoreFilter:
+        """Returns a filter for when z-score exceeds threshold (any direction)."""
+        return self.any() > threshold
+
+    def __ge__(self, threshold: float, /) -> MetricZScoreFilter:
+        """Returns a filter for when z-score exceeds threshold (any direction)."""
+        return self.any() >= threshold
+
+
+class MetricZScore(GQLBase, extra="forbid"):
+    """Represents a z-score metric operand when defining metric event filters."""
+
+    name: str
+
+    def window(self, size: int, /) -> MetricZScoreWindow:
+        """Specify the window size for z-score calculation."""
+        return MetricZScoreWindow(name=self.name, window_size=size)
+
+
 class MetricZScoreFilter(GQLBase, extra="forbid"):
     name: str
     window_size: PositiveInt

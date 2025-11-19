@@ -13,11 +13,13 @@ from wandb._strutils import nameof
 from ._filters import And, MongoLikeFilter
 from ._filters.expressions import FilterableField
 from ._filters.run_metrics import (
-    ChangeDir,
     MetricChangeFilter,
     MetricThresholdFilter,
     MetricVal,
+    MetricZScore,
+    MetricZScoreDirection,
     MetricZScoreFilter,
+    MetricZScoreWindow,
 )
 from ._filters.run_states import StateFilter, StateOperand
 from ._generated import FilterEventFields
@@ -415,14 +417,9 @@ class RunEvent:
         return MetricVal(name=name)
 
     @staticmethod
-    def zscore(name: str, window_size: int) -> MetricZScoreFilter:
-        """Define a z-score filter condition."""
-        return MetricZScoreFilter(
-            name=name,
-            window_size=window_size,
-            threshold=1.96,
-            change_dir=ChangeDir.ANY,
-        )
+    def zscore(name: str) -> MetricZScore:
+        """Define a z-score metric operand."""
+        return MetricZScore(name=name)
 
 
 class ArtifactEvent:
@@ -431,6 +428,9 @@ class ArtifactEvent:
 
 MetricThresholdFilter.model_rebuild()
 RunMetricFilter.model_rebuild()
+MetricZScore.model_rebuild()
+MetricZScoreWindow.model_rebuild()
+MetricZScoreDirection.model_rebuild()
 MetricZScoreFilter.model_rebuild()
 _WrappedSavedEventFilter.model_rebuild()
 
@@ -446,5 +446,8 @@ __all__ = [
     "ArtifactEvent",
     "MetricThresholdFilter",
     "MetricChangeFilter",
+    "MetricZScore",
+    "MetricZScoreWindow",
+    "MetricZScoreDirection",
     "MetricZScoreFilter",
 ]

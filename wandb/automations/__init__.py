@@ -8,6 +8,10 @@ from .events import (
     EventType,
     MetricChangeFilter,
     MetricThresholdFilter,
+    MetricZScore,
+    MetricZScoreDirection,
+    MetricZScoreFilter,
+    MetricZScoreWindow,
     OnAddArtifactAlias,
     OnCreateArtifact,
     OnLinkArtifact,
@@ -15,7 +19,6 @@ from .events import (
     OnRunState,
     RunEvent,
     RunStateFilter,
-    MetricZScoreFilter,
 )
 from .integrations import Integration, SlackIntegration, WebhookIntegration
 from .scopes import ArtifactCollectionScope, ProjectScope, ScopeType
@@ -62,8 +65,11 @@ __all__ = [
     "RunEvent",  # doc:exclude
     "MetricThresholdFilter",
     "MetricChangeFilter",
+    "MetricZScore",
+    "MetricZScoreWindow",
+    "MetricZScoreDirection",
+    "MetricZScoreFilter",
     "RunStateFilter",
-    "MetricZScoreFilter"
     # Actions
     "ActionType",  # doc:exclude
     "SendNotification",
