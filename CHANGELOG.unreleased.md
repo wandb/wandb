@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - The automations API now supports creating and editing automations that trigger on run states (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10848)
+- The automations API now supports assigning `Registry` objects to an automation scope (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10867)
 
 ### Deprecated
 

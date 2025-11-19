@@ -72,12 +72,19 @@ def upper_if_str(v: Any) -> Any:
 # ----------------------------------------------------------------------------
 def parse_scope(v: Any) -> Any:
     """Convert eligible objects (including wandb types) to an automation scope."""
-    from wandb.apis.public import ArtifactCollection, Project
+    from wandb.apis.public import ArtifactCollection, Project, Registry
 
-    from .scopes import ProjectScope, _ArtifactPortfolioScope, _ArtifactSequenceScope
+    from .scopes import (
+        ProjectScope,
+        RegistryScope,
+        _ArtifactPortfolioScope,
+        _ArtifactSequenceScope,
+    )
 
     if isinstance(v, Project):
         return ProjectScope.model_validate(v)
+    if isinstance(v, Registry):
+        return RegistryScope.model_validate(v)
     if isinstance(v, ArtifactCollection):
         typ = _ArtifactSequenceScope if v.is_sequence() else _ArtifactPortfolioScope
         return typ.model_validate(v)

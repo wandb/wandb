@@ -142,11 +142,11 @@ class MetricThresholdFilter(BaseMetricFilter):  # from: RunMetricThresholdFilter
     @field_validator("cmp", mode="before")
     def _validate_cmp(cls, v: Any) -> Any:
         # Be helpful: e.g. ">" -> "$gt"
-        return PY2MONGO_OPS.get(v.strip(), v) if isinstance(v, str) else v
+        return PY2MONGO_OPS.get(v) or v
 
     def __repr__(self) -> str:
         metric = f"{self.agg.value}({self.name})" if self.agg else self.name
-        op = MONGO2PY_OPS.get(self.cmp, self.cmp)
+        op = MONGO2PY_OPS[self.cmp]
         return repr(rf"{metric} {op} {self.threshold}")
 
 

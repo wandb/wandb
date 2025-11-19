@@ -21,11 +21,15 @@ from ._validators import LenientStrEnum, parse_scope
 class ScopeType(LenientStrEnum):
     """The kind of scope that triggers an automation."""
 
-    PROJECT = "PROJECT"
     ARTIFACT_COLLECTION = "ARTIFACT_COLLECTION"
+    PROJECT = "PROJECT"
+
+    # Server-side, a registry is treated as a specialized Project at the DB level,
+    # so a registry-scoped automation is equivalent to a PROJECT scope.
+    REGISTRY = PROJECT
 
 
-class _BaseScope(GQLBase):
+class _BaseScope(GQLBase, extra="ignore"):
     scope_type: Annotated[ScopeType, Field(frozen=True)]
 
 
@@ -61,17 +65,23 @@ class ProjectScope(_BaseScope, ProjectScopeFields):
     scope_type: Literal[ScopeType.PROJECT] = ScopeType.PROJECT
 
 
+class RegistryScope(ProjectScope):
+    """An automation scope defined by a specific `Registry`."""
+
+    scope_type: Literal[ScopeType.REGISTRY] = ScopeType.REGISTRY  # type: ignore[assignment]
+    name: Annotated[str, Field(validation_alias="full_name")]
+
+
 # for type annotations
 AutomationScope: TypeAlias = Annotated[
-    Union[_ArtifactSequenceScope, _ArtifactPortfolioScope, ProjectScope],
+    Union[ProjectScope, ArtifactCollectionScope],
     BeforeValidator(parse_scope),
     Field(discriminator="typename__"),
 ]
-# for runtime type checks
-AutomationScopeTypes: tuple[type, ...] = get_args(AutomationScope.__origin__)  # type: ignore[attr-defined]
 
 __all__ = [
     "ScopeType",
     "ArtifactCollectionScope",
     "ProjectScope",
+    "RegistryScope",
 ]

@@ -513,7 +513,7 @@ fragment WebhookIntegrationFields on GenericWebhookIntegration {
 
 CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL = """
 mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegrationInput!) {
-  createGenericWebhookIntegration(input: $input) {
+  result: createGenericWebhookIntegration(input: $input) {
     integration {
       __typename
       ...WebhookIntegrationFields
