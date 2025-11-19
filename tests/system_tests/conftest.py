@@ -92,15 +92,15 @@ def wandb_verbose(request):
     return request.config.getoption("--wandb-verbose", default=False)
 
 
-@pytest.fixture(scope="session")
-def user(session_mocker, backend_fixture_factory) -> Iterator[str]:
+@pytest.fixture
+def user(mocker, backend_fixture_factory) -> Iterator[str]:
     username = backend_fixture_factory.make_user()
     envvars = {
         "WANDB_API_KEY": username,
         "WANDB_ENTITY": username,
         "WANDB_USERNAME": username,
     }
-    session_mocker.patch.dict(os.environ, envvars)
+    mocker.patch.dict(os.environ, envvars)
     yield username
 
 
@@ -110,7 +110,7 @@ class UserOrg:
     organization_names: list[str]
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def user_in_orgs_factory(
     backend_fixture_factory: BackendFixtureFactory,
     user: str,
