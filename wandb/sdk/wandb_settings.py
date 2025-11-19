@@ -891,8 +891,8 @@ class Settings(BaseModel, validate_assignment=True):
     """Filter to apply to metrics collected from OpenMetrics `/metrics` endpoints.
 
     Supports two formats:
-     - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-     - ("metric regex pattern 1", "metric regex pattern 2", ...)
+     - `{"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}`
+     - `("metric regex pattern 1", "metric regex pattern 2", ...)`
     """
 
     x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
@@ -989,7 +989,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         This is a compatibility layer to handle previous versions of the settings.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         new_values = {}
         for key in values:
@@ -1007,7 +1007,7 @@ class Settings(BaseModel, validate_assignment=True):
         def validate_mutual_exclusion_of_branching_args(self) -> Self:
             """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
 
-            <!-- lazydoc-ignore: internal -->
+            <!-- lazydoc-ignore-classmethod: internal -->
             """
             if (
                 sum(
@@ -1127,7 +1127,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console_chunk_max_bytes(cls, value):
         """Validate the console_chunk_max_bytes value.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value < 0:
             raise ValueError("console_chunk_max_bytes must be non-negative")
@@ -1139,7 +1139,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console_chunk_max_seconds(cls, value):
         """Validate the console_chunk_max_seconds value.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value < 0:
             raise ValueError("console_chunk_max_seconds must be non-negative")
