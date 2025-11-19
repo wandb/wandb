@@ -5,9 +5,15 @@ from typing import Any, Iterable
 
 from hypothesis import given
 from hypothesis.strategies import DrawFn, SearchStrategy, composite, lists, sampled_from
+from pydantic import ValidationError
 from pytest import raises
-from wandb.automations import MetricChangeFilter, MetricThresholdFilter, RunEvent
-from wandb.automations._filters.run_metrics import Agg, MetricAgg, MetricVal
+from wandb.automations import (
+    MetricChangeFilter,
+    MetricThresholdFilter,
+    MetricZScoreFilter,
+    RunEvent,
+)
+from wandb.automations._filters.run_metrics import Agg, ChangeDir, MetricAgg, MetricVal
 from wandb.automations._filters.run_states import ReportedRunState
 from wandb.automations.events import StateFilter
 
@@ -17,6 +23,7 @@ from ._strategies import (
     ints_or_floats,
     metric_change_filters,
     metric_names,
+    metric_zscore_filters,
     nonpos_numbers,
     pos_numbers,
     run_states,
@@ -201,6 +208,131 @@ def test_metric_change_filter_repr(metric: MetricVal | MetricAgg, delta: float):
 
     metric_filter_repr = repr(metric.decreases_by(diff=delta))
     assert metric_filter_repr == repr(f"{expected_lhs} decreases {delta}")
+
+
+@given(metric_filter=metric_zscore_filters())
+def test_metric_zscore_filter_serialization(metric_filter: MetricZScoreFilter):
+    """Check that a normally-instantiated `MetricZScoreFilter` produces the expected JSON-serializable dict."""
+    expected_dict = {
+        "name": metric_filter.name,
+        "window_size": metric_filter.window_size,
+        "threshold": metric_filter.threshold,
+        "change_dir": metric_filter.change_dir.value,
+    }
+
+    assert metric_filter.model_dump() == expected_dict
+    assert json.loads(metric_filter.model_dump_json()) == expected_dict
+
+
+@given(
+    name=metric_names,
+    window=window_sizes,
+    threshold=pos_numbers,
+)
+def test_metric_zscore_filter_repr(name: str, window: int, threshold: float):
+    """Check that a metric zscore filter has the expected human-readable representation."""
+    # Test with change_dir=ANY
+    metric_filter = MetricZScoreFilter(
+        name=name, window_size=window, threshold=threshold, change_dir=ChangeDir.ANY
+    )
+    assert repr(metric_filter) == repr(
+        f"zscore({name}, window={window}) changes > {threshold}σ"
+    )
+
+    # Test with change_dir=INCREASE
+    metric_filter = MetricZScoreFilter(
+        name=name,
+        window_size=window,
+        threshold=threshold,
+        change_dir=ChangeDir.INCREASE,
+    )
+    assert repr(metric_filter) == repr(
+        f"zscore({name}, window={window}) increases > {threshold}σ"
+    )
+
+    # Test with change_dir=DECREASE
+    metric_filter = MetricZScoreFilter(
+        name=name,
+        window_size=window,
+        threshold=threshold,
+        change_dir=ChangeDir.DECREASE,
+    )
+    assert repr(metric_filter) == repr(
+        f"zscore({name}, window={window}) decreases > {threshold}σ"
+    )
+
+
+@given(
+    name=metric_names,
+    window=window_sizes,
+    invalid_threshold=nonpos_numbers,
+)
+def test_metric_zscore_filter_requires_positive_threshold(
+    name: str, window: int, invalid_threshold: int | float
+):
+    """Check that a `MetricZScoreFilter` only accepts a POSITIVE threshold."""
+    with raises(ValidationError):
+        MetricZScoreFilter(
+            name=name,
+            window_size=window,
+            threshold=invalid_threshold,
+            change_dir=ChangeDir.ANY,
+        )
+
+
+@given(
+    name=metric_names,
+    invalid_window=nonpos_numbers,
+    threshold=pos_numbers,
+)
+def test_metric_zscore_filter_requires_positive_window_size(
+    name: str, invalid_window: int | float, threshold: float
+):
+    """Check that a `MetricZScoreFilter` only accepts a POSITIVE window_size."""
+    with raises(ValidationError):
+        MetricZScoreFilter(
+            name=name,
+            window_size=invalid_window,
+            threshold=threshold,
+            change_dir=ChangeDir.ANY,
+        )
+
+
+@given(
+    name=metric_names,
+    window=window_sizes,
+    threshold=pos_numbers,
+)
+def test_metric_zscore_filter_requires_valid_change_dir(
+    name: str, window: int, threshold: float
+):
+    """Check that a `MetricZScoreFilter` requires a valid change_dir."""
+    # Invalid string values should be rejected
+    with raises(ValidationError):
+        MetricZScoreFilter(
+            name=name,
+            window_size=window,
+            threshold=threshold,
+            change_dir="INVALID",
+        )
+
+    # None should be rejected
+    with raises(ValidationError):
+        MetricZScoreFilter(
+            name=name,
+            window_size=window,
+            threshold=threshold,
+            change_dir=None,
+        )
+
+    # Numeric values should be rejected
+    with raises(ValidationError):
+        MetricZScoreFilter(
+            name=name,
+            window_size=window,
+            threshold=threshold,
+            change_dir=123,
+        )
 
 
 @given(states=lists(run_states, max_size=10))

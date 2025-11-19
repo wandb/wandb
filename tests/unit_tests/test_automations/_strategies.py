@@ -28,7 +28,11 @@ from hypothesis.strategies import (
     text,
 )
 from wandb._strutils import b64encode_ascii
-from wandb.automations import MetricChangeFilter, MetricThresholdFilter
+from wandb.automations import (
+    MetricChangeFilter,
+    MetricThresholdFilter,
+    MetricZScoreFilter,
+)
 from wandb.automations._filters.run_metrics import Agg, ChangeDir, ChangeType
 from wandb.automations._filters.run_states import ReportedRunState
 
@@ -309,3 +313,23 @@ def metric_change_filters(
     # Any arg strategies `None` excluded from instantiation
     kwargs = {k: draw(st) for k, st in kw_strategies.items() if (st is not None)}
     return MetricChangeFilter(**kwargs)
+
+
+@composite
+def metric_zscore_filters(
+    draw: DrawFn,
+    name: SearchStrategy[str] | None = metric_names,
+    window_size: SearchStrategy[int] | None = window_sizes,
+    threshold: SearchStrategy[float] | None = pos_numbers,
+    change_dir: SearchStrategy[ChangeDir | str] | None = change_dirs,
+) -> SearchStrategy[MetricZScoreFilter]:
+    """Generates a `MetricZScoreFilter` instance."""
+    kw_strategies = dict(
+        name=name,
+        window_size=window_size,
+        threshold=threshold,
+        change_dir=change_dir,
+    )
+    # Any arg strategies `None` excluded from instantiation
+    kwargs = {k: draw(st) for k, st in kw_strategies.items() if (st is not None)}
+    return MetricZScoreFilter(**kwargs)

@@ -339,3 +339,20 @@ class MetricAgg(BaseMetricOperand):
     name: str
     agg: Annotated[Agg, Field(alias="agg_op")]
     window: Annotated[PositiveInt, Field(alias="window_size")]
+
+
+class MetricZScoreFilter(GQLBase, extra="forbid"):
+    name: str
+    window_size: PositiveInt
+    threshold: PositiveFloat
+    change_dir: ChangeDir
+
+    def __repr__(self) -> str:
+        verb = (
+            "changes"
+            if (self.change_dir is ChangeDir.ANY)
+            else f"{self.change_dir.value.lower()}s"
+        )
+        return repr(
+            rf"zscore({self.name}, window={self.window_size}) {verb} > {self.threshold}σ"
+        )
