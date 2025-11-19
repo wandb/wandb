@@ -21,6 +21,7 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import api, runs
 from wandb.proto import wandb_api_pb2 as apb
+from wandb.sdk.mailbox import MailboxClosedError
 
 
 class BetaHistoryScan:

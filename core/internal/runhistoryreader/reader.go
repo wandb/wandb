@@ -250,9 +250,17 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 	for i, url := range signedUrls {
 		var parquetFile *pqarrow.FileReader
 
-		tmpDir := os.TempDir()
-		fileName := fmt.Sprintf("run_history_%s_%s_%s_%d.parquet", h.entity, h.project, h.runId, i)
-		parquetFilePath := filepath.Join(tmpDir, fileName)
+		dir := os.Getenv("WANDB_CACHE_DIR")
+		if dir == "" {
+			dir, _ = os.UserCacheDir()
+			dir = filepath.Join(dir, "wandb", "runhistory")
+		}
+		if dir == "" {
+			return fmt.Errorf("failed to get runhistory cache directory")
+		}
+
+		fileName := fmt.Sprintf("%s_%s_%s_%d.runhistory.parquet", h.entity, h.project, h.runId, i)
+		parquetFilePath := filepath.Join(dir, fileName)
 
 		if _, err := os.Stat(parquetFilePath); err == nil {
 			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
@@ -263,7 +271,7 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 			// When the user doesn't specify any keys,
 			// It is faster to download the entire parquet file
 			// and process it locally.
-			err = h.downloadRunHistoryFile(url, tmpDir, fileName)
+			err = h.downloadRunHistoryFile(url, dir, fileName)
 			if err != nil {
 				return err
 			}
