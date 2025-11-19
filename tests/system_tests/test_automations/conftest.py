@@ -76,9 +76,11 @@ def user(module_mocker, backend_fixture_factory) -> Iterator[str]:
     # username = user_in_orgs.username
     username = backend_fixture_factory.make_user(admin=True)
 
-    envvars = dict.fromkeys(
-        ("WANDB_API_KEY", "WANDB_ENTITY", "WANDB_USERNAME"), username
-    )
+    envvars = {
+        "WANDB_API_KEY": username,
+        "WANDB_ENTITY": username,
+        "WANDB_USERNAME": username,
+    }
     module_mocker.patch.dict(os.environ, envvars)
     yield username
 
@@ -92,7 +94,7 @@ def user(module_mocker, backend_fixture_factory) -> Iterator[str]:
 
 # Request the `user` fixture to ensure env variables are set
 @fixture(scope="module")
-def api(module_mocker, user: str) -> Iterator[wandb.Api]:
+def api(module_mocker, user: str) -> wandb.Api:
     """A redefined, module-scoped `Api` fixture for tests in this module.
 
     Note that this overrides the default `api` fixture from the root-level
@@ -100,12 +102,14 @@ def api(module_mocker, user: str) -> Iterator[wandb.Api]:
     since the default `api` fixture is function-scoped, meaning it does not
     play well with other module-scoped fixtures.
     """
-    with module_mocker.patch.object(
-        wandb.sdk.wandb_login,
-        "_login",
-        return_value=(True, None),
-    ):
-        yield wandb.Api()
+    return wandb.Api()
+
+    # with module_mocker.patch.object(
+    #     wandb.sdk.wandb_login,
+    #     "_login",
+    #     return_value=(True, None),
+    # ):
+    #     yield wandb.Api()
 
 
 @fixture

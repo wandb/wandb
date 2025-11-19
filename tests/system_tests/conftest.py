@@ -92,15 +92,15 @@ def wandb_verbose(request):
     return request.config.getoption("--wandb-verbose", default=False)
 
 
-@pytest.fixture
-def user(mocker, backend_fixture_factory) -> Iterator[str]:
+@pytest.fixture(scope="session")
+def user(session_mocker, backend_fixture_factory) -> Iterator[str]:
     username = backend_fixture_factory.make_user()
     envvars = {
         "WANDB_API_KEY": username,
         "WANDB_ENTITY": username,
         "WANDB_USERNAME": username,
     }
-    mocker.patch.dict(os.environ, envvars)
+    session_mocker.patch.dict(os.environ, envvars)
     yield username
 
 
@@ -110,7 +110,7 @@ class UserOrg:
     organization_names: list[str]
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def user_in_orgs_factory(
     backend_fixture_factory: BackendFixtureFactory,
     user: str,
@@ -126,14 +126,15 @@ def user_in_orgs_factory(
             user_org_data_default = user_in_orgs_factory()
     """
 
-    def _factory(number_of_orgs: int = 1) -> UserOrg:
+    def _factory(num_orgs: int = 1) -> UserOrg:
         """Creates organizations for the pre-defined user."""
-        if number_of_orgs <= 0:
-            raise ValueError("Number of organizations have to be positive.")
+        if num_orgs <= 0:
+            raise ValueError(
+                f"Number of organizations must be positive. Got: {num_orgs!r}"
+            )
         try:
             orgs = [
-                backend_fixture_factory.make_org(username=user)
-                for _ in range(number_of_orgs)
+                backend_fixture_factory.make_org(username=user) for _ in range(num_orgs)
             ]
         except Exception as e:
             pytest.skip(
