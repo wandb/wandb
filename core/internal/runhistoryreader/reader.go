@@ -45,6 +45,7 @@ func New(
 	graphqlClient graphql.Client,
 	httpClient *http.Client,
 	keys []string,
+	useCache bool,
 ) (*HistoryReader, error) {
 	historyReader := &HistoryReader{
 		entity:        entity,
@@ -57,7 +58,7 @@ func New(
 		minLiveStep: math.MaxInt64,
 	}
 
-	err := historyReader.initParquetFiles(ctx)
+	err := historyReader.initParquetFiles(ctx, useCache)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +229,10 @@ func (h *HistoryReader) downloadRunHistoryFile(
 // for each of the run's history files.
 //
 // It should be called before calling GetHistorySteps.
-func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
+func (h *HistoryReader) initParquetFiles(
+	ctx context.Context,
+	useCache bool,
+) error {
 	signedUrls, liveData, err := h.getRunHistoryFileUrlsWithLiveSteps(ctx)
 	if err != nil {
 		return err
@@ -250,7 +254,7 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 		fileName := fmt.Sprintf("%s_%s_%s_%d.runhistory.parquet", h.entity, h.project, h.runId, i)
 		parquetFilePath := filepath.Join(dir, fileName)
 
-		if _, err := os.Stat(parquetFilePath); err == nil {
+		if _, err := os.Stat(parquetFilePath); useCache && err == nil {
 			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
 			if err != nil {
 				return err

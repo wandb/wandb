@@ -34,6 +34,7 @@ Note:
 
 from __future__ import annotations
 
+import glob
 import json
 import os
 import tempfile
@@ -1470,6 +1471,7 @@ class Run(Attrs):
         page_size=1000,
         min_step=0,
         max_step=None,
+        use_cache=True,
     ) -> public.BetaHistoryScan:
         """Returns an iterable collection of all history records for a run.
 
@@ -1483,6 +1485,9 @@ class Run(Attrs):
             page_size: the number of history records to read at a time.
             min_step: The minimum step to start reading history from (inclusive).
             max_step: The maximum step to read history up to (exclusive).
+            use_cache: When set to True, checks the WANDB_CACHE_DIR for a run history.
+                If the run history is not found in the cache, it will be downloaded from the server.
+                If set to False, the run history will be downloaded every time.
 
         Returns:
             A BetaHistoryScan object,
@@ -1498,5 +1503,6 @@ class Run(Attrs):
             max_step=max_step or self.lastHistoryStep + 1,
             keys=keys,
             page_size=page_size,
+            use_cache=use_cache,
         )
         return beta_history_scan

@@ -182,9 +182,11 @@ class ScanRunHistoryInit(google.protobuf.message.Message):
     PROJECT_FIELD_NUMBER: builtins.int
     RUN_ID_FIELD_NUMBER: builtins.int
     KEYS_FIELD_NUMBER: builtins.int
+    USE_CACHE_FIELD_NUMBER: builtins.int
     entity: builtins.str
     project: builtins.str
     run_id: builtins.str
+    use_cache: builtins.bool
     @property
     def keys(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
@@ -194,8 +196,9 @@ class ScanRunHistoryInit(google.protobuf.message.Message):
         project: builtins.str = ...,
         run_id: builtins.str = ...,
         keys: collections.abc.Iterable[builtins.str] | None = ...,
+        use_cache: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["entity", b"entity", "keys", b"keys", "project", b"project", "run_id", b"run_id"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["entity", b"entity", "keys", b"keys", "project", b"project", "run_id", b"run_id", "use_cache", b"use_cache"]) -> None: ...
 
 global___ScanRunHistoryInit = ScanRunHistoryInit
 
