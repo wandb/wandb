@@ -348,4 +348,11 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
     change_dir: ChangeDir
 
     def __repr__(self) -> str:
-        return repr(rf"z-score({self.name}) > {self.zscore}")
+        verb = (
+            "changes"
+            if (self.change_dir is ChangeDir.ANY)
+            else f"{self.change_dir.value.lower()}s"
+        )
+        return repr(
+            rf"zscore({self.name}, window={self.window_size}) {verb} > {self.threshold}σ"
+        )
