@@ -50,10 +50,8 @@ class ArtifactSaver:
         self._api = api
         self._file_pusher = file_pusher
         self._digest = digest
-        self._manifest = ArtifactManifest.from_manifest_json(
-            manifest_json,
-            api=self._api,
-        )
+        self._manifest = ArtifactManifest.from_manifest_json(manifest_json)
+        self._manifest.storage_policy._api = self._api
         self._is_user_created = is_user_created
         self._server_artifact = None
 

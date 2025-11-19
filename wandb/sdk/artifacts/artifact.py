@@ -53,12 +53,12 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
-from wandb.sdk.lib import retry, runid, telemetry
+from wandb.sdk.lib import retry, telemetry
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import check_exists, system_preferred_path
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
-from wandb.sdk.lib.runid import generate_id
+from wandb.sdk.lib.runid import generate_fast_id, generate_id
 from wandb.sdk.mailbox import MailboxHandle
 from wandb.util import (
     alias_is_version_index,
@@ -80,7 +80,10 @@ from ._gqlutils import (
 )
 from ._validators import ensure_logged, ensure_not_finalized
 from .artifact_download_logger import ArtifactDownloadLogger
-from .artifact_instance_cache import artifact_instance_cache
+from .artifact_instance_cache import (
+    artifact_instance_cache,
+    artifact_instance_cache_by_client_id,
+)
 from .artifact_manifest import ArtifactManifest
 from .artifact_manifest_entry import ArtifactManifestEntry
 from .artifact_manifests.artifact_manifest_v1 import ArtifactManifestV1
@@ -195,8 +198,11 @@ class Artifact:
         self._base_id: str | None = None
         # Properties.
         self._id: str | None = None
-        self._client_id: str = runid.generate_id(128)
-        self._sequence_client_id: str = runid.generate_id(128)
+
+        # Client IDs don't need cryptographic strength, so use a faster implementation.
+        self._client_id: str = generate_fast_id(128)
+        self._sequence_client_id: str = generate_fast_id(128)
+
         self._entity: str | None = None
         self._project: str | None = None
         self._name: str = validate_artifact_name(name)  # includes version after saving
@@ -250,7 +256,7 @@ class Artifact:
         self._fetch_file_urls_decorated: Callable[..., Any] | None = None
 
         # Cache.
-        artifact_instance_cache[self._client_id] = self
+        artifact_instance_cache_by_client_id[self._client_id] = self
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
