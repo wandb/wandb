@@ -400,15 +400,6 @@ class MetricZScoreWindow(GQLBase, extra="forbid"):
             change_dir=ChangeDir.DEC,
         )
 
-    # Convenience shortcuts
-    def increases_by(self, threshold: float, /) -> MetricZScoreFilter:
-        """Shortcut for .increases() > threshold."""
-        return self.increases() > threshold
-
-    def decreases_by(self, threshold: float, /) -> MetricZScoreFilter:
-        """Shortcut for .decreases() > threshold."""
-        return self.decreases() > threshold
-
     # Default operators (defaults to ANY direction)
     def __gt__(self, threshold: float, /) -> MetricZScoreFilter:
         """Returns a filter for when z-score exceeds threshold (any direction)."""
