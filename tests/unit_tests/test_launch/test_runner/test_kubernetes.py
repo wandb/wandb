@@ -2130,6 +2130,11 @@ async def test_launch_additional_services(
     expected_pod_name = "pod-test-entity-test-project-test-run-id"
     expected_label = "auxiliary-resource"
 
+    # Add a very long label to the manifest that needs sanitization (>63 chars)
+    manifest.setdefault("metadata", {}).setdefault("labels", {})["very_long_label"] = (
+        "THIS_IS_A_VERY_LONG_LABEL_VALUE_THAT_EXCEEDS_SIXTY_THREE_CHARACTERS_AND_NEEDS_TRUNCATION"
+    )
+
     additional_service = {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
@@ -2137,10 +2142,24 @@ async def test_launch_additional_services(
             "name": f"deploy-{target_entity}-{target_project}-{run_id}",
             "labels": {
                 "wandb.ai/label": expected_label,
+                # Add label that needs sanitization (uppercase + underscore)
+                "app_label": "MY_DEPLOYMENT_LABEL_123",
             },
         },
         "spec": {
+            # Add selector with matchLabels that need sanitization
+            "selector": {
+                "matchLabels": {
+                    "app": "DEPLOY_TEST_ENTITY_TEST_PROJECT",
+                }
+            },
             "template": {
+                "metadata": {
+                    "labels": {
+                        # Add pod template label that needs sanitization
+                        "pod_label": "MY_POD_LABEL_456",
+                    }
+                },
                 "spec": {
                     "containers": [
                         {
@@ -2211,3 +2230,312 @@ async def test_launch_additional_services(
         labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE]
         == "123e4567-e89b-12d3-a456-426614174000"
     )
+
+    # Verify label sanitization in additional service deployment
+    # "MY_DEPLOYMENT_LABEL_123" -> "my-deployment-label-123"
+    assert "app_label" in labels
+    assert labels["app_label"] == "my-deployment-label-123"
+
+    # Verify pod template label sanitization: "MY_POD_LABEL_456" -> "my-pod-label-456"
+    pod_labels = (
+        additional_service_call[0][1]
+        .get("spec")
+        .get("template")
+        .get("metadata")
+        .get("labels")
+    )
+    assert "pod_label" in pod_labels
+    assert pod_labels["pod_label"] == "my-pod-label-456"
+
+    # Verify selector matchLabels sanitization: "DEPLOY_TEST_ENTITY_TEST_PROJECT" -> "deploy-test-entity-test-project"
+    selector_match_labels = (
+        additional_service_call[0][1].get("spec").get("selector").get("matchLabels")
+    )
+    assert "app" in selector_match_labels
+    assert selector_match_labels["app"] == "deploy-test-entity-test-project"
+
+    # Verify main job labels are also sanitized
+    main_job_call = next(c for c in calls if c[0][1].get("kind") == "Job")
+    main_job_metadata_labels = main_job_call[0][1].get("metadata").get("labels")
+    # The run_id should be sanitized if it had underscores
+    assert "wandb.ai/run-id" in main_job_metadata_labels
+    assert main_job_metadata_labels["wandb.ai/run-id"] == "test-run-id"
+
+    # Verify very long label is sanitized and truncated to 63 chars
+    # "THIS_IS_A_VERY_LONG_LABEL_VALUE_THAT_EXCEEDS_SIXTY_THREE_CHARACTERS_AND_NEEDS_TRUNCATION"
+    # -> "this-is-a-very-long-label-value-that-exceeds-sixty-three-charac"
+    assert "very_long_label" in main_job_metadata_labels
+    sanitized_long_label = main_job_metadata_labels["very_long_label"]
+    assert len(sanitized_long_label) == 63
+    assert (
+        sanitized_long_label
+        == "this-is-a-very-long-label-value-that-exceeds-sixty-three-charac"
+    )
+
+    # Verify main job's pod template labels exist (they may not include run-id)
+    main_job_pod_labels = (
+        main_job_call[0][1].get("spec").get("template").get("metadata").get("labels")
+    )
+    assert main_job_pod_labels is not None
+    assert "wandb.ai/monitor" in main_job_pod_labels
+
+    # Verify environment variable names are NOT sanitized
+    main_job_containers = (
+        main_job_call[0][1].get("spec").get("template").get("spec").get("containers")
+    )
+    master_container = next(c for c in main_job_containers if c.get("name") == "master")
+    env_vars = master_container.get("env", [])
+    # MY_ENV_VAR should remain unchanged (not sanitized to my-env-var)
+    env_var_names = [e["name"] for e in env_vars]
+    assert "MY_ENV_VAR" in env_var_names
+    # Make sure it wasn't sanitized
+    assert "my-env-var" not in env_var_names
+
+
+@pytest.mark.asyncio
+async def test_runner_cleanup_on_job_creation_failure_due_to_long_name(
+    monkeypatch,
+    mock_batch_api,
+    mock_core_api,
+    mock_apps_api,
+    mock_network_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    clean_agent,
+    clean_monitor,
+):
+    """Test that auxiliary resources are cleaned up when job creation fails due to long job name."""
+
+    # Setup mock resources to be returned by list operations
+    mock_apps_api.list_namespaced_deployment = AsyncMock(
+        return_value=make_mock_resource_list(["mock-deployment"])
+    )
+    mock_network_api.list_namespaced_network_policy = AsyncMock(
+        return_value=make_mock_resource_list(["mock-policy"])
+    )
+    mock_core_api.list_namespaced_service = AsyncMock(
+        return_value=make_mock_resource_list([])
+    )
+
+    # Mock helper functions
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.ensure_api_key_secret",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_wandb_team_secrets_secret",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.ensure_initialized",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.monitor_namespace",
+        MagicMock(),
+    )
+
+    # Mock create_from_dict to raise FailToCreateError simulating a long job name
+    from kubernetes_asyncio.client.rest import ApiException
+    from kubernetes_asyncio.utils import FailToCreateError
+
+    async def mock_create_from_dict_failure(*args, **kwargs):
+        exc = ApiException(status=422, reason="Unprocessable Entity")
+        exc.body = '{"message": "Job.batch \\"test-job\\" is invalid: metadata.labels: Invalid value: must be no more than 63 characters", "code": 422}'
+        raise FailToCreateError([exc])
+
+    monkeypatch.setattr(
+        "kubernetes_asyncio.utils.create_from_dict",
+        mock_create_from_dict_failure,
+    )
+
+    # Create launch project WITH additional_services
+    launch_project = MagicMock()
+    launch_project.target_entity = "test-entity"
+    launch_project.target_project = "test-project"
+    launch_project.run_id = "test-run-id"
+    launch_project.name = "test-name"
+    launch_project.author = "test-author"
+    launch_project.resource_args = {"kubernetes": {"kind": "Job"}}
+    launch_project.launch_spec = {
+        "_resume_count": 0,
+        "additional_services": [
+            {
+                "config": {
+                    "apiVersion": "v1",
+                    "kind": "Service",
+                    "metadata": {"name": "test-service"},
+                }
+            }
+        ],
+    }
+    launch_project.override_args = []
+    launch_project.override_entrypoint = None
+    launch_project.get_single_entry_point.return_value = None
+    launch_project.fill_macros = lambda image_uri: {"kubernetes": {"kind": "Job"}}
+    launch_project.docker_config = {}
+    launch_project.job_base_image = None
+    launch_project.get_env_vars_dict = lambda _, __: {}
+    launch_project.get_secrets_dict = lambda: {}
+
+    # Create the runner
+    api = MagicMock()
+    environment = MagicMock()
+    registry = MagicMock()
+    backend_config = {"SYNCHRONOUS": False}
+
+    runner = KubernetesRunner(api, backend_config, environment, registry)
+
+    # Run should raise LaunchError due to job creation failure
+    with pytest.raises(LaunchError, match="Failed to create Kubernetes resource"):
+        await runner.run(launch_project, "test-image:latest")
+
+    # Verify that delete methods were called for auxiliary resources
+    mock_apps_api.delete_namespaced_deployment.assert_called()
+    mock_network_api.delete_namespaced_network_policy.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_runner_secrets_not_sanitized_in_secret_refs(
+    monkeypatch,
+    mock_batch_api,
+    mock_core_api,
+    mock_apps_api,
+    mock_network_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    clean_agent,
+    clean_monitor,
+):
+    """Test that secret names and keys in secretKeyRef are not sanitized."""
+
+    # Capture the job spec passed to create_from_dict
+    captured_job_spec = None
+
+    async def mock_create_from_dict(k8s_client, yaml_objects, **kwargs):
+        nonlocal captured_job_spec
+        # yaml_objects can be a single dict or a list
+        if isinstance(yaml_objects, dict) and yaml_objects.get("kind") == "Job":
+            captured_job_spec = yaml_objects
+        elif isinstance(yaml_objects, list):
+            for obj in yaml_objects:
+                if isinstance(obj, dict) and obj.get("kind") == "Job":
+                    captured_job_spec = obj
+                    break
+        # Return mock response - create_from_dict returns a list of created objects
+        mock_job = MagicMock()
+        mock_job.metadata = MagicMock()
+        mock_job.metadata.name = "test-job"
+        return [mock_job]
+
+    monkeypatch.setattr(
+        "kubernetes_asyncio.utils.create_from_dict",
+        mock_create_from_dict,
+    )
+
+    # Mock helper functions
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.ensure_api_key_secret",
+        AsyncMock(return_value=None),
+    )
+
+    # Create a mock secret (should NOT be sanitized in refs)
+    mock_secret = MagicMock()
+    mock_secret.metadata = MagicMock()
+    mock_secret.metadata.name = "wandb-secrets-test-run-id"
+    mock_secret.metadata.namespace = "default"
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_wandb_team_secrets_secret",
+        AsyncMock(return_value=mock_secret),
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.ensure_initialized",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.monitor_namespace",
+        MagicMock(),
+    )
+
+    # Create launch project with secrets that have special characters
+    launch_project = MagicMock()
+    launch_project.target_entity = "test-entity"
+    launch_project.target_project = "test-project"
+    launch_project.run_id = "test-run-id"
+    launch_project.name = "test-name"
+    launch_project.author = "test-author"
+    launch_project.resource_args = {"kubernetes": {"kind": "Job"}}
+    launch_project.launch_spec = {"_resume_count": 0}
+    launch_project.override_args = []
+    launch_project.override_entrypoint = None
+    launch_project.get_single_entry_point.return_value = None
+    launch_project.fill_macros = lambda image_uri: {"kubernetes": {"kind": "Job"}}
+    launch_project.docker_config = {}
+    launch_project.job_base_image = None
+    launch_project.get_env_vars_dict = lambda _, __: {}
+
+    # Secrets with underscores and uppercase - these should NOT be sanitized in secretKeyRef
+    launch_project.get_secrets_dict = lambda: {
+        "DATABASE_URL": "postgresql://user:pass@localhost/db",
+        "API_SECRET_KEY": "secret123",
+        "DEBUG_MODE": "true",
+    }
+
+    # Create the runner
+    api = MagicMock()
+    environment = MagicMock()
+    registry = MagicMock()
+    backend_config = {"SYNCHRONOUS": False}
+
+    runner = KubernetesRunner(api, backend_config, environment, registry)
+
+    # Run the job
+    submitted_run = await runner.run(launch_project, "test-image:latest")
+    assert submitted_run is not None
+
+    # Verify job spec was captured
+    assert captured_job_spec is not None, "Job spec should have been captured"
+
+    # Get the container env vars
+    container_env = captured_job_spec["spec"]["template"]["spec"]["containers"][0][
+        "env"
+    ]
+
+    # Verify that secretKeyRef entries exist and are NOT sanitized
+    expected_secret_refs = [
+        {
+            "name": "DATABASE_URL",  # Should remain uppercase with underscore
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": "wandb-secrets-test-run-id",  # Secret name unchanged
+                    "key": "DATABASE_URL",  # Key should remain uppercase with underscore
+                }
+            },
+        },
+        {
+            "name": "API_SECRET_KEY",  # Should remain uppercase with underscore
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": "wandb-secrets-test-run-id",
+                    "key": "API_SECRET_KEY",  # Key should remain uppercase with underscore
+                }
+            },
+        },
+        {
+            "name": "DEBUG_MODE",  # Should remain uppercase with underscore
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": "wandb-secrets-test-run-id",
+                    "key": "DEBUG_MODE",  # Key should remain uppercase with underscore
+                }
+            },
+        },
+    ]
+
+    # Verify each expected secret ref is in the container env
+    for expected_ref in expected_secret_refs:
+        assert expected_ref in container_env, (
+            f"Expected secret ref {expected_ref} not found in container env"
+        )

@@ -10,9 +10,8 @@ import time
 import uuid
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-import yaml
-
 import wandb
+import yaml
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -493,6 +492,19 @@ class KubernetesRunner(AbstractRunner):
         job_metadata["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
         if LaunchAgent.initialized():
             job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = LaunchAgent.name()
+
+        # Sanitize all label values to meet Kubernetes 63-character limit
+        for key, value in job_metadata.get("labels", {}).items():
+            if isinstance(value, str):
+                job_metadata["labels"][key] = make_k8s_label_safe(value)
+
+        # Sanitize pod template labels (spec.template.metadata.labels)
+        pod_template_metadata = pod_template.setdefault("metadata", {})
+        pod_template_labels = pod_template_metadata.setdefault("labels", {})
+        for key, value in list(pod_template_labels.items()):
+            if isinstance(value, str):
+                pod_template_labels[key] = make_k8s_label_safe(value)
+
         # name precedence: name in spec > generated name
         if not job_metadata.get("name"):
             job_metadata["generateName"] = make_name_dns_safe(
@@ -505,7 +517,10 @@ class KubernetesRunner(AbstractRunner):
 
         for i, cont in enumerate(containers):
             if "name" not in cont:
-                cont["name"] = cont.get("name", "launch" + str(i))
+                cont["name"] = make_k8s_label_safe(cont.get("name", "launch" + str(i)))
+            # Sanitize container names to meet Kubernetes requirements
+            if "name" in cont:
+                cont["name"] = make_k8s_label_safe(cont["name"])
             if "securityContext" not in cont:
                 cont["securityContext"] = {
                     "allowPrivilegeEscalation": False,
@@ -1140,6 +1155,18 @@ class KubernetesRunner(AbstractRunner):
                 api_client, job, namespace=namespace
             )
         except kubernetes_asyncio.utils.FailToCreateError as e:
+            if additional_services:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Job creation failed. Cleaning up auxiliary resources..."
+                )
+                await delete_auxiliary_resources_by_label(
+                    apps_api,
+                    core_api,
+                    network_api,
+                    batch_api,
+                    namespace,
+                    auxiliary_resource_label_value,
+                )
             for exc in e.api_exceptions:
                 resp = json.loads(exc.body)
                 msg = resp.get("message")
@@ -1148,6 +1175,18 @@ class KubernetesRunner(AbstractRunner):
                     f"Failed to create Kubernetes job for run {launch_project.run_id} ({code} {exc.reason}): {msg}"
                 )
         except Exception as e:
+            if additional_services:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Unexpected error creating job. Cleaning up auxiliary resources..."
+                )
+                await delete_auxiliary_resources_by_label(
+                    apps_api,
+                    core_api,
+                    network_api,
+                    batch_api,
+                    namespace,
+                    auxiliary_resource_label_value,
+                )
             raise LaunchError(
                 f"Unexpected exception when creating Kubernetes job: {str(e)}\n"
             )
