@@ -1235,6 +1235,80 @@ def launch_sweep(
     wandb.termlog(f"Scheduler added to launch queue ({queue})")
 
 
+def _validate_run_config(
+    job_name: str,
+    run_config: Dict[str, Any],
+) -> None:
+    """Validate run_config overrides for a job.
+    
+    Args:
+        job_name: Full job name in format entity/project/job-name:version
+        run_config: The run config dict to validate
+        
+    Raises:
+        LaunchError: If validation fails or job cannot be fetched
+    """
+    # Fetch the job artifact
+    public_api = PublicApi()
+    try:
+        job = public_api.job(job_name)
+    except Exception as e:
+        raise LaunchError(f"Failed to fetch job '{job_name}': {e}")
+    
+    # Get the job artifact metadata
+    job_artifact = job._job_artifact
+    metadata = job_artifact.metadata
+    
+    # Extract the input schema for wandb.config
+    input_schemas = metadata.get("input_schemas", {})
+    config_schema = input_schemas.get("@wandb.config")
+    
+    # If no schema is defined, skip validation
+    if not config_schema:
+        wandb.termlog("No input schema found for job. Skipping validation.")
+        return
+    
+    # Validate the run_config against the schema using jsonschema
+    jsonschema = util.get_module(
+        "jsonschema",
+        required="Config validation requires the jsonschema package. Install it with `pip install 'wandb[launch]'`.",
+        lazy=False,
+    )
+    
+    try:
+        jsonschema.validate(instance=run_config, schema=config_schema)
+        wandb.termlog("Run config validated successfully.")
+    except jsonschema.ValidationError as e:
+        # Format a helpful error message
+        error_path = ".".join(str(p) for p in e.path) if e.path else "root"
+        error_msg = (
+            f"Run config validation failed:\n"
+            f"  Location: {error_path}\n"
+            f"  Error: {e.message}\n"
+        )
+        
+        # Add schema info if available
+        if e.schema:
+            expected_type = e.schema.get("type")
+            if expected_type:
+                error_msg += f"  Expected type: {expected_type}\n"
+            
+            enum_vals = e.schema.get("enum")
+            if enum_vals:
+                error_msg += f"  Allowed values: {enum_vals}\n"
+        
+        # Add the invalid value
+        if e.instance is not None:
+            error_msg += f"  Provided value: {e.instance}\n"
+        
+        raise LaunchError(error_msg)
+    except jsonschema.SchemaError as e:
+        raise LaunchError(
+            f"Job has an invalid input schema: {e.message}\n"
+            "This is likely a bug in the job creation process."
+        )
+
+
 @cli.command(help=f"Launch or queue a W&B Job. See {url_registry.url('wandb-launch')}")
 @click.option(
     "--uri",
@@ -1551,6 +1625,17 @@ def launch(
         template_variables = launch_utils.fetch_and_validate_template_variables(
             runqueue, cli_template_vars
         )
+
+    # Validate run_config if both job and run_config are provided
+    if job and config.get("overrides", {}).get("run_config"):
+        try:
+            _validate_run_config(
+                job_name=job,
+                run_config=config["overrides"]["run_config"],
+            )
+        except LaunchError as e:
+            wandb.termerror(f"Config validation failed: {e}")
+            sys.exit(1)
 
     if queue is None:
         # direct launch
