@@ -344,7 +344,7 @@ class MetricAgg(BaseMetricOperand):
 class MetricZScoreFilter(GQLBase, extra="forbid"):
     name: str
     window_size: PositiveInt
-    threshold: PositiveFloat
+    threshold: PosNum
     change_dir: ChangeDir
 
     def __repr__(self) -> str:
