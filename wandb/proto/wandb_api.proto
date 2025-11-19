@@ -51,7 +51,7 @@ message ReadRunHistoryRequest {
 message ReadRunHistoryResponse {
   oneof response {
     ScanRunHistoryInitResponse scan_run_history_init = 1;
-    RunHistoryResponse run_history_response = 2;
+    RunHistoryResponse run_history = 2;
     ScanRunHistoryCleanupResponse scan_run_history_cleanup = 3;
   }
 }

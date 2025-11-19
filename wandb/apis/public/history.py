@@ -114,12 +114,11 @@ class BetaHistoryScan:
         api_request = apb.ApiRequest(read_run_history_request=read_run_history_request)
 
         response: apb.ApiResponse = self._api._send_api_request(api_request)
-        run_history_response: apb.RunHistoryResponse = (
-            response.read_run_history_response.run_history_response
+        run_history: apb.RunHistoryResponse = (
+            response.read_run_history_response.run_history
         )
         self.rows = [
-            self._convert_history_row_to_dict(row)
-            for row in run_history_response.history_rows
+            self._convert_history_row_to_dict(row) for row in run_history.history_rows
         ]
         self.page_offset += self.page_size
         self.scan_offset = 0

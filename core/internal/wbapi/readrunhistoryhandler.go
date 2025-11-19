@@ -184,8 +184,8 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_ReadRunHistoryResponse{
 			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
-				Response: &spb.ReadRunHistoryResponse_RunHistoryResponse{
-					RunHistoryResponse: &spb.RunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_RunHistory{
+					RunHistory: &spb.RunHistoryResponse{
 						HistoryRows: historyRows,
 					},
 				},
