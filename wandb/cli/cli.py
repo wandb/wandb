@@ -2039,6 +2039,80 @@ def create(
     wandb.termlog(f"View all jobs in project '{project}' here: {url}\n")
 
 
+@cli.group(help="Commands for managing and viewing W&B launch queues")
+def queue() -> None:
+    pass
+
+
+@queue.command("list", help="List launch queues")
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    envvar=env.ENTITY,
+    help="The entity to list queues from. Defaults to your default entity.",
+)
+@click.option(
+    "--project",
+    "-p",
+    default=None,
+    envvar=env.PROJECT,
+    help="The project to list queues from. Defaults to 'model-registry' (entity-level queues).",
+)
+@display_error
+def _queue_list(entity, project):
+    """List all launch queues.
+    
+    Queues are associated with projects. Most commonly, entity-level queues
+    are stored in the special 'model-registry' project (the default).
+    However, project-specific queues can also exist.
+    
+    Examples:
+        # List entity-level queues (uses model-registry project by default)
+        wandb queue list
+        
+        # List queues for a specific entity
+        wandb queue list --entity my-team
+        
+        # List queues for a specific project
+        wandb queue list --project my-project
+    """
+    api = _get_cling_api()
+    
+    # Get default entity if not specified
+    if entity is None:
+        entity = api.default_entity
+        if entity is None:
+            wandb.termerror("No entity specified and no default entity found. Please specify --entity.")
+            return
+    
+    # Use default project if not specified (model-registry for entity-level queues)
+    if project is None:
+        project = launch_utils.LAUNCH_DEFAULT_PROJECT
+    
+    wandb.termlog(f"Listing queues in {entity}/{project}")
+    
+    try:
+        queues = api.get_project_run_queues(entity, project)
+    except wandb.errors.CommError as e:
+        wandb.termerror(f"{e}")
+        return
+    
+    if not queues:
+        wandb.termlog("No queues found")
+        return
+    
+    # Find max name length for alignment
+    max_name_len = max(len(q.get("name", "Unknown")) for q in queues)
+    
+    # Display queues with aligned columns
+    for q in queues:
+        queue_name = q.get("name", "Unknown")
+        access = q.get("access", "unknown")
+        created_by = q.get("createdBy", "unknown")
+        wandb.termlog(f"  {queue_name.ljust(max_name_len)} -- access: {access}, created by: {created_by}")
+
+
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
 @click.argument("sweep_id")
