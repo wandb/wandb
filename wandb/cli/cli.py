@@ -1481,6 +1481,12 @@ def _validate_run_config(
     help="""When --queue is passed, set the priority of the job. Launch jobs with higher priority
     are served first.  The order, from highest to lowest priority, is: critical, high, medium, low""",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Perform validation and show what would be launched without actually launching.",
+)
 @display_error
 def launch(
     uri,
@@ -1505,6 +1511,7 @@ def launch(
     dockerfile,
     priority,
     job_name,
+    dry_run,
 ):
     """Start a W&B run from the given URI.
 
@@ -1636,6 +1643,53 @@ def launch(
         except LaunchError as e:
             wandb.termerror(f"Config validation failed: {e}")
             sys.exit(1)
+    
+    # If dry-run, print what would be launched and exit
+    if dry_run:
+        priority_names = {0: "critical", 1: "high", 2: "medium", 3: "low"}
+        
+        # Build configuration details
+        details = [
+            ("Job", job),
+            ("URI", uri),
+            ("Entry point", entry_point),
+            ("Entity", entity),
+            ("Project", project),
+            ("Resource", resource),
+            ("Docker image", docker_image),
+            ("Queue", queue),
+        ]
+        
+        if queue and priority is not None:
+            details.append(("Priority", priority_names.get(priority, priority)))
+        elif not queue:
+            details.append(("Async", run_async))
+        
+        # Print header
+        separator = "=" * 60
+        wandb.termlog(f"\n{separator}")
+        wandb.termlog("DRY RUN - Launch Configuration")
+        wandb.termlog(f"{separator}\n")
+        
+        # Print basic details
+        for label, value in details:
+            if value:
+                wandb.termlog(f"{label}: {value}")
+        
+        # Print config and resource args
+        if config:
+            wandb.termlog(f"\nLaunch config:")
+            wandb.termlog(json.dumps(config, indent=2))
+        
+        if resource_args:
+            wandb.termlog(f"\nResource args:")
+            wandb.termlog(json.dumps(resource_args, indent=2))
+        
+        # Print footer
+        wandb.termlog(f"\n{separator}")
+        wandb.termlog("✓ Dry run complete. No job was launched or queued.")
+        wandb.termlog(f"{separator}\n")
+        return
 
     if queue is None:
         # direct launch
