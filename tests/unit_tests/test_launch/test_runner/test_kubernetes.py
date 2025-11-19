@@ -2130,6 +2130,11 @@ async def test_launch_additional_services(
     expected_pod_name = "pod-test-entity-test-project-test-run-id"
     expected_label = "auxiliary-resource"
 
+    # Add a very long label to the manifest that needs sanitization (>63 chars)
+    manifest.setdefault("metadata", {}).setdefault("labels", {})["very_long_label"] = (
+        "THIS_IS_A_VERY_LONG_LABEL_VALUE_THAT_EXCEEDS_SIXTY_THREE_CHARACTERS_AND_NEEDS_TRUNCATION"
+    )
+
     additional_service = {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
@@ -2137,10 +2142,24 @@ async def test_launch_additional_services(
             "name": f"deploy-{target_entity}-{target_project}-{run_id}",
             "labels": {
                 "wandb.ai/label": expected_label,
+                # Add label that needs sanitization (uppercase + underscore)
+                "app_label": "MY_DEPLOYMENT_LABEL_123",
             },
         },
         "spec": {
+            # Add selector with matchLabels that need sanitization
+            "selector": {
+                "matchLabels": {
+                    "app": "DEPLOY_TEST_ENTITY_TEST_PROJECT",
+                }
+            },
             "template": {
+                "metadata": {
+                    "labels": {
+                        # Add pod template label that needs sanitization
+                        "pod_label": "MY_POD_LABEL_456",
+                    }
+                },
                 "spec": {
                     "containers": [
                         {
@@ -2211,6 +2230,66 @@ async def test_launch_additional_services(
         labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE]
         == "123e4567-e89b-12d3-a456-426614174000"
     )
+
+    # Verify label sanitization in additional service deployment
+    # "MY_DEPLOYMENT_LABEL_123" -> "my-deployment-label-123"
+    assert "app_label" in labels
+    assert labels["app_label"] == "my-deployment-label-123"
+
+    # Verify pod template label sanitization: "MY_POD_LABEL_456" -> "my-pod-label-456"
+    pod_labels = (
+        additional_service_call[0][1]
+        .get("spec")
+        .get("template")
+        .get("metadata")
+        .get("labels")
+    )
+    assert "pod_label" in pod_labels
+    assert pod_labels["pod_label"] == "my-pod-label-456"
+
+    # Verify selector matchLabels sanitization: "DEPLOY_TEST_ENTITY_TEST_PROJECT" -> "deploy-test-entity-test-project"
+    selector_match_labels = (
+        additional_service_call[0][1].get("spec").get("selector").get("matchLabels")
+    )
+    assert "app" in selector_match_labels
+    assert selector_match_labels["app"] == "deploy-test-entity-test-project"
+
+    # Verify main job labels are also sanitized
+    main_job_call = next(c for c in calls if c[0][1].get("kind") == "Job")
+    main_job_metadata_labels = main_job_call[0][1].get("metadata").get("labels")
+    # The run_id should be sanitized if it had underscores
+    assert "wandb.ai/run-id" in main_job_metadata_labels
+    assert main_job_metadata_labels["wandb.ai/run-id"] == "test-run-id"
+
+    # Verify very long label is sanitized and truncated to 63 chars
+    # "THIS_IS_A_VERY_LONG_LABEL_VALUE_THAT_EXCEEDS_SIXTY_THREE_CHARACTERS_AND_NEEDS_TRUNCATION"
+    # -> "this-is-a-very-long-label-value-that-exceeds-sixty-three-charac"
+    assert "very_long_label" in main_job_metadata_labels
+    sanitized_long_label = main_job_metadata_labels["very_long_label"]
+    assert len(sanitized_long_label) == 63
+    assert (
+        sanitized_long_label
+        == "this-is-a-very-long-label-value-that-exceeds-sixty-three-charac"
+    )
+
+    # Verify main job's pod template labels exist (they may not include run-id)
+    main_job_pod_labels = (
+        main_job_call[0][1].get("spec").get("template").get("metadata").get("labels")
+    )
+    assert main_job_pod_labels is not None
+    assert "wandb.ai/monitor" in main_job_pod_labels
+
+    # Verify environment variable names are NOT sanitized
+    main_job_containers = (
+        main_job_call[0][1].get("spec").get("template").get("spec").get("containers")
+    )
+    master_container = next(c for c in main_job_containers if c.get("name") == "master")
+    env_vars = master_container.get("env", [])
+    # MY_ENV_VAR should remain unchanged (not sanitized to my-env-var)
+    env_var_names = [e["name"] for e in env_vars]
+    assert "MY_ENV_VAR" in env_var_names
+    # Make sure it wasn't sanitized
+    assert "my-env-var" not in env_var_names
 
 
 @pytest.mark.asyncio
