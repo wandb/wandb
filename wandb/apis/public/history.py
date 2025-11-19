@@ -38,6 +38,7 @@ class BetaHistoryScan:
         max_step: int,
         keys: list[str] | None = None,
         page_size: int = 1000,
+        use_cache: bool = True,
     ):
         self.run = run
         self.min_step = min_step
@@ -52,6 +53,7 @@ class BetaHistoryScan:
             project=self.run.project,
             run_id=self.run.id,
             keys=self.keys,
+            use_cache=use_cache,
         )
         scan_run_history_init_request = apb.ReadRunHistoryRequest(
             scan_run_history_init=scan_run_history_init

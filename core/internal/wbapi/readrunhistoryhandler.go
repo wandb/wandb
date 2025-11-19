@@ -111,6 +111,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 		f.graphqlClient,
 		http.DefaultClient,
 		requestKeys,
+		request.UseCache,
 	)
 	if err != nil {
 		return &spb.ApiResponse{
