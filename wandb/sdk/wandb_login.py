@@ -239,10 +239,7 @@ class _WandbLogin:
         if not self._wandb_setup.settings._offline:
             self._wandb_setup.update_user_settings()
 
-    def prompt_api_key(
-        self,
-        referrer: str,
-    ) -> tuple[str | None, ApiKeyStatus]:
+    def prompt_api_key(self, referrer: str) -> tuple[str | None, ApiKeyStatus]:
         """Prompt the user for an API key.
 
         Returns:
@@ -254,7 +251,7 @@ class _WandbLogin:
             UsageError: If interactive prompting is unavailable.
         """
         try:
-            key = auth.prompt_api_key(
+            key = auth.prompt_and_save_api_key(
                 host=self._settings.base_url,
                 no_offline=self._settings.force,
                 no_create=self._settings.force,
@@ -323,37 +320,45 @@ def _login(
     if wlogin._settings.identity_token_file:
         return True, None
 
-    key_status = ApiKeyStatus.VALID
-    key_is_pre_configured = False
+    if key:
+        if problems := auth.check_api_key(key):
+            raise AuthenticationError(problems)
 
-    # Validate the format of any explicitly-given API key.
-    if key and (problems := auth.check_api_key(key)):
-        raise AuthenticationError(problems)
+        if verify:
+            _verify_login(key, wlogin._settings.base_url)
 
-    # Read the session key if one was not explicitly provided,
-    # unless relogin is set.
-    if not key and not relogin:
-        if settings_key := wlogin._settings.api_key:
-            key = settings_key
-        else:
-            key = auth.read_netrc_auth(host=wlogin._settings.base_url)
+        if update_api_key:
+            wlogin.try_save_api_key(key)
 
-        key_is_pre_configured = bool(key)
+        wlogin.update_session(key, status=ApiKeyStatus.VALID)
 
-    # If there's no explicit or session key, prompt interactively,
-    # raising an error if that's not possible.
-    if not key:
+        if not _silent:
+            wlogin._print_logged_in_message()
+
+        return True, key
+
+    # See if there already is a key in settings. This is true if WANDB_API_KEY
+    # was set or login() already happened.
+    if not relogin and (settings_key := wlogin._settings.api_key):
+        key = settings_key
+        key_status = ApiKeyStatus.VALID
+
+    # Otherwise, try the .netrc file.
+    elif not relogin and (
+        netrc_key := auth.read_netrc_auth(host=wlogin._settings.base_url)
+    ):
+        key = netrc_key
+        key_status = ApiKeyStatus.VALID
+
+    # Finally (or necessarily, if relogin was set), prompt interactively.
+    else:
         key, key_status = wlogin.prompt_api_key(referrer=referrer)
 
-    # Ignore the verify param when offline mode is selected interactively.
+    # The key may be None if offline mode was selected interactively.
+
     if key and verify:
         _verify_login(key, wlogin._settings.base_url)
-
-    if not key_is_pre_configured:
-        if key and update_api_key:
-            wlogin.try_save_api_key(key)
-        wlogin.update_session(key, status=key_status)
-
+    wlogin.update_session(key, status=key_status)
     if key and not _silent:
         wlogin._print_logged_in_message()
 
