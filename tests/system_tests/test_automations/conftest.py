@@ -11,7 +11,7 @@ from pytest import FixtureRequest, fixture, skip
 from typing_extensions import TypeAlias
 from wandb import Artifact
 from wandb._strutils import nameof
-from wandb.apis.public import ArtifactCollection, Project, Registry
+from wandb.apis.public import Api, ArtifactCollection, Project, Registry
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -38,7 +38,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb_gql import gql
 
-ScopableWandbType: TypeAlias = Union[ArtifactCollection, Project]
+ScopableWandbType: TypeAlias = Union[ArtifactCollection, Project, Registry]
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:
@@ -68,13 +68,22 @@ def make_name(worker_id: str) -> Callable[[str], str]:
 #         skip("Cannot create a test registry on this server version.")
 
 
+# @fixture(scope="module")
+# def user_and_org(user_in_orgs_factory) -> tuple[str, str]:
+#     user_and_orgs = user_in_orgs_factory()
+#     return user_and_orgs.username, user_and_orgs.organization_names[0]
+
+
 @fixture(scope="module")
 # def user(module_mocker, user_in_orgs_factory) -> Iterator[str]:
+# def user(module_mocker, user_and_org: tuple[str, str]) -> str:
 def user(module_mocker, backend_fixture_factory) -> Iterator[str]:
     """A module-scoped user that overrides the default `user` fixture from the root-level `conftest.py`."""
     # user_in_orgs = user_in_orgs_factory()
     # username = user_in_orgs.username
     username = backend_fixture_factory.make_user(admin=True)
+
+    # username, _ = user_and_org
 
     envvars = {
         "WANDB_API_KEY": username,
@@ -82,7 +91,7 @@ def user(module_mocker, backend_fixture_factory) -> Iterator[str]:
         "WANDB_USERNAME": username,
     }
     module_mocker.patch.dict(os.environ, envvars)
-    yield username
+    return username
 
     # The `monkeypatch` fixture is strictly function-scoped, so we use a
     # context manager to patch for this module-scoped fixture
@@ -92,9 +101,17 @@ def user(module_mocker, backend_fixture_factory) -> Iterator[str]:
     #     yield username
 
 
+@fixture(scope="module")
+def organization(backend_fixture_factory, user: str) -> str:
+    org = backend_fixture_factory.make_org(username=user)
+    return org
+    # _, org = user_and_org
+    # return org
+
+
 # Request the `user` fixture to ensure env variables are set
 @fixture(scope="module")
-def api(module_mocker, user: str) -> wandb.Api:
+def api(module_mocker, user: str, organization: str) -> Api:
     """A redefined, module-scoped `Api` fixture for tests in this module.
 
     Note that this overrides the default `api` fixture from the root-level
@@ -102,26 +119,26 @@ def api(module_mocker, user: str) -> wandb.Api:
     since the default `api` fixture is function-scoped, meaning it does not
     play well with other module-scoped fixtures.
     """
-    return wandb.Api()
+    return Api()
 
     # with module_mocker.patch.object(
     #     wandb.sdk.wandb_login,
     #     "_login",
     #     return_value=(True, None),
     # ):
-    #     yield wandb.Api()
+    #     yield Api()
 
 
 @fixture
-def registry(user, api, make_name) -> Registry:
+def registry(user, organization, api: Api, make_name) -> Registry:
     """A wandb Registry for tests in this module."""
     if not server_supports(api.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION):
         skip("Cannot create a test registry on this server version.")
 
     # Create the project first if it doesn't exist yet
     name = make_name("test-registry")
-    api.create_registry(name=name, visibility="organization")
-    return api.registry(name=name)
+    api.create_registry(name=name, visibility="organization", organization=organization)
+    return api.registry(name=name, organization=organization)
 
 
 @fixture(scope="module")
@@ -149,7 +166,7 @@ def artifact_collection(artifact, api) -> ArtifactCollection:
 
 
 @fixture(scope="module")
-def make_webhook_integration(user, api: wandb.Api) -> Callable[..., WebhookIntegration]:
+def make_webhook_integration(user, api: Api) -> Callable[..., WebhookIntegration]:
     """A module-scoped factory for creating WebhookIntegrations."""
     from wandb.automations._generated import CreateGenericWebhookIntegrationInput
 
@@ -186,16 +203,31 @@ def webhook(
 
 # ---------------------------------------------------------------------------
 # Exclude deprecated events/actions that will not be exposed in the API for programmatic creation
-def valid_input_scopes() -> list[ScopeType]:
-    return sorted(ScopeType)
+def valid_input_scopes() -> list[str]:
+    return [
+        *sorted(e.name for e in set(ScopeType)),
+        # "REGISTRY",
+    ]
 
 
-def valid_input_events() -> list[EventType]:
-    return sorted(set(EventType) - set(INVALID_INPUT_EVENTS))
+def valid_input_events() -> list[str]:
+    return sorted(e.name for e in set(EventType).difference(INVALID_INPUT_EVENTS))
 
 
-def valid_input_actions() -> list[ActionType]:
-    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS))
+def valid_input_actions() -> list[str]:
+    return sorted(e.name for e in set(ActionType).difference(INVALID_INPUT_ACTIONS))
+
+
+# def valid_input_scopes() -> list[ScopeType]:
+#     return sorted(ScopeType)
+
+
+# def valid_input_events() -> list[EventType]:
+#     return sorted(set(EventType) - set(INVALID_INPUT_EVENTS))
+
+
+# def valid_input_actions() -> list[ActionType]:
+#     return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS))
 
 
 # Invalid (event, scope) combinations that should be skipped
@@ -210,45 +242,44 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     }
 
 
-@fixture(params=valid_input_scopes(), ids=lambda x: f"scope={x.value}")
-def scope_type(request: FixtureRequest) -> ScopeType:
+@fixture(params=valid_input_scopes(), ids=lambda scope: f"{scope=}")
+def scope_type(request: FixtureRequest) -> str:
     """A fixture that parametrizes over all valid scope types."""
     return request.param
 
 
-@fixture(params=valid_input_events(), ids=lambda x: f"event={x.value}")
-def event_type(
-    request: FixtureRequest, scope_type: ScopeType, api: wandb.Api
-) -> EventType:
+@fixture(params=valid_input_events(), ids=lambda event: f"{event=}")
+def event_type(request: FixtureRequest, scope_type: str, api: Api) -> str:
     """A fixture that parametrizes over all valid event types."""
 
     event_type = request.param
 
-    if not api._supports_automation(event=event_type):
+    if not api._supports_automation(event=EventType[event_type]):
         skip(f"Server does not support event type: {event_type!r}")
 
-    if (event_type, scope_type) in invalid_events_and_scopes():
-        skip(f"Event {event_type.value!r} doesn't support scope {scope_type.value!r}")
+    if (EventType[event_type], ScopeType[scope_type]) in invalid_events_and_scopes():
+        skip(f"Event {event_type!r} doesn't support scope {scope_type!r}")
 
     return event_type
 
 
-@fixture(params=valid_input_actions(), ids=lambda x: f"action={x.value}")
-def action_type(request: type[FixtureRequest], api: wandb.Api) -> ActionType:
+@fixture(params=valid_input_actions(), ids=lambda action: f"{action=}")
+def action_type(request: FixtureRequest, api: Api) -> str:
     """A fixture that parametrizes over all valid action types."""
     action_type = request.param
 
-    if not api._supports_automation(action=action_type):
+    if not api._supports_automation(action=ActionType[action_type]):
         skip(f"Server does not support action type: {action_type!r}")
 
     return action_type
 
 
 @fixture
-def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
-    scope2fixture: dict[ScopeType, str] = {
-        ScopeType.ARTIFACT_COLLECTION: artifact_collection.__name__,
-        ScopeType.PROJECT: project.__name__,
+def scope(request: FixtureRequest, scope_type: str) -> ScopableWandbType:
+    scope2fixture: dict[str, str] = {
+        "ARTIFACT_COLLECTION": nameof(artifact_collection),
+        "PROJECT": nameof(project),
+        # "REGISTRY": nameof(registry),  # FIXME: Get test setup working for this
     }
     # We want to request the fixture dynamically, hence the request.getfixturevalue workaround
     return request.getfixturevalue(scope2fixture[scope_type])
