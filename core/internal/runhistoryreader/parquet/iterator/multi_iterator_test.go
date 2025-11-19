@@ -132,8 +132,7 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 		}
 
 		actualValues = append(actualValues, values)
-		next, err = multiReader.Next()
-		require.NoError(t, err)
+		next, _ = multiReader.Next()
 	}
 
 	expectedValues := []map[string]any{

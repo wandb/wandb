@@ -11,9 +11,12 @@ type ParquetDataIterator struct {
 	ctx             context.Context
 	selectedRows    *SelectedRows
 	selectedColumns *SelectedColumns
+	fileReader      *pqarrow.FileReader
 
 	recordReader pqarrow.RecordReader
-	current      *RowGroupIterator
+	current      RowIterator
+
+	lastStep int64
 }
 
 func NewParquetDataIterator(
@@ -56,9 +59,11 @@ func NewParquetDataIterator(
 
 		selectedRows:    selectedRows,
 		selectedColumns: selectedColumns,
+		fileReader:      reader,
 
 		recordReader: recordReader,
 		current:      current,
+		lastStep:     0,
 	}, nil
 }
 
@@ -66,10 +71,24 @@ func (r *ParquetDataIterator) UpdateQueryRange(
 	minValue float64,
 	maxValue float64,
 	selectAll bool,
-) {
+) error {
+
+	// Update the selected range
 	r.selectedRows.minValue = minValue
 	r.selectedRows.maxValue = maxValue
 	r.selectedRows.selectAll = selectAll
+
+	// When we want data from minValue we need to create a new record reader
+	// since the Arrow RecordReader doesn't support backward seeking
+	// after data has been consumed.
+	if int64(minValue) < r.lastStep {
+		err := r.createNewRecordReader()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Next implements RowIterator.Next.
@@ -77,6 +96,7 @@ func (r *ParquetDataIterator) Next() (bool, error) {
 	for {
 		next, err := r.current.Next()
 		if next || err != nil {
+			r.lastStep++
 			return next, err
 		}
 
@@ -106,4 +126,49 @@ func (r *ParquetDataIterator) Value() KeyValueList {
 func (r *ParquetDataIterator) Release() {
 	r.current.Release()
 	r.recordReader.Release()
+}
+
+// createNewRecordReader creates a fresh RecordReader when going backwards or restarting.
+// This adds latency but is necessary since the Arrow RecordReader doesn't
+// support backward seeking after data has been consumed.
+func (r *ParquetDataIterator) createNewRecordReader() error {
+	// Create a new record reader for the updated range
+	columnIndices := r.selectedColumns.GetColumnIndices()
+	rowGroupIndices, err := r.selectedRows.GetRowGroupIndices()
+	if err != nil {
+		return err
+	}
+
+	recordReader, err := r.fileReader.GetRecordReader(
+		r.ctx,
+		columnIndices,
+		rowGroupIndices,
+	)
+	if err != nil {
+		return err
+	}
+	r.recordReader = recordReader
+
+	// No rows to read
+	if !r.recordReader.Next() {
+		r.current = &NoopRowIterator{}
+		r.lastStep = 0
+		return nil
+	}
+
+	// Get the record batch after calling Next()
+	recordBatch := r.recordReader.RecordBatch()
+
+	// Create new row group iterator with the batch
+	current, err := NewRowGroupIterator(
+		recordBatch,
+		r.selectedColumns,
+		r.selectedRows,
+	)
+	if err != nil {
+		return err
+	}
+	r.current = current
+	r.lastStep = 0
+	return nil
 }

@@ -123,7 +123,7 @@ func TestRecordIterator_FiltersRowsWithEmptyColumns(t *testing.T) {
 
 	// Verify no more data returned
 	next, err = reader.Next()
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrRowExceedsMaxValue)
 	assert.False(t, next, "Expected no more data returned")
 }
 
@@ -166,7 +166,7 @@ func TestRecordIterator_FiltersRowsWithStepOutOfRange(t *testing.T) {
 
 	// Verify no more data returned
 	next, err = reader.Next()
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrRowExceedsMaxValue)
 	assert.False(t, next, "Expected no more data returned")
 }
 

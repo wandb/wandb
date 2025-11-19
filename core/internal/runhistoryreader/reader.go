@@ -67,7 +67,7 @@ func New(
 			iterator.StepKey,
 			0,
 			float64(math.MaxInt64),
-			true,
+			false,
 		)
 		selectedColumns, err := iterator.SelectColumns(
 			iterator.StepKey,
@@ -137,18 +137,20 @@ func (h *HistoryReader) getParquetHistory(
 ) ([]iterator.KeyValueList, error) {
 	results := []iterator.KeyValueList{}
 
-	// Update the query range. For consecutive ranges, the iterator will continue
-	// from the current position. For non-consecutive, it will reset.
 	for _, partition := range h.partitions {
 		parquetDataIterator, ok := partition.(*iterator.ParquetDataIterator)
 		if !ok {
 			return nil, fmt.Errorf("partition is not a ParquetDataIterator")
 		}
-		parquetDataIterator.UpdateQueryRange(
+
+		err = parquetDataIterator.UpdateQueryRange(
 			float64(minStep),
 			float64(maxStep),
 			false,
 		)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	multiIterator := iterator.NewMultiIterator(h.partitions)
