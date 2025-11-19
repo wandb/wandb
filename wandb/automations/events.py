@@ -416,11 +416,6 @@ class RunEvent:
         """Define a metric filter condition."""
         return MetricVal(name=name)
 
-    @staticmethod
-    def zscore(name: str) -> MetricZScore:
-        """Define a z-score metric operand."""
-        return MetricZScore(name=name)
-
 
 class ArtifactEvent:
     alias = FilterableField()

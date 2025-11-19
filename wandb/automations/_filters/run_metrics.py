@@ -332,6 +332,9 @@ class MetricVal(BaseMetricOperand):
     def mean(self, window: int) -> MetricAgg:
         return self.avg(window=window)
 
+    def zscore(self, window: int) -> MetricZScoreWindow:
+        return MetricZScoreWindow(name=self.name, window_size=window)
+
 
 class MetricAgg(BaseMetricOperand):
     """Represents an aggregated metric value when defining metric event filters."""
