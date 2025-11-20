@@ -51,11 +51,8 @@ class Registries(Paginator):
         self.client = client
         self.organization = organization
         self.filter = ensure_registry_prefix_on_names(filter or {})
-        variables = {
-            "organization": organization,
-            "filters": json.dumps(self.filter),
-        }
-        super().__init__(client, variables, per_page)
+        variables = {"organization": organization, "filters": json.dumps(self.filter)}
+        super().__init__(client, variables=variables, per_page=per_page)
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
@@ -176,7 +173,7 @@ class Collections(Paginator["ArtifactCollection"]):
             "perPage": per_page,
         }
 
-        super().__init__(client, variables, per_page)
+        super().__init__(client, variables=variables, per_page=per_page)
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
@@ -288,7 +285,7 @@ class Versions(Paginator["Artifact"]):
             "organization": organization,
         }
 
-        super().__init__(client, variables, per_page)
+        super().__init__(client, variables=variables, per_page=per_page)
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth

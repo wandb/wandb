@@ -106,10 +106,7 @@ query ProjectArtifacts(
 ) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $type) {
-      # NOTE: The node being aliased is named:
-      # - `artifactCollection` for new servers
-      # - `artifactSequence` for old servers
-      artifactCollection: artifactCollection(name: $collection) {
+      artifactCollection(name: $collection) {
         artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
           ...VersionedArtifactConnectionFragment
         }
