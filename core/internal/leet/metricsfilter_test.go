@@ -11,9 +11,13 @@ import (
 	"github.com/wandb/wandb/core/internal/leet"
 )
 
-func typeString(mg *leet.MetricsGrid, s string) {
+type ComponentWithContentFilter interface {
+	UpdateFilterDraft(msg tea.KeyMsg)
+}
+
+func typeString(c ComponentWithContentFilter, s string) {
 	for _, r := range s {
-		mg.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		c.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 	}
 }
 

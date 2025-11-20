@@ -227,8 +227,8 @@ func (s *LeftSidebar) updateSections() {
 	s.sections[1].Items = s.runOverview.ConfigItems()
 	s.sections[2].Items = s.runOverview.SummaryItems()
 
-	if s.filter.inputActive || s.filter.applied != "" {
-		s.applyFilter()
+	if s.IsFilterMode() || s.FilterQuery() != "" {
+		s.ApplyFilter()
 	} else {
 		for i := range s.sections {
 			s.sections[i].FilteredItems = s.sections[i].Items
@@ -363,7 +363,7 @@ func (s *LeftSidebar) buildSectionInfo(
 	totalItems, filteredItems, startIdx, endIdx int,
 ) string {
 	switch {
-	case (s.filter.inputActive || s.filter.applied != "") && filteredItems != totalItems:
+	case (s.filter.IsActive() || s.filter.Query() != "") && filteredItems != totalItems:
 		// Filtered view with pagination.
 		return fmt.Sprintf(" [%d-%d of %d filtered from %d]",
 			startIdx+1, endIdx, filteredItems, totalItems)

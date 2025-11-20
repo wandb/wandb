@@ -44,7 +44,7 @@ type Model struct {
 	// Data reader.
 	reader *WandbReader
 
-	// Transaction log (.wandb file) watch and heartbeat managemenmt.
+	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
 	fileComplete bool
 	heartbeatMgr *HeartbeatManager
@@ -139,7 +139,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	// Forward UI messages to children if not in filter mode.
-	if isUIMsg(msg) && !m.metricsGrid.IsFilterMode() {
+	if isUIMsg(msg) && !m.metricsGrid.IsFilterMode() && !m.leftSidebar.IsFilterMode() {
 		if s, c := m.leftSidebar.Update(msg); c != nil {
 			m.leftSidebar = s
 			cmds = append(cmds, c)
@@ -441,20 +441,23 @@ func (m *Model) buildOverviewFilterStatus() string {
 	if filterInfo == "" {
 		filterInfo = "no matches"
 	}
-	return fmt.Sprintf("Overview filter: %s_ [%s] (@e/@c/@s for sections • Enter to apply)",
-		m.leftSidebar.FilterQuery(), filterInfo)
+	return fmt.Sprintf(
+		"Overview filter (%s): %s_ [%s] (Enter to apply • Tab to toggle mode)",
+		m.leftSidebar.FilterMode().String(),
+		m.leftSidebar.FilterQuery(),
+		filterInfo,
+	)
 }
 
 // buildMetricsFilterStatus builds status for metrics filter mode.
 //
 // Should be guarded by the caller's check that filter input is active.
 func (m *Model) buildMetricsFilterStatus() string {
-	filteredCount := m.metricsGrid.FilteredChartCount()
-	totalCount := m.metricsGrid.ChartCount()
 	return fmt.Sprintf(
 		"Filter (%s): %s_ [%d/%d] (Enter to apply • Tab to toggle mode)",
 		m.metricsGrid.FilterMode().String(),
-		m.metricsGrid.filter.draft, filteredCount, totalCount)
+		m.metricsGrid.FilterQuery(),
+		m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount())
 }
 
 // buildGridConfigStatus builds status for grid configuration mode.
@@ -488,13 +491,11 @@ func (m *Model) buildActiveStatus() string {
 
 	// Add filter info if active.
 	if m.metricsGrid.IsFiltering() {
-		filteredCount := m.metricsGrid.FilteredChartCount()
-		totalCount := m.metricsGrid.ChartCount()
 		parts = append(parts, fmt.Sprintf(
 			"Filter (%s): \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
 			m.metricsGrid.FilterMode().String(),
 			m.metricsGrid.FilterQuery(),
-			filteredCount, totalCount))
+			m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount()))
 	}
 
 	// Add overview filter info if active.
