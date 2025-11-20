@@ -36,7 +36,7 @@ class Integrations(Paginator["Integration"]):
     def __init__(self, client: _Client, variables: dict[str, Any], per_page: int = 50):
         from wandb.automations._generated import INTEGRATIONS_BY_ENTITY_GQL
 
-        super().__init__(client, variables, per_page=per_page)
+        super().__init__(client, variables=variables, per_page=per_page)
         self._query = gql(INTEGRATIONS_BY_ENTITY_GQL)
 
     @property
