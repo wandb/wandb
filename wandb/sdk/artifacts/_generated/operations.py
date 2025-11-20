@@ -520,8 +520,8 @@ fragment PageInfoFragment on PageInfo {
 """
 
 PROJECT_ARTIFACT_TYPES_GQL = """
-query ProjectArtifactTypes($entityName: String!, $projectName: String!, $cursor: String) {
-  project(name: $projectName, entityName: $entityName) {
+query ProjectArtifactTypes($entity: String!, $project: String!, $cursor: String) {
+  project(name: $project, entityName: $entity) {
     artifactTypes(after: $cursor) {
       edges {
         node {
@@ -551,9 +551,9 @@ fragment PageInfoFragment on PageInfo {
 """
 
 PROJECT_ARTIFACT_TYPE_GQL = """
-query ProjectArtifactType($entityName: String!, $projectName: String!, $artifactTypeName: String!) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactType(name: $artifactTypeName) {
+query ProjectArtifactType($entity: String!, $project: String!, $artifactType: String!) {
+  project(name: $project, entityName: $entity) {
+    artifactType(name: $artifactType) {
       ...ArtifactTypeFragment
     }
   }

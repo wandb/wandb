@@ -167,7 +167,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
         self.entity = entity
         self.project = project
 
-        variables = {"entityName": entity, "projectName": project}
+        variables = {"entity": entity, "project": project}
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
@@ -285,9 +285,9 @@ class ArtifactType:
 
         gql_op = gql(PROJECT_ARTIFACT_TYPE_GQL)
         gql_vars = {
-            "entityName": self.entity,
-            "projectName": self.project,
-            "artifactTypeName": self.type,
+            "entity": self.entity,
+            "project": self.project,
+            "artifactType": self.type,
         }
         data = self.client.execute(gql_op, variable_values=gql_vars)
         result = ProjectArtifactType.model_validate(data)
