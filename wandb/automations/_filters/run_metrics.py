@@ -378,7 +378,7 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
             else f"{self.change_dir.value.lower()}s"
         )
         return repr(
-            rf"zscore({self.name}, window={self.window_size}) {verb} > {self.threshold}σ"
+            rf"zscore({self.name}, window={self.window}) {verb} > {self.threshold}σ"
         )
 
     @override
