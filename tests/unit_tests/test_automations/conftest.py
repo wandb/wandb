@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from curses import window
 import secrets
 from functools import lru_cache
 from typing import Union
