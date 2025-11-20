@@ -3018,7 +3018,7 @@ class Run:
         Args:
             artifact_or_name: The name of the artifact to use. May be prefixed
                 with the name of the project the artifact was logged to
-                ("<entity>" or "<entity>/<project>"). If no
+                ("entity" or "entity/project"). If no
                 entity is specified in the name, the Run or API setting's entity is used.
                 Valid names can be in the following forms
             - name:version

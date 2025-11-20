@@ -59,20 +59,44 @@ def login(
     referrer: str | None = None,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
-    """Set up W&B login credentials.
+    """Log into W&B.
 
-    By default, this will only store credentials locally without
-    verifying them with the W&B server. To verify credentials, pass
-    `verify=True`.
+    You generally don't have to use this because most W&B methods that need
+    authentication can log in implicitly. This is the programmatic counterpart
+    to the `wandb login` CLI.
+
+    This updates global credentials for the session (affecting all wandb usage
+    in the current Python process after this call) and possibly the .netrc file.
+
+    If the identity_token_file setting is set, like through the
+    WANDB_IDENTITY_TOKEN_FILE environment variable, then this is a no-op.
+
+    Otherwise, if an explicit API key is provided, it is used and written to
+    the system .netrc file. If no key is provided, but the session is already
+    authenticated, then the session key is used for verification (if verify
+    is True) and the .netrc file is not updated.
+
+    If none of the above is true, then this gets the API key from the first of:
+
+    - The WANDB_API_KEY environment variable
+    - The api_key setting in a system or workspace settings file
+    - The .netrc file (either ~/.netrc, ~/_netrc or the path specified by the
+      NETRC environment variable)
+    - An interactive prompt (if available)
 
     Args:
         key: The API key to use.
-        relogin: If true, will re-prompt for API key.
-        host: The host to connect to.
-        force: If true, will force a relogin.
-        timeout: Number of seconds to wait for user input.
-        verify: Verify the credentials with the W&B server.
-        referrer: The referrer to use in the URL login request.
+        relogin: If true, get the API key from an interactive prompt, skipping
+            reading .netrc, environment variables, etc.
+        host: The W&B server URL to connect to.
+        force: If true, disallows selecting offline mode in the interactive
+            prompt.
+        timeout: Number of seconds to wait for user input in the interactive
+            prompt. This can be used as a failsafe if an interactive prompt
+            is incorrectly shown in a non-interactive environment.
+        verify: Verify the credentials with the W&B server and raise an
+            AuthenticationError on failure.
+        referrer: The referrer to use in the URL login request for analytics.
 
     Returns:
         bool: If `key` is configured.
@@ -87,6 +111,17 @@ def login(
             + " be removed in future versions.",
             repeat=False,
         )
+
+    if wandb.run is not None:
+        term.termwarn("Calling wandb.login() after wandb.init() has no effect.")
+        return False
+
+    global_settings = wandb_setup.singleton().settings
+    if global_settings._noop:
+        return False
+    if global_settings._offline and not global_settings.x_cli_only_mode:
+        term.termwarn("Unable to verify login in offline mode.")
+        return False
 
     _handle_host_wandb_setting(host)
     _clear_anonymous_setting()
@@ -252,7 +287,6 @@ def _login(
     referrer: str = "models",
     update_api_key: bool = True,
     _silent: bool | None = None,
-    _disable_warning: bool | None = None,
 ) -> tuple[bool, str | None]:
     """Logs in to W&B.
 
@@ -264,8 +298,6 @@ def _login(
         update_api_key: If true, the api key will be saved or updated
             in the users .netrc file.
         _silent: If true, will not print any messages to the console.
-        _disable_warning: If true, no warning will be displayed
-            when calling wandb.login() after wandb.init().
 
     Returns:
         bool: If the login was successful
@@ -273,11 +305,6 @@ def _login(
         str: The API key used to log in,
             or None if the api key was not verified during the login process.
     """
-    if wandb.run is not None:
-        if not _disable_warning:
-            wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
-        return True, None
-
     wlogin = _WandbLogin(
         force=force,
         host=host,
@@ -286,15 +313,10 @@ def _login(
         timeout=timeout,
     )
 
-    if wlogin._settings._noop:
-        return True, None
-
-    if wlogin._settings._offline and not wlogin._settings.x_cli_only_mode:
-        wandb.termwarn("Unable to verify login in offline mode.")
-        return False, None
-    elif wandb.util._is_kaggle() and not wandb.util._has_internet():
-        wandb.termerror(
-            "To use W&B in kaggle you must enable internet in the settings panel on the right."
+    if wandb.util._is_kaggle() and not wandb.util._has_internet():
+        term.termerror(
+            "To use W&B in kaggle you must enable internet in the settings"
+            + " panel on the right."
         )
         return False, None
 

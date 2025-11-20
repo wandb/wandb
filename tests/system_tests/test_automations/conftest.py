@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import secrets
-import unittest
 from functools import lru_cache
 from string import ascii_lowercase, digits
 from typing import Callable, Iterator, Union
@@ -84,12 +83,7 @@ def api(user: str) -> wandb.Api:
     since the default `api` fixture is function-scoped, meaning it does not
     play well with other module-scoped fixtures.
     """
-    with unittest.mock.patch.object(
-        wandb.sdk.wandb_login,
-        "_login",
-        return_value=(True, None),
-    ):
-        yield wandb.Api()
+    return wandb.Api(api_key=user)
 
 
 @fixture(scope="module")

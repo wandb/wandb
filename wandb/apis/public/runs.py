@@ -547,8 +547,8 @@ class Run(Attrs):
         path (str): Unique identifier [entity]/[project]/[run_id]
         notes (str): Notes about the run
         read_only (boolean): Whether the run is editable
-        history_keys (str): Keys of the history metrics that have been logged
-            with `wandb.log({key: value})`
+        history_keys (str): Keys of the history metrics that have been
+                    logged with `wandb.log({"key": "value"})`
         metadata (str): Metadata about the run from wandb-metadata.json
     """
 

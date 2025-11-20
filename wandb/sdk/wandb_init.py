@@ -192,7 +192,6 @@ class _WandbInit:
         wandb_login._login(
             host=run_settings.base_url,
             force=run_settings.force,
-            _disable_warning=True,
             _silent=run_settings.quiet or run_settings.silent,
         )
 
