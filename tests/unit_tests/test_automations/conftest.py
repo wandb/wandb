@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from curses import window
 import secrets
 from functools import lru_cache
 from typing import Union
@@ -250,7 +251,7 @@ def on_run_metric_zscore(scope: ScopableWandbType) -> OnRunMetric:
         scope=scope,
         filter=MetricZScoreFilter(
             name="my-metric",
-            window_size=5,
+            window=5,
             threshold=2.0,
             change_dir=ChangeDir.ANY,
         ),

@@ -384,7 +384,7 @@ def test_create_automation_for_run_metric_zscore_event(
         },
         metric=MetricZScoreFilter(
             name=metric_name,
-            window_size=window,
+            window=window,
             threshold=threshold,
             change_dir=ChangeDir.ANY,
         ),
@@ -395,7 +395,7 @@ def test_create_automation_for_run_metric_zscore_event(
         filter=(
             MetricZScoreFilter(
                 name=metric_name,
-                window_size=window,
+                window=window,
                 threshold=threshold,
                 change_dir=ChangeDir.ANY,
             )

@@ -326,7 +326,7 @@ def metric_zscore_filters(
     """Generates a `MetricZScoreFilter` instance."""
     kw_strategies = dict(
         name=name,
-        window_size=window_size,
+        window=window_size,
         threshold=threshold,
         change_dir=change_dir,
     )

@@ -263,7 +263,7 @@ def on_run_metric_zscore(scope) -> OnRunMetric:
     run_filter = RunEvent.name.contains("my-run")
     metric_filter = MetricZScoreFilter(
         name="my-metric",
-        window_size=5,
+        window=5,
         threshold=2.0,
         change_dir=ChangeDir.ANY,
     )

@@ -215,7 +215,7 @@ def test_metric_zscore_filter_serialization(metric_filter: MetricZScoreFilter):
     """Check that a normally-instantiated `MetricZScoreFilter` produces the expected JSON-serializable dict."""
     expected_dict = {
         "name": metric_filter.name,
-        "window_size": metric_filter.window_size,
+        "window_size": metric_filter.window,
         "threshold": metric_filter.threshold,
         "change_dir": metric_filter.change_dir.value,
     }
@@ -233,7 +233,7 @@ def test_metric_zscore_filter_repr(name: str, window: int, threshold: float):
     """Check that a metric zscore filter has the expected human-readable representation."""
     # Test with change_dir=ANY
     metric_filter = MetricZScoreFilter(
-        name=name, window_size=window, threshold=threshold, change_dir=ChangeDir.ANY
+        name=name, window=window, threshold=threshold, change_dir=ChangeDir.ANY
     )
     assert repr(metric_filter) == repr(
         f"zscore({name}, window={window}) changes > {threshold}σ"
@@ -242,7 +242,7 @@ def test_metric_zscore_filter_repr(name: str, window: int, threshold: float):
     # Test with change_dir=INCREASE
     metric_filter = MetricZScoreFilter(
         name=name,
-        window_size=window,
+        window=window,
         threshold=threshold,
         change_dir=ChangeDir.INCREASE,
     )
@@ -253,7 +253,7 @@ def test_metric_zscore_filter_repr(name: str, window: int, threshold: float):
     # Test with change_dir=DECREASE
     metric_filter = MetricZScoreFilter(
         name=name,
-        window_size=window,
+        window=window,
         threshold=threshold,
         change_dir=ChangeDir.DECREASE,
     )
@@ -274,7 +274,7 @@ def test_metric_zscore_filter_requires_positive_threshold(
     with raises(ValidationError):
         MetricZScoreFilter(
             name=name,
-            window_size=window,
+            window=window,
             threshold=invalid_threshold,
             change_dir=ChangeDir.ANY,
         )
@@ -292,7 +292,7 @@ def test_metric_zscore_filter_requires_positive_window_size(
     with raises(ValidationError):
         MetricZScoreFilter(
             name=name,
-            window_size=invalid_window,
+            window=invalid_window,
             threshold=threshold,
             change_dir=ChangeDir.ANY,
         )
