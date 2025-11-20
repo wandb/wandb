@@ -10,7 +10,7 @@ require (
 	github.com/Khan/genqlient v0.8.1
 	github.com/NimbleMarkets/ntcharts v0.3.1
 	github.com/apache/arrow-go/v18 v18.4.1
-	github.com/aws/aws-sdk-go-v2 v1.39.6
+	github.com/aws/aws-sdk-go-v2 v1.40.0
 	github.com/aws/aws-sdk-go-v2/config v1.31.20
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.2
 	github.com/charmbracelet/bubbles v0.21.0
