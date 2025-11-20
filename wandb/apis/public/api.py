@@ -41,15 +41,15 @@ from wandb.apis.public.utils import (
     gql_compat,
     parse_org_from_registry_path,
 )
-from wandb.errors import AuthenticationError, UsageError, term
+from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk import wandb_login, wandb_setup
+from wandb.sdk import wandb_login
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
-from wandb.sdk.lib import auth, retry, runid
+from wandb.sdk.lib import retry, runid
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.gql_request import GraphQLSession
 
@@ -369,16 +369,7 @@ class Api:
         base_url: str,
         init_api_key: str | None = None,
     ) -> str:
-        """Attempts to load a configured API key or prompt if one is not found.
-
-        The API key is loaded in the following order:
-            1. User explicitly provided api key
-            2. Thread local api key
-            3. The session api key
-            4. Environment variable
-            5. Netrc file
-            6. Interactive prompt (if possible)
-        """
+        """Load or prompt for an API key."""
         # Use explicit key before thread local.
         # This allow user switching keys without picking up the wrong key from thread local.
         if init_api_key is not None:
@@ -386,32 +377,20 @@ class Api:
         if _thread_local_api_settings.api_key:
             return _thread_local_api_settings.api_key
 
-        if (  #
-            (settings := wandb_setup.singleton().settings_if_loaded)
-            and (api_key := settings.api_key)
-        ):
-            return api_key
+        _, key = wandb_login._login(
+            host=base_url,
+            force=True,
+            update_api_key=False,
+            _silent=(
+                self.settings.get("silent", False)  #
+                or self.settings.get("quiet", False)
+            ),
+        )
 
-        if api_key := os.getenv(env.API_KEY):
-            return api_key
+        if not key:
+            raise UsageError("No API key configured. Use `wandb login` to log in.")
 
-        if api_key := auth.read_netrc_auth(host=base_url):
-            return api_key
-
-        is_silent = self.settings.get("silent", False)
-        is_quiet = self.settings.get("quiet", False)
-        if not is_silent and not is_quiet:
-            try:
-                if api_key := auth.prompt_api_key(
-                    host=base_url,
-                    no_offline=True,
-                ):
-                    return api_key
-            except term.NotATerminalError:
-                message = "No API key configured. Use `wandb login` to log in."
-                raise UsageError(message) from None
-
-        raise AuthenticationError("No API key.")
+        return key
 
     def _configure_sentry(self) -> None:
         if not env.error_reporting_enabled():

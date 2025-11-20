@@ -364,7 +364,7 @@ def _terminput(
 class DynamicBlock:
     """A handle to a changeable text area in the terminal."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._lines_to_print: list[str] = []
         self._num_lines_printed = 0
 

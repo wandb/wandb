@@ -122,9 +122,6 @@ class Api:
     def download_urls(self, *args, **kwargs):
         return self.api.download_urls(*args, **kwargs)
 
-    def create_anonymous_api_key(self) -> str:
-        return self.api.create_anonymous_api_key()
-
     def push(self, *args, **kwargs):
         return self.api.push(*args, **kwargs)
 

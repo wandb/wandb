@@ -11,6 +11,8 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 
 from __future__ import annotations
 
+from wandb.sdk.lib.deprecation import UNSET, DoNotSet
+
 __all__ = (
     "__version__",  # doc:exclude
     "init",
@@ -147,7 +149,6 @@ def init(
     job_type: str | None = None,
     mode: Literal["online", "offline", "disabled", "shared"] | None = None,
     force: bool | None = None,
-    anonymous: Literal["never", "allow", "must"] | None = None,
     reinit: (
         bool
         | Literal[
@@ -166,6 +167,7 @@ def init(
     sync_tensorboard: bool | None = None,
     monitor_gym: bool | None = None,
     settings: Settings | dict[str, Any] | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> Run:
     """<sdk/wandb_init.py::init>"""
     ...
@@ -178,7 +180,6 @@ def finish(
     ...
 
 def login(
-    anonymous: Literal["must", "allow", "never"] | None = None,
     key: str | None = None,
     relogin: bool | None = None,
     host: str | None = None,
@@ -186,6 +187,7 @@ def login(
     timeout: int | None = None,
     verify: bool = False,
     referrer: str | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> bool:
     """<sdk/wandb_login.py::login>"""
     ...

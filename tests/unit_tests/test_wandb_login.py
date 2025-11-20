@@ -74,23 +74,12 @@ def test_login(test_settings):
     wandb.finish()
 
 
-def test_login_anonymous(monkeypatch):
-    monkeypatch.setenv("WANDB_API_KEY", "ANONYMOOSE" * 4)
-
-    wandb.login(anonymous="must")
-
-    assert wandb.api.api_key == "ANONYMOOSE" * 4
-    assert wandb.setup().settings.anonymous == "must"
-
-
-def test_login_sets_api_base_url(
-    emulated_terminal,
-    monkeypatch,
-    local_settings,
-    skip_verify_login,
-):
-    _ = emulated_terminal
-
+@pytest.mark.usefixtures(
+    "emulated_terminal",
+    "local_settings",
+    "skip_verify_login",
+)
+def test_login_sets_api_base_url(monkeypatch: pytest.MonkeyPatch):
     # HACK: Prevent the test from attempting to connect to the fake URLs.
     monkeypatch.setattr(
         wandb_login._WandbLogin,
@@ -98,14 +87,14 @@ def test_login_sets_api_base_url(
         lambda self: None,
     )
 
-    monkeypatch.setenv("WANDB_API_KEY", "ANONYMOOSE" * 4)
+    monkeypatch.setenv("WANDB_API_KEY", "test" * 10)
     base_url = "https://api.test.host.ai"
-    wandb.login(anonymous="must", host=base_url)
+    wandb.login(host=base_url)
 
     assert wandb_setup.singleton().settings.base_url == base_url
 
     base_url = "https://api.wandb.ai"
-    wandb.login(anonymous="must", host=base_url)
+    wandb.login(host=base_url)
 
     assert wandb_setup.singleton().settings.base_url == base_url
 

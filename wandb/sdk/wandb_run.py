@@ -3018,7 +3018,7 @@ class Run:
         Args:
             artifact_or_name: The name of the artifact to use. May be prefixed
                 with the name of the project the artifact was logged to
-                ("<entity>" or "<entity>/<project>"). If no
+                ("entity" or "entity/project"). If no
                 entity is specified in the name, the Run or API setting's entity is used.
                 Valid names can be in the following forms
             - name:version
@@ -3289,11 +3289,6 @@ class Run:
         use_after_commit: bool = False,
     ) -> Artifact:
         from .artifacts._validators import validate_aliases, validate_tags
-
-        if self._settings.anonymous in ["allow", "must"]:
-            wandb.termwarn(
-                "Artifacts logged anonymously cannot be claimed and expire after 7 days."
-            )
 
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
@@ -3792,15 +3787,6 @@ class Run:
         printer.display(
             f"{printer.emoji('rocket')} View run at {printer.link(run_url)}",
         )
-
-        if run_name and settings.anonymous in ["allow", "must"]:
-            printer.display(
-                (
-                    "Do NOT share these links with anyone."
-                    " They can be used to claim your runs."
-                ),
-                level="warn",
-            )
 
     # ------------------------------------------------------------------------------
     # FOOTER

@@ -17,6 +17,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - The automations API now supports creating and editing automations that trigger on run states (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10848)
 
+### Deprecated
+
+- Anonymous mode, including the `anonymous` setting, the `WANDB_ANONYMOUS` environment variable, `wandb.init(anonymous=...)`, `wandb login --anonymously` and `wandb.login(anonymous=...)` is deprecated and will emit warnings (@timoffex in https://github.com/wandb/wandb/pull/10909)
+
 ### Fixed
 
 - `wandb.Image()` no longer prints a deprecation warning (@jacobromero in https://github.com/wandb/wandb/pull/10880)

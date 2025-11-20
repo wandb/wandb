@@ -34,6 +34,7 @@ from wandb._pydantic import (
 )
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
+from wandb.sdk.lib import deprecation
 
 from .lib import credentials, filesystem, ipython
 from .lib.run_moment import RunMoment
@@ -156,6 +157,7 @@ def _path_convert(*args: str) -> str:
 
 
 CLIENT_ONLY_SETTINGS = (
+    "anonymous",
     "files_dir",
     "max_end_of_run_history_metrics",
     "max_end_of_run_summary_metrics",
@@ -204,19 +206,11 @@ class Settings(BaseModel, validate_assignment=True):
     allow_val_change: bool = False
     """Flag to allow modification of `Config` values after they've been set."""
 
-    anonymous: Optional[Literal["allow", "must", "never"]] = None
-    """Controls anonymous data logging.
-
-    Possible values are:
-    - "never": requires you to link your W&B account before
-       tracking the run, so you don't accidentally create an anonymous
-       run.
-    - "allow": lets a logged-in user track runs with their account, but
-       lets someone who is running the script without a W&B account see
-       the charts in the UI.
-    - "must": sends the run to an anonymous account instead of to a
-       signed-up user account.
-    """
+    anonymous: deprecation.DoNotSet = Field(
+        default=deprecation.UNSET,
+        exclude=True,
+    )
+    """Deprecated and will be removed."""
 
     api_key: Optional[str] = None
     """The W&B API key."""
@@ -897,8 +891,8 @@ class Settings(BaseModel, validate_assignment=True):
     """Filter to apply to metrics collected from OpenMetrics `/metrics` endpoints.
 
     Supports two formats:
-     - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-     - ("metric regex pattern 1", "metric regex pattern 2", ...)
+     - `{"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}`
+     - `("metric regex pattern 1", "metric regex pattern 2", ...)`
     """
 
     x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
@@ -995,7 +989,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         This is a compatibility layer to handle previous versions of the settings.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         new_values = {}
         for key in values:
@@ -1013,7 +1007,7 @@ class Settings(BaseModel, validate_assignment=True):
         def validate_mutual_exclusion_of_branching_args(self) -> Self:
             """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
 
-            <!-- lazydoc-ignore: internal -->
+            <!-- lazydoc-ignore-classmethod: internal -->
             """
             if (
                 sum(
@@ -1063,6 +1057,18 @@ class Settings(BaseModel, validate_assignment=True):
             return values
 
     # Field validators.
+    @field_validator("anonymous", mode="after")
+    @classmethod
+    def validate_anonymous(cls, value: object) -> object:
+        if value is not deprecation.UNSET:
+            wandb.termwarn(
+                "The anonymous setting has no effect and will be removed"
+                + " in a future version.",
+                repeat=False,
+            )
+
+        return value
+
     @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, value):
@@ -1121,7 +1127,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console_chunk_max_bytes(cls, value):
         """Validate the console_chunk_max_bytes value.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value < 0:
             raise ValueError("console_chunk_max_bytes must be non-negative")
@@ -1133,7 +1139,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console_chunk_max_seconds(cls, value):
         """Validate the console_chunk_max_seconds value.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value < 0:
             raise ValueError("console_chunk_max_seconds must be non-negative")
@@ -1851,9 +1857,7 @@ class Settings(BaseModel, validate_assignment=True):
         """
         if not self.settings_system or not os.path.exists(self.settings_system):
             return
-        for key, value in self._load_config_file(self.settings_system).items():
-            if value is not None:
-                setattr(self, key, value)
+        self._load_config_file(self.settings_system)
 
     def update_from_workspace_config_file(self):
         """Update settings from the workspace config file.
@@ -1862,9 +1866,7 @@ class Settings(BaseModel, validate_assignment=True):
         """
         if not self.settings_workspace or not os.path.exists(self.settings_workspace):
             return
-        for key, value in self._load_config_file(self.settings_workspace).items():
-            if value is not None:
-                setattr(self, key, value)
+        self._load_config_file(self.settings_workspace)
 
     def update_from_env_vars(self, environ: Dict[str, Any]):
         """Update settings from environment variables.
@@ -2125,18 +2127,33 @@ class Settings(BaseModel, validate_assignment=True):
 
         return None
 
-    @staticmethod
-    def _load_config_file(file_name: str, section: str = "default") -> dict:
-        """Load a config file and return the settings for a given section."""
+    def _load_config_file(
+        self,
+        file_name: str,
+        section: str = "default",
+    ) -> None:
+        """Load settings from a section in a config file."""
         parser = configparser.ConfigParser()
         parser.add_section(section)
         parser.read(file_name)
-        config: Dict[str, Any] = dict()
-        for k in parser[section]:
-            config[k] = parser[section][k]
-            if k == "ignore_globs":
-                config[k] = config[k].split(",")
-        return config
+
+        key: str
+        value: object
+        for key, value in parser[section].items():
+            if key == "ignore_globs":
+                value = value.split(",")
+
+            elif key == "anonymous":
+                wandb.termwarn(
+                    f"Deprecated setting 'anonymous' in {file_name} has no"
+                    + " effect and will be removed in a future version of wandb."
+                    + " Please delete it manually or by running `wandb login`"
+                    + " to avoid errors.",
+                    repeat=False,
+                )
+                value = deprecation.UNSET
+
+            setattr(self, key, value)
 
     def _project_url_base(self) -> str:
         """Construct the base URL for the project."""
