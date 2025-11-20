@@ -19,15 +19,15 @@ from wandb.sdk.launch.registry.azure_container_registry import AzureContainerReg
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.runner.abstract import Status
 from wandb.sdk.launch.runner.kubernetes_monitor import (
+    CustomResource,
+    LaunchKubernetesMonitor,
+)
+from wandb.sdk.launch.utils import (
     WANDB_K8S_LABEL_AGENT,
     WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
     WANDB_K8S_LABEL_MONITOR,
     WANDB_K8S_LABEL_RESOURCE_ROLE,
     WANDB_K8S_RUN_ID,
-    CustomResource,
-    LaunchKubernetesMonitor,
-)
-from wandb.sdk.launch.utils import (
     recursive_macro_sub,
     sanitize_identifiers_for_k8s,
     yield_containers,

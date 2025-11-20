@@ -18,7 +18,6 @@ from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.kubernetes_cleanup import KubernetesResourceCleanup
 from wandb.sdk.launch.runner.kubernetes_monitor import (
-    WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
     CustomResource,
     LaunchKubernetesMonitor,
     _is_container_creating,
@@ -35,6 +34,11 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     ensure_api_key_secret,
     maybe_create_imagepull_secret,
     maybe_create_wandb_team_secrets_secret,
+)
+from wandb.sdk.launch.utils import (
+    WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
+    WANDB_K8S_LABEL_RESOURCE_ROLE,
+    WANDB_K8S_RUN_ID,
 )
 
 
@@ -2615,21 +2619,21 @@ async def test_resource_role_labels_on_job_and_auxiliary_resources(
     service_labels = service_manifest["metadata"]["labels"]
 
     # job should have resource-role: primary and NO auxiliary-resource label
-    assert "wandb.ai/resource-role" in job_labels
-    assert job_labels["wandb.ai/resource-role"] == "primary"
-    assert "wandb.ai/auxiliary-resource" not in job_labels
+    assert WANDB_K8S_LABEL_RESOURCE_ROLE in job_labels
+    assert job_labels[WANDB_K8S_LABEL_RESOURCE_ROLE] == "primary"
+    assert WANDB_K8S_LABEL_AUXILIARY_RESOURCE not in job_labels
 
     # job's pod template should also have resource-role: primary
     job_pod_labels = job_manifest["spec"]["template"]["metadata"]["labels"]
-    assert "wandb.ai/resource-role" in job_pod_labels
-    assert job_pod_labels["wandb.ai/resource-role"] == "primary"
+    assert WANDB_K8S_LABEL_RESOURCE_ROLE in job_pod_labels
+    assert job_pod_labels[WANDB_K8S_LABEL_RESOURCE_ROLE] == "primary"
 
     # service should have resource-role: auxiliary and auxiliary-resource UUID
-    assert "wandb.ai/resource-role" in service_labels
-    assert service_labels["wandb.ai/resource-role"] == "auxiliary"
-    assert "wandb.ai/auxiliary-resource" in service_labels
+    assert WANDB_K8S_LABEL_RESOURCE_ROLE in service_labels
+    assert service_labels[WANDB_K8S_LABEL_RESOURCE_ROLE] == "auxiliary"
+    assert WANDB_K8S_LABEL_AUXILIARY_RESOURCE in service_labels
     assert (
-        service_labels["wandb.ai/auxiliary-resource"]
+        service_labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE]
         == "12345678-1234-5678-1234-567812345678"
     )
 
@@ -2682,19 +2686,19 @@ async def test_cleanup_get_active_job_run_ids():
     # Create mock jobs with run-id labels
     mock_job1 = MagicMock()
     mock_job1.metadata.labels = {
-        "wandb.ai/run-id": "run-123",
-        "wandb.ai/resource-role": "primary",
+        WANDB_K8S_RUN_ID: "run-123",
+        WANDB_K8S_LABEL_RESOURCE_ROLE: "primary",
     }
 
     mock_job2 = MagicMock()
     mock_job2.metadata.labels = {
-        "wandb.ai/run-id": "run-456",
-        "wandb.ai/resource-role": "primary",
+        WANDB_K8S_RUN_ID: "run-456",
+        WANDB_K8S_LABEL_RESOURCE_ROLE: "primary",
     }
 
     mock_job3 = MagicMock()
     mock_job3.metadata.labels = {
-        "wandb.ai/resource-role": "primary"
+        WANDB_K8S_LABEL_RESOURCE_ROLE: "primary"
         # No run-id label
     }
 
@@ -2707,7 +2711,7 @@ async def test_cleanup_get_active_job_run_ids():
 
     assert active_run_ids == {"run-123", "run-456"}
     mock_batch_api.list_namespaced_job.assert_called_once_with(
-        namespace="default", label_selector="wandb.ai/resource-role=primary"
+        namespace="default", label_selector=f"{WANDB_K8S_LABEL_RESOURCE_ROLE}=primary"
     )
 
 
@@ -2717,7 +2721,7 @@ async def test_cleanup_get_active_job_run_ids_with_agent_tracker(monkeypatch):
     # Mock Kubernetes Jobs
     mock_batch_api = MagicMock()
     mock_job = MagicMock()
-    mock_job.metadata.labels = {"wandb.ai/run-id": "run-from-k8s"}
+    mock_job.metadata.labels = {WANDB_K8S_RUN_ID: "run-from-k8s"}
     mock_list = MagicMock()
     mock_list.items = [mock_job]
     mock_batch_api.list_namespaced_job = AsyncMock(return_value=mock_list)
@@ -2788,8 +2792,8 @@ async def test_cleanup_skips_aux_resources_when_job_launching(monkeypatch):
     old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
     mock_aux_service = MagicMock()
     mock_aux_service.metadata.labels = {
-        "wandb.ai/run-id": "run-launching",  # Matches agent tracker!
-        "wandb.ai/auxiliary-resource": "uuid-launching",
+        WANDB_K8S_RUN_ID: "run-launching",  # Matches agent tracker!
+        WANDB_K8S_LABEL_AUXILIARY_RESOURCE: "uuid-launching",
     }
     mock_aux_service.metadata.creation_timestamp = old_time
     mock_aux_service.metadata.name = "launching-service"
@@ -2858,8 +2862,8 @@ async def test_cleanup_deletes_aux_resources_when_no_job_and_no_tracker(monkeypa
     old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
     mock_aux_service = MagicMock()
     mock_aux_service.metadata.labels = {
-        "wandb.ai/run-id": "run-orphaned",
-        "wandb.ai/auxiliary-resource": "uuid-orphaned",
+        WANDB_K8S_RUN_ID: "run-orphaned",
+        WANDB_K8S_LABEL_AUXILIARY_RESOURCE: "uuid-orphaned",
     }
     mock_aux_service.metadata.creation_timestamp = old_time
     mock_aux_service.metadata.name = "orphaned-service"
@@ -2920,9 +2924,9 @@ async def test_cleanup_find_orphaned_uuids_basic():
     old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
     mock_service = MagicMock()
     mock_service.metadata.labels = {
-        "wandb.ai/run-id": "run-orphaned",
-        "wandb.ai/auxiliary-resource": "uuid-orphaned",
-        "wandb.ai/resource-role": "auxiliary",
+        WANDB_K8S_RUN_ID: "run-orphaned",
+        WANDB_K8S_LABEL_AUXILIARY_RESOURCE: "uuid-orphaned",
+        WANDB_K8S_LABEL_RESOURCE_ROLE: "auxiliary",
     }
     mock_service.metadata.creation_timestamp = old_time
     mock_service.metadata.name = "test-service"
@@ -2966,9 +2970,9 @@ async def test_cleanup_find_orphaned_uuids_skips_active():
     old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
     mock_service = MagicMock()
     mock_service.metadata.labels = {
-        "wandb.ai/run-id": "run-active",  # This is active
-        "wandb.ai/auxiliary-resource": "uuid-123",
-        "wandb.ai/resource-role": "auxiliary",
+        WANDB_K8S_RUN_ID: "run-active",  # This is active
+        WANDB_K8S_LABEL_AUXILIARY_RESOURCE: "uuid-123",
+        WANDB_K8S_LABEL_RESOURCE_ROLE: "auxiliary",
     }
     mock_service.metadata.creation_timestamp = old_time
 
@@ -3011,9 +3015,9 @@ async def test_cleanup_find_orphaned_uuids_skips_recent():
     recent_time = datetime.now(timezone.utc) - timedelta(seconds=300)
     mock_service = MagicMock()
     mock_service.metadata.labels = {
-        "wandb.ai/run-id": "run-orphaned",
-        "wandb.ai/auxiliary-resource": "uuid-123",
-        "wandb.ai/resource-role": "auxiliary",
+        WANDB_K8S_RUN_ID: "run-orphaned",
+        WANDB_K8S_LABEL_AUXILIARY_RESOURCE: "uuid-123",
+        WANDB_K8S_LABEL_RESOURCE_ROLE: "auxiliary",
     }
     mock_service.metadata.creation_timestamp = recent_time
     mock_service.metadata.name = "test-service"
@@ -3059,16 +3063,16 @@ async def test_cleanup_find_orphaned_uuids_multiple_resources_same_uuid():
     # Create multiple resources with same UUID
     mock_service = MagicMock()
     mock_service.metadata.labels = {
-        "wandb.ai/run-id": "run-orphaned",
-        "wandb.ai/auxiliary-resource": "uuid-shared",
+        WANDB_K8S_RUN_ID: "run-orphaned",
+        WANDB_K8S_LABEL_AUXILIARY_RESOURCE: "uuid-shared",
     }
     mock_service.metadata.creation_timestamp = old_time
     mock_service.metadata.name = "test-service"
 
     mock_deployment = MagicMock()
     mock_deployment.metadata.labels = {
-        "wandb.ai/run-id": "run-orphaned",
-        "wandb.ai/auxiliary-resource": "uuid-shared",  # Same UUID
+        WANDB_K8S_RUN_ID: "run-orphaned",
+        WANDB_K8S_LABEL_AUXILIARY_RESOURCE: "uuid-shared",  # Same UUID
     }
     mock_deployment.metadata.creation_timestamp = old_time
     mock_deployment.metadata.name = "test-deployment"
@@ -3190,13 +3194,13 @@ async def test_cleanup_namespace_end_to_end(
 
     # Mock active job for _get_active_job_run_ids call
     mock_job = MagicMock()
-    mock_job.metadata.labels = {"wandb.ai/run-id": "run-active"}
+    mock_job.metadata.labels = {WANDB_K8S_RUN_ID: "run-active"}
 
     # Set up list_namespaced_job to handle different label selectors
     async def mock_list_jobs(namespace, label_selector=None):
-        if label_selector == "wandb.ai/resource-role=primary":
+        if label_selector == f"{WANDB_K8S_LABEL_RESOURCE_ROLE}=primary":
             return MagicMock(items=[mock_job])
-        elif label_selector == "wandb.ai/auxiliary-resource":
+        elif label_selector == WANDB_K8S_LABEL_AUXILIARY_RESOURCE:
             return MagicMock(items=[])
         return MagicMock(items=[])
 
@@ -3206,8 +3210,8 @@ async def test_cleanup_namespace_end_to_end(
     old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
     mock_orphaned_service = MagicMock()
     mock_orphaned_service.metadata.labels = {
-        "wandb.ai/run-id": "run-orphaned",
-        "wandb.ai/auxiliary-resource": "uuid-orphaned",
+        WANDB_K8S_RUN_ID: "run-orphaned",
+        WANDB_K8S_LABEL_AUXILIARY_RESOURCE: "uuid-orphaned",
     }
     mock_orphaned_service.metadata.creation_timestamp = old_time
     mock_orphaned_service.metadata.name = "orphaned-service"
