@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from wandb.errors import AuthenticationError
+
 
 def check_api_key(key: str) -> str | None:
     """Returns text describing problems with the API key, or None.
@@ -32,3 +34,9 @@ def check_api_key(key: str) -> str | None:
         return f"API key must have 40+ characters, has {secret_len}."
 
     return None
+
+
+def validate_api_key(key: str) -> None:
+    """Raise an AuthenticationError if check_api_key returns problems."""
+    if problems := check_api_key(key):
+        raise AuthenticationError(problems)
