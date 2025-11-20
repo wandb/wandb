@@ -173,7 +173,7 @@ class Collections(Paginator["ArtifactCollection"]):
             "perPage": per_page,
         }
 
-        super().__init__(client, variables, per_page)
+        super().__init__(client, variables=variables, per_page=per_page)
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
@@ -285,7 +285,7 @@ class Versions(Paginator["Artifact"]):
             "organization": organization,
         }
 
-        super().__init__(client, variables, per_page)
+        super().__init__(client, variables=variables, per_page=per_page)
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth

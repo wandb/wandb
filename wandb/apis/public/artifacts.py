@@ -371,7 +371,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
         self.QUERY = gql_compat(PROJECT_ARTIFACT_COLLECTIONS_GQL)
 
-        super().__init__(client, variables, per_page)
+        super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
@@ -845,8 +845,7 @@ class Artifacts(SizedPaginator["Artifact"]):
 
         omit_fields = omit_artifact_fields(client)
         self.QUERY = gql_compat(PROJECT_ARTIFACTS_GQL, omit_fields=omit_fields)
-
-        super().__init__(client, variables, per_page)
+        super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
@@ -947,7 +946,7 @@ class RunArtifacts(SizedPaginator["Artifact"]):
             self.QUERY = gql_compat(query_str, omit_fields=omit_artifact_fields(client))
 
         variables = {"entity": run.entity, "project": run.project, "runName": run.id}
-        super().__init__(client, variables, per_page)
+        super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
@@ -1072,7 +1071,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
             omit_fields=omit_fields,
         )
 
-        super().__init__(client, variables, per_page)
+        super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
