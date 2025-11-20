@@ -208,7 +208,7 @@ def test_run_metric_zscore_events(project: Project, metric_filter: MetricZScoreF
 
     expected_metric_filter_dict = {
         "name": metric_filter.name,
-        "window_size": metric_filter.window_size,
+        "window_size": metric_filter.window,
         "threshold": metric_filter.threshold,
         "change_dir": metric_filter.change_dir.value,
     }
@@ -238,7 +238,7 @@ def test_run_metric_zscore_events_without_run_filter(
 
     expected_metric_filter_dict = {
         "name": metric_filter.name,
-        "window_size": metric_filter.window_size,
+        "window_size": metric_filter.window,
         "threshold": metric_filter.threshold,
         "change_dir": metric_filter.change_dir.value,
     }
