@@ -343,9 +343,16 @@ class MetricAgg(BaseMetricOperand):
 
 class MetricZScoreFilter(GQLBase, extra="forbid"):
     name: str
-    window_size: PositiveInt
+    """Name of the observed metric."""
+
+    window: Annotated[PositiveInt, Field(alias="window_size")]
+    """Size of the window to calculate the metric mean and standard deviation over."""
+
     threshold: PosNum
+    """Threshold for the z-score."""
+
     change_dir: ChangeDir
+    """Direction of the z-score change to watch for."""
 
     def __and__(self, other: Any) -> RunMetricFilter:
         """Returns `(metric_filter & run_filter)` as a `RunMetricFilter`."""
