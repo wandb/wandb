@@ -237,7 +237,7 @@ PROJECT_ARTIFACT_COLLECTIONS_GQL = """
 query ProjectArtifactCollections($entity: String!, $project: String!, $artifactType: String!, $cursor: String) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $artifactType) {
-      artifactCollections: artifactCollections(after: $cursor) {
+      artifactCollections(after: $cursor) {
         totalCount
         pageInfo {
           ...PageInfoFragment
@@ -298,7 +298,7 @@ PROJECT_ARTIFACT_COLLECTION_GQL = """
 query ProjectArtifactCollection($entity: String!, $project: String!, $artifactType: String!, $name: String!) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $artifactType) {
-      artifactCollection: artifactCollection(name: $name) {
+      artifactCollection(name: $name) {
         __typename
         ...ArtifactCollectionFragment
       }
@@ -572,7 +572,7 @@ PROJECT_ARTIFACTS_GQL = """
 query ProjectArtifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString, $includeAliases: Boolean = true) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $type) {
-      artifactCollection: artifactCollection(name: $collection) {
+      artifactCollection(name: $collection) {
         __typename
         artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
           ...VersionedArtifactConnectionFragment

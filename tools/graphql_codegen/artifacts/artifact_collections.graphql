@@ -73,18 +73,10 @@ mutation DeleteArtifactCollectionTags($input: DeleteArtifactCollectionTagAssignm
   }
 }
 
-query ProjectArtifactCollections(
-  $entity: String!
-  $project: String!
-  $artifactType: String!
-  $cursor: String
-) {
+query ProjectArtifactCollections($entity: String!, $project: String!, $artifactType: String!, $cursor: String) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $artifactType) {
-      # NOTE: The node being aliased is named:
-      # - `artifactCollections` for new servers
-      # - `artifactSequences` for old servers
-      artifactCollections: artifactCollections(after: $cursor) {
+      artifactCollections(after: $cursor) {
         totalCount
         pageInfo {
           ...PageInfoFragment
@@ -99,18 +91,10 @@ query ProjectArtifactCollections(
   }
 }
 
-query ProjectArtifactCollection(
-  $entity: String!
-  $project: String!
-  $artifactType: String!
-  $name: String!
-) {
+query ProjectArtifactCollection($entity: String!, $project: String!, $artifactType: String!, $name: String!) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $artifactType) {
-      # NOTE: The node being aliased is named:
-      # - `artifactCollection` for new servers
-      # - `artifactSequence` for old servers
-      artifactCollection: artifactCollection(name: $name) {
+      artifactCollection(name: $name) {
         ...ArtifactCollectionFragment
       }
     }

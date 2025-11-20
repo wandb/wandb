@@ -29,7 +29,7 @@ from wandb._pydantic import Connection, ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator, SizedPaginator
-from wandb.errors.term import termlog, termwarn
+from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
@@ -55,7 +55,7 @@ if TYPE_CHECKING:
     )
     from wandb.sdk.artifacts.artifact import Artifact
 
-    from . import RetryingClient, Run
+    from . import Run
 
 
 TNode = TypeVar("TNode")
@@ -372,14 +372,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
         variables = {"entity": entity, "project": project, "artifactType": type_name}
 
-        if server_supports_artifact_collections_gql_edges(client):
-            rename_fields = None
-        else:
-            rename_fields = {"artifactCollections": "artifactSequences"}
-
-        self.QUERY = gql_compat(
-            PROJECT_ARTIFACT_COLLECTIONS_GQL, rename_fields=rename_fields
-        )
+        self.QUERY = gql_compat(PROJECT_ARTIFACT_COLLECTIONS_GQL)
 
         super().__init__(client, variables, per_page)
 
@@ -564,14 +557,7 @@ class ArtifactCollection:
             ProjectArtifactCollection,
         )
 
-        if server_supports_artifact_collections_gql_edges(self.client):
-            rename_fields = None
-        else:
-            rename_fields = {"artifactCollection": "artifactSequence"}
-
-        gql_op = gql_compat(
-            PROJECT_ARTIFACT_COLLECTION_GQL, rename_fields=rename_fields
-        )
+        gql_op = gql_compat(PROJECT_ARTIFACT_COLLECTION_GQL)
         gql_vars = {
             "entity": entity,
             "project": project,
@@ -860,16 +846,8 @@ class Artifacts(SizedPaginator["Artifact"]):
             "filters": json.dumps(self.filters),
         }
 
-        if server_supports_artifact_collections_gql_edges(client):
-            rename_fields = None
-        else:
-            rename_fields = {"artifactCollection": "artifactSequence"}
-
-        self.QUERY = gql_compat(
-            PROJECT_ARTIFACTS_GQL,
-            omit_fields=omit_artifact_fields(client),
-            rename_fields=rename_fields,
-        )
+        omit_fields = omit_artifact_fields(client)
+        self.QUERY = gql_compat(PROJECT_ARTIFACTS_GQL, omit_fields=omit_fields)
 
         super().__init__(client, variables, per_page)
 
@@ -1189,23 +1167,3 @@ class ArtifactFiles(SizedPaginator["public.File"]):
             return f"<ArtifactFiles {path_str}>"
         else:
             return f"<ArtifactFiles {path_str} ({total})>"
-
-
-def server_supports_artifact_collections_gql_edges(
-    client: RetryingClient, warn: bool = False
-) -> bool:
-    """Check if W&B server supports GraphQL edges for artifact collections.
-
-    <!-- lazydoc-ignore-function: internal -->
-    """
-    # TODO: Validate this version
-    # Edges were merged into core on Mar 2, 2022: https://github.com/wandb/core/commit/81c90b29eaacfe0a96dc1ebd83c53560ca763e8b
-    # CLI version was bumped to "0.12.11" on Mar 3, 2022: https://github.com/wandb/core/commit/328396fa7c89a2178d510a1be9c0d4451f350d7b
-    supported = client.version_supported("0.12.11")  # edges were merged on
-    if not supported and warn:
-        # First local release to include the above is 0.9.50: https://github.com/wandb/local/releases/tag/0.9.50
-        termwarn(
-            "W&B Local Server version does not support ArtifactCollection gql edges; "
-            "falling back to using legacy ArtifactSequence. Please update server to at least version 0.9.50."
-        )
-    return supported
