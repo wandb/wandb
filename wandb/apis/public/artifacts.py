@@ -95,8 +95,8 @@ class _ArtifactCollectionAliases(Paginator[str]):
         return self._QUERY
 
     def __init__(self, client: Client, collection_id: str, per_page: int = 1_000):
-        variable_values = {"id": collection_id}
-        super().__init__(client, variable_values, per_page)
+        variables = {"id": collection_id}
+        super().__init__(client, variables=variables, per_page=per_page)
 
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._generated import (
@@ -167,11 +167,8 @@ class ArtifactTypes(Paginator["ArtifactType"]):
         self.entity = entity
         self.project = project
 
-        variable_values = {
-            "entityName": entity,
-            "projectName": project,
-        }
-        super().__init__(client, variable_values, per_page)
+        variables = {"entityName": entity, "projectName": project}
+        super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
@@ -949,12 +946,8 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         else:
             self.QUERY = gql_compat(query_str, omit_fields=omit_artifact_fields(client))
 
-        variable_values = {
-            "entity": run.entity,
-            "project": run.project,
-            "runName": run.id,
-        }
-        super().__init__(client, variable_values, per_page)
+        variables = {"entity": run.entity, "project": run.project, "runName": run.id}
+        super().__init__(client, variables, per_page)
 
     @override
     def _update_response(self) -> None:
