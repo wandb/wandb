@@ -1959,18 +1959,12 @@ def working_set() -> Iterable[InstalledDistribution]:
     from importlib.metadata import distributions
 
     for d in distributions():
-        try:
+        with contextlib.suppress(KeyError, UnicodeDecodeError, TypeError):
             # In some distributions, the "Name" attribute may not be present,
-            # which can raise a KeyError. To handle this, we catch the exception
-            # and skip those distributions.
+            # or the metadata itself may be None or malformed, which can raise
+            # KeyError, UnicodeDecodeError, or TypeError.
             # For additional context, see: https://github.com/python/importlib_metadata/issues/371.
-
-            # From Sentry events we observed that UnicodeDecodeError can occur when
-            # trying to decode the metadata of a distribution. To handle this, we catch
-            # the exception and skip those distributions.
             yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
-        except (KeyError, UnicodeDecodeError):
-            pass
 
 
 def get_core_path() -> str:
