@@ -24,6 +24,9 @@ type DefaultFileTransfer struct {
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
+
+	// extraHeaders attached to presigned urls, using same set of headers from graphql requests.
+	extraHeaders map[string]string
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
@@ -31,11 +34,13 @@ func NewDefaultFileTransfer(
 	client *retryablehttp.Client,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
+	extraHeaders map[string]string,
 ) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
 		logger:            logger,
 		client:            client,
 		fileTransferStats: fileTransferStats,
+		extraHeaders:      extraHeaders,
 	}
 	return fileTransfer
 }
@@ -66,7 +71,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		return err
 	}
 
-	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, requestBody)
+	req, err := ft.newRequest(http.MethodPut, task.Url, requestBody)
 	if err != nil {
 		return err
 	}
@@ -107,6 +112,26 @@ func attachErrorResponseBody(errPrefix string, resp *http.Response) error {
 	return fmt.Errorf("%s: body: %s", errPrefix, string(body))
 }
 
+// DownloadTo download a small file directly to a writer (e.g. in memory buffer).
+// It is currently used for downloading artifact manifest json file.
+func (ft *DefaultFileTransfer) DownloadTo(url string, dst io.Writer) error {
+	req, err := ft.newRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := ft.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return attachErrorResponseBody("file transfer: downloadTo: failed to download: status: "+resp.Status,
+			resp)
+	}
+	_, err = io.Copy(dst, resp.Body)
+	return err
+}
+
 // Download implements FileTransfer.Download
 func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
@@ -125,7 +150,11 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	}
 
 	// TODO: redo it to use the progress writer, to track the download progress
-	resp, err := ft.client.Get(task.Url)
+	req, err := ft.newRequest(http.MethodGet, task.Url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -162,6 +191,17 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 	return nil
+}
+
+func (ft *DefaultFileTransfer) newRequest(method string, url string, body io.Reader) (*retryablehttp.Request, error) {
+	req, err := retryablehttp.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range ft.extraHeaders {
+		req.Header.Set(k, v)
+	}
+	return req, nil
 }
 
 func getUploadRequestBody(

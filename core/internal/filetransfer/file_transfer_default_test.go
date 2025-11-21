@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
@@ -36,11 +37,7 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	defer mockServer.Close()
 
 	// Creating a file transfer
-	ft := filetransfer.NewDefaultFileTransfer(
-		retryablehttp.NewClient(),
-		observabilitytest.NewTestLogger(t),
-		filetransfer.NewFileTransferStats(),
-	)
+	ft := newFileTransfer(t, nil, nil)
 
 	// Mocking task
 	task := &filetransfer.DefaultDownloadTask{
@@ -98,11 +95,7 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	defer mockServer.Close()
 
 	// Creating a file transfer
-	ft := filetransfer.NewDefaultFileTransfer(
-		retryablehttp.NewClient(),
-		observabilitytest.NewTestLogger(t),
-		filetransfer.NewFileTransferStats(),
-	)
+	ft := newFileTransfer(t, nil, nil)
 
 	// Creating a file to be uploaded
 	filename := "test-upload-file.txt"
@@ -136,11 +129,7 @@ func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
 	})
 	server := httptest.NewServer(chunkCheckHandler)
 
-	ft := filetransfer.NewDefaultFileTransfer(
-		impatientClient(),
-		observabilitytest.NewTestLogger(t),
-		filetransfer.NewFileTransferStats(),
-	)
+	ft := newFileTransfer(t, impatientClient(), nil)
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
@@ -169,11 +158,7 @@ func TestDefaultFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 	})
 	server := httptest.NewServer(chunkCheckHandler)
 
-	ft := filetransfer.NewDefaultFileTransfer(
-		impatientClient(),
-		observabilitytest.NewTestLogger(t),
-		filetransfer.NewFileTransferStats(),
-	)
+	ft := newFileTransfer(t, impatientClient(), nil)
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
@@ -281,11 +266,7 @@ func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cancel()
 	}))
-	ft := filetransfer.NewDefaultFileTransfer(
-		impatientClient(),
-		observabilitytest.NewTestLogger(t),
-		filetransfer.NewFileTransferStats(),
-	)
+	ft := newFileTransfer(t, impatientClient(), nil)
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
@@ -307,11 +288,7 @@ func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
 
 func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	ft := filetransfer.NewDefaultFileTransfer(
-		impatientClient(),
-		observabilitytest.NewTestLogger(t),
-		filetransfer.NewFileTransferStats(),
-	)
+	ft := newFileTransfer(t, impatientClient(), nil)
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
@@ -374,11 +351,7 @@ func uploadToServerWithCountedHandler(
 		handler(w, r)
 	}))
 	defer server.Close()
-	ft := filetransfer.NewDefaultFileTransfer(
-		impatientClient(),
-		observabilitytest.NewTestLogger(t),
-		filetransfer.NewFileTransferStats(),
-	)
+	ft := newFileTransfer(t, impatientClient(), nil)
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
@@ -400,4 +373,192 @@ func impatientClient() *retryablehttp.Client {
 	client.RetryMax = 1
 	client.RetryWaitMin = 1 * time.Millisecond
 	return client
+}
+
+// newFileTransfer creates a new DefaultFileTransfer with optional custom client and extra headers
+func newFileTransfer(t *testing.T, client *retryablehttp.Client, extraHeaders map[string]string) *filetransfer.DefaultFileTransfer {
+	if client == nil {
+		client = retryablehttp.NewClient()
+	}
+	return filetransfer.NewDefaultFileTransfer(
+		client,
+		observabilitytest.NewTestLogger(t),
+		filetransfer.NewFileTransferStats(),
+		extraHeaders,
+	)
+}
+
+// newFileTransferWithExtraHeaders creates a new DefaultFileTransfer with the provided extra headers
+func newFileTransferWithExtraHeaders(t *testing.T, extraHeaders map[string]string) *filetransfer.DefaultFileTransfer {
+	return newFileTransfer(t, nil, extraHeaders)
+}
+
+// verifyHeadersInRequest verifies that the HTTP request contains the expected headers.
+// We use r.Header.Get(key) instead of assert.EqualValues() because:
+// - r.Header is of type http.Header (map[string][]string)
+// - expectedHeaders is of type map[string]string
+func verifyHeadersInRequest(t *testing.T, r *http.Request, expectedHeaders map[string]string) {
+	t.Helper() // You need t.Helper() to show the caller's location when assert fails inside a helper function.
+	for key, expectedValue := range expectedHeaders {
+		assert.Equal(t, expectedValue, r.Header.Get(key), "Header %s should have value %s", key, expectedValue)
+	}
+}
+
+func TestDefaultFileTransfer_DownloadWithExtraHeaders(t *testing.T) {
+	contentExpected := []byte("test content for download")
+	extraHeaders := map[string]string{
+		"X-Custom-Header-1": "value1",
+		"X-Custom-Header-2": "value2",
+	}
+
+	// Creating a mock HTTP server
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := w.Write(contentExpected)
+		assert.NoError(t, err)
+
+		assert.Equal(t, http.MethodGet, r.Method)
+		verifyHeadersInRequest(t, r, extraHeaders)
+	}))
+	defer mockServer.Close()
+
+	ft := newFileTransferWithExtraHeaders(t, extraHeaders)
+
+	task := &filetransfer.DefaultDownloadTask{
+		Path: "test-download-file-with-headers.txt",
+		Url:  mockServer.URL,
+	}
+	defer func() {
+		_ = os.Remove(task.Path)
+	}()
+
+	err := ft.Download(task)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(task.Path)
+	require.NoError(t, err)
+	assert.Equal(t, contentExpected, content)
+	assert.Equal(t, http.StatusOK, task.Response.StatusCode)
+}
+
+func TestDefaultFileTransfer_UploadWithExtraHeaders(t *testing.T) {
+	contentExpected := []byte("test content for upload")
+	extraHeaders := map[string]string{
+		"X-Custom-Upload-1": "upload-value1",
+		"X-Custom-Upload-2": "upload-value2",
+	}
+
+	// Creating a mock HTTP server
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, contentExpected, body)
+
+		assert.Equal(t, http.MethodPut, r.Method)
+		verifyHeadersInRequest(t, r, extraHeaders)
+	}))
+	defer mockServer.Close()
+
+	ft := newFileTransferWithExtraHeaders(t, extraHeaders)
+
+	filename := "test-upload-file-with-headers.txt"
+	err := os.WriteFile(filename, contentExpected, 0644)
+	require.NoError(t, err)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
+
+	task := &filetransfer.DefaultUploadTask{
+		Path: filename,
+		Url:  mockServer.URL,
+	}
+
+	err = ft.Upload(task)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, task.Response.StatusCode)
+}
+
+func TestDefaultFileTransfer_DownloadTo(t *testing.T) {
+	contentExpected := []byte("test manifest content")
+
+	// Creating a mock HTTP server
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := w.Write(contentExpected)
+		assert.NoError(t, err)
+
+		// Verify it's a GET request
+		assert.Equal(t, http.MethodGet, r.Method)
+	}))
+	defer mockServer.Close()
+
+	ft := newFileTransfer(t, nil, nil)
+
+	var buf strings.Builder
+	err := ft.DownloadTo(mockServer.URL, &buf)
+
+	require.NoError(t, err)
+	assert.Equal(t, string(contentExpected), buf.String())
+}
+
+func TestDefaultFileTransfer_DownloadToWithExtraHeaders(t *testing.T) {
+	contentExpected := []byte("test manifest with headers")
+	extraHeaders := map[string]string{
+		"X-Custom-Manifest-1": "manifest-value1",
+		"X-Custom-Manifest-2": "manifest-value2",
+	}
+
+	// Creating a mock HTTP server that verifies headers
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := w.Write(contentExpected)
+		assert.NoError(t, err)
+
+		assert.Equal(t, http.MethodGet, r.Method)
+		verifyHeadersInRequest(t, r, extraHeaders)
+	}))
+	defer mockServer.Close()
+
+	ft := newFileTransferWithExtraHeaders(t, extraHeaders)
+
+	var buf strings.Builder
+	err := ft.DownloadTo(mockServer.URL, &buf)
+
+	require.NoError(t, err)
+	assert.Equal(t, string(contentExpected), buf.String())
+}
+
+func TestDefaultFileTransfer_DownloadTo_Non200Status(t *testing.T) {
+	// Creating a mock HTTP server that returns 404
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("not found"))
+	}))
+	defer mockServer.Close()
+
+	ft := newFileTransfer(t, nil, nil)
+
+	var buf strings.Builder
+	err := ft.DownloadTo(mockServer.URL, &buf)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to download")
+	assert.Contains(t, err.Error(), "404")
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestDefaultFileTransfer_DownloadTo_ServerError(t *testing.T) {
+	// Creating a mock HTTP server that returns 500
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("internal server error"))
+	}))
+	defer mockServer.Close()
+
+	// Use impatient client to avoid long retry delays
+	ft := newFileTransfer(t, impatientClient(), nil)
+
+	var buf strings.Builder
+	err := ft.DownloadTo(mockServer.URL, &buf)
+
+	require.Error(t, err)
+	// After retries are exhausted, we get a "giving up" message
+	assert.Contains(t, err.Error(), "giving up")
 }
