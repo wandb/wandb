@@ -23,7 +23,7 @@ jobs:
     name: Prepare release (${{ inputs.version }})
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -73,7 +73,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
@@ -117,7 +117,7 @@ jobs:
           - macos-14
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
@@ -175,7 +175,7 @@ jobs:
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
@@ -340,7 +340,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.update-changelog && !inputs.dry-run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
           fetch-depth: 0
@@ -382,7 +382,7 @@ jobs:
     if: ${{ inputs.update-changelog && !inputs.dry-run }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
       - name: Create Source Archives

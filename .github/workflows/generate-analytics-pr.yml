@@ -14,10 +14,10 @@ jobs:
     generate-analytics-pr:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
               with:
                 ref: ${{ github.event.release.tag_name }} || ${{ github.event.inputs.tag_name }}
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
               with:
                 repository: wandb/analytics
                 ref: main
