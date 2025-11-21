@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable
 
+import pytest
 from hypothesis import given
 from hypothesis.strategies import DrawFn, SearchStrategy, composite, lists, sampled_from
 from pydantic import ValidationError
@@ -315,6 +316,77 @@ def test_metric_zscore_filter_requires_valid_change_dir(
             threshold=threshold,
             change_dir=invalid_change_dir,
         )
+
+
+@pytest.mark.parametrize(
+    "metric_name,window,operator,threshold,use_abs,expected_change_dir,should_raise",
+    [
+        # Test > operator (INCREASE direction)
+        ("loss", 10, ">", 2.5, False, ChangeDir.INCREASE, False),
+        ("accuracy", 5, ">", 3.0, False, ChangeDir.INCREASE, False),
+        ("f1_score", 20, ">", 1.5, False, ChangeDir.INCREASE, False),
+        ("loss", 10, ">", -2.5, False, ChangeDir.INCREASE, True),
+        # Test < operator (DECREASE direction)
+        ("loss", 10, "<", 2.5, False, ChangeDir.DECREASE, False),
+        ("accuracy", 5, "<", 3.0, False, ChangeDir.DECREASE, False),
+        ("precision", 15, "<", 2.0, False, ChangeDir.DECREASE, False),
+        ("loss", 10, "<", -2.5, False, ChangeDir.DECREASE, True),
+        # Test > with .abs() - abs() is applied after, so ANY wins
+        ("loss", 10, ">", 2.5, True, ChangeDir.ANY, False),
+        ("accuracy", 5, ">", 3.0, True, ChangeDir.ANY, False),
+        ("recall", 15, ">", 1.8, True, ChangeDir.ANY, False),
+        # Test < with .abs() - abs() is applied after, so ANY wins
+        ("precision", 15, "<", 2.0, True, ChangeDir.ANY, False),
+        ("f1_score", 20, "<", 1.5, True, ChangeDir.ANY, False),
+        ("error_rate", 8, "<", 2.2, True, ChangeDir.ANY, False),
+    ],
+)
+def test_declarative_metric_zscore_filter_with_operators(
+    metric_name: str,
+    window: int,
+    operator: str,
+    threshold: float,
+    use_abs: bool,
+    expected_change_dir: ChangeDir,
+    should_raise: bool,
+):
+    """Check that the declarative syntax RunEvent.metric().zscore() > threshold works correctly."""
+    # Create the base zscore filter
+    base_filter = RunEvent.metric(metric_name).zscore(window)
+
+    if use_abs:
+        base_filter = base_filter.abs()
+
+    # Apply the operator and check for expected errors
+    if should_raise:
+        with raises(ValueError):
+            # Execute the operator dynamically based on the test parameter
+            _ = base_filter > threshold if operator == ">" else base_filter < threshold
+        return  # Test passes if error was raised as expected
+
+    # Normal path: apply operator and verify results
+    if operator == ">":
+        metric_filter = base_filter > threshold
+    elif operator == "<":
+        metric_filter = base_filter < threshold
+    else:
+        raise ValueError(f"Unsupported operator: {operator}")
+
+    # Verify the filter properties
+    assert isinstance(metric_filter, MetricZScoreFilter)
+    assert metric_filter.name == metric_name
+    assert metric_filter.window == window
+    assert metric_filter.threshold == threshold
+    assert metric_filter.change_dir == expected_change_dir
+
+    # Verify serialization
+    expected_dict = {
+        "name": metric_name,
+        "window_size": window,
+        "threshold": threshold,
+        "change_dir": expected_change_dir.value,
+    }
+    assert metric_filter.model_dump() == expected_dict
 
 
 @given(states=lists(run_states, max_size=10))

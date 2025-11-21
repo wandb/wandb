@@ -332,6 +332,9 @@ class MetricVal(BaseMetricOperand):
     def mean(self, window: int) -> MetricAgg:
         return self.avg(window=window)
 
+    def zscore(self, window: int) -> MetricZScoreFilter:
+        return MetricZScoreFilter(name=self.name, window=window)
+
 
 class MetricAgg(BaseMetricOperand):
     """Represents an aggregated metric value when defining metric event filters."""
@@ -345,14 +348,17 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
     name: str
     """Name of the observed metric."""
 
-    window: Annotated[PositiveInt, Field(alias="window_size")]
+    window: Annotated[PositiveInt, Field(alias="window_size")] = 30
     """Size of the window to calculate the metric mean and standard deviation over."""
 
-    threshold: PosNum
+    threshold: PosNum = 3.0
     """Threshold for the z-score."""
 
-    change_dir: ChangeDir
+    change_dir: ChangeDir = ChangeDir.ANY
     """Direction of the z-score change to watch for."""
+
+    __change_dir_abs_set: bool = False
+    """Flag to track if the change_dir has been set to ABSOLUTE."""
 
     def __and__(self, other: Any) -> RunMetricFilter:
         """Returns `(metric_filter & run_filter)` as a `RunMetricFilter`."""
@@ -384,3 +390,39 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
         """Returns the `rich` pretty-print representation of the metric filter."""
         # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
         yield None, repr(self)
+
+    def gt(self, value: int | float, /) -> MetricZScoreFilter:
+        """Returns a filter that watches for `abs(zscore(metric_expr)) > threshold`."""
+        self.change_dir = (
+            self.change_dir if self.__change_dir_abs_set else ChangeDir.INCREASE
+        )
+        if value < 0:
+            raise ValueError(f"Expected positive threshold, got: {value=}")
+        self.threshold = value
+        return self
+
+    def lt(self, value: int | float, /) -> MetricZScoreFilter:
+        """Returns a filter that watches for `abs(zscore(metric_expr)) < threshold`."""
+        self.change_dir = (
+            self.change_dir if self.__change_dir_abs_set else ChangeDir.DECREASE
+        )
+        if value < 0:
+            raise ValueError(f"Expected positive threshold, got: {value=}")
+        self.threshold = value
+        return self
+
+    def abs(self) -> MetricZScoreFilter:
+        """Returns a filter that watches for `abs(zscore(metric_expr)) > threshold`."""
+        self.change_dir = ChangeDir.ANY
+        self.__change_dir_abs_set = True
+        return self
+
+    def __gt__(self, other: Any) -> MetricZScoreFilter:
+        if isinstance(other, (int, float)):
+            return self.gt(other)
+        return NotImplemented
+
+    def __lt__(self, other: Any) -> MetricZScoreFilter:
+        if isinstance(other, (int, float)):
+            return self.lt(other)
+        return NotImplemented
