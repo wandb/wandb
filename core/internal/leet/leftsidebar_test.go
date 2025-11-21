@@ -13,7 +13,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func TestSidebarFilter_WithPrefixes(t *testing.T) {
+func TestSidebarFilter_AppliesAndClears(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
 	s := leet.NewLeftSidebar(cfg)
 
@@ -24,23 +24,18 @@ func TestSidebarFilter_WithPrefixes(t *testing.T) {
 			},
 		},
 	})
-
-	sr := &spb.SummaryRecord{
-		Update: []*spb.SummaryItem{
-			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
-		},
-	}
-	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
-
-	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
-		WriterId: "writer-1",
-		Os:       "linux",
+	s.ProcessSummaryMsg([]*spb.SummaryRecord{
+		{Update: []*spb.SummaryItem{{NestedKey: []string{"acc"}, ValueJson: "0.9"}}},
 	})
+	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{WriterId: "writer-1", Os: "linux"})
 
-	s.StartFilter()
-	s.UpdateFilter("@c train") // live preview
+	s.EnterFilterMode()
+	typeString(s, "train")
+	s.ExitFilterMode(true)
 	require.NotEmpty(t, s.FilterInfo())
-	s.ConfirmFilter() // locks it in
+
+	s.ClearFilter()
+	require.Empty(t, s.FilterInfo())
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
@@ -81,12 +76,11 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
 	// Live preview on summary, then apply it.
-	s.StartFilter()
-	s.UpdateFilter("@s acc")
-	s.ConfirmFilter()
-
+	s.EnterFilterMode()
+	typeString(s, "acc")
+	s.ExitFilterMode(true)
 	key, _ := s.SelectedItem()
-	require.Equal(t, key, "acc")
+	require.Equal(t, "acc", key)
 }
 
 func expandSidebar(t *testing.T, s *leet.LeftSidebar, termWidth int, rightVisible bool) {
@@ -224,15 +218,12 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 	})
 
 	// Apply a filter and verify info shows.
-	s.StartFilter()
-	s.UpdateFilter("acc")
-	s.ConfirmFilter()
+	s.EnterFilterMode()
+	typeString(s, "acc")
+	s.ExitFilterMode(true)
 	require.NotEmpty(t, s.FilterInfo())
 
-	// Clearing via an empty confirmed query hides the info and restores all items.
-	s.StartFilter()
-	s.UpdateFilter("")
-	s.ConfirmFilter()
+	s.ClearFilter()
 	require.Empty(t, s.FilterInfo())
 	view := s.View(40)
 	require.Contains(t, view, "Config [2 items]")
@@ -262,4 +253,46 @@ func TestSidebar_TruncateValue(t *testing.T) {
 	view := s.View(12)
 	require.Contains(t, view, "a.k")
 	require.Contains(t, view, "...")
+}
+
+func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	s := leet.NewLeftSidebar(cfg)
+
+	s.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"train", "loss"}, ValueJson: "0.5"},
+				{NestedKey: []string{"train", "acc"}, ValueJson: "0.9"},
+				{NestedKey: []string{"val", "loss"}, ValueJson: "0.6"},
+			},
+		},
+	})
+
+	// Default mode is regex — match keys ending with ".loss".
+	s.EnterFilterMode()
+	typeString(s, `loss$`)
+	s.ExitFilterMode(true)
+
+	// Expect both loss keys visible, acc not.
+	// (We check counts via FilterInfo rather than view rendering.)
+	info := s.FilterInfo()
+	require.Contains(t, info, "Config:")
+	// Toggle to glob, same pattern should not match any if it's treated as glob.
+	s.ClearFilter()
+	s.EnterFilterMode()
+	s.ToggleFilterMatchMode() // -> glob
+	typeString(s, `loss$`)
+	s.ExitFilterMode(true)
+	info = s.FilterInfo()
+	require.Equal(t, "no matches", info)
+
+	// Now use glob syntax.
+	s.ClearFilter()
+	s.EnterFilterMode()
+	typeString(s, `train*`)
+	s.ExitFilterMode(true)
+	info = s.FilterInfo()
+	// Expect two matches under Config (train.loss, train.acc)
+	require.Contains(t, info, "Config: 2")
 }

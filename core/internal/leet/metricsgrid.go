@@ -41,7 +41,7 @@ type MetricsGrid struct {
 	focus *Focus // focus.Row/Col only meaningful relative to currentPage
 
 	// Filter state.
-	filter FilterState
+	filter Filter
 
 	// Stable color assignment.
 	colorOfTitle map[string]lipgloss.AdaptiveColor
@@ -130,8 +130,8 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 
 	// Keep ordering, colors, maps and filtered set in sync.
 	if needsSort {
-		mg.sortChartsNoLock()                   // re-sorts + assigns stable colors
-		mg.applyFilterNoLock(mg.filter.applied) // keep filtered mirror / subset
+		mg.sortChartsNoLock()  // re-sorts + assigns stable colors
+		mg.applyFilterNoLock() // keep filtered mirror / subset
 	} else {
 		// No new charts; keep pagination but refresh visible page contents.
 		mg.loadCurrentPageNoLock()
@@ -159,7 +159,7 @@ func (mg *MetricsGrid) effectiveGridSize() GridSize {
 //
 // Caller must hold mg.mu (RLock is fine).
 func (mg *MetricsGrid) chartsToShowNoLock() []*EpochLineChart {
-	if mg.filter.applied == "" {
+	if mg.filter.Query() == "" {
 		return mg.all
 	}
 	return mg.filtered
@@ -169,7 +169,7 @@ func (mg *MetricsGrid) chartsToShowNoLock() []*EpochLineChart {
 //
 // Caller must hold mg.mu (RLock is fine).
 func (mg *MetricsGrid) effectiveChartCountNoLock() int {
-	if mg.filter.applied == "" {
+	if mg.filter.Query() == "" {
 		return len(mg.all)
 	}
 	return len(mg.filtered)
@@ -201,11 +201,11 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 
 		// Stable color per title (no reshuffling when new charts arrive).
 		col := mg.colorForNoLock(chart.Title())
-		chart.graphStyle = lipgloss.NewStyle().Foreground(col)
+		chart.SetGraphStyle(lipgloss.NewStyle().Foreground(col))
 	}
 
 	// Ensure filtered mirrors all when filter is empty.
-	if mg.filter.applied == "" {
+	if mg.filter.Query() == "" {
 		mg.filtered = append(make([]*EpochLineChart, 0, len(mg.all)), mg.all...)
 	}
 }
@@ -276,7 +276,6 @@ func (mg *MetricsGrid) renderHeader(size GridSize) string {
 
 	chartCount := mg.effectiveChartCountNoLock()
 	totalCount := len(mg.all)
-	filterApplied := mg.filter.applied != ""
 
 	itemsPerPage := ItemsPerPage(size)
 	totalPages := mg.nav.TotalPages()
@@ -285,7 +284,7 @@ func (mg *MetricsGrid) renderHeader(size GridSize) string {
 		startIdx, endIdx := mg.nav.PageBounds(chartCount, itemsPerPage)
 		startIdx++ // Display as 1-indexed
 
-		if filterApplied {
+		if mg.filter.Query() != "" {
 			navInfo = navInfoStyle.Render(
 				fmt.Sprintf(" [%d-%d of %d filtered from %d total]",
 					startIdx, endIdx, chartCount, totalCount))
@@ -566,4 +565,19 @@ func (mg *MetricsGrid) HandleWheel(
 	}
 	chart.HandleZoom(direction, relativeMouseX)
 	chart.DrawIfNeeded()
+}
+
+// IsFilterMode returns true if the metrics grid is currently in filter input mode.
+func (mg *MetricsGrid) IsFilterMode() bool {
+	return mg.filter.IsActive()
+}
+
+// IsFiltering returns true if the metrics grid has an applied filter.
+func (mg *MetricsGrid) IsFiltering() bool {
+	return !mg.filter.IsActive() && mg.filter.Query() != ""
+}
+
+// FilterQuery returns the current filter pattern.
+func (mg *MetricsGrid) FilterQuery() string {
+	return mg.filter.Query()
 }
