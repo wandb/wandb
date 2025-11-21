@@ -302,36 +302,24 @@ def test_metric_zscore_filter_requires_positive_window_size(
     name=metric_names,
     window=window_sizes,
     threshold=pos_numbers,
+    invalid_change_dir=sampled_from(
+        [
+            None,  # None should be rejected
+            123,  # Numeric values should be rejected
+            "INVALID",  # invalid string value
+        ]
+    ),
 )
 def test_metric_zscore_filter_requires_valid_change_dir(
-    name: str, window: int, threshold: float
+    name: str, window: int, threshold: float, invalid_change_dir: Any
 ):
     """Check that a `MetricZScoreFilter` requires a valid change_dir."""
-    # Invalid string values should be rejected
     with raises(ValidationError):
         MetricZScoreFilter(
             name=name,
             window_size=window,
             threshold=threshold,
-            change_dir="INVALID",
-        )
-
-    # None should be rejected
-    with raises(ValidationError):
-        MetricZScoreFilter(
-            name=name,
-            window_size=window,
-            threshold=threshold,
-            change_dir=None,
-        )
-
-    # Numeric values should be rejected
-    with raises(ValidationError):
-        MetricZScoreFilter(
-            name=name,
-            window_size=window,
-            threshold=threshold,
-            change_dir=123,
+            change_dir=invalid_change_dir,
         )
 
 
