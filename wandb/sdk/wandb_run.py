@@ -629,7 +629,8 @@ class Run:
         self._backend = None
         self._internal_run_interface = None
         self._wl = None
-
+        # Avoid calling wandb.Api() repeatedly in _public_api()
+        self._cached_public_api: PublicApi | None = None
         self._hooks = None
         self._teardown_hooks = []
 
@@ -3344,13 +3345,19 @@ class Run:
         return artifact
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:
+        if self._cached_public_api is not None:
+            return self._cached_public_api
+
+        # NOTE: PublicApi is only for type checking, still need to import
         from wandb.apis import public
 
         overrides = {"run": self._settings.run_id}  # type: ignore
         if not self._settings._offline:
             overrides["entity"] = self._settings.entity or ""
             overrides["project"] = self._settings.project or ""
-        return public.Api(overrides)
+
+        self._cached_public_api = public.Api(overrides, api_key=self._settings.api_key)
+        return self._cached_public_api
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
