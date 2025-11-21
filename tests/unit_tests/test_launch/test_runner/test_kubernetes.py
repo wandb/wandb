@@ -14,6 +14,7 @@ from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.runner.kubernetes_cleanup import KubernetesResourceCleanup
 from wandb.sdk.launch.runner.kubernetes_monitor import (
     WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
     CustomResource,
@@ -2617,3 +2618,45 @@ async def test_resource_role_labels_on_job_and_auxiliary_resources(
         service_labels["wandb.ai/auxiliary-resource"]
         == "12345678-1234-5678-1234-567812345678"
     )
+
+
+def test_cleanup_manager_initialization():
+    """Test that cleanup manager initializes with correct configuration."""
+
+    # Test with defaults
+    cleanup = KubernetesResourceCleanup()
+    assert cleanup._minimum_age == 900
+    assert "default" in cleanup._monitored_namespaces
+    assert "wandb" in cleanup._monitored_namespaces
+
+    # Test with custom values
+    cleanup = KubernetesResourceCleanup(
+        minimum_resource_age_seconds=600, monitored_namespaces="prod,staging,dev"
+    )
+    assert cleanup._minimum_age == 600
+    assert cleanup._monitored_namespaces == {"prod", "staging", "dev"}
+
+
+def test_cleanup_manager_namespace_parsing():
+    """Test that namespace configuration is parsed correctly."""
+
+    # Test whitespace handling
+    cleanup = KubernetesResourceCleanup(monitored_namespaces=" ns1 , ns2 ,  ns3  ")
+    assert cleanup._monitored_namespaces == {"ns1", "ns2", "ns3"}
+
+    # Test empty values filtered
+    cleanup = KubernetesResourceCleanup(monitored_namespaces="ns1,,ns2, ,ns3")
+    assert cleanup._monitored_namespaces == {"ns1", "ns2", "ns3"}
+
+    # Test single namespace
+    cleanup = KubernetesResourceCleanup(monitored_namespaces="production")
+    assert cleanup._monitored_namespaces == {"production"}
+
+
+def test_cleanup_manager_environment_variable(monkeypatch):
+    """Test that cleanup manager reads from environment variable."""
+
+    monkeypatch.setenv("WANDB_LAUNCH_MONITORED_NAMESPACES", "env-ns1,env-ns2")
+
+    cleanup = KubernetesResourceCleanup()
+    assert cleanup._monitored_namespaces == {"env-ns1", "env-ns2"}
