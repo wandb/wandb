@@ -32,6 +32,16 @@ type Focus struct {
 	Title    string
 }
 
+func NewFocus() *Focus {
+	return &Focus{Type: FocusNone, Row: -1, Col: -1}
+}
+
+// Reset resets the focus state to factory settings.
+func (f *Focus) Reset() {
+	f.Type = FocusNone
+	f.Row, f.Col = -1, -1
+}
+
 // FocusType indicates what type of UI element is focused.
 type FocusType int
 

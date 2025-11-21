@@ -195,7 +195,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m.handleOverviewFilter(msg)
 	}
 
-	if m.metricsGrid.filter.inputActive {
+	if m.metricsGrid.IsFilterMode() {
 		return m.handleMetricsFilter(msg)
 	}
 
@@ -335,21 +335,21 @@ func (m *Model) handleEnterMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 }
 
 func (m *Model) handleClearMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	if m.metricsGrid.filter.applied != "" {
+	if m.metricsGrid.FilterQuery() != "" {
 		m.metricsGrid.ClearFilter()
 	}
-	// TODO: unset focus?
+	m.focus.Reset()
 	return m, nil
 }
 
 func (m *Model) handleEnterOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	m.leftSidebar.StartFilter()
+	m.leftSidebar.EnterFilterMode()
 	return m, nil
 }
 
 func (m *Model) handleClearOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	if m.leftSidebar.IsFiltering() {
-		m.leftSidebar.clearFilter()
+		m.leftSidebar.ClearFilter()
 	}
 	return m, nil
 }
@@ -383,21 +383,12 @@ func (m *Model) handleMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	case tea.KeyEnter:
 		m.metricsGrid.ExitFilterMode(true)
 		return m, nil
-	case tea.KeyBackspace:
-		if len(m.metricsGrid.filter.draft) > 0 {
-			m.metricsGrid.filter.draft = m.metricsGrid.filter.draft[:len(m.metricsGrid.filter.draft)-1]
-			m.metricsGrid.ApplyFilter(m.metricsGrid.filter.draft)
-			m.metricsGrid.drawVisible()
-		}
+	case tea.KeyTab:
+		m.metricsGrid.ToggleFilterMatchMode()
 		return m, nil
-	case tea.KeyRunes:
-		m.metricsGrid.filter.draft += string(msg.Runes)
-		m.metricsGrid.ApplyFilter(m.metricsGrid.filter.draft)
-		m.metricsGrid.drawVisible()
-		return m, nil
-	case tea.KeySpace:
-		m.metricsGrid.filter.draft += " "
-		m.metricsGrid.ApplyFilter(m.metricsGrid.filter.draft)
+	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
+		m.metricsGrid.UpdateFilterDraft(msg)
+		m.metricsGrid.ApplyFilter()
 		m.metricsGrid.drawVisible()
 		return m, nil
 	default:
@@ -407,37 +398,18 @@ func (m *Model) handleMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 // handleOverviewFilter handles overview filter keyboard input.
 func (m *Model) handleOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	if !m.leftSidebar.IsFilterMode() {
-		return m, nil
-	}
-
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.leftSidebar.CancelFilter()
-		return m, nil
-
+		m.leftSidebar.ExitFilterMode(false)
 	case tea.KeyEnter:
-		m.leftSidebar.ConfirmFilter()
-		return m, nil
-
-	case tea.KeyBackspace:
-		input := m.leftSidebar.FilterDraft()
-		if len(input) > 0 {
-			m.leftSidebar.UpdateFilter(input[:len(input)-1])
-		}
-		return m, nil
-
-	case tea.KeyRunes:
-		input := m.leftSidebar.FilterDraft()
-		m.leftSidebar.UpdateFilter(input + string(msg.Runes))
-		return m, nil
-
-	case tea.KeySpace:
-		input := m.leftSidebar.FilterDraft()
-		m.leftSidebar.UpdateFilter(input + " ")
-		return m, nil
+		m.leftSidebar.ExitFilterMode(true)
+	case tea.KeyTab:
+		m.leftSidebar.ToggleFilterMatchMode()
+	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
+		m.leftSidebar.UpdateFilterDraft(msg)
+		m.leftSidebar.ApplyFilter()
+		m.leftSidebar.updateSectionHeights()
 	}
-
 	return m, nil
 }
 

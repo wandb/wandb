@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/NimbleMarkets/ntcharts/canvas"
 	"github.com/NimbleMarkets/ntcharts/canvas/graph"
@@ -32,7 +33,8 @@ type EpochLineChart struct {
 	xData, yData []float64
 
 	// graphStyle is the foreground style used to render the series line/dots.
-	graphStyle lipgloss.Style
+	// Swapped atomically because drawing happens off the grid lock.
+	graphStyle atomic.Value // stores lipgloss.Style
 
 	// focused indicates whether this chart is focused in the grid.
 	focused bool
@@ -64,7 +66,7 @@ type EpochLineChart struct {
 func NewEpochLineChart(width, height int, title string) *EpochLineChart {
 	graphColors := GraphColors()
 
-	// Temporarily use a default style - it will be updated during sorting.
+	// Default style; sort will install the stable color later.
 	graphStyle := lipgloss.NewStyle().Foreground(graphColors[0])
 
 	chart := &EpochLineChart{
@@ -75,16 +77,15 @@ func NewEpochLineChart(width, height int, title string) *EpochLineChart {
 				return UnitScalar.Format(v)
 			}),
 		),
-		xData:      make([]float64, 0, 1000),
-		yData:      make([]float64, 0, 1000),
-		graphStyle: graphStyle,
-		title:      title,
-		xMin:       math.Inf(1),
-		xMax:       math.Inf(-1),
-		yMin:       math.Inf(1),
-		yMax:       math.Inf(-1),
+		xData: make([]float64, 0, 1000),
+		yData: make([]float64, 0, 1000),
+		title: title,
+		xMin:  math.Inf(1),
+		xMax:  math.Inf(-1),
+		yMin:  math.Inf(1),
+		yMax:  math.Inf(-1),
 	}
-
+	chart.graphStyle.Store(graphStyle)
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
 
@@ -323,10 +324,11 @@ func (c *EpochLineChart) Draw() {
 		startX = c.Origin().X + 1
 	}
 	patterns := bGrid.BraillePatterns()
+	style := c.graphStyle.Load().(lipgloss.Style)
 	graph.DrawBraillePatterns(&c.Canvas,
 		canvas.Point{X: startX, Y: 0},
 		patterns,
-		c.graphStyle)
+		style)
 
 	c.dirty = false
 }
@@ -457,4 +459,9 @@ func TruncateTitle(title string, maxWidth int) string {
 	}
 
 	return title[:bestTruncateAt] + "..."
+}
+
+// SetGraphStyle swaps the style used for drawing.
+func (c *EpochLineChart) SetGraphStyle(s lipgloss.Style) {
+	c.graphStyle.Store(s)
 }

@@ -45,7 +45,7 @@ type LeftSidebar struct {
 	activeSection int
 
 	// Filter state.
-	filter FilterState
+	filter Filter
 
 	// Dimensions.
 	height int
@@ -116,7 +116,7 @@ func (s *LeftSidebar) View(height int) string {
 	}
 
 	s.height = height
-	s.calculateSectionHeights()
+	s.updateSectionHeights()
 
 	headerLines := s.buildHeaderLines()
 
@@ -227,15 +227,15 @@ func (s *LeftSidebar) updateSections() {
 	s.sections[1].Items = s.runOverview.ConfigItems()
 	s.sections[2].Items = s.runOverview.SummaryItems()
 
-	if s.filter.inputActive || s.filter.applied != "" {
-		s.applyFilter()
+	if s.IsFilterMode() || s.FilterQuery() != "" {
+		s.ApplyFilter()
 	} else {
 		for i := range s.sections {
 			s.sections[i].FilteredItems = s.sections[i].Items
 		}
 	}
 
-	s.calculateSectionHeights()
+	s.updateSectionHeights()
 
 	if currentKey == "" {
 		s.selectFirstAvailableItem()
@@ -363,7 +363,7 @@ func (s *LeftSidebar) buildSectionInfo(
 	totalItems, filteredItems, startIdx, endIdx int,
 ) string {
 	switch {
-	case (s.filter.inputActive || s.filter.applied != "") && filteredItems != totalItems:
+	case (s.filter.IsActive() || s.filter.Query() != "") && filteredItems != totalItems:
 		// Filtered view with pagination.
 		return fmt.Sprintf(" [%d-%d of %d filtered from %d]",
 			startIdx+1, endIdx, filteredItems, totalItems)
