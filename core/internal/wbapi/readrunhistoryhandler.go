@@ -5,14 +5,22 @@ import (
 	"net/http"
 	"sync/atomic"
 
+	"github.com/Khan/genqlient/graphql"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/simplejsonext"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
+	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // RunHistoryAPIHandler handles api requests
 // related to reading a run's history.
 type RunHistoryAPIHandler struct {
+	graphqlClient graphql.Client
+	httpClient    *retryablehttp.Client
+
 	// currentRequestId is the id of the last scan init request made.
 	//
 	// It is used to provide a unique id for each scan request
@@ -26,8 +34,24 @@ type RunHistoryAPIHandler struct {
 	scanHistoryReaders map[int32]*runhistoryreader.HistoryReader
 }
 
-func NewRunHistoryAPIHandler() *RunHistoryAPIHandler {
+func NewRunHistoryAPIHandler(settings *settings.Settings) *RunHistoryAPIHandler {
+	backend := stream.NewBackend(observability.NewNoOpLogger(), settings)
+	graphqlClient := stream.NewGraphQLClient(
+		backend,
+		settings,
+		&observability.Peeker{},
+		"",
+	)
+
+	httpClient := retryablehttp.NewClient()
+	httpClient.RetryMax = int(settings.GetFileTransferMaxRetries())
+	httpClient.RetryWaitMin = settings.GetFileTransferRetryWaitMin()
+	httpClient.RetryWaitMax = settings.GetFileTransferRetryWaitMax()
+	httpClient.HTTPClient.Timeout = settings.GetFileTransferTimeout()
+
 	return &RunHistoryAPIHandler{
+		graphqlClient:      graphqlClient,
+		httpClient:         httpClient,
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
 	}
@@ -42,7 +66,7 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 	case *spb.ReadRunHistoryRequest_ScanRunHistory:
 		return f.handleScanRunHistoryRead(request.GetScanRunHistory())
 	case *spb.ReadRunHistoryRequest_ScanRunHistoryCleanup:
-		f.handleScanRunHistoryCleanup(request.GetScanRunHistoryCleanup())
+		return f.handleScanRunHistoryCleanup(request.GetScanRunHistoryCleanup())
 	}
 
 	return nil
@@ -66,7 +90,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 		request.Entity,
 		request.Project,
 		request.RunId,
-		nil,
+		f.graphqlClient,
 		http.DefaultClient,
 		requestKeys,
 	)
@@ -160,8 +184,8 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_ReadRunHistoryResponse{
 			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
-				Response: &spb.ReadRunHistoryResponse_RunHistoryResponse{
-					RunHistoryResponse: &spb.RunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_RunHistory{
+					RunHistory: &spb.RunHistoryResponse{
 						HistoryRows: historyRows,
 					},
 				},
@@ -174,7 +198,17 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 // associated with a history scan.
 func (f *RunHistoryAPIHandler) handleScanRunHistoryCleanup(
 	request *spb.ScanRunHistoryCleanup,
-) {
+) *spb.ApiResponse {
 	requestId := request.GetRequestId()
 	delete(f.scanHistoryReaders, requestId)
+
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_ReadRunHistoryResponse{
+			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_ScanRunHistoryCleanup{
+					ScanRunHistoryCleanup: &spb.ScanRunHistoryCleanupResponse{},
+				},
+			},
+		},
+	}
 }

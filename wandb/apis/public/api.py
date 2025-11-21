@@ -43,6 +43,7 @@ from wandb.apis.public.utils import (
 )
 from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
@@ -364,6 +365,22 @@ class Api:
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
 
+        self._backend: wandb.sdk.backend.backend.Backend | None = None
+        self._service = None
+
+    def _start_backend_service(self):
+        """Starts the backend service and initializes resources to enable handling API requests."""
+        from wandb.sdk import wandb_setup
+
+        self._stream_id = str(runid.generate_id())
+        singleton = wandb_setup.singleton()
+        self._settings = singleton.settings.model_copy()
+        self._settings.base_url = self.settings["base_url"]
+        self._settings.silent = True
+
+        self._service = singleton.ensure_service()
+        self._service.api_init_request(self._settings.to_proto())
+
     def _load_api_key(
         self,
         base_url: str,
@@ -413,6 +430,24 @@ class Api:
                 "email": email,
             },
         )
+
+    def _send_api_request(
+        self,
+        request: ApiRequest,
+    ) -> ApiResponse:
+        """Sends an API request to the backend service.
+
+        Creates the backend service attribute if it has not been created yet.
+
+        TODO: remove this helper function once all requests are routed through wandb-core.
+        The backend service should be created and initalized
+        during the instantiation of the Api object.
+        """
+        if self._service is None:
+            self._start_backend_service()
+
+        assert self._service is not None
+        return self._service.api_request(request)
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -1244,6 +1279,7 @@ class Api:
             self.client,
             entity,
             project,
+            api=self,
             filters=filters,
             order=order,
             per_page=per_page,
@@ -1268,7 +1304,12 @@ class Api:
         if not self._runs.get(path):
             # Individual runs should load full data by default
             self._runs[path] = public.Run(
-                self.client, entity, project, run_id, lazy=False
+                self.client,
+                entity,
+                project,
+                run_id,
+                api=self,
+                lazy=False,
             )
         return self._runs[path]
 

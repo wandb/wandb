@@ -4,6 +4,7 @@
 package wbapi
 
 import (
+	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -19,13 +20,16 @@ type WandbAPI struct {
 	// semaphore is a buffered channel limiting concurrent request handling
 	semaphore chan struct{}
 
+	settings *settings.Settings
+
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
-func NewWandbAPI() *WandbAPI {
+func NewWandbAPI(settings *settings.Settings) *WandbAPI {
 	return &WandbAPI{
 		semaphore:            make(chan struct{}, maxConcurrency),
-		runHistoryApiHandler: NewRunHistoryAPIHandler(),
+		settings:             settings,
+		runHistoryApiHandler: NewRunHistoryAPIHandler(settings),
 	}
 }
 

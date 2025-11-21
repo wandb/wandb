@@ -106,7 +106,8 @@ message ServerRequest {
     ServerSyncRequest sync = 12;
     ServerSyncStatusRequest sync_status = 13;
 
-    ApiRequest api_request = 14;
+    ServerApiInitRequest api_init_request = 14;
+    ApiRequest api_request = 15;
   }
 }
 
@@ -132,6 +133,7 @@ message ServerResponse {
     ServerSyncResponse sync_response = 12;
     ServerSyncStatusResponse sync_status_response = 13;
 
-    ApiResponse api_response = 14;
+    ServerApiInitResponse api_init_response = 14;
+    ApiResponse api_response = 15;
   }
 }
