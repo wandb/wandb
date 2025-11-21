@@ -8,6 +8,7 @@ from .events import (
     EventType,
     MetricChangeFilter,
     MetricThresholdFilter,
+    MetricZScoreFilter,
     OnAddArtifactAlias,
     OnCreateArtifact,
     OnLinkArtifact,
@@ -62,6 +63,7 @@ __all__ = [
     "MetricThresholdFilter",
     "MetricChangeFilter",
     "RunStateFilter",
+    "MetricZScoreFilter",
     # Actions
     "ActionType",  # doc:exclude
     "SendNotification",
