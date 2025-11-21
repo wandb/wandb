@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import traceback
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import kubernetes_asyncio  # type: ignore
 import urllib3
@@ -18,10 +18,12 @@ from kubernetes_asyncio.client import (  # type: ignore
 )
 
 import wandb
-from wandb.sdk.launch.agent import LaunchAgent
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import State, Status
 from wandb.sdk.launch.utils import get_kube_context_and_api_client
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.agent import LaunchAgent  # noqa: F401
 
 WANDB_K8S_LABEL_NAMESPACE = "wandb.ai"
 WANDB_K8S_RUN_ID = f"{WANDB_K8S_LABEL_NAMESPACE}/run-id"
@@ -236,6 +238,9 @@ class LaunchKubernetesMonitor:
             batch_api = BatchV1Api(api_client)
             custom_api = CustomObjectsApi(api_client)
             label_selector = f"{WANDB_K8S_LABEL_MONITOR}=true"
+            # Import LaunchAgent lazily to avoid circular import
+            from wandb.sdk.launch.agent import LaunchAgent
+
             if LaunchAgent.initialized():
                 label_selector += f",{WANDB_K8S_LABEL_AGENT}={LaunchAgent.name()}"
             cls(

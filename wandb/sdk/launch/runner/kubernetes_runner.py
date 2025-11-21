@@ -8,12 +8,11 @@ import logging
 import os
 import time
 import uuid
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import wandb
 import yaml
 from wandb.apis.internal import Api
-from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
@@ -47,6 +46,9 @@ from ..utils import (
     make_k8s_label_safe,
     make_name_dns_safe,
 )
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.agent.agent import LaunchAgent  # noqa: F401
 from .abstract import AbstractRun, AbstractRunner
 
 get_module(
@@ -492,6 +494,9 @@ class KubernetesRunner(AbstractRunner):
         job_metadata["labels"][WANDB_K8S_RUN_ID] = launch_project.run_id
         job_metadata["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
         job_metadata["labels"][WANDB_K8S_LABEL_RESOURCE_ROLE] = "primary"
+        # Import LaunchAgent lazily to avoid circular import
+        from wandb.sdk.launch.agent.agent import LaunchAgent
+
         if LaunchAgent.initialized():
             job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = LaunchAgent.name()
 
@@ -562,6 +567,9 @@ class KubernetesRunner(AbstractRunner):
         )
         api_key_secret = None
         wandb_team_secrets_secret = None
+
+        # Import LaunchAgent lazily to avoid circular import
+        from wandb.sdk.launch.agent.agent import LaunchAgent
 
         for cont in containers:
             # Add our env vars to user supplied env vars
@@ -1028,6 +1036,9 @@ class KubernetesRunner(AbstractRunner):
             )
 
             # Add wandb.ai/agent: current agent label on all pods
+            # Import LaunchAgent lazily to avoid circular import
+            from wandb.sdk.launch.agent.agent import LaunchAgent
+
             if LaunchAgent.initialized():
                 add_label_to_pods(
                     resource_args,
