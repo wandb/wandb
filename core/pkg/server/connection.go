@@ -600,7 +600,16 @@ func (nc *Connection) handleApi(
 	request *spb.ApiRequest,
 ) {
 	wg.Go(func() {
-		nc.wbapi.HandleRequest(id, request, nc.Respond)
+		response := nc.wbapi.HandleRequest(id, request)
+
+		if response != nil {
+			nc.Respond(&spb.ServerResponse{
+				RequestId: id,
+				ServerResponseType: &spb.ServerResponse_ApiResponse{
+					ApiResponse: response,
+				},
+			})
+		}
 	})
 }
 
