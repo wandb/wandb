@@ -1,8 +1,6 @@
 package parquet
 
 import (
-	"context"
-
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/file"
@@ -33,7 +31,6 @@ func LocalParquetFile(
 // RemoteParquetFile provides a pqarrow.FileReader for accessing a parquet file
 // that is stored remotely.
 func RemoteParquetFile(
-	ctx context.Context,
 	reader parquet.ReaderAtSeeker,
 ) (*pqarrow.FileReader, error) {
 
