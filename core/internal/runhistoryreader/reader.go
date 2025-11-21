@@ -10,6 +10,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 )
 
 // HistoryReader downloads and reads an exisiting run's logged metrics.
@@ -54,14 +55,14 @@ func (h *HistoryReader) GetHistorySteps(
 //
 // The order of the URLs returned is not guaranteed
 // to be the same order as the order the run history partitions were created in.
-func (h *HistoryReader) getRunHistoryFileUrls(keys []string) ([]string, error) {
+func (h *HistoryReader) getRunHistoryFileUrls() ([]string, error) {
 	response, err := gql.RunParquetHistory(
 		context.Background(),
 		h.graphqlClient,
 		h.entity,
 		h.project,
 		h.runId,
-		keys,
+		[]string{iterator.StepKey},
 	)
 	if err != nil {
 		return nil, err

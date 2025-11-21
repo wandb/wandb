@@ -73,7 +73,7 @@ func TestHistoryReader_GetSignedUrls(t *testing.T) {
 		http.DefaultClient,
 	)
 
-	urls, err := reader.getRunHistoryFileUrls([]string{"metric1"})
+	urls, err := reader.getRunHistoryFileUrls()
 
 	assert.NoError(t, err)
 	assert.Len(t, urls, 1)
