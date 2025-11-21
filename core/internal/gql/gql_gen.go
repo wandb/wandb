@@ -1055,6 +1055,40 @@ func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetId() stri
 // GetName returns RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity.Name, and is useful for accessing the field via an interface.
 func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetName() string { return v.Name }
 
+// RunParquetHistoryProject includes the requested fields of the GraphQL type Project.
+type RunParquetHistoryProject struct {
+	Run *RunParquetHistoryProjectRun `json:"run"`
+}
+
+// GetRun returns RunParquetHistoryProject.Run, and is useful for accessing the field via an interface.
+func (v *RunParquetHistoryProject) GetRun() *RunParquetHistoryProjectRun { return v.Run }
+
+// RunParquetHistoryProjectRun includes the requested fields of the GraphQL type Run.
+type RunParquetHistoryProjectRun struct {
+	ParquetHistory RunParquetHistoryProjectRunParquetHistory `json:"parquetHistory"`
+}
+
+// GetParquetHistory returns RunParquetHistoryProjectRun.ParquetHistory, and is useful for accessing the field via an interface.
+func (v *RunParquetHistoryProjectRun) GetParquetHistory() RunParquetHistoryProjectRunParquetHistory {
+	return v.ParquetHistory
+}
+
+// RunParquetHistoryProjectRunParquetHistory includes the requested fields of the GraphQL type ParquetHistory.
+type RunParquetHistoryProjectRunParquetHistory struct {
+	ParquetUrls []string `json:"parquetUrls"`
+}
+
+// GetParquetUrls returns RunParquetHistoryProjectRunParquetHistory.ParquetUrls, and is useful for accessing the field via an interface.
+func (v *RunParquetHistoryProjectRunParquetHistory) GetParquetUrls() []string { return v.ParquetUrls }
+
+// RunParquetHistoryResponse is returned by RunParquetHistory on success.
+type RunParquetHistoryResponse struct {
+	Project *RunParquetHistoryProject `json:"project"`
+}
+
+// GetProject returns RunParquetHistoryResponse.Project, and is useful for accessing the field via an interface.
+func (v *RunParquetHistoryResponse) GetProject() *RunParquetHistoryProject { return v.Project }
+
 // RunResumeStatusModelProject includes the requested fields of the GraphQL type Project.
 type RunResumeStatusModelProject struct {
 	Id     string                                `json:"id"`
@@ -1905,6 +1939,26 @@ func (v *__RewindRunInput) GetMetricName() string { return v.MetricName }
 
 // GetMetricValue returns __RewindRunInput.MetricValue, and is useful for accessing the field via an interface.
 func (v *__RewindRunInput) GetMetricValue() float64 { return v.MetricValue }
+
+// __RunParquetHistoryInput is used internally by genqlient
+type __RunParquetHistoryInput struct {
+	Entity   string   `json:"entity"`
+	Project  string   `json:"project"`
+	RunName  string   `json:"runName"`
+	LiveKeys []string `json:"liveKeys"`
+}
+
+// GetEntity returns __RunParquetHistoryInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RunParquetHistoryInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __RunParquetHistoryInput.Project, and is useful for accessing the field via an interface.
+func (v *__RunParquetHistoryInput) GetProject() string { return v.Project }
+
+// GetRunName returns __RunParquetHistoryInput.RunName, and is useful for accessing the field via an interface.
+func (v *__RunParquetHistoryInput) GetRunName() string { return v.RunName }
+
+// GetLiveKeys returns __RunParquetHistoryInput.LiveKeys, and is useful for accessing the field via an interface.
+func (v *__RunParquetHistoryInput) GetLiveKeys() []string { return v.LiveKeys }
 
 // __RunResumeStatusInput is used internally by genqlient
 type __RunResumeStatusInput struct {
@@ -2771,6 +2825,50 @@ func RewindRun(
 	}
 
 	data_ = &RewindRunResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by RunParquetHistory.
+const RunParquetHistory_Operation = `
+query RunParquetHistory ($entity: String!, $project: String!, $runName: String!, $liveKeys: [String!]!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $runName) {
+			parquetHistory(liveKeys: $liveKeys) {
+				parquetUrls
+			}
+		}
+	}
+}
+`
+
+func RunParquetHistory(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	runName string,
+	liveKeys []string,
+) (data_ *RunParquetHistoryResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "RunParquetHistory",
+		Query:  RunParquetHistory_Operation,
+		Variables: &__RunParquetHistoryInput{
+			Entity:   entity,
+			Project:  project,
+			RunName:  runName,
+			LiveKeys: liveKeys,
+		},
+	}
+
+	data_ = &RunParquetHistoryResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
