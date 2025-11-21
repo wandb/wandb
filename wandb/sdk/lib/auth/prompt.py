@@ -6,7 +6,7 @@ from urllib.parse import urlsplit, urlunsplit
 from wandb import util
 from wandb.errors import links, term
 
-from . import saas, validation
+from . import saas, validation, wbnetrc
 
 _logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ _LOGIN_CHOICES = [
 ]
 
 
-def prompt_api_key(
+def prompt_and_save_api_key(
     *,
     host: str,
     no_offline: bool = False,
@@ -28,7 +28,7 @@ def prompt_api_key(
     referrer: str = "",
     input_timeout: float | None = None,
 ) -> str | None:
-    """Prompt for an API key.
+    """Prompt for an API key and save it to the .netrc file.
 
     Args:
         host: The URL to the W&B server, like 'https://api.wandb.ai'.
@@ -44,6 +44,34 @@ def prompt_api_key(
     Raises:
         NotATerminalError: If a terminal is not available.
         TimeoutError: If the specified timeout expired.
+    """
+    api_key = _prompt_api_key(
+        host=host,
+        no_offline=no_offline,
+        no_create=no_create,
+        referrer=referrer,
+        input_timeout=input_timeout,
+    )
+
+    if not api_key:
+        return None
+
+    wbnetrc.write_netrc_auth(host=host, api_key=api_key)
+
+    return api_key
+
+
+def _prompt_api_key(
+    *,
+    host: str,
+    no_offline: bool = False,
+    no_create: bool = False,
+    referrer: str = "",
+    input_timeout: float | None = None,
+) -> str | None:
+    """Prompt for an API key without saving it to .netrc.
+
+    Arguments are the same as for prompt_and_save_api_key().
     """
     if not term.can_use_terminput():
         raise term.NotATerminalError
