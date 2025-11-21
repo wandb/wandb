@@ -416,6 +416,14 @@ def mock_kube_context_and_api_client(monkeypatch):
         "wandb.sdk.launch.runner.kubernetes_monitor.get_kube_context_and_api_client",
         _mock_get_kube_context_and_api_client,
     )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_cleanup.get_kube_context_and_api_client",
+        _mock_get_kube_context_and_api_client,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.utils.get_kube_context_and_api_client",
+        _mock_get_kube_context_and_api_client,
+    )
 
 
 @pytest.fixture
@@ -2809,19 +2817,23 @@ async def test_cleanup_find_orphaned_uuids_missing_run_id():
 
 
 @pytest.mark.asyncio
-async def test_cleanup_namespace_end_to_end(monkeypatch):
+async def test_cleanup_namespace_end_to_end(
+    monkeypatch,
+    mock_batch_api,
+    mock_core_api,
+    mock_apps_api,
+    mock_network_api,
+    mock_kube_context_and_api_client,
+):
     """Test complete cleanup flow through _cleanup_namespace including deletion."""
-    mock_api_client = MagicMock()
-    mock_batch_api = MagicMock()
-    mock_core_api = MagicMock()
-    mock_apps_api = MagicMock()
-    mock_network_api = MagicMock()
 
-    async def mock_get_kube_context(*args, **kwargs):
-        return None, mock_api_client
+    # Create the mock delete function with diagnostic logging
+    async def _mock_delete(*args, **kwargs):
+        print("DEBUG[test] mock delete called with args:", args, "kwargs:", kwargs)
+        return None
 
-    # Create the mock delete function
-    mock_delete = AsyncMock()
+    mock_delete = AsyncMock(side_effect=_mock_delete)
+    print("DEBUG[test] created mock_delete with logging")
 
     # Patch the function at the runner module where it's accessed from
     monkeypatch.setattr(
@@ -2830,16 +2842,24 @@ async def test_cleanup_namespace_end_to_end(monkeypatch):
     )
 
     monkeypatch.setattr(
-        kubernetes_asyncio.client, "BatchV1Api", lambda *args: mock_batch_api
+        kubernetes_asyncio.client,
+        "BatchV1Api",
+        lambda *args, **kwargs: mock_batch_api,
     )
     monkeypatch.setattr(
-        kubernetes_asyncio.client, "CoreV1Api", lambda *args: mock_core_api
+        kubernetes_asyncio.client,
+        "CoreV1Api",
+        lambda *args, **kwargs: mock_core_api,
     )
     monkeypatch.setattr(
-        kubernetes_asyncio.client, "AppsV1Api", lambda *args: mock_apps_api
+        kubernetes_asyncio.client,
+        "AppsV1Api",
+        lambda *args, **kwargs: mock_apps_api,
     )
     monkeypatch.setattr(
-        kubernetes_asyncio.client, "NetworkingV1Api", lambda *args: mock_network_api
+        kubernetes_asyncio.client,
+        "NetworkingV1Api",
+        lambda *args, **kwargs: mock_network_api,
     )
 
     # Mock active job for _get_active_job_run_ids call
@@ -2855,6 +2875,7 @@ async def test_cleanup_namespace_end_to_end(monkeypatch):
         return MagicMock(items=[])
 
     mock_batch_api.list_namespaced_job = AsyncMock(side_effect=mock_list_jobs)
+    print("DEBUG[test] configured mock_batch_api.list_namespaced_job")
 
     # Mock orphaned resource
     old_time = datetime.now(timezone.utc) - timedelta(seconds=1000)
@@ -2877,19 +2898,18 @@ async def test_cleanup_namespace_end_to_end(monkeypatch):
     mock_network_api.list_namespaced_network_policy = AsyncMock(
         return_value=MagicMock(items=[])
     )
-
-    monkeypatch.setattr(
-        "wandb.sdk.launch.utils.get_kube_context_and_api_client",
-        mock_get_kube_context,
-    )
+    print("DEBUG[test] configured all resource list mocks")
 
     # Create cleanup instance
     cleanup = KubernetesResourceCleanup(
         minimum_resource_age_seconds=900, monitored_namespaces="test-ns"
     )
+    print("DEBUG[test] created KubernetesResourceCleanup instance")
 
     # Run end-to-end cleanup
+    print("DEBUG[test] invoking cleanup._cleanup_namespace")
     await cleanup._cleanup_namespace("test-ns")
+    print("DEBUG[test] cleanup._cleanup_namespace finished")
 
     # Verify delete was called for orphaned UUID
     assert mock_delete.called, (

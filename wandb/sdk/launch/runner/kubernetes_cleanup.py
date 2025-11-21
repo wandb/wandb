@@ -92,13 +92,20 @@ class KubernetesResourceCleanup:
         Args:
             namespace: Kubernetes namespace to clean
         """
+        wandb.termlog(f"{LOG_PREFIX}[cleanup] start namespace cleanup for {namespace}")
+
         # Initialize Kubernetes clients
         try:
+            wandb.termlog(f"{LOG_PREFIX}[cleanup] acquiring kube context/api client")
             _, api_client = await get_kube_context_and_api_client(
                 kubernetes_asyncio, {}
             )
+            wandb.termlog(f"{LOG_PREFIX}[cleanup] acquired api client: {api_client}")
         except Exception as e:
             _logger.warning(f"Failed to get Kubernetes API client: {e}")
+            wandb.termlog(
+                f"{LOG_PREFIX}[cleanup] aborting {namespace} cleanup due to kube client error: {e}"
+            )
             return
 
         batch_api = kubernetes_asyncio.client.BatchV1Api(api_client)
@@ -107,12 +114,16 @@ class KubernetesResourceCleanup:
         network_api = kubernetes_asyncio.client.NetworkingV1Api(api_client)
 
         # Get all active primary Jobs (those with run-id labels)
+        wandb.termlog(f"{LOG_PREFIX}[cleanup] fetching active run ids in {namespace}")
         active_run_ids = await self._get_active_job_run_ids(batch_api, namespace)
         if active_run_ids is None:
             # Failed to get active jobs - skip this namespace for safety
             _logger.warning(
                 f"Unable to retrieve active jobs from {namespace}, "
                 "skipping cleanup to avoid deleting active resources"
+            )
+            wandb.termlog(
+                f"{LOG_PREFIX}[cleanup] skipping cleanup for {namespace}: active jobs unknown"
             )
             return
 
@@ -121,10 +132,17 @@ class KubernetesResourceCleanup:
                 f"Found {len(active_run_ids)} active job(s) in {namespace}: "
                 f"{', '.join(sorted(active_run_ids))}"
             )
+            wandb.termlog(
+                f"{LOG_PREFIX}[cleanup] active jobs in {namespace}: {sorted(active_run_ids)}"
+            )
         else:
             _logger.debug(f"No active jobs found in {namespace}")
+            wandb.termlog(f"{LOG_PREFIX}[cleanup] no active jobs in {namespace}")
 
         # Find all orphaned auxiliary resources
+        wandb.termlog(
+            f"{LOG_PREFIX}[cleanup] scanning {namespace} for orphaned resources"
+        )
         orphaned_uuids = await self._find_orphaned_uuids(
             core_api,
             apps_api,
@@ -136,6 +154,9 @@ class KubernetesResourceCleanup:
 
         if not orphaned_uuids:
             _logger.debug(f"No orphaned resources found in {namespace}")
+            wandb.termlog(
+                f"{LOG_PREFIX}[cleanup] no orphaned resources detected in {namespace}"
+            )
             return
 
         wandb.termlog(
@@ -161,9 +182,16 @@ class KubernetesResourceCleanup:
                 _logger.warning(
                     f"Failed to cleanup UUID {uuid_val} in {namespace}: {e}"
                 )
+                wandb.termlog(
+                    f"{LOG_PREFIX}[cleanup] failed cleanup for UUID {uuid_val} in {namespace}: {e}"
+                )
 
         # execute deletions concurrently
+        wandb.termlog(
+            f"{LOG_PREFIX}[cleanup] deleting {len(orphaned_uuids)} orphaned resource group(s) in {namespace}"
+        )
         await asyncio.gather(*[delete_uuid(uuid_val) for uuid_val in orphaned_uuids])
+        wandb.termlog(f"{LOG_PREFIX}[cleanup] completed cleanup for {namespace}")
 
     async def _get_active_job_run_ids(
         self, batch_api: "kubernetes_asyncio.client.BatchV1Api", namespace: str
@@ -184,6 +212,7 @@ class KubernetesResourceCleanup:
         active_run_ids = set()
 
         # Source 1: Query Kubernetes for active Jobs
+        wandb.termlog(f"{LOG_PREFIX}[cleanup] listing jobs in {namespace}")
         try:
             jobs = await batch_api.list_namespaced_job(
                 namespace=namespace,
@@ -194,16 +223,25 @@ class KubernetesResourceCleanup:
                 run_id = job.metadata.labels.get("wandb.ai/run-id")
                 if run_id:
                     active_run_ids.add(run_id)
+                    wandb.termlog(
+                        f"{LOG_PREFIX}[cleanup] active job detected run-id={run_id} namespace={namespace}"
+                    )
 
         except ApiException as e:
             _logger.warning(
                 f"Failed to list jobs in {namespace}: {e}. "
                 "Skipping cleanup for this namespace for safety."
             )
+            wandb.termlog(
+                f"{LOG_PREFIX}[cleanup] ApiException listing jobs in {namespace}: {e}"
+            )
             return None
         except Exception as e:
             _logger.warning(
                 f"Unexpected error listing jobs in {namespace}: {e}", exc_info=True
+            )
+            wandb.termlog(
+                f"{LOG_PREFIX}[cleanup] unexpected error listing jobs in {namespace}: {e}"
             )
             return None
 
@@ -219,9 +257,13 @@ class KubernetesResourceCleanup:
                     _logger.debug(
                         f"Added {len(agent_run_ids)} run-ids from agent job tracker"
                     )
+                    wandb.termlog(
+                        f"{LOG_PREFIX}[cleanup] agent tracker run ids: {sorted(agent_run_ids)}"
+                    )
         except Exception as e:
             # Agent job tracker is optional - don't fail if unavailable
             _logger.debug(f"Could not get agent job tracker run-ids: {e}")
+            wandb.termlog(f"{LOG_PREFIX}[cleanup] agent tracker unavailable: {e}")
 
         return active_run_ids
 
@@ -243,6 +285,9 @@ class KubernetesResourceCleanup:
         Returns:
             Set of orphaned UUIDs found in this resource type
         """
+        wandb.termlog(
+            f"{LOG_PREFIX}[cleanup] scanning resource type={resource_type} namespace={namespace}"
+        )
         found_orphaned = set()
         try:
             list_method = getattr(api_client, f"list_namespaced_{resource_type}")
@@ -254,6 +299,9 @@ class KubernetesResourceCleanup:
             for resource in resources.items:
                 uuid_val = resource.metadata.labels.get("wandb.ai/auxiliary-resource")
                 if not uuid_val:
+                    wandb.termlog(
+                        f"{LOG_PREFIX}[cleanup] resource type={resource_type} missing auxiliary label: {resource.metadata.name}"
+                    )
                     continue
 
                 # Check if the run-id for this resource has an active Job
@@ -268,6 +316,9 @@ class KubernetesResourceCleanup:
 
                 # Skip if has active primary Job
                 if run_id in active_run_ids:
+                    wandb.termlog(
+                        f"{LOG_PREFIX}[cleanup] resource type={resource_type} uuid={uuid_val} run-id={run_id} still active"
+                    )
                     continue
 
                 # Check age (safety buffer)
@@ -279,17 +330,29 @@ class KubernetesResourceCleanup:
                             f"Skipping {resource_type} {resource.metadata.name} "
                             f"(age: {age:.0f}s < {self._minimum_age}s)"
                         )
+                        wandb.termlog(
+                            f"{LOG_PREFIX}[cleanup] skipping {resource_type}/{resource.metadata.name} uuid={uuid_val} age={age:.0f}s (<{self._minimum_age}s)"
+                        )
                         continue
 
                 # This UUID is orphaned
                 found_orphaned.add(uuid_val)
+                wandb.termlog(
+                    f"{LOG_PREFIX}[cleanup] found orphaned uuid={uuid_val} resource_type={resource_type} namespace={namespace}"
+                )
 
         except (AttributeError, ApiException) as e:
             _logger.warning(f"Failed to scan {resource_type} in {namespace}: {e}")
+            wandb.termlog(
+                f"{LOG_PREFIX}[cleanup] failed scan resource_type={resource_type} namespace={namespace}: {e}"
+            )
         except Exception as e:
             _logger.warning(
                 f"Unexpected error scanning {resource_type} in {namespace}: {e}",
                 exc_info=True,
+            )
+            wandb.termlog(
+                f"{LOG_PREFIX}[cleanup] unexpected error scan resource_type={resource_type} namespace={namespace}: {e}"
             )
 
         return found_orphaned
@@ -325,7 +388,9 @@ class KubernetesResourceCleanup:
             (network_api, "network_policy"),
         ]
 
-        # scan all resource types concurrently
+        wandb.termlog(
+            f"{LOG_PREFIX}[cleanup] concurrently scanning resource types in {namespace}"
+        )
         results = await asyncio.gather(
             *[
                 self._scan_resource_type(
@@ -338,5 +403,8 @@ class KubernetesResourceCleanup:
         orphaned_uuids = set()
         for uuid_set in results:
             orphaned_uuids.update(uuid_set)
+        wandb.termlog(
+            f"{LOG_PREFIX}[cleanup] scan finished for {namespace}, orphaned uuids={sorted(orphaned_uuids)}"
+        )
 
         return orphaned_uuids
