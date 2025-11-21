@@ -235,9 +235,7 @@ def test_metric_zscore_filter_repr(name: str, window: int, threshold: float):
     metric_filter = MetricZScoreFilter(
         name=name, window=window, threshold=threshold, change_dir=ChangeDir.ANY
     )
-    assert repr(metric_filter) == repr(
-        f"zscore({name}, window={window}) changes > {threshold}σ"
-    )
+    assert repr(metric_filter) == repr(f"abs(zscore({name!r})) > {threshold}")
 
     # Test with change_dir=INCREASE
     metric_filter = MetricZScoreFilter(
@@ -246,9 +244,7 @@ def test_metric_zscore_filter_repr(name: str, window: int, threshold: float):
         threshold=threshold,
         change_dir=ChangeDir.INCREASE,
     )
-    assert repr(metric_filter) == repr(
-        f"zscore({name}, window={window}) increases > {threshold}σ"
-    )
+    assert repr(metric_filter) == repr(f"zscore({name!r}) > +{threshold}")
 
     # Test with change_dir=DECREASE
     metric_filter = MetricZScoreFilter(
@@ -257,9 +253,7 @@ def test_metric_zscore_filter_repr(name: str, window: int, threshold: float):
         threshold=threshold,
         change_dir=ChangeDir.DECREASE,
     )
-    assert repr(metric_filter) == repr(
-        f"zscore({name}, window={window}) decreases > {threshold}σ"
-    )
+    assert repr(metric_filter) == repr(f"zscore({name!r}) < -{threshold}")
 
 
 @given(
