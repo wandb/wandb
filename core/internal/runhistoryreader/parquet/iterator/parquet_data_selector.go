@@ -121,6 +121,14 @@ func (sr *SelectedRows) GetIndexKey() string {
 	return sr.indexKey
 }
 
+func (sr *SelectedRows) GetMinValue() float64 {
+	return sr.minValue
+}
+
+func (sr *SelectedRows) GetMaxValue() float64 {
+	return sr.maxValue
+}
+
 // GetRowGroupIndices returns the indices of the row groups that should be read.
 //
 // It does this by checking if the index key value
@@ -159,9 +167,9 @@ func (sr *SelectedRows) GetRowGroupIndices() ([]int, error) {
 	return rowGroupIndices, nil
 }
 
-// IsRowValid checks if the current row within a row group
-// is valid based on SelectedRows min and max values.
-func (sr *SelectedRows) IsRowValid(
+// IsRowGreaterThanMinValue checks if the current row within a row group
+// is greater than the min value for the selected range.
+func (sr *SelectedRows) IsRowGreaterThanMinValue(
 	columnIterators map[string]keyIteratorPair,
 ) bool {
 	if sr.selectAll {
@@ -175,19 +183,50 @@ func (sr *SelectedRows) IsRowValid(
 
 	switch indexColumnIterator.Value().(type) {
 	case int64:
-		minValue := int64(sr.minValue)
-		maxValue := int64(sr.maxValue)
 		colValue, ok := indexColumnIterator.Value().(int64)
 		if !ok {
 			return false
 		}
-		return colValue >= minValue && colValue < maxValue
+		return colValue >= int64(sr.minValue)
 	case float64:
 		colValue, ok := indexColumnIterator.Value().(float64)
 		if !ok {
 			return false
 		}
-		return colValue >= sr.minValue && colValue < sr.maxValue
+		return colValue >= float64(sr.minValue)
+	default:
+		return false
+	}
+
+}
+
+// IsRowLessThanMaxValue checks if the current row within a row group
+// is less than the max value for the selected range.
+func (sr *SelectedRows) IsRowLessThanMaxValue(
+	columnIterators map[string]keyIteratorPair,
+) bool {
+	if sr.selectAll {
+		return true
+	}
+
+	indexColumnIterator := columnIterators[sr.indexKey].Iterator
+	if indexColumnIterator == nil {
+		return false
+	}
+
+	switch indexColumnIterator.Value().(type) {
+	case int64:
+		colValue, ok := indexColumnIterator.Value().(int64)
+		if !ok {
+			return false
+		}
+		return colValue < int64(sr.maxValue)
+	case float64:
+		colValue, ok := indexColumnIterator.Value().(float64)
+		if !ok {
+			return false
+		}
+		return colValue < float64(sr.maxValue)
 	default:
 		return false
 	}

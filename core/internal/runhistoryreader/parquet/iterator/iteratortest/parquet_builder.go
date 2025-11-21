@@ -22,8 +22,8 @@ func CreateTestParquetFileFromData(
 	schema *arrow.Schema,
 	data []map[string]any,
 ) {
-	builders := make([]array.Builder, schema.NumFields())
-	for i, field := range schema.Fields() {
+	builders := make([]array.Builder, 0, schema.NumFields())
+	for _, field := range schema.Fields() {
 		builder := createBuilderForType(memory.DefaultAllocator, field.Type)
 		if builder == nil {
 			t.Fatalf(
@@ -32,7 +32,7 @@ func CreateTestParquetFileFromData(
 				field.Type,
 			)
 		}
-		builders[i] = builder
+		builders = append(builders, builder)
 	}
 	defer func() {
 		for _, b := range builders {
@@ -41,17 +41,19 @@ func CreateTestParquetFileFromData(
 	}()
 
 	// Populate builders with data
+	num := 0
 	for _, row := range data {
 		for i, field := range schema.Fields() {
 			value := row[field.Name]
 			appendToBuilder(t, builders[i], value, field.Type)
+			num++
 		}
 	}
 
 	// Create arrays from builders
-	arrays := make([]arrow.Array, len(builders))
-	for i, builder := range builders {
-		arrays[i] = builder.NewArray()
+	arrays := make([]arrow.Array, 0, len(builders))
+	for _, builder := range builders {
+		arrays = append(arrays, builder.NewArray())
 	}
 	defer func() {
 		for _, arr := range arrays {
