@@ -101,11 +101,20 @@ def log_to_all_runs() -> Iterator[None]:
         def my_func():
             ... # Log messages here go to the specified run's logger.
     """
-    token = _run_id.set(_NOT_RUN_SPECIFIC)
+    # write_with_callbacks can be active during garbage collection
+    # in that case _run_id might be already set to None
     try:
-        yield
-    finally:
-        _run_id.reset(token)
+        token = _run_id.set(_NOT_RUN_SPECIFIC)
+    except AttributeError:
+        if _run_id is None:
+            yield
+        else:
+            raise
+    else:
+        try:
+            yield
+        finally:
+            _run_id.reset(token)
 
 
 def add_file_handler(run_id: str, filepath: pathlib.Path) -> logging.Handler:

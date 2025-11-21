@@ -28,3 +28,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Instantiating `Artifact` objects is now significantly faster (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10819)
 - `wandb.Run.save()` now falls back to hardlinks and, if needed, copying (downgrading the 'live' file policy to 'now', if applicable) when symlinks are disabled or unavailable (e.g., cross‑volume or no Developer Mode on Windows) (@dmitryduev in https://github.com/wandb/wandb/pull/10894)
 - Artifact collection aliases are now fetched lazily on accessing `ArtifactCollection.aliases` instead of on instantiating `ArtifactCollection`, improving performance of `Api.artifact_collections()`, `Api.registries().collections()`, etc. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10731)
+- Prevent an `AttributeError` that could be raised during garbage collection when stderr/stdout is used during gc, e.g. by tqdm. (@Daraan in https://github.com/wandb/wandb/pull/10945)
