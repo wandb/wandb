@@ -15,7 +15,13 @@ from kubernetes_asyncio.client import ApiException
 
 import wandb
 from wandb.sdk.launch.runner import kubernetes_runner
-from wandb.sdk.launch.utils import LOG_PREFIX, get_kube_context_and_api_client
+from wandb.sdk.launch.utils import (
+    LOG_PREFIX,
+    WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
+    WANDB_K8S_LABEL_RESOURCE_ROLE,
+    WANDB_K8S_RUN_ID,
+    get_kube_context_and_api_client,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -187,11 +193,11 @@ class KubernetesResourceCleanup:
         try:
             jobs = await batch_api.list_namespaced_job(
                 namespace=namespace,
-                label_selector="wandb.ai/resource-role=primary",
+                label_selector=f"{WANDB_K8S_LABEL_RESOURCE_ROLE}=primary",
             )
 
             for job in jobs.items:
-                run_id = job.metadata.labels.get("wandb.ai/run-id")
+                run_id = job.metadata.labels.get(WANDB_K8S_RUN_ID)
                 if run_id:
                     active_run_ids.add(run_id)
 
@@ -248,16 +254,18 @@ class KubernetesResourceCleanup:
             list_method = getattr(api_client, f"list_namespaced_{resource_type}")
             resources = await list_method(
                 namespace=namespace,
-                label_selector="wandb.ai/auxiliary-resource",
+                label_selector=WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
             )
 
             for resource in resources.items:
-                uuid_val = resource.metadata.labels.get("wandb.ai/auxiliary-resource")
+                uuid_val = resource.metadata.labels.get(
+                    WANDB_K8S_LABEL_AUXILIARY_RESOURCE
+                )
                 if not uuid_val:
                     continue
 
                 # Check if the run-id for this resource has an active Job
-                run_id = resource.metadata.labels.get("wandb.ai/run-id")
+                run_id = resource.metadata.labels.get(WANDB_K8S_RUN_ID)
                 if not run_id:
                     # Resource has no run-id label - shouldn't happen, but skip for safety
                     _logger.warning(

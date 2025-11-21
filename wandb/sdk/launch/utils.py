@@ -99,6 +99,14 @@ MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
 CODE_MOUNT_DIR = "/mnt/wandb"
 
+# Kubernetes label constants
+WANDB_K8S_LABEL_NAMESPACE = "wandb.ai"
+WANDB_K8S_RUN_ID = f"{WANDB_K8S_LABEL_NAMESPACE}/run-id"
+WANDB_K8S_LABEL_AGENT = f"{WANDB_K8S_LABEL_NAMESPACE}/agent"
+WANDB_K8S_LABEL_MONITOR = f"{WANDB_K8S_LABEL_NAMESPACE}/monitor"
+WANDB_K8S_LABEL_AUXILIARY_RESOURCE = f"{WANDB_K8S_LABEL_NAMESPACE}/auxiliary-resource"
+WANDB_K8S_LABEL_RESOURCE_ROLE = f"{WANDB_K8S_LABEL_NAMESPACE}/resource-role"
+
 
 def load_wandb_config() -> Config:
     """Load wandb config from WANDB_CONFIG environment variable(s).
