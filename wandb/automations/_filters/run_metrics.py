@@ -339,3 +339,48 @@ class MetricAgg(BaseMetricOperand):
     name: str
     agg: Annotated[Agg, Field(alias="agg_op")]
     window: Annotated[PositiveInt, Field(alias="window_size")]
+
+
+class MetricZScoreFilter(GQLBase, extra="forbid"):
+    name: str
+    """Name of the observed metric."""
+
+    window: Annotated[PositiveInt, Field(alias="window_size")]
+    """Size of the window to calculate the metric mean and standard deviation over."""
+
+    threshold: PosNum
+    """Threshold for the z-score."""
+
+    change_dir: ChangeDir
+    """Direction of the z-score change to watch for."""
+
+    def __and__(self, other: Any) -> RunMetricFilter:
+        """Returns `(metric_filter & run_filter)` as a `RunMetricFilter`."""
+        from wandb.automations.events import RunMetricFilter
+
+        if isinstance(run_filter := other, (BaseOp, FilterExpr)):
+            # Treat `other` as a run filter and build a RunMetricEvent. Let the
+            # metric filter validators wrap or nest as appropriate.
+            return RunMetricFilter(run=run_filter, metric=self)
+        return NotImplemented
+
+    def __rand__(self, other: BaseOp | FilterExpr) -> RunMetricFilter:
+        """Ensures `&` is commutative for run and metric filters.
+
+        I.e. `(run_filter & metric_filter) == (metric_filter & run_filter)`.
+        """
+        return self.__and__(other)
+
+    def __repr__(self) -> str:
+        if self.change_dir is ChangeDir.ANY:
+            return repr(rf"abs(zscore({self.name!r})) > {self.threshold}")
+        elif self.change_dir is ChangeDir.DECREASE:
+            return repr(rf"zscore({self.name!r}) < -{self.threshold}")
+        else:  # ChangeDir.INCREASE
+            return repr(rf"zscore({self.name!r}) > +{self.threshold}")
+
+    @override
+    def __rich_repr__(self) -> RichReprResult:
+        """Returns the `rich` pretty-print representation of the metric filter."""
+        # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
+        yield None, repr(self)

@@ -170,6 +170,7 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
         (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
+        (EventType.RUN_METRIC_ZSCORE, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_STATE, ScopeType.ARTIFACT_COLLECTION),
     }
 
@@ -255,6 +256,21 @@ def on_run_metric_change(scope) -> OnRunMetric:
 
 
 @fixture
+def on_run_metric_zscore(scope) -> OnRunMetric:
+    from wandb.automations import MetricZScoreFilter
+    from wandb.automations._filters.run_metrics import ChangeDir
+
+    run_filter = RunEvent.name.contains("my-run")
+    metric_filter = MetricZScoreFilter(
+        name="my-metric",
+        window=5,
+        threshold=2.0,
+        change_dir=ChangeDir.ANY,
+    )
+    return OnRunMetric(scope=scope, filter=run_filter & metric_filter)
+
+
+@fixture
 def on_run_state(scope) -> OnRunState:
     run_filter = RunEvent.name.contains("my-run")
     state_filter = RunEvent.state == "failed"
@@ -270,6 +286,7 @@ def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
+        EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,
         EventType.RUN_STATE: on_run_state.__name__,
     }
     return request.getfixturevalue(event2fixture[event_type])
