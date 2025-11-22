@@ -135,8 +135,8 @@ fragment WebhookIntegrationFields on GenericWebhookIntegration {
 """
 
 GET_AUTOMATIONS_BY_ENTITY_GQL = """
-query GetAutomationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  scope: entity(name: $entityName) {
+query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
+  scope: entity(name: $entity) {
     projects(after: $cursor, first: $perPage) {
       pageInfo {
         ...PageInfoFields
@@ -474,8 +474,8 @@ mutation DeleteAutomation($id: ID!) {
 """
 
 INTEGRATIONS_BY_ENTITY_GQL = """
-query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  entity(name: $entityName) {
+query IntegrationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
+  entity(name: $entity) {
     integrations(after: $cursor, first: $perPage) {
       pageInfo {
         ...PageInfoFields

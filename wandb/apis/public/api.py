@@ -2055,8 +2055,8 @@ class Api:
         """
         from wandb.apis.public.integrations import Integrations
 
-        params = {"entityName": entity or self.default_entity}
-        return Integrations(client=self.client, variables=params, per_page=per_page)
+        variables = {"entity": entity or self.default_entity}
+        return Integrations(self.client, variables=variables, per_page=per_page)
 
     @tracked
     def webhook_integrations(
@@ -2097,10 +2097,8 @@ class Api:
         """
         from wandb.apis.public.integrations import WebhookIntegrations
 
-        params = {"entityName": entity or self.default_entity}
-        return WebhookIntegrations(
-            client=self.client, variables=params, per_page=per_page
-        )
+        variables = {"entity": entity or self.default_entity}
+        return WebhookIntegrations(self.client, variables=variables, per_page=per_page)
 
     @tracked
     def slack_integrations(
@@ -2141,10 +2139,8 @@ class Api:
         """
         from wandb.apis.public.integrations import SlackIntegrations
 
-        params = {"entityName": entity or self.default_entity}
-        return SlackIntegrations(
-            client=self.client, variables=params, per_page=per_page
-        )
+        variables = {"entity": entity or self.default_entity}
+        return SlackIntegrations(self.client, variables=variables, per_page=per_page)
 
     def _supports_automation(
         self,
@@ -2295,7 +2291,7 @@ class Api:
         )
 
         # For now, we need to use different queries depending on whether entity is given
-        variables = {"entityName": entity}
+        variables = {"entity": entity}
         if entity is None:
             gql_str = GET_AUTOMATIONS_GQL  # Automations for viewer
         else:
@@ -2305,7 +2301,7 @@ class Api:
         omit_fragments = self._omitted_automation_fragments()
         query = gql_compat(gql_str, omit_fragments=omit_fragments)
         iterator = Automations(
-            client=self.client, variables=variables, per_page=per_page, _query=query
+            self.client, variables=variables, per_page=per_page, _query=query
         )
 
         # FIXME: this is crude, move this client-side filtering logic into backend
