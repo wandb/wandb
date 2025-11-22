@@ -31,3 +31,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Artifact collection aliases are now fetched lazily on accessing `ArtifactCollection.aliases` instead of on instantiating `ArtifactCollection`, improving performance of `Api.artifact_collections()`, `Api.registries().collections()`, etc. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10731)
 - Use explicitly provided API key in `wandb.init(settings=wandb.Settings(api_key="..."))` for login. Use the key from run when logging artifacts via `run.log_artifact` (@pingleiwandb in https://github.com/wandb/wandb/pull/10914)
 - W&B LEET TUI correctly displays negative Y axis tick values and base/display units of certain system metrics (@dmitryduev in https://github.com/wandb/wandb/pull/10905)
+- Fixed a rare infinite loop in `console_capture.py` (@timoffex in https://github.com/wandb/wandb/pull/10955)
