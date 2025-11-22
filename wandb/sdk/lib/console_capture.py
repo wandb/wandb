@@ -25,10 +25,12 @@ In particular, it does not work with some combinations of pytest's
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import logging
 import sys
 import threading
-from typing import IO, AnyStr, Callable, Protocol
+from typing import IO, AnyStr, Callable, Iterator, Protocol
 
 from . import wb_logging
 
@@ -76,11 +78,13 @@ class _WriteCallback(Protocol):
 
 
 _module_lock = threading.Lock()
-_is_writing = False
-"""Prevents infinite print-capture loops.
 
-If a capture callback prints, that output is not captured.
-"""
+# See _enter_callbacks().
+_is_writing = False
+_is_caused_by_callback = contextvars.ContextVar(
+    "_is_caused_by_callback",
+    default=False,
+)
 
 _patch_exception: CannotCaptureConsoleError | None = None
 
@@ -165,49 +169,16 @@ def _patch(
 ) -> None:
     orig_write: Callable[[AnyStr], int]
 
-    @wb_logging.log_to_all_runs()
     def write_with_callbacks(s: AnyStr, /) -> int:
-        global _is_writing
         n = orig_write(s)
 
-        with _module_lock:
-            if _is_writing:
-                return n
-            _is_writing = True
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_reset_on_exception())
+            stack.enter_context(wb_logging.log_to_all_runs())
+            callbacks_list = stack.enter_context(_enter_callbacks(callbacks))
 
-            # Invoke callbacks outside of the lock to avoid deadlocks.
-            # 1. A callback may print, invoking this again.
-            # 2. A callback may block on a different thread which then prints.
-            callback_list = list(callbacks.values())
-
-        try:
-            for cb in callback_list:
+            for cb in callbacks_list:
                 cb(s, n)
-
-        except BaseException as e:
-            # Clear all callbacks on any exception to avoid infinite loops:
-            #
-            # * If we re-raise, an exception handler is likely to print
-            #   the exception to the console and trigger callbacks again
-            # * If we log, we can't guarantee that this doesn't print
-            #   to console.
-            #
-            # This is especially important for KeyboardInterrupt.
-            with _module_lock:
-                _stderr_callbacks.clear()
-                _stdout_callbacks.clear()
-
-            if isinstance(e, Exception):
-                # We suppress Exceptions so that bugs in W&B code don't
-                # cause the user's print() statements to raise errors.
-                _logger.exception("Error in console callback, clearing all!")
-            else:
-                # Re-raise errors like KeyboardInterrupt.
-                raise
-
-        finally:
-            with _module_lock:
-                _is_writing = False
 
         return n
 
@@ -217,6 +188,82 @@ def _patch(
     #   Incompatible types in assignment (expression has type
     #   "Callable[[bytes], int]", variable has type overloaded function)
     stdout_or_stderr.write = write_with_callbacks  # type: ignore
+
+
+@contextlib.contextmanager
+def _enter_callbacks(
+    callbacks: dict[int, _WriteCallback],
+) -> Iterator[list[_WriteCallback]]:
+    """Returns a list of callbacks to invoke.
+
+    This prevents deadlocks and some infinite loops by returning an empty list
+    when:
+
+    * A callback prints
+    * A callback blocks on a thread that's printing
+    * A callback schedules an async task that prints
+
+    It is impossible to prevent all infinite loops: a callback could put
+    a message into a queue, causing an unrelated thread to print later,
+    invoking the same callback and repeating forever.
+    """
+    global _is_writing
+
+    # The global _is_writing variable is necessary despite the contextvar
+    # because it's possible to create a thread without copying the context.
+    # This is the default behavior for threading.Thread() before Python 3.14.
+    #
+    # A side effect of it is that when multiple threads print simultaneously,
+    # some messages will not be captured.
+
+    with _module_lock:
+        if _is_writing or _is_caused_by_callback.get():
+            callbacks_list = None
+
+        else:
+            callbacks_list = list(callbacks.values())
+            _is_writing = True
+            _is_caused_by_callback.set(True)
+
+    if callbacks_list is None:
+        yield []
+        return
+
+    try:
+        yield callbacks_list
+    finally:
+        with _module_lock:
+            _is_writing = False
+            _is_caused_by_callback.set(False)
+
+
+@contextlib.contextmanager
+def _reset_on_exception() -> Iterator[None]:
+    """Clear all callbacks on any exception, suppressing it.
+
+    This prevents infinite loops:
+
+    * If we re-raise, an exception handler is likely to print
+      the exception to the console and trigger callbacks again
+    * If we log, we can't guarantee that this doesn't print
+      to console.
+
+    This is especially important for KeyboardInterrupt.
+    """
+    try:
+        yield
+    except BaseException as e:
+        with _module_lock:
+            _stderr_callbacks.clear()
+            _stdout_callbacks.clear()
+
+        if isinstance(e, Exception):
+            # We suppress Exceptions so that bugs in W&B code don't
+            # cause the user's print() statements to raise errors.
+            _logger.exception("Error in console callback, clearing all!")
+        else:
+            # Re-raise errors like KeyboardInterrupt.
+            raise
 
 
 try:
