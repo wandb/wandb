@@ -1,0 +1,12 @@
+query SampledHistoryPage(
+    $entity: String!,
+    $project: String!,
+    $run: String!,
+    $spec: JSONString!,
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $run) {
+            sampledHistory(specs: [$spec])
+        }
+    }
+}
