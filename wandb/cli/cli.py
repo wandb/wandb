@@ -2713,9 +2713,28 @@ def online():
     )
 
 
-@cli.command("offline", help="Disable W&B sync")
+@cli.command("offline")
 @display_error
 def offline():
+    """Disables W&B sync and enables offline mode.
+
+    When in offline mode, data is stored locally and can be synced to the W&B
+    server later. This is useful when working in environments with limited or
+    no internet connectivity.
+
+    \b
+    Example Usage:
+      wandb offline
+      wandb run train.py  # This will save data locally
+      wandb sync          # Upload when back online
+    
+    Notes:
+      - Ensure you have sufficient local storage for the offline data
+      - Use the wandb sync command to upload the data once back online
+      - See https://docs.wandb.ai/guides/offline for more details
+    
+    Important: Offline runs will be queued in ~/.wandb/offline-run-*
+    """
     api = InternalApi()
     try:
         api.set_setting("mode", "offline", persist=True)
