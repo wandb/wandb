@@ -77,22 +77,6 @@ func (s *LeftSidebar) TestForceExpand() {
 	s.animState.animationStartTime = time.Now().Add(-AnimationDuration)
 }
 
-// TestGetChartCount returns the number of charts in the grid
-func (rs *RightSidebar) TestGetChartCount() int {
-	if rs.metricsGrid == nil {
-		return 0
-	}
-	return rs.metricsGrid.ChartCount()
-}
-
-// TestMetricsChart returns a chart by base key for testing
-func (rs *RightSidebar) TestMetricsChart(baseKey string) *TimeSeriesLineChart {
-	if rs.metricsGrid == nil {
-		return nil
-	}
-	return rs.metricsGrid.byBaseKey[baseKey]
-}
-
 // TestSeriesCount returns the number of series in the chart
 func (c *TimeSeriesLineChart) TestSeriesCount() int {
 	return len(c.series)
@@ -101,9 +85,4 @@ func (c *TimeSeriesLineChart) TestSeriesCount() int {
 // CurrentPage returns the current grid of charts.
 func (g *SystemMetricsGrid) CurrentPage() [][]*TimeSeriesLineChart {
 	return g.currentPage
-}
-
-// Add test helper to Model for getting active filter
-func (m *Model) TestAppliedFilter() string {
-	return m.metricsGrid.filter.applied
 }

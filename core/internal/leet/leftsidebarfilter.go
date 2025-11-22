@@ -3,197 +3,137 @@ package leet
 import (
 	"fmt"
 	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
-// StartFilter activates filter mode.
-func (s *LeftSidebar) StartFilter() {
-	s.filter.inputActive = true
-	if s.filter.applied != "" {
-		s.filter.draft = s.filter.applied
+// EnterFilterMode activates filter mode (draft initialized from applied).
+func (s *LeftSidebar) EnterFilterMode() {
+	s.filter.Activate()
+}
+
+// UpdateFilterDraft updates the in‑progress filter text (for live preview).
+func (s *LeftSidebar) UpdateFilterDraft(msg tea.KeyMsg) {
+	s.filter.UpdateDraft(msg)
+}
+
+// ExitFilterMode exits filter input mode and optionally applies the filter.
+func (s *LeftSidebar) ExitFilterMode(apply bool) {
+	if apply {
+		s.filter.Commit()
 	} else {
-		s.filter.draft = ""
+		s.filter.Cancel()
 	}
+	s.ApplyFilter()
+	s.updateSectionHeights()
 }
 
-// UpdateFilter updates the filter query (for live preview).
-func (s *LeftSidebar) UpdateFilter(query string) {
-	s.filter.draft = query
-	s.applyFilter()
-	s.calculateSectionHeights()
+// ClearFilter removes any applied/draft filter and restores all items.
+func (s *LeftSidebar) ClearFilter() {
+	s.filter.Clear()
+	s.ApplyFilter()
+	s.updateSectionHeights()
 }
 
-// ConfirmFilter applies the filter (on Enter).
-func (s *LeftSidebar) ConfirmFilter() {
-	s.filter.applied = s.filter.draft
-	s.filter.inputActive = false
-	s.applyFilter()
-	s.calculateSectionHeights()
+// ToggleFilterMatchMode flips regex <-> glob and reapplies the live preview.
+func (s *LeftSidebar) ToggleFilterMatchMode() {
+	s.filter.ToggleMode()
+	s.ApplyFilter()
+	s.updateSectionHeights()
 }
 
-// CancelFilter cancels the current filter input and restores the previous state.
-func (s *LeftSidebar) CancelFilter() {
-	s.filter.inputActive = false
-	s.filter.draft = ""
-	if s.filter.applied != "" {
-		s.filter.draft = s.filter.applied
-	} else {
-		s.filter.draft = ""
-	}
-	s.applyFilter()
-	s.calculateSectionHeights()
-}
-
-// IsFilterMode returns true if the sidebar is currently in filter input mode.
+// IsFilterMode reports whether we are currently typing a filter.
 func (s *LeftSidebar) IsFilterMode() bool {
-	return s.filter.inputActive
+	return s.filter.IsActive()
 }
 
-// FilterDraft returns the current filter input being typed.
-func (s *LeftSidebar) FilterDraft() string {
-	return s.filter.draft
+// FilterMode exposes the current filter match mode.
+func (s *LeftSidebar) FilterMode() FilterMatchMode {
+	return s.filter.Mode()
 }
 
-// IsFiltering returns true if the sidebar has an applied filter.
-func (s *LeftSidebar) IsFiltering() bool {
-	return s.filter.applied != ""
-}
-
-// FilterQuery returns the current or applied filter query.
+// FilterQuery returns the currently effective query (applied if set, else draft).
 func (s *LeftSidebar) FilterQuery() string {
-	if s.filter.applied != "" {
-		return s.filter.applied
-	}
-	return s.filter.draft
+	return s.filter.Query()
 }
 
-// FilterInfo returns formatted filter information for status bar.
-func (s *LeftSidebar) FilterInfo() string {
-	if (!s.filter.inputActive && s.filter.applied == "") || (s.filter.draft == "" && s.filter.applied == "") {
-		return ""
-	}
-
-	totalMatches := 0
-	var matchInfo []string
-
-	for _, section := range s.sections {
-		if section.FilterMatches > 0 {
-			totalMatches += section.FilterMatches
-			matchInfo = append(matchInfo,
-				fmt.Sprintf("@%s: %d", strings.ToLower(section.Title)[:1], section.FilterMatches))
-		}
-	}
-
-	if len(matchInfo) == 0 {
-		return "no matches"
-	}
-
-	return strings.Join(matchInfo, ", ")
+// IsFiltering returns true if an applied (non‑empty) filter exists.
+func (s *LeftSidebar) IsFiltering() bool {
+	return s.filter.Query() != ""
 }
 
-// clearFilter clears the active filter.
-func (s *LeftSidebar) clearFilter() {
-	s.filter.inputActive = false
-	s.filter.draft = ""
-	s.filter.applied = ""
+// ApplyFilter recomputes FilteredItems for each section based on the current matcher.
+// Also auto‑focuses the “best” section (most matches) while the query is non‑empty.
+func (s *LeftSidebar) ApplyFilter() {
+	matcher := s.filter.Matcher()
 
 	for i := range s.sections {
-		s.sections[i].FilteredItems = s.sections[i].Items
+		items := s.sections[i].Items
+		// fresh slice so there's no aliasing with Items
+		filtered := make([]KeyValuePair, 0, len(items))
+		for _, it := range items {
+			// Match on either key or value.
+			if matcher(it.Key) || matcher(it.Value) {
+				filtered = append(filtered, it)
+			}
+		}
+		s.sections[i].FilteredItems = filtered
+		s.sections[i].FilterMatches = len(filtered)
 		s.sections[i].CurrentPage = 0
 		s.sections[i].CursorPos = 0
-		s.sections[i].FilterMatches = 0
 	}
 
-	s.calculateSectionHeights()
-}
-
-// applyFilter filters items based on current filter query.
-func (s *LeftSidebar) applyFilter() {
-	query := s.filterQuery()
-	sectionFilter := s.extractSectionFilter(&query)
-	query = strings.ToLower(query)
-
-	for i := range s.sections {
-		s.filterSection(&s.sections[i], sectionFilter, query)
-	}
-
-	// Auto-focus section with most matches.
-	if query != "" {
+	// While query is non‑empty (draft or applied), drive focus to the best section.
+	if s.filter.Query() != "" {
 		s.focusBestMatchSection()
 	}
 }
 
-// filterQuery returns the current active filter query.
-func (s *LeftSidebar) filterQuery() string {
-	query := strings.TrimSpace(s.filter.draft)
-	if s.filter.applied != "" {
-		query = strings.TrimSpace(s.filter.applied)
-	}
-	return query
-}
-
-// extractSectionFilter extracts and removes section prefix from query.
-func (s *LeftSidebar) extractSectionFilter(query *string) string {
-	sectionFilter := ""
-	switch {
-	case strings.HasPrefix(*query, "@e "):
-		sectionFilter = "environment"
-		*query = strings.TrimPrefix(*query, "@e ")
-	case strings.HasPrefix(*query, "@c "):
-		sectionFilter = "config"
-		*query = strings.TrimPrefix(*query, "@c ")
-	case strings.HasPrefix(*query, "@s "):
-		sectionFilter = "summary"
-		*query = strings.TrimPrefix(*query, "@s ")
-	}
-	return sectionFilter
-}
-
-// filterSection filters a single section based on the query and section filter.
-func (s *LeftSidebar) filterSection(sv *SectionView, filter, query string) {
-	// Skip section if section filter doesn't match.
-	if filter != "" {
-		sectionName := strings.ToLower(sv.Title)
-		if !strings.HasPrefix(sectionName, filter) {
-			sv.FilteredItems = []KeyValuePair{}
-			sv.FilterMatches = 0
-			sv.CurrentPage = 0
-			sv.CursorPos = 0
-			return
-		}
-	}
-
-	// Filter items based on query.
-	filtered := make([]KeyValuePair, 0)
-	for _, item := range sv.Items {
-		if query == "" ||
-			strings.Contains(strings.ToLower(item.Key), query) ||
-			strings.Contains(strings.ToLower(item.Value), query) {
-			filtered = append(filtered, item)
-		}
-	}
-
-	sv.FilteredItems = filtered
-	sv.FilterMatches = len(filtered)
-	sv.CurrentPage = 0
-	sv.CursorPos = 0
-}
-
-// focusBestMatchSection focuses the section with the most filter matches.
+// focusBestMatchSection focuses the section that has the most filter matches.
+// Ties are resolved by keeping the current active section.
+// No-ops if no section has matches.
 func (s *LeftSidebar) focusBestMatchSection() {
-	maxMatches := 0
-	bestSection := s.activeSection
+	best := s.activeSection
+	max := 0
 
-	for i, section := range s.sections {
-		if section.FilterMatches > maxMatches {
-			maxMatches = section.FilterMatches
-			bestSection = i
+	for i := range s.sections {
+		if m := s.sections[i].FilterMatches; m > max {
+			max = m
+			best = i
 		}
 	}
 
-	if maxMatches > 0 {
-		s.activeSection = bestSection
-		for i := range s.sections {
-			s.sections[i].Active = i == s.activeSection
+	if max == 0 || best == s.activeSection {
+		return
+	}
+	s.setActiveSection(best) // centralizes deactivation + cursor/page reset
+}
+
+// FilterInfo returns a compact, human‑readable per‑section match summary for the status bar.
+func (s *LeftSidebar) FilterInfo() string {
+	// Only show during input or when a non‑empty filter is applied.
+	if !s.filter.IsActive() && s.filter.Query() == "" {
+		return ""
+	}
+
+	var parts []string
+	for _, sec := range s.sections {
+		if sec.FilterMatches > 0 {
+			// Keep names short but clear; omit zero counts to reduce noise.
+			title := sec.Title
+			switch title {
+			case "Environment":
+				title = "Env"
+			case "Config":
+				title = "Config"
+			case "Summary":
+				title = "Summary"
+			}
+			parts = append(parts, fmt.Sprintf("%s: %d", title, sec.FilterMatches))
 		}
 	}
+	if len(parts) == 0 {
+		return "no matches"
+	}
+	return strings.Join(parts, ", ")
 }

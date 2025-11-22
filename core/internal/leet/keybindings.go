@@ -153,10 +153,6 @@ func KeyBindings() []BindingCategory {
 					Keys:        []string{"left", "right"},
 					Description: "Navigate pages in section",
 				},
-				{
-					Keys:        []string{"@e", "@c", "@s"},
-					Description: "Filter specific section (environment/config/summary)",
-				},
 			},
 		},
 		{

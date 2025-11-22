@@ -1,8 +1,18 @@
+from unittest.mock import MagicMock
+
 import pytest
 from wandb.errors import links, term
-from wandb.sdk.lib.auth import prompt, saas
+from wandb.sdk.lib.auth import prompt, saas, wbnetrc
 
 from tests.fixtures.emulated_terminal import EmulatedTerminal
+
+
+@pytest.fixture(autouse=True)
+def mock_write_netrc(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Mock write_netrc_auth for all tests."""
+    write_netrc = MagicMock()
+    monkeypatch.setattr(wbnetrc, "write_netrc_auth", write_netrc)
+    return write_netrc
 
 
 def test_authorize_url_uses_app_url():
@@ -21,19 +31,19 @@ def test_timeout(emulated_terminal: EmulatedTerminal):
     _ = emulated_terminal  # select nothing, allow a timeout
 
     with pytest.raises(TimeoutError):
-        prompt.prompt_api_key(host="https://test-host", input_timeout=1)
+        prompt.prompt_and_save_api_key(host="https://test-host", input_timeout=1)
 
 
 def test_not_a_terminal():
     with pytest.raises(term.NotATerminalError):
-        prompt.prompt_api_key(host="https://test-host")
+        prompt.prompt_and_save_api_key(host="https://test-host")
 
 
 def test_no_offline(emulated_terminal: EmulatedTerminal):
     _ = emulated_terminal  # select nothing, allow a timeout
 
     with pytest.raises(TimeoutError):
-        prompt.prompt_api_key(
+        prompt.prompt_and_save_api_key(
             host="https://test-host",
             no_offline=True,
             input_timeout=1,
@@ -50,7 +60,7 @@ def test_no_create(emulated_terminal: EmulatedTerminal):
     _ = emulated_terminal  # select nothing, allow a timeout
 
     with pytest.raises(TimeoutError):
-        prompt.prompt_api_key(
+        prompt.prompt_and_save_api_key(
             host="https://test-host",
             no_create=True,
             input_timeout=1,
@@ -63,11 +73,35 @@ def test_no_create(emulated_terminal: EmulatedTerminal):
     ]
 
 
+def test_writes_to_netrc(
+    emulated_terminal: EmulatedTerminal,
+    mock_write_netrc: MagicMock,
+):
+    emulated_terminal.queue_input("1")  # select "create a new account"
+    emulated_terminal.queue_input("test" * 10)  # input a fake API key
+    prompt.prompt_and_save_api_key(host="https://test-host")
+
+    mock_write_netrc.assert_called_once_with(
+        host="https://test-host",
+        api_key="test" * 10,
+    )
+
+
+def test_does_not_write_to_netrc_if_no_key(
+    emulated_terminal: EmulatedTerminal,
+    mock_write_netrc: MagicMock,
+):
+    emulated_terminal.queue_input("3")  # select offline mode
+    prompt.prompt_and_save_api_key(host="https://test-host")
+
+    mock_write_netrc.assert_not_called()
+
+
 @pytest.mark.parametrize("referrer", ("", "test"))
 def test_choice_new(referrer: str, emulated_terminal: EmulatedTerminal):
     emulated_terminal.queue_input("1")  # select "create a new account"
     emulated_terminal.queue_input("test" * 10)  # input a fake API key
-    result = prompt.prompt_api_key(
+    result = prompt.prompt_and_save_api_key(
         host="https://test-host",
         referrer=referrer,
     )
@@ -94,7 +128,7 @@ def test_choice_new_invalid(emulated_terminal: EmulatedTerminal):
     emulated_terminal.queue_input("")  # press enter without typing anything
     emulated_terminal.queue_input("2")  # select "create an existing account"
     emulated_terminal.queue_input("test" * 10)  # enter a valid key
-    result = prompt.prompt_api_key(host="https://test-host", input_timeout=1)
+    result = prompt.prompt_and_save_api_key(host="https://test-host", input_timeout=1)
 
     assert result == "test" * 10
     assert (
@@ -119,7 +153,7 @@ def test_choice_existing(
 
     emulated_terminal.queue_input("2")  # select "use an existing account"
     emulated_terminal.queue_input("test" * 10)  # input a fake API key
-    result = prompt.prompt_api_key(
+    result = prompt.prompt_and_save_api_key(
         host="https://test-host",
         referrer=referrer,
     )
@@ -158,7 +192,7 @@ def test_choice_existing_invalid(emulated_terminal: EmulatedTerminal):
     emulated_terminal.queue_input("")  # press enter without typing anything
     emulated_terminal.queue_input("1")  # select "create a new account"
     emulated_terminal.queue_input("test" * 10)  # enter a valid key
-    result = prompt.prompt_api_key(host="https://test-host", input_timeout=1)
+    result = prompt.prompt_and_save_api_key(host="https://test-host", input_timeout=1)
 
     assert result == "test" * 10
     assert (
@@ -169,6 +203,6 @@ def test_choice_existing_invalid(emulated_terminal: EmulatedTerminal):
 
 def test_choice_offline(emulated_terminal: EmulatedTerminal):
     emulated_terminal.queue_input("3")  # select offline mode in prompt
-    result = prompt.prompt_api_key(host="https://test-host")
+    result = prompt.prompt_and_save_api_key(host="https://test-host")
 
     assert result is None

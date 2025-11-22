@@ -224,7 +224,7 @@ def test_create_custom_chart(monkeypatch):
 def test_initialize_api_prompts_for_api_key(monkeypatch: pytest.MonkeyPatch):
     mock_prompt_api_key = MagicMock()
     mock_prompt_api_key.return_value = "test-api-key"
-    monkeypatch.setattr(auth, "prompt_api_key", mock_prompt_api_key)
+    monkeypatch.setattr(auth, "prompt_and_save_api_key", mock_prompt_api_key)
 
     Api()
 
@@ -236,7 +236,7 @@ def test_initialize_api_does_not_prompt_for_api_key__when_api_key_is_provided(
 ):
     mock_prompt_api_key = MagicMock()
     mock_verify_login = MagicMock()
-    monkeypatch.setattr(auth, "prompt_api_key", mock_prompt_api_key)
+    monkeypatch.setattr(auth, "prompt_and_save_api_key", mock_prompt_api_key)
     monkeypatch.setattr(wandb_login, "_verify_login", mock_verify_login)
 
     api = Api(api_key="test-api-key", overrides={"base_url": "https://test-url"})
@@ -254,7 +254,7 @@ def test_initialize_api_does_not_prompt_for_api_key__when_using_thread_local_set
 ):
     mock_prompt_api_key = MagicMock()
     mock_verify_login = MagicMock()
-    monkeypatch.setattr(auth, "prompt_api_key", mock_prompt_api_key)
+    monkeypatch.setattr(auth, "prompt_and_save_api_key", mock_prompt_api_key)
     monkeypatch.setattr(wandb_login, "_verify_login", mock_verify_login)
     monkeypatch.setattr(
         _thread_local_api_settings,
@@ -277,7 +277,7 @@ def test_initialize_api_does_not_prompt_for_api_key__when_using_env_var(
 ):
     mock_prompt_api_key = MagicMock()
     mock_verify_login = MagicMock()
-    monkeypatch.setattr(auth, "prompt_api_key", mock_prompt_api_key)
+    monkeypatch.setattr(auth, "prompt_and_save_api_key", mock_prompt_api_key)
     monkeypatch.setattr(wandb_login, "_verify_login", mock_verify_login)
     monkeypatch.setenv("WANDB_API_KEY", "test-api-key-from-env")
 
