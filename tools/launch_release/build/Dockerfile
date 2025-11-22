@@ -7,9 +7,9 @@ RUN apk add --no-cache python3 git py3-pip gcc python3-dev curl
 
 # Install Go
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        curl -L https://go.dev/dl/go1.25.1.linux-amd64.tar.gz | tar -C /usr/local -xzf -; \
+        curl -L https://go.dev/dl/go1.25.3.linux-amd64.tar.gz | tar -C /usr/local -xzf -; \
     elif [ "$TARGETARCH" = "arm64" ]; then \
-        curl -L https://go.dev/dl/go1.25.1.linux-arm64.tar.gz | tar -C /usr/local -xzf -; \
+        curl -L https://go.dev/dl/go1.25.3.linux-arm64.tar.gz | tar -C /usr/local -xzf -; \
     else \
         echo "Unsupported architecture: $TARGETARCH" && exit 1; \
     fi
