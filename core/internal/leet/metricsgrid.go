@@ -522,14 +522,9 @@ func (mg *MetricsGrid) clearFocus() {
 }
 
 // HandleWheel performs zoom handling on a main-grid chart at (row, col).
-func (mg *MetricsGrid) HandleWheel(
-	adjustedX, row, col int,
-	dims GridDims,
-	wheelUp bool,
-) {
+func (mg *MetricsGrid) HandleWheel(adjustedX, row, col int, dims GridDims, wheelUp bool) {
 	size := mg.effectiveGridSize()
 
-	// Inspect under read lock.
 	mg.mu.RLock()
 	if row < 0 || row >= size.Rows || col < 0 || col >= size.Cols ||
 		row >= len(mg.currentPage) || col >= len(mg.currentPage[row]) ||
@@ -545,20 +540,26 @@ func (mg *MetricsGrid) HandleWheel(
 		graphStartX += chart.Origin().X + 1
 	}
 	relativeMouseX := adjustedX - graphStartX
-	needFocus := mg.focus.Type != FocusMainChart ||
-		mg.focus.Row != row || mg.focus.Col != col
+	needFocus := mg.focus.Type != FocusMainChart || mg.focus.Row != row || mg.focus.Col != col
+
+	// Extra fast-path: drop zoom-out when already at domain (within ~1 px).
+	if !wheelUp {
+		viewRange := chart.ViewMaxX() - chart.ViewMinX()
+		eps := chart.pixelEpsX(viewRange) * 2
+		if chart.ViewMinX() <= chart.MinX()+eps && chart.ViewMaxX() >= chart.MaxX()-eps {
+			mg.mu.RUnlock()
+			return
+		}
+	}
 	mg.mu.RUnlock()
 
 	if relativeMouseX < 0 || relativeMouseX >= chart.GraphWidth() {
 		return
 	}
-
-	// Focus the chart when zooming (if not already focused).
 	if needFocus {
 		mg.clearFocus()
 		mg.setFocus(row, col)
 	}
-
 	direction := "out"
 	if wheelUp {
 		direction = "in"

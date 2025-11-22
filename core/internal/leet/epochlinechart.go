@@ -183,7 +183,20 @@ func (c *EpochLineChart) calculatePadding(valueRange float64) float64 {
 }
 
 // HandleZoom processes zoom events with the mouse X position in pixels.
+//
+//gocyclo:ignore
 func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
+	// Fast paths: nothing to do if there’s no drawable area or domain.
+	if c.GraphWidth() <= 0 {
+		return
+	}
+	domMin, domMax := c.MinX(), c.MaxX()
+	domRange := domMax - domMin
+	if domRange <= 0 {
+		return
+	}
+
+	// Snapshot current view.
 	viewMin := c.ViewMinX()
 	viewMax := c.ViewMaxX()
 	viewRange := viewMax - viewMin
@@ -191,9 +204,23 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 		return
 	}
 
-	// Calculate the step position under the mouse
+	// Pixel epsilon (~1 horizontal pixel in X-units) for "no visible change".
+	eps := c.pixelEpsX(viewRange)
+
+	// === No-op drop #1: already fully zoomed OUT and user keeps zooming out.
+	if direction != "in" {
+		if viewMin <= domMin+2*eps && viewMax >= domMax-2*eps {
+			return // drop event; nothing to change
+		}
+	} else {
+		// === No-op drop #2: already at or below minimum zoom range and user keeps zooming in.
+		if viewRange <= minZoomRange+2*eps {
+			return // drop event; nothing to change
+		}
+	}
+
+	// Compute mouse anchor as a proportion across the graph (clamped).
 	mouseProportion := float64(mouseX) / float64(c.GraphWidth())
-	// Clamp to [0, 1].
 	if mouseProportion < 0 {
 		mouseProportion = 0
 	} else if mouseProportion > 1 {
@@ -201,41 +228,35 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	}
 	stepUnderMouse := viewMin + mouseProportion*viewRange
 
-	// Calculate new range
+	// Proposed new range.
 	var newRange float64
 	if direction == "in" {
 		newRange = viewRange * (1 - defaultZoomFactor)
 	} else {
 		newRange = viewRange * (1 + defaultZoomFactor)
 	}
-
-	// Clamp zoom levels
 	if newRange < minZoomRange {
 		newRange = minZoomRange
 	}
-	// Don't allow ranges larger than the domain
-	if newRange > c.MaxX()-c.MinX() {
-		newRange = c.MaxX() - c.MinX()
+	if newRange > domRange {
+		newRange = domRange
 	}
 
-	// Calculate new bounds keeping mouse position stable
+	// Compute new bounds around the anchor.
 	newMin := stepUnderMouse - newRange*mouseProportion
 	newMax := stepUnderMouse + newRange*(1-mouseProportion)
 
-	// Only apply tail nudge when zooming in AND mouse is at the far right
+	// Tail-preserving nudge stays the same as before.
 	if direction == "in" && mouseProportion >= tailAnchorMouseThreshold && isFinite(c.xMax) {
-		// Check if we're losing the tail
-		rightPad := c.pixelEpsX(newRange) * 2 // Small padding for the last data point
+		rightPad := c.pixelEpsX(newRange) * 2
 		if newMax < c.xMax-rightPad {
-			// Adjust to include the tail
 			shift := (c.xMax + rightPad) - newMax
 			newMin += shift
 			newMax += shift
 		}
 	}
 
-	// Final clamp to domain [MinX .. MaxX]
-	domMin, domMax := c.MinX(), c.MaxX()
+	// Clamp to domain.
 	if newMin < domMin {
 		newMin = domMin
 		newMax = newMin + newRange
@@ -251,6 +272,14 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 		}
 	}
 
+	// === No-op drop #3: final bounds are visually identical to current view.
+	// Use epsilon based on the *new* range to reflect current zoom level.
+	finalEps := c.pixelEpsX(newRange)
+	if math.Abs(newMin-viewMin) <= finalEps && math.Abs(newMax-viewMax) <= finalEps {
+		return // do not mark dirty or redraw
+	}
+
+	// Apply & mark dirty.
 	c.SetViewXRange(newMin, newMax)
 	c.userViewMinX = newMin
 	c.userViewMaxX = newMax
