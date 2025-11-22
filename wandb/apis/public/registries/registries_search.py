@@ -214,7 +214,6 @@ class Collections(
             and (node.typename__ != gql_typename(ArtifactSequenceTypeFields))
         ):
             return None
-
         return ArtifactCollection(
             client=self.client,
             entity=node.project.entity.name,
@@ -304,7 +303,6 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
             and (version_idx := node.version_index) is not None
         ):
             return None
-
         return Artifact._from_membership(
             membership=node,
             target=FullArtifactPath(

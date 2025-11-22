@@ -785,7 +785,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     # In the future, we should move to fetching artifacts via (GQL) artifactMemberships,
     # not (GQL) artifacts, so we don't have to deal with this hack.
     @override
-    def _convert(self, edge: Edge[ArtifactFragment]) -> Artifact:
+    def _convert(self, edge: _ArtifactEdgeGeneric[ArtifactFragment]) -> Artifact:
         from wandb.sdk.artifacts._validators import FullArtifactPath
         from wandb.sdk.artifacts.artifact import Artifact
 
