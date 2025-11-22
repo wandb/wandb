@@ -73,10 +73,16 @@ mutation DeleteArtifactCollectionTags($input: DeleteArtifactCollectionTagAssignm
   }
 }
 
-query ProjectArtifactCollections($entity: String!, $project: String!, $artifactType: String!, $cursor: String) {
+query ProjectArtifactCollections(
+  $entity: String!
+  $project: String!
+  $artifactType: String!
+  $cursor: String
+  $perPage: Int
+) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $artifactType) {
-      artifactCollections(after: $cursor) {
+      artifactCollections(after: $cursor, first: $perPage) {
         totalCount
         pageInfo {
           ...PageInfoFragment

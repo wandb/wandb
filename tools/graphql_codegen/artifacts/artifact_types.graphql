@@ -6,9 +6,9 @@ fragment ArtifactTypeFragment on ArtifactType {
   createdAt
 }
 
-query ProjectArtifactTypes($entity: String!, $project: String!, $cursor: String) {
+query ProjectArtifactTypes($entity: String!, $project: String!, $cursor: String, $perPage: Int) {
   project(name: $project, entityName: $entity) {
-    artifactTypes(after: $cursor) {
+    artifactTypes(after: $cursor, first: $perPage) {
       edges {
         node {
           ...ArtifactTypeFragment
