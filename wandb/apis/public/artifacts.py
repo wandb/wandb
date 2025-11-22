@@ -157,14 +157,6 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
         self.last_response = ArtifactTypeConnection.model_validate(conn)
 
-    @override
-    def update_variables(self) -> None:
-        """Update the cursor variable for pagination.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        self.variables.update({"cursor": self.cursor})
-
     def _convert(self, node: ArtifactTypeFragment) -> ArtifactType:
         return ArtifactType(
             client=self.client,
@@ -331,14 +323,6 @@ class ArtifactCollections(
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = ArtifactCollectionConnection.model_validate(conn)
-
-    @override
-    def update_variables(self) -> None:
-        """Update the cursor variable for pagination.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        self.variables.update({"cursor": self.cursor})
 
     def _convert(self, node: ArtifactCollectionFragment) -> ArtifactCollection | None:
         if not node.project:

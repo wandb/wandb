@@ -234,10 +234,10 @@ mutation DeleteArtifactCollectionTags($input: DeleteArtifactCollectionTagAssignm
 """
 
 PROJECT_ARTIFACT_COLLECTIONS_GQL = """
-query ProjectArtifactCollections($entity: String!, $project: String!, $artifactType: String!, $cursor: String) {
+query ProjectArtifactCollections($entity: String!, $project: String!, $artifactType: String!, $cursor: String, $perPage: Int) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $artifactType) {
-      artifactCollections(after: $cursor) {
+      artifactCollections(after: $cursor, first: $perPage) {
         totalCount
         pageInfo {
           ...PageInfoFragment
@@ -520,9 +520,9 @@ fragment PageInfoFragment on PageInfo {
 """
 
 PROJECT_ARTIFACT_TYPES_GQL = """
-query ProjectArtifactTypes($entity: String!, $project: String!, $cursor: String) {
+query ProjectArtifactTypes($entity: String!, $project: String!, $cursor: String, $perPage: Int) {
   project(name: $project, entityName: $entity) {
-    artifactTypes(after: $cursor) {
+    artifactTypes(after: $cursor, first: $perPage) {
       edges {
         node {
           ...ArtifactTypeFragment
