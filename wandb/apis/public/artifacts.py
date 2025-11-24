@@ -12,6 +12,7 @@ from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
     Any,
+    ClassVar,
     Collection,
     Iterable,
     List,
@@ -28,7 +29,7 @@ from wandb._iterutils import always_list
 from wandb._pydantic import Connection, ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.paginator import Paginator, SizedPaginator
+from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
@@ -36,22 +37,24 @@ from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
+from .files import File
 from .utils import gql_compat
 
 if TYPE_CHECKING:
     from wandb_gql import Client
+    from wandb_graphql.language.ast import Document
 
-    from wandb.apis import public
     from wandb.sdk.artifacts._generated import (
         ArtifactAliasFragment,
         ArtifactCollectionFragment,
+        ArtifactFragment,
         ArtifactTypeFragment,
+        FileFragment,
     )
     from wandb.sdk.artifacts._models.pagination import (
         ArtifactCollectionConnection,
         ArtifactFileConnection,
         ArtifactTypeConnection,
-        RunArtifactConnection,
     )
     from wandb.sdk.artifacts.artifact import Artifact
 
@@ -76,25 +79,21 @@ def _run_artifacts_mode_to_gql() -> dict[Literal["logged", "used"], str]:
     return {"logged": RUN_OUTPUT_ARTIFACTS_GQL, "used": RUN_INPUT_ARTIFACTS_GQL}
 
 
-class _ArtifactCollectionAliases(Paginator[str]):
+class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
     """An internal iterator of collection alias names.
 
     <!-- lazydoc-ignore-init: internal -->
     """
 
+    QUERY: ClassVar[Document | None] = None
     last_response: Connection[ArtifactAliasFragment] | None
 
-    _QUERY = None
-
-    @property
-    def QUERY(self):  # noqa: N802
-        if self._QUERY is None:
+    def __init__(self, client: Client, collection_id: str, per_page: int = 1_000):
+        if self.QUERY is None:
             from wandb.sdk.artifacts._generated import ARTIFACT_COLLECTION_ALIASES_GQL
 
-            type(self)._QUERY = gql(ARTIFACT_COLLECTION_ALIASES_GQL)
-        return self._QUERY
+            type(self).QUERY = gql(ARTIFACT_COLLECTION_ALIASES_GQL)
 
-    def __init__(self, client: Client, collection_id: str, per_page: int = 1_000):
         variables = {"id": collection_id}
         super().__init__(client, variables=variables, per_page=per_page)
 
@@ -113,49 +112,18 @@ class _ArtifactCollectionAliases(Paginator[str]):
 
         self.last_response = Connection[ArtifactAliasFragment].model_validate(conn)
 
-    @property
-    def more(self) -> bool:
-        """Returns whether there are more alias names to fetch.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return (conn := self.last_response) is None or conn.has_next
-
-    @property
-    def cursor(self) -> str | None:
-        """Returns the cursor for the next page of results.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return conn.next_cursor if (conn := self.last_response) else None
-
-    def convert_objects(self) -> list[str]:
-        """Convert the raw response data into a list of alias names.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response is None:
-            return []
-        return [node.alias for node in self.last_response.nodes()]
+    def _convert(self, node: ArtifactAliasFragment) -> str:
+        return node.alias
 
 
-class ArtifactTypes(Paginator["ArtifactType"]):
+class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
     """An lazy iterator of `ArtifactType` objects for a specific project.
 
     <!-- lazydoc-ignore-init: internal -->
     """
 
+    QUERY: ClassVar[Document | None] = None
     last_response: ArtifactTypeConnection | None
-
-    _QUERY = None
-
-    @property
-    def QUERY(self):  # noqa: N802
-        if self._QUERY is None:
-            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_TYPES_GQL
-
-            type(self)._QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
-        return self._QUERY
 
     def __init__(
         self,
@@ -164,9 +132,13 @@ class ArtifactTypes(Paginator["ArtifactType"]):
         project: str,
         per_page: int = 50,
     ):
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_TYPES_GQL
+
+            type(self).QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
+
         self.entity = entity
         self.project = project
-
         variables = {"entity": entity, "project": project}
         super().__init__(client, variables=variables, per_page=per_page)
 
@@ -185,56 +157,14 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
         self.last_response = ArtifactTypeConnection.model_validate(conn)
 
-    @property
-    def _length(self) -> None:
-        """Returns `None`.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        # TODO
-        return None
-
-    @property
-    def more(self) -> bool:
-        """Returns whether there are more artifact types to fetch.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return (conn := self.last_response) is None or conn.has_next
-
-    @property
-    def cursor(self) -> str | None:
-        """Returns the cursor for the next page of results.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return conn.next_cursor if (conn := self.last_response) else None
-
-    def update_variables(self) -> None:
-        """Update the cursor variable for pagination.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        self.variables.update({"cursor": self.cursor})
-
-    def convert_objects(self) -> list[ArtifactType]:
-        """Convert the raw response data into a list of ArtifactType objects.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response is None:
-            return []
-
-        return [
-            ArtifactType(
-                client=self.client,
-                entity=self.entity,
-                project=self.project,
-                type_name=node.name,
-                attrs=node,
-            )
-            for node in self.last_response.nodes()
-        ]
+    def _convert(self, node: ArtifactTypeFragment) -> ArtifactType:
+        return ArtifactType(
+            client=self.client,
+            entity=self.entity,
+            project=self.project,
+            type_name=node.name,
+            attrs=node,
+        )
 
 
 class ArtifactType:
@@ -338,7 +268,9 @@ class ArtifactType:
         return f"<ArtifactType {self.type}>"
 
 
-class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
+class ArtifactCollections(
+    SizedRelayPaginator["ArtifactCollectionFragment", "ArtifactCollection"]
+):
     """Artifact collections of a specific type in a project.
 
     Args:
@@ -351,6 +283,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
+    QUERY: ClassVar[Document | None] = None
     last_response: ArtifactCollectionConnection | None
 
     def __init__(
@@ -361,16 +294,15 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         type_name: str,
         per_page: int = 50,
     ):
-        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+
+            type(self).QUERY = gql(PROJECT_ARTIFACT_COLLECTIONS_GQL)
 
         self.entity = entity
         self.project = project
         self.type_name = type_name
-
         variables = {"entity": entity, "project": project, "artifactType": type_name}
-
-        self.QUERY = gql_compat(PROJECT_ARTIFACT_COLLECTIONS_GQL)
-
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
@@ -392,58 +324,17 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
         self.last_response = ArtifactCollectionConnection.model_validate(conn)
 
-    @property
-    def _length(self) -> int:
-        """Returns the total number of artifact collections.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response is None:
-            self._load_page()
-        return self.last_response.total_count
-
-    @property
-    def more(self) -> bool:
-        """Returns whether there are more artifacts to fetch.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return (conn := self.last_response) is None or conn.has_next
-
-    @property
-    def cursor(self) -> str | None:
-        """Returns the cursor for the next page of results.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return conn.next_cursor if (conn := self.last_response) else None
-
-    def update_variables(self) -> None:
-        """Update the cursor variable for pagination.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        self.variables.update({"cursor": self.cursor})
-
-    def convert_objects(self) -> list[ArtifactCollection]:
-        """Convert the raw response data into a list of ArtifactCollection objects.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response is None:
-            return []
-        return [
-            ArtifactCollection(
-                client=self.client,
-                entity=node.project.entity.name,
-                project=node.project.name,
-                name=node.name,
-                type=node.type.name,
-                attrs=node,
-            )
-            for node in self.last_response.nodes()
-            if node.project
-        ]
+    def _convert(self, node: ArtifactCollectionFragment) -> ArtifactCollection | None:
+        if not node.project:
+            return None
+        return ArtifactCollection(
+            client=self.client,
+            entity=node.project.entity.name,
+            project=node.project.name,
+            name=node.name,
+            type=node.type.name,
+            attrs=node,
+        )
 
 
 class ArtifactCollection:
@@ -790,7 +681,7 @@ class _ArtifactConnectionGeneric(ConnectionWithTotal[TNode]):
     edges: List[_ArtifactEdgeGeneric]  # noqa: UP006
 
 
-class Artifacts(SizedPaginator["Artifact"]):
+class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     """An iterable collection of artifact versions associated with a project.
 
     Optionally pass in filters to narrow down the results based on specific criteria.
@@ -810,6 +701,8 @@ class Artifacts(SizedPaginator["Artifact"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
+    QUERY: Document  # Must be set per-instance
+
     # Loosely-annotated to avoid importing heavy types at module import time.
     last_response: _ArtifactConnectionGeneric | None
 
@@ -827,6 +720,9 @@ class Artifacts(SizedPaginator["Artifact"]):
     ):
         from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
 
+        omit_fields = omit_artifact_fields(client)
+        self.QUERY = gql_compat(PROJECT_ARTIFACTS_GQL, omit_fields=omit_fields)
+
         self.entity = entity
         self.collection_name = collection_name
         self.type = type
@@ -842,9 +738,6 @@ class Artifacts(SizedPaginator["Artifact"]):
             "collection": self.collection_name,
             "filters": json.dumps(self.filters),
         }
-
-        omit_fields = omit_artifact_fields(client)
-        self.QUERY = gql_compat(PROJECT_ARTIFACTS_GQL, omit_fields=omit_fields)
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
@@ -867,67 +760,50 @@ class Artifacts(SizedPaginator["Artifact"]):
             ArtifactFragment
         ].model_validate(conn)
 
-    @property
-    def _length(self) -> int:
-        """Returns the total number of artifacts in the collection.
+    # FIXME: For now, we deliberately override the signatures of:
+    # - `_convert()`
+    # - `convert_objects()`
+    # ... since the prior implementation must get `version` from the GQL edge
+    # (i.e. `edge.version`), which lives outside of the GQL node (`edge.node`).
+    #
+    # In the future, we should move to fetching artifacts via (GQL) artifactMemberships,
+    # not (GQL) artifacts, so we don't have to deal with this hack.
+    @override
+    def _convert(self, edge: _ArtifactEdgeGeneric[ArtifactFragment]) -> Artifact:
+        from wandb.sdk.artifacts._validators import FullArtifactPath
+        from wandb.sdk.artifacts.artifact import Artifact
 
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response is None:
-            self._load_page()
-        return self.last_response.total_count
+        return Artifact._from_attrs(
+            path=FullArtifactPath(
+                prefix=self.entity,
+                project=self.project,
+                name=f"{self.collection_name}:{edge.version}",
+            ),
+            attrs=edge.node,
+            client=self.client,
+        )
 
-    @property
-    def more(self) -> bool:
-        """Returns whether there are more files to fetch.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return (conn := self.last_response) is None or conn.has_next
-
-    @property
-    def cursor(self) -> str | None:
-        """Returns the cursor for the next page of results.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return conn.next_cursor if (conn := self.last_response) else None
-
+    @override
     def convert_objects(self) -> list[Artifact]:
         """Convert the raw response data into a list of wandb.Artifact objects.
 
         <!-- lazydoc-ignore: internal -->
         """
-        from wandb.sdk.artifacts._validators import FullArtifactPath
-        from wandb.sdk.artifacts.artifact import Artifact
-
-        if self.last_response is None:
+        if (conn := self.last_response) is None:
             return []
-
-        artifact_edges = (edge for edge in self.last_response.edges if edge.node)
-        artifacts = (
-            Artifact._from_attrs(
-                path=FullArtifactPath(
-                    prefix=self.entity,
-                    project=self.project,
-                    name=f"{self.collection_name}:{edge.version}",
-                ),
-                attrs=edge.node,
-                client=self.client,
-            )
-            for edge in artifact_edges
-        )
+        artifacts = (self._convert(edge) for edge in conn.edges if edge.node)
         required_tags = set(self.tags or [])
         return [art for art in artifacts if required_tags.issubset(art.tags)]
 
 
-class RunArtifacts(SizedPaginator["Artifact"]):
+class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     """An iterable collection of artifacts associated with a specific run.
 
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    last_response: RunArtifactConnection | None
+    QUERY: Document  # Must be set per-instance
+    last_response: ConnectionWithTotal[ArtifactFragment] | None
 
     def __init__(
         self,
@@ -936,8 +812,6 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         mode: Literal["logged", "used"] = "logged",
         per_page: int = 50,
     ):
-        self.run = run
-
         try:
             query_str = _run_artifacts_mode_to_gql()[mode]
         except LookupError:
@@ -945,6 +819,7 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         else:
             self.QUERY = gql_compat(query_str, omit_fields=omit_artifact_fields(client))
 
+        self.run = run
         variables = {"entity": run.entity, "project": run.project, "runName": run.id}
         super().__init__(client, variables=variables, per_page=per_page)
 
@@ -958,65 +833,30 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         inner_data = data["project"]["run"]["artifacts"]
         self.last_response = RunArtifactConnection.model_validate(inner_data)
 
-    @property
-    def _length(self) -> int:
-        """Returns the total number of artifacts in the collection.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response is None:
-            self._load_page()
-        return self.last_response.total_count
-
-    @property
-    def more(self) -> bool:
-        """Returns whether there are more artifacts to fetch.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return (conn := self.last_response) is None or conn.has_next
-
-    @property
-    def cursor(self) -> str | None:
-        """Returns the cursor for the next page of results.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return conn.next_cursor if (conn := self.last_response) else None
-
-    def convert_objects(self) -> list[Artifact]:
-        """Convert the raw response data into a list of wandb.Artifact objects.
-
-        <!-- lazydoc-ignore: internal -->
-        """
+    def _convert(self, node: ArtifactFragment) -> Artifact | None:
         from wandb.sdk.artifacts._validators import FullArtifactPath
         from wandb.sdk.artifacts.artifact import Artifact
 
-        if self.last_response is None:
-            return []
-
-        return [
-            Artifact._from_attrs(
-                path=FullArtifactPath(
-                    prefix=proj.entity.name,
-                    project=proj.name,
-                    name=f"{artifact_seq.name}:v{node.version_index}",
-                ),
-                attrs=node,
-                client=self.client,
-            )
-            for node in self.last_response.nodes()
-            if (artifact_seq := node.artifact_sequence)
-            and (proj := artifact_seq.project)
-        ]
+        if node.artifact_sequence.project is None:
+            return None
+        return Artifact._from_attrs(
+            path=FullArtifactPath(
+                prefix=node.artifact_sequence.project.entity.name,
+                project=node.artifact_sequence.project.name,
+                name=f"{node.artifact_sequence.name}:v{node.version_index}",
+            ),
+            attrs=node,
+            client=self.client,
+        )
 
 
-class ArtifactFiles(SizedPaginator["public.File"]):
+class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
     """A paginator for files in an artifact.
 
     <!-- lazydoc-ignore-init: internal -->
     """
 
+    QUERY: Document  # Must be set per-instance
     last_response: ArtifactFileConnection | None
 
     def __init__(
@@ -1066,11 +906,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         if not server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
             omit_fields.add("totalCount")
 
-        self.QUERY = gql_compat(
-            query_str,
-            omit_fields=omit_fields,
-        )
-
+        self.QUERY = gql_compat(query_str, omit_fields=omit_fields)
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
@@ -1101,54 +937,8 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         """Returns the path of the artifact."""
         return [self.artifact.entity, self.artifact.project, self.artifact.name]
 
-    @property
-    def _length(self) -> int:
-        """Returns the total number of files in the artifact.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response is None:
-            self._load_page()
-
-        if (conn := self.last_response) and (total := conn.total_count) is not None:
-            return total
-
-        raise NotImplementedError
-
-    @property
-    def more(self) -> bool:
-        """Returns whether there are more files to fetch.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return (conn := self.last_response) is None or conn.has_next
-
-    @property
-    def cursor(self) -> str | None:
-        """Returns the cursor for the next page of results.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return conn.next_cursor if (conn := self.last_response) else None
-
-    def convert_objects(self) -> list[public.File]:
-        """Convert the raw response data into a list of File objects.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        from wandb.apis import public
-
-        if self.last_response is None:
-            return []
-
-        return [
-            public.File(
-                client=self.client,
-                attrs=node.model_dump(exclude_unset=True),
-            )
-            for edge in self.last_response.edges
-            if (node := edge.node)
-        ]
+    def _convert(self, node: FileFragment) -> File:
+        return File(self.client, attrs=node.model_dump(exclude_unset=True))
 
     def __repr__(self) -> str:
         path_str = "/".join(self.path)
