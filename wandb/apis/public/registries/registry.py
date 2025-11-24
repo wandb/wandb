@@ -11,6 +11,7 @@ from wandb._analytics import tracked
 from wandb._strutils import nameof
 from wandb.apis.public.teams import Team
 from wandb.apis.public.users import User
+from wandb.errors import ResponseError, UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._models import RegistryData
 
@@ -247,7 +248,7 @@ class Registry:
             Registry: The newly created Registry object.
 
         Raises:
-            ValueError: If a registry with the same name already exists in the
+            ResponseError: If a registry with the same name already exists in the
                 organization or if the creation fails.
         """
         from wandb.sdk.artifacts._generated import (
@@ -280,9 +281,9 @@ class Registry:
             data = client.execute(gql_op, variable_values=gql_vars)
             result = UpsertRegistry.model_validate(data).upsert_model
         except Exception as e:
-            raise ValueError(failed_msg) from e
+            raise ResponseError(failed_msg) from e
         if not (result and result.inserted and (registry_project := result.project)):
-            raise ValueError(failed_msg)
+            raise ResponseError(failed_msg)
 
         return cls(
             client,
@@ -305,30 +306,27 @@ class Registry:
             data = self.client.execute(gql_op, variable_values=gql_vars)
             result = DeleteRegistry.model_validate(data).delete_model
         except Exception as e:
-            raise ValueError(failed_msg) from e
+            raise ResponseError(failed_msg) from e
         if not (result and result.success):
-            raise ValueError(failed_msg)
+            raise ResponseError(failed_msg)
 
     @tracked
     def load(self) -> None:
         """Load registry attributes from the backend."""
         from wandb.sdk.artifacts._generated import FETCH_REGISTRY_GQL, FetchRegistry
 
-        failed_msg = (
-            f"Failed to load registry {self.name!r} in organization"
-            f" {self.organization!r}."
-        )
+        failed_msg = f"Failed to load registry {self.name!r} in organization {self.organization!r}."
 
         gql_op = gql(FETCH_REGISTRY_GQL)
         gql_vars = {"name": self.full_name, "entity": self.entity}
+        data = self.client.execute(gql_op, variable_values=gql_vars)
         try:
-            data = self.client.execute(gql_op, variable_values=gql_vars)
             result = FetchRegistry.model_validate(data)
         except Exception as e:
-            raise ValueError(failed_msg) from e
+            raise ResponseError(failed_msg) from e
 
         if not ((entity := result.entity) and (registry_project := entity.project)):
-            raise ValueError(failed_msg)
+            raise ResponseError(failed_msg)
 
         self._update_attributes(registry_project)
 
@@ -349,7 +347,7 @@ class Registry:
         if not server_supports(
             self.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
-            raise RuntimeError(
+            raise UnsupportedError(
                 "Saving the registry is not enabled on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
@@ -359,9 +357,8 @@ class Registry:
         if (
             new_artifact_types := self.artifact_types.draft
         ) and self.allow_all_artifact_types:
-            raise ValueError(
-                f"Cannot update artifact types when `allows_all_artifact_types` is {True!r}. Set it to {False!r} first."
-            )
+            msg = f"Cannot update artifact types when `allows_all_artifact_types` is {True!r}. Set it to {False!r} first."
+            raise ValueError(msg)
 
         failed_msg = f"Failed to save registry {self.name!r} in organization {self.organization!r}"
 
@@ -382,7 +379,7 @@ class Registry:
             data = self.client.execute(upsert_op, variable_values=upsert_vars)
             result = UpsertRegistry.model_validate(data).upsert_model
         except Exception as e:
-            raise ValueError(failed_msg) from e
+            raise ResponseError(failed_msg) from e
 
         if result and result.inserted:
             # This should only trigger if `_saved_name` was modified unexpectedly.
@@ -391,7 +388,7 @@ class Registry:
             )
 
         if not (result and (registry_project := result.project)):
-            raise ValueError(failed_msg)
+            raise ResponseError(failed_msg)
 
         self._update_attributes(registry_project)
 
@@ -407,7 +404,7 @@ class Registry:
             data = self.client.execute(rename_op, variable_values=rename_vars)
             result = RenameRegistry.model_validate(data).rename_project
             if not (result and (registry_project := result.project)):
-                raise ValueError(failed_msg)
+                raise ResponseError(failed_msg)
 
             if result.inserted:
                 # This should only trigger if `_saved_name` was modified unexpectedly.
@@ -432,7 +429,9 @@ class Registry:
         result = RegistryUserMembers.model_validate(data)
 
         if not (project := result.project):
-            raise ValueError(f"Failed to fetch user members for registry {self.name!r}")
+            raise ResponseError(
+                f"Failed to fetch user members for registry {self.name!r}"
+            )
 
         return [
             UserMember(
@@ -460,7 +459,8 @@ class Registry:
         result = RegistryTeamMembers.model_validate(data)
 
         if not (project := result.project):
-            raise ValueError(f"Failed to fetch team members for registry {self.name!r}")
+            msg = f"Failed to fetch team members for registry {self.name!r}"
+            raise ResponseError(msg)
 
         return [
             TeamMember(
@@ -529,7 +529,8 @@ class Registry:
         result = CreateRegistryMembers.model_validate(data).result
 
         if not (result and result.success):
-            raise ValueError(f"Failed to add members to registry {self.name!r}")
+            msg = f"Failed to add members to registry {self.name!r}"
+            raise ResponseError(msg)
         return self
 
     def remove_members(
@@ -586,7 +587,8 @@ class Registry:
         result = DeleteRegistryMembers.model_validate(data).result
 
         if not (result and result.success):
-            raise ValueError(f"Failed to remove members from registry {self.name!r}")
+            msg = f"Failed to remove members from registry {self.name!r}"
+            raise ResponseError(msg)
         return self
 
     def update_member(
@@ -656,7 +658,6 @@ class Registry:
         result = result_cls.model_validate(data).result
 
         if not (result and result.success):
-            raise ValueError(
-                f"Failed to update member {member!r} role to {role!r} in registry {self.name!r}"
-            )
+            msg = f"Failed to update member {member!r} role to {role!r} in registry {self.name!r}"
+            raise ResponseError(msg)
         return self

@@ -3,7 +3,7 @@ from itertools import repeat, tee
 from hypothesis import example, given
 from hypothesis.strategies import integers, iterables, sampled_from
 from pytest import raises
-from wandb._iterutils import one
+from wandb._iterutils import PathLookupError, get_path, one
 
 
 @given(iterable=iterables(integers(), min_size=1, max_size=1))
@@ -29,3 +29,19 @@ def test_one_on_multi_item_iterable(iterable):
     """Check that `one()` raises an error on a multi-item iterable."""
     with raises(ValueError):
         one(iterable)
+
+
+# TODO: parameterize this via hypothesis for better coverage
+def test_get_path():
+    """Check that `get_path()` returns the nested inner object at the given path."""
+    data = {"a": {"b": {"c": 1}}}
+    assert get_path(data, "a", "b", "c") == 1
+
+    with raises(PathLookupError):
+        get_path(data, "a", "b", "d")
+
+    data = [{"a": {"b": {"c": None}}}]
+    assert get_path(data, 0, "a", "b", "c") is None
+
+    with raises(PathLookupError):
+        get_path(data, "a", "b", "c", "d")

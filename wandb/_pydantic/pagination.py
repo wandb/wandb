@@ -3,9 +3,19 @@
 For formal specs and definitions, see https://relay.dev/graphql/connections.htm.
 """
 
-from typing import Generic, Iterator, List, Literal, Optional, TypeVar
+# Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
+# ruff: noqa: UP006, UP045
 
-from pydantic import NonNegativeInt
+from __future__ import annotations
+
+from typing import Any, Generic, Iterator, List, Literal, Optional, TypeVar
+
+from pydantic import NonNegativeInt, ValidationError
+from typing_extensions import Self
+
+from wandb._iterutils import PathLookupError, get_path
+from wandb._strutils import nameof
+from wandb.errors import ResponseError
 
 from .base import GQLResult
 
@@ -39,9 +49,18 @@ class Connection(GQLResult, Generic[NodeT]):
         return self.page_info.has_next_page
 
     @property
-    def next_cursor(self) -> Optional[str]:
+    def next_cursor(self) -> str | None:
         """Returns the start cursor for the next page to fetch."""
         return self.page_info.end_cursor
+
+    @classmethod
+    def from_result(cls, data: dict[str, Any], *path: int | str) -> Self:
+        """Instantiate from the nested GraphQL response data, under the given path."""
+        try:
+            return cls.model_validate(get_path(data, *path))
+        except (PathLookupError, ValidationError) as e:
+            msg = f"{nameof(type(e))!r} on parsing {nameof(type(cls))!r} response data: {e}"
+            raise ResponseError(msg) from e
 
 
 class ConnectionWithTotal(Connection[NodeT], Generic[NodeT]):
