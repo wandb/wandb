@@ -2194,10 +2194,10 @@ class Artifact:
         )
         def _impl(cursor: str | None, per_page: int = 5000) -> FileWithUrlConnection:
             from ._generated import (
-                ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
-                ARTIFACT_FILE_URLS_GQL,
-                ArtifactCollectionMembershipFileUrls,
-                ArtifactFileUrls,
+                GET_ARTIFACT_FILE_URLS_GQL,
+                GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL,
+                GetArtifactFileUrls,
+                GetArtifactMembershipFileUrls,
             )
             from ._models.pagination import FileWithUrlConnection
 
@@ -2205,7 +2205,7 @@ class Artifact:
                 raise RuntimeError("Client not initialized")
 
             if server_supports(self._client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES):
-                query = gql(ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL)
+                query = gql(GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL)
                 gql_vars = {
                     "entity": self.entity,
                     "project": self.project,
@@ -2215,7 +2215,7 @@ class Artifact:
                     "perPage": per_page,
                 }
                 data = self._client.execute(query, variable_values=gql_vars, timeout=60)
-                result = ArtifactCollectionMembershipFileUrls.model_validate(data)
+                result = GetArtifactMembershipFileUrls.model_validate(data)
 
                 if not (
                     (project := result.project)
@@ -2228,10 +2228,10 @@ class Artifact:
                     )
                 return FileWithUrlConnection.model_validate(files)
             else:
-                query = gql(ARTIFACT_FILE_URLS_GQL)
+                query = gql(GET_ARTIFACT_FILE_URLS_GQL)
                 gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
                 data = self._client.execute(query, variable_values=gql_vars, timeout=60)
-                result = ArtifactFileUrls.model_validate(data)
+                result = GetArtifactFileUrls.model_validate(data)
 
                 if not ((artifact := result.artifact) and (files := artifact.files)):
                     raise ValueError(

@@ -12,19 +12,27 @@ fragment FileFragment on File {
   directUrl
 }
 
-query ArtifactVersionFiles(
+fragment FileWithUrlFragment on File {
+  __typename
+  name
+  directUrl
+}
+
+# Legacy query for older servers. Use GetArtifactMembershipFiles for newer servers.
+query GetArtifactFiles(
   $entity: String!
   $project: String!
-  $artifactType: String!
+  $type: String!
   $name: String!
   $fileNames: [String!]
   $cursor: String
   $perPage: Int = 50
 ) {
   project(name: $project, entityName: $entity) {
-    artifactType(name: $artifactType) {
+    artifactType(name: $type) {
       artifact(name: $name) {
         files(names: $fileNames, after: $cursor, first: $perPage) {
+          totalCount @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
           pageInfo {
             ...PageInfoFragment
           }
@@ -33,14 +41,13 @@ query ArtifactVersionFiles(
               ...FileFragment
             }
           }
-          totalCount @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
         }
       }
     }
   }
 }
 
-query ArtifactCollectionMembershipFiles(
+query GetArtifactMembershipFiles(
   $entity: String!
   $project: String!
   $collection: String!
@@ -53,6 +60,7 @@ query ArtifactCollectionMembershipFiles(
     artifactCollection(name: $collection) {
       artifactMembership(aliasName: $alias) {
         files(names: $fileNames, after: $cursor, first: $perPage) {
+          totalCount @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
           pageInfo {
             ...PageInfoFragment
           }
@@ -61,20 +69,29 @@ query ArtifactCollectionMembershipFiles(
               ...FileFragment
             }
           }
-          totalCount @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
         }
       }
     }
   }
 }
 
-fragment FileWithUrlFragment on File {
-  __typename
-  name
-  directUrl
+# Legacy query for older servers. Use GetArtifactMembershipFileUrls for newer servers.
+query GetArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
+  artifact(id: $id) {
+    files(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...FileWithUrlFragment
+        }
+      }
+    }
+  }
 }
 
-query ArtifactCollectionMembershipFileUrls(
+query GetArtifactMembershipFileUrls(
   $entity: String!
   $project: String!
   $collection: String!
@@ -94,21 +111,6 @@ query ArtifactCollectionMembershipFileUrls(
               ...FileWithUrlFragment
             }
           }
-        }
-      }
-    }
-  }
-}
-
-query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
-  artifact(id: $id) {
-    files(after: $cursor, first: $perPage) {
-      pageInfo {
-        ...PageInfoFragment
-      }
-      edges {
-        node {
-          ...FileWithUrlFragment
         }
       }
     }
