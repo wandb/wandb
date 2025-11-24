@@ -164,7 +164,7 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     # `prior_window` is only for `RUN_METRIC_CHANGE` events
     prior_window: Annotated[
         PositiveInt,
-            # By default, set `window -> prior_window` if the latter wasn't provided.
+        # By default, set `window -> prior_window` if the latter wasn't provided.
         Field(alias="prior_window_size", default_factory=lambda data: data["window"]),
     ]
     """Size of the "prior" metric aggregation window (ignored if `agg` is ``None``).
@@ -242,25 +242,22 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
         return NotImplemented
 
     @overload
-    def changes_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter:
-        ...
+    def changes_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
 
     @overload
-    def changes_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter:
-        ...
+    def changes_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
 
     @overload  # NOTE: This overload is for internal use only.
     def changes_by(
-            self, *, diff: PosNum | None, frac: PosNum | None, _dir: ChangeDir
-    ) -> MetricChangeFilter:
-        ...
+        self, *, diff: PosNum | None, frac: PosNum | None, _dir: ChangeDir
+    ) -> MetricChangeFilter: ...
 
     def changes_by(
-            self,
-            *,
-            diff: PosNum | None = None,
-            frac: PosNum | None = None,
-            _dir: ChangeDir = ChangeDir.ANY,
+        self,
+        *,
+        diff: PosNum | None = None,
+        frac: PosNum | None = None,
+        _dir: ChangeDir = ChangeDir.ANY,
     ) -> MetricChangeFilter:
         """Returns a filter that watches for a numerical increase OR decrease in a metric.
 
@@ -274,9 +271,9 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
                 increase or decrease.
         """
         if (
-                # Enforce mutually exclusive keyword args
-                ((frac is None) and (diff is None))
-                or ((frac is not None) and (diff is not None))
+            # Enforce mutually exclusive keyword args
+            ((frac is None) and (diff is None))
+            or ((frac is not None) and (diff is not None))
         ):
             raise ValueError("Must provide exactly one of `frac` or `diff`")
 
@@ -293,15 +290,13 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
         return MetricChangeFilter(**dict(self), **kws)
 
     @overload
-    def increases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter:
-        ...
+    def increases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
 
     @overload
-    def increases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter:
-        ...
+    def increases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
 
     def increases_by(
-            self, *, diff: PosNum | None = None, frac: PosNum | None = None
+        self, *, diff: PosNum | None = None, frac: PosNum | None = None
     ) -> MetricChangeFilter:
         """Returns a filter that watches for a numerical increase in a metric.
 
@@ -310,15 +305,13 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
         return self.changes_by(diff=diff, frac=frac, _dir=ChangeDir.INC)
 
     @overload
-    def decreases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter:
-        ...
+    def decreases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
 
     @overload
-    def decreases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter:
-        ...
+    def decreases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
 
     def decreases_by(
-            self, *, diff: PosNum | None = None, frac: PosNum | None = None
+        self, *, diff: PosNum | None = None, frac: PosNum | None = None
     ) -> MetricChangeFilter:
         """Returns a filter that watches for a numerical decrease in a metric.
 
