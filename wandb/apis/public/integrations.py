@@ -41,19 +41,19 @@ class Integrations(RelayPaginator["IntegrationFields", "Integration"]):
 
             type(self).QUERY = gql(INTEGRATIONS_BY_ENTITY_GQL)
 
+        self._conn_path = ("entity", "integrations")
+
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
         """Fetch and parse the response data for the current page."""
         from wandb._pydantic import Connection
-        from wandb.automations._generated import IntegrationsByEntity
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = IntegrationsByEntity.model_validate(data)
-        if not ((entity := result.entity) and (conn := entity.integrations)):
-            raise ValueError("Unexpected response data")
-        self.last_response = Connection.model_validate(conn)
+        self.last_response = Connection[IntegrationFields].from_result(
+            data, *self._conn_path
+        )
 
     def _convert(self, node: IntegrationFields) -> Integration:
         from wandb.automations.integrations import IntegrationAdapter

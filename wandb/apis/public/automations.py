@@ -5,7 +5,6 @@ from __future__ import annotations
 from itertools import chain
 from typing import TYPE_CHECKING, Any, Iterator, Mapping
 
-from pydantic import ValidationError
 from typing_extensions import override
 
 from wandb.apis.paginator import RelayPaginator, _Client
@@ -36,6 +35,7 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
         _query: Document,  # internal use only, but required
     ):
         self.QUERY = _query
+        self._conn_path = ("scope", "projects")
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
@@ -45,12 +45,9 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
         from wandb.automations._generated import ProjectTriggersFields
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        try:
-            conn_data = data["scope"]["projects"]
-            conn = Connection[ProjectTriggersFields].model_validate(conn_data)
-            self.last_response = conn
-        except (LookupError, AttributeError, ValidationError) as e:
-            raise ValueError("Unexpected response data") from e
+        self.last_response = Connection[ProjectTriggersFields].from_result(
+            data, *self._conn_path
+        )
 
     @override
     def _convert(self, node: ProjectTriggersFields) -> Iterator[Automation]:
