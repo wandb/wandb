@@ -364,7 +364,7 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
     change_dir: ChangeDir = ChangeDir.ANY
     """Direction of the z-score change to watch for."""
 
-    __change_dir_abs_set: bool = False
+    _change_dir_abs_set: bool = False
     """Flag to track if the change_dir has been set to ABSOLUTE."""
 
     def __and__(self, other: Any) -> RunMetricFilter:
@@ -401,7 +401,7 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
     def gt(self, value: int | float, /) -> MetricZScoreFilter:
         """Returns a filter that watches for `abs(zscore(metric_expr)) > threshold`."""
         self.change_dir = (
-            self.change_dir if self.__change_dir_abs_set else ChangeDir.INCREASE
+            self.change_dir if self._change_dir_abs_set else ChangeDir.INCREASE
         )
         if value < 0:
             raise ValueError(f"Expected positive threshold, got: {value=}")
@@ -411,17 +411,17 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
     def lt(self, value: int | float, /) -> MetricZScoreFilter:
         """Returns a filter that watches for `abs(zscore(metric_expr)) < threshold`."""
         self.change_dir = (
-            self.change_dir if self.__change_dir_abs_set else ChangeDir.DECREASE
+            self.change_dir if self._change_dir_abs_set else ChangeDir.DECREASE
         )
-        if value < 0:
-            raise ValueError(f"Expected positive threshold, got: {value=}")
-        self.threshold = value
+        if value > 0:
+            raise ValueError(f"Expected negative threshold, got: {value=}")
+        self.threshold = abs(value)
         return self
 
     def abs(self) -> MetricZScoreFilter:
         """Returns a filter that watches for `abs(zscore(metric_expr)) > threshold`."""
         self.change_dir = ChangeDir.ANY
-        self.__change_dir_abs_set = True
+        self._change_dir_abs_set = True
         return self
 
     def __gt__(self, other: Any) -> MetricZScoreFilter:

@@ -25,6 +25,7 @@ from ._strategies import (
     metric_change_filters,
     metric_names,
     metric_zscore_filters,
+    neg_numbers,
     nonpos_numbers,
     pos_numbers,
     run_states,
@@ -321,7 +322,8 @@ def test_metric_zscore_filter_requires_valid_change_dir(
 @given(
     metric_name=metric_names,
     window=window_sizes,
-    threshold=pos_numbers,
+    pos_threshold=pos_numbers,
+    neg_threshold=neg_numbers,
 )
 @pytest.mark.parametrize(
     "operator,use_abs,expected_change_dir",
@@ -339,7 +341,8 @@ def test_metric_zscore_filter_requires_valid_change_dir(
 def test_declarative_metric_zscore_filter_with_operators(
     metric_name: str,
     window: int,
-    threshold: float,
+    pos_threshold: float,
+    neg_threshold: float,
     operator: str,
     use_abs: bool,
     expected_change_dir: ChangeDir,
@@ -351,7 +354,10 @@ def test_declarative_metric_zscore_filter_with_operators(
     if use_abs:
         base_filter = base_filter.abs()
 
-    # Apply operator and verify results
+    # Select threshold based on operator, not use_abs
+    # > operator needs positive threshold, < operator needs negative threshold
+    threshold = pos_threshold if operator == ">" else neg_threshold
+
     if operator == ">":
         metric_filter = base_filter > threshold
     elif operator == "<":
@@ -363,14 +369,14 @@ def test_declarative_metric_zscore_filter_with_operators(
     assert isinstance(metric_filter, MetricZScoreFilter)
     assert metric_filter.name == metric_name
     assert metric_filter.window == window
-    assert metric_filter.threshold == threshold
+    assert metric_filter.threshold == abs(threshold)
     assert metric_filter.change_dir == expected_change_dir
 
     # Verify serialization
     expected_dict = {
         "name": metric_name,
         "window_size": window,
-        "threshold": threshold,
+        "threshold": abs(threshold),
         "change_dir": expected_change_dir.value,
     }
     assert metric_filter.model_dump() == expected_dict
@@ -381,25 +387,62 @@ def test_declarative_metric_zscore_filter_with_operators(
     window=window_sizes,
     threshold=nonpos_numbers,
 )
-@pytest.mark.parametrize("operator", [">", "<", "abs(>)", "abs(<)"])
-def test_declarative_metric_zscore_filter_rejects_negative_threshold(
+@pytest.mark.parametrize("operator", [">", "abs(>)"])
+def test_declarative_metric_zscore_filter_rejects_nonpositive_threshold(
     metric_name: str,
     window: int,
     threshold: float,
     operator: str,
 ):
-    """Check that negative or zero thresholds are rejected for zscore filters."""
+    """Check that negative or zero thresholds are rejected for zscore > and abs(>) operators."""
     base_filter = RunEvent.metric(metric_name).zscore(window)
 
     with raises(ValueError):
         if operator == ">":
             _ = base_filter > threshold
-        elif operator == "<":
-            _ = base_filter < threshold
         elif operator == "abs(>)":
             _ = base_filter.abs() > threshold
-        elif operator == "abs(<)":
-            _ = base_filter.abs() < threshold
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+    threshold=pos_numbers,
+)
+def test_declarative_metric_zscore_filter_lt_rejects_positive_threshold(
+    metric_name: str,
+    window: int,
+    threshold: float,
+):
+    """Check that positive thresholds are rejected for zscore < operator."""
+    base_filter = RunEvent.metric(metric_name).zscore(window)
+
+    with raises(ValueError):
+        _ = base_filter < threshold
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+    threshold=nonpos_numbers,
+)
+def test_declarative_metric_zscore_filter_abs_lt_accepts_nonpositive_threshold(
+    metric_name: str,
+    window: int,
+    threshold: float,
+):
+    """Check that abs() < accepts non-positive thresholds and converts them to positive."""
+    base_filter = RunEvent.metric(metric_name).zscore(window)
+
+    # abs() < should accept non-positive values and convert to absolute value
+    metric_filter = base_filter.abs() < threshold
+
+    # Verify the filter properties
+    assert isinstance(metric_filter, MetricZScoreFilter)
+    assert metric_filter.name == metric_name
+    assert metric_filter.window == window
+    assert metric_filter.threshold == abs(threshold)
+    assert metric_filter.change_dir == ChangeDir.ANY
 
 
 @given(states=lists(run_states, max_size=10))
