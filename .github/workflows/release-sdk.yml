@@ -457,7 +457,7 @@ jobs:
             core
 
       - name: Repository dispatch
-        uses: peter-evans/repository-dispatch@v2
+        uses: peter-evans/repository-dispatch@v4
         with:
           token: "${{ steps.app-token.outputs.token }}"
           repository: wandb/core
