@@ -339,7 +339,7 @@ class MetricVal(BaseMetricOperand):
     def mean(self, window: int) -> MetricAgg:
         return self.avg(window=window)
 
-    def zscore(self, window: int) -> MetricZScore:
+    def zscore(self, window: int) -> ZScoreMetricOperand:
         """Returns a z-score metric builder for fluent filter construction.
 
         Use with comparison operators to create z-score filters:
@@ -351,7 +351,7 @@ class MetricVal(BaseMetricOperand):
         - Threshold values are always treated as positive magnitudes.
         - The `>=` operator behaves the same as `>`, and `<=` behaves the same as `<`.
         """
-        return MetricZScore(name=self.name, window=window)
+        return ZScoreMetricOperand(name=self.name, window=window)
 
 
 class MetricAgg(BaseMetricOperand):
@@ -362,7 +362,7 @@ class MetricAgg(BaseMetricOperand):
     window: Annotated[PositiveInt, Field(alias="window_size")]
 
 
-class MetricZScore(GQLBase, extra="forbid"):
+class ZScoreMetricOperand(GQLBase, extra="forbid"):
     """Helper class to build z-score metric filters with comparison operators.
 
     This class enables fluent construction of z-score filters using Python's
@@ -443,15 +443,15 @@ class MetricZScore(GQLBase, extra="forbid"):
         """
         return self.gt(value)
 
-    def __abs__(self) -> MetricZScore:
+    def __abs__(self) -> ZScoreMetricOperand:
         """Returns a z-score filter that checks the absolute value.
 
         This allows watching for z-score deviations in either direction.
         Use with comparison operators: `abs(metric.zscore(window)) > threshold`.
         """
-        return MetricZScore(name=self.name, window=self.window, is_absolute=True)
+        return ZScoreMetricOperand(name=self.name, window=self.window, is_absolute=True)
 
-    def abs(self) -> MetricZScore:
+    def abs(self) -> ZScoreMetricOperand:
         """Returns a z-score filter that checks the absolute value.
 
         Alias for `__abs__()` that can be called as a method.
