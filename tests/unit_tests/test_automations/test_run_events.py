@@ -35,9 +35,9 @@ from ._strategies import (
 
 @composite
 def metric_operands(
-        draw: DrawFn,
-        names: SearchStrategy[str] = metric_names,
-        windows: SearchStrategy[int] = window_sizes,
+    draw: DrawFn,
+    names: SearchStrategy[str] = metric_names,
+    windows: SearchStrategy[int] = window_sizes,
 ) -> SearchStrategy[MetricVal | MetricAgg]:
     """Generate single-value and/or aggregated metric operands.
 
@@ -63,7 +63,7 @@ def metric_operands(
     threshold=ints_or_floats,
 )
 def test_metric_threshold_filter_serialization(
-        name: str, window: int, agg: str | None, cmp: str, threshold: int | float
+    name: str, window: int, agg: str | None, cmp: str, threshold: int | float
 ):
     """Check that a normally-instantiated `MetricThresholdFilter` produces the expected JSON-serializable dict."""
     metric_filter = MetricThresholdFilter(
@@ -88,7 +88,7 @@ def test_metric_threshold_filter_serialization(
     threshold=ints_or_floats,
 )
 def test_metric_threshold_binop_vs_method_is_equivalent(
-        metric: MetricVal | MetricAgg, threshold: float
+    metric: MetricVal | MetricAgg, threshold: float
 ):
     """Metric filters declared via (a) binary comparison operators vs (b) chained method calls are equivalent.
 
@@ -163,7 +163,7 @@ def test_metric_change_filter_serialization(metric_filter: MetricChangeFilter):
     ),
 )
 def test_metric_change_filter_defaults_prior_window_to_current_window(
-        metric_filter: MetricChangeFilter,
+    metric_filter: MetricChangeFilter,
 ):
     """Check that if "prior_window" is omitted, it defaults to the current window size."""
     assert metric_filter.prior_window == metric_filter.window
@@ -264,7 +264,7 @@ def test_metric_zscore_filter_repr(name: str, window: int, threshold: float):
     invalid_threshold=nonpos_numbers,
 )
 def test_metric_zscore_filter_requires_positive_threshold(
-        name: str, window: int, invalid_threshold: int | float
+    name: str, window: int, invalid_threshold: int | float
 ):
     """Check that a `MetricZScoreFilter` only accepts a POSITIVE threshold."""
     with raises(ValidationError):
@@ -282,7 +282,7 @@ def test_metric_zscore_filter_requires_positive_threshold(
     threshold=pos_numbers,
 )
 def test_metric_zscore_filter_requires_positive_window_size(
-        name: str, invalid_window: int | float, threshold: float
+    name: str, invalid_window: int | float, threshold: float
 ):
     """Check that a `MetricZScoreFilter` only accepts a POSITIVE window_size."""
     with raises(ValidationError):
@@ -307,7 +307,7 @@ def test_metric_zscore_filter_requires_positive_window_size(
     ),
 )
 def test_metric_zscore_filter_requires_valid_change_dir(
-        name: str, window: int, threshold: float, invalid_change_dir: Any
+    name: str, window: int, threshold: float, invalid_change_dir: Any
 ):
     """Check that a `MetricZScoreFilter` requires a valid change_dir."""
     with raises(ValidationError):
@@ -338,13 +338,13 @@ def test_metric_zscore_filter_requires_valid_change_dir(
     ],
 )
 def test_declarative_metric_zscore_filter_with_operators(
-        metric_name: str,
-        window: int,
-        pos_threshold: float,
-        neg_threshold: float,
-        operator: str,
-        use_abs: bool,
-        expected_change_dir: ChangeDir,
+    metric_name: str,
+    window: int,
+    pos_threshold: float,
+    neg_threshold: float,
+    operator: str,
+    use_abs: bool,
+    expected_change_dir: ChangeDir,
 ):
     """Check that the declarative syntax RunEvent.metric().zscore() > threshold works correctly."""
     # Create the base zscore filter
@@ -387,9 +387,9 @@ def test_declarative_metric_zscore_filter_with_operators(
     negative_threshold=neg_numbers,
 )
 def test_declarative_metric_zscore_filter_rejects_negative_threshold(
-        metric_name: str,
-        window: int,
-        negative_threshold: float,
+    metric_name: str,
+    window: int,
+    negative_threshold: float,
 ):
     """Check that negative or zero thresholds are rejected for zscore > and abs(>) operators."""
     zscore_filter = RunEvent.metric(metric_name).zscore(window)
@@ -408,9 +408,9 @@ def test_declarative_metric_zscore_filter_rejects_negative_threshold(
     threshold=pos_numbers,
 )
 def test_declarative_metric_zscore_filter_lt_rejects_positive_threshold(
-        metric_name: str,
-        window: int,
-        threshold: float,
+    metric_name: str,
+    window: int,
+    threshold: float,
 ):
     """Check that positive thresholds are rejected for zscore < operator."""
     zscore_filter = RunEvent.metric(metric_name).zscore(window)
@@ -424,8 +424,8 @@ def test_declarative_metric_zscore_filter_lt_rejects_positive_threshold(
     window=window_sizes,
 )
 def test_declarative_metric_zscore_filter_abs_rejects_double_abs(
-        metric_name: str,
-        window: int,
+    metric_name: str,
+    window: int,
 ):
     """Check that calling abs() on an already absolute z-score filter raises ValueError."""
     zscore_filter = RunEvent.metric(metric_name).zscore(window)
@@ -460,7 +460,7 @@ def test_state_filter_serialization(states: list[str | ReportedRunState]):
     delta=pos_numbers,
 )
 def test_declarative_metric_change_filter_with_agg(
-        name: str, window: int, delta: int | float
+    name: str, window: int, delta: int | float
 ):
     """Check that declared `MetricChangeFilter` WITH an aggregate operation produces the expected JSONable dict."""
     # Expected JSON-serializable contents shared by all test cases here
@@ -607,7 +607,7 @@ def test_declarative_metric_change_filter_without_agg(name: str, delta: int | fl
     delta=pos_numbers,
 )
 def test_declarative_metric_change_filter_requires_exaclty_one_delta_keyword_arg(
-        metric: MetricVal | MetricAgg, delta: int | float
+    metric: MetricVal | MetricAgg, delta: int | float
 ):
     """Check that a `MetricChangeFilter` requires exactly one of `frac` or `diff`."""
     # Both keyword args at once is forbidden
@@ -640,7 +640,7 @@ def test_declarative_metric_change_filter_requires_exaclty_one_delta_keyword_arg
     invalid_delta=nonpos_numbers,
 )
 def test_declarative_metric_change_filter_requires_positive_delta(
-        metric: MetricVal | MetricAgg, invalid_delta: int | float
+    metric: MetricVal | MetricAgg, invalid_delta: int | float
 ):
     """Check that a `MetricChangeFilter` only accepts a POSITIVE quantity for `frac` or `diff`."""
     with raises(ValueError):
@@ -686,7 +686,7 @@ def test_declarative_state_filter_on_single_valid_state(state: str | ReportedRun
 
 @given(states=lists(run_states, min_size=1, max_size=10))
 def test_declarative_state_filter_on_multiple_valid_states(
-        states: list[str | ReportedRunState],
+    states: list[str | ReportedRunState],
 ):
     """Check that a `StateFilter` on multiple valid run states works as expected."""
 
