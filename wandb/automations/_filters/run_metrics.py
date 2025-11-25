@@ -339,8 +339,17 @@ class MetricVal(BaseMetricOperand):
     def mean(self, window: int) -> MetricAgg:
         return self.avg(window=window)
 
-    def zscore(self, window: int) -> MetricZScoreFilter:
-        return MetricZScoreFilter(name=self.name, window=window)
+    def zscore(self, window: int) -> MetricZScore:
+        """Returns a z-score metric builder for fluent filter construction.
+
+        Use with comparison operators to create z-score filters:
+        - `metric.zscore(30) > 3` - detects z-score increases above 3 std devs
+        - `metric.zscore(30) < 3` - detects z-score decreases below -3 std devs
+        - `metric.zscore(30).abs() > 3` - detects abs z-score deviations above 3 std devs
+
+        Note: Threshold values are always treated as positive magnitudes.
+        """
+        return MetricZScore(name=self.name, window=window)
 
 
 class MetricAgg(BaseMetricOperand):
@@ -349,6 +358,81 @@ class MetricAgg(BaseMetricOperand):
     name: str
     agg: Annotated[Agg, Field(alias="agg_op")]
     window: Annotated[PositiveInt, Field(alias="window_size")]
+
+
+class MetricZScore(GQLBase, extra="forbid"):
+    """Helper class to build z-score metric filters with comparison operators.
+
+    This class enables fluent construction of z-score filters using Python's
+    comparison operators (>, <, >=, <=) and the abs() function.
+    """
+
+    name: str
+    """Name of the metric to monitor."""
+
+    window: PositiveInt
+    """Size of the window to calculate the metric mean and standard deviation over."""
+
+    is_absolute: bool = False
+    """Whether to check the absolute value of the z-score (ignoring direction)."""
+
+    def lt(self, value: int | float, /) -> MetricZScoreFilter:
+        """Returns a filter that watches for `zscore(metric) < -threshold`.
+
+        Args:
+            value: The z-score threshold value to compare against.
+                   The absolute value is used as the threshold.
+        """
+        return MetricZScoreFilter(
+            name=self.name,
+            window=self.window,
+            change_dir=ChangeDir.DECREASE,
+            threshold=abs(value),
+        )
+
+    def __lt__(self, value: int | float, /) -> MetricZScoreFilter:
+        return self.lt(value)
+
+    def __le__(self, value: int | float, /) -> MetricZScoreFilter:
+        return self.lt(value)
+
+    def gt(self, value: int | float, /) -> MetricZScoreFilter:
+        """Returns a filter that watches for `zscore(metric) > threshold`.
+
+        If `is_absolute` is True, watches for `abs(zscore(metric)) > threshold`.
+
+        Args:
+            value: The z-score threshold value to compare against.
+                   The absolute value is used as the threshold.
+        """
+        return MetricZScoreFilter(
+            name=self.name,
+            window=self.window,
+            change_dir=ChangeDir.ANY if self.is_absolute else ChangeDir.INCREASE,
+            threshold=abs(value),
+        )
+
+    def __gt__(self, value: int | float, /) -> MetricZScoreFilter:
+        return self.gt(value)
+
+    def __ge__(self, value: int | float, /) -> MetricZScoreFilter:
+        return self.gt(value)
+
+    def __abs__(self) -> MetricZScore:
+        """Returns a z-score filter that checks the absolute value.
+
+        This allows watching for z-score deviations in either direction.
+        Use with comparison operators: `abs(metric.zscore(window)) > threshold`.
+        """
+        return MetricZScore(name=self.name, window=self.window, is_absolute=True)
+
+    def abs(self) -> MetricZScore:
+        """Returns a z-score filter that checks the absolute value.
+
+        Alias for `__abs__()` that can be called as a method.
+        Allows using either `abs(zscore)` or `zscore.abs()`.
+        """
+        return self.__abs__()
 
 
 class MetricZScoreFilter(GQLBase, extra="forbid"):
@@ -363,9 +447,6 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
 
     change_dir: ChangeDir = ChangeDir.ANY
     """Direction of the z-score change to watch for."""
-
-    _change_dir_abs_set: bool = False
-    """Flag to track if the change_dir has been set to ABSOLUTE."""
 
     def __and__(self, other: Any) -> RunMetricFilter:
         """Returns `(metric_filter & run_filter)` as a `RunMetricFilter`."""
@@ -397,41 +478,3 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
         """Returns the `rich` pretty-print representation of the metric filter."""
         # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
         yield None, repr(self)
-
-    def gt(self, value: int | float, /) -> MetricZScoreFilter:
-        """Returns a filter that watches for `abs(zscore(metric_expr)) > threshold`."""
-        self.change_dir = (
-            self.change_dir if self._change_dir_abs_set else ChangeDir.INCREASE
-        )
-        if value < 0:
-            raise ValueError(f"Expected positive threshold, got: {value=}")
-        self.threshold = value
-        return self
-
-    def lt(self, value: int | float, /) -> MetricZScoreFilter:
-        """Returns a filter that watches for `abs(zscore(metric_expr)) < threshold`."""
-        self.change_dir = (
-            self.change_dir if self._change_dir_abs_set else ChangeDir.DECREASE
-        )
-        if value > 0:
-            raise ValueError(f"Expected negative threshold, got: {value=}")
-        self.threshold = abs(value)
-        return self
-
-    def abs(self) -> MetricZScoreFilter:
-        """Returns a filter that watches for `abs(zscore(metric_expr)) > threshold`."""
-        self.change_dir = ChangeDir.ANY
-        self._change_dir_abs_set = True
-        return self
-
-    def __gt__(self, other: Any) -> MetricZScoreFilter:
-        if isinstance(other, (int, float)):
-            return self.gt(other)
-        return NotImplemented
-
-    def __lt__(self, other: Any) -> MetricZScoreFilter:
-        if self._change_dir_abs_set:
-            raise ValueError("Cannot use < operator with abs()")
-        if isinstance(other, (int, float)):
-            return self.lt(other)
-        return NotImplemented

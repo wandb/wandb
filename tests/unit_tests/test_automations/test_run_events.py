@@ -348,19 +348,19 @@ def test_declarative_metric_zscore_filter_with_operators(
 ):
     """Check that the declarative syntax RunEvent.metric().zscore() > threshold works correctly."""
     # Create the base zscore filter
-    base_filter = RunEvent.metric(metric_name).zscore(window)
+    base_zscore = RunEvent.metric(metric_name).zscore(window)
 
     if use_abs:
-        base_filter = base_filter.abs()
+        base_zscore = base_zscore.abs()
 
     # Select threshold based on operator, not use_abs
     # > operator needs positive threshold, < operator needs negative threshold
     threshold = pos_threshold if operator == ">" else neg_threshold
 
     if operator == ">":
-        metric_filter = base_filter > threshold
+        metric_filter = base_zscore > threshold
     elif operator == "<":
-        metric_filter = base_filter < threshold
+        metric_filter = base_zscore < threshold
     else:
         raise ValueError(f"Unsupported operator: {operator}")
 
