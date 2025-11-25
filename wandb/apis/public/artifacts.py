@@ -284,7 +284,7 @@ class ArtifactCollections(
 
             type(self).QUERY = gql(PROJECT_ARTIFACT_COLLECTIONS_GQL)
 
-        self._conn_path = ("project", "artifactTypes", "artifactCollections")
+        self._conn_path = ("project", "artifactType", "artifactCollections")
 
         self.entity = entity
         self.project = project
