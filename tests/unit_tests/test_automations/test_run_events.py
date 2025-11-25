@@ -20,6 +20,7 @@ from wandb.automations.events import StateFilter
 
 from ._strategies import (
     aggs,
+    change_dirs,
     cmp_keys,
     ints_or_floats,
     metric_change_filters,
@@ -318,37 +319,31 @@ def test_metric_zscore_filter_requires_valid_change_dir(
         )
 
 
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+    threshold=pos_numbers,
+)
 @pytest.mark.parametrize(
-    "metric_name,window,operator,threshold,use_abs,expected_change_dir,should_raise",
+    "operator,use_abs,expected_change_dir",
     [
         # Test > operator (INCREASE direction)
-        ("loss", 10, ">", 2.5, False, ChangeDir.INCREASE, False),
-        ("accuracy", 5, ">", 3.0, False, ChangeDir.INCREASE, False),
-        ("f1_score", 20, ">", 1.5, False, ChangeDir.INCREASE, False),
-        ("loss", 10, ">", -2.5, False, ChangeDir.INCREASE, True),
+        (">", False, ChangeDir.INCREASE),
         # Test < operator (DECREASE direction)
-        ("loss", 10, "<", 2.5, False, ChangeDir.DECREASE, False),
-        ("accuracy", 5, "<", 3.0, False, ChangeDir.DECREASE, False),
-        ("precision", 15, "<", 2.0, False, ChangeDir.DECREASE, False),
-        ("loss", 10, "<", -2.5, False, ChangeDir.DECREASE, True),
+        ("<", False, ChangeDir.DECREASE),
         # Test > with .abs() - abs() is applied after, so ANY wins
-        ("loss", 10, ">", 2.5, True, ChangeDir.ANY, False),
-        ("accuracy", 5, ">", 3.0, True, ChangeDir.ANY, False),
-        ("recall", 15, ">", 1.8, True, ChangeDir.ANY, False),
+        (">", True, ChangeDir.ANY),
         # Test < with .abs() - abs() is applied after, so ANY wins
-        ("precision", 15, "<", 2.0, True, ChangeDir.ANY, False),
-        ("f1_score", 20, "<", 1.5, True, ChangeDir.ANY, False),
-        ("error_rate", 8, "<", 2.2, True, ChangeDir.ANY, False),
+        ("<", True, ChangeDir.ANY),
     ],
 )
 def test_declarative_metric_zscore_filter_with_operators(
     metric_name: str,
     window: int,
-    operator: str,
     threshold: float,
+    operator: str,
     use_abs: bool,
     expected_change_dir: ChangeDir,
-    should_raise: bool,
 ):
     """Check that the declarative syntax RunEvent.metric().zscore() > threshold works correctly."""
     # Create the base zscore filter
@@ -357,14 +352,7 @@ def test_declarative_metric_zscore_filter_with_operators(
     if use_abs:
         base_filter = base_filter.abs()
 
-    # Apply the operator and check for expected errors
-    if should_raise:
-        with raises(ValueError):
-            # Execute the operator dynamically based on the test parameter
-            _ = base_filter > threshold if operator == ">" else base_filter < threshold
-        return  # Test passes if error was raised as expected
-
-    # Normal path: apply operator and verify results
+    # Apply operator and verify results
     if operator == ">":
         metric_filter = base_filter > threshold
     elif operator == "<":
@@ -387,6 +375,39 @@ def test_declarative_metric_zscore_filter_with_operators(
         "change_dir": expected_change_dir.value,
     }
     assert metric_filter.model_dump() == expected_dict
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+    direction=change_dirs,
+    threshold=nonpos_numbers,
+)
+@pytest.mark.parametrize("operator", [">", "<"])
+def test_declarative_metric_zscore_filter_rejects_negative_threshold(
+    metric_name: str,
+    window: int,
+    direction: ChangeDir,
+    threshold: float,
+    operator: str,
+):
+    """Check that negative or zero thresholds are rejected for zscore filters."""
+    base_filter = RunEvent.metric(metric_name).zscore(window)
+
+    if direction == ChangeDir.ANY:
+        base_filter = base_filter.abs()
+    elif direction == ChangeDir.INCREASE:
+        base_filter = base_filter > threshold
+    elif direction == ChangeDir.DECREASE:
+        base_filter = base_filter < threshold
+    else:
+        raise ValueError(f"Unsupported direction: {direction}")
+
+    with raises(ValueError):
+        if operator == ">":
+            _ = base_filter > threshold
+        else:
+            _ = base_filter < threshold
 
 
 @given(states=lists(run_states, max_size=10))
