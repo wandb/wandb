@@ -2,6 +2,7 @@
 
 import pytest
 import wandb
+from wandb.sdk import wandb_require
 
 
 @pytest.fixture
@@ -11,7 +12,7 @@ def mock_require(mocker):
     def fn(require, func):
         cleanup.append(require)
         mocker.patch.object(
-            wandb.wandb_sdk.wandb_require._Requires,
+            wandb_require._Requires,
             "require_" + require,
             func,
             create=True,

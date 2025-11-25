@@ -13,8 +13,9 @@ import traceback
 from typing import Any, Callable, Dict, List, Optional
 
 import wandb
-from wandb import util, wandb_lib, wandb_sdk
-from wandb.sdk.lib import ipython
+from wandb import util
+from wandb.sdk import wandb_login
+from wandb.sdk.lib import config_util, ipython
 
 logger = logging.getLogger(__name__)
 
@@ -405,9 +406,7 @@ class Agent:
         base_dir = os.environ.get(wandb.env.DIR, "")
         sweep_param_path = os.path.join(base_dir, config_file)
         os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
-        wandb_lib.config_util.save_config_file_from_dict(
-            sweep_param_path, command["args"]
-        )
+        config_util.save_config_file_from_dict(sweep_param_path, command["args"])
 
         env = dict(os.environ)
 
@@ -593,7 +592,7 @@ def agent(
     _INSTANCES += 1
     try:
         # make sure we are logged in
-        wandb_sdk.wandb_login._login(_silent=True)
+        wandb_login._login(_silent=True)
         if function:
             return pyagent(sweep_id, function, entity, project, count)
         return run_agent(

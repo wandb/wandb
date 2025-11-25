@@ -47,8 +47,8 @@ Config = wandb_sdk.Config
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import CommError, UsageError
 
-_preinit = wandb.wandb_lib.preinit  # type: ignore
-_lazyloader = wandb.wandb_lib.lazyloader  # type: ignore
+from wandb.sdk.lib import preinit as _preinit
+from wandb.sdk.lib import lazyloader as _lazyloader
 
 from wandb.integration.torch import wandb_torch
 
