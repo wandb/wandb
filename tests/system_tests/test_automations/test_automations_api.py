@@ -14,6 +14,7 @@ from wandb.automations import (
     EventType,
     MetricChangeFilter,
     MetricThresholdFilter,
+    MetricZScoreFilter,
     OnLinkArtifact,
     OnRunMetric,
     OnRunState,
@@ -22,6 +23,7 @@ from wandb.automations import (
     SendWebhook,
     WebhookIntegration,
 )
+from wandb.automations._filters.run_metrics import ChangeDir
 from wandb.automations._filters.run_states import ReportedRunState, StateFilter
 from wandb.automations.actions import SavedNoOpAction, SavedWebhookAction
 from wandb.automations.events import RunMetricFilter, RunStateFilter
@@ -363,6 +365,66 @@ def test_create_automation_for_run_state_event(
         assert refetched.event.filter == expected_filter
 
 
+@mark.usefixtures(reset_automations.__name__)
+def test_create_automation_for_run_metric_zscore_event(
+    project,
+    webhook,
+    api: wandb.Api,
+    automation_name: str,
+):
+    """Check that creating an automation for the `RUN_METRIC_ZSCORE` event works, and the automation is saved with the expected filter."""
+    metric_name = "my-metric"
+    run_name = "my-run"
+    window = 5
+    threshold = 2.0
+
+    expected_filter = RunMetricFilter(
+        run={
+            "$and": [{"display_name": {"$contains": run_name}}],
+        },
+        metric=MetricZScoreFilter(
+            name=metric_name,
+            window=window,
+            threshold=threshold,
+            change_dir=ChangeDir.ANY,
+        ),
+    )
+
+    event = OnRunMetric(
+        scope=project,
+        filter=(
+            MetricZScoreFilter(
+                name=metric_name,
+                window=window,
+                threshold=threshold,
+                change_dir=ChangeDir.ANY,
+            )
+            & RunEvent.name.contains(run_name)
+        ),
+    )
+    action = SendWebhook.from_integration(webhook)
+
+    server_supports_event = api._supports_automation(event=event.event_type)
+
+    if not server_supports_event:
+        with raises(CommError):
+            api.create_automation(
+                (event >> action), name=automation_name, description="test description"
+            )
+    else:
+        # The server supports the event, so there should be an automation to check
+        created = api.create_automation(
+            (event >> action), name=automation_name, description="test description"
+        )
+        assert isinstance(created, Automation)
+        assert created.event.filter == expected_filter
+
+        # Refetch it to be sure
+        refetched = api.automation(name=automation_name)
+        assert isinstance(refetched, Automation)
+        assert refetched.event.filter == expected_filter
+
+
 @fixture
 def created_automation(
     api: wandb.Api, reset_automations, event, action, automation_name: str
@@ -559,6 +621,7 @@ class TestUpdateAutomation:
                 EventType.RUN_METRIC_THRESHOLD,
                 EventType.RUN_METRIC_CHANGE,
                 EventType.RUN_STATE,
+                EventType.RUN_METRIC_ZSCORE,
             }
         ),
         indirect=True,
@@ -587,6 +650,7 @@ class TestUpdateAutomation:
             EventType.RUN_METRIC_THRESHOLD,
             EventType.RUN_METRIC_CHANGE,
             EventType.RUN_STATE,
+            EventType.RUN_METRIC_ZSCORE,
         ],
         indirect=True,
     )

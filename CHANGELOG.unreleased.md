@@ -16,7 +16,13 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - The automations API now supports creating and editing automations that trigger on run states (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10848)
+- The automations API now support basic zscore automation events (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10931)
 - Regex support in metrics and run overview filters in W&B LEET TUI (@dmitryduev in https://github.com/wandb/wandb/pull/10919)
+
+### Changed
+
+- `wandb.Api()` now raises a `UsageError` if `WANDB_IDENTITY_TOKEN_FILE` is set and an explicit API key is not provided (@timoffex in https://app.graphite.com/github/pr/wandb/wandb/10970)
+  - `wandb.Api()` has only ever worked using an API key
 
 ### Deprecated
 
