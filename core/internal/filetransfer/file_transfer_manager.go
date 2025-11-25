@@ -2,7 +2,6 @@ package filetransfer
 
 import (
 	"errors"
-	"io"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -18,13 +17,7 @@ const (
 // FileTransferManager uploads and downloads files.
 type FileTransferManager interface {
 	// AddTask schedules a file upload or download operation.
-	// To download a file directly (blocking), use [DownloadTo].
 	AddTask(task Task)
-
-	// DownloadTo downloads a (small) file directly to a writer (e.g. in memory buffer).
-	// It is currently (only) used for downloading artifact manifest json file.
-	// It is a blocking call, not async like [AddTask].
-	DownloadTo(url string, dst io.Writer) error
 
 	// Close waits for all tasks to complete.
 	Close()
@@ -109,10 +102,6 @@ func (fm *fileTransferManager) Close() {
 
 	fm.wg.Wait()
 	fm.logger.Info("fileTransfer: Close: file transfer manager closed")
-}
-
-func (fm *fileTransferManager) DownloadTo(url string, dst io.Writer) error {
-	return fm.fileTransfers.Default.DownloadTo(url, dst)
 }
 
 // Uploads or downloads a file.

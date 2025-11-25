@@ -2,7 +2,6 @@
 package filetransfertest
 
 import (
-	"io"
 	"slices"
 	"sync"
 
@@ -16,10 +15,6 @@ type FakeFileTransferManager struct {
 
 	// Whether new tasks should be completed immediately.
 	ShouldCompleteImmediately bool
-
-	// DownloadToFunc is a custom function to handle DownloadTo calls.
-	// If nil, a default implementation returns an empty JSON object.
-	DownloadToFunc func(url string, dst io.Writer) error
 }
 
 func NewFakeFileTransferManager() *FakeFileTransferManager {
@@ -68,15 +63,4 @@ func (m *FakeFileTransferManager) AddTask(t filetransfer.Task) {
 	} else {
 		m.unfinishedTasks[t] = struct{}{}
 	}
-}
-
-func (m *FakeFileTransferManager) DownloadTo(url string, dst io.Writer) error {
-	if m.DownloadToFunc != nil {
-		return m.DownloadToFunc(url, dst)
-	}
-
-	// Default: return a minimal valid manifest JSON
-	defaultManifest := `{"version":1,"storagePolicy":"wandb-storage-policy-v1","storagePolicyConfig":{"storageLayout":"V2"},"contents":{}}`
-	_, err := dst.Write([]byte(defaultManifest))
-	return err
 }

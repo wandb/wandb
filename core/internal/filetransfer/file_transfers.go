@@ -1,8 +1,6 @@
 package filetransfer
 
 import (
-	"io"
-
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -14,7 +12,6 @@ type FileTransfer interface {
 
 	// Download downloads a file from the server
 	Download(task *DefaultDownloadTask) error
-	DownloadTo(url string, dst io.Writer) error
 }
 
 // ArtifactFileTransfer handles reference artifacts.
@@ -48,8 +45,11 @@ func NewFileTransfers(
 	fileTransferStats FileTransferStats,
 	extraHeaders map[string]string,
 ) *FileTransfers {
+	// Default transfer for presigned urls.
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats, extraHeaders)
-	// NOTE: Cloud specific handlers are reference artifacts so we do NOT pass the extra headers to them (for now)
+	// NOTE: Cloud specific handlers are for reference artifacts.
+	// We do NOT pass the extra headers through the vendor specific SDK for now.
+	// See https://docs.wandb.ai/models/artifacts/track-external-files
 	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
 	s3FileTransfer := NewS3FileTransfer(nil, logger, fileTransferStats)
 	azureFileTransfer := NewAzureFileTransfer(nil, logger, fileTransferStats)

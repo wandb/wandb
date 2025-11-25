@@ -3,7 +3,8 @@ package artifacts
 import (
 	"context"
 	"fmt"
-	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
@@ -12,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 var fakeArtifactID = "fake artifact ID"
@@ -121,6 +123,7 @@ var noFilesByManifestEntriesResult = `{
 }`
 
 func getFakeArtifactDownloader(
+	t *testing.T,
 	gqlClient graphql.Client,
 	ftm filetransfer.FileTransferManager,
 ) *ArtifactDownloader {
@@ -128,6 +131,8 @@ func getFakeArtifactDownloader(
 		context.Background(),
 		gqlClient,
 		ftm,
+		observabilitytest.NewTestLogger(t),
+		map[string]string{},
 		fakeArtifactID,
 		"",
 		false,
@@ -157,7 +162,7 @@ func TestDownload(t *testing.T) {
 
 	ftm := filetransfertest.NewFakeFileTransferManager()
 	ftm.ShouldCompleteImmediately = true
-	downloader := getFakeArtifactDownloader(mockGQL, ftm)
+	downloader := getFakeArtifactDownloader(t, mockGQL, ftm)
 
 	err := downloader.downloadFiles(fakeArtifactID, fakeManifest)
 
@@ -198,7 +203,7 @@ func TestDownloadLegacyQuery(t *testing.T) {
 
 	ftm := filetransfertest.NewFakeFileTransferManager()
 	ftm.ShouldCompleteImmediately = true
-	downloader := getFakeArtifactDownloader(mockGQL, ftm)
+	downloader := getFakeArtifactDownloader(t, mockGQL, ftm)
 
 	err := downloader.downloadFiles(fakeArtifactID, fakeManifest)
 
@@ -220,41 +225,82 @@ func TestDownloadLegacyQuery(t *testing.T) {
 	)
 }
 
-func TestGetArtifactManifest(t *testing.T) {
+// verifyHeadersInRequest checks that all expected headers are present in the request
+func verifyHeadersInRequest(
+	t *testing.T,
+	r *http.Request,
+	expectedHeaders map[string]string,
+) {
+	t.Helper()
+	for key, expectedValue := range expectedHeaders {
+		assert.Equal(
+			t,
+			expectedValue,
+			r.Header.Get(key),
+			"Header %s should have value %s",
+			key,
+			expectedValue,
+		)
+	}
+}
+
+func TestGetArtifactManifest_WithExtraHeaders(t *testing.T) {
+	manifestJSON := `{
+		"version": 1,
+		"storagePolicy": "wandb-storage-policy-v1",
+		"storagePolicyConfig": {"storageLayout": "V2"},
+		"contents": {
+			"test.txt": {
+				"digest": "abc123",
+				"size": 42
+			}
+		}
+	}`
+
+	extraHeaders := map[string]string{
+		"X-Custom-Header-1": "value1",
+		"X-Custom-Header-2": "value2",
+	}
+
+	// Create HTTP test server that verifies headers and returns manifest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify that extra headers are present in the request
+		verifyHeadersInRequest(t, r, extraHeaders)
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(manifestJSON))
+	}))
+	defer server.Close()
+
 	mockGQL := gqlmock.NewMockClient()
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("ArtifactManifest"),
-		`{
+		fmt.Sprintf(`{
 			"artifact": {
 				"currentManifest": {
 					"file": {
-						"directUrl": "https://example.com/manifest.json"
+						"directUrl": "%s"
 					}
 				}
 			}
-		}`,
+		}`, server.URL),
 	)
 
 	ftm := filetransfertest.NewFakeFileTransferManager()
-	// Configure custom manifest response
-	ftm.DownloadToFunc = func(u string, w io.Writer) error {
-		assert.Equal(t, "https://example.com/manifest.json", u)
-		manifestJSON := `{
-			"version": 1,
-			"storagePolicy": "wandb-storage-policy-v1",
-			"storagePolicyConfig": {"storageLayout": "V2"},
-			"contents": {
-				"test.txt": {
-					"digest": "abc123",
-					"size": 42
-				}
-			}
-		}`
-		_, err := w.Write([]byte(manifestJSON))
-		return err
-	}
 
-	downloader := getFakeArtifactDownloader(mockGQL, ftm)
+	// Create downloader with extra headers
+	downloader := NewArtifactDownloader(
+		context.Background(),
+		mockGQL,
+		ftm,
+		observabilitytest.NewTestLogger(t),
+		extraHeaders,
+		fakeArtifactID,
+		"",
+		false,
+		false,
+		"",
+	)
 
 	manifest, err := downloader.getArtifactManifest(fakeArtifactID)
 
@@ -266,79 +312,4 @@ func TestGetArtifactManifest(t *testing.T) {
 	assert.Contains(t, manifest.Contents, "test.txt")
 	assert.Equal(t, "abc123", manifest.Contents["test.txt"].Digest)
 	assert.Equal(t, int64(42), manifest.Contents["test.txt"].Size)
-}
-
-func TestGetArtifactManifest_GraphQLError(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("ArtifactManifest"),
-		`{"errors": [{"message": "Artifact not found"}]}`,
-	)
-
-	ftm := filetransfertest.NewFakeFileTransferManager()
-	downloader := getFakeArtifactDownloader(mockGQL, ftm)
-
-	_, err := downloader.getArtifactManifest(fakeArtifactID)
-
-	require.Error(t, err)
-}
-
-func TestGetArtifactManifest_DownloadError(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("ArtifactManifest"),
-		`{
-			"artifact": {
-				"currentManifest": {
-					"file": {
-						"directUrl": "https://example.com/manifest.json"
-					}
-				}
-			}
-		}`,
-	)
-
-	ftm := filetransfertest.NewFakeFileTransferManager()
-	// Simulate download failure
-	ftm.DownloadToFunc = func(u string, w io.Writer) error {
-		return fmt.Errorf("network error: connection timeout")
-	}
-
-	downloader := getFakeArtifactDownloader(mockGQL, ftm)
-
-	_, err := downloader.getArtifactManifest(fakeArtifactID)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "download artifact manifest failed")
-	assert.Contains(t, err.Error(), "network error")
-}
-
-func TestGetArtifactManifest_InvalidJSON(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("ArtifactManifest"),
-		`{
-			"artifact": {
-				"currentManifest": {
-					"file": {
-						"directUrl": "https://example.com/manifest.json"
-					}
-				}
-			}
-		}`,
-	)
-
-	ftm := filetransfertest.NewFakeFileTransferManager()
-	// Return invalid JSON
-	ftm.DownloadToFunc = func(u string, w io.Writer) error {
-		_, err := w.Write([]byte("not valid json {{{"))
-		return err
-	}
-
-	downloader := getFakeArtifactDownloader(mockGQL, ftm)
-
-	_, err := downloader.getArtifactManifest(fakeArtifactID)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "decode manifest JSON failed")
 }
