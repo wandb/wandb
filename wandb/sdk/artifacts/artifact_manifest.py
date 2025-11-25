@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict
+from typing import Any, Dict
 
 from pydantic import Field
 from typing_extensions import Annotated
@@ -11,10 +11,8 @@ from typing_extensions import Annotated
 from wandb.sdk.lib.hashutil import HexMD5
 
 from ._models.base_model import ArtifactsBase
-
-if TYPE_CHECKING:
-    from .artifact_manifest_entry import ArtifactManifestEntry
-    from .storage_policy import StoragePolicy
+from .artifact_manifest_entry import ArtifactManifestEntry
+from .storage_policy import StoragePolicy
 
 
 class ArtifactManifest(ArtifactsBase, ABC):
