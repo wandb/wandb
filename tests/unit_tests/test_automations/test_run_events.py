@@ -392,14 +392,14 @@ def test_declarative_metric_zscore_filter_rejects_negative_threshold(
     negative_threshold: float,
 ):
     """Check that negative or zero thresholds are rejected for zscore > and abs(>) operators."""
-    base_filter = RunEvent.metric(metric_name).zscore(window)
+    zscore_filter = RunEvent.metric(metric_name).zscore(window)
 
     with raises(ValueError):
-        _ = base_filter > negative_threshold
+        _ = zscore_filter > negative_threshold
     with raises(ValueError):
-        _ = base_filter.abs() > negative_threshold
+        _ = zscore_filter.abs() > negative_threshold
     with raises(ValueError):
-        _ = base_filter.abs() < negative_threshold
+        _ = zscore_filter.abs() < negative_threshold
 
 
 @given(
@@ -413,10 +413,10 @@ def test_declarative_metric_zscore_filter_lt_rejects_positive_threshold(
     threshold: float,
 ):
     """Check that positive thresholds are rejected for zscore < operator."""
-    base_filter = RunEvent.metric(metric_name).zscore(window)
+    zscore_filter = RunEvent.metric(metric_name).zscore(window)
 
     with raises(ValueError):
-        _ = base_filter < threshold
+        _ = zscore_filter < threshold
 
 
 @given(states=lists(run_states, max_size=10))

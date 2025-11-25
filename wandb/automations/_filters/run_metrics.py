@@ -383,6 +383,12 @@ class MetricZScore(GQLBase, extra="forbid"):
             value: The z-score threshold value to compare against.
                    The absolute value is used as the threshold.
         """
+        if self.is_absolute:
+            raise ValueError("Cannot use absolute z-score with < operator")
+
+        if value >= 0:
+            raise ValueError("Negative z-score threshold required")
+
         return MetricZScoreFilter(
             name=self.name,
             window=self.window,
@@ -405,6 +411,9 @@ class MetricZScore(GQLBase, extra="forbid"):
             value: The z-score threshold value to compare against.
                    The absolute value is used as the threshold.
         """
+        if value <= 0:
+            raise ValueError(f"Expected positive threshold, got: {value=}")
+
         return MetricZScoreFilter(
             name=self.name,
             window=self.window,
