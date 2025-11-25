@@ -70,6 +70,9 @@ CRD_STATE_DICT: Dict[str, State] = {
 
 _logger = logging.getLogger(__name__)
 
+WATCH_STREAM_TIMEOUT_SECONDS = 300
+WATCH_STREAM_REQUEST_TIMEOUT_SECONDS = 60
+
 
 def create_named_task(name: str, coro: Any, *args: Any, **kwargs: Any) -> asyncio.Task:
     """Create a named task."""
@@ -337,7 +340,7 @@ class LaunchKubernetesMonitor:
 
     async def _monitor_pods(self, namespace: str) -> None:
         """Monitor a namespace for changes."""
-        watcher = SafeWatch(watch.Watch())
+        watcher = SafeWatch(watch.Watch(), resource_name=Resources.PODS)
         async for event in watcher.stream(
             self._core_api.list_namespaced_pod,
             namespace=namespace,
@@ -360,7 +363,7 @@ class LaunchKubernetesMonitor:
 
     async def _monitor_jobs(self, namespace: str) -> None:
         """Monitor a namespace for changes."""
-        watcher = SafeWatch(watch.Watch())
+        watcher = SafeWatch(watch.Watch(), resource_name=Resources.JOBS)
         async for event in watcher.stream(
             self._batch_api.list_namespaced_job,
             namespace=namespace,
@@ -384,7 +387,9 @@ class LaunchKubernetesMonitor:
         self, namespace: str, custom_resource: CustomResource
     ) -> None:
         """Monitor a namespace for changes."""
-        watcher = SafeWatch(watch.Watch())
+        watcher = SafeWatch(
+            watch.Watch(), resource_name=f"crd:{custom_resource.plural}"
+        )
         async for event in watcher.stream(
             self._custom_api.list_namespaced_custom_object,
             namespace=namespace,
@@ -425,11 +430,12 @@ class LaunchKubernetesMonitor:
 class SafeWatch:
     """Wrapper for the kubernetes watch class that can recover in more situations."""
 
-    def __init__(self, watcher: watch.Watch) -> None:
+    def __init__(self, watcher: watch.Watch, resource_name: str) -> None:
         """Initialize the SafeWatch."""
         self._watcher = watcher
         self._last_seen_resource_version: Optional[str] = None
         self._stopped = False
+        self._resource_name = resource_name
 
     async def stream(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         """Stream the watcher.
@@ -441,7 +447,11 @@ class SafeWatch:
         while True:
             try:
                 async for event in self._watcher.stream(
-                    func, *args, **kwargs, timeout_seconds=30
+                    func,
+                    *args,
+                    **kwargs,
+                    timeout_seconds=WATCH_STREAM_TIMEOUT_SECONDS,
+                    _request_timeout=WATCH_STREAM_REQUEST_TIMEOUT_SECONDS,
                 ):
                     if self._stopped:
                         break
@@ -461,6 +471,10 @@ class SafeWatch:
                 # If stream ends after stop just break
                 if self._stopped:
                     break
+            except urllib3.exceptions.ReadTimeoutError as e:
+                wandb.termwarn(
+                    f"Watch stream timed out (client-side _request_timeout): {e}. Reconnecting"
+                )
             except urllib3.exceptions.ProtocolError as e:
                 wandb.termwarn(f"Broken event stream: {e}, attempting to recover")
             except ApiException as e:
@@ -468,6 +482,14 @@ class SafeWatch:
                     # If resource version is too old we need to start over.
                     del kwargs["resource_version"]
                     self._last_seen_resource_version = None
+            except asyncio.TimeoutError as e:
+                details = f" ({e})" if str(e) else ""
+                wandb.termlog(
+                    f"Watch stream for {self._resource_name} hit expected client-side timeout (~{WATCH_STREAM_REQUEST_TIMEOUT_SECONDS}s){details}; reconnecting"
+                )
+            except asyncio.CancelledError:
+                # Propagate cancellation so upstream tasks can shut down cleanly.
+                raise
             except Exception as E:
                 exc_type = type(E).__name__
                 stack_trace = traceback.format_exc()
