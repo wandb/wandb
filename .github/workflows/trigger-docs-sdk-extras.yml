@@ -1,0 +1,27 @@
+name: Trigger Docs SDK Extras Update
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pyproject.toml'
+
+jobs:
+  trigger-docs-update:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Trigger docs repository workflow
+      run: |
+        echo "🔔 Triggering SDK extras update in docs repository..."
+        curl -X POST \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Authorization: token ${{ secrets.DOCS_REPO_DISPATCH_TOKEN }}" \
+          https://api.github.com/repos/wandb/docs/dispatches \
+          -d '{"event_type":"pyproject-updated"}'
+        echo "✅ Repository dispatch event sent successfully"
+
+    - name: Display notification
+      run: |
+        echo "::notice title=Docs Update Triggered::SDK extras documentation update has been triggered in the docs repository"
