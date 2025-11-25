@@ -20,6 +20,10 @@ from wandb.sdk.lib.deprecation import UNSET, DoNotSet
 from ..apis import InternalApi
 
 
+class OidcError(Exception):
+    """OIDC is configured but not allowed."""
+
+
 def _handle_host_wandb_setting(host: str | None, cloud: bool = False) -> None:
     """Write the host parameter to the global settings file.
 
@@ -283,6 +287,7 @@ def _login(
     verify: bool = False,
     referrer: str = "models",
     update_api_key: bool = True,
+    no_oidc: bool = False,
     _silent: bool | None = None,
 ) -> tuple[bool, str | None]:
     """Logs in to W&B.
@@ -294,6 +299,8 @@ def _login(
     Args:
         update_api_key: If true, the api key will be saved or updated
             in the users .netrc file.
+        no_oidc: If true, raise an OidcError instead of returning early if OIDC
+            credentials are configured.
         _silent: If true, will not print any messages to the console.
 
     Returns:
@@ -318,6 +325,9 @@ def _login(
         return False, None
 
     if wlogin._settings.identity_token_file:
+        if no_oidc:
+            raise OidcError
+
         return True, None
 
     if key:
