@@ -15,7 +15,6 @@ from typing import (
     ClassVar,
     Collection,
     Iterable,
-    Iterator,
     List,
     Literal,
     Mapping,
@@ -46,7 +45,7 @@ if TYPE_CHECKING:
     from wandb_gql import Client
     from wandb_graphql.language.ast import Document
 
-    from wandb.automations import ExecutedAutomation
+    from wandb.apis.public import ExecutedAutomations
     from wandb.sdk.artifacts._generated import (
         ArtifactAliasFragment,
         ArtifactCollectionFragment,
@@ -676,11 +675,9 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
     @normalize_exceptions
-    def automation_history(
-        self, per_page: PositiveInt = 50
-    ) -> Iterator[ExecutedAutomation]:
+    def automation_history(self, per_page: PositiveInt = 50) -> ExecutedAutomations:
         """Return a paginated collection of automations in this project."""
-        from wandb.apis.public.automations import ExecutedAutomations
+        from wandb.apis.public import ExecutedAutomations
         from wandb.automations._generated import GET_COLLECTION_AUTOMATION_HISTORY_GQL
 
         return ExecutedAutomations(

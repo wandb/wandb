@@ -54,7 +54,7 @@ class Automation(TriggerFields, frozen=False):
     def history(self, per_page: PositiveInt = 50) -> ExecutedAutomations:
         from wandb_gql import gql
 
-        from wandb.apis.public Api, ExecutedAutomations
+        from wandb.apis.public import Api, ExecutedAutomations
         from wandb.automations._generated import GET_AUTOMATION_HISTORY_GQL
 
         # FIXME: there needs to be a default client session (like other python libraries do)
