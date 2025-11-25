@@ -28,6 +28,12 @@ fragment ArtifactSequenceScopeFields on ArtifactSequence {
   name
 }
 
+fragment AnyTriggerScopeFields on TriggerScope {
+  ...ProjectScopeFields
+  ...ArtifactPortfolioScopeFields
+  ...ArtifactSequenceScopeFields
+}
+
 # ------------------------------------------------------------------------------
 fragment FilterEventFields on FilterEventTriggeringCondition {
   __typename
@@ -81,9 +87,7 @@ fragment TriggerFields on Trigger {
   enabled
 
   scope {
-    ...ProjectScopeFields
-    ...ArtifactPortfolioScopeFields
-    ...ArtifactSequenceScopeFields
+    ...AnyTriggerScopeFields
   }
   event: triggeringCondition {
     ...FilterEventFields

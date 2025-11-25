@@ -6,8 +6,14 @@ __all__ = [
     "DELETE_AUTOMATION_GQL",
     "GET_AUTOMATIONS_BY_ENTITY_GQL",
     "GET_AUTOMATIONS_GQL",
+    "GET_AUTOMATION_HISTORY_GQL",
+    "GET_COLLECTION_AUTOMATION_HISTORY_GQL",
+    "GET_PROJECT_AUTOMATION_HISTORY_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
     "UPDATE_AUTOMATION_GQL",
+    "GetAutomationHistory",
+    "GetProjectAutomationHistory",
+    "GetCollectionAutomationHistory",
     "GetAutomations",
     "GetAutomationsByEntity",
     "CreateAutomation",
@@ -34,10 +40,13 @@ __all__ = [
     "ProjectTriggersFields",
     "QueueJobActionFields",
     "SlackIntegrationFields",
+    "TriggerExecutionFields",
     "TriggerFields",
     "WebhookIntegrationFields",
     "AlertSeverity",
     "EventTriggeringConditionType",
+    "TriggerExecutionState",
+    "TriggerResultType",
     "TriggerScopeType",
     "TriggeredActionType",
 ]
@@ -48,6 +57,8 @@ from .enums import (
     AlertSeverity,
     EventTriggeringConditionType,
     TriggeredActionType,
+    TriggerExecutionState,
+    TriggerResultType,
     TriggerScopeType,
 )
 from .fragments import (
@@ -62,11 +73,15 @@ from .fragments import (
     ProjectTriggersFields,
     QueueJobActionFields,
     SlackIntegrationFields,
+    TriggerExecutionFields,
     TriggerFields,
     WebhookIntegrationFields,
 )
+from .get_automation_history import GetAutomationHistory
 from .get_automations import GetAutomations
 from .get_automations_by_entity import GetAutomationsByEntity
+from .get_collection_automation_history import GetCollectionAutomationHistory
+from .get_project_automation_history import GetProjectAutomationHistory
 from .input_types import (
     CreateFilterTriggerInput,
     CreateGenericWebhookIntegrationInput,
@@ -82,8 +97,11 @@ from .operations import (
     CREATE_AUTOMATION_GQL,
     CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
     DELETE_AUTOMATION_GQL,
+    GET_AUTOMATION_HISTORY_GQL,
     GET_AUTOMATIONS_BY_ENTITY_GQL,
     GET_AUTOMATIONS_GQL,
+    GET_COLLECTION_AUTOMATION_HISTORY_GQL,
+    GET_PROJECT_AUTOMATION_HISTORY_GQL,
     INTEGRATIONS_BY_ENTITY_GQL,
     UPDATE_AUTOMATION_GQL,
 )

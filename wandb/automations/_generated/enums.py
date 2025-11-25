@@ -34,3 +34,15 @@ class TriggeredActionType(str, Enum):
     NOTIFICATION = "NOTIFICATION"
     GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
     NO_OP = "NO_OP"
+
+
+class TriggerExecutionState(str, Enum):
+    PENDING = "PENDING"
+    FINISHED = "FINISHED"
+    FAILED = "FAILED"
+
+
+class TriggerResultType(str, Enum):
+    DEFAULT = "DEFAULT"
+    HTTP_RESPONSE = "HTTP_RESPONSE"
+    QUEUE_JOB = "QUEUE_JOB"

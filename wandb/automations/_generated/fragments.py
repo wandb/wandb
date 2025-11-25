@@ -7,11 +7,17 @@ from datetime import datetime
 from typing import List, Optional, Union
 
 from pydantic import Field
-from typing_extensions import Literal
+from typing_extensions import Annotated, Any, Literal
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
-from .enums import AlertSeverity, EventTriggeringConditionType
+from .enums import (
+    AlertSeverity,
+    EventTriggeringConditionType,
+    TriggeredActionType,
+    TriggerExecutionState,
+    TriggerResultType,
+)
 
 
 class ArtifactPortfolioScopeFields(GQLResult):
@@ -136,6 +142,176 @@ class ProjectTriggersFields(GQLResult):
     triggers: List[TriggerFields]
 
 
+class TriggerExecutionFields(GQLResult):
+    typename__: Typename[Literal["TriggerExecution"]] = "TriggerExecution"
+    id: GQLId
+    automation_id: Optional[GQLId] = Field(alias="automationID")
+    automation_name: str = Field(alias="automationName")
+    triggered_at: datetime = Field(alias="triggeredAt")
+    state: TriggerExecutionState
+    scope: Optional[
+        Annotated[
+            Union[
+                ProjectScopeFields,
+                ArtifactSequenceScopeFields,
+                ArtifactPortfolioScopeFields,
+            ],
+            Field(discriminator="typename__"),
+        ]
+    ]
+    event: Optional[TriggerExecutionFieldsEvent]
+    action: Optional[TriggerExecutionFieldsAction]
+    result: Optional[TriggerExecutionFieldsResult]
+
+
+class TriggerExecutionFieldsEvent(GQLResult):
+    event_type: EventTriggeringConditionType = Field(alias="eventType")
+    data: Optional[
+        Annotated[
+            Union[
+                TriggerExecutionFieldsEventDataArtifactEventDetails,
+                TriggerExecutionFieldsEventDataArtifactAliasEventDetails,
+                TriggerExecutionFieldsEventDataArtifactTagEventDetails,
+                TriggerExecutionFieldsEventDataRunMetricEventDetails,
+                TriggerExecutionFieldsEventDataRunStateEventDetails,
+            ],
+            Field(discriminator="typename__"),
+        ]
+    ]
+
+
+class TriggerExecutionFieldsEventDataArtifactEventDetails(GQLResult):
+    typename__: Typename[Literal["ArtifactEventDetails"]]
+    artifact_metadata: Optional[str] = Field(alias="artifactMetadata")
+    artifact_version_index: Optional[int] = Field(alias="artifactVersionIndex")
+    artifact_collection_name: Optional[str] = Field(alias="artifactCollectionName")
+    project_name: Optional[str] = Field(alias="projectName")
+    entity_name: Optional[str] = Field(alias="entityName")
+
+
+class TriggerExecutionFieldsEventDataArtifactAliasEventDetails(GQLResult):
+    typename__: Typename[Literal["ArtifactAliasEventDetails"]]
+    artifact_metadata: Optional[str] = Field(alias="artifactMetadata")
+    artifact_version_index: Optional[int] = Field(alias="artifactVersionIndex")
+    artifact_collection_name: Optional[str] = Field(alias="artifactCollectionName")
+    project_name: Optional[str] = Field(alias="projectName")
+    entity_name: Optional[str] = Field(alias="entityName")
+    alias: Optional[str]
+
+
+class TriggerExecutionFieldsEventDataArtifactTagEventDetails(GQLResult):
+    typename__: Typename[Literal["ArtifactTagEventDetails"]]
+    artifact_metadata: Optional[str] = Field(alias="artifactMetadata")
+    artifact_version_index: Optional[int] = Field(alias="artifactVersionIndex")
+    artifact_collection_name: Optional[str] = Field(alias="artifactCollectionName")
+    project_name: Optional[str] = Field(alias="projectName")
+    entity_name: Optional[str] = Field(alias="entityName")
+    tag: Optional[str]
+
+
+class TriggerExecutionFieldsEventDataRunMetricEventDetails(GQLResult):
+    typename__: Typename[Literal["RunMetricEventDetails"]]
+    run_name: Optional[str] = Field(alias="runName")
+    project_name: Optional[str] = Field(alias="projectName")
+    entity_name: Optional[str] = Field(alias="entityName")
+    metric_name: Optional[str] = Field(alias="metricName")
+    metric_values: Optional[List[float]] = Field(alias="metricValues")
+
+
+class TriggerExecutionFieldsEventDataRunStateEventDetails(GQLResult):
+    typename__: Typename[Literal["RunStateEventDetails"]]
+    run_name: Optional[str] = Field(alias="runName")
+    project_name: Optional[str] = Field(alias="projectName")
+    entity_name: Optional[str] = Field(alias="entityName")
+    new_run_state: Optional[str] = Field(alias="newRunState")
+
+
+class TriggerExecutionFieldsAction(GQLResult):
+    action_type: TriggeredActionType = Field(alias="actionType")
+    data: Optional[
+        Annotated[
+            Union[
+                TriggerExecutionFieldsActionDataQueueJobActionArgs,
+                TriggerExecutionFieldsActionDataSlackNotificationActionArgs,
+                TriggerExecutionFieldsActionDataGenericWebhookActionArgs,
+                TriggerExecutionFieldsActionDataNoOpActionArgs,
+            ],
+            Field(discriminator="typename__"),
+        ]
+    ]
+
+
+class TriggerExecutionFieldsActionDataQueueJobActionArgs(GQLResult):
+    typename__: Typename[Literal["QueueJobActionArgs"]]
+    run_spec: Optional[Any] = Field(alias="runSpec")
+    priority: Optional[int]
+
+
+class TriggerExecutionFieldsActionDataSlackNotificationActionArgs(GQLResult):
+    typename__: Typename[Literal["SlackNotificationActionArgs"]]
+    integration: Optional[SlackIntegrationFields]
+    title: Optional[str]
+    text: Optional[str]
+    severity: Optional[AlertSeverity]
+    title_url: Optional[str] = Field(alias="titleURL")
+
+
+class TriggerExecutionFieldsActionDataGenericWebhookActionArgs(GQLResult):
+    typename__: Typename[Literal["GenericWebhookActionArgs"]]
+    integration: Optional[WebhookIntegrationFields]
+    request_payload: Optional[str] = Field(alias="requestPayload")
+
+
+class TriggerExecutionFieldsActionDataNoOpActionArgs(GQLResult):
+    typename__: Typename[Literal["NoOpActionArgs"]]
+    no_op: Optional[bool] = Field(alias="noOp")
+
+
+class TriggerExecutionFieldsResult(GQLResult):
+    result_type: TriggerResultType = Field(alias="resultType")
+    data: Optional[
+        Annotated[
+            Union[
+                TriggerExecutionFieldsResultDataDefaultTriggerResultDetails,
+                TriggerExecutionFieldsResultDataHttpTriggerResultDetails,
+                TriggerExecutionFieldsResultDataQueuedJobTriggerResultDetails,
+            ],
+            Field(discriminator="typename__"),
+        ]
+    ]
+
+
+class TriggerExecutionFieldsResultDataDefaultTriggerResultDetails(GQLResult):
+    typename__: Typename[Literal["DefaultTriggerResultDetails"]]
+    error: Optional[TriggerExecutionFieldsResultDataDefaultTriggerResultDetailsError]
+
+
+class TriggerExecutionFieldsResultDataDefaultTriggerResultDetailsError(GQLResult):
+    message: str
+
+
+class TriggerExecutionFieldsResultDataHttpTriggerResultDetails(GQLResult):
+    typename__: Typename[Literal["HttpTriggerResultDetails"]]
+    error: Optional[TriggerExecutionFieldsResultDataHttpTriggerResultDetailsError]
+    status: Optional[str]
+    status_code: Optional[int] = Field(alias="statusCode")
+    body: Optional[str]
+
+
+class TriggerExecutionFieldsResultDataHttpTriggerResultDetailsError(GQLResult):
+    message: str
+
+
+class TriggerExecutionFieldsResultDataQueuedJobTriggerResultDetails(GQLResult):
+    typename__: Typename[Literal["QueuedJobTriggerResultDetails"]]
+    error: Optional[TriggerExecutionFieldsResultDataQueuedJobTriggerResultDetailsError]
+    run_queue_item_id: Optional[GQLId] = Field(alias="runQueueItemID")
+
+
+class TriggerExecutionFieldsResultDataQueuedJobTriggerResultDetailsError(GQLResult):
+    message: str
+
+
 ArtifactPortfolioScopeFields.model_rebuild()
 ArtifactSequenceScopeFields.model_rebuild()
 FilterEventFields.model_rebuild()
@@ -149,3 +325,4 @@ ProjectScopeFields.model_rebuild()
 QueueJobActionFields.model_rebuild()
 TriggerFields.model_rebuild()
 ProjectTriggersFields.model_rebuild()
+TriggerExecutionFields.model_rebuild()
