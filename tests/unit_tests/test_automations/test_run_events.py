@@ -20,7 +20,6 @@ from wandb.automations.events import StateFilter
 
 from ._strategies import (
     aggs,
-    change_dirs,
     cmp_keys,
     ints_or_floats,
     metric_change_filters,
@@ -380,34 +379,27 @@ def test_declarative_metric_zscore_filter_with_operators(
 @given(
     metric_name=metric_names,
     window=window_sizes,
-    direction=change_dirs,
     threshold=nonpos_numbers,
 )
-@pytest.mark.parametrize("operator", [">", "<", "abs"])
+@pytest.mark.parametrize("operator", [">", "<", "abs(>)", "abs(<)"])
 def test_declarative_metric_zscore_filter_rejects_negative_threshold(
     metric_name: str,
     window: int,
-    direction: ChangeDir,
     threshold: float,
     operator: str,
 ):
     """Check that negative or zero thresholds are rejected for zscore filters."""
     base_filter = RunEvent.metric(metric_name).zscore(window)
 
-    if direction == ChangeDir.ANY:
-        base_filter = base_filter.abs()
-    elif direction == ChangeDir.INCREASE:
-        base_filter = base_filter > threshold
-    elif direction == ChangeDir.DECREASE:
-        base_filter = base_filter < threshold
-
     with raises(ValueError):
         if operator == ">":
             _ = base_filter > threshold
         elif operator == "<":
             _ = base_filter < threshold
-        elif operator == "abs":
-            _ = base_filter.abs()
+        elif operator == "abs(>)":
+            _ = base_filter.abs() > threshold
+        elif operator == "abs(<)":
+            _ = base_filter.abs() < threshold
 
 
 @given(states=lists(run_states, max_size=10))
