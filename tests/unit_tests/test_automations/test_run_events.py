@@ -383,7 +383,7 @@ def test_declarative_metric_zscore_filter_with_operators(
     direction=change_dirs,
     threshold=nonpos_numbers,
 )
-@pytest.mark.parametrize("operator", [">", "<"])
+@pytest.mark.parametrize("operator", [">", "<", "abs"])
 def test_declarative_metric_zscore_filter_rejects_negative_threshold(
     metric_name: str,
     window: int,
@@ -400,14 +400,14 @@ def test_declarative_metric_zscore_filter_rejects_negative_threshold(
         base_filter = base_filter > threshold
     elif direction == ChangeDir.DECREASE:
         base_filter = base_filter < threshold
-    else:
-        raise ValueError(f"Unsupported direction: {direction}")
 
     with raises(ValueError):
         if operator == ">":
             _ = base_filter > threshold
-        else:
+        elif operator == "<":
             _ = base_filter < threshold
+        elif operator == "abs":
+            _ = base_filter.abs()
 
 
 @given(states=lists(run_states, max_size=10))
