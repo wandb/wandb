@@ -347,7 +347,9 @@ class MetricVal(BaseMetricOperand):
         - `metric.zscore(30) < 3` - detects z-score decreases below -3 std devs
         - `metric.zscore(30).abs() > 3` - detects abs z-score deviations above 3 std devs
 
-        Note: Threshold values are always treated as positive magnitudes.
+        Note:
+        - Threshold values are always treated as positive magnitudes.
+        - The `>=` operator behaves the same as `>`, and `<=` behaves the same as `<`.
         """
         return MetricZScore(name=self.name, window=window)
 
@@ -365,6 +367,9 @@ class MetricZScore(GQLBase, extra="forbid"):
 
     This class enables fluent construction of z-score filters using Python's
     comparison operators (>, <, >=, <=) and the abs() function.
+
+    Note: The `>=` operator behaves identically to `>`, and `<=` behaves
+    identically to `<`, as z-score filters use continuous thresholds.
     """
 
     name: str
@@ -400,6 +405,11 @@ class MetricZScore(GQLBase, extra="forbid"):
         return self.lt(value)
 
     def __le__(self, value: int | float, /) -> MetricZScoreFilter:
+        """Alias for `<` operator - behaves identically to `__lt__`.
+
+        Returns a filter that watches for `zscore(metric) < -threshold`.
+        Note: `<=` and `<` are treated as equivalent for z-score filters.
+        """
         return self.lt(value)
 
     def gt(self, value: int | float, /) -> MetricZScoreFilter:
@@ -425,6 +435,12 @@ class MetricZScore(GQLBase, extra="forbid"):
         return self.gt(value)
 
     def __ge__(self, value: int | float, /) -> MetricZScoreFilter:
+        """Alias for `>` operator - behaves identically to `__gt__`.
+
+        Returns a filter that watches for `zscore(metric) > threshold`.
+        If `is_absolute` is True, watches for `abs(zscore(metric)) > threshold`.
+        Note: `>=` and `>` are treated as equivalent for z-score filters.
+        """
         return self.gt(value)
 
     def __abs__(self) -> MetricZScore:
