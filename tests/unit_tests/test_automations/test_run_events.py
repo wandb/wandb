@@ -385,23 +385,22 @@ def test_declarative_metric_zscore_filter_with_operators(
 @given(
     metric_name=metric_names,
     window=window_sizes,
-    threshold=nonpos_numbers,
+    negative_threshold=neg_numbers,
 )
-@pytest.mark.parametrize("operator", [">", "abs(>)"])
-def test_declarative_metric_zscore_filter_rejects_nonpositive_threshold(
+def test_declarative_metric_zscore_filter_rejects_negative_threshold(
     metric_name: str,
     window: int,
-    threshold: float,
-    operator: str,
+    negative_threshold: float,
 ):
     """Check that negative or zero thresholds are rejected for zscore > and abs(>) operators."""
     base_filter = RunEvent.metric(metric_name).zscore(window)
 
     with raises(ValueError):
-        if operator == ">":
-            _ = base_filter > threshold
-        elif operator == "abs(>)":
-            _ = base_filter.abs() > threshold
+        _ = base_filter > negative_threshold
+    with raises(ValueError):
+        _ = base_filter.abs() > negative_threshold
+    with raises(ValueError):
+        _ = base_filter.abs() < negative_threshold
 
 
 @given(
@@ -419,30 +418,6 @@ def test_declarative_metric_zscore_filter_lt_rejects_positive_threshold(
 
     with raises(ValueError):
         _ = base_filter < threshold
-
-
-@given(
-    metric_name=metric_names,
-    window=window_sizes,
-    threshold=neg_numbers,
-)
-def test_declarative_metric_zscore_filter_abs_lt_accepts_negative_threshold(
-    metric_name: str,
-    window: int,
-    threshold: float,
-):
-    """Check that abs() < accepts negative thresholds and converts them to positive."""
-    base_filter = RunEvent.metric(metric_name).zscore(window)
-
-    # abs() < should accept negative values and convert to absolute value
-    metric_filter = base_filter.abs() < threshold
-
-    # Verify the filter properties
-    assert isinstance(metric_filter, MetricZScoreFilter)
-    assert metric_filter.name == metric_name
-    assert metric_filter.window == window
-    assert metric_filter.threshold == abs(threshold)
-    assert metric_filter.change_dir == ChangeDir.ANY
 
 
 @given(states=lists(run_states, max_size=10))

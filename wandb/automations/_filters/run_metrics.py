@@ -430,6 +430,8 @@ class MetricZScoreFilter(GQLBase, extra="forbid"):
         return NotImplemented
 
     def __lt__(self, other: Any) -> MetricZScoreFilter:
+        if self.change_dir is ChangeDir.ANY:
+            raise ValueError("Cannot use < operator with abs()")
         if isinstance(other, (int, float)):
             return self.lt(other)
         return NotImplemented
