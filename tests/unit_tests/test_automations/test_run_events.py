@@ -334,8 +334,7 @@ def test_metric_zscore_filter_requires_valid_change_dir(
         ("<", False, ChangeDir.DECREASE),
         # Test > with .abs() - abs() is applied after, so ANY wins
         (">", True, ChangeDir.ANY),
-        # Test < with .abs() - abs() is applied after, so ANY wins
-        ("<", True, ChangeDir.ANY),
+        # Note: < with .abs() is not allowed (raises ValueError)
     ],
 )
 def test_declarative_metric_zscore_filter_with_operators(
