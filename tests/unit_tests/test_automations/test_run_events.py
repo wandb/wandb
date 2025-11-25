@@ -424,17 +424,17 @@ def test_declarative_metric_zscore_filter_lt_rejects_positive_threshold(
 @given(
     metric_name=metric_names,
     window=window_sizes,
-    threshold=nonpos_numbers,
+    threshold=neg_numbers,
 )
-def test_declarative_metric_zscore_filter_abs_lt_accepts_nonpositive_threshold(
+def test_declarative_metric_zscore_filter_abs_lt_accepts_negative_threshold(
     metric_name: str,
     window: int,
     threshold: float,
 ):
-    """Check that abs() < accepts non-positive thresholds and converts them to positive."""
+    """Check that abs() < accepts negative thresholds and converts them to positive."""
     base_filter = RunEvent.metric(metric_name).zscore(window)
 
-    # abs() < should accept non-positive values and convert to absolute value
+    # abs() < should accept negative values and convert to absolute value
     metric_filter = base_filter.abs() < threshold
 
     # Verify the filter properties
