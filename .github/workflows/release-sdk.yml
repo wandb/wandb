@@ -78,7 +78,7 @@ jobs:
           ref: release-${{ github.event.inputs.version }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
@@ -127,7 +127,7 @@ jobs:
       # See comment above CIBW_BEFORE_ALL_LINUX.
       ##################################################
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
@@ -291,7 +291,7 @@ jobs:
           python-version: "3.10"
 
       - name: Set up latest Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
 
       - name: Install wandb from TestPyPI with --no-binary
         run: |
