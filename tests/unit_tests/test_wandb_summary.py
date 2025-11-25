@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Any, Dict, Tuple
 
-from wandb import wandb_sdk
+from wandb import sdk as wandb_sdk
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.summary_record import SummaryRecord

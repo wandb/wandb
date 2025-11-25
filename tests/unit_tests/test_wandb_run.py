@@ -4,8 +4,8 @@ import platform
 import numpy as np
 import pytest
 import wandb
-from wandb import wandb_sdk
 from wandb.apis import public
+from wandb.sdk import wandb_run
 
 REFERENCE_ATTRIBUTES = set(
     [
@@ -238,7 +238,7 @@ def test_run_basic():
             a=list(range(10)), b=tuple(range(10, 20)), c=set(range(20, 30))
         ),
     )
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c)
+    run = wandb_run.Run(settings=s, config=c)
     assert dict(run.config) == dict(
         param1=2,
         param2=4,
@@ -255,7 +255,7 @@ def test_run_sweep():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
     sw = dict(param3=9)
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
+    run = wandb_run.Run(settings=s, config=c, sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=4, param3=9)
 
 
@@ -263,14 +263,14 @@ def test_run_sweep_overlap():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
     sw = dict(param2=8, param3=9)
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
+    run = wandb_run.Run(settings=s, config=c, sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=8, param3=9)
 
 
 def test_run_deepcopy():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c)
+    run = wandb_run.Run(settings=s, config=c)
     run2 = copy.deepcopy(run)
     assert id(run) == id(run2)
 

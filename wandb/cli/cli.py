@@ -21,15 +21,14 @@ import yaml
 from click.exceptions import ClickException
 
 import wandb
-import wandb.env
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
-from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
+from wandb import Config, Error, env, util, wandb_agent
 from wandb.analytics import get_sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
 from wandb.errors.links import url_registry
-from wandb.sdk import wandb_setup
+from wandb.sdk import wandb_login, wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.internal.internal_api import Api as SDKInternalApi
@@ -287,7 +286,7 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
             repeat=False,
         )
 
-    wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
+    wandb_login._handle_host_wandb_setting(host, cloud)
     # A change in click or the test harness means key can be none...
     key = key[0] if key is not None and len(key) > 0 else None
     relogin = True if key or relogin else False
@@ -959,7 +958,7 @@ def sweep(
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{action} sweep with ID: {styled_id}")
 
-    sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")
@@ -1228,7 +1227,7 @@ def launch_sweep(
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{'Resumed' if resume_id else 'Created'} sweep with ID: {styled_id}")
-    sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")

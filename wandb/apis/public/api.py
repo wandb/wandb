@@ -394,15 +394,23 @@ class Api:
         if _thread_local_api_settings.api_key:
             return _thread_local_api_settings.api_key
 
-        _, key = wandb_login._login(
-            host=base_url,
-            force=True,
-            update_api_key=False,
-            _silent=(
-                self.settings.get("silent", False)  #
-                or self.settings.get("quiet", False)
-            ),
-        )
+        try:
+            _, key = wandb_login._login(
+                host=base_url,
+                force=True,
+                update_api_key=False,
+                no_oidc=True,
+                _silent=(
+                    self.settings.get("silent", False)  #
+                    or self.settings.get("quiet", False)
+                ),
+            )
+        except wandb_login.OidcError:
+            raise UsageError(
+                "wandb.Api cannot be used with federated identities."
+                + " Please make sure you are not setting WANDB_IDENTITY_TOKEN_FILE"
+                + " or the identity_token_file setting."
+            ) from None
 
         if not key:
             raise UsageError("No API key configured. Use `wandb login` to log in.")
