@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 import wandb
+from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib.credentials import _expires_at_fmt
 
@@ -18,6 +19,12 @@ def test_login_timeout(emulated_terminal):
     assert logged_in is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "disabled"
+
+
+def test_login_no_terminput():
+    """Raise if key not configured and interactive prompt unavailable."""
+    with pytest.raises(UsageError, match="No API key configured"):
+        wandb.login()
 
 
 def test_login_timeout_choose(emulated_terminal):

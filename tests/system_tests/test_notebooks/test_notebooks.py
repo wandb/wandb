@@ -6,7 +6,6 @@ import subprocess
 import sys
 from unittest import mock
 
-import pytest
 import wandb
 import wandb.util
 
@@ -149,15 +148,6 @@ def test_notebook_not_exists(mocked_ipython, user, capsys):
         _, err = capsys.readouterr()
         assert "WANDB_NOTEBOOK_NAME should be a path" in err
         run.finish()
-
-
-def test_databricks_notebook_doesnt_hang_on_wandb_login(monkeypatch):
-    # test for WB-5264
-    # when we try to call wandb.login(), should fail with no-tty
-    monkeypatch.setattr(wandb.util, "_is_databricks", lambda: True)
-
-    with pytest.raises(wandb.UsageError, match="No API key configured"):
-        wandb.login()
 
 
 def test_mocked_notebook_html_default(user, run_id, mocked_ipython):
