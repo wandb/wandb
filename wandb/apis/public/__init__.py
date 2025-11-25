@@ -10,6 +10,7 @@ __all__ = (
     "ArtifactTypes",
     "RunArtifacts",
     "Automations",
+    "ExecutedAutomations",
     "File",
     "Files",
     "HistoryScan",  # doc:exclude
@@ -51,7 +52,7 @@ from wandb.apis.public.artifacts import (
     ArtifactTypes,
     RunArtifacts,
 )
-from wandb.apis.public.automations import Automations
+from wandb.apis.public.automations import Automations, ExecutedAutomations
 from wandb.apis.public.files import FILE_FRAGMENT, File, Files
 from wandb.apis.public.history import BetaHistoryScan, HistoryScan, SampledHistoryScan
 from wandb.apis.public.integrations import SlackIntegrations, WebhookIntegrations

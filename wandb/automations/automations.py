@@ -52,12 +52,19 @@ class Automation(TriggerFields, frozen=False):
     """The action that will execute when this automation is triggered."""
 
     def history(self, per_page: PositiveInt = 50) -> ExecutedAutomations:
-        from wandb.apis.public.api import Api
+        from wandb_gql import gql
+
+        from wandb.apis.public Api, ExecutedAutomations
+        from wandb.automations._generated import GET_AUTOMATION_HISTORY_GQL
 
         # FIXME: there needs to be a default client session (like other python libraries do)
         # that avoids the perf hit of instantiating the entire Api/InternalApi classes.
-        client = Api().client
-        return ExecutedAutomations(client, variables={"id": self.id}, per_page=per_page)
+        return ExecutedAutomations(
+            Api().client,
+            variables={"id": self.id},
+            per_page=per_page,
+            _query=gql(GET_AUTOMATION_HISTORY_GQL),
+        )
 
 
 class NewAutomation(GQLInput, extra="forbid", validate_default=False):
