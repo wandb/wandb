@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import RunInfoFragment
+from .fragments import PageInfoFragment, RunInfoFragment
 
 
 class ArtifactUsedBy(GQLResult):
@@ -21,6 +21,8 @@ class ArtifactUsedByArtifact(GQLResult):
 
 
 class ArtifactUsedByArtifactUsedBy(GQLResult):
+    total_count: int = Field(alias="totalCount")
+    page_info: PageInfoFragment = Field(alias="pageInfo")
     edges: List[ArtifactUsedByArtifactUsedByEdges]
 
 

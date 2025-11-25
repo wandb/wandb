@@ -1163,6 +1163,10 @@ ARTIFACT_USED_BY_GQL = """
 query ArtifactUsedBy($id: ID!) {
   artifact(id: $id) {
     usedBy {
+      totalCount
+      pageInfo {
+        ...PageInfoFragment
+      }
       edges {
         node {
           ...RunInfoFragment
@@ -1170,6 +1174,12 @@ query ArtifactUsedBy($id: ID!) {
       }
     }
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 
 fragment ProjectInfoFragment on Project {
