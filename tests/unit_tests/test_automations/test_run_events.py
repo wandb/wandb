@@ -419,6 +419,21 @@ def test_declarative_metric_zscore_filter_lt_rejects_positive_threshold(
         _ = zscore_filter < threshold
 
 
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+)
+def test_declarative_metric_zscore_filter_abs_rejects_double_abs(
+    metric_name: str,
+    window: int,
+):
+    """Check that calling abs() on an already absolute z-score filter raises ValueError."""
+    zscore_filter = RunEvent.metric(metric_name).zscore(window).abs()
+
+    with raises(ValueError, match="Z-score filter is already absolute"):
+        _ = zscore_filter.abs()
+
+
 @given(states=lists(run_states, max_size=10))
 def test_state_filter_serialization(states: list[str | ReportedRunState]):
     """Check that a normally-instantiated `RunStateFilter` produces the expected JSON-serializable dict."""
