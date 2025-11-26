@@ -2,8 +2,10 @@ package runhistoryreader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
 	"os"
@@ -84,7 +86,6 @@ func (h *HistoryReader) GetHistorySteps(
 		ctx,
 		minStep,
 		maxStep,
-		selectAllColumns,
 	)
 	if err != nil {
 		return nil, err
@@ -104,7 +105,6 @@ func (h *HistoryReader) getParquetHistory(
 	ctx context.Context,
 	minStep int64,
 	maxStep int64,
-	selectAllColumns bool,
 ) ([]iterator.KeyValueList, error) {
 	results := []iterator.KeyValueList{}
 
@@ -128,10 +128,9 @@ func (h *HistoryReader) getParquetHistory(
 	defer multiIterator.Release()
 	for {
 		next, err := multiIterator.Next()
-		if err != nil {
-			if err != iterator.ErrRowExceedsMaxValue {
-				return nil, err
-			}
+		if err != nil && !errors.Is(err, iterator.ErrRowExceedsMaxValue) {
+			slog.Error("error getting next row", "error", err)
+			return nil, err
 		}
 		if !next {
 			return results, nil
@@ -220,17 +219,13 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 		return err
 	}
 
+	dir, err := getUserRunHistoryCacheDir()
+	if err != nil {
+		return err
+	}
+
 	for i, url := range signedUrls {
 		var parquetFile *pqarrow.FileReader
-
-		dir := os.Getenv("WANDB_CACHE_DIR")
-		if dir == "" {
-			dir, _ = os.UserCacheDir()
-			dir = filepath.Join(dir, "wandb", "runhistory")
-		}
-		if dir == "" {
-			return fmt.Errorf("failed to get runhistory cache directory")
-		}
 
 		fileName := fmt.Sprintf("%s_%s_%s_%d.runhistory.parquet", h.entity, h.project, h.runId, i)
 		parquetFilePath := filepath.Join(dir, fileName)
@@ -312,4 +307,20 @@ func (h *HistoryReader) makeRowIteratorsFromFiles(ctx context.Context) ([]iterat
 		partitions[i] = rowIterator
 	}
 	return partitions, nil
+}
+
+// getUserRunHistoryCacheDir returns the user's run history cache directory.
+//
+// returns the value of WANDB_CACHE_DIR environment variable if it is set.
+// Otherwise it falls back to the OS provided cache directory.
+func getUserRunHistoryCacheDir() (string, error) {
+	dir := os.Getenv("WANDB_CACHE_DIR")
+	if dir == "" {
+		dir, _ = os.UserCacheDir()
+		dir = filepath.Join(dir, "wandb", "runhistory")
+	}
+	if dir == "" {
+		return "", fmt.Errorf("failed to get runhistory cache directory")
+	}
+	return dir, nil
 }
