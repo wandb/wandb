@@ -60,38 +60,9 @@ func New(
 		return nil, err
 	}
 
-	partitions := make([]iterator.RowIterator, len(historyReader.parquetFiles))
-	for i, parquetFile := range historyReader.parquetFiles {
-		selectedRows := iterator.SelectRows(
-			parquetFile,
-			iterator.StepKey,
-			0,
-			float64(math.MaxInt64),
-			false,
-		)
-		selectedColumns, err := iterator.SelectColumns(
-			iterator.StepKey,
-			historyReader.keys,
-			parquetFile.ParquetReader().MetaData().Schema,
-			len(historyReader.keys) == 0,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		rowIterator, err := iterator.NewRowIterator(
-			ctx,
-			parquetFile,
-			selectedRows,
-			selectedColumns,
-		)
-		if err != nil {
-			for _, partition := range partitions {
-				partition.Release()
-			}
-			return nil, err
-		}
-		partitions[i] = rowIterator
+	partitions, err := historyReader.makeRowIteratorsFromFiles(ctx)
+	if err != nil {
+		return nil, err
 	}
 	historyReader.partitions = partitions
 
@@ -304,4 +275,41 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (h *HistoryReader) makeRowIteratorsFromFiles(ctx context.Context) ([]iterator.RowIterator, error) {
+	partitions := make([]iterator.RowIterator, len(h.parquetFiles))
+	for i, parquetFile := range h.parquetFiles {
+		selectedRows := iterator.SelectRows(
+			parquetFile,
+			iterator.StepKey,
+			0,
+			float64(math.MaxInt64),
+			false,
+		)
+		selectedColumns, err := iterator.SelectColumns(
+			iterator.StepKey,
+			h.keys,
+			parquetFile.ParquetReader().MetaData().Schema,
+			len(h.keys) == 0,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		rowIterator, err := iterator.NewRowIterator(
+			ctx,
+			parquetFile,
+			selectedRows,
+			selectedColumns,
+		)
+		if err != nil {
+			for _, partition := range partitions {
+				partition.Release()
+			}
+			return nil, err
+		}
+		partitions[i] = rowIterator
+	}
+	return partitions, nil
 }
