@@ -344,11 +344,10 @@ class MetricVal(BaseMetricOperand):
 
         Use with comparison operators to create z-score filters:
         - `metric.zscore(30) > 3` - detects z-score increases above 3 std devs
-        - `metric.zscore(30) < 3` - detects z-score decreases below -3 std devs
+        - `metric.zscore(30) < -3` - detects z-score decreases below -3 std devs
         - `metric.zscore(30).abs() > 3` - detects abs z-score deviations above 3 std devs
 
         Note:
-        - Threshold values are always treated as positive magnitudes.
         - The `>=` operator behaves the same as `>`, and `<=` behaves the same as `<`.
         """
         return ZScoreMetricOperand(name=self.name, window=window)
@@ -365,11 +364,13 @@ class MetricAgg(BaseMetricOperand):
 class ZScoreMetricOperand(GQLBase, extra="forbid"):
     """Helper class to build z-score metric filters with comparison operators.
 
-    This class enables fluent construction of z-score filters using Python's
-    comparison operators (>, <, >=, <=) and the abs() function.
+    This class enables fluent construction of z-score filters using Python
+    comparison operators (>, <, >=, <=) and the builtin abs() function.
 
-    Note: The `>=` operator behaves identically to `>`, and `<=` behaves
-    identically to `<`, as z-score filters use continuous thresholds.
+    Note: When defining a z-score threshold, the `>` and `>=` operators are
+    interchangeable, as are the `<=` and `<` operators, since the z-score defines
+    a threshold on a continuous value. At runtime, the filter is evaluated
+    using the inclusive operators (`>=` or `<=`).
     """
 
     name: str
@@ -378,7 +379,7 @@ class ZScoreMetricOperand(GQLBase, extra="forbid"):
     window: PositiveInt
     """Size of the window to calculate the metric mean and standard deviation over."""
 
-    is_absolute: bool = False
+    is_absolute: bool = Field(default=False, repr=False)
     """Whether to check the absolute value of the z-score (ignoring direction)."""
 
     def lt(self, value: int | float, /) -> MetricZScoreFilter:
@@ -449,11 +450,7 @@ class ZScoreMetricOperand(GQLBase, extra="forbid"):
         This allows watching for z-score deviations in either direction.
         Use with comparison operators: `abs(metric.zscore(window)) > threshold`.
         """
-        if self.is_absolute:
-            raise ValueError("Z-score filter is already absolute")
-
-        self.is_absolute = True
-        return self
+        return self.model_copy(update={"is_absolute": True})
 
     def abs(self) -> ZScoreMetricOperand:
         """Returns a z-score filter that checks the absolute value.

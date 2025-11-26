@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import operator
 from typing import Any, Iterable
 
 import pytest
@@ -423,21 +424,63 @@ def test_declarative_metric_zscore_filter_lt_rejects_positive_threshold(
     metric_name=metric_names,
     window=window_sizes,
 )
-def test_declarative_metric_zscore_filter_abs_rejects_double_abs(
+def test_declarative_metric_zscore_filter_abs_is_idempotent(
     metric_name: str,
     window: int,
 ):
-    """Check that calling abs() on an already absolute z-score filter raises ValueError."""
+    """Check that calling abs() on an already absolute z-score filter is idempotent."""
     zscore_filter = RunEvent.metric(metric_name).zscore(window)
 
-    with raises(ValueError, match="Z-score filter is already absolute"):
-        _ = zscore_filter.abs().abs()
+    # All these should work and produce equivalent results
+    abs_once = zscore_filter.abs()
+    abs_twice = zscore_filter.abs().abs()
+    abs_builtin_once = abs(zscore_filter)
+    abs_builtin_twice = abs(abs(zscore_filter))
+    abs_mixed = abs(zscore_filter.abs())
 
-    with raises(ValueError, match="Z-score filter is already absolute"):
-        _ = abs(zscore_filter.abs())
+    # All should have is_absolute=True
+    assert abs_once.is_absolute
+    assert abs_twice.is_absolute
+    assert abs_builtin_once.is_absolute
+    assert abs_builtin_twice.is_absolute
+    assert abs_mixed.is_absolute
 
-    with raises(ValueError, match="Z-score filter is already absolute"):
-        _ = abs(abs(zscore_filter))
+    # All should be equivalent
+    assert abs_once == abs_twice == abs_builtin_once == abs_builtin_twice == abs_mixed
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+)
+def test_declarative_metric_zscore_filter_cannot_chain_comparisons(
+    metric_name: str,
+    window: int,
+):
+    """Check that comparison operators cannot be chained on z-score filters"""
+    zscore_operand = RunEvent.metric(metric_name).zscore(window)
+
+    # Create filters for both increase and decrease directions
+    filter_increase = zscore_operand > 3
+    filter_decrease = zscore_operand < -3
+
+    # Verify filters were created correctly
+    assert isinstance(filter_increase, MetricZScoreFilter)
+    assert isinstance(filter_decrease, MetricZScoreFilter)
+    assert filter_increase.change_dir == ChangeDir.INCREASE
+    assert filter_decrease.change_dir == ChangeDir.DECREASE
+
+    # Test both filter types to ensure consistent behavior
+    for zscore_filter in [filter_increase, filter_decrease]:
+        # Comparison operators should fail with TypeError
+        for op in [operator.gt, operator.lt, operator.ge, operator.le]:
+            with raises(TypeError, match="not supported"):
+                op(zscore_filter, 1)
+
+        # Comparison methods should fail with AttributeError
+        for method in ["gt", "lt", "gte", "lte"]:
+            with raises(AttributeError, match=method):
+                getattr(zscore_filter, method)(1)
 
 
 @given(states=lists(run_states, max_size=10))
