@@ -43,6 +43,7 @@ from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
+from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
@@ -108,11 +109,11 @@ if TYPE_CHECKING:
     class CompleteMultipartUploadArtifactResponse(TypedDict):
         digest: str
 
-    class DefaultSettings(TypedDict):
+    class DefaultSettings(TypedDict, total=False):
         section: str
         git_remote: str
-        ignore_globs: list[str] | None
-        base_url: str | None
+        ignore_globs: list[str]
+        base_url: str
         root_dir: str | None
         api_key: str | None
         entity: str | None
@@ -221,16 +222,15 @@ class Api:
 
     def __init__(
         self,
-        default_settings: wandb.sdk.wandb_settings.Settings
-        | wandb.sdk.internal.settings_static.SettingsStatic
-        | Settings
-        | dict
-        | None = None,
+        default_settings: (
+            wandb.Settings  #
+            | settings_static.SettingsStatic
+            | DefaultSettings
+            | None
+        ) = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(  # okay because it's immutable
-            days=7
-        ),
-        environ: MutableMapping = os.environ,
+        retry_timedelta: datetime.timedelta | None = None,
+        environ: MutableMapping[str, str] = os.environ,
         retry_callback: Callable[[int, str], Any] | None = None,
         api_key: str | None = None,
     ) -> None:
@@ -239,23 +239,25 @@ class Api:
         self._environ = environ
         self._global_context = context.Context()
         self._local_data = _ThreadLocalData()
+
+        default_overrides: dict[str, Any] = (
+            dict(default_settings) if default_settings else {}
+        )
         self.default_settings: DefaultSettings = {
-            "section": "default",
-            "git_remote": "origin",
-            "ignore_globs": [],
-            "base_url": "https://api.wandb.ai",
-            "root_dir": None,
-            "api_key": None,
-            "entity": None,
-            "organization": None,
-            "project": None,
-            "_extra_http_headers": None,
-            "_proxies": None,
+            "section": default_overrides.get("section", "default"),
+            "git_remote": default_overrides.get("git_remote", "origin"),
+            "ignore_globs": default_overrides.get("ignore_globs", []),
+            "base_url": default_overrides.get("base_url", "https://api.wandb.ai"),
+            "root_dir": default_overrides.get("root_dir"),
+            "api_key": default_overrides.get("api_key"),
+            "entity": default_overrides.get("entity"),
+            "organization": default_overrides.get("organization"),
+            "project": default_overrides.get("project"),
+            "_extra_http_headers": default_overrides.get("_extra_http_headers"),
+            "_proxies": default_overrides.get("_proxies"),
         }
-        self.retry_timedelta = retry_timedelta
-        # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
-        default_settings = default_settings or {}
-        self.default_settings.update(default_settings)  # type: ignore
+
+        self.retry_timedelta = retry_timedelta or datetime.timedelta(days=7)
         self.retry_uploads = 10
         self._settings = Settings(
             load_settings=load_settings,
@@ -476,12 +478,15 @@ class Api:
         return self.viewer().get("entity")  # type: ignore
 
     @overload
-    def settings(self, key: str = ..., section: str = ...) -> Any: ...
-    @overload
     def settings(self, key: None = None, section: str = ...) -> dict[str, Any]: ...
 
+    @overload
+    def settings(self, key: str, section: str = ...) -> Any: ...
+
     def settings(
-        self, key: str | None = None, section: str = Settings.DEFAULT_SECTION
+        self,
+        key: str | None = None,
+        section: str = Settings.DEFAULT_SECTION,
     ) -> Any:
         """The settings overridden from the wandb/settings file.
 
@@ -500,8 +505,8 @@ class Api:
                     "organization": "my-org",
                 }
         """
-        result = self.default_settings.copy()
-        result.update(self._settings.items(section=section))  # type: ignore
+        result = dict(self.default_settings)
+        result.update(self._settings.items(section=section))
         result.update(
             {
                 "entity": env.get_entity(
@@ -547,7 +552,7 @@ class Api:
             }
         )
 
-        return result if key is None else result[key]  # type: ignore
+        return result if key is None else result[key]
 
     def clear_setting(
         self, key: str, globally: bool = False, persist: bool = False
