@@ -307,17 +307,8 @@ class Api:
                 or configured in the environment.
         """
         self.settings = InternalApi().settings()
-
-        _overrides = overrides or {}
-        self.settings.update(_overrides)
+        self.settings.update(overrides or {})
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
-        if "organization" in _overrides:
-            self.settings["organization"] = _overrides["organization"]
-        if "username" in _overrides and "entity" not in _overrides:
-            wandb.termwarn(
-                'Passing "username" to Api is deprecated. please use "entity" instead.'
-            )
-            self.settings["entity"] = _overrides["username"]
 
         use_api_key = api_key is not None or _thread_local_api_settings.cookies is None
 
