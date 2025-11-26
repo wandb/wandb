@@ -17,26 +17,19 @@ class FetchRegistries(GQLResult):
 
 
 class FetchRegistriesOrganization(GQLResult):
-    org_entity: Optional[FetchRegistriesOrganizationOrgEntity] = Field(
-        alias="orgEntity"
-    )
+    registries: Optional[FetchRegistriesOrganizationRegistries]
 
 
-class FetchRegistriesOrganizationOrgEntity(GQLResult):
-    projects: Optional[FetchRegistriesOrganizationOrgEntityProjects]
-
-
-class FetchRegistriesOrganizationOrgEntityProjects(GQLResult):
+class FetchRegistriesOrganizationRegistries(GQLResult):
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[FetchRegistriesOrganizationOrgEntityProjectsEdges]
+    edges: List[FetchRegistriesOrganizationRegistriesEdges]
 
 
-class FetchRegistriesOrganizationOrgEntityProjectsEdges(GQLResult):
+class FetchRegistriesOrganizationRegistriesEdges(GQLResult):
     node: Optional[RegistryFragment]
 
 
 FetchRegistries.model_rebuild()
 FetchRegistriesOrganization.model_rebuild()
-FetchRegistriesOrganizationOrgEntity.model_rebuild()
-FetchRegistriesOrganizationOrgEntityProjects.model_rebuild()
-FetchRegistriesOrganizationOrgEntityProjectsEdges.model_rebuild()
+FetchRegistriesOrganizationRegistries.model_rebuild()
+FetchRegistriesOrganizationRegistriesEdges.model_rebuild()

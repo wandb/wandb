@@ -27,6 +27,7 @@ __all__ = [
     "GET_ARTIFACT_FILE_URLS_GQL",
     "GET_ARTIFACT_MEMBERSHIP_FILES_GQL",
     "GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL",
+    "LEGACY_FETCH_REGISTRIES_GQL",
     "LINK_ARTIFACT_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
@@ -88,6 +89,7 @@ __all__ = [
     "RegistryCollections",
     "FetchRegistry",
     "FetchRegistries",
+    "LegacyFetchRegistries",
     "RenameRegistry",
     "UpsertRegistry",
     "DeleteRegistry",
@@ -226,6 +228,7 @@ from .input_types import (
     UpdateProjectTeamMemberInput,
     UpsertModelInput,
 )
+from .legacy_fetch_registries import LegacyFetchRegistries
 from .link_artifact import LinkArtifact
 from .operations import (
     ADD_ALIASES_GQL,
@@ -254,6 +257,7 @@ from .operations import (
     GET_ARTIFACT_FILES_GQL,
     GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL,
     GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
+    LEGACY_FETCH_REGISTRIES_GQL,
     LINK_ARTIFACT_GQL,
     PROJECT_ARTIFACT_COLLECTION_GQL,
     PROJECT_ARTIFACT_COLLECTIONS_GQL,
