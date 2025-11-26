@@ -10,8 +10,9 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple, Union
 
-import wandb
 import yaml
+
+import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
