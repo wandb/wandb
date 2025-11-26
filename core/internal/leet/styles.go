@@ -63,6 +63,9 @@ const (
 
 	// unicodeSpace is the regular whitespace.
 	unicodeSpace rune = '\u0020'
+
+	// mediumShadeBlock is a medium-shaded block.
+	mediumShadeBlock rune = '\u2592' // ▒
 )
 
 // WANDB brand colors.

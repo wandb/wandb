@@ -442,9 +442,10 @@ func (m *Model) buildOverviewFilterStatus() string {
 		filterInfo = "no matches"
 	}
 	return fmt.Sprintf(
-		"Overview filter (%s): %s_ [%s] (Enter to apply • Tab to toggle mode)",
+		"Overview filter (%s): %s%s [%s] (Enter to apply • Tab to toggle mode)",
 		m.leftSidebar.FilterMode().String(),
 		m.leftSidebar.FilterQuery(),
+		string(mediumShadeBlock),
 		filterInfo,
 	)
 }
@@ -454,9 +455,10 @@ func (m *Model) buildOverviewFilterStatus() string {
 // Should be guarded by the caller's check that filter input is active.
 func (m *Model) buildMetricsFilterStatus() string {
 	return fmt.Sprintf(
-		"Filter (%s): %s_ [%d/%d] (Enter to apply • Tab to toggle mode)",
+		"Filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
 		m.metricsGrid.FilterMode().String(),
 		m.metricsGrid.FilterQuery(),
+		string(mediumShadeBlock),
 		m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount())
 }
 
