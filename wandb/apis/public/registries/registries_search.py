@@ -12,7 +12,8 @@ from wandb_gql import gql
 from wandb._analytics import tracked
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 from wandb.apis.public.utils import gql_compat
-from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields, server_supports
 
 from ._utils import ensure_registry_prefix_on_names
 
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     """A lazy iterator of `Registry` objects."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: Document  # Must be set per-instance
     last_response: RegistryConnection | None
 
     def __init__(
@@ -47,10 +48,18 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
     ):
-        if self.QUERY is None:
-            from wandb.sdk.artifacts._generated import FETCH_REGISTRIES_GQL
+        from wandb.sdk.artifacts._generated import (
+            FETCH_REGISTRIES_GQL,
+            LEGACY_FETCH_REGISTRIES_GQL,
+        )
 
-            type(self).QUERY = gql(FETCH_REGISTRIES_GQL)
+        # At the current time, the new `organization.registries` query is only supported:
+        # - on newer server versions
+        # - when no filters are provided to the query
+        if server_supports(client, pb.REGISTRIES_ON_ORGANIZATION) and (not filter):
+            self.QUERY = gql(FETCH_REGISTRIES_GQL)
+        else:
+            self.QUERY = gql(LEGACY_FETCH_REGISTRIES_GQL)
 
         self.client = client
         self.organization = organization
