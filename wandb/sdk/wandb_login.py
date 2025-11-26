@@ -385,10 +385,10 @@ def _verify_login(key: str, base_url: str) -> None:
 
     try:
         is_api_key_valid = api.validate_api_key()
-    except ConnectionError:
+    except ConnectionError as e:
         raise AuthenticationError(
-            "Unable to connect to server to verify API token."
-        ) from None
+            f"Unable to connect to {base_url} to verify API token."
+        ) from e
     except Exception as e:
         raise AuthenticationError(
             "An error occurred while verifying the API key."

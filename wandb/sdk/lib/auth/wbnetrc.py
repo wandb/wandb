@@ -9,6 +9,8 @@ from urllib.parse import urlsplit
 
 from wandb.errors import term
 
+from .auth import AuthApiKey, AuthWithSource
+
 
 class WriteNetrcError(Exception):
     """Could not write to the netrc file."""
@@ -22,7 +24,33 @@ def read_netrc_auth(*, host: str) -> str | None:
 
     Returns:
         An API key for the host, or None if there's no .netrc file
+        or if it doesn't contain credentials for the specified host.
+
+    Raises:
+        AuthenticationError: If an API key is found but is not in
+            a valid format.
+    """
+    if not (auth := read_netrc_auth_with_source(host=host)):
+        return None
+
+    assert isinstance(auth.auth, AuthApiKey)
+    return auth.auth.api_key
+
+
+def read_netrc_auth_with_source(*, host: str) -> AuthWithSource | None:
+    """Read a W&B API key from the .netrc file.
+
+    Args:
+        host: The W&B server URL.
+
+    Returns:
+        An API key for the host, or None if there's no .netrc file
         or it doesn't contain credentials for the specified host.
+        Also returns the file in which the API key was found.
+
+    Raises:
+        AuthenticationError: If an API key is found but is not in
+            a valid format.
     """
     path = _get_netrc_file_path()
 
@@ -47,7 +75,14 @@ def read_netrc_auth(*, host: str) -> str | None:
         return None
 
     _, _, password = creds
-    return password
+    if not password:
+        term.termwarn(f"Found entry for machine {netloc!r} with no API key at {path}")
+        return None
+
+    return AuthWithSource(
+        auth=AuthApiKey(host=host, api_key=password),
+        source=str(path),
+    )
 
 
 def write_netrc_auth(*, host: str, api_key: str) -> None:
