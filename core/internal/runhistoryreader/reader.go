@@ -143,7 +143,7 @@ func (h *HistoryReader) getParquetHistory(
 			return nil, fmt.Errorf("partition is not a ParquetDataIterator")
 		}
 
-		err = parquetDataIterator.UpdateQueryRange(
+		err := parquetDataIterator.UpdateQueryRange(
 			float64(minStep),
 			float64(maxStep),
 			false,
@@ -304,47 +304,4 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (h *HistoryReader) getRowIteratorsFromFiles(
-	ctx context.Context,
-	minStep int64,
-	maxStep int64,
-	selectAllColumns bool,
-) ([]iterator.RowIterator, error) {
-	partitions := make([]iterator.RowIterator, 0, len(h.parquetFiles))
-	for _, parquetFile := range h.parquetFiles {
-		selectedRows := iterator.SelectRows(
-			parquetFile,
-			iterator.StepKey,
-			float64(minStep),
-			float64(maxStep),
-			false,
-		)
-		selectedColumns, err := iterator.SelectColumns(
-			iterator.StepKey,
-			h.keys,
-			parquetFile.ParquetReader().MetaData().Schema,
-			selectAllColumns,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		rowIterator, err := iterator.NewRowIterator(
-			ctx,
-			parquetFile,
-			selectedRows,
-			selectedColumns,
-		)
-		if err != nil {
-			for _, partition := range partitions {
-				partition.Release()
-			}
-			return nil, err
-		}
-		partitions = append(partitions, rowIterator)
-	}
-
-	return partitions, nil
 }
