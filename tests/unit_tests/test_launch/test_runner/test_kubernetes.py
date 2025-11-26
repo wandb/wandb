@@ -36,6 +36,7 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     maybe_create_wandb_team_secrets_secret,
 )
 from wandb.sdk.launch.utils import (
+    PROJECT_SYNCHRONOUS,
     WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
     WANDB_K8S_LABEL_RESOURCE_ROLE,
     WANDB_K8S_RUN_ID,
@@ -1280,6 +1281,151 @@ async def test_create_env_vars_secret_exists_different_owner():
         await maybe_create_wandb_team_secrets_secret(
             api, "wandb-secrets-testrun", "wandb", env_vars
         )
+
+
+@pytest.mark.asyncio
+async def test_inject_defaults_prefers_launch_spec_api_key(
+    monkeypatch, mock_maybe_create_image_pullsecret, clean_agent
+):
+    """Ensure WANDB_API_KEY from team secrets is ignored in favor of launch spec."""
+    monkeypatch.setattr(
+        LaunchAgent,
+        "initialized",
+        MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        LaunchAgent,
+        "name",
+        classmethod(lambda cls: "test-agent"),
+    )
+
+    runner = KubernetesRunner(
+        MagicMock(),
+        {PROJECT_SYNCHRONOUS: False},
+        MagicMock(),
+        MagicMock(),
+    )
+
+    api_secret = MagicMock()
+    api_secret.metadata.name = "wandb-api-key-secret"
+    runner._create_api_key_secret = AsyncMock(return_value=api_secret)
+
+    team_secret = MagicMock()
+    team_secret.metadata.name = "wandb-team-secret"
+    runner._handle_wandb_team_secrets = AsyncMock(return_value=team_secret)
+
+    launch_project = MagicMock()
+    launch_project.run_id = "test-run-id"
+    launch_project.target_entity = "test-entity"
+    launch_project.target_project = "test-project"
+    launch_project.override_entrypoint = None
+    launch_project.override_args = []
+    launch_project.docker_image = "custom-image"
+    launch_project.job_base_image = None
+    launch_project.get_job_entry_point.return_value = None
+    launch_project.get_env_vars_dict.return_value = {"WANDB_API_KEY": "launch-key"}
+    launch_project.get_secrets_dict.return_value = {
+        "WANDB_API_KEY": "team-key",
+        "TEAM_SECRET": "secret-value",
+    }
+
+    job_spec, returned_api_secret, returned_team_secret = await runner._inject_defaults(
+        {},
+        launch_project,
+        "custom-image",
+        "default",
+        MagicMock(),
+    )
+
+    assert returned_api_secret is api_secret
+    assert returned_team_secret is team_secret
+
+    runner._handle_wandb_team_secrets.assert_awaited_once()
+    _, kwargs = runner._handle_wandb_team_secrets.await_args
+    assert kwargs["secrets"] == {"TEAM_SECRET": "secret-value"}
+
+    container_env = job_spec["spec"]["template"]["spec"]["containers"][0]["env"]
+    api_entries = [env for env in container_env if env["name"] == "WANDB_API_KEY"]
+    assert len(api_entries) == 1
+    assert "valueFrom" in api_entries[0]
+    assert (
+        api_entries[0]["valueFrom"]["secretKeyRef"]["name"] == api_secret.metadata.name
+    )
+    assert api_entries[0]["valueFrom"]["secretKeyRef"]["key"] == "password"
+
+    team_entries = [env for env in container_env if env["name"] == "TEAM_SECRET"]
+    assert len(team_entries) == 1
+    assert (
+        team_entries[0]["valueFrom"]["secretKeyRef"]["name"]
+        == f"wandb-secrets-{launch_project.run_id}"
+    )
+    assert team_entries[0]["valueFrom"]["secretKeyRef"]["key"] == "TEAM_SECRET"
+
+
+@pytest.mark.asyncio
+async def test_inject_defaults_retains_team_api_key_if_no_launch_secret(
+    monkeypatch, mock_maybe_create_image_pullsecret
+):
+    """Ensure team WANDB_API_KEY is retained when agent does not inject API key secret."""
+    monkeypatch.setattr(
+        LaunchAgent,
+        "initialized",
+        MagicMock(return_value=False),
+    )
+
+    runner = KubernetesRunner(
+        MagicMock(),
+        {PROJECT_SYNCHRONOUS: False},
+        MagicMock(),
+        MagicMock(),
+    )
+
+    runner._create_api_key_secret = AsyncMock(return_value=None)
+    team_secret = MagicMock()
+    team_secret.metadata.name = "wandb-team-secret"
+    runner._handle_wandb_team_secrets = AsyncMock(return_value=team_secret)
+
+    launch_project = MagicMock()
+    launch_project.run_id = "test-run-id"
+    launch_project.target_entity = "test-entity"
+    launch_project.target_project = "test-project"
+    launch_project.override_entrypoint = None
+    launch_project.override_args = []
+    launch_project.docker_image = "custom-image"
+    launch_project.job_base_image = None
+    launch_project.get_job_entry_point.return_value = None
+    launch_project.get_env_vars_dict.return_value = {}
+    launch_project.get_secrets_dict.return_value = {
+        "WANDB_API_KEY": "team-key",
+        "TEAM_SECRET": "secret-value",
+    }
+
+    job_spec, api_secret, returned_team_secret = await runner._inject_defaults(
+        {},
+        launch_project,
+        "custom-image",
+        "default",
+        MagicMock(),
+    )
+
+    assert api_secret is None
+    assert returned_team_secret is team_secret
+
+    runner._handle_wandb_team_secrets.assert_awaited_once()
+    _, kwargs = runner._handle_wandb_team_secrets.await_args
+    assert kwargs["secrets"] == {
+        "WANDB_API_KEY": "team-key",
+        "TEAM_SECRET": "secret-value",
+    }
+
+    container_env = job_spec["spec"]["template"]["spec"]["containers"][0]["env"]
+    api_entries = [env for env in container_env if env["name"] == "WANDB_API_KEY"]
+    assert len(api_entries) == 1
+    assert (
+        api_entries[0]["valueFrom"]["secretKeyRef"]["name"]
+        == f"wandb-secrets-{launch_project.run_id}"
+    )
+    assert api_entries[0]["valueFrom"]["secretKeyRef"]["key"] == "WANDB_API_KEY"
 
 
 # Test monitor class.

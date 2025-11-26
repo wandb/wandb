@@ -609,11 +609,24 @@ class KubernetesRunner(AbstractRunner):
             cont["env"] = env
 
         team_secrets = launch_project.get_secrets_dict()
+        if api_key_secret and team_secrets and "WANDB_API_KEY" in team_secrets:
+            _logger.debug(
+                f"{LOG_PREFIX}Ignoring WANDB_API_KEY from team secrets; launch spec API key will be used instead."
+            )
+            # filter out WANDB_API_KEY from team secrets because the public queue
+            # injects the user's API key into the environment variables already
+            team_secrets = {
+                key: value
+                for key, value in team_secrets.items()
+                if key != "WANDB_API_KEY"
+            }
+
         if team_secrets:
             wandb_team_secrets_secret = await self._handle_wandb_team_secrets(
                 launch_project=launch_project,
                 core_api=core_api,
                 namespace=namespace,
+                secrets=team_secrets,
             )
 
             secrets_name = f"wandb-secrets-{launch_project.run_id}"
@@ -707,9 +720,10 @@ class KubernetesRunner(AbstractRunner):
         launch_project: LaunchProject,
         core_api: "CoreV1Api",
         namespace: str,
+        secrets: Optional[Dict[str, str]] = None,
     ) -> Optional["V1Secret"]:
         """Create wandb team secrets from launch project."""
-        secrets = launch_project.get_secrets_dict()
+        secrets = secrets if secrets is not None else launch_project.get_secrets_dict()
         if not secrets:
             return None
 
