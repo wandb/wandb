@@ -1,6 +1,7 @@
 package iterator
 
 import (
+	"math"
 	"path/filepath"
 	"testing"
 
@@ -38,8 +39,7 @@ func TestMultiIterator_ReadsAllRows(t *testing.T) {
 		[]string{"_step", "value"},
 		StepKey,
 		0,
-		0,
-		true,
+		math.MaxInt64,
 	)
 	it2 := getRowIteratorForFile(
 		t,
@@ -47,8 +47,7 @@ func TestMultiIterator_ReadsAllRows(t *testing.T) {
 		[]string{"_step", "value"},
 		StepKey,
 		0,
-		0,
-		true,
+		math.MaxInt64,
 	)
 
 	multiReader := NewMultiIterator([]RowIterator{it1, it2})
@@ -106,7 +105,6 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 		StepKey,
 		10,
 		40,
-		false,
 	)
 	it2 := getRowIteratorForFile(
 		t,
@@ -115,7 +113,6 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 		StepKey,
 		10,
 		40,
-		false,
 	)
 	multiReader := NewMultiIterator([]RowIterator{it1, it2})
 

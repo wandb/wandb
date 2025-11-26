@@ -40,7 +40,7 @@ type RowIterator interface {
 func NewRowIterator(
 	ctx context.Context,
 	reader *pqarrow.FileReader,
-	selectedRows *SelectedRows,
+	selectedRows *SelectedRowsRange,
 	selectedColumns *SelectedColumns,
 ) (RowIterator, error) {
 	// For empty parquet files, return a noop iterator.

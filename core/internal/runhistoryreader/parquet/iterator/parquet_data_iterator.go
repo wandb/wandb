@@ -9,7 +9,7 @@ import (
 // ParquetDataIterator iterates over history steps in a run's parquet file.
 type ParquetDataIterator struct {
 	ctx             context.Context
-	selectedRows    *SelectedRows
+	selectedRows    *SelectedRowsRange
 	selectedColumns *SelectedColumns
 	fileReader      *pqarrow.FileReader
 
@@ -22,7 +22,7 @@ type ParquetDataIterator struct {
 func NewParquetDataIterator(
 	ctx context.Context,
 	reader *pqarrow.FileReader,
-	selectedRows *SelectedRows,
+	selectedRows *SelectedRowsRange,
 	selectedColumns *SelectedColumns,
 ) (RowIterator, error) {
 	columnIndices := selectedColumns.GetColumnIndices()
@@ -76,7 +76,7 @@ func (r *ParquetDataIterator) UpdateQueryRange(
 	// Update the selected range
 	r.selectedRows.minValue = minValue
 	r.selectedRows.maxValue = maxValue
-	r.selectedRows.selectAll = selectAll
+	// r.selectedRows.selectAll = selectAll
 
 	// When we want data from minValue we need to create a new record reader
 	// since the Arrow RecordReader doesn't support backward seeking

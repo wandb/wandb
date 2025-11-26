@@ -275,12 +275,11 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 func (h *HistoryReader) makeRowIteratorsFromFiles(ctx context.Context) ([]iterator.RowIterator, error) {
 	partitions := make([]iterator.RowIterator, len(h.parquetFiles))
 	for i, parquetFile := range h.parquetFiles {
-		selectedRows := iterator.SelectRows(
+		selectedRows := iterator.SelectRowsInRange(
 			parquetFile,
 			iterator.StepKey,
 			0,
 			float64(math.MaxInt64),
-			false,
 		)
 		selectedColumns, err := iterator.SelectColumns(
 			iterator.StepKey,

@@ -30,8 +30,7 @@ func TestRecordIterator_ErrorsOnMissingColumns(t *testing.T) {
 			requestedColumns: map[string]struct{}{"_step": {}, "acc": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
+		&SelectedRowsRange{
 			indexKey:  StepKey,
 			minValue:  0,
 			maxValue:  1,
@@ -61,8 +60,7 @@ func TestRecordIterator_ErrorsOnMissingIndexKey(t *testing.T) {
 			requestedColumns: map[string]struct{}{"acc": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
+		&SelectedRowsRange{
 			indexKey:  StepKey,
 			minValue:  0,
 			maxValue:  1,
@@ -101,8 +99,7 @@ func TestRecordIterator_FiltersRowsWithEmptyColumns(t *testing.T) {
 			requestedColumns: map[string]struct{}{"_step": {}, "acc": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
+		&SelectedRowsRange{
 			indexKey:  StepKey,
 			minValue:  0,
 			maxValue:  1,
@@ -146,8 +143,7 @@ func TestRecordIterator_FiltersRowsWithStepOutOfRange(t *testing.T) {
 			requestedColumns: map[string]struct{}{"_step": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
+		&SelectedRowsRange{
 			indexKey:  StepKey,
 			minValue:  1,
 			maxValue:  2,
@@ -190,8 +186,7 @@ func TestRecordIterator_ReleaseFreesMemory(t *testing.T) {
 			requestedColumns: map[string]struct{}{"_step": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
+		&SelectedRowsRange{
 			indexKey:  StepKey,
 			minValue:  0,
 			maxValue:  3,
@@ -236,8 +231,7 @@ func TestRecordIterator_WithEmptyRecordIsNil(t *testing.T) {
 			requestedColumns: map[string]struct{}{"_step": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
+		&SelectedRowsRange{
 			indexKey:  StepKey,
 			minValue:  0,
 			maxValue:  0,

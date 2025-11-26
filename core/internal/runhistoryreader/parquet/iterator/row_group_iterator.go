@@ -20,7 +20,7 @@ type RowGroupIterator struct {
 	columns     map[string]keyIteratorPair
 	cachedValue KeyValueList
 
-	selectedRows    *SelectedRows
+	selectedRows    *SelectedRowsRange
 	selectedColumns *SelectedColumns
 
 	// hasValueFromLastScan indicates whether the iterator currently has a valid value
@@ -31,7 +31,7 @@ type RowGroupIterator struct {
 func NewRowGroupIterator(
 	recordBatch arrow.RecordBatch,
 	selectedColumns *SelectedColumns,
-	selectedRows *SelectedRows,
+	selectedRows *SelectedRowsRange,
 ) (*RowGroupIterator, error) {
 	// Increment the reference count of the record.
 	recordBatch.Retain()
