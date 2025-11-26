@@ -24,7 +24,7 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
 
 	model := m.(*leet.Model)
-	model.TestProcessRecordMsg(leet.RunMsg{
+	model.TestHandleRecordMsg(leet.RunMsg{
 		ID:          "run_123",
 		DisplayName: "cool-run",
 		Project:     "proj",
@@ -33,15 +33,15 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	require.Equal(t, "cool-run", model.TestRunDisplayName())
 	require.Equal(t, "proj", model.TestRunProject())
 
-	model.TestProcessRecordMsg(leet.SystemInfoMsg{
+	model.TestHandleRecordMsg(leet.SystemInfoMsg{
 		Record: &spb.EnvironmentRecord{},
 	})
 
-	model.TestProcessRecordMsg(leet.SummaryMsg{
+	model.TestHandleRecordMsg(leet.SummaryMsg{
 		Summary: []*spb.SummaryRecord{{}},
 	})
 
-	model.TestProcessRecordMsg(leet.FileCompleteMsg{ExitCode: 0})
+	model.TestHandleRecordMsg(leet.FileCompleteMsg{ExitCode: 0})
 	require.Equal(t, leet.RunStateFinished, model.TestRunState())
 }
 

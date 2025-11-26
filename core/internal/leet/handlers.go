@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// processRecordMsg handles messages that carry data from the .wandb file.
-func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
+// handleRecordMsg handles messages that carry data from the .wandb file.
+func (m *Model) handleRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	defer m.logPanic("processRecordMsg")
 
 	start := time.Now()
@@ -162,10 +162,11 @@ func (m *Model) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Model,
 		layout.height,
 	)
 
+	// Chart 2D indices on the grid.
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 
-	// Handle left click for focus
+	// Handle left click for chart focus.
 	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
 		tea.MouseEvent(msg).Action == tea.MouseActionPress {
 		m.rightSidebar.ClearFocus()
@@ -173,18 +174,32 @@ func (m *Model) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Model,
 		return m, nil
 	}
 
-	// Handle wheel events for zoom
-	if !tea.MouseEvent(msg).IsWheel() {
-		return m, nil
+	// Handle right click/hold+move/release for chart data inspection.
+	if tea.MouseEvent(msg).Button == tea.MouseButtonRight {
+		// Holding Alt activates synchronised inspection across all charts
+		// visible on the current page.
+		alt := tea.MouseEvent(msg).Alt
+
+		switch tea.MouseEvent(msg).Action {
+		case tea.MouseActionPress:
+			m.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
+		case tea.MouseActionMotion:
+			m.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+		case tea.MouseActionRelease:
+			m.metricsGrid.EndInspection()
+		}
 	}
 
-	m.metricsGrid.HandleWheel(
-		adjustedX,
-		row,
-		col,
-		dims,
-		msg.Button == tea.MouseButtonWheelUp,
-	)
+	// Handle wheel events for zoom.
+	if tea.MouseEvent(msg).IsWheel() {
+		m.metricsGrid.HandleWheel(
+			adjustedX,
+			row,
+			col,
+			dims,
+			msg.Button == tea.MouseButtonWheelUp,
+		)
+	}
 
 	return m, nil
 }
@@ -465,21 +480,15 @@ func (m *Model) handleConfigNumberKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleOther handles remaining message types
-func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.MouseMsg:
-		return m.handleMouseMsg(msg)
-
-	case tea.WindowSizeMsg:
-		m.handleWindowResize(msg)
-
+// handleSidebarAnimation handles sidebar animation.
+func (m *Model) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
+	switch msg.(type) {
 	case LeftSidebarAnimationMsg:
 		layout := m.computeViewports()
 		m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
 		if m.leftSidebar.IsAnimating() {
-			return m, m.leftSidebar.animationCmd()
+			return []tea.Cmd{m.leftSidebar.animationCmd()}
 		}
 
 		m.endAnimating()
@@ -490,14 +499,14 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 		m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
 		if m.rightSidebar.IsAnimating() {
-			return m, m.rightSidebar.animationCmd()
+			return []tea.Cmd{m.rightSidebar.animationCmd()}
 		}
 
 		m.endAnimating()
 		m.leftSidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
 	}
 
-	return m, nil
+	return nil
 }
 
 // handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
@@ -510,7 +519,7 @@ func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea
 	m.suppressDraw = suppressRedraw
 	for _, subMsg := range subMsgs {
 		var cmd tea.Cmd
-		m, cmd = m.processRecordMsg(subMsg)
+		m, cmd = m.handleRecordMsg(subMsg)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -523,8 +532,8 @@ func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea
 	return cmds
 }
 
-// onInit handles InitMsg (reader ready).
-func (m *Model) onInit(msg InitMsg) []tea.Cmd {
+// handleInit handles InitMsg (reader ready).
+func (m *Model) handleInit(msg InitMsg) []tea.Cmd {
 	m.logger.Debug("model: InitMsg received, reader initialized")
 	m.reader = msg.Reader
 	m.loadStartTime = time.Now()
@@ -532,8 +541,8 @@ func (m *Model) onInit(msg InitMsg) []tea.Cmd {
 	return []tea.Cmd{ReadAllRecordsChunked(m.reader)}
 }
 
-// onChunkedBatch handles boot-load chunked batches.
-func (m *Model) onChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
+// handleChunkedBatch handles boot-load chunked batches.
+func (m *Model) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	defer timeit(m.logger, "Model.onChunkedBatch")()
 
 	m.logger.Debug(
@@ -561,16 +570,16 @@ func (m *Model) onChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	return cmds
 }
 
-// onBatched handles live drain batches.
-func (m *Model) onBatched(msg BatchedRecordsMsg) []tea.Cmd {
+// handleBatched handles live drain batches.
+func (m *Model) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := m.handleRecordsBatch(msg.Msgs, true)
 	cmds = append(cmds, ReadAvailableRecords(m.reader))
 	return cmds
 }
 
-// onHeartbeat triggers a live read and re-arms the heartbeat.
-func (m *Model) onHeartbeat() []tea.Cmd {
+// handleHeartbeat triggers a live read and re-arms the heartbeat.
+func (m *Model) handleHeartbeat() []tea.Cmd {
 	m.logger.Debug("model: processing HeartbeatMsg")
 	m.heartbeatMgr.Reset(m.isRunning)
 	return []tea.Cmd{
@@ -579,8 +588,8 @@ func (m *Model) onHeartbeat() []tea.Cmd {
 	}
 }
 
-// onFileChange coalesces change notifications into a read.
-func (m *Model) onFileChange() []tea.Cmd {
+// handleFileChange coalesces change notifications into a read.
+func (m *Model) handleFileChange() []tea.Cmd {
 	m.heartbeatMgr.Reset(m.isRunning)
 	return []tea.Cmd{
 		ReadAvailableRecords(m.reader),
