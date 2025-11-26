@@ -121,14 +121,6 @@ func (sr *SelectedRows) GetIndexKey() string {
 	return sr.indexKey
 }
 
-func (sr *SelectedRows) GetMinValue() float64 {
-	return sr.minValue
-}
-
-func (sr *SelectedRows) GetMaxValue() float64 {
-	return sr.maxValue
-}
-
 // GetRowGroupIndices returns the indices of the row groups that should be read.
 //
 // It does this by checking if the index key value
@@ -181,19 +173,11 @@ func (sr *SelectedRows) IsRowGreaterThanMinValue(
 		return false
 	}
 
-	switch indexColumnIterator.Value().(type) {
+	switch value := indexColumnIterator.Value().(type) {
 	case int64:
-		colValue, ok := indexColumnIterator.Value().(int64)
-		if !ok {
-			return false
-		}
-		return colValue >= int64(sr.minValue)
+		return value >= int64(sr.minValue)
 	case float64:
-		colValue, ok := indexColumnIterator.Value().(float64)
-		if !ok {
-			return false
-		}
-		return colValue >= float64(sr.minValue)
+		return value >= float64(sr.minValue)
 	default:
 		return false
 	}

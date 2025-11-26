@@ -82,10 +82,7 @@ func (r *ParquetDataIterator) UpdateQueryRange(
 	// since the Arrow RecordReader doesn't support backward seeking
 	// after data has been consumed.
 	if int64(minValue) < r.lastStep {
-		err := r.createNewRecordReader()
-		if err != nil {
-			return err
-		}
+		return r.createNewRecordReader()
 	}
 
 	return nil
