@@ -40,7 +40,6 @@ from wandb.analytics import get_sentry
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
-from wandb.old.settings import Settings
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
@@ -256,18 +255,25 @@ class Api:
             "_proxies": default_overrides.get("_proxies", None),
         }
 
-        self.retry_timedelta = retry_timedelta or datetime.timedelta(days=7)
-        self.retry_uploads = 10
-        self._settings = Settings(
-            load_settings=load_settings,
-            root_dir=self.default_settings.get("root_dir"),
-        )
+        if load_settings:
+            global_settings = wandb_setup.singleton().settings
+            if root_dir := self.default_settings["root_dir"]:
+                global_settings = global_settings.model_copy()
+                global_settings.root_dir = root_dir
+
+            self._settings = global_settings.read_system_settings().all()
+        else:
+            self._settings = {}
+
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
             "system_sample_seconds": 2,
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
+
+        self.retry_timedelta = retry_timedelta or datetime.timedelta(days=7)
+        self.retry_uploads = 10
 
         # todo: remove these hacky hacks after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
@@ -472,16 +478,12 @@ class Api:
         return self.viewer().get("entity")  # type: ignore
 
     @overload
-    def settings(self, key: None = None, section: str = ...) -> dict[str, Any]: ...
+    def settings(self, key: None = None) -> dict[str, Any]: ...
 
     @overload
-    def settings(self, key: str, section: str = ...) -> Any: ...
+    def settings(self, key: str) -> Any: ...
 
-    def settings(
-        self,
-        key: str | None = None,
-        section: str = Settings.DEFAULT_SECTION,
-    ) -> Any:
+    def settings(self, key: str | None = None) -> Any:
         """The settings overridden from the wandb/settings file.
 
         Args:
@@ -499,47 +501,35 @@ class Api:
                     "organization": "my-org",
                 }
         """
-        result = dict(self.default_settings)
-        result.update(self._settings.items(section=section))
+        result: dict[str, Any] = dict(self.default_settings)
+        result.update(self._settings)
         result.update(
             {
                 "entity": env.get_entity(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "entity",
-                        fallback=result.get("entity"),
+                        result.get("entity"),
                     ),
                     env=self._environ,
                 ),
                 "organization": env.get_organization(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "organization",
-                        fallback=result.get("organization"),
+                        result.get("organization"),
                     ),
                     env=self._environ,
                 ),
                 "project": env.get_project(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "project",
-                        fallback=result.get("project"),
+                        result.get("project"),
                     ),
                     env=self._environ,
                 ),
                 "base_url": env.get_base_url(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "base_url",
-                        fallback=result.get("base_url"),
-                    ),
-                    env=self._environ,
-                ),
-                "ignore_globs": env.get_ignore(
-                    self._settings.get(
-                        Settings.DEFAULT_SECTION,
-                        "ignore_globs",
-                        fallback=result.get("ignore_globs"),
+                        result.get("base_url"),
                     ),
                     env=self._environ,
                 ),
@@ -548,19 +538,12 @@ class Api:
 
         return result if key is None else result[key]
 
-    def clear_setting(
-        self, key: str, globally: bool = False, persist: bool = False
-    ) -> None:
-        self._settings.clear(
-            Settings.DEFAULT_SECTION, key, globally=globally, persist=persist
-        )
+    def clear_setting(self, key: str) -> None:
+        self._settings.pop(key, None)
 
-    def set_setting(
-        self, key: str, value: Any, globally: bool = False, persist: bool = False
-    ) -> None:
-        self._settings.set(
-            Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist
-        )
+    def set_setting(self, key: str, value: Any) -> None:
+        self._settings[key] = value
+
         if key == "entity":
             env.set_entity(value, env=self._environ)
         elif key == "project":

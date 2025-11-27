@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import os
+import pathlib
 import tempfile
 from itertools import chain
 from pathlib import Path
@@ -95,11 +96,18 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
             assert response is None
 
 
-def test_internal_api_with_no_write_global_config_dir(tmp_path):
-    with patch.dict("os.environ", WANDB_CONFIG_DIR=str(tmp_path)):
-        os.chmod(tmp_path, 0o444)
+def test_internal_api_with_no_write_global_config_dir(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    config_dir = tmp_path / "test-config"
+    monkeypatch.setenv("WANDB_CONFIG_DIR", str(config_dir))
+    config_dir.mkdir(0o511)  # read and list only
+
+    try:
         internal.InternalApi()
-        os.chmod(tmp_path, 0o777)  # Allow the test runner to clean up.
+    finally:
+        config_dir.chmod(0o711)  # allow test to clean up
 
 
 @pytest.fixture

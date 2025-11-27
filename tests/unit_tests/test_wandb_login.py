@@ -94,7 +94,7 @@ def test_login_sets_api_base_url(monkeypatch: pytest.MonkeyPatch):
         lambda self: None,
     )
 
-    monkeypatch.setenv("WANDB_API_KEY", "test" * 10)
+    wandb_setup.singleton().settings.api_key = "test" * 10
     base_url = "https://api.test.host.ai"
     wandb.login(host=base_url)
 

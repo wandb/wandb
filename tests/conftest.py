@@ -17,7 +17,6 @@ os.environ["WANDB_ERROR_REPORTING"] = "false"
 import git
 import pytest
 import wandb
-import wandb.old.settings
 import wandb.util
 from click.testing import CliRunner
 from wandb import Api
@@ -127,19 +126,13 @@ def filesystem_isolate(tmp_path, monkeypatch):
 
 # todo: this fixture should probably be autouse=True
 @pytest.fixture(scope="function", autouse=False)
-def local_settings(filesystem_isolate):
+def local_settings(tmp_path: pathlib.Path, filesystem_isolate):
     """Place global settings in an isolated dir."""
-    config_path = os.path.join(os.getcwd(), ".config", "wandb", "settings")
-    filesystem.mkdir_exists_ok(os.path.join(".config", "wandb"))
+    # Ensure local settings are also in an isolated directory.
+    _ = filesystem_isolate
 
-    # todo: this breaks things in unexpected places
-    # todo: get rid of wandb.old
-    with unittest.mock.patch.object(
-        wandb.old.settings.Settings,
-        "_global_path",
-        return_value=config_path,
-    ):
-        yield
+    config_path = tmp_path / "test-wandb-config"
+    wandb_setup.singleton().settings.settings_system = str(config_path)
 
 
 @pytest.fixture(scope="function", autouse=True)
