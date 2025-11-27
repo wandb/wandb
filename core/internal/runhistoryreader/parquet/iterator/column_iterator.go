@@ -78,12 +78,6 @@ func newStructIterator(data arrow.Array) (*structIterator, error) {
 }
 
 func (s *structIterator) Next() (ok bool) {
-	defer func() {
-		if recover() != nil {
-			// Panic occurred, likely due to accessing freed memory
-			ok = false
-		}
-	}()
 	if s == nil || s.data == nil {
 		return false
 	}
@@ -133,12 +127,6 @@ func newListIterator(data arrow.Array) (*listIterator, error) {
 }
 
 func (c *listIterator) Next() (ok bool) {
-	defer func() {
-		if recover() != nil {
-			// Panic occurred, likely due to accessing freed memory
-			ok = false
-		}
-	}()
 	if c == nil || c.data == nil {
 		return false
 	}
@@ -193,12 +181,6 @@ func newScalarIterator(data arrow.Array, accessor accessorFunc) *scalarIterator 
 }
 
 func (c *scalarIterator) Next() (ok bool) {
-	defer func() {
-		if recover() != nil {
-			// Panic occurred, likely due to accessing freed memory
-			ok = false
-		}
-	}()
 	if c == nil || c.data == nil {
 		return false
 	}
@@ -208,15 +190,6 @@ func (c *scalarIterator) Next() (ok bool) {
 }
 
 func (c *scalarIterator) Value() (value any) {
-	defer func() {
-		// A panic may occur when the underlying data array is corrupt,
-		// e.g. index out of bounds panic even when c.offset < c.data.Len()
-		// For now, just catch the panic and return nil to avoid killing the calling process.
-		if p := recover(); p != nil {
-			// TODO: Bubble up some sort of corruption indicator for observability
-			value = nil
-		}
-	}()
 	if c == nil || c.data == nil || c.accessor == nil {
 		return nil
 	}
