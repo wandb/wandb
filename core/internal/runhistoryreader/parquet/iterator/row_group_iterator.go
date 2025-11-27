@@ -170,11 +170,16 @@ func (t *RowGroupIterator) checkRowValidity() (bool, error) {
 		return false, nil
 	}
 
-	if !t.selectedRows.IsRowGreaterThanMinValue(indexRow.Iterator.Value()) {
+	if indexRow.Iterator == nil {
+		return false, nil
+	}
+	indexRowValue := indexRow.Iterator.Value()
+
+	if !t.selectedRows.IsRowGreaterThanMinValue(indexRowValue) {
 		return false, nil
 	}
 
-	if !t.selectedRows.IsRowLessThanMaxValue(indexRow.Iterator.Value()) {
+	if !t.selectedRows.IsRowLessThanMaxValue(indexRowValue) {
 		// Mark that we have a valid value for the next iteration
 		t.hasValueFromLastScan = true
 		return false, ErrRowExceedsMaxValue

@@ -151,6 +151,10 @@ func (sr *SelectedRowsRange) GetRowGroupIndices() ([]int, error) {
 // If the current row does not have a value for the index column,
 // then it returns false.
 func (sr *SelectedRowsRange) IsRowGreaterThanMinValue(rowIndexValue any) bool {
+	if rowIndexValue == nil {
+		return false
+	}
+
 	switch value := rowIndexValue.(type) {
 	case int64:
 		return value >= int64(sr.minValue)
@@ -165,6 +169,10 @@ func (sr *SelectedRowsRange) IsRowGreaterThanMinValue(rowIndexValue any) bool {
 // IsRowLessThanMaxValue returns whether the requested index column's value
 // is less than the max value for the selected range.
 func (sr *SelectedRowsRange) IsRowLessThanMaxValue(rowIndexValue any) bool {
+	if rowIndexValue == nil {
+		return false
+	}
+
 	switch value := rowIndexValue.(type) {
 	case int64:
 		return value < int64(sr.maxValue)

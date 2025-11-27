@@ -1,7 +1,6 @@
 package iterator
 
 import (
-	"math"
 	"path/filepath"
 	"testing"
 
@@ -39,7 +38,7 @@ func TestMultiIterator_ReadsAllRows(t *testing.T) {
 		[]string{"_step", "value"},
 		StepKey,
 		0,
-		math.MaxInt64,
+		1000,
 	)
 	it2 := getRowIteratorForFile(
 		t,
@@ -47,7 +46,7 @@ func TestMultiIterator_ReadsAllRows(t *testing.T) {
 		[]string{"_step", "value"},
 		StepKey,
 		0,
-		math.MaxInt64,
+		1000,
 	)
 
 	multiReader := NewMultiIterator([]*ParquetDataIterator{it1, it2})
