@@ -24,7 +24,7 @@ func NewParquetDataIterator(
 	reader *pqarrow.FileReader,
 	selectedRows *SelectedRowsRange,
 	selectedColumns *SelectedColumns,
-) (RowIterator, error) {
+) (*ParquetDataIterator, error) {
 	columnIndices := selectedColumns.GetColumnIndices()
 	rowGroupIndices, err := selectedRows.GetRowGroupIndices()
 	if err != nil {
@@ -42,7 +42,7 @@ func NewParquetDataIterator(
 
 	// No rows to read
 	if !recordReader.Next() {
-		return &NoopRowIterator{}, nil
+		return nil, nil
 	}
 
 	current, err := NewRowGroupIterator(

@@ -29,7 +29,7 @@ type HistoryReader struct {
 
 	keys         []string
 	parquetFiles []*pqarrow.FileReader
-	partitions   []iterator.RowIterator
+	partitions   []*iterator.ParquetDataIterator
 
 	// Stores the minimum step where live (not yet exported) data starts.
 	// This is used to determine if we need to query the W&B backend for data.
@@ -109,12 +109,7 @@ func (h *HistoryReader) getParquetHistory(
 	results := []iterator.KeyValueList{}
 
 	for _, partition := range h.partitions {
-		parquetDataIterator, ok := partition.(*iterator.ParquetDataIterator)
-		if !ok {
-			return nil, fmt.Errorf("partition is not a ParquetDataIterator")
-		}
-
-		err := parquetDataIterator.UpdateQueryRange(
+		err := partition.UpdateQueryRange(
 			float64(minStep),
 			float64(maxStep),
 			false,
@@ -271,9 +266,11 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 	return nil
 }
 
-func (h *HistoryReader) makeRowIteratorsFromFiles(ctx context.Context) ([]iterator.RowIterator, error) {
-	partitions := make([]iterator.RowIterator, len(h.parquetFiles))
-	for i, parquetFile := range h.parquetFiles {
+func (h *HistoryReader) makeRowIteratorsFromFiles(
+	ctx context.Context,
+) ([]*iterator.ParquetDataIterator, error) {
+	partitions := make([]*iterator.ParquetDataIterator, 0, len(h.parquetFiles))
+	for _, parquetFile := range h.parquetFiles {
 		selectedRows := iterator.SelectRowsInRange(
 			parquetFile,
 			iterator.StepKey,
@@ -290,7 +287,7 @@ func (h *HistoryReader) makeRowIteratorsFromFiles(ctx context.Context) ([]iterat
 			return nil, err
 		}
 
-		rowIterator, err := iterator.NewRowIterator(
+		parquetDataIterator, err := iterator.NewRowIterator(
 			ctx,
 			parquetFile,
 			selectedRows,
@@ -302,7 +299,10 @@ func (h *HistoryReader) makeRowIteratorsFromFiles(ctx context.Context) ([]iterat
 			}
 			return nil, err
 		}
-		partitions[i] = rowIterator
+
+		if parquetDataIterator != nil {
+			partitions = append(partitions, parquetDataIterator)
+		}
 	}
 	return partitions, nil
 }

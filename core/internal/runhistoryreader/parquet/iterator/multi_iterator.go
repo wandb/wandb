@@ -2,11 +2,11 @@ package iterator
 
 // multiIterator iterates over multiple RowIterators in sequence.
 type multiIterator struct {
-	iterators []RowIterator
+	iterators []*ParquetDataIterator
 	offset    int
 }
 
-func NewMultiIterator(iterators []RowIterator) RowIterator {
+func NewMultiIterator(iterators []*ParquetDataIterator) RowIterator {
 	return &multiIterator{
 		iterators: iterators,
 	}
@@ -36,6 +36,6 @@ func (m *multiIterator) Release() {
 	}
 }
 
-func (m *multiIterator) Iterators() []RowIterator {
+func (m *multiIterator) Iterators() []*ParquetDataIterator {
 	return m.iterators
 }

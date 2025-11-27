@@ -50,7 +50,7 @@ func TestMultiIterator_ReadsAllRows(t *testing.T) {
 		math.MaxInt64,
 	)
 
-	multiReader := NewMultiIterator([]RowIterator{it1, it2})
+	multiReader := NewMultiIterator([]*ParquetDataIterator{it1, it2})
 
 	// Verify all rows are read
 	actualValues := make([]map[string]any, 0)
@@ -114,7 +114,7 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 		10,
 		40,
 	)
-	multiReader := NewMultiIterator([]RowIterator{it1, it2})
+	multiReader := NewMultiIterator([]*ParquetDataIterator{it1, it2})
 
 	// Read all rows and verify they're within the range
 	actualValues := make([]map[string]any, 0)

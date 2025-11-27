@@ -42,10 +42,10 @@ func NewRowIterator(
 	reader *pqarrow.FileReader,
 	selectedRows *SelectedRowsRange,
 	selectedColumns *SelectedColumns,
-) (RowIterator, error) {
+) (*ParquetDataIterator, error) {
 	// For empty parquet files, return a noop iterator.
 	if reader.ParquetReader().NumRows() <= 0 {
-		return &NoopRowIterator{}, nil
+		return nil, nil
 	}
 
 	if reader.Props.BatchSize <= 0 {

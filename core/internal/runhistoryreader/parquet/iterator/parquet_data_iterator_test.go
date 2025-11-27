@@ -22,7 +22,7 @@ func getRowIteratorForFile(
 	indexKey string,
 	minValue float64,
 	maxValue float64,
-) RowIterator {
+) *ParquetDataIterator {
 	t.Helper()
 
 	pr, err := file.OpenParquetFile(filePath, true)
