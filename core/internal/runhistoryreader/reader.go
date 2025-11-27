@@ -136,9 +136,9 @@ func (h *HistoryReader) getParquetHistory(
 //
 // The order of the URLs returned is not guaranteed
 // to be the same order as the order the run history partitions were created in.
-func (h *HistoryReader) getRunHistoryFileUrls(
+func (h *HistoryReader) getRunHistoryFileUrlsWithLiveSteps(
 	ctx context.Context,
-) ([]string, error) {
+) (signedUrls []string, liveData []any, err error) {
 	response, err := gql.RunParquetHistory(
 		ctx,
 		h.graphqlClient,
@@ -148,41 +148,16 @@ func (h *HistoryReader) getRunHistoryFileUrls(
 		[]string{iterator.StepKey},
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if response.GetProject() == nil || response.GetProject().GetRun() == nil {
-		return nil, fmt.Errorf("no parquet history found for run %s", h.runId)
+		return nil, nil, fmt.Errorf("no parquet history found for run %s", h.runId)
 	}
 
-	for _, liveData := range response.GetProject().GetRun().GetParquetHistory().LiveData {
-		liveDataMap, ok := liveData.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("expected LiveData to be map[string]any")
-		}
-
-		stepValue, ok := liveDataMap[iterator.StepKey]
-		if !ok {
-			return nil, fmt.Errorf("expected LiveData to contain step key")
-		}
-
-		var stepIntValue int64
-		switch x := stepValue.(type) {
-		case float64:
-			stepIntValue = int64(x)
-		case int64:
-			stepIntValue = x
-		default:
-			return nil, fmt.Errorf("expected step value to be convertible to int")
-		}
-
-		if stepIntValue < h.minLiveStep {
-			h.minLiveStep = stepIntValue
-		}
-	}
-
-	signedUrls := response.GetProject().GetRun().GetParquetHistory().ParquetUrls
-	return signedUrls, nil
+	liveData = response.GetProject().GetRun().GetParquetHistory().LiveData
+	signedUrls = response.GetProject().GetRun().GetParquetHistory().ParquetUrls
+	return signedUrls, liveData, nil
 }
 
 func (h *HistoryReader) downloadRunHistoryFile(
@@ -217,8 +192,15 @@ func (h *HistoryReader) downloadRunHistoryFile(
 
 // initParquetFiles creates a parquet file reader
 // for each of the run's history files.
+//
+// It should be called before calling GetHistorySteps.
 func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
-	signedUrls, err := h.getRunHistoryFileUrls(ctx)
+	signedUrls, liveData, err := h.getRunHistoryFileUrlsWithLiveSteps(ctx)
+	if err != nil {
+		return err
+	}
+
+	h.minLiveStep, err = getMinLiveStep(liveData)
 	if err != nil {
 		return err
 	}
