@@ -150,15 +150,8 @@ func (sr *SelectedRowsRange) GetRowGroupIndices() ([]int, error) {
 //
 // If the current row does not have a value for the index column,
 // then it returns false.
-func (sr *SelectedRowsRange) IsRowGreaterThanMinValue(
-	rowColumns map[string]keyIteratorPair,
-) bool {
-	indexColumnIterator := rowColumns[sr.indexKey].Iterator
-	if indexColumnIterator == nil {
-		return false
-	}
-
-	switch value := indexColumnIterator.Value().(type) {
+func (sr *SelectedRowsRange) IsRowGreaterThanMinValue(rowIndexValue any) bool {
+	switch value := rowIndexValue.(type) {
 	case int64:
 		return value >= int64(sr.minValue)
 	case float64:
@@ -171,30 +164,12 @@ func (sr *SelectedRowsRange) IsRowGreaterThanMinValue(
 
 // IsRowLessThanMaxValue returns whether the requested index column's value
 // is less than the max value for the selected range.
-//
-// If the current row does not have a value for the index column,
-// then it returns false.
-func (sr *SelectedRowsRange) IsRowLessThanMaxValue(
-	rowColumns map[string]keyIteratorPair,
-) bool {
-	indexColumnIterator := rowColumns[sr.indexKey].Iterator
-	if indexColumnIterator == nil {
-		return false
-	}
-
-	switch indexColumnIterator.Value().(type) {
+func (sr *SelectedRowsRange) IsRowLessThanMaxValue(rowIndexValue any) bool {
+	switch value := rowIndexValue.(type) {
 	case int64:
-		colValue, ok := indexColumnIterator.Value().(int64)
-		if !ok {
-			return false
-		}
-		return colValue < int64(sr.maxValue)
+		return value < int64(sr.maxValue)
 	case float64:
-		colValue, ok := indexColumnIterator.Value().(float64)
-		if !ok {
-			return false
-		}
-		return colValue < float64(sr.maxValue)
+		return value < float64(sr.maxValue)
 	default:
 		return false
 	}

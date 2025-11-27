@@ -31,9 +31,9 @@ func TestRecordIterator_ErrorsOnMissingColumns(t *testing.T) {
 			selectAll:        false,
 		},
 		&SelectedRowsRange{
-			indexKey:  StepKey,
-			minValue:  0,
-			maxValue:  1,
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 1,
 		},
 	)
 
@@ -61,9 +61,9 @@ func TestRecordIterator_ErrorsOnMissingIndexKey(t *testing.T) {
 			selectAll:        false,
 		},
 		&SelectedRowsRange{
-			indexKey:  StepKey,
-			minValue:  0,
-			maxValue:  1,
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 1,
 		},
 	)
 
@@ -100,9 +100,9 @@ func TestRecordIterator_FiltersRowsWithEmptyColumns(t *testing.T) {
 			selectAll:        false,
 		},
 		&SelectedRowsRange{
-			indexKey:  StepKey,
-			minValue:  0,
-			maxValue:  1,
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 1,
 		},
 	)
 	require.NoError(t, err)
@@ -144,9 +144,9 @@ func TestRecordIterator_FiltersRowsWithStepOutOfRange(t *testing.T) {
 			selectAll:        false,
 		},
 		&SelectedRowsRange{
-			indexKey:  StepKey,
-			minValue:  1,
-			maxValue:  2,
+			indexKey: StepKey,
+			minValue: 1,
+			maxValue: 2,
 		},
 	)
 	require.NoError(t, err)
@@ -187,9 +187,9 @@ func TestRecordIterator_ReleaseFreesMemory(t *testing.T) {
 			selectAll:        false,
 		},
 		&SelectedRowsRange{
-			indexKey:  StepKey,
-			minValue:  0,
-			maxValue:  3,
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 3,
 		},
 	)
 	if err != nil {
@@ -232,9 +232,9 @@ func TestRecordIterator_WithEmptyRecordIsNil(t *testing.T) {
 			selectAll:        false,
 		},
 		&SelectedRowsRange{
-			indexKey:  StepKey,
-			minValue:  0,
-			maxValue:  0,
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 0,
 		},
 	)
 	require.NoError(t, err)

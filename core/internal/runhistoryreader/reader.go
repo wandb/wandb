@@ -125,7 +125,6 @@ func (h *HistoryReader) getParquetHistory(
 	}
 
 	multiIterator := iterator.NewMultiIterator(h.partitions)
-	defer multiIterator.Release()
 	for {
 		next, err := multiIterator.Next()
 		if err != nil && !errors.Is(err, iterator.ErrRowExceedsMaxValue) {
