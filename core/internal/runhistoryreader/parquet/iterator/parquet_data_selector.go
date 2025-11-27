@@ -145,8 +145,11 @@ func (sr *SelectedRowsRange) GetRowGroupIndices() ([]int, error) {
 	return rowGroupIndices, nil
 }
 
-// IsRowGreaterThanMinValue checks if the current row within a row group
+// IsRowGreaterThanMinValue returns whether the requested index column's value
 // is greater than the min value for the selected range.
+//
+// If the current row does not have a value for the index column,
+// then it returns false.
 func (sr *SelectedRowsRange) IsRowGreaterThanMinValue(
 	rowColumns map[string]keyIteratorPair,
 ) bool {
@@ -166,8 +169,11 @@ func (sr *SelectedRowsRange) IsRowGreaterThanMinValue(
 
 }
 
-// IsRowLessThanMaxValue checks if the current row within a row group
+// IsRowLessThanMaxValue returns whether the requested index column's value
 // is less than the max value for the selected range.
+//
+// If the current row does not have a value for the index column,
+// then it returns false.
 func (sr *SelectedRowsRange) IsRowLessThanMaxValue(
 	rowColumns map[string]keyIteratorPair,
 ) bool {
