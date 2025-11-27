@@ -510,6 +510,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnInvalidLiveData(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		false,
 	)
 	assert.ErrorContains(t, err, "expected LiveData to be map[string]any")
 }
@@ -541,6 +542,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnMissingStepKey(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		false,
 	)
 	assert.ErrorContains(t, err, "expected LiveData to contain step key")
 }
@@ -572,6 +574,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnNonConvertibleStepValue(t *testi
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		false,
 	)
 	assert.ErrorContains(t, err, "expected step value to be convertible to int")
 }
@@ -623,6 +626,7 @@ func TestHistoryReader_GetHistorySteps_ConvertsStepValueToInt(t *testing.T) {
 				mockGQL,
 				http.DefaultClient,
 				[]string{},
+				false,
 			)
 			assert.NoError(t, err)
 		})
