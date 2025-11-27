@@ -2,6 +2,7 @@ import asyncio
 import configparser
 import datetime
 import getpass
+import glob
 import json
 import logging
 import os
@@ -2920,6 +2921,63 @@ def verify(host):
         and check_sweeps_success
     ):
         sys.exit(1)
+
+
+@cli.command(
+    "purge-cache",
+    help="Purges cached logs, run history, and artifacts from the local W&B cache.",
+)
+@click.option(
+    "--age",
+    default="0d",
+    help="Removes items older than the specified time period (e.g., '10s', '5m', '8h', '7d', '6M', '1y')",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Do not prompt for confirmation when deleting files.",
+)
+def purge_cache(
+    age: str,
+    force: bool,
+):
+    try:
+        age_seconds = util.parse_time_period(age)
+    except ValueError as e:
+        wandb.termerror(str(e))
+        sys.exit(1)
+
+    cache_dir = env.get_cache_dir()
+    if not os.path.exists(cache_dir):
+        wandb.termlog(f"Cache directory does not exist: {cache_dir}")
+        return
+
+    cutoff_time = time.time() - age_seconds
+    purged_count = 0
+    data_deleted = 0
+
+    files = glob.glob(os.path.join(cache_dir, "**"), recursive=True)
+    for file in files:
+        if os.path.getmtime(file) > cutoff_time or os.path.isdir(file):
+            continue
+
+        if not force:
+            response = click.prompt(
+                f"Are you sure you want to delete cache file {file}? [y/N]: ",
+                type=click.Choice(["y", "yes", "n", "no"], case_sensitive=False),
+            )
+            if response not in ["y", "yes"]:
+                wandb.termlog(f"Skipping cache file: {file}")
+                continue
+
+        data_deleted += os.path.getsize(file)
+        os.remove(file)
+        purged_count += 1
+
+    wandb.termlog(
+        f"Deleted {purged_count} file(s) ({util.to_human_size(data_deleted)})"
+    )
 
 
 cli.add_command(beta)
