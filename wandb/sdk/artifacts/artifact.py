@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import atexit
-import concurrent.futures
 import contextlib
 import json
 import logging
@@ -14,63 +13,111 @@ import shutil
 import stat
 import tempfile
 import time
+from collections import deque
+from concurrent.futures import Executor, ThreadPoolExecutor, as_completed
 from copy import copy
-from datetime import datetime, timedelta
-from functools import partial
-from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Literal, Sequence, Type, cast
-from urllib.parse import urlparse
+from dataclasses import asdict, replace
+from datetime import timedelta
+from itertools import filterfalse
+from pathlib import Path, PurePosixPath
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Final,
+    Iterator,
+    Literal,
+    Sequence,
+    Type,
+)
+from urllib.parse import quote, urljoin, urlparse
 
-import requests
+from pydantic import NonNegativeInt
 
 import wandb
-from wandb import data_types, env, util
+from wandb import data_types, env
+from wandb._iterutils import one, unique_list
+from wandb._pydantic import from_json
+from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
+from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
+from wandb.apis.public.utils import gql_compat
 from wandb.data_types import WBValue
+from wandb.errors import CommError
+from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termerror, termlog, termwarn
-from wandb.sdk.artifacts._validators import (
-    ensure_logged,
-    ensure_not_finalized,
-    validate_aliases,
-    validate_tags,
-)
-from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
-from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
-from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
-    ArtifactManifestV1,
-)
-from wandb.sdk.artifacts.artifact_state import ArtifactState
-from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
-from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError, WaitTimeoutError
-from wandb.sdk.artifacts.staging import get_staging_dir
-from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
-from wandb.sdk.artifacts.storage_layout import StorageLayout
-from wandb.sdk.artifacts.storage_policies import WANDB_STORAGE_POLICY
-from wandb.sdk.artifacts.storage_policy import StoragePolicy
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk import wandb_setup
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
-from wandb.sdk.lib import filesystem, retry, runid, telemetry
-from wandb.sdk.lib.deprecate import Deprecated, deprecate
+from wandb.sdk.lib import retry, telemetry
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
+from wandb.sdk.lib.filesystem import check_exists, system_preferred_path
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
-from wandb.sdk.lib.runid import generate_id
+from wandb.sdk.lib.runid import generate_fast_id, generate_id
+from wandb.sdk.mailbox import MailboxHandle
+from wandb.util import (
+    alias_is_version_index,
+    artifact_to_json,
+    fsync_open,
+    json_dumps_safer,
+    uri_from_path,
+    vendor_setup,
+)
 
-reset_path = util.vendor_setup()
+from ._factories import make_storage_policy
+from ._gqlutils import (
+    omit_artifact_fields,
+    org_info_from_entity,
+    resolve_org_entity_name,
+    server_supports,
+    supports_enable_tracking_var,
+    type_info,
+)
+from ._validators import ensure_logged, ensure_not_finalized
+from .artifact_download_logger import ArtifactDownloadLogger
+from .artifact_instance_cache import (
+    artifact_instance_cache,
+    artifact_instance_cache_by_client_id,
+)
+from .artifact_manifest import ArtifactManifest
+from .artifact_manifest_entry import ArtifactManifestEntry
+from .artifact_manifests.artifact_manifest_v1 import ArtifactManifestV1
+from .artifact_state import ArtifactState
+from .artifact_ttl import ArtifactTTL
+from .exceptions import (
+    ArtifactNotLoggedError,
+    TooFewItemsError,
+    TooManyItemsError,
+    WaitTimeoutError,
+)
+from .staging import get_staging_dir
+from .storage_handlers.gcs_handler import _GCSIsADirectoryError
+from .storage_policies._multipart import should_multipart_download
+
+reset_path = vendor_setup()
 
 from wandb_gql import gql  # noqa: E402
 
 reset_path()
 
+if TYPE_CHECKING:
+    from typing import Iterable
+
+    from wandb.apis.public import RetryingClient
+
+    from ._generated import ArtifactFragment, ArtifactMembershipFragment
+    from ._models.pagination import FileWithUrlConnection
+    from ._validators import FullArtifactPath, LinkArtifactFields
+
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from wandb.sdk.interface.message_future import MessageFuture
+
+_MB: Final[int] = 1024 * 1024
 
 
 class Artifact:
@@ -78,26 +125,32 @@ class Artifact:
 
     Construct an empty W&B Artifact. Populate an artifacts contents with methods that
     begin with `add`. Once the artifact has all the desired files, you can call
-    `wandb.log_artifact()` to log it.
+    `run.log_artifact()` to log it.
 
     Args:
-        name: A human-readable name for the artifact. Use the name to identify
+        name (str): A human-readable name for the artifact. Use the name to identify
             a specific artifact in the W&B App UI or programmatically. You can
             interactively reference an artifact with the `use_artifact` Public API.
             A name can contain letters, numbers, underscores, hyphens, and dots.
             The name must be unique across a project.
-        type: The artifact's type. Use the type of an artifact to both organize
+        type (str): The artifact's type. Use the type of an artifact to both organize
             and differentiate artifacts. You can use any string that contains letters,
-            numbers, underscores, hyphens, and dots. Common types include `dataset` or `model`.
-            Include `model` within your type string if you want to link the artifact
-            to the W&B Model Registry.
-        description: A description of the artifact. For Model or Dataset Artifacts,
-            add documentation for your standardized team model or dataset card. View
-            an artifact's description programmatically with the `Artifact.description`
-            attribute or programmatically with the W&B App UI. W&B renders the
-            description as markdown in the W&B App.
-        metadata: Additional information about an artifact. Specify metadata as a
-            dictionary of key-value pairs. You can specify no more than 100 total keys.
+            numbers, underscores, hyphens, and dots. Common types include `dataset` or
+            `model`. Include `model` within your type string if you want to link the
+            artifact to the W&B Model Registry.
+            Note that some types reserved for internal use and cannot be set by users.
+            Such types include `job` and types that start with `wandb-`.
+        description (str | None) = None: A description of the artifact. For Model or
+            Dataset Artifacts, add documentation for your standardized team model or
+            dataset card. View an artifact's description programmatically with the
+            `Artifact.description` attribute or programmatically with the W&B App UI.
+            W&B renders the description as markdown in the W&B App.
+        metadata (dict[str, Any] | None) = None: Additional information about an artifact.
+            Specify metadata as a dictionary of key-value pairs. You can specify no more
+            than 100 total keys.
+        incremental: Use `Artifact.new_draft()` method instead to modify an
+            existing artifact.
+        use_as: Deprecated.
 
     Returns:
         An `Artifact` object.
@@ -114,50 +167,55 @@ class Artifact:
         metadata: dict[str, Any] | None = None,
         incremental: bool = False,
         use_as: str | None = None,
+        storage_region: str | None = None,
     ) -> None:
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
+        from ._validators import (
+            validate_artifact_name,
+            validate_artifact_type,
+            validate_metadata,
+        )
+
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
                 f"Artifact name may only contain alphanumeric characters, dashes, "
-                f"underscores, and dots. Invalid name: {name}"
+                f"underscores, and dots. Invalid name: {name!r}"
             )
-        if type == "job" or type.startswith("wandb-"):
-            raise ValueError(
-                "Artifact types 'job' and 'wandb-*' are reserved for internal use. "
-                "Please use a different type."
-            )
-        if incremental:
+
+        if incremental and not isinstance(self, InternalArtifact):
             termwarn("Using experimental arg `incremental`")
 
         # Internal.
         self._client: RetryingClient | None = None
 
-        storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
-        layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
-        policy_config = {"storageLayout": layout}
-        self._storage_policy = storage_policy_cls.from_config(config=policy_config)
-
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
         self._added_local_paths: dict[str, ArtifactManifestEntry] = {}
-        self._save_future: MessageFuture | None = None
+        self._save_handle: MailboxHandle[pb.Result] | None = None
         self._download_roots: set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: str | None = None
         # Properties.
         self._id: str | None = None
-        self._client_id: str = runid.generate_id(128)
-        self._sequence_client_id: str = runid.generate_id(128)
+
+        # Client IDs don't need cryptographic strength, so use a faster implementation.
+        self._client_id: str = generate_fast_id(128)
+        self._sequence_client_id: str = generate_fast_id(128)
+
         self._entity: str | None = None
         self._project: str | None = None
-        self._name: str = name  # includes version after saving
+        self._name: str = validate_artifact_name(name)  # includes version after saving
         self._version: str | None = None
         self._source_entity: str | None = None
         self._source_project: str | None = None
         self._source_name: str = name  # includes version after saving
         self._source_version: str | None = None
-        self._type: str = type
+        self._source_artifact: Artifact | None = None
+        self._is_link: bool = False
+        self._type: str = validate_artifact_type(type, name)
         self._description: str | None = description
-        self._metadata: dict = self._normalize_metadata(metadata)
+        self._metadata: dict[str, Any] = validate_metadata(metadata)
         self._ttl_duration_seconds: int | None = None
         self._ttl_is_inherited: bool = True
         self._ttl_changed: bool = False
@@ -167,126 +225,191 @@ class Artifact:
         self._saved_tags: list[str] = []
         self._distributed_id: str | None = None
         self._incremental: bool = incremental
-        self._use_as: str | None = use_as
+        if use_as is not None:
+            warn_and_record_deprecation(
+                feature=Deprecated(artifact__init_use_as=True),
+                message=(
+                    "`use_as` argument is deprecated and does not affect the behaviour of `wandb.Artifact()`"
+                ),
+            )
+        self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
+
+        # NOTE: These fields only reflect the last fetched response from the
+        # server, if any. If the ArtifactManifest has already been fetched and/or
+        # populated locally, it should take priority when determining these values.
+        self._size: NonNegativeInt | None = None
+        self._digest: str | None = None
+
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(
-            self._storage_policy
+            storage_policy=make_storage_policy(region=storage_region)
         )
+
         self._commit_hash: str | None = None
         self._file_count: int | None = None
         self._created_at: str | None = None
         self._updated_at: str | None = None
         self._final: bool = False
+        self._history_step: int | None = None
+        self._linked_artifacts: list[Artifact] = []
+
+        self._fetch_file_urls_decorated: Callable[..., Any] | None = None
 
         # Cache.
-        artifact_instance_cache[self._client_id] = self
+        artifact_instance_cache_by_client_id[self._client_id] = self
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Artifact | None:
-        artifact = artifact_instance_cache.get(artifact_id)
-        if artifact is not None:
-            return artifact
+        from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
+        from ._validators import FullArtifactPath
 
-        query = gql(
-            """
-            query ArtifactByID($id: ID!) {
-                artifact(id: $id) {
-                    ...ArtifactFragment
-                }
-            }
-            """
-            + _gql_artifact_fragment()
-        )
-        response = client.execute(
-            query,
-            variable_values={"id": artifact_id},
-        )
-        attrs = response.get("artifact")
-        if attrs is None:
+        if cached_artifact := artifact_instance_cache.get(artifact_id):
+            return cached_artifact
+
+        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
+
+        data = client.execute(query, variable_values={"id": artifact_id})
+        result = ArtifactByID.model_validate(data)
+
+        if (artifact := result.artifact) is None:
             return None
 
-        src_collection = attrs["artifactSequence"]
-        src_project = src_collection["project"]
+        src_collection = artifact.artifact_sequence
+        src_project = src_collection.project
 
-        entity_name = src_project["entityName"] if src_project else ""
-        project_name = src_project["name"] if src_project else ""
+        entity_name = src_project.entity.name if src_project else ""
+        project_name = src_project.name if src_project else ""
 
-        name = "{}:v{}".format(src_collection["name"], attrs["versionIndex"])
-        return cls._from_attrs(entity_name, project_name, name, attrs, client)
+        name = f"{src_collection.name}:v{artifact.version_index}"
+
+        path = FullArtifactPath(prefix=entity_name, project=project_name, name=name)
+        return cls._from_attrs(path, artifact, client)
+
+    @classmethod
+    def _membership_from_name(
+        cls, *, path: FullArtifactPath, client: RetryingClient
+    ) -> Artifact:
+        from ._generated import (
+            ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
+            ArtifactMembershipByName,
+        )
+
+        if not server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
+            raise UnsupportedError(
+                "Querying for the artifact collection membership is not supported "
+                "by this version of wandb server. Consider updating to the latest version."
+            )
+
+        query = gql_compat(
+            ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
+            omit_fields=omit_artifact_fields(client),
+        )
+        gql_vars = {"entity": path.prefix, "project": path.project, "name": path.name}
+        data = client.execute(query, variable_values=gql_vars)
+        result = ArtifactMembershipByName.model_validate(data)
+
+        if not (project := result.project):
+            raise ValueError(
+                f"project {path.project!r} not found under entity {path.prefix!r}"
+            )
+        if not (membership := project.artifact_collection_membership):
+            entity_project = f"{path.prefix}/{path.project}"
+            raise ValueError(
+                f"artifact membership {path.name!r} not found in {entity_project!r}"
+            )
+        return cls._from_membership(membership, target=path, client=client)
 
     @classmethod
     def _from_name(
         cls,
         *,
-        entity: str,
-        project: str,
-        name: str,
+        path: FullArtifactPath,
         client: RetryingClient,
         enable_tracking: bool = False,
     ) -> Artifact:
-        server_supports_enabling_artifact_usage_tracking = (
-            InternalApi().server_project_type_introspection()
-        )
-        query_vars = ["$entityName: String!", "$projectName: String!", "$name: String!"]
-        query_args = ["name: $name"]
-        if server_supports_enabling_artifact_usage_tracking:
-            query_vars.append("$enableTracking: Boolean")
-            query_args.append("enableTracking: $enableTracking")
+        from ._generated import ARTIFACT_BY_NAME_GQL, ArtifactByName
 
-        vars_str = ", ".join(query_vars)
-        args_str = ", ".join(query_args)
+        if server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
+            return cls._membership_from_name(path=path, client=client)
 
-        query = gql(
-            f"""
-            query ArtifactByName({vars_str}) {{
-                project(name: $projectName, entityName: $entityName) {{
-                    artifact({args_str}) {{
-                        ...ArtifactFragment
-                    }}
-                }}
-            }}
-            {_gql_artifact_fragment()}
-            """
-        )
-        query_variable_values: dict[str, Any] = {
-            "entityName": entity,
-            "projectName": project,
-            "name": name,
+        omit_vars = None if supports_enable_tracking_var(client) else {"enableTracking"}
+        gql_vars = {
+            "entity": path.prefix,
+            "project": path.project,
+            "name": path.name,
+            "enableTracking": enable_tracking,
         }
-        if server_supports_enabling_artifact_usage_tracking:
-            query_variable_values["enableTracking"] = enable_tracking
-
-        response = client.execute(
-            query,
-            variable_values=query_variable_values,
+        query = gql_compat(
+            ARTIFACT_BY_NAME_GQL,
+            omit_variables=omit_vars,
+            omit_fields=omit_artifact_fields(client),
         )
-        project_attrs = response.get("project")
-        if not project_attrs:
-            raise ValueError(f"project '{project}' not found under entity '{entity}'")
-        attrs = project_attrs.get("artifact")
-        if not attrs:
-            raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
-        return cls._from_attrs(entity, project, name, attrs, client)
+        data = client.execute(query, variable_values=gql_vars)
+        result = ArtifactByName.model_validate(data)
+
+        if not (project := result.project):
+            raise ValueError(
+                f"project {path.project!r} not found under entity {path.prefix!r}"
+            )
+        if not (artifact := project.artifact):
+            entity_project = f"{path.prefix}/{path.project}"
+            raise ValueError(f"artifact {path.name!r} not found in {entity_project!r}")
+
+        return cls._from_attrs(path, artifact, client)
+
+    @classmethod
+    def _from_membership(
+        cls,
+        membership: ArtifactMembershipFragment,
+        target: FullArtifactPath,
+        client: RetryingClient,
+    ) -> Artifact:
+        from ._validators import is_artifact_registry_project
+
+        if not (
+            (collection := membership.artifact_collection)
+            and (name := collection.name)
+            and (proj := collection.project)
+        ):
+            raise ValueError("Missing artifact collection project in GraphQL response")
+
+        if is_artifact_registry_project(proj.name) and (
+            target.project == "model-registry"
+        ):
+            wandb.termwarn(
+                "This model registry has been migrated and will be discontinued. "
+                f"Your request was redirected to the corresponding artifact {name!r} in the new registry. "
+                f"Please update your paths to point to the migrated registry directly, '{proj.name}/{name}'."
+            )
+            new_target = replace(target, prefix=proj.entity.name, project=proj.name)
+        else:
+            new_target = copy(target)
+
+        if not (artifact := membership.artifact):
+            raise ValueError(f"Artifact {target.to_str()!r} not found in response")
+
+        aliases = [a.alias for a in membership.aliases]
+        return cls._from_attrs(new_target, artifact, client, aliases=aliases)
 
     @classmethod
     def _from_attrs(
         cls,
-        entity: str,
-        project: str,
-        name: str,
-        attrs: dict[str, Any],
+        path: FullArtifactPath,
+        attrs: ArtifactFragment,
         client: RetryingClient,
+        aliases: list[str] | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
         artifact._client = client
-        artifact._entity = entity
-        artifact._project = project
-        artifact._name = name
-        artifact._assign_attrs(attrs)
+        artifact._entity = path.prefix
+        artifact._project = path.project
+        artifact._name = path.name
+
+        artifact._assign_attrs(attrs, aliases)
 
         artifact.finalize()
 
@@ -295,102 +418,117 @@ class Artifact:
         artifact_instance_cache[artifact.id] = artifact
         return artifact
 
-    def _assign_attrs(self, attrs: dict[str, Any]) -> None:
+    # TODO: Eventually factor out is_link. Have to currently use it since some forms of fetching the artifact
+    # doesn't make it clear if the artifact is a link or not and have to manually set it.
+    def _assign_attrs(
+        self,
+        art: ArtifactFragment,
+        aliases: list[str] | None = None,
+        is_link: bool | None = None,
+    ) -> None:
         """Update this Artifact's attributes using the server response."""
-        self._id = attrs["id"]
+        from ._validators import validate_metadata, validate_ttl_duration_seconds
 
-        src_version = f"v{attrs['versionIndex']}"
-        src_collection = attrs["artifactSequence"]
-        src_project = src_collection["project"]
+        self._id = art.id
 
-        self._source_entity = src_project["entityName"] if src_project else ""
-        self._source_project = src_project["name"] if src_project else ""
-        self._source_name = f"{src_collection['name']}:{src_version}"
-        self._source_version = src_version
+        src_collection = art.artifact_sequence
+        src_project = src_collection.project
 
-        if self._entity is None:
-            self._entity = self._source_entity
-        if self._project is None:
-            self._project = self._source_project
+        self._source_entity = src_project.entity.name if src_project else ""
+        self._source_project = src_project.name if src_project else ""
+        self._source_name = f"{src_collection.name}:v{art.version_index}"
+        self._source_version = f"v{art.version_index}"
 
-        if self._name is None:
-            self._name = self._source_name
+        self._entity = self._entity or self._source_entity
+        self._project = self._project or self._source_project
+        self._name = self._name or self._source_name
 
-        self._type = attrs["artifactType"]["name"]
-        self._description = attrs["description"]
-
-        entity = self._entity
-        project = self._project
-        collection, *_ = self._name.split(":")
-        aliases = [
-            obj["alias"]
-            for obj in attrs["aliases"]
-            if obj["artifactCollection"]
-            and obj["artifactCollection"]["project"]
-            and obj["artifactCollection"]["project"]["entityName"] == entity
-            and obj["artifactCollection"]["project"]["name"] == project
-            and obj["artifactCollection"]["name"] == collection
-        ]
-
-        version_aliases = [
-            alias for alias in aliases if util.alias_is_version_index(alias)
-        ]
-        other_aliases = [
-            alias for alias in aliases if not util.alias_is_version_index(alias)
-        ]
-        if version_aliases:
-            try:
-                [version] = version_aliases
-            except ValueError:
-                raise ValueError(
-                    f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
-                )
+        # TODO: Refactor artifact query to fetch artifact via membership instead
+        # and get the collection type
+        if is_link is None:
+            self._is_link = (
+                self._entity != self._source_entity
+                or self._project != self._source_project
+                or self._name.split(":")[0] != self._source_name.split(":")[0]
+            )
         else:
-            version = src_version
+            self._is_link = is_link
 
-        self._version = version
+        self._type = art.artifact_type.name
+        self._description = art.description
 
-        if ":" not in self._name:
-            self._name = f"{self._name}:{version}"
+        # The future of aliases is to move all alias fetches to the membership level
+        # so we don't have to do the collection fetches below
+        if aliases:
+            processed_aliases = aliases
+        elif art.aliases:
+            entity = self._entity
+            project = self._project
+            collection = self._name.split(":")[0]
+            processed_aliases = [
+                art_alias.alias
+                for art_alias in art.aliases
+                if (
+                    (coll := art_alias.artifact_collection)
+                    and (proj := coll.project)
+                    and proj.entity.name == entity
+                    and proj.name == project
+                    and coll.name == collection
+                )
+            ]
+        else:
+            processed_aliases = []
 
-        self._aliases = other_aliases
-        self._saved_aliases = copy(other_aliases)
-
-        tags = [obj["name"] for obj in attrs.get("tags", [])]
-        self._tags = tags
-        self._saved_tags = copy(tags)
-
-        metadata_str = attrs["metadata"]
-        self.metadata = self._normalize_metadata(
-            json.loads(metadata_str) if metadata_str else {}
-        )
-
-        self._ttl_duration_seconds = _ttl_duration_seconds_from_gql(
-            attrs.get("ttlDurationSeconds")
-        )
-        self._ttl_is_inherited = (
-            True if (attrs.get("ttlIsInherited") is None) else attrs["ttlIsInherited"]
-        )
-
-        self._state = ArtifactState(attrs["state"])
+        version_aliases = list(filter(alias_is_version_index, processed_aliases))
+        other_aliases = list(filterfalse(alias_is_version_index, processed_aliases))
 
         try:
-            manifest_url = attrs["currentManifest"]["file"]["directUrl"]
-        except (LookupError, TypeError):
-            self._manifest = None
-        else:
-            self._manifest = self._load_manifest(manifest_url)
+            version = one(
+                version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
+            )
+        except TooFewItemsError:
+            version = f"v{art.version_index}"  # default to the source version
+        except TooManyItemsError:
+            msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
+            raise ValueError(msg) from None
 
-        self._commit_hash = attrs["commitHash"]
-        self._file_count = attrs["fileCount"]
-        self._created_at = attrs["createdAt"]
-        self._updated_at = attrs["updatedAt"]
+        self._version = version
+        self._name = self._name if (":" in self._name) else f"{self._name}:{version}"
+
+        self._aliases = other_aliases
+        self._saved_aliases = copy(self._aliases)
+
+        self._tags = [tag.name for tag in (art.tags or [])]
+        self._saved_tags = copy(self._tags)
+
+        self._metadata = validate_metadata(art.metadata)
+
+        self._ttl_duration_seconds = validate_ttl_duration_seconds(
+            art.ttl_duration_seconds
+        )
+        self._ttl_is_inherited = (
+            True if (art.ttl_is_inherited is None) else art.ttl_is_inherited
+        )
+
+        self._state = ArtifactState(art.state)
+        self._size = art.size
+        self._digest = art.digest
+
+        self._manifest = None
+
+        self._commit_hash = art.commit_hash
+        self._file_count = art.file_count
+        self._created_at = art.created_at
+        self._updated_at = art.updated_at
+        self._history_step = art.history_step
 
     @ensure_logged
     def new_draft(self) -> Artifact:
         """Create a new draft artifact with the same content as this committed artifact.
 
-        The artifact returned can be extended or modified and logged as a new version.
+        Modifying an existing artifact creates a new artifact version known
+        as an "incremental artifact". The artifact returned can be extended or
+        modified and logged as a new version.
 
         Returns:
             An `Artifact` object.
@@ -432,48 +570,65 @@ class Artifact:
     @property
     @ensure_logged
     def entity(self) -> str:
-        """The name of the entity of the secondary (portfolio) artifact collection."""
+        """The name of the entity that the artifact collection belongs to.
+
+        If the artifact is a link, the entity will be the entity of the linked artifact.
+        """
         assert self._entity is not None
         return self._entity
 
     @property
     @ensure_logged
     def project(self) -> str:
-        """The name of the project of the secondary (portfolio) artifact collection."""
+        """The name of the project that the artifact collection belongs to.
+
+        If the artifact is a link, the project will be the project of the linked artifact.
+        """
         assert self._project is not None
         return self._project
 
     @property
     def name(self) -> str:
-        """The artifact name and version in its secondary (portfolio) collection.
+        """The artifact name and version of the artifact.
 
-        A string with the format `{collection}:{alias}`. Before the artifact is saved,
-        contains only the name since the version is not yet known.
+        A string with the format `{collection}:{alias}`. If fetched before an artifact is
+        logged/saved, the name won't contain the alias.
+        If the artifact is a link, the name will be the name of the linked artifact.
         """
         return self._name
 
     @property
     def qualified_name(self) -> str:
-        """The entity/project/name of the secondary (portfolio) collection."""
+        """The entity/project/name of the artifact.
+
+        If the artifact is a link, the qualified name will be the qualified name of the
+        linked artifact path.
+        """
         return f"{self.entity}/{self.project}/{self.name}"
 
     @property
     @ensure_logged
     def version(self) -> str:
-        """The artifact's version in its secondary (portfolio) collection."""
+        """The artifact's version.
+
+        A string with the format `v{number}`.
+        If this is a link artifact, the version will be from the linked collection.
+        """
         assert self._version is not None
         return self._version
 
     @property
     @ensure_logged
     def collection(self) -> ArtifactCollection:
-        """The collection this artifact was retrieved from.
+        """The collection this artifact is retrieved from.
 
         A collection is an ordered group of artifact versions.
-        If this artifact was retrieved from a portfolio / linked collection, that
-        collection will be returned rather than the collection
-        that an artifact version originated from. The collection
-        that an artifact originates from is known as the source sequence.
+        If this artifact is retrieved from a collection that it is linked to,
+        return that collection. Otherwise, return the collection
+        that the artifact version originates from.
+
+        The collection that an artifact originates from is known as
+        the source sequence.
         """
         base_name = self.name.split(":")[0]
         return ArtifactCollection(
@@ -483,35 +638,35 @@ class Artifact:
     @property
     @ensure_logged
     def source_entity(self) -> str:
-        """The name of the entity of the primary (sequence) artifact collection."""
+        """The name of the entity of the source artifact."""
         assert self._source_entity is not None
         return self._source_entity
 
     @property
     @ensure_logged
     def source_project(self) -> str:
-        """The name of the project of the primary (sequence) artifact collection."""
+        """The name of the project of the source artifact."""
         assert self._source_project is not None
         return self._source_project
 
     @property
     def source_name(self) -> str:
-        """The artifact name and version in its primary (sequence) collection.
+        """The artifact name and version of the source artifact.
 
-        A string with the format `{collection}:{alias}`. Before the artifact is saved,
-        contains only the name since the version is not yet known.
+        A string with the format `{source_collection}:{alias}`. Before the artifact
+        is saved, contains only the name since the version is not yet known.
         """
         return self._source_name
 
     @property
     def source_qualified_name(self) -> str:
-        """The entity/project/name of the primary (sequence) collection."""
+        """The source_entity/source_project/source_name of the source artifact."""
         return f"{self.source_entity}/{self.source_project}/{self.source_name}"
 
     @property
     @ensure_logged
     def source_version(self) -> str:
-        """The artifact's version in its primary (sequence) collection.
+        """The source artifact's version.
 
         A string with the format `v{number}`.
         """
@@ -521,16 +676,158 @@ class Artifact:
     @property
     @ensure_logged
     def source_collection(self) -> ArtifactCollection:
-        """The artifact's primary (sequence) collection."""
+        """The artifact's source collection.
+
+        The source collection is the collection that the artifact was logged from.
+        """
         base_name = self.source_name.split(":")[0]
         return ArtifactCollection(
             self._client, self.source_entity, self.source_project, base_name, self.type
         )
 
     @property
+    def is_link(self) -> bool:
+        """Boolean flag indicating if the artifact is a link artifact.
+
+        True: The artifact is a link artifact to a source artifact.
+        False: The artifact is a source artifact.
+        """
+        return self._is_link
+
+    @property
+    @ensure_logged
+    def linked_artifacts(self) -> list[Artifact]:
+        """Returns a list of all the linked artifacts of a source artifact.
+
+        If this artifact is a link artifact (`artifact.is_link == True`),
+        it will return an empty list.
+
+        Limited to 500 results.
+        """
+        if not self.is_link:
+            self._linked_artifacts = self._fetch_linked_artifacts()
+        return self._linked_artifacts
+
+    @property
+    @ensure_logged
+    def source_artifact(self) -> Artifact:
+        """Returns the source artifact, which is the original logged artifact.
+
+        If this artifact is a source artifact (`artifact.is_link == False`),
+        it will return itself.
+        """
+        from ._validators import FullArtifactPath
+
+        if not self.is_link:
+            return self
+        if self._source_artifact is None:
+            if (client := self._client) is None:
+                raise ValueError("Client is not initialized")
+
+            try:
+                path = FullArtifactPath(
+                    prefix=self.source_entity,
+                    project=self.source_project,
+                    name=self.source_name,
+                )
+                self._source_artifact = self._from_name(path=path, client=client)
+            except Exception as e:
+                raise ValueError(
+                    f"Unable to fetch source artifact for linked artifact {self.name}"
+                ) from e
+        return self._source_artifact
+
+    @property
     def type(self) -> str:
         """The artifact's type. Common types include `dataset` or `model`."""
         return self._type
+
+    @property
+    @ensure_logged
+    def url(self) -> str:
+        """
+        Constructs the URL of the artifact.
+
+        Returns:
+            str: The URL of the artifact.
+        """
+        from ._validators import is_artifact_registry_project
+
+        try:
+            base_url = self._client.app_url  # type: ignore[union-attr]
+        except AttributeError:
+            return ""
+
+        if not self.is_link:
+            return self._construct_standard_url(base_url)
+        if is_artifact_registry_project(self.project):
+            return self._construct_registry_url(base_url)
+        if self._type == "model" or self.project == "model-registry":
+            return self._construct_model_registry_url(base_url)
+        return self._construct_standard_url(base_url)
+
+    def _construct_standard_url(self, base_url: str) -> str:
+        if not all(
+            [
+                base_url,
+                self.entity,
+                self.project,
+                self._type,
+                self.collection.name,
+                self._version,
+            ]
+        ):
+            return ""
+        return urljoin(
+            base_url,
+            f"{self.entity}/{self.project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}",
+        )
+
+    def _construct_registry_url(self, base_url: str) -> str:
+        from ._validators import remove_registry_prefix
+
+        if not all(
+            [
+                base_url,
+                self.entity,
+                self.project,
+                self.collection.name,
+                self._version,
+            ]
+        ):
+            return ""
+
+        try:
+            org_name = org_info_from_entity(self._client, self.entity).organization.name  # type: ignore[union-attr]
+        except (AttributeError, ValueError):
+            return ""
+
+        selection_path = quote(
+            f"{self.entity}/{self.project}/{self.collection.name}", safe=""
+        )
+        return urljoin(
+            base_url,
+            f"orgs/{org_name}/registry/{remove_registry_prefix(self.project)}?selectionPath={selection_path}&view=membership&version={self.version}",
+        )
+
+    def _construct_model_registry_url(self, base_url: str) -> str:
+        if not all(
+            [
+                base_url,
+                self.entity,
+                self.project,
+                self.collection.name,
+                self._version,
+            ]
+        ):
+            return ""
+        selection_path = quote(
+            f"{self.entity}/{self.project}/{self.collection.name}", safe=""
+        )
+        return urljoin(
+            base_url,
+            f"{self.entity}/registry/model?selectionPath={selection_path}&view=membership&version={self._version}",
+        )
 
     @property
     def description(self) -> str | None:
@@ -545,9 +842,16 @@ class Artifact:
         standardized team model or dataset card. In the W&B UI the
         description is rendered as markdown.
 
+        Editing the description will apply the changes to the source artifact
+        and all linked artifacts associated with it.
+
         Args:
             description: Free text that offers a description of the artifact.
         """
+        if self.is_link:
+            wandb.termwarn(
+                "Editing the description of this linked artifact will edit the description for the source artifact and it's linked artifacts as well."
+            )
         self._description = description
 
     @property
@@ -566,11 +870,19 @@ class Artifact:
         the class distribution of a dataset.
 
         Note: There is currently a limit of 100 total keys.
+        Editing the metadata will apply the changes to the source artifact
+        and all linked artifacts associated with it.
 
         Args:
             metadata: Structured data associated with the artifact.
         """
-        self._metadata = self._normalize_metadata(metadata)
+        from ._validators import validate_metadata
+
+        if self.is_link:
+            wandb.termwarn(
+                "Editing the metadata of this linked artifact will edit the metadata for the source artifact and it's linked artifacts as well."
+            )
+        self._metadata = validate_metadata(metadata)
 
     @property
     def ttl(self) -> timedelta | None:
@@ -584,10 +896,11 @@ class Artifact:
         TTL and there is no custom policy set on an artifact.
 
         Raises:
-            ArtifactNotLoggedError: Unable to fetch inherited TTL if the artifact has not been logged or saved
+            ArtifactNotLoggedError: Unable to fetch inherited TTL if the
+            artifact has not been logged or saved.
         """
         if self._ttl_is_inherited and (self.is_draft() or self._ttl_changed):
-            raise ArtifactNotLoggedError(f"{type(self).__name__}.ttl", self)
+            raise ArtifactNotLoggedError(f"{nameof(type(self))}.ttl", self)
         if self._ttl_duration_seconds is None:
             return None
         return timedelta(seconds=self._ttl_duration_seconds)
@@ -603,12 +916,18 @@ class Artifact:
         TTL and there is no custom policy set on an artifact.
 
         Args:
-            ttl: The duration as a positive Python `datetime.timedelta` Type
-                that represents how long the artifact will remain active from its creation.
+            ttl: The duration as a positive `datetime.timedelta` that represents
+                how long the artifact will remain active from its creation.
 
         """
         if self.type == "wandb-history":
             raise ValueError("Cannot set artifact TTL for type wandb-history")
+
+        if self.is_link:
+            raise ValueError(
+                "Cannot set TTL for link artifact. "
+                "Unlink the artifact first then set the TTL for the source artifact"
+            )
 
         self._ttl_changed = True
         if isinstance(ttl, ArtifactTTL):
@@ -630,7 +949,9 @@ class Artifact:
     @property
     @ensure_logged
     def aliases(self) -> list[str]:
-        """List of one or more semantically-friendly references or identifying "nicknames" assigned to an artifact version.
+        """List of one or more semantically-friendly references or
+
+        identifying "nicknames" assigned to an artifact version.
 
         Aliases are mutable references that you can programmatically reference.
         Change an artifact's alias with the W&B App UI or programmatically.
@@ -643,6 +964,8 @@ class Artifact:
     @ensure_logged
     def aliases(self, aliases: list[str]) -> None:
         """Set the aliases associated with this artifact."""
+        from ._validators import validate_aliases
+
         self._aliases = validate_aliases(aliases)
 
     @property
@@ -654,11 +977,25 @@ class Artifact:
     @tags.setter
     @ensure_logged
     def tags(self, tags: list[str]) -> None:
-        """Set the tags associated with this artifact."""
+        """Set the tags associated with this artifact.
+
+        Editing tags will apply the changes to the source artifact
+        and all linked artifacts associated with it.
+        """
+        from ._validators import validate_tags
+
+        if self.is_link:
+            wandb.termwarn(
+                "Editing tags will apply the changes to the source artifact and all linked artifacts associated with it."
+            )
         self._tags = validate_tags(tags)
 
     @property
     def distributed_id(self) -> str | None:
+        """The distributed ID of the artifact.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return self._distributed_id
 
     @distributed_id.setter
@@ -667,10 +1004,19 @@ class Artifact:
 
     @property
     def incremental(self) -> bool:
+        """Boolean flag indicating if the artifact is an incremental artifact.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return self._incremental
 
     @property
     def use_as(self) -> str | None:
+        """Deprecated."""
+        warn_and_record_deprecation(
+            feature=Deprecated(artifact__use_as=True),
+            message=("The use_as property of Artifact is deprecated."),
+        )
         return self._use_as
 
     @property
@@ -686,39 +1032,35 @@ class Artifact:
         has been logged.
         """
         if self._manifest is None:
-            query = gql(
-                """
-                query ArtifactManifest(
-                    $entityName: String!,
-                    $projectName: String!,
-                    $name: String!
-                ) {
-                    project(entityName: $entityName, name: $projectName) {
-                        artifact(name: $name) {
-                            currentManifest {
-                                file {
-                                    directUrl
-                                }
-                            }
-                        }
-                    }
-                }
-                """
-            )
-            assert self._client is not None
-            response = self._client.execute(
-                query,
-                variable_values={
-                    "entityName": self._entity,
-                    "projectName": self._project,
-                    "name": self._name,
-                },
-            )
-            attrs = response["project"]["artifact"]
-            self._manifest = self._load_manifest(
-                attrs["currentManifest"]["file"]["directUrl"]
-            )
+            self._manifest = self._fetch_manifest()
         return self._manifest
+
+    def _fetch_manifest(self) -> ArtifactManifest:
+        """Fetch, parse, and load the full ArtifactManifest."""
+        import requests
+
+        from ._generated import FETCH_ARTIFACT_MANIFEST_GQL, FetchArtifactManifest
+
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized for artifact queries")
+
+        # From the GraphQL API, get the (expiring) directUrl for downloading the manifest.
+        gql_op = gql(FETCH_ARTIFACT_MANIFEST_GQL)
+        gql_vars = {"id": self.id}
+        data = client.execute(gql_op, variable_values=gql_vars)
+        result = FetchArtifactManifest.model_validate(data)
+
+        # Now fetch the actual manifest contents from the directUrl.
+        if (artifact := result.artifact) and (manifest := artifact.current_manifest):
+            # FIXME: For successive/repeated calls to `manifest`, figure out how to reuse a single
+            # `requests.Session` within the constraints of the current artifacts API.
+            # Right now, `requests.get()` creates a new session for _each_ fetch.
+            # This is wasteful and introduces a noticeable perf overhead when e.g.
+            # downloading many artifacts sequentially or concurrently.
+            response = requests.get(manifest.file.direct_url)
+            return ArtifactManifest.from_manifest_json(from_json(response.content))
+
+        raise ValueError("Failed to fetch artifact manifest")
 
     @property
     def digest(self) -> str:
@@ -727,7 +1069,15 @@ class Artifact:
         The digest is the checksum of the artifact's contents. If an artifact has the
         same digest as the current `latest` version, then `log_artifact` is a no-op.
         """
-        return self.manifest.digest()
+        # Use the last fetched value of `Artifact.digest` ONLY if present AND the manifest
+        # has not been fetched and/or populated locally.
+        # Otherwise, use the manifest directly to recalculate the digest, as its contents
+        # may have been locally modified.
+        return (
+            self._digest
+            if (self._manifest is None) and (self._digest is not None)
+            else self.manifest.digest()
+        )
 
     @property
     def size(self) -> int:
@@ -735,11 +1085,18 @@ class Artifact:
 
         Includes any references tracked by this artifact.
         """
-        total_size: int = 0
-        for entry in self.manifest.entries.values():
-            if entry.size is not None:
-                total_size += entry.size
-        return total_size
+        # Use the last fetched value of `Artifact.size` ONLY if present AND the manifest
+        # has not been fetched and/or populated locally.
+        # Otherwise, use the manifest directly to recalculate the size, as its contents
+        # may have been locally modified.
+        #
+        # NOTE on choice of GQL field: `Artifact.size` counts references, while
+        # `Artifact.storageBytes` does not.
+        return (
+            self._size
+            if (self._manifest is None) and (self._size is not None)
+            else self.manifest.size()
+        )
 
     @property
     @ensure_logged
@@ -769,6 +1126,26 @@ class Artifact:
         assert self._created_at is not None
         return self._updated_at or self._created_at
 
+    @property
+    @ensure_logged
+    def history_step(self) -> int | None:
+        """The nearest step which logged history metrics for this artifact's source run.
+
+        Examples:
+        ```python
+        run = artifact.logged_by()
+        if run and (artifact.history_step is not None):
+            history = run.sample_history(
+                min_step=artifact.history_step,
+                max_step=artifact.history_step + 1,
+                keys=["my_metric"],
+            )
+        ```
+        """
+        if self._history_step is None:
+            return None
+        return max(0, self._history_step - 1)
+
     # State management.
 
     def finalize(self) -> None:
@@ -784,12 +1161,13 @@ class Artifact:
     def is_draft(self) -> bool:
         """Check if artifact is not saved.
 
-        Returns: Boolean. `False` if artifact is saved. `True` if artifact is not saved.
+        Returns:
+            Boolean. `False` if artifact is saved. `True` if artifact is not saved.
         """
-        return self._state == ArtifactState.PENDING
+        return self._state is ArtifactState.PENDING
 
     def _is_draft_save_started(self) -> bool:
-        return self._save_future is not None
+        return self._save_handle is not None
 
     def save(
         self,
@@ -807,14 +1185,17 @@ class Artifact:
             settings: A settings object to use when initializing an automatic run. Most
                 commonly used in testing harness.
         """
-        if self._state != ArtifactState.PENDING:
+        if self._state is not ArtifactState.PENDING:
             return self._update()
 
         if self._incremental:
             with telemetry.context() as tel:
                 tel.feature.artifact_incremental = True
 
-        if wandb.run is None:
+        if run := wandb_setup.singleton().most_recent_active_run:
+            # TODO: Deprecate and encourage explicit log_artifact().
+            run.log_artifact(self)
+        else:
             if settings is None:
                 settings = wandb.Settings(silent="true")
             with wandb.init(  # type: ignore
@@ -829,13 +1210,13 @@ class Artifact:
                     with telemetry.context(run=run) as tel:
                         tel.feature.artifact_incremental = True
                 run.log_artifact(self)
-        else:
-            wandb.run.log_artifact(self)
 
-    def _set_save_future(
-        self, save_future: MessageFuture, client: RetryingClient
+    def _set_save_handle(
+        self,
+        save_handle: MailboxHandle[pb.Result],
+        client: RetryingClient,
     ) -> None:
-        self._save_future = save_future
+        self._save_handle = save_handle
         self._client = client
 
     def wait(self, timeout: int | None = None) -> Artifact:
@@ -848,13 +1229,16 @@ class Artifact:
             An `Artifact` object.
         """
         if self.is_draft():
-            if self._save_future is None:
-                raise ArtifactNotLoggedError(type(self).wait.__qualname__, self)
-            result = self._save_future.get(timeout)
-            if not result:
+            if self._save_handle is None:
+                raise ArtifactNotLoggedError(nameof(self.wait), self)
+
+            try:
+                result = self._save_handle.wait_or(timeout=timeout)
+            except TimeoutError as e:
                 raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
-                )
+                ) from e
+
             response = result.response.log_artifact_response
             if response.error_message:
                 raise ValueError(response.error_message)
@@ -862,221 +1246,144 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        query_template = """
-            query ArtifactByIDShort($id: ID!) {
-                artifact(id: $id) {
-                    ...ArtifactFragment
-                }
-            }
-        """ + _gql_artifact_fragment()
+        from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
 
-        query = gql(query_template)
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized for artifact queries")
 
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": artifact_id},
-        )
+        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
+        data = client.execute(query, variable_values={"id": artifact_id})
+        result = ArtifactByID.model_validate(data)
 
-        try:
-            attrs = response["artifact"]
-        except LookupError:
+        if not (artifact := result.artifact):
             raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
-        else:
-            self._assign_attrs(attrs)
+
+        # _populate_after_save is only called on source artifacts, not linked artifacts
+        # We have to manually set is_link because we aren't fetching the collection
+        # the artifact. That requires greater refactoring for commitArtifact to return
+        # the artifact collection type.
+        self._assign_attrs(artifact, is_link=False)
 
     @normalize_exceptions
     def _update(self) -> None:
         """Persists artifact changes to the wandb backend."""
-        aliases = None
-        introspect_query = gql(
-            """
-            query ProbeServerAddAliasesInput {
-               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-            """
-        )
-        assert self._client is not None
-        response = self._client.execute(introspect_query)
-        if response.get("AddAliasesInputInfoType"):  # wandb backend version >= 0.13.0
-            aliases_to_add = set(self._aliases) - set(self._saved_aliases)
-            aliases_to_delete = set(self._saved_aliases) - set(self._aliases)
-            if aliases_to_add:
-                add_mutation = gql(
-                    """
-                    mutation addAliases(
-                        $artifactID: ID!,
-                        $aliases: [ArtifactCollectionAliasInput!]!,
-                    ) {
-                        addAliases(
-                            input: {artifactID: $artifactID, aliases: $aliases}
-                        ) {
-                            success
-                        }
-                    }
-                    """
-                )
-                assert self._client is not None
-                self._client.execute(
-                    add_mutation,
-                    variable_values={
-                        "artifactID": self.id,
-                        "aliases": [
-                            {
-                                "entityName": self._entity,
-                                "projectName": self._project,
-                                "artifactCollectionName": self._name.split(":")[0],
-                                "alias": alias,
-                            }
-                            for alias in aliases_to_add
-                        ],
-                    },
-                )
-            if aliases_to_delete:
-                delete_mutation = gql(
-                    """
-                    mutation deleteAliases(
-                        $artifactID: ID!,
-                        $aliases: [ArtifactCollectionAliasInput!]!,
-                    ) {
-                        deleteAliases(
-                            input: {artifactID: $artifactID, aliases: $aliases}
-                        ) {
-                            success
-                        }
-                    }
-                    """
-                )
-                assert self._client is not None
-                self._client.execute(
-                    delete_mutation,
-                    variable_values={
-                        "artifactID": self.id,
-                        "aliases": [
-                            {
-                                "entityName": self._entity,
-                                "projectName": self._project,
-                                "artifactCollectionName": self._name.split(":")[0],
-                                "alias": alias,
-                            }
-                            for alias in aliases_to_delete
-                        ],
-                    },
-                )
-            self._saved_aliases = copy(self._aliases)
-        else:  # wandb backend version < 0.13.0
-            aliases = [
-                {
-                    "artifactCollectionName": self._name.split(":")[0],
-                    "alias": alias,
-                }
-                for alias in self._aliases
+        from ._generated import UPDATE_ARTIFACT_GQL, UpdateArtifact, UpdateArtifactInput
+        from ._validators import FullArtifactPath, validate_tags
+
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        collection = self.name.split(":")[0]
+
+        update_alias_inputs = None
+        if type_info(client, "AddAliasesInput") is not None:
+            # wandb backend version >= 0.13.0
+            old_aliases, new_aliases = set(self._saved_aliases), set(self.aliases)
+            target = FullArtifactPath(
+                prefix=self.entity, project=self.project, name=collection
+            )
+            if added_aliases := (new_aliases - old_aliases):
+                self._add_aliases(added_aliases, target=target)
+            if deleted_aliases := (old_aliases - new_aliases):
+                self._delete_aliases(deleted_aliases, target=target)
+            self._saved_aliases = copy(self.aliases)
+        else:
+            # wandb backend version < 0.13.0
+            update_alias_inputs = [
+                {"artifactCollectionName": collection, "alias": alias}
+                for alias in self.aliases
             ]
 
-        mutation_template = """
-            mutation updateArtifact(
-                $artifactID: ID!
-                $description: String
-                $metadata: JSONString
-                _TTL_DURATION_SECONDS_TYPE_
-                _TAGS_TO_ADD_TYPE_
-                _TAGS_TO_DELETE_TYPE_
-                $aliases: [ArtifactAliasInput!]
-            ) {
-                updateArtifact(
-                    input: {
-                        artifactID: $artifactID,
-                        description: $description,
-                        metadata: $metadata,
-                        _TTL_DURATION_SECONDS_VALUE_
-                        _TAGS_TO_ADD_VALUE_
-                        _TAGS_TO_DELETE_VALUE_
-                        aliases: $aliases
-                    }
-                ) {
-                    artifact {
-                        ...ArtifactFragment
-                    }
-                }
-            }
-        """ + _gql_artifact_fragment()
+        omit_fields = omit_artifact_fields(client)
+        omit_variables = set()
 
-        fields = InternalApi().server_artifact_introspection()
-        if "ttlIsInherited" in fields:
-            mutation_template = (
-                mutation_template.replace(
-                    "_TTL_DURATION_SECONDS_TYPE_",
-                    "$ttlDurationSeconds: Int64",
-                )
-                .replace(
-                    "_TTL_DURATION_SECONDS_VALUE_",
-                    "ttlDurationSeconds: $ttlDurationSeconds",
-                )
-                .replace(
-                    "_TTL_DURATION_SECONDS_FIELDS_",
-                    "ttlDurationSeconds ttlIsInherited",
-                )
-            )
-        else:
+        if {"ttlIsInherited", "ttlDurationSeconds"} & omit_fields:
             if self._ttl_changed:
                 termwarn(
                     "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
                 )
-            mutation_template = (
-                mutation_template.replace("_TTL_DURATION_SECONDS_TYPE_", "")
-                .replace("_TTL_DURATION_SECONDS_VALUE_", "")
-                .replace("_TTL_DURATION_SECONDS_FIELDS_", "")
-            )
 
-        tags_to_add = validate_tags(set(self._tags) - set(self._saved_tags))
-        tags_to_delete = validate_tags(set(self._saved_tags) - set(self._tags))
-        if "tags" in fields:
-            mutation_template = (
-                mutation_template.replace(
-                    "_TAGS_TO_ADD_TYPE_", "$tagsToAdd: [TagInput!]"
-                )
-                .replace("_TAGS_TO_DELETE_TYPE_", "$tagsToDelete: [TagInput!]")
-                .replace("_TAGS_TO_ADD_VALUE_", "tagsToAdd: $tagsToAdd")
-                .replace("_TAGS_TO_DELETE_VALUE_", "tagsToDelete: $tagsToDelete")
-            )
-        else:
-            if tags_to_add or tags_to_delete:
+            omit_variables |= {"ttlDurationSeconds"}
+
+        added_tags = validate_tags(set(self.tags) - set(self._saved_tags))
+        deleted_tags = validate_tags(set(self._saved_tags) - set(self.tags))
+
+        if {"tags"} & omit_fields:
+            if added_tags or deleted_tags:
                 termwarn(
                     "Server not compatible with Artifact tags. "
                     "To use Artifact tags, please upgrade the server to v0.85 or higher."
                 )
-            mutation_template = (
-                mutation_template.replace("_TAGS_TO_ADD_TYPE_", "")
-                .replace("_TAGS_TO_DELETE_TYPE_", "")
-                .replace("_TAGS_TO_ADD_VALUE_", "")
-                .replace("_TAGS_TO_DELETE_VALUE_", "")
-            )
 
-        mutation = gql(mutation_template)
-        assert self._client is not None
+            omit_variables |= {"tagsToAdd", "tagsToDelete"}
 
-        ttl_duration_input = self._ttl_duration_seconds_to_gql()
-        response = self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "description": self.description,
-                "metadata": util.json_dumps_safer(self.metadata),
-                "ttlDurationSeconds": ttl_duration_input,
-                "aliases": aliases,
-                "tagsToAdd": [{"tagName": tag_name} for tag_name in tags_to_add],
-                "tagsToDelete": [{"tagName": tag_name} for tag_name in tags_to_delete],
-            },
+        gql_op = gql_compat(UPDATE_ARTIFACT_GQL, omit_fields=omit_fields)
+        gql_input = UpdateArtifactInput(
+            artifact_id=self.id,
+            description=self.description,
+            metadata=json_dumps_safer(self.metadata),
+            ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
+            aliases=update_alias_inputs,
+            tags_to_add=[{"tagName": t} for t in added_tags],
+            tags_to_delete=[{"tagName": t} for t in deleted_tags],
         )
-        attrs = response["updateArtifact"]["artifact"]
-        self._assign_attrs(attrs)
+        gql_vars = {"input": gql_input.model_dump(exclude=omit_variables)}
+        data = client.execute(gql_op, variable_values=gql_vars)
+
+        result = UpdateArtifact.model_validate(data).result
+        if not (result and (artifact := result.artifact)):
+            raise ValueError("Unable to parse updateArtifact response")
+        self._assign_attrs(artifact)
 
         self._ttl_changed = False  # Reset after updating artifact
+
+    def _add_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
+        from ._generated import ADD_ALIASES_GQL, AddAliasesInput
+
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        target_props = {
+            "entityName": target.prefix,
+            "projectName": target.project,
+            "artifactCollectionName": target.name,
+        }
+        alias_inputs = [{**target_props, "alias": name} for name in alias_names]
+        gql_op = gql(ADD_ALIASES_GQL)
+        gql_input = AddAliasesInput(artifact_id=self.id, aliases=alias_inputs)
+        gql_vars = {"input": gql_input.model_dump()}
+        try:
+            client.execute(gql_op, variable_values=gql_vars)
+        except CommError as e:
+            raise CommError(
+                "You do not have permission to add"
+                f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
+                f" to this artifact: {alias_names!r}"
+            ) from e
+
+    def _delete_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
+        from ._generated import DELETE_ALIASES_GQL, DeleteAliasesInput
+
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        target_props = {
+            "entityName": target.prefix,
+            "projectName": target.project,
+            "artifactCollectionName": target.name,
+        }
+        alias_inputs = [{**target_props, "alias": name} for name in alias_names]
+        gql_op = gql(DELETE_ALIASES_GQL)
+        gql_input = DeleteAliasesInput(artifact_id=self.id, aliases=alias_inputs)
+        gql_vars = {"input": gql_input.model_dump()}
+        try:
+            client.execute(gql_op, variable_values=gql_vars)
+        except CommError as e:
+            raise CommError(
+                f"You do not have permission to delete"
+                f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
+                f" from this artifact: {alias_names!r}"
+            ) from e
 
     # Adding, removing, getting entries.
 
@@ -1087,7 +1394,7 @@ class Artifact:
             name: The artifact relative name to get.
 
         Returns:
-            W&B object that can be logged with `wandb.log()` and visualized in the W&B UI.
+            W&B object that can be logged with `run.log()` and visualized in the W&B UI.
 
         Raises:
             ArtifactNotLoggedError: If the artifact isn't logged or the run is offline.
@@ -1105,8 +1412,9 @@ class Artifact:
             The added manifest entry
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+            artifact version because it is finalized. Log a new artifact
+            version instead.
         """
         return self.add(item, name)
 
@@ -1123,12 +1431,13 @@ class Artifact:
             encoding: The encoding used to open the new file.
 
         Returns:
-            A new file object that can be written to. Upon closing, the file will be
-            automatically added to the artifact.
+            A new file object that can be written to. Upon closing, the file
+            is automatically added to the artifact.
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+            artifact version because it is finalized. Log a new artifact
+            version instead.
         """
         overwrite: bool = "x" not in mode
 
@@ -1136,18 +1445,18 @@ class Artifact:
             self._tmp_dir = tempfile.TemporaryDirectory()
         path = os.path.join(self._tmp_dir.name, name.lstrip("/"))
 
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         try:
-            with util.fsync_open(path, mode, encoding) as f:
+            with fsync_open(path, mode, encoding) as f:
                 yield f
         except FileExistsError:
             raise ValueError(f"File with name {name!r} already exists at {path!r}")
         except UnicodeEncodeError as e:
             termerror(
-                f"Failed to open the provided file ({type(e).__name__}: {e}). Please "
+                f"Failed to open the provided file ({nameof(type(e))}: {e}). Please "
                 f"provide the proper encoding."
             )
-            raise e
+            raise
 
         self.add_file(
             path, name=name, policy="immutable", skip_cache=True, overwrite=overwrite
@@ -1167,22 +1476,26 @@ class Artifact:
 
         Args:
             local_path: The path to the file being added.
-            name: The path within the artifact to use for the file being added. Defaults
-                to the basename of the file.
+            name: The path within the artifact to use for the file being added.
+                Defaults to the basename of the file.
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
-            skip_cache: If `True`, W&B will not copy files to the cache after uploading.
-            policy: By default, set to "mutable". If set to "mutable", create a temporary copy of the
-                file to prevent corruption during upload. If set to "immutable", disable
-                protection and rely on the user not to delete or change the file.
+            skip_cache: If `True`, do not copy files to the cache
+                after uploading.
+            policy: By default, set to "mutable". If set to "mutable",
+                create a temporary copy of the file to prevent corruption
+                during upload. If set to "immutable", disable
+                protection and rely on the user not to delete or change the
+                file.
             overwrite: If `True`, overwrite the file if it already exists.
 
         Returns:
             The added manifest entry.
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+                artifact version because it is finalized. Log a new artifact
+                version instead.
             ValueError: Policy must be "mutable" or "immutable"
         """
         if not os.path.isfile(local_path):
@@ -1213,60 +1526,69 @@ class Artifact:
         name: str | None = None,
         skip_cache: bool | None = False,
         policy: Literal["mutable", "immutable"] | None = "mutable",
+        merge: bool = False,
     ) -> None:
         """Add a local directory to the artifact.
 
         Args:
             local_path: The path of the local directory.
-            name: The subdirectory name within an artifact. The name you specify appears
-                in the W&B App UI nested by artifact's `type`.
+            name: The subdirectory name within an artifact. The name you
+                specify appears in the W&B App UI nested by artifact's `type`.
                 Defaults to the root of the artifact.
-            skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
-            policy: "mutable" | "immutable". By default, "mutable"
-                "mutable": Create a temporary copy of the file to prevent corruption during upload.
-                "immutable": Disable protection, rely on the user not to delete or change the file.
+            skip_cache: If set to `True`, W&B will not copy/move files to
+                the cache while uploading
+            policy: By default, "mutable".
+                - mutable: Create a temporary copy of the file to prevent
+                    corruption during upload.
+                - immutable: Disable protection, rely on the user not to delete
+                    or change the file.
+            merge: If `False` (default), throws ValueError if a file was already added
+                in a previous add_dir call and its content has changed. If `True`,
+                overwrites existing files with changed content. Always adds new files
+                and never removes files. To replace an entire directory, pass a name
+                when adding the directory using `add_dir(local_path, name=my_prefix)`
+                and call `remove(my_prefix)` to remove the directory, then add it again.
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+                artifact version because it is finalized. Log a new artifact
+                version instead.
             ValueError: Policy must be "mutable" or "immutable"
         """
         if not os.path.isdir(local_path):
-            raise ValueError("Path is not a directory: {}".format(local_path))
+            raise ValueError(f"Path is not a directory: {local_path!r}")
 
         termlog(
-            "Adding directory to artifact ({})... ".format(
-                os.path.join(".", os.path.normpath(local_path))
-            ),
+            f"Adding directory to artifact ({Path('.', local_path)})... ",
             newline=False,
         )
-        start_time = time.time()
+        start_time = time.monotonic()
 
-        paths = []
+        paths: deque[tuple[str, str]] = deque()
+        logical_root = name or ""  # shared prefix, if any, for logical paths
         for dirpath, _, filenames in os.walk(local_path, followlinks=True):
             for fname in filenames:
                 physical_path = os.path.join(dirpath, fname)
                 logical_path = os.path.relpath(physical_path, start=local_path)
-                if name is not None:
-                    logical_path = os.path.join(name, logical_path)
+                logical_path = os.path.join(logical_root, logical_path)
                 paths.append((logical_path, physical_path))
 
-        def add_manifest_file(log_phy_path: tuple[str, str]) -> None:
-            logical_path, physical_path = log_phy_path
+        def add_manifest_file(logical_pth: str, physical_pth: str) -> None:
             self._add_local_file(
-                name=logical_path,
-                path=physical_path,
+                name=logical_pth,
+                path=physical_pth,
                 skip_cache=skip_cache,
                 policy=policy,
+                overwrite=merge,
             )
 
         num_threads = 8
         pool = multiprocessing.dummy.Pool(num_threads)
-        pool.map(add_manifest_file, paths)
+        pool.starmap(add_manifest_file, paths)
         pool.close()
         pool.join()
 
-        termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+        termlog("Done. %.1fs" % (time.monotonic() - start_time), prefix=False)
 
     @ensure_not_finalized
     def add_reference(
@@ -1286,13 +1608,14 @@ class Artifact:
 
         - http(s): The size and digest of the file will be inferred by the
           `Content-Length` and the `ETag` response headers returned by the server.
-        - s3: The checksum and size are pulled from the object metadata. If bucket
-          versioning is enabled, then the version ID is also tracked.
+        - s3: The checksum and size are pulled from the object metadata.
+          If bucket versioning is enabled, then the version ID is also tracked.
         - gs: The checksum and size are pulled from the object metadata. If bucket
           versioning is enabled, then the version ID is also tracked.
-        - https, domain matching `*.blob.core.windows.net` (Azure): The checksum and size
-          are be pulled from the blob metadata. If storage account versioning is
-          enabled, then the version ID is also tracked.
+        - https, domain matching `*.blob.core.windows.net`
+        - Azure: The checksum and size are be pulled from the blob metadata.
+          If storage account versioning is enabled, then the version ID is
+          also tracked.
         - file: The checksum and size are pulled from the file system. This scheme
           is useful if you have an NFS share or other externally mounted volume
           containing files you wish to track but not necessarily upload.
@@ -1308,21 +1631,24 @@ class Artifact:
             checksum: Whether or not to checksum the resource(s) located at the
                 reference URI. Checksumming is strongly recommended as it enables
                 automatic integrity validation. Disabling checksumming will speed up
-                artifact creation but reference directories will not iterated through so the
-                objects in the directory will not be saved to the artifact. We recommend
-                setting `checksum=False` when adding reference objects, in which case
-                a new version will only be created if the reference URI changes.
+                artifact creation but reference directories will not iterated through so
+                the objects in the directory will not be saved to the artifact.
+                We recommend setting `checksum=False` when adding reference objects,
+                in which case a new version will only be created if the reference URI
+                changes.
             max_objects: The maximum number of objects to consider when adding a
-                reference that points to directory or bucket store prefix. By default,
-                the maximum number of objects allowed for Amazon S3,
-                GCS, Azure, and local files is 10,000,000. Other URI schemas do not have a maximum.
+                reference that points to directory or bucket store prefix.
+                By default, the maximum number of objects allowed for Amazon S3,
+                GCS, Azure, and local files is 10,000,000. Other URI schemas
+                do not have a maximum.
 
         Returns:
             The added manifest entries.
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+            artifact version because it is finalized. Log a new artifact
+            version instead.
         """
         if name is not None:
             name = LogicalPath(name)
@@ -1339,7 +1665,7 @@ class Artifact:
                 "References must be URIs. To reference a local file, use file://"
             )
 
-        manifest_entries = self._storage_policy.store_reference(
+        manifest_entries = self.manifest.storage_policy.store_reference(
             self,
             URIStr(uri_str),
             name=name,
@@ -1359,17 +1685,19 @@ class Artifact:
 
         Args:
             obj: The object to add. Currently support one of Bokeh, JoinedTable,
-                PartitionedTable, Table, Classes, ImageMask, BoundingBoxes2D, Audio,
-                Image, Video, Html, Object3D
+                PartitionedTable, Table, Classes, ImageMask, BoundingBoxes2D,
+                Audio, Image, Video, Html, Object3D
             name: The path within the artifact to add the object.
-            overwrite: If True, overwrite existing objects with the same file path (if applicable).
+            overwrite: If True, overwrite existing objects with the same file
+                path if applicable.
 
         Returns:
             The added manifest entry
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+            artifact version because it is finalized. Log a new artifact
+            version instead.
         """
         name = LogicalPath(name)
 
@@ -1398,8 +1726,9 @@ class Artifact:
             data_types._SavedModel,
         )
         if not isinstance(obj, allowed_types):
-            raise ValueError(
-                f"Found object of type {obj.__class__}, expected one of: {allowed_types}"
+            raise TypeError(
+                f"Found object of type {obj.__class__}, expected one of:"
+                f" {allowed_types}"
             )
 
         obj_id = id(obj)
@@ -1483,13 +1812,14 @@ class Artifact:
         """Remove an item from the artifact.
 
         Args:
-            item: The item to remove. Can be a specific manifest entry or the name of an
-                artifact-relative path. If the item matches a directory all items in
-                that directory will be removed.
+            item: The item to remove. Can be a specific manifest entry
+                or the name of an artifact-relative path. If the item
+                matches a directory all items in that directory will be removed.
 
         Raises:
-            ArtifactFinalizedError: You cannot make changes to the current artifact
-            version because it is finalized. Log a new artifact version instead.
+            ArtifactFinalizedError: You cannot make changes to the current
+                artifact version because it is finalized. Log a new artifact
+                version instead.
             FileNotFoundError: If the item isn't found in the artifact.
         """
         if isinstance(item, ArtifactManifestEntry):
@@ -1497,10 +1827,8 @@ class Artifact:
             return
 
         path = str(PurePosixPath(item))
-        entry = self.manifest.get_entry_by_path(path)
-        if entry:
-            self.manifest.remove_entry(entry)
-            return
+        if entry := self.manifest.get_entry_by_path(path):
+            return self.manifest.remove_entry(entry)
 
         entries = self.manifest.get_entries_in_directory(path)
         if not entries:
@@ -1510,9 +1838,9 @@ class Artifact:
 
     def get_path(self, name: StrPath) -> ArtifactManifestEntry:
         """Deprecated. Use `get_entry(name)`."""
-        deprecate(
-            field_name=Deprecated.artifact__get_path,
-            warning_message="Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead.",
+        warn_and_record_deprecation(
+            feature=Deprecated(artifact__get_path=True),
+            message="Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead.",
         )
         return self.get_entry(name)
 
@@ -1533,7 +1861,7 @@ class Artifact:
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
-            raise KeyError("Path not contained in artifact: {}".format(name))
+            raise KeyError(f"Path not contained in artifact: {name}")
         entry._parent_artifact = self
         return entry
 
@@ -1545,10 +1873,12 @@ class Artifact:
             name: The artifact relative name to retrieve.
 
         Returns:
-            W&B object that can be logged with `wandb.log()` and visualized in the W&B UI.
+            W&B object that can be logged with `run.log()` and
+            visualized in the W&B UI.
 
         Raises:
-            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
+            ArtifactNotLoggedError: if the artifact isn't logged or the
+                run is offline.
         """
         entry, wb_class = self._get_obj_entry(name)
         if entry is None or wb_class is None:
@@ -1556,12 +1886,11 @@ class Artifact:
 
         # If the entry is a reference from another artifact, then get it directly from
         # that artifact.
-        referenced_id = entry._referenced_artifact_id()
-        if referenced_id:
+        if referenced_id := entry._referenced_artifact_id():
             assert self._client is not None
             artifact = self._from_id(referenced_id, client=self._client)
             assert artifact is not None
-            return artifact.get(util.uri_from_path(entry.ref))
+            return artifact.get(uri_from_path(entry.ref))
 
         # Special case for wandb.Table. This is intended to be a short term
         # optimization. Since tables are likely to download many other assets in
@@ -1576,10 +1905,9 @@ class Artifact:
         item_path = item.download()
 
         # Load the object from the JSON blob
-        result = None
-        json_obj = {}
         with open(item_path) as file:
             json_obj = json.load(file)
+
         result = wb_class.from_json(json_obj, self)
         result._set_artifact_source(self, name)
         return result
@@ -1593,10 +1921,9 @@ class Artifact:
         Returns:
             The artifact relative name.
         """
-        entry = self._added_local_paths.get(local_path, None)
-        if entry is None:
-            return None
-        return entry.path
+        if entry := self._added_local_paths.get(local_path):
+            return entry.path
+        return None
 
     def _get_obj_entry(
         self, name: str
@@ -1613,8 +1940,7 @@ class Artifact:
         """
         for wb_class in WBValue.type_mapping().values():
             wandb_file_name = wb_class.with_suffix(name)
-            entry = self.manifest.entries.get(wandb_file_name)
-            if entry is not None:
+            if entry := self.manifest.entries.get(wandb_file_name):
                 return entry, wb_class
         return None, None
 
@@ -1627,6 +1953,7 @@ class Artifact:
         allow_missing_references: bool = False,
         skip_cache: bool | None = None,
         path_prefix: StrPath | None = None,
+        multipart: bool | None = None,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1643,20 +1970,18 @@ class Artifact:
                 specified download directory.
             path_prefix: If specified, only files with a path that starts with the given
                 prefix will be downloaded. Uses unix format (forward slashes).
+            multipart: If set to `None` (default), the artifact will be downloaded
+                in parallel using multipart download if individual file size is greater
+                than 2GB. If set to `True` or `False`, the artifact will be downloaded in
+                parallel or serially regardless of the file size.
 
         Returns:
             The path to the downloaded contents.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
-            RuntimeError: If the artifact is attempted to be downloaded in offline mode.
         """
-        root = FilePathStr(str(root or self._default_root()))
-        self._add_download_root(root)
-
-        # TODO: we need a better way to check for offline mode across the app, as this is an anti-pattern
-        if env.is_offline() or util._is_offline():
-            raise RuntimeError("Cannot download artifacts in offline mode.")
+        root = self._add_download_root(root)
 
         # TODO: download artifacts using core when implemented
         # if is_require_core():
@@ -1671,6 +1996,7 @@ class Artifact:
             allow_missing_references=allow_missing_references,
             skip_cache=skip_cache,
             path_prefix=path_prefix,
+            multipart=multipart,
         )
 
     def _download_using_core(
@@ -1684,12 +2010,9 @@ class Artifact:
 
         from wandb.sdk.backend.backend import Backend
 
+        # TODO: Create a special stream instead of relying on an existing run.
         if wandb.run is None:
-            # ensure wandb-core is up and running
-            from wandb.sdk import wandb_setup
-
-            wl = wandb_setup.setup()
-            assert wl is not None
+            wl = wandb_setup.singleton()
 
             stream_id = generate_id()
 
@@ -1702,23 +2025,14 @@ class Artifact:
             settings.files_dir.value = str(tmp_dir / "files")
             settings.run_id.value = stream_id
 
-            service = wl.service
-            assert service
-
+            service = wl.ensure_service()
             service.inform_init(settings=settings, run_id=stream_id)
 
-            mailbox = Mailbox()
-            backend = Backend(
-                settings=wl.settings,
-                service=service,
-                mailbox=mailbox,
-            )
+            backend = Backend(settings=wl.settings, service=service)
             backend.ensure_launched()
 
             assert backend.interface
             backend.interface._stream_id = stream_id  # type: ignore
-
-            mailbox.enable_keepalive()
         else:
             assert wandb.run._backend
             backend = wandb.run._backend
@@ -1738,11 +2052,8 @@ class Artifact:
             skip_cache=skip_cache,
             path_prefix=path_prefix,
         )
-        result = handle.wait(timeout=-1)
+        result = handle.wait_or(timeout=None)
 
-        if result is None:
-            handle.abandon()
-        assert result is not None
         response = result.response.download_artifact_response
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
@@ -1755,32 +2066,27 @@ class Artifact:
         allow_missing_references: bool = False,
         skip_cache: bool | None = None,
         path_prefix: StrPath | None = None,
+        multipart: bool | None = None,
     ) -> FilePathStr:
         nfiles = len(self.manifest.entries)
-        size = sum(e.size or 0 for e in self.manifest.entries.values())
-        log = False
-        if nfiles > 5000 or size > 50 * 1024 * 1024:
-            log = True
+        size_mb = self.size / _MB
+
+        if log := (nfiles > 5000 or size_mb > 50):
             termlog(
-                "Downloading large artifact {}, {:.2f}MB. {} files... ".format(
-                    self.name, size / (1024 * 1024), nfiles
-                ),
+                f"Downloading large artifact {self.name!r}, {size_mb:.2f}MB. {nfiles!r} files...",
             )
-            start_time = datetime.now()
+            start_time = time.monotonic()
+
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
-        def _download_entry(
-            entry: ArtifactManifestEntry,
-            api_key: str | None,
-            cookies: dict | None,
-            headers: dict | None,
-        ) -> None:
-            _thread_local_api_settings.api_key = api_key
-            _thread_local_api_settings.cookies = cookies
-            _thread_local_api_settings.headers = headers
-
+        def _download_entry(entry: ArtifactManifestEntry, executor: Executor) -> None:
+            multipart_executor = (
+                executor
+                if should_multipart_download(entry.size, override=multipart)
+                else None
+            )
             try:
-                entry.download(root, skip_cache=skip_cache)
+                entry.download(root, skip_cache=skip_cache, executor=multipart_executor)
             except FileNotFoundError as e:
                 if allow_missing_references:
                     wandb.termwarn(str(e))
@@ -1789,89 +2095,158 @@ class Artifact:
             except _GCSIsADirectoryError as e:
                 logger.debug(str(e))
                 return
+            except IsADirectoryError:
+                wandb.termwarn(
+                    f"Unable to download file {entry.path!r} as there is a directory with the same path, skipping."
+                )
+                return
+            except NotADirectoryError:
+                wandb.termwarn(
+                    f"Unable to download file {entry.path!r} as there is a file with the same path as a directory this file is expected to be in, skipping."
+                )
+                return
             download_logger.notify_downloaded()
 
-        download_entry = partial(
-            _download_entry,
-            api_key=_thread_local_api_settings.api_key,
-            cookies=_thread_local_api_settings.cookies,
-            headers=_thread_local_api_settings.headers,
-        )
+        def _init_thread(
+            api_key: str | None, cookies: dict | None, headers: dict | None
+        ) -> None:
+            """Initialize the thread-local API settings in the CURRENT thread."""
+            _thread_local_api_settings.api_key = api_key
+            _thread_local_api_settings.cookies = cookies
+            _thread_local_api_settings.headers = headers
 
-        with concurrent.futures.ThreadPoolExecutor(64) as executor:
+        with ThreadPoolExecutor(
+            max_workers=64,
+            initializer=_init_thread,
+            initargs=(
+                _thread_local_api_settings.api_key,
+                _thread_local_api_settings.cookies,
+                _thread_local_api_settings.headers,
+            ),
+        ) as executor:
+            batch_size = env.get_artifact_fetch_file_url_batch_size()
+
             active_futures = set()
-            has_next_page = True
-            cursor = None
-            while has_next_page:
-                fetch_url_batch_size = env.get_artifact_fetch_file_url_batch_size()
-                attrs = self._fetch_file_urls(cursor, fetch_url_batch_size)
-                has_next_page = attrs["pageInfo"]["hasNextPage"]
-                cursor = attrs["pageInfo"]["endCursor"]
-                for edge in attrs["edges"]:
-                    entry = self.get_entry(edge["node"]["name"])
+            cursor, has_more = None, True
+            while has_more:
+                files_page = self._fetch_file_urls(cursor=cursor, per_page=batch_size)
+
+                has_more = files_page.page_info.has_next_page
+                cursor = files_page.page_info.end_cursor
+
+                # `File` nodes are formally nullable, so filter them out just in case.
+                file_nodes = (e.node for e in files_page.edges if e.node)
+                for node in file_nodes:
+                    entry = self.get_entry(node.name)
                     # TODO: uncomment once artifact downloads are supported in core
                     # if require_core and entry.ref is None:
                     #     # Handled by core
                     #     continue
-                    entry._download_url = edge["node"]["directUrl"]
+                    entry._download_url = node.direct_url
                     if (not path_prefix) or entry.path.startswith(str(path_prefix)):
-                        active_futures.add(executor.submit(download_entry, entry))
+                        active_futures.add(
+                            executor.submit(_download_entry, entry, executor=executor)
+                        )
+
                 # Wait for download threads to catch up.
-                max_backlog = fetch_url_batch_size
-                if len(active_futures) > max_backlog:
-                    for future in concurrent.futures.as_completed(active_futures):
+                #
+                # Extra context and observations (tonyyli):
+                # - Even though the ThreadPoolExecutor limits the number of
+                #   concurrently-executed tasks, its internal task queue is unbounded.
+                #   The code below seems intended to ensure that at most `batch_size`
+                #   "backlogged" futures are held in memory at any given time.  This seems
+                #   like a reasonable safeguard against unbounded memory consumption.
+                #
+                # - We should probably use a builtin bounded Queue or Semaphore instead.
+                #   Consider this for a future change, or (depending on appetite for risk)
+                #   managing this logic via asyncio instead, if viable.
+                if len(active_futures) > batch_size:
+                    for future in as_completed(active_futures):
                         future.result()  # check for errors
                         active_futures.remove(future)
-                        if len(active_futures) <= max_backlog:
+                        if len(active_futures) <= batch_size:
                             break
+
             # Check for errors.
-            for future in concurrent.futures.as_completed(active_futures):
+            for future in as_completed(active_futures):
                 future.result()
 
         if log:
-            now = datetime.now()
-            delta = abs((now - start_time).total_seconds())
-            hours = int(delta // 3600)
-            minutes = int((delta - hours * 3600) // 60)
-            seconds = delta - hours * 3600 - minutes * 60
+            # If you're wondering if we can display a `timedelta`, note that it
+            # doesn't really support custom string format specifiers (compared to
+            # e.g. `datetime` objs).  To truncate the number of decimal places for
+            # the seconds part, we manually convert/format each part below.
+            dt_secs = abs(time.monotonic() - start_time)
+            hrs, mins = divmod(dt_secs, 3600)
+            mins, secs = divmod(mins, 60)
             termlog(
-                f"Done. {hours}:{minutes}:{seconds:.1f}",
+                f"Done. {int(hrs):02d}:{int(mins):02d}:{secs:04.1f} ({size_mb / dt_secs:.1f}MB/s)",
                 prefix=False,
             )
         return FilePathStr(root)
 
-    @retry.retriable(
-        retry_timedelta=timedelta(minutes=3),
-        retryable_exceptions=(requests.RequestException),
-    )
-    def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
-        query = gql(
-            """
-            query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
-                artifact(id: $id) {
-                    files(after: $cursor, first: $perPage) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                name
-                                directUrl
-                            }
-                        }
-                    }
+    def _build_fetch_file_urls_wrapper(self) -> Callable[..., Any]:
+        import requests
+
+        @retry.retriable(
+            retry_timedelta=timedelta(minutes=3),
+            retryable_exceptions=(requests.RequestException),
+        )
+        def _impl(cursor: str | None, per_page: int = 5000) -> FileWithUrlConnection:
+            from ._generated import (
+                ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
+                ARTIFACT_FILE_URLS_GQL,
+                ArtifactCollectionMembershipFileUrls,
+                ArtifactFileUrls,
+            )
+            from ._models.pagination import FileWithUrlConnection
+
+            if self._client is None:
+                raise RuntimeError("Client not initialized")
+
+            if server_supports(self._client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES):
+                query = gql(ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL)
+                gql_vars = {
+                    "entity": self.entity,
+                    "project": self.project,
+                    "collection": self.name.split(":")[0],
+                    "alias": self.version,
+                    "cursor": cursor,
+                    "perPage": per_page,
                 }
-            }
-            """
-        )
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": self.id, "cursor": cursor, "perPage": per_page},
-            timeout=60,
-        )
-        return response["artifact"]["files"]
+                data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+                result = ArtifactCollectionMembershipFileUrls.model_validate(data)
+
+                if not (
+                    (project := result.project)
+                    and (collection := project.artifact_collection)
+                    and (membership := collection.artifact_membership)
+                    and (files := membership.files)
+                ):
+                    raise ValueError(
+                        f"Unable to fetch files for artifact: {self.name!r}"
+                    )
+                return FileWithUrlConnection.model_validate(files)
+            else:
+                query = gql(ARTIFACT_FILE_URLS_GQL)
+                gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
+                data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+                result = ArtifactFileUrls.model_validate(data)
+
+                if not ((artifact := result.artifact) and (files := artifact.files)):
+                    raise ValueError(
+                        f"Unable to fetch files for artifact: {self.name!r}"
+                    )
+                return FileWithUrlConnection.model_validate(files)
+
+        return _impl
+
+    def _fetch_file_urls(
+        self, cursor: str | None, per_page: int = 5000
+    ) -> FileWithUrlConnection:
+        if self._fetch_file_urls_decorated is None:
+            self._fetch_file_urls_decorated = self._build_fetch_file_urls_wrapper()
+        return self._fetch_file_urls_decorated(cursor, per_page)
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
@@ -1912,7 +2287,7 @@ class Artifact:
 
         Args:
             root: The directory to verify. If None artifact will be downloaded to
-                './artifacts/self.name/'
+                './artifacts/self.name/'.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -1928,20 +2303,18 @@ class Artifact:
                     self.get_entry(artifact_path)
                 except KeyError:
                     raise ValueError(
-                        "Found file {} which is not a member of artifact {}".format(
-                            full_path, self.name
-                        )
+                        f"Found file {full_path} which is not a member of artifact {self.name}"
                     )
 
         ref_count = 0
         for entry in self.manifest.entries.values():
             if entry.ref is None:
                 if md5_file_b64(os.path.join(root, entry.path)) != entry.digest:
-                    raise ValueError("Digest mismatch for file: {}".format(entry.path))
+                    raise ValueError(f"Digest mismatch for file: {entry.path}")
             else:
                 ref_count += 1
         if ref_count > 0:
-            print("Warning: skipped verification of {} refs".format(ref_count))
+            termwarn(f"skipped verification of {ref_count} refs")
 
     @ensure_logged
     def file(self, root: str | None = None) -> StrPath:
@@ -1949,7 +2322,7 @@ class Artifact:
 
         Args:
             root: The root directory to store the file. Defaults to
-                './artifacts/self.name/'.
+                `./artifacts/self.name/`.
 
         Returns:
             The full path of the downloaded file.
@@ -1994,11 +2367,12 @@ class Artifact:
         # In case we're on a system where the artifact dir has a name corresponding to
         # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
         # use that, otherwise we'll fall back to the system-preferred path.
-        path = filesystem.check_exists(root) or filesystem.system_preferred_path(root)
-        return FilePathStr(str(path))
+        return FilePathStr(check_exists(root) or system_preferred_path(root))
 
-    def _add_download_root(self, dir_path: str) -> None:
-        self._download_roots.add(os.path.abspath(dir_path))
+    def _add_download_root(self, dir_path: StrPath | None) -> FilePathStr:
+        root = str(dir_path or self._default_root())
+        self._download_roots.add(os.path.abspath(root))
+        return root
 
     def _local_path_to_name(self, file_path: str) -> str | None:
         """Convert a local file path to a path entry in the artifact."""
@@ -2015,122 +2389,185 @@ class Artifact:
     def delete(self, delete_aliases: bool = False) -> None:
         """Delete an artifact and its files.
 
-        If called on a linked artifact (i.e. a member of a portfolio collection): only the link is deleted, and the
+        If called on a linked artifact, only the link is deleted, and the
         source artifact is unaffected.
 
+        Use `Artifact.unlink()` instead of `Artifact.delete()` to remove a
+        link between a source artifact and a collection.
+
         Args:
-            delete_aliases: If set to `True`, deletes all aliases associated with the artifact.
-                Otherwise, this raises an exception if the artifact has existing
-                aliases.
-                This parameter is ignored if the artifact is linked (i.e. a member of a portfolio collection).
+            delete_aliases: If set to `True`, delete all aliases associated
+                with the artifact. If `False`, raise an exception if
+                the artifact has existing aliases. This parameter is ignored
+                if the artifact is retrieved from a collection it is linked to.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        if self.collection.is_sequence():
-            self._delete(delete_aliases)
-        else:
+        if self.is_link:
+            wandb.termwarn(
+                "Deleting a link artifact will only unlink the artifact from the source artifact and not delete the source artifact and the data of the source artifact."
+            )
             self._unlink()
+        else:
+            self._delete(delete_aliases)
 
     @normalize_exceptions
     def _delete(self, delete_aliases: bool = False) -> None:
-        mutation = gql(
-            """
-            mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
-                deleteArtifact(input: {
-                    artifactID: $artifactID
-                    deleteAliases: $deleteAliases
-                }) {
-                    artifact {
-                        id
-                    }
-                }
-            }
-            """
+        from ._generated import DELETE_ARTIFACT_GQL, DeleteArtifactInput
+
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        gql_op = gql(DELETE_ARTIFACT_GQL)
+        gql_input = DeleteArtifactInput(
+            artifact_id=self.id,
+            delete_aliases=delete_aliases,
         )
-        assert self._client is not None
-        self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "deleteAliases": delete_aliases,
-            },
-        )
+        self._client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
 
     @normalize_exceptions
-    def link(self, target_path: str, aliases: list[str] | None = None) -> None:
-        """Link this artifact to a portfolio (a promoted collection of artifacts).
+    def link(self, target_path: str, aliases: Iterable[str] | None = None) -> Artifact:
+        """Link this artifact to a collection.
 
         Args:
-            target_path: The path to the portfolio inside a project.
-                The target path must adhere to one of the following
-                schemas `{portfolio}`, `{project}/{portfolio}` or
-                `{entity}/{project}/{portfolio}`.
-                To link the artifact to the Model Registry, rather than to a generic
-                portfolio inside a project, set `target_path` to the following
-                schema `{"model-registry"}/{Registered Model Name}` or
-                `{entity}/{"model-registry"}/{Registered Model Name}`.
-            aliases: A list of strings that uniquely identifies the artifact inside the
-                specified portfolio.
+            target_path: The path of the collection. Path consists of the prefix
+                "wandb-registry-" along with the registry name and the
+                collection name `wandb-registry-{REGISTRY_NAME}/{COLLECTION_NAME}`.
+            aliases: Add one or more aliases to the linked artifact. The
+                "latest" alias is automatically applied to the most recent artifact
+                you link.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
+
+        Returns:
+            The linked artifact.
         """
-        if wandb.run is None:
-            with wandb.init(  # type: ignore
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            ) as run:
-                run.link_artifact(self, target_path, aliases)
+        from wandb import Api
+        from wandb.sdk.internal.internal_api import Api as InternalApi
+
+        from ._generated import LINK_ARTIFACT_GQL, LinkArtifact, LinkArtifactInput
+        from ._validators import ArtifactPath, FullArtifactPath, validate_aliases
+
+        if self.is_link:
+            wandb.termwarn(
+                "Linking to a link artifact will result in directly linking to the source artifact of that link artifact."
+            )
+
+        # Save the artifact first if necessary
+        if self.is_draft():
+            if not self._is_draft_save_started():
+                # Avoiding public `.source_project` property here,
+                # as it requires the artifact is logged first.
+                self.save(project=self._source_project)
+
+            # Wait until the artifact is committed before trying to link it.
+            self.wait()
+
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        # FIXME: Find a way to avoid using InternalApi here, due to the perf overhead
+        settings = InternalApi().settings()
+
+        target = ArtifactPath.from_str(target_path).with_defaults(
+            project=settings.get("project") or "uncategorized",
+        )
+
+        # Parse the entity (first part of the path) appropriately,
+        # depending on whether we're linking to a registry
+        if target.is_registry_path():
+            # In a Registry linking, the entity is used to fetch the organization of the
+            # artifact, therefore the source artifact's entity is passed to the backend
+            org = target.prefix or settings.get("organization") or None
+            target.prefix = resolve_org_entity_name(client, self.source_entity, org)
         else:
-            wandb.run.link_artifact(self, target_path, aliases)
+            target = target.with_defaults(prefix=self.source_entity)
+
+        # Explicitly convert to FullArtifactPath to ensure all fields are present
+        target = FullArtifactPath(**asdict(target))
+
+        # Prepare the validated GQL input, send it
+        alias_inputs = [
+            {"artifactCollectionName": target.name, "alias": a}
+            for a in validate_aliases(aliases or [])
+        ]
+        gql_input = LinkArtifactInput(
+            artifact_id=self.id,
+            artifact_portfolio_name=target.name,
+            entity_name=target.prefix,
+            project_name=target.project,
+            aliases=alias_inputs,
+        )
+        gql_vars = {"input": gql_input.model_dump()}
+
+        # Newer server versions can return `artifactMembership` directly in the response,
+        # avoiding the need to re-fetch the linked artifact at the end.
+        omit_variables = omit_fields = None
+        if not server_supports(
+            client, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+        ):
+            omit_variables = {"includeAliases"}
+            omit_fields = {"artifactMembership"}
+
+        gql_op = gql_compat(
+            LINK_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
+        )
+        data = client.execute(gql_op, variable_values=gql_vars)
+        result = LinkArtifact.model_validate(data).result
+
+        # Newer server versions can return artifactMembership directly in the response
+        if result and (membership := result.artifact_membership):
+            return self._from_membership(membership, target=target, client=client)
+
+        # Old behavior, which requires re-fetching the linked artifact to return it
+        if not (result and (version_idx := result.version_index) is not None):
+            raise ValueError("Unable to parse linked artifact version from response")
+
+        link_name = f"{target.to_str()}:v{version_idx}"
+        return Api(overrides={"entity": self.source_entity})._artifact(link_name)
 
     @ensure_logged
     def unlink(self) -> None:
-        """Unlink this artifact if it is currently a member of a portfolio (a promoted collection of artifacts).
+        """Unlink this artifact if it is a linked member of an artifact collection.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
-            ValueError: If the artifact is not linked, i.e. it is not a member of a portfolio collection.
+            ValueError: If the artifact is not linked to any collection.
         """
         # Fail early if this isn't a linked artifact to begin with
-        if self.collection.is_sequence():
+        if not self.is_link:
             raise ValueError(
                 f"Artifact {self.qualified_name!r} is not a linked artifact and cannot be unlinked.  "
-                f"To delete it, use {self.delete.__qualname__!r} instead."
+                f"To delete it, use {nameof(self.delete)!r} instead."
             )
 
         self._unlink()
 
     @normalize_exceptions
     def _unlink(self) -> None:
-        mutation = gql(
-            """
-            mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
-                unlinkArtifact(
-                    input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }
-                ) {
-                    artifactID
-                    success
-                    clientMutationId
-                }
-            }
-            """
+        from ._generated import UNLINK_ARTIFACT_GQL, UnlinkArtifactInput
+
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        mutation = gql(UNLINK_ARTIFACT_GQL)
+        gql_input = UnlinkArtifactInput(
+            artifact_id=self.id,
+            artifact_portfolio_id=self.collection.id,
         )
-        assert self._client is not None
-        self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "artifactPortfolioID": self.collection.id,
-            },
-        )
+        gql_vars = {"input": gql_input.model_dump()}
+        try:
+            self._client.execute(mutation, variable_values=gql_vars)
+        except CommError as e:
+            raise CommError(
+                f"You do not have permission to unlink the artifact {self.qualified_name!r}"
+            ) from e
 
     @ensure_logged
     def used_by(self) -> list[Run]:
-        """Get a list of the runs that have used this artifact.
+        """Get a list of the runs that have used this artifact and its linked artifacts.
 
         Returns:
             A list of `Run` objects.
@@ -2138,41 +2575,28 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        query = gql(
-            """
-            query ArtifactUsedBy(
-                $id: ID!,
-            ) {
-                artifact(id: $id) {
-                    usedBy {
-                        edges {
-                            node {
-                                name
-                                project {
-                                    name
-                                    entityName
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            """
-        )
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": self.id},
-        )
-        return [
-            Run(
-                self._client,
-                edge["node"]["project"]["entityName"],
-                edge["node"]["project"]["name"],
-                edge["node"]["name"],
-            )
-            for edge in response.get("artifact", {}).get("usedBy", {}).get("edges", [])
-        ]
+        from ._generated import ARTIFACT_USED_BY_GQL, ArtifactUsedBy
+
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized for artifact queries")
+
+        query = gql(ARTIFACT_USED_BY_GQL)
+        gql_vars = {"id": self.id}
+        data = client.execute(query, variable_values=gql_vars)
+        result = ArtifactUsedBy.model_validate(data)
+
+        if (
+            (artifact := result.artifact)
+            and (used_by := artifact.used_by)
+            and (edges := used_by.edges)
+        ):
+            run_nodes = (e.node for e in edges)
+            return [
+                Run(client, proj.entity.name, proj.name, run.name)
+                for run in run_nodes
+                if (proj := run.project)
+            ]
+        return []
 
     @ensure_logged
     def logged_by(self) -> Run | None:
@@ -2184,39 +2608,24 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        query = gql(
-            """
-            query ArtifactCreatedBy(
-                $id: ID!
-            ) {
-                artifact(id: $id) {
-                    createdBy {
-                        ... on Run {
-                            name
-                            project {
-                                name
-                                entityName
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        )
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": self.id},
-        )
-        creator = response.get("artifact", {}).get("createdBy", {})
-        if creator.get("name") is None:
-            return None
-        return Run(
-            self._client,
-            creator["project"]["entityName"],
-            creator["project"]["name"],
-            creator["name"],
-        )
+        from ._generated import ARTIFACT_CREATED_BY_GQL, ArtifactCreatedBy
+
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized for artifact queries")
+
+        gql_op = gql(ARTIFACT_CREATED_BY_GQL)
+        gql_vars = {"id": self.id}
+        data = client.execute(gql_op, variable_values=gql_vars)
+        result = ArtifactCreatedBy.model_validate(data)
+
+        if (
+            (artifact := result.artifact)
+            and (creator := artifact.created_by)
+            and (name := creator.name)
+            and (project := creator.project)
+        ):
+            return Run(client, project.entity.name, project.name, name)
+        return None
 
     @ensure_logged
     def json_encode(self) -> dict[str, Any]:
@@ -2225,64 +2634,30 @@ class Artifact:
         Returns:
             A `dict` with `string` keys representing attributes of the artifact.
         """
-        return util.artifact_to_json(self)
+        return artifact_to_json(self)
 
     @staticmethod
     def _expected_type(
         entity_name: str, project_name: str, name: str, client: RetryingClient
     ) -> str | None:
         """Returns the expected type for a given artifact name and project."""
-        query = gql(
-            """
-            query ArtifactType(
-                $entityName: String,
-                $projectName: String,
-                $name: String!
-            ) {
-                project(name: $projectName, entityName: $entityName) {
-                    artifact(name: $name) {
-                        artifactType {
-                            name
-                        }
-                    }
-                }
-            }
-            """
-        )
-        if ":" not in name:
-            name += ":latest"
-        response = client.execute(
-            query,
-            variable_values={
-                "entityName": entity_name,
-                "projectName": project_name,
-                "name": name,
-            },
-        )
-        return (
-            ((response.get("project") or {}).get("artifact") or {}).get("artifactType")
-            or {}
-        ).get("name")
+        from ._generated import ARTIFACT_TYPE_GQL, ArtifactType
 
-    @staticmethod
-    def _normalize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
-        if metadata is None:
-            return {}
-        if not isinstance(metadata, dict):
-            raise TypeError(f"metadata must be dict, not {type(metadata)}")
-        return cast(
-            Dict[str, Any], json.loads(json.dumps(util.json_friendly_val(metadata)))
-        )
+        name = name if (":" in name) else f"{name}:latest"
 
-    def _load_manifest(self, url: str) -> ArtifactManifest:
-        with requests.get(url) as response:
-            response.raise_for_status()
-            return ArtifactManifest.from_manifest_json(response.json())
+        gql_op = gql(ARTIFACT_TYPE_GQL)
+        gql_vars = {"entity": entity_name, "project": project_name, "name": name}
+        data = client.execute(gql_op, variable_values=gql_vars)
+        result = ArtifactType.model_validate(data)
+        if (project := result.project) and (artifact := project.artifact):
+            return artifact.artifact_type.name
+        return None
 
     def _ttl_duration_seconds_to_gql(self) -> int | None:
-        # Set artifact ttl value to ttl_duration_seconds if the user set a value
-        # otherwise use ttl_status to indicate the backend INHERIT(-1) or DISABLED(-2) when the TTL is None
-        # When ttl_change = None its a no op since nothing changed
+        # Set the artifact TTL to `ttl_duration_seconds` if the user provided a value.
+        # Otherwise, use `ttl_status` to indicate backend values INHERIT (-1) or
+        # DISABLED (-2) when the TTL is None.
+        # When `ttl_change is None`, nothing changed and this is a no-op.
         INHERIT = -1  # noqa: N806
         DISABLED = -2  # noqa: N806
 
@@ -2292,68 +2667,89 @@ class Artifact:
             return INHERIT
         return self._ttl_duration_seconds or DISABLED
 
+    def _fetch_linked_artifacts(self) -> list[Artifact]:
+        """Fetches all linked artifacts from the server."""
+        from wandb._pydantic import gql_typename
 
-def _ttl_duration_seconds_from_gql(gql_ttl_duration_seconds: int | None) -> int | None:
-    # If gql_ttl_duration_seconds is not positive, its indicating that TTL is DISABLED(-2)
-    # gql_ttl_duration_seconds only returns None if the server is not compatible with setting Artifact TTLs
-    if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
-        return gql_ttl_duration_seconds
-    return None
+        from ._generated import (
+            FETCH_LINKED_ARTIFACTS_GQL,
+            ArtifactPortfolioTypeFields,
+            FetchLinkedArtifacts,
+        )
+        from ._validators import LinkArtifactFields
 
+        if self.id is None:
+            raise ValueError(
+                "Unable to find any artifact memberships for artifact without an ID"
+            )
 
-def _gql_artifact_fragment() -> str:
-    """Return a GraphQL query fragment with all parseable Artifact attributes."""
-    allowed_fields = set(InternalApi().server_artifact_introspection())
+        if (client := self._client) is None:
+            raise ValueError("Client is not initialized")
 
-    supports_ttl = "ttlIsInherited" in allowed_fields
-    supports_tags = "tags" in allowed_fields
+        gql_op = gql_compat(FETCH_LINKED_ARTIFACTS_GQL)
+        data = client.execute(gql_op, variable_values={"artifactID": self.id})
+        result = FetchLinkedArtifacts.model_validate(data)
 
-    ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
-    ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
+        if not (
+            (artifact := result.artifact)
+            and (memberships := artifact.artifact_memberships)
+            and (membership_edges := memberships.edges)
+        ):
+            raise ValueError("Unable to find any artifact memberships for artifact")
 
-    tags = "tags {name}" if supports_tags else ""
+        linked_artifacts: deque[Artifact] = deque()
+        linked_nodes = (
+            node
+            for edge in membership_edges
+            if (
+                (node := edge.node)
+                and (col := node.artifact_collection)
+                and (col.typename__ == gql_typename(ArtifactPortfolioTypeFields))
+            )
+        )
+        for node in linked_nodes:
+            alias_names = unique_list(a.alias for a in node.aliases)
+            version = f"v{node.version_index}"
+            aliases = (
+                [*alias_names, version]
+                if version not in alias_names
+                else [*alias_names]
+            )
 
-    return f"""
-        fragment ArtifactFragment on Artifact {{
-            id
-            artifactSequence {{
-                project {{
-                    entityName
-                    name
-                }}
-                name
-            }}
-            versionIndex
-            artifactType {{
-                name
-            }}
-            description
-            metadata
-            {ttl_duration_seconds}
-            {ttl_is_inherited}
-            aliases {{
-                artifactCollection {{
-                    project {{
-                        entityName
-                        name
-                    }}
-                    name
-                }}
-                alias
-            }}
-            {tags}
-            state
-            currentManifest {{
-                file {{
-                    directUrl
-                }}
-            }}
-            commitHash
-            fileCount
-            createdAt
-            updatedAt
-        }}
-    """
+            if not (
+                node
+                and (col := node.artifact_collection)
+                and (proj := col.project)
+                and (proj.entity.name and proj.name)
+            ):
+                raise ValueError("Unable to fetch fields for linked artifact")
+
+            link_fields = LinkArtifactFields(
+                entity_name=proj.entity.name,
+                project_name=proj.name,
+                name=f"{col.name}:{version}",
+                version=version,
+                aliases=aliases,
+            )
+            link = self._create_linked_artifact_using_source_artifact(link_fields)
+            linked_artifacts.append(link)
+        return list(linked_artifacts)
+
+    def _create_linked_artifact_using_source_artifact(
+        self,
+        link_fields: LinkArtifactFields,
+    ) -> Artifact:
+        """Copies the source artifact to a linked artifact."""
+        linked_artifact = copy(self)
+        linked_artifact._version = link_fields.version
+        linked_artifact._aliases = link_fields.aliases
+        linked_artifact._saved_aliases = copy(link_fields.aliases)
+        linked_artifact._name = link_fields.name
+        linked_artifact._entity = link_fields.entity_name
+        linked_artifact._project = link_fields.project_name
+        linked_artifact._is_link = link_fields.is_link
+        linked_artifact._linked_artifacts = link_fields.linked_artifacts
+        return linked_artifact
 
 
 class _ArtifactVersionType(WBType):

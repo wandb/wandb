@@ -2,27 +2,47 @@ syntax = "proto3";
 
 package wandb_internal;
 
-import "google/protobuf/empty.proto";
 import "wandb/proto/wandb_internal.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
-// SystemMonitor gRPC service.
+// SystemMonitorService gRPC service.
 //
 // This service is used to collect system metrics from the host machine.
-service SystemMonitor {
+service SystemMonitorService {
   // GetStats samples system metrics.
-  rpc GetStats(GetStatsRequest) returns (Record) {}
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse) {}
+
   // GetMetadata returns static metadata about the system.
-  rpc GetMetadata(GetMetadataRequest) returns (Record) {}
-  // TearDown tears down the system monitor.
-  rpc TearDown(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc GetMetadata(GetMetadataRequest) returns (GetMetadataResponse) {}
+
+  // TearDown instructs the system monitor to shut down.
+  rpc TearDown(TearDownRequest) returns (TearDownResponse) {}
 }
 
 message GetStatsRequest {
   // Capture the system metrics for the process with this PID, in addition to
   // system-wide metrics.
   int32 pid = 1;
+
+  // GPU device IDs to capture metrics for.
+  //
+  // Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
+  // If not set, metrics for all GPUs will be captured.
+  repeated int32 gpu_device_ids = 2;
+}
+
+message GetStatsResponse {
+  // System metrics.
+  Record record = 1;
 }
 
 message GetMetadataRequest {}
+
+message GetMetadataResponse {
+  // Static metadata about the system.
+  Record record = 1;
+}
+
+message TearDownRequest {}
+message TearDownResponse {}

@@ -1,172 +1,40 @@
-"""W&B Integration for Metaflow.
-
-This integration lets users apply decorators to Metaflow flows and steps to automatically log parameters and artifacts to W&B by type dispatch.
-
-- Decorating a step will enable or disable logging for certain types within that step
-- Decorating the flow is equivalent to decorating all steps with a default
-- Decorating a step after decorating the flow will overwrite the flow decoration
-
-Examples can be found at wandb/wandb/functional_tests/metaflow
-"""
-
 import inspect
 import pickle
 from functools import wraps
 from pathlib import Path
+from typing import Optional, Union
 
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
+
+from . import errors
 
 try:
     from metaflow import current
 except ImportError as e:
     raise Exception(
-        "Error: `metaflow` not installed >> This integration requires metaflow!  To fix, please `pip install -Uqq metaflow`"
-    ) from e
-
-try:
-    from fastcore.all import typedispatch
-except ImportError as e:
-    raise Exception(
-        "Error: `fastcore` not installed >> This integration requires fastcore!  To fix, please `pip install -Uqq fastcore`"
+        "Error: `metaflow` not installed >> This integration requires metaflow!"
+        " To fix, please `pip install -Uqq metaflow`"
     ) from e
 
 
 try:
-    import pandas as pd
-
-    @typedispatch  # noqa: F811
-    def _wandb_use(
-        name: str,
-        data: pd.DataFrame,
-        datasets=False,
-        run=None,
-        testing=False,
-        *args,
-        **kwargs,
-    ):  # type: ignore
-        if testing:
-            return "datasets" if datasets else None
-
-        if datasets:
-            run.use_artifact(f"{name}:latest")
-            wandb.termlog(f"Using artifact: {name} ({type(data)})")
-
-    @typedispatch  # noqa: F811
-    def wandb_track(
-        name: str,
-        data: pd.DataFrame,
-        datasets=False,
-        run=None,
-        testing=False,
-        *args,
-        **kwargs,
-    ):
-        if testing:
-            return "pd.DataFrame" if datasets else None
-
-        if datasets:
-            artifact = wandb.Artifact(name, type="dataset")
-            with artifact.new_file(f"{name}.parquet", "wb") as f:
-                data.to_parquet(f, engine="pyarrow")
-            run.log_artifact(artifact)
-            wandb.termlog(f"Logging artifact: {name} ({type(data)})")
-
-except ImportError:
-    print(
-        "Warning: `pandas` not installed >> @wandb_log(datasets=True) may not auto log your dataset!"
-    )
+    from . import data_pandas
+except errors.MissingDependencyError as e:
+    e.warn()
+    data_pandas = None
 
 try:
-    import torch
-    import torch.nn as nn
-
-    @typedispatch  # noqa: F811
-    def _wandb_use(
-        name: str,
-        data: nn.Module,
-        models=False,
-        run=None,
-        testing=False,
-        *args,
-        **kwargs,
-    ):  # type: ignore
-        if testing:
-            return "models" if models else None
-
-        if models:
-            run.use_artifact(f"{name}:latest")
-            wandb.termlog(f"Using artifact: {name} ({type(data)})")
-
-    @typedispatch  # noqa: F811
-    def wandb_track(
-        name: str,
-        data: nn.Module,
-        models=False,
-        run=None,
-        testing=False,
-        *args,
-        **kwargs,
-    ):
-        if testing:
-            return "nn.Module" if models else None
-
-        if models:
-            artifact = wandb.Artifact(name, type="model")
-            with artifact.new_file(f"{name}.pkl", "wb") as f:
-                torch.save(data, f)
-            run.log_artifact(artifact)
-            wandb.termlog(f"Logging artifact: {name} ({type(data)})")
-
-except ImportError:
-    print(
-        "Warning: `pytorch` not installed >> @wandb_log(models=True) may not auto log your model!"
-    )
+    from . import data_pytorch
+except errors.MissingDependencyError as e:
+    e.warn()
+    data_pytorch = None
 
 try:
-    from sklearn.base import BaseEstimator
-
-    @typedispatch  # noqa: F811
-    def _wandb_use(
-        name: str,
-        data: BaseEstimator,
-        models=False,
-        run=None,
-        testing=False,
-        *args,
-        **kwargs,
-    ):  # type: ignore
-        if testing:
-            return "models" if models else None
-
-        if models:
-            run.use_artifact(f"{name}:latest")
-            wandb.termlog(f"Using artifact: {name} ({type(data)})")
-
-    @typedispatch  # noqa: F811
-    def wandb_track(
-        name: str,
-        data: BaseEstimator,
-        models=False,
-        run=None,
-        testing=False,
-        *args,
-        **kwargs,
-    ):
-        if testing:
-            return "BaseEstimator" if models else None
-
-        if models:
-            artifact = wandb.Artifact(name, type="model")
-            with artifact.new_file(f"{name}.pkl", "wb") as f:
-                pickle.dump(data, f)
-            run.log_artifact(artifact)
-            wandb.termlog(f"Logging artifact: {name} ({type(data)})")
-
-except ImportError:
-    print(
-        "Warning: `sklearn` not installed >> @wandb_log(models=True) may not auto log your model!"
-    )
+    from . import data_sklearn
+except errors.MissingDependencyError as e:
+    e.warn()
+    data_sklearn = None
 
 
 class ArtifactProxy:
@@ -192,93 +60,166 @@ class ArtifactProxy:
         return getattr(self.flow, key)
 
 
-@typedispatch  # noqa: F811
-def wandb_track(
+def _track_scalar(
     name: str,
-    data: (dict, list, set, str, int, float, bool),
-    run=None,
-    testing=False,
-    *args,
-    **kwargs,
-):  # type: ignore
+    data: Union[dict, list, set, str, int, float, bool],
+    run,
+    testing: bool = False,
+) -> Optional[str]:
     if testing:
         return "scalar"
 
     run.log({name: data})
+    return None
 
 
-@typedispatch  # noqa: F811
-def wandb_track(
-    name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
-):
+def _track_path(
+    name: str,
+    data: Path,
+    run,
+    testing: bool = False,
+) -> Optional[str]:
     if testing:
-        return "Path" if datasets else None
+        return "Path"
 
-    if datasets:
-        artifact = wandb.Artifact(name, type="dataset")
-        if data.is_dir():
-            artifact.add_dir(data)
-        elif data.is_file():
-            artifact.add_file(data)
-        run.log_artifact(artifact)
-        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
+    artifact = wandb.Artifact(name, type="dataset")
+    if data.is_dir():
+        artifact.add_dir(data)
+    elif data.is_file():
+        artifact.add_file(data)
+    run.log_artifact(artifact)
+    wandb.termlog(f"Logging artifact: {name} ({type(data)})")
+    return None
 
 
-# this is the base case
-@typedispatch  # noqa: F811
-def wandb_track(
-    name: str, data, others=False, run=None, testing=False, *args, **kwargs
-):
+def _track_generic(
+    name: str,
+    data,
+    run,
+    testing: bool = False,
+) -> Optional[str]:
     if testing:
-        return "generic" if others else None
+        return "generic"
 
+    artifact = wandb.Artifact(name, type="other")
+    with artifact.new_file(f"{name}.pkl", "wb") as f:
+        pickle.dump(data, f)
+    run.log_artifact(artifact)
+    wandb.termlog(f"Logging artifact: {name} ({type(data)})")
+    return None
+
+
+def wandb_track(
+    name: str,
+    data,
+    datasets: bool = False,
+    models: bool = False,
+    others: bool = False,
+    run: Optional[wandb.Run] = None,
+    testing: bool = False,
+) -> Optional[str]:
+    """Track data as wandb artifacts based on type and flags."""
+    # Check for pandas DataFrame
+    if data_pandas and data_pandas.is_dataframe(data) and datasets:
+        return data_pandas.track_dataframe(name, data, run, testing)
+
+    # Check for PyTorch Module
+    if data_pytorch and data_pytorch.is_nn_module(data) and models:
+        return data_pytorch.track_nn_module(name, data, run, testing)
+
+    # Check for scikit-learn BaseEstimator
+    if data_sklearn and data_sklearn.is_estimator(data) and models:
+        return data_sklearn.track_estimator(name, data, run, testing)
+
+    # Check for Path objects
+    if isinstance(data, Path) and datasets:
+        return _track_path(name, data, run, testing)
+
+    # Check for scalar types
+    if isinstance(data, (dict, list, set, str, int, float, bool)):
+        return _track_scalar(name, data, run, testing)
+
+    # Generic fallback
     if others:
-        artifact = wandb.Artifact(name, type="other")
-        with artifact.new_file(f"{name}.pkl", "wb") as f:
-            pickle.dump(data, f)
-        run.log_artifact(artifact)
-        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
+        return _track_generic(name, data, run, testing)
+
+    # No action taken
+    return None
 
 
-@typedispatch
-def wandb_use(name: str, data, *args, **kwargs):
-    try:
-        return _wandb_use(name, data, *args, **kwargs)
-    except wandb.CommError:
-        print(
-            f"This artifact ({name}, {type(data)}) does not exist in the wandb datastore!"
-            f"If you created an instance inline (e.g. sklearn.ensemble.RandomForestClassifier), then you can safely ignore this"
-            f"Otherwise you may want to check your internet connection!"
-        )
-
-
-@typedispatch  # noqa: F811
 def wandb_use(
-    name: str, data: (dict, list, set, str, int, float, bool), *args, **kwargs
-):  # type: ignore
-    pass  # do nothing for these types
+    name: str,
+    data,
+    datasets: bool = False,
+    models: bool = False,
+    others: bool = False,
+    run=None,
+    testing: bool = False,
+) -> Optional[str]:
+    """Use wandb artifacts based on data type and flags."""
+    # Skip scalar types - nothing to use
+    if isinstance(data, (dict, list, set, str, int, float, bool)):
+        return None
+
+    try:
+        # Check for pandas DataFrame
+        if data_pandas and data_pandas.is_dataframe(data) and datasets:
+            return data_pandas.use_dataframe(name, run, testing)
+
+        # Check for PyTorch Module
+        elif data_pytorch and data_pytorch.is_nn_module(data) and models:
+            return data_pytorch.use_nn_module(name, run, testing)
+
+        # Check for scikit-learn BaseEstimator
+        elif data_sklearn and data_sklearn.is_estimator(data) and models:
+            return data_sklearn.use_estimator(name, run, testing)
+
+        # Check for Path objects
+        elif isinstance(data, Path) and datasets:
+            return _use_path(name, data, run, testing)
+
+        # Generic fallback
+        elif others:
+            return _use_generic(name, data, run, testing)
+
+        else:
+            return None
+
+    except wandb.CommError:
+        wandb.termwarn(
+            f"This artifact ({name}, {type(data)}) does not exist in the wandb datastore!"
+            " If you created an instance inline (e.g. sklearn.ensemble.RandomForestClassifier),"
+            " then you can safely ignore this. Otherwise you may want to check your internet connection!"
+        )
+        return None
 
 
-@typedispatch  # noqa: F811
-def _wandb_use(
-    name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
-):  # type: ignore
+def _use_path(
+    name: str,
+    data: Path,
+    run,
+    testing: bool = False,
+) -> Optional[str]:
     if testing:
-        return "datasets" if datasets else None
+        return "datasets"
 
-    if datasets:
-        run.use_artifact(f"{name}:latest")
-        wandb.termlog(f"Using artifact: {name} ({type(data)})")
+    run.use_artifact(f"{name}:latest")
+    wandb.termlog(f"Using artifact: {name} ({type(data)})")
+    return None
 
 
-@typedispatch  # noqa: F811
-def _wandb_use(name: str, data, others=False, run=None, testing=False, *args, **kwargs):  # type: ignore
+def _use_generic(
+    name: str,
+    data,
+    run,
+    testing: bool = False,
+) -> Optional[str]:
     if testing:
-        return "others" if others else None
+        return "others"
 
-    if others:
-        run.use_artifact(f"{name}:latest")
-        wandb.termlog(f"Using artifact: {name} ({type(data)})")
+    run.use_artifact(f"{name}:latest")
+    wandb.termlog(f"Using artifact: {name} ({type(data)})")
+    return None
 
 
 def coalesce(*arg):
@@ -287,25 +228,30 @@ def coalesce(*arg):
 
 def wandb_log(
     func=None,
-    # /,  # py38 only
-    datasets=False,
-    models=False,
-    others=False,
-    settings=None,
+    /,
+    datasets: bool = False,
+    models: bool = False,
+    others: bool = False,
+    settings: Optional[wandb.Settings] = None,
 ):
-    """Automatically log parameters and artifacts to W&B by type dispatch.
+    """Automatically log parameters and artifacts to W&B.
 
-    This decorator can be applied to a flow, step, or both.
-    - Decorating a step will enable or disable logging for certain types within that step
-    - Decorating the flow is equivalent to decorating all steps with a default
-    - Decorating a step after decorating the flow will overwrite the flow decoration
+    This decorator can be applied to a flow, step, or both:
+
+    - Decorating a step enables or disables logging within that step
+    - Decorating a flow is equivalent to decorating all steps
+    - Decorating a step after decorating its flow overwrites the flow decoration
 
     Args:
-        func: (`Callable`). The method or class being decorated (if decorating a step or flow respectively).
-        datasets: (`bool`). If `True`, log datasets.  Datasets can be a `pd.DataFrame` or `pathlib.Path`.  The default value is `False`, so datasets are not logged.
-        models: (`bool`). If `True`, log models.  Models can be a `nn.Module` or `sklearn.base.BaseEstimator`.  The default value is `False`, so models are not logged.
-        others: (`bool`). If `True`, log anything pickle-able.  The default value is `False`, so files are not logged.
-        settings: (`wandb.sdk.wandb_settings.Settings`). Custom settings passed to `wandb.init`.  The default value is `None`, and is the same as passing `wandb.Settings()`.  If `settings.run_group` is `None`, it will be set to `{flow_name}/{run_id}.  If `settings.run_job_type` is `None`, it will be set to `{run_job_type}/{step_name}`
+        func: The step method or flow class to decorate.
+        datasets: Whether to log `pd.DataFrame` and `pathlib.Path`
+            types. Defaults to False.
+        models: Whether to log `nn.Module` and `sklearn.base.BaseEstimator`
+            types. Defaults to False.
+        others: If `True`, log anything pickle-able. Defaults to False.
+        settings: Custom settings to pass to `wandb.init`.
+            If `run_group` is `None`, it is set to `{flow_name}/{run_id}`.
+            If `run_job_type` is `None`, it is set to `{run_job_type}/{step_name}`.
     """
 
     @wraps(func)
@@ -328,15 +274,13 @@ def wandb_log(
             if not isinstance(settings, wandb.sdk.wandb_settings.Settings):
                 settings = wandb.Settings()
 
-            settings.update(
-                run_group=coalesce(
-                    settings.run_group, f"{current.flow_name}/{current.run_id}"
-                ),
-                source=wandb.sdk.wandb_settings.Source.INIT,
-            )
-            settings.update(
-                run_job_type=coalesce(settings.run_job_type, current.step_name),
-                source=wandb.sdk.wandb_settings.Source.INIT,
+            settings.update_from_dict(
+                {
+                    "run_group": coalesce(
+                        settings.run_group, f"{current.flow_name}/{current.run_id}"
+                    ),
+                    "run_job_type": coalesce(settings.run_job_type, current.step_name),
+                }
             )
 
             with wandb.init(settings=settings) as run:

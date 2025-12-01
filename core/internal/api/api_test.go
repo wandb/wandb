@@ -2,26 +2,25 @@ package api_test
 
 import (
 	"bytes"
-	"io"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"slices"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/apitest"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestSend(t *testing.T) {
-	server := NewRecordingServer()
+	server := apitest.NewRecordingServer()
 	settings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
@@ -52,7 +51,7 @@ func TestSend(t *testing.T) {
 	req := allRequests[0]
 	assert.Equal(t, http.MethodGet, req.Method)
 	assert.Equal(t, "/wandb/some/test/path", req.URL.Path)
-	assert.Equal(t, "my test request", req.Body)
+	assert.Equal(t, "my test request", string(req.Body))
 	assert.Equal(t, "one", req.Header.Get("Header1"))
 	assert.Equal(t, "two", req.Header.Get("Header2"))
 	assert.Equal(t, "xyz", req.Header.Get("ClientHeader"))
@@ -62,7 +61,7 @@ func TestSend(t *testing.T) {
 }
 
 func TestDo_ToWandb_SetsAuth(t *testing.T) {
-	server := NewRecordingServer()
+	server := apitest.NewRecordingServer()
 	settings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
@@ -87,8 +86,8 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 }
 
 func TestDo_NotToWandb_NoAuth(t *testing.T) {
-	server := NewRecordingServer()
-	clientSettings := wbsettings.From(&spb.Settings{
+	server := apitest.NewRecordingServer()
+	settings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
 	})
@@ -101,7 +100,7 @@ func TestDo_NotToWandb_NoAuth(t *testing.T) {
 			bytes.NewBufferString("test body"),
 		)
 
-		_, err := newClient(t, clientSettings, api.ClientOptions{}).
+		_, err := newClient(t, settings, api.ClientOptions{}).
 			Do(req)
 
 		assert.NoError(t, err)
@@ -119,61 +118,17 @@ func newClient(
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	require.NoError(t, err)
 
-	credentialProvider, err := api.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
 	require.NoError(t, err)
 
-	backend := api.New(api.BackendOptions{BaseURL: baseURL,
-		CredentialProvider: credentialProvider})
+	backend := api.New(api.BackendOptions{
+		BaseURL:            baseURL,
+		CredentialProvider: credentialProvider,
+	})
 	return backend.NewClient(opts)
-}
-
-type RequestCopy struct {
-	Method string
-	URL    *url.URL
-	Body   string
-	Header http.Header
-}
-
-type RecordingServer struct {
-	sync.Mutex
-	*httptest.Server
-
-	requests []RequestCopy
-}
-
-// All requests recorded by the server.
-func (s *RecordingServer) Requests() []RequestCopy {
-	s.Lock()
-	defer s.Unlock()
-	return slices.Clone(s.requests)
-}
-
-// Returns a server that records all requests made to it.
-func NewRecordingServer() *RecordingServer {
-	rs := &RecordingServer{
-		requests: make([]RequestCopy, 0),
-	}
-
-	rs.Server = httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			body, _ := io.ReadAll(r.Body)
-
-			rs.Lock()
-			defer rs.Unlock()
-
-			rs.requests = append(rs.requests,
-				RequestCopy{
-					Method: r.Method,
-					URL:    r.URL,
-					Body:   string(body),
-					Header: r.Header,
-				})
-
-			_, _ = w.Write([]byte("OK"))
-		}),
-	)
-
-	return rs
 }
 
 func TestNewClientWithProxy(t *testing.T) {
@@ -188,14 +143,18 @@ func TestNewClientWithProxy(t *testing.T) {
 
 	proxyParsedURL, _ := url.Parse(testServer.URL)
 
-	credentialProvider, err := api.NewCredentialProvider(wbsettings.From(&spb.Settings{
+	settings := wbsettings.From(&spb.Settings{
 		ApiKey: &wrapperspb.StringValue{Value: "test_api_key"},
-	}))
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
 	require.NoError(t, err)
 
 	backend := api.New(api.BackendOptions{
 		BaseURL:            &url.URL{Scheme: "http", Host: "api.example.com"},
-		Logger:             observability.NewNoOpLogger().Logger,
+		Logger:             observabilitytest.NewTestLogger(t).Logger,
 		CredentialProvider: credentialProvider,
 	})
 
@@ -224,9 +183,60 @@ func TestNewClientWithProxy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to do test request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	// Check that Proxy-Authorization header is set
 	proxyReqHeader := resp.Request.Header.Get("Proxy-Authorization")
 	assert.Equal(t, "Basic dXNlcjpwYXNz", proxyReqHeader)
+}
+
+func TestNewClientWithRetry(t *testing.T) {
+	serverCallCount := 0
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			serverCallCount++
+			if serverCallCount == 1 {
+				// induce a retry by returning a 500 error
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte("Internal Server Error"))
+				return
+			}
+			_, _ = w.Write([]byte("OK"))
+		}),
+	)
+
+	serverURL := server.URL + "/wandb"
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl: &wrapperspb.StringValue{Value: serverURL},
+		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
+	})
+
+	retryCallCount := 0
+	client := newClient(t, settings, api.ClientOptions{
+		RetryPolicy: func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+			if resp.StatusCode == http.StatusInternalServerError {
+				return true, nil
+			}
+			return false, nil
+		},
+		RetryMax: 2,
+		PrepareRetry: func(req *http.Request) error {
+			retryCallCount++
+			return nil
+		},
+	})
+
+	// Create a test request
+	testReq, err := http.NewRequest("GET", serverURL, nil)
+	require.NoError(t, err)
+	resp, err := client.Do(testReq)
+	require.NoError(t, err)
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, 1, retryCallCount)
+	assert.Equal(t, 2, serverCallCount)
 }

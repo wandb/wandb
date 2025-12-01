@@ -1,4 +1,4 @@
-// Copyright 2024 Google LLC
+// Copyright 2025 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/url"
 	"regexp"
@@ -56,6 +57,7 @@ type CallOptions struct {
 	CancelResumableWrite      []gax.CallOption
 	GetObject                 []gax.CallOption
 	ReadObject                []gax.CallOption
+	BidiReadObject            []gax.CallOption
 	UpdateObject              []gax.CallOption
 	WriteObject               []gax.CallOption
 	BidiWriteObject           []gax.CallOption
@@ -63,6 +65,7 @@ type CallOptions struct {
 	RewriteObject             []gax.CallOption
 	StartResumableWrite       []gax.CallOption
 	QueryWriteStatus          []gax.CallOption
+	MoveObject                []gax.CallOption
 }
 
 func defaultGRPCClientOptions() []option.ClientOption {
@@ -276,6 +279,18 @@ func defaultCallOptions() *CallOptions {
 				})
 			}),
 		},
+		BidiReadObject: []gax.CallOption{
+			gax.WithRetry(func() gax.Retryer {
+				return gax.OnCodes([]codes.Code{
+					codes.DeadlineExceeded,
+					codes.Unavailable,
+				}, gax.Backoff{
+					Initial:    1000 * time.Millisecond,
+					Max:        60000 * time.Millisecond,
+					Multiplier: 2.00,
+				})
+			}),
+		},
 		UpdateObject: []gax.CallOption{
 			gax.WithTimeout(60000 * time.Millisecond),
 			gax.WithRetry(func() gax.Retryer {
@@ -365,6 +380,19 @@ func defaultCallOptions() *CallOptions {
 				})
 			}),
 		},
+		MoveObject: []gax.CallOption{
+			gax.WithTimeout(60000 * time.Millisecond),
+			gax.WithRetry(func() gax.Retryer {
+				return gax.OnCodes([]codes.Code{
+					codes.DeadlineExceeded,
+					codes.Unavailable,
+				}, gax.Backoff{
+					Initial:    1000 * time.Millisecond,
+					Max:        60000 * time.Millisecond,
+					Multiplier: 2.00,
+				})
+			}),
+		},
 	}
 }
 
@@ -388,6 +416,7 @@ type internalClient interface {
 	CancelResumableWrite(context.Context, *storagepb.CancelResumableWriteRequest, ...gax.CallOption) (*storagepb.CancelResumableWriteResponse, error)
 	GetObject(context.Context, *storagepb.GetObjectRequest, ...gax.CallOption) (*storagepb.Object, error)
 	ReadObject(context.Context, *storagepb.ReadObjectRequest, ...gax.CallOption) (storagepb.Storage_ReadObjectClient, error)
+	BidiReadObject(context.Context, ...gax.CallOption) (storagepb.Storage_BidiReadObjectClient, error)
 	UpdateObject(context.Context, *storagepb.UpdateObjectRequest, ...gax.CallOption) (*storagepb.Object, error)
 	WriteObject(context.Context, ...gax.CallOption) (storagepb.Storage_WriteObjectClient, error)
 	BidiWriteObject(context.Context, ...gax.CallOption) (storagepb.Storage_BidiWriteObjectClient, error)
@@ -395,6 +424,7 @@ type internalClient interface {
 	RewriteObject(context.Context, *storagepb.RewriteObjectRequest, ...gax.CallOption) (*storagepb.RewriteResponse, error)
 	StartResumableWrite(context.Context, *storagepb.StartResumableWriteRequest, ...gax.CallOption) (*storagepb.StartResumableWriteResponse, error)
 	QueryWriteStatus(context.Context, *storagepb.QueryWriteStatusRequest, ...gax.CallOption) (*storagepb.QueryWriteStatusResponse, error)
+	MoveObject(context.Context, *storagepb.MoveObjectRequest, ...gax.CallOption) (*storagepb.Object, error)
 }
 
 // Client is a client for interacting with Cloud Storage API.
@@ -402,7 +432,8 @@ type internalClient interface {
 //
 // API Overview and Naming SyntaxThe Cloud Storage gRPC API allows applications to read and write data through
 // the abstractions of buckets and objects. For a description of these
-// abstractions please see https://cloud.google.com/storage/docs (at https://cloud.google.com/storage/docs).
+// abstractions please see Cloud Storage
+// documentation (at https://cloud.google.com/storage/docs).
 //
 // Resources are named as follows:
 //
@@ -410,18 +441,14 @@ type internalClient interface {
 //	using strings like projects/123456 or projects/my-string-id.
 //
 //	Buckets are named using string names of the form:
-//	projects/{project}/buckets/{bucket}
-//	For globally unique buckets, _ may be substituted for the project.
+//	projects/{project}/buckets/{bucket}.
+//	For globally unique buckets, _ might be substituted for the project.
 //
 //	Objects are uniquely identified by their name along with the name of the
 //	bucket they belong to, as separate strings in this API. For example:
 //
-//	ReadObjectRequest {
-//	  bucket: ‘projects/_/buckets/my-bucket’
-//	  object: ‘my-object’
-//	  }
-//	  Note that object names can contain / characters, which are treated as
-//	  any other character (no special directory semantics).
+// Note that object names can contain / characters, which are treated as
+// any other character (no special directory semantics).
 type Client struct {
 	// The internal transport-dependent client.
 	internalClient internalClient
@@ -454,48 +481,132 @@ func (c *Client) Connection() *grpc.ClientConn {
 }
 
 // DeleteBucket permanently deletes an empty bucket.
+// The request fails if there are any live or
+// noncurrent objects in the bucket, but the request succeeds if the
+// bucket only contains soft-deleted objects or incomplete uploads, such
+// as ongoing XML API multipart uploads. Does not permanently delete
+// soft-deleted objects.
+//
+// When this API is used to delete a bucket containing an object that has a
+// soft delete policy
+// enabled, the object becomes soft deleted, and the
+// softDeleteTime and hardDeleteTime properties are set on the
+// object.
+//
+// Objects and multipart uploads that were in the bucket at the time of
+// deletion are also retained for the specified retention duration. When
+// a soft-deleted bucket reaches the end of its retention duration, it
+// is permanently deleted. The hardDeleteTime of the bucket always
+// equals
+// or exceeds the expiration time of the last soft-deleted object in the
+// bucket.
+//
+// IAM Permissions:
+//
+// Requires storage.buckets.delete IAM permission on the bucket.
 func (c *Client) DeleteBucket(ctx context.Context, req *storagepb.DeleteBucketRequest, opts ...gax.CallOption) error {
 	return c.internalClient.DeleteBucket(ctx, req, opts...)
 }
 
 // GetBucket returns metadata for the specified bucket.
+//
+// IAM Permissions:
+//
+// Requires storage.buckets.get
+// IAM permission on
+// the bucket. Additionally, to return specific bucket metadata, the
+// authenticated user must have the following permissions:
+//
+//	To return the IAM policies: storage.buckets.getIamPolicy
+//
+//	To return the bucket IP filtering rules: storage.buckets.getIpFilter
 func (c *Client) GetBucket(ctx context.Context, req *storagepb.GetBucketRequest, opts ...gax.CallOption) (*storagepb.Bucket, error) {
 	return c.internalClient.GetBucket(ctx, req, opts...)
 }
 
 // CreateBucket creates a new bucket.
+//
+// IAM Permissions:
+//
+// Requires storage.buckets.create IAM permission on the bucket.
+// Additionally, to enable specific bucket features, the authenticated user
+// must have the following permissions:
+//
+//	To enable object retention using the enableObjectRetention query
+//	parameter: storage.buckets.enableObjectRetention
+//
+//	To set the bucket IP filtering rules: storage.buckets.setIpFilter
 func (c *Client) CreateBucket(ctx context.Context, req *storagepb.CreateBucketRequest, opts ...gax.CallOption) (*storagepb.Bucket, error) {
 	return c.internalClient.CreateBucket(ctx, req, opts...)
 }
 
-// ListBuckets retrieves a list of buckets for a given project.
+// ListBuckets retrieves a list of buckets for a given project, ordered
+// lexicographically by name.
+//
+// IAM Permissions:
+//
+// Requires storage.buckets.list IAM permission on the bucket.
+// Additionally, to enable specific bucket features, the authenticated
+// user must have the following permissions:
+//
+//	To list the IAM policies: storage.buckets.getIamPolicy
+//
+//	To list the bucket IP filtering rules: storage.buckets.getIpFilter
 func (c *Client) ListBuckets(ctx context.Context, req *storagepb.ListBucketsRequest, opts ...gax.CallOption) *BucketIterator {
 	return c.internalClient.ListBuckets(ctx, req, opts...)
 }
 
-// LockBucketRetentionPolicy locks retention policy on a bucket.
+// LockBucketRetentionPolicy permanently locks the retention
+// policy that is
+// currently applied to the specified bucket.
+//
+// Caution: Locking a bucket is an
+// irreversible action. Once you lock a bucket:
+//
+//	You cannot remove the retention policy from the bucket.
+//
+//	You cannot decrease the retention period for the policy.
+//
+// Once locked, you must delete the entire bucket in order to remove the
+// bucket’s retention policy. However, before you can delete the bucket, you
+// must delete all the objects in the bucket, which is only
+// possible if all the objects have reached the retention period set by the
+// retention policy.
+//
+// IAM Permissions:
+//
+// Requires storage.buckets.update IAM permission on the bucket.
 func (c *Client) LockBucketRetentionPolicy(ctx context.Context, req *storagepb.LockBucketRetentionPolicyRequest, opts ...gax.CallOption) (*storagepb.Bucket, error) {
 	return c.internalClient.LockBucketRetentionPolicy(ctx, req, opts...)
 }
 
-// GetIamPolicy gets the IAM policy for a specified bucket.
+// GetIamPolicy gets the IAM policy for a specified bucket or managed folder.
 // The resource field in the request should be
-// projects/_/buckets/{bucket}.
+// projects/_/buckets/{bucket} for a bucket, or
+// projects/_/buckets/{bucket}/managedFolders/{managedFolder}
+// for a managed folder.
+//
+// IAM Permissions:
+//
+// Requires storage.buckets.getIamPolicy on the bucket or
+// storage.managedFolders.getIamPolicy IAM permission on the
+// managed folder.
 func (c *Client) GetIamPolicy(ctx context.Context, req *iampb.GetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
 	return c.internalClient.GetIamPolicy(ctx, req, opts...)
 }
 
-// SetIamPolicy updates an IAM policy for the specified bucket.
+// SetIamPolicy updates an IAM policy for the specified bucket or managed folder.
 // The resource field in the request should be
-// projects/_/buckets/{bucket}.
+// projects/_/buckets/{bucket} for a bucket, or
+// projects/_/buckets/{bucket}/managedFolders/{managedFolder}
+// for a managed folder.
 func (c *Client) SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
 	return c.internalClient.SetIamPolicy(ctx, req, opts...)
 }
 
 // TestIamPermissions tests a set of permissions on the given bucket, object, or managed folder
-// to see which, if any, are held by the caller.
-// The resource field in the request should be
-// projects/_/buckets/{bucket} for a bucket,
+// to see which, if any, are held by the caller. The resource field in the
+// request should be projects/_/buckets/{bucket} for a bucket,
 // projects/_/buckets/{bucket}/objects/{object} for an object, or
 // projects/_/buckets/{bucket}/managedFolders/{managedFolder}
 // for a managed folder.
@@ -503,28 +614,106 @@ func (c *Client) TestIamPermissions(ctx context.Context, req *iampb.TestIamPermi
 	return c.internalClient.TestIamPermissions(ctx, req, opts...)
 }
 
-// UpdateBucket updates a bucket. Equivalent to JSON API’s storage.buckets.patch method.
+// UpdateBucket updates a bucket. Changes to the bucket are readable immediately after
+// writing, but configuration changes might take time to propagate. This
+// method supports patch semantics.
+//
+// IAM Permissions:
+//
+// Requires storage.buckets.update IAM permission on the bucket.
+// Additionally, to enable specific bucket features, the authenticated user
+// must have the following permissions:
+//
+//	To set bucket IP filtering rules: storage.buckets.setIpFilter
+//
+//	To update public access prevention policies or access control lists
+//	(ACLs): storage.buckets.setIamPolicy
 func (c *Client) UpdateBucket(ctx context.Context, req *storagepb.UpdateBucketRequest, opts ...gax.CallOption) (*storagepb.Bucket, error) {
 	return c.internalClient.UpdateBucket(ctx, req, opts...)
 }
 
 // ComposeObject concatenates a list of existing objects into a new object in the same
-// bucket.
+// bucket. The existing source objects are unaffected by this operation.
+//
+// IAM Permissions:
+//
+// Requires the storage.objects.create and storage.objects.get IAM
+// permissions to use this method. If the new composite object
+// overwrites an existing object, the authenticated user must also have
+// the storage.objects.delete permission. If the request body includes
+// the retention property, the authenticated user must also have the
+// storage.objects.setRetention IAM permission.
 func (c *Client) ComposeObject(ctx context.Context, req *storagepb.ComposeObjectRequest, opts ...gax.CallOption) (*storagepb.Object, error) {
 	return c.internalClient.ComposeObject(ctx, req, opts...)
 }
 
-// DeleteObject deletes an object and its metadata.
+// DeleteObject deletes an object and its metadata. Deletions are permanent if versioning
+// is not enabled for the bucket, or if the generation parameter is used, or
+// if soft delete is not
+// enabled for the bucket.
+// When this API is used to delete an object from a bucket that has soft
+// delete policy enabled, the object becomes soft deleted, and the
+// softDeleteTime and hardDeleteTime properties are set on the object.
+// This API cannot be used to permanently delete soft-deleted objects.
+// Soft-deleted objects are permanently deleted according to their
+// hardDeleteTime.
 //
-// Deletions are normally permanent when versioning is disabled or whenever
-// the generation parameter is used. However, if soft delete is enabled for
-// the bucket, deleted objects can be restored using RestoreObject until the
-// soft delete retention period has passed.
+// You can use the [RestoreObject][google.storage.v2.Storage.RestoreObject]
+// API to restore soft-deleted objects until the soft delete retention period
+// has passed.
+//
+// IAM Permissions:
+//
+// Requires storage.objects.delete IAM permission on the bucket.
 func (c *Client) DeleteObject(ctx context.Context, req *storagepb.DeleteObjectRequest, opts ...gax.CallOption) error {
 	return c.internalClient.DeleteObject(ctx, req, opts...)
 }
 
-// RestoreObject restores a soft-deleted object.
+// RestoreObject restores a
+// soft-deleted object.
+// When a soft-deleted object is restored, a new copy of that object is
+// created in the same bucket and inherits the same metadata as the
+// soft-deleted object. The inherited metadata is the metadata that existed
+// when the original object became soft deleted, with the following
+// exceptions:
+//
+//	The createTime of the new object is set to the time at which the
+//	soft-deleted object was restored.
+//
+//	The softDeleteTime and hardDeleteTime values are cleared.
+//
+//	A new generation is assigned and the metageneration is reset to 1.
+//
+//	If the soft-deleted object was in a bucket that had Autoclass enabled,
+//	the new object is
+//	restored to Standard storage.
+//
+//	The restored object inherits the bucket’s default object ACL, unless
+//	copySourceAcl is true.
+//
+// If a live object using the same name already exists in the bucket and
+// becomes overwritten, the live object becomes a noncurrent object if Object
+// Versioning is enabled on the bucket. If Object Versioning is not enabled,
+// the live object becomes soft deleted.
+//
+// IAM Permissions:
+//
+// Requires the following IAM permissions to use this method:
+//
+//	storage.objects.restore
+//
+//	storage.objects.create
+//
+//	storage.objects.delete (only required if overwriting an existing
+//	object)
+//
+//	storage.objects.getIamPolicy (only required if projection is full
+//	and the relevant bucket
+//	has uniform bucket-level access disabled)
+//
+//	storage.objects.setIamPolicy (only required if copySourceAcl is
+//	true and the relevant
+//	bucket has uniform bucket-level access disabled)
 func (c *Client) RestoreObject(ctx context.Context, req *storagepb.RestoreObjectRequest, opts ...gax.CallOption) (*storagepb.Object, error) {
 	return c.internalClient.RestoreObject(ctx, req, opts...)
 }
@@ -532,27 +721,58 @@ func (c *Client) RestoreObject(ctx context.Context, req *storagepb.RestoreObject
 // CancelResumableWrite cancels an in-progress resumable upload.
 //
 // Any attempts to write to the resumable upload after cancelling the upload
-// will fail.
+// fail.
 //
-// The behavior for currently in progress write operations is not guaranteed -
+// The behavior for any in-progress write operations is not guaranteed;
 // they could either complete before the cancellation or fail if the
 // cancellation completes first.
 func (c *Client) CancelResumableWrite(ctx context.Context, req *storagepb.CancelResumableWriteRequest, opts ...gax.CallOption) (*storagepb.CancelResumableWriteResponse, error) {
 	return c.internalClient.CancelResumableWrite(ctx, req, opts...)
 }
 
-// GetObject retrieves an object’s metadata.
+// GetObject retrieves object metadata.
+//
+// IAM Permissions:
+//
+// Requires storage.objects.get IAM permission on the bucket.
+// To return object ACLs, the authenticated user must also have
+// the storage.objects.getIamPolicy permission.
 func (c *Client) GetObject(ctx context.Context, req *storagepb.GetObjectRequest, opts ...gax.CallOption) (*storagepb.Object, error) {
 	return c.internalClient.GetObject(ctx, req, opts...)
 }
 
-// ReadObject reads an object’s data.
+// ReadObject retrieves object data.
+//
+// IAM Permissions:
+//
+// Requires storage.objects.get IAM permission on the bucket.
 func (c *Client) ReadObject(ctx context.Context, req *storagepb.ReadObjectRequest, opts ...gax.CallOption) (storagepb.Storage_ReadObjectClient, error) {
 	return c.internalClient.ReadObject(ctx, req, opts...)
 }
 
+// BidiReadObject reads an object’s data.
+//
+// This bi-directional API reads data from an object, allowing you to
+// request multiple data ranges within a single stream, even across
+// several messages. If an error occurs with any request, the stream
+// closes with a relevant error code. Since you can have multiple
+// outstanding requests, the error response includes a
+// BidiReadObjectRangesError field detailing the specific error for
+// each pending read_id.
+//
+// IAM Permissions:
+//
+// Requires storage.objects.get IAM permission on the bucket.
+func (c *Client) BidiReadObject(ctx context.Context, opts ...gax.CallOption) (storagepb.Storage_BidiReadObjectClient, error) {
+	return c.internalClient.BidiReadObject(ctx, opts...)
+}
+
 // UpdateObject updates an object’s metadata.
-// Equivalent to JSON API’s storage.objects.patch.
+// Equivalent to JSON API’s storage.objects.patch method.
+//
+// IAM Permissions:
+//
+// Requires storage.objects.update IAM permission on the bucket.
 func (c *Client) UpdateObject(ctx context.Context, req *storagepb.UpdateObjectRequest, opts ...gax.CallOption) (*storagepb.Object, error) {
 	return c.internalClient.UpdateObject(ctx, req, opts...)
 }
@@ -577,10 +797,10 @@ func (c *Client) UpdateObject(ctx context.Context, req *storagepb.UpdateObjectRe
 //	Check the result Status of the stream, to determine if writing can be
 //	resumed on this stream or must be restarted from scratch (by calling
 //	StartResumableWrite()). The resumable errors are DEADLINE_EXCEEDED,
-//	INTERNAL, and UNAVAILABLE. For each case, the client should use binary
-//	exponential backoff before retrying.  Additionally, writes can be
-//	resumed after RESOURCE_EXHAUSTED errors, but only after taking
-//	appropriate measures, which may include reducing aggregate send rate
+//	INTERNAL, and UNAVAILABLE. For each case, the client should use
+//	binary exponential backoff before retrying.  Additionally, writes can
+//	be resumed after RESOURCE_EXHAUSTED errors, but only after taking
+//	appropriate measures, which might include reducing aggregate send rate
 //	across clients and/or requesting a quota increase for your project.
 //
 //	If the call to WriteObject returns ABORTED, that indicates
@@ -588,38 +808,44 @@ func (c *Client) UpdateObject(ctx context.Context, req *storagepb.UpdateObjectRe
 //	multiple racing clients or by a single client where the previous
 //	request was timed out on the client side but nonetheless reached the
 //	server. In this case the client should take steps to prevent further
-//	concurrent writes (e.g., increase the timeouts, stop using more than
-//	one process to perform the upload, etc.), and then should follow the
-//	steps below for resuming the upload.
+//	concurrent writes. For example, increase the timeouts and stop using
+//	more than one process to perform the upload. Follow the steps below for
+//	resuming the upload.
 //
 //	For resumable errors, the client should call QueryWriteStatus() and
-//	then continue writing from the returned persisted_size. This may be
+//	then continue writing from the returned persisted_size. This might be
 //	less than the amount of data the client previously sent. Note also that
 //	it is acceptable to send data starting at an offset earlier than the
-//	returned persisted_size; in this case, the service will skip data at
+//	returned persisted_size; in this case, the service skips data at
 //	offsets that were already persisted (without checking that it matches
 //	the previously written data), and write only the data starting from the
-//	persisted offset. Even though the data isn’t written, it may still
+//	persisted offset. Even though the data isn’t written, it might still
 //	incur a performance cost over resuming at the correct write offset.
 //	This behavior can make client-side handling simpler in some cases.
 //
 //	Clients must only send data that is a multiple of 256 KiB per message,
 //	unless the object is being finished with finish_write set to true.
 //
-// The service will not view the object as complete until the client has
+// The service does not view the object as complete until the client has
 // sent a WriteObjectRequest with finish_write set to true. Sending any
 // requests on a stream after sending a request with finish_write set to
-// true will cause an error. The client should check the response it
-// receives to determine how much data the service was able to commit and
+// true causes an error. The client must check the response it
+// receives to determine how much data the service is able to commit and
 // whether the service views the object as complete.
 //
-// Attempting to resume an already finalized object will result in an OK
+// Attempting to resume an already finalized object results in an OK
 // status, with a WriteObjectResponse containing the finalized object’s
 // metadata.
 //
-// Alternatively, the BidiWriteObject operation may be used to write an
+// Alternatively, you can use the BidiWriteObject operation to write an
 // object with controls over flushing and the ability to fetch the ability to
 // determine the current persisted size.
+//
+// IAM Permissions:
+//
+// Requires storage.objects.create
+// IAM permission on
+// the bucket.
 func (c *Client) WriteObject(ctx context.Context, opts ...gax.CallOption) (storagepb.Storage_WriteObjectClient, error) {
 	return c.internalClient.WriteObject(ctx, opts...)
 }
@@ -630,20 +856,27 @@ func (c *Client) WriteObject(ctx context.Context, opts ...gax.CallOption) (stora
 // manual flushing of persisted state, and the ability to determine current
 // persisted size without closing the stream.
 //
-// The client may specify one or both of the state_lookup and flush fields
-// in each BidiWriteObjectRequest. If flush is specified, the data written
-// so far will be persisted to storage. If state_lookup is specified, the
-// service will respond with a BidiWriteObjectResponse that contains the
+// The client might specify one or both of the state_lookup and flush
+// fields in each BidiWriteObjectRequest. If flush is specified, the data
+// written so far is persisted to storage. If state_lookup is specified, the
+// service responds with a BidiWriteObjectResponse that contains the
 // persisted size. If both flush and state_lookup are specified, the flush
-// will always occur before a state_lookup, so that both may be set in the
-// same request and the returned state will be the state of the object
-// post-flush. When the stream is closed, a BidiWriteObjectResponse will
-// always be sent to the client, regardless of the value of state_lookup.
+// always occurs before a state_lookup, so that both might be set in the
+// same request and the returned state is the state of the object
+// post-flush. When the stream is closed, a BidiWriteObjectResponse
+// is always sent to the client, regardless of the value of state_lookup.
 func (c *Client) BidiWriteObject(ctx context.Context, opts ...gax.CallOption) (storagepb.Storage_BidiWriteObjectClient, error) {
 	return c.internalClient.BidiWriteObject(ctx, opts...)
 }
 
 // ListObjects retrieves a list of objects matching the criteria.
+//
+// IAM Permissions:
+//
+// The authenticated user requires storage.objects.list
+// IAM permission to use this method. To return object ACLs, the
+// authenticated user must also
+// have the storage.objects.getIamPolicy permission.
 func (c *Client) ListObjects(ctx context.Context, req *storagepb.ListObjectsRequest, opts ...gax.CallOption) *ObjectIterator {
 	return c.internalClient.ListObjects(ctx, req, opts...)
 }
@@ -654,28 +887,60 @@ func (c *Client) RewriteObject(ctx context.Context, req *storagepb.RewriteObject
 	return c.internalClient.RewriteObject(ctx, req, opts...)
 }
 
-// StartResumableWrite starts a resumable write. How long the write operation remains valid, and
-// what happens when the write operation becomes invalid, are
-// service-dependent.
+// StartResumableWrite starts a resumable write operation. This
+// method is part of the Resumable
+// upload feature.
+// This allows you to upload large objects in multiple chunks, which is more
+// resilient to network interruptions than a single upload. The validity
+// duration of the write operation, and the consequences of it becoming
+// invalid, are service-dependent.
+//
+// IAM Permissions:
+//
+// Requires storage.objects.create IAM permission on the bucket.
 func (c *Client) StartResumableWrite(ctx context.Context, req *storagepb.StartResumableWriteRequest, opts ...gax.CallOption) (*storagepb.StartResumableWriteResponse, error) {
 	return c.internalClient.StartResumableWrite(ctx, req, opts...)
 }
 
-// QueryWriteStatus determines the persisted_size for an object that is being written, which
-// can then be used as the write_offset for the next Write() call.
+// QueryWriteStatus determines the persisted_size of an object that is being written. This
+// method is part of the resumable
+// upload feature.
+// The returned value is the size of the object that has been persisted so
+// far. The value can be used as the write_offset for the next Write()
+// call.
 //
-// If the object does not exist (i.e., the object has been deleted, or the
-// first Write() has not yet reached the service), this method returns the
+// If the object does not exist, meaning if it was deleted, or the
+// first Write() has not yet reached the service, this method returns the
 // error NOT_FOUND.
 //
-// The client may call QueryWriteStatus() at any time to determine how
-// much data has been processed for this object. This is useful if the
-// client is buffering data and needs to know which data can be safely
-// evicted. For any sequence of QueryWriteStatus() calls for a given
-// object name, the sequence of returned persisted_size values will be
+// This method is useful for clients that buffer data and need to know which
+// data can be safely evicted. The client can call QueryWriteStatus() at any
+// time to determine how much data has been logged for this object.
+// For any sequence of QueryWriteStatus() calls for a given
+// object name, the sequence of returned persisted_size values are
 // non-decreasing.
 func (c *Client) QueryWriteStatus(ctx context.Context, req *storagepb.QueryWriteStatusRequest, opts ...gax.CallOption) (*storagepb.QueryWriteStatusResponse, error) {
 	return c.internalClient.QueryWriteStatus(ctx, req, opts...)
+}
+
+// MoveObject moves the source object to the destination object in the same bucket.
+// This operation moves a source object to a destination object in the
+// same bucket by renaming the object. The move itself is an atomic
+// transaction, ensuring all steps either complete successfully or no
+// changes are made.
+//
+// IAM Permissions:
+//
+// Requires the following IAM permissions to use this method:
+//
+//	storage.objects.move
+//
+//	storage.objects.create
+//
+//	storage.objects.delete (only required if overwriting an existing
+//	object)
+func (c *Client) MoveObject(ctx context.Context, req *storagepb.MoveObjectRequest, opts ...gax.CallOption) (*storagepb.Object, error) {
+	return c.internalClient.MoveObject(ctx, req, opts...)
 }
 
 // gRPCClient is a client for interacting with Cloud Storage API over gRPC transport.
@@ -693,6 +958,8 @@ type gRPCClient struct {
 
 	// The x-goog-* metadata to be sent with each request.
 	xGoogHeaders []string
+
+	logger *slog.Logger
 }
 
 // NewClient creates a new storage client based on gRPC.
@@ -700,7 +967,8 @@ type gRPCClient struct {
 //
 // API Overview and Naming SyntaxThe Cloud Storage gRPC API allows applications to read and write data through
 // the abstractions of buckets and objects. For a description of these
-// abstractions please see https://cloud.google.com/storage/docs (at https://cloud.google.com/storage/docs).
+// abstractions please see Cloud Storage
+// documentation (at https://cloud.google.com/storage/docs).
 //
 // Resources are named as follows:
 //
@@ -708,18 +976,14 @@ type gRPCClient struct {
 //	using strings like projects/123456 or projects/my-string-id.
 //
 //	Buckets are named using string names of the form:
-//	projects/{project}/buckets/{bucket}
-//	For globally unique buckets, _ may be substituted for the project.
+//	projects/{project}/buckets/{bucket}.
+//	For globally unique buckets, _ might be substituted for the project.
 //
 //	Objects are uniquely identified by their name along with the name of the
 //	bucket they belong to, as separate strings in this API. For example:
 //
-//	ReadObjectRequest {
-//	  bucket: ‘projects/_/buckets/my-bucket’
-//	  object: ‘my-object’
-//	  }
-//	  Note that object names can contain / characters, which are treated as
-//	  any other character (no special directory semantics).
+// Note that object names can contain / characters, which are treated as
+// any other character (no special directory semantics).
 func NewClient(ctx context.Context, opts ...option.ClientOption) (*Client, error) {
 	clientOpts := defaultGRPCClientOptions()
 	if newClientHook != nil {
@@ -740,6 +1004,7 @@ func NewClient(ctx context.Context, opts ...option.ClientOption) (*Client, error
 		connPool:    connPool,
 		client:      storagepb.NewStorageClient(connPool),
 		CallOptions: &client.CallOptions,
+		logger:      internaloption.GetLogger(opts),
 	}
 	c.setGoogleClientInfo()
 
@@ -761,7 +1026,7 @@ func (c *gRPCClient) Connection() *grpc.ClientConn {
 // use by Google-written clients.
 func (c *gRPCClient) setGoogleClientInfo(keyval ...string) {
 	kv := append([]string{"gl-go", gax.GoVersion}, keyval...)
-	kv = append(kv, "gapic", getVersionClient(), "gax", gax.Version, "grpc", grpc.Version)
+	kv = append(kv, "gapic", getVersionClient(), "gax", gax.Version, "grpc", grpc.Version, "pb", protoVersion)
 	c.xGoogHeaders = []string{
 		"x-goog-api-client", gax.XGoogHeader(kv...),
 	}
@@ -790,7 +1055,7 @@ func (c *gRPCClient) DeleteBucket(ctx context.Context, req *storagepb.DeleteBuck
 	opts = append((*c.CallOptions).DeleteBucket[0:len((*c.CallOptions).DeleteBucket):len((*c.CallOptions).DeleteBucket)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		_, err = c.client.DeleteBucket(ctx, req, settings.GRPC...)
+		_, err = executeRPC(ctx, c.client.DeleteBucket, req, settings.GRPC, c.logger, "DeleteBucket")
 		return err
 	}, opts...)
 	return err
@@ -814,7 +1079,7 @@ func (c *gRPCClient) GetBucket(ctx context.Context, req *storagepb.GetBucketRequ
 	var resp *storagepb.Bucket
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.GetBucket(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.GetBucket, req, settings.GRPC, c.logger, "GetBucket")
 		return err
 	}, opts...)
 	if err != nil {
@@ -844,7 +1109,7 @@ func (c *gRPCClient) CreateBucket(ctx context.Context, req *storagepb.CreateBuck
 	var resp *storagepb.Bucket
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.CreateBucket(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.CreateBucket, req, settings.GRPC, c.logger, "CreateBucket")
 		return err
 	}, opts...)
 	if err != nil {
@@ -882,7 +1147,7 @@ func (c *gRPCClient) ListBuckets(ctx context.Context, req *storagepb.ListBuckets
 		}
 		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 			var err error
-			resp, err = c.client.ListBuckets(ctx, req, settings.GRPC...)
+			resp, err = executeRPC(ctx, c.client.ListBuckets, req, settings.GRPC, c.logger, "ListBuckets")
 			return err
 		}, opts...)
 		if err != nil {
@@ -926,7 +1191,7 @@ func (c *gRPCClient) LockBucketRetentionPolicy(ctx context.Context, req *storage
 	var resp *storagepb.Bucket
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.LockBucketRetentionPolicy(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.LockBucketRetentionPolicy, req, settings.GRPC, c.logger, "LockBucketRetentionPolicy")
 		return err
 	}, opts...)
 	if err != nil {
@@ -941,6 +1206,9 @@ func (c *gRPCClient) GetIamPolicy(ctx context.Context, req *iampb.GetIamPolicyRe
 	if reg := regexp.MustCompile("(?P<bucket>.*)"); reg.MatchString(req.GetResource()) && len(url.QueryEscape(reg.FindStringSubmatch(req.GetResource())[1])) > 0 {
 		routingHeadersMap["bucket"] = url.QueryEscape(reg.FindStringSubmatch(req.GetResource())[1])
 	}
+	if reg := regexp.MustCompile("(?P<bucket>projects/[^/]+/buckets/[^/]+)(?:/.*)?"); reg.MatchString(req.GetResource()) && len(url.QueryEscape(reg.FindStringSubmatch(req.GetResource())[1])) > 0 {
+		routingHeadersMap["bucket"] = url.QueryEscape(reg.FindStringSubmatch(req.GetResource())[1])
+	}
 	for headerName, headerValue := range routingHeadersMap {
 		routingHeaders = fmt.Sprintf("%s%s=%s&", routingHeaders, headerName, headerValue)
 	}
@@ -953,7 +1221,7 @@ func (c *gRPCClient) GetIamPolicy(ctx context.Context, req *iampb.GetIamPolicyRe
 	var resp *iampb.Policy
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.GetIamPolicy(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.GetIamPolicy, req, settings.GRPC, c.logger, "GetIamPolicy")
 		return err
 	}, opts...)
 	if err != nil {
@@ -968,6 +1236,9 @@ func (c *gRPCClient) SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRe
 	if reg := regexp.MustCompile("(?P<bucket>.*)"); reg.MatchString(req.GetResource()) && len(url.QueryEscape(reg.FindStringSubmatch(req.GetResource())[1])) > 0 {
 		routingHeadersMap["bucket"] = url.QueryEscape(reg.FindStringSubmatch(req.GetResource())[1])
 	}
+	if reg := regexp.MustCompile("(?P<bucket>projects/[^/]+/buckets/[^/]+)(?:/.*)?"); reg.MatchString(req.GetResource()) && len(url.QueryEscape(reg.FindStringSubmatch(req.GetResource())[1])) > 0 {
+		routingHeadersMap["bucket"] = url.QueryEscape(reg.FindStringSubmatch(req.GetResource())[1])
+	}
 	for headerName, headerValue := range routingHeadersMap {
 		routingHeaders = fmt.Sprintf("%s%s=%s&", routingHeaders, headerName, headerValue)
 	}
@@ -980,7 +1251,7 @@ func (c *gRPCClient) SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRe
 	var resp *iampb.Policy
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.SetIamPolicy(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.SetIamPolicy, req, settings.GRPC, c.logger, "SetIamPolicy")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1013,7 +1284,7 @@ func (c *gRPCClient) TestIamPermissions(ctx context.Context, req *iampb.TestIamP
 	var resp *iampb.TestIamPermissionsResponse
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.TestIamPermissions(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.TestIamPermissions, req, settings.GRPC, c.logger, "TestIamPermissions")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1040,7 +1311,7 @@ func (c *gRPCClient) UpdateBucket(ctx context.Context, req *storagepb.UpdateBuck
 	var resp *storagepb.Bucket
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.UpdateBucket(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.UpdateBucket, req, settings.GRPC, c.logger, "UpdateBucket")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1067,7 +1338,7 @@ func (c *gRPCClient) ComposeObject(ctx context.Context, req *storagepb.ComposeOb
 	var resp *storagepb.Object
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.ComposeObject(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.ComposeObject, req, settings.GRPC, c.logger, "ComposeObject")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1093,7 +1364,7 @@ func (c *gRPCClient) DeleteObject(ctx context.Context, req *storagepb.DeleteObje
 	opts = append((*c.CallOptions).DeleteObject[0:len((*c.CallOptions).DeleteObject):len((*c.CallOptions).DeleteObject)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		_, err = c.client.DeleteObject(ctx, req, settings.GRPC...)
+		_, err = executeRPC(ctx, c.client.DeleteObject, req, settings.GRPC, c.logger, "DeleteObject")
 		return err
 	}, opts...)
 	return err
@@ -1117,7 +1388,7 @@ func (c *gRPCClient) RestoreObject(ctx context.Context, req *storagepb.RestoreOb
 	var resp *storagepb.Object
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.RestoreObject(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.RestoreObject, req, settings.GRPC, c.logger, "RestoreObject")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1144,7 +1415,7 @@ func (c *gRPCClient) CancelResumableWrite(ctx context.Context, req *storagepb.Ca
 	var resp *storagepb.CancelResumableWriteResponse
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.CancelResumableWrite(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.CancelResumableWrite, req, settings.GRPC, c.logger, "CancelResumableWrite")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1171,7 +1442,7 @@ func (c *gRPCClient) GetObject(ctx context.Context, req *storagepb.GetObjectRequ
 	var resp *storagepb.Object
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.GetObject(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.GetObject, req, settings.GRPC, c.logger, "GetObject")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1198,7 +1469,26 @@ func (c *gRPCClient) ReadObject(ctx context.Context, req *storagepb.ReadObjectRe
 	var resp storagepb.Storage_ReadObjectClient
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
+		c.logger.DebugContext(ctx, "api streaming client request", "serviceName", serviceName, "rpcName", "ReadObject")
 		resp, err = c.client.ReadObject(ctx, req, settings.GRPC...)
+		c.logger.DebugContext(ctx, "api streaming client response", "serviceName", serviceName, "rpcName", "ReadObject")
+		return err
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *gRPCClient) BidiReadObject(ctx context.Context, opts ...gax.CallOption) (storagepb.Storage_BidiReadObjectClient, error) {
+	ctx = gax.InsertMetadataIntoOutgoingContext(ctx, c.xGoogHeaders...)
+	var resp storagepb.Storage_BidiReadObjectClient
+	opts = append((*c.CallOptions).BidiReadObject[0:len((*c.CallOptions).BidiReadObject):len((*c.CallOptions).BidiReadObject)], opts...)
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
+		var err error
+		c.logger.DebugContext(ctx, "api streaming client request", "serviceName", serviceName, "rpcName", "BidiReadObject")
+		resp, err = c.client.BidiReadObject(ctx, settings.GRPC...)
+		c.logger.DebugContext(ctx, "api streaming client response", "serviceName", serviceName, "rpcName", "BidiReadObject")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1225,7 +1515,7 @@ func (c *gRPCClient) UpdateObject(ctx context.Context, req *storagepb.UpdateObje
 	var resp *storagepb.Object
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.UpdateObject(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.UpdateObject, req, settings.GRPC, c.logger, "UpdateObject")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1240,7 +1530,9 @@ func (c *gRPCClient) WriteObject(ctx context.Context, opts ...gax.CallOption) (s
 	opts = append((*c.CallOptions).WriteObject[0:len((*c.CallOptions).WriteObject):len((*c.CallOptions).WriteObject)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
+		c.logger.DebugContext(ctx, "api streaming client request", "serviceName", serviceName, "rpcName", "WriteObject")
 		resp, err = c.client.WriteObject(ctx, settings.GRPC...)
+		c.logger.DebugContext(ctx, "api streaming client response", "serviceName", serviceName, "rpcName", "WriteObject")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1255,7 +1547,9 @@ func (c *gRPCClient) BidiWriteObject(ctx context.Context, opts ...gax.CallOption
 	opts = append((*c.CallOptions).BidiWriteObject[0:len((*c.CallOptions).BidiWriteObject):len((*c.CallOptions).BidiWriteObject)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
+		c.logger.DebugContext(ctx, "api streaming client request", "serviceName", serviceName, "rpcName", "BidiWriteObject")
 		resp, err = c.client.BidiWriteObject(ctx, settings.GRPC...)
+		c.logger.DebugContext(ctx, "api streaming client response", "serviceName", serviceName, "rpcName", "BidiWriteObject")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1293,7 +1587,7 @@ func (c *gRPCClient) ListObjects(ctx context.Context, req *storagepb.ListObjects
 		}
 		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 			var err error
-			resp, err = c.client.ListObjects(ctx, req, settings.GRPC...)
+			resp, err = executeRPC(ctx, c.client.ListObjects, req, settings.GRPC, c.logger, "ListObjects")
 			return err
 		}, opts...)
 		if err != nil {
@@ -1340,7 +1634,7 @@ func (c *gRPCClient) RewriteObject(ctx context.Context, req *storagepb.RewriteOb
 	var resp *storagepb.RewriteResponse
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.RewriteObject(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.RewriteObject, req, settings.GRPC, c.logger, "RewriteObject")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1367,7 +1661,7 @@ func (c *gRPCClient) StartResumableWrite(ctx context.Context, req *storagepb.Sta
 	var resp *storagepb.StartResumableWriteResponse
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.StartResumableWrite(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.StartResumableWrite, req, settings.GRPC, c.logger, "StartResumableWrite")
 		return err
 	}, opts...)
 	if err != nil {
@@ -1394,7 +1688,34 @@ func (c *gRPCClient) QueryWriteStatus(ctx context.Context, req *storagepb.QueryW
 	var resp *storagepb.QueryWriteStatusResponse
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.client.QueryWriteStatus(ctx, req, settings.GRPC...)
+		resp, err = executeRPC(ctx, c.client.QueryWriteStatus, req, settings.GRPC, c.logger, "QueryWriteStatus")
+		return err
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *gRPCClient) MoveObject(ctx context.Context, req *storagepb.MoveObjectRequest, opts ...gax.CallOption) (*storagepb.Object, error) {
+	routingHeaders := ""
+	routingHeadersMap := make(map[string]string)
+	if reg := regexp.MustCompile("(?P<bucket>.*)"); reg.MatchString(req.GetBucket()) && len(url.QueryEscape(reg.FindStringSubmatch(req.GetBucket())[1])) > 0 {
+		routingHeadersMap["bucket"] = url.QueryEscape(reg.FindStringSubmatch(req.GetBucket())[1])
+	}
+	for headerName, headerValue := range routingHeadersMap {
+		routingHeaders = fmt.Sprintf("%s%s=%s&", routingHeaders, headerName, headerValue)
+	}
+	routingHeaders = strings.TrimSuffix(routingHeaders, "&")
+	hds := []string{"x-goog-request-params", routingHeaders}
+
+	hds = append(c.xGoogHeaders, hds...)
+	ctx = gax.InsertMetadataIntoOutgoingContext(ctx, hds...)
+	opts = append((*c.CallOptions).MoveObject[0:len((*c.CallOptions).MoveObject):len((*c.CallOptions).MoveObject)], opts...)
+	var resp *storagepb.Object
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
+		var err error
+		resp, err = executeRPC(ctx, c.client.MoveObject, req, settings.GRPC, c.logger, "MoveObject")
 		return err
 	}, opts...)
 	if err != nil {

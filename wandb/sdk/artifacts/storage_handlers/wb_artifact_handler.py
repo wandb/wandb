@@ -3,27 +3,29 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
-import wandb
-from wandb import util
+from wandb._strutils import removeprefix
 from wandb.apis import PublicApi
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
-from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
+from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
 
     from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 
 
 class WBArtifactHandler(StorageHandler):
     """Handles loading and storing Artifact reference-type files."""
 
+    _scheme: Literal["wandb-artifact"]
+    _cache: ArtifactFileCache
     _client: PublicApi | None
 
     def __init__(self) -> None:
@@ -55,6 +57,8 @@ class WBArtifactHandler(StorageHandler):
         Returns:
             (os.PathLike): A path to the file represented by `index_entry`
         """
+        from wandb.sdk.artifacts.artifact import Artifact  # avoids circular import
+
         # We don't check for cache hits here. Since we have 0 for size (since this
         # is a cross-artifact reference which and we've made the choice to store 0
         # in the size field), we can't confirm if the file is complete. So we just
@@ -62,19 +66,17 @@ class WBArtifactHandler(StorageHandler):
         # check.
 
         # Parse the reference path and download the artifact if needed
-        artifact_id = util.host_from_path(manifest_entry.ref)
-        artifact_file_path = util.uri_from_path(manifest_entry.ref)
+        parsed = urlparse(manifest_entry.ref)
+        artifact_id = hex_to_b64_id(parsed.netloc)
+        artifact_file_path = removeprefix(str(parsed.path), "/")
 
-        dep_artifact = wandb.Artifact._from_id(
-            hex_to_b64_id(artifact_id), self.client.client
-        )
+        dep_artifact = Artifact._from_id(artifact_id, self.client.client)
         assert dep_artifact is not None
         link_target_path: URIStr | FilePathStr
         if local:
             link_target_path = dep_artifact.get_entry(artifact_file_path).download()
         else:
             link_target_path = dep_artifact.get_entry(artifact_file_path).ref_target()
-
         return link_target_path
 
     def store_path(
@@ -84,7 +86,7 @@ class WBArtifactHandler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         """Store the file or directory at the given path into the specified artifact.
 
         Recursively resolves the reference until the result is a concrete asset.
@@ -97,30 +99,27 @@ class WBArtifactHandler(StorageHandler):
             (list[ArtifactManifestEntry]): A list of manifest entries to store within
             the artifact
         """
+        from wandb.sdk.artifacts.artifact import Artifact  # avoids circular import
+
         # Recursively resolve the reference until a concrete asset is found
         # TODO: Consider resolving server-side for performance improvements.
-        iter_path: URIStr | FilePathStr | None = path
-        while iter_path is not None and urlparse(iter_path).scheme == self._scheme:
-            artifact_id = util.host_from_path(iter_path)
-            artifact_file_path = util.uri_from_path(iter_path)
-            target_artifact = wandb.Artifact._from_id(
-                hex_to_b64_id(artifact_id), self.client.client
-            )
+        curr_path: URIStr | FilePathStr | None = path
+        while curr_path and (parsed := urlparse(curr_path)).scheme == self._scheme:
+            artifact_id = hex_to_b64_id(parsed.netloc)
+            artifact_file_path = removeprefix(parsed.path, "/")
+
+            target_artifact = Artifact._from_id(artifact_id, self.client.client)
             assert target_artifact is not None
 
             entry = target_artifact.manifest.get_entry_by_path(artifact_file_path)
             assert entry is not None
-            iter_path = entry.ref
+            curr_path = entry.ref
 
         # Create the path reference
         assert target_artifact is not None
         assert target_artifact.id is not None
-        path = URIStr(
-            "{}://{}/{}".format(
-                self._scheme,
-                b64_to_hex_id(B64MD5(target_artifact.id)),
-                artifact_file_path,
-            )
+        path = (
+            f"{self._scheme}://{b64_to_hex_id(target_artifact.id)}/{artifact_file_path}"
         )
 
         # Return the new entry

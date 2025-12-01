@@ -2,29 +2,24 @@ package stream
 
 import (
 	"fmt"
-	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/wandb/wandb/core/internal/filestream"
-	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/paths"
-	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/pfxout"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
-	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/internal/transactionlog"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
-	"github.com/wandb/wandb/core/pkg/monitor"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -41,8 +36,25 @@ type Stream struct {
 	// runWork is a channel of records to process.
 	runWork runwork.RunWork
 
-	// logger is the logger for the stream
+	// runHandle is run info initialized after the first RunRecord.
+	runHandle *runhandle.RunHandle
+
+	// operations tracks the status of asynchronous work.
+	operations *wboperation.WandbOperations
+
+	// featureProvider checks server capabilities.
+	featureProvider *featurechecker.ServerFeaturesCache
+
+	// graphqlClientOrNil is used for GraphQL operations to the W&B backend.
+	//
+	// It is nil for offline runs.
+	graphqlClientOrNil graphql.Client
+
+	// logger writes debug logs for the run.
 	logger *observability.CoreLogger
+
+	// loggerFile is the file (if any) to which the logger writes.
+	loggerFile *os.File
 
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
@@ -50,11 +62,17 @@ type Stream struct {
 	// settings is the settings for the stream
 	settings *settings.Settings
 
+	// RecordParser turns Records into Work.
+	recordParser RecordParser
+
 	// handler is the handler for the stream
 	handler *Handler
 
-	// writer is the writer for the stream
-	writer *Writer
+	// writerFactory is used to create the Writer component
+	writerFactory *WriterFactory
+
+	// flowControlFactory is used to create the FlowControl component
+	flowControlFactory *FlowControlFactory
 
 	// sender is the sender for the stream
 	sender *Sender
@@ -64,216 +82,63 @@ type Stream struct {
 
 	// sentryClient is the client used to report errors to sentry.io
 	sentryClient *sentry_ext.Client
+
+	// clientID is a unique ID for the stream
+	clientID sharedmode.ClientID
 }
 
-func streamLogger(
-	settings *settings.Settings,
-	sentryClient *sentry_ext.Client,
-	loggerPath string,
-) *observability.CoreLogger {
-	// TODO: when we add session concept re-do this to use user provided path
-	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
-	if path := loggerPath; path != "" {
-		// check path exists
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			err := os.Symlink(path, targetPath)
-			if err != nil {
-				slog.Error("error creating symlink", "error", err)
-			}
-		}
-	}
+// DebugCorePath is the absolute path to the debug-core.log file.
+type DebugCorePath string
 
-	var writers []io.Writer
-	name := settings.GetInternalLogFile()
-	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		slog.Error(fmt.Sprintf("error opening log file: %s", err))
-	} else {
-		writers = append(writers, file)
-	}
-	writer := io.MultiWriter(writers...)
-
-	// TODO: add a log level to the settings
-	level := slog.LevelInfo
-	if os.Getenv("WANDB_CORE_DEBUG") != "" {
-		level = slog.LevelDebug
-	}
-
-	opts := &slog.HandlerOptions{
-		Level: level,
-		// AddSource: true,
-	}
-
-	sentryClient.SetUser(
-		settings.GetEntity(),
-		settings.GetEmail(),
-		settings.GetUserName(),
-	)
-
-	logger := observability.NewCoreLogger(
-		slog.New(slog.NewJSONHandler(writer, opts)),
-		observability.WithTags(observability.Tags{}),
-		observability.WithCaptureMessage(sentryClient.CaptureMessage),
-		observability.WithCaptureException(sentryClient.CaptureException),
-		observability.WithReraise(sentryClient.Reraise),
-	)
-	logger.Info("using version", "core version", version.Version)
-	logger.Info("created symlink", "path", targetPath)
-
-	tags := observability.Tags{
-		"run_id":   settings.GetRunID(),
-		"run_url":  settings.GetRunURL(),
-		"project":  settings.GetProject(),
-		"base_url": settings.GetBaseURL(),
-	}
-	if settings.GetSweepURL() != "" {
-		tags["sweep_url"] = settings.GetSweepURL()
-	}
-	logger.SetGlobalTags(tags)
-
-	return logger
-}
-
-type StreamOptions struct {
-	Commit     string
-	Settings   *settings.Settings
-	Sentry     *sentry_ext.Client
-	LoggerPath string
-}
-
-// NewStream creates a new stream with the given settings and responders.
+// NewStream creates a new stream.
 func NewStream(
-	opts StreamOptions,
+	clientID sharedmode.ClientID,
+	debugCorePath DebugCorePath,
+	featureProvider *featurechecker.ServerFeaturesCache,
+	flowControlFactory *FlowControlFactory,
+	graphqlClientOrNil graphql.Client,
+	handlerFactory *HandlerFactory,
+	loggerFile streamLoggerFile,
+	logger *observability.CoreLogger,
+	operations *wboperation.WandbOperations,
+	recordParserFactory *RecordParserFactory,
+	senderFactory *SenderFactory,
+	sentry *sentry_ext.Client,
+	settings *settings.Settings,
+	runHandle *runhandle.RunHandle,
+	tbHandlerFactory *tensorboard.TBHandlerFactory,
+	writerFactory *WriterFactory,
 ) *Stream {
-	operations := wboperation.NewOperations()
+	symlinkDebugCore(settings, string(debugCorePath))
 
-	logger := streamLogger(opts.Settings, opts.Sentry, opts.LoggerPath)
+	runWork := runwork.New(BufferSize, logger)
+	tbHandler := tbHandlerFactory.New(
+		runWork,
+		/*fileReadDelay=*/ waiting.NewDelay(5*time.Second),
+	)
+	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
+
 	s := &Stream{
-		runWork:      runwork.New(BufferSize, logger),
-		logger:       logger,
-		settings:     opts.Settings,
-		sentryClient: opts.Sentry,
+		runWork:            runWork,
+		runHandle:          runHandle,
+		operations:         operations,
+		featureProvider:    featureProvider,
+		graphqlClientOrNil: graphqlClientOrNil,
+		logger:             logger,
+		loggerFile:         loggerFile,
+		settings:           settings,
+		recordParser:       recordParser,
+		handler:            handlerFactory.New(runWork),
+		writerFactory:      writerFactory,
+		flowControlFactory: flowControlFactory,
+		sender:             senderFactory.New(runWork),
+		sentryClient:       sentry,
+		clientID:           clientID,
 	}
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		// We log an error but continue anyway with an empty hostname string.
-		// Better behavior would be to inform the user and turn off any
-		// components that rely on the hostname, but it's not easy to do
-		// with our current code structure.
-		s.logger.CaptureError(
-			fmt.Errorf("stream: could not get hostname: %v", err))
-		hostname = ""
-	}
+	s.dispatcher = NewDispatcher(logger)
 
-	// TODO: replace this with a logger that can be read by the user
-	peeker := &observability.Peeker{}
-	terminalPrinter := observability.NewPrinter()
-
-	backendOrNil := NewBackend(s.logger, opts.Settings)
-	fileTransferStats := filetransfer.NewFileTransferStats()
-	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
-	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
-		ExtraWork: s.runWork,
-		Logger:    s.logger,
-		Settings:  s.settings,
-		Hostname:  hostname,
-	})
-	var graphqlClientOrNil graphql.Client
-	var fileStreamOrNil filestream.FileStream
-	var fileTransferManagerOrNil filetransfer.FileTransferManager
-	var runfilesUploaderOrNil runfiles.Uploader
-	if backendOrNil != nil {
-		graphqlClientOrNil = NewGraphQLClient(backendOrNil, opts.Settings, peeker)
-		fileStreamOrNil = NewFileStream(
-			backendOrNil,
-			s.logger,
-			operations,
-			terminalPrinter,
-			opts.Settings,
-			peeker,
-		)
-		fileTransferManagerOrNil = NewFileTransferManager(
-			fileTransferStats,
-			s.logger,
-			opts.Settings,
-		)
-		runfilesUploaderOrNil = NewRunfilesUploader(
-			s.runWork,
-			s.logger,
-			operations,
-			opts.Settings,
-			fileStreamOrNil,
-			fileTransferManagerOrNil,
-			fileWatcher,
-			graphqlClientOrNil,
-		)
-	}
-
-	mailbox := mailbox.New()
-
-	s.handler = NewHandler(opts.Commit,
-		HandlerParams{
-			Logger:            s.logger,
-			Operations:        operations,
-			Settings:          s.settings,
-			FwdChan:           make(chan runwork.Work, BufferSize),
-			OutChan:           make(chan *spb.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.runWork),
-			TBHandler:         tbHandler,
-			FileTransferStats: fileTransferStats,
-			Mailbox:           mailbox,
-			TerminalPrinter:   terminalPrinter,
-		},
-	)
-
-	s.writer = NewWriter(
-		WriterParams{
-			Logger:   s.logger,
-			Settings: s.settings,
-			FwdChan:  make(chan runwork.Work, BufferSize),
-		},
-	)
-
-	var outputFile *paths.RelativePath
-	if opts.Settings.Proto.GetConsoleMultipart().GetValue() {
-		// This is guaranteed not to fail.
-		outputFile, _ = paths.Relative(
-			filepath.Join(
-				"logs",
-				fmt.Sprintf(
-					"%s_output.log",
-					time.Now().Format("20060102_150405.000000"),
-				),
-			),
-		)
-	}
-
-	s.sender = NewSender(
-		s.runWork,
-		SenderParams{
-			Logger:              s.logger,
-			Operations:          operations,
-			Settings:            s.settings,
-			Backend:             backendOrNil,
-			FileStream:          fileStreamOrNil,
-			FileTransferManager: fileTransferManagerOrNil,
-			FileTransferStats:   fileTransferStats,
-			FileWatcher:         fileWatcher,
-			RunfilesUploader:    runfilesUploaderOrNil,
-			TBHandler:           tbHandler,
-			Peeker:              peeker,
-			RunSummary:          runsummary.New(),
-			GraphqlClient:       graphqlClientOrNil,
-			OutChan:             make(chan *spb.Result, BufferSize),
-			Mailbox:             mailbox,
-			OutputFileName:      outputFile,
-		},
-	)
-
-	s.dispatcher = NewDispatcher(s.logger)
-
-	s.logger.Info("created new stream", "id", s.settings.GetRunID())
+	logger.Info("stream: created new stream", "id", s.settings.GetRunID())
 	return s
 }
 
@@ -282,53 +147,34 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 	s.dispatcher.AddResponders(entries...)
 }
 
-// UpdateSettings updates the stream's settings with the given settings.
-func (s *Stream) UpdateSettings(newSettings *settings.Settings) {
-	s.settings = newSettings
-}
-
 // GetSettings returns the stream's settings.
 func (s *Stream) GetSettings() *settings.Settings {
 	return s.settings
 }
 
-// UpdateRunURLTag updates the run URL tag in the stream's logger.
-// TODO: this should be removed when we remove informStart.
-func (s *Stream) UpdateRunURLTag() {
-	s.logger.SetGlobalTags(observability.Tags{
-		"run_url": s.settings.GetRunURL(),
-	})
-}
-
-// Start starts the stream's handler, writer, sender, and dispatcher.
-// We use Stream's wait group to ensure that all of these components are cleanly
-// finalized and closed when the stream is closed in Stream.Close().
+// Start begins processing the stream's input records and producing outputs.
 func (s *Stream) Start() {
-	// handle the client requests with the handler
 	s.wg.Add(1)
 	go func() {
 		s.handler.Do(s.runWork.Chan())
 		s.wg.Done()
 	}()
 
-	// write the data to a transaction log
-	s.wg.Add(1)
-	go func() {
-		s.writer.Do(s.handler.fwdChan)
-		s.wg.Done()
-	}()
+	maybeSavedWork := s.maybeSavingToTransactionLog(s.handler.OutChan())
 
-	// send the data to the server
 	s.wg.Add(1)
 	go func() {
-		s.sender.Do(s.writer.fwdChan)
+		s.sender.Do(maybeSavedWork)
 		s.wg.Done()
 	}()
 
 	// handle dispatching between components
-	for _, ch := range []chan *spb.Result{s.handler.outChan, s.sender.outChan} {
+	for _, ch := range []<-chan *spb.Result{
+		s.handler.ResponseChan(),
+		s.sender.ResponseChan(),
+	} {
 		s.wg.Add(1)
-		go func(ch chan *spb.Result) {
+		go func(ch <-chan *spb.Result) {
 			for result := range ch {
 				s.dispatcher.handleRespond(result)
 			}
@@ -339,10 +185,70 @@ func (s *Stream) Start() {
 	s.logger.Info("stream: started", "id", s.settings.GetRunID())
 }
 
-// HandleRecord handles the given record by sending it to the stream's handler.
-func (s *Stream) HandleRecord(rec *spb.Record) {
-	s.logger.Debug("handling record", "record", rec)
-	s.runWork.AddWork(runwork.WorkFromRecord(rec))
+// maybeSavingToTransactionLog saves work from the channel into a transaction
+// log if allowed by settings.
+//
+// The output is work that has been saved.
+func (s *Stream) maybeSavingToTransactionLog(
+	work <-chan runwork.Work,
+) <-chan runwork.Work {
+	if s.settings.IsSkipTransactionLog() {
+		s.logger.Info(
+			"stream: skipping transaction log due to settings",
+			"id", s.settings.GetRunID())
+		return work
+	}
+
+	w, err := transactionlog.OpenWriter(s.settings.GetTransactionLogPath())
+	if err != nil {
+		s.logger.Error(
+			fmt.Sprintf("stream: error opening transaction log for writing: %v", err),
+			"id", s.settings.GetRunID())
+		return work
+	}
+
+	r, err := transactionlog.OpenReader(
+		s.settings.GetTransactionLogPath(),
+		s.logger,
+	)
+	if err != nil {
+		// Capture the error because if we can open for writing,
+		// why can't we open for reading?
+		s.logger.CaptureError(
+			fmt.Errorf("stream: error opening transaction log for reading: %v", err),
+			"id", s.settings.GetRunID())
+		return work
+	}
+
+	writer := s.writerFactory.New(w)
+	flowControl := s.flowControlFactory.New(
+		r, writer.Flush, s.recordParser,
+		FlowControlParams{
+			InMemorySize: 32,   // Max records before off-loading.
+			Limit:        1024, // Max unsaved records before blocking.
+		},
+	)
+
+	s.wg.Add(1)
+	go func() {
+		writer.Do(work)
+		s.wg.Done()
+	}()
+
+	s.wg.Add(1)
+	go func() {
+		flowControl.Do(writer.Chan())
+		s.wg.Done()
+	}()
+
+	return flowControl.Chan()
+}
+
+// HandleRecord ingests a record from the client.
+func (s *Stream) HandleRecord(record *spb.Record) {
+	s.logger.Debug("handling record", "record", record.GetRecordType())
+	work := s.recordParser.Parse(record)
+	work.Schedule(&sync.WaitGroup{}, func() { s.runWork.AddWork(work) })
 }
 
 // Close waits for all run messages to be fully processed.
@@ -351,27 +257,70 @@ func (s *Stream) Close() {
 	s.runWork.Close()
 	s.wg.Wait()
 	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
+
+	if s.loggerFile != nil {
+		// Sync the file instead of closing it, in case we keep writing to it.
+		_ = s.loggerFile.Sync()
+	}
 }
 
 // FinishAndClose emits an exit record, waits for all run messages
 // to be fully processed, and prints the run footer to the terminal.
 func (s *Stream) FinishAndClose(exitCode int32) {
-	if !s.settings.IsSync() {
-		s.HandleRecord(&spb.Record{
-			RecordType: &spb.Record_Exit{
-				Exit: &spb.RunExitRecord{
-					ExitCode: exitCode,
-				}},
-			Control: &spb.Control{AlwaysSend: true},
-		})
-	}
+	s.HandleRecord(&spb.Record{
+		RecordType: &spb.Record_Exit{
+			Exit: &spb.RunExitRecord{
+				ExitCode: exitCode,
+			}},
+		Control: &spb.Control{AlwaysSend: true},
+	})
 
 	s.Close()
 
-	if s.settings.IsOffline() {
-		PrintFooterOffline(s.settings.Proto)
-	} else {
-		run := s.handler.GetRun()
-		PrintFooterOnline(run, s.settings.Proto)
+	printFooter(s.settings)
+}
+
+func printFooter(settings *settings.Settings) {
+	// Silent mode disables any footer output
+	if settings.IsSilent() {
+		return
 	}
+
+	formatter := pfxout.New(
+		pfxout.WithColor("wandb", pfxout.BrightBlue),
+	)
+
+	formatter.Println("")
+	if settings.IsOffline() {
+		formatter.Println("You can sync this run to the cloud by running:")
+		formatter.Println(
+			pfxout.WithStyle(
+				fmt.Sprintf("wandb sync %v", settings.GetSyncDir()),
+				pfxout.Bold,
+			),
+		)
+	} else {
+		formatter.Println(
+			fmt.Sprintf(
+				"🚀 View run %v at: %v",
+				pfxout.WithColor(settings.GetDisplayName(), pfxout.Yellow),
+				pfxout.WithColor(settings.GetRunURL(), pfxout.Blue),
+			),
+		)
+	}
+
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	relLogDir, err := filepath.Rel(currentDir, settings.GetLogDir())
+	if err != nil {
+		return
+	}
+	formatter.Println(
+		fmt.Sprintf(
+			"Find logs at: %v",
+			pfxout.WithColor(relLogDir, pfxout.BrightMagenta),
+		),
+	)
 }

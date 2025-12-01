@@ -13,7 +13,7 @@ readme = "README.md"
 path = "src/lib.rs"
 
 [dependencies]
-sentry = "0.34.0"
+sentry = "0.36.0"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 prost = "0.13"

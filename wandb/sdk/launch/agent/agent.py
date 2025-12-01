@@ -1,6 +1,7 @@
 """Implementation of launch agent."""
 
 import asyncio
+import copy
 import logging
 import os
 import pprint
@@ -11,9 +12,8 @@ from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import yaml
-
 import wandb
+from wandb.analytics import get_sentry
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
@@ -76,9 +76,9 @@ class JobSpecAndQueue:
 def _convert_access(access: str) -> str:
     """Convert access string to a value accepted by wandb."""
     access = access.upper()
-    assert (
-        access == "PROJECT" or access == "USER"
-    ), "Queue access must be either project or user"
+    assert access == "PROJECT" or access == "USER", (
+        "Queue access must be either project or user"
+    )
     return access
 
 
@@ -123,7 +123,7 @@ class InternalAgentLogger:
     def warn(self, message: str):
         if self._print_to_terminal:
             wandb.termwarn(f"{LOG_PREFIX}{message}")
-        _logger.warn(f"{LOG_PREFIX}{message}")
+        _logger.warning(f"{LOG_PREFIX}{message}")
 
     def info(self, message: str):
         if self._print_to_terminal:
@@ -140,6 +140,8 @@ def construct_agent_configs(
     launch_config: Optional[Dict] = None,
     build_config: Optional[Dict] = None,
 ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
+    import yaml
+
     registry_config = None
     environment_config = None
     if launch_config is not None:
@@ -421,6 +423,7 @@ class LaunchAgent:
         """Removes the job from our list for now."""
         with self._jobs_lock:
             job_and_run_status = self._jobs[thread_id]
+
         if (
             job_and_run_status.entity is not None
             and job_and_run_status.entity != self._entity
@@ -496,7 +499,7 @@ class LaunchAgent:
             self._internal_logger.info(
                 f"Finish thread id {thread_id} had no exception and no run"
             )
-            wandb._sentry.exception(
+            get_sentry().exception(
                 "launch agent called finish thread id on thread without run or exception"
             )
 
@@ -516,7 +519,11 @@ class LaunchAgent:
         Arguments:
             job: Job to run.
         """
-        _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
+        job_copy = copy.deepcopy(job)
+        if "runSpec" in job_copy and "_wandb_api_key" in job_copy["runSpec"]:
+            job_copy["runSpec"]["_wandb_api_key"] = "<redacted>"
+
+        _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job_copy)}\n"
         wandb.termlog(_msg)
         _logger.info(_msg)
         # update agent status
@@ -589,7 +596,7 @@ class LaunchAgent:
                 )
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
-                    raise KeyboardInterrupt
+                    raise KeyboardInterrupt  # noqa: TRY301
                 if self.num_running_jobs < self._max_jobs:
                     # only check for new jobs if we're not at max
                     job_and_queue = await self.get_job_and_queue()
@@ -616,7 +623,7 @@ class LaunchAgent:
                             wandb.termerror(
                                 f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                             )
-                            wandb._sentry.exception(e)
+                            get_sentry().exception(e)
 
                             # always the first phase, because we only enter phase 2 within the thread
                             files = file_saver.save_contents(
@@ -675,15 +682,15 @@ class LaunchAgent:
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
             exception = e
-            wandb._sentry.exception(e)
+            get_sentry().exception(e)
         except LaunchError as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {e}")
             exception = e
-            wandb._sentry.exception(e)
+            get_sentry().exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             exception = e
-            wandb._sentry.exception(e)
+            get_sentry().exception(e)
         finally:
             await self.finish_thread_id(rqi_id, exception)
 
@@ -727,6 +734,7 @@ class LaunchAgent:
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
+
         if not (
             project.docker_image
             or project.job_base_image
@@ -850,7 +858,7 @@ class LaunchAgent:
                     )
                     return True
                 wandb.termlog(
-                    f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
+                    f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeuing..."
                 )
 
                 if "sweep_id" in config:
@@ -902,7 +910,7 @@ class LaunchAgent:
             _logger.info(f"Job ID: {run.id}")
             _logger.info(traceback.format_exc())
             _logger.info("---")
-            wandb._sentry.exception(e)
+            get_sentry().exception(e)
         return known_error
 
     async def get_job_and_queue(self) -> Optional[JobSpecAndQueue]:

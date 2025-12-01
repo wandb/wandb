@@ -24,7 +24,8 @@ type Manifest struct {
 }
 
 type StoragePolicyConfig struct {
-	StorageLayout string `json:"storageLayout"`
+	StorageLayout string  `json:"storageLayout"`
+	StorageRegion *string `json:"storageRegion,omitempty"`
 }
 
 type ManifestEntry struct {
@@ -50,6 +51,16 @@ func NewManifestFromProto(proto *spb.ArtifactManifest) (Manifest, error) {
 		StoragePolicy:       proto.StoragePolicy,
 		StoragePolicyConfig: StoragePolicyConfig{StorageLayout: "V2"},
 		Contents:            make(map[string]ManifestEntry),
+	}
+	// TODO: why are we doing `json.dumps` on python side when sending the config?
+	for _, cfg := range proto.StoragePolicyConfig {
+		if cfg.Key == "storageRegion" {
+			var s string
+			if err := json.Unmarshal([]byte(cfg.ValueJson), &s); err != nil {
+				return Manifest{}, fmt.Errorf("error unmarshalling storageRegion: %w", err)
+			}
+			manifest.StoragePolicyConfig.StorageRegion = &s
+		}
 	}
 
 	if proto.ManifestFilePath != "" {
@@ -86,20 +97,26 @@ func NewManifestFromProto(proto *spb.ArtifactManifest) (Manifest, error) {
 
 func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 	// Whether or not we successfully decode the manifest, we should clean up the file.
-	defer os.Remove(path)
+	defer func() {
+		_ = os.Remove(path)
+	}()
 
 	manifestFile, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("error opening manifest file: %w", err)
 	}
-	defer manifestFile.Close()
+	defer func() {
+		_ = manifestFile.Close()
+	}()
 
 	// The file is gzipped and needs to be decompressed.
 	gzReader, err := gzip.NewReader(manifestFile)
 	if err != nil {
 		return nil, fmt.Errorf("error opening manifest file: %w", err)
 	}
-	defer gzReader.Close()
+	defer func() {
+		_ = gzReader.Close()
+	}()
 
 	// Read the individual lines (each line is a json object).
 	scanner := bufio.NewScanner(gzReader)
@@ -185,7 +202,9 @@ func loadManifestFromURL(url string) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	manifest := Manifest{}
 	if resp.StatusCode != http.StatusOK {
 		return Manifest{}, fmt.Errorf("request to get manifest from url failed with status code: %d", resp.StatusCode)

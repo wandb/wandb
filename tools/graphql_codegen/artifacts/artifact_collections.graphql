@@ -1,0 +1,135 @@
+fragment ArtifactCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  type: defaultArtifactType {
+    name
+  }
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+}
+
+mutation DeleteArtifactSequence($id: ID!) {
+  result: deleteArtifactSequence(input: { artifactSequenceID: $id }) {
+    artifactCollection {
+      state
+    }
+  }
+}
+
+mutation DeleteArtifactPortfolio($id: ID!) {
+  result: deleteArtifactPortfolio(input: { artifactPortfolioID: $id }) {
+    artifactCollection {
+      state
+    }
+  }
+}
+
+mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
+  result: updateArtifactSequence(input: $input) {
+    artifactCollection {
+      ...ArtifactCollectionFragment
+    }
+  }
+}
+
+mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
+  result: updateArtifactPortfolio(input: $input) {
+    artifactCollection {
+      ...ArtifactCollectionFragment
+    }
+  }
+}
+
+mutation UpdateArtifactSequenceType($input: MoveArtifactSequenceInput!) {
+  result: moveArtifactSequence(input: $input) {
+    artifactCollection {
+      ...ArtifactCollectionFragment
+    }
+  }
+}
+
+mutation AddArtifactCollectionTags($input: CreateArtifactCollectionTagAssignmentsInput!) {
+  result: createArtifactCollectionTagAssignments(input: $input) {
+    tags {
+      ...TagFragment
+    }
+  }
+}
+
+mutation DeleteArtifactCollectionTags($input: DeleteArtifactCollectionTagAssignmentsInput!) {
+  result: deleteArtifactCollectionTagAssignments(input: $input) {
+    success
+  }
+}
+
+query ProjectArtifactCollections(
+  $entity: String!
+  $project: String!
+  $artifactType: String!
+  $cursor: String
+  $perPage: Int
+) {
+  project(name: $project, entityName: $entity) {
+    artifactType(name: $artifactType) {
+      artifactCollections(after: $cursor, first: $perPage) {
+        totalCount
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactCollectionFragment
+          }
+        }
+      }
+    }
+  }
+}
+
+query ProjectArtifactCollection($entity: String!, $project: String!, $artifactType: String!, $name: String!) {
+  project(name: $project, entityName: $entity) {
+    artifactType(name: $artifactType) {
+      artifactCollection(name: $name) {
+        ...ArtifactCollectionFragment
+      }
+    }
+  }
+}
+
+query ArtifactCollectionAliases($id: ID!, $cursor: String, $perPage: Int = 1000) {
+  artifactCollection(id: $id) {
+    aliases(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...ArtifactAliasFragment
+        }
+      }
+    }
+  }
+}
+
+fragment ArtifactPortfolioTypeFields on ArtifactPortfolio {
+  __typename
+  id
+  name
+}
+
+fragment ArtifactSequenceTypeFields on ArtifactSequence {
+  __typename
+  id
+  name
+}

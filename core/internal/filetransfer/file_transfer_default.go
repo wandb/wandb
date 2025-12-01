@@ -40,7 +40,7 @@ func NewDefaultFileTransfer(
 	return fileTransfer
 }
 
-// Upload uploads a file to the server
+// Upload implements FileTransfer.Upload
 func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)
 
@@ -61,70 +61,9 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		}
 	}(file)
 
-	stat, err := file.Stat()
+	requestBody, err := getUploadRequestBody(task, file, ft.fileTransferStats, ft.logger)
 	if err != nil {
-		return fmt.Errorf(
-			"file transfer: upload: error when stat-ing %s: %v",
-			task.Path,
-			err,
-		)
-	}
-
-	// Don't try to upload directories.
-	if stat.IsDir() {
-		return fmt.Errorf(
-			"file transfer: upload: cannot upload directory %v",
-			task.Path,
-		)
-	}
-
-	if task.Offset+task.Size > stat.Size() {
-		// If the range exceeds the file size, there was some kind of error upstream.
-		return fmt.Errorf("file transfer: upload: offset + size exceeds the file size")
-	}
-
-	if task.Size == 0 {
-		// If Size is 0, upload the remainder of the file.
-		task.Size = stat.Size() - task.Offset
-	}
-
-	// Due to historical mistakes, net/http interprets a 0 value of
-	// Request.ContentLength as "unknown" if the body is non-nil, and
-	// doesn't send the Content-Length header which is usually required.
-	//
-	// To have it understand 0 as 0, the body must be set to nil or
-	// the NoBody sentinel.
-	var requestBody any
-	if task.Size == 0 {
-		requestBody = http.NoBody
-	} else {
-		if task.Size > math.MaxInt {
-			return fmt.Errorf("file transfer: file too large (%d bytes)", task.Size)
-		}
-
-		progress, err := wboperation.Get(task.Context).NewProgress()
-		if err != nil {
-			ft.logger.CaptureError(fmt.Errorf("file transfer: %v", err))
-		}
-
-		requestBody = NewProgressReader(
-			io.NewSectionReader(file, task.Offset, task.Size),
-			int(task.Size),
-			func(processed int, total int) {
-				if task.ProgressCallback != nil {
-					task.ProgressCallback(processed, total)
-				}
-
-				progress.SetBytesOfTotal(processed, total)
-
-				ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
-					FileKind:      task.FileKind,
-					Path:          task.Path,
-					UploadedBytes: int64(processed),
-					TotalBytes:    int64(total),
-				})
-			},
-		)
+		return err
 	}
 
 	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, requestBody)
@@ -147,14 +86,28 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
+		// Try to read the body to know the detail error message
+		return attachErrorResponseBody("file transfer: upload: failed to upload: status: "+resp.Status,
+			resp)
 	}
 	task.Response = resp
 
 	return nil
 }
 
-// Download downloads a file from the server
+// attachErrorResponseBody returns an error with the error prefix and the first 1024 bytes of the response body.
+// It closes the response body after reading the first 1024 bytes.
+func attachErrorResponseBody(errPrefix string, resp *http.Response) error {
+	// Only read first 1024 bytes of error message
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	resp.Body.Close()
+	if err != nil {
+		return fmt.Errorf("%s: error reading body: %s", errPrefix, err)
+	}
+	return fmt.Errorf("%s: body: %s", errPrefix, string(body))
+}
+
+// Download implements FileTransfer.Download
 func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
 	dir := path.Dir(task.Path)
@@ -211,38 +164,130 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	return nil
 }
 
+func getUploadRequestBody(
+	task *DefaultUploadTask,
+	file *os.File,
+	fileTransferStats FileTransferStats,
+	logger *observability.CoreLogger,
+) (io.Reader, error) {
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf(
+			"file transfer: upload: error when stat-ing %s: %v",
+			task.Path,
+			err,
+		)
+	}
+
+	// Don't try to upload directories.
+	if stat.IsDir() {
+		return nil, fmt.Errorf(
+			"file transfer: upload: cannot upload directory %v",
+			task.Path,
+		)
+	}
+
+	if task.Offset+task.Size > stat.Size() {
+		// If the range exceeds the file size, there was some kind of error upstream.
+		return nil, fmt.Errorf("file transfer: upload: offset + size exceeds the file size")
+	}
+
+	if task.Size == 0 {
+		// If Size is 0, upload the remainder of the file.
+		task.Size = stat.Size() - task.Offset
+	}
+
+	// Due to historical mistakes, net/http interprets a 0 value of
+	// Request.ContentLength as "unknown" if the body is non-nil, and
+	// doesn't send the Content-Length header which is usually required.
+	//
+	// To have it understand 0 as 0, the body must be set to nil or
+	// the NoBody sentinel.
+	var requestBody io.Reader
+	if task.Size == 0 {
+		requestBody = http.NoBody
+	} else {
+		if task.Size > math.MaxInt {
+			return nil, fmt.Errorf("file transfer: file too large (%d bytes)", task.Size)
+		}
+
+		progress, err := wboperation.Get(task.Context).NewProgress()
+		if err != nil {
+			logger.CaptureError(fmt.Errorf("file transfer: %v", err))
+		}
+
+		requestBody = NewProgressReader(
+			io.NewSectionReader(file, task.Offset, task.Size),
+			task.Size,
+			func(processed, total int64) {
+				if task.ProgressCallback != nil {
+					task.ProgressCallback(int(processed), int(total))
+				}
+
+				progress.SetBytesOfTotal(int(processed), int(total))
+
+				fileTransferStats.UpdateUploadStats(FileUploadInfo{
+					FileKind:      task.FileKind,
+					Path:          task.Path,
+					UploadedBytes: int64(processed),
+					TotalBytes:    int64(total),
+				})
+			},
+		)
+	}
+	return requestBody, nil
+}
+
 type ProgressReader struct {
-	io.ReadSeeker
-	len      int
-	read     int
-	callback func(processed, total int)
+	reader   io.ReadSeeker
+	len      int64
+	read     int64
+	callback func(processed, total int64)
 }
 
 func NewProgressReader(
 	reader io.ReadSeeker,
-	size int,
-	callback func(processed, total int),
+	size int64,
+	callback func(processed, total int64),
 ) *ProgressReader {
 	return &ProgressReader{
-		ReadSeeker: reader,
-		len:        size,
-		callback:   callback,
+		reader:   reader,
+		len:      size,
+		callback: callback,
 	}
 }
 
-func (pr *ProgressReader) Read(p []byte) (int, error) {
-	n, err := pr.ReadSeeker.Read(p)
-	if err != nil {
-		return n, err // Return early if there's an error
+// Seek implements io.Seeker.
+func (pr *ProgressReader) Seek(offset int64, whence int) (n int64, err error) {
+	n, err = pr.reader.Seek(offset, whence)
+
+	if err == nil {
+		pr.read = n
+		pr.invokeCallback()
 	}
 
-	pr.read += n
+	return
+}
+
+// Read implements io.Reader.
+func (pr *ProgressReader) Read(p []byte) (n int, err error) {
+	n, err = pr.reader.Read(p)
+
+	if err == nil {
+		pr.read += int64(n)
+		pr.invokeCallback()
+	}
+
+	return
+}
+
+// Len implements retryablehttp.LenReader.
+func (pr *ProgressReader) Len() int {
+	return int(pr.len)
+}
+
+func (pr *ProgressReader) invokeCallback() {
 	if pr.callback != nil {
 		pr.callback(pr.read, pr.len)
 	}
-	return n, err
-}
-
-func (pr *ProgressReader) Len() int {
-	return int(pr.len)
 }

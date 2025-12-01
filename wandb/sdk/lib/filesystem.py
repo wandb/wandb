@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import contextlib
 import ctypes
+import dataclasses
 import errno
 import logging
 import os
@@ -8,15 +11,24 @@ import re
 import shutil
 import tempfile
 import threading
-from pathlib import Path
-from typing import IO, Any, BinaryIO, Generator, Optional
+from pathlib import Path, PurePath
+from typing import IO, Any, BinaryIO, Generator, Iterable, Literal, NewType, TypedDict
 
 from wandb.sdk.lib.paths import StrPath
+from wandb.sdk.wandb_settings import Settings
+
+GlobStr = NewType("GlobStr", str)
 
 logger = logging.getLogger(__name__)
 
+PolicyName = Literal["now", "live", "end"]
+
 # https://en.wikipedia.org/wiki/Filename#Comparison_of_filename_limitations
 PROBLEMATIC_PATH_CHARS = "".join(chr(i) for i in range(32)) + ':"*<>?|'
+
+
+class FilesDict(TypedDict):
+    files: Iterable[tuple[GlobStr, PolicyName]]
 
 
 def mkdir_exists_ok(dir_name: StrPath) -> None:
@@ -342,7 +354,7 @@ def reflink(existing_path: StrPath, new_path: StrPath, overwrite: bool = False) 
         raise
 
 
-def check_exists(path: StrPath) -> Optional[StrPath]:
+def check_exists(path: StrPath) -> StrPath | None:
     """Look for variations of `path` and return the first found.
 
     This exists to support former behavior around system-dependent paths; we used to use
@@ -370,3 +382,167 @@ def system_preferred_path(path: StrPath, warn: bool = False) -> StrPath:
         logger.warning(f"Replacing ':' in {tail} with '-'")
     new_path = head + tail.replace(":", "-")
     return Path(new_path) if isinstance(path, Path) else new_path
+
+
+@dataclasses.dataclass
+class LinkStats:
+    """Tracks statistics about file linking operations."""
+
+    n_symlink: int = 0
+    n_hardlink: int = 0
+    n_copy: int = 0
+    n_copy_downgraded: int = 0
+
+    def record(
+        self,
+        mode: Literal["symlink", "hardlink", "copy"],
+        downgraded: bool = False,
+    ) -> None:
+        """Record a file operation.
+
+        Args:
+            mode: Type of operation - "symlink", "hardlink", or "copy".
+            downgraded: Whether policy was downgraded from "live" to "now".
+        """
+        if mode == "symlink":
+            self.n_symlink += 1
+        elif mode == "hardlink":
+            self.n_hardlink += 1
+        elif mode == "copy":
+            self.n_copy += 1
+            if downgraded:
+                self.n_copy_downgraded += 1
+
+    def emit_warnings(self) -> None:
+        """Emit appropriate warnings based on recorded operations."""
+        from wandb import termwarn
+
+        if self.n_symlink:
+            termwarn(
+                f"Symlinked {self.n_symlink} file{'s' if self.n_symlink > 1 else ''} "
+                "into the W&B run directory; call wandb.save again to sync new files."
+            )
+
+        if self.n_hardlink:
+            termwarn(
+                f"Linked {self.n_hardlink} file{'s' if self.n_hardlink > 1 else ''} "
+                "into the W&B run directory (hardlinks); call wandb.save again to sync new files."
+            )
+
+        if self.n_copy:
+            if self.n_copy_downgraded:
+                termwarn(
+                    f"Copied {self.n_copy} file{'s' if self.n_copy > 1 else ''} "
+                    "(cross-volume or links unavailable). "
+                    "Downgrading policy to 'now' for those files because live updates "
+                    "won't propagate from the originals. Re-run wandb.save to resync, "
+                    "or place your run directory on the same drive to enable hardlinks."
+                )
+            else:
+                termwarn(
+                    f"Copied {self.n_copy} file{'s' if self.n_copy > 1 else ''} "
+                    "into the W&B run directory; call wandb.save again to sync new files."
+                )
+
+
+def validate_glob_path(glob_path: PurePath, base_path: PurePath) -> None:
+    """Validate that glob path is within base path.
+
+    Args:
+        glob_path: The glob pattern path to validate.
+        base_path: The base path that should contain the glob.
+
+    Raises:
+        ValueError: If validation fails.
+    """
+    if not str(glob_path).startswith(str(base_path)):
+        raise ValueError("Glob may not walk above the base path")
+    if glob_path == base_path:
+        raise ValueError("Glob cannot be the same as the base path")
+
+    relative_glob = glob_path.relative_to(base_path)
+    if relative_glob.parts and relative_glob.parts[0] == "*":
+        raise ValueError("Glob may not start with '*' relative to the base path")
+
+
+def are_paths_on_same_drive(path1: Path, path2: Path) -> bool:
+    """Check if two paths are on the same drive.
+
+    This check is only relevant on Windows,
+    since the concept of drives only exists on Windows.
+    """
+    if platform.system() != "Windows":
+        return True
+
+    try:
+        path1_drive = path1.resolve().drive
+        path2_drive = path2.resolve().drive
+    except OSError:
+        # If either path is not a valid Windows path, an OSError is raised.
+        return False
+
+    return path1_drive == path2_drive
+
+
+def unlink_path(path: Path) -> None:
+    """Best-effort removal of a pre-existing file/symlink/dir.
+
+    Args:
+        path: Path to remove.
+    """
+    with contextlib.suppress(FileNotFoundError):
+        if path.is_symlink() or path.is_file():
+            path.unlink()
+
+
+def link_or_copy_with_policy(
+    settings: Settings,
+    src: Path,
+    dst: Path,
+    requested_policy: PolicyName,
+    stats: LinkStats,
+) -> PolicyName:
+    """Link or copy a file using the best available method.
+
+    Tries strategies in order: symlink -> hardlink -> copy.
+    Updates stats and returns the effective policy.
+
+    Args:
+        settings: wandb settings object with symlink preference.
+        src: Source file path.
+        dst: Destination file path.
+        requested_policy: Requested upload policy ("live", "now", or "end").
+        stats: Stats object to update with operation type.
+
+    Returns:
+        Effective policy after any necessary downgrade.
+    """
+    # Strategy 1: Symlink (if allowed by settings)
+    if settings.symlink:
+        try:
+            dst.symlink_to(src, target_is_directory=src.is_dir())
+            stats.record("symlink")
+        except (OSError, NotImplementedError):
+            pass
+        else:
+            return requested_policy
+
+    # Strategy 2: Hardlink (same volume)
+    if are_paths_on_same_drive(src, dst.parent):
+        try:
+            os.link(str(src), str(dst))
+            stats.record("hardlink")
+        except OSError:
+            pass
+        else:
+            return requested_policy
+
+    # Strategy 3: Copy (atomic via temp file)
+    tmp = dst.with_name(dst.name + ".tmp~wandb")
+    shutil.copy2(str(src), str(tmp))
+    os.replace(str(tmp), str(dst))
+
+    # Downgrade live->now for copied files since changes won't propagate
+    effective = "now" if requested_policy == "live" else requested_policy
+    stats.record("copy", downgraded=(requested_policy == "live"))
+    return effective

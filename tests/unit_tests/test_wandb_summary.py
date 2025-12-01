@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Any, Dict, Tuple
 
-from wandb import wandb_sdk
+from wandb import sdk as wandb_sdk
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.summary_record import SummaryRecord
@@ -29,7 +29,6 @@ class MockCallback:
         assert self.summary_record is not None
 
         for item in self.summary_record.update:
-            print("item", item.key, item.value)
             if item.key == key and item.value == value:
                 return self
 

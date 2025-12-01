@@ -84,46 +84,43 @@ def test_metric_sum_none(wandb_backend_spy):
         assert summary["mystep"] == 1
 
 
-def test_metric_max(wandb_backend_spy):
-    with wandb.init() as run:
-        run.define_metric("val", summary="max")
-        run.log(dict(mystep=1, val=2))
-        run.log(dict(mystep=1, val=8))
-        run.log(dict(mystep=1, val=3))
-        assert run.summary.get("val") and run.summary["val"].get("max") == 8
+@pytest.mark.parametrize(
+    "summary,expected",
+    [
+        ("min", 1),
+        ("max", 8),
+        ("last", 3),
+        ("mean", 4),
+        ("first", 1),
+    ],
+)
+def test_metric_summary(summary, expected):
+    with wandb.init(mode="offline") as run:
+        run.define_metric("val", summary=summary)
+        run.log({"val": 1})
+        run.log({"val": 8})
+        run.log({"val": 3})
 
-    with wandb_backend_spy.freeze() as snapshot:
-        summary = snapshot.summary(run_id=run.id)
-        assert summary["val"] == {"max": 8}
-        assert summary["mystep"] == 1
-
-
-def test_metric_min(wandb_backend_spy):
-    with wandb.init() as run:
-        run.define_metric("val", summary="min")
-        run.log(dict(mystep=1, val=2))
-        run.log(dict(mystep=1, val=8))
-        run.log(dict(mystep=1, val=3))
-        assert run.summary.get("val") and run.summary["val"].get("min") == 2
-
-    with wandb_backend_spy.freeze() as snapshot:
-        summary = snapshot.summary(run_id=run.id)
-        assert summary["val"] == {"min": 2}
-        assert summary["mystep"] == 1
+        assert run.summary["val"][summary] == expected
 
 
-def test_metric_last(wandb_backend_spy):
-    with wandb.init() as run:
-        run.define_metric("val", summary="last")
-        run.log(dict(mystep=1, val=2))
-        run.log(dict(mystep=1, val=8))
-        run.log(dict(mystep=1, val=3))
-        assert run.summary.get("val") and run.summary["val"].get("last") == 3
+@pytest.mark.parametrize(
+    "summary,expected",
+    [
+        ("min", 1),
+        ("max", 3),
+        ("mean", 2),
+        ("first", 1),
+    ],
+)
+def test_metric_summary_string_type(summary, expected):
+    with wandb.init(mode="offline") as run:
+        run.define_metric("val", summary=summary)
+        run.log({"val": 1})
+        run.log({"val": "oops a string"})
+        run.log({"val": 3})
 
-    with wandb_backend_spy.freeze() as snapshot:
-        summary = snapshot.summary(run_id=run.id)
-        assert summary["val"] == {"last": 3}
-        assert summary["mystep"] == 1
+        assert run.summary["val"][summary] == expected
 
 
 def _gen_metric_sync_step(run):
@@ -185,7 +182,9 @@ def test_metric_sync_step(wandb_backend_spy):
 
 
 def test_metric_mult(wandb_backend_spy):
-    with wandb.init() as run:
+    with wandb.init(
+        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
+    ) as run:
         run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep")
         _gen_metric_sync_step(run)
@@ -196,7 +195,9 @@ def test_metric_mult(wandb_backend_spy):
 
 
 def test_metric_goal(wandb_backend_spy):
-    with wandb.init() as run:
+    with wandb.init(
+        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
+    ) as run:
         run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep", goal="maximize")
         _gen_metric_sync_step(run)
@@ -206,9 +207,6 @@ def test_metric_goal(wandb_backend_spy):
         assert metrics and len(metrics) == 3
 
 
-@pytest.mark.wandb_core_only(
-    reason="deviates from legacy behavior as nan value should be respected"
-)
 def test_metric_nan_mean(wandb_backend_spy):
     with wandb.init() as run:
         run.define_metric("val", summary="mean")
@@ -221,9 +219,6 @@ def test_metric_nan_mean(wandb_backend_spy):
         assert math.isnan(summary["val"]["mean"])
 
 
-@pytest.mark.wandb_core_only(
-    reason="deviates from legacy behavior as nan value should be respected"
-)
 def test_metric_nan_min_norm(wandb_backend_spy):
     with wandb.init() as run:
         run.define_metric("val", summary="min")
@@ -234,9 +229,6 @@ def test_metric_nan_min_norm(wandb_backend_spy):
         assert math.isnan(summary["val"]["min"])
 
 
-@pytest.mark.wandb_core_only(
-    reason="deviates from legacy behavior as nan value should be respected"
-)
 def test_metric_nan_min_more(wandb_backend_spy):
     with wandb.init() as run:
         run.define_metric("val", summary="min")
@@ -296,7 +288,9 @@ def test_metric_nested_mult(wandb_backend_spy):
 
         metrics = snapshot.metrics(run_id=run.id)
         assert metrics and len(metrics) == 1
-        assert metrics[0] == {"1": "this.that", "7": [1, 2], "6": [3]}
+        assert metrics[0]["1"] == "this.that"
+        assert set(metrics[0]["7"]) == {1, 2}
+        assert metrics[0]["6"] == [3]
 
 
 def test_metric_dotted(wandb_backend_spy):
@@ -326,3 +320,116 @@ def test_metric_nested_glob(wandb_backend_spy):
     with wandb_backend_spy.freeze() as snapshot:
         summary = snapshot.summary(run_id=run.id)
         assert summary["this"] == {"that": {"min": 2, "max": 4}}
+
+
+@pytest.mark.parametrize("name", ["m", "*"])
+def test_metric_overwrite_false(wandb_backend_spy, name):
+    with wandb.init(
+        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
+    ) as run:
+        run.define_metric(name, summary="min")
+        run.define_metric(name, summary="max", overwrite=False)
+        run.log({"m": 1})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        metrics = snapshot.metrics(run_id=run.id)
+
+        assert metrics[0]["1"] == "m"  # name
+        assert set(metrics[0]["7"]) == {1, 2}  # summary; 1=min, 2=max
+
+
+@pytest.mark.parametrize("name", ["m", "*"])
+def test_metric_overwrite_true(wandb_backend_spy, name):
+    with wandb.init(
+        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
+    ) as run:
+        run.define_metric(name, summary="min")
+        run.define_metric(name, summary="max", overwrite=True)
+        run.log({"m": 1})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        metrics = snapshot.metrics(run_id=run.id)
+
+        assert metrics[0]["1"] == "m"  # name
+        assert metrics[0]["7"] == [2]  # summary; 2=max
+
+
+@pytest.mark.parametrize(
+    "enable_expand_glob_metrics,server_supports_expand_glob_metrics,expected_metrics",
+    [
+        (
+            True,
+            True,
+            [
+                {"2": "*", "6": [], "7": [1]},
+            ],
+        ),
+        (
+            True,
+            False,
+            [
+                {"1": "m", "6": [3], "7": [1]},
+            ],
+        ),
+        (
+            False,
+            True,
+            [
+                {"1": "m", "6": [3], "7": [1]},
+            ],
+        ),
+        (
+            False,
+            False,
+            [
+                {"1": "m", "6": [3], "7": [1]},
+            ],
+        ),
+    ],
+)
+def test_metric_expand_glob(
+    wandb_backend_spy,
+    enable_expand_glob_metrics,
+    server_supports_expand_glob_metrics,
+    expected_metrics,
+):
+    """Test that the server expands glob metrics when the server supports it.
+
+    All cases when the server does not support expanding glob metrics or when
+    the clientdoes not request it should default to the legacy behavior of
+    expanding glob metrics on the client side.
+    """
+    # stub the server features query to return that the server supports expanding
+    # glob metrics
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ServerFeaturesQuery"),
+        gql.once(
+            content={
+                "data": {
+                    "serverInfo": {
+                        "features": [
+                            {
+                                "name": "EXPAND_DEFINED_METRIC_GLOBS",
+                                "isEnabled": server_supports_expand_glob_metrics,
+                            },
+                        ],
+                    },
+                },
+            },
+            status=200,
+        ),
+    )
+
+    with wandb.init(
+        settings=wandb.Settings(
+            x_server_side_expand_glob_metrics=enable_expand_glob_metrics,
+        )
+    ) as run:
+        run.define_metric("*", summary="min")
+        run.log({"m": 1})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        metrics = snapshot.metrics(run_id=run.id)
+        assert len(metrics) == len(expected_metrics)
+        assert metrics == expected_metrics

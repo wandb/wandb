@@ -21,12 +21,10 @@ class MockBuilder:
 
 
 @pytest.mark.asyncio
-async def test_launch_incorrect_backend(
-    runner, user, monkeypatch, wandb_init, test_settings
-):
+async def test_launch_incorrect_backend(runner, user, monkeypatch):
     proj = "test1"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
-    settings = test_settings({"project": proj})
+    settings = wandb.Settings(project=proj)
     api = InternalApi()
 
     monkeypatch.setattr(
@@ -59,7 +57,7 @@ async def test_launch_incorrect_backend(
         "wandb.sdk.launch.loader.builder_from_config",
         lambda *args, **kawrgs: MockBuilder(),
     )
-    r = wandb_init(settings=settings)
+    r = wandb.init(settings=settings)
     r.finish()
     with pytest.raises(
         LaunchError,
@@ -75,14 +73,14 @@ async def test_launch_incorrect_backend(
         )
 
 
-def test_launch_multi_run(runner, user, wandb_init):
+def test_launch_multi_run(runner, user):
     with runner.isolated_filesystem(), mock.patch.dict(
         "os.environ", {"WANDB_RUN_ID": "test", "WANDB_LAUNCH": "true"}
     ):
-        with wandb_init() as run1:
+        with wandb.init() as run1:
             pass
 
-        with wandb_init() as run2:
+        with wandb.init() as run2:
             pass
 
         assert run1.id == "test"
@@ -103,7 +101,6 @@ def test_launch_wandb_init_launch_envs(
     wandb_backend_spy,
     runner,
     user,
-    wandb_init,
 ):
     queue = "test-queue-name"
     with runner.isolated_filesystem(), mock.patch.dict(
@@ -114,7 +111,7 @@ def test_launch_wandb_init_launch_envs(
             "WANDB_LAUNCH_TRACE_ID": "test123",
         },
     ):
-        with wandb_init() as run:
+        with wandb.init() as run:
             run.log({"test": 1})
 
         with wandb_backend_spy.freeze() as snapshot:

@@ -16,15 +16,11 @@ header :=
   version: uint8
 """
 
-# TODO: possibly restructure code by porting the C++ or go implementation
-
 import logging
 import os
 import struct
 import zlib
 from typing import TYPE_CHECKING, Optional, Tuple
-
-import wandb
 
 if TYPE_CHECKING:
     from typing import IO, Any
@@ -55,12 +51,8 @@ try:
         """Strtobytes."""
         return bytes(x, "iso8859-1")
 
-    # def bytestostr(x):
-    #     return str(x, 'iso8859-1')
-
 except Exception:
     strtobytes = str
-    # bytestostr = str
 
 
 class DataStore:
@@ -77,10 +69,6 @@ class DataStore:
         self._crc = [0] * (LEVELDBLOG_LAST + 1)
         for x in range(1, LEVELDBLOG_LAST + 1):
             self._crc[x] = zlib.crc32(strtobytes(chr(x))) & 0xFFFFFFFF
-
-        assert (
-            wandb._assert_is_internal_process  # type: ignore
-        ), "DataStore can only be used in the internal process"
 
     def open_for_write(self, fname: str) -> None:
         self._fname = fname
@@ -124,10 +112,8 @@ class DataStore:
         header = self._fp.read(LEVELDBLOG_HEADER_LEN)
         if len(header) == 0:
             return None
-        assert (
-            len(header) == LEVELDBLOG_HEADER_LEN
-        ), "record header is {} bytes instead of the expected {}".format(
-            len(header), LEVELDBLOG_HEADER_LEN
+        assert len(header) == LEVELDBLOG_HEADER_LEN, (
+            f"record header is {len(header)} bytes instead of the expected {LEVELDBLOG_HEADER_LEN}"
         )
         fields = struct.unpack("<IHB", header)
         checksum, dlength, dtype = fields
@@ -135,9 +121,9 @@ class DataStore:
         self._index += LEVELDBLOG_HEADER_LEN
         data = self._fp.read(dlength)
         checksum_computed = zlib.crc32(data, self._crc[dtype]) & 0xFFFFFFFF
-        assert (
-            checksum == checksum_computed
-        ), "record checksum is invalid, data may be corrupt"
+        assert checksum == checksum_computed, (
+            "record checksum is invalid, data may be corrupt"
+        )
         self._index += dlength
         return dtype, data
 
@@ -160,9 +146,9 @@ class DataStore:
         if dtype == LEVELDBLOG_FULL:
             return data
 
-        assert (
-            dtype == LEVELDBLOG_FIRST
-        ), f"expected record to be type {LEVELDBLOG_FIRST} but found {dtype}"
+        assert dtype == LEVELDBLOG_FIRST, (
+            f"expected record to be type {LEVELDBLOG_FIRST} but found {dtype}"
+        )
         while True:
             offset = self._index % LEVELDBLOG_BLOCK_LEN
             record = self.scan_record()
@@ -172,9 +158,9 @@ class DataStore:
             if dtype == LEVELDBLOG_LAST:
                 data += new_data
                 break
-            assert (
-                dtype == LEVELDBLOG_MIDDLE
-            ), f"expected record to be type {LEVELDBLOG_MIDDLE} but found {dtype}"
+            assert dtype == LEVELDBLOG_MIDDLE, (
+                f"expected record to be type {LEVELDBLOG_MIDDLE} but found {dtype}"
+            )
             data += new_data
         return data
 
@@ -185,18 +171,16 @@ class DataStore:
             LEVELDBLOG_HEADER_MAGIC,
             LEVELDBLOG_HEADER_VERSION,
         )
-        assert (
-            len(data) == LEVELDBLOG_HEADER_LEN
-        ), f"header size is {len(data)} bytes, expected {LEVELDBLOG_HEADER_LEN}"
+        assert len(data) == LEVELDBLOG_HEADER_LEN, (
+            f"header size is {len(data)} bytes, expected {LEVELDBLOG_HEADER_LEN}"
+        )
         self._fp.write(data)
         self._index += len(data)
 
     def _read_header(self):
         header = self._fp.read(LEVELDBLOG_HEADER_LEN)
-        assert (
-            len(header) == LEVELDBLOG_HEADER_LEN
-        ), "header is {} bytes instead of the expected {}".format(
-            len(header), LEVELDBLOG_HEADER_LEN
+        assert len(header) == LEVELDBLOG_HEADER_LEN, (
+            f"header is {len(header)} bytes instead of the expected {LEVELDBLOG_HEADER_LEN}"
         )
         ident, magic, version = struct.unpack("<4sHB", header)
         if ident != strtobytes(LEVELDBLOG_HEADER_IDENT):

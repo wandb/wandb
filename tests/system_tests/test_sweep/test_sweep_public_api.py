@@ -2,12 +2,14 @@ import pytest
 import wandb
 from wandb import Api
 from wandb.apis.public.sweeps import Sweep
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb_gql import gql
 
 from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
     SWEEP_CONFIG_GRID,
     SWEEP_CONFIG_GRID_NESTED,
+    SWEEP_CONFIG_NO_NAME,
     SWEEP_CONFIG_RANDOM,
     VALID_SWEEP_CONFIGS_MINIMAL,
 )
@@ -87,6 +89,46 @@ def test_sweep_api(use_local_wandb_backend, user, sweep_config):
     assert f"{user}/{_project}/sweeps/{sweep_id}" in sweep.url
     assert sweep.state == "PENDING"
     assert str(sweep) == f"<Sweep {user}/test/{sweep_id} (PENDING)>"
+    assert sweep.name == sweep_config["name"]
+    assert sweep.path == [user, _project, sweep_id]
+
+
+def test_sweep_no_name(use_local_wandb_backend, user):
+    """Test that name for a sweep created with no config name is the sweep id."""
+    _ = use_local_wandb_backend
+    _project = "test"
+    sweep_config = SWEEP_CONFIG_NO_NAME
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+
+    sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+
+    assert sweep.name == sweep_id
+
+
+def test_sweep_with_edited_display_name(use_local_wandb_backend, user):
+    """Test that name for a sweep with an updated displayName is the displayName."""
+    _ = use_local_wandb_backend
+    _project = "test"
+    sweep_config = SWEEP_CONFIG_BAYES
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+    original_sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+    edited_display_name = "Updated Sweep Name"
+    # Use internal API to update display name because there's no public API for it right now.
+    # (It can currently only be edited in the UI.)
+    InternalApi().upsert_sweep(
+        config=sweep_config,
+        obj_id=original_sweep._attrs[
+            "id"
+        ],  # Use the internal ID to update existing sweep
+        entity=user,
+        project=_project,
+        display_name=edited_display_name,
+    )
+
+    updated_sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+
+    assert original_sweep.name == sweep_config["name"]
+    assert updated_sweep.name == edited_display_name
 
 
 def test_from_path(user):
@@ -96,8 +138,8 @@ def test_from_path(user):
     assert isinstance(sweep, wandb.apis.public.Sweep)
 
 
-def test_project_sweeps(user, wandb_init):
-    run = wandb_init(entity=user, project="testnosweeps")
+def test_project_sweeps(user):
+    run = wandb.init(entity=user, project="testnosweeps")
     run.finish()
     sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
     api = Api()

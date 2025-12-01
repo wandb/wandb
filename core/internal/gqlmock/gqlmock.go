@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 )
 
 // MockClient is a mock implementation of the genqlient Client interface.
@@ -71,6 +71,24 @@ func (c *MockClient) StubMatchOnce(
 		})
 }
 
+// StubMatchWithError registers a response for a matching request.
+//
+// The next time a request matching `requestMatcher` is made, the
+// `err` will be returned.
+func (c *MockClient) StubMatchWithError(
+	requestMatcher gomock.Matcher,
+	err error,
+) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.stubs = append(c.stubs,
+		&stubbedRequest{
+			requestMatcher,
+			handlerReturningError(err),
+		})
+}
+
 // StubAnyOnce registers a response for the next request.
 func (c *MockClient) StubAnyOnce(responseJSON string) {
 	c.StubMatchOnce(gomock.Any(), responseJSON)
@@ -83,6 +101,12 @@ func handlerReturningJSON(
 		// Return the JSON error to make it easier to tell if a test's
 		// JSON is incorrect.
 		return json.Unmarshal([]byte(responseJSON), resp.Data)
+	}
+}
+
+func handlerReturningError(err error) func(*graphql.Request, *graphql.Response) error {
+	return func(_ *graphql.Request, resp *graphql.Response) error {
+		return err
 	}
 }
 
@@ -160,8 +184,9 @@ type notStubbedError struct {
 
 func (e *notStubbedError) Error() string {
 	return fmt.Sprintf(
-		"gqlmock: no stub for request with query '%v' and with variables '%v'",
-		e.req.Query,
-		jsonMarshallToMap(e.req.Variables),
+		"gqlmock: no stub for request with"+
+			" query\n====\n%s\n====\nwith variables\n%s",
+		indent(1, e.req.Query),
+		indent(1, prettyPrintVariables(e.req)),
 	)
 }

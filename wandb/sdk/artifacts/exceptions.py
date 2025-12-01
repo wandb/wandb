@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypeVar
 
 from wandb import errors
+from wandb._strutils import nameof
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -21,12 +22,12 @@ class ArtifactStatusError(AttributeError):
         name: str | None = None,
         obj: ArtifactT | None = None,
     ):
-        # Follow the same pattern as AttributeError in python 3.10+ by `name/obj` attributes
+        # Follow AttributeError (Python 3.10+) by exposing `name` and `obj`.
         # See: https://docs.python.org/3/library/exceptions.html#AttributeError
         try:
             super().__init__(msg, name=name, obj=obj)
         except TypeError:
-            # The `name`/`obj` keyword args and attributes were only added in python >= 3.10
+            # The `name`/`obj` keywords were only added in Python >= 3.10.
             super().__init__(msg)
             self.name = name or ""
             self.obj = obj
@@ -39,7 +40,7 @@ class ArtifactNotLoggedError(ArtifactStatusError):
         *_, name = fullname.split(".")
         msg = (
             f"{fullname!r} used prior to logging artifact or while in offline mode. "
-            f"Call {type(obj).wait.__qualname__}() before accessing logged artifact properties."
+            f"Call {nameof(obj.wait)}() before accessing logged artifact properties."
         )
         super().__init__(msg=msg, name=name, obj=obj)
 
@@ -55,3 +56,17 @@ class ArtifactFinalizedError(ArtifactStatusError):
 
 class WaitTimeoutError(errors.Error):
     """Raised when wait() timeout occurs before process is finished."""
+
+
+class TooFewItemsError(ValueError):
+    """Raised when there are fewer items than expected in a collection.
+
+    Intended for internal use only.
+    """
+
+
+class TooManyItemsError(ValueError):
+    """Raised when there are more items than expected in a collection.
+
+    Intended for internal use only.
+    """

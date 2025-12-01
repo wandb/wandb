@@ -3,8 +3,6 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
 import wandb
 from wandb import env
-from wandb.apis import InternalApi
-from wandb.sdk.launch.sweeps.utils import handle_sweep_config_violations
 
 from . import wandb_login
 
@@ -45,11 +43,12 @@ def sweep(
     Make note the unique identifier, `sweep_id`, that is returned.
     At a later step provide the `sweep_id` to a sweep agent.
 
+    See [Sweep configuration structure](https://docs.wandb.ai/guides/sweeps/define-sweep-configuration)
+    for information on how to define your sweep.
+
     Args:
       sweep: The configuration of a hyperparameter search.
-        (or configuration generator). See
-        [Sweep configuration structure](https://docs.wandb.ai/guides/sweeps/define-sweep-configuration)
-        for information on how to define your sweep.
+        (or configuration generator).
         If you provide a callable, ensure that the callable does
         not take arguments and that it returns a dictionary that
         conforms to the W&B sweep config spec.
@@ -64,8 +63,11 @@ def sweep(
       prior_runs: The run IDs of existing runs to add to this sweep.
 
     Returns:
-      sweep_id: str. A unique identifier for the sweep.
+      str: A unique identifier for the sweep.
     """
+    from wandb.apis import InternalApi
+    from wandb.sdk.launch.sweeps.utils import handle_sweep_config_violations
+
     if callable(sweep):
         sweep = sweep()
     """Sweep create for controller api and jupyter (eventually for cli)."""
@@ -85,10 +87,10 @@ def sweep(
     api = InternalApi()
     sweep_id, warnings = api.upsert_sweep(sweep, prior_runs=prior_runs)
     handle_sweep_config_violations(warnings)
-    print("Create sweep with ID:", sweep_id)
+    print("Create sweep with ID:", sweep_id)  # noqa: T201
     sweep_url = _get_sweep_url(api, sweep_id)
     if sweep_url:
-        print("Sweep URL:", sweep_url)
+        print("Sweep URL:", sweep_url)  # noqa: T201
     return sweep_id
 
 
@@ -99,16 +101,16 @@ def controller(
 ) -> "_WandbController":
     """Public sweep controller constructor.
 
-    Usage:
-        ```python
-        import wandb
+    Examples:
+    ```python
+    import wandb
 
-        tuner = wandb.controller(...)
-        print(tuner.sweep_config)
-        print(tuner.sweep_id)
-        tuner.configure_search(...)
-        tuner.configure_stopping(...)
-        ```
+    tuner = wandb.controller(...)
+    print(tuner.sweep_config)
+    print(tuner.sweep_id)
+    tuner.configure_search(...)
+    tuner.configure_stopping(...)
+    ```
 
     """
     from ..wandb_controller import _WandbController

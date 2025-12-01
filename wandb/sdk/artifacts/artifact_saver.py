@@ -50,15 +50,15 @@ class ArtifactSaver:
         self._api = api
         self._file_pusher = file_pusher
         self._digest = digest
-        self._manifest = ArtifactManifest.from_manifest_json(
-            manifest_json,
-            api=self._api,
-        )
+        self._manifest = ArtifactManifest.from_manifest_json(manifest_json)
+        self._manifest.storage_policy._api = self._api
         self._is_user_created = is_user_created
         self._server_artifact = None
 
     def save(
         self,
+        entity: str,
+        project: str,
         type: str,
         name: str,
         client_id: str,
@@ -76,6 +76,8 @@ class ArtifactSaver:
         base_id: str | None = None,
     ) -> dict | None:
         return self._save_internal(
+            entity,
+            project,
             type,
             name,
             client_id,
@@ -95,6 +97,8 @@ class ArtifactSaver:
 
     def _save_internal(
         self,
+        entity: str,
+        project: str,
         type: str,
         name: str,
         client_id: str,
@@ -140,7 +144,11 @@ class ArtifactSaver:
             base_id = latest["id"]
         if self._server_artifact["state"] == "COMMITTED":
             if use_after_commit:
-                self._api.use_artifact(artifact_id)
+                self._api.use_artifact(
+                    artifact_id,
+                    artifact_entity_name=entity,
+                    artifact_project_name=project,
+                )
             return self._server_artifact
         if (
             self._server_artifact["state"] != "PENDING"
@@ -228,7 +236,7 @@ class ArtifactSaver:
 
         commit_result: concurrent.futures.Future[None] = concurrent.futures.Future()
 
-        # This will queue the commit. It will only happen after all the file uploads are done
+        # Queue the commit. It will only happen after all file uploads finish.
         self._file_pusher.commit_artifact(
             artifact_id,
             finalize=finalize,
@@ -244,7 +252,11 @@ class ArtifactSaver:
             step_prepare.shutdown()
 
         if finalize and use_after_commit:
-            self._api.use_artifact(artifact_id)
+            self._api.use_artifact(
+                artifact_id,
+                artifact_entity_name=entity,
+                artifact_project_name=project,
+            )
 
         return self._server_artifact
 
@@ -259,7 +271,5 @@ class ArtifactSaver:
                     if artifact_id is None:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = URIStr(
-                        "wandb-artifact://{}/{}".format(
-                            b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
-                        )
+                        f"wandb-artifact://{b64_to_hex_id(B64MD5(artifact_id))}/{artifact_file_path}"
                     )

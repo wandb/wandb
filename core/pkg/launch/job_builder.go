@@ -19,7 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/randomid"
-	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -173,14 +173,13 @@ type JobBuilder struct {
 	verbose bool
 
 	Disable  bool
-	settings *spb.Settings
+	settings *settings.Settings
 
 	runCodeArtifact   ArtifactInfoForJob
 	runCodeArtifactMu sync.Mutex
 
 	aliases               []string
 	isNotebookRun         bool
-	runConfig             *runconfig.RunConfig
 	wandbConfigParameters *launchWandbConfigParameters
 	configFiles           []*configFileParameter
 	saveShapeToMetadata   bool
@@ -202,12 +201,12 @@ func MakeArtifactNameSafe(name string) string {
 
 }
 
-func NewJobBuilder(settings *spb.Settings, logger *observability.CoreLogger, verbose bool) *JobBuilder {
+func NewJobBuilder(settings *settings.Settings, logger *observability.CoreLogger, verbose bool) *JobBuilder {
 	jobBuilder := JobBuilder{
 		settings:            settings,
-		isNotebookRun:       settings.GetXJupyter().GetValue(),
+		isNotebookRun:       settings.Proto.GetXJupyter().GetValue(),
 		logger:              logger,
-		Disable:             settings.GetDisableJobCreation().GetValue(),
+		Disable:             settings.Proto.GetDisableJobCreation().GetValue(),
 		saveShapeToMetadata: false,
 		verbose:             verbose,
 	}
@@ -216,12 +215,12 @@ func NewJobBuilder(settings *spb.Settings, logger *observability.CoreLogger, ver
 
 func (j *JobBuilder) logIfVerbose(msg string, level LogLevel) {
 
-	switch {
-	case level == Log:
+	switch level {
+	case Log:
 		j.logger.Info(msg)
-	case level == Warn:
+	case Warn:
 		j.logger.Warn(msg)
-	case level == Error:
+	case Error:
 		j.logger.Error(msg)
 	default:
 		j.logger.Info(msg)
@@ -235,11 +234,13 @@ func (j *JobBuilder) logIfVerbose(msg string, level LogLevel) {
 }
 
 func (j *JobBuilder) handleMetadataFile() (*RunMetadata, error) {
-	file, err := os.Open(filepath.Join(j.settings.FilesDir.Value, WANDB_METADATA_FNAME))
+	file, err := os.Open(filepath.Join(j.settings.GetFilesDir(), WANDB_METADATA_FNAME))
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	var runMetadata RunMetadata
 	err = json.NewDecoder(file).Decode(&runMetadata)
@@ -272,14 +273,10 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 
 }
 
-func (j *JobBuilder) SetRunConfig(config runconfig.RunConfig) {
-	j.runConfig = &config
-}
-
 func (j *JobBuilder) GetSourceType(metadata RunMetadata) (*SourceType, error) {
 	var finalSourceType SourceType
 	// user set source type via settings
-	switch j.settings.GetJobSource().GetValue() {
+	switch j.settings.Proto.GetJobSource().GetValue() {
 	case string(ArtifactSourceType):
 		if !j.hasArtifactJobIngredients() {
 			j.logIfVerbose("No artifact job ingredients found, not creating job artifact", Warn)
@@ -344,8 +341,8 @@ func (j *JobBuilder) getEntrypoint(programPath string, metadata RunMetadata) ([]
 }
 
 func (j *JobBuilder) makeJobName(derivedName string) string {
-	if j.settings.JobName != nil {
-		return j.settings.JobName.Value
+	if j.settings.Proto.JobName != nil {
+		return j.settings.Proto.JobName.Value
 	}
 	return MakeArtifactNameSafe(fmt.Sprintf("job-%s", derivedName))
 }
@@ -372,18 +369,18 @@ func (j *JobBuilder) hasImageJobIngredients(metadata RunMetadata) bool {
 }
 
 func (j *JobBuilder) getSourceAndName(sourceType SourceType, programRelpath *string, metadata RunMetadata) (Source, *string, error) {
-	switch {
-	case sourceType == RepoSourceType:
+	switch sourceType {
+	case RepoSourceType:
 		if programRelpath == nil {
 			return nil, nil, fmt.Errorf("no program path found for repo sourced job")
 		}
 		return j.createRepoJobSource(*programRelpath, metadata)
-	case sourceType == ArtifactSourceType:
+	case ArtifactSourceType:
 		if programRelpath == nil {
 			return nil, nil, fmt.Errorf("no program path found for artifact sourced job")
 		}
 		return j.createArtifactJobSource(*programRelpath, metadata)
-	case sourceType == ImageSourceType:
+	case ImageSourceType:
 		return j.createImageJobSource(metadata)
 	default:
 		// TODO: warn if source type was set to something different
@@ -396,7 +393,10 @@ func (j *JobBuilder) HandlePathsAboveRoot(programRelpath, root string) (string, 
 	// XJupyterRoot contains the path where the jupyter notebook was started
 	// programRelpath contains the path from XJupyterRoot to the file
 	// fullProgramPath here is actually the relpath from the root to the program
-	rootRelPath, err := filepath.Rel(root, j.settings.GetXJupyterRoot().GetValue())
+	rootRelPath, err := filepath.Rel(
+		root,
+		j.settings.Proto.GetXJupyterRoot().GetValue(),
+	)
 	if err != nil {
 		return "", err
 	}
@@ -431,7 +431,7 @@ func (j *JobBuilder) createRepoJobSource(programRelpath string, metadata RunMeta
 			return nil, nil, err
 		}
 
-		if metadata.Root == nil || j.settings.XJupyterRoot == nil {
+		if metadata.Root == nil || j.settings.Proto.XJupyterRoot == nil {
 			return nil, nil, fmt.Errorf("no root path in metadata, or settings missing jupyter root, not creating job artifact")
 		}
 		fullProgramPath, err = j.HandlePathsAboveRoot(programRelpath, *metadata.Root)
@@ -458,7 +458,7 @@ func (j *JobBuilder) createArtifactJobSource(programRelPath string, metadata Run
 	j.logger.Debug("jobBuilder: creating artifact job source")
 	var fullProgramRelPath string
 	// TODO: should we just always exit early if the path doesn't exist?
-	if j.isNotebookRun && !j.settings.GetXColab().GetValue() {
+	if j.isNotebookRun && !j.settings.Proto.GetXColab().GetValue() {
 		fullProgramRelPath = programRelPath
 		// if the resolved path doesn't exist, then we shouldn't make a job because it will fail
 		// but we should check because when users call log code in a notebook the code artifact
@@ -530,6 +530,7 @@ func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *
 func (j *JobBuilder) Build(
 	ctx context.Context,
 	client graphql.Client,
+	runConfig map[string]any,
 	output map[string]interface{},
 ) (artifact *spb.ArtifactRecord, rerr error) {
 	j.logger.Debug("jobBuilder: building job artifact")
@@ -541,7 +542,10 @@ func (j *JobBuilder) Build(
 		// If we have a partial job source we just update the
 		// metadata and don't build the job.
 		typed_output := data_types.ResolveTypes(output)
-		metadata, err := j.MakeJobMetadata(&typed_output)
+		metadata, err := j.MakeJobMetadata(
+			runConfig,
+			&typed_output,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -554,7 +558,7 @@ func (j *JobBuilder) Build(
 		return nil, nil
 	}
 
-	fileDir := j.settings.FilesDir.GetValue()
+	fileDir := j.settings.GetFilesDir()
 	_, err := os.Stat(filepath.Join(fileDir, REQUIREMENTS_FNAME))
 	if os.IsNotExist(err) {
 		j.logger.Debug("jobBuilder: no requirements.txt found")
@@ -622,24 +626,23 @@ func (j *JobBuilder) Build(
 	}
 	var metadataString string
 	if j.saveShapeToMetadata {
-		metadataString, err = j.MakeJobMetadata(&sourceInfo.OutputTypes)
+		metadataString, err = j.MakeJobMetadata(
+			runConfig,
+			&sourceInfo.OutputTypes,
+		)
 		if err != nil {
 			return nil, err
 		}
 		sourceInfo.InputTypes = data_types.ResolveTypes(map[string]interface{}{})
 	} else {
 		metadataString = ""
-		if j.runConfig == nil {
-			sourceInfo.InputTypes = data_types.ResolveTypes(map[string]interface{}{})
-		} else {
-			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.CloneTree())
-		}
+		sourceInfo.InputTypes = data_types.ResolveTypes(runConfig)
 	}
 
 	baseArtifact := &spb.ArtifactRecord{
-		Entity:           j.settings.GetEntity().GetValue(),
-		Project:          j.settings.Project.Value,
-		RunId:            j.settings.RunId.Value,
+		Entity:           j.settings.GetEntity(),
+		Project:          j.settings.GetProject(),
+		RunId:            j.settings.GetRunID(),
 		Name:             *name,
 		Metadata:         metadataString,
 		Type:             "job",
@@ -729,7 +732,10 @@ func (j *JobBuilder) MakeFilesAndSchemas() (map[string]any, map[string]any, erro
 }
 
 // Makes job input schema into a json string to be stored as artifact metadata.
-func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
+func (j *JobBuilder) MakeJobMetadata(
+	runConfig map[string]any,
+	output *data_types.TypeRepresentation,
+) (string, error) {
 	metadata := make(map[string]any)
 	input_types := make(map[string]any)
 	input_schemas := make(map[string]any)
@@ -743,8 +749,8 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 			input_schemas["files"] = file_schemas
 		}
 	}
-	if j.runConfig != nil && j.wandbConfigParameters != nil {
-		runConfigTypes, err := j.inferRunConfigTypes()
+	if runConfig != nil && j.wandbConfigParameters != nil {
+		runConfigTypes, err := j.inferRunConfigTypes(runConfig)
 		if err == nil {
 			input_types[WandbConfigKey] = runConfigTypes
 		} else {

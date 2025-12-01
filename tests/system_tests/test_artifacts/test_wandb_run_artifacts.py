@@ -1,4 +1,3 @@
-import os
 from unittest import mock
 
 import pytest
@@ -24,23 +23,20 @@ def test_artifacts_in_config(user, sample_data, test_settings):
         run.config.update({"myarti": artifact})
         with pytest.raises(ValueError) as e_info:
             run.config.nested_dataset = {"nested": artifact}
-        assert (
-            str(e_info.value)
-            == "Instances of wandb.Artifact can only be top level keys in wandb.config"
+        assert str(e_info.value) == (
+            "Instances of wandb.Artifact can only be top level keys in a run's config"
         )
 
         with pytest.raises(ValueError) as e_info:
             run.config.dict_nested = {"one_nest": {"two_nest": artifact}}
-        assert (
-            str(e_info.value)
-            == "Instances of wandb.Artifact can only be top level keys in wandb.config"
+        assert str(e_info.value) == (
+            "Instances of wandb.Artifact can only be top level keys in a run's config"
         )
 
         with pytest.raises(ValueError) as e_info:
             run.config.update({"one_nest": {"two_nest": artifact}})
-        assert (
-            str(e_info.value)
-            == "Instances of wandb.Artifact can only be top level keys in wandb.config"
+        assert str(e_info.value) == (
+            "Instances of wandb.Artifact can only be top level keys in a run's config"
         )
 
     run = wandb.Api().run(f"uncategorized/{run.id}")
@@ -50,7 +46,7 @@ def test_artifacts_in_config(user, sample_data, test_settings):
         "id": artifact.id,
         "version": "v0",
         "sequenceName": artifact.source_name.split(":")[0],
-        "usedAs": "dataset",
+        "usedAs": None,
     }
 
     assert run.config["myarti"] == {
@@ -59,7 +55,7 @@ def test_artifacts_in_config(user, sample_data, test_settings):
         "id": artifact.id,
         "version": "v0",
         "sequenceName": artifact.source_name.split(":")[0],
-        "usedAs": "myarti",
+        "usedAs": None,
     }
 
     assert run.config["logged_artifact"] == {
@@ -68,7 +64,7 @@ def test_artifacts_in_config(user, sample_data, test_settings):
         "id": logged_artifact.id,
         "version": "v0",
         "sequenceName": logged_artifact.name.split(":")[0],
-        "usedAs": "logged_artifact",
+        "usedAs": None,
     }
 
 
@@ -84,7 +80,7 @@ def test_artifact_string_run_config_init(user, sample_data, test_settings):
         "id": dataset.id,
         "version": "v0",
         "sequenceName": dataset.source_name.split(":")[0],
-        "usedAs": "dataset",
+        "usedAs": None,
     }
 
 
@@ -100,7 +96,7 @@ def test_artifact_string_run_config_set_item(user, sample_data, test_settings):
         "id": dataset.id,
         "version": "v0",
         "sequenceName": dataset.source_name.split(":")[0],
-        "usedAs": "dataset",
+        "usedAs": None,
     }
 
 
@@ -116,7 +112,7 @@ def test_artifact_string_digest_run_config_update(user, sample_data, test_settin
         "id": dataset.id,
         "version": "v0",
         "sequenceName": dataset.source_name.split(":")[0],
-        "usedAs": "dataset",
+        "usedAs": None,
     }
 
 
@@ -132,7 +128,7 @@ def test_artifact_string_digest_run_config_init(user, sample_data, test_settings
         "id": dataset.id,
         "version": "v0",
         "sequenceName": dataset.source_name.split(":")[0],
-        "usedAs": "dataset",
+        "usedAs": None,
     }
 
 
@@ -150,7 +146,7 @@ def test_artifact_string_digest_run_config_set_item(user, sample_data, test_sett
         "id": dataset.id,
         "version": "v0",
         "sequenceName": dataset.source_name.split(":")[0],
-        "usedAs": "dataset",
+        "usedAs": None,
     }
 
 
@@ -168,7 +164,7 @@ def test_artifact_string_run_config_update(user, sample_data, test_settings):
         "id": dataset.id,
         "version": "v0",
         "sequenceName": dataset.source_name.split(":")[0],
-        "usedAs": "dataset",
+        "usedAs": None,
     }
 
 
@@ -190,7 +186,7 @@ def test_wandb_artifact_config_update(user, test_settings):
         "id": artifact.id,
         "version": "v0",
         "sequenceName": artifact.name.split(":")[0],
-        "usedAs": "test_reference_download",
+        "usedAs": None,
     }
     assert run.config["test_reference_download"] == config_art
 
@@ -217,7 +213,7 @@ def test_wandb_artifact_config_set_item(user, test_settings):
         "id": artifact.id,
         "version": "v0",
         "sequenceName": artifact.name.split(":")[0],
-        "usedAs": "test_reference_download",
+        "usedAs": None,
     }
 
 
@@ -242,7 +238,7 @@ def test_public_artifact_run_config_init(user, sample_data, test_settings):
         "id": art.id,
         "version": "v0",
         "sequenceName": art.source_name.split(":")[0],
-        "usedAs": "dataset",
+        "usedAs": None,
     }
 
 
@@ -259,7 +255,7 @@ def test_public_artifact_run_config_set_item(user, sample_data, test_settings):
         "id": art.id,
         "version": "v0",
         "sequenceName": art.source_name.split(":")[0],
-        "usedAs": "dataset",
+        "usedAs": None,
     }
 
 
@@ -277,7 +273,7 @@ def test_public_artifact_run_config_update(user, sample_data, test_settings):
         "id": art.id,
         "version": "v0",
         "sequenceName": art.source_name.split(":")[0],
-        "usedAs": "dataset",
+        "usedAs": None,
     }
 
 
@@ -299,7 +295,7 @@ def test_wandb_artifact_init_config(user, test_settings):
         "id": artifact.id,
         "version": "v0",
         "sequenceName": artifact.name.split(":")[0],
-        "usedAs": "test_reference_download",
+        "usedAs": None,
     }
 
 
@@ -311,7 +307,7 @@ def test_log_code_settings(user):
         pass
 
     artifact_name = wandb.util.make_artifact_name_safe(
-        f"source-{run._project}-{run._settings.program_relpath}"
+        f"source-{run.project}-{run._settings.program_relpath}"
     )
     wandb.Api().artifact(f"{artifact_name}:v0")
 
@@ -339,28 +335,10 @@ def test_log_code_env(wandb_backend_spy, save_code):
             assert run._settings.save_code is save_code
 
         artifact_name = wandb.util.make_artifact_name_safe(
-            f"source-{run._project}-{run._settings.program_relpath}"
+            f"source-{run.project}-{run._settings.program_relpath}"
         )
         if save_code:
             wandb.Api().artifact(f"{artifact_name}:v0")
         else:
             with pytest.raises(wandb.errors.CommError):
                 wandb.Api().artifact(f"{artifact_name}:v0")
-
-
-@pytest.mark.xfail(reason="Backend race condition")
-def test_anonymous_mode_artifact(wandb_init, capsys, local_settings):
-    copied_env = os.environ.copy()
-    copied_env.pop("WANDB_API_KEY")
-    copied_env.pop("WANDB_USERNAME")
-    copied_env.pop("WANDB_ENTITY")
-    with mock.patch.dict("os.environ", copied_env, clear=True):
-        run = wandb_init(anonymous="must")
-        run.log_artifact(wandb.Artifact("my-arti", type="dataset"))
-        run.finish()
-
-    _, err = capsys.readouterr()
-
-    assert (
-        "Artifacts logged anonymously cannot be claimed and expire after 7 days." in err
-    )

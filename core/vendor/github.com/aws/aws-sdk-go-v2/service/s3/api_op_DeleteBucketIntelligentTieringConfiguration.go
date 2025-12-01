@@ -13,7 +13,7 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// This operation is not supported by directory buckets.
+// This operation is not supported for directory buckets.
 //
 // Deletes the S3 Intelligent-Tiering configuration from the specified bucket.
 //
@@ -40,6 +40,10 @@ import (
 // [PutBucketIntelligentTieringConfiguration]
 //
 // [ListBucketIntelligentTieringConfigurations]
+//
+// You must URL encode any signed header values that contain spaces. For example,
+// if your header value is my file.txt , containing two spaces after my , you must
+// URL encode this value to my%20%20file.txt .
 //
 // [ListBucketIntelligentTieringConfigurations]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketIntelligentTieringConfigurations.html
 // [GetBucketIntelligentTieringConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketIntelligentTieringConfiguration.html
@@ -72,6 +76,11 @@ type DeleteBucketIntelligentTieringConfigurationInput struct {
 	//
 	// This member is required.
 	Id *string
+
+	// The account ID of the expected bucket owner. If the account ID that you provide
+	// does not match the actual owner of the bucket, the request fails with the HTTP
+	// status code 403 Forbidden (access denied).
+	ExpectedBucketOwner *string
 
 	noSmithyDocumentSerde
 }
@@ -159,6 +168,9 @@ func (c *Client) addOperationDeleteBucketIntelligentTieringConfigurationMiddlewa
 	if err = addIsExpressUserAgent(stack); err != nil {
 		return err
 	}
+	if err = addCredentialSource(stack, options); err != nil {
+		return err
+	}
 	if err = addOpDeleteBucketIntelligentTieringConfigurationValidationMiddleware(stack); err != nil {
 		return err
 	}
@@ -192,16 +204,13 @@ func (c *Client) addOperationDeleteBucketIntelligentTieringConfigurationMiddlewa
 	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanInitializeStart(stack); err != nil {
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanInitializeEnd(stack); err != nil {
+	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanBuildRequestStart(stack); err != nil {
-		return err
-	}
-	if err = addSpanBuildRequestEnd(stack); err != nil {
+	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil

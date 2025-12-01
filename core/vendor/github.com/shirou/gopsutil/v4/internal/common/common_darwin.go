@@ -4,30 +4,13 @@
 package common
 
 import (
-	"context"
+	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"strings"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
 	"golang.org/x/sys/unix"
 )
-
-func DoSysctrlWithContext(ctx context.Context, mib string) ([]string, error) {
-	cmd := exec.CommandContext(ctx, "sysctl", "-n", mib)
-	cmd.Env = getSysctrlEnv(os.Environ())
-	out, err := cmd.Output()
-	if err != nil {
-		return []string{}, err
-	}
-	v := strings.Replace(string(out), "{ ", "", 1)
-	v = strings.Replace(string(v), " }", "", 1)
-	values := strings.Fields(string(v))
-
-	return values, nil
-}
 
 func CallSyscall(mib []int32) ([]byte, uint64, error) {
 	miblen := uint64(len(mib))
@@ -125,7 +108,7 @@ type (
 	IOServiceOpenFunc                     func(service, owningTask, connType uint32, connect *uint32) int
 	IOServiceCloseFunc                    func(connect uint32) int
 	IOIteratorNextFunc                    func(iterator uint32) uint32
-	IORegistryEntryGetNameFunc            func(entry uint32, name *byte) int
+	IORegistryEntryGetNameFunc            func(entry uint32, name CStr) int
 	IORegistryEntryGetParentEntryFunc     func(entry uint32, plane string, parent *uint32) int
 	IORegistryEntryCreateCFPropertyFunc   func(entry uint32, key, allocator uintptr, options uint32) unsafe.Pointer
 	IORegistryEntryCreateCFPropertiesFunc func(entry uint32, properties unsafe.Pointer, allocator uintptr, options uint32) int
@@ -191,7 +174,7 @@ type (
 	CFArrayGetValueAtIndexFunc    func(theArray uintptr, index int32) unsafe.Pointer
 	CFStringCreateMutableFunc     func(alloc uintptr, maxLength int32) unsafe.Pointer
 	CFStringGetLengthFunc         func(theString uintptr) int32
-	CFStringGetCStringFunc        func(theString uintptr, buffer *byte, bufferSize int32, encoding uint32)
+	CFStringGetCStringFunc        func(theString uintptr, buffer CStr, bufferSize int32, encoding uint32)
 	CFStringCreateWithCStringFunc func(alloc uintptr, cStr string, encoding uint32) unsafe.Pointer
 	CFDataGetLengthFunc           func(theData uintptr) int32
 	CFDataGetBytePtrFunc          func(theData uintptr) unsafe.Pointer
@@ -306,7 +289,7 @@ const (
 
 func NewSMC(ioKit *Library) (*SMC, error) {
 	if ioKit.path != IOKit {
-		return nil, fmt.Errorf("library is not IOKit")
+		return nil, errors.New("library is not IOKit")
 	}
 
 	ioServiceGetMatchingService := GetFunc[IOServiceGetMatchingServiceFunc](ioKit, IOServiceGetMatchingServiceSym)
@@ -324,7 +307,7 @@ func NewSMC(ioKit *Library) (*SMC, error) {
 
 	var conn uint32
 	if result := ioServiceOpen(service, machTaskSelf(), 0, &conn); result != 0 {
-		return nil, fmt.Errorf("ERROR: IOServiceOpen failed")
+		return nil, errors.New("ERROR: IOServiceOpen failed")
 	}
 
 	ioObjectRelease(service)
@@ -343,9 +326,47 @@ func (s *SMC) Close() error {
 	ioServiceClose := GetFunc[IOServiceCloseFunc](s.lib, IOServiceCloseSym)
 
 	if result := ioServiceClose(s.conn); result != 0 {
-		return fmt.Errorf("ERROR: IOServiceClose failed")
+		return errors.New("ERROR: IOServiceClose failed")
 	}
 	return nil
+}
+
+type CStr []byte
+
+func NewCStr(length int32) CStr {
+	return make(CStr, length)
+}
+
+func (s CStr) Length() int32 {
+	// Include null terminator to make CFStringGetCString properly functions
+	return int32(len(s)) + 1
+}
+
+func (s CStr) Ptr() *byte {
+	if len(s) < 1 {
+		return nil
+	}
+
+	return &s[0]
+}
+
+func (s CStr) Addr() uintptr {
+	return uintptr(unsafe.Pointer(s.Ptr()))
+}
+
+func (s CStr) GoString() string {
+	if s == nil {
+		return ""
+	}
+
+	var length int
+	for _, char := range s {
+		if char == '\x00' {
+			break
+		}
+		length++
+	}
+	return string(s[:length])
 }
 
 // https://github.com/ebitengine/purego/blob/main/internal/strings/strings.go#L26
@@ -354,10 +375,7 @@ func GoString(cStr *byte) string {
 		return ""
 	}
 	var length int
-	for {
-		if *(*byte)(unsafe.Add(unsafe.Pointer(cStr), uintptr(length))) == '\x00' {
-			break
-		}
+	for *(*byte)(unsafe.Add(unsafe.Pointer(cStr), uintptr(length))) != '\x00' {
 		length++
 	}
 	return string(unsafe.Slice(cStr, length))

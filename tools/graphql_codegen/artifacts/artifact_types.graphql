@@ -1,0 +1,30 @@
+fragment ArtifactTypeFragment on ArtifactType {
+  __typename
+  id
+  name
+  description
+  createdAt
+}
+
+query ProjectArtifactTypes($entity: String!, $project: String!, $cursor: String, $perPage: Int) {
+  project(name: $project, entityName: $entity) {
+    artifactTypes(after: $cursor, first: $perPage) {
+      edges {
+        node {
+          ...ArtifactTypeFragment
+        }
+      }
+      pageInfo {
+        ...PageInfoFragment
+      }
+    }
+  }
+}
+
+query ProjectArtifactType($entity: String!, $project: String!, $artifactType: String!) {
+  project(name: $project, entityName: $entity) {
+    artifactType(name: $artifactType) {
+      ...ArtifactTypeFragment
+    }
+  }
+}

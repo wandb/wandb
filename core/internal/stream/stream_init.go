@@ -3,12 +3,11 @@ package stream
 // This file contains functions to construct the objects used by a Stream.
 
 import (
+	"crypto/tls"
 	"fmt"
 	"maps"
 	"net/http"
 	"net/url"
-	"os"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
@@ -17,12 +16,8 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/waiting"
-	"github.com/wandb/wandb/core/internal/watcher"
-	"github.com/wandb/wandb/core/internal/wboperation"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"golang.org/x/time/rate"
 )
 
@@ -41,7 +36,7 @@ func NewBackend(
 			fmt.Errorf("stream_init: failed to parse base URL: %v", err))
 	}
 
-	credentialProvider, err := api.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings, logger.Logger)
 	if err != nil {
 		logger.CaptureFatalAndPanic(
 			fmt.Errorf("stream_init: failed to fetch credentials: %v", err))
@@ -92,7 +87,12 @@ func NewGraphQLClient(
 	backend *api.Backend,
 	settings *settings.Settings,
 	peeker *observability.Peeker,
+	clientID sharedmode.ClientID,
 ) graphql.Client {
+	if settings.IsOffline() {
+		return nil
+	}
+
 	// TODO: This is used for the service account feature to associate the run
 	// with the specified user. Note that we are using environment variables
 	// here, instead of the settings object (which is ideally would be the only
@@ -105,20 +105,33 @@ func NewGraphQLClient(
 	// sure that the username setting is populated correctly. Leaving this as is
 	// for now just to avoid breakage in the service account feature.
 	graphqlHeaders := map[string]string{
-		"X-WANDB-USERNAME":   os.Getenv("WANDB_USERNAME"),
-		"X-WANDB-USER-EMAIL": os.Getenv("WANDB_USER_EMAIL"),
+		"X-WANDB-USERNAME":   settings.GetUserName(),
+		"X-WANDB-USER-EMAIL": settings.GetEmail(),
 	}
 	maps.Copy(graphqlHeaders, settings.GetExtraHTTPHeaders())
+	// This header is used to indicate to the backend that the run is in shared
+	// mode to prevent a race condition when two UpsertRun requests are made
+	// simultaneously for the same run ID in shared mode.
+	if settings.IsSharedMode() {
+		graphqlHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+		graphqlHeaders["X-WANDB-CLIENT-ID"] = string(clientID)
+	}
+	// When enabled, this header instructs the backend to compute the derived summary
+	// using history updates, instead of relying on the SDK to calculate and send it.
+	if settings.IsEnableServerSideDerivedSummary() {
+		graphqlHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
+	}
 
 	opts := api.ClientOptions{
-		RetryPolicy:     clients.CheckRetry,
-		RetryMax:        api.DefaultRetryMax,
-		RetryWaitMin:    api.DefaultRetryWaitMin,
-		RetryWaitMax:    api.DefaultRetryWaitMax,
-		NonRetryTimeout: api.DefaultNonRetryTimeout,
-		ExtraHeaders:    graphqlHeaders,
-		NetworkPeeker:   peeker,
-		Proxy:           ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
+		RetryPolicy:        clients.CheckRetry,
+		RetryMax:           api.DefaultRetryMax,
+		RetryWaitMin:       api.DefaultRetryWaitMin,
+		RetryWaitMax:       api.DefaultRetryWaitMax,
+		NonRetryTimeout:    api.DefaultNonRetryTimeout,
+		ExtraHeaders:       graphqlHeaders,
+		NetworkPeeker:      peeker,
+		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
+		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
 	}
 	if retryMax := settings.GetGraphQLMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
@@ -140,28 +153,36 @@ func NewGraphQLClient(
 }
 
 func NewFileStream(
+	factory *filestream.FileStreamFactory,
 	backend *api.Backend,
-	logger *observability.CoreLogger,
-	operations *wboperation.WandbOperations,
-	printer *observability.Printer,
 	settings *settings.Settings,
 	peeker api.Peeker,
+	clientID sharedmode.ClientID,
 ) filestream.FileStream {
+	if settings.IsOffline() {
+		return nil
+	}
+
 	fileStreamHeaders := map[string]string{}
 	maps.Copy(fileStreamHeaders, settings.GetExtraHTTPHeaders())
 	if settings.IsSharedMode() {
 		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+		fileStreamHeaders["X-WANDB-ASYNC-CLIENT-ID"] = string(clientID)
+	}
+	if settings.IsEnableServerSideDerivedSummary() {
+		fileStreamHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
 	}
 
 	opts := api.ClientOptions{
-		RetryPolicy:     filestream.RetryPolicy,
-		RetryMax:        filestream.DefaultRetryMax,
-		RetryWaitMin:    filestream.DefaultRetryWaitMin,
-		RetryWaitMax:    filestream.DefaultRetryWaitMax,
-		NonRetryTimeout: filestream.DefaultNonRetryTimeout,
-		ExtraHeaders:    fileStreamHeaders,
-		NetworkPeeker:   peeker,
-		Proxy:           ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
+		RetryPolicy:        clients.RetryMostFailures,
+		RetryMax:           filestream.DefaultRetryMax,
+		RetryWaitMin:       filestream.DefaultRetryWaitMin,
+		RetryWaitMax:       filestream.DefaultRetryWaitMax,
+		NonRetryTimeout:    filestream.DefaultNonRetryTimeout,
+		ExtraHeaders:       fileStreamHeaders,
+		NetworkPeeker:      peeker,
+		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
+		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
 	}
 	if retryMax := settings.GetFileStreamMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
@@ -178,19 +199,16 @@ func NewFileStream(
 
 	fileStreamRetryClient := backend.NewClient(opts)
 
-	params := filestream.FileStreamParams{
-		Settings:   settings,
-		Logger:     logger,
-		Operations: operations,
-		Printer:    printer,
-		ApiClient:  fileStreamRetryClient,
-	}
-
+	var transmitRateLimit *rate.Limiter
 	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {
-		params.TransmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
+		transmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
 	}
 
-	return filestream.NewFileStream(params)
+	return factory.New(
+		fileStreamRetryClient,
+		/*heartbeatStopwatch=*/ nil,
+		transmitRateLimit,
+	)
 }
 
 func NewFileTransferManager(
@@ -198,6 +216,10 @@ func NewFileTransferManager(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
 ) filetransfer.FileTransferManager {
+	if settings.IsOffline() {
+		return nil
+	}
+
 	fileTransferRetryClient := retryablehttp.NewClient()
 	fileTransferRetryClient.Logger = logger
 	fileTransferRetryClient.CheckRetry = filetransfer.FileTransferRetryPolicy
@@ -216,6 +238,14 @@ func NewFileTransferManager(
 	transport := &http.Transport{
 		Proxy: ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
 	}
+
+	// Set the TLS client config to skip SSL verification if the setting is enabled.
+	if settings.IsInsecureDisableSSL() {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
 	// Set the "Proxy-Authorization" header for the CONNECT requests
 	// to the proxy server if the header is present in the extra headers.
 	if header, ok := settings.GetExtraHTTPHeaders()["Proxy-Authorization"]; ok {
@@ -245,27 +275,4 @@ func NewFileTransferManager(
 			FileTransferStats: fileTransferStats,
 		},
 	)
-}
-
-func NewRunfilesUploader(
-	extraWork runwork.ExtraWork,
-	logger *observability.CoreLogger,
-	operations *wboperation.WandbOperations,
-	settings *settings.Settings,
-	fileStream filestream.FileStream,
-	fileTransfer filetransfer.FileTransferManager,
-	fileWatcher watcher.Watcher,
-	graphQL graphql.Client,
-) runfiles.Uploader {
-	return runfiles.NewUploader(runfiles.UploaderParams{
-		ExtraWork:    extraWork,
-		Logger:       logger,
-		Operations:   operations,
-		Settings:     settings,
-		FileStream:   fileStream,
-		FileTransfer: fileTransfer,
-		GraphQL:      graphQL,
-		FileWatcher:  fileWatcher,
-		BatchDelay:   waiting.NewDelay(50 * time.Millisecond),
-	})
 }

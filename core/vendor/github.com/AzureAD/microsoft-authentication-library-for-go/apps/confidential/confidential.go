@@ -18,6 +18,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/cache"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/base"
@@ -62,6 +64,13 @@ type AuthResult = base.AuthResult
 type AuthenticationScheme = authority.AuthenticationScheme
 
 type Account = shared.Account
+
+type TokenSource = base.TokenSource
+
+const (
+	TokenSourceIdentityProvider = base.TokenSourceIdentityProvider
+	TokenSourceCache            = base.TokenSourceCache
+)
 
 // CertFromPEM converts a PEM file (.pem or .key) for use with [NewCredFromCert]. The file
 // must contain the public certificate and the private key. If a PEM block is encrypted and
@@ -303,7 +312,9 @@ func WithInstanceDiscovery(enabled bool) Option {
 // If an invalid region name is provided, the non-regional endpoint MIGHT be used or the token request MIGHT fail.
 func WithAzureRegion(val string) Option {
 	return func(o *clientOptions) {
-		o.azureRegion = val
+		if val != "" {
+			o.azureRegion = val
+		}
 	}
 }
 
@@ -315,16 +326,21 @@ func New(authority, clientID string, cred Credential, options ...Option) (Client
 	if err != nil {
 		return Client{}, err
 	}
-
+	autoEnabledRegion := os.Getenv("MSAL_FORCE_REGION")
 	opts := clientOptions{
 		authority: authority,
 		// if the caller specified a token provider, it will handle all details of authentication, using Client only as a token cache
 		disableInstanceDiscovery: cred.tokenProvider != nil,
 		httpClient:               shared.DefaultClient,
+		azureRegion:              autoEnabledRegion,
 	}
 	for _, o := range options {
 		o(&opts)
 	}
+	if strings.EqualFold(opts.azureRegion, "DisableMsalForceRegion") {
+		opts.azureRegion = ""
+	}
+
 	baseOpts := []base.Option{
 		base.WithCacheAccessor(opts.accessor),
 		base.WithClientCapabilities(opts.capabilities),
@@ -422,6 +438,7 @@ func WithClaims(claims string) interface {
 	AcquireByAuthCodeOption
 	AcquireByCredentialOption
 	AcquireOnBehalfOfOption
+	AcquireByUsernamePasswordOption
 	AcquireSilentOption
 	AuthCodeURLOption
 	options.CallOption
@@ -430,6 +447,7 @@ func WithClaims(claims string) interface {
 		AcquireByAuthCodeOption
 		AcquireByCredentialOption
 		AcquireOnBehalfOfOption
+		AcquireByUsernamePasswordOption
 		AcquireSilentOption
 		AuthCodeURLOption
 		options.CallOption
@@ -442,6 +460,8 @@ func WithClaims(claims string) interface {
 				case *acquireTokenByCredentialOptions:
 					t.claims = claims
 				case *acquireTokenOnBehalfOfOptions:
+					t.claims = claims
+				case *acquireTokenByUsernamePasswordOptions:
 					t.claims = claims
 				case *acquireTokenSilentOptions:
 					t.claims = claims
@@ -489,6 +509,7 @@ func WithTenantID(tenantID string) interface {
 	AcquireByAuthCodeOption
 	AcquireByCredentialOption
 	AcquireOnBehalfOfOption
+	AcquireByUsernamePasswordOption
 	AcquireSilentOption
 	AuthCodeURLOption
 	options.CallOption
@@ -497,6 +518,7 @@ func WithTenantID(tenantID string) interface {
 		AcquireByAuthCodeOption
 		AcquireByCredentialOption
 		AcquireOnBehalfOfOption
+		AcquireByUsernamePasswordOption
 		AcquireSilentOption
 		AuthCodeURLOption
 		options.CallOption
@@ -509,6 +531,8 @@ func WithTenantID(tenantID string) interface {
 				case *acquireTokenByCredentialOptions:
 					t.tenantID = tenantID
 				case *acquireTokenOnBehalfOfOptions:
+					t.tenantID = tenantID
+				case *acquireTokenByUsernamePasswordOptions:
 					t.tenantID = tenantID
 				case *acquireTokenSilentOptions:
 					t.tenantID = tenantID
@@ -572,6 +596,11 @@ func (cca Client) AcquireTokenSilent(ctx context.Context, scopes []string, opts 
 		return AuthResult{}, errors.New("call another AcquireToken method to request a new token having these claims")
 	}
 
+	// For service principal scenarios, require WithSilentAccount for public API
+	if o.account.IsZero() {
+		return AuthResult{}, errors.New("WithSilentAccount option is required")
+	}
+
 	silentParameters := base.AcquireTokenSilentParameters{
 		Scopes:      scopes,
 		Account:     o.account,
@@ -580,9 +609,56 @@ func (cca Client) AcquireTokenSilent(ctx context.Context, scopes []string, opts 
 		IsAppCache:  o.account.IsZero(),
 		TenantID:    o.tenantID,
 		AuthnScheme: o.authnScheme,
+		Claims:      o.claims,
 	}
 
+	return cca.acquireTokenSilentInternal(ctx, silentParameters)
+}
+
+// acquireTokenSilentInternal is the internal implementation shared by AcquireTokenSilent and AcquireTokenByCredential
+func (cca Client) acquireTokenSilentInternal(ctx context.Context, silentParameters base.AcquireTokenSilentParameters) (AuthResult, error) {
+
 	return cca.base.AcquireTokenSilent(ctx, silentParameters)
+}
+
+// acquireTokenByUsernamePasswordOptions contains optional configuration for AcquireTokenByUsernamePassword
+type acquireTokenByUsernamePasswordOptions struct {
+	claims, tenantID string
+	authnScheme      AuthenticationScheme
+}
+
+// AcquireByUsernamePasswordOption is implemented by options for AcquireTokenByUsernamePassword
+type AcquireByUsernamePasswordOption interface {
+	acquireByUsernamePasswordOption()
+}
+
+// AcquireTokenByUsernamePassword acquires a security token from the authority, via Username/Password Authentication.
+// NOTE: this flow is NOT recommended.
+//
+// Options: [WithClaims], [WithTenantID]
+func (cca Client) AcquireTokenByUsernamePassword(ctx context.Context, scopes []string, username, password string, opts ...AcquireByUsernamePasswordOption) (AuthResult, error) {
+	o := acquireTokenByUsernamePasswordOptions{}
+	if err := options.ApplyOptions(&o, opts); err != nil {
+		return AuthResult{}, err
+	}
+	authParams, err := cca.base.AuthParams.WithTenant(o.tenantID)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	authParams.Scopes = scopes
+	authParams.AuthorizationType = authority.ATUsernamePassword
+	authParams.Claims = o.claims
+	authParams.Username = username
+	authParams.Password = password
+	if o.authnScheme != nil {
+		authParams.AuthnScheme = o.authnScheme
+	}
+
+	token, err := cca.base.Token.UsernamePassword(ctx, authParams)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	return cca.base.AuthResultFromToken(ctx, authParams, token)
 }
 
 // acquireTokenByAuthCodeOptions contains the optional parameters used to acquire an access token using the authorization code flow.
@@ -644,8 +720,10 @@ func (cca Client) AcquireTokenByAuthCode(ctx context.Context, code string, redir
 
 // acquireTokenByCredentialOptions contains optional configuration for AcquireTokenByCredential
 type acquireTokenByCredentialOptions struct {
-	claims, tenantID string
-	authnScheme      AuthenticationScheme
+	claims, tenantID    string
+	authnScheme         AuthenticationScheme
+	extraBodyParameters map[string]string
+	cacheKeyComponents  map[string]string
 }
 
 // AcquireByCredentialOption is implemented by options for AcquireTokenByCredential
@@ -655,7 +733,7 @@ type AcquireByCredentialOption interface {
 
 // AcquireTokenByCredential acquires a security token from the authority, using the client credentials grant.
 //
-// Options: [WithClaims], [WithTenantID]
+// Options: [WithClaims], [WithTenantID], [WithFMIPath], [WithAttribute]
 func (cca Client) AcquireTokenByCredential(ctx context.Context, scopes []string, opts ...AcquireByCredentialOption) (AuthResult, error) {
 	o := acquireTokenByCredentialOptions{}
 	err := options.ApplyOptions(&o, opts)
@@ -672,11 +750,34 @@ func (cca Client) AcquireTokenByCredential(ctx context.Context, scopes []string,
 	if o.authnScheme != nil {
 		authParams.AuthnScheme = o.authnScheme
 	}
+	authParams.ExtraBodyParameters = o.extraBodyParameters
+	authParams.CacheKeyComponents = o.cacheKeyComponents
+	if o.claims == "" {
+		silentParameters := base.AcquireTokenSilentParameters{
+			Scopes:              scopes,
+			Account:             Account{}, // empty account for app token
+			RequestType:         accesstokens.ATConfidential,
+			Credential:          cca.cred,
+			IsAppCache:          true,
+			TenantID:            o.tenantID,
+			AuthnScheme:         o.authnScheme,
+			Claims:              o.claims,
+			ExtraBodyParameters: o.extraBodyParameters,
+			CacheKeyComponents:  o.cacheKeyComponents,
+		}
+
+		// Use internal method with empty account (service principal scenario)
+		cache, err := cca.acquireTokenSilentInternal(ctx, silentParameters)
+		if err == nil {
+			return cache, nil
+		}
+	}
+
 	token, err := cca.base.Token.Credential(ctx, authParams, cca.cred)
 	if err != nil {
 		return AuthResult{}, err
 	}
-	return cca.base.AuthResultFromToken(ctx, authParams, token, true)
+	return cca.base.AuthResultFromToken(ctx, authParams, token)
 }
 
 // acquireTokenOnBehalfOfOptions contains optional configuration for AcquireTokenOnBehalfOf
@@ -716,4 +817,64 @@ func (cca Client) Account(ctx context.Context, accountID string) (Account, error
 // RemoveAccount signs the account out and forgets account from token cache.
 func (cca Client) RemoveAccount(ctx context.Context, account Account) error {
 	return cca.base.RemoveAccount(ctx, account)
+}
+
+// WithFMIPath specifies the path to a federated managed identity.
+// The path should point to a valid FMI configuration file that contains the necessary
+// identity information for authentication.
+func WithFMIPath(path string) interface {
+	AcquireByCredentialOption
+	options.CallOption
+} {
+	return struct {
+		AcquireByCredentialOption
+		options.CallOption
+	}{
+		CallOption: options.NewCallOption(
+			func(a any) error {
+				switch t := a.(type) {
+				case *acquireTokenByCredentialOptions:
+					if t.extraBodyParameters == nil {
+						t.extraBodyParameters = make(map[string]string)
+					}
+					if t.cacheKeyComponents == nil {
+						t.cacheKeyComponents = make(map[string]string)
+					}
+					t.cacheKeyComponents["fmi_path"] = path
+					t.extraBodyParameters["fmi_path"] = path
+				default:
+					return fmt.Errorf("unexpected options type %T", a)
+				}
+				return nil
+			},
+		),
+	}
+}
+
+// WithAttribute specifies an identity attribute to include in the token request.
+// The attribute is sent as "attributes" in the request body and returned as "xmc_attr"
+// in the access token claims. This is sometimes used withFMIPath
+func WithAttribute(attrValue string) interface {
+	AcquireByCredentialOption
+	options.CallOption
+} {
+	return struct {
+		AcquireByCredentialOption
+		options.CallOption
+	}{
+		CallOption: options.NewCallOption(
+			func(a any) error {
+				switch t := a.(type) {
+				case *acquireTokenByCredentialOptions:
+					if t.extraBodyParameters == nil {
+						t.extraBodyParameters = make(map[string]string)
+					}
+					t.extraBodyParameters["attributes"] = attrValue
+				default:
+					return fmt.Errorf("unexpected options type %T", a)
+				}
+				return nil
+			},
+		),
+	}
 }

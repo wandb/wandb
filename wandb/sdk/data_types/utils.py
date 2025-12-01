@@ -1,13 +1,13 @@
 import datetime
 import logging
 import os
-import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 import wandb
 from wandb import util
 
+from ..internal import incremental_table_util
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
 from .image import _server_accepts_image_filenames
@@ -101,7 +101,7 @@ def val_to_json(
 
             items = _prune_max_seq(val)
 
-            if _server_accepts_image_filenames():
+            if _server_accepts_image_filenames(run):
                 for item in items:
                     item.bind_to_run(
                         run=run,
@@ -148,15 +148,7 @@ def val_to_json(
                 "partitioned-table",
                 "joined-table",
             ]:
-                # Special conditional to log tables as artifact entries as well.
-                # I suspect we will generalize this as we transition to storing all
-                # files in an artifact
-                # we sanitize the key to meet the constraints
-                # in this case, leaving only alphanumerics or underscores.
-                sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
-                art = wandb.Artifact(f"run-{run.id}-{sanitized_key}", "run_table")
-                art.add(val, key)
-                run.log_artifact(art)
+                _log_table_artifact(val, key, run)
 
             # Partitioned tables and joined tables do not support being bound to runs.
             if not (
@@ -165,9 +157,49 @@ def val_to_json(
             ):
                 val.bind_to_run(run, key, namespace)
 
-        return val.to_json(run)
+        res = val.to_json(run)
+
+        if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+            # Set the _last_logged_idx AFTER the Table has been logged and
+            # bound to the run.
+            val._last_logged_idx = len(val.data) - 1
+        return res
 
     return converted  # type: ignore
+
+
+def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
+    """Log a table to the run based on the table type and logging mode.
+
+    Creates and logs a `run_table` type for Table, PartitionedTable, and
+    JoinedTable values. For tables with log_mode="INCREMENTAL", creates and
+    logs an incremental artifact of type `wandb-run-incremental-table.`
+
+    Args:
+        val: A wbvalue with log_type "table", "partitioned-table",
+            or "joined-table."
+        key: The key used to log val.
+        run: The LocalRun used to log val.
+    """
+    from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
+    if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+        if (
+            run.resumed
+            and val._previous_increments_paths is None
+            and val._increment_num is None
+        ):
+            val._load_incremental_table_state_from_resumed_run(run, key)
+        else:
+            val._set_incremental_table_run_target(run)
+        art = incremental_table_util.init_artifact(run, key)
+        entry_name = incremental_table_util.get_entry_name(val, key)
+    else:
+        art = InternalArtifact(f"run-{run.id}-{key}", "run_table")
+        entry_name = key
+
+    art.add(val, entry_name)
+    run.log_artifact(art)
 
 
 def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
@@ -175,8 +207,7 @@ def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"
     items = seq
     if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):
         logging.warning(
-            "Only %i %s will be uploaded."
-            % (seq[0].MAX_ITEMS, seq[0].__class__.__name__)
+            f"Only {seq[0].MAX_ITEMS} {seq[0].__class__.__name__} will be uploaded."
         )
         items = seq[: seq[0].MAX_ITEMS]
     return items

@@ -28,26 +28,11 @@ Usage:
     ```
 """
 
-import sys
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import (
-    Callable,
-    Dict,
-    Generic,
-    Optional,
-    Protocol,
-    Sequence,
-    Type,
-    TypeVar,
-    Union,
-    runtime_checkable,
-)
+from typing import Callable, Dict, Generic, Optional, Sequence, Type, Union
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
+from typing_extensions import Protocol, TypeAlias, TypeVar, runtime_checkable
 
 T_FsmInputs = TypeVar("T_FsmInputs", contravariant=True)
 T_FsmContext = TypeVar("T_FsmContext")
@@ -93,7 +78,7 @@ class FsmStateExit(Protocol[T_FsmInputs, T_FsmContext_cov]):
     def on_exit(self, inputs: T_FsmInputs) -> T_FsmContext_cov: ...  # pragma: no cover
 
 
-# It would be nice if python provided optional protocol members, but it doesnt as described here:
+# It would be nice if python provided optional protocol members, but it does not as described here:
 #   https://peps.python.org/pep-0544/#support-optional-protocol-members
 # Until then, we can only enforce that a state at least supports one protocol interface.  This
 # unfortunately will not check the signature of other potential protocols.

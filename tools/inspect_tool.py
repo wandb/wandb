@@ -1,3 +1,11 @@
+# /// script
+# requires-python = ">=3.8"
+# dependencies = [
+#   "fire",
+#   "wandb",
+# ]
+# ///
+
 import fire
 import wandb
 from wandb.proto import wandb_internal_pb2
@@ -29,7 +37,7 @@ def inspect_wandb_transaction_log(wandb_file: str, pause: bool = False) -> None:
                 )
                 return None
             else:
-                raise e
+                raise
 
     ds = datastore.DataStore()
     try:

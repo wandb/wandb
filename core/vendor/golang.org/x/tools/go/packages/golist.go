@@ -224,13 +224,22 @@ extractQueries:
 	return response.dr, nil
 }
 
+// abs returns an absolute representation of path, based on cfg.Dir.
+func (cfg *Config) abs(path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+	// In case cfg.Dir is relative, pass it to filepath.Abs.
+	return filepath.Abs(filepath.Join(cfg.Dir, path))
+}
+
 func (state *golistState) runContainsQueries(response *responseDeduper, queries []string) error {
 	for _, query := range queries {
 		// TODO(matloob): Do only one query per directory.
 		fdir := filepath.Dir(query)
 		// Pass absolute path of directory to go list so that it knows to treat it as a directory,
 		// not a package path.
-		pattern, err := filepath.Abs(fdir)
+		pattern, err := state.cfg.abs(fdir)
 		if err != nil {
 			return fmt.Errorf("could not determine absolute path of file= query path %q: %v", query, err)
 		}
@@ -322,6 +331,7 @@ type jsonPackage struct {
 	ImportPath        string
 	Dir               string
 	Name              string
+	Target            string
 	Export            string
 	GoFiles           []string
 	CompiledGoFiles   []string
@@ -352,12 +362,6 @@ type jsonPackage struct {
 
 	Error      *packagesinternal.PackageError
 	DepsErrors []*packagesinternal.PackageError
-}
-
-type jsonPackageError struct {
-	ImportStack []string
-	Pos         string
-	Err         string
 }
 
 func otherFiles(p *jsonPackage) [][]string {
@@ -505,13 +509,15 @@ func (state *golistState) createDriverResponse(words ...string) (*DriverResponse
 		pkg := &Package{
 			Name:            p.Name,
 			ID:              p.ImportPath,
+			Dir:             p.Dir,
+			Target:          p.Target,
 			GoFiles:         absJoin(p.Dir, p.GoFiles, p.CgoFiles),
 			CompiledGoFiles: absJoin(p.Dir, p.CompiledGoFiles),
 			OtherFiles:      absJoin(p.Dir, otherFiles(p)...),
 			EmbedFiles:      absJoin(p.Dir, p.EmbedFiles),
 			EmbedPatterns:   absJoin(p.Dir, p.EmbedPatterns),
 			IgnoredFiles:    absJoin(p.Dir, p.IgnoredGoFiles, p.IgnoredOtherFiles),
-			forTest:         p.ForTest,
+			ForTest:         p.ForTest,
 			depsErrors:      p.DepsErrors,
 			Module:          p.Module,
 		}
@@ -700,9 +706,8 @@ func (state *golistState) getGoVersion() (int, error) {
 // getPkgPath finds the package path of a directory if it's relative to a root
 // directory.
 func (state *golistState) getPkgPath(dir string) (string, bool, error) {
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		return "", false, err
+	if !filepath.IsAbs(dir) {
+		panic("non-absolute dir passed to getPkgPath")
 	}
 	roots, err := state.determineRootDirs()
 	if err != nil {
@@ -712,7 +717,7 @@ func (state *golistState) getPkgPath(dir string) (string, bool, error) {
 	for rdir, rpath := range roots {
 		// Make sure that the directory is in the module,
 		// to avoid creating a path relative to another module.
-		if !strings.HasPrefix(absDir, rdir) {
+		if !strings.HasPrefix(dir, rdir) {
 			continue
 		}
 		// TODO(matloob): This doesn't properly handle symlinks.
@@ -795,7 +800,7 @@ func jsonFlag(cfg *Config, goVersion int) string {
 		// Request Dir in the unlikely case Export is not absolute.
 		addFields("Dir", "Export")
 	}
-	if cfg.Mode&needInternalForTest != 0 {
+	if cfg.Mode&NeedForTest != 0 {
 		addFields("ForTest")
 	}
 	if cfg.Mode&needInternalDepsErrors != 0 {
@@ -809,6 +814,9 @@ func jsonFlag(cfg *Config, goVersion int) string {
 	}
 	if cfg.Mode&NeedEmbedPatterns != 0 {
 		addFields("EmbedPatterns")
+	}
+	if cfg.Mode&NeedTarget != 0 {
+		addFields("Target")
 	}
 	return "-json=" + strings.Join(fields, ",")
 }
@@ -845,8 +853,6 @@ func (state *golistState) cfgInvocation() gocommand.Invocation {
 	cfg := state.cfg
 	return gocommand.Invocation{
 		BuildFlags: cfg.BuildFlags,
-		ModFile:    cfg.modFile,
-		ModFlag:    cfg.modFlag,
 		CleanEnv:   cfg.Env != nil,
 		Env:        cfg.Env,
 		Logf:       cfg.Logf,

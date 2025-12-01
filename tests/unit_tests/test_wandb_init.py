@@ -1,114 +1,66 @@
-from unittest.mock import MagicMock, patch
+import os
+import tempfile
 
 import pytest
 import wandb
-from wandb.errors import Error
-from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.wandb_init import _WandbInit
 
 
-@pytest.mark.wandb_core_only
-def test_init(test_settings):
-    class MyExitError(Exception):
+def test_no_root_dir_access__uses_temp_dir(tmp_path, monkeypatch):
+    temp_dir = tempfile.gettempdir()
+    root_dir = tmp_path / "create_dir_test"
+    os.makedirs(root_dir, exist_ok=True)
+
+    monkeypatch.setattr(
+        os,
+        "access",
+        lambda path, mode: not (
+            mode == (os.R_OK | os.W_OK) and str(path) == str(root_dir)
+        ),
+    )
+
+    with wandb.init(dir=root_dir, mode="offline") as run:
+        run.log({"test": 1})
+
+    assert run.settings.root_dir == temp_dir
+
+
+def test_no_temp_dir_access__throws_error(monkeypatch):
+    monkeypatch.setattr(os, "access", lambda path, mode: False)
+
+    temp_dir = tempfile.gettempdir()
+    monkeypatch.setattr(
+        os,
+        "access",
+        lambda path, mode: not (
+            mode == (os.R_OK | os.W_OK) and str(path) == str(temp_dir)
+        ),
+    )
+
+    with pytest.raises(ValueError):
+        with wandb.init(dir=temp_dir, mode="offline") as run:
+            run.log({"test": 1})
+
+
+def test_makedirs_raises_oserror__uses_temp_dir(tmp_path, monkeypatch):
+    tmp_file = tmp_path / "test.txt"
+    tmp_file.touch()
+
+    with wandb.init(dir=str(tmp_file / "dir2"), mode="offline") as run:
+        run.log({"test": 1})
+
+    assert run.settings.root_dir == tempfile.gettempdir()
+
+
+def test_avoids_sync_dir_conflict(mocker):
+    # Make the run start time the same for all runs.
+    mocker.patch("time.time", return_value=123)
+
+    with wandb.init(mode="offline", id="sync-dir-test") as run1:
+        pass
+    with wandb.init(mode="offline", id="sync-dir-test") as run2:
+        pass
+    with wandb.init(mode="offline", id="sync-dir-test") as run3:
         pass
 
-    with patch("wandb.sdk.wandb_init._WandbInit", autospec=True) as mocked_wandbinit:
-        with patch("wandb.sdk.wandb_init.logger", autospec=True), patch(
-            "wandb._sentry.exception", autospec=True
-        ), patch("wandb._assert_is_user_process", side_effect=lambda: None):
-            instance = mocked_wandbinit.return_value
-            instance.settings = test_settings()
-            instance.setup.side_effect = lambda **_: None
-            instance.init.side_effect = MyExitError("test")
-            with pytest.raises(MyExitError):
-                wandb.init()
-
-
-def test_init_reinit(test_settings):
-    with patch("wandb.sdk.wandb_init.logger", autospec=True), patch(
-        "wandb.sdk.wandb_init.trigger", autospec=True
-    ), patch("wandb.sdk.wandb_init.Mailbox", autospec=True), patch(
-        "wandb.sdk.wandb_init.Run",
-        MagicMock(_run_obj=pb.RunRecord(), _launch_artifact_mapping={}),
-    ) as mocked_run, patch(
-        "wandb.sdk.wandb_init.Backend", autospec=True
-    ) as mocked_backend:
-        backend_instance = mocked_backend.return_value
-        backend_instance._multiprocessing = MagicMock()
-
-        handle_mock = MagicMock(
-            wait=MagicMock(
-                side_effect=lambda *args, **kwargs: pb.Result(
-                    run_result=pb.RunUpdateResult(
-                        run=pb.RunRecord(), error=pb.ErrorInfo()
-                    )
-                )
-            )
-        )
-        interface_instance = MagicMock(
-            deliver_run=MagicMock(side_effect=lambda _: handle_mock)
-        )
-        backend_instance.interface = interface_instance
-
-        run_instance = mocked_run.return_value
-
-        wandbinit = _WandbInit()
-        wandbinit.kwargs = {}
-        wandbinit.settings = test_settings({"reinit": True, "run_id": "test"})
-        wandbinit.init_artifact_config = {}
-        last_run_instance = MagicMock()
-        wandbinit._wl = MagicMock(
-            _global_run_stack=[last_run_instance],
-            _get_manager=MagicMock(side_effect=lambda: MagicMock()),
-        )
-
-        with patch("wandb.sdk.wandb_init.ipython", autospec=True), patch(
-            "wandb.sdk.lib.ipython._get_python_type", side_effect=lambda: "jupyter"
-        ):
-            wandbinit.init()
-
-        assert interface_instance.publish_header.call_count == 1
-        assert interface_instance.deliver_run.call_count == 1
-        assert interface_instance.deliver_run_start.call_count == 1
-        assert backend_instance.ensure_launched.call_count == 1
-        assert run_instance._on_start.call_count == 1
-        assert run_instance._on_init.call_count == 1
-        assert last_run_instance.finish.call_count == 1
-
-
-def test_init_internal_error(test_settings):
-    with patch("wandb.sdk.wandb_init.logger", autospec=True), patch(
-        "wandb.sdk.wandb_init.trigger", autospec=True
-    ), patch("wandb.sdk.wandb_init.Mailbox", autospec=True), patch(
-        "wandb.sdk.wandb_init.Backend", autospec=True
-    ) as mocked_backend:
-        backend_instance = mocked_backend.return_value
-        backend_instance._multiprocessing = MagicMock()
-
-        handle_mock = MagicMock(
-            wait=MagicMock(
-                side_effect=lambda *args, **kwargs: pb.Result(
-                    run_result=pb.RunUpdateResult(error=pb.ErrorInfo())
-                )
-            )
-        )
-        interface_instance = MagicMock(
-            deliver_run=MagicMock(side_effect=lambda _: handle_mock)
-        )
-        backend_instance.interface = interface_instance
-
-        wandbinit = _WandbInit()
-        wandbinit.kwargs = {}
-        wandbinit.settings = test_settings({"run_id": "test"})
-        wandbinit._wl = MagicMock(
-            _get_manager=MagicMock(side_effect=lambda: MagicMock()),
-        )
-
-        with patch("wandb.sdk.wandb_init.wandb.run", return_value=None):
-            with pytest.raises(Error):
-                wandbinit.init()
-
-        assert interface_instance.publish_header.call_count == 1
-        assert interface_instance.deliver_run.call_count == 1
-        assert backend_instance.ensure_launched.call_count == 1
-        assert interface_instance.deliver_run_start.call_count == 0
+    assert run2.settings.sync_dir == run1.settings.sync_dir + "-1"
+    assert run3.settings.sync_dir == run1.settings.sync_dir + "-2"

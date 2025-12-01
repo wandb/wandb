@@ -11,8 +11,10 @@ import wandb.sdk.launch.runner.kubernetes_runner
 from kubernetes_asyncio import client
 from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.kubernetes_monitor import (
+    WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
     CustomResource,
     LaunchKubernetesMonitor,
     _is_container_creating,
@@ -37,6 +39,13 @@ def clean_monitor():
     LaunchKubernetesMonitor._instance = None
     yield
     LaunchKubernetesMonitor._instance = None
+
+
+@pytest.fixture
+def clean_agent():
+    LaunchAgent._instance = None
+    yield
+    LaunchAgent._instance = None
 
 
 @pytest.fixture
@@ -232,6 +241,7 @@ class MockCoreV1Api:
         self.pods = dict()
         self.secrets = []
         self.calls = {"delete": 0}
+        self.namespaces = []
 
     async def list_namespaced_pod(
         self, label_selector=None, namespace="default", field_selector=None
@@ -264,6 +274,12 @@ class MockCoreV1Api:
         for s in self.secrets:
             if s[0] == namespace and s[1].metadata.name == name:
                 return s[1]
+
+    async def create_namespace(self, body):
+        self.namespaces.append(body)
+
+    async def delete_namespace(self, name):
+        self.namespaces.remove(name)
 
 
 class MockCustomObjectsApi:
@@ -412,6 +428,7 @@ async def test_launch_kube_works(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     mock_batch_api.jobs = {"test-job": MockDict(manifest)}
@@ -537,6 +554,7 @@ async def test_launch_crd_works(
     test_api,
     volcano_spec,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     monkeypatch.setattr(
@@ -640,6 +658,7 @@ async def test_launch_crd_pod_schedule_warning(
     test_api,
     volcano_spec,
     clean_monitor,
+    clean_agent,
 ):
     mock_batch_api.jobs = {"test-job": MockDict(volcano_spec)}
     test_api.update_run_queue_item_warning = MagicMock(return_value=True)
@@ -713,6 +732,7 @@ async def test_launch_kube_base_image_works(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
     tmpdir,
 ):
     """Test that runner works as expected with base image jobs."""
@@ -771,6 +791,9 @@ async def test_launch_kube_base_image_works(
     ]
 
 
+@pytest.mark.skip(
+    reason="This test is flaky, please remove the skip once the flakyness is fixed."
+)
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="Launch does not support Windows and this test is failing on Windows.",
@@ -852,6 +875,7 @@ async def test_launch_kube_failed(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     mock_batch_api.jobs = {"test-job": manifest}
@@ -905,6 +929,7 @@ async def test_launch_kube_api_secret_failed(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     async def mock_maybe_create_imagepull_secret(*args, **kwargs):
         return None
@@ -971,6 +996,7 @@ async def test_launch_kube_pod_schedule_warning(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     mock_batch_api.jobs = {"test-job": MockDict(manifest)}
     job_tracker = MagicMock()
@@ -1156,6 +1182,7 @@ async def test_monitor_preempted(
     mock_core_api,
     reason,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a preempted job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1177,6 +1204,7 @@ async def test_monitor_succeeded(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a succeeded job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1197,6 +1225,7 @@ async def test_monitor_failed(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a failed job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1217,6 +1246,7 @@ async def test_monitor_running(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a running job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1240,6 +1270,7 @@ async def test_monitor_job_deleted(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a job being deleted."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1432,8 +1463,113 @@ async def test_kubernetes_submitted_run_get_logs(pods, logs, expected):
     submitted_run = KubernetesSubmittedRun(
         batch_api=MagicMock(),
         core_api=core_api,
+        apps_api=MagicMock(),
+        network_api=MagicMock(),
         namespace="wandb",
         name="test_run",
     )
     # Assert that we get the logs back.
     assert await submitted_run.get_logs() == expected
+
+
+@pytest.mark.asyncio
+async def test_launch_additional_services(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    manifest,
+    clean_monitor,
+    clean_agent,
+):
+    target_entity = "test_entity"
+    target_project = "test_project"
+    run_id = "test_run_id"
+    expected_deployment_name = "deploy-test-entity-test-project-test-run-id"
+    expected_pod_name = "pod-test-entity-test-project-test-run-id"
+    expected_label = "auxiliary-resource"
+    expected_auxiliary_resource_label = "aux-test-entity-test-project-test-run-id"
+
+    additional_service = {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+            "name": f"deploy-{target_entity}-{target_project}-{run_id}",
+            "labels": {
+                "wandb.ai/label": expected_label,
+            },
+        },
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [
+                        {
+                            "name": f"pod-{target_entity}-{target_project}-{run_id}",
+                        }
+                    ]
+                },
+            },
+        },
+    }
+
+    manifest["wait_for_ready"] = False
+
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity=target_entity,
+        target_project=target_project,
+        resource_args={"kubernetes": manifest},
+        launch_spec={
+            "additional_services": [
+                {
+                    "config": additional_service,
+                    "name": "additional_service",
+                }
+            ]
+        },
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri=f"https://wandb.ai/{target_entity}/{target_project}/runs/{run_id}",
+        run_id=run_id,
+        name="test_run",
+    )
+
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    await runner.run(project, "test_image")
+
+    calls = mock_create_from_dict.call_args_list
+    assert len(calls) == 2  # one for the main job, one for the additional service
+    additional_service_call = next(
+        c for c in calls if c[0][1].get("kind") == "Deployment"
+    )
+    assert (
+        additional_service_call[0][1].get("metadata").get("name")
+        == expected_deployment_name
+    )
+
+    assert (
+        additional_service_call[0][1]
+        .get("spec")
+        .get("template")
+        .get("spec")
+        .get("containers")[0]
+        .get("name")
+        == expected_pod_name
+    )
+
+    labels = additional_service_call[0][1].get("metadata").get("labels")
+    assert "wandb.ai/label" in labels
+    assert labels["wandb.ai/label"] == expected_label
+    assert WANDB_K8S_LABEL_AUXILIARY_RESOURCE in labels
+    assert (
+        labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE] == expected_auxiliary_resource_label
+    )

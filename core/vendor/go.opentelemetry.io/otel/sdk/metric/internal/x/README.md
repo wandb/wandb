@@ -1,45 +1,15 @@
 # Experimental Features
 
-The metric SDK contains features that have not yet stabilized in the OpenTelemetry specification.
-These features are added to the OpenTelemetry Go metric SDK prior to stabilization in the specification so that users can start experimenting with them and provide feedback.
+The Metric SDK contains features that have not yet stabilized in the OpenTelemetry specification.
+These features are added to the OpenTelemetry Go Metric SDK prior to stabilization in the specification so that users can start experimenting with them and provide feedback.
 
 These feature may change in backwards incompatible ways as feedback is applied.
 See the [Compatibility and Stability](#compatibility-and-stability) section for more information.
 
 ## Features
 
-- [Cardinality Limit](#cardinality-limit)
 - [Exemplars](#exemplars)
-
-### Cardinality Limit
-
-The cardinality limit is the hard limit on the number of metric streams that can be collected for a single instrument.
-
-This experimental feature can be enabled by setting the `OTEL_GO_X_CARDINALITY_LIMIT` environment value.
-The value must be an integer value.
-All other values are ignored.
-
-If the value set is less than or equal to `0`, no limit will be applied.
-
-#### Examples
-
-Set the cardinality limit to 2000.
-
-```console
-export OTEL_GO_X_CARDINALITY_LIMIT=2000
-```
-
-Set an infinite cardinality limit (functionally equivalent to disabling the feature).
-
-```console
-export OTEL_GO_X_CARDINALITY_LIMIT=-1
-```
-
-Disable the cardinality limit.
-
-```console
-unset OTEL_GO_X_CARDINALITY_LIMIT
-```
+- [Instrument Enabled](#instrument-enabled)
 
 ### Exemplars
 
@@ -100,6 +70,24 @@ Revert to the default exemplar filter (`"trace_based"`)
 
 ```console
 unset OTEL_METRICS_EXEMPLAR_FILTER
+```
+
+### Instrument Enabled
+
+To help users avoid performing computationally expensive operations when recording measurements, synchronous instruments provide an `Enabled` method.
+
+#### Examples
+
+The following code shows an example of how to check if an instrument implements the `EnabledInstrument` interface before using the `Enabled` function to avoid doing an expensive computation:
+
+```go
+type enabledInstrument interface { Enabled(context.Context) bool }
+
+ctr, err := m.Int64Counter("expensive-counter")
+c, ok := ctr.(enabledInstrument)
+if !ok || c.Enabled(context.Background()) {
+    c.Add(expensiveComputation())
+}
 ```
 
 ## Compatibility and Stability

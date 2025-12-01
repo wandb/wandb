@@ -2,16 +2,23 @@ package filetransfer
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/sync/errgroup"
@@ -33,6 +40,10 @@ type AzureBlobClient interface {
 type AzureAccountClient interface {
 	DownloadFile(ctx context.Context, containerName string, blobName string, destination *os.File, options *azblob.DownloadFileOptions) (int64, error)
 	NewListBlobsFlatPager(containerName string, options *azblob.ListBlobsFlatOptions) *runtime.Pager[azblob.ListBlobsFlatResponse]
+}
+
+type AzureBlockBlobClient interface {
+	UploadStream(ctx context.Context, body io.Reader, options *blockblob.UploadStreamOptions) (blockblob.UploadStreamResponse, error)
 }
 
 // AzureClientsMap is a map of account URLs/container names to client objects.
@@ -124,27 +135,41 @@ type AzureFileTransfer struct {
 
 	// blobClient is a client for a specific blob
 	blobClient AzureBlobClient
+
+	// blockBlobClient is a client for a specific blob
+	blockBlobClient AzureBlockBlobClient
+}
+
+type AzureClientOverrides struct {
+	AccountClients  *AzureClientsMap[AzureAccountClient]
+	BlobClient      AzureBlobClient
+	BlockBlobClient AzureBlockBlobClient
 }
 
 // NewAzureFileTransfer creates a new fileTransfer.
 func NewAzureFileTransfer(
-	clients *AzureClientsMap[AzureAccountClient],
+	clientOverrides *AzureClientOverrides,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
-	blobClient AzureBlobClient,
 ) *AzureFileTransfer {
 	ctx := context.Background()
-	if clients == nil {
-		clients = NewAzureClientsMap[AzureAccountClient]()
-	}
-	return &AzureFileTransfer{
+	fileTransfer := &AzureFileTransfer{
 		logger:            logger,
 		fileTransferStats: fileTransferStats,
 		ctx:               ctx,
-		clients:           clients,
+		clients:           NewAzureClientsMap[AzureAccountClient](),
 		containerClients:  NewAzureClientsMap[*container.Client](),
-		blobClient:        blobClient,
+		blobClient:        nil,
+		blockBlobClient:   nil,
 	}
+	if clientOverrides != nil {
+		if clientOverrides.AccountClients != nil {
+			fileTransfer.clients = clientOverrides.AccountClients
+		}
+		fileTransfer.blobClient = clientOverrides.BlobClient
+		fileTransfer.blockBlobClient = clientOverrides.BlockBlobClient
+	}
+	return fileTransfer
 }
 
 // setupBlobClient sets up a client for a specific blob.
@@ -169,12 +194,114 @@ func setupBlobClient(
 	return client, nil
 }
 
-// Upload uploads a file to the server. This method is not yet implemented, but
-// is required for the FileTransfer interface.
-func (ft *AzureFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
-	ft.logger.Debug("Azure file transfer: uploading file", "path", task.PathOrPrefix)
+// Upload implements ArtifactFileTransfer.Upload
+func (ft *AzureFileTransfer) Upload(task *DefaultUploadTask) error {
+	ft.logger.Debug("Azure file transfer: uploading file", "path", task.Path, "url", task.Url)
+
+	// open the file for reading and defer closing it
+	file, err := os.Open(task.Path)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"azure file transfer: upload: error closing file %s: %v",
+					task.Path,
+					err,
+				))
+		}
+	}(file)
+
+	requestBody, err := getUploadRequestBody(task, file, ft.fileTransferStats, ft.logger)
+	if err != nil {
+		return err
+	}
+
+	resp, err := ft.uploadBlob(task, requestBody)
+	if err != nil {
+		return err
+	}
+	task.Response = resp
 
 	return nil
+}
+
+// uploadBlob uploads the given request body to a blob at task.Url.
+func (ft *AzureFileTransfer) uploadBlob(task *DefaultUploadTask, requestBody io.Reader) (*http.Response, error) {
+	clientOptions := blockblob.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Retry: policy.RetryOptions{
+				MaxRetries: 0,
+			},
+		},
+	}
+	blockBlobClient := ft.blockBlobClient
+	if blockBlobClient == nil {
+		client, err := blockblob.NewClientWithNoCredential(task.Url, &clientOptions)
+		if err != nil {
+			return nil, err
+		}
+		blockBlobClient = client
+	}
+
+	uploadOptions := blockblob.UploadStreamOptions{
+		Concurrency: 4,
+		BlockSize:   4 * 1024,
+		HTTPHeaders: &blob.HTTPHeaders{},
+	}
+
+	for _, header := range task.Headers {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) != 2 {
+			ft.logger.Error("file transfer: upload: invalid header", "header", header)
+			continue
+		}
+		switch parts[0] {
+		case "Content-MD5":
+			md5, err := base64.StdEncoding.DecodeString(parts[1])
+			if err != nil {
+				return nil, err
+			}
+			uploadOptions.HTTPHeaders.BlobContentMD5 = md5
+		case "Content-Type":
+			uploadOptions.HTTPHeaders.BlobContentType = &parts[1]
+		}
+	}
+
+	resp, err := blockBlobClient.UploadStream(context.Background(), requestBody, &uploadOptions)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Response{
+		StatusCode: 200,
+		Status:     "OK",
+		Header:     getHeadersFromResponse(resp),
+	}, nil
+}
+
+// getHeadersFromResponse gets the relevant headers from the upload response.
+func getHeadersFromResponse(resp blockblob.UploadStreamResponse) http.Header {
+	header := http.Header{}
+	if resp.ETag != nil {
+		header.Set("ETag", string(*resp.ETag))
+	}
+	if resp.ClientRequestID != nil {
+		header.Set("Client-Request-ID", *resp.ClientRequestID)
+	}
+	if resp.RequestID != nil {
+		header.Set("Request-ID", *resp.RequestID)
+	}
+	if resp.Date != nil {
+		header.Set("Date", resp.Date.Format(time.UnixDate))
+	}
+	if resp.LastModified != nil {
+		header.Set("Last-Modified", resp.LastModified.Format(time.UnixDate))
+	}
+	header.Set("Content-MD5", base64.StdEncoding.EncodeToString(resp.ContentMD5))
+	return header
 }
 
 type ParsedBlobInfo struct {
@@ -183,7 +310,7 @@ type ParsedBlobInfo struct {
 	BlobPrefix string
 }
 
-// Download downloads a file from the server.
+// Download implements ArtifactFileTransfer.Download
 func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	ft.logger.Debug(
 		"Azure file transfer: downloading file",

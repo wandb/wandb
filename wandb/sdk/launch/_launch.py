@@ -4,8 +4,6 @@ import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
-
 import wandb
 from wandb.apis.internal import Api
 
@@ -55,7 +53,7 @@ def set_launch_logfile(logfile: str) -> None:
     _launch_logger.log(logging.INFO, "Internal agent logs printing to %s", logfile)
 
 
-def resolve_agent_config(  # noqa: C901
+def resolve_agent_config(
     entity: Optional[str],
     max_jobs: Optional[int],
     queues: Optional[Tuple[str]],
@@ -75,6 +73,8 @@ def resolve_agent_config(  # noqa: C901
     Returns:
         Tuple[Dict[str, Any], Api]: The resolved config and api.
     """
+    import yaml
+
     defaults = {
         "max_jobs": 1,
         "max_schedulers": 1,

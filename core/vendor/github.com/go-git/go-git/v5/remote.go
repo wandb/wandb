@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-git/go-billy/v5/osfs"
+
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/internal/url"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -82,7 +83,7 @@ func (r *Remote) String() string {
 	var fetch, push string
 	if len(r.c.URLs) > 0 {
 		fetch = r.c.URLs[0]
-		push = r.c.URLs[0]
+		push = r.c.URLs[len(r.c.URLs)-1]
 	}
 
 	return fmt.Sprintf("%s\t%s (fetch)\n%[1]s\t%[3]s (push)", r.c.Name, fetch, push)
@@ -109,11 +110,11 @@ func (r *Remote) PushContext(ctx context.Context, o *PushOptions) (err error) {
 		return fmt.Errorf("remote names don't match: %s != %s", o.RemoteName, r.c.Name)
 	}
 
-	if o.RemoteURL == "" {
-		o.RemoteURL = r.c.URLs[0]
+	if o.RemoteURL == "" && len(r.c.URLs) > 0 {
+		o.RemoteURL = r.c.URLs[len(r.c.URLs)-1]
 	}
 
-	s, err := newSendPackSession(o.RemoteURL, o.Auth, o.InsecureSkipTLS, o.CABundle, o.ProxyOptions)
+	s, err := newSendPackSession(o.RemoteURL, o.Auth, o.InsecureSkipTLS, o.ClientCert, o.ClientKey, o.CABundle, o.ProxyOptions)
 	if err != nil {
 		return err
 	}
@@ -415,7 +416,7 @@ func (r *Remote) fetch(ctx context.Context, o *FetchOptions) (sto storer.Referen
 		o.RemoteURL = r.c.URLs[0]
 	}
 
-	s, err := newUploadPackSession(o.RemoteURL, o.Auth, o.InsecureSkipTLS, o.CABundle, o.ProxyOptions)
+	s, err := newUploadPackSession(o.RemoteURL, o.Auth, o.InsecureSkipTLS, o.ClientCert, o.ClientKey, o.CABundle, o.ProxyOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -491,7 +492,18 @@ func (r *Remote) fetch(ctx context.Context, o *FetchOptions) (sto storer.Referen
 	}
 
 	if !updated && !updatedPrune {
-		return remoteRefs, NoErrAlreadyUpToDate
+		// No references updated, but may have fetched new objects, check if we now have any of our wants
+		for _, hash := range req.Wants {
+			exists, _ := objectExists(r.s, hash)
+			if exists {
+				updated = true
+				break
+			}
+		}
+
+		if !updated {
+			return remoteRefs, NoErrAlreadyUpToDate
+		}
 	}
 
 	return remoteRefs, nil
@@ -520,8 +532,8 @@ func depthChanged(before []plumbing.Hash, s storage.Storer) (bool, error) {
 	return false, nil
 }
 
-func newUploadPackSession(url string, auth transport.AuthMethod, insecure bool, cabundle []byte, proxyOpts transport.ProxyOptions) (transport.UploadPackSession, error) {
-	c, ep, err := newClient(url, insecure, cabundle, proxyOpts)
+func newUploadPackSession(url string, auth transport.AuthMethod, insecure bool, clientCert, clientKey, caBundle []byte, proxyOpts transport.ProxyOptions) (transport.UploadPackSession, error) {
+	c, ep, err := newClient(url, insecure, clientCert, clientKey, caBundle, proxyOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -529,8 +541,8 @@ func newUploadPackSession(url string, auth transport.AuthMethod, insecure bool, 
 	return c.NewUploadPackSession(ep, auth)
 }
 
-func newSendPackSession(url string, auth transport.AuthMethod, insecure bool, cabundle []byte, proxyOpts transport.ProxyOptions) (transport.ReceivePackSession, error) {
-	c, ep, err := newClient(url, insecure, cabundle, proxyOpts)
+func newSendPackSession(url string, auth transport.AuthMethod, insecure bool, clientCert, clientKey, caBundle []byte, proxyOpts transport.ProxyOptions) (transport.ReceivePackSession, error) {
+	c, ep, err := newClient(url, insecure, clientCert, clientKey, caBundle, proxyOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -538,13 +550,15 @@ func newSendPackSession(url string, auth transport.AuthMethod, insecure bool, ca
 	return c.NewReceivePackSession(ep, auth)
 }
 
-func newClient(url string, insecure bool, cabundle []byte, proxyOpts transport.ProxyOptions) (transport.Transport, *transport.Endpoint, error) {
+func newClient(url string, insecure bool, clientCert, clientKey, caBundle []byte, proxyOpts transport.ProxyOptions) (transport.Transport, *transport.Endpoint, error) {
 	ep, err := transport.NewEndpoint(url)
 	if err != nil {
 		return nil, nil, err
 	}
 	ep.InsecureSkipTLS = insecure
-	ep.CaBundle = cabundle
+	ep.ClientCert = clientCert
+	ep.ClientKey = clientKey
+	ep.CaBundle = caBundle
 	ep.Proxy = proxyOpts
 
 	c, err := client.NewClient(ep)
@@ -878,17 +892,12 @@ func getHavesFromRef(
 		return nil
 	}
 
-	// No need to load the commit if we know the remote already
-	// has this hash.
-	if remoteRefs[h] {
-		haves[h] = true
-		return nil
-	}
-
 	commit, err := object.GetCommit(s, h)
 	if err != nil {
-		// Ignore the error if this isn't a commit.
-		haves[ref.Hash()] = true
+		if !errors.Is(err, plumbing.ErrObjectNotFound) {
+			// Ignore the error if this isn't a commit.
+			haves[ref.Hash()] = true
+		}
 		return nil
 	}
 
@@ -1349,7 +1358,7 @@ func (r *Remote) list(ctx context.Context, o *ListOptions) (rfs []*plumbing.Refe
 		return nil, ErrEmptyUrls
 	}
 
-	s, err := newUploadPackSession(r.c.URLs[0], o.Auth, o.InsecureSkipTLS, o.CABundle, o.ProxyOptions)
+	s, err := newUploadPackSession(r.c.URLs[0], o.Auth, o.InsecureSkipTLS, o.ClientCert, o.ClientKey, o.CABundle, o.ProxyOptions)
 	if err != nil {
 		return nil, err
 	}

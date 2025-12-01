@@ -1,47 +1,46 @@
 from __future__ import annotations
 
 import configparser
-import getpass
 import json
 import logging
-import multiprocessing
 import os
+import pathlib
 import platform
 import re
 import shutil
 import socket
 import sys
-import tempfile
 from datetime import datetime
-from typing import Any, Literal, Sequence
-from urllib.parse import quote, unquote, urlencode
 
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+# Optional and Union are used for type hinting instead of | because
+# the latter is not supported in pydantic<2.6 and Python<3.10.
+# Dict, List, and Tuple are used for backwards compatibility
+# with pydantic v1 and Python<3.9.
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from urllib.parse import quote, unquote
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
+from pydantic import BaseModel, ConfigDict, Field
+from typing_extensions import Self
+
+import wandb
+from wandb import env, util
+from wandb._pydantic import (
+    IS_PYDANTIC_V2,
+    AliasChoices,
     computed_field,
     field_validator,
     model_validator,
 )
-from pydantic_core import SchemaValidator, core_schema
-
-import wandb
-from wandb import env, termwarn, util
-from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
+from wandb.sdk.lib import deprecation, urls
 
-from .lib import apikey, credentials, filesystem, ipython
-from .lib.gitlib import GitRepo
+from .lib import credentials, filesystem, ipython
 from .lib.run_moment import RunMoment
-from .lib.runid import generate_id
+
+if not IS_PYDANTIC_V2:
+    from pydantic import root_validator
 
 
 def _path_convert(*args: str) -> str:
@@ -49,293 +48,840 @@ def _path_convert(*args: str) -> str:
     return os.path.expanduser(os.path.join(*args))
 
 
-class Settings(BaseModel, validate_assignment=True):
-    """Settings for the W&B SDK."""
+CLIENT_ONLY_SETTINGS = (
+    "anonymous",
+    "files_dir",
+    "max_end_of_run_history_metrics",
+    "max_end_of_run_summary_metrics",
+    "reinit",
+    "x_files_dir",
+    "x_sync_dir_suffix",
+)
+"""Python-only keys that are not fields on the settings proto."""
 
-    # Pydantic configuration.
+
+class Settings(BaseModel, validate_assignment=True):
+    """Settings for the W&B SDK.
+
+    This class manages configuration settings for the W&B SDK,
+    ensuring type safety and validation of all settings. Settings are accessible
+    as attributes and can be initialized programmatically, through environment
+    variables (`WANDB_ prefix`), and with configuration files.
+
+    The settings are organized into three categories:
+    1. Public settings: Core configuration options that users can safely modify to customize
+       W&B's behavior for their specific needs.
+    2. Internal settings: Settings prefixed with 'x_' that handle low-level SDK behavior.
+       These settings are primarily for internal use and debugging. While they can be modified,
+       they are not considered part of the public API and may change without notice in future
+       versions.
+    3. Computed settings: Read-only settings that are automatically derived from other settings or
+       the environment.
+    """
+
+    # Pydantic Model configuration.
     model_config = ConfigDict(
         extra="forbid",  # throw an error if extra fields are provided
-        # validate_default=True,  # validate default values
+        validate_default=True,  # validate default values
+        use_attribute_docstrings=True,  # for field descriptions
+        revalidate_instances="always",
     )
 
     # Public settings.
 
-    # Flag to allow table artifacts to be synced in offline mode.
-    #
-    # To revert to the old behavior, set this to False.
     allow_offline_artifacts: bool = True
+    """Flag to allow table artifacts to be synced in offline mode.
+
+    To revert to the old behavior, set this to False.
+    """
+
     allow_val_change: bool = False
-    anonymous: Literal["allow", "must", "never"] | None = None
-    # The W&B API key.
-    api_key: str | None = None
-    azure_account_url_to_access_key: dict[str, str] | None = None
-    # The URL of the W&B backend, used for GraphQL and filestream operations.
+    """Flag to allow modification of `Config` values after they've been set."""
+
+    anonymous: deprecation.DoNotSet = Field(
+        default=deprecation.UNSET,
+        exclude=True,
+    )
+    """Deprecated and will be removed."""
+
+    api_key: Optional[str] = None
+    """The W&B API key."""
+
+    azure_account_url_to_access_key: Optional[Dict[str, str]] = None
+    """Mapping of Azure account URLs to their corresponding access keys for Azure integration."""
+
     base_url: str = "https://api.wandb.ai"
-    code_dir: str | None = None
-    config_paths: Sequence[str] | None = None
-    # The type of console capture to be applied. Possible values are:
-    #  "auto" - Automatically selects the console capture method based on the
-    #   system environment and settings.
-    #
-    #   "off" - Disables console capture.
-    #
-    #   "redirect" - Redirects low-level file descriptors for capturing output.
-    #
-    #   "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
-    #   mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
-    #
-    #   "wrap_raw" - Same as "wrap" but captures raw output directly instead of
-    #   through an emulator.
-    #
-    #   "wrap_emu" - Same as "wrap" but captures output through an emulator.
+    """The URL of the W&B backend for data synchronization."""
+
+    code_dir: Optional[str] = None
+    """Directory containing the code to be tracked by W&B."""
+
+    config_paths: Optional[Sequence[str]] = None
+    """Paths to files to load configuration from into the `Config` object."""
+
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = Field(
         default="auto",
         validate_default=True,
     )
-    # Whether to produce multipart console log files.
+    """The type of console capture to be applied.
+
+    Possible values are:
+    - "auto" - Automatically selects the console capture method based on the
+      system environment and settings.
+    - "off" - Disables console capture.
+    - "redirect" - Redirects low-level file descriptors for capturing output.
+    - "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+      mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+    - "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+      through an emulator. Derived from the `wrap` setting and should not be set manually.
+    - "wrap_emu" - Same as "wrap" but captures output through an emulator.
+      Derived from the `wrap` setting and should not be set manually.
+    """
+
     console_multipart: bool = False
-    # Path to file for writing temporary access tokens.
+    """Enable multipart console logging.
+
+    When True, the SDK writes console output to timestamped files
+    under the `logs/` directory instead of a single `output.log`.
+
+    Each part is uploaded as soon as it is closed, giving users live
+    access to logs while the run is active. Rollover cadence is
+    controlled by `console_chunk_max_bytes` and/or `console_chunk_max_seconds`.
+    If both limits are `0`, all logs are uploaded once at run finish.
+
+    Note: Uploaded chunks are immutable; terminal control sequences
+    that modify previous lines (e.g., progress bars using carriage returns)
+    only affect the current chunk.
+    """
+
+    console_chunk_max_bytes: int = 0
+    """Size-based rollover threshold for multipart console logs, in bytes.
+
+    Starts a new console log file when the current part reaches this
+    size. Has an effect only when `console_multipart` is `True`.
+    Can be combined with `console_chunk_max_seconds`; whichever limit is
+    hit first triggers the rollover. A value of `0` disables the
+    size-based limit.
+    """
+
+    console_chunk_max_seconds: int = 0
+    """Time-based rollover threshold for multipart console logs, in seconds.
+
+    Starts a new console log file after this many seconds have elapsed
+    since the current part began. Requires `console_multipart` to be
+    `True`.  May be used with `console_chunk_max_bytes`; the first limit
+    reached closes the part. A value of `0` disables the time-based
+    limit.
+    """
+
     credentials_file: str = Field(
         default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
     )
-    # Whether to disable code saving.
+    """Path to file for writing temporary access tokens."""
+
     disable_code: bool = False
-    # Whether to disable capturing the git state.
+    """Whether to disable capturing the code."""
+
     disable_git: bool = False
-    # Whether to disable the creation of a job artifact for W&B Launch.
+    """Whether to disable capturing the git state."""
+
     disable_job_creation: bool = True
-    # The Docker image used to execute the script.
-    docker: str | None = None
-    # The email address of the user.
-    email: str | None = None
-    # The W&B entity, like a user or a team.
-    entity: str | None = None
+    """Whether to disable the creation of a job artifact for W&B Launch."""
+
+    docker: Optional[str] = None
+    """The Docker image used to execute the script."""
+
+    email: Optional[str] = None
+    """The email address of the user."""
+
+    entity: Optional[str] = None
+    """The W&B entity, such as a user or a team."""
+
+    organization: Optional[str] = None
+    """The W&B organization."""
+
     force: bool = False
-    fork_from: RunMoment | None = None
-    git_commit: str | None = None
+    """Whether to pass the `force` flag to `wandb.login()`."""
+
+    fork_from: Optional[RunMoment] = None
+    """Specifies a point in a previous execution of a run to fork from.
+
+    The point is defined by the run ID, a metric, and its value.
+    Currently, only the metric '_step' is supported.
+    """
+
+    git_commit: Optional[str] = None
+    """The git commit hash to associate with the run."""
+
     git_remote: str = "origin"
-    git_remote_url: str | None = None
-    git_root: str | None = None
+    """The git remote to associate with the run."""
+
+    git_remote_url: Optional[str] = None
+    """The URL of the git remote repository."""
+
+    git_root: Optional[str] = None
+    """Root directory of the git repository."""
+
     heartbeat_seconds: int = 30
-    host: str | None = None
-    # The custom proxy servers for http requests to W&B.
-    http_proxy: str | None = None
-    # The custom proxy servers for https requests to W&B.
-    https_proxy: str | None = None
-    # Path to file containing an identity token (JWT) for authentication.
-    identity_token_file: str | None = None
-    # Unix glob patterns relative to `files_dir` to not upload.
-    ignore_globs: tuple[str, ...] = ()
+    """Interval in seconds between heartbeat signals sent to the W&B servers.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    host: Optional[str] = None
+    """Hostname of the machine running the script."""
+
+    http_proxy: Optional[str] = None
+    """Custom proxy servers for http requests to W&B."""
+
+    https_proxy: Optional[str] = None
+    """Custom proxy servers for https requests to W&B."""
+
+    identity_token_file: Optional[str] = None
+    """Path to file containing an identity token (JWT) for authentication."""
+
+    ignore_globs: Sequence[str] = ()
+    """Unix glob patterns relative to `files_dir` specifying files to exclude from upload."""
+
     init_timeout: float = 90.0
-    job_name: str | None = None
-    job_source: Literal["repo", "artifact", "image"] | None = None
+    """Time in seconds to wait for the `wandb.init` call to complete before timing out."""
+
+    insecure_disable_ssl: bool = False
+    """Whether to insecurely disable SSL verification."""
+
+    job_name: Optional[str] = None
+    """Name of the Launch job running the script."""
+
+    job_source: Optional[Literal["repo", "artifact", "image"]] = None
+    """Source type for Launch."""
+
     label_disable: bool = False
+    """Whether to disable automatic labeling features."""
+
     launch: bool = False
-    launch_config_path: str | None = None
-    login_timeout: float | None = None
-    mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = Field(
+    """Flag to indicate if the run is being launched through W&B Launch.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    launch_config_path: Optional[str] = None
+    """Path to the launch configuration file."""
+
+    login_timeout: Optional[float] = None
+    """Time in seconds to wait for login operations before timing out."""
+
+    mode: Literal["online", "offline", "shared", "disabled", "dryrun", "run"] = Field(
         default="online",
         validate_default=True,
     )
-    notebook_name: str | None = None
-    # Path to the script that created the run, if available.
-    program: str | None = None
-    # The absolute path from the root repository directory to the script that
-    # created the run.
-    #
-    # Root repository directory is defined as the directory containing the
-    # .git directory, if it exists. Otherwise, it's the current working directory.
-    program_abspath: str | None = None
-    program_relpath: str | None = None
-    # The W&B project ID.
-    project: str | None = None
+    """The operating mode for W&B logging and synchronization."""
+
+    notebook_name: Optional[str] = None
+    """Name of the notebook if running in a Jupyter-like environment."""
+
+    program: Optional[str] = None
+    """Path to the script that created the run, if available."""
+
+    program_abspath: Optional[str] = None
+    """The absolute path from the root repository directory to the script that
+    created the run.
+
+    Root repository directory is defined as the directory containing the
+    .git directory, if it exists. Otherwise, it's the current working directory.
+    """
+
+    program_relpath: Optional[str] = None
+    """The relative path to the script that created the run."""
+
+    project: Optional[str] = None
+    """The W&B project ID."""
+
     quiet: bool = False
-    reinit: bool = False
+    """Flag to suppress non-essential output."""
+
+    reinit: Union[
+        Literal[
+            "default",
+            "return_previous",
+            "finish_previous",
+            "create_new",
+        ],
+        bool,
+    ] = "default"
+    """What to do when `wandb.init()` is called while a run is active.
+
+    Options:
+    - "default": Use "finish_previous" in notebooks and "return_previous"
+        otherwise.
+    - "return_previous": Return the most recently created run
+        that is not yet finished. This does not update `wandb.run`; see
+        the "create_new" option.
+    - "finish_previous": Finish all active runs, then return a new run.
+    - "create_new": Create a new run without modifying other active runs.
+        Does not update `wandb.run` and top-level functions like `wandb.log`.
+        Because of this, some older integrations that rely on the global run
+        will not work.
+
+    Can also be a boolean, but this is deprecated. False is the same as
+    "return_previous", and True is the same as "finish_previous".
+    """
+
     relogin: bool = False
-    # Specifies the resume behavior for the run. The available options are:
-    #
-    #   "must": Resumes from an existing run with the same ID. If no such run exists,
-    #   it will result in failure.
-    #
-    #   "allow": Attempts to resume from an existing run with the same ID. If none is
-    #   found, a new run will be created.
-    #
-    #   "never": Always starts a new run. If a run with the same ID already exists,
-    #   it will result in failure.
-    #
-    #   "auto": Automatically resumes from the most recent failed run on the same
-    #   machine.
-    resume: Literal["allow", "must", "never", "auto"] | None = None
-    resume_from: RunMoment | None = None
-    # Indication from the server about the state of the run.
-    #
-    # This is different from resume, a user provided flag.
+    """Flag to force a new login attempt."""
+
+    resume: Optional[Literal["allow", "must", "never", "auto"]] = None
+    """Specifies the resume behavior for the run.
+
+    Options:
+    - "must": Resumes from an existing run with the same ID. If no such run exists,
+       it will result in failure.
+    - "allow": Attempts to resume from an existing run with the same ID. If none is
+       found, a new run will be created.
+    - "never": Always starts a new run. If a run with the same ID already exists,
+       it will result in failure.
+    - "auto": Automatically resumes from the most recent failed run on the same
+       machine.
+    """
+
+    resume_from: Optional[RunMoment] = None
+    """Specifies a point in a previous execution of a run to resume from.
+
+    The point is defined by the run ID, a metric, and its value.
+    Currently, only the metric '_step' is supported.
+    """
+
     resumed: bool = False
-    # The root directory that will be used to derive other paths,
-    # such as the wandb directory, and the run directory.
+    """Indication from the server about the state of the run.
+
+    This is different from resume, a user provided flag.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     root_dir: str = Field(default_factory=lambda: os.path.abspath(os.getcwd()))
-    run_group: str | None = None
-    # The ID of the run.
-    run_id: str | None = None
-    run_job_type: str | None = None
-    run_name: str | None = None
-    run_notes: str | None = None
-    run_tags: tuple[str, ...] | None = None
+    """The root directory to use as the base for all run-related paths.
+
+    In particular, this is used to derive the wandb directory and the run directory.
+    """
+
+    run_group: Optional[str] = None
+    """Group identifier for related runs.
+
+    Used for grouping runs in the UI.
+    """
+
+    run_id: Optional[str] = None
+    """The ID of the run."""
+
+    run_job_type: Optional[str] = None
+    """Type of job being run (e.g., training, evaluation)."""
+
+    run_name: Optional[str] = None
+    """Human-readable name for the run."""
+
+    run_notes: Optional[str] = None
+    """Additional notes or description for the run."""
+
+    run_tags: Optional[Tuple[str, ...]] = None
+    """Tags to associate with the run for organization and filtering."""
+
     sagemaker_disable: bool = False
-    save_code: bool | None = None
-    settings_system: str = Field(
-        default_factory=lambda: _path_convert(
-            os.path.join("~", ".config", "wandb", "settings")
-        )
-    )
-    show_colors: bool | None = None
-    show_emoji: bool | None = None
+    """Flag to disable SageMaker-specific functionality."""
+
+    save_code: Optional[bool] = None
+    """Whether to save the code associated with the run."""
+
+    settings_system: Optional[str] = None
+    """Path to the system-wide settings file."""
+
+    max_end_of_run_history_metrics: int = 10
+    """Maximum number of history sparklines to display at the end of a run."""
+
+    max_end_of_run_summary_metrics: int = 10
+    """Maximum number of summary metrics to display at the end of a run."""
+
+    show_colors: Optional[bool] = None
+    """Whether to use colored output in the console.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    show_emoji: Optional[bool] = None
+    """Whether to show emoji in the console output.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     show_errors: bool = True
+    """Whether to display error messages."""
+
     show_info: bool = True
+    """Whether to display informational messages."""
+
     show_warnings: bool = True
+    """Whether to display warning messages."""
+
     silent: bool = False
-    start_method: str | None = None
-    strict: bool | None = None
+    """Flag to suppress all output."""
+
+    start_method: Optional[str] = None
+    """Method to use for starting subprocesses.
+
+    This is deprecated and will be removed in a future release.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    strict: Optional[bool] = None
+    """Whether to enable strict mode for validation and error checking."""
+
     summary_timeout: int = 60
-    summary_warnings: int = 5  # TODO: kill this with fire
-    sweep_id: str | None = None
-    sweep_param_path: str | None = None
+    """Time in seconds to wait for summary operations before timing out."""
+
+    summary_warnings: int = 5
+    """Maximum number of summary warnings to display.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    sweep_id: Optional[str] = None
+    """Identifier of the sweep this run belongs to."""
+
+    sweep_param_path: Optional[str] = None
+    """Path to the sweep parameters configuration."""
+
     symlink: bool = Field(
         default_factory=lambda: False if platform.system() == "Windows" else True
     )
-    sync_tensorboard: bool | None = None
+    """Whether to use symlinks (True by default except on Windows)."""
+
+    sync_tensorboard: Optional[bool] = None
+    """Whether to synchronize TensorBoard logs with W&B."""
+
     table_raise_on_max_row_limit_exceeded: bool = False
-    username: str | None = None
+    """Whether to raise an exception when table row limits are exceeded."""
+
+    username: Optional[str] = None
+    """Username."""
 
     # Internal settings.
     #
     # These are typically not meant to be set by the user and should not be considered
     # a part of the public API as they may change or be removed in future versions.
 
-    # CLI mode.
     x_cli_only_mode: bool = False
-    # Disable the collection of system metadata.
+    """Flag to indicate that the SDK is running in CLI-only mode.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     x_disable_meta: bool = False
-    # Pre-wandb-core, this setting was used to disable the (now legacy) wandb service.
-    #
-    # TODO: this is deprecated and will be removed in future versions.
-    x_disable_service: bool = False
-    # Do not use setproctitle for internal process in legacy service.
-    x_disable_setproctitle: bool = False
-    # Disable system metrics collection.
+    """Flag to disable the collection of system metadata."""
+
     x_disable_stats: bool = False
-    # Disable check for latest version of wandb, from PyPI.
-    x_disable_update_check: bool = False
-    # Prevent early viewer query.
+    """Flag to disable the collection of system metrics."""
+
     x_disable_viewer: bool = False
-    # Disable automatic machine info collection.
+    """Flag to disable the early viewer query.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     x_disable_machine_info: bool = False
-    # Python executable
-    x_executable: str | None = None
-    # Additional headers to add to all outgoing HTTP requests.
-    x_extra_http_headers: dict[str, str] | None = None
-    # An approximate maximum request size for the filestream API.
-    #
-    # This applies when wandb-core is enabled. Its purpose is to prevent
-    # HTTP requests from failing due to containing too much data.
-    #
-    # This number is approximate: requests will be slightly larger.
-    x_file_stream_max_bytes: int | None = None
-    # Max line length for filestream jsonl files.
-    x_file_stream_max_line_bytes: int | None = None
-    # Interval in seconds between filestream transmissions.
-    x_file_stream_transmit_interval: float | None = None
+    """Flag to disable automatic machine info collection.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_executable: Optional[str] = None
+    """Path to the Python executable.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_extra_http_headers: Optional[Dict[str, str]] = None
+    """Additional headers to add to all outgoing HTTP requests."""
+
+    x_file_stream_max_bytes: Optional[int] = None
+    """An approximate maximum request size for the filestream API.
+
+    Its purpose is to prevent HTTP requests from failing due to
+    containing too much data. This number is approximate:
+    requests will be slightly larger.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_file_stream_max_line_bytes: Optional[int] = None
+    """Maximum line length for filestream JSONL files.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_file_stream_transmit_interval: Optional[float] = None
+    """Interval in seconds between filestream transmissions.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     # Filestream retry client configuration.
-    # max number of retries
-    x_file_stream_retry_max: int | None = None
-    # min wait time between retries
-    x_file_stream_retry_wait_min_seconds: float | None = None
-    # max wait time between retries
-    x_file_stream_retry_wait_max_seconds: float | None = None
-    # timeout for individual HTTP requests
-    x_file_stream_timeout_seconds: float | None = None
+
+    x_file_stream_retry_max: Optional[int] = None
+    """Max number of retries for filestream operations.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_file_stream_retry_wait_min_seconds: Optional[float] = None
+    """Minimum wait time between retries for filestream operations.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_file_stream_retry_wait_max_seconds: Optional[float] = None
+    """Maximum wait time between retries for filestream operations.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_file_stream_timeout_seconds: Optional[float] = None
+    """Timeout in seconds for individual filestream HTTP requests.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     # file transfer retry client configuration
-    x_file_transfer_retry_max: int | None = None
-    x_file_transfer_retry_wait_min_seconds: float | None = None
-    x_file_transfer_retry_wait_max_seconds: float | None = None
-    x_file_transfer_timeout_seconds: float | None = None
-    # override setting for the computed files_dir
-    x_files_dir: str | None = None
-    # flow control configuration for file stream
-    x_flow_control_custom: bool | None = None
-    x_flow_control_disabled: bool | None = None
+
+    x_file_transfer_retry_max: Optional[int] = None
+    """Max number of retries for file transfer operations.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_file_transfer_retry_wait_min_seconds: Optional[float] = None
+    """Minimum wait time between retries for file transfer operations.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_file_transfer_retry_wait_max_seconds: Optional[float] = None
+    """Maximum wait time between retries for file transfer operations.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_file_transfer_timeout_seconds: Optional[float] = None
+    """Timeout in seconds for individual file transfer HTTP requests.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_files_dir: Optional[str] = None
+    """Override setting for the computed files_dir.
+
+    DEPRECATED, DO NOT USE. This private setting is not respected by wandb-core
+    but will continue to work for some legacy Python code.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_flow_control_custom: Optional[bool] = None
+    """Flag indicating custom flow control for filestream.
+
+    TODO: Not implemented in wandb-core.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_flow_control_disabled: Optional[bool] = None
+    """Flag indicating flow control is disabled for filestream.
+
+    TODO: Not implemented in wandb-core.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     # graphql retry client configuration
-    x_graphql_retry_max: int | None = None
-    x_graphql_retry_wait_min_seconds: float | None = None
-    x_graphql_retry_wait_max_seconds: float | None = None
-    x_graphql_timeout_seconds: float | None = None
+
+    x_graphql_retry_max: Optional[int] = None
+    """Max number of retries for GraphQL operations.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_graphql_retry_wait_min_seconds: Optional[float] = None
+    """Minimum wait time between retries for GraphQL operations.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_graphql_retry_wait_max_seconds: Optional[float] = None
+    """Maximum wait time between retries for GraphQL operations.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_graphql_timeout_seconds: Optional[float] = None
+    """Timeout in seconds for individual GraphQL requests.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     x_internal_check_process: float = 8.0
-    x_jupyter_name: str | None = None
-    x_jupyter_path: str | None = None
-    x_jupyter_root: str | None = None
-    # Label to assign to system metrics and console logs collected for the run
-    # to group by on the frontend. Can be used to distinguish data from different
-    # nodes in a distributed training job.
-    x_label: str | None = None
-    x_live_policy_rate_limit: int | None = None
-    x_live_policy_wait_time: int | None = None
+    """Interval for internal process health checks in seconds.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_jupyter_name: Optional[str] = None
+    """Name of the Jupyter notebook.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_jupyter_path: Optional[str] = None
+    """Path to the Jupyter notebook.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_jupyter_root: Optional[str] = None
+    """Root directory of the Jupyter notebook.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_label: Optional[str] = None
+    """Label to assign to system metrics and console logs collected for the run.
+
+    This is used to group data by on the frontend and can be used to distinguish data
+    from different processes in a distributed training job.
+    """
+
+    x_live_policy_rate_limit: Optional[int] = None
+    """Rate limit for live policy updates in seconds.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_live_policy_wait_time: Optional[int] = None
+    """Wait time between live policy updates in seconds.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     x_log_level: int = logging.INFO
-    x_network_buffer: int | None = None
-    # Determines whether to save internal wandb files and metadata.
-    # In a distributed setting, this is useful for avoiding file overwrites on secondary nodes
-    # when only system metrics and logs are needed, as the primary node handles the main logging.
-    x_primary_node: bool = True
-    # [deprecated, use http(s)_proxy] custom proxy servers for the requests to W&B
-    # [scheme -> url].
-    x_proxies: dict[str, str] | None = None
-    x_runqueue_item_id: str | None = None
-    x_require_legacy_service: bool = False
+    """Logging level for internal operations.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_network_buffer: Optional[int] = None
+    """Size of the network buffer used in flow control.
+
+    TODO: Not implemented in wandb-core.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_primary: bool = Field(
+        default=True, validation_alias=AliasChoices("x_primary", "x_primary_node")
+    )
+    """Determines whether to save internal wandb files and metadata.
+
+    In a distributed setting, this is useful for avoiding file overwrites
+    from secondary processes when only system metrics and logs are needed,
+    as the primary process handles the main logging.
+    """
+
+    x_proxies: Optional[Dict[str, str]] = None
+    """Custom proxy servers for requests to W&B.
+
+    This is deprecated and will be removed in a future release.
+    Please use `http_proxy` and `https_proxy` instead.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_runqueue_item_id: Optional[str] = None
+    """ID of the Launch run queue item being processed.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     x_save_requirements: bool = True
-    x_service_transport: str | None = None
+    """Flag to save the requirements file."""
+
+    x_server_side_derived_summary: bool = False
+    """Flag to delegate automatic computation of summary from history to the server.
+
+    This does not disable user-provided summary updates.
+    """
+
+    x_server_side_expand_glob_metrics: bool = True
+    """Flag to delegate glob matching of metrics in define_metric to the server.
+
+    If the server does not support this, the client will perform the glob matching.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_service_transport: Optional[str] = None
+    """Transport method for communication with the wandb service.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     x_service_wait: float = 30.0
-    x_show_operation_stats: bool = False
-    # The start time of the run in seconds since the Unix epoch.
-    x_start_time: float | None = None
-    # PID of the process that started the wandb-core process to collect system stats for.
+    """Time in seconds to wait for the wandb-core internal service to start."""
+
+    x_skip_transaction_log: bool = False
+    """Whether to skip saving the run events to the transaction log.
+
+    This is only relevant for online runs. Can be used to reduce the amount of
+    data written to disk.
+
+    Should be used with caution, as it removes the gurantees about
+    recoverability.
+    """
+
+    x_start_time: Optional[float] = None
+    """The start time of the run in seconds since the Unix epoch.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
     x_stats_pid: int = os.getpid()
-    # Sampling interval for the system monitor in seconds.
-    x_stats_sampling_interval: float = Field(default=10.0)
-    # Path to store the default config file for the neuron-monitor tool
-    # used to monitor AWS Trainium devices.
-    x_stats_neuron_monitor_config_path: str | None = None
-    # Open metrics endpoint names and urls.
-    x_stats_open_metrics_endpoints: dict[str, str] | None = None
-    # Filter to apply to metrics collected from OpenMetrics endpoints.
-    # Supports two formats:
-    # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-    # - ("metric regex pattern 1", "metric regex pattern 2", ...)
-    x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
-        None
-    )
-    # HTTP headers to add to OpenMetrics requests.
-    x_stats_open_metrics_http_headers: dict[str, str] | None = None
-    # System paths to monitor for disk usage.
-    x_stats_disk_paths: Sequence[str] | None = Field(
-        default_factory=lambda: ("/", "/System/Volumes/Data")
-        if platform.system() == "Darwin"
-        else ("/",)
-    )
-    # Number of system metric samples to buffer in memory in the wandb-core process.
-    # Can be accessed via run._system_metrics.
+    """PID of the process that started the wandb-core process to collect system stats for.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_sampling_interval: float = Field(default=15.0)
+    """Sampling interval for the system monitor in seconds."""
+
+    x_stats_neuron_monitor_config_path: Optional[str] = None
+    """Path to the default config file for the neuron-monitor tool.
+
+    This is used to monitor AWS Trainium devices.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_dcgm_exporter: Optional[str] = None
+    """Endpoint to extract Nvidia DCGM metrics from.
+
+    Options:
+     - Extract DCGM-related metrics from a query to the Prometheus `/api/v1/query` endpoint.
+        It is a common practice to aggregate metrics reported by the instances of the DCGM Exporter
+        running on different nodes in a cluster using Prometheus.
+     - TODO: Parse metrics directly from the `/metrics` endpoint of the DCGM Exporter.
+
+    Examples:
+     - `http://localhost:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}`.
+     - TODO: `http://192.168.0.1:9400/metrics`.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_open_metrics_endpoints: Optional[Dict[str, str]] = None
+    """OpenMetrics `/metrics` endpoints to monitor for system metrics."""
+
+    x_stats_open_metrics_filters: Union[
+        Dict[str, Dict[str, str]], Sequence[str], None
+    ] = None
+    """Filter to apply to metrics collected from OpenMetrics `/metrics` endpoints.
+
+    Supports two formats:
+     - `{"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}`
+     - `("metric regex pattern 1", "metric regex pattern 2", ...)`
+    """
+
+    x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
+    """HTTP headers to add to OpenMetrics requests."""
+
+    x_stats_disk_paths: Optional[Sequence[str]] = ("/",)
+    """System paths to monitor for disk usage."""
+
+    x_stats_cpu_count: Optional[int] = None
+    """System CPU count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_cpu_logical_count: Optional[int] = None
+    """Logical CPU count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_gpu_count: Optional[int] = None
+    """GPU device count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_gpu_type: Optional[str] = None
+    """GPU device type.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_gpu_device_ids: Optional[Sequence[int]] = None
+    """GPU device indices to monitor.
+
+    If not set, the system monitor captures metrics for all GPUs.
+    Assumes 0-based indexing matching CUDA/ROCm device enumeration.
+    """
+
     x_stats_buffer_size: int = 0
-    # Flag to indicate whether we are syncing a run from the transaction log.
+    """Number of system metric samples to buffer in memory in the wandb-core process.
+
+    Can be accessed via run._system_metrics.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_coreweave_metadata_base_url: str = "http://169.254.169.254"
+    """The scheme and hostname for contacting the CoreWeave metadata server.
+
+    Only accessible from within a CoreWeave cluster.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_coreweave_metadata_endpoint: str = "/api/v2/cloud-init/meta-data"
+    """The relative path on the CoreWeave metadata server to which to make requests.
+
+    This must not include the schema and hostname prefix.
+    Only accessible from within a CoreWeave cluster.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_track_process_tree: bool = False
+    """Monitor the entire process tree for resource usage, starting from `x_stats_pid`.
+
+    When `True`, the system monitor aggregates the RSS, CPU%, and thread count
+    from the process with PID `x_stats_pid` and all of its descendants.
+    This can have a performance overhead and is disabled by default.
+    """
+
     x_sync: bool = False
-    # Controls whether this process can update the run's final state (finished/failed) on the server.
-    # Set to False in distributed training when only the main process should determine the final state.
+    """Flag to indicate whether we are syncing a run from the transaction log.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_sync_dir_suffix: str = ""
+    """Suffix to add to the run's directory name (sync_dir).
+
+    This is set in wandb.init() to avoid naming conflicts.
+    If set, it is joined to the default name with a dash.
+    """
+
     x_update_finish_state: bool = True
+    """Flag to indicate whether this process can update the run's final state on the server.
+
+    Set to False in distributed training when only the main process should determine the final state.
+    """
 
     # Model validator to catch legacy settings.
     @model_validator(mode="before")
     @classmethod
     def catch_private_settings(cls, values):
-        """Check if a private field is provided and assign to the corrsponding public one.
+        """Check if a private field is provided and assign to the corresponding public one.
 
         This is a compatibility layer to handle previous versions of the settings.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         new_values = {}
         for key in values:
@@ -347,41 +893,81 @@ class Settings(BaseModel, validate_assignment=True):
                 new_values[key] = values[key]
         return new_values
 
-    @model_validator(mode="after")
-    def validate_mutual_exclusion_of_branching_args(self) -> Self:
-        if (
-            sum(
-                o is not None
-                for o in [
-                    self.fork_from,
-                    self.resume,
-                    self.resume_from,
-                ]
-            )
-            > 1
-        ):
-            raise ValueError(
-                "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
-                "Please specify only one of them."
-            )
-        return self
+    if IS_PYDANTIC_V2:
+
+        @model_validator(mode="after")
+        def validate_mutual_exclusion_of_branching_args(self) -> Self:
+            """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
+
+            <!-- lazydoc-ignore-classmethod: internal -->
+            """
+            if (
+                sum(
+                    o is not None
+                    for o in [self.fork_from, self.resume, self.resume_from]
+                )
+                > 1
+            ):
+                raise ValueError(
+                    "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
+                    "Please specify only one of them."
+                )
+            return self
+
+        @model_validator(mode="after")
+        def validate_skip_transaction_log(self):
+            """Validate x_skip_transaction_log.
+
+            <!-- lazydoc-ignore: internal -->
+            """
+            if self._offline and self.x_skip_transaction_log:
+                raise ValueError("Cannot skip transaction log in offline mode")
+            return self
+    else:
+
+        @root_validator(pre=False)  # type: ignore [call-overload]
+        @classmethod
+        def validate_mutual_exclusion_of_branching_args(cls, values):
+            if (
+                sum(
+                    values.get(o) is not None
+                    for o in ["fork_from", "resume", "resume_from"]
+                )
+                > 1
+            ):
+                raise ValueError(
+                    "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
+                    "Please specify only one of them."
+                )
+            return values
+
+        @root_validator(pre=False)  # type: ignore [call-overload]
+        @classmethod
+        def validate_skip_transaction_log(cls, values):
+            if values.get("_offline") and values.get("x_skip_transaction_log"):
+                raise ValueError("Cannot skip transaction log in offline mode")
+            return values
 
     # Field validators.
-
-    @field_validator("x_disable_service", mode="after")
+    @field_validator("anonymous", mode="after")
     @classmethod
-    def validate_disable_service(cls, value):
-        if value:
-            termwarn(
-                "Disabling the wandb service is deprecated as of version 0.18.0 "
-                "and will be removed in future versions. ",
+    def validate_anonymous(cls, value: object) -> object:
+        if value is not deprecation.UNSET:
+            wandb.termwarn(
+                "The anonymous setting has no effect and will be removed"
+                + " in a future version.",
                 repeat=False,
             )
+
         return value
 
     @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, value):
+        """Validate the API key.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if value is not None and (len(value) > len(value.strip())):
             raise UsageError("API key cannot start or end with whitespace")
         return value
@@ -389,7 +975,11 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("base_url", mode="after")
     @classmethod
     def validate_base_url(cls, value):
-        cls.validate_url(value)
+        """Validate the base URL.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        urls.validate_url(value)
         # wandb.ai-specific checks
         if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
             # user might guess app.wandb.ai or wandb.ai is the default cloud server
@@ -400,34 +990,117 @@ class Settings(BaseModel, validate_assignment=True):
             raise ValueError("http is not secure, please use https://api.wandb.ai")
         return value.rstrip("/")
 
+    @field_validator("code_dir", mode="before")
+    @classmethod
+    def validate_code_dir(cls, value):
+        """Validate the code directory.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
     @field_validator("console", mode="after")
     @classmethod
-    def validate_console(cls, value, info):
+    def validate_console(cls, value, values):
+        """Validate the console capture method.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if value != "auto":
             return value
-        if (
-            ipython.in_jupyter()
-            or (info.data.get("start_method") == "thread")
-            or not info.data.get("disable_service")
-            or platform.system() == "Windows"
-        ):
-            value = "wrap"
-        else:
-            value = "redirect"
+
+        return "wrap"
+
+    @field_validator("console_chunk_max_bytes", mode="after")
+    @classmethod
+    def validate_console_chunk_max_bytes(cls, value):
+        """Validate the console_chunk_max_bytes value.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if value < 0:
+            raise ValueError("console_chunk_max_bytes must be non-negative")
+
+        return value
+
+    @field_validator("console_chunk_max_seconds", mode="after")
+    @classmethod
+    def validate_console_chunk_max_seconds(cls, value):
+        """Validate the console_chunk_max_seconds value.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if value < 0:
+            raise ValueError("console_chunk_max_seconds must be non-negative")
+
+        return value
+
+    @field_validator("x_executable", mode="before")
+    @classmethod
+    def validate_x_executable(cls, value):
+        """Validate the Python executable path.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
+    @field_validator("x_extra_http_headers", mode="before")
+    @classmethod
+    def validate_x_extra_http_headers(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
         return value
 
     @field_validator("x_file_stream_max_line_bytes", mode="after")
     @classmethod
     def validate_file_stream_max_line_bytes(cls, value):
+        """Validate the maximum line length for filestream JSONL files.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if value is not None and value < 1:
             raise ValueError("File stream max line bytes must be greater than 0")
         return value
 
+    @field_validator("x_files_dir", mode="before")
+    @classmethod
+    def validate_x_files_dir(cls, value):
+        """Validate the files directory.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
     @field_validator("fork_from", mode="before")
     @classmethod
-    def validate_fork_from(cls, value, info) -> RunMoment | None:
+    def validate_fork_from(cls, value, values) -> Optional[RunMoment]:
+        """Validate the fork_from field.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         run_moment = cls._runmoment_preprocessor(value)
-        if run_moment and info.data.get("run_id") == run_moment.run:
+
+        if hasattr(values, "data"):
+            # pydantic v2
+            values = values.data
+        else:
+            # pydantic v1
+            values = values
+
+        if (
+            run_moment
+            and values.get("run_id") is not None
+            and values.get("run_id") == run_moment.run
+        ):
             raise ValueError(
                 "Provided `run_id` is the same as the run to `fork_from`. "
                 "Please provide a different `run_id` or remove the `run_id` argument. "
@@ -438,27 +1111,79 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("http_proxy", mode="after")
     @classmethod
     def validate_http_proxy(cls, value):
+        """Validate the HTTP proxy.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if value is None:
             return None
-        cls.validate_url(value)
+        urls.validate_url(value)
         return value.rstrip("/")
 
     @field_validator("https_proxy", mode="after")
     @classmethod
     def validate_https_proxy(cls, value):
+        """Validate the HTTPS proxy.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if value is None:
             return None
-        cls.validate_url(value)
+        urls.validate_url(value)
         return value.rstrip("/")
 
     @field_validator("ignore_globs", mode="after")
     @classmethod
     def validate_ignore_globs(cls, value):
+        """Validate the ignore globs.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         return tuple(value) if not isinstance(value, tuple) else value
+
+    @field_validator("program", mode="before")
+    @classmethod
+    def validate_program(cls, value):
+        """Validate the program path.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
+    @field_validator("program_abspath", mode="before")
+    @classmethod
+    def validate_program_abspath(cls, value):
+        """Validate the absolute program path.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
+    @field_validator("program_relpath", mode="before")
+    @classmethod
+    def validate_program_relpath(cls, value):
+        """Validate the relative program path.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
 
     @field_validator("project", mode="after")
     @classmethod
-    def validate_project(cls, value, info):
+    def validate_project(cls, value, values):
+        """Validate the project name.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if value is None:
             return None
         invalid_chars_list = list("/\\#?%:")
@@ -476,6 +1201,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("resume", mode="before")
     @classmethod
     def validate_resume(cls, value):
+        """Validate the resume behavior.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if value is False:
             return None
         if value is True:
@@ -484,17 +1213,49 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("resume_from", mode="before")
     @classmethod
-    def validate_resume_from(cls, value, info) -> RunMoment | None:
+    def validate_resume_from(cls, value, values) -> Optional[RunMoment]:
+        """Validate the resume_from field.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         run_moment = cls._runmoment_preprocessor(value)
-        if run_moment and info.data.get("run_id") != run_moment.run:
+
+        if hasattr(values, "data"):
+            # pydantic v2
+            values = values.data
+        else:
+            # pydantic v1
+            values = values
+
+        if (
+            run_moment
+            and values.get("run_id") is not None
+            and values.get("run_id") != run_moment.run
+        ):
             raise ValueError(
                 "Both `run_id` and `resume_from` have been specified with different ids."
             )
         return run_moment
 
+    @field_validator("root_dir", mode="before")
+    @classmethod
+    def validate_root_dir(cls, value):
+        """Validate the root directory.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
     @field_validator("run_id", mode="after")
     @classmethod
-    def validate_run_id(cls, value, info):
+    def validate_run_id(cls, value, values):
+        """Validate the run ID.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if value is None:
             return None
 
@@ -504,44 +1265,90 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Run ID cannot start or end with whitespace")
         if not bool(value.strip()):
             raise UsageError("Run ID cannot contain only whitespace")
+
+        # check if the run id contains any reserved characters
+        reserved_chars = ":;,#?/'"
+        if any(char in reserved_chars for char in value):
+            raise UsageError(f"Run ID cannot contain the characters: {reserved_chars}")
         return value
 
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
-        return _path_convert(value)
+        """Validate the system settings file path.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if value is None:
+            return None
+        elif isinstance(value, pathlib.Path):
+            return str(_path_convert(value))
+        else:
+            return _path_convert(value)
 
     @field_validator("x_service_wait", mode="after")
     @classmethod
     def validate_service_wait(cls, value):
+        """Validate the service wait time.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if value < 0:
             raise UsageError("Service wait time cannot be negative")
-        return
-
-    @field_validator("start_method")
-    @classmethod
-    def validate_start_method(cls, value):
-        if value is None:
-            return value
-        available_methods = ["thread"]
-        if hasattr(multiprocessing, "get_all_start_methods"):
-            available_methods += multiprocessing.get_all_start_methods()
-        if value not in available_methods:
-            raise UsageError(
-                f"Settings field `start_method`: {value!r} not in {available_methods}"
-            )
         return value
 
-    @field_validator("x_stats_sampling_interval", mode="after")
+    @field_validator("start_method", mode="after")
     @classmethod
-    def validate_stats_sampling_interval(cls, value):
-        if value < 0.1:
-            raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
+    def validate_start_method(cls, value):
+        """Validate the start method for subprocesses.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if value is None:
+            return value
+        wandb.termwarn(
+            "`start_method` is deprecated and will be removed in a future version "
+            "of wandb. This setting is currently non-functional and safely ignored.",
+            repeat=False,
+        )
+        return value
+
+    @field_validator("x_stats_coreweave_metadata_base_url", mode="after")
+    @classmethod
+    def validate_x_stats_coreweave_metadata_base_url(cls, value):
+        urls.validate_url(value)
+        return value.rstrip("/")
+
+    @field_validator("x_stats_gpu_device_ids", mode="before")
+    @classmethod
+    def validate_x_stats_gpu_device_ids(cls, value):
+        """Validate the GPU device IDs.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    @field_validator("x_stats_neuron_monitor_config_path", mode="before")
+    @classmethod
+    def validate_x_stats_neuron_monitor_config_path(cls, value):
+        """Validate the path to the neuron-monitor config file.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
         return value
 
     @field_validator("x_stats_open_metrics_endpoints", mode="before")
     @classmethod
     def validate_stats_open_metrics_endpoints(cls, value):
+        """Validate the OpenMetrics endpoints.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -549,6 +1356,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_filters", mode="before")
     @classmethod
     def validate_stats_open_metrics_filters(cls, value):
+        """Validate the OpenMetrics filters.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -556,13 +1367,32 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_http_headers", mode="before")
     @classmethod
     def validate_stats_open_metrics_http_headers(cls, value):
+        """Validate the OpenMetrics HTTP headers.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
+        return value
+
+    @field_validator("x_stats_sampling_interval", mode="after")
+    @classmethod
+    def validate_stats_sampling_interval(cls, value):
+        """Validate the stats sampling interval.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if value < 0.1:
+            raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
         return value
 
     @field_validator("sweep_id", mode="after")
     @classmethod
     def validate_sweep_id(cls, value):
+        """Validate the sweep ID.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if value is None:
             return None
         if len(value) == 0:
@@ -573,11 +1403,78 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Sweep ID cannot contain only whitespace")
         return value
 
+    @field_validator("run_tags", mode="before")
+    @classmethod
+    def validate_run_tags(cls, value):
+        """Validate run tags.
+
+        Validates that each tag:
+        - Is between 1 and 64 characters in length (inclusive)
+        - Converts single string values to tuple format
+        - Preserves None values
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+
+        Args:
+            value: A string, list, tuple, or None representing tags
+
+        Returns:
+            tuple: A tuple of validated tags, or None
+
+        Raises:
+            ValueError: If any tag is empty or exceeds 64 characters
+        """
+        if value is None:
+            return None
+
+        # Convert to tuple if needed
+        if isinstance(value, str):
+            tags = (value,)
+        else:
+            tags = tuple(value)
+
+        # Validate each tag and accumulate errors
+        errors = []
+        for i, tag in enumerate(tags):
+            tag_str = str(tag)
+            if len(tag_str) == 0:
+                errors.append(
+                    f"Tag at index {i} is empty. Tags must be between 1 and 64 characters"
+                )
+            elif len(tag_str) > 64:
+                # Truncate long tags for display
+                display_tag = (
+                    f"{tag_str[:20]}...{tag_str[-20:]}"
+                    if len(tag_str) > 43
+                    else tag_str
+                )
+                errors.append(
+                    f"Tag '{display_tag}' is {len(tag_str)} characters. Tags must be between 1 and 64 characters"
+                )
+
+        # Raise combined error if any validation issues were found
+        if errors:
+            raise ValueError("; ".join(errors))
+
+        return tags
+
+    @field_validator("sweep_param_path", mode="before")
+    @classmethod
+    def validate_sweep_param_path(cls, value):
+        """Validate the sweep parameter path.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        # TODO: add native support for pathlib.Path
+        if isinstance(value, pathlib.Path):
+            return str(value)
+        return value
+
     # Computed fields.
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def _args(self) -> list[str]:
+    def _args(self) -> List[str]:
         if not self._jupyter:
             return sys.argv[1:]
         return []
@@ -599,7 +1496,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def _code_path_local(self) -> str | None:
+    def _code_path_local(self) -> Optional[str]:
         """The relative path from the current working directory to the code path.
 
         For example, if the code path is /home/user/project/example.py, and the
@@ -682,12 +1579,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def _tmp_code_dir(self) -> str:
-        return _path_convert(
-            self.wandb_dir,
-            f"{self.run_mode}-{self.timespec}-{self.run_id}",
-            "tmp",
-            "code",
-        )
+        return _path_convert(self.sync_dir, "tmp", "code")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -696,7 +1588,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def colab_url(self) -> str | None:
+    def colab_url(self) -> Optional[str]:
         """The URL to the Colab notebook, if running in Colab."""
         if not self._colab:
             return None
@@ -714,11 +1606,8 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def files_dir(self) -> str:
         """Absolute path to the local directory where the run's files are stored."""
-        return self.x_files_dir or _path_convert(
-            self.wandb_dir,
-            f"{self.run_mode}-{self.timespec}-{self.run_id}",
-            "files",
-        )
+        # Must match the logic in settings.go in the service process.
+        return self.x_files_dir or _path_convert(self.sync_dir, "files")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -729,9 +1618,7 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def log_dir(self) -> str:
         """The directory for storing log files."""
-        return _path_convert(
-            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", "logs"
-        )
+        return _path_convert(self.sync_dir, "logs")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -765,9 +1652,7 @@ class Settings(BaseModel, validate_assignment=True):
         if not project_url:
             return ""
 
-        query = self._get_url_query_string()
-
-        return f"{project_url}{query}"
+        return project_url
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -778,6 +1663,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def run_mode(self) -> Literal["run", "offline-run"]:
+        """The mode of the run. Can be either "run" or "offline-run"."""
         return "run" if not self._offline else "offline-run"
 
     @computed_field  # type: ignore[prop-decorator]
@@ -788,8 +1674,9 @@ class Settings(BaseModel, validate_assignment=True):
         if not all([project_url, self.run_id]):
             return ""
 
-        query = self._get_url_query_string()
-        return f"{project_url}/runs/{quote(self.run_id or '')}{query}"
+        # Exclude specific safe characters from URL encoding to prevent 404 errors
+        safe_chars = "=+&$@"
+        return f"{project_url}/runs/{quote(self.run_id or '', safe=safe_chars)}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -805,15 +1692,18 @@ class Settings(BaseModel, validate_assignment=True):
         if not all([project_url, self.sweep_id]):
             return ""
 
-        query = self._get_url_query_string()
-        return f"{project_url}/sweeps/{quote(self.sweep_id or '')}{query}"
+        return f"{project_url}/sweeps/{quote(self.sweep_id or '')}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_dir(self) -> str:
-        return _path_convert(
-            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
-        )
+        """The directory for storing the run's files."""
+        name = f"{self.run_mode}-{self.timespec}-{self.run_id}"
+
+        if self.x_sync_dir_suffix:
+            name += f"-{self.x_sync_dir_suffix}"
+
+        return _path_convert(self.wandb_dir, name)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -824,39 +1714,25 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_symlink_latest(self) -> str:
+        """Path to the symlink to the most recent run's transaction log file."""
         return _path_convert(self.wandb_dir, "latest-run")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def timespec(self) -> str:
+        """The time specification for the run."""
         return self._start_datetime
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def wandb_dir(self) -> str:
-        """Full path to the wandb directory.
-
-        The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
-        We add the `__stage_dir__` to it to get the full `wandb_dir`
-        """
-        root_dir = self.root_dir or ""
-
-        # We use the hidden version if it already exists, otherwise non-hidden.
-        if os.path.exists(os.path.join(root_dir, ".wandb")):
-            __stage_dir__ = ".wandb" + os.sep
-        else:
-            __stage_dir__ = "wandb" + os.sep
-
-        path = os.path.join(root_dir, __stage_dir__)
-        if not os.access(root_dir or ".", os.W_OK):
-            termwarn(
-                f"Path {path} wasn't writable, using system temp directory.",
-                repeat=False,
-            )
-            path = os.path.join(
-                tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep)
-            )
-
+        """Full path to the wandb directory."""
+        stage_dir = (
+            ".wandb" + os.sep
+            if os.path.exists(os.path.join(self.root_dir, ".wandb"))
+            else "wandb" + os.sep
+        )
+        path = os.path.join(self.root_dir, stage_dir)
         return os.path.expanduser(path)
 
     # Methods to collect and update settings from different sources.
@@ -864,29 +1740,34 @@ class Settings(BaseModel, validate_assignment=True):
     # The Settings class does not track the source of the settings,
     # so it is up to the developer to ensure that the settings are applied
     # in the correct order. Most of the updates are done in
-    # wandb/sdk/wandb_setup.py::_WandbSetup__WandbSetup._settings_setup.
+    # wandb/sdk/wandb_setup.py::_WandbSetup._settings_setup.
 
     def update_from_system_config_file(self):
-        """Update settings from the system config file."""
+        """Update settings from the system config file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if not self.settings_system or not os.path.exists(self.settings_system):
             return
-        for key, value in self._load_config_file(self.settings_system).items():
-            if value is not None:
-                setattr(self, key, value)
+        self._load_config_file(self.settings_system)
 
     def update_from_workspace_config_file(self):
-        """Update settings from the workspace config file."""
+        """Update settings from the workspace config file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if not self.settings_workspace or not os.path.exists(self.settings_workspace):
             return
-        for key, value in self._load_config_file(self.settings_workspace).items():
-            if value is not None:
-                setattr(self, key, value)
+        self._load_config_file(self.settings_workspace)
 
-    def update_from_env_vars(self, environ: dict[str, Any]):
-        """Update settings from environment variables."""
+    def update_from_env_vars(self, environ: Dict[str, Any]):
+        """Update settings from environment variables.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         env_prefix: str = "WANDB_"
+        private_env_prefix: str = env_prefix + "_"
         special_env_var_names = {
-            "WANDB_DISABLE_SERVICE": "x_disable_service",
             "WANDB_SERVICE_TRANSPORT": "x_service_transport",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
@@ -904,6 +1785,8 @@ class Settings(BaseModel, validate_assignment=True):
 
             if setting in special_env_var_names:
                 key = special_env_var_names[setting]
+            elif setting.startswith(private_env_prefix):
+                key = "x_" + setting[len(private_env_prefix) :].lower()
             else:
                 # otherwise, strip the prefix and convert to lowercase
                 key = setting[len(env_prefix) :].lower()
@@ -918,7 +1801,10 @@ class Settings(BaseModel, validate_assignment=True):
                 setattr(self, key, value)
 
     def update_from_system_environment(self):
-        """Update settings from the system environment."""
+        """Update settings from the system environment.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
         if (self.save_code is True or self.save_code is None) and (
@@ -927,7 +1813,8 @@ class Settings(BaseModel, validate_assignment=True):
         ):
             self.save_code = env.should_save_code()
 
-        self.disable_git = env.disable_git()
+        if os.getenv(env.DISABLE_GIT) is not None:
+            self.disable_git = env.disable_git()
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
@@ -949,18 +1836,10 @@ class Settings(BaseModel, validate_assignment=True):
                 f"couldn't find {self.notebook_name}.",
             )
 
-        # host and username are populated by apply_env_vars if corresponding env
-        # vars exist -- but if they don't, we'll fill them in here
+        # host is populated by update_from_env_vars if the corresponding env
+        # vars exist -- but if they don't, we'll fill them in here.
         if self.host is None:
             self.host = socket.gethostname()  # type: ignore
-
-        if self.username is None:
-            try:  # type: ignore
-                self.username = getpass.getuser()
-            except KeyError:
-                # getuser() could raise KeyError in restricted environments like
-                # chroot jails or docker containers. Return user id in these cases.
-                self.username = str(os.getuid())
 
         _executable = (
             self.x_executable
@@ -971,7 +1850,8 @@ class Settings(BaseModel, validate_assignment=True):
         )
         self.x_executable = _executable
 
-        self.docker = env.get_docker(util.image_id_from_k8s())
+        if self.docker is None:
+            self.docker = env.get_docker(util.image_id_from_k8s())
 
         # proceed if not in CLI mode
         if self.x_cli_only_mode:
@@ -980,30 +1860,26 @@ class Settings(BaseModel, validate_assignment=True):
         program = self.program or self._get_program()
 
         if program is not None:
-            repo = GitRepo()
-            root = repo.root or os.getcwd()
-
-            self.program_relpath = self.program_relpath or self._get_program_relpath(
-                program, root
-            )
-            program_abspath = os.path.abspath(
-                os.path.join(root, os.path.relpath(os.getcwd(), root), program)
-            )
-            if os.path.exists(program_abspath):
-                self.program_abspath = program_abspath
+            self._setup_code_paths(program)
         else:
             program = "<python with no main file>"
 
         self.program = program
 
-    def update_from_dict(self, settings: dict[str, Any]) -> None:
-        """Update settings from a dictionary."""
+    def update_from_dict(self, settings: Dict[str, Any]) -> None:
+        """Update settings from a dictionary.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         for key, value in dict(settings).items():
             if value is not None:
                 setattr(self, key, value)
 
     def update_from_settings(self, settings: Settings) -> None:
-        """Update settings from another instance of `Settings`."""
+        """Update settings from another instance of `Settings`.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         d = {field: getattr(settings, field) for field in settings.model_fields_set}
         if d:
             self.update_from_dict(d)
@@ -1011,10 +1887,16 @@ class Settings(BaseModel, validate_assignment=True):
     # Helper methods.
 
     def to_proto(self) -> wandb_settings_pb2.Settings:
-        """Generate a protobuf representation of the settings."""
+        """Generate a protobuf representation of the settings.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         settings_proto = wandb_settings_pb2.Settings()
         for k, v in self.model_dump(exclude_none=True).items():
-            # special case for x_stats_open_metrics_filters
+            if k in CLIENT_ONLY_SETTINGS:
+                continue
+
+            # Special case for x_stats_open_metrics_filters.
             if k == "x_stats_open_metrics_filters":
                 if isinstance(v, (list, set, tuple)):
                     setting = getattr(settings_proto, k)
@@ -1026,6 +1908,26 @@ class Settings(BaseModel, validate_assignment=True):
                             setting.mapping.value[key].value[kk] = vv
                 else:
                     raise TypeError(f"Unsupported type {type(v)} for setting {k}")
+                continue
+
+            # Special case for RunMoment fields.
+            if k in ("fork_from", "resume_from"):
+                run_moment = (
+                    v
+                    if isinstance(v, RunMoment)
+                    else RunMoment(
+                        run=v.get("run"),
+                        value=v.get("value"),
+                        metric=v.get("metric"),
+                    )
+                )
+                getattr(settings_proto, k).CopyFrom(
+                    wandb_settings_pb2.RunMoment(
+                        run=run_moment.run,
+                        value=run_moment.value,
+                        metric=run_moment.metric,
+                    )
+                )
                 continue
 
             if isinstance(v, bool):
@@ -1045,14 +1947,6 @@ class Settings(BaseModel, validate_assignment=True):
                 for key, value in v.items():
                     # we only support dicts with string values for now
                     mapping.value[key] = value
-            elif isinstance(v, RunMoment):
-                getattr(settings_proto, k).CopyFrom(
-                    wandb_settings_pb2.RunMoment(
-                        run=v.run,
-                        value=v.value,
-                        metric=v.metric,
-                    )
-                )
             elif v is None:
                 # None means that the setting value was not set.
                 pass
@@ -1061,89 +1955,9 @@ class Settings(BaseModel, validate_assignment=True):
 
         return settings_proto
 
-    def handle_resume_logic(self):
-        """Handle logic for resuming runs."""
-        # handle auto resume logic
-        if self.resume == "auto":
-            if os.path.exists(self.resume_fname):
-                with open(self.resume_fname) as f:
-                    resume_run_id = json.load(f)["run_id"]
-                if self.run_id is None:
-                    self.run_id = resume_run_id
-                elif self.run_id != resume_run_id:
-                    wandb.termwarn(
-                        "Tried to auto resume run with "
-                        f"id {resume_run_id} but id {self.run_id} is set.",
-                    )
-        if self.run_id is None:
-            self.run_id = generate_id()
-
-        # persist run_id in case of failure
-        if self.resume == "auto" and self.resume_fname is not None:
-            filesystem.mkdir_exists_ok(self.wandb_dir)
-            with open(self.resume_fname, "w") as f:
-                f.write(json.dumps({"run_id": self.run_id}))
-
-    def handle_sweep_logic(self):
-        """Update settings based on sweep context.
-
-        When running a sweep, the project, entity, and run_id are handled externally,
-        and should be ignored if they are set.
-        """
-        if self.sweep_id is None:
-            return
-
-        for key in ("project", "entity", "run_id"):
-            value = getattr(self, key)
-            if value is not None:
-                wandb.termwarn(f"Ignoring {key} {value!r} when running a sweep.")
-                setattr(self, key, None)
-
-    def handle_launch_logic(self):
-        """Update settings based on launch context.
-
-        When running in a launch context, the project, entity, and run_id are handled
-        externally, and should be ignored if they are set.
-        """
-        if not self.launch:
-            return
-
-        for key in ("project", "entity", "run_id"):
-            value = getattr(self, key)
-            if value is not None:
-                wandb.termwarn(
-                    f"Ignoring {key} {value!r} when running from wandb launch context."
-                )
-                setattr(self, key, None)
-
-    @staticmethod
-    def validate_url(url: str) -> None:
-        """Validate a URL string."""
-        url_validator = SchemaValidator(
-            core_schema.url_schema(
-                allowed_schemes=["http", "https"],
-                strict=True,
-            )
-        )
-        url_validator.validate_python(url)
-
-    def _get_program(self) -> str | None:
+    def _get_program(self) -> Optional[str]:
         """Get the program that started the current process."""
-        if not self._jupyter:
-            # If not in a notebook, try to get the program from the environment
-            # or the __main__ module for scripts run as `python -m ...`.
-            program = os.getenv(env.PROGRAM)
-            if program is not None:
-                return program
-            try:
-                import __main__
-
-                if __main__.__spec__ is None:
-                    return __main__.__file__
-                return f"-m {__main__.__spec__.name}"
-            except (ImportError, AttributeError):
-                return None
-        else:
+        if self._jupyter:
             # If in a notebook, try to get the program from the notebook metadata.
             if self.notebook_name:
                 return self.notebook_name
@@ -1153,17 +1967,45 @@ class Settings(BaseModel, validate_assignment=True):
 
             if self.x_jupyter_path.startswith("fileId="):
                 return self.x_jupyter_name
+
+            return self.x_jupyter_path
+
+        # If not in a notebook, try to get the program from the environment
+        # or the __main__ module for scripts run as `python -m ...`.
+        program = os.getenv(env.PROGRAM)
+        if program is not None:
+            return program
+
+        try:
+            import __main__
+        except ImportError:
+            return None
+
+        try:
+            if __main__.__spec__ is None:
+                python_args = __main__.__file__
             else:
-                return self.x_jupyter_path
+                python_args = f"-m {__main__.__spec__.name}"
+        except AttributeError:
+            return None
+
+        return python_args
 
     @staticmethod
-    def _get_program_relpath(program: str, root: str | None = None) -> str | None:
+    def _get_program_relpath(program: str, root: Optional[str] = None) -> Optional[str]:
         """Get the relative path to the program from the root directory."""
         if not program:
             return None
 
         root = root or os.getcwd()
         if not root:
+            return None
+
+        # For windows, if the root and program are on different drives,
+        # os.path.relpath will raise a ValueError.
+        if not filesystem.are_paths_on_same_drive(
+            pathlib.Path(root), pathlib.Path(program)
+        ):
             return None
 
         full_path_to_program = os.path.join(
@@ -1177,18 +2019,33 @@ class Settings(BaseModel, validate_assignment=True):
 
         return None
 
-    @staticmethod
-    def _load_config_file(file_name: str, section: str = "default") -> dict:
-        """Load a config file and return the settings for a given section."""
+    def _load_config_file(
+        self,
+        file_name: str,
+        section: str = "default",
+    ) -> None:
+        """Load settings from a section in a config file."""
         parser = configparser.ConfigParser()
         parser.add_section(section)
         parser.read(file_name)
-        config: dict[str, Any] = dict()
-        for k in parser[section]:
-            config[k] = parser[section][k]
-            if k == "ignore_globs":
-                config[k] = config[k].split(",")
-        return config
+
+        key: str
+        value: object
+        for key, value in parser[section].items():
+            if key == "ignore_globs":
+                value = value.split(",")
+
+            elif key == "anonymous":
+                wandb.termwarn(
+                    f"Deprecated setting 'anonymous' in {file_name} has no"
+                    + " effect and will be removed in a future version of wandb."
+                    + " Please delete it manually or by running `wandb login`"
+                    + " to avoid errors.",
+                    repeat=False,
+                )
+                value = deprecation.UNSET
+
+            setattr(self, key, value)
 
     def _project_url_base(self) -> str:
         """Construct the base URL for the project."""
@@ -1198,20 +2055,125 @@ class Settings(BaseModel, validate_assignment=True):
         app_url = util.app_url(self.base_url)
         return f"{app_url}/{quote(self.entity or '')}/{quote(self.project or '')}"
 
-    def _get_url_query_string(self) -> str:
-        """Construct the query string for project, run, and sweep URLs."""
-        # TODO: remove dependency on Api()
-        if Api().settings().get("anonymous") != "true":
-            return ""
-
-        api_key = apikey.api_key(settings=self)
-
-        return f"?{urlencode({'apiKey': api_key})}"
-
     @staticmethod
-    def _runmoment_preprocessor(val: RunMoment | str | None) -> RunMoment | None:
+    def _runmoment_preprocessor(
+        val: Union[RunMoment, str, None],
+    ) -> Optional[RunMoment]:
         """Preprocess the setting for forking or resuming a run."""
         if isinstance(val, RunMoment) or val is None:
             return val
         elif isinstance(val, str):
             return RunMoment.from_uri(val)
+
+    if not IS_PYDANTIC_V2:
+
+        def model_copy(self, *args, **kwargs):
+            return self.copy(*args, **kwargs)
+
+        def model_dump(self, **kwargs):
+            """Compatibility method for Pydantic v1 to mimic v2's model_dump.
+
+            In v1, this is equivalent to dict() but also includes computed properties.
+
+            Args:
+                **kwargs: Options passed to the dict method
+                    - exclude_none: Whether to exclude fields with None values
+
+            Returns:
+                A dictionary of the model's fields and computed properties
+            """
+            # Handle exclude_none separately since it's named differently in v1
+            exclude_none = kwargs.pop("exclude_none", False)
+
+            # Start with regular fields from dict()
+            result = self.dict(**kwargs)
+
+            # Get all computed properties
+            for name in dir(self.__class__):
+                attr = getattr(self.__class__, name, None)
+                if isinstance(attr, property):
+                    try:
+                        # Only include properties that don't raise errors
+                        value = getattr(self, name)
+                        result[name] = value
+                    except (AttributeError, NotImplementedError, TypeError, ValueError):
+                        # Skip properties that can't be accessed or raise errors
+                        pass
+                elif isinstance(attr, RunMoment):
+                    value = getattr(self, name)
+                    result[name] = value
+
+            # Special Pydantic attributes that should always be excluded
+            exclude_fields = {
+                "model_config",
+                "model_fields",
+                "model_fields_set",
+                "__fields__",
+                "__model_fields_set",
+                "__pydantic_self__",
+                "__pydantic_initialised__",
+            }
+
+            # Remove special Pydantic attributes
+            for field in exclude_fields:
+                if field in result:
+                    del result[field]
+
+            if exclude_none:
+                # Remove None values from the result
+                return {k: v for k, v in result.items() if v is not None}
+
+            return result
+
+        @property
+        def model_fields_set(self) -> set:
+            """Return a set of fields that have been explicitly set.
+
+            This is a compatibility property for Pydantic v1 to mimic v2's model_fields_set.
+            """
+            return getattr(self, "__fields_set__", set())
+
+    def _setup_code_paths(self, program: str):
+        """Sets the program_abspath and program_relpath settings."""
+        if self._jupyter and self.x_jupyter_root:
+            self._infer_code_paths_for_jupyter(program)
+        else:
+            self._infer_code_path_for_program(program)
+
+    def _infer_code_path_for_program(self, program: str):
+        """Finds the program's absolute and relative paths."""
+        from .lib.gitlib import GitRepo
+
+        try:
+            root = (
+                GitRepo().root or os.getcwd() if not self.disable_git else os.getcwd()
+            )
+        except Exception:
+            # if the git command fails, fall back to the current working directory
+            root = os.getcwd()
+
+        self.program_relpath = self.program_relpath or self._get_program_relpath(
+            program, root
+        )
+
+        program_abspath = os.path.abspath(
+            os.path.join(root, os.path.relpath(os.getcwd(), root), program)
+        )
+
+        if os.path.exists(program_abspath):
+            self.program_abspath = program_abspath
+
+    def _infer_code_paths_for_jupyter(self, program: str):
+        """Find the notebook's absolute and relative paths.
+
+        Since the notebook's execution environment
+        is not the same as the current working directory.
+        We utilize the metadata provided by the jupyter server.
+        """
+        if not self.x_jupyter_root or not program:
+            return None
+
+        self.program_abspath = os.path.abspath(
+            os.path.join(self.x_jupyter_root, program)
+        )
+        self.program_relpath = program

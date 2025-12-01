@@ -12,10 +12,13 @@ import (
 	"sync/atomic"
 
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/wbapi"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
@@ -27,12 +30,18 @@ const (
 	maxMessageSize = 2 * 1024 * 1024 * 1024 // 2GB max message size
 )
 
-type ConnectionOptions struct {
-	StreamMux    *stream.StreamMux
+type ConnectionParams struct {
+	StreamMux          *stream.StreamMux
+	RunSyncManager     *runsync.RunSyncManager
+	GPUResourceManager *monitor.GPUResourceManager
+
+	ID string
+
 	Conn         net.Conn
 	SentryClient *sentry_ext.Client
 	Commit       string
 	LoggerPath   string
+	LogLevel     slog.Level
 }
 
 // Connection represents a client-server connection in the context of a streaming session.
@@ -42,11 +51,12 @@ type ConnectionOptions struct {
 // and outgoing responses, maintaining the state of the connection, and providing
 // error reporting mechanisms.
 type Connection struct {
-	// ctx is the context for the connection
-	ctx context.Context
+	// connLifetimeCtx is cancelled when the connection should be closed.
+	connLifetimeCtx context.Context
 
-	// cancel is the cancel function for the connection
-	cancel context.CancelFunc
+	// stopServer signals the server to shut down, which also closes all
+	// connections.
+	stopServer context.CancelFunc
 
 	// The underlying network connection. This represents the raw TCP connection
 	// layer that facilitates communication between the client and the server.
@@ -55,6 +65,12 @@ type Connection struct {
 	// A map that associates stream IDs with active streams (or runs). This helps
 	// track the streams associated with this connection.
 	streamMux *stream.StreamMux
+
+	// runSyncManager implements `wandb sync` operations.
+	runSyncManager *runsync.RunSyncManager
+
+	// gpuResourceManager is used by streams for system GPU metrics.
+	gpuResourceManager *monitor.GPUResourceManager
 
 	// id is the unique id for the connection
 	id string
@@ -69,49 +85,50 @@ type Connection struct {
 	// thread-safe checking and updating of the connection’s closure state.
 	closed *atomic.Bool
 
-	// The stream associated with this connection. While each connection has one
-	// stream, a stream can have multiple active connections, typically for a
-	// multi-client session.
-	stream *stream.Stream
-
 	// The current W&B Git commit hash, identifying the specific version of the binary.
 	commit string
 
+	// sentryClient is the sentry client
 	sentryClient *sentry_ext.Client
-	loggerPath   string
+
+	// loggerPath is the path to the logger
+	loggerPath string
+
+	// logLevel is the log level
+	logLevel slog.Level
+
+	// apiRequestHandler handles processing API related requests from clients.
+	wbapi *wbapi.WandbAPI
 }
 
 func NewConnection(
-	ctx context.Context,
-	cancel context.CancelFunc,
-	opts ConnectionOptions,
+	serverLifetimeCtx context.Context,
+	stopServer context.CancelFunc,
+	params ConnectionParams,
 ) *Connection {
-
 	return &Connection{
-		ctx:          ctx,
-		cancel:       cancel,
-		streamMux:    opts.StreamMux,
-		conn:         opts.Conn,
-		commit:       opts.Commit,
-		id:           opts.Conn.RemoteAddr().String(), // TODO: check if this is properly unique
-		inChan:       make(chan *spb.ServerRequest, BufferSize),
-		outChan:      make(chan *spb.ServerResponse, BufferSize),
-		closed:       &atomic.Bool{},
-		sentryClient: opts.SentryClient,
-		loggerPath:   opts.LoggerPath,
+		connLifetimeCtx:    serverLifetimeCtx,
+		stopServer:         stopServer,
+		streamMux:          params.StreamMux,
+		runSyncManager:     params.RunSyncManager,
+		gpuResourceManager: params.GPUResourceManager,
+		conn:               params.Conn,
+		commit:             params.Commit,
+		id:                 params.ID,
+		inChan:             make(chan *spb.ServerRequest, BufferSize),
+		outChan:            make(chan *spb.ServerResponse, BufferSize),
+		closed:             &atomic.Bool{},
+		sentryClient:       params.SentryClient,
+		loggerPath:         params.LoggerPath,
+		logLevel:           params.LogLevel,
 	}
 }
 
-// ManageConnectionData manages the lifecycle of the connection.
+// ManageConnectionData processes the connection until the server shuts down,
+// the peer closes the connection, or an error is encountered.
 //
-// This function concurrently handles the following:
-// - Reading and processing incoming data from the connection.
-// - Handling the processed incoming data.
-// - Writing outgoing data to the connection.
-//
-// It listens for a cancellation signal from the shared context, which triggers
-// the closing of the connection and ensures that all processing is complete
-// before the connection is closed.
+// After this exits, any messages that were received without error have been
+// processed and the underlying connection has been closed.
 func (nc *Connection) ManageConnectionData() {
 	slog.Info("connection: ManageConnectionData: new connection created", "id", nc.id)
 
@@ -135,8 +152,13 @@ func (nc *Connection) ManageConnectionData() {
 		nc.processOutgoingData()
 	}()
 
-	// Wait for the context cancellation signal to close the connection
-	<-nc.ctx.Done()
+	<-nc.connLifetimeCtx.Done()
+
+	// Close the underlying connection, which allows the above goroutines
+	// to eventually exit if the connection was not already closed.
+	//
+	// From this point, the peer will receive errors when trying to write
+	// to or read from the connection.
 	nc.Close()
 
 	wg.Wait()
@@ -212,10 +234,29 @@ func (nc *Connection) processIncomingData() {
 	for scanner.Scan() {
 		msg := &spb.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
+			dataLen := len(scanner.Bytes())
+			dataTrunc := scanner.Bytes()
+			if len(dataTrunc) > 1<<10 {
+				dataTrunc = dataTrunc[:1<<10]
+			}
+
 			slog.Error(
-				"connection: unmarshalling error",
+				"connection: unmarshalling error, breaking connection",
 				"error", err,
-				"id", nc.id)
+				"id", nc.id,
+				"token_len", dataLen,
+				"token_1kb", dataTrunc,
+			)
+
+			// Stop the server because a client is misbehaving, and it is no
+			// longer guaranteed that the server will receive a teardown
+			// request.
+			//
+			// The failsafe mechanism that shuts down the server if the parent
+			// process exits is not reliable here, as the client may be waiting
+			// for the server to shut down before exiting.
+			nc.stopServer()
+			break
 		} else {
 			nc.inChan <- msg
 		}
@@ -264,6 +305,8 @@ func (nc *Connection) processIncomingData() {
 func (nc *Connection) handleIncomingRequests() {
 	slog.Debug("handleIncomingRequests: started", "id", nc.id)
 
+	wg := &sync.WaitGroup{}
+
 	for msg := range nc.inChan {
 		slog.Debug("handleIncomingRequests: processing message", "msg", msg, "id", nc.id)
 
@@ -272,10 +315,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleAuthenticate(x.Authenticate)
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
-		case *spb.ServerRequest_InformStart:
-			nc.handleInformStart(x.InformStart)
 		case *spb.ServerRequest_InformAttach:
-			nc.handleInformAttach(x.InformAttach)
+			nc.handleInformAttach(msg.RequestId, x.InformAttach)
 		case *spb.ServerRequest_RecordPublish:
 			nc.handleInformRecord(x.RecordPublish)
 		case *spb.ServerRequest_RecordCommunicate:
@@ -284,6 +325,16 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleInformFinish(x.InformFinish)
 		case *spb.ServerRequest_InformTeardown:
 			nc.handleInformTeardown(x.InformTeardown)
+		case *spb.ServerRequest_InitSync:
+			nc.handleInitSync(msg.RequestId, x.InitSync)
+		case *spb.ServerRequest_Sync:
+			nc.handleSync(wg, msg.RequestId, x.Sync)
+		case *spb.ServerRequest_SyncStatus:
+			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
+		case *spb.ServerRequest_ApiInitRequest:
+			nc.handleApiInit(msg.RequestId, x.ApiInitRequest)
+		case *spb.ServerRequest_ApiRequest:
+			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
 			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
@@ -292,6 +343,9 @@ func (nc *Connection) handleIncomingRequests() {
 			panic(fmt.Sprintf("Unknown ServerRequestType: %T", x))
 		}
 	}
+
+	// Wait to complete any asynchronous requests.
+	wg.Wait()
 
 	// Ensure outChan is closed if connection isn't already marked as closed
 	if !nc.closed.Swap(true) {
@@ -315,44 +369,31 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	// if we are in offline mode, we don't want to send any data to sentry
 	var sentryClient *sentry_ext.Client
 	if settings.IsOffline() {
-		sentryClient = sentry_ext.New(sentry_ext.Params{DSN: ""})
+		sentryClient = sentry_ext.New(sentry_ext.Params{Disabled: true})
 	} else {
 		sentryClient = nc.sentryClient
 	}
 
-	nc.stream = stream.NewStream(
-		stream.StreamOptions{
-			Commit:     nc.commit,
-			Settings:   settings,
-			Sentry:     sentryClient,
-			LoggerPath: nc.loggerPath,
-		})
-	nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
-	nc.stream.Start()
+	strm := stream.InjectStream(
+		stream.GitCommitHash(nc.commit),
+		nc.gpuResourceManager,
+		stream.DebugCorePath(nc.loggerPath),
+		nc.logLevel,
+		nc.sentryClient,
+		settings,
+	)
+	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+	strm.Start()
 	slog.Info("handleInformInit: stream started", "streamId", streamId, "id", nc.id)
 
 	// TODO: remove this once we have a better observability setup
 	sentryClient.CaptureMessage("wandb-core", nil)
 
-	if err := nc.streamMux.AddStream(streamId, nc.stream); err != nil {
+	if err := nc.streamMux.AddStream(streamId, strm); err != nil {
 		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
 		// TODO: should we Close the stream?
 		return
 	}
-}
-
-// handleInformStart handles the start message from the client.
-//
-// This function is invoked when the server receives an `InformStart` message
-// from the client. It updates the stream settings with the provided settings
-// from the client.
-//
-// TODO: should probably remove this message and use a different mechanism
-// to update stream settings
-func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
-	slog.Debug("handleInformStart: received", "id", nc.id)
-	nc.stream.UpdateSettings(settings.From(msg.GetSettings()))
-	nc.stream.UpdateRunURLTag()
 }
 
 // handleInformAttach handles the new connection attaching to an existing stream.
@@ -361,22 +402,27 @@ func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 // from the client. It attaches a new client connection to an existing stream
 // and sends an update to the client with the stream settings. The client can
 // then use these settings to update its local state.
-func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
+func (nc *Connection) handleInformAttach(
+	requestID string,
+	msg *spb.ServerInformAttachRequest,
+) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
-	var err error
-	nc.stream, err = nc.streamMux.GetStream(streamId)
+	strm, err := nc.streamMux.GetStream(streamId)
 	if err != nil {
-		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
+		slog.Error(
+			"handleInformAttach: error getting stream",
+			"err", err, "id", nc.id)
 	} else {
-		nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+		strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
 		resp := &spb.ServerResponse{
+			RequestId: requestID,
 			ServerResponseType: &spb.ServerResponse_InformAttachResponse{
 				InformAttachResponse: &spb.ServerInformAttachResponse{
 					XInfo:    msg.XInfo,
-					Settings: nc.stream.GetSettings().Proto,
+					Settings: strm.GetSettings().Proto,
 				},
 			},
 		}
@@ -404,7 +450,7 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 		BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
 	})
 	backend := stream.NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
-	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{})
+	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{}, "" /*clientId*/)
 
 	data, err := gql.Viewer(context.Background(), graphqlClient)
 	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
@@ -440,14 +486,15 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 // It also adds the connection ID to the control message so that the stream can send
 // a response back to the correct connection.
 func (nc *Connection) handleInformRecord(msg *spb.Record) {
-
 	streamId := msg.GetXInfo().GetStreamId()
 
 	slog.Debug("handleInformRecord: record received", "streamId", streamId, "id", nc.id)
 
-	// Check if the stream exists before proceeding
-	if nc.stream == nil {
-		slog.Error("handleInformRecord: stream not found", "streamId", streamId, "id", nc.id)
+	strm, err := nc.streamMux.GetStream(streamId)
+	if err != nil {
+		slog.Error(
+			"handleInformRecord: error getting stream",
+			"err", err, "id", nc.id)
 		return
 	}
 
@@ -460,7 +507,7 @@ func (nc *Connection) handleInformRecord(msg *spb.Record) {
 	}
 
 	// Delegate the handling of the record to the stream
-	nc.stream.HandleRecord(msg)
+	strm.HandleRecord(msg)
 }
 
 // handleInformFinish processes a finish message from the client.
@@ -473,14 +520,14 @@ func (nc *Connection) handleInformFinish(msg *spb.ServerInformFinishRequest) {
 	slog.Info("handleInformFinish: finish message received", "streamId", streamId, "id", nc.id)
 
 	// Attempt to remove the stream from the stream multiplexer
-	stream, err := nc.streamMux.RemoveStream(streamId)
+	strm, err := nc.streamMux.RemoveStream(streamId)
 	if err != nil {
 		slog.Error("handleInformFinish: error removing stream", "err", err, "streamId", streamId, "id", nc.id)
 		return
 	}
 
 	// Safely close the stream
-	stream.Close()
+	strm.Close()
 	slog.Info("handleInformFinish: stream closed", "streamId", streamId, "id", nc.id)
 }
 
@@ -492,9 +539,7 @@ func (nc *Connection) handleInformFinish(msg *spb.ServerInformFinishRequest) {
 // complete and close with the provided exit code.
 func (nc *Connection) handleInformTeardown(teardown *spb.ServerInformTeardownRequest) {
 	slog.Info("handleInformTeardown: server teardown initiated", "id", nc.id)
-
-	// Cancel the context, stopping the server and all active connections.
-	nc.cancel()
+	nc.stopServer()
 
 	// Close all streams and wait for completion, passing the provided exit code.
 	nc.streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
@@ -502,18 +547,110 @@ func (nc *Connection) handleInformTeardown(teardown *spb.ServerInformTeardownReq
 	slog.Info("handleInformTeardown: server shutdown complete", "id", nc.id)
 }
 
-// Close closes the connection and releases all associated resources.
-//
-// This method closes the underlying network connection. It ensures that all
-// resources associated with the connection are properly released.
-func (nc *Connection) Close() {
-	slog.Info("connection: Close: initiating connection closure", "id", nc.id)
+// handleInitSync responds to a ServerInitSyncRequest.
+func (nc *Connection) handleInitSync(
+	id string,
+	request *spb.ServerInitSyncRequest,
+) {
+	response := nc.runSyncManager.InitSync(request)
+	nc.Respond(&spb.ServerResponse{
+		RequestId: id,
+		ServerResponseType: &spb.ServerResponse_InitSyncResponse{
+			InitSyncResponse: response,
+		},
+	})
+}
 
-	// Attempt to close the underlying connection
+// handleSync asynchronously responds to a ServerSyncRequest.
+func (nc *Connection) handleSync(
+	wg *sync.WaitGroup,
+	id string,
+	request *spb.ServerSyncRequest,
+) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		response := nc.runSyncManager.DoSync(request)
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_SyncResponse{
+				SyncResponse: response,
+			},
+		})
+	}()
+}
+
+// handleSyncStatus responds to a ServerSyncStatusRequest.
+func (nc *Connection) handleSyncStatus(
+	id string,
+	request *spb.ServerSyncStatusRequest,
+) {
+	response := nc.runSyncManager.SyncStatus(request)
+	nc.Respond(&spb.ServerResponse{
+		RequestId: id,
+		ServerResponseType: &spb.ServerResponse_SyncStatusResponse{
+			SyncStatusResponse: response,
+		},
+	})
+}
+
+func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
+	settings := settings.From(request.GetSettings())
+	nc.wbapi = wbapi.NewWandbAPI(settings)
+	nc.Respond(&spb.ServerResponse{
+		RequestId: id,
+		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
+			ApiInitResponse: &spb.ServerApiInitResponse{},
+		},
+	})
+}
+
+func (nc *Connection) handleApi(
+	wg *sync.WaitGroup,
+	id string,
+	request *spb.ApiRequest,
+) {
+	if nc.wbapi == nil {
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_ApiResponse{
+				ApiResponse: &spb.ApiResponse{
+					Response: &spb.ApiResponse_ApiErrorResponse{
+						ApiErrorResponse: &spb.ApiErrorResponse{
+							Message: "WandbAPI is not initialized",
+						},
+					},
+				},
+			},
+		})
+		return
+	}
+
+	wg.Go(func() {
+		response := nc.wbapi.HandleRequest(id, request)
+
+		if response != nil {
+			nc.Respond(&spb.ServerResponse{
+				RequestId: id,
+				ServerResponseType: &spb.ServerResponse_ApiResponse{
+					ApiResponse: response,
+				},
+			})
+		}
+	})
+}
+
+// Close closes the underlying TCP connection.
+//
+// Any blocked reads or writes will return an error.
+func (nc *Connection) Close() {
+	slog.Info("connection: closing", "id", nc.id)
+
 	if err := nc.conn.Close(); err != nil {
-		slog.Error("connection: Close: failed to close connection", "error", err, "id", nc.id)
+		slog.Error("connection: error closing", "error", err, "id", nc.id)
 	} else {
-		slog.Info("connection: Close: connection successfully closed", "id", nc.id)
+		slog.Info("connection: closed successfully", "id", nc.id)
 	}
 }
 

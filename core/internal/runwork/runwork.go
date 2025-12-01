@@ -51,8 +51,9 @@ type RunWork interface {
 	// Chan returns the channel of work for the run.
 	Chan() <-chan Work
 
-	// SetDone indicates that the run is done, allowing the channel
-	// to become closed.
+	// SetDone indicates that the run is done, unblocking Close().
+	//
+	// It does not close the channel or cancel any work.
 	SetDone()
 
 	// Close cancels any ongoing work and closes the output channel.
@@ -142,6 +143,10 @@ func (rw *runWork) AddWorkOrCancel(
 	// If we're racing with Close(), then it will block on line Close.B
 	// until we exit and decrement addWorkCount---so internalWork
 	// is guaranteed to not be closed until this method returns.
+
+	rw.logger.Debug("runwork: got work",
+		"work", work.DebugInfo(),
+		"buffer", len(rw.internalWork))
 
 	start := time.Now()
 	for i := 0; ; i++ {

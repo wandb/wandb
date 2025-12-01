@@ -1,19 +1,26 @@
 package runwork
 
 import (
-	"fmt"
+	"sync"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // Work is a task in the Handler->Sender pipeline.
-//
-// Most work is in the form of Record protos from the client.
-// Occasionally, it is useful to inject additional work that must
-// happen in order with Record processing. There are some Records
-// that exist only for this purpose, but it is not an appropriate
-// use of protos, and it is very limiting.
 type Work interface {
+	// Schedule inserts work into the pipeline.
+	//
+	// This is a step "outside" the pipeline, that happens upon receiving
+	// records from the client or reading them from the transaction log.
+	// This step can defer record processing until some condition has occurred,
+	// without blocking the ingestion of other records---thereby reordering
+	// them.
+	//
+	// The WaitGroup is used to signal when proceed() has been invoked.
+	// To prevent deadlocks, it must not block on other work entering
+	// the pipeline.
+	Schedule(wg *sync.WaitGroup, proceed func())
+
 	// Accept indicates the work has entered the pipeline.
 	//
 	// It returns true if the work should continue through the pipeline,
@@ -26,10 +33,11 @@ type Work interface {
 	// If this is a Record proto, the given function is called.
 	Accept(func(*spb.Record)) bool
 
-	// Save writes the work to the transaction log.
+	// ToRecord returns the serialized representation of this Work.
 	//
-	// If this is a Record proto, the given function is called.
-	Save(func(*spb.Record))
+	// The returned value's number may be modified in the Writer goroutine.
+	// Otherwise, the value must not be modified.
+	ToRecord() *spb.Record
 
 	// BypassOfflineMode reports whether Process needs to happen
 	// even if we're offline.
@@ -38,78 +46,52 @@ type Work interface {
 	// Process performs the work.
 	//
 	// If this is a Record proto, the given function is called.
-	Process(func(*spb.Record))
+	// Responses are pushed into the Result channel.
+	Process(func(*spb.Record), chan<- *spb.Result)
 
 	// DebugInfo returns a short string describing the work
 	// that can be logged for debugging.
 	DebugInfo() string
 }
 
-// WorkRecord is a Record proto for the Handler->Sender pipeline.
-type WorkRecord struct {
-	Record *spb.Record
+// MaybeSavedWork is work that may have been written to the transaction log.
+//
+// Some work (like the work for a Request) is not saved.
+//
+// This should be passed by value.
+type MaybeSavedWork struct {
+	Work Work
+
+	// IsSaved is true if the work has been successfully written to the
+	// transaction log.
+	IsSaved bool
+
+	// SavedOffset is the byte offset in the transaction log where the record
+	// was written.
+	SavedOffset int64
+
+	// RecordNumber is the record's index in the transaction log.
+	RecordNumber int64
 }
 
-func WorkFromRecord(record *spb.Record) Work {
-	return WorkRecord{Record: record}
+// SimpleScheduleMixin implements Work.Schedule by immediately invoking
+// the callback.
+type SimpleScheduleMixin struct{}
+
+func (m SimpleScheduleMixin) Schedule(wg *sync.WaitGroup, proceed func()) {
+	proceed()
 }
 
-func (wr WorkRecord) Accept(fn func(*spb.Record)) bool {
-	fn(wr.Record)
+// AlwaysAcceptMixin implements Work.Accept by returning true.
+type AlwaysAcceptMixin struct{}
 
-	switch wr.Record.RecordType.(type) {
-	case *spb.Record_Exit:
-		// The Runtime field is updated on the record before forwarding,
-		// and it is forwarded with AlwaysSend and if syncing Local.
-		return false
-	case *spb.Record_Final:
-		// Deprecated.
-		return false
-	case *spb.Record_Footer:
-		// Deprecated.
-		return false
-	case *spb.Record_Header:
-		// The record's VersionInfo gets modified before forwarding.
-		return false
-	case *spb.Record_NoopLinkArtifact:
-		// Deprecated.
-		return false
-	case *spb.Record_Tbrecord:
-		// Never forwarded.
-		return false
-	case *spb.Record_Request:
-		// Requests are not forwarded, but may generate additional work.
-		return false
-	case *spb.Record_Run:
-		// Forwarded with AlwaysSend.
-		return false
-	}
+func (m AlwaysAcceptMixin) Accept(func(*spb.Record)) bool { return true }
 
-	return true
-}
+// NoopProcessMixin implements Work.Process by doing nothing.
+//
+// Since Process is a no-op, BypassOfflineMode is implemented to return false
+type NoopProcessMixin struct{}
 
-func (wr WorkRecord) Save(fn func(*spb.Record)) {
-	fn(wr.Record)
-}
+func (m NoopProcessMixin) BypassOfflineMode() bool { return false }
 
-func (wr WorkRecord) BypassOfflineMode() bool {
-	return wr.Record.GetControl().GetAlwaysSend()
-}
-
-func (wr WorkRecord) Process(fn func(*spb.Record)) {
-	fn(wr.Record)
-}
-
-func (wr WorkRecord) DebugInfo() string {
-	var recordType string
-	switch x := wr.Record.RecordType.(type) {
-	case *spb.Record_Request:
-		recordType = fmt.Sprintf("%T", x.Request.RequestType)
-	default:
-		recordType = fmt.Sprintf("%T", x)
-	}
-
-	return fmt.Sprintf(
-		"WorkRecord(%s); Control(%v)",
-		recordType, wr.Record.GetControl())
-}
+func (m NoopProcessMixin) Process(func(*spb.Record), chan<- *spb.Result) {}

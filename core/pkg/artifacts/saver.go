@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"math"
 	"net/url"
 	"os"
 	"slices"
@@ -42,10 +40,11 @@ const (
 
 // ArtifactSaveManager manages artifact uploads.
 type ArtifactSaveManager struct {
-	logger              *observability.CoreLogger
-	graphqlClient       graphql.Client
-	fileTransferManager filetransfer.FileTransferManager
-	fileCache           Cache
+	logger                       *observability.CoreLogger
+	graphqlClient                graphql.Client
+	fileTransferManager          filetransfer.FileTransferManager
+	fileCache                    Cache
+	useArtifactProjectEntityInfo bool
 
 	// uploadsByName ensures that uploads for the same artifact name happen
 	// serially, so that version numbers are assigned deterministically.
@@ -56,15 +55,17 @@ func NewArtifactSaveManager(
 	logger *observability.CoreLogger,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
+	useArtifactProjectEntityInfo bool,
 ) *ArtifactSaveManager {
 	workerPool := &errgroup.Group{}
 	workerPool.SetLimit(maxSimultaneousUploads)
 
 	return &ArtifactSaveManager{
-		logger:              logger,
-		graphqlClient:       graphqlClient,
-		fileTransferManager: fileTransferManager,
-		fileCache:           NewFileCache(UserCacheDir()),
+		logger:                       logger,
+		graphqlClient:                graphqlClient,
+		fileTransferManager:          fileTransferManager,
+		fileCache:                    NewFileCache(UserCacheDir()),
+		useArtifactProjectEntityInfo: useArtifactProjectEntityInfo,
 		uploadsByName: namedgoroutines.New(
 			uploadBufferPerArtifactName,
 			workerPool,
@@ -101,16 +102,17 @@ func (as *ArtifactSaveManager) Save(
 	as.uploadsByName.Go(
 		artifact.Name,
 		&ArtifactSaver{
-			ctx:                 ctx,
-			logger:              as.logger,
-			graphqlClient:       as.graphqlClient,
-			fileTransferManager: as.fileTransferManager,
-			fileCache:           as.fileCache,
-			artifact:            artifact,
-			historyStep:         historyStep,
-			stagingDir:          stagingDir,
-			maxActiveBatches:    5,
-			resultChan:          resultChan,
+			ctx:                          ctx,
+			logger:                       as.logger,
+			graphqlClient:                as.graphqlClient,
+			fileTransferManager:          as.fileTransferManager,
+			fileCache:                    as.fileCache,
+			artifact:                     artifact,
+			historyStep:                  historyStep,
+			stagingDir:                   stagingDir,
+			maxActiveBatches:             5,
+			resultChan:                   resultChan,
+			useArtifactProjectEntityInfo: as.useArtifactProjectEntityInfo,
 		},
 	)
 
@@ -128,13 +130,14 @@ type ArtifactSaver struct {
 	resultChan          chan<- ArtifactSaveResult
 
 	// Input.
-	artifact         *spb.ArtifactRecord
-	historyStep      int64
-	stagingDir       string
-	maxActiveBatches int
-	numTotal         int
-	numDone          int
-	startTime        time.Time
+	artifact                     *spb.ArtifactRecord
+	historyStep                  int64
+	stagingDir                   string
+	maxActiveBatches             int
+	numTotal                     int
+	numDone                      int
+	startTime                    time.Time
+	useArtifactProjectEntityInfo bool
 }
 
 type multipartUploadInfo = []gql.CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart
@@ -157,7 +160,7 @@ type uploadResult struct {
 	err  error
 }
 
-func (as *ArtifactSaver) createArtifact() (
+func (as *ArtifactSaver) createArtifact(manifest *Manifest) (
 	attrs gql.CreatedArtifactArtifact,
 	rerr error,
 ) {
@@ -190,7 +193,7 @@ func (as *ArtifactSaver) createArtifact() (
 			tags = append(tags, gql.TagInput{TagName: tag})
 		}
 	}
-
+	as.logger.Debug("createArtifact: manifest", "storagePolicyConfig", manifest.StoragePolicyConfig)
 	input := gql.CreateArtifactInput{
 		EntityName:                as.artifact.Entity,
 		ProjectName:               as.artifact.Project,
@@ -209,6 +212,7 @@ func (as *ArtifactSaver) createArtifact() (
 		DistributedID:             nullify.NilIfZero(as.artifact.DistributedId),
 		ClientID:                  as.artifact.ClientId,
 		SequenceClientID:          as.artifact.SequenceClientId,
+		StorageRegion:             manifest.StoragePolicyConfig.StorageRegion,
 	}
 
 	response, err := gql.CreateArtifact(as.ctx, as.graphqlClient, input)
@@ -305,7 +309,7 @@ func (as *ArtifactSaver) uploadFiles(
 		if entry.LocalPath == nil {
 			continue
 		}
-		parts, err := multiPartRequest(*entry.LocalPath)
+		parts, err := createMultiPartRequest(as.logger, *entry.LocalPath)
 		if err != nil {
 			return err
 		}
@@ -485,54 +489,6 @@ func newUploadTask(
 	}
 }
 
-const (
-	S3MinMultiUploadSize = 2 << 30   // 2 GiB, the threshold we've chosen to switch to multipart
-	S3MaxMultiUploadSize = 5 << 40   // 5 TiB, maximum possible object size
-	S3DefaultChunkSize   = 100 << 20 // 1 MiB
-	S3MaxParts           = 10000
-)
-
-func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get file size for path %s: %w", path, err)
-	}
-	fileSize := fileInfo.Size()
-
-	if fileSize < S3MinMultiUploadSize {
-		// We don't need to use multipart for small files.
-		return nil, nil
-	}
-	if fileSize > S3MaxMultiUploadSize {
-		return nil, fmt.Errorf("file size exceeds maximum S3 object size: %v", fileSize)
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	partsInfo := []gql.UploadPartsInput{}
-	partNumber := int64(1)
-	buffer := make([]byte, getChunkSize(fileSize))
-	for {
-		bytesRead, err := file.Read(buffer)
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-		if bytesRead == 0 {
-			break
-		}
-		partsInfo = append(partsInfo, gql.UploadPartsInput{
-			PartNumber: partNumber,
-			HexMD5:     hashencode.ComputeHexMD5(buffer[:bytesRead]),
-		})
-		partNumber++
-	}
-	return partsInfo, nil
-}
-
 func (as *ArtifactSaver) uploadMultipart(
 	path string,
 	fileInfo serverFileResponse,
@@ -554,6 +510,9 @@ func (as *ArtifactSaver) uploadMultipart(
 	// TODO: add mid-upload cancel.
 
 	contentType := getContentType(fileInfo.uploadHeaders)
+
+	// Record start time for network upload phase
+	uploadStartTime := time.Now()
 
 	partInfo := fileInfo.multipartUploadInfo
 	for i, part := range partInfo {
@@ -629,6 +588,19 @@ func (as *ArtifactSaver) uploadMultipart(
 		as.ctx, as.graphqlClient, gql.CompleteMultipartActionComplete, partEtags,
 		fileInfo.birthArtifactID, *fileInfo.storagePath, fileInfo.uploadID,
 	)
+
+	// Log network upload time
+	uploadTime := time.Since(uploadStartTime)
+	uploadSpeedMBps := float64(statInfo.Size()) / (1024 * 1024) / uploadTime.Seconds()
+	as.logger.Debug("Completed multipart upload",
+		"fileName", fileInfo.name,
+		"uploadTimeMs", uploadTime.Milliseconds(),
+		"uploadSpeedMBps", uploadSpeedMBps,
+		"numParts", len(partData),
+		"fileSize", statInfo.Size(),
+		"chunkSize", chunkSize,
+	)
+
 	return uploadResult{name: fileInfo.name, err: err}
 }
 
@@ -639,17 +611,6 @@ func getContentType(headers []string) string {
 		}
 	}
 	return ""
-}
-
-func getChunkSize(fileSize int64) int64 {
-	if fileSize < S3DefaultChunkSize*S3MaxParts {
-		return S3DefaultChunkSize
-	}
-	// Use a larger chunk size if we would need more than 10,000 chunks.
-	chunkSize := int64(math.Ceil(float64(fileSize) / float64(S3MaxParts)))
-	// Round up to the nearest multiple of 4096.
-	chunkSize = int64(math.Ceil(float64(chunkSize)/4096) * 4096)
-	return chunkSize
 }
 
 func (as *ArtifactSaver) cacheEntry(entry ManifestEntry) {
@@ -749,7 +710,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 
 	defer as.deleteStagingFiles(&manifest)
 
-	artifactAttrs, err := as.createArtifact()
+	artifactAttrs, err := as.createArtifact(&manifest)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
 	}
@@ -761,16 +722,28 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	} else if artifactAttrs.ArtifactSequence.LatestArtifact != nil {
 		baseArtifactId = &artifactAttrs.ArtifactSequence.LatestArtifact.Id
 	}
+
+	useArtifactInput := gql.UseArtifactInput{
+		ArtifactID:  artifactID,
+		EntityName:  as.artifact.Entity,
+		ProjectName: as.artifact.Project,
+		RunName:     as.artifact.RunId,
+	}
+
+	if as.useArtifactProjectEntityInfo {
+		useArtifactInput.ArtifactEntityName = &as.artifact.Entity
+		useArtifactInput.ArtifactProjectName = &as.artifact.Project
+	}
+
 	if artifactAttrs.State == gql.ArtifactStateCommitted {
 		if as.artifact.UseAfterCommit {
-			_, err := gql.UseArtifact(
+			var err error
+			_, err = gql.UseArtifact(
 				as.ctx,
 				as.graphqlClient,
-				as.artifact.Entity,
-				as.artifact.Project,
-				as.artifact.RunId,
-				artifactID,
+				useArtifactInput,
 			)
+
 			if err != nil {
 				return "", fmt.Errorf("gql.UseArtifact: %w", err)
 			}
@@ -803,7 +776,9 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}
-	defer os.Remove(manifestFile)
+	defer func() {
+		_ = os.Remove(manifestFile)
+	}()
 
 	uploadUrl, uploadHeaders, err := as.upsertManifest(artifactID, baseArtifactId, manifestAttrs.Id, manifestDigest)
 	if err != nil {
@@ -825,11 +800,9 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 			_, err = gql.UseArtifact(
 				as.ctx,
 				as.graphqlClient,
-				as.artifact.Entity,
-				as.artifact.Project,
-				as.artifact.RunId,
-				artifactID,
+				useArtifactInput,
 			)
+
 			if err != nil {
 				return "", fmt.Errorf("gql.UseArtifact: %w", err)
 			}

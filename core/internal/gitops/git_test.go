@@ -10,7 +10,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/gitops"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 func setupTestRepo() (string, func(), error) {
@@ -50,7 +50,7 @@ func setupTestRepo() (string, func(), error) {
 	fmt.Printf("Commit created: %s\n", commit.String())
 
 	cleanup := func() {
-		os.RemoveAll(repoPath)
+		_ = os.RemoveAll(repoPath)
 	}
 	return repoPath, cleanup, nil
 }
@@ -62,7 +62,7 @@ func TestIsAvailable(t *testing.T) {
 	}
 	defer cleanup()
 
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	git := gitops.New(repoPath, logger)
 	available := git.IsAvailable()
 	assert.True(t, available)
@@ -75,7 +75,7 @@ func TestLatestCommit(t *testing.T) {
 	}
 	defer cleanup()
 
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	git := gitops.New(repoPath, logger)
 	latest, err := git.LatestCommit("HEAD")
 	assert.NoError(t, err)
@@ -100,10 +100,12 @@ func TestSavePatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 	outputPath := filepath.Join(tempDir, "diff.patch")
 
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	git := gitops.New(repoPath, logger)
 	err = git.SavePatch("HEAD", outputPath)
 	assert.NoError(t, err)

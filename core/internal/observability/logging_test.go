@@ -57,18 +57,17 @@ func TestNewTags(t *testing.T) {
 }
 
 func TestNewNoOpLogger(t *testing.T) {
-	// Call the function to get a CoreLogger
+	// Set up the logger
 	logger := observability.NewNoOpLogger()
 
 	// Assert that the logger has the expected configuration
-	assert.NotNil(t, logger)
-	assert.NotNil(t, logger.GetLogger())
-	assert.NotNil(t, logger.GetTags())
-	assert.NotNil(t, logger.GetCaptureException())
-	assert.NotNil(t, logger.GetCaptureMessage())
+	assert.NotNil(t, logger, "Expected logger to be created")
+	assert.NotNil(t, logger.Logger, "Expected logger to be created")
+	assert.Equal(t, observability.Tags{}, logger.GetTags(), "Unexpected tags in the logger")
+	assert.Nil(t, logger.GetSentry(), "Unexpected sentry client in the logger")
 }
 
-func TestNewCoreLoggerWithTags(t *testing.T) {
+func TestNewLoggerWithTags(t *testing.T) {
 	// Mock logger for testing
 	var buf bytes.Buffer
 	mockLogger := slog.New(
@@ -86,8 +85,13 @@ func TestNewCoreLoggerWithTags(t *testing.T) {
 	// Create tags for testing
 	tags := observability.Tags{"key1": "value1", "key2": "value2"}
 
-	// Create a CoreLogger with tags
-	logger := observability.NewCoreLogger(mockLogger, observability.WithTags(tags))
+	// Create a Logger with tags
+	logger := observability.NewCoreLogger(
+		mockLogger,
+		&observability.CoreLoggerParams{
+			Tags: tags,
+		},
+	)
 
 	// Assert that the logger has the expected configuration
 	assert.NotNil(t, logger)

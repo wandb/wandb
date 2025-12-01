@@ -236,6 +236,19 @@ func PossibleExpiryOptionsValues() []ExpiryOptions {
 	}
 }
 
+type FileShareTokenIntent string
+
+const (
+	FileShareTokenIntentBackup FileShareTokenIntent = "backup"
+)
+
+// PossibleFileShareTokenIntentValues returns the possible values for the FileShareTokenIntent const type.
+func PossibleFileShareTokenIntentValues() []FileShareTokenIntent {
+	return []FileShareTokenIntent{
+		FileShareTokenIntentBackup,
+	}
+}
+
 type FilterBlobsIncludeItem string
 
 const (
@@ -522,6 +535,7 @@ const (
 	StorageErrorCodeAuthorizationResourceTypeMismatch                 StorageErrorCode = "AuthorizationResourceTypeMismatch"
 	StorageErrorCodeAuthorizationServiceMismatch                      StorageErrorCode = "AuthorizationServiceMismatch"
 	StorageErrorCodeAuthorizationSourceIPMismatch                     StorageErrorCode = "AuthorizationSourceIPMismatch"
+	StorageErrorCodeBlobAccessTierNotSupportedForAccountType          StorageErrorCode = "BlobAccessTierNotSupportedForAccountType"
 	StorageErrorCodeBlobAlreadyExists                                 StorageErrorCode = "BlobAlreadyExists"
 	StorageErrorCodeBlobArchived                                      StorageErrorCode = "BlobArchived"
 	StorageErrorCodeBlobBeingRehydrated                               StorageErrorCode = "BlobBeingRehydrated"
@@ -640,6 +654,7 @@ func PossibleStorageErrorCodeValues() []StorageErrorCode {
 		StorageErrorCodeAuthorizationResourceTypeMismatch,
 		StorageErrorCodeAuthorizationServiceMismatch,
 		StorageErrorCodeAuthorizationSourceIPMismatch,
+		StorageErrorCodeBlobAccessTierNotSupportedForAccountType,
 		StorageErrorCodeBlobAlreadyExists,
 		StorageErrorCodeBlobArchived,
 		StorageErrorCodeBlobBeingRehydrated,

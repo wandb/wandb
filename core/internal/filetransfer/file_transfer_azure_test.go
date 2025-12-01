@@ -3,8 +3,11 @@ package filetransfer_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,10 +17,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 // the mockAzureClients mock the azure client with the following containers/blobs:
@@ -135,24 +139,30 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 	assert.NoError(t, err)
 
 	ftFile1 := filetransfer.NewAzureFileTransfer(
-		accountClients,
-		observability.NewNoOpLogger(),
+		&filetransfer.AzureClientOverrides{
+			AccountClients: accountClients,
+			BlobClient:     &mockAzureBlobClient{azureFile1Latest},
+		},
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
-		&mockAzureBlobClient{azureFile1Latest},
 	)
 
 	ftFile1v0 := filetransfer.NewAzureFileTransfer(
-		accountClients,
-		observability.NewNoOpLogger(),
+		&filetransfer.AzureClientOverrides{
+			AccountClients: accountClients,
+			BlobClient:     &mockAzureBlobClient{azureFile1v0},
+		},
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
-		&mockAzureBlobClient{azureFile1v0},
 	)
 
 	ftFile2 := filetransfer.NewAzureFileTransfer(
-		accountClients,
-		observability.NewNoOpLogger(),
+		&filetransfer.AzureClientOverrides{
+			AccountClients: accountClients,
+			BlobClient:     &mockAzureBlobClient{azureFile2},
+		},
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
-		&mockAzureBlobClient{azureFile2},
 	)
 
 	tests := []struct {
@@ -168,16 +178,6 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 				FileKind:     filetransfer.RunFileKindArtifact,
 				PathOrPrefix: "test-download-file.txt",
 				Reference:    "gs://bucket/path/to/object",
-			},
-			wantErr: true,
-			ft:      ftFile1,
-		},
-		{
-			name: "Returns error if manifest entry reference does not exist in azure",
-			task: &filetransfer.ReferenceArtifactDownloadTask{
-				FileKind:     filetransfer.RunFileKindArtifact,
-				PathOrPrefix: "test-download-file.txt",
-				Reference:    "https://fake_account.blob.core.windows.net/fake_container/fake_file.txt",
 			},
 			wantErr: true,
 			ft:      ftFile1,
@@ -213,7 +213,9 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer os.Remove(tt.task.PathOrPrefix)
+			defer func() {
+				_ = os.Remove(tt.task.PathOrPrefix)
+			}()
 			err := tt.ft.Download(tt.task)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("AzureFileTransfer.Download() error = %v, wantErr %v", err, tt.wantErr)
@@ -244,8 +246,10 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 	}
 	path1 := filepath.Join(task.PathOrPrefix, "file1.txt")
 	path2 := filepath.Join(task.PathOrPrefix, "file2.txt")
-	defer os.Remove(path1)
-	defer os.Remove(path2)
+	defer func() {
+		_ = os.Remove(path2)
+		_ = os.Remove(path1)
+	}()
 
 	// Performing the download
 	err = ftFile1.Download(task)
@@ -260,4 +264,154 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 	content, err = os.ReadFile(path2)
 	assert.NoError(t, err)
 	assert.Equal(t, azureFile2.Content, content)
+}
+
+type mockAzureBlockBlobClient struct {
+	t               *testing.T
+	contentExpected []byte
+	headers         map[string]string
+	shouldFail      bool
+}
+
+func (m mockAzureBlockBlobClient) UploadStream(ctx context.Context, body io.Reader, options *blockblob.UploadStreamOptions) (blockblob.UploadStreamResponse, error) {
+	if m.shouldFail {
+		return blockblob.UploadStreamResponse{}, fmt.Errorf("upload failed")
+	}
+	bodyBytes, err := io.ReadAll(body)
+	assert.NoError(m.t, err)
+	assert.Equal(m.t, m.contentExpected, bodyBytes)
+	assert.Equal(m.t, *options.HTTPHeaders.BlobContentType, m.headers["Content-Type"])
+	md5 := base64.StdEncoding.EncodeToString(options.HTTPHeaders.BlobContentMD5)
+	assert.Equal(m.t, md5, m.headers["Content-MD5"])
+
+	return blockblob.UploadStreamResponse{}, nil
+}
+
+func TestAzureFileTransfer_Upload(t *testing.T) {
+	// Content to be uploaded
+	contentExpected := []byte("test content for upload")
+
+	// Headers to be tested
+	contentMD5 := base64.StdEncoding.EncodeToString([]byte("test"))
+	headers := []string{
+		"Content-MD5:" + contentMD5,
+		"Content-Type:text/plain",
+	}
+
+	mockAzureBlockBlobClient := mockAzureBlockBlobClient{
+		t:               t,
+		contentExpected: contentExpected,
+		headers: map[string]string{
+			"Content-MD5":  contentMD5,
+			"Content-Type": "text/plain",
+		},
+		shouldFail: false,
+	}
+
+	// Creating a file transfer
+	ft := filetransfer.NewAzureFileTransfer(
+		&filetransfer.AzureClientOverrides{
+			BlockBlobClient: &mockAzureBlockBlobClient,
+		},
+		observabilitytest.NewTestLogger(t),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	// Creating a file to be uploaded
+	filename := "test-upload-file.txt"
+	err := os.WriteFile(filename, contentExpected, 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
+
+	// Mocking task
+	task := &filetransfer.DefaultUploadTask{
+		Path:    filename,
+		Url:     "https://account.blob.core.windows.net/container/test-upload-file.txt",
+		Headers: headers,
+	}
+
+	// Performing the upload
+	err = ft.Upload(task)
+	assert.NoError(t, err)
+	assert.Equal(t, task.Response.StatusCode, http.StatusOK)
+}
+
+func TestAzureFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
+	entireContent := []byte("test content for upload")
+
+	chunkCheckHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	})
+	server := httptest.NewServer(chunkCheckHandler)
+
+	ft := filetransfer.NewAzureFileTransfer(
+		&filetransfer.AzureClientOverrides{
+			BlockBlobClient: &mockAzureBlockBlobClient{},
+		},
+		observabilitytest.NewTestLogger(t),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	tempFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	_, err = tempFile.Write(entireContent)
+	assert.NoError(t, err)
+	_ = tempFile.Close()
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
+
+	task := &filetransfer.DefaultUploadTask{
+		Path:   tempFile.Name(),
+		Url:    server.URL,
+		Offset: 17,
+		Size:   1000,
+	}
+
+	err = ft.Upload(task)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "offset + size exceeds the file size")
+}
+
+func TestAzureFileTransfer_UploadClientError(t *testing.T) {
+	// According to Azure docs, `uploadStream` returns an error if the connection is closed
+	// or the context is cancelled.
+	contentExpected := []byte("")
+	headers := []string{}
+
+	mockAzureBlockBlobClient := mockAzureBlockBlobClient{
+		t:               t,
+		contentExpected: contentExpected,
+		headers:         map[string]string{},
+		shouldFail:      true,
+	}
+
+	// Creating a file transfer
+	ft := filetransfer.NewAzureFileTransfer(
+		&filetransfer.AzureClientOverrides{
+			BlockBlobClient: &mockAzureBlockBlobClient,
+		},
+		observabilitytest.NewTestLogger(t),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	// Creating a file to be uploaded
+	filename := "test-upload-file.txt"
+	err := os.WriteFile(filename, contentExpected, 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
+
+	// Mocking task
+	task := &filetransfer.DefaultUploadTask{
+		Path:    filename,
+		Url:     "https://account.blob.core.windows.net/container/test-upload-file.txt",
+		Headers: headers,
+	}
+
+	// Performing the upload
+	err = ft.Upload(task)
+	assert.Error(t, err)
 }

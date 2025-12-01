@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+import "wandb/proto/wandb_internal.proto";
+import "wandb/proto/wandb_settings.proto";
+
+option go_package = "core/pkg/service_go_proto";
+
+// Prepares a sync operation to replay one or more .wandb files.
+//
+// The response is immediate and includes an ID to use in future requests.
+// A separate request starts the operation.
+message ServerInitSyncRequest {
+  // Paths to the .wandb files to upload.
+  //
+  // Paths should be absolute.
+  repeated string path = 1;
+
+  // Settings to use when syncing.
+  Settings settings = 2;
+}
+
+// Indicates a sync operation is ready.
+message ServerInitSyncResponse {
+  // An ID to use to start and query the operation.
+  string id = 1;
+}
+
+// Begins a sync operation created by ServerInitSyncRequest.
+//
+// The response is delivered once the operation completes.
+message ServerSyncRequest {
+  // The operation's ID, as returned by ServerInitSyncResponse.
+  string id = 1;
+
+  // How many runs to sync at once, if syncing multiple.
+  //
+  // Syncing is generally IO bound, and the ideal parallelism depends
+  // on factors like server performance and network speed.
+  uint32 parallelism = 2;
+}
+
+// Indicates a sync operation completed, either successfully or with errors.
+message ServerSyncResponse {
+  // Any messages that were not returned via a status response.
+  repeated ServerSyncMessage messages = 1;
+}
+
+// Checks the status of an ongoing sync operation.
+message ServerSyncStatusRequest {
+  // The operation's ID, as returned by ServerInitSyncResponse.
+  string id = 1;
+}
+
+// The status of a sync operation.
+message ServerSyncStatusResponse {
+  // The status of any ongoing work (such as network requests),
+  // keyed by the run path (entity/project/id).
+  map<string, OperationStats> stats = 1;
+
+  // New messages since the last status request.
+  repeated ServerSyncMessage new_messages = 2;
+}
+
+// ServerSyncMessage is a console message generated during a sync operation.
+message ServerSyncMessage {
+  // Severity values match Python's logging module for convenience.
+  enum Severity {
+    SEVERITY_NOTSET = 0;
+    SEVERITY_INFO = 20;
+    SEVERITY_ERROR = 40;
+  }
+
+  Severity severity = 1;
+  string content = 2;
+}

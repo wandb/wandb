@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -47,21 +50,63 @@ func withRetryLogging(
 			switch {
 			case resp == nil && err == nil:
 				logger.Error("api: retrying HTTP request, no error or response")
+
 			case err != nil:
 				logger.Info("api: retrying error", "error", err)
+				wboperation.Get(ctx).MarkRetryingError(err)
+
 			case resp.StatusCode >= 400:
-				// TODO: Log the request body.
+				bodyFirstKB, err := readResponseBodyUpToLimit(resp, 1024)
+
+				var bodyToLog string
+				if err == nil {
+					bodyToLog = string(bodyFirstKB)
+				} else {
+					bodyToLog = fmt.Sprintf("error reading body: %v", err)
+				}
+
 				logger.Info(
 					"api: retrying HTTP error",
 					"status", resp.StatusCode,
 					"url", resp.Request.URL.String(),
+					"body", bodyToLog,
 				)
 
 				// TODO: Report the attempt number & time to next retry.
-				wboperation.Get(ctx).MarkRetryingHTTPError(resp.Status)
+				wboperation.Get(ctx).MarkRetryingHTTPError(
+					resp.StatusCode,
+					resp.Status,
+					ErrorFromWBResponse(bodyFirstKB),
+				)
 			}
 		}
 
 		return willRetry, err
 	}
+}
+
+// readResponseBodyUpToLimit returns the first maxBytes of the response body
+// non-destructively.
+func readResponseBodyUpToLimit(
+	resp *http.Response,
+	maxBytes int64,
+) ([]byte, error) {
+	var bodyBuffer bytes.Buffer
+	bodyBytes, err := io.ReadAll(
+		io.LimitReader(
+			io.TeeReader(resp.Body, &bodyBuffer),
+			maxBytes,
+		))
+
+	resp.Body = &readerAndCloser{
+		Reader: io.MultiReader(&bodyBuffer, resp.Body),
+		Closer: resp.Body,
+	}
+
+	return bodyBytes, err
+}
+
+type readerAndCloser struct {
+	io.Reader
+	io.Closer
 }

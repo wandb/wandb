@@ -57,22 +57,16 @@ def unset_globals():
     wandb.run = None
     wandb.config = preinit.PreInitObject("wandb.config")
     wandb.summary = preinit.PreInitObject("wandb.summary")
-    wandb.log = preinit.PreInitCallable("wandb.log", wandb.wandb_sdk.wandb_run.Run.log)
-    wandb.watch = preinit.PreInitCallable(
-        "wandb.watch", wandb.wandb_sdk.wandb_run.Run.watch
-    )
-    wandb.unwatch = preinit.PreInitCallable(
-        "wandb.unwatch", wandb.wandb_sdk.wandb_run.Run.unwatch
-    )
-    wandb.save = preinit.PreInitCallable(
-        "wandb.save", wandb.wandb_sdk.wandb_run.Run.save
-    )
+    wandb.log = preinit.PreInitCallable("wandb.log", wandb.Run.log)
+    wandb.watch = preinit.PreInitCallable("wandb.watch", wandb.Run.watch)
+    wandb.unwatch = preinit.PreInitCallable("wandb.unwatch", wandb.Run.unwatch)
+    wandb.save = preinit.PreInitCallable("wandb.save", wandb.Run.save)
     wandb.use_artifact = preinit.PreInitCallable(
-        "wandb.use_artifact", wandb.wandb_sdk.wandb_run.Run.use_artifact
+        "wandb.use_artifact", wandb.Run.use_artifact
     )
     wandb.log_artifact = preinit.PreInitCallable(
-        "wandb.log_artifact", wandb.wandb_sdk.wandb_run.Run.log_artifact
+        "wandb.log_artifact", wandb.Run.log_artifact
     )
     wandb.define_metric = preinit.PreInitCallable(
-        "wandb.define_metric", wandb.wandb_sdk.wandb_run.Run.define_metric
+        "wandb.define_metric", wandb.Run.define_metric
     )

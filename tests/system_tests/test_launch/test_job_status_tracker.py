@@ -8,16 +8,16 @@ from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
 @pytest.mark.asyncio
-async def test_check_stop_run_not_exist(wandb_init):
+async def test_check_stop_run_not_exist(user):
     job_tracker = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", MagicMock(), MagicMock()
     )
-    run = wandb_init(id="testrun")
+    run = wandb.init(id="testrun")
     api = wandb.InternalApi()
     mock_launch_project = MagicMock()
-    mock_launch_project.target_entity = run._entity
-    mock_launch_project.target_project = run._project
-    mock_launch_project.run_id = run._run_id + "a"
+    mock_launch_project.target_entity = run.entity
+    mock_launch_project.target_project = run.project
+    mock_launch_project.run_id = run.id + "a"
     job_tracker.update_run_info(mock_launch_project)
 
     res = await job_tracker.check_wandb_run_stopped(api)
@@ -26,23 +26,22 @@ async def test_check_stop_run_not_exist(wandb_init):
 
 
 @pytest.mark.asyncio
-async def test_check_stop_run_exist_stopped(user, wandb_init):
+async def test_check_stop_run_exist_stopped(user):
     mock.patch("wandb.sdk.wandb_run.thread.interrupt_main", lambda x: None)
     job_tracker = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", MagicMock(), MagicMock()
     )
-    run = wandb_init(id="testrun", entity=user)
-    print(run._entity)
+    run = wandb.init(id="testrun", entity=user)
     api = wandb.InternalApi()
     encoded_run_id = base64.standard_b64encode(
-        f"Run:v1:testrun:{run._project}:{run._entity}".encode()
+        f"Run:v1:testrun:{run.project}:{run.entity}".encode()
     ).decode("utf-8")
     mock_launch_project = MagicMock()
-    mock_launch_project.target_entity = run._entity
-    mock_launch_project.target_project = run._project
-    mock_launch_project.run_id = run._run_id
+    mock_launch_project.target_entity = run.entity
+    mock_launch_project.target_project = run.project
+    mock_launch_project.run_id = run.id
 
-    api_run = api.run_config(project=run._project, entity=run._entity, run=run._run_id)
+    api_run = api.run_config(project=run.project, entity=run.entity, run=run.id)
     assert api_run
 
     job_tracker.update_run_info(mock_launch_project)

@@ -14,40 +14,24 @@ import (
 	"github.com/shirou/gopsutil/v4/internal/common"
 )
 
-func IOCounters(pernic bool) ([]IOCountersStat, error) {
-	return IOCountersWithContext(context.Background(), pernic)
-}
-
-// IOCountersByFile exists just for compatibility with Linux.
-func IOCountersByFile(pernic bool, filename string) ([]IOCountersStat, error) {
-	return IOCountersByFileWithContext(context.Background(), pernic, filename)
-}
-
-func IOCountersByFileWithContext(ctx context.Context, pernic bool, filename string) ([]IOCountersStat, error) {
-	return IOCounters(pernic)
-}
-
-func FilterCounters() ([]FilterStat, error) {
-	return FilterCountersWithContext(context.Background())
-}
-
-func FilterCountersWithContext(ctx context.Context) ([]FilterStat, error) {
+// Deprecated: use process.PidsWithContext instead
+func PidsWithContext(_ context.Context) ([]int32, error) {
 	return nil, common.ErrNotImplementedError
 }
 
-func ConntrackStats(percpu bool) ([]ConntrackStat, error) {
-	return ConntrackStatsWithContext(context.Background(), percpu)
+func IOCountersByFileWithContext(ctx context.Context, pernic bool, _ string) ([]IOCountersStat, error) {
+	return IOCountersWithContext(ctx, pernic)
 }
 
-func ConntrackStatsWithContext(ctx context.Context, percpu bool) ([]ConntrackStat, error) {
+func FilterCountersWithContext(_ context.Context) ([]FilterStat, error) {
 	return nil, common.ErrNotImplementedError
 }
 
-func ProtoCounters(protocols []string) ([]ProtoCountersStat, error) {
-	return ProtoCountersWithContext(context.Background(), protocols)
+func ConntrackStatsWithContext(_ context.Context, _ bool) ([]ConntrackStat, error) {
+	return nil, common.ErrNotImplementedError
 }
 
-func ProtoCountersWithContext(ctx context.Context, protocols []string) ([]ProtoCountersStat, error) {
+func ProtoCountersWithContext(_ context.Context, _ []string) ([]ProtoCountersStat, error) {
 	return nil, common.ErrNotImplementedError
 }
 
@@ -97,36 +81,36 @@ func parseNetstatNetLine(line string) (ConnectionStat, error) {
 
 var portMatch = regexp.MustCompile(`(.*)\.(\d+)$`)
 
+func parseAddr(l string, family uint32) (Addr, error) {
+	matches := portMatch.FindStringSubmatch(l)
+	if matches == nil {
+		return Addr{}, fmt.Errorf("wrong addr, %s", l)
+	}
+	host := matches[1]
+	port := matches[2]
+	if host == "*" {
+		switch family {
+		case syscall.AF_INET:
+			host = "0.0.0.0"
+		case syscall.AF_INET6:
+			host = "::"
+		default:
+			return Addr{}, fmt.Errorf("unknown family, %d", family)
+		}
+	}
+	lport, err := strconv.ParseInt(port, 10, 32)
+	if err != nil {
+		return Addr{}, err
+	}
+	return Addr{IP: host, Port: uint32(lport)}, nil
+}
+
 // This function only works for netstat returning addresses with a "."
 // before the port (0.0.0.0.22 instead of 0.0.0.0:22).
-func parseNetstatAddr(local string, remote string, family uint32) (laddr Addr, raddr Addr, err error) {
-	parse := func(l string) (Addr, error) {
-		matches := portMatch.FindStringSubmatch(l)
-		if matches == nil {
-			return Addr{}, fmt.Errorf("wrong addr, %s", l)
-		}
-		host := matches[1]
-		port := matches[2]
-		if host == "*" {
-			switch family {
-			case syscall.AF_INET:
-				host = "0.0.0.0"
-			case syscall.AF_INET6:
-				host = "::"
-			default:
-				return Addr{}, fmt.Errorf("unknown family, %d", family)
-			}
-		}
-		lport, err := strconv.ParseInt(port, 10, 32)
-		if err != nil {
-			return Addr{}, err
-		}
-		return Addr{IP: host, Port: uint32(lport)}, nil
-	}
-
-	laddr, err = parse(local)
+func parseNetstatAddr(local, remote string, family uint32) (laddr, raddr Addr, err error) {
+	laddr, err = parseAddr(local, family)
 	if remote != "*.*" { // remote addr exists
-		raddr, err = parse(remote)
+		raddr, err = parseAddr(remote, family)
 		if err != nil {
 			return laddr, raddr, err
 		}
@@ -199,7 +183,7 @@ func hasCorrectInetProto(kind, proto string) bool {
 	return false
 }
 
-func parseNetstatA(output string, kind string) ([]ConnectionStat, error) {
+func parseNetstatA(output, kind string) ([]ConnectionStat, error) {
 	var ret []ConnectionStat
 	lines := strings.Split(string(output), "\n")
 
@@ -209,7 +193,8 @@ func parseNetstatA(output string, kind string) ([]ConnectionStat, error) {
 			continue
 		}
 
-		if strings.HasPrefix(fields[0], "f1") {
+		switch {
+		case strings.HasPrefix(fields[0], "f1"):
 			// Unix lines
 			if len(fields) < 2 {
 				// every unix connections have two lines
@@ -218,12 +203,12 @@ func parseNetstatA(output string, kind string) ([]ConnectionStat, error) {
 
 			c, err := parseNetstatUnixLine(fields)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse Unix Address (%s): %s", line, err)
+				return nil, fmt.Errorf("failed to parse Unix Address (%s): %w", line, err)
 			}
 
 			ret = append(ret, c)
 
-		} else if strings.HasPrefix(fields[0], "tcp") || strings.HasPrefix(fields[0], "udp") {
+		case strings.HasPrefix(fields[0], "tcp") || strings.HasPrefix(fields[0], "udp"):
 			// Inet lines
 			if !hasCorrectInetProto(kind, fields[0]) {
 				continue
@@ -237,21 +222,17 @@ func parseNetstatA(output string, kind string) ([]ConnectionStat, error) {
 
 			c, err := parseNetstatNetLine(line)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse Inet Address (%s): %s", line, err)
+				return nil, fmt.Errorf("failed to parse Inet Address (%s): %w", line, err)
 			}
 
 			ret = append(ret, c)
-		} else {
+		default:
 			// Header lines
 			continue
 		}
 	}
 
 	return ret, nil
-}
-
-func Connections(kind string) ([]ConnectionStat, error) {
-	return ConnectionsWithContext(context.Background(), kind)
 }
 
 func ConnectionsWithContext(ctx context.Context, kind string) ([]ConnectionStat, error) {
@@ -286,19 +267,8 @@ func ConnectionsWithContext(ctx context.Context, kind string) ([]ConnectionStat,
 	return ret, nil
 }
 
-func ConnectionsMax(kind string, maxConn int) ([]ConnectionStat, error) {
-	return ConnectionsMaxWithContext(context.Background(), kind, maxConn)
-}
-
 func ConnectionsMaxWithContext(ctx context.Context, kind string, maxConn int) ([]ConnectionStat, error) {
-	return []ConnectionStat{}, common.ErrNotImplementedError
-}
-
-// Return a list of network connections opened, omitting `Uids`.
-// WithoutUids functions are reliant on implementation details. They may be altered to be an alias for Connections or be
-// removed from the API in the future.
-func ConnectionsWithoutUids(kind string) ([]ConnectionStat, error) {
-	return ConnectionsWithoutUidsWithContext(context.Background(), kind)
+	return ConnectionsPidMaxWithContext(ctx, kind, 0, maxConn)
 }
 
 func ConnectionsWithoutUidsWithContext(ctx context.Context, kind string) ([]ConnectionStat, error) {
@@ -309,22 +279,22 @@ func ConnectionsMaxWithoutUidsWithContext(ctx context.Context, kind string, maxC
 	return ConnectionsPidMaxWithoutUidsWithContext(ctx, kind, 0, maxConn)
 }
 
-func ConnectionsPidWithoutUids(kind string, pid int32) ([]ConnectionStat, error) {
-	return ConnectionsPidWithoutUidsWithContext(context.Background(), kind, pid)
+func ConnectionsPidWithContext(ctx context.Context, kind string, pid int32) ([]ConnectionStat, error) {
+	return ConnectionsPidMaxWithContext(ctx, kind, pid, 0)
 }
 
 func ConnectionsPidWithoutUidsWithContext(ctx context.Context, kind string, pid int32) ([]ConnectionStat, error) {
 	return ConnectionsPidMaxWithoutUidsWithContext(ctx, kind, pid, 0)
 }
 
-func ConnectionsPidMaxWithoutUids(kind string, pid int32, maxConn int) ([]ConnectionStat, error) {
-	return ConnectionsPidMaxWithoutUidsWithContext(context.Background(), kind, pid, maxConn)
+func ConnectionsPidMaxWithContext(ctx context.Context, kind string, pid int32, maxConn int) ([]ConnectionStat, error) {
+	return connectionsPidMaxWithoutUidsWithContext(ctx, kind, pid, maxConn, false)
 }
 
 func ConnectionsPidMaxWithoutUidsWithContext(ctx context.Context, kind string, pid int32, maxConn int) ([]ConnectionStat, error) {
-	return connectionsPidMaxWithoutUidsWithContext(ctx, kind, pid, maxConn)
+	return connectionsPidMaxWithoutUidsWithContext(ctx, kind, pid, maxConn, true)
 }
 
-func connectionsPidMaxWithoutUidsWithContext(ctx context.Context, kind string, pid int32, maxConn int) ([]ConnectionStat, error) {
+func connectionsPidMaxWithoutUidsWithContext(_ context.Context, _ string, _ int32, _ int, _ bool) ([]ConnectionStat, error) {
 	return []ConnectionStat{}, common.ErrNotImplementedError
 }

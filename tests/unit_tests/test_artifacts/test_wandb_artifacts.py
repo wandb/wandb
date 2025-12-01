@@ -2,19 +2,29 @@ import functools
 import queue
 import shutil
 import unittest.mock as mock
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping, Optional
+from string import ascii_letters, digits
+from typing import IO, TYPE_CHECKING, Any, AnyStr, ContextManager, Mapping, Optional
 from unittest.mock import Mock
 
 import pytest
 import requests
+from hypothesis import given
+from hypothesis.strategies import from_regex, text
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
+from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
+from wandb.sdk.artifacts.storage_policies._multipart import (
+    multipart_download,
+    should_multipart_download,
+)
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
 if TYPE_CHECKING:
@@ -95,8 +105,7 @@ class TestStoreFile:
             entry=ArtifactManifestEntry(
                 path=entry_path,
                 digest=entry_digest,
-                local_path=str(entry_local_path) if entry_local_path else None,
-                size=entry_local_path.stat().st_size if entry_local_path else None,
+                local_path=entry_local_path,
             ),
             preparer=preparer if preparer else mock_preparer(),
         )
@@ -321,8 +330,7 @@ class TestStoreFile:
         policy = WandbStoragePolicy(api=api)
         # Mock minimum size for multipart so that we can test multipart
         with mock.patch(
-            "wandb.sdk.artifacts.storage_policies.wandb_storage_policy."
-            "S3_MIN_MULTI_UPLOAD_SIZE",
+            "wandb.sdk.artifacts.storage_policies._multipart.MIN_MULTI_UPLOAD_SIZE",
             example_file.stat().st_size,
         ):
             deduped = self._store_file(
@@ -373,10 +381,28 @@ class TestStoreFile:
                 assert etag["hexMD5"] == hex_digests[etag["partNumber"]]
 
 
-@pytest.mark.parametrize("type", ["job", "wandb-history", "wandb-foo"])
-def test_invalid_artifact_type(type):
+@pytest.mark.parametrize("invalid_type", ["job", "wandb-history", "wandb-foo"])
+def test_invalid_artifact_type(invalid_type):
     with pytest.raises(ValueError, match="reserved for internal use"):
-        Artifact("foo", type=type)
+        Artifact("foo", type=invalid_type)
+
+
+@given(
+    invalid_name=(
+        text(  # Too many characters
+            alphabet={*ascii_letters, *digits, "_", "-", " "},
+            min_size=NAME_MAXLEN + 1,
+        )
+        | from_regex(  # Contains invalid characters
+            r"(\w|\d|\s)*(/)(\w|\d|\s)*",
+            fullmatch=True,
+        )
+    )
+)
+def test_invalid_artifact_name(invalid_name):
+    """Prevent users from instantiating an artifact with an invalid name."""
+    with pytest.raises(ValueError):
+        _ = Artifact(invalid_name, type="any")
 
 
 @pytest.mark.parametrize(
@@ -444,10 +470,9 @@ def test_cache_write_failure_is_ignored(monkeypatch, capsys):
     path.write_text("hello")
 
     entry = ArtifactManifestEntry(
-        path=str(path),
+        path=path,
         digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
-        local_path=str(path),
-        size=path.stat().st_size,
+        local_path=path,
     )
 
     policy._write_cache(entry)
@@ -480,3 +505,107 @@ def test_download_with_pathlib_root(monkeypatch):
     root = list(artifact._download_roots)[0]
     path_parts = custom_path.parts
     assert Path(root).parts[-len(path_parts) :] == path_parts
+
+
+def test_artifact_multipart_download_threshold():
+    mb = 1024 * 1024
+    assert should_multipart_download(100 * mb) is False
+    assert should_multipart_download(100 * mb, override=True) is True
+    assert should_multipart_download(100 * mb, override=False) is False
+
+    assert should_multipart_download(2080 * mb) is True
+    assert should_multipart_download(2080 * mb, override=True) is True
+    assert should_multipart_download(2080 * mb, override=False) is False
+
+    assert should_multipart_download(5070 * mb) is True
+    assert should_multipart_download(5070 * mb, override=True) is True
+    assert should_multipart_download(5070 * mb, override=False) is False
+
+
+class MockOpener:
+    """Wrap a file as a Opener."""
+
+    def __init__(self, file: IO):
+        self.file = file
+
+    def __call__(self, mode: str = "r") -> ContextManager[IO]:
+        @contextmanager
+        def _fake_context():
+            yield self.file
+
+        return _fake_context()
+
+
+def test_artifact_multipart_download_network_error():
+    # Disable retries and backoff to avoid timeout in test
+    session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(max_retries=0)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+    class CountOnlyFile(IO):
+        def __init__(self):
+            self.write_count = 0
+            self.seek_count = 0
+
+        def seek(self, offset: int, whence: int = 0) -> int:
+            self.seek_count += 1
+            return offset
+
+        def write(self, s: AnyStr) -> int:
+            self.write_count += 1
+            return len(s)
+
+    file = CountOnlyFile()
+    opener = MockOpener(file)
+    with pytest.raises(requests.exceptions.ConnectionError):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            multipart_download(
+                executor, session, "https://invalid.com", 4 * 1024 * 1024 * 1024, opener
+            )
+    assert file.seek_count == 0
+    assert file.write_count == 0
+
+
+def test_artifact_multipart_download_disk_error():
+    class ThrowFile(IO):
+        def seek(self, offset: int, whence: int = 0) -> int:
+            raise ValueError("I/O operation on closed file")
+
+    class MockResponse:
+        def raise_for_status(self):
+            pass
+
+        def iter_content(self, chunk_size: int = 1024):
+            return [b"test"]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            pass
+
+    class MockSession:
+        def __init__(self):
+            self.get_count = 0
+
+        def get(self, url: str, stream: bool = False, headers: dict = None):
+            self.get_count += 1
+            return MockResponse()
+
+    session = MockSession()
+
+    file = ThrowFile()
+    opener = MockOpener(file)
+    with pytest.raises(ValueError):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            multipart_download(
+                executor,
+                session,
+                "https://mocked.com",
+                500 * 1024 * 1024,  # 500MB should have 5 parts
+                opener,
+            )
+    # After first get call has errors, reamining get call should return without making the call.
+    # It can be 5 depends on underlying environment,e.g. it fails on winodws from time to time.
+    assert session.get_count <= 5

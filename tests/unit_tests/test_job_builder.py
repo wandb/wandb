@@ -4,8 +4,6 @@ import random
 import string
 
 import pytest
-from google.protobuf.wrappers_pb2 import BoolValue, StringValue
-from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.util import make_artifact_name_safe
@@ -15,16 +13,7 @@ def str_of_length(n):
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=n))
 
 
-def make_proto_settings(**kwargs):
-    proto = wandb_settings_pb2.Settings()
-    for k, v in kwargs.items():
-        if isinstance(v, bool):
-            getattr(proto, k).CopyFrom(BoolValue(value=v))
-        elif isinstance(v, str):
-            getattr(proto, k).CopyFrom(StringValue(value=v))
-    return proto
-
-
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_repo_job(runner, api):
     remote_name = str_of_length(129)
     metadata = {
@@ -40,17 +29,12 @@ def test_build_repo_job(runner, api):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
 
-        kwargs = {
-            "x_files_dir": "./",
-            "disable_job_creation": False,
-            "_jupyter": False,
-        }
         settings = SettingsStatic(
-            make_proto_settings(
-                **kwargs,
-            )
+            {
+                "disable_job_creation": False,
+            }
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, files_dir="./")
         artifact = job_builder.build(
             api,
             dockerfile="Dockerfile",
@@ -73,6 +57,7 @@ def test_build_repo_job(runner, api):
             assert source_json["build_context"] == "blah/"
 
 
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
     remote_name = str_of_length(129)
     metadata = {
@@ -100,17 +85,13 @@ def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
 
-        kwargs = {
-            "x_files_dir": "./",
-            "disable_job_creation": False,
-            "x_jupyter_root": str(tmp_path),
-        }
         settings = SettingsStatic(
-            make_proto_settings(
-                **kwargs,
-            )
+            {
+                "disable_job_creation": False,
+                "x_jupyter_root": str(tmp_path),
+            }
         )
-        job_builder = JobBuilder(settings, True)
+        job_builder = JobBuilder(settings, True, files_dir="./")
         artifact = job_builder.build(api)
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(
@@ -122,6 +103,7 @@ def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
         assert job_builder._is_notebook_run is True
 
 
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_artifact_job(runner, api):
     metadata = {
         "codePath": "blah/test.py",
@@ -136,17 +118,12 @@ def test_build_artifact_job(runner, api):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
 
-        kwargs = {
-            "x_files_dir": "./",
-            "disable_job_creation": False,
-            "_jupyter": False,
-        }
         settings = SettingsStatic(
-            make_proto_settings(
-                **kwargs,
-            )
+            {
+                "disable_job_creation": False,
+            }
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, files_dir="./")
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -159,6 +136,7 @@ def test_build_artifact_job(runner, api):
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
 
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
     metadata = {
         "program": "blah/test.ipynb",
@@ -182,17 +160,13 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        kwargs = {
-            "x_files_dir": "./",
-            "disable_job_creation": False,
-            "x_jupyter_root": str(tmp_path),
-        }
         settings = SettingsStatic(
-            make_proto_settings(
-                **kwargs,
-            )
+            {
+                "disable_job_creation": False,
+                "x_jupyter_root": str(tmp_path),
+            }
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, files_dir="./")
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -207,6 +181,7 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
 
 
 @pytest.mark.parametrize("verbose", [True, False])
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_artifact_notebook_job_no_program(
     mocker,
     runner,
@@ -231,17 +206,13 @@ def test_build_artifact_notebook_job_no_program(
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        kwargs = {
-            "x_files_dir": "./",
-            "disable_job_creation": False,
-            "x_jupyter_root": str(tmp_path),
-        }
         settings = SettingsStatic(
-            make_proto_settings(
-                **kwargs,
-            )
+            {
+                "disable_job_creation": False,
+                "x_jupyter_root": str(tmp_path),
+            }
         )
-        job_builder = JobBuilder(settings, verbose)
+        job_builder = JobBuilder(settings, verbose, files_dir="./")
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -258,6 +229,7 @@ def test_build_artifact_notebook_job_no_program(
 
 
 @pytest.mark.parametrize("verbose", [True, False])
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_artifact_notebook_job_no_metadata(
     mocker,
     runner,
@@ -275,17 +247,13 @@ def test_build_artifact_notebook_job_no_metadata(
             f.write("numpy==1.19.0")
             f.write("wandb")
 
-        kwargs = {
-            "x_files_dir": "./",
-            "disable_job_creation": False,
-            "x_jupyter_root": str(tmp_path),
-        }
         settings = SettingsStatic(
-            make_proto_settings(
-                **kwargs,
-            )
+            {
+                "disable_job_creation": False,
+                "x_jupyter_root": str(tmp_path),
+            }
         )
-        job_builder = JobBuilder(settings, verbose)
+        job_builder = JobBuilder(settings, verbose, files_dir="./")
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -302,6 +270,7 @@ def test_build_artifact_notebook_job_no_metadata(
 
 
 @pytest.mark.parametrize("verbose", [True, False])
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_artifact_notebook_job_no_program_metadata(
     mocker,
     runner,
@@ -324,17 +293,13 @@ def test_build_artifact_notebook_job_no_program_metadata(
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        kwargs = {
-            "x_files_dir": "./",
-            "disable_job_creation": False,
-            "x_jupyter_root": str(tmp_path),
-        }
         settings = SettingsStatic(
-            make_proto_settings(
-                **kwargs,
-            )
+            {
+                "disable_job_creation": False,
+                "x_jupyter_root": str(tmp_path),
+            }
         )
-        job_builder = JobBuilder(settings, verbose)
+        job_builder = JobBuilder(settings, verbose, files_dir="./")
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -350,6 +315,7 @@ def test_build_artifact_notebook_job_no_program_metadata(
             assert _msg not in out
 
 
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_image_job(runner, api):
     image_name = str_of_length(129)
     metadata = {
@@ -364,17 +330,12 @@ def test_build_image_job(runner, api):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        kwargs = {
-            "x_files_dir": "./",
-            "disable_job_creation": False,
-            "_jupyter": False,
-        }
         settings = SettingsStatic(
-            make_proto_settings(
-                **kwargs,
-            )
+            {
+                "disable_job_creation": False,
+            }
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, files_dir="./")
         artifact = job_builder.build(api)
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(f"job-{image_name}")
@@ -384,23 +345,24 @@ def test_build_image_job(runner, api):
 
 
 def test_set_disabled():
-    kwargs = {
-        "x_files_dir": "./",
-        "disable_job_creation": False,
-    }
-    settings = SettingsStatic(make_proto_settings(**kwargs))
+    settings = SettingsStatic(
+        {
+            "disable_job_creation": False,
+        }
+    )
 
-    job_builder = JobBuilder(settings)
+    job_builder = JobBuilder(settings, files_dir="./")
     job_builder.disable = "testtest"
     assert job_builder.disable == "testtest"
 
 
-def test_no_metadata_file(runner, api):
-    kwargs = {
-        "x_files_dir": "./",
-        "disable_job_creation": False,
-    }
-    settings = SettingsStatic(make_proto_settings(**kwargs))
-    job_builder = JobBuilder(settings)
+@pytest.mark.usefixtures("patch_apikey")
+def test_no_metadata_file(api):
+    settings = SettingsStatic(
+        {
+            "disable_job_creation": False,
+        }
+    )
+    job_builder = JobBuilder(settings, files_dir="./")
     artifact = job_builder.build(api)
     assert artifact is None

@@ -186,22 +186,6 @@ def test_reference_download(user):
             assert entry.ref_target()
 
 
-def test_communicate_artifact(wandb_backend_spy, publish_util, mock_run):
-    gql = wandb_backend_spy.gql
-    responder = gql.Constant(content=None, status=200)
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="CreateArtifact"),
-        responder,
-    )
-
-    run = mock_run()
-    artifact = wandb.Artifact("comms_test_PENDING", "dataset")
-    artifact_publish = dict(run=run, artifact=artifact, aliases=["latest"])
-    publish_util(run, artifacts=[artifact_publish])
-
-    assert responder.total_calls == 1
-
-
 def _create_artifact_and_set_metadata(metadata):
     artifact = wandb.Artifact("foo", "dataset")
     artifact.metadata = metadata

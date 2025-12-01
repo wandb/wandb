@@ -1,53 +1,59 @@
-"""InterfaceQueue - Derived from InterfaceShared using queues to send to internal thread.
-
-See interface.py for how interface classes relate to each other.
-
-"""
+from __future__ import annotations
 
 import logging
 from multiprocessing.process import BaseProcess
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from ..lib.mailbox import Mailbox
+from typing_extensions import override
+
 from .interface_shared import InterfaceShared
-from .router_queue import MessageQueueRouter
 
 if TYPE_CHECKING:
     from queue import Queue
 
     from wandb.proto import wandb_internal_pb2 as pb
+    from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 
 logger = logging.getLogger("wandb")
 
 
 class InterfaceQueue(InterfaceShared):
-    record_q: Optional["Queue[pb.Record]"]
-    result_q: Optional["Queue[pb.Result]"]
-    _mailbox: Optional[Mailbox]
+    """Legacy implementation of InterfaceShared.
+
+    This was used by legacy-service to pass messages back to itself before
+    the existence of wandb-core. It may be removed once legacy-service is
+    completely removed (including its use in `wandb sync`).
+
+    Since it was used by the internal service, it does not implement
+    the "deliver" methods, which are only used in the client.
+    """
 
     def __init__(
         self,
-        record_q: Optional["Queue[pb.Record]"] = None,
-        result_q: Optional["Queue[pb.Result]"] = None,
-        process: Optional[BaseProcess] = None,
-        process_check: bool = True,
-        mailbox: Optional[Mailbox] = None,
+        record_q: Queue[pb.Record] | None = None,
+        result_q: Queue[pb.Result] | None = None,
+        process: BaseProcess | None = None,
     ) -> None:
         self.record_q = record_q
         self.result_q = result_q
-        super().__init__(process=process, process_check=process_check, mailbox=mailbox)
+        self._process = process
+        super().__init__()
 
-    def _init_router(self) -> None:
-        if self.record_q and self.result_q:
-            self._router = MessageQueueRouter(
-                self.record_q, self.result_q, mailbox=self._mailbox
-            )
-
-    def _publish(self, record: "pb.Record", local: Optional[bool] = None) -> None:
-        if self._process_check and self._process and not self._process.is_alive():
+    @override
+    def _publish(self, record: pb.Record, *, nowait: bool = False) -> None:
+        if self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")
-        if local:
-            record.control.local = local
         if self.record_q:
             self.record_q.put(record)
+
+    @override
+    async def deliver_async(
+        self,
+        record: pb.Record,
+    ) -> MailboxHandle[pb.Result]:
+        raise NotImplementedError
+
+    @override
+    def _deliver(self, record: pb.Record) -> MailboxHandle[pb.Result]:
+        raise NotImplementedError

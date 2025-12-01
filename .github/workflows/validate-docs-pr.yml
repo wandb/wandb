@@ -1,0 +1,20 @@
+name: Ensure new features are documented
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  check-docs-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: npm install @actions/core @actions/github
+
+      - name: Check PR title and documentation reference
+        run: node .github/scripts/validate-docs-coverage.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

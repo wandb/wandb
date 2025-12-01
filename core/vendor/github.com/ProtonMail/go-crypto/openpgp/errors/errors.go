@@ -6,7 +6,20 @@
 package errors // import "github.com/ProtonMail/go-crypto/openpgp/errors"
 
 import (
+	"fmt"
 	"strconv"
+)
+
+var (
+	// ErrDecryptSessionKeyParsing is a generic error message for parsing errors in decrypted data
+	// to reduce the risk of oracle attacks.
+	ErrDecryptSessionKeyParsing = DecryptWithSessionKeyError("parsing error")
+	// ErrAEADTagVerification is returned if one of the tag verifications in SEIPDv2 fails
+	ErrAEADTagVerification error = DecryptWithSessionKeyError("AEAD tag verification failed")
+	// ErrMDCHashMismatch
+	ErrMDCHashMismatch error = SignatureError("MDC hash mismatch")
+	// ErrMDCMissing
+	ErrMDCMissing error = SignatureError("MDC packet not found")
 )
 
 // A StructuralError is returned when OpenPGP data is found to be syntactically
@@ -15,6 +28,34 @@ type StructuralError string
 
 func (s StructuralError) Error() string {
 	return "openpgp: invalid data: " + string(s)
+}
+
+// A DecryptWithSessionKeyError is returned when a failure occurs when reading from symmetrically decrypted data or
+// an authentication tag verification fails.
+// Such an error indicates that the supplied session key is likely wrong or the data got corrupted.
+type DecryptWithSessionKeyError string
+
+func (s DecryptWithSessionKeyError) Error() string {
+	return "openpgp: decryption with session key failed: " + string(s)
+}
+
+// HandleSensitiveParsingError handles parsing errors when reading data from potentially decrypted data.
+// The function makes parsing errors generic to reduce the risk of oracle attacks in SEIPDv1.
+func HandleSensitiveParsingError(err error, decrypted bool) error {
+	if !decrypted {
+		// Data was not encrypted so we return the inner error.
+		return err
+	}
+	// The data is read from a stream that decrypts using a session key;
+	// therefore, we need to handle parsing errors appropriately.
+	// This is essential to mitigate the risk of oracle attacks.
+	if decError, ok := err.(*DecryptWithSessionKeyError); ok {
+		return decError
+	}
+	if decError, ok := err.(DecryptWithSessionKeyError); ok {
+		return decError
+	}
+	return ErrDecryptSessionKeyParsing
 }
 
 // UnsupportedError indicates that, although the OpenPGP data is valid, it
@@ -40,9 +81,6 @@ type SignatureError string
 func (b SignatureError) Error() string {
 	return "openpgp: invalid signature: " + string(b)
 }
-
-var ErrMDCHashMismatch error = SignatureError("MDC hash mismatch")
-var ErrMDCMissing error = SignatureError("MDC packet not found")
 
 type signatureExpiredError int
 
@@ -140,4 +178,33 @@ type ErrMalformedMessage string
 
 func (dke ErrMalformedMessage) Error() string {
 	return "openpgp: malformed message " + string(dke)
+}
+
+type messageTooLargeError int
+
+func (e messageTooLargeError) Error() string {
+	return "openpgp: decompressed message size exceeds provided limit"
+}
+
+// ErrMessageTooLarge is returned if the read data from
+// a compressed packet exceeds the provided limit.
+var ErrMessageTooLarge error = messageTooLargeError(0)
+
+// ErrEncryptionKeySelection is returned if encryption key selection fails (v2 API).
+type ErrEncryptionKeySelection struct {
+	PrimaryKeyId      string
+	PrimaryKeyErr     error
+	EncSelectionKeyId *string
+	EncSelectionErr   error
+}
+
+func (eks ErrEncryptionKeySelection) Error() string {
+	prefix := fmt.Sprintf("openpgp: key selection for primary key %s:", eks.PrimaryKeyId)
+	if eks.PrimaryKeyErr != nil {
+		return fmt.Sprintf("%s invalid primary key: %s", prefix, eks.PrimaryKeyErr)
+	}
+	if eks.EncSelectionKeyId != nil {
+		return fmt.Sprintf("%s invalid encryption key %s: %s", prefix, *eks.EncSelectionKeyId, eks.EncSelectionErr)
+	}
+	return fmt.Sprintf("%s no encryption key: %s", prefix, eks.EncSelectionErr)
 }

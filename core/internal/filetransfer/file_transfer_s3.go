@@ -76,14 +76,14 @@ func (ft *S3FileTransfer) SetupClient() {
 	})
 }
 
-// Upload uploads a file to the server.
-func (ft *S3FileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
-	ft.logger.Debug("S3 file transfer: uploading file", "path", task.PathOrPrefix)
+// Upload implements ArtifactFileTransfer.Upload
+func (ft *S3FileTransfer) Upload(task *DefaultUploadTask) error {
+	ft.logger.Debug("S3 file transfer: uploading file", "path", task.Path)
 
 	return nil
 }
 
-// Download downloads a file from the server.
+// Download implements ArtifactFileTransfer.Download
 func (ft *S3FileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	ft.logger.Debug(
 		"s3 file transfer: downloading file",
@@ -136,11 +136,11 @@ func (ft *S3FileTransfer) findObjectFromTask(
 	objectName string,
 	task *ReferenceArtifactDownloadTask,
 ) (*s3.GetObjectInput, error) {
-	var getObjInput *s3.GetObjectInput = &s3.GetObjectInput{
+	var getObjInput = &s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(objectName),
 	}
-	var getObjAttrsInput *s3.GetObjectAttributesInput = &s3.GetObjectAttributesInput{
+	var getObjAttrsInput = &s3.GetObjectAttributesInput{
 		Bucket:           aws.String(bucketName),
 		Key:              aws.String(objectName),
 		ObjectAttributes: []types.ObjectAttributes{types.ObjectAttributesEtag},
@@ -285,7 +285,9 @@ func (ft *S3FileTransfer) downloadFile(
 	if err != nil {
 		return err
 	}
-	defer object.Body.Close()
+	defer func() {
+		_ = object.Body.Close()
+	}()
 
 	return fileutil.CopyReaderToFile(object.Body, localPath)
 }

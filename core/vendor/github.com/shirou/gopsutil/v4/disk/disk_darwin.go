@@ -5,7 +5,10 @@ package disk
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -15,7 +18,7 @@ import (
 
 // PartitionsWithContext returns disk partition.
 // 'all' argument is ignored, see: https://github.com/giampaolo/psutil/issues/906
-func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, error) {
+func PartitionsWithContext(_ context.Context, _ bool) ([]PartitionStat, error) {
 	var ret []PartitionStat
 
 	count, err := unix.Getfsstat(nil, unix.MNT_WAIT)
@@ -32,7 +35,8 @@ func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, erro
 	// to prevent accessing uninitialized entries.
 	// https://github.com/shirou/gopsutil/issues/1390
 	fs = fs[:count]
-	for _, stat := range fs {
+	for i := range fs {
+		stat := &fs[i]
 		opts := []string{"rw"}
 		if stat.Flags&unix.MNT_RDONLY != 0 {
 			opts = []string{"ro"}
@@ -87,15 +91,67 @@ func getFsType(stat unix.Statfs_t) string {
 	return common.ByteToString(stat.Fstypename[:])
 }
 
-func SerialNumberWithContext(ctx context.Context, name string) (string, error) {
+type spnvmeDataTypeItem struct {
+	Name              string `json:"_name"`
+	BsdName           string `json:"bsd_name"`
+	DetachableDrive   string `json:"detachable_drive"`
+	DeviceModel       string `json:"device_model"`
+	DeviceRevision    string `json:"device_revision"`
+	DeviceSerial      string `json:"device_serial"`
+	PartitionMapType  string `json:"partition_map_type"`
+	RemovableMedia    string `json:"removable_media"`
+	Size              string `json:"size"`
+	SizeInBytes       int64  `json:"size_in_bytes"`
+	SmartStatus       string `json:"smart_status"`
+	SpnvmeTrimSupport string `json:"spnvme_trim_support"`
+	Volumes           []struct {
+		Name        string `json:"_name"`
+		BsdName     string `json:"bsd_name"`
+		Iocontent   string `json:"iocontent"`
+		Size        string `json:"size"`
+		SizeInBytes int    `json:"size_in_bytes"`
+	} `json:"volumes"`
+}
+
+type spnvmeDataWrapper struct {
+	SPNVMeDataType []struct {
+		Items []spnvmeDataTypeItem `json:"_items"`
+	} `json:"SPNVMeDataType"`
+}
+
+func SerialNumberWithContext(ctx context.Context, _ string) (string, error) {
+	output, err := invoke.CommandWithContext(ctx, "system_profiler", "SPNVMeDataType", "-json")
+	if err != nil {
+		return "", err
+	}
+
+	var data spnvmeDataWrapper
+	if err := json.Unmarshal(output, &data); err != nil {
+		return "", fmt.Errorf("failed to unmarshal JSON: %w", err)
+	}
+
+	// Extract all serial numbers into a single string
+	var serialNumbers []string
+	for i := range data.SPNVMeDataType {
+		spnvmeData := &data.SPNVMeDataType[i]
+		for j := range spnvmeData.Items {
+			item := &spnvmeData.Items[j]
+			serialNumbers = append(serialNumbers, item.DeviceSerial)
+		}
+	}
+
+	if len(serialNumbers) == 0 {
+		return "", errors.New("no serial numbers found")
+	}
+
+	return strings.Join(serialNumbers, ", "), nil
+}
+
+func LabelWithContext(_ context.Context, _ string) (string, error) {
 	return "", common.ErrNotImplementedError
 }
 
-func LabelWithContext(ctx context.Context, name string) (string, error) {
-	return "", common.ErrNotImplementedError
-}
-
-func IOCountersWithContext(ctx context.Context, names ...string) (map[string]IOCountersStat, error) {
+func IOCountersWithContext(_ context.Context, names ...string) (map[string]IOCountersStat, error) {
 	ioKit, err := common.NewLibrary(common.IOKit)
 	if err != nil {
 		return nil, err
@@ -148,7 +204,7 @@ func IOCountersWithContext(ctx context.Context, names ...string) (map[string]IOC
 	stats := make([]IOCountersStat, 0, 16)
 	for {
 		d := ioIteratorNext(drives)
-		if !(d > 0) {
+		if d <= 0 {
 			break
 		}
 
@@ -221,7 +277,7 @@ func (i *ioCounters) getDriveStat(d uint32) (*IOCountersStat, error) {
 	defer i.ioObjectRelease(parent)
 
 	if !ioObjectConformsTo(parent, "IOBlockStorageDriver") {
-		//return nil, fmt.Errorf("ERROR: the object is not of the IOBlockStorageDriver class")
+		// return nil, fmt.Errorf("ERROR: the object is not of the IOBlockStorageDriver class")
 		return nil, nil
 	}
 
@@ -234,9 +290,9 @@ func (i *ioCounters) getDriveStat(d uint32) (*IOCountersStat, error) {
 	key := i.cfStr(kIOBSDNameKey)
 	defer i.cfRelease(uintptr(key))
 	name := i.cfDictionaryGetValue(uintptr(props), uintptr(key))
-	length := cfStringGetLength(uintptr(name)) + 1
-	buf := make([]byte, length-1)
-	cfStringGetCString(uintptr(name), &buf[0], length, common.KCFStringEncodingUTF8)
+
+	buf := common.NewCStr(cfStringGetLength(uintptr(name)))
+	cfStringGetCString(uintptr(name), buf, buf.Length(), common.KCFStringEncodingUTF8)
 
 	stat, err := i.fillStat(parent)
 	if err != nil {
@@ -244,7 +300,7 @@ func (i *ioCounters) getDriveStat(d uint32) (*IOCountersStat, error) {
 	}
 
 	if stat != nil {
-		stat.Name = string(buf)
+		stat.Name = buf.GoString()
 		return stat, nil
 	}
 	return nil, nil
@@ -263,9 +319,10 @@ func (i *ioCounters) fillStat(d uint32) (*IOCountersStat, error) {
 
 	key := i.cfStr(kIOBlockStorageDriverStatisticsKey)
 	defer i.cfRelease(uintptr(key))
+
 	v := i.cfDictionaryGetValue(uintptr(props), uintptr(key))
 	if v == nil {
-		return nil, fmt.Errorf("CFDictionaryGetValue failed")
+		return nil, errors.New("CFDictionaryGetValue failed")
 	}
 
 	var stat IOCountersStat
@@ -280,10 +337,10 @@ func (i *ioCounters) fillStat(d uint32) (*IOCountersStat, error) {
 
 	for key, off := range statstab {
 		s := i.cfStr(key)
-		defer i.cfRelease(uintptr(s))
 		if num := i.cfDictionaryGetValue(uintptr(v), uintptr(s)); num != nil {
-			i.cfNumberGetValue(uintptr(num), common.KCFNumberSInt64Type, uintptr(unsafe.Pointer(uintptr(unsafe.Pointer(&stat))+off)))
+			i.cfNumberGetValue(uintptr(num), common.KCFNumberSInt64Type, uintptr(unsafe.Add(unsafe.Pointer(&stat), off)))
 		}
+		i.cfRelease(uintptr(s))
 	}
 
 	return &stat, nil

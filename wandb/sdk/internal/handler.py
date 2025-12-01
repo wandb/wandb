@@ -33,15 +33,12 @@ from wandb.proto.wandb_internal_pb2 import (
     SummaryItem,
     SummaryRecord,
     SummaryRecordRequest,
-    SystemMetricSample,
-    SystemMetricsBuffer,
 )
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util
 from . import context, sample, tb_watcher
 from .settings_static import SettingsStatic
-from .system.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import MetricSummary
@@ -88,7 +85,6 @@ class HandleManager:
     _stopped: Event
     _writer_q: "Queue[Record]"
     _interface: InterfaceQueue
-    _system_monitor: Optional[SystemMonitor]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
     _metric_defines: Dict[str, MetricRecord]
     _metric_globs: Dict[str, MetricRecord]
@@ -118,7 +114,6 @@ class HandleManager:
         self._context_keeper = context_keeper
 
         self._tb_watcher = None
-        self._system_monitor = None
         self._step = 0
 
         self._track_time = None
@@ -181,13 +176,7 @@ class HandleManager:
         state = defer.state
 
         logger.info(f"handle defer: {state}")
-        # only handle flush tb (sender handles the rest)
-        if state == defer.FLUSH_STATS:
-            # TODO(jhr): this could block so we dont really want to call shutdown
-            # from handler thread
-            if self._system_monitor is not None:
-                self._system_monitor.finish()
-        elif state == defer.FLUSH_TB:
+        if state == defer.FLUSH_TB:
             if self._tb_watcher:
                 # shutdown tensorboard workers so we get all metrics flushed
                 self._tb_watcher.finish()
@@ -199,9 +188,6 @@ class HandleManager:
 
         # defer is used to drive the sender finish state machine
         self._dispatch_record(record, always_send=True)
-
-    def handle_request_login(self, record: Record) -> None:
-        self._dispatch_record(record)
 
     def handle_request_python_packages(self, record: Record) -> None:
         self._dispatch_record(record)
@@ -658,6 +644,9 @@ class HandleManager:
     def handle_footer(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_metadata(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_request_attach(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
         attach_id = record.request.attach.attach_id
@@ -687,21 +676,6 @@ class HandleManager:
         else:
             self._accumulate_time = 0
 
-        # system monitor
-        self._system_monitor = SystemMonitor(
-            self._settings,
-            self._interface,
-        )
-        if not (
-            self._settings.x_disable_stats or self._settings.x_disable_machine_info
-        ):
-            self._system_monitor.start()
-        if (
-            not (self._settings.x_disable_meta or self._settings.x_disable_machine_info)
-            and not run_start.run.resumed
-        ):
-            self._system_monitor.probe(publish=True)
-
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run
         )
@@ -712,18 +686,11 @@ class HandleManager:
         self._respond_result(result)
 
     def handle_request_resume(self, record: Record) -> None:
-        if self._system_monitor is not None:
-            logger.info("starting system metrics thread")
-            self._system_monitor.start()
-
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
         self._track_time = time.time()
 
     def handle_request_pause(self, record: Record) -> None:
-        if self._system_monitor is not None:
-            logger.info("stopping system metrics thread")
-            self._system_monitor.finish()
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
             self._track_time = None
@@ -756,26 +723,6 @@ class HandleManager:
             item.key = key
             item.value_json = json.dumps(value)
             result.response.get_summary_response.item.append(item)
-        self._respond_result(result)
-
-    def handle_request_get_system_metrics(self, record: Record) -> None:
-        result = proto_util._result_from_record(record)
-        if self._system_monitor is None:
-            return
-
-        buffer = self._system_monitor.buffer
-        for key, samples in buffer.items():
-            buff = []
-            for s in samples:
-                sms = SystemMetricSample()
-                sms.timestamp.FromMicroseconds(int(s[0] * 1e6))
-                sms.value = s[1]
-                buff.append(sms)
-
-            result.response.get_system_metrics_response.system_metrics[key].CopyFrom(
-                SystemMetricsBuffer(record=buff)
-            )
-
         self._respond_result(result)
 
     def handle_tbrecord(self, record: Record) -> None:
@@ -874,10 +821,12 @@ class HandleManager:
         self._respond_result(result)
         self._stopped.set()
 
+    def handle_request_operations(self, record: Record) -> None:
+        """No-op. Not implemented for the legacy-service."""
+        self._respond_result(proto_util._result_from_record(record))
+
     def finish(self) -> None:
         logger.info("shutting down handler")
-        if self._system_monitor is not None:
-            self._system_monitor.finish()
         if self._tb_watcher:
             self._tb_watcher.finish()
         # self._context_keeper._debug_print_orphans()

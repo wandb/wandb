@@ -3,8 +3,6 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-import yaml
-
 import wandb
 from wandb.errors import Error
 from wandb.util import load_yaml
@@ -45,6 +43,8 @@ def dict_no_value_from_proto_list(obj_list):
 
 # TODO(jhr): these functions should go away once we merge jobspec PR
 def save_config_file_from_dict(config_filename, config_dict):
+    import yaml
+
     s = b"wandb_version: 1"
     if config_dict:  # adding an empty dictionary here causes a parse error
         s += b"\n\n" + yaml.dump(
@@ -64,15 +64,17 @@ def save_config_file_from_dict(config_filename, config_dict):
 def dict_from_config_file(
     filename: str, must_exist: bool = False
 ) -> Optional[Dict[str, Any]]:
+    import yaml
+
     if not os.path.exists(filename):
         if must_exist:
-            raise ConfigError("config file {} doesn't exist".format(filename))
-        logger.debug("no default config file found in {}".format(filename))
+            raise ConfigError(f"config file {filename} doesn't exist")
+        logger.debug(f"no default config file found in {filename}")
         return None
     try:
         conf_file = open(filename)
     except OSError:
-        raise ConfigError("Couldn't read config file: {}".format(filename))
+        raise ConfigError(f"Couldn't read config file: {filename}")
     try:
         loaded = load_yaml(conf_file)
     except yaml.parser.ParserError:

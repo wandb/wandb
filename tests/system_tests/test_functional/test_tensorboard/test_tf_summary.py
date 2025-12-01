@@ -40,8 +40,8 @@ PR_CURVE_SPEC = {
 }
 
 
-def test_histogram(wandb_init, wandb_backend_spy):
-    with wandb_init(sync_tensorboard=True) as run:
+def test_histogram(wandb_backend_spy):
+    with wandb.init(sync_tensorboard=True) as run:
         w = tf.summary.create_file_writer("test/logs")
 
         with w.as_default():
@@ -65,8 +65,8 @@ def test_histogram(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-def test_image(wandb_init, wandb_backend_spy):
-    with wandb_init(sync_tensorboard=True) as run:
+def test_image(wandb_backend_spy):
+    with wandb.init(sync_tensorboard=True) as run:
         with tf.summary.create_file_writer("test/logs").as_default():
             for i in range(5):
                 image1 = tf.random.uniform(shape=[8, 8, 3])
@@ -93,8 +93,8 @@ def test_image(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-def test_batch_images(wandb_init, wandb_backend_spy):
-    with wandb_init(sync_tensorboard=True) as run:
+def test_batch_images(wandb_backend_spy):
+    with wandb.init(sync_tensorboard=True) as run:
         with tf.summary.create_file_writer("test/logs").as_default():
             # tensor shape: (number_of_images, image_height, image_width, channels)
             img_tensor = np.random.rand(5, 15, 10, 3)
@@ -118,9 +118,9 @@ def test_batch_images(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-def test_scalar(wandb_init, wandb_backend_spy):
+def test_scalar(wandb_backend_spy):
     scalars = [0.345, 0.234, 0.123]
-    with wandb_init(sync_tensorboard=True) as run:
+    with wandb.init(sync_tensorboard=True) as run:
         with tf.summary.create_file_writer("test/logs").as_default():
             for i, scalar in enumerate(scalars):
                 tf.summary.scalar("loss", scalar, step=i)
@@ -144,9 +144,8 @@ def test_scalar(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.wandb_core_only
-def test_add_pr_curve(wandb_init, wandb_backend_spy):
-    with wandb_init(sync_tensorboard=True) as run:
+def test_add_pr_curve(wandb_backend_spy):
+    with wandb.init(sync_tensorboard=True) as run:
         with tf.summary.create_file_writer("test/logs").as_default():
             tf.summary.experimental.write_raw_pb(
                 tensorboard_summary_v1.pr_curve(
@@ -170,9 +169,8 @@ def test_add_pr_curve(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.wandb_core_only
-def test_add_pr_curve_plugin(wandb_init, wandb_backend_spy):
-    with wandb_init(sync_tensorboard=True) as run:
+def test_add_pr_curve_plugin(wandb_backend_spy):
+    with wandb.init(sync_tensorboard=True) as run:
         with tf.compat.v1.Session() as sess:
             with tf.compat.v1.summary.FileWriter("test/logs", session=sess) as writer:
                 summary = tf.compat.v1.summary.merge(
@@ -204,11 +202,11 @@ def test_add_pr_curve_plugin(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-def test_compat_tensorboard(wandb_init, wandb_backend_spy):
+def test_compat_tensorboard(wandb_backend_spy):
     # Parenthesized context managers which result in better formatting
     # are supported starting Python 3.10.
     # fmt: off
-    with wandb_init(sync_tensorboard=True) as run, \
+    with wandb.init(sync_tensorboard=True) as run, \
          tf.compat.v1.Session(graph=tf.compat.v1.Graph()) as sess:
         # fmt: on
 
@@ -247,11 +245,10 @@ def test_compat_tensorboard(wandb_init, wandb_backend_spy):
 
 
 def test_tb_sync_with_explicit_step_and_log(
-    wandb_init,
     wandb_backend_spy,
     mock_wandb_log,
 ):
-    with wandb_init(sync_tensorboard=True) as run:
+    with wandb.init(sync_tensorboard=True) as run:
         with tf.summary.create_file_writer(
             "test/logs",
         ).as_default():
@@ -263,7 +260,7 @@ def test_tb_sync_with_explicit_step_and_log(
         run.log({"y_scalar": 1337}, step=42)
 
     with wandb_backend_spy.freeze() as snapshot:
-        assert mock_wandb_log.warned(
+        mock_wandb_log.assert_warned(
             "Step cannot be set when using tensorboard syncing"
         )
         history = snapshot.history(run_id=run.id)

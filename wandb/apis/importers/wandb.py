@@ -25,6 +25,7 @@ from wandb_workspaces.reports.v1 import Report
 import wandb
 from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.files import File
+from wandb.sdk.lib import json_util
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from . import validation
@@ -151,7 +152,7 @@ class WandbRun:
         if self._parquet_history_paths:
             rows = self._get_rows_from_parquet_history_paths()
         else:
-            logger.warn(
+            logger.warning(
                 "No parquet files detected; using scan history (this may not be reliable)"
             )
             rows = self.run.scan_history()
@@ -453,13 +454,15 @@ class WandbImporter:
         try:
             dst_collection = self.dst_api.artifact_collection(art_type, art_name)
         except (wandb.CommError, ValueError):
-            logger.warn(f"Collection doesn't exist {art_type=}, {art_name=}")
+            logger.warning(f"Collection doesn't exist {art_type=}, {art_name=}")
             return
 
         try:
             dst_collection.delete()
         except (wandb.CommError, ValueError) as e:
-            logger.warn(f"Collection can't be deleted, {art_type=}, {art_name=}, {e=}")
+            logger.warning(
+                f"Collection can't be deleted, {art_type=}, {art_name=}, {e=}"
+            )
             return
 
     def _import_artifact_sequence(
@@ -475,7 +478,7 @@ class WandbImporter:
         if not seq.artifacts:
             # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
             # but it can also happen if the sequence represents run history and that run was deleted.
-            logger.warn(f"Artifact {seq=} has no artifacts, skipping.")
+            logger.warning(f"Artifact {seq=} has no artifacts, skipping.")
             return
 
         if namespace is None:
@@ -517,7 +520,7 @@ class WandbImporter:
 
                 # Could be logged by None (rare) or ValueError
                 if wandb_run is None:
-                    logger.warn(
+                    logger.warning(
                         f"Run for {art.name=} does not exist (deleted?), using {run_or_dummy=}"
                     )
                     wandb_run = run_or_dummy
@@ -546,10 +549,12 @@ class WandbImporter:
             retry_arts_func = internal.exp_retry(self._dst_api.artifacts)
             dst_arts = list(retry_arts_func(seq.type_, seq.name))
         except wandb.CommError:
-            logger.warn(f"{seq=} does not exist in dst.  Has it already been deleted?")
+            logger.warning(
+                f"{seq=} does not exist in dst.  Has it already been deleted?"
+            )
             return
-        except TypeError as e:
-            logger.error(f"Problem getting dst versions (try again later) {e=}")
+        except TypeError:
+            logger.exception("Problem getting dst versions (try again later).")
             return
 
         for art in dst_arts:
@@ -562,9 +567,9 @@ class WandbImporter:
                 art.delete(delete_aliases=True)
             except wandb.CommError as e:
                 if "cannot delete system managed artifact" in str(e):
-                    logger.warn("Cannot delete system managed artifact")
+                    logger.warning("Cannot delete system managed artifact")
                 else:
-                    raise e
+                    raise
 
     def _get_dst_art(
         self, src_art: Run, entity: Optional[str] = None, project: Optional[str] = None
@@ -614,7 +619,7 @@ class WandbImporter:
                 return {"Bad upload": f"File not found: {fname}"}
             return {"http problem": f"{fname}: ({e})"}
 
-        dst_meta = wandb.wandb_sdk.lib.json_util.loads(contents)
+        dst_meta = json_util.loads(contents)
 
         non_matching = {}
         if src_run.metadata:
@@ -701,7 +706,7 @@ class WandbImporter:
                 )
             except ValueError as e:
                 if "Could not find project" in str(e):
-                    logger.error("Could not find project, does it exist?")
+                    logger.exception("Could not find project, does it exist?")
                     continue
 
             for run in runs:
@@ -732,7 +737,7 @@ class WandbImporter:
             api.create_project(project, entity)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code != 409:
-                logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
+                logger.warning(f"Issue upserting {entity=}/{project=}, {e=}")
 
         logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         api.client.execute(
@@ -1169,8 +1174,8 @@ class WandbImporter:
             for art in seq:
                 try:
                     logged_by = _get_run_or_dummy_from_art(art, self.src_api)
-                except requests.HTTPError as e:
-                    logger.error(f"Failed to get run, skipping: {art=}, {e=}")
+                except requests.HTTPError:
+                    logger.exception(f"Failed to get run, skipping: {art=}")
                     continue
 
                 if art.type == "wandb-history" and isinstance(logged_by, _DummyRun):
@@ -1215,9 +1220,10 @@ class WandbImporter:
                     art = seq.artifacts[0]
                     try:
                         logged_by = _get_run_or_dummy_from_art(art, self.src_api)
-                    except requests.HTTPError as e:
-                        logger.error(
-                            f"Validate Artifact http error: {art.entity=}, {art.project=}, {art.name=}, {e=}"
+                    except requests.HTTPError:
+                        logger.exception(
+                            f"Validate Artifact http error: {art.entity=},"
+                            f" {art.project=}, {art.name=}"
                         )
                         continue
 
@@ -1347,8 +1353,8 @@ class WandbImporter:
                 types = []
                 try:
                     types = [t for t in api.artifact_types(ns.path)]
-                except Exception as e:
-                    logger.error(f"Failed to get artifact types {e=}")
+                except Exception:
+                    logger.exception("Failed to get artifact types.")
 
                 for t in types:
                     collections = []
@@ -1359,8 +1365,8 @@ class WandbImporter:
 
                     try:
                         collections = t.collections()
-                    except Exception as e:
-                        logger.error(f"Failed to get artifact collections {e=}")
+                    except Exception:
+                        logger.exception("Failed to get artifact collections.")
 
                     for c in collections:
                         if c.is_sequence():
@@ -1471,7 +1477,7 @@ def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
             return None
         if "error parsing ndjson" in str(e):
             return None
-        raise e
+        raise
 
     return df
 
@@ -1482,8 +1488,8 @@ def _get_run_or_dummy_from_art(art: Artifact, api=None):
     try:
         run = art.logged_by()
     except ValueError as e:
-        logger.warn(
-            f"Can't log artifact because run does't exist, {art=}, {run=}, {e=}"
+        logger.warning(
+            f"Can't log artifact because run doesn't exist, {art=}, {run=}, {e=}"
         )
 
     if run is not None:
@@ -1538,8 +1544,8 @@ def _download_art(art: Artifact, root: str) -> Optional[str]:
     try:
         with patch("click.echo"):
             return art.download(root=root, skip_cache=True)
-    except Exception as e:
-        logger.error(f"Error downloading artifact {art=}, {e=}")
+    except Exception:
+        logger.exception(f"Error downloading artifact {art=}")
 
 
 def _clone_art(art: Artifact, root: Optional[str] = None):

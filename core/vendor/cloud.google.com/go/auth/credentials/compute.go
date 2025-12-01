@@ -37,8 +37,12 @@ var (
 
 // computeTokenProvider creates a [cloud.google.com/go/auth.TokenProvider] that
 // uses the metadata service to retrieve tokens.
-func computeTokenProvider(opts *DetectOptions) auth.TokenProvider {
-	return auth.NewCachedTokenProvider(computeProvider{scopes: opts.Scopes}, &auth.CachedTokenProviderOptions{
+func computeTokenProvider(opts *DetectOptions, client *metadata.Client) auth.TokenProvider {
+	return auth.NewCachedTokenProvider(&computeProvider{
+		scopes:           opts.Scopes,
+		client:           client,
+		tokenBindingType: opts.TokenBindingType,
+	}, &auth.CachedTokenProviderOptions{
 		ExpireEarly:         opts.EarlyTokenRefresh,
 		DisableAsyncRefresh: opts.DisableAsyncRefresh,
 	})
@@ -46,7 +50,9 @@ func computeTokenProvider(opts *DetectOptions) auth.TokenProvider {
 
 // computeProvider fetches tokens from the google cloud metadata service.
 type computeProvider struct {
-	scopes []string
+	scopes           []string
+	client           *metadata.Client
+	tokenBindingType TokenBindingType
 }
 
 type metadataTokenResp struct {
@@ -55,17 +61,27 @@ type metadataTokenResp struct {
 	TokenType    string `json:"token_type"`
 }
 
-func (cs computeProvider) Token(ctx context.Context) (*auth.Token, error) {
+func (cs *computeProvider) Token(ctx context.Context) (*auth.Token, error) {
 	tokenURI, err := url.Parse(computeTokenURI)
 	if err != nil {
 		return nil, err
 	}
-	if len(cs.scopes) > 0 {
+	hasScopes := len(cs.scopes) > 0
+	if hasScopes || cs.tokenBindingType != NoBinding {
 		v := url.Values{}
-		v.Set("scopes", strings.Join(cs.scopes, ","))
+		if hasScopes {
+			v.Set("scopes", strings.Join(cs.scopes, ","))
+		}
+		switch cs.tokenBindingType {
+		case MTLSHardBinding:
+			v.Set("transport", "mtls")
+			v.Set("binding-enforcement", "on")
+		case ALTSHardBinding:
+			v.Set("transport", "alts")
+		}
 		tokenURI.RawQuery = v.Encode()
 	}
-	tokenJSON, err := metadata.GetWithContext(ctx, tokenURI.String())
+	tokenJSON, err := cs.client.GetWithContext(ctx, tokenURI.String())
 	if err != nil {
 		return nil, fmt.Errorf("credentials: cannot fetch token: %w", err)
 	}
@@ -76,11 +92,11 @@ func (cs computeProvider) Token(ctx context.Context) (*auth.Token, error) {
 	if res.ExpiresInSec == 0 || res.AccessToken == "" {
 		return nil, errors.New("credentials: incomplete token received from metadata")
 	}
-	return &auth.Token{
+	token := &auth.Token{
 		Value:    res.AccessToken,
 		Type:     res.TokenType,
 		Expiry:   time.Now().Add(time.Duration(res.ExpiresInSec) * time.Second),
 		Metadata: computeTokenMetadata,
-	}, nil
-
+	}
+	return token, nil
 }

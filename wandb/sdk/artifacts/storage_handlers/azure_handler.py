@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import PurePosixPath
 from types import ModuleType
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, parse_qsl, urlparse
 
 import wandb
@@ -20,16 +20,21 @@ if TYPE_CHECKING:
     import azure.storage.blob  # type: ignore
 
     from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 
 
 class AzureHandler(StorageHandler):
+    _scheme: str
+    _cache: ArtifactFileCache
+
+    def __init__(self, scheme: str = "https") -> None:
+        self._scheme = scheme
+        self._cache = get_artifact_file_cache()
+
     def can_handle(self, parsed_url: ParseResult) -> bool:
-        return parsed_url.scheme == "https" and parsed_url.netloc.endswith(
+        return parsed_url.scheme == self._scheme and parsed_url.netloc.endswith(
             ".blob.core.windows.net"
         )
-
-    def __init__(self, scheme: str | None = None) -> None:
-        self._cache = get_artifact_file_cache()
 
     def load_path(
         self,
@@ -101,7 +106,7 @@ class AzureHandler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         account_url, container_name, blob_name, query = self._parse_uri(path)
         path = URIStr(f"{account_url}/{container_name}/{blob_name}")
 
@@ -171,6 +176,7 @@ class AzureHandler(StorageHandler):
     def _get_credential(
         self, account_url: str
     ) -> azure.identity.DefaultAzureCredential | str:
+        # NOTE: Always returns default credential for reinit="create_new" runs.
         if (
             wandb.run
             and wandb.run.settings.azure_account_url_to_access_key is not None

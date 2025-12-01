@@ -2,47 +2,62 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+import concurrent.futures
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
     from wandb.filesync.step_prepare import StepPrepare
+    from wandb.sdk.artifacts._models.storage import StoragePolicyConfig
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
     from wandb.sdk.internal.progress import ProgressFn
 
 
-class StoragePolicy:
+_POLICY_REGISTRY: dict[str, type[StoragePolicy]] = {}
+
+
+class StoragePolicy(ABC):
+    _api: InternalApi | None = None
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        _POLICY_REGISTRY[cls.name()] = cls
+
     @classmethod
     def lookup_by_name(cls, name: str) -> type[StoragePolicy]:
-        import wandb.sdk.artifacts.storage_policies  # noqa: F401
-
-        for sub in cls.__subclasses__():
-            if sub.name() == name:
-                return sub
-        raise NotImplementedError(f"Failed to find storage policy '{name}'")
+        if policy := _POLICY_REGISTRY.get(name):
+            return policy
+        raise ValueError(f"Failed to find storage policy {name!r}")
 
     @classmethod
+    @abstractmethod
     def name(cls) -> str:
         raise NotImplementedError
 
     @classmethod
-    def from_config(cls, config: dict, api: InternalApi | None = None) -> StoragePolicy:
+    @abstractmethod
+    def from_config(cls, config: StoragePolicyConfig) -> StoragePolicy:
         raise NotImplementedError
 
-    def config(self) -> dict:
+    @abstractmethod
+    def config(self) -> dict[str, Any]:
         raise NotImplementedError
 
+    @abstractmethod
     def load_file(
         self,
         artifact: Artifact,
         manifest_entry: ArtifactManifestEntry,
         dest_path: str | None = None,
+        executor: concurrent.futures.Executor | None = None,
     ) -> FilePathStr:
         raise NotImplementedError
 
+    @abstractmethod
     def store_file(
         self,
         artifact_id: str,
@@ -53,6 +68,7 @@ class StoragePolicy:
     ) -> bool:
         raise NotImplementedError
 
+    @abstractmethod
     def store_reference(
         self,
         artifact: Artifact,
@@ -60,9 +76,10 @@ class StoragePolicy:
         name: str | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         raise NotImplementedError
 
+    @abstractmethod
     def load_reference(
         self,
         manifest_entry: ArtifactManifestEntry,

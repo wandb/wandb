@@ -9,13 +9,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runwork"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestAddWorkConcurrent(t *testing.T) {
 	count := 0
-	rw := runwork.New(0, observability.NewNoOpLogger())
+	rw := runwork.New(0, observabilitytest.NewTestLogger(t))
 	wgConsumer := &sync.WaitGroup{}
 	wgConsumer.Add(1)
 	go func() {
@@ -46,7 +47,7 @@ func TestAddWorkConcurrent(t *testing.T) {
 func TestAddWorkAfterClose(t *testing.T) {
 	logs := bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{}))
-	rw := runwork.New(0, observability.NewCoreLogger(logger))
+	rw := runwork.New(0, observability.NewCoreLogger(logger, nil))
 
 	rw.SetDone()
 	rw.Close()
@@ -58,7 +59,7 @@ func TestAddWorkAfterClose(t *testing.T) {
 func TestCloseDuringAddWork(t *testing.T) {
 	logs := bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{}))
-	rw := runwork.New(0, observability.NewCoreLogger(logger))
+	rw := runwork.New(0, observability.NewCoreLogger(logger, nil))
 
 	go func() {
 		// Increase odds that Close() happens while AddWork() is
@@ -74,7 +75,7 @@ func TestCloseDuringAddWork(t *testing.T) {
 }
 
 func TestCloseAfterClose(t *testing.T) {
-	rw := runwork.New(0, observability.NewNoOpLogger())
+	rw := runwork.New(0, observabilitytest.NewTestLogger(t))
 
 	rw.SetDone()
 	rw.SetDone()
@@ -86,6 +87,8 @@ func TestCloseAfterClose(t *testing.T) {
 
 func TestRaceAddWorkClose(t *testing.T) {
 	for range 50 {
+		// Don't use a test logger since AddWork() can emit a warning
+		// and this test doesn't wait for goroutines to exit.
 		rw := runwork.New(0, observability.NewNoOpLogger())
 
 		go func() {
@@ -98,7 +101,7 @@ func TestRaceAddWorkClose(t *testing.T) {
 }
 
 func TestCloseCancelsContext(t *testing.T) {
-	rw := runwork.New(0, observability.NewNoOpLogger())
+	rw := runwork.New(0, observabilitytest.NewTestLogger(t))
 
 	go func() {
 		rw.SetDone()
@@ -110,7 +113,7 @@ func TestCloseCancelsContext(t *testing.T) {
 }
 
 func TestCloseBlocksUntilDone(t *testing.T) {
-	rw := runwork.New(0, observability.NewNoOpLogger())
+	rw := runwork.New(0, observabilitytest.NewTestLogger(t))
 	wg := &sync.WaitGroup{}
 	count := 0
 

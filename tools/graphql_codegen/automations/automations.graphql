@@ -1,0 +1,193 @@
+fragment SlackIntegrationFields on SlackIntegration {
+  __typename
+  id
+  teamName
+  channelName
+}
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
+}
+
+# ------------------------------------------------------------------------------
+fragment ProjectScopeFields on Project {
+  __typename
+  id
+  name
+}
+fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
+  __typename
+  id
+  name
+}
+fragment ArtifactSequenceScopeFields on ArtifactSequence {
+  __typename
+  id
+  name
+}
+
+# ------------------------------------------------------------------------------
+fragment FilterEventFields on FilterEventTriggeringCondition {
+  __typename
+  eventType
+  filter
+}
+
+# ------------------------------------------------------------------------------
+fragment QueueJobActionFields on QueueJobTriggeredAction {
+  __typename
+  queue {
+    id
+    name
+  }
+  template
+}
+
+fragment NotificationActionFields on NotificationTriggeredAction {
+  __typename
+  integration {
+    ...SlackIntegrationFields
+  }
+  title
+  message
+  severity
+}
+
+fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
+  __typename
+  integration {
+    ...WebhookIntegrationFields
+  }
+  requestPayload
+}
+
+fragment NoOpActionFields on NoOpTriggeredAction {
+  __typename
+  noOp # GraphQL doesn't support empty objects, so this should be an ignored placeholder field
+}
+
+# ------------------------------------------------------------------------------
+fragment TriggerFields on Trigger {
+  __typename
+
+  id
+  createdAt
+  updatedAt
+
+  name
+  description
+  enabled
+
+  scope {
+    ...ProjectScopeFields
+    ...ArtifactPortfolioScopeFields
+    ...ArtifactSequenceScopeFields
+  }
+  event: triggeringCondition {
+    ...FilterEventFields
+  }
+  action: triggeredAction {
+    ...QueueJobActionFields
+    ...NotificationActionFields
+    ...GenericWebhookActionFields
+    ...NoOpActionFields
+  }
+}
+
+# ------------------------------------------------------------------------------
+fragment PageInfoFields on PageInfo {
+  endCursor
+  hasNextPage
+}
+
+# ------------------------------------------------------------------------------
+fragment ProjectTriggersFields on Project {
+  __typename
+  triggers {
+    ...TriggerFields
+  }
+}
+
+# For now, this query is used to fetch all triggers known to the user.
+# In the future, we should consider adding (a less awkward and more efficient)
+# top-level `triggers(...)` query.  The fact that triggers can only be searched under
+# an individual project or collection is a bit awkward, but has historically been
+# needed to support the UI alone.
+query GetAutomations($cursor: String, $perPage: Int) {
+  scope: viewer {
+    projects(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...ProjectTriggersFields
+        }
+      }
+    }
+  }
+}
+query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
+  scope: entity(name: $entity) {
+    projects(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...ProjectTriggersFields
+        }
+      }
+    }
+  }
+}
+
+# ------------------------------------------------------------------------------
+mutation CreateAutomation($input: CreateFilterTriggerInput!) {
+  result: createFilterTrigger(input: $input) {
+    trigger {
+      ...TriggerFields
+    }
+  }
+}
+
+mutation UpdateAutomation($input: UpdateFilterTriggerInput!) {
+  result: updateFilterTrigger(input: $input) {
+    trigger {
+      ...TriggerFields
+    }
+  }
+}
+
+mutation DeleteAutomation($id: ID!) {
+  result: deleteTrigger(input: { triggerID: $id }) {
+    success
+  }
+}
+
+# ------------------------------------------------------------------------------
+query IntegrationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
+  entity(name: $entity) {
+    integrations(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...SlackIntegrationFields
+          ...WebhookIntegrationFields
+        }
+      }
+    }
+  }
+}
+
+mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegrationInput!) {
+  createGenericWebhookIntegration(input: $input) {
+    integration {
+      ...WebhookIntegrationFields
+    }
+  }
+}

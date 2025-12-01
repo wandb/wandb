@@ -12,17 +12,18 @@ import tensorflow as tf
 import tensorflow.keras.backend as K  # noqa: N812
 
 import wandb
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
-from wandb.sdk.lib.deprecate import Deprecated, deprecate
+from wandb.sdk.lib import telemetry
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.util import add_import_hook
 
 
 def _check_keras_version():
     from keras import __version__ as keras_version
+    from packaging.version import parse
 
-    from wandb.util import parse_version
-
-    if parse_version(keras_version) < parse_version("2.4.0"):
+    if parse(keras_version) < parse("2.4.0"):
         wandb.termwarn(
             f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
         )
@@ -30,9 +31,9 @@ def _check_keras_version():
 
 def _can_compute_flops() -> bool:
     """FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1."""
-    from wandb.util import parse_version
+    from packaging.version import parse
 
-    if parse_version(tf.__version__) >= parse_version("2.0.0"):
+    if parse(tf.__version__) >= parse("2.0.0"):
         return True
 
     return False
@@ -74,15 +75,10 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():  # noqa: C901
+    from packaging.version import parse
     from tensorflow.python.eager import context
 
-    from wandb.util import parse_version
-
-    if (
-        parse_version("2.6.0")
-        <= parse_version(tf.__version__)
-        < parse_version("2.13.0")
-    ):
+    if parse("2.6.0") <= parse(tf.__version__) < parse("2.13.0"):
         keras_engine = "keras.engine"
         try:
             from keras.engine import training
@@ -237,9 +233,9 @@ patch_tf_keras()
 
 
 def _get_custom_optimizer_parent_class():
-    from wandb.util import parse_version
+    from packaging.version import parse
 
-    if parse_version(tf.__version__) >= parse_version("2.9.0"):
+    if parse(tf.__version__) >= parse("2.9.0"):
         custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
     else:
         custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
@@ -418,9 +414,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
 
-        deprecate(
-            field_name=Deprecated.keras_callback,
-            warning_message=(
+        warn_and_record_deprecation(
+            feature=Deprecated(keras_callback=True),
+            message=(
                 "WandbCallback is deprecated and will be removed in a future release. "
                 "Please use the WandbMetricsLogger, WandbModelCheckpoint, and WandbEvalCallback "
                 "callbacks instead. "
@@ -428,7 +424,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             ),
         )
 
-        with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
+        with telemetry.context(run=wandb.run) as tel:
             tel.feature.keras = True
         self.validation_data = None
         # This is kept around for legacy reasons
@@ -451,9 +447,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.filepath = os.path.join(wandb.run.dir, "model-best.h5")
         self.save_model = save_model
         if save_model:
-            deprecate(
-                field_name=Deprecated.keras_callback__save_model,
-                warning_message=(
+            warn_and_record_deprecation(
+                feature=Deprecated(keras_callback__save_model=True),
+                message=(
                     "The save_model argument by default saves the model in the HDF5 format that cannot save "
                     "custom objects like subclassed models and custom layers. This behavior will be deprecated "
                     "in a future release in favor of the SavedModel format. Meanwhile, the HDF5 model is saved "
@@ -470,9 +466,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         data_type = kwargs.get("data_type", None)
         if data_type is not None:
-            deprecate(
-                field_name=Deprecated.keras_callback__data_type,
-                warning_message=(
+            warn_and_record_deprecation(
+                feature=Deprecated(keras_callback__data_type=True),
+                message=(
                     "The data_type argument of wandb.keras.WandbCallback is deprecated "
                     "and will be removed in a future release. Please use input_type instead.\n"
                     "Setting input_type = data_type."
@@ -509,7 +505,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         # From Keras
         if mode not in ["auto", "min", "max"]:
-            print(f"WandbCallback mode {mode} is unknown, fallback to auto mode.")
+            wandb.termwarn(
+                f"WandbCallback mode {mode} is unknown, fallback to auto mode."
+            )
             mode = "auto"
 
         if mode == "min":
@@ -632,9 +630,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 )
                 wandb.run.summary["{}{}".format(self.log_best_prefix, "epoch")] = epoch
                 if self.verbose and not self.save_model:
-                    print(
-                        "Epoch %05d: %s improved from %0.5f to %0.5f"
-                        % (epoch, self.monitor, self.best, self.current)
+                    wandb.termlog(
+                        f"Epoch {epoch:05d}: {self.monitor} improved from {self.best:.5f} to {self.current:.5f}"
                     )
             if self.save_model:
                 self._save_model(epoch)
@@ -732,9 +729,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if self.compute_flops and _can_compute_flops():
             try:
                 wandb.summary["GFLOPs"] = self.get_flops()
-            except Exception as e:
+            except Exception:
+                logger.exception("Error computing FLOPs")
                 wandb.termwarn("Unable to compute FLOPs for this model.")
-                logger.exception(e)
 
     def on_train_end(self, logs=None):
         if self._model_trained_since_last_eval:
@@ -1004,10 +1001,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if wandb.run.disabled:
             return
         if self.verbose > 0:
-            print(
-                "Epoch %05d: %s improved from %0.5f to %0.5f,"
-                " saving model to %s"
-                % (epoch, self.monitor, self.best, self.current, self.filepath)
+            wandb.termlog(
+                f"Epoch {epoch:05d}: {self.monitor} improved from {self.best:.5f} to {self.current:.5f}, "
+                f"saving model to {self.filepath}"
             )
 
         try:
@@ -1017,12 +1013,12 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 self.model.save(self.filepath, overwrite=True)
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
-        except (ImportError, RuntimeError, TypeError, AttributeError) as e:
+        except (ImportError, RuntimeError, TypeError, AttributeError):
+            logger.exception("Error saving model in the h5py format")
             wandb.termerror(
                 "Can't save model in the h5py format. The model will be saved as "
                 "as an W&B Artifact in the 'tf' format."
             )
-            logger.exception(e)
 
     def _save_model_as_artifact(self, epoch):
         if wandb.run.disabled:
@@ -1053,7 +1049,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if not isinstance(
             self.model, (tf.keras.models.Sequential, tf.keras.models.Model)
         ):
-            raise ValueError(
+            raise TypeError(
                 "Calculating FLOPS is only supported for "
                 "`tf.keras.Model` and `tf.keras.Sequential` instances."
             )

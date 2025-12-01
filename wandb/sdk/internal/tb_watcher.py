@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import wandb
 from wandb import util
 from wandb.plot import CustomChart
-from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.lib import filesystem
 
 from . import run as internal_run
@@ -25,7 +24,7 @@ if TYPE_CHECKING:
     from tensorboard.compat.proto.event_pb2 import ProtoEvent
 
     from wandb.proto.wandb_internal_pb2 import RunRecord
-    from wandb.sdk.interface.interface import FilesDict
+    from wandb.sdk.lib.filesystem import FilesDict
 
     from ..interface.interface_queue import InterfaceQueue
     from .settings_static import SettingsStatic
@@ -55,7 +54,9 @@ def _link_and_save_file(
     elif not os.path.exists(wandb_path):
         os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
-    interface.publish_files(dict(files=[(GlobStr(glob.escape(file_name)), "live")]))
+    interface.publish_files(
+        dict(files=[(filesystem.GlobStr(glob.escape(file_name)), "live")])
+    )
 
 
 def is_tfevents_file_created_by(
@@ -288,9 +289,9 @@ class TBDirWatcher:
     def _thread_except_body(self) -> None:
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             logger.exception("generic exception in TBDirWatcher thread")
-            raise e
+            raise
 
     def _thread_body(self) -> None:
         """Check for new events every second."""
@@ -365,7 +366,7 @@ class TBEventConsumer:
         # This is a bit of a hack to get file saving to work as it does in the user
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
-        def datatypes_cb(fname: GlobStr) -> None:
+        def datatypes_cb(fname: filesystem.GlobStr) -> None:
             files: FilesDict = dict(files=[(fname, "now")])
             self._tbwatcher._interface.publish_files(files)
 
@@ -394,9 +395,9 @@ class TBEventConsumer:
     def _thread_except_body(self) -> None:
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             logger.exception("generic exception in TBEventConsumer thread")
-            raise e
+            raise
 
     def _thread_body(self) -> None:
         while True:
@@ -454,7 +455,9 @@ class TBEventConsumer:
                 row[chart.spec.table_key] = chart.table
 
         self._tbwatcher._interface.publish_history(
-            row, run=self._internal_run, publish_step=False
+            self._internal_run,
+            row,
+            publish_step=False,
         )
 
 
@@ -488,11 +491,9 @@ class TBHistory:
                     dropped_keys.append(k)
                     del self._data[k]
             wandb.termwarn(
-                "Step {} exceeds max data limit, dropping {} of the largest keys:".format(
-                    self._step, len(dropped_keys)
-                )
+                f"Step {self._step} exceeds max data limit, dropping {len(dropped_keys)} of the largest keys:"
             )
-            print("\t" + ("\n\t".join(dropped_keys)))
+            print("\t" + ("\n\t".join(dropped_keys)))  # noqa: T201
         self._data["_step"] = self._step
         self._added.append(self._data)
         self._step += 1

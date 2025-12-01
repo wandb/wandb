@@ -21,21 +21,21 @@ on:
 jobs:
   prepare-release:
     name: Prepare release (${{ inputs.version }})
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       # Use the GHA bot credentials: https://api.github.com/users/github-actions%5Bbot%5D
       - name: Setup git config
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/wandb/wandb.git
+          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
       - name: Install Dependencies
         run: pip install bump2version click
@@ -46,7 +46,7 @@ jobs:
 
       - name: Bump Version
         run: |
-          bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
+          bump2version patch --no-tag --no-commit --config-file .bumpversion.cfg --new-version ${{ github.event.inputs.version }}
 
       - name: Update CHANGELOG.md
         if: ${{ inputs.update-changelog }}
@@ -66,68 +66,40 @@ jobs:
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
-  build-macos-10-wheels:
-    name: Build wheels for MacOS 10.x
+  build-linux-arm64-wheels:
+    name: Build wheels for Linux arm64
     needs: prepare-release
-    runs-on: macos-14
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
+    runs-on: linux-arm64-ubuntu24.04-4core # custom runner in wandb org
+    timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
-      ##################################################
-      # Go 1.22 is required for building the wheels on MacOS 10.x.
-      #
-      # See https://github.com/golang/go/issues/64207.
-      ##################################################
-      - name: Downgrade Go version
-        run: |
-          sed -i '' 's/1.23.3/1.22.8/' core/go.mod
-
-      ##################################################
-      # Non-Linux: install Go
-      #
-      # See comment above CIBW_BEFORE_ALL_LINUX.
-      ##################################################
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
 
-      ##################################################
-      # All platforms: create wheels
-      ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v3.3.0
         with:
-           package-dir: .
-           output-dir: dist
+          package-dir: .
+          output-dir: dist
         env:
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_BUILD: cp*-macosx* pp*-macosx*
-          CIBW_SKIP: cp36-*
-          CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
+          CIBW_ARCHS_LINUX: aarch64
+          CIBW_BEFORE_ALL_LINUX: >
+            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
+            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-arm64.tar.gz > go.tar.gz &&
+            tar -C /usr/local/ -xzf go.tar.gz &&
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-          # Work around https://github.com/matthew-brett/delocate/issues/204
-          # by adding `--ignore-missing-dependencies` to cibuildwheel's default
-          # repair wheel command.
-          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
-            delocate-listdeps --all --depending {wheel} &&
-            delocate-wheel \
-              --require-archs {delocate_archs} \
-              --ignore-missing-dependencies \
-              -w {dest_dir} \
-              -v {wheel}
-          CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET=10.14
-
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-linux-arm64
           path: ./dist
 
   build-platform-wheels:
@@ -139,32 +111,23 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-20.04
-          - windows-2019
+          - ubuntu-22.04
+          - windows-2022
+          - windows-11-arm
           - macos-14
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
       ##################################################
-      # Linux only: get QEMU, required by cibuildwheel
-      ##################################################
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v2
-        with:
-          platforms: all
-
-      ##################################################
-      # Non-Linux: install Go
+      # Install Go
       #
       # See comment above CIBW_BEFORE_ALL_LINUX.
       ##################################################
       - name: Set up Go
-        if: runner.os != 'Linux'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
@@ -173,21 +136,13 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v3.3.0
         with:
-           package-dir: .
-           output-dir: dist
+          package-dir: .
+          output-dir: dist
         env:
-          # In cp36-*, the wheel name sometimes includes additional dashes that
-          # make it invalid, breaking the job.
-          #
-          # Skipping *musllinux_aarch64* as it takes too long to build, and we
-          # don't seem to have users on this platform.
-          #
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-* *musllinux_aarch64*
-          CIBW_ARCHS_LINUX: x86_64 aarch64
-          CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
+          CIBW_ARCHS_LINUX: x86_64 #aarch64 is handled by build-linux-arm64-wheels
+          CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
@@ -200,61 +155,19 @@ jobs:
               -w {dest_dir} \
               -v {wheel}
           CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET=11
+            MACOSX_DEPLOYMENT_TARGET=12
 
-          # Linux is special because it's built in a container using qemu,
-          # so we must download Go and Rust manually rather than using GH actions
-          # such as actions/setup-go and actions-rust-lang/setup-rust-toolchain.
-          #
-          # It may be possible to use the GitHub action if we are smart
-          # about it.
+          # Install Go and Rust for Linux amd64
           CIBW_BEFORE_ALL_LINUX: >
-            case $(uname -m) in
-              aarch64) export DOWNLOAD_GOARCH=arm64;;
-              x86_64) export DOWNLOAD_GOARCH=amd64;;
-            esac &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
-            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
+            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-amd64.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y &&
-            source $HOME/.cargo/env &&
-            rustc --version &&
-            cargo --version
-          CIBW_ENVIRONMENT_LINUX:
-            PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
-          path: ./dist
-
-  build-universal-wheel:
-    name: Build universal wheel (no wandb-core)
-    needs: prepare-release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: release-${{ github.event.inputs.version }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Build wheel
-        run: pip wheel -w wheelhouse --no-deps .
-        env:
-          WANDB_BUILD_UNIVERSAL: True
-
-      - name: Copy wheel to ./dist
-        run: |
-          mkdir dist/
-          cp wheelhouse/wandb-*-py3-none-any.whl dist/
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-${{ matrix.os }}
           path: ./dist
 
   build-sdist:
@@ -262,14 +175,14 @@ jobs:
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install Hatch
         run: pip install hatch==1.12
@@ -277,32 +190,38 @@ jobs:
       - name: Create sdist
         run: hatch build -t sdist
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distribution-sdist
           path: ./dist
 
   test-pypi-publish:
     name: Publish to TestPyPI
-    needs: [build-platform-wheels, build-universal-wheel, build-sdist]
+    needs: [build-platform-wheels, build-linux-arm64-wheels, build-sdist]
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:
       name: release
       url: https://test.pypi.org/p/wandb
     permissions:
-      id-token: write  # trusted publishing
+      id-token: write # trusted publishing
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
       - name: Download distribution
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v6
         with:
-          name: wandb-sdk-distributions
-          path: dist/
+          path: artifacts/
+          pattern: wandb-sdk-distribution-*
+
+      - name: Merge distributions
+        run: |
+          mkdir -p dist/
+          cp -r artifacts/*/* dist/
+          ls -la dist/
 
       - name: List distribution
         run: ls dist/
@@ -326,22 +245,22 @@ jobs:
 
   verify-test-pypi:
     needs: test-pypi-publish
-    name: Smoke-test on ${{ matrix.os }} ${{ matrix.use_legacy_service && '' || 'with core' }}
+    name: Smoke-test on ${{ matrix.os }}
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-20.04
-          - windows-2019
+          - ubuntu-22.04
+          - windows-2022
           - macos-14
-        use_legacy_service: [false, true]
 
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -355,7 +274,6 @@ jobs:
       - name: Smoke-test wandb
         shell: bash
         run: |
-          WANDB__REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
@@ -364,19 +282,16 @@ jobs:
     name: Smoke-test sdist
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        use_legacy_service: [false, true]
+    continue-on-error: true
 
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
       - name: Set up latest Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
 
       - name: Install wandb from TestPyPI with --no-binary
         run: |
@@ -385,13 +300,11 @@ jobs:
             --extra-index-url https://test.pypi.org/simple/ \
             wandb==${{ github.event.inputs.version }}
 
-      - name: Smoke-test wandb ${{ matrix.use_legacy_service && '' || 'with core' }}
+      - name: Smoke-test wandb
         shell: bash
         run: |
-          WANDB__REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
-
 
   pypi-publish:
     if: ${{ !inputs.dry-run }}
@@ -403,10 +316,17 @@ jobs:
       url: https://pypi.org/p/wandb
     steps:
       - name: Download distribution
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v6
         with:
-          name: wandb-sdk-distributions
-          path: dist/
+          path: artifacts/
+          pattern: wandb-sdk-distribution-*
+
+      - name: Merge distributions
+        run: |
+          mkdir -p dist/
+          cp -r artifacts/*/* dist/
+          ls -la dist/
+
       - name: List distribution
         run: ls dist/
       - name: Publish distribution to PyPI
@@ -420,15 +340,15 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.update-changelog && !inputs.dry-run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install bump2version
         run: pip install bump2version
@@ -443,7 +363,7 @@ jobs:
           IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
           new_version="${major}.${minor}.$((patch + 1)).dev1"
           git checkout -b bump-${new_version}
-          bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${new_version}
+          bump2version patch --no-tag --no-commit --config-file .bumpversion.cfg --new-version ${new_version}
           git commit -am "chore(sdk): bump version to ${new_version}"
           git push -u origin bump-${new_version}
 
@@ -455,7 +375,6 @@ jobs:
           new_version="${major}.${minor}.$((patch + 1)).dev1"
           gh pr create --base main --head bump-${new_version} --title "chore(sdk): bump version to ${new_version}" --body "This PR bumps the version to the next dev version after the release of ${{ github.event.inputs.version }}."
 
-
   publish-release-notes:
     name: Publish Release Notes
     needs: pypi-publish
@@ -463,7 +382,7 @@ jobs:
     if: ${{ inputs.update-changelog && !inputs.dry-run }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
       - name: Create Source Archives
@@ -509,6 +428,43 @@ jobs:
           # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
           channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
           # For posting a simple plain text message
-          slack-message: "W&B SDK ${{ github.event.inputs.version }} released :tada:: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/"
+          slack-message: |
+            W&B SDK ${{ github.event.inputs.version }} released :tada::
+            - PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/
+            - Release notes: https://github.com/${{ github.repository }}/releases/tag/v${{ github.event.inputs.version }}
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  # This job exists so that there's some traceability between SDK releases and
+  # potential issues in wandb/core. core contains references to this released
+  # artifact, so we want to update those as close to the release as possible.
+  # In the event of a failure building wandb/core, the actor that ran this
+  # release will be notified.
+  notify-core:
+    name: notify wandb/core of release
+    runs-on: ubuntu-latest
+    needs: [pypi-publish]
+
+    steps:
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.WANDBOT_3000_APP_ID }}
+          private-key: ${{ secrets.WANDBOT_3000_PRIVATE_KEY }}
+          owner: wandb
+          repositories: |
+            core
+
+      - name: Repository dispatch
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: "${{ steps.app-token.outputs.token }}"
+          repository: wandb/core
+          event-type: wandb-sdk-released
+          client-payload: |-
+            {
+              "version": "${{ inputs.version }}",
+              "actor": "${{ github.actor }}",
+              "actor_id": "${{ github.actor_id }}"
+            }

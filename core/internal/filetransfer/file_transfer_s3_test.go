@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 // mockS3Client mocks the s3 client with the following buckets/objects:
@@ -240,13 +240,15 @@ func TestS3FileTransfer_Download(t *testing.T) {
 
 	ft := filetransfer.NewS3FileTransfer(
 		mockS3Client,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer os.Remove(tt.task.PathOrPrefix)
+			defer func() {
+				_ = os.Remove(tt.task.PathOrPrefix)
+			}()
 			err := ft.Download(tt.task)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("S3StorageHandler.loadPath() error = %v, wantErr %v", err, tt.wantErr)
@@ -277,8 +279,10 @@ func TestS3FileTransfer_Download(t *testing.T) {
 	}
 	path1 := "test/file1.txt"
 	path2 := "test/file2.txt"
-	defer os.Remove(path1)
-	defer os.Remove(path2)
+	defer func() {
+		_ = os.Remove(path2)
+		_ = os.Remove(path1)
+	}()
 
 	// Performing the download
 	err := ft.Download(task)

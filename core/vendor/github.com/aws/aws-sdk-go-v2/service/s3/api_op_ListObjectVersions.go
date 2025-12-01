@@ -13,7 +13,18 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// This operation is not supported by directory buckets.
+// End of support notice: Beginning November 21, 2025, Amazon S3 will stop
+// returning DisplayName . Update your applications to use canonical IDs (unique
+// identifier for Amazon Web Services accounts), Amazon Web Services account ID (12
+// digit identifier) or IAM ARNs (full resource naming) as a direct replacement of
+// DisplayName .
+//
+// This change affects the following Amazon Web Services Regions: US East (N.
+// Virginia) Region, US West (N. California) Region, US West (Oregon) Region, Asia
+// Pacific (Singapore) Region, Asia Pacific (Sydney) Region, Asia Pacific (Tokyo)
+// Region, Europe (Ireland) Region, and South America (São Paulo) Region.
+//
+// This operation is not supported for directory buckets.
 //
 // Returns metadata about all versions of the objects in a bucket. You can also
 // use request parameters as selection criteria to return metadata about a subset
@@ -36,6 +47,10 @@ import (
 // [PutObject]
 //
 // [DeleteObject]
+//
+// You must URL encode any signed header values that contain spaces. For example,
+// if your header value is my file.txt , containing two spaces after my , you must
+// URL encode this value to my%20%20file.txt .
 //
 // [DeleteObject]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObject.html
 // [PutObject]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
@@ -68,6 +83,9 @@ type ListObjectVersionsInput struct {
 	// delimiter are grouped under a single result element in CommonPrefixes . These
 	// groups are counted as one result against the max-keys limitation. These keys
 	// are not returned elsewhere in the response.
+	//
+	// CommonPrefixes is filtered out from results if it is not lexicographically
+	// greater than the key-marker.
 	Delimiter *string
 
 	// Encoding type used by Amazon S3 to encode the [object keys] in the response. Responses are
@@ -143,7 +161,10 @@ type ListObjectVersionsOutput struct {
 	// calculating the number of returns.
 	CommonPrefixes []types.CommonPrefix
 
-	// Container for an object that is a delete marker.
+	// Container for an object that is a delete marker. To learn more about delete
+	// markers, see [Working with delete markers].
+	//
+	// [Working with delete markers]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/DeleteMarker.html
 	DeleteMarkers []types.DeleteMarkerEntry
 
 	// The delimiter grouping the included keys. A delimiter is a character that you
@@ -193,9 +214,12 @@ type ListObjectVersionsOutput struct {
 	Prefix *string
 
 	// If present, indicates that the requester was successfully charged for the
-	// request.
+	// request. For more information, see [Using Requester Pays buckets for storage transfers and usage]in the Amazon Simple Storage Service user
+	// guide.
 	//
 	// This functionality is not supported for directory buckets.
+	//
+	// [Using Requester Pays buckets for storage transfers and usage]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/RequesterPaysBuckets.html
 	RequestCharged types.RequestCharged
 
 	// Marks the last version of the key returned in a truncated response.
@@ -280,6 +304,9 @@ func (c *Client) addOperationListObjectVersionsMiddlewares(stack *middleware.Sta
 	if err = addIsExpressUserAgent(stack); err != nil {
 		return err
 	}
+	if err = addCredentialSource(stack, options); err != nil {
+		return err
+	}
 	if err = addOpListObjectVersionsValidationMiddleware(stack); err != nil {
 		return err
 	}
@@ -313,16 +340,13 @@ func (c *Client) addOperationListObjectVersionsMiddlewares(stack *middleware.Sta
 	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanInitializeStart(stack); err != nil {
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanInitializeEnd(stack); err != nil {
+	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanBuildRequestStart(stack); err != nil {
-		return err
-	}
-	if err = addSpanBuildRequestEnd(stack); err != nil {
+	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil

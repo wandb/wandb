@@ -16,7 +16,8 @@ import (
 
 // Returns the default encryption configuration for an Amazon S3 bucket. By
 // default, all buckets have a default encryption configuration that uses
-// server-side encryption with Amazon S3 managed keys (SSE-S3).
+// server-side encryption with Amazon S3 managed keys (SSE-S3). This operation also
+// returns the [BucketKeyEnabled]and [BlockedEncryptionTypes] statuses.
 //
 //   - General purpose buckets - For information about the bucket default
 //     encryption feature, see [Amazon S3 Bucket Default Encryption]in the Amazon S3 User Guide.
@@ -40,7 +41,7 @@ import (
 //     directory bucket policies and permissions, see [Amazon Web Services Identity and Access Management (IAM) for S3 Express One Zone]in the Amazon S3 User Guide.
 //
 // HTTP Host header syntax  Directory buckets - The HTTP Host header syntax is
-// s3express-control.region.amazonaws.com .
+// s3express-control.region-code.amazonaws.com .
 //
 // The following operations are related to GetBucketEncryption :
 //
@@ -48,10 +49,16 @@ import (
 //
 // [DeleteBucketEncryption]
 //
+// You must URL encode any signed header values that contain spaces. For example,
+// if your header value is my file.txt , containing two spaces after my , you must
+// URL encode this value to my%20%20file.txt .
+//
+// [BucketKeyEnabled]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_BucketKeyEnabled.html
+// [BlockedEncryptionTypes]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_BlockedEncryptionTypes.html
 // [DeleteBucketEncryption]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketEncryption.html
 // [PutBucketEncryption]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketEncryption.html
 // [Setting default server-side encryption behavior for directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-bucket-encryption.html
-// [Amazon S3 Bucket Default Encryption]: https://docs.aws.amazon.com/AmazonS3/latest/dev/bucket-encryption.html
+// [Amazon S3 Bucket Default Encryption]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-encryption.html
 // [Managing Access Permissions to Your Amazon S3 Resources]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-access-control.html
 // [Permissions Related to Bucket Operations]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-with-s3-actions.html#using-with-s3-actions-related-to-bucket-subresources
 // [Amazon Web Services Identity and Access Management (IAM) for S3 Express One Zone]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-security-iam.html
@@ -77,12 +84,12 @@ type GetBucketEncryptionInput struct {
 	//
 	// Directory buckets - When you use this operation with a directory bucket, you
 	// must use path-style requests in the format
-	// https://s3express-control.region_code.amazonaws.com/bucket-name .
+	// https://s3express-control.region-code.amazonaws.com/bucket-name .
 	// Virtual-hosted-style requests aren't supported. Directory bucket names must be
-	// unique in the chosen Availability Zone. Bucket names must also follow the format
-	// bucket_base_name--az_id--x-s3 (for example,  DOC-EXAMPLE-BUCKET--usw2-az1--x-s3
-	// ). For information about bucket naming restrictions, see [Directory bucket naming rules]in the Amazon S3 User
-	// Guide
+	// unique in the chosen Zone (Availability Zone or Local Zone). Bucket names must
+	// also follow the format bucket-base-name--zone-id--x-s3 (for example,
+	// DOC-EXAMPLE-BUCKET--usw2-az1--x-s3 ). For information about bucket naming
+	// restrictions, see [Directory bucket naming rules]in the Amazon S3 User Guide
 	//
 	// [Directory bucket naming rules]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-bucket-naming-rules.html
 	//
@@ -188,6 +195,9 @@ func (c *Client) addOperationGetBucketEncryptionMiddlewares(stack *middleware.St
 	if err = addIsExpressUserAgent(stack); err != nil {
 		return err
 	}
+	if err = addCredentialSource(stack, options); err != nil {
+		return err
+	}
 	if err = addOpGetBucketEncryptionValidationMiddleware(stack); err != nil {
 		return err
 	}
@@ -221,16 +231,13 @@ func (c *Client) addOperationGetBucketEncryptionMiddlewares(stack *middleware.St
 	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanInitializeStart(stack); err != nil {
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanInitializeEnd(stack); err != nil {
+	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanBuildRequestStart(stack); err != nil {
-		return err
-	}
-	if err = addSpanBuildRequestEnd(stack); err != nil {
+	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil

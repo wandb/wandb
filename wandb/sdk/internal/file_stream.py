@@ -40,6 +40,7 @@ import requests
 
 import wandb
 from wandb import util
+from wandb.analytics import get_sentry
 from wandb.sdk.internal import internal_api
 
 from ..lib import file_stream_utils
@@ -75,7 +76,7 @@ class DefaultFilePolicy:
 
         # get key size and convert to MB
         key_sizes = [(k, len(json.dumps(v))) for k, v in loaded.items()]
-        key_msg = [f"{k}: {v/1048576:.5f} MB" for k, v in key_sizes]
+        key_msg = [f"{k}: {v / 1048576:.5f} MB" for k, v in key_sizes]
         wandb.termerror(f"Step: {loaded['_step']} | {key_msg}", repeat=False)
         self.has_debug_log = True
 
@@ -88,12 +89,9 @@ class JsonlFilePolicy(DefaultFilePolicy):
         chunk_data = []
         for chunk in chunks:
             if len(chunk.data) > util.MAX_LINE_BYTES:
-                msg = "Metric data exceeds maximum size of {} ({})".format(
-                    util.to_human_size(util.MAX_LINE_BYTES),
-                    util.to_human_size(len(chunk.data)),
-                )
+                msg = f"Metric data exceeds maximum size of {util.to_human_size(util.MAX_LINE_BYTES)} ({util.to_human_size(len(chunk.data))})"
                 wandb.termerror(msg, repeat=False)
-                wandb._sentry.message(msg, repeat=False)
+                get_sentry().message(msg, repeat=False)
                 self._debug_log(chunk.data)
             else:
                 chunk_data.append(chunk.data)
@@ -108,11 +106,9 @@ class SummaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks: List[Chunk]) -> Union[bool, "ProcessedChunk"]:
         data = chunks[-1].data
         if len(data) > util.MAX_LINE_BYTES:
-            msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
-                util.to_human_size(util.MAX_LINE_BYTES)
-            )
+            msg = f"Summary data exceeds maximum size of {util.to_human_size(util.MAX_LINE_BYTES)}. Dropping it."
             wandb.termerror(msg, repeat=False)
-            wandb._sentry.message(msg, repeat=False)
+            get_sentry().message(msg, repeat=False)
             self._debug_log(data)
             return False
         return {"offset": 0, "content": [data]}
@@ -211,7 +207,10 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
             Second str is the rest of the string.
 
         Example:
-            >>> chunk = Chunk(filename="output.log", data="ERROR 2020-08-25T20:38 this is my line of text\n")
+            >>> chunk = Chunk(
+            ...     filename="output.log",
+            ...     data="ERROR 2020-08-25T20:38 this is my line of text\n",
+            ... )
             >>> split_chunk(chunk)
             ("ERROR 2020-08-25T20:38 ", "this is my line of text\n")
         """
@@ -491,12 +490,12 @@ class FileStreamApi:
         # TODO: Consolidate with internal_util.ExceptionThread
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             exc_info = sys.exc_info()
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
-            wandb._sentry.exception(exc_info)
-            raise e
+            get_sentry().exception(exc_info)
+            raise
 
     def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
         """Log dropped chunks and updates dynamic settings."""
@@ -504,7 +503,7 @@ class FileStreamApi:
             wandb.termerror(
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"
             )
-            logger.exception("dropped chunk {}".format(response))
+            logger.exception(f"dropped chunk {response}")
             self._dropped_chunks += 1
         else:
             parsed: Optional[dict] = None
@@ -661,8 +660,7 @@ def request_with_retry(
                 e.response is not None and e.response.status_code == 429
             ):
                 err_str = (
-                    "Filestream rate limit exceeded, "
-                    f"retrying in {delay:.1f} seconds. "
+                    f"Filestream rate limit exceeded, retrying in {delay:.1f} seconds. "
                 )
                 if retry_callback:
                     retry_callback(e.response.status_code, err_str)
@@ -685,8 +683,5 @@ def request_with_retry(
                 error_message = response.json()["error"]  # todo: clean this up
             except Exception:
                 pass
-            logger.error(f"requests_with_retry error: {error_message}")
-            logger.exception(
-                "requests_with_retry encountered unretryable exception: %s", e
-            )
+            logger.exception(f"requests_with_retry error: {error_message}")
             return e

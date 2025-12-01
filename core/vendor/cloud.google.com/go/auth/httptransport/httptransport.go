@@ -20,12 +20,14 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"cloud.google.com/go/auth"
 	detect "cloud.google.com/go/auth/credentials"
-	"cloud.google.com/go/auth/internal"
 	"cloud.google.com/go/auth/internal/transport"
+	"cloud.google.com/go/auth/internal/transport/headers"
+	"github.com/googleapis/gax-go/v2/internallog"
 )
 
 // ClientCertProvider is a function that returns a TLS client certificate to be
@@ -69,6 +71,11 @@ type Options struct {
 	// configured for the client, which will be compared to the universe domain
 	// that is separately configured for the credentials.
 	UniverseDomain string
+	// Logger is used for debug logging. If provided, logging will be enabled
+	// at the loggers configured level. By default logging is disabled unless
+	// enabled by setting GOOGLE_SDK_GO_LOGGING_LEVEL in which case a default
+	// logger will be used. Optional.
+	Logger *slog.Logger
 
 	// InternalOptions are NOT meant to be set directly by consumers of this
 	// package, they should only be set by generated client code.
@@ -101,6 +108,10 @@ func (o *Options) client() *http.Client {
 	return nil
 }
 
+func (o *Options) logger() *slog.Logger {
+	return internallog.New(o.Logger)
+}
+
 func (o *Options) resolveDetectOptions() *detect.DetectOptions {
 	io := o.InternalOptions
 	// soft-clone these so we are not updating a ref the user holds and may reuse
@@ -124,6 +135,9 @@ func (o *Options) resolveDetectOptions() *detect.DetectOptions {
 		}
 		do.Client = transport.DefaultHTTPClientWithTLS(tlsConfig)
 		do.TokenURL = detect.GoogleMTLSTokenURL
+	}
+	if do.Logger == nil {
+		do.Logger = o.logger()
 	}
 	return do
 }
@@ -197,6 +211,7 @@ func NewClient(opts *Options) (*http.Client, error) {
 		ClientCertProvider: opts.ClientCertProvider,
 		Client:             opts.client(),
 		UniverseDomain:     opts.UniverseDomain,
+		Logger:             opts.logger(),
 	}
 	if io := opts.InternalOptions; io != nil {
 		tOpts.DefaultEndpointTemplate = io.DefaultEndpointTemplate
@@ -221,12 +236,10 @@ func NewClient(opts *Options) (*http.Client, error) {
 	}, nil
 }
 
-// SetAuthHeader uses the provided token to set the Authorization header on a
-// request. If the token.Type is empty, the type is assumed to be Bearer.
+// SetAuthHeader uses the provided token to set the Authorization and trust
+// boundary headers on an http.Request. If the token.Type is empty, the type is
+// assumed to be Bearer. This is the recommended way to set authorization
+// headers on a custom http.Request.
 func SetAuthHeader(token *auth.Token, req *http.Request) {
-	typ := token.Type
-	if typ == "" {
-		typ = internal.TokenTypeBearer
-	}
-	req.Header.Set("Authorization", typ+" "+token.Value)
+	headers.SetAuthHeader(token, req)
 }

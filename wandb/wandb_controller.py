@@ -353,19 +353,19 @@ class _WandbController:
         self._logged += 1
 
     def _error(self, s: str) -> None:
-        print("ERROR:", s)
+        print("ERROR:", s)  # noqa: T201
         self._log()
 
     def _warn(self, s: str) -> None:
-        print("WARN:", s)
+        print("WARN:", s)  # noqa: T201
         self._log()
 
     def _info(self, s: str) -> None:
-        print("INFO:", s)
+        print("INFO:", s)  # noqa: T201
         self._log()
 
     def _debug(self, s: str) -> None:
-        print("DEBUG:", s)
+        print("DEBUG:", s)  # noqa: T201
         self._log()
 
     def _configure_check(self) -> None:
@@ -396,10 +396,10 @@ class _WandbController:
         sweep_id, warnings = self._api.upsert_sweep(self._create)
         handle_sweep_config_violations(warnings)
 
-        print("Create sweep with ID:", sweep_id)
+        print("Create sweep with ID:", sweep_id)  # noqa: T201
         sweep_url = wandb_sweep._get_sweep_url(self._api, sweep_id)
         if sweep_url:
-            print("Sweep URL:", sweep_url)
+            print("Sweep URL:", sweep_url)  # noqa: T201
         self._sweep_id = sweep_id
         self._defer_sweep_creation = False
         return sweep_id
@@ -636,7 +636,7 @@ class _WandbController:
     def print_status(self) -> None:
         status = _sweep_status(self._sweep_obj, self._sweep_config, self._sweep_runs)
         if self._laststatus != status or self._logged:
-            print(status)
+            print(status)  # noqa: T201
         self._laststatus = status
         self._logged = 0
 
@@ -678,7 +678,7 @@ def _get_runs_status(metrics):
     for c in categories:
         if not metrics.get(c):
             continue
-        mlist.append("%s: %d" % (c.capitalize(), metrics[c]))
+        mlist.append(f"{c.capitalize()}: {metrics[c]}")
     s = ", ".join(mlist)
     return s
 
@@ -696,9 +696,9 @@ def _sweep_status(
     stopping = len([r for r in sweep_runs if r.should_stop])
     stopstr = ""
     if stopped or stopping:
-        stopstr = "Stopped: %d" % stopped
+        stopstr = f"Stopped: {stopped}"
         if stopping:
-            stopstr += " (Stopping: %d)" % stopping
+            stopstr += f" (Stopping: {stopping})"
     runs_status = _get_runs_status(run_type_counts)
     method = sweep_conf.get("method", "unknown")
     stopping = sweep_conf.get("early_terminate", None)
@@ -710,9 +710,9 @@ def _sweep_status(
     sections = []
     sections.append(f"Sweep: {sweep} ({sweep_options})")
     if runs_status:
-        sections.append("Runs: %d (%s)" % (run_count, runs_status))
+        sections.append(f"Runs: {run_count} ({runs_status})")
     else:
-        sections.append("Runs: %d" % (run_count))
+        sections.append(f"Runs: {run_count}")
     if stopstr:
         sections.append(stopstr)
     sections = " | ".join(sections)

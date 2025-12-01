@@ -65,7 +65,7 @@ def _parse_label_lines(lines: List[str]) -> Dict[str, str]:
         label_str = line[idx + len(_LABEL_TOKEN) :]
 
         # match identifier (first token without key=value syntax (optional)
-        # Note: Parse is fairly permissive as it doesnt enforce strict syntax
+        # Note: Parse is fairly permissive as it does not enforce strict syntax
         r = MATCH_RE.match(label_str)
         if r:
             ret["code"] = r.group("code").replace("-", "_")

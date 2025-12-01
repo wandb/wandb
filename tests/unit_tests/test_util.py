@@ -7,6 +7,7 @@ import sys
 import tarfile
 import tempfile
 import time
+from dataclasses import dataclass
 from unittest import mock
 
 import matplotlib.pyplot as plt
@@ -63,7 +64,7 @@ def assert_deep_lists_equal(a, b, indices=None):
                 raise
             finally:
                 if top and indices:
-                    print("Diff at index: {}".format(list(reversed(indices))))
+                    print(f"Diff at index: {list(reversed(indices))}")
 
 
 def json_friendly_test(orig_data, obj):
@@ -179,8 +180,6 @@ def test_bfloat16_to_float():
 
 
 def test_dataclass():
-    from dataclasses import dataclass
-
     @dataclass
     class TestDataClass:
         test: bool
@@ -191,8 +190,6 @@ def test_dataclass():
 
 
 def test_nested_dataclasses():
-    from dataclasses import dataclass
-
     @dataclass
     class TestDataClass:
         test: bool
@@ -206,6 +203,27 @@ def test_nested_dataclasses():
     assert isinstance(converted["nested_dataclass"], dict)
     assert isinstance(converted["nested_dataclass"]["test_dataclass"], dict)
     assert converted["nested_dataclass"]["test_dataclass"]["test"] is False
+
+
+def test_nested_dataclasses_containing_real_class():
+    class TestRealClass:
+        test: bool
+
+        def __init__(self, test: bool):
+            self.test = test
+
+        def __str__(self):
+            return f"TestRealClass(test={self.test})"
+
+    @dataclass
+    class TestDataClassHolder:
+        test_real_class: TestRealClass
+
+    real_class = TestRealClass(True)
+    nested_dataclass = TestDataClassHolder(real_class)
+    converted = util.json_friendly_val(nested_dataclass)
+    assert isinstance(converted, dict)
+    assert converted == {"test_real_class": "TestRealClass(test=True)"}
 
 
 ###############################################################################
@@ -666,12 +684,6 @@ def test_downsample():
     assert util.downsample([1, 2, 3, 4], 2) == [1, 4]
 
 
-def test_get_log_file_path(mock_run):
-    assert util.get_log_file_path() == os.path.join("wandb", "debug-internal.log")
-    run = mock_run()
-    assert util.get_log_file_path() == run._settings.log_internal
-
-
 def test_stopwatch_now():
     t_1 = util.stopwatch_now()
     time.sleep(0.1)
@@ -794,3 +806,34 @@ def test_sampling_weights():
     )
     # Expect more samples from the start of the list
     assert np.mean(sampled_xs) < np.mean(xs)
+
+
+def test_json_dump_uncompressed_with_numpy_datatypes():
+    import io
+
+    data = {
+        "a": [
+            np.int32(1),
+            np.float32(2.0),
+            np.int64(3),
+        ]
+    }
+    iostr = io.StringIO()
+    util.json_dump_uncompressed(data, iostr)
+    assert iostr.getvalue() == '{"a": [1, 2.0, 3]}'
+
+
+@pytest.mark.parametrize(
+    "internet_state",
+    [
+        True,
+        False,
+    ],
+)
+def test_has_internet(internet_state):
+    if internet_state:
+        mock_create_connection = mock.MagicMock()
+    else:
+        mock_create_connection = mock.MagicMock(side_effect=OSError)
+    with mock.patch("socket.create_connection", new=mock_create_connection):
+        assert util._has_internet() is internet_state

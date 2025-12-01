@@ -13,31 +13,27 @@ import (
 	"unsafe"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/experimental/client-go/internal/gowandb/internal_runopts"
-	"github.com/wandb/wandb/experimental/client-go/pkg/gowandb"
-	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
-	"github.com/wandb/wandb/experimental/client-go/pkg/opts/sessionopts"
-	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/runconfig"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/settings"
+	"github.com/wandb/wandb/experimental/go-sdk/pkg/wandb"
 )
 
 // globals to keep track of the wandb session and any runs
-var wandbSession *gowandb.Session
-var wandbRuns *RunKeeper
+var session *wandb.Session
+var runs *RunKeeper
 var wandbData *PartialData
 
 //export wandbcoreSetup
 func wandbcoreSetup() {
-	if wandbSession != nil {
+	if session != nil {
 		return
 	}
 	var err error
-	wandbSession, err = gowandb.NewSession(
-		sessionopts.WithCoreBinary(coreBinary),
-	)
+	session, err = wandb.Setup(&wandb.SessionParams{CoreBinary: coreBinary})
 	if err != nil {
 		panic(err)
 	}
-	wandbRuns = NewRunKeeper()
+	runs = NewRunKeeper()
 	wandbData = NewPartialData()
 }
 
@@ -55,32 +51,23 @@ func getTelemetry(library C.library_t) *spb.TelemetryRecord {
 }
 
 //export wandbcoreInit
-func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t, project *C.cchar_t, library C.library_t) int {
-	options := []runopts.RunOption{}
+func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t, project *C.cchar_t, _ C.library_t) int {
 	wandbcoreSetup()
 
-	configData := wandbData.Get(configDataNum)
-	options = append(options, runopts.WithConfig(runconfig.Config(configData)))
-	goName := C.GoString(name)
-	if goName != "" {
-		options = append(options, runopts.WithName(goName))
-	}
-	goRunID := C.GoString(runID)
-	if goRunID != "" {
-		options = append(options, runopts.WithRunID(goRunID))
-	}
-	goProject := C.GoString(project)
-	if goProject != "" {
-		options = append(options, runopts.WithProject(goProject))
-	}
-	telemetry := getTelemetry(library)
-	options = append(options, internal_runopts.WithTelemetry(telemetry))
-
-	run, err := wandbSession.NewRun(options...)
+	config := runconfig.Config(wandbData.Get(configDataNum))
+	run, err := session.Init(&wandb.RunParams{
+		Config: &config,
+		Settings: &settings.Settings{
+			RunName:    C.GoString(name),
+			RunID:      C.GoString(runID),
+			RunProject: C.GoString(project),
+		},
+		// Telemetry: getTelemetry(library),
+	})
 	if err != nil {
 		panic(err)
 	}
-	num := wandbRuns.Add(run)
+	num := runs.Add(run)
 	return num
 }
 
@@ -137,23 +124,23 @@ func wandbcoreDataAddStrings(num int, cLength C.int, cKeys **C.cchar_t, cStrings
 
 //export wandbcoreLogData
 func wandbcoreLogData(runNum int, dataNum int) {
-	run := wandbRuns.Get(runNum)
+	run := runs.Get(runNum)
 	data := wandbData.Get(dataNum)
-	run.Log(data)
+	run.Log(data, true)
 	wandbData.Remove(dataNum)
 }
 
 //export wandbcoreFinish
 func wandbcoreFinish(num int) {
-	run := wandbRuns.Get(num)
+	run := runs.Get(num)
 	run.Finish()
-	wandbRuns.Remove(num)
+	runs.Remove(num)
 }
 
 //export wandbcoreTeardown
 func wandbcoreTeardown() {
-	wandbSession.Close()
-	wandbSession = nil
+	session.Close()
+	session = nil
 }
 
 func main() {

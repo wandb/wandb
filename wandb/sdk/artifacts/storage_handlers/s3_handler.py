@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import os
-import time
+import re
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qsl, urlparse
 
 from wandb import util
+from wandb._strutils import ensureprefix
 from wandb.errors import CommError
 from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
@@ -16,6 +17,8 @@ from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+
+from ._timing import TimedIf
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -30,16 +33,18 @@ if TYPE_CHECKING:
     import boto3.session  # type: ignore
 
     from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 
 
 class S3Handler(StorageHandler):
-    _s3: boto3.resources.base.ServiceResource | None
     _scheme: str
+    _cache: ArtifactFileCache
+    _s3: boto3.resources.base.ServiceResource | None
 
-    def __init__(self, scheme: str | None = None) -> None:
-        self._scheme = scheme or "s3"
-        self._s3 = None
+    def __init__(self, scheme: str = "s3") -> None:
+        self._scheme = scheme
         self._cache = get_artifact_file_cache()
+        self._s3 = None
 
     def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
@@ -52,10 +57,20 @@ class S3Handler(StorageHandler):
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
             lazy=False,
         )
+
+        from botocore.client import Config  # type: ignore
+
+        s3_endpoint = os.getenv("AWS_S3_ENDPOINT_URL")
+        config = (
+            Config(s3={"addressing_style": "virtual"})
+            if s3_endpoint and self._is_coreweave_endpoint(s3_endpoint)
+            else None
+        )
         self._s3 = boto.session.Session().resource(
             "s3",
-            endpoint_url=os.getenv("AWS_S3_ENDPOINT_URL"),
+            endpoint_url=s3_endpoint,
             region_name=os.getenv("AWS_REGION"),
+            config=config,
         )
         self._botocore = util.get_module("botocore")
         return self._s3
@@ -83,8 +98,8 @@ class S3Handler(StorageHandler):
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
-            ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
-            manifest_entry.size if manifest_entry.size is not None else 0,
+            ETag(manifest_entry.digest),
+            manifest_entry.size or 0,
         )
         if hit:
             return path
@@ -148,7 +163,7 @@ class S3Handler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
 
@@ -170,14 +185,14 @@ class S3Handler(StorageHandler):
             if version
             else [self._s3.Object(bucket, key)]
         )
-        start_time = None
         multi = False
         if key != "":
             try:
                 objs[0].load()
-                # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
-                # trigger a recursive upload.
-                # we should check the object's metadata says it is a directory and do a multi file upload if it is
+                # S3 lacks true folders, but a folder key can reference a valid
+                # file, which prevents recursive uploads. Check whether the
+                # object's metadata marks it as a directory and perform a
+                # multi-file upload if so.
                 if "x-directory" in objs[0].content_type:
                     multi = True
             except self._botocore.exceptions.ClientError as e:
@@ -193,34 +208,31 @@ class S3Handler(StorageHandler):
         else:
             multi = True
 
-        if multi:
-            start_time = time.time()
-            termlog(
-                'Generating checksum for up to %i objects in "%s/%s"... '
-                % (max_objects, bucket, key),
-                newline=False,
-            )
-            if key != "":
-                objs = (
-                    self._s3.Bucket(bucket)
-                    .objects.filter(Prefix=key)
-                    .limit(max_objects)
+        with TimedIf(multi):
+            if multi:
+                termlog(
+                    f'Generating checksum for up to {max_objects} objects in "{bucket}/{key}"... ',
+                    newline=False,
                 )
-            else:
-                objs = self._s3.Bucket(bucket).objects.limit(max_objects)
-        # Weird iterator scoping makes us assign this to a local function
-        size = self._size_from_obj
-        entries = [
-            self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
-            for obj in objs
-            if size(obj) > 0
-        ]
-        if start_time is not None:
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+                if key != "":
+                    objs = (
+                        self._s3.Bucket(bucket)
+                        .objects.filter(Prefix=key)
+                        .limit(max_objects)
+                    )
+                else:
+                    objs = self._s3.Bucket(bucket).objects.limit(max_objects)
+            # Weird iterator scoping makes us assign this to a local function
+            size = self._size_from_obj
+            entries = [
+                self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
+                for obj in objs
+                if size(obj) > 0
+            ]
+
         if len(entries) > max_objects:
             raise ValueError(
-                "Exceeded %i objects tracked, pass max_objects to add_reference"
-                % max_objects
+                f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
             )
         return entries
 
@@ -298,3 +310,33 @@ class S3Handler(StorageHandler):
         if hasattr(obj, "version_id") and obj.version_id and obj.version_id != "null":
             extra["versionID"] = obj.version_id
         return extra
+
+    _CW_LEGACY_NETLOC_REGEX: re.Pattern[str] = re.compile(
+        r"""
+        # accelerated endpoints like "accel-object.<region>.coreweave.com"
+        accel-object\.[a-z0-9-]+\.coreweave\.com
+        |
+        # URLs like "object.<region>.coreweave.com"
+        object\.[a-z0-9-]+\.coreweave\.com
+        """,
+        flags=re.VERBOSE,
+    )
+
+    def _is_coreweave_endpoint(self, endpoint_url: str) -> bool:
+        if not (url := endpoint_url.strip().rstrip("/")):
+            return False
+
+        # Only http://cwlota.com is supported using HTTP
+        if url == "http://cwlota.com":
+            return True
+
+        # Enforce HTTPS otherwise
+        https_url = ensureprefix(url, "https://")
+        netloc = urlparse(https_url).netloc
+        return bool(
+            # Match for https://cwobject.com
+            (netloc == "cwobject.com")
+            or
+            # Check for legacy endpoints
+            self._CW_LEGACY_NETLOC_REGEX.fullmatch(netloc)
+        )

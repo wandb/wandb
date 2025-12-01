@@ -14,27 +14,28 @@ This guide discusses the development workflow of the `wandb` library.
 ToC was generated with https://ecotrust-canada.github.io/markdown-toc/
 Please make sure to update the ToC when you update this page!
 -->
-- [Development workflow](#development-workflow)
-  * [Conventional Commits](#conventional-commits)
-    + [Types](#types)
-    + [Scopes](#scopes)
-    + [Subjects](#subjects)
-- [Setting up your development environment](#setting-up-your-development-environment)
-  * [Setting up Python](#setting-up-python)
-  * [Setting up Go](#setting-up-go)
-  * [Setting up Rust](#setting-up-rust)
-  * [Building/installing the package](#building-installing-the-package)
-  * [Linting the code](#linting-the-code)
-  * [Auto-Generating Code](#auto-generating-code)
-    + [Building protocol buffers](#building-protocol-buffers)
-    + [Adding a new setting](#adding-a-new-setting)
-    + [Adding URLs (internal use only)](#adding-urls--internal-use-only-)
-    + [Deprecating features](#deprecating-features)
-      - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
-  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in-wandb-core)
-- [Testing](#testing)
-  * [Using pytest](#using-pytest)
 
+- [Development workflow](#development-workflow)
+  - [Conventional Commits](#conventional-commits)
+    - [Types](#types)
+    - [Scopes](#scopes)
+    - [Subjects](#subjects)
+- [Setting up your development environment](#setting-up-your-development-environment)
+  - [Setting up Python](#setting-up-python)
+  - [Setting up Go](#setting-up-go)
+  - [Setting up Rust](#setting-up-rust)
+  - [Building/installing the package](#buildinginstalling-the-package)
+  - [Linting the code](#linting-the-code)
+  - [Auto-Generating Code](#auto-generating-code)
+    - [Building protocol buffers](#building-protocol-buffers)
+    - [Adding a new setting](#adding-a-new-setting)
+    - [Adding URLs (internal use only)](#adding-urls-internal-use-only)
+    - [Deprecating features](#deprecating-features)
+      - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
+  - [Modifying GraphQL Schema](#modifying-graphql-schema)
+- [Testing](#testing)
+  - [Using pytest](#using-pytest)
+  - [Running `system_tests` locally (internal-only)](#running-system_tests-locally-internal-only)
 
 ## Development workflow
 
@@ -140,31 +141,31 @@ Examples can be found in the section below.
 
 </aside>
 
-| Type     | Name                        | Description                                                                                  | User-facing? |
-|----------|-----------------------------|----------------------------------------------------------------------------------------------|--------------|
-| feat     | ✨ Feature                  | Changes that add new functionality that directly impacts users                               | Yes          |
-| fix      | 🐛 Fix                      | Changes that fix existing issues                                                             | Yes          |
-| refactor | 💎 Code Refactor            | A code change that neither fixes a bug nor adds a new feature                                | No           |
-| docs     | 📜 Documentation            | Documentation changes only                                                                   | Maybe        |
-| style    | 💅 Style                    | Changes that do not affect the meaning of the code (e.g. linting)                            | Maybe        |
-| chore    | ⚙️ Chores                    | Changes that do not modify source code (e.g. CI configuration files, build scripts)          | No           |
-| revert   | ♻️ Reverts                   | Reverts a previous commit                                                                    | Maybe        |
-| security | 🔒 Security                 | Security fix/feature                                                                         | Maybe        |
+| Type     | Name             | Description                                                                         | User-facing? |
+| -------- | ---------------- | ----------------------------------------------------------------------------------- | ------------ |
+| feat     | ✨ Feature       | Changes that add new functionality that directly impacts users                      | Yes          |
+| fix      | 🐛 Fix           | Changes that fix existing issues                                                    | Yes          |
+| refactor | 💎 Code Refactor | A code change that neither fixes a bug nor adds a new feature                       | No           |
+| docs     | 📜 Documentation | Documentation changes only                                                          | Maybe        |
+| style    | 💅 Style         | Changes that do not affect the meaning of the code (e.g. linting)                   | Maybe        |
+| chore    | ⚙️ Chores        | Changes that do not modify source code (e.g. CI configuration files, build scripts) | No           |
+| revert   | ♻️ Reverts       | Reverts a previous commit                                                           | Maybe        |
+| security | 🔒 Security      | Security fix/feature                                                                | Maybe        |
 
 #### Scopes
 
 Which part of the codebase does this change impact? Only certain scopes are permitted.
 
-| Scope        | Name                     | Description                                             |
-|--------------|--------------------------|---------------------------------------------------------|
-| sdk          | Software Development Kit | Changes that don't fall under the other scopes|
-| integrations | Integrations             | Changes related to third-party integrations             |
-| artifacts    | Artifacts                | Changes related to Artifacts                            |
-| sweeps       | Sweeps                   | Changes related to Sweeps                               |
-| launch       | Launch                   | Changes related to Launch                               |
+| Scope        | Name                     | Description                                    |
+| ------------ | ------------------------ | ---------------------------------------------- |
+| sdk          | Software Development Kit | Changes that don't fall under the other scopes |
+| integrations | Integrations             | Changes related to third-party integrations    |
+| artifacts    | Artifacts                | Changes related to Artifacts                   |
+| sweeps       | Sweeps                   | Changes related to Sweeps                      |
+| launch       | Launch                   | Changes related to Launch                      |
+| leet         | LEET                     | Changes related to W&B LEET TUI                |
 
 Sometimes a change may span multiple scopes. In this case, please choose the scope that would be most relevant to the user.
-
 
 #### Subjects
 
@@ -177,23 +178,22 @@ If the feature or fix does not directly impact users, consider using a different
 
 - `feat(sdk): add support for RDKit Molecules`
 
-    It is clear to the user what the change introduces to our product.
+  It is clear to the user what the change introduces to our product.
 
 - `fix(sdk): fix a hang caused by keyboard interrupt on Windows`
 
-    This bug fix addressed an issue that caused the sdk to hang when hitting Ctrl-C on Windows.
-
+  This bug fix addressed an issue that caused the sdk to hang when hitting Ctrl-C on Windows.
 
 ❌ **Bad Examples**
 
 - `fix(launch): fix an issue where patch is None`
 
-    It is unclear what is referenced here.
+  It is unclear what is referenced here.
 
-- `feat(sdk): Adds new query to the the internal api getting the state of the run`
+- `feat(sdk): Adds new query to the internal api getting the state of the run`
 
-    It is unclear what is of importance to the user here, what do they do with that information.
-    A better type would be `chore` or the title should indicate how it translates into a user-facing feature.
+  It is unclear what is of importance to the user here, what do they do with that information.
+  A better type would be `chore` or the title should indicate how it translates into a user-facing feature.
 
 ## Setting up your development environment
 
@@ -203,7 +203,7 @@ The W&B SDK is implemented in Python and Go.
 
 You can use your favorite `python` version management tool, such as [`pyenv`](https://github.com/pyenv/pyenv). To install it, follow [these instructions](https://github.com/pyenv/pyenv?tab=readme-ov-file#getting-pyenv).
 
-Optionally set up a tool to manage multiple virtual environements, for example [`pyenv-virtualenv`](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#pyenv-virtualenv).
+Optionally set up a tool to manage multiple virtual environments, for example [`pyenv-virtualenv`](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#pyenv-virtualenv).
 
 Install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation) and [`uv`](https://github.com/astral-sh/uv) into your environment:
 
@@ -213,15 +213,17 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.23.3` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.25.4` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+
 ```shell
-brew install go@1.23
+brew install go@1.25
 ```
 
 ### Setting up Rust
 
-You will need the Rust toolchain to build the `gpu_stats` binary used to monitor Nvidia GPUs and Apple Arm GPUs.
+You will need the Rust toolchain to build the `gpu_stats` binary used to monitor Nvidia, AMD and Apple Arm GPUs.
 Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
+
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env"
 ```
@@ -237,9 +239,11 @@ uv pip install -e .
 If you are modifying Go code, you should rerun the command to rebuild and reinstall the package.
 
 Alternatively, you can install `wandb-core` (the Go backend of the SDK) in development mode, by running the following command:
+
 ```shell
 ./core/scripts/setup-core-path.sh
 ```
+
 This script will also allow you to unset the `wandb-core` path if you no longer want to use
 the development version of `wandb-core`.
 
@@ -248,17 +252,20 @@ the development version of `wandb-core`.
 We are using [pre-commit hooks](https://pre-commit.com/#install) to manage our linters and other auto-generated code.
 
 To install `pre-commit` run the following:
+
 ```shell
 uv pip install -U pre-commit
 ```
 
 To install all of our pre-commit hooks run:
+
 ```shell
 ./core/scripts/code-checks.sh update
 pre-commit install
 ```
 
 If you just want to run a specific hook, for example formating your code, you could run the following:
+
 ```shell
 pre-commit run ruff-format --all-files --hook-stage pre-push
 ```
@@ -271,8 +278,7 @@ We use [protocol buffers](https://developers.google.com/protocol-buffers) to com
 from the user process to the `wandb` backend process.
 
 If you update any of the `.proto` files in `wandb/proto`, you'll need to run the
- proto nox command to build the protocol buffer files:
-
+proto nox command to build the protocol buffer files:
 
 ```shell
 nox -t proto
@@ -287,11 +293,11 @@ Note: you only need to do that if you change any of our protocol buffer files.
   - Modifiable settings meant for internal use should be prefixed with `x_`.
   - Read-only computed settings should be defined as class methods using the `@computed_field` and `@property` decorators. If meant for internal use only, should be prefixed with `_`.
 - Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
-  - Run `nox -t proto` to re-generate the python stubs.
+  - Run `nox -t proto` to re-generate the stubs.
 
 #### Adding URLs (internal use only)
 
-All URLs displayed to the user should be added to `wandb/errors/links.py`.  This will better
+All URLs displayed to the user should be added to `wandb/errors/links.py`. This will better
 ensure that URLs do not lead to broken links.
 You can use the `dub.co` service to shorten the URLs.
 
@@ -310,34 +316,32 @@ where `x.y` is the first version that includes all features you need.
 
 ##### Marking a feature as deprecated
 
-To mark a feature as deprecated (and to be removed in the next major release), please follow these steps:
+To mark a feature as deprecated and track its usage in telemetry:
 
-- Add a new field to the `Deprecated` message definition in `wandb/proto/wandb_telemetry.proto`,
-  which will be used to track the to-be-deprecated feature usage.
-- Rebuild protocol buffers and re-generate `wandb/proto/wandb_deprecated.py` by running `nox -t proto`.
-- Finally, to mark a feature as deprecated, call `wand.sdk.lib.deprecate` in your code:
+1. Add a new boolean field `<deprecated_feature>` to the
+`Deprecated` message in `wandb/proto/wandb_telemetry.proto`.
+2. Rebuild protocol buffer files by running `nox -t proto`.
+3. Call `wandb.sdk.lib.deprecation.warn_and_record_deprecation` in your code:
 
 ```python
-from wandb.sdk.lib import deprecate
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
-deprecate.deprecate(
-    field_name=deprecate.Deprecated.deprecated_field_name,  # new_field_name from step 1
-    warning_message="This feature is deprecated and will be removed in a future release.",
+warn_and_record_deprecation(
+    feature=Deprecated(deprecated_feature=True),  # field name from step 1
+    message="This feature is deprecated and will be removed in a future release.",
 )
 ```
 
-### Modifying GraphQL Schema in `wandb-core`
+### Modifying GraphQL Schema
 
 If there is a schema change on the Server side that affects your GraphQL API,
-update `core/api/graphql/schemas/schema-latest.graphql` and run
+follow the instructions:
 
-```shell
-nox -s graphql-codegen-schema-change
-```
-
-If there is no schema change and you are e.g. just adding a new query or mutation
-against the schema that already supports it, DO NOT USE this nox session.
-Our pre-commit hook will auto-generate the required code for you.
+- For `wandb-core` (Go): [here](core/api/graphql/schemas/README.md)
+- For `wandb` (Python):
+  - Update the commit hash in `./core/api/graphql/schemas/commit.hash.txt`
+  - (Re-)run `nox -s gql-codegen`
 
 ## Testing
 
@@ -347,11 +351,30 @@ We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in
 All test dependencies should be in `requirements_dev.txt` so you could just run:
 
 ```shell
-`pip install -r requirements_dev.txt`
+uv pip install -r requirements_dev.txt
 ```
 
 After that you can run your test using the standard `pytest` commands. For example:
 
 ```shell
 pytest -s -vv tests/path-to-tests/test_file.py
+```
+
+### Running `system_tests` locally (internal-only)
+
+> [!NOTE]
+> Due to security limitations, external contributors cannot run system tests.
+
+If you're an internal engineer, launch a local test server:
+
+```shell
+python tools/local_wandb_server.py start
+```
+
+Now you can run `pytest` for `system_tests`.
+
+When you're done, shut it down:
+
+```shell
+python tools/local_wandb_server.py stop
 ```

@@ -22,9 +22,11 @@ ignore:
   - "core/internal/gql"
 
   # Specific scripts and generated files that should be ignored.
-  - "wandb/proto/wandb_deprecated.py"
-  - "wandb/proto/wandb_generate_deprecated.py"
   - "wandb/proto/wandb_generate_proto.py"
+
+  # Codecov picks these up, ignore.
+  - "tools"
+  - "tests"
 
 coverage:
   precision: 2

@@ -6,7 +6,6 @@ from wandb.apis.importers.wandb import WandbImporter
 
 
 @pytest.mark.xfail(reason="TODO: Breaks on server > 0.57.4")
-@pytest.mark.wandb_core_only
 def test_import_runs(
     local_wandb_backend,
     local_wandb_backend_importers,
@@ -51,7 +50,6 @@ def test_import_runs(
 
 
 @pytest.mark.skip(reason="This test is flaking")
-@pytest.mark.wandb_core_only
 def test_import_artifact_sequences(
     local_wandb_backend,
     local_wandb_backend_importers,
@@ -103,7 +101,7 @@ def test_import_artifact_sequences(
             assert src_art.type == dst_art.type
             assert src_art.digest == dst_art.digest
 
-            # Down to the invidual manifest entries
+            # Down to the individual manifest entries
             assert src_art.manifest.entries.keys() == dst_art.manifest.entries.keys()
             for name in src_art.manifest.entries.keys():
                 src_entry = src_art.manifest.entries[name]
@@ -114,7 +112,6 @@ def test_import_artifact_sequences(
                 assert src_entry.size == dst_entry.size
 
 
-@pytest.mark.wandb_core_only
 def test_import_reports(
     local_wandb_backend,
     local_wandb_backend_importers,
@@ -132,13 +129,10 @@ def test_import_reports(
             dst_api_key=user2,
         )
 
-        with unittest.mock.patch("wandb.sdk.lib.apikey.write_key"):
-            importer.import_reports(
-                namespaces=[Namespace(user, project_name)],
-                remapping={
-                    Namespace(user, project_name): Namespace(user2, project_name)
-                },
-            )
+        importer.import_reports(
+            namespaces=[Namespace(user, project_name)],
+            remapping={Namespace(user, project_name): Namespace(user2, project_name)},
+        )
 
         src_reports = [p for p in importer.src_api.reports(f"{user}/{project_name}")]
         dst_reports = [p for p in importer.dst_api.reports(f"{user2}/{project_name}")]

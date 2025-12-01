@@ -49,12 +49,7 @@ class VertexSubmittedRun(AbstractRun):
         return self._job.project  # type: ignore
 
     def get_page_link(self) -> str:
-        return "{console_uri}/vertex-ai/locations/{region}/training/{job_id}?project={project}".format(
-            console_uri=GCP_CONSOLE_URI,
-            region=self.gcp_region,
-            job_id=self.id,
-            project=self.gcp_project,
-        )
+        return f"{GCP_CONSOLE_URI}/vertex-ai/locations/{self.gcp_region}/training/{self.id}?project={self.gcp_project}"
 
     async def wait(self) -> bool:
         # TODO: run this in a separate thread.
@@ -177,7 +172,7 @@ async def launch_vertex_job(
 ) -> VertexSubmittedRun:
     try:
         await environment.verify()
-        aiplatform = get_module(  # noqa: F811
+        aiplatform = get_module(
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
         )

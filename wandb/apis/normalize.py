@@ -1,11 +1,12 @@
 """normalize."""
 
+from __future__ import annotations
+
 import ast
 import sys
 from functools import wraps
 from typing import Callable, TypeVar
 
-import requests
 from wandb_gql.client import RetryError
 
 from wandb import env
@@ -20,19 +21,29 @@ def normalize_exceptions(func: _F) -> _F:
 
     @wraps(func)
     def wrapper(*args, **kwargs):
+        import requests
+
         message = "Whoa, you found a bug."
         try:
             return func(*args, **kwargs)
+
         except requests.HTTPError as error:
             errors = parse_backend_error_messages(error.response)
+            status = error.response.status_code
+
             if errors:
-                message = " ".join(errors)
-                message += (
-                    f" (Error {error.response.status_code}: {error.response.reason})"
-                )
+                message = f"HTTP {status}: {'; '.join(errors)}"
+            elif error.response.text:
+                message = f"HTTP {status}: {error.response.text}"
+            elif error.response.reason:
+                # Visually different to distinguish backend errors from
+                # standard HTTP status descriptions.
+                message = f"HTTP {status} ({error.response.reason})"
             else:
-                message = error.response
+                message = f"HTTP {status}"
+
             raise CommError(message, error)
+
         except RetryError as err:
             if (
                 "response" in dir(err.last_exception)
@@ -53,8 +64,8 @@ def normalize_exceptions(func: _F) -> _F:
                 raise CommError(message, err.last_exception).with_traceback(
                     sys.exc_info()[2]
                 )
-        except Error as err:
-            raise err
+        except Error:
+            raise
         except Exception as err:
             # gql raises server errors with dict's as strings...
             if len(err.args) > 0:

@@ -664,6 +664,30 @@ func (m *Http1ProtocolOptions) MarshalToSizedBufferVTStrict(dAtA []byte) (int, e
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.IgnoreHttp_11Upgrade) > 0 {
+		for iNdEx := len(m.IgnoreHttp_11Upgrade) - 1; iNdEx >= 0; iNdEx-- {
+			if vtmsg, ok := interface{}(m.IgnoreHttp_11Upgrade[iNdEx]).(interface {
+				MarshalToSizedBufferVTStrict([]byte) (int, error)
+			}); ok {
+				size, err := vtmsg.MarshalToSizedBufferVTStrict(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			} else {
+				encoded, err := proto.Marshal(m.IgnoreHttp_11Upgrade[iNdEx])
+				if err != nil {
+					return 0, err
+				}
+				i -= len(encoded)
+				copy(dAtA[i:], encoded)
+				i = protohelpers.EncodeVarint(dAtA, i, uint64(len(encoded)))
+			}
+			i--
+			dAtA[i] = 0x5a
+		}
+	}
 	if m.AllowCustomMethods {
 		i--
 		if m.AllowCustomMethods {
@@ -932,6 +956,18 @@ func (m *Http2ProtocolOptions) MarshalToSizedBufferVTStrict(dAtA []byte) (int, e
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.MaxMetadataSize != nil {
+		size, err := (*wrapperspb.UInt64Value)(m.MaxMetadataSize).MarshalToSizedBufferVTStrict(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x8a
+	}
 	if m.UseOghttp2Codec != nil {
 		size, err := (*wrapperspb.BoolValue)(m.UseOghttp2Codec).MarshalToSizedBufferVTStrict(dAtA[:i])
 		if err != nil {
@@ -1171,6 +1207,26 @@ func (m *Http3ProtocolOptions) MarshalToSizedBufferVTStrict(dAtA []byte) (int, e
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.DisableConnectionFlowControlForStreams {
+		i--
+		if m.DisableConnectionFlowControlForStreams {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x40
+	}
+	if m.DisableQpack {
+		i--
+		if m.DisableQpack {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x38
 	}
 	if m.AllowMetadata {
 		i--
@@ -1553,6 +1609,18 @@ func (m *Http1ProtocolOptions) SizeVT() (n int) {
 	if m.AllowCustomMethods {
 		n += 2
 	}
+	if len(m.IgnoreHttp_11Upgrade) > 0 {
+		for _, e := range m.IgnoreHttp_11Upgrade {
+			if size, ok := interface{}(e).(interface {
+				SizeVT() int
+			}); ok {
+				l = size.SizeVT()
+			} else {
+				l = proto.Size(e)
+			}
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -1676,6 +1744,10 @@ func (m *Http2ProtocolOptions) SizeVT() (n int) {
 		l = (*wrapperspb.BoolValue)(m.UseOghttp2Codec).SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	if m.MaxMetadataSize != nil {
+		l = (*wrapperspb.UInt64Value)(m.MaxMetadataSize).SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -1712,6 +1784,12 @@ func (m *Http3ProtocolOptions) SizeVT() (n int) {
 		n += 2
 	}
 	if m.AllowMetadata {
+		n += 2
+	}
+	if m.DisableQpack {
+		n += 2
+	}
+	if m.DisableConnectionFlowControlForStreams {
 		n += 2
 	}
 	n += len(m.unknownFields)

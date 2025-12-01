@@ -2,12 +2,13 @@ import os
 import time
 
 import pytest
+import wandb
 from wandb.filesync.dir_watcher import PolicyLive
 
 
 @pytest.fixture
-def mocked_live_policy(monkeypatch, wandb_init):
-    run = wandb_init()
+def mocked_live_policy(monkeypatch, user):
+    run = wandb.init()
     fpath = os.path.join(run.dir, "test_file")
     with open(fpath, "w") as fp:
         fp.write("")

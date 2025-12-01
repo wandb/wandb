@@ -40,6 +40,46 @@ type Client interface {
 	) error
 }
 
+type WebSocketClient interface {
+	// Start must open a webSocket connection and subscribe to an endpoint
+	// of the client's GraphQL API.
+	//
+	// errChan is a channel on which are sent the errors of webSocket
+	// communication. It will be closed when calling the `Close()` method.
+	//
+	// err is any error that occurs when setting up the webSocket connection.
+	Start(ctx context.Context) (errChan chan error, err error)
+
+	// Close must close the webSocket connection and close the error channel.
+	// If no connection was started, Close is a no-op
+	Close() error
+
+	// Subscribe must subscribe to an endpoint of the client's GraphQL API.
+	//
+	// req contains the data to be sent to the GraphQL server. Will be marshalled
+	// into JSON bytes.
+	//
+	// interfaceChan is a channel used to send the data that arrives via the
+	// webSocket connection (it is the channel that is passed to `forwardDataFunc`).
+	//
+	// forwardDataFunc is the function that will cast the received interface into
+	// the valid type for the subscription's response.
+	//
+	// Returns a subscriptionID if successful, an error otherwise.
+	Subscribe(
+		req *Request,
+		interfaceChan interface{},
+		forwardDataFunc ForwardDataFunction,
+	) (string, error)
+
+	// Unsubscribe must unsubscribe from an endpoint of the client's GraphQL API.
+	Unsubscribe(subscriptionID string) error
+}
+
+// ForwardDataFunction is a part of the WebSocketClient interface, see
+// [WebSocketClient.Subscribe] for details.
+type ForwardDataFunction func(interfaceChan interface{}, jsonRawMsg json.RawMessage) error
+
 type client struct {
 	httpClient Doer
 	endpoint   string
@@ -52,6 +92,9 @@ type client struct {
 // The client makes POST requests to the given GraphQL endpoint using standard
 // GraphQL HTTP-over-JSON transport.  It will use the given [http.Client], or
 // [http.DefaultClient] if a nil client is passed.
+//
+// The client does not support subscriptions, and will return an error if passed
+// a request that attempts one.
 //
 // The typical method of adding authentication headers is to wrap the client's
 // [http.Transport] to add those headers.  See [example/main.go] for an
@@ -71,8 +114,8 @@ func NewClient(endpoint string, httpClient Doer) Client {
 // parameters.  It will use the given [http.Client], or [http.DefaultClient] if
 // a nil client is passed.
 //
-// The client does not support mutations, and will return an error if passed a
-// request that attempts one.
+// The client does not support mutations nor subscriptions, and will return an
+// error if passed a request that attempts one.
 //
 // The typical method of adding authentication headers is to wrap the client's
 // [http.Transport] to add those headers.  See [example/main.go] for an
@@ -81,6 +124,48 @@ func NewClient(endpoint string, httpClient Doer) Client {
 // [example/main.go]: https://github.com/Khan/genqlient/blob/main/example/main.go#L12-L20
 func NewClientUsingGet(endpoint string, httpClient Doer) Client {
 	return newClient(endpoint, httpClient, http.MethodGet)
+}
+
+type WebSocketOption func(*webSocketClient)
+
+// NewClientUsingWebSocket returns a [WebSocketClient] which makes subscription requests
+// to the given endpoint using webSocket.
+//
+// The client does not support queries nor mutations, and will return an error
+// if passed a request that attempts one.
+func NewClientUsingWebSocket(endpoint string, wsDialer Dialer, opts ...WebSocketOption) WebSocketClient {
+	client := &webSocketClient{
+		Dialer:        wsDialer,
+		header:        http.Header{},
+		errChan:       make(chan error),
+		endpoint:      endpoint,
+		subscriptions: subscriptionMap{map_: make(map[string]subscription)},
+	}
+
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	if client.header.Get("Sec-WebSocket-Protocol") == "" {
+		client.header.Add("Sec-WebSocket-Protocol", "graphql-transport-ws")
+	}
+
+	return client
+}
+
+// WithConnectionParams sets up connection params to be sent to the server
+// during the initial connection handshake.
+func WithConnectionParams(connParams map[string]interface{}) WebSocketOption {
+	return func(ws *webSocketClient) {
+		ws.connParams = connParams
+	}
+}
+
+// WithWebsocketHeader sets a header to be sent to the server.
+func WithWebsocketHeader(header http.Header) WebSocketOption {
+	return func(ws *webSocketClient) {
+		ws.header = header
+	}
 }
 
 func newClient(endpoint string, httpClient Doer, method string) Client {
@@ -95,6 +180,20 @@ func newClient(endpoint string, httpClient Doer, method string) Client {
 // (or mocks for the same).
 type Doer interface {
 	Do(*http.Request) (*http.Response, error)
+}
+
+// Dialer encapsulates DialContext method and is similar to [github.com/gorilla/websocket]
+// [*websocket.Dialer] method
+type Dialer interface {
+	DialContext(ctx context.Context, urlStr string, requestHeader http.Header) (WSConn, error)
+}
+
+// WSConn encapsulates basic methods for a webSocket connection, taking model on
+// [github.com/gorilla/websocket] [*websocket.Conn]
+type WSConn interface {
+	Close() error
+	WriteMessage(messageType int, data []byte) error
+	ReadMessage() (messageType int, p []byte, err error)
 }
 
 // Request contains all the values required to build queries executed by
@@ -119,6 +218,12 @@ type Request struct {
 	OpName string `json:"operationName"`
 }
 
+type BaseResponse[T any] struct {
+	Data       T                      `json:"data"`
+	Extensions map[string]interface{} `json:"extensions,omitempty"`
+	Errors     gqlerror.List          `json:"errors,omitempty"`
+}
+
 // Response that contains data returned by the GraphQL API.
 //
 // Typically, GraphQL APIs will return a JSON payload of the form
@@ -128,11 +233,7 @@ type Request struct {
 // It may additionally contain a key named "extensions", that
 // might hold GraphQL protocol extensions. Extensions and Errors
 // are optional, depending on the values returned by the server.
-type Response struct {
-	Data       interface{}            `json:"data"`
-	Extensions map[string]interface{} `json:"extensions,omitempty"`
-	Errors     gqlerror.List          `json:"errors,omitempty"`
-}
+type Response BaseResponse[any]
 
 func (c *client) MakeRequest(ctx context.Context, req *Request, resp *Response) error {
 	var httpReq *http.Request
@@ -164,7 +265,21 @@ func (c *client) MakeRequest(ctx context.Context, req *Request, resp *Response) 
 		if err != nil {
 			respBody = []byte(fmt.Sprintf("<unreadable: %v>", err))
 		}
-		return fmt.Errorf("returned error %v: %s", httpResp.Status, respBody)
+
+		var gqlResp Response
+		if err = json.Unmarshal(respBody, &gqlResp); err != nil {
+			return &HTTPError{
+				Response: Response{
+					Errors: gqlerror.List{&gqlerror.Error{Message: string(respBody)}},
+				},
+				StatusCode: httpResp.StatusCode,
+			}
+		}
+
+		return &HTTPError{
+			Response:   gqlResp,
+			StatusCode: httpResp.StatusCode,
+		}
 	}
 
 	err = json.NewDecoder(httpResp.Body).Decode(resp)
@@ -178,6 +293,12 @@ func (c *client) MakeRequest(ctx context.Context, req *Request, resp *Response) 
 }
 
 func (c *client) createPostRequest(req *Request) (*http.Request, error) {
+	if req.Query != "" {
+		if strings.HasPrefix(strings.TrimSpace(req.Query), "subscription") {
+			return nil, errors.New("client does not support subscriptions")
+		}
+	}
+
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -206,6 +327,9 @@ func (c *client) createGetRequest(req *Request) (*http.Request, error) {
 	if req.Query != "" {
 		if strings.HasPrefix(strings.TrimSpace(req.Query), "mutation") {
 			return nil, errors.New("client does not support mutations")
+		}
+		if strings.HasPrefix(strings.TrimSpace(req.Query), "subscription") {
+			return nil, errors.New("client does not support subscriptions")
 		}
 		queryParams.Set("query", req.Query)
 		queryUpdated = true

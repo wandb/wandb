@@ -38,13 +38,17 @@ import (
 //     directory bucket policies and permissions, see [Amazon Web Services Identity and Access Management (IAM) for S3 Express One Zone]in the Amazon S3 User Guide.
 //
 // HTTP Host header syntax  Directory buckets - The HTTP Host header syntax is
-// s3express-control.region.amazonaws.com .
+// s3express-control.region-code.amazonaws.com .
 //
 // The following operations are related to DeleteBucketEncryption :
 //
 // [PutBucketEncryption]
 //
 // [GetBucketEncryption]
+//
+// You must URL encode any signed header values that contain spaces. For example,
+// if your header value is my file.txt , containing two spaces after my , you must
+// URL encode this value to my%20%20file.txt .
 //
 // [GetBucketEncryption]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketEncryption.html
 // [PutBucketEncryption]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketEncryption.html
@@ -75,12 +79,12 @@ type DeleteBucketEncryptionInput struct {
 	//
 	// Directory buckets - When you use this operation with a directory bucket, you
 	// must use path-style requests in the format
-	// https://s3express-control.region_code.amazonaws.com/bucket-name .
+	// https://s3express-control.region-code.amazonaws.com/bucket-name .
 	// Virtual-hosted-style requests aren't supported. Directory bucket names must be
-	// unique in the chosen Availability Zone. Bucket names must also follow the format
-	// bucket_base_name--az_id--x-s3 (for example,  DOC-EXAMPLE-BUCKET--usw2-az1--x-s3
-	// ). For information about bucket naming restrictions, see [Directory bucket naming rules]in the Amazon S3 User
-	// Guide
+	// unique in the chosen Zone (Availability Zone or Local Zone). Bucket names must
+	// also follow the format bucket-base-name--zone-id--x-s3 (for example,
+	// DOC-EXAMPLE-BUCKET--usw2-az1--x-s3 ). For information about bucket naming
+	// restrictions, see [Directory bucket naming rules]in the Amazon S3 User Guide
 	//
 	// [Directory bucket naming rules]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-bucket-naming-rules.html
 	//
@@ -182,6 +186,9 @@ func (c *Client) addOperationDeleteBucketEncryptionMiddlewares(stack *middleware
 	if err = addIsExpressUserAgent(stack); err != nil {
 		return err
 	}
+	if err = addCredentialSource(stack, options); err != nil {
+		return err
+	}
 	if err = addOpDeleteBucketEncryptionValidationMiddleware(stack); err != nil {
 		return err
 	}
@@ -215,16 +222,13 @@ func (c *Client) addOperationDeleteBucketEncryptionMiddlewares(stack *middleware
 	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanInitializeStart(stack); err != nil {
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanInitializeEnd(stack); err != nil {
+	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanBuildRequestStart(stack); err != nil {
-		return err
-	}
-	if err = addSpanBuildRequestEnd(stack); err != nil {
+	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil

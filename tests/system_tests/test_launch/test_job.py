@@ -4,6 +4,7 @@ import tempfile
 from unittest import mock
 
 import pytest
+import wandb
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
@@ -11,14 +12,13 @@ from wandb.sdk.launch.create_job import _create_job
 from wandb.sdk.launch.git_reference import GitReference
 
 
-def test_job_call(user, wandb_init, test_settings):
+def test_job_call(user):
     proj = "TEST_PROJECT"
     queue = "TEST_QUEUE"
     public_api = PublicApi()
     internal_api = InternalApi()
-    settings = test_settings({"project": proj})
 
-    run = wandb_init(settings=settings)
+    run = wandb.init(settings=wandb.Settings(project=proj))
 
     docker_image = "TEST_IMAGE"
     job_artifact = run._log_job_artifact_with_image(docker_image)
@@ -42,10 +42,10 @@ def test_job_call(user, wandb_init, test_settings):
     run.finish()
 
 
-def test_create_job_artifact(runner, user, wandb_init, test_settings):
+def test_create_job_artifact(runner, user):
     """Test that non-core job creation produces a partial job as expected."""
     proj = "test-p"
-    settings = test_settings({"project": proj})
+    settings = wandb.Settings(project=proj)
 
     internal_api = InternalApi()
     public_api = PublicApi()
@@ -102,7 +102,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
         settings.launch = True
         settings.disable_job_creation = False
 
-        run2 = wandb_init(settings=settings, config={"input1": 1})
+        run2 = wandb.init(settings=settings, config={"input1": 1})
         run2.log({"x": 2})
         run2.finish()
 
@@ -115,14 +115,14 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert "output_types" in job._job_artifact.metadata
 
 
-def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
+def test_create_git_job(runner, user, monkeypatch):
     """This tests that a git job is created correctly, and that the job is upgraded correctly.
 
     Currently failing at the artifact creation stage with wandb-core. Appears to be an issue
     with the artifact saver that is only happening when running in CI.
     """
     proj = "test-p99999"
-    settings = test_settings({"project": proj})
+    settings = wandb.Settings(project=proj)
 
     internal_api = InternalApi()
     public_api = PublicApi()
@@ -182,7 +182,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
         settings.launch = True
         settings.disable_job_creation = False
 
-        run2 = wandb_init(settings=settings, config={"input1": 1})
+        run2 = wandb.init(settings=settings, config={"input1": 1})
         run2.log({"x": 2})
         run2.finish()
 
@@ -205,7 +205,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
         "port:5000:1000/1000/test/docker-image-path:alias1",
     ],
 )
-def test_create_job_image(user, wandb_init, test_settings, image_name):
+def test_create_job_image(user, image_name):
     proj = "test-p1"
 
     internal_api = InternalApi()

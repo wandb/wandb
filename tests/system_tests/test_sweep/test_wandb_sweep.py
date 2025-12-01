@@ -96,6 +96,11 @@ SWEEP_CONFIG_BAYES_NONES: Dict[str, Any] = {
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [None, 1, 2, 3]}, "param2": {"value": None}},
 }
+SWEEP_CONFIG_NO_NAME: Dict[str, Any] = {
+    "method": "random",
+    "parameters": {"param1": {"values": [1, 2, 3]}},
+}
+
 
 # Minimal list of valid sweep configs
 VALID_SWEEP_CONFIGS_MINIMAL: List[Dict[str, Any]] = [
@@ -275,5 +280,4 @@ def test_sweep_scheduler(runner, user):
             cli.launch_sweep,
             ["config.json", "--resume_id", sweep_id],
         )
-        print(res.output)
         assert res.exit_code == 0

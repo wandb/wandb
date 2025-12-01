@@ -10,13 +10,11 @@ import wandb
 from torch.utils.tensorboard import SummaryWriter
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard", reason="hangs on processing tensorboard data"
-)
-def test_add_scalar(wandb_init, wandb_backend_spy):
+@pytest.mark.skip(reason="hangs on processing tensorboard data")
+def test_add_scalar(wandb_backend_spy):
     """Test adding a scalar to TensorBoard and syncing it to W&B."""
 
-    with wandb_init(sync_tensorboard=True) as run, SummaryWriter() as writer:
+    with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
         for i in range(100):
             writer.add_scalar("y=2x", i * 2, i)
 
@@ -36,9 +34,9 @@ def test_add_scalar(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-def test_add_scalars(wandb_init, wandb_backend_spy):
+def test_add_scalars(wandb_backend_spy):
     """Test adding multiple scalars to TensorBoard and syncing it to W&B."""
-    with wandb_init(sync_tensorboard=True) as run, SummaryWriter() as writer:
+    with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
         for i in range(10):
             writer.add_scalars(
                 "value",
@@ -64,9 +62,9 @@ def test_add_scalars(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-def test_add_image(wandb_init, wandb_backend_spy):
+def test_add_image(wandb_backend_spy):
     """Test adding an image to TensorBoard and syncing it to W&B."""
-    with wandb_init(tensorboard=True) as run, SummaryWriter() as writer:
+    with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
         for i in range(10):
             writer.add_image(
                 "example",
@@ -91,18 +89,16 @@ def test_add_image(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.wandb_core_only
-def test_add_gif(wandb_init, wandb_backend_spy):
-    with wandb_init(sync_tensorboard=True) as run:
-        with SummaryWriter() as writer:
-            for i in range(10):
-                writer.add_video(
-                    "example",
-                    # add video takes a tensor of shape (N, T, C, H, W)
-                    # N = Batch size, T = Number of frames, C = Number of channels, H = Height, W = Width,
-                    torch.randint(0, 256, (1, 1, 3, 1, 1), dtype=torch.uint8),
-                    i + 1,
-                )
+def test_add_gif(wandb_backend_spy):
+    with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
+        for i in range(10):
+            writer.add_video(
+                "example",
+                # add video takes a tensor of shape (N, T, C, H, W)
+                # N = Batch size, T = Number of frames, C = Number of channels, H = Height, W = Width,
+                torch.randint(0, 256, (1, 1, 3, 1, 1), dtype=torch.uint8),
+                i + 1,
+            )
 
     with wandb_backend_spy.freeze() as snapshot:
         assert len(snapshot.run_ids()) == 1
@@ -117,9 +113,9 @@ def test_add_gif(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-def test_add_images(wandb_init, wandb_backend_spy):
+def test_add_images(wandb_backend_spy):
     """Test adding multiple images to TensorBoard and syncing it to W&B."""
-    with wandb_init(sync_tensorboard=True) as run, SummaryWriter() as writer:
+    with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
         img_batch = np.zeros((16, 3, 100, 100))
         for i in range(16):
             img_batch[i, 0] = np.arange(0, 10000).reshape(100, 100) / 10000 / 16 * i
@@ -145,9 +141,9 @@ def test_add_images(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-def test_add_histogram(wandb_init, wandb_backend_spy):
+def test_add_histogram(wandb_backend_spy):
     """Test adding a histogram to TensorBoard and syncing it to W&B."""
-    with wandb_init(sync_tensorboard=True) as run, SummaryWriter() as writer:
+    with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
         writer.add_histogram(
             "distribution centers",
             1 + np.random.random(1000),
@@ -169,12 +165,10 @@ def test_add_histogram(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard", reason="old style TensorBoard not implemented"
-)
-def test_add_pr_curve(wandb_init, wandb_backend_spy):
+@pytest.mark.skip(reason="old style TensorBoard not implemented")
+def test_add_pr_curve(wandb_backend_spy):
     """Test adding a precision-recall curve to TensorBoard and syncing it to W&B."""
-    with wandb_init(sync_tensorboard=True) as run, SummaryWriter() as writer:
+    with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
         labels = np.random.randint(2, size=100)  # binary label
         predictions = np.random.rand(100)
         writer.add_pr_curve("pr_curve", labels, predictions, 0)
@@ -192,10 +186,9 @@ def test_add_pr_curve(wandb_init, wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.wandb_core_only
-def test_add_pr_curve_wandb_core(wandb_init, wandb_backend_spy):
+def test_add_pr_curve_wandb_core(wandb_backend_spy):
     """Test adding a precision-recall curve to TensorBoard and syncing it to W&B."""
-    with wandb_init(sync_tensorboard=True) as run, SummaryWriter() as writer:
+    with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
         labels = np.random.randint(2, size=100)  # binary label
         predictions = np.random.rand(100)
         writer.add_pr_curve("pr_curve", labels, predictions, 0)

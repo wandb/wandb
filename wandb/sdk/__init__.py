@@ -33,5 +33,4 @@ from .wandb_settings import Settings
 from .wandb_setup import setup, teardown
 from .wandb_summary import Summary
 from .wandb_sweep import controller, sweep
-from .wandb_sync import _sync
 from .wandb_watch import _unwatch, _watch

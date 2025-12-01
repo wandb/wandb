@@ -88,20 +88,12 @@ pub struct Imports {
     pub autogluon: bool,
     #[prost(bool, tag = "16")]
     pub autokeras: bool,
-    /// bool avalanche = 17;
     #[prost(bool, tag = "18")]
     pub catalyst: bool,
-    /// bool dalle_pytorch = 19;
-    /// bool datasets = 20;
     #[prost(bool, tag = "21")]
     pub deepchem: bool,
     #[prost(bool, tag = "22")]
     pub deepctr: bool,
-    /// bool deeppavlov = 23;
-    /// bool detectron = 24;
-    /// bool paddle = 25;
-    /// bool parlai = 26;
-    /// bool prophet = 27;
     #[prost(bool, tag = "28")]
     pub pycaret: bool,
     #[prost(bool, tag = "29")]
@@ -156,8 +148,6 @@ pub struct Imports {
     pub joblib: bool,
     #[prost(bool, tag = "54")]
     pub dask: bool,
-    #[prost(bool, tag = "55")]
-    pub asyncio: bool,
     #[prost(bool, tag = "56")]
     pub paddleocr: bool,
     #[prost(bool, tag = "57")]
@@ -266,6 +256,8 @@ pub struct Imports {
     /// lightning, formerly pytorch-lightning
     #[prost(bool, tag = "106")]
     pub lightning: bool,
+    #[prost(bool, tag = "107")]
+    pub dspy: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Feature {
@@ -337,9 +329,6 @@ pub struct Feature {
     /// Using stable_baselines3 integration
     #[prost(bool, tag = "22")]
     pub sb3: bool,
-    /// Using wandb service internal process
-    #[prost(bool, tag = "23")]
-    pub service: bool,
     /// wandb.init() called in the same process returning previous run
     #[prost(bool, tag = "24")]
     pub init_return_run: bool,
@@ -403,9 +392,6 @@ pub struct Feature {
     /// Flow control customized by user
     #[prost(bool, tag = "44")]
     pub flow_control_custom: bool,
-    /// Service disabled by user
-    #[prost(bool, tag = "45")]
-    pub service_disabled: bool,
     /// Consuming metrics from an OpenMetrics endpoint
     #[prost(bool, tag = "46")]
     pub open_metrics: bool,
@@ -433,9 +419,6 @@ pub struct Feature {
     /// HuggingFace Autologging
     #[prost(bool, tag = "54")]
     pub hf_pipeline_autolog: bool,
-    /// Using wandb core internal process
-    #[prost(bool, tag = "55")]
-    pub core: bool,
     /// Using c wandb library
     #[prost(bool, tag = "56")]
     pub lib_c: bool,
@@ -472,6 +455,24 @@ pub struct Feature {
     /// shared mode was added in wandb.Settings
     #[prost(bool, tag = "67")]
     pub shared_mode: bool,
+    /// server-side derived summary computation was enabled
+    #[prost(bool, tag = "68")]
+    pub server_side_derived_summary: bool,
+    /// User set the x_label value
+    #[prost(bool, tag = "69")]
+    pub user_provided_label: bool,
+    /// DCGM profiling was enabled
+    #[prost(bool, tag = "70")]
+    pub dcgm_profiling_enabled: bool,
+    /// User created a forked run
+    #[prost(bool, tag = "71")]
+    pub fork_mode: bool,
+    /// User created a rewound run
+    #[prost(bool, tag = "72")]
+    pub rewind_mode: bool,
+    /// User using WandbDSPyCallback
+    #[prost(bool, tag = "73")]
+    pub dspy_callback: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -487,21 +488,6 @@ pub struct Env {
     /// apple silicon M1 gpu found
     #[prost(bool, tag = "4")]
     pub m1_gpu: bool,
-    /// multiprocessing spawn
-    #[prost(bool, tag = "5")]
-    pub start_spawn: bool,
-    /// multiprocessing fork
-    #[prost(bool, tag = "6")]
-    pub start_fork: bool,
-    /// multiprocessing forkserver
-    #[prost(bool, tag = "7")]
-    pub start_forkserver: bool,
-    /// thread start method
-    #[prost(bool, tag = "8")]
-    pub start_thread: bool,
-    /// maybe user running multiprocessing
-    #[prost(bool, tag = "9")]
-    pub maybe_mp: bool,
     /// AWS Trainium env detected
     #[prost(bool, tag = "10")]
     pub trainium: bool,
@@ -538,21 +524,9 @@ pub struct Deprecated {
     /// wandb.integration.keras.WandbCallback(data_type=...) called
     #[prost(bool, tag = "1")]
     pub keras_callback_data_type: bool,
-    /// wandb.run.mode called
-    #[prost(bool, tag = "2")]
-    pub run_mode: bool,
-    /// wandb.run.save() called without arguments
-    #[prost(bool, tag = "3")]
-    pub run_save_no_args: bool,
-    /// wandb.run.join() called
-    #[prost(bool, tag = "4")]
-    pub run_join: bool,
     /// wandb.plots.* called
     #[prost(bool, tag = "5")]
     pub plots: bool,
-    /// wandb.run.log(sync=...) called
-    #[prost(bool, tag = "6")]
-    pub run_log_sync: bool,
     /// wandb.init(config_include_keys=...) called
     #[prost(bool, tag = "7")]
     pub init_config_include_keys: bool,
@@ -592,6 +566,39 @@ pub struct Deprecated {
     /// wandb.run.finish(quiet=...) called
     #[prost(bool, tag = "19")]
     pub run_finish_quiet: bool,
+    /// reinit setting set to a boolean value
+    #[prost(bool, tag = "20")]
+    pub run_reinit_bool: bool,
+    /// wandb.run.get_url() called
+    #[prost(bool, tag = "21")]
+    pub run_get_url: bool,
+    /// wandb.run.project_name() called
+    #[prost(bool, tag = "22")]
+    pub run_project_name: bool,
+    /// wandb.run.get_project_url() called
+    #[prost(bool, tag = "23")]
+    pub run_get_project_url: bool,
+    /// wandb.run.get_sweep_url() called
+    #[prost(bool, tag = "24")]
+    pub run_get_sweep_url: bool,
+    /// wandb.run.use_artifact(use_as=...) called
+    #[prost(bool, tag = "25")]
+    pub run_use_artifact_use_as: bool,
+    /// wandb.sdk.artifacts.artifact.Artifact.use_as() called
+    #[prost(bool, tag = "26")]
+    pub artifact_use_as: bool,
+    /// wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
+    #[prost(bool, tag = "27")]
+    pub artifact_init_use_as: bool,
+    /// wandb.beta.workflows.log_model() called
+    #[prost(bool, tag = "28")]
+    pub beta_workflows_log_model: bool,
+    /// wandb.beta.workflows.use_model() called
+    #[prost(bool, tag = "29")]
+    pub beta_workflows_use_model: bool,
+    /// wandb.beta.workflows.link_model() called
+    #[prost(bool, tag = "30")]
+    pub beta_workflows_link_model: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -619,7 +626,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -670,6 +677,8 @@ pub mod record {
         NoopLinkArtifact(()),
         #[prost(message, tag = "25")]
         UseArtifact(super::UseArtifactRecord),
+        #[prost(message, tag = "26")]
+        Environment(super::EnvironmentRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -772,6 +781,19 @@ pub struct FooterRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// A point in a run from which another run can be branched.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BranchPoint {
+    /// The ID of the run to branch from.
+    #[prost(string, tag = "1")]
+    pub run: ::prost::alloc::string::String,
+    /// The value of the metric to branch at.
+    #[prost(double, tag = "2")]
+    pub value: f64,
+    /// The name of the metric to use to find a branch point.
+    #[prost(string, tag = "3")]
+    pub metric: ::prost::alloc::string::String,
+}
 ///
 /// RunRecord: wandb/sdk/wandb_run/Run
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -818,6 +840,9 @@ pub struct RunRecord {
     pub git: ::core::option::Option<GitRepoRecord>,
     #[prost(bool, tag = "22")]
     pub forked: bool,
+    /// Information about the source if this is a fork or rewind of another run.
+    #[prost(message, optional, tag = "23")]
+    pub branch_point: ::core::option::Option<BranchPoint>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -1093,6 +1118,8 @@ pub struct MetricRecord {
     pub goal: i32,
     #[prost(message, optional, tag = "9")]
     pub control: ::core::option::Option<MetricControl>,
+    #[prost(bool, tag = "10")]
+    pub expanded_from_glob: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -1171,6 +1198,8 @@ pub struct MetricSummary {
     pub none: bool,
     #[prost(bool, tag = "7")]
     pub copy: bool,
+    #[prost(bool, tag = "8")]
+    pub first: bool,
 }
 ///
 /// ConfigRecord: wandb/sdk/wandb_config/Config
@@ -1239,7 +1268,7 @@ pub struct FilesRecord {
 /// One or more files being saved with a run.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesItem {
-    /// A path or Unix glob relative to the W&B files directory.
+    /// A path or Unix glob relative to the run's files directory.
     #[prost(string, tag = "1")]
     pub path: ::prost::alloc::string::String,
     /// When to upload the file.
@@ -1522,6 +1551,8 @@ pub struct LinkArtifactRequest {
 pub struct LinkArtifactResponse {
     #[prost(string, tag = "1")]
     pub error_message: ::prost::alloc::string::String,
+    #[prost(int32, optional, tag = "2")]
+    pub version_index: ::core::option::Option<i32>,
 }
 /// Indicates a directory of TensorBoard tfevents files to sync with the run.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1583,7 +1614,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 76, 77, 78, 79, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1621,12 +1652,12 @@ pub mod request {
         DownloadArtifact(super::DownloadArtifactRequest),
         #[prost(message, tag = "17")]
         Keepalive(super::KeepaliveRequest),
+        #[prost(message, tag = "18")]
+        ServerFeature(super::ServerFeatureRequest),
         #[prost(message, tag = "20")]
         RunStatus(super::RunStatusRequest),
         #[prost(message, tag = "21")]
         Cancel(super::CancelRequest),
-        #[prost(message, tag = "22")]
-        Metadata(super::MetadataRequest),
         #[prost(message, tag = "23")]
         InternalMessages(super::InternalMessagesRequest),
         #[prost(message, tag = "24")]
@@ -1653,14 +1684,20 @@ pub mod request {
         JobInfo(super::JobInfoRequest),
         #[prost(message, tag = "74")]
         GetSystemMetrics(super::GetSystemMetricsRequest),
-        #[prost(message, tag = "76")]
-        Sync(super::SyncRequest),
         #[prost(message, tag = "77")]
         JobInput(super::JobInputRequest),
         #[prost(message, tag = "78")]
         LinkArtifact(super::LinkArtifactRequest),
         #[prost(message, tag = "79")]
         RunFinishWithoutExit(super::RunFinishWithoutExitRequest),
+        #[prost(message, tag = "81")]
+        SyncFinish(super::SyncFinishRequest),
+        /// Requests information about tasks the service is performing.
+        #[prost(message, tag = "82")]
+        Operations(super::OperationStatsRequest),
+        /// Requests collecting information about the system environment and resources.
+        #[prost(message, tag = "83")]
+        ProbeSystemInfo(super::ProbeSystemInfoRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -1671,7 +1708,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1701,6 +1738,8 @@ pub mod response {
         LogArtifactResponse(super::LogArtifactResponse),
         #[prost(message, tag = "31")]
         DownloadArtifactResponse(super::DownloadArtifactResponse),
+        #[prost(message, tag = "32")]
+        ServerFeatureResponse(super::ServerFeatureResponse),
         #[prost(message, tag = "35")]
         RunStatusResponse(super::RunStatusResponse),
         #[prost(message, tag = "36")]
@@ -1719,12 +1758,14 @@ pub mod response {
         JobInfoResponse(super::JobInfoResponse),
         #[prost(message, tag = "69")]
         GetSystemMetricsResponse(super::GetSystemMetricsResponse),
-        #[prost(message, tag = "70")]
-        SyncResponse(super::SyncResponse),
         #[prost(message, tag = "71")]
         LinkArtifactResponse(super::LinkArtifactResponse),
+        #[prost(message, tag = "70")]
+        SyncResponse(super::SyncResponse),
         #[prost(message, tag = "72")]
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
+        #[prost(message, tag = "74")]
+        OperationsResponse(super::OperationStatsResponse),
         #[prost(message, tag = "1000")]
         TestInjectResponse(super::TestInjectResponse),
     }
@@ -1833,8 +1874,7 @@ pub struct ResumeRequest {
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct ResumeResponse {}
-///
-/// LoginRequest: wandb/sdk/wandb_login
+/// Old request, no longer used for logging in (if it ever was).
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LoginRequest {
     #[prost(string, tag = "1")]
@@ -1962,6 +2002,16 @@ pub struct PollExitResponse {
     #[prost(message, optional, tag = "5")]
     pub operation_stats: ::core::option::Option<OperationStats>,
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OperationStatsRequest {
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RequestInfo>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OperationStatsResponse {
+    #[prost(message, optional, tag = "1")]
+    pub operation_stats: ::core::option::Option<OperationStats>,
+}
 /// Information about ongoing operations in the internal process.
 ///
 /// This is printed in the console to help the user estimate how long
@@ -2024,35 +2074,10 @@ pub struct Operation {
     #[prost(message, repeated, tag = "5")]
     pub subtasks: ::prost::alloc::vec::Vec<Operation>,
 }
-///
-/// Sender requests
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SyncOverwrite {
-    #[prost(string, tag = "1")]
-    pub run_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub entity: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub project: ::prost::alloc::string::String,
-}
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct SyncSkip {
-    #[prost(bool, tag = "1")]
-    pub output_raw: bool,
-}
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct SenderMarkRequest {}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SyncRequest {
-    #[prost(int64, tag = "1")]
-    pub start_offset: i64,
-    #[prost(int64, tag = "2")]
-    pub final_offset: i64,
-    #[prost(message, optional, tag = "3")]
-    pub overwrite: ::core::option::Option<SyncOverwrite>,
-    #[prost(message, optional, tag = "4")]
-    pub skip: ::core::option::Option<SyncSkip>,
-}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct SyncFinishRequest {}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SyncResponse {
     #[prost(string, tag = "1")]
@@ -2540,7 +2565,9 @@ pub struct CancelRequest {
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct CancelResponse {}
 ///
-/// MetadataRequest
+/// Run environment including system, hardware, software, and execution parameters.
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ProbeSystemInfoRequest {}
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct DiskInfo {
     #[prost(uint64, tag = "1")]
@@ -2572,6 +2599,10 @@ pub struct AppleInfo {
     pub gpu_cores: u32,
     #[prost(uint32, tag = "5")]
     pub memory_gb: u32,
+    #[prost(uint64, tag = "6")]
+    pub swap_total_bytes: u64,
+    #[prost(uint64, tag = "7")]
+    pub ram_total_bytes: u64,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GpuNvidiaInfo {
@@ -2583,6 +2614,8 @@ pub struct GpuNvidiaInfo {
     pub cuda_cores: u32,
     #[prost(string, tag = "4")]
     pub architecture: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub uuid: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GpuAmdInfo {
@@ -2635,75 +2668,134 @@ pub struct TpuInfo {
     #[prost(uint32, tag = "4")]
     pub count: u32,
 }
+/// CoreWeaveInfo stores information about a CoreWeave compute environment.
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MetadataRequest {
+pub struct CoreWeaveInfo {
+    #[prost(string, tag = "1")]
+    pub cluster_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub org_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub region: ::prost::alloc::string::String,
+}
+/// EnvironmentRecord stores a snapshot of the system, hardware, software,
+/// and execution parameters captured at a run writer initialization.
+///
+/// A single W&B Run can have multiple "writers" that contribute data to the run.
+/// Examples include:
+///    - Multiple processes logging to the same run in a distributed training setup
+///      (`wandb.init(id="<run-id>", mode="shared")`)
+///    - Resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+///      which creates a new writer session, potentially on a different machine.
+///
+/// Because each writer can have a distinct environment (e.g., different OS,
+/// hardware, or git state), this record is associated with that writer's
+/// unique `writer_id` to preserve its specific context.
+///
+/// The environment and system metadata captured by this specific writer.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EnvironmentRecord {
+    /// Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit".
     #[prost(string, tag = "1")]
     pub os: ::prost::alloc::string::String,
+    /// Version of the Python interpreter, e.g., "3.11.8".
     #[prost(string, tag = "2")]
     pub python: ::prost::alloc::string::String,
+    /// Timestamp when the writer started.
     #[prost(message, optional, tag = "3")]
-    pub heartbeat_at: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(message, optional, tag = "4")]
     pub started_at: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(string, tag = "5")]
+    /// Docker image ID, if running in a Docker container.
+    #[prost(string, tag = "4")]
     pub docker: ::prost::alloc::string::String,
-    #[prost(string, tag = "6")]
-    pub cuda: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag = "7")]
+    /// Command-line arguments passed to the script.
+    #[prost(string, repeated, tag = "5")]
     pub args: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(string, tag = "8")]
-    pub state: ::prost::alloc::string::String,
-    #[prost(string, tag = "9")]
+    /// The name of the program or script being executed.
+    #[prost(string, tag = "6")]
     pub program: ::prost::alloc::string::String,
-    #[prost(string, tag = "10")]
+    /// Path to the program or script.
+    #[prost(string, tag = "7")]
     pub code_path: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "11")]
-    pub git: ::core::option::Option<GitRepoRecord>,
-    #[prost(string, tag = "12")]
-    pub email: ::prost::alloc::string::String,
-    #[prost(string, tag = "13")]
-    pub root: ::prost::alloc::string::String,
-    #[prost(string, tag = "14")]
-    pub host: ::prost::alloc::string::String,
-    #[prost(string, tag = "15")]
-    pub username: ::prost::alloc::string::String,
-    #[prost(string, tag = "16")]
-    pub executable: ::prost::alloc::string::String,
-    #[prost(string, tag = "17")]
+    /// The local filesystem path to the code being executed.
+    #[prost(string, tag = "8")]
     pub code_path_local: ::prost::alloc::string::String,
-    #[prost(string, tag = "18")]
+    /// Information about the Git repository, if applicable.
+    #[prost(message, optional, tag = "9")]
+    pub git: ::core::option::Option<GitRepoRecord>,
+    /// Email of the logged-in user.
+    #[prost(string, tag = "10")]
+    pub email: ::prost::alloc::string::String,
+    /// Root directory where the script was executed.
+    #[prost(string, tag = "11")]
+    pub root: ::prost::alloc::string::String,
+    /// Hostname of the machine.
+    #[prost(string, tag = "12")]
+    pub host: ::prost::alloc::string::String,
+    /// Username of the user running the script.
+    #[prost(string, tag = "13")]
+    pub username: ::prost::alloc::string::String,
+    /// Path to the executable that is running the script (e.g., path to python).
+    #[prost(string, tag = "14")]
+    pub executable: ::prost::alloc::string::String,
+    /// URL of the Colab notebook, if running in Google Colab.
+    #[prost(string, tag = "15")]
     pub colab: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "19")]
+    /// Number of physical CPU cores.
+    #[prost(uint32, tag = "16")]
     pub cpu_count: u32,
-    #[prost(uint32, tag = "20")]
+    /// Number of logical CPU cores.
+    #[prost(uint32, tag = "17")]
     pub cpu_count_logical: u32,
-    #[prost(string, tag = "21")]
+    /// Primary GPU type or name.
+    #[prost(string, tag = "18")]
     pub gpu_type: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "22")]
+    /// Total number of GPUs.
+    #[prost(uint32, tag = "19")]
     pub gpu_count: u32,
-    #[prost(map = "string, message", tag = "23")]
+    /// Detailed information about mounted disk volumes.
+    #[prost(map = "string, message", tag = "20")]
     pub disk: ::std::collections::HashMap<::prost::alloc::string::String, DiskInfo>,
-    #[prost(message, optional, tag = "24")]
+    /// Information about system memory.
+    #[prost(message, optional, tag = "21")]
     pub memory: ::core::option::Option<MemoryInfo>,
-    #[prost(message, optional, tag = "25")]
+    /// CPU information.
+    #[prost(message, optional, tag = "22")]
     pub cpu: ::core::option::Option<CpuInfo>,
-    #[prost(message, optional, tag = "26")]
+    /// Information specific to Apple Silicon hardware.
+    #[prost(message, optional, tag = "23")]
     pub apple: ::core::option::Option<AppleInfo>,
-    #[prost(message, repeated, tag = "27")]
+    /// Detailed information for each NVIDIA GPU.
+    #[prost(message, repeated, tag = "24")]
     pub gpu_nvidia: ::prost::alloc::vec::Vec<GpuNvidiaInfo>,
-    #[prost(message, repeated, tag = "28")]
+    /// Version of the CUDA toolkit, if available.
+    #[prost(string, tag = "25")]
+    pub cuda_version: ::prost::alloc::string::String,
+    /// Detailed information for each AMD GPU.
+    #[prost(message, repeated, tag = "26")]
     pub gpu_amd: ::prost::alloc::vec::Vec<GpuAmdInfo>,
-    #[prost(map = "string, string", tag = "29")]
+    /// Information from the Slurm workload manager, if present.
+    #[prost(map = "string, string", tag = "27")]
     pub slurm: ::std::collections::HashMap<
         ::prost::alloc::string::String,
         ::prost::alloc::string::String,
     >,
-    #[prost(string, tag = "30")]
-    pub cuda_version: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "31")]
+    /// Information about AWS Trainium hardware.
+    #[prost(message, optional, tag = "28")]
     pub trainium: ::core::option::Option<TrainiumInfo>,
-    #[prost(message, optional, tag = "32")]
+    /// Information about Google TPU hardware.
+    #[prost(message, optional, tag = "29")]
     pub tpu: ::core::option::Option<TpuInfo>,
+    /// Information about CoreWeave cloud environment.
+    #[prost(message, optional, tag = "30")]
+    pub coreweave: ::core::option::Option<CoreWeaveInfo>,
+    /// A unique identifier for this writer session.
+    ///
+    /// This ID distinguishes this writer's metadata from that of other writers
+    /// that may be contributing to the same run.
+    #[prost(string, tag = "199")]
+    pub writer_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PythonPackagesRequest {
@@ -2779,17 +2871,179 @@ pub struct JobInputRequest {
     #[prost(string, tag = "4")]
     pub input_schema: ::prost::alloc::string::String,
 }
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+/// *
+/// A request to the backend process for the features supported by the server.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ServerFeatureRequest {
+    #[prost(enumeration = "ServerFeature", tag = "1")]
+    pub feature: i32,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RequestInfo>,
+}
+/// *
+/// A response to a ServerFeatureRequest with the status of each requested feature.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ServerFeatureResponse {
+    #[prost(message, optional, tag = "1")]
+    pub feature: ::core::option::Option<ServerFeatureItem>,
+}
+/// *
+/// The feature details to be requested in a ServerFeatureRequest.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ServerFeatureItem {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(bool, tag = "2")]
+    pub enabled: bool,
+}
+/// *
+/// Server features are features that the server supports.
+/// This name should match the name of the feature defined in the backend server.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ServerFeature {
+    /// Indicates that the server supports recieving an array of filenames as metadata.
+    LargeFilenames = 0,
+    /// Indicates that the server supports adding tags to artifacts.
+    ArtifactTags = 1,
+    /// Indicates that the server supports client IDs for artifact reference urls.
+    ClientIds = 2,
+    /// Indicates that the server supports searching for artifacts in a registry.
+    ArtifactRegistrySearch = 3,
+    /// Indicates that the server supports structured console logs.
+    StructuredConsoleLogs = 4,
+    /// Indicates that the server supports querying for files on artifact collection memberships.
+    ArtifactCollectionMembershipFiles = 5,
+    /// Indicates that the server supports downloading files with additional artifact collection memberships context in the
+    /// url.
+    ArtifactCollectionMembershipFileDownloadHandler = 6,
+    /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
+    UseArtifactWithEntityAndProjectInformation = 7,
+    /// Indicates that the server supports expanding defined metric globs on the server side.
+    ExpandDefinedMetricGlobs = 8,
+    /// Indicates that the server supports automation event RUN_METRIC.
+    AutomationEventRunMetric = 9,
+    /// Indicates that the server supports automation event RUN_METRIC_CHANGE.
+    AutomationEventRunMetricChange = 10,
+    /// Indicates that the server supports automation action NO_OP.
+    AutomationActionNoOp = 11,
+    /// Indicates that the server supports including artifact types in registry creation.
+    IncludeArtifactTypesInRegistryCreation = 12,
+    /// Indicates that the server supports querying for a artifact collection membership on the project.
+    ProjectArtifactCollectionMembership = 13,
+    /// Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
+    /// mutation.
+    ArtifactMembershipInLinkArtifactResponse = 14,
+    /// Indicates that the server supports returning the total file count in a file connection.
+    TotalCountInFileConnection = 15,
+}
+impl ServerFeature {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::LargeFilenames => "LARGE_FILENAMES",
+            Self::ArtifactTags => "ARTIFACT_TAGS",
+            Self::ClientIds => "CLIENT_IDS",
+            Self::ArtifactRegistrySearch => "ARTIFACT_REGISTRY_SEARCH",
+            Self::StructuredConsoleLogs => "STRUCTURED_CONSOLE_LOGS",
+            Self::ArtifactCollectionMembershipFiles => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILES"
+            }
+            Self::ArtifactCollectionMembershipFileDownloadHandler => {
+                "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER"
+            }
+            Self::UseArtifactWithEntityAndProjectInformation => {
+                "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
+            }
+            Self::ExpandDefinedMetricGlobs => "EXPAND_DEFINED_METRIC_GLOBS",
+            Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
+            Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
+            Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
+            Self::IncludeArtifactTypesInRegistryCreation => {
+                "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
+            }
+            Self::ProjectArtifactCollectionMembership => {
+                "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP"
+            }
+            Self::ArtifactMembershipInLinkArtifactResponse => {
+                "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE"
+            }
+            Self::TotalCountInFileConnection => "TOTAL_COUNT_IN_FILE_CONNECTION",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "LARGE_FILENAMES" => Some(Self::LargeFilenames),
+            "ARTIFACT_TAGS" => Some(Self::ArtifactTags),
+            "CLIENT_IDS" => Some(Self::ClientIds),
+            "ARTIFACT_REGISTRY_SEARCH" => Some(Self::ArtifactRegistrySearch),
+            "STRUCTURED_CONSOLE_LOGS" => Some(Self::StructuredConsoleLogs),
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILES" => {
+                Some(Self::ArtifactCollectionMembershipFiles)
+            }
+            "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER" => {
+                Some(Self::ArtifactCollectionMembershipFileDownloadHandler)
+            }
+            "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
+                Some(Self::UseArtifactWithEntityAndProjectInformation)
+            }
+            "EXPAND_DEFINED_METRIC_GLOBS" => Some(Self::ExpandDefinedMetricGlobs),
+            "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
+            "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
+                Some(Self::AutomationEventRunMetricChange)
+            }
+            "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
+            "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
+                Some(Self::IncludeArtifactTypesInRegistryCreation)
+            }
+            "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP" => {
+                Some(Self::ProjectArtifactCollectionMembership)
+            }
+            "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE" => {
+                Some(Self::ArtifactMembershipInLinkArtifactResponse)
+            }
+            "TOTAL_COUNT_IN_FILE_CONNECTION" => Some(Self::TotalCountInFileConnection),
+            _ => None,
+        }
+    }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetStatsRequest {
     /// Capture the system metrics for the process with this PID, in addition to
     /// system-wide metrics.
     #[prost(int32, tag = "1")]
     pub pid: i32,
+    /// GPU device IDs to capture metrics for.
+    ///
+    /// Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
+    /// If not set, metrics for all GPUs will be captured.
+    #[prost(int32, repeated, tag = "2")]
+    pub gpu_device_ids: ::prost::alloc::vec::Vec<i32>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetStatsResponse {
+    /// System metrics.
+    #[prost(message, optional, tag = "1")]
+    pub record: ::core::option::Option<Record>,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetMetadataRequest {}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetMetadataResponse {
+    /// Static metadata about the system.
+    #[prost(message, optional, tag = "1")]
+    pub record: ::core::option::Option<Record>,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct TearDownRequest {}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct TearDownResponse {}
 /// Generated client implementations.
-pub mod system_monitor_client {
+pub mod system_monitor_service_client {
     #![allow(
         unused_variables,
         dead_code,
@@ -2799,14 +3053,14 @@ pub mod system_monitor_client {
     )]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
-    /// SystemMonitor gRPC service.
+    /// SystemMonitorService gRPC service.
     ///
     /// This service is used to collect system metrics from the host machine.
     #[derive(Debug, Clone)]
-    pub struct SystemMonitorClient<T> {
+    pub struct SystemMonitorServiceClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl SystemMonitorClient<tonic::transport::Channel> {
+    impl SystemMonitorServiceClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -2817,9 +3071,9 @@ pub mod system_monitor_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> SystemMonitorClient<T>
+    impl<T> SystemMonitorServiceClient<T>
     where
-        T: tonic::client::GrpcService<tonic::body::BoxBody>,
+        T: tonic::client::GrpcService<tonic::body::Body>,
         T::Error: Into<StdError>,
         T::ResponseBody: Body<Data = Bytes> + std::marker::Send + 'static,
         <T::ResponseBody as Body>::Error: Into<StdError> + std::marker::Send,
@@ -2835,21 +3089,21 @@ pub mod system_monitor_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> SystemMonitorClient<InterceptedService<T, F>>
+        ) -> SystemMonitorServiceClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
+                http::Request<tonic::body::Body>,
                 Response = http::Response<
-                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
                 >,
             >,
             <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
+                http::Request<tonic::body::Body>,
             >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
-            SystemMonitorClient::new(InterceptedService::new(inner, interceptor))
+            SystemMonitorServiceClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -2886,7 +3140,10 @@ pub mod system_monitor_client {
         pub async fn get_stats(
             &mut self,
             request: impl tonic::IntoRequest<super::GetStatsRequest>,
-        ) -> std::result::Result<tonic::Response<super::Record>, tonic::Status> {
+        ) -> std::result::Result<
+            tonic::Response<super::GetStatsResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -2897,18 +3154,23 @@ pub mod system_monitor_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/wandb_internal.SystemMonitor/GetStats",
+                "/wandb_internal.SystemMonitorService/GetStats",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("wandb_internal.SystemMonitor", "GetStats"));
+                .insert(
+                    GrpcMethod::new("wandb_internal.SystemMonitorService", "GetStats"),
+                );
             self.inner.unary(req, path, codec).await
         }
         /// GetMetadata returns static metadata about the system.
         pub async fn get_metadata(
             &mut self,
             request: impl tonic::IntoRequest<super::GetMetadataRequest>,
-        ) -> std::result::Result<tonic::Response<super::Record>, tonic::Status> {
+        ) -> std::result::Result<
+            tonic::Response<super::GetMetadataResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -2919,18 +3181,23 @@ pub mod system_monitor_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/wandb_internal.SystemMonitor/GetMetadata",
+                "/wandb_internal.SystemMonitorService/GetMetadata",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("wandb_internal.SystemMonitor", "GetMetadata"));
+                .insert(
+                    GrpcMethod::new("wandb_internal.SystemMonitorService", "GetMetadata"),
+                );
             self.inner.unary(req, path, codec).await
         }
-        /// TearDown tears down the system monitor.
+        /// TearDown instructs the system monitor to shut down.
         pub async fn tear_down(
             &mut self,
-            request: impl tonic::IntoRequest<()>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::TearDownRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::TearDownResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -2941,17 +3208,19 @@ pub mod system_monitor_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/wandb_internal.SystemMonitor/TearDown",
+                "/wandb_internal.SystemMonitorService/TearDown",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("wandb_internal.SystemMonitor", "TearDown"));
+                .insert(
+                    GrpcMethod::new("wandb_internal.SystemMonitorService", "TearDown"),
+                );
             self.inner.unary(req, path, codec).await
         }
     }
 }
 /// Generated server implementations.
-pub mod system_monitor_server {
+pub mod system_monitor_service_server {
     #![allow(
         unused_variables,
         dead_code,
@@ -2960,37 +3229,46 @@ pub mod system_monitor_server {
         clippy::let_unit_value,
     )]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with SystemMonitorServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with SystemMonitorServiceServer.
     #[async_trait]
-    pub trait SystemMonitor: std::marker::Send + std::marker::Sync + 'static {
+    pub trait SystemMonitorService: std::marker::Send + std::marker::Sync + 'static {
         /// GetStats samples system metrics.
         async fn get_stats(
             &self,
             request: tonic::Request<super::GetStatsRequest>,
-        ) -> std::result::Result<tonic::Response<super::Record>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::GetStatsResponse>,
+            tonic::Status,
+        >;
         /// GetMetadata returns static metadata about the system.
         async fn get_metadata(
             &self,
             request: tonic::Request<super::GetMetadataRequest>,
-        ) -> std::result::Result<tonic::Response<super::Record>, tonic::Status>;
-        /// TearDown tears down the system monitor.
+        ) -> std::result::Result<
+            tonic::Response<super::GetMetadataResponse>,
+            tonic::Status,
+        >;
+        /// TearDown instructs the system monitor to shut down.
         async fn tear_down(
             &self,
-            request: tonic::Request<()>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
+            request: tonic::Request<super::TearDownRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::TearDownResponse>,
+            tonic::Status,
+        >;
     }
-    /// SystemMonitor gRPC service.
+    /// SystemMonitorService gRPC service.
     ///
     /// This service is used to collect system metrics from the host machine.
     #[derive(Debug)]
-    pub struct SystemMonitorServer<T> {
+    pub struct SystemMonitorServiceServer<T> {
         inner: Arc<T>,
         accept_compression_encodings: EnabledCompressionEncodings,
         send_compression_encodings: EnabledCompressionEncodings,
         max_decoding_message_size: Option<usize>,
         max_encoding_message_size: Option<usize>,
     }
-    impl<T> SystemMonitorServer<T> {
+    impl<T> SystemMonitorServiceServer<T> {
         pub fn new(inner: T) -> Self {
             Self::from_arc(Arc::new(inner))
         }
@@ -3041,13 +3319,14 @@ pub mod system_monitor_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>> for SystemMonitorServer<T>
+    impl<T, B> tonic::codegen::Service<http::Request<B>>
+    for SystemMonitorServiceServer<T>
     where
-        T: SystemMonitor,
+        T: SystemMonitorService,
         B: Body + std::marker::Send + 'static,
         B::Error: Into<StdError> + std::marker::Send + 'static,
     {
-        type Response = http::Response<tonic::body::BoxBody>;
+        type Response = http::Response<tonic::body::Body>;
         type Error = std::convert::Infallible;
         type Future = BoxFuture<Self::Response, Self::Error>;
         fn poll_ready(
@@ -3058,14 +3337,14 @@ pub mod system_monitor_server {
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             match req.uri().path() {
-                "/wandb_internal.SystemMonitor/GetStats" => {
+                "/wandb_internal.SystemMonitorService/GetStats" => {
                     #[allow(non_camel_case_types)]
-                    struct GetStatsSvc<T: SystemMonitor>(pub Arc<T>);
+                    struct GetStatsSvc<T: SystemMonitorService>(pub Arc<T>);
                     impl<
-                        T: SystemMonitor,
+                        T: SystemMonitorService,
                     > tonic::server::UnaryService<super::GetStatsRequest>
                     for GetStatsSvc<T> {
-                        type Response = super::Record;
+                        type Response = super::GetStatsResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -3076,7 +3355,8 @@ pub mod system_monitor_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SystemMonitor>::get_stats(&inner, request).await
+                                <T as SystemMonitorService>::get_stats(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -3103,14 +3383,14 @@ pub mod system_monitor_server {
                     };
                     Box::pin(fut)
                 }
-                "/wandb_internal.SystemMonitor/GetMetadata" => {
+                "/wandb_internal.SystemMonitorService/GetMetadata" => {
                     #[allow(non_camel_case_types)]
-                    struct GetMetadataSvc<T: SystemMonitor>(pub Arc<T>);
+                    struct GetMetadataSvc<T: SystemMonitorService>(pub Arc<T>);
                     impl<
-                        T: SystemMonitor,
+                        T: SystemMonitorService,
                     > tonic::server::UnaryService<super::GetMetadataRequest>
                     for GetMetadataSvc<T> {
-                        type Response = super::Record;
+                        type Response = super::GetMetadataResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -3121,7 +3401,8 @@ pub mod system_monitor_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SystemMonitor>::get_metadata(&inner, request).await
+                                <T as SystemMonitorService>::get_metadata(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -3148,20 +3429,26 @@ pub mod system_monitor_server {
                     };
                     Box::pin(fut)
                 }
-                "/wandb_internal.SystemMonitor/TearDown" => {
+                "/wandb_internal.SystemMonitorService/TearDown" => {
                     #[allow(non_camel_case_types)]
-                    struct TearDownSvc<T: SystemMonitor>(pub Arc<T>);
-                    impl<T: SystemMonitor> tonic::server::UnaryService<()>
+                    struct TearDownSvc<T: SystemMonitorService>(pub Arc<T>);
+                    impl<
+                        T: SystemMonitorService,
+                    > tonic::server::UnaryService<super::TearDownRequest>
                     for TearDownSvc<T> {
-                        type Response = ();
+                        type Response = super::TearDownResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
-                        fn call(&mut self, request: tonic::Request<()>) -> Self::Future {
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::TearDownRequest>,
+                        ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SystemMonitor>::tear_down(&inner, request).await
+                                <T as SystemMonitorService>::tear_down(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -3190,7 +3477,9 @@ pub mod system_monitor_server {
                 }
                 _ => {
                     Box::pin(async move {
-                        let mut response = http::Response::new(empty_body());
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
                         let headers = response.headers_mut();
                         headers
                             .insert(
@@ -3208,7 +3497,7 @@ pub mod system_monitor_server {
             }
         }
     }
-    impl<T> Clone for SystemMonitorServer<T> {
+    impl<T> Clone for SystemMonitorServiceServer<T> {
         fn clone(&self) -> Self {
             let inner = self.inner.clone();
             Self {
@@ -3221,8 +3510,8 @@ pub mod system_monitor_server {
         }
     }
     /// Generated gRPC service name
-    pub const SERVICE_NAME: &str = "wandb_internal.SystemMonitor";
-    impl<T> tonic::server::NamedService for SystemMonitorServer<T> {
+    pub const SERVICE_NAME: &str = "wandb_internal.SystemMonitorService";
+    impl<T> tonic::server::NamedService for SystemMonitorServiceServer<T> {
         const NAME: &'static str = SERVICE_NAME;
     }
 }

@@ -6,12 +6,18 @@ import (
 )
 
 type FileTransfer interface {
+	// Upload uploads a file to the server.
 	Upload(task *DefaultUploadTask) error
+
+	// Download downloads a file from the server
 	Download(task *DefaultDownloadTask) error
 }
 
-type ReferenceArtifactFileTransfer interface {
-	Upload(task *ReferenceArtifactUploadTask) error
+type ArtifactFileTransfer interface {
+	// Upload uploads a file to the server.
+	Upload(task *DefaultUploadTask) error
+
+	// Download downloads a file from the server
 	Download(task *ReferenceArtifactDownloadTask) error
 }
 
@@ -21,13 +27,13 @@ type FileTransfers struct {
 	Default FileTransfer
 
 	// GCS connects to GCloud to upload/download files given their paths
-	GCS ReferenceArtifactFileTransfer
+	GCS ArtifactFileTransfer
 
 	// S3 connects to AWS to upload/download files given their paths
-	S3 ReferenceArtifactFileTransfer
+	S3 ArtifactFileTransfer
 
 	// Azure connects to Azure to upload/download files given their paths
-	Azure ReferenceArtifactFileTransfer
+	Azure ArtifactFileTransfer
 }
 
 // NewFileTransfers creates a new fileTransfers
@@ -39,7 +45,7 @@ func NewFileTransfers(
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
 	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
 	s3FileTransfer := NewS3FileTransfer(nil, logger, fileTransferStats)
-	azureFileTransfer := NewAzureFileTransfer(nil, logger, fileTransferStats, nil)
+	azureFileTransfer := NewAzureFileTransfer(nil, logger, fileTransferStats)
 
 	return &FileTransfers{
 		Default: defaultFileTransfer,

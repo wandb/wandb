@@ -208,13 +208,13 @@ def test_embedding_dict_watch(wandb_backend_spy):
 
 
 @pytest.mark.timeout(120)
-def test_sequence_net(wandb_init):
+def test_sequence_net(user):
     """Test logging a sequence model.
 
     Use intrenal function wandb.sdk._watch to query the graph object.
     """
     pytest.importorskip("torch")
-    with wandb_init() as run:
+    with wandb.init() as run:
         net = Sequence()
         graph = wandb.sdk._watch(run, net, log_graph=True)[0]
         output = net.forward(dummy_torch_tensor((97, 100)))
@@ -227,9 +227,9 @@ def test_sequence_net(wandb_init):
         assert graph["nodes"][0]["name"] == "lstm1"
 
 
-def test_multi_net(wandb_init):
+def test_multi_net(user):
     pytest.importorskip("torch")
-    with wandb_init() as run:
+    with wandb.init() as run:
         net1 = ConvNet()
         net2 = ConvNet()
         graphs = wandb.sdk._watch(run, (net1, net2), log_graph=True)

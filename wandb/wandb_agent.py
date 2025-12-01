@@ -12,14 +12,10 @@ import time
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
-import yaml
-
 import wandb
-from wandb import util, wandb_lib, wandb_sdk
-from wandb.agents.pyagent import pyagent
-from wandb.apis import InternalApi
-from wandb.sdk.launch.sweeps import utils as sweep_utils
-from wandb.sdk.lib import ipython
+from wandb import util
+from wandb.sdk import wandb_login
+from wandb.sdk.lib import config_util, ipython
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +38,42 @@ class AgentProcess:
         if command:
             if platform.system() == "Windows":
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                env.pop(wandb.env.SERVICE, None)
+                # TODO: Determine if we need the same stdin workaround as POSIX case below.
+                self._popen = subprocess.Popen(command, env=env, **kwargs)
             else:
-                kwargs = dict(preexec_fn=os.setpgrp)
-            if env.get(wandb.env.SERVICE):
-                env.pop(wandb.env.SERVICE)
-            self._popen = subprocess.Popen(command, env=env, **kwargs)
+                if sys.version_info >= (3, 11):
+                    # preexec_fn=os.setpgrp is not thread-safe; process_group was introduced in
+                    # python 3.11 to replace it, so use that when possible
+                    kwargs = dict(process_group=0)
+                else:
+                    kwargs = dict(preexec_fn=os.setpgrp)
+                env.pop(wandb.env.SERVICE, None)
+                # Upon spawning the subprocess in a new process group, the child's process group is
+                # not connected to the controlling terminal's stdin. If it tries to access stdin,
+                # it gets a SIGTTIN and blocks until we give it the terminal, which we don't want
+                # to do.
+                #
+                # By using subprocess.PIPE, we give it an independent stdin. However, it will still
+                # block if it tries to read from stdin, because we're not writing anything to it.
+                # We immediately close the subprocess's stdin here so it can fail fast and get an
+                # EOF.
+                #
+                # (One situation that makes this relevant is that importing `readline` even
+                # indirectly can cause the child to attempt to access stdin, which can trigger the
+                # deadlock. In Python 3.13, `import torch` indirectly imports `readline` via `pdb`,
+                # meaning `import torch` in a run script can deadlock unless we override stdin.
+                # See https://github.com/wandb/wandb/pull/10489 description for more details.)
+                #
+                # Also, we avoid spawning a new session because that breaks preempted child process
+                # handling.
+                self._popen = subprocess.Popen(
+                    command,
+                    env=env,
+                    stdin=subprocess.PIPE,
+                    **kwargs,
+                )
+                self._popen.stdin.close()
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
@@ -62,10 +89,10 @@ class AgentProcess:
                 os.environ[k] = v
 
         # call user function
-        print("wandb: Agent Started Run:", run_id)
+        wandb.termlog(f"Agent Started Run: {run_id}")
         if function:
             function()
-        print("wandb: Agent Finished Run:", run_id, "\n")
+        wandb.termlog(f"Agent Finished Run: {run_id}\n")
 
         # complete the run
         run = wandb.run
@@ -92,16 +119,13 @@ class AgentProcess:
 
     def wait(self):
         if self._popen:
-            # if on windows, wait() will block and we wont be able to interrupt
+            # if on windows, wait() will block and we won't be able to interrupt
             if platform.system() == "Windows":
-                try:
-                    while True:
-                        p = self._popen.poll()
-                        if p is not None:
-                            return p
-                        time.sleep(1)
-                except KeyboardInterrupt:
-                    raise
+                while True:
+                    p = self._popen.poll()
+                    if p is not None:
+                        return p
+                    time.sleep(1)
             return self._popen.wait()
         return self._proc.join()
 
@@ -190,6 +214,8 @@ class Agent:
 
     def run(self):  # noqa: C901
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
+        import yaml
+
         sweep_obj = self._api.sweep(self._sweep_id, "{}")
         if sweep_obj:
             sweep_yaml = sweep_obj.get("config")
@@ -332,7 +358,7 @@ class Agent:
             elif command_type == "resume":
                 result = self._command_run(command)
             else:
-                raise AgentError("No such command: {}".format(command_type))
+                raise AgentError(f"No such command: {command_type}")  # noqa: TRY301
             response["result"] = result
         except Exception:
             logger.exception("Exception while processing command: %s", command)
@@ -346,6 +372,8 @@ class Agent:
         return response
 
     def _command_run(self, command):
+        from wandb.sdk.launch.sweeps import utils as sweep_utils
+
         logger.info(
             "Agent starting run with config:\n"
             + "\n".join(
@@ -353,15 +381,10 @@ class Agent:
             )
         )
         if self._in_jupyter:
-            print(
-                "wandb: Agent Starting Run: {} with config:\n".format(
-                    command.get("run_id")
-                )
+            wandb.termlog(
+                f"Agent Starting Run: {command.get('run_id')} with config:\n"
                 + "\n".join(
-                    [
-                        "\t{}: {}".format(k, v["value"])
-                        for k, v in command["args"].items()
-                    ]
+                    [f"\t{k}: {v['value']}" for k, v in command["args"].items()]
                 )
             )
 
@@ -383,9 +406,7 @@ class Agent:
         base_dir = os.environ.get(wandb.env.DIR, "")
         sweep_param_path = os.path.join(base_dir, config_file)
         os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
-        wandb_lib.config_util.save_config_file_from_dict(
-            sweep_param_path, command["args"]
-        )
+        config_util.save_config_file_from_dict(sweep_param_path, command["args"])
 
         env = dict(os.environ)
 
@@ -397,7 +418,7 @@ class Agent:
 
         if self._function:
             # make sure that each run regenerates setup singleton
-            wandb_sdk.wandb_setup._setup(_reset=True)
+            wandb.teardown()
             proc = AgentProcess(
                 function=self._function,
                 env=env,
@@ -420,7 +441,7 @@ class Agent:
                     command_list += [c]
             logger.info(
                 "About to run command: {}".format(
-                    " ".join('"{}"'.format(c) if " " in c else c for c in command_list)
+                    " ".join(f'"{c}"' if " " in c else c for c in command_list)
                 )
             )
             proc = AgentProcess(command=command_list, env=env)
@@ -471,24 +492,27 @@ class AgentApi:
 
     def command(self, command):
         command["origin"] = "local"
-        command["id"] = "local-{}".format(self._command_id)
+        command["id"] = f"local-{self._command_id}"
         self._command_id += 1
         resp_queue = self._multiproc_manager.Queue()
         command["resp_queue"] = resp_queue
         self._queue.put(command)
         result = resp_queue.get()
-        print("result:", result)
+        print("result:", result)  # noqa: T201
         if "exception" in result:
-            print("Exception occurred while running command")
+            print("Exception occurred while running command")  # noqa: T201
             for line in result["traceback"]:
-                print(line.strip())
-            print(result["exception"])
+                print(line.strip())  # noqa: T201
+            print(result["exception"])  # noqa: T201
         return result
 
 
 def run_agent(
     sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
 ):
+    from wandb.apis import InternalApi
+    from wandb.sdk.launch.sweeps import utils as sweep_utils
+
     parts = dict(entity=entity, project=project, name=sweep_id)
     err = sweep_utils.parse_sweep_id(parts)
     if err:
@@ -562,11 +586,13 @@ def agent(
             run is sent to a project labeled "Uncategorized".
         count: The number of sweep config trials to try.
     """
+    from wandb.agents.pyagent import pyagent
+
     global _INSTANCES
     _INSTANCES += 1
     try:
         # make sure we are logged in
-        wandb_sdk.wandb_login._login(_silent=True)
+        wandb_login._login(_silent=True)
         if function:
             return pyagent(sweep_id, function, entity, project, count)
         return run_agent(

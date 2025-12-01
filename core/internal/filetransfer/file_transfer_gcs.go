@@ -79,14 +79,14 @@ func (ft *GCSFileTransfer) SetupClient() {
 	})
 }
 
-// Upload uploads a file to the server.
-func (ft *GCSFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
-	ft.logger.Debug("GCSFileTransfer: Upload: uploading file", "path", task.PathOrPrefix)
+// Upload implements ArtifactFileTransfer.Upload
+func (ft *GCSFileTransfer) Upload(task *DefaultUploadTask) error {
+	ft.logger.Debug("GCSFileTransfer: Upload: uploading file", "path", task.Path)
 
 	return fmt.Errorf("not implemented yet")
 }
 
-// Download downloads a file from the server.
+// Download implements ArtifactFileTransfer.Download
 func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	ft.logger.Debug(
 		"GCSFileTransfer: Download: downloading file",
@@ -200,7 +200,9 @@ func (ft *GCSFileTransfer) downloadFile(
 	if err != nil {
 		return ft.formatDownloadError("error creating reader", err)
 	}
-	defer r.Close()
+	defer func() {
+		_ = r.Close()
+	}()
 
 	// Check if the directory exists, and create it if it doesn't
 	dir := path.Dir(localPath)

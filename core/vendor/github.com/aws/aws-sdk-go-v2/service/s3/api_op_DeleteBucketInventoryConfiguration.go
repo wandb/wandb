@@ -13,9 +13,9 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// This operation is not supported by directory buckets.
+// This operation is not supported for directory buckets.
 //
-// Deletes an inventory configuration (identified by the inventory ID) from the
+// Deletes an S3 Inventory configuration (identified by the inventory ID) from the
 // bucket.
 //
 // To use this operation, you must have permissions to perform the
@@ -32,6 +32,10 @@ import (
 // [PutBucketInventoryConfiguration]
 //
 // [ListBucketInventoryConfigurations]
+//
+// You must URL encode any signed header values that contain spaces. For example,
+// if your header value is my file.txt , containing two spaces after my , you must
+// URL encode this value to my%20%20file.txt .
 //
 // [Amazon S3 Inventory]: https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-inventory.html
 // [ListBucketInventoryConfigurations]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketInventoryConfigurations.html
@@ -157,6 +161,9 @@ func (c *Client) addOperationDeleteBucketInventoryConfigurationMiddlewares(stack
 	if err = addIsExpressUserAgent(stack); err != nil {
 		return err
 	}
+	if err = addCredentialSource(stack, options); err != nil {
+		return err
+	}
 	if err = addOpDeleteBucketInventoryConfigurationValidationMiddleware(stack); err != nil {
 		return err
 	}
@@ -190,16 +197,13 @@ func (c *Client) addOperationDeleteBucketInventoryConfigurationMiddlewares(stack
 	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanInitializeStart(stack); err != nil {
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanInitializeEnd(stack); err != nil {
+	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
-	if err = addSpanBuildRequestStart(stack); err != nil {
-		return err
-	}
-	if err = addSpanBuildRequestEnd(stack); err != nil {
+	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil

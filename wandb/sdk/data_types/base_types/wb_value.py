@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
 
-import wandb
 from wandb import util
+from wandb.sdk import wandb_setup
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
@@ -11,8 +11,33 @@ if TYPE_CHECKING:  # pragma: no cover
     TypeMappingType = Dict[str, Type["WBValue"]]
 
 
+def _is_maybe_offline() -> bool:
+    """Guess whether wandb is configured to be offline.
+
+    This is an anti-pattern because there is no library-level "offline" mode:
+    only runs can be offline. Online and offline runs can exist in the same
+    process. This function is a heuristic that works only if there is at most
+    one run in the process, and could otherwise produce unexpected results.
+
+    Returns:
+        Whether the user likely configured wandb to be offline.
+    """
+    singleton = wandb_setup.singleton()
+
+    # First check: if there's a run, check if it is offline.
+    #
+    # This covers uses like `wandb.init(mode="offline")` which don't modify
+    # the singleton's settings.
+    if run := singleton.most_recent_active_run:
+        return run.offline
+
+    # Second check: default to global defaults derived from environment
+    # variables or passed explicitly to `wandb.setup()`.
+    return singleton.settings._offline
+
+
 def _server_accepts_client_ids() -> bool:
-    from wandb.util import parse_version
+    from packaging.version import parse
 
     # There are versions of W&B Server that cannot accept client IDs. Those versions of
     # the backend have a max_cli_version of less than "0.11.0." If the backend cannot
@@ -24,23 +49,21 @@ def _server_accepts_client_ids() -> bool:
     # The latest SDK version that is < "0.11.0" was released on 2021/06/29.
     # AS OF NOW, 2024/11/06, we assume that all customer's server deployments accept
     # client IDs.
-    #
-    # If there are any users with issues on an older backend, customers can disable the
-    # setting `allow_offline_artifacts` to revert the SDK's behavior back to not
-    # using client IDs in offline mode.
-    if (
-        util._is_offline()
-        and wandb.run
-        and not wandb.run.settings.allow_offline_artifacts
-    ):
-        return False
+
+    if _is_maybe_offline():
+        singleton = wandb_setup.singleton()
+
+        if run := singleton.most_recent_active_run:
+            return run._settings.allow_offline_artifacts
+        else:
+            return singleton.settings.allow_offline_artifacts
 
     # If the script is online, request the max_cli_version and ensure the server
     # is of a high enough version.
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
-    accepts_client_ids: bool = parse_version("0.11.0") <= parse_version(max_cli_version)
+    accepts_client_ids: bool = parse(max_cli_version) >= parse("0.11.0")
     return accepts_client_ids
 
 
@@ -135,7 +158,7 @@ class WBValue:
     def init_from_json(
         json_obj: dict, source_artifact: "Artifact"
     ) -> Optional["WBValue"]:
-        """Initialize a `WBValue` from a JSON blob based on the class that creatd it.
+        """Initialize a `WBValue` from a JSON blob based on the class that created it.
 
         Looks through all subclasses and tries to match the json obj with the class
         which created it. It will then call that subclass' `from_json` method.
@@ -195,88 +218,78 @@ class WBValue:
     def _set_artifact_source(
         self, artifact: "Artifact", name: Optional[str] = None
     ) -> None:
-        assert (
-            self._artifact_source is None
-        ), "Cannot update artifact_source. Existing source: {}/{}".format(
-            self._artifact_source.artifact, self._artifact_source.name
+        assert self._artifact_source is None, (
+            f"Cannot update artifact_source. Existing source: {self._artifact_source.artifact}/{self._artifact_source.name}"
         )
         self._artifact_source = _WBValueArtifactSource(artifact, name)
 
     def _set_artifact_target(
         self, artifact: "Artifact", name: Optional[str] = None
     ) -> None:
-        assert (
-            self._artifact_target is None
-        ), "Cannot update artifact_target. Existing target: {}/{}".format(
-            self._artifact_target.artifact, self._artifact_target.name
+        assert self._artifact_target is None, (
+            f"Cannot update artifact_target. Existing target: {self._artifact_target.artifact}/{self._artifact_target.name}"
         )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
     def _get_artifact_entry_ref_url(self) -> Optional[str]:
         # If the object is coming from another artifact
-        if self._artifact_source and self._artifact_source.name:
-            ref_entry = self._artifact_source.artifact.get_entry(
-                type(self).with_suffix(self._artifact_source.name)
-            )
-            return str(ref_entry.ref_url())
+        if (source := self._artifact_source) and (source_name := source.name):
+            ref_entry = source.artifact.get_entry(self.with_suffix(source_name))
+            return ref_entry.ref_url()
+
         # Else, if the object is destined for another artifact and we support client IDs
-        elif (
-            self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._client_id is not None
-            and self._artifact_target.artifact._final
+        if (
+            (target := self._artifact_target)
+            and target.name
+            and (client_id := target.artifact._client_id) is not None
+            and target.artifact._final
             and _server_accepts_client_ids()
         ):
-            return "wandb-client-artifact://{}/{}".format(
-                self._artifact_target.artifact._client_id,
-                type(self).with_suffix(self._artifact_target.name),
+            return (
+                f"wandb-client-artifact://{client_id}/{self.with_suffix(target.name)}"
             )
+
         # Else if we do not support client IDs, but online, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed
         # once those versions are no longer supported. This path uses a .wait
         # which blocks the user process on artifact upload.
-        elif (
-            self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._is_draft_save_started()
-            and not util._is_offline()
+        if (
+            (target := self._artifact_target)
+            and target.name
+            and target.artifact._is_draft_save_started()
+            and not _is_maybe_offline()
             and not _server_accepts_client_ids()
         ):
-            self._artifact_target.artifact.wait()
-            ref_entry = self._artifact_target.artifact.get_entry(
-                type(self).with_suffix(self._artifact_target.name)
-            )
-            return str(ref_entry.ref_url())
+            target.artifact.wait()
+            ref_entry = target.artifact.get_entry(self.with_suffix(target.name))
+            return ref_entry.ref_url()
+
         return None
 
     def _get_artifact_entry_latest_ref_url(self) -> Optional[str]:
         if (
-            self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._client_id is not None
-            and self._artifact_target.artifact._final
+            (target := self._artifact_target)
+            and target.name
+            and (sequence_client_id := target.artifact._sequence_client_id) is not None
+            and target.artifact._final
             and _server_accepts_client_ids()
         ):
-            return "wandb-client-artifact://{}:latest/{}".format(
-                self._artifact_target.artifact._sequence_client_id,
-                type(self).with_suffix(self._artifact_target.name),
-            )
+            return f"wandb-client-artifact://{sequence_client_id}:latest/{self.with_suffix(target.name)}"
+
         # Else if we do not support client IDs, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed
         # once those versions are no longer supported. This path uses a .wait
         # which blocks the user process on artifact upload.
-        elif (
-            self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._is_draft_save_started()
-            and not util._is_offline()
+        if (
+            (target := self._artifact_target)
+            and target.name
+            and target.artifact._is_draft_save_started()
+            and not _is_maybe_offline()
             and not _server_accepts_client_ids()
         ):
-            self._artifact_target.artifact.wait()
-            ref_entry = self._artifact_target.artifact.get_entry(
-                type(self).with_suffix(self._artifact_target.name)
-            )
-            return str(ref_entry.ref_url())
+            target.artifact.wait()
+            ref_entry = target.artifact.get_entry(self.with_suffix(target.name))
+            return ref_entry.ref_url()
         return None

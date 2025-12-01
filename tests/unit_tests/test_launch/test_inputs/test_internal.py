@@ -12,6 +12,7 @@ from wandb.sdk.launch.inputs.internal import (
     ConfigTmpDir,
     JobInputArguments,
     StagedLaunchInputs,
+    _prepare_schema,
     _publish_job_input,
     _replace_refs_and_allofs,
     _split_on_unesc_dot,
@@ -61,7 +62,7 @@ def test_json_schema():
         },
         "properties": {"trainer": {"$ref": "#/$defs/Trainer"}},
         "required": ["trainer"],
-        "title": "TestSchema",
+        "title": "ExampleSchema",
         "type": "object",
     }
 
@@ -97,7 +98,7 @@ def expected_json_schema():
             }
         },
         "required": ["trainer"],
-        "title": "TestSchema",
+        "title": "ExampleSchema",
         "type": "object",
     }
 
@@ -113,8 +114,62 @@ class Trainer(BaseModel):
     dataset: DatasetEnum = Field(description="Name of the dataset to use")
 
 
-class TestSchema(BaseModel):
+class ExampleSchema(BaseModel):
     trainer: Trainer
+
+
+def test_validate_schema_pydantic_lists():
+    class Item(BaseModel):
+        name: str
+        epochs: int = Field(ge=1)
+
+    class GenericLists(BaseModel):
+        # TODO: Only list of enums are supported for now
+        # tags: list[str] = Field(min_length=0, max_length=10)
+        # probs: list[float] = Field(min_length=1)
+        # items: list[Item] = Field(min_length=1)
+        # dicts: list[dict[str, str]] = Field(min_length=1)
+        enums: list[DatasetEnum] = Field(min_length=1)
+        enums_no_bounds: list[DatasetEnum] = Field()
+
+    prepared_schema = _prepare_schema(GenericLists)
+
+    props = prepared_schema["properties"]
+    assert props["enums"]["type"] == "array"
+    assert props["enums"]["items"]["type"] == "string"
+
+    assert props["enums_no_bounds"]["type"] == "array"
+    assert props["enums_no_bounds"]["items"]["type"] == "string"
+
+    _validate_schema(prepared_schema)
+
+
+def test_validate_schema_pydantic_sets():
+    """Generic Pydantic sets map to JSON Schema arrays properly."""
+
+    class Item(BaseModel):
+        name: str
+        epochs: int = Field(ge=1)
+
+    class GenericSets(BaseModel):
+        # TODO: Only set of enums are supported for now
+        # tags: set[str] = Field(min_length=0, max_length=10)
+        # probs: set[float] = Field(min_length=1)
+        # items: set[Item] = Field(min_length=1)
+        # dicts: set[dict[str, str]] = Field(min_length=1)
+        enums: set[DatasetEnum] = Field(min_length=1)
+        enums_no_bounds: set[DatasetEnum] = Field()
+
+    prepared_schema = _prepare_schema(GenericSets)
+
+    props = prepared_schema["properties"]
+    assert props["enums"]["type"] == "array"
+    assert props["enums"]["items"]["type"] == "string"
+
+    assert props["enums_no_bounds"]["type"] == "array"
+    assert props["enums_no_bounds"]["items"]["type"] == "string"
+
+    _validate_schema(prepared_schema)
 
 
 @pytest.mark.parametrize(
@@ -220,7 +275,7 @@ def test_handle_config_file_input_pydantic(
     wandb_run = MagicMock()
     mocker.patch("wandb.sdk.launch.inputs.internal.wandb.run", wandb_run)
     handle_config_file_input(
-        "path", include=["include"], exclude=["exclude"], schema=TestSchema
+        "path", include=["include"], exclude=["exclude"], schema=ExampleSchema
     )
     wandb_run._backend.interface.publish_job_input.assert_called_once_with(
         include_paths=[["include"]],
@@ -307,6 +362,185 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
             },
             [],
         ),
+        # --- Secret format tests ---
+        # Test basic secret field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "api_key": {
+                        "type": "string",
+                        "format": "secret",
+                        "title": "API Key",
+                        "description": "Secret API key",
+                    }
+                },
+            },
+            [],
+        ),
+        # Test nested object with secret field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "config": {
+                        "type": "object",
+                        "properties": {
+                            "secret_token": {
+                                "type": "string",
+                                "format": "secret",
+                                "description": "Nested secret",
+                            },
+                            "public_key": {
+                                "type": "string",
+                                "description": "Public configuration",
+                            },
+                        },
+                    }
+                },
+            },
+            [],
+        ),
+        # Test multiple secret fields
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "api_key": {"type": "string", "format": "secret"},
+                    "db_password": {"type": "string", "format": "secret"},
+                    "regular_field": {"type": "string"},
+                },
+            },
+            [],
+        ),
+        # --- Placeholder field tests ---
+        # Test basic placeholder field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "placeholder": "Enter your username",
+                        "title": "Username",
+                        "description": "Your account username",
+                    }
+                },
+            },
+            [],
+        ),
+        # --- Label field tests ---
+        # Test basic label field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "api_key": {
+                        "type": "string",
+                        "label": "API Key",
+                        "placeholder": "sk-...",
+                        "required": True,
+                        "format": "secret",
+                    }
+                },
+            },
+            [],
+        ),
+        # Test nested object with label and placeholder fields
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "database": {
+                        "type": "object",
+                        "label": "Database Configuration",
+                        "properties": {
+                            "host": {
+                                "type": "string",
+                                "label": "Database Host",
+                                "placeholder": "localhost",
+                                "description": "Database host",
+                            },
+                            "port": {
+                                "type": "integer",
+                                "label": "Database Port",
+                                "placeholder": "5432",
+                                "minimum": 1,
+                            },
+                        },
+                    }
+                },
+            },
+            [],
+        ),
+        # --- Required field tests ---
+        # Test basic required field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "api_key": {
+                        "type": "string",
+                        "required": True,
+                        "title": "API Key",
+                        "description": "Required API key",
+                    },
+                    "optional_field": {
+                        "type": "string",
+                        "required": False,
+                        "description": "Optional field",
+                    },
+                },
+            },
+            [],
+        ),
+        # Test required field with different types
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "required": True,
+                        "minimum": 1,
+                    },
+                    "threshold": {
+                        "type": "number",
+                        "required": True,
+                        "minimum": 0.0,
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "required": False,
+                    },
+                },
+            },
+            [],
+        ),
+        # Test nested object with required fields
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "config": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "required": True,
+                                "description": "Configuration name",
+                            },
+                            "version": {
+                                "type": "string",
+                                "required": False,
+                                "placeholder": "1.0.0",
+                            },
+                        },
+                    }
+                },
+            },
+            [],
+        ),
         # --- Warning cases ---
         # Test using a float as a minimum for an integer
         (
@@ -331,6 +565,198 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
                 "properties": {"key1": {"type": "integer", "default": 5}},
             },
             ["Unevaluated properties are not allowed ('default' was unexpected)"],
+        ),
+        # --- Placeholder field tests for all types ---
+        # Test placeholder on boolean field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "field1": {
+                        "type": "boolean",
+                        "placeholder": "Enable this feature",
+                    }
+                },
+            },
+            [],
+        ),
+        # Test placeholder on array field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "field1": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["a", "b", "c"],
+                        },
+                        "placeholder": "Select options...",
+                    }
+                },
+            },
+            [],
+        ),
+        # --- Invalid UI field tests ---
+        # Test placeholder with wrong type (must be string)
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "field1": {
+                        "type": "string",
+                        "placeholder": 123,  # Should be string
+                    }
+                },
+            },
+            ["123 is not of type 'string'"],
+        ),
+        # Test label with wrong type (must be string)
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "field1": {
+                        "type": "string",
+                        "label": 456,  # Should be string
+                    }
+                },
+            },
+            ["456 is not of type 'string'"],
+        ),
+        # --- Array passing cases ---
+        # Array: string enum multi-select with bounds and uniqueness
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["a", "b", "c"],
+                        },
+                        "uniqueItems": True,
+                        "minItems": 1,
+                        "maxItems": 3,
+                    }
+                },
+            },
+            [],
+        ),
+        # Array: integer enum multi-select
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "enum": [1, 2, 3],
+                        },
+                        "uniqueItems": True,
+                    }
+                },
+            },
+            [],
+        ),
+        # Array: number enum multi-select, nested inside object
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "config": {
+                        "type": "object",
+                        "properties": {
+                            "lrs": {
+                                "type": "array",
+                                "items": {
+                                    "type": "number",
+                                    "enum": [0.001, 0.01, 0.1],
+                                },
+                                "minItems": 1,
+                            }
+                        },
+                    }
+                },
+            },
+            [],
+        ),
+        # Array with label, placeholder and required fields
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["dev", "prod", "test"],
+                        },
+                        "label": "Environment Tags",
+                        "placeholder": "Select environment tags...",
+                        "required": True,
+                        "minItems": 1,
+                        "uniqueItems": True,
+                    },
+                    "optional_list": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "enum": [1, 2, 3, 4, 5],
+                        },
+                        "label": "Optional Numbers",
+                        "placeholder": "Choose numbers (optional)",
+                        "required": False,
+                    },
+                },
+            },
+            [],
+        ),
+        # --- Array warning cases ---
+        # Array warning: unsupported 'contains'
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "arr": {
+                        "type": "array",
+                        "contains": {"type": "number"},
+                    }
+                },
+            },
+            ["Unevaluated properties are not allowed ('contains' was unexpected)"],
+        ),
+        # Array warning: unsupported 'prefixItems'
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "tuple_like": {
+                        "type": "array",
+                        "prefixItems": [
+                            {"type": "string"},
+                            {"type": "number"},
+                        ],
+                    }
+                },
+            },
+            ["Unevaluated properties are not allowed ('prefixItems' was unexpected)"],
+        ),
+        # Array warning: minItems wrong type
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "vals": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1.5,
+                    }
+                },
+            },
+            ["1.5 is not of type 'integer'"],
         ),
     ],
 )

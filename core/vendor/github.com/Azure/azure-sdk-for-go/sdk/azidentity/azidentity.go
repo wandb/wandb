@@ -22,6 +22,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity/internal"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/confidential"
+	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/managedidentity"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/public"
 )
 
@@ -41,6 +42,8 @@ const (
 	organizationsTenantID   = "organizations"
 	developerSignOnClientID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
 	defaultSuffix           = "/.default"
+
+	scopeLogFmt = "%s.GetToken() acquired a token for scope %q"
 
 	traceNamespace      = "Microsoft.Entra"
 	traceOpGetToken     = "GetToken"
@@ -103,7 +106,16 @@ func resolveAdditionalTenants(tenants []string) []string {
 	return cp
 }
 
-// resolveTenant returns the correct tenant for a token request
+// resolveTenant returns the correct tenant for a token request, or "" when the calling credential doesn't
+// have an explicitly configured tenant and the caller didn't specify a tenant for the token request.
+//
+//   - defaultTenant: tenant set when constructing the credential, if any. "" is valid for credentials
+//     having an optional or implicit tenant such as dev tool and interactive user credentials. Those
+//     default to the tool's configured tenant or the user's home tenant, respectively.
+//   - specified: tenant specified for this token request i.e., TokenRequestOptions.TenantID. May be "".
+//   - credName: name of the calling credential type; for error messages
+//   - additionalTenants: optional allow list of tenants the credential may acquire tokens from in
+//     addition to defaultTenant i.e., the credential's AdditionallyAllowedTenants option
 func resolveTenant(defaultTenant, specified, credName string, additionalTenants []string) (string, error) {
 	if specified == "" || specified == defaultTenant {
 		return defaultTenant, nil
@@ -116,6 +128,17 @@ func resolveTenant(defaultTenant, specified, credName string, additionalTenants 
 	}
 	for _, t := range additionalTenants {
 		if t == "*" || t == specified {
+			return specified, nil
+		}
+	}
+	if len(additionalTenants) == 0 {
+		switch defaultTenant {
+		case "", organizationsTenantID:
+			// The application didn't specify a tenant or allow list when constructing the credential. Allow the
+			// tenant specified for this token request because we have nothing to compare it to (i.e., it vacuously
+			// satisfies the credential's configuration); don't know whether the application is multitenant; and
+			// don't want to return an error in the common case that the specified tenant matches the credential's
+			// default tenant determined elsewhere e.g., in some dev tool's configuration.
 			return specified, nil
 		}
 	}
@@ -184,6 +207,10 @@ type msalConfidentialClient interface {
 	AcquireTokenByAuthCode(ctx context.Context, code string, redirectURI string, scopes []string, options ...confidential.AcquireByAuthCodeOption) (confidential.AuthResult, error)
 	AcquireTokenByCredential(ctx context.Context, scopes []string, options ...confidential.AcquireByCredentialOption) (confidential.AuthResult, error)
 	AcquireTokenOnBehalfOf(ctx context.Context, userAssertion string, scopes []string, options ...confidential.AcquireOnBehalfOfOption) (confidential.AuthResult, error)
+}
+
+type msalManagedIdentityClient interface {
+	AcquireToken(context.Context, string, ...managedidentity.AcquireTokenOption) (managedidentity.AuthResult, error)
 }
 
 // enables fakes for test scenarios

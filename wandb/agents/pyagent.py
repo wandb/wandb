@@ -9,6 +9,7 @@ import logging
 import os
 import queue
 import socket
+import sys
 import threading
 import time
 import traceback
@@ -16,6 +17,7 @@ import traceback
 import wandb
 from wandb.apis import InternalApi
 from wandb.sdk.launch.sweeps import utils as sweep_utils
+from wandb.sdk.lib import config_util
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +178,7 @@ class Agent:
                     return
             time.sleep(5)
 
-    def _run_jobs_from_queue(self):  # noqa:C901
+    def _run_jobs_from_queue(self):
         global _INSTANCES
         _INSTANCES += 1
         try:
@@ -222,26 +224,17 @@ class Agent:
                         self._run_status[run_id] = RunStatus.DONE
                     elif self._run_status[run_id] == RunStatus.ERRORED:
                         exc = self._exceptions[run_id]
-                        exc_type, exc_value, exc_traceback = (
-                            exc.__class__,
-                            exc,
-                            exc.__traceback__,
-                        )
-                        exc_traceback_formatted = traceback.format_exception(
-                            exc_type, exc_value, exc_traceback
-                        )
-                        exc_repr = "".join(exc_traceback_formatted)
-                        logger.error(f"Run {run_id} errored:\n{exc_repr}")
-                        wandb.termerror(f"Run {run_id} errored:\n{exc_repr}")
+                        # Extract to reduce a decision point to avoid ruff c901
+                        log_str, term_str = _get_exception_logger_and_term_strs(exc)
+                        logger.error(f"Run {run_id} errored:\n{log_str}")
+                        wandb.termerror(f"Run {run_id} errored:{term_str}")
                         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
                             self._exit_flag = True
                             return
                         elif (
                             time.time() - self._start_time < self.FLAPPING_MAX_SECONDS
                         ) and (len(self._exceptions) >= self.FLAPPING_MAX_FAILURES):
-                            msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(
-                                self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS
-                            )
+                            msg = f"Detected {self.FLAPPING_MAX_FAILURES} failed runs in the first {self.FLAPPING_MAX_SECONDS} seconds, killing sweep."
                             logger.error(msg)
                             wandb.termerror(msg)
                             wandb.termlog(
@@ -253,9 +246,7 @@ class Agent:
                             self._max_initial_failures < len(self._exceptions)
                             and len(self._exceptions) >= count
                         ):
-                            msg = "Detected {} failed runs in a row at start, killing sweep.".format(
-                                self._max_initial_failures
-                            )
+                            msg = f"Detected {self._max_initial_failures} failed runs in a row at start, killing sweep."
                             logger.error(msg)
                             wandb.termerror(msg)
                             wandb.termlog(
@@ -272,13 +263,13 @@ class Agent:
                     wandb.termlog("Ctrl + C detected. Stopping sweep.")
                     self._exit()
                     return
-                except Exception as e:
+                except Exception:
                     if self._exit_flag:
                         logger.debug("Exiting main loop due to exit flag.")
                         wandb.termlog("Sweep Agent: Killed.")
                         return
                     else:
-                        raise e
+                        raise
         finally:
             _INSTANCES -= 1
 
@@ -293,20 +284,29 @@ class Agent:
             base_dir = os.environ.get(wandb.env.DIR, "")
             sweep_param_path = os.path.join(base_dir, config_file)
             os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
-            wandb.wandb_lib.config_util.save_config_file_from_dict(
-                sweep_param_path, job.config
-            )
+            config_util.save_config_file_from_dict(sweep_param_path, job.config)
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id
-            wandb.sdk.wandb_setup._setup(_reset=True)
+            wandb.teardown()
 
             wandb.termlog(f"Agent Starting Run: {run_id} with config:")
             for k, v in job.config.items():
                 wandb.termlog("\t{}: {}".format(k, v["value"]))
 
-            self._function()
+            try:
+                self._function()
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                # Log the run's exceptions directly to stderr to match CLI case, and wrap so we
+                # can identify it as coming from the job later later. This will get automatically
+                # logged by console_capture.py. Exception handler below will also handle exceptions
+                # in setup code.
+                exc_repr = _format_exception_traceback(e)
+                print(exc_repr, file=sys.stderr)  # noqa: T201
+                raise _JobError(f"Run threw exception: {str(e)}") from e
             wandb.finish()
-        except KeyboardInterrupt as ki:
-            raise ki
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             wandb.finish(exit_code=1)
             if self._run_status[run_id] == RunStatus.RUNNING:
@@ -320,9 +320,7 @@ class Agent:
 
     def run(self):
         logger.info(
-            "Starting sweep agent: entity={}, project={}, count={}".format(
-                self._entity, self._project, self._count
-            )
+            f"Starting sweep agent: entity={self._entity}, project={self._project}, count={self._count}"
         )
         self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
@@ -345,7 +343,7 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         count (int, optional): the number of trials to run.
     """
     if not callable(function):
-        raise Exception("function parameter must be callable!")
+        raise TypeError("function parameter must be callable!")
     agent = Agent(
         sweep_id,
         function=function,
@@ -354,6 +352,30 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         count=count,
     )
     agent.run()
+
+
+def _format_exception_traceback(exc):
+    return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+
+class _JobError(Exception):
+    """Exception raised when a job fails during execution."""
+
+    pass
+
+
+def _get_exception_logger_and_term_strs(exc):
+    if isinstance(exc, _JobError) and exc.__cause__:
+        # If it's a JobException, get the original exception for display
+        job_exc = exc.__cause__
+        log_str = _format_exception_traceback(job_exc)
+        # Don't long full stacktrace to terminal again because we already
+        # printed it to stderr.
+        term_str = " " + str(job_exc)
+    else:
+        log_str = _format_exception_traceback(exc)
+        term_str = "\n" + log_str
+    return log_str, term_str
 
 
 _INSTANCES = 0

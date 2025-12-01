@@ -20,6 +20,7 @@ from wandb.sdk.data_types._dtypes import (
     UnionType,
     UnknownType,
 )
+from wandb.sdk.data_types.helper_types import classes as helper_types_classes
 from wandb.sdk.data_types.image import _ImageFileType
 from wandb.sdk.data_types.table import _TableType
 
@@ -440,11 +441,7 @@ def test_classes_type():
         ]
     )
 
-    wb_class_type = (
-        wandb.wandb_sdk.data_types.helper_types.classes._ClassesIdType.from_obj(
-            wb_classes
-        )
-    )
+    wb_class_type = helper_types_classes._ClassesIdType.from_obj(wb_classes)
     assert wb_class_type.assign(1) == wb_class_type
     assert wb_class_type.assign(0) == InvalidType()
 

@@ -80,9 +80,6 @@ func (g *generator) baseTypeForOperation(operation ast.Operation) (*ast.Definiti
 	case ast.Mutation:
 		return g.schema.Mutation, nil
 	case ast.Subscription:
-		if !g.Config.AllowBrokenFeatures {
-			return nil, errorf(nil, "genqlient does not yet support subscriptions")
-		}
 		return g.schema.Subscription, nil
 	default:
 		return nil, errorf(nil, "unexpected operation: %v", operation)
@@ -174,7 +171,8 @@ func (g *generator) convertArguments(
 			return nil, err
 		}
 
-		goName := upperFirst(arg.Variable)
+		goName := arg.Variable
+		goName = ApplyCasing(goName, g.Config.GetDefaultCasingAlgorithm(), true)
 		// Some of the arguments don't apply here, namely the name-prefix (see
 		// names.go) and the selection-set (we use all the input type's fields,
 		// and so on recursively).  See also the `case ast.InputObject` in
@@ -248,6 +246,9 @@ func (g *generator) convertType(
 	def := g.schema.Types[typ.Name()]
 	goTyp, err := g.convertDefinition(
 		namePrefix, def, typ.Position, selectionSet, options, queryOptions)
+	if err != nil {
+		return nil, err
+	}
 
 	if g.getStructReference(def) {
 		if options.Pointer == nil || *options.Pointer {
@@ -274,7 +275,8 @@ func (g *generator) convertType(
 			Elem:         goTyp,
 		}
 	}
-	return goTyp, err
+
+	return goTyp, nil
 }
 
 // getStructReference decides if a field should be of pointer type and have the omitempty flag set.
@@ -344,7 +346,7 @@ func (g *generator) convertDefinition(
 			// name-prefix, append the type-name anyway.  This happens when you
 			// assign a type name to an interface type, and we are generating
 			// one of its implementations.
-			name = makeLongTypeName(namePrefix, def.Name)
+			name = makeLongTypeName(namePrefix, def.Name, g.Config.GetDefaultCasingAlgorithm())
 		}
 		// (But the prefix is shared.)
 		namePrefix = newPrefixList(options.TypeName)
@@ -353,11 +355,11 @@ func (g *generator) convertDefinition(
 		// ever possibly generate for this type, so we don't need any of the
 		// qualifiers.  This is especially helpful because the caller is very
 		// likely to need to reference these types in their code.
-		name = upperFirst(def.Name)
+		name = ApplyCasing(def.Name, g.Config.GetDefaultCasingAlgorithm(), true)
 		// (namePrefix is ignored in this case.)
 	} else {
 		// Else, construct a name using the usual algorithm (see names.go).
-		name = makeTypeName(namePrefix, def.Name)
+		name = makeTypeName(namePrefix, def.Name, g.Config.GetDefaultCasingAlgorithm())
 	}
 
 	// If we already generated the type, we can skip it as long as it matches
@@ -432,7 +434,8 @@ func (g *generator) convertDefinition(
 				return nil, err
 			}
 
-			goName := upperFirst(field.Name)
+			goName := field.Name
+			goName = ApplyCasing(goName, g.Config.GetDefaultCasingAlgorithm(), true)
 			// Several of the arguments don't really make sense here:
 			// (note field.Type is necessarily a scalar, input, or enum)
 			//  - namePrefix is ignored for input types and enums (see
@@ -448,6 +451,24 @@ func (g *generator) convertDefinition(
 				namePrefix, field.Type, nil, fieldOptions, queryOptions)
 			if err != nil {
 				return nil, err
+			}
+
+			if !g.Config.StructReferences {
+				// Only do these validation when StructReferences are not used, as that can generate types that would not
+				// pass these validations. See https://github.com/Khan/genqlient/issues/342
+
+				// Try to protect against generating field type that has possibility to send `null` to non-nullable graphQL
+				// type. This does not protect against lists/slices, as Go zero-slices are already serialized as `null`
+				// (which can therefore currently send invalid graphQL value - e.g. `null` for [String!]!).
+				// And does not protect against custom MarshalJSON.
+				_, isPointer := fieldGoType.(*goPointerType)
+				if field.Type.NonNull && isPointer && !fieldOptions.GetOmitempty() {
+					return nil, errorf(pos, "pointer on non-null input field can only be used together with omitempty: %s.%s", name, field.Name)
+				}
+
+				if fieldOptions.GetOmitempty() && field.Type.NonNull && field.DefaultValue == nil {
+					return nil, errorf(pos, "omitempty may only be used on optional arguments: %s.%s", name, field.Name)
+				}
 			}
 
 			goType.Fields[i] = &goStructField{
@@ -898,8 +919,14 @@ func (g *generator) convertField(
 			field.Position, "undefined field %v", field.Alias)
 	}
 
-	goName := upperFirst(field.Alias)
-	namePrefix = nextPrefix(namePrefix, field)
+	goName := field.Alias
+	if fieldOptions.Alias != "" {
+		goName = fieldOptions.Alias
+	}
+
+	goName = ApplyCasing(goName, g.Config.GetDefaultCasingAlgorithm(), true)
+
+	namePrefix = nextPrefix(namePrefix, field, g.Config.GetDefaultCasingAlgorithm())
 
 	fieldGoType, err := g.convertType(
 		namePrefix, field.Definition.Type, field.SelectionSet,

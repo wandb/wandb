@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"log/slog"
+
+	"github.com/wandb/wandb/core/internal/sentry_ext"
 )
 
 type Tags map[string]string
@@ -36,60 +38,46 @@ func NewTags(args ...any) Tags {
 
 const LevelFatal = slog.Level(12)
 
+type CoreLoggerParams struct {
+	Sentry *sentry_ext.Client
+	Tags   Tags
+}
+
 type CoreLogger struct {
 	*slog.Logger
-	globalTags       Tags
-	captureException func(err error, tags map[string]string)
-	captureMessage   func(msg string, tags map[string]string)
-	reraise          func(err interface{}, tags map[string]string)
+	baseTags Tags
+	sentry   *sentry_ext.Client
 }
 
-type CoreLoggerOption func(cl *CoreLogger)
+func NewCoreLogger(logger *slog.Logger, params *CoreLoggerParams) *CoreLogger {
 
-func WithCaptureMessage(f func(msg string, tags map[string]string)) CoreLoggerOption {
-	return func(cl *CoreLogger) {
-		cl.captureMessage = f
+	if params == nil {
+		params = &CoreLoggerParams{}
+	}
+
+	tags := Tags{}
+	var args []any
+	for key, value := range params.Tags {
+		args = append(args, slog.String(key, value))
+		tags[key] = value
+	}
+
+	return &CoreLogger{
+		Logger:   logger.With(args...),
+		sentry:   params.Sentry,
+		baseTags: tags,
 	}
 }
 
-func WithCaptureException(f func(err error, tags map[string]string)) CoreLoggerOption {
-	return func(cl *CoreLogger) {
-		cl.captureException = f
-	}
-}
-
-func WithReraise(f func(err interface{}, tags map[string]string)) CoreLoggerOption {
-	return func(cl *CoreLogger) {
-		cl.reraise = f
-	}
-}
-
-func WithTags(tags Tags) CoreLoggerOption {
-	return func(cl *CoreLogger) {
-		cl.globalTags = tags
-	}
-}
-
-func NewCoreLogger(logger *slog.Logger, opts ...CoreLoggerOption) *CoreLogger {
-
-	cl := &CoreLogger{}
-	for _, opt := range opts {
-		opt(cl)
-	}
-
-	var args []interface{}
-	for tag := range cl.globalTags {
-		args = append(args, slog.String(tag, cl.globalTags[tag]))
-	}
-	cl.Logger = logger.With(args...)
-	return cl
-}
-
-func (cl *CoreLogger) tagsWithArgs(args ...any) Tags {
+// withArgs applies the given args to the logger's base tags.
+//
+// Merges the given args with the logger's base tags and returns the result.
+// logger's base tags take precedence over args.
+func (cl *CoreLogger) withArgs(args ...any) Tags {
 	tags := NewTags(args...)
 	// add tags from logger:
-	for k, v := range cl.globalTags {
-		tags[k] = v
+	for key, value := range cl.baseTags {
+		tags[key] = value
 	}
 	return tags
 }
@@ -99,37 +87,35 @@ func (cl *CoreLogger) tagsWithArgs(args ...any) Tags {
 //
 // Note that these tags take precedence over tags set by With().
 func (cl *CoreLogger) SetGlobalTags(tags Tags) {
-	for tag := range tags {
-		cl.globalTags[tag] = tags[tag]
+	for key, value := range tags {
+		cl.baseTags[key] = value
 	}
 }
 
 // With returns a derived logger that includes the given tags in each message.
 func (cl *CoreLogger) With(args ...any) *CoreLogger {
 	return &CoreLogger{
-		Logger:           cl.Logger.With(args...),
-		globalTags:       cl.globalTags,
-		captureException: cl.captureException,
-		captureMessage:   cl.captureMessage,
-		reraise:          cl.reraise,
+		Logger:   cl.Logger.With(args...),
+		baseTags: cl.baseTags,
+		sentry:   cl.sentry,
 	}
 }
 
 // CaptureError logs an error and sends it to Sentry.
 func (cl *CoreLogger) CaptureError(err error, args ...any) {
-	cl.Logger.Error(err.Error(), args...)
+	cl.Error(err.Error(), args...)
 
-	if cl.captureException != nil {
-		cl.captureException(err, cl.tagsWithArgs(args...))
+	if cl.sentry != nil {
+		cl.sentry.CaptureException(err, cl.withArgs(args...))
 	}
 }
 
 // CaptureFatal logs a fatal error and sends it to Sentry.
 func (cl *CoreLogger) CaptureFatal(err error, args ...any) {
-	cl.Logger.Log(context.Background(), LevelFatal, err.Error(), args...)
+	cl.Log(context.Background(), LevelFatal, err.Error(), args...)
 
-	if cl.captureException != nil {
-		cl.captureException(err, cl.tagsWithArgs(args...))
+	if cl.sentry != nil {
+		cl.sentry.CaptureException(err, cl.withArgs(args...))
 	}
 }
 
@@ -143,54 +129,49 @@ func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
 
 // CaptureWarn logs a warning and sends it to Sentry.
 func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
-	cl.Logger.Warn(msg, args...)
+	cl.Warn(msg, args...)
 
-	if cl.captureMessage != nil {
-		cl.captureMessage(msg, cl.tagsWithArgs(args...))
+	if cl.sentry != nil {
+		cl.sentry.CaptureMessage(msg, cl.withArgs(args...))
 	}
 }
 
 // CaptureInfo logs an info message and sends it to Sentry.
 func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
-	cl.Logger.Info(msg, args...)
+	cl.Info(msg, args...)
 
-	if cl.captureMessage != nil {
-		cl.captureMessage(msg, cl.tagsWithArgs(args...))
+	if cl.sentry != nil {
+		cl.sentry.CaptureMessage(msg, cl.withArgs(args...))
 	}
 }
 
 // Reraise reports panics to Sentry.
 func (cl *CoreLogger) Reraise(args ...any) {
 	if err := recover(); err != nil {
-		cl.reraise(err, cl.tagsWithArgs(args...))
+		cl.sentry.Reraise(err, cl.withArgs(args...))
 	}
 }
 
 // GetTags returns the tags associated with the logger.
+//
+// Used for testing.
 func (cl *CoreLogger) GetTags() Tags {
-	return cl.globalTags
+	return cl.baseTags
 }
 
 // GetLogger returns the underlying slog.Logger.
-func (cl *CoreLogger) GetLogger() *slog.Logger {
-	return cl.Logger
+//
+// Used for testing.
+func (cl *CoreLogger) GetSentry() *sentry_ext.Client {
+	return cl.sentry
 }
 
-// GetCaptureException returns the function used to capture exceptions.
-func (cl *CoreLogger) GetCaptureException() func(err error, tags map[string]string) {
-	return cl.captureException
-}
-
-// GetCaptureMessage returns the function used to capture messages.
-func (cl *CoreLogger) GetCaptureMessage() func(msg string, tags map[string]string) {
-	return cl.captureMessage
-}
-
+// NewNoOpLogger returns a logger that discards all messages.
+//
+// Used for testing.
 func NewNoOpLogger() *CoreLogger {
-	return NewCoreLogger(slog.New(slog.NewJSONHandler(io.Discard, nil)),
-		WithTags(Tags{}),
-		WithCaptureException(func(err error, tags map[string]string) {}),
-		WithCaptureMessage(func(msg string, tags map[string]string) {}),
-		WithReraise(func(err interface{}, tags map[string]string) {}),
+	return NewCoreLogger(
+		slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		nil,
 	)
 }

@@ -60,7 +60,7 @@ func DynamicSamplingContextFromTransaction(span *Span) DynamicSamplingContext {
 	}
 
 	if dsn := client.dsn; dsn != nil {
-		if publicKey := dsn.publicKey; publicKey != "" {
+		if publicKey := dsn.GetPublicKey(); publicKey != "" {
 			entries["public_key"] = publicKey
 		}
 	}
@@ -100,15 +100,17 @@ func (d DynamicSamplingContext) String() string {
 		}
 		members = append(members, member)
 	}
-	if len(members) > 0 {
-		baggage, err := baggage.New(members...)
-		if err != nil {
-			return ""
-		}
-		return baggage.String()
+
+	if len(members) == 0 {
+		return ""
 	}
 
-	return ""
+	baggage, err := baggage.New(members...)
+	if err != nil {
+		return ""
+	}
+
+	return baggage.String()
 }
 
 // Constructs a new DynamicSamplingContext using a scope and client. Accessing
@@ -134,7 +136,7 @@ func DynamicSamplingContextFromScope(scope *Scope, client *Client) DynamicSampli
 	}
 
 	if dsn := client.dsn; dsn != nil {
-		if publicKey := dsn.publicKey; publicKey != "" {
+		if publicKey := dsn.GetPublicKey(); publicKey != "" {
 			entries["public_key"] = publicKey
 		}
 	}

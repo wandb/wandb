@@ -39,7 +39,7 @@ def test_split_files():
     num_files = 10
     chunk_size = 0.1  # MB
     files = {
-        "file_{}.txt".format(i): {
+        f"file_{i}.txt": {
             "content": rand_string_list(int(file_size * 1024 * 1024)),
             "offset": 0,
         }
@@ -84,7 +84,6 @@ def test_crdedupe_consecutive_offsets():
     fp = CRDedupeFilePolicy()
     console = {1: "a", 2: "a", 3: "a", 8: "a", 12: "a", 13: "a", 30: "a"}
     intervals = fp.get_consecutive_offsets(console)
-    print(intervals)
     assert intervals == [[1, 3], [8, 8], [12, 13], [30, 30]]
 
 
@@ -136,8 +135,6 @@ def test_crdedupe_process_chunks():
             ],
         }
     ]
-    print(f"\n{ret}")
-    print(want)
     assert ret == want
     files["output.log"] = ret
     file_requests = list(split_files(files, max_bytes=util.MAX_LINE_BYTES))
@@ -159,8 +156,6 @@ def test_crdedupe_process_chunks():
         {"offset": 5, "content": ["timestamp stdout progress bar update\n"]},
         {"offset": 7, "content": ["timestamp text\n"]},
     ]
-    print(f"\n{ret}")
-    print(want)
     assert ret == want
     files["output.log"] = ret
     file_requests = list(split_files(files, max_bytes=util.MAX_LINE_BYTES))
@@ -189,8 +184,6 @@ def test_crdedupe_process_chunks():
             ],
         },
     ]
-    print(f"\n{ret}")
-    print(want)
     assert ret == want
     files["output.log"] = ret
     file_requests = list(split_files(files, max_bytes=util.MAX_LINE_BYTES))

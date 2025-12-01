@@ -6,8 +6,8 @@ import wandb
 from tensorboard.compat.proto import summary_pb2
 
 
-def test_(wandb_backend_spy, wandb_init, assets_path):
-    with wandb_init() as run:
+def test_wandb_tf_log(wandb_backend_spy, assets_path):
+    with wandb.init(sync_tensorboard=True) as run:
         summary_pb = open(assets_path("wandb_tensorflow_summary.pb"), "rb").read()
         wandb.tensorboard.log(summary_pb)
 

@@ -20,17 +20,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"regexp"
 	"time"
 
 	"cloud.google.com/go/auth"
 	"cloud.google.com/go/auth/internal"
+	"cloud.google.com/go/auth/internal/transport/headers"
+	"github.com/googleapis/gax-go/v2/internallog"
 )
 
 const (
 	defaultTokenLifetime = "3600s"
 	authHeaderKey        = "Authorization"
 )
+
+var serviceAccountEmailRegex = regexp.MustCompile(`serviceAccounts/(.+?):generateAccessToken`)
 
 // generateAccesstokenReq is used for service account impersonation
 type generateAccessTokenReq struct {
@@ -74,6 +80,13 @@ type Options struct {
 	// Client configures the underlying client used to make network requests
 	// when fetching tokens. Required.
 	Client *http.Client
+	// Logger is used for debug logging. If provided, logging will be enabled
+	// at the loggers configured level. By default logging is disabled unless
+	// enabled by setting GOOGLE_SDK_GO_LOGGING_LEVEL in which case a default
+	// logger will be used. Optional.
+	Logger *slog.Logger
+	// UniverseDomain is the default service domain for a given Cloud universe.
+	UniverseDomain string
 }
 
 func (o *Options) validate() error {
@@ -88,6 +101,7 @@ func (o *Options) validate() error {
 
 // Token performs the exchange to get a temporary service account token to allow access to GCP.
 func (o *Options) Token(ctx context.Context) (*auth.Token, error) {
+	logger := internallog.New(o.Logger)
 	lifetime := defaultTokenLifetime
 	if o.TokenLifetimeSeconds != 0 {
 		lifetime = fmt.Sprintf("%ds", o.TokenLifetimeSeconds)
@@ -106,13 +120,17 @@ func (o *Options) Token(ctx context.Context) (*auth.Token, error) {
 		return nil, fmt.Errorf("credentials: unable to create impersonation request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if err := setAuthHeader(ctx, o.Tp, req); err != nil {
+	sourceToken, err := o.Tp.Token(ctx)
+	if err != nil {
 		return nil, err
 	}
+	headers.SetAuthHeader(sourceToken, req)
+	logger.DebugContext(ctx, "impersonated token request", "request", internallog.HTTPRequest(req, b))
 	resp, body, err := internal.DoRequest(o.Client, req)
 	if err != nil {
 		return nil, fmt.Errorf("credentials: unable to generate access token: %w", err)
 	}
+	logger.DebugContext(ctx, "impersonated token response", "response", internallog.HTTPResponse(resp, body))
 	if c := resp.StatusCode; c < http.StatusOK || c >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("credentials: status code %d: %s", c, body)
 	}
@@ -125,22 +143,26 @@ func (o *Options) Token(ctx context.Context) (*auth.Token, error) {
 	if err != nil {
 		return nil, fmt.Errorf("credentials: unable to parse expiry: %w", err)
 	}
-	return &auth.Token{
+	token := &auth.Token{
 		Value:  accessTokenResp.AccessToken,
 		Expiry: expiry,
 		Type:   internal.TokenTypeBearer,
-	}, nil
+	}
+	return token, nil
 }
 
-func setAuthHeader(ctx context.Context, tp auth.TokenProvider, r *http.Request) error {
-	t, err := tp.Token(ctx)
-	if err != nil {
-		return err
+// ExtractServiceAccountEmail extracts the service account email from the impersonation URL.
+// The impersonation URL is expected to be in the format:
+// https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{SERVICE_ACCOUNT_EMAIL}:generateAccessToken
+// or
+// https://iamcredentials.googleapis.com/v1/projects/{PROJECT_ID}/serviceAccounts/{SERVICE_ACCOUNT_EMAIL}:generateAccessToken
+// Returns an error if the email cannot be extracted.
+func ExtractServiceAccountEmail(impersonationURL string) (string, error) {
+	matches := serviceAccountEmailRegex.FindStringSubmatch(impersonationURL)
+
+	if len(matches) < 2 {
+		return "", fmt.Errorf("credentials: invalid impersonation URL format: %s", impersonationURL)
 	}
-	typ := t.Type
-	if typ == "" {
-		typ = internal.TokenTypeBearer
-	}
-	r.Header.Set(authHeaderKey, typ+" "+t.Value)
-	return nil
+
+	return matches[1], nil
 }

@@ -1,12 +1,29 @@
-"""Public API: teams."""
+"""W&B Public API for managing teams and team members.
 
-import requests
+This module provides classes for managing W&B teams and their members.
+
+Note:
+    This module is part of the W&B Public API and provides methods to manage
+    teams and their members. Team management operations require appropriate
+    permissions.
+"""
+
+from __future__ import annotations
+
 from wandb_gql import gql
 
 from wandb.apis.attrs import Attrs
 
 
 class Member(Attrs):
+    """A member of a team.
+
+    Args:
+        client (`wandb.apis.internal.Api`): The client instance to use
+        team (str): The name of the team this member belongs to
+        attrs (dict): The member attributes
+    """
+
     DELETE_MEMBER_MUTATION = gql(
         """
     mutation DeleteInvite($id: String, $entityName: String) {
@@ -28,6 +45,8 @@ class Member(Attrs):
         Returns:
             Boolean indicating success
         """
+        import requests
+
         try:
             return self._client.execute(
                 self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
@@ -40,6 +59,21 @@ class Member(Attrs):
 
 
 class Team(Attrs):
+    """A class that represents a W&B team.
+
+    This class provides methods to manage W&B teams, including creating teams,
+    inviting members, and managing service accounts. It inherits from Attrs
+    to handle team attributes.
+
+    Args:
+        client (`wandb.apis.public.Api`): The api instance to use
+        name (str): The name of the team
+        attrs (dict): Optional dictionary of team attributes
+
+    Note:
+        Team management requires appropriate permissions.
+    """
+
     CREATE_TEAM_MUTATION = gql(
         """
     mutation CreateTeam($teamName: String!, $teamAdminUserName: String) {
@@ -135,6 +169,8 @@ class Team(Attrs):
         Returns:
             A `Team` object
         """
+        import requests
+
         try:
             api.client.execute(
                 cls.CREATE_TEAM_MUTATION,
@@ -148,12 +184,16 @@ class Team(Attrs):
         """Invite a user to a team.
 
         Args:
-            username_or_email: (str) The username or email address of the user you want to invite
-            admin: (bool) Whether to make this user a team admin, defaults to False
+            username_or_email: (str) The username or email address of the user
+                you want to invite.
+            admin: (bool) Whether to make this user a team admin.
+                Defaults to `False`.
 
         Returns:
-            True on success, False if user was already invited or didn't exist
+            `True` on success, `False` if user was already invited or didn't exist.
         """
+        import requests
+
         variables = {"entityName": self.name, "admin": admin}
         if "@" in username_or_email:
             variables["email"] = username_or_email
@@ -174,6 +214,8 @@ class Team(Attrs):
         Returns:
             The service account `Member` object, or None on failure
         """
+        import requests
+
         try:
             self._client.execute(
                 self.CREATE_SERVICE_ACCOUNT_MUTATION,
@@ -185,6 +227,10 @@ class Team(Attrs):
             return None
 
     def load(self, force=False):
+        """Return members that belong to a team.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if force or not self._attrs:
             response = self._client.execute(self.TEAM_QUERY, {"name": self.name})
             self._attrs = response["entity"]

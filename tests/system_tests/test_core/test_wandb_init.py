@@ -4,7 +4,8 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.errors import CommError, UsageError
+from wandb.errors import AuthenticationError, CommError
+from wandb.sdk.lib import runid
 
 
 def test_upsert_bucket_409(wandb_backend_spy):
@@ -76,44 +77,113 @@ def test_send_wandb_config_start_time_on_init(wandb_backend_spy):
         assert "t" in config["_wandb"]["value"]
 
 
-def test_resume_allow_success(wandb_backend_spy):
-    with wandb.init() as run:
-        run.log({"acc": 10}, step=15, commit=True)
-    with wandb.init(resume="allow", id=run.id) as run:
-        run.log({"acc": 10})
-
-    with wandb_backend_spy.freeze() as snapshot:
-        history = snapshot.history(run_id=run.id)
-        assert history[0]["_step"] == 15
-        assert history[1]["_step"] == 16
-
-
-def test_resume_never_failure(wandb_init):
-    run = wandb_init(project="project")
-    run_id = run.id
-    run.finish()
-
-    with pytest.raises(UsageError):
-        wandb_init(resume="never", id=run_id, project="project")
-
-
-def test_resume_must_failure(wandb_init):
-    with pytest.raises(UsageError):
-        wandb_init(resume="must", project="project")
-
-
-def test_resume_auto_failure(wandb_init, tmp_path):
+def test_resume_auto_failure(user, tmp_path):
     # env vars have a higher priority than the BASE settings
     # so that if that is set (e.g. by some other test/fixture),
     # test_settings.wandb_dir != run_settings.wandb_dir
     # and this test will fail
     with mock.patch.dict(os.environ, {"WANDB_DIR": str(tmp_path.absolute())}):
-        run = wandb_init(project="project", id="resume-me")
+        run = wandb.init(project="project", id="resume-me")
         run.finish()
         resume_fname = run._settings.resume_fname
         with open(resume_fname, "w") as f:
             f.write(json.dumps({"run_id": "resume-me"}))
-        run = wandb_init(resume="auto", project="project")
+        run = wandb.init(resume="auto", project="project")
         assert run.id == "resume-me"
         run.finish(exit_code=3)
         assert os.path.exists(resume_fname)
+
+
+def test_init_param_telemetry(wandb_backend_spy):
+    with wandb.init(
+        name="my-test-run",
+        id=runid.generate_id(),
+        config={"a": 123},
+        tags=["one", "two"],
+    ) as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = snapshot.telemetry(run_id=run.id)["3"]
+        assert 13 in features  # set_init_name
+        assert 14 in features  # set_init_id
+        assert 15 in features  # set_init_tags
+        assert 16 in features  # set_init_config
+
+
+def test_init_param_not_set_telemetry(wandb_backend_spy):
+    with wandb.init() as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = snapshot.telemetry(run_id=run.id)["3"]
+        assert 13 not in features  # set_init_name
+        assert 14 not in features  # set_init_id
+        assert 15 not in features  # set_init_tags
+        assert 16 not in features  # set_init_config
+
+
+def test_init_uses_given_api_key():
+    api_key = "invalid-api-key"
+    with pytest.raises(AuthenticationError, match=r"API key must have 40\+ characters"):
+        wandb.init(settings=wandb.Settings(api_key=api_key))
+
+
+def test_init_with_api_key_no_netrc(user, tmp_path, monkeypatch):
+    netrc_path = str(tmp_path / "netrc")
+    monkeypatch.setenv("NETRC", netrc_path)
+
+    # No netrc before init
+    assert not os.path.exists(netrc_path)
+
+    # Explicitly pass the key
+    with wandb.init(settings=wandb.Settings(api_key=user)):
+        pass
+
+    # No netrc after init
+    assert not os.path.exists(netrc_path)
+
+
+def test_shared_mode_x_label(user):
+    _ = user  # Create a fake user on the backend server.
+
+    with wandb.init() as run:
+        assert run.settings.x_label is None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+        )
+    ) as run:
+        assert run.settings.x_label is not None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+            x_label="node-rank",
+        )
+    ) as run:
+        assert run.settings.x_label == "node-rank"
+
+
+@pytest.mark.parametrize("skip_transaction_log", [True, False])
+def test_skip_transaction_log(user, skip_transaction_log):
+    """Test that the skip transaction log setting works correctly.
+
+    If skip_transaction_log is True, the transaction log file should not be created.
+    If skip_transaction_log is False, the transaction log file should be created.
+    """
+    with wandb.init(
+        settings={
+            "x_skip_transaction_log": skip_transaction_log,
+            "mode": "online",
+        }
+    ) as run:
+        pass
+    assert os.path.exists(run._settings.sync_file) == (not skip_transaction_log)
+
+
+def test_skip_transaction_log_offline(user):
+    """Test that skip transaction log is not allowed in offline mode."""
+    with pytest.raises(ValueError):
+        wandb.init(settings={"mode": "offline", "x_skip_transaction_log": True})

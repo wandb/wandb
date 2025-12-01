@@ -33,12 +33,12 @@ class ImageMask(Media):
 
     Examples:
         ### Logging a single masked image
-        <!--yeadoc-test:log-image-mask-->
+
         ```python
         import numpy as np
         import wandb
 
-        wandb.init()
+        run = wandb.init()
         image = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
         predicted_mask = np.empty((100, 100), dtype=np.uint8)
         ground_truth_mask = np.empty((100, 100), dtype=np.uint8)
@@ -58,20 +58,26 @@ class ImageMask(Media):
         masked_image = wandb.Image(
             image,
             masks={
-                "predictions": {"mask_data": predicted_mask, "class_labels": class_labels},
-                "ground_truth": {"mask_data": ground_truth_mask, "class_labels": class_labels},
+                "predictions": {
+                    "mask_data": predicted_mask,
+                    "class_labels": class_labels,
+                },
+                "ground_truth": {
+                    "mask_data": ground_truth_mask,
+                    "class_labels": class_labels,
+                },
             },
         )
-        wandb.log({"img_with_masks": masked_image})
+        run.log({"img_with_masks": masked_image})
         ```
 
         ### Log a masked image inside a Table
-        <!--yeadoc-test:log-image-mask-table-->
+
         ```python
         import numpy as np
         import wandb
 
-        wandb.init()
+        run = wandb.init()
         image = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
         predicted_mask = np.empty((100, 100), dtype=np.uint8)
         ground_truth_mask = np.empty((100, 100), dtype=np.uint8)
@@ -100,15 +106,21 @@ class ImageMask(Media):
         masked_image = wandb.Image(
             image,
             masks={
-                "predictions": {"mask_data": predicted_mask, "class_labels": class_labels},
-                "ground_truth": {"mask_data": ground_truth_mask, "class_labels": class_labels},
+                "predictions": {
+                    "mask_data": predicted_mask,
+                    "class_labels": class_labels,
+                },
+                "ground_truth": {
+                    "mask_data": ground_truth_mask,
+                    "class_labels": class_labels,
+                },
             },
             classes=class_set,
         )
 
         table = wandb.Table(columns=["image"])
         table.add_data(masked_image)
-        wandb.log({"random_field": table})
+        run.log({"random_field": table})
         ```
     """
 
@@ -135,6 +147,12 @@ class ImageMask(Media):
             self._set_file(val["path"])
         else:
             np = util.get_module("numpy", required="Image mask support requires numpy")
+
+            if util.is_pytorch_tensor_typename(
+                util.get_full_typename(val["mask_data"])
+            ):
+                val["mask_data"] = val["mask_data"].cpu().numpy()
+
             # Add default class mapping
             if "class_labels" not in val:
                 classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
@@ -152,7 +170,7 @@ class ImageMask(Media):
                 "PIL.Image",
                 required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
             )
-            image = pil_image.fromarray(val["mask_data"].astype(np.int8), mode="L")
+            image = pil_image.fromarray(val["mask_data"].astype(np.int8)).convert("L")
 
             image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True, extension=ext)
@@ -191,18 +209,16 @@ class ImageMask(Media):
         )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
-        from wandb.sdk.wandb_run import Run
-
         json_dict = super().to_json(run_or_artifact)
 
-        if isinstance(run_or_artifact, Run):
+        if isinstance(run_or_artifact, wandb.Run):
             json_dict["_type"] = self.type_name()
             return json_dict
         elif isinstance(run_or_artifact, wandb.Artifact):
             # Nothing special to add (used to add "digest", but no longer used.)
             return json_dict
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb.Artifact")
 
     @classmethod
     def type_name(cls: Type["ImageMask"]) -> str:

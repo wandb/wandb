@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 try:
     import fcntl
     import pty
@@ -17,8 +19,10 @@ import sys
 import threading
 import time
 from collections import defaultdict
+from typing import Callable, Iterable, Literal
 
 import wandb
+from wandb.sdk.lib import console_capture
 
 
 class _Numpy:  # fallback in case numpy is not available
@@ -54,8 +58,6 @@ except ImportError:
 
 
 logger = logging.getLogger("wandb")
-
-_redirects = {"stdout": None, "stderr": None}
 
 
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
@@ -491,7 +493,11 @@ _MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
 class RedirectBase:
-    def __init__(self, src, cbs=()):
+    def __init__(
+        self,
+        src: Literal["stdout", "stderr"],
+        cbs: Iterable[Callable[[str], None]] = (),
+    ) -> None:
         """# Arguments.
 
         `src`: Source stream to be redirected. "stdout" or "stderr".
@@ -499,12 +505,12 @@ class RedirectBase:
 
         """
         assert hasattr(sys, src)
-        self.src = src
+        self.src: Literal["stdout", "stderr"] = src
         self.cbs = cbs
 
     @property
     def src_stream(self):
-        return getattr(sys, "__{}__".format(self.src))
+        return getattr(sys, f"__{self.src}__")
 
     @property
     def src_fd(self):
@@ -514,99 +520,113 @@ class RedirectBase:
     def src_wrapped_stream(self):
         return getattr(sys, self.src)
 
-    def save(self):
+    def install(self) -> None:
         pass
 
-    def install(self):
-        curr_redirect = _redirects.get(self.src)
-        if curr_redirect and curr_redirect != self:
-            curr_redirect.uninstall()
-        _redirects[self.src] = self
-
-    def uninstall(self):
-        if _redirects[self.src] != self:
-            return
-        _redirects[self.src] = None
+    def uninstall(self) -> None:
+        pass
 
 
 class StreamWrapper(RedirectBase):
     """Patches the write method of current sys.stdout/sys.stderr."""
 
-    def __init__(self, src, cbs=()):
+    def __init__(
+        self,
+        src: Literal["stdout", "stderr"],
+        cbs: Iterable[Callable[[str], None]] = (),
+        *,
+        flush_periodically: bool,
+    ) -> None:
         super().__init__(src=src, cbs=cbs)
-        self._installed = False
+        self._uninstall: Callable[[], None] | None = None
         self._emulator = TerminalEmulator()
+        self._queue: queue.Queue[str] = queue.Queue()
+        self._stopped = threading.Event()
+        self._flush_periodically = flush_periodically
 
-    def _emulator_write(self):
+    def _emulator_write(self) -> None:
         while True:
             if self._queue.empty():
                 if self._stopped.is_set():
                     return
                 time.sleep(0.5)
                 continue
-            data = []
+
+            data: list[str] = []
             while not self._queue.empty():
                 data.append(self._queue.get())
+
             if self._stopped.is_set() and sum(map(len, data)) > 100000:
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
-                [self.flush(line.encode("utf-8")) for line in data]
+
+                for line in data:
+                    self.flush(line)
+
                 return
+
             try:
                 self._emulator.write("".join(data))
             except Exception:
                 pass
 
-    def _callback(self):
+    def _callback(self) -> None:
         while not (self._stopped.is_set() and self._queue.empty()):
             self.flush()
             time.sleep(_MIN_CALLBACK_INTERVAL)
 
-    def install(self):
-        super().install()
-        if self._installed:
+    def _on_write(self, data: str | bytes, written: int, /) -> None:
+        if isinstance(data, bytes):
+            written_data = data[:written].decode("utf-8")
+        else:
+            written_data = data[:written]
+
+        self._queue.put(written_data)
+
+    def install(self) -> None:
+        if self._uninstall:
             return
-        stream = self.src_wrapped_stream
-        old_write = stream.write
-        self._prev_callback_timestamp = time.time()
-        self._old_write = old_write
 
-        def write(data):
-            self._old_write(data)
-            self._queue.put(data)
+        try:
+            if self.src == "stdout":
+                self._uninstall = console_capture.capture_stdout(self._on_write)
+            else:
+                self._uninstall = console_capture.capture_stderr(self._on_write)
+        except console_capture.CannotCaptureConsoleError:
+            logger.exception("failed to install %s hooks", self.src)
+            wandb.termwarn(
+                f"Failed to wrap {self.src}. Console logs will not be captured.",
+            )
+            return
 
-        stream.write = write
-
-        self._queue = queue.Queue()
-        self._stopped = threading.Event()
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
         self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
 
-        if not wandb.run or wandb.run._settings.mode == "online":
+        if self._flush_periodically:
             self._callback_thread = threading.Thread(target=self._callback)
             self._callback_thread.daemon = True
             self._callback_thread.start()
 
-        self._installed = True
-
-    def flush(self, data=None):
+    def flush(self, data: str | None = None) -> None:
         if data is None:
             try:
                 data = self._emulator.read().encode("utf-8")
             except Exception:
-                pass
+                logger.exception("exception reading TerminalEmulator")
+
         if data:
             for cb in self.cbs:
                 try:
                     cb(data)
                 except Exception:
-                    pass  # TODO(frz)
+                    logger.exception("exception in StreamWrapper callback")
 
-    def uninstall(self):
-        if not self._installed:
+    def uninstall(self) -> None:
+        if not self._uninstall:
             return
-        self.src_wrapped_stream.write = self._old_write
+
+        self._uninstall()
 
         self._stopped.set()
         self._emulator_write_thread.join(timeout=5)
@@ -616,9 +636,6 @@ class StreamWrapper(RedirectBase):
             wandb.termlog("Done.")
         self.flush()
 
-        self._installed = False
-        super().uninstall()
-
 
 class StreamRawWrapper(RedirectBase):
     """Patches the write method of current sys.stdout/sys.stderr.
@@ -626,40 +643,44 @@ class StreamRawWrapper(RedirectBase):
     Captures data in a raw form rather than using the emulator
     """
 
-    def __init__(self, src, cbs=()):
+    def __init__(
+        self,
+        src: Literal["stdout", "stderr"],
+        cbs: Iterable[Callable[[str], None]] = (),
+    ) -> None:
         super().__init__(src=src, cbs=cbs)
-        self._installed = False
+        self._uninstall: Callable[[], None] | None = None
 
-    def save(self):
-        stream = self.src_wrapped_stream
-        self._old_write = stream.write
+    def _on_write(self, data: str | bytes, written: int, /) -> None:
+        if isinstance(data, bytes):
+            written_data = data[:written].decode("utf-8")
+        else:
+            written_data = data[:written]
 
-    def install(self):
-        super().install()
-        if self._installed:
+        for cb in self.cbs:
+            try:
+                cb(written_data)
+            except Exception:
+                logger.exception("error in %s callback", self.src)
+
+    def install(self) -> None:
+        if self._uninstall:
             return
-        stream = self.src_wrapped_stream
-        self._prev_callback_timestamp = time.time()
 
-        def write(data):
-            self._old_write(data)
-            for cb in self.cbs:
-                try:
-                    cb(data)
-                except Exception:
-                    # TODO: Figure out why this was needed and log or error out appropriately
-                    # it might have been strange terminals? maybe shutdown cases?
-                    pass
+        try:
+            if self.src == "stdout":
+                self._uninstall = console_capture.capture_stdout(self._on_write)
+            else:
+                self._uninstall = console_capture.capture_stderr(self._on_write)
+        except console_capture.CannotCaptureConsoleError:
+            logger.exception("failed to install %s hooks", self.src)
+            wandb.termwarn(
+                f"Failed to wrap {self.src}. Console logs will not be captured.",
+            )
 
-        stream.write = write
-        self._installed = True
-
-    def uninstall(self):
-        if not self._installed:
-            return
-        self.src_wrapped_stream.write = self._old_write
-        self._installed = False
-        super().uninstall()
+    def uninstall(self) -> None:
+        if self._uninstall:
+            self._uninstall()
 
 
 class _WindowSizeChangeHandler:
@@ -708,14 +729,17 @@ class _WindowSizeChangeHandler:
 
 _WSCH = _WindowSizeChangeHandler()
 
+_redirects: dict[str, Redirect | None] = {"stdout": None, "stderr": None}
+
 
 class Redirect(RedirectBase):
     """Redirect low level file descriptors."""
 
-    def __init__(self, src, cbs=()):
+    def __init__(self, src, cbs=(), *, flush_periodically: bool):
         super().__init__(src=src, cbs=cbs)
         self._installed = False
         self._emulator = TerminalEmulator()
+        self._flush_periodically = flush_periodically
 
     def _pipe(self):
         if pty:
@@ -725,7 +749,11 @@ class Redirect(RedirectBase):
         return r, w
 
     def install(self):
-        super().install()
+        curr_redirect = _redirects.get(self.src)
+        if curr_redirect and curr_redirect != self:
+            curr_redirect.uninstall()
+        _redirects[self.src] = self
+
         if self._installed:
             return
         self._pipe_read_fd, self._pipe_write_fd = self._pipe()
@@ -743,7 +771,7 @@ class Redirect(RedirectBase):
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
         self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
-        if not wandb.run or wandb.run._settings.mode == "online":
+        if self._flush_periodically:
             self._callback_thread = threading.Thread(target=self._callback)
             self._callback_thread.daemon = True
             self._callback_thread.start()
@@ -752,8 +780,9 @@ class Redirect(RedirectBase):
         if not self._installed:
             return
         self._installed = False
-        # If the user printed a very long string (millions of chars) right before wandb.finish(),
-        # it will take a while for it to reach pipe relay. 1 second is enough time for ~5 million chars.
+        # If the user printed a very long string (millions of chars) right
+        # before run.finish(), it will take a while for it to reach pipe relay.
+        # 1 second is enough time for ~5 million chars.
         time.sleep(1)
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
@@ -776,7 +805,9 @@ class Redirect(RedirectBase):
         self.flush()
 
         _WSCH.remove_fd(self._pipe_read_fd)
-        super().uninstall()
+
+        if _redirects[self.src] == self:
+            _redirects[self.src] = None
 
     def flush(self, data=None):
         if data is None:

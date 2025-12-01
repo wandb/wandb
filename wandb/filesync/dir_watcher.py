@@ -8,16 +8,16 @@ import time
 from typing import TYPE_CHECKING, Any, Mapping, MutableMapping, MutableSet, Optional
 
 from wandb import util
-from wandb.sdk.interface.interface import GlobStr
+from wandb.sdk.lib.filesystem import GlobStr
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     import wandb.vendor.watchdog_0_9_0.observers.api as wd_api
     import wandb.vendor.watchdog_0_9_0.observers.polling as wd_polling
     import wandb.vendor.watchdog_0_9_0.watchdog.events as wd_events
-    from wandb.sdk.interface.interface import PolicyName
     from wandb.sdk.internal.file_pusher import FilePusher
     from wandb.sdk.internal.settings_static import SettingsStatic
+    from wandb.sdk.lib.filesystem import PolicyName
 else:
     wd_polling = util.vendor_import("wandb_watchdog.observers.polling")
     wd_events = util.vendor_import("wandb_watchdog.events")
@@ -233,6 +233,7 @@ class DirWatcher:
             self._savename_file_policies[save_name] = policy
         else:
             self._user_file_policies[policy].add(path)
+
         for src_path in glob.glob(os.path.join(self._dir, path)):
             save_name = LogicalPath(os.path.relpath(src_path, self._dir))
             feh = self._get_file_event_handler(src_path, save_name)
@@ -285,7 +286,7 @@ class DirWatcher:
     #     return LogicalPath(os.path.relpath(path, self._dir))
 
     def _on_file_modified(self, event: "wd_events.FileModifiedEvent") -> None:
-        logger.info(f"file/dir modified: { event.src_path}")
+        logger.info(f"file/dir modified: {event.src_path}")
         if os.path.isdir(event.src_path):
             return None
         save_name = LogicalPath(os.path.relpath(event.src_path, self._dir))

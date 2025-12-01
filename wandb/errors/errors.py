@@ -1,10 +1,13 @@
-from typing import Optional
+from __future__ import annotations
 
 
 class Error(Exception):
-    """Base W&B Error."""
+    """Base W&B Error.
 
-    def __init__(self, message, context: Optional[dict] = None) -> None:
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
+    def __init__(self, message: str, context: dict | None = None) -> None:
         super().__init__(message)
         self.message = message
         # sentry context capture
@@ -15,7 +18,7 @@ class Error(Exception):
 class CommError(Error):
     """Error communicating with W&B servers."""
 
-    def __init__(self, msg, exc=None) -> None:
+    def __init__(self, msg: str, exc: Exception | None = None) -> None:
         self.exc = exc
         self.message = msg
         super().__init__(self.message)

@@ -11,13 +11,10 @@
 // requires Go 1.6 or later)
 //
 // See https://http2.github.io/ for more information on HTTP/2.
-//
-// See https://http2.golang.org/ for a test server running this code.
 package http2 // import "golang.org/x/net/http2"
 
 import (
 	"bufio"
-	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -37,7 +34,15 @@ var (
 	VerboseLogs    bool
 	logFrameWrites bool
 	logFrameReads  bool
-	inTests        bool
+
+	// Enabling extended CONNECT by causes browsers to attempt to use
+	// WebSockets-over-HTTP/2. This results in problems when the server's websocket
+	// package doesn't support extended CONNECT.
+	//
+	// Disable extended CONNECT by default for now.
+	//
+	// Issue #71128.
+	disableExtendedConnectProtocol = true
 )
 
 func init() {
@@ -49,6 +54,9 @@ func init() {
 		VerboseLogs = true
 		logFrameWrites = true
 		logFrameReads = true
+	}
+	if strings.Contains(e, "http2xconnect=1") {
+		disableExtendedConnectProtocol = false
 	}
 }
 
@@ -141,6 +149,10 @@ func (s Setting) Valid() error {
 		if s.Val < 16384 || s.Val > 1<<24-1 {
 			return ConnectionError(ErrCodeProtocol)
 		}
+	case SettingEnableConnectProtocol:
+		if s.Val != 1 && s.Val != 0 {
+			return ConnectionError(ErrCodeProtocol)
+		}
 	}
 	return nil
 }
@@ -150,21 +162,23 @@ func (s Setting) Valid() error {
 type SettingID uint16
 
 const (
-	SettingHeaderTableSize      SettingID = 0x1
-	SettingEnablePush           SettingID = 0x2
-	SettingMaxConcurrentStreams SettingID = 0x3
-	SettingInitialWindowSize    SettingID = 0x4
-	SettingMaxFrameSize         SettingID = 0x5
-	SettingMaxHeaderListSize    SettingID = 0x6
+	SettingHeaderTableSize       SettingID = 0x1
+	SettingEnablePush            SettingID = 0x2
+	SettingMaxConcurrentStreams  SettingID = 0x3
+	SettingInitialWindowSize     SettingID = 0x4
+	SettingMaxFrameSize          SettingID = 0x5
+	SettingMaxHeaderListSize     SettingID = 0x6
+	SettingEnableConnectProtocol SettingID = 0x8
 )
 
 var settingName = map[SettingID]string{
-	SettingHeaderTableSize:      "HEADER_TABLE_SIZE",
-	SettingEnablePush:           "ENABLE_PUSH",
-	SettingMaxConcurrentStreams: "MAX_CONCURRENT_STREAMS",
-	SettingInitialWindowSize:    "INITIAL_WINDOW_SIZE",
-	SettingMaxFrameSize:         "MAX_FRAME_SIZE",
-	SettingMaxHeaderListSize:    "MAX_HEADER_LIST_SIZE",
+	SettingHeaderTableSize:       "HEADER_TABLE_SIZE",
+	SettingEnablePush:            "ENABLE_PUSH",
+	SettingMaxConcurrentStreams:  "MAX_CONCURRENT_STREAMS",
+	SettingInitialWindowSize:     "INITIAL_WINDOW_SIZE",
+	SettingMaxFrameSize:          "MAX_FRAME_SIZE",
+	SettingMaxHeaderListSize:     "MAX_HEADER_LIST_SIZE",
+	SettingEnableConnectProtocol: "ENABLE_CONNECT_PROTOCOL",
 }
 
 func (s SettingID) String() string {
@@ -239,15 +253,13 @@ func (cw closeWaiter) Wait() {
 // idle memory usage with many connections.
 type bufferedWriter struct {
 	_           incomparable
-	group       synctestGroupInterface // immutable
-	conn        net.Conn               // immutable
-	bw          *bufio.Writer          // non-nil when data is buffered
-	byteTimeout time.Duration          // immutable, WriteByteTimeout
+	conn        net.Conn      // immutable
+	bw          *bufio.Writer // non-nil when data is buffered
+	byteTimeout time.Duration // immutable, WriteByteTimeout
 }
 
-func newBufferedWriter(group synctestGroupInterface, conn net.Conn, timeout time.Duration) *bufferedWriter {
+func newBufferedWriter(conn net.Conn, timeout time.Duration) *bufferedWriter {
 	return &bufferedWriter{
-		group:       group,
 		conn:        conn,
 		byteTimeout: timeout,
 	}
@@ -298,24 +310,18 @@ func (w *bufferedWriter) Flush() error {
 type bufferedWriterTimeoutWriter bufferedWriter
 
 func (w *bufferedWriterTimeoutWriter) Write(p []byte) (n int, err error) {
-	return writeWithByteTimeout(w.group, w.conn, w.byteTimeout, p)
+	return writeWithByteTimeout(w.conn, w.byteTimeout, p)
 }
 
 // writeWithByteTimeout writes to conn.
 // If more than timeout passes without any bytes being written to the connection,
 // the write fails.
-func writeWithByteTimeout(group synctestGroupInterface, conn net.Conn, timeout time.Duration, p []byte) (n int, err error) {
+func writeWithByteTimeout(conn net.Conn, timeout time.Duration, p []byte) (n int, err error) {
 	if timeout <= 0 {
 		return conn.Write(p)
 	}
 	for {
-		var now time.Time
-		if group == nil {
-			now = time.Now()
-		} else {
-			now = group.Now()
-		}
-		conn.SetWriteDeadline(now.Add(timeout))
+		conn.SetWriteDeadline(time.Now().Add(timeout))
 		nn, err := conn.Write(p[n:])
 		n += nn
 		if n == len(p) || nn == 0 || !errors.Is(err, os.ErrDeadlineExceeded) {
@@ -397,35 +403,7 @@ func (s *sorter) SortStrings(ss []string) {
 	s.v = save
 }
 
-// validPseudoPath reports whether v is a valid :path pseudo-header
-// value. It must be either:
-//
-//   - a non-empty string starting with '/'
-//   - the string '*', for OPTIONS requests.
-//
-// For now this is only used a quick check for deciding when to clean
-// up Opaque URLs before sending requests from the Transport.
-// See golang.org/issue/16847
-//
-// We used to enforce that the path also didn't start with "//", but
-// Google's GFE accepts such paths and Chrome sends them, so ignore
-// that part of the spec. See golang.org/issue/19103.
-func validPseudoPath(v string) bool {
-	return (len(v) > 0 && v[0] == '/') || v == "*"
-}
-
 // incomparable is a zero-width, non-comparable type. Adding it to a struct
 // makes that struct also non-comparable, and generally doesn't add
 // any size (as long as it's first).
 type incomparable [0]func()
-
-// synctestGroupInterface is the methods of synctestGroup used by Server and Transport.
-// It's defined as an interface here to let us keep synctestGroup entirely test-only
-// and not a part of non-test builds.
-type synctestGroupInterface interface {
-	Join()
-	Now() time.Time
-	NewTimer(d time.Duration) timer
-	AfterFunc(d time.Duration, f func()) timer
-	ContextWithTimeout(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc)
-}

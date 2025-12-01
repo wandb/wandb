@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -32,6 +33,7 @@ import (
 
 	"cloud.google.com/go/auth/internal"
 	"cloud.google.com/go/auth/internal/jwt"
+	"github.com/googleapis/gax-go/v2/internallog"
 )
 
 const (
@@ -360,9 +362,6 @@ func (c *cachedTokenProvider) tokenState() tokenState {
 // blocking call to Token should likely return the same error on the main goroutine.
 func (c *cachedTokenProvider) tokenAsync(ctx context.Context) {
 	fn := func() {
-		c.mu.Lock()
-		c.isRefreshRunning = true
-		c.mu.Unlock()
 		t, err := c.tp.Token(ctx)
 		c.mu.Lock()
 		defer c.mu.Unlock()
@@ -378,6 +377,7 @@ func (c *cachedTokenProvider) tokenAsync(ctx context.Context) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.isRefreshRunning && !c.isRefreshErr {
+		c.isRefreshRunning = true
 		go fn()
 	}
 }
@@ -483,6 +483,8 @@ type Options2LO struct {
 	Audience string
 	// PrivateClaims allows specifying any custom claims for the JWT. Optional.
 	PrivateClaims map[string]interface{}
+	// UniverseDomain is the default service domain for a given Cloud universe.
+	UniverseDomain string
 
 	// Client is the client to be used to make the underlying token requests.
 	// Optional.
@@ -490,6 +492,11 @@ type Options2LO struct {
 	// UseIDToken requests that the token returned be an ID token if one is
 	// returned from the server. Optional.
 	UseIDToken bool
+	// Logger is used for debug logging. If provided, logging will be enabled
+	// at the loggers configured level. By default logging is disabled unless
+	// enabled by setting GOOGLE_SDK_GO_LOGGING_LEVEL in which case a default
+	// logger will be used. Optional.
+	Logger *slog.Logger
 }
 
 func (o *Options2LO) client() *http.Client {
@@ -520,12 +527,13 @@ func New2LOTokenProvider(opts *Options2LO) (TokenProvider, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
-	return tokenProvider2LO{opts: opts, Client: opts.client()}, nil
+	return tokenProvider2LO{opts: opts, Client: opts.client(), logger: internallog.New(opts.Logger)}, nil
 }
 
 type tokenProvider2LO struct {
 	opts   *Options2LO
 	Client *http.Client
+	logger *slog.Logger
 }
 
 func (tp tokenProvider2LO) Token(ctx context.Context) (*Token, error) {
@@ -560,10 +568,12 @@ func (tp tokenProvider2LO) Token(ctx context.Context) (*Token, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	tp.logger.DebugContext(ctx, "2LO token request", "request", internallog.HTTPRequest(req, []byte(v.Encode())))
 	resp, body, err := internal.DoRequest(tp.Client, req)
 	if err != nil {
 		return nil, fmt.Errorf("auth: cannot fetch token: %w", err)
 	}
+	tp.logger.DebugContext(ctx, "2LO token response", "response", internallog.HTTPResponse(resp, body))
 	if c := resp.StatusCode; c < http.StatusOK || c >= http.StatusMultipleChoices {
 		return nil, &Error{
 			Response: resp,

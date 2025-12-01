@@ -4,6 +4,8 @@ package settings
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/auth"
@@ -15,11 +17,18 @@ import (
 //
 // This is derived from the Settings proto and adapted for use in Go.
 type Settings struct {
+	// Mutex to protect access to fields that may be updated.
+	sync.Mutex
 
 	// The source proto.
 	//
 	// DO NOT ADD USAGES. Used to refactor incrementally.
 	Proto *spb.Settings
+}
+
+// Creates a new Settings object.
+func New() *Settings {
+	return &Settings{Proto: &spb.Settings{}}
 }
 
 // Parses the Settings proto into a Settings object.
@@ -63,6 +72,16 @@ func (s *Settings) GetIdentityTokenFile() string {
 	return s.Proto.IdentityTokenFile.GetValue()
 }
 
+// Path to file for writing temporary access tokens.
+func (s *Settings) GetCredentialsFile() string {
+	return s.Proto.CredentialsFile.GetValue()
+}
+
+// Whether we are in silent mode.
+func (s *Settings) IsSilent() bool {
+	return s.Proto.Silent.GetValue()
+}
+
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
@@ -78,6 +97,17 @@ func (s *Settings) GetTransactionLogPath() string {
 	return s.Proto.SyncFile.GetValue()
 }
 
+// Whether to skip saving the run events to the transaction log.
+//
+// This is only relevant for online runs. Can be used to reduce the
+// amount of data written to disk.
+//
+// Should be used with caution, as it removes the gurantees about
+// recoverability.
+func (s *Settings) IsSkipTransactionLog() bool {
+	return s.Proto.XSkipTransactionLog.GetValue()
+}
+
 // Whether we are in shared mode.
 //
 // In "shared" mode, multiple processes can write to the same run,
@@ -88,6 +118,8 @@ func (s *Settings) IsSharedMode() bool {
 
 // The ID of the run.
 func (s *Settings) GetRunID() string {
+	s.Lock()
+	defer s.Unlock()
 	return s.Proto.RunId.GetValue()
 }
 
@@ -98,18 +130,34 @@ func (s *Settings) GetRunURL() string {
 
 // The W&B project ID.
 func (s *Settings) GetProject() string {
+	s.Lock()
+	defer s.Unlock()
 	return s.Proto.Project.GetValue()
 }
 
 // The W&B entity, like a user or a team.
 func (s *Settings) GetEntity() string {
+	s.Lock()
+	defer s.Unlock()
 	return s.Proto.Entity.GetValue()
+}
+
+// The name of the run.
+func (s *Settings) GetDisplayName() string {
+	s.Lock()
+	defer s.Unlock()
+	return s.Proto.RunName.GetValue()
 }
 
 // The start time of the run in microseconds since the Unix epoch.
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()
 	return time.UnixMicro(int64(seconds * 1e6))
+}
+
+// The hostname of the machine running the run.
+func (s *Settings) GetHostname() string {
+	return s.Proto.Host.GetValue()
 }
 
 // The root directory that will be used to derive other paths.
@@ -132,12 +180,18 @@ func (s *Settings) GetInternalLogFile() string {
 
 // Absolute path to the local directory where this run's files are stored.
 func (s *Settings) GetFilesDir() string {
-	return s.Proto.FilesDir.GetValue()
+	// Must match the logic in the Python wandb.Settings.
+	return filepath.Join(s.GetSyncDir(), "files")
 }
 
 // Unix glob patterns relative to `files_dir` to not upload.
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
+}
+
+// The directory for syncing the run from the transaction log.
+func (s *Settings) GetSyncDir() string {
+	return s.Proto.SyncDir.GetValue()
 }
 
 // The URL for the W&B backend.
@@ -241,6 +295,11 @@ func (s *Settings) GetHTTPProxy() string {
 // Custom proxy for https requests to W&B.
 func (s *Settings) GetHTTPSProxy() string {
 	return s.Proto.HttpsProxy.GetValue()
+}
+
+// Whether to disable SSL verification.
+func (s *Settings) IsInsecureDisableSSL() bool {
+	return s.Proto.InsecureDisableSsl.GetValue()
 }
 
 // Path to the script that created the run, if available.
@@ -369,6 +428,26 @@ func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
 }
 
+// Size-based rollover threshold for multipart console logs, in bytes.
+func (s *Settings) GetConsoleChunkMaxBytes() int32 {
+	return s.Proto.ConsoleChunkMaxBytes.GetValue()
+}
+
+// Time-based rollover threshold for multipart console logs, in seconds.
+func (s *Settings) GetConsoleChunkMaxSeconds() int32 {
+	return s.Proto.ConsoleChunkMaxSeconds.GetValue()
+}
+
+// Whether to capture console logs in multipart format.
+//
+// This is used to make sure we don't overwrite the console log file if it
+// already exists.
+//
+// The format is: logs/output_<optional:Settings.Label>_<timestamp>_<nanoseconds>.log
+func (s *Settings) IsConsoleMultipart() bool {
+	return s.Proto.ConsoleMultipart.GetValue()
+}
+
 // Whether to disable metadata collection.
 func (s *Settings) IsDisableMeta() bool {
 	return s.Proto.XDisableMeta.GetValue()
@@ -395,8 +474,20 @@ func (s *Settings) IsDisableStats() bool {
 	return s.Proto.XDisableStats.GetValue()
 }
 
-func (s *Settings) IsPrimaryNode() bool {
-	return s.Proto.XPrimaryNode.GetValue()
+func (s *Settings) IsEnableServerSideDerivedSummary() bool {
+	return s.Proto.XServerSideDerivedSummary.GetValue()
+}
+
+func (s *Settings) IsEnableServerSideExpandGlobMetrics() bool {
+	return s.Proto.XServerSideExpandGlobMetrics.GetValue()
+}
+
+// Determines whether to save internal wandb files and metadata.
+//
+// In a distributed setting, this is useful for avoiding file overwrites from secondary processes
+// when only system metrics and logs are needed, as the primary process handles the main logging.
+func (s *Settings) IsPrimary() bool {
+	return s.Proto.XPrimary.GetValue()
 }
 
 // The size of the buffer for system metrics.
@@ -419,9 +510,19 @@ func (s *Settings) GetStatsDiskPaths() []string {
 	return s.Proto.XStatsDiskPaths.GetValue()
 }
 
+// The indices of GPU devices to monitor.
+func (s *Settings) GetStatsGpuDeviceIds() []int32 {
+	return s.Proto.XStatsGpuDeviceIds.GetValue()
+}
+
 // The path to the Neuron monitor config file.
 func (s *Settings) GetStatsNeuronMonitorConfigPath() string {
 	return s.Proto.XStatsNeuronMonitorConfigPath.GetValue()
+}
+
+// The OpenMetrics API query.
+func (s *Settings) GetStatsDcgmExporter() string {
+	return s.Proto.XStatsDcgmExporter.GetValue()
 }
 
 // The OpenMetrics endpoints to monitor.
@@ -437,6 +538,45 @@ func (s *Settings) GetStatsOpenMetricsFilters() *spb.OpenMetricsFilters {
 // Headers to add to OpenMetrics HTTP requests.
 func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
 	return s.Proto.XStatsOpenMetricsHttpHeaders.GetValue()
+}
+
+// The scheme and hostname for contacting the CoreWeave metadata server.
+func (s *Settings) GetStatsCoreWeaveMetadataBaseURL() string {
+	s.Lock()
+	defer s.Unlock()
+	return s.Proto.XStatsCoreweaveMetadataBaseUrl.GetValue()
+}
+
+// The relative path on the CoreWeave metadata server to which to make requests.
+func (s *Settings) GetStatsCoreWeaveMetadataEndpoint() string {
+	s.Lock()
+	defer s.Unlock()
+	return s.Proto.XStatsCoreweaveMetadataEndpoint.GetValue()
+}
+
+// User-provided CPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsCpuCount() int32 {
+	return s.Proto.XStatsCpuCount.GetValue()
+}
+
+// User-provided Logical CPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsCpuLogicalCount() int32 {
+	return s.Proto.XStatsCpuLogicalCount.GetValue()
+}
+
+// User-provided GPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsGpuCount() int32 {
+	return s.Proto.XStatsGpuCount.GetValue()
+}
+
+// User-provided GPU type to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsGpuType() string {
+	return s.Proto.XStatsGpuType.GetValue()
+}
+
+// Whether to track the process-specific metrics for the entire process tree.
+func (s *Settings) GetStatsTrackProcessTree() bool {
+	return s.Proto.XStatsTrackProcessTree.GetValue()
 }
 
 // The label for the run namespacing for console output and system metrics.
@@ -457,15 +597,49 @@ func (s *Settings) UpdateStartTime(startTime time.Time) {
 
 // Updates the run's entity name.
 func (s *Settings) UpdateEntity(entity string) {
+	s.Lock()
+	defer s.Unlock()
 	s.Proto.Entity = &wrapperspb.StringValue{Value: entity}
 }
 
 // Updates the run's project name.
 func (s *Settings) UpdateProject(project string) {
+	s.Lock()
+	defer s.Unlock()
 	s.Proto.Project = &wrapperspb.StringValue{Value: project}
 }
 
 // Updates the run's display name.
 func (s *Settings) UpdateDisplayName(displayName string) {
+	s.Lock()
+	defer s.Unlock()
 	s.Proto.RunName = &wrapperspb.StringValue{Value: displayName}
+}
+
+// Updates the run ID.
+func (s *Settings) UpdateRunID(runID string) {
+	s.Lock()
+	defer s.Unlock()
+	s.Proto.RunId = &wrapperspb.StringValue{Value: runID}
+}
+
+// Update server-side derived summary computation setting.
+func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
+}
+
+// Updates the scheme and hostname for contacting the CoreWeave metadata server.
+func (s *Settings) UpdateStatsCoreWeaveMetadataBaseURL(baseURL string) {
+	s.Lock()
+	defer s.Unlock()
+	s.Proto.XStatsCoreweaveMetadataBaseUrl = &wrapperspb.StringValue{Value: baseURL}
+}
+
+// Updates the relative path on the CoreWeave metadata server to which to make requests.
+func (s *Settings) UpdateStatsCoreWeaveMetadataEndpoint(endpoint string) {
+	s.Lock()
+	defer s.Unlock()
+	s.Proto.XStatsCoreweaveMetadataEndpoint = &wrapperspb.StringValue{Value: endpoint}
 }

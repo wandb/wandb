@@ -1,0 +1,164 @@
+query RegistryVersions(
+  $organization: String!
+  $registryFilter: JSONString
+  $collectionFilter: JSONString
+  $artifactFilter: JSONString
+  $cursor: String
+  $perPage: Int
+  $includeAliases: Boolean = false
+) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      artifactMemberships(
+        projectFilters: $registryFilter
+        collectionFilters: $collectionFilter
+        filters: $artifactFilter
+        after: $cursor
+        first: $perPage
+      ) {
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactMembershipFragment
+          }
+        }
+      }
+    }
+  }
+}
+
+query RegistryCollections(
+  $organization: String!
+  $registryFilter: JSONString
+  $collectionFilter: JSONString
+  $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO]
+  $cursor: String
+  $perPage: Int
+) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      artifactCollections(
+        projectFilters: $registryFilter
+        filters: $collectionFilter
+        collectionTypes: $collectionTypes
+        after: $cursor
+        first: $perPage
+      ) {
+        totalCount
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...RegistryCollectionFragment
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment RegistryCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  type: defaultArtifactType {
+    name
+  }
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+}
+
+query FetchRegistry($name: String, $entity: String) {
+  entity(name: $entity) {
+    project(name: $name) {
+      ...RegistryFragment
+    }
+  }
+}
+
+query FetchRegistries(
+  $organization: String!
+  $filters: JSONString
+  $cursor: String
+  $perPage: Int
+) {
+  organization(name: $organization) {
+    orgEntity {
+      projects(filters: $filters, after: $cursor, first: $perPage) {
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...RegistryFragment
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment RegistryFragment on Project {
+  __typename
+  id
+  name
+  entity {
+    name
+    organization {
+      name
+    }
+  }
+  description
+  createdAt
+  updatedAt
+  access
+  allowAllArtifactTypes: allowAllArtifactTypesInRegistry
+  artifactTypes(includeAll: true) {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+}
+
+# ------------------ Mutations ------------------
+
+mutation RenameRegistry($input: RenameProjectInput!) {
+  renameProject(input: $input) {
+    inserted
+    project {
+      ...RegistryFragment
+    }
+  }
+}
+
+mutation UpsertRegistry($input: UpsertModelInput!) {
+  upsertModel(input: $input) {
+    inserted
+    project {
+      ...RegistryFragment
+    }
+  }
+}
+
+mutation DeleteRegistry($id: String!) {
+  deleteModel(input: { id: $id }) {
+    success
+  }
+}

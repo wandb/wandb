@@ -30,15 +30,10 @@ func NewForkBranch(
 	}
 }
 
-// ApplyChanges applies the changes to the run params based on the fork
-// information
-func (fb *ForkBranch) ApplyChanges(
-	params *RunParams,
-	runpath RunPath,
-) (*RunParams, error) {
-
+// UpdateForFork sets run metadata for forking.
+func (fb *ForkBranch) UpdateForFork(params *RunParams) error {
 	if fb.metricName != "_step" {
-		return nil, &BranchError{
+		return &BranchError{
 			Err: nil,
 			Response: &spb.ErrorInfo{
 				Code:    spb.ErrorInfo_UNSUPPORTED,
@@ -47,8 +42,8 @@ func (fb *ForkBranch) ApplyChanges(
 		}
 	}
 
-	if fb.metricRunID == runpath.RunID {
-		return nil, &BranchError{
+	if fb.metricRunID == params.RunID {
+		return &BranchError{
 			Err: nil,
 			Response: &spb.ErrorInfo{
 				Code:    spb.ErrorInfo_USAGE,
@@ -57,12 +52,7 @@ func (fb *ForkBranch) ApplyChanges(
 		}
 	}
 
-	r := params.Clone()
-	r.Merge(
-		&RunParams{
-			Forked:       true,
-			StartingStep: int64(fb.metricValue) + 1,
-		},
-	)
-	return r, nil
+	params.Forked = true
+	params.StartingStep = int64(fb.metricValue) + 1
+	return nil
 }

@@ -4,19 +4,20 @@ See wandb_integration_test.py for tests that launch a real backend server.
 """
 
 import glob
-import inspect
 import io
 import os
+import platform
 import tempfile
 import unittest.mock
 from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
+import numpy as np
 import pytest
+import requests
 import wandb
 from wandb.sdk.lib import filesystem
-from wandb.sdk.wandb_init import init as real_wandb_init
 
 
 @pytest.fixture
@@ -61,15 +62,6 @@ def mock_sagemaker():
         create=True,
     ):
         yield
-
-
-def test_wandb_init_fixture_args(wandb_init):
-    """Test that the fixture args are in sync with the real wandb.init()."""
-    # comparing lists of args as order also matters
-    assert (
-        inspect.getfullargspec(real_wandb_init).args
-        == inspect.getfullargspec(wandb_init).args
-    )
 
 
 def test_sagemaker_key():
@@ -165,23 +157,6 @@ def test_custom_dir_env(user):
         )
 
 
-@pytest.mark.xfail(reason="Backend race condition")
-def test_anonymous_mode(user, capsys, local_settings):
-    copied_env = os.environ.copy()
-    copied_env.pop("WANDB_API_KEY")
-    copied_env.pop("WANDB_USERNAME")
-    copied_env.pop("WANDB_ENTITY")
-    with mock.patch.dict("os.environ", copied_env, clear=True):
-        with wandb.init(anonymous="must") as run:
-            run.log({"something": 1})
-
-    _, err = capsys.readouterr()
-    assert (
-        "Do NOT share these links with anyone. They can be used to claim your runs."
-        in err
-    )
-
-
 def test_run_id(user):
     with mock.patch.dict("os.environ", {"WANDB_RUN_ID": "123456"}):
         run = wandb.init()
@@ -226,12 +201,6 @@ def test_run_settags(user):
     with wandb.init() as run:
         run.tags = ("tag1", "tag2")
     assert run.tags == ("tag1", "tag2")
-
-
-def test_run_mode(user):
-    run = wandb.init(mode="dryrun")
-    run.finish()
-    assert run.mode == "dryrun"
 
 
 def test_run_offline(user):
@@ -305,6 +274,40 @@ def test_run_path(user):
         run = wandb.init(mode="offline")
         run.finish()
         assert run.path == "ent1/proj1/run1"
+
+
+def test_run_create_root_dir(user, tmp_path):
+    root_dir = tmp_path / "create_dir_test"
+
+    with wandb.init(dir=root_dir) as run:
+        run.log({"test": 1})
+
+    assert os.path.exists(root_dir)
+
+
+@pytest.mark.skipif(
+    platform.system() == "Linux",
+    reason=(
+        "For tests run in CI on linux, the runas user is root. "
+        "This means that the test can always write to the root dir, "
+        "even if permissions are set to read only."
+    ),
+)
+def test_run_create_root_dir_without_permissions_defaults_to_temp_dir(
+    user,
+    tmp_path,
+):
+    temp_dir = tempfile.gettempdir()
+    root_dir = tmp_path / "no_permissions_test"
+    root_dir.mkdir(parents=True, mode=0o444, exist_ok=True)
+
+    with wandb.init(
+        settings=wandb.Settings(root_dir=os.path.join(root_dir, "missing"))
+    ) as run:
+        run.log({"test": 1})
+
+    assert not os.path.exists(os.path.join(root_dir, "missing"))
+    assert run.settings.root_dir == temp_dir
 
 
 def test_run_projecturl(user):
@@ -455,6 +458,33 @@ def test_log_empty_string(wandb_backend_spy):
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run.id)
         assert history[0]["cool"] == ""
+
+
+def test_log_table_offline_no_network(user, monkeypatch):
+    num_network_calls_made = 0
+    original_request = requests.Session.request
+
+    def mock_request(self, *args, **kwargs):
+        nonlocal num_network_calls_made
+        num_network_calls_made += 1
+        return original_request(self, *args, **kwargs)
+
+    monkeypatch.setattr(requests.Session, "request", mock_request)
+    run = wandb.init(mode="offline")
+    run.log({"table": wandb.Table()})
+    run.finish()
+    assert num_network_calls_made == 0
+    assert run.offline is True
+
+
+def test_log_with_glob_chars(user, wandb_backend_spy):
+    run = wandb.init()
+    run.log({"[glob chars]": wandb.Image(np.random.randint(0, 255, (100, 100, 3)))})
+    run.finish()
+
+    with wandb_backend_spy.freeze() as snapshot:
+        uploaded_files = snapshot.uploaded_files(run_id=run.id)
+        assert any("[glob chars]" in f for f in uploaded_files)
 
 
 # ----------------------------------

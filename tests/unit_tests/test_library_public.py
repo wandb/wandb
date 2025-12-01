@@ -30,6 +30,7 @@ SYMBOLS_ROOT_DATATYPES = {
 
 SYMBOLS_ROOT_SDK = {
     "ArtifactTTL",
+    "Run",
     "login",
     "init",
     "log",
@@ -73,12 +74,12 @@ SYMBOLS_ROOT_OTHER = {
     "alert",
     "api",
     "apis",
+    "automations",
     "beta",
     "catboost",
     "data_types",
     "division",
     "docker",
-    "wandb.docker",  # what is this?
     "dummy",
     "ensure_configured",
     "env",
@@ -109,7 +110,6 @@ SYMBOLS_ROOT_OTHER = {
     "sync",
     "sys",
     "tensorboard",
-    "wandb.tensorboard",  # TODO: much like wandb.docker, this mysteriously failed in CI...?
     "tensorflow",
     "termerror",
     "termlog",
@@ -148,15 +148,14 @@ SYMBOLS_TYPING = {
     "annotations",
 }
 
-SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
+SYMBOLS_SERVICE = {"attach", "_attach", "teardown", "_teardown"}
 
-SYMBOLS_ANALYTICS = {"analytics", "_Sentry", "_sentry"}
+SYMBOLS_ANALYTICS = {"analytics"}
 
 
 def test_library_root():
     symbol_list = dir(wandb)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
-    print("symbols", symbol_public_set)
     symbol_unknown = (
         symbol_public_set
         - SYMBOLS_ROOT_DATATYPES
@@ -177,7 +176,6 @@ SYMBOLS_RUN = {
     "project",
     "name",
     "id",
-    "join",  # deprecate in favor of finish()
     "finish",
     "watch",
     "unwatch",
@@ -196,8 +194,6 @@ SYMBOLS_RUN = {
     "alert",
     "define_metric",
     # "summary",   # really this should be here
-    # mode stuff
-    "mode",
     "disabled",
     "offline",
     "save",
@@ -220,23 +216,23 @@ SYMBOLS_RUN_RESUME = {
 
 # Look into these
 SYMBOLS_RUN_OTHER = {
-    "path",
-    "get_project_url",
+    "get_url",  # deprecated in favor of url
     "url",
-    "get_url",
-    "get_sweep_url",
-    "start_time",
+    "get_project_url",  # deprecated in favor of project_url
+    "project_url",
+    "project_name",  # deprecated in favor of project
+    "get_sweep_url",  # deprecated in favor of sweep_url
+    "sweep_url",
     "sweep_id",
+    "start_time",
+    "path",
     "dir",
-    "project_name",
 }
 
 
 def test_library_run():
-    Run = wandb.wandb_sdk.wandb_run.Run  # noqa: N806
-    symbol_list = dir(Run)
+    symbol_list = dir(wandb.Run)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
-    print("symbols", symbol_public_set)
     symbol_unknown = (
         symbol_public_set
         - SYMBOLS_RUN
@@ -269,7 +265,6 @@ def test_library_config():
     Config = wandb.wandb_sdk.wandb_config.Config  # noqa: N806
     symbol_list = dir(Config)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
-    print("symbols", symbol_public_set)
     symbol_unknown = (
         symbol_public_set - SYMBOLS_CONFIG - SYMBOLS_CONFIG_OTHER - SYMBOLS_TYPING
     )
@@ -307,5 +302,4 @@ SYMBOLS_WANDB_INIT = {
 
 def test_library_init():
     init_params = set(inspect.signature(wandb.init).parameters)
-    print("init_params", init_params)
     assert init_params == SYMBOLS_WANDB_INIT

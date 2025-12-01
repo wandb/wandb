@@ -14,25 +14,25 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import click
 import yaml
 from click.exceptions import ClickException
 
-# pycreds has a find_executable that works in windows
-from dockerpycreds.utils import find_executable
-
 import wandb
-import wandb.env
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
-from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
+from wandb import Config, Error, env, util, wandb_agent
+from wandb.analytics import get_sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
 from wandb.errors.links import url_registry
+from wandb.old import core as old_core
+from wandb.sdk import wandb_login, wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+from wandb.sdk.internal.internal_api import Api as SDKInternalApi
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
@@ -44,7 +44,7 @@ from wandb.sync import SyncManager, get_run_from_path, get_runs
 from .beta import beta
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
-_wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
+_wandb_dir = old_core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
     _wandb_dir = tempfile.gettempdir()
 
@@ -66,6 +66,9 @@ logging.basicConfig(
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
 
+_HAS_DOCKER = bool(shutil.which("docker"))
+_HAS_NVIDIA_DOCKER = bool(shutil.which("nvidia-docker"))
+
 # Click Contexts
 CONTEXT = {"default_map": {}}
 RUN_CONTEXT = {
@@ -82,16 +85,48 @@ def cli_unsupported(argument):
 
 class ClickWandbException(ClickException):
     def format_message(self):
-        # log_file = util.get_log_file_path()
-        log_file = ""
         orig_type = f"{self.orig_type.__module__}.{self.orig_type.__name__}"
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
             return (
-                f"An Exception was raised, see {log_file} for full traceback.\n"
+                f"An Exception was raised, see {_wandb_log_path} for full"
+                " traceback.\n"
                 f"{orig_type}: {self.message}"
             )
+
+
+def parse_service_config(
+    ctx: Optional[click.Context],
+    param: Optional[click.Parameter],
+    value: Optional[Tuple[str, ...]],
+) -> Dict[str, str]:
+    """Parse service configurations in format serviceName=policy."""
+    if not value:
+        return {}
+
+    result = {}
+    for config in value:
+        if "=" not in config:
+            raise click.BadParameter(
+                f"Service must be in format 'serviceName=policy', got '{config}'"
+            )
+
+        service_name, policy = config.split("=", 1)
+        service_name = service_name.strip()
+        policy = policy.strip()
+        if not service_name:
+            raise click.BadParameter("Service name cannot be empty")
+
+        # Simple validation for two policies
+        if policy not in ["always", "never"]:
+            raise click.BadParameter(
+                f"Policy must be 'always' or 'never', got '{policy}'"
+            )
+
+        result[service_name] = policy
+
+    return result
 
 
 def display_error(func):
@@ -104,7 +139,7 @@ def display_error(func):
         except wandb.Error as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-            logger.error("".join(lines))
+            logger.exception("".join(lines))
             wandb.termerror(f"Find detailed error logs at: {_wandb_log_path}")
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
@@ -118,17 +153,14 @@ _api = None  # caching api instance allows patching from unit tests
 
 def _get_cling_api(reset=None):
     """Get a reference to the internal api with cling settings."""
-    # TODO: move CLI to wandb-core backend
-    wandb.require("legacy-service")
-
     global _api
     if reset:
         _api = None
-        wandb_sdk.wandb_setup._setup(_reset=True)
+        wandb.teardown()
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting
-        wandb.setup(settings=wandb.Settings(x_cli_only_mode=True))
+        wandb_setup.singleton().settings.x_cli_only_mode = True
         _api = InternalApi()
     return _api
 
@@ -195,9 +227,9 @@ def projects(entity, display=True):
     api = _get_cling_api()
     projects = api.list_projects(entity=entity)
     if len(projects) == 0:
-        message = "No projects found for {}".format(entity)
+        message = f"No projects found for {entity}"
     else:
-        message = 'Latest projects for "{}"'.format(entity)
+        message = f'Latest projects for "{entity}"'
     if display:
         click.echo(click.style(message, bold=True))
         for project in projects:
@@ -213,84 +245,65 @@ def projects(entity, display=True):
     return projects
 
 
-@cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@cli.command(context_settings=CONTEXT)
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
-@click.option("--host", default=None, help="Login to a specific instance of W&B")
+@click.option(
+    "--host", "--base-url", default=None, help="Login to a specific instance of W&B"
+)
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
-@click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
-@click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
-@display_error
-def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
-    # TODO: move CLI to wandb-core backend
-    wandb.require("legacy-service")
-
-    # TODO: handle no_offline
-    anon_mode = "must" if anonymously else "never"
-
-    wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
-    # A change in click or the test harness means key can be none...
-    key = key[0] if key is not None and len(key) > 0 else None
-    if key:
-        relogin = True
-
-    login_settings = dict(
-        x_cli_only_mode=True,
-        x_disable_viewer=relogin and not verify,
-        anonymous=anon_mode,
-        base_url=host,
-    )
-
-    try:
-        wandb.setup(
-            settings=wandb.Settings(
-                **{k: v for k, v in login_settings.items() if v is not None}
-            )
-        )
-    except TypeError as e:
-        wandb.termerror(str(e))
-        sys.exit(1)
-
-    wandb.login(
-        relogin=relogin,
-        key=key,
-        anonymous=anon_mode,
-        host=host,
-        force=True,
-        verify=verify,
-    )
-
-
-@cli.command(
-    context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
+@click.option(
+    "--anonymously",
+    default=False,
+    hidden=True,
+    is_flag=True,
+    help="Log in anonymously",
 )
 @click.option(
-    "--sock-port", default=None, type=int, help="The host port to bind socket service."
+    "--verify/--no-verify",
+    default=False,
+    is_flag=True,
+    help="Verify login credentials",
 )
-@click.option("--port-filename", default=None, help="Save allocated port to file.")
-@click.option("--address", default=None, help="The address to bind service.")
-@click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
-@click.option("--debug", is_flag=True, help="log debug info")
 @display_error
-def service(
-    sock_port=None,
-    port_filename=None,
-    address=None,
-    pid=None,
-    debug=False,
-):
-    from wandb.sdk.service.server import WandbServer
+def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+    """Verify and store your API key for authentication with W&B services.
 
-    server = WandbServer(
-        sock_port=sock_port,
-        port_fname=port_filename,
-        address=address,
-        pid=pid,
-        debug=debug,
+    By default, only store credentials locally without verifying them with W&B.
+    To verify credentials, set `--verify=True`.
+
+    For server deployments (dedicated cloud or customer-managed instances),
+    specify the host URL using the `--host` flag. You can also set environment
+    variables `WANDB_BASE_URL` and `WANDB_API_KEY` instead of running
+    the `login` command with host parameters.
+    """
+    # TODO: handle no_offline
+    if anonymously:
+        wandb.termwarn(
+            "The --anonymously parameter has no effect and will be removed"
+            + " in a future version.",
+            repeat=False,
+        )
+
+    wandb_login._handle_host_wandb_setting(host, cloud)
+    # A change in click or the test harness means key can be none...
+    key = key[0] if key is not None and len(key) > 0 else None
+    relogin = True if key or relogin else False
+
+    global_settings = wandb_setup.singleton().settings
+    global_settings.x_cli_only_mode = True
+    global_settings.x_disable_viewer = relogin and not verify
+
+    wandb.login(
+        force=True,
+        host=host,
+        key=key,
+        relogin=relogin,
+        verify=verify,
+        referrer="models",
     )
-    server.serve()
 
 
 @cli.command(
@@ -424,15 +437,13 @@ def init(ctx, project, entity, reset, mode):
         """
         ).format(
             code1=click.style("import wandb", bold=True),
-            code2=click.style('wandb.init(project="{}")'.format(project), bold=True),
+            code2=click.style(f'wandb.init(project="{project}")', bold=True),
             run=click.style("python <train.py>", bold=True),
         )
     )
 
 
-@cli.command(
-    context_settings=CONTEXT, help="Upload an offline training directory to W&B"
-)
+@cli.command(context_settings=CONTEXT)
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
 @click.option("--view", is_flag=True, default=False, help="View runs", hidden=True)
@@ -495,6 +506,10 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--show", default=5, help="Number of runs to show")
 @click.option("--append", is_flag=True, default=False, help="Append run")
 @click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
+@click.option(
+    "--replace-tags",
+    help="Replace tags in the format 'old_tag1=new_tag1,old_tag2=new_tag2'",
+)
 @display_error
 def sync(
     ctx,
@@ -520,10 +535,25 @@ def sync(
     clean_force=None,
     append=None,
     skip_console=None,
+    replace_tags=None,
 ):
+    """Synchronize W&B run data to the cloud.
+
+    If PATH is provided, sync runs found at the given path. If a path
+    is not specified, search for `./wandb` first, then search for a
+    `wandb/` subdirectory.
+
+    To sync a specific run:
+
+        wandb sync ./wandb/run-20250813_124246-n67z9ude
+
+    Or equivalently:
+
+        wandb sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
+    """
     api = _get_cling_api()
     if not api.is_authenticated:
-        wandb.termlog("Login to W&B to sync offline runs")
+        wandb.termlog("Login to W&B to sync runs")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
@@ -533,6 +563,10 @@ def sync(
         include_globs = include_globs.split(",")
     if exclude_globs:
         exclude_globs = exclude_globs.split(",")
+
+    replace_tags_dict = _parse_sync_replace_tags(replace_tags)
+    if replace_tags and replace_tags_dict is None:
+        return  # Error already printed by helper function
 
     def _summary():
         all_items = get_runs(
@@ -589,6 +623,7 @@ def sync(
             log_path=_wandb_log_path,
             append=append,
             skip_console=skip_console,
+            replace_tags=replace_tags_dict,
         )
         for p in _path:
             sm.add(p)
@@ -672,6 +707,31 @@ def sync(
         _sync_path(path, sync_tb)
     else:
         _summary()
+
+
+def _parse_sync_replace_tags(replace_tags: str) -> Optional[Dict[str, str]]:
+    """Parse replace_tags string into a dictionary.
+
+    Args:
+        replace_tags: String in format 'old_tag1=new_tag1,old_tag2=new_tag2'
+
+    Returns:
+        Mapping of old tags to new tags, or None if format is invalid
+    """
+    if not replace_tags:
+        return {}
+
+    replace_tags_dict = {}
+    for pair in replace_tags.split(","):
+        if "=" not in pair:
+            wandb.termerror(
+                f"Invalid replace-tags format: {pair}. Use 'old_tag=new_tag' format."
+            )
+            return None
+        old_tag, new_tag = pair.split("=", 1)
+        replace_tags_dict[old_tag.strip()] = new_tag.strip()
+
+    return replace_tags_dict
 
 
 @cli.command(
@@ -780,7 +840,7 @@ def sweep(
             "resume": "Resuming",
         }
         wandb.termlog(f"{ings[state]} sweep {entity}/{project}/{sweep_id}")
-        getattr(api, "{}_sweep".format(state))(sweep_id, entity=entity, project=project)
+        getattr(api, f"{state}_sweep")(sweep_id, entity=entity, project=project)
         wandb.termlog("Done.")
         return
     else:
@@ -899,7 +959,7 @@ def sweep(
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{action} sweep with ID: {styled_id}")
 
-    sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")
@@ -1168,7 +1228,7 @@ def launch_sweep(
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{'Resumed' if resume_id else 'Created'} sweep with ID: {styled_id}")
-    sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")
@@ -1390,7 +1450,7 @@ def launch(
     from wandb.sdk.launch.utils import _is_git_uri
 
     api = _get_cling_api()
-    wandb._sentry.configure_scope(process_context="launch_cli")
+    get_sentry().configure_scope(process_context="launch_cli")
 
     if run_async and queue is not None:
         raise LaunchError(
@@ -1521,12 +1581,12 @@ def launch(
                 wandb.termerror("Launched run exited with non-zero status")
                 sys.exit(1)
         except LaunchError as e:
-            logger.error("=== %s ===", e)
-            wandb._sentry.exception(e)
+            logger.exception("An error occurred.")
+            get_sentry().exception(e)
             sys.exit(e)
         except ExecutionError as e:
-            logger.error("=== %s ===", e)
-            wandb._sentry.exception(e)
+            logger.exception("An error occurred.")
+            get_sentry().exception(e)
             sys.exit(e)
         except asyncio.CancelledError:
             sys.exit(0)
@@ -1554,8 +1614,8 @@ def launch(
             )
 
         except Exception as e:
-            wandb._sentry.exception(e)
-            raise e
+            get_sentry().exception(e)
+            raise
 
 
 @cli.command(
@@ -1629,7 +1689,7 @@ def launch_agent(
         _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
-    wandb._sentry.configure_scope(process_context="launch_agent")
+    get_sentry().configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
         entity, max_jobs, queues, config, verbose
     )
@@ -1645,8 +1705,8 @@ def launch_agent(
     try:
         _launch.create_and_run_agent(api, agent_config)
     except Exception as e:
-        wandb._sentry.exception(e)
-        raise e
+        get_sentry().exception(e)
+        raise
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1699,7 +1759,7 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)
 
-    wandb._sentry.configure_scope(process_context="sweep_scheduler")
+    get_sentry().configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
 
@@ -1723,8 +1783,8 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
-        wandb._sentry.exception(e)
-        raise e
+        get_sentry().exception(e)
+        raise
 
 
 @cli.group(help="Commands for managing and viewing W&B jobs")
@@ -1870,6 +1930,21 @@ def describe(job):
     "job_type",
     type=click.Choice(("git", "code", "image")),
 )
+@click.option(
+    "--service",
+    "-s",
+    "services",
+    multiple=True,
+    callback=parse_service_config,
+    help="Service configurations in format serviceName=policy. Valid policies: always, never",
+    hidden=True,
+)
+@click.option(
+    "--schema",
+    type=str,
+    help="Path to the schema file for the job.",
+    hidden=True,
+)
 @click.argument("path")
 def create(
     path,
@@ -1885,6 +1960,8 @@ def create(
     build_context,
     base_image,
     dockerfile,
+    services,
+    schema,
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1897,7 +1974,7 @@ def create(
     from wandb.sdk.launch.create_job import _create_job
 
     api = _get_cling_api()
-    wandb._sentry.configure_scope(process_context="job_create")
+    get_sentry().configure_scope(process_context="job_create")
 
     entity = entity or os.getenv("WANDB_ENTITY") or api.default_entity
     if not entity:
@@ -1919,6 +1996,12 @@ def create(
         wandb.termerror("Cannot provide --base-image/-B for an `image` job")
         return
 
+    if schema:
+        schema_dict = util.load_json_yaml_dict(schema)
+        if schema_dict is None:
+            wandb.termerror(f"Invalid format for schema file: {schema}")
+            return
+
     artifact, action, aliases = _create_job(
         api=api,
         path=path,
@@ -1934,6 +2017,8 @@ def create(
         build_context=build_context,
         base_image=base_image,
         dockerfile=dockerfile,
+        services=services,
+        schema=schema_dict if schema else None,
     )
     if not artifact:
         wandb.termerror("Job creation failed")
@@ -1977,13 +2062,13 @@ def docker_run(ctx, docker_run_args):
 
     See `docker run --help` for more details.
     """
+    import wandb.docker
+
     api = InternalApi()
     args = list(docker_run_args)
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
-    if len([a for a in args if a.startswith("--runtime")]) == 0 and find_executable(
-        "nvidia-docker"
-    ):
+    if len([a for a in args if a.startswith("--runtime")]) == 0 and _HAS_NVIDIA_DOCKER:
         args = ["--runtime", "nvidia"] + args
     #  TODO: image_from_docker_args uses heuristics to find the docker image arg, there are likely cases
     #  where this won't work
@@ -1992,13 +2077,13 @@ def docker_run(ctx, docker_run_args):
     if image:
         resolved_image = wandb.docker.image_id(image)
     if resolved_image:
-        args = ["-e", "WANDB_DOCKER={}".format(resolved_image)] + args
+        args = ["-e", f"WANDB_DOCKER={resolved_image}"] + args
     else:
         wandb.termlog(
             "Couldn't detect image argument, running command without the WANDB_DOCKER env variable"
         )
     if api.api_key:
-        args = ["-e", "WANDB_API_KEY={}".format(api.api_key)] + args
+        args = ["-e", f"WANDB_API_KEY={api.api_key}"] + args
     else:
         wandb.termlog(
             "Not logged in, run `wandb login` from the host machine to enable result logging"
@@ -2012,7 +2097,7 @@ def docker_run(ctx, docker_run_args):
 @click.argument("docker_image", required=False)
 @click.option(
     "--nvidia/--no-nvidia",
-    default=find_executable("nvidia-docker") is not None,
+    default=_HAS_NVIDIA_DOCKER,
     help="Use the nvidia runtime, defaults to nvidia if nvidia-docker is present",
 )
 @click.option(
@@ -2069,8 +2154,11 @@ def docker(
     variable to an existing docker run command, see the wandb docker-run command.
     """
     api = InternalApi()
-    if not find_executable("docker"):
+    if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
+
+    import wandb.docker
+
     args = list(docker_run_args)
     image = docker_image or ""
     # remove run for users used to nvidia-docker
@@ -2089,17 +2177,13 @@ def docker(
     resolved_image = wandb.docker.image_id(image)
     if resolved_image is None:
         raise ClickException(
-            "Couldn't find image locally or in a registry, try running `docker pull {}`".format(
-                image
-            )
+            f"Couldn't find image locally or in a registry, try running `docker pull {image}`"
         )
     if digest:
         sys.stdout.write(resolved_image)
         exit(0)
 
-    existing = wandb.docker.shell(
-        ["ps", "-f", "ancestor={}".format(resolved_image), "-q"]
-    )
+    existing = wandb.docker.shell(["ps", "-f", f"ancestor={resolved_image}", "-q"])
     if existing:
         if click.confirm(
             "Found running container with the same image, do you want to attach?"
@@ -2113,7 +2197,7 @@ def docker(
         "-e",
         "LANG=C.UTF-8",
         "-e",
-        "WANDB_DOCKER={}".format(resolved_image),
+        f"WANDB_DOCKER={resolved_image}",
         "--ipc=host",
         "-v",
         wandb.docker.entrypoint + ":/wandb-entrypoint.sh",
@@ -2126,7 +2210,7 @@ def docker(
         #  TODO: We should default to the working directory if defined
         command.extend(["-v", cwd + ":" + dir, "-w", dir])
     if api.api_key:
-        command.extend(["-e", "WANDB_API_KEY={}".format(api.api_key)])
+        command.extend(["-e", f"WANDB_API_KEY={api.api_key}"])
     else:
         wandb.termlog(
             "Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics"
@@ -2134,15 +2218,13 @@ def docker(
     if jupyter:
         command.extend(["-e", "WANDB_ENSURE_JUPYTER=1", "-p", port + ":8888"])
         no_tty = True
-        cmd = "jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir {}".format(
-            dir
-        )
+        cmd = f"jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir {dir}"
     command.extend(args)
     if no_tty:
         command.extend([image, shell, "-c", cmd])
     else:
         if cmd:
-            command.extend(["-e", "WANDB_COMMAND={}".format(cmd)])
+            command.extend(["-e", f"WANDB_COMMAND={cmd}"])
         command.extend(["-it", image, shell])
         wandb.termlog("Launching docker container \U0001f6a2")
     subprocess.call(command)
@@ -2202,8 +2284,11 @@ def server():
 @display_error
 def start(ctx, port, env, daemon, upgrade, edge):
     api = InternalApi()
-    if not find_executable("docker"):
+    if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
+
+    import wandb.docker
+
     local_image_sha = wandb.docker.image_id("wandb/local").split("wandb/local")[-1]
     registry_image_sha = wandb.docker.image_id_from_registry("wandb/local").split(
         "wandb/local"
@@ -2216,7 +2301,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
                 "A new version of the W&B server is available, upgrade by calling `wandb server start --upgrade`"
             )
     running = subprocess.check_output(
-        ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"]
+        ["docker", "ps", "--filter", "name=^wandb-local$", "--format", "{{.ID}}"]
     )
     if running != b"":
         if upgrade:
@@ -2228,7 +2313,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
             exit(1)
     image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
     username = getpass.getuser()
-    env_vars = ["-e", "LOCAL_USERNAME={}".format(username)]
+    env_vars = ["-e", f"LOCAL_USERNAME={username}"]
     for e in env:
         env_vars.append("-e")
         env_vars.append(e)
@@ -2262,9 +2347,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
             )
             exit(1)
         else:
-            wandb.termlog(
-                "W&B server started at http://localhost:{} \U0001f680".format(port)
-            )
+            wandb.termlog(f"W&B server started at http://localhost:{port} \U0001f680")
             wandb.termlog("You can stop the server by running `wandb server stop`")
             if not api.api_key:
                 # Let the server start before potentially launching a browser
@@ -2274,7 +2357,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
 
 @server.command(context_settings=RUN_CONTEXT, help="Stop a local W&B server")
 def stop():
-    if not find_executable("docker"):
+    if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
     subprocess.call(["docker", "stop", "wandb-local"])
 
@@ -2399,7 +2482,7 @@ def get(path, root, type):
             settings_entity = public_api.settings["entity"] or public_api.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
             # we need to fetch the org entity to for the user behind the scenes.
-            entity = InternalApi()._resolve_org_entity_name(
+            entity = SDKInternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=organization
             )
         full_path = f"{entity}/{project}/{artifact_name}:{version}"
@@ -2410,7 +2493,7 @@ def get(path, root, type):
         )
         artifact = public_api.artifact(full_path, type=type)
         path = artifact.download(root=root)
-        wandb.termlog("Artifact downloaded to {}".format(path))
+        wandb.termlog(f"Artifact downloaded to {path}")
     except ValueError:
         raise ClickException("Unable to download artifact")
 
@@ -2436,13 +2519,8 @@ def ls(path, type):
                 per_page=1,
             )
             latest = next(versions)
-            print(
-                "{:<15s}{:<15s}{:>15s} {:<20s}".format(
-                    kind.type,
-                    latest.updated_at,
-                    util.to_human_size(latest.size),
-                    latest.name,
-                )
+            wandb.termlog(
+                f"{kind.type:<15s}{latest.updated_at:<15s}{util.to_human_size(latest.size):>15s} {latest.name:<20s}"
             )
 
 
@@ -2462,7 +2540,7 @@ def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
     cache = get_artifact_file_cache()
     reclaimed_bytes = cache.cleanup(target_size, remove_temp)
-    print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
+    wandb.termlog(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
@@ -2488,17 +2566,17 @@ def pull(run, project, entity):
 
     for name in urls:
         if api.file_current(name, urls[name]["md5"]):
-            click.echo("File {} is up to date".format(name))
+            click.echo(f"File {name} is up to date")
         else:
             length, response = api.download_file(urls[name]["url"])
             # TODO: I had to add this because some versions in CI broke click.progressbar
-            sys.stdout.write("File {}\r".format(name))
+            sys.stdout.write(f"File {name}\r")
             dirname = os.path.dirname(name)
             if dirname != "":
                 filesystem.mkdir_exists_ok(dirname)
             with click.progressbar(
                 length=length,
-                label="File {}".format(name),
+                label=f"File {name}",
                 fill_char=click.style("&", fg="green"),
             ) as bar:
                 with open(name, "wb") as f:
@@ -2508,7 +2586,8 @@ def pull(run, project, entity):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Restore code, config and docker state for a run"
+    context_settings=CONTEXT,
+    help="Restore code, config and docker state for a run. Retrieves code from latest commit if code was not saved with `wandb.save()` or `wandb.init(save_code=True)`.",
 )
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
@@ -2527,6 +2606,7 @@ def pull(run, project, entity):
 @display_error
 def restore(ctx, run, no_git, branch, project, entity):
     from wandb.old.core import wandb_dir
+    from wandb.sdk.lib.gitlib import GitRepo
 
     api = _get_cling_api()
     if ":" in run:
@@ -2544,11 +2624,14 @@ def restore(ctx, run, no_git, branch, project, entity):
     )
     repo = metadata.get("git", {}).get("repo")
     image = metadata.get("docker")
-    restore_message = """`wandb restore` needs to be run from the same git repository as the original run.
-Run `git clone {}` and restore from there or pass the --no-git flag.""".format(repo)
+    restore_message = f"""`wandb restore` needs to be run from the same git repository as the original run.
+Run `git clone {repo}` and restore from there or pass the --no-git flag."""
+
+    git = GitRepo(remote=api.settings("git_remote"))
+
     if no_git:
         commit = None
-    elif not api.git.enabled:
+    elif not git.enabled:
         if repo:
             raise ClickException(restore_message)
         elif image:
@@ -2556,11 +2639,11 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
                 "Original run has no git history.  Just restoring config and docker"
             )
 
-    if commit and api.git.enabled:
+    if commit and git.enabled:
         wandb.termlog(f"Fetching origin and finding commit: {commit}")
         subprocess.check_call(["git", "fetch", "--all"])
         try:
-            api.git.repo.commit(commit)
+            git.repo.commit(commit)
         except ValueError:
             wandb.termlog(f"Couldn't find original commit: {commit}")
             commit = None
@@ -2571,7 +2654,7 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
                 ):
                     commit = filename[len("upstream_diff_") : -len(".patch")]
                     try:
-                        api.git.repo.commit(commit)
+                        git.repo.commit(commit)
                     except ValueError:
                         commit = None
                     else:
@@ -2590,27 +2673,23 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
             else:
                 patch_path = None
 
-        branch_name = "wandb/{}".format(run)
-        if branch and branch_name not in api.git.repo.branches:
-            api.git.repo.git.checkout(commit, b=branch_name)
-            wandb.termlog(
-                "Created branch {}".format(click.style(branch_name, bold=True))
-            )
+        branch_name = f"wandb/{run}"
+        if branch and branch_name not in git.repo.branches:
+            git.repo.git.checkout(commit, b=branch_name)
+            wandb.termlog(f"Created branch {click.style(branch_name, bold=True)}")
         elif branch:
             wandb.termlog(
-                "Using existing branch, run `git branch -D {}` from master for a clean checkout".format(
-                    branch_name
-                )
+                f"Using existing branch, run `git branch -D {branch_name}` from master for a clean checkout"
             )
-            api.git.repo.git.checkout(branch_name)
+            git.repo.git.checkout(branch_name)
         else:
-            wandb.termlog("Checking out {} in detached mode".format(commit))
-            api.git.repo.git.checkout(commit)
+            wandb.termlog(f"Checking out {commit} in detached mode")
+            git.repo.git.checkout(commit)
 
         if patch_path:
             # we apply the patch from the repository root so git doesn't exclude
             # things outside the current directory
-            root = api.git.root
+            root = git.root
             patch_rel_path = os.path.relpath(patch_path, start=root)
             # --reject is necessary or else this fails any time a binary file
             # occurs in the diff
@@ -2642,7 +2721,7 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
     with open(config_path, "w") as f:
         f.write(s)
 
-    wandb.termlog("Restored config variables to {}".format(config_path))
+    wandb.termlog(f"Restored config variables to {config_path}")
     if image:
         if not metadata["program"].startswith("<") and metadata.get("args") is not None:
             # TODO: we may not want to default to python here.
@@ -2658,12 +2737,12 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
     return commit, json_config, patch_content, repo, metadata
 
 
-@cli.command("online", help="Enable W&B sync")
+@cli.command("online")
 @display_error
 def online():
+    """Undo `wandb offline`."""
     api = InternalApi()
     try:
-        api.clear_setting("disabled", persist=True)
         api.clear_setting("mode", persist=True)
     except configparser.Error:
         pass
@@ -2672,12 +2751,15 @@ def online():
     )
 
 
-@cli.command("offline", help="Disable W&B sync")
+@cli.command("offline")
 @display_error
 def offline():
+    """Save data logged to W&B locally without uploading it to the cloud.
+
+    Use `wandb online` or `wandb sync` to upload offline runs.
+    """
     api = InternalApi()
     try:
-        api.set_setting("disabled", "true", persist=True)
         api.set_setting("mode", "offline", persist=True)
         click.echo(
             "W&B offline. Running your script from this directory will only write metadata locally. Use wandb disabled to completely turn off W&B."
@@ -2754,7 +2836,37 @@ def enabled(service):
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Verify your local instance")
+@cli.command(
+    context_settings=CONTEXT,
+    help="""Checks and verifies local instance of W&B. W&B checks for:
+
+    Checks that the host is not `api.wandb.ai` (host check).
+
+    Verifies if the user is logged in correctly using the provided API key (login check).
+
+    Checks that requests are made over HTTPS (secure requests).
+
+    Validates the CORS (Cross-Origin Resource Sharing) configuration of the
+    object store (CORS configuration).
+
+    Logs metrics, saves, and downloads files to check if runs are correctly
+    recorded and accessible (run check).
+
+    Saves and downloads artifacts to verify that the artifact storage and
+    retrieval system is working as expected (artifact check).
+
+    Tests the GraphQL endpoint by uploading a file to ensure it can handle
+    signed URL uploads (GraphQL PUT check).
+
+    Checks the ability to send large payloads through the proxy (large payload check).
+
+    Verifies that the installed version of the W&B package is up-to-date and
+    compatible with the server (W&B version check).
+
+    Creates and executes a sweep to ensure that sweep functionality is
+    working correctly (sweeps check).
+""",
+)
 @click.option("--host", default=None, help="Test a specific instance of W&B")
 def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
@@ -2764,13 +2876,13 @@ def verify(host):
     reinit = False
     if host is None:
         host = api.settings("base_url")
-        print(f"Default host selected: {host}")
+        wandb.termlog(f"Default host selected: {host}")
     # if the given host does not match the default host, re-run init
     elif host != api.settings("base_url"):
         reinit = True
 
     tmp_dir = tempfile.mkdtemp()
-    print(
+    wandb.termlog(
         "Find detailed logs for this test at: {}".format(os.path.join(tmp_dir, "wandb"))
     )
     os.chdir(tmp_dir)
@@ -2799,11 +2911,13 @@ def verify(host):
     wandb_verify.check_wandb_version(api)
     check_run_success = wandb_verify.check_run(api)
     check_artifacts_success = wandb_verify.check_artifacts()
+    check_sweeps_success = wandb_verify.check_sweeps(api)
     if not (
         check_artifacts_success
         and check_run_success
         and large_post_success
         and url_success
+        and check_sweeps_success
     ):
         sys.exit(1)
 

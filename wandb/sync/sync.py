@@ -54,10 +54,9 @@ class SyncThread(threading.Thread):
         log_path=None,
         append=None,
         skip_console=None,
+        replace_tags=None,
     ):
         threading.Thread.__init__(self)
-        # mark this process as internal
-        wandb._set_internal_process(disable=True)
         self._sync_list = sync_list
         self._project = project
         self._entity = entity
@@ -71,6 +70,7 @@ class SyncThread(threading.Thread):
         self._log_path = log_path
         self._append = append
         self._skip_console = skip_console
+        self._replace_tags = replace_tags or {}
 
         self._tmp_dir = tempfile.TemporaryDirectory()
         atexit.register(self._tmp_dir.cleanup)
@@ -81,9 +81,9 @@ class SyncThread(threading.Thread):
         record_type = pb.WhichOneof("record_type")
         if self._view:
             if self._verbose:
-                print("Record:", pb)
+                print("Record:", pb)  # noqa: T201
             else:
-                print("Record:", record_type)
+                print("Record:", record_type)  # noqa: T201
             return pb, exit_pb, True
         if record_type == "run":
             if self._run_id:
@@ -94,6 +94,11 @@ class SyncThread(threading.Thread):
                 pb.run.entity = self._entity
             if self._job_type:
                 pb.run.job_type = self._job_type
+            # Replace tags if specified
+            if self._replace_tags:
+                new_tags = [self._replace_tags.get(tag, tag) for tag in pb.run.tags]
+                pb.run.ClearField("tags")
+                pb.run.tags.extend(new_tags)
             pb.control.req_resp = True
         elif record_type in ("output", "output_raw") and self._skip_console:
             return pb, exit_pb, True
@@ -137,7 +142,7 @@ class SyncThread(threading.Thread):
             if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
                 wandb.termwarn("Found .wandb file, not streaming tensorboard metrics.")
             else:
-                print(f"Found {tb_event_files} tfevent files in {tb_root}")
+                print(f"Found {tb_event_files} tfevent files in {tb_root}")  # noqa: T201
                 if len(tb_logdirs) > 3:
                     wandb.termwarn(
                         f"Found {len(tb_logdirs)} directories containing tfevent files. "
@@ -157,13 +162,13 @@ class SyncThread(threading.Thread):
         proto_run.entity = self._entity
         proto_run.telemetry.feature.sync_tfevents = True
 
-        url = "{}/{}/{}/runs/{}".format(
-            self._app_url,
-            url_quote(proto_run.entity),
-            url_quote(proto_run.project),
-            url_quote(proto_run.run_id),
+        url = (
+            f"{self._app_url}"
+            f"/{url_quote(proto_run.entity)}"
+            f"/{url_quote(proto_run.project)}"
+            f"/runs/{url_quote(proto_run.run_id)}"
         )
-        print("Syncing: {} ...".format(url))
+        print(f"Syncing: {url} ...")  # noqa: T201
         sys.stdout.flush()
         # using a handler here automatically handles the step
         # logic, adds summaries to the run, and handles different
@@ -186,7 +191,7 @@ class SyncThread(threading.Thread):
             x_start_time=time.time(),
         )
 
-        settings_static = SettingsStatic(settings.to_proto())
+        settings_static = SettingsStatic(dict(settings))
 
         handle_manager = handler.HandleManager(
             settings=settings_static,
@@ -200,7 +205,12 @@ class SyncThread(threading.Thread):
 
         filesystem.mkdir_exists_ok(settings.files_dir)
         send_manager.send_run(record, file_dir=settings.files_dir)
-        watcher = tb_watcher.TBWatcher(settings, proto_run, new_interface, True)
+        watcher = tb_watcher.TBWatcher(
+            settings_static,
+            proto_run,
+            new_interface,
+            True,
+        )
 
         for tb in tb_logdirs:
             watcher.add(tb, True, tb_root)
@@ -241,11 +251,11 @@ class SyncThread(threading.Thread):
                 )
                 return None
             else:
-                raise e
+                raise
 
     def run(self):
         if self._log_path is not None:
-            print(f"Find logs at: {self._log_path}")
+            print(f"Find logs at: {self._log_path}")  # noqa: T201
         for sync_item in self._sync_list:
             tb_event_files, tb_logdirs, tb_root = self._find_tfevent_files(sync_item)
             if os.path.isdir(sync_item):
@@ -254,7 +264,7 @@ class SyncThread(threading.Thread):
                 if tb_root is None and (
                     check_and_warn_old(files) or len(filtered_files) != 1
                 ):
-                    print(f"Skipping directory: {sync_item}")
+                    print(f"Skipping directory: {sync_item}")  # noqa: T201
                     continue
                 if len(filtered_files) > 0:
                     sync_item = os.path.join(sync_item, filtered_files[0])
@@ -265,7 +275,7 @@ class SyncThread(threading.Thread):
             root_dir = self._tmp_dir.name if sync_tb else os.path.dirname(sync_item)
 
             # When appending we are allowing a possible resume, ie the run
-            # doesnt have to exist already
+            # does not have to exist already
             resume = "allow" if self._append else None
 
             sm = sender.SendManager.setup(root_dir, resume=resume)
@@ -277,7 +287,7 @@ class SyncThread(threading.Thread):
             try:
                 ds.open_for_scan(sync_item)
             except AssertionError as e:
-                print(f".wandb file is empty ({e}), skipping: {sync_item}")
+                print(f".wandb file is empty ({e}), skipping: {sync_item}")  # noqa: T201
                 continue
 
             # save exit for final send
@@ -305,13 +315,13 @@ class SyncThread(threading.Thread):
                     if not shown and result_type == "run_result":
                         r = result.run_result.run
                         # TODO(jhr): hardcode until we have settings in sync
-                        url = "{}/{}/{}/runs/{}".format(
-                            self._app_url,
-                            url_quote(r.entity),
-                            url_quote(r.project),
-                            url_quote(r.run_id),
+                        url = (
+                            f"{self._app_url}"
+                            f"/{url_quote(r.entity)}"
+                            f"/{url_quote(r.project)}"
+                            f"/runs/{url_quote(r.run_id)}"
                         )
-                        print("Syncing: {} ... ".format(url), end="")
+                        print(f"Syncing: {url} ... ", end="")  # noqa: T201
                         sys.stdout.flush()
                         shown = True
             sm.finish()
@@ -320,7 +330,7 @@ class SyncThread(threading.Thread):
                 synced_file = f"{sync_item}{SYNCED_SUFFIX}"
                 with open(synced_file, "w"):
                     pass
-            print("done.")
+            print("done.")  # noqa: T201
 
 
 class SyncManager:
@@ -338,6 +348,7 @@ class SyncManager:
         log_path=None,
         append=None,
         skip_console=None,
+        replace_tags=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -353,6 +364,7 @@ class SyncManager:
         self._log_path = log_path
         self._append = append
         self._skip_console = skip_console
+        self._replace_tags = replace_tags or {}
 
     def status(self):
         pass
@@ -376,6 +388,7 @@ class SyncManager:
             log_path=self._log_path,
             append=self._append,
             skip_console=self._skip_console,
+            replace_tags=self._replace_tags,
         )
         self._thread.start()
 
