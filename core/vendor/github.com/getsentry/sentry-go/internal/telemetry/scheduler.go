@@ -170,7 +170,7 @@ func (s *Scheduler) run() {
 
 func (s *Scheduler) hasWork() bool {
 	for _, buffer := range s.buffers {
-		if !buffer.IsEmpty() {
+		if buffer.IsReadyToFlush() {
 			return true
 		}
 	}
@@ -188,7 +188,7 @@ func (s *Scheduler) processNextBatch() {
 	var bufferToProcess Storage[protocol.EnvelopeItemConvertible]
 	var categoryToProcess ratelimit.Category
 	for category, buffer := range s.buffers {
-		if buffer.Priority() == priority && !s.isRateLimited(category) && buffer.IsReadyToFlush() && s.transport.HasCapacity() {
+		if buffer.Priority() == priority && buffer.IsReadyToFlush() {
 			bufferToProcess = buffer
 			categoryToProcess = category
 			break
@@ -209,7 +209,8 @@ func (s *Scheduler) processItems(buffer Storage[protocol.EnvelopeItemConvertible
 		items = buffer.PollIfReady()
 	}
 
-	if len(items) == 0 {
+	// drop the current batch if rate-limited or if transport is full
+	if len(items) == 0 || s.isRateLimited(category) || !s.transport.HasCapacity() {
 		return
 	}
 
