@@ -179,9 +179,9 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 }
 
 func (h *Handler) Close() {
+	h.logger.Info("handler: closed", "stream_id", h.settings.GetRunID())
 	close(h.outChan)
 	close(h.fwdChan)
-	h.logger.Info("handler: closed", "stream_id", h.settings.GetRunID())
 }
 
 // respond sends a response to the client
@@ -788,16 +788,9 @@ func (h *Handler) handleRequestJobInput(record *spb.Record) {
 //   - Records from the transaction log when syncing
 //   - `updateRunTiming`
 func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
-	for _, update := range summary.Update {
-		err := h.runSummary.SetFromRecord(update)
-		if err != nil {
-			h.logger.CaptureError(
-				fmt.Errorf("handler: error processing summary: %v", err))
-		}
-	}
-
-	for _, remove := range summary.Remove {
-		h.runSummary.RemoveFromRecord(remove)
+	if err := runsummary.FromProto(summary).Apply(h.runSummary); err != nil {
+		h.logger.CaptureError(
+			fmt.Errorf("handler: error processing summary: %v", err))
 	}
 }
 

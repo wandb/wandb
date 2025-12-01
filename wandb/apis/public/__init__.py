@@ -10,7 +10,7 @@ __all__ = (
     "ArtifactTypes",
     "RunArtifacts",
     "Automations",
-    "File",  # doc:exclude
+    "File",
     "Files",
     "HistoryScan",  # doc:exclude
     "SampledHistoryScan",  # doc:exclude
@@ -27,6 +27,7 @@ __all__ = (
     "Sweeps",
     "QueryGenerator",  # doc:exclude
     "Registry",
+    "Registries",  # doc:exclude
     "BetaReport",
     "PanelMetricsHelper",  # doc:exclude
     "PythonMongoishQueryGenerator",  # doc:exclude
@@ -40,7 +41,7 @@ __all__ = (
 )
 
 
-from wandb.apis.public.api import Api, RetryingClient, requests
+from wandb.apis.public.api import Api, RetryingClient
 from wandb.apis.public.artifacts import (
     ArtifactCollection,
     ArtifactCollections,
@@ -52,7 +53,7 @@ from wandb.apis.public.artifacts import (
 )
 from wandb.apis.public.automations import Automations
 from wandb.apis.public.files import FILE_FRAGMENT, File, Files
-from wandb.apis.public.history import HistoryScan, SampledHistoryScan
+from wandb.apis.public.history import BetaHistoryScan, HistoryScan, SampledHistoryScan
 from wandb.apis.public.integrations import SlackIntegrations, WebhookIntegrations
 from wandb.apis.public.jobs import (
     Job,
@@ -64,7 +65,7 @@ from wandb.apis.public.jobs import (
 )
 from wandb.apis.public.projects import PROJECT_FRAGMENT, Project, Projects, Sweeps
 from wandb.apis.public.query_generator import QueryGenerator
-from wandb.apis.public.registries.registry import Registry
+from wandb.apis.public.registries import Registries, Registry
 from wandb.apis.public.reports import (
     BetaReport,
     PanelMetricsHelper,

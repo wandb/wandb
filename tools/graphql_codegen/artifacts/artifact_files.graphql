@@ -1,39 +1,39 @@
-fragment FilesFragment on FileConnection {
-  edges {
-    node {
-      id
-      name: displayName
-      url
-      sizeBytes
-      storagePath @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
-      mimetype
-      updatedAt
-      digest
-      md5
-      directUrl
-    }
-    cursor
-  }
-  pageInfo {
-    endCursor
-    hasNextPage
-  }
+fragment FileFragment on File {
+  __typename
+  id
+  name: displayName
+  url
+  sizeBytes
+  storagePath @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
+  mimetype
+  updatedAt
+  digest
+  md5
+  directUrl
 }
 
 query ArtifactVersionFiles(
-  $entityName: String!
-  $projectName: String!
-  $artifactTypeName: String!
-  $artifactName: String!
+  $entity: String!
+  $project: String!
+  $artifactType: String!
+  $name: String!
   $fileNames: [String!]
-  $fileCursor: String
-  $fileLimit: Int = 50
+  $cursor: String
+  $perPage: Int = 50
 ) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactType(name: $artifactTypeName) {
-      artifact(name: $artifactName) {
-        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
-          ...FilesFragment
+  project(name: $project, entityName: $entity) {
+    artifactType(name: $artifactType) {
+      artifact(name: $name) {
+        files(names: $fileNames, after: $cursor, first: $perPage) {
+          pageInfo {
+            ...PageInfoFragment
+          }
+          edges {
+            node {
+              ...FileFragment
+            }
+          }
+          totalCount @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
         }
       }
     }
@@ -41,51 +41,59 @@ query ArtifactVersionFiles(
 }
 
 query ArtifactCollectionMembershipFiles(
-  $entityName: String!
-  $projectName: String!
-  $artifactName: String!
-  $artifactVersionIndex: String!
+  $entity: String!
+  $project: String!
+  $collection: String!
+  $alias: String!
   $fileNames: [String!]
-  $fileCursor: String
-  $fileLimit: Int = 50
+  $cursor: String
+  $perPage: Int = 50
 ) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactCollection(name: $artifactName) {
-      artifactMembership(aliasName: $artifactVersionIndex) {
-        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
-          ...FilesFragment
+  project(name: $project, entityName: $entity) {
+    artifactCollection(name: $collection) {
+      artifactMembership(aliasName: $alias) {
+        files(names: $fileNames, after: $cursor, first: $perPage) {
+          pageInfo {
+            ...PageInfoFragment
+          }
+          edges {
+            node {
+              ...FileFragment
+            }
+          }
+          totalCount @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
         }
       }
     }
   }
 }
 
-fragment FileUrlsFragment on FileConnection {
-  pageInfo {
-    hasNextPage
-    endCursor
-  }
-  edges {
-    node {
-      name
-      directUrl
-    }
-  }
+fragment FileWithUrlFragment on File {
+  __typename
+  name
+  directUrl
 }
 
 query ArtifactCollectionMembershipFileUrls(
-  $entityName: String!
-  $projectName: String!
-  $artifactName: String!
-  $artifactVersionIndex: String!
+  $entity: String!
+  $project: String!
+  $collection: String!
+  $alias: String!
   $cursor: String
   $perPage: Int
 ) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactCollection(name: $artifactName) {
-      artifactMembership(aliasName: $artifactVersionIndex) {
+  project(name: $project, entityName: $entity) {
+    artifactCollection(name: $collection) {
+      artifactMembership(aliasName: $alias) {
         files(after: $cursor, first: $perPage) {
-          ...FileUrlsFragment
+          pageInfo {
+            ...PageInfoFragment
+          }
+          edges {
+            node {
+              ...FileWithUrlFragment
+            }
+          }
         }
       }
     }
@@ -95,7 +103,14 @@ query ArtifactCollectionMembershipFileUrls(
 query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
   artifact(id: $id) {
     files(after: $cursor, first: $perPage) {
-      ...FileUrlsFragment
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...FileWithUrlFragment
+        }
+      }
     }
   }
 }

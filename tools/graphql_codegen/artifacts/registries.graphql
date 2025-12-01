@@ -5,6 +5,7 @@ query RegistryVersions(
   $artifactFilter: JSONString
   $cursor: String
   $perPage: Int
+  $includeAliases: Boolean = false
 ) {
   organization(name: $organization) {
     orgEntity {
@@ -16,35 +17,14 @@ query RegistryVersions(
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryVersionsPage
-      }
-    }
-  }
-}
-
-fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
-  pageInfo {
-    endCursor
-    hasNextPage
-  }
-  edges {
-    node {
-      artifactCollection {
-        __typename
-        project {
-          name
-          entity {
-            name
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactMembershipFragment
           }
         }
-        name
-      }
-      versionIndex
-      artifact {
-        ...ArtifactFragmentWithoutAliases
-      }
-      aliases {
-        alias
       }
     }
   }
@@ -54,7 +34,7 @@ query RegistryCollections(
   $organization: String!
   $registryFilter: JSONString
   $collectionFilter: JSONString
-  $collectionTypes: [ArtifactCollectionType!]
+  $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO]
   $cursor: String
   $perPage: Int
 ) {
@@ -68,49 +48,45 @@ query RegistryCollections(
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryCollectionsPage
+        totalCount
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...RegistryCollectionFragment
+          }
+        }
       }
     }
   }
 }
 
-fragment RegistryCollectionsPage on ArtifactCollectionConnection {
-  totalCount
-  pageInfo {
-    endCursor
-    hasNextPage
+fragment RegistryCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  project {
+    ...ProjectInfoFragment
   }
-  edges {
-    cursor
-    node {
-      __typename
-      id
-      name
-      description
-      createdAt
-      tags {
-        edges {
-          node {
-            name
-          }
-        }
+  type: defaultArtifactType {
+    name
+  }
+  tags {
+    edges {
+      node {
+        ...TagFragment
       }
-      project {
-        name
-        entity {
-          name
-        }
-      }
-      defaultArtifactType {
-        name
-      }
-      aliases {
-        edges {
-          node {
-            alias
-          }
-        }
-      }
+    }
+  }
+}
+
+query FetchRegistry($name: String, $entity: String) {
+  entity(name: $entity) {
+    project(name: $name) {
+      ...RegistryFragment
     }
   }
 }
@@ -123,29 +99,35 @@ query FetchRegistries(
 ) {
   organization(name: $organization) {
     orgEntity {
-      name
       projects(filters: $filters, after: $cursor, first: $perPage) {
-        ...RegistriesPage
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...RegistryFragment
+          }
+        }
       }
     }
   }
 }
 
-fragment RegistriesPage on ProjectConnection {
-  pageInfo {
-    endCursor
-    hasNextPage
-  }
-  edges {
-    node {
-      ...RegistryFragment
+fragment RegistryFragment on Project {
+  __typename
+  id
+  name
+  entity {
+    name
+    organization {
+      name
     }
   }
-}
-
-fragment RegistryFragment on Project {
-  id
-  allowAllArtifactTypesInRegistry
+  description
+  createdAt
+  updatedAt
+  access
+  allowAllArtifactTypes: allowAllArtifactTypesInRegistry
   artifactTypes(includeAll: true) {
     edges {
       node {
@@ -153,9 +135,30 @@ fragment RegistryFragment on Project {
       }
     }
   }
-  name
-  description
-  createdAt
-  updatedAt
-  access
+}
+
+# ------------------ Mutations ------------------
+
+mutation RenameRegistry($input: RenameProjectInput!) {
+  renameProject(input: $input) {
+    inserted
+    project {
+      ...RegistryFragment
+    }
+  }
+}
+
+mutation UpsertRegistry($input: UpsertModelInput!) {
+  upsertModel(input: $input) {
+    inserted
+    project {
+      ...RegistryFragment
+    }
+  }
+}
+
+mutation DeleteRegistry($id: String!) {
+  deleteModel(input: { id: $id }) {
+    success
+  }
 }

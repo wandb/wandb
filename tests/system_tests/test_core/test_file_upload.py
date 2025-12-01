@@ -22,7 +22,7 @@ import wandb
 )
 def test_upload_wandb_files(wandb_backend_spy, x_primary, files):
     with wandb.init(settings=wandb.Settings(x_primary=x_primary)) as run:
-        pass
+        print("SWEET")
 
     with wandb_backend_spy.freeze() as snapshot:
         uploaded_files = set(snapshot.uploaded_files(run_id=run.id))
@@ -41,7 +41,7 @@ def test_upload_wandb_files_windows_with_label(wandb_backend_spy, x_label, files
     with wandb.init(
         settings=wandb.Settings(x_label=x_label, x_primary=False),
     ) as run:
-        pass
+        print("SWEET")
 
     with wandb_backend_spy.freeze() as snapshot:
         assert files == set(snapshot.uploaded_files(run_id=run.id))
@@ -59,7 +59,7 @@ def test_upload_wandb_files_non_windows_with_label(wandb_backend_spy, x_label, f
     with wandb.init(
         settings=wandb.Settings(x_label=x_label, x_primary=False),
     ) as run:
-        pass
+        print("SWEET")
 
     with wandb_backend_spy.freeze() as snapshot:
         assert files == set(snapshot.uploaded_files(run_id=run.id))

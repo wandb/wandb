@@ -162,7 +162,7 @@
       "dualStackDnsSuffix" : "api.aws.ic.gov",
       "implicitGlobalRegion" : "us-iso-east-1",
       "name" : "aws-iso",
-      "supportsDualStack" : false,
+      "supportsDualStack" : true,
       "supportsFIPS" : true
     },
     "regionRegex" : "^us\\-iso\\-\\w+\\-\\d+$",
@@ -184,7 +184,7 @@
       "dualStackDnsSuffix" : "api.aws.scloud",
       "implicitGlobalRegion" : "us-isob-east-1",
       "name" : "aws-iso-b",
-      "supportsDualStack" : false,
+      "supportsDualStack" : true,
       "supportsFIPS" : true
     },
     "regionRegex" : "^us\\-isob\\-\\w+\\-\\d+$",
@@ -194,6 +194,9 @@
       },
       "us-isob-east-1" : {
         "description" : "US ISOB East (Ohio)"
+      },
+      "us-isob-west-1" : {
+        "description" : "US ISOB West"
       }
     }
   }, {
@@ -203,7 +206,7 @@
       "dualStackDnsSuffix" : "api.cloud-aws.adc-e.uk",
       "implicitGlobalRegion" : "eu-isoe-west-1",
       "name" : "aws-iso-e",
-      "supportsDualStack" : false,
+      "supportsDualStack" : true,
       "supportsFIPS" : true
     },
     "regionRegex" : "^eu\\-isoe\\-\\w+\\-\\d+$",
@@ -222,7 +225,7 @@
       "dualStackDnsSuffix" : "api.aws.hci.ic.gov",
       "implicitGlobalRegion" : "us-isof-south-1",
       "name" : "aws-iso-f",
-      "supportsDualStack" : false,
+      "supportsDualStack" : true,
       "supportsFIPS" : true
     },
     "regionRegex" : "^us\\-isof\\-\\w+\\-\\d+$",

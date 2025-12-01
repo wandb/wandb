@@ -1,0 +1,106 @@
+fragment TeamMemberFragment on Member {
+  # Selection set chosen to align with the TEAM_QUERY query
+  # defined in: wandb/apis/public/teams.py
+  __typename
+  id
+  role
+  pending
+  email
+  username
+  name
+  photoUrl
+  accountType
+  apiKey
+}
+
+fragment TeamFragment on Entity {
+  # Selection set chosen to align with the TEAM_QUERY query
+  # defined in: wandb/apis/public/teams.py
+  __typename
+  id
+  name
+  available
+  photoUrl
+  readOnly
+  readOnlyAdmin
+  isTeam
+  privateOnly
+  storageBytes
+  codeSavingEnabled
+  defaultAccess
+  isPaid
+  members {
+    ...TeamMemberFragment
+  }
+}
+
+fragment RegistryRoleFragment on Role {
+  name
+}
+
+fragment UserRegistryMemberFragment on ProjectMember {
+  # Selection set chosen to align with the CREATE_USER mutation
+  # defined in: wandb/apis/public/users.py
+  id
+  name
+  username
+  email
+  role {
+    ...RegistryRoleFragment
+  }
+}
+
+fragment TeamRegistryMemberFragment on ProjectTeamMember {
+  team {
+    ...TeamFragment
+  }
+  role {
+    ...RegistryRoleFragment
+  }
+}
+
+# Fetches user members of a registry.
+query RegistryUserMembers($project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    members {
+      ...UserRegistryMemberFragment
+    }
+  }
+}
+
+# Fetches team members of a registry.
+query RegistryTeamMembers($project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    teamMembers {
+      ...TeamRegistryMemberFragment
+    }
+  }
+}
+
+# Adds user and team members to a registry.
+mutation CreateRegistryMembers($input: CreateProjectMembersInput!) {
+  result: createProjectMembers(input: $input) {
+    success
+  }
+}
+
+# Removes user and team members from a registry.
+mutation DeleteRegistryMembers($input: DeleteProjectMembersInput!) {
+  result: deleteProjectMembers(input: $input) {
+    success
+  }
+}
+
+# Updates the assigned role of a user member of a registry.
+mutation UpdateUserRegistryRole($input: UpdateProjectMemberInput!) {
+  result: updateProjectMember(input: $input) {
+    success
+  }
+}
+
+# Updates the assigned role of a team member of a registry.
+mutation UpdateTeamRegistryRole($input: UpdateProjectTeamMemberInput!) {
+  result: updateProjectTeamMember(input: $input) {
+    success
+  }
+}

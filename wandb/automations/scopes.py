@@ -8,13 +8,13 @@ from pydantic import BeforeValidator, Field
 from typing_extensions import Annotated, TypeAlias, get_args
 
 from wandb._pydantic import GQLBase
-from wandb.automations._generated import (
+
+from ._generated import (
     ArtifactPortfolioScopeFields,
     ArtifactSequenceScopeFields,
     ProjectScopeFields,
 )
-
-from ._validators import LenientStrEnum, to_scope
+from ._validators import LenientStrEnum, parse_scope
 
 
 # NOTE: Re-defined publicly with a more readable name for easier access
@@ -36,7 +36,7 @@ class _ArtifactSequenceScope(_BaseScope, ArtifactSequenceScopeFields):
 
 
 class _ArtifactPortfolioScope(_BaseScope, ArtifactPortfolioScopeFields):
-    """An automation scope defined by a specific `ArtifactPortfolio` (e.g. a registry collection)."""
+    """Automation scope defined by an `ArtifactPortfolio` (e.g. a registry collection)."""
 
     scope_type: Literal[ScopeType.ARTIFACT_COLLECTION] = ScopeType.ARTIFACT_COLLECTION
 
@@ -44,7 +44,7 @@ class _ArtifactPortfolioScope(_BaseScope, ArtifactPortfolioScopeFields):
 # for type annotations
 ArtifactCollectionScope = Annotated[
     Union[_ArtifactSequenceScope, _ArtifactPortfolioScope],
-    BeforeValidator(to_scope),
+    BeforeValidator(parse_scope),
     Field(discriminator="typename__"),
 ]
 """An automation scope defined by a specific `ArtifactCollection`."""
@@ -64,12 +64,11 @@ class ProjectScope(_BaseScope, ProjectScopeFields):
 # for type annotations
 AutomationScope: TypeAlias = Annotated[
     Union[_ArtifactSequenceScope, _ArtifactPortfolioScope, ProjectScope],
-    BeforeValidator(to_scope),
+    BeforeValidator(parse_scope),
     Field(discriminator="typename__"),
 ]
 # for runtime type checks
 AutomationScopeTypes: tuple[type, ...] = get_args(AutomationScope.__origin__)  # type: ignore[attr-defined]
-
 
 __all__ = [
     "ScopeType",

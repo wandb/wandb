@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go/attribute"
+	"github.com/getsentry/sentry-go/internal/debuglog"
 )
 
 type LogLevel string
@@ -65,7 +66,7 @@ func NewLogger(ctx context.Context) Logger {
 	}
 
 	client := hub.Client()
-	if client != nil && client.batchLogger != nil {
+	if client != nil && client.options.EnableLogs {
 		return &sentryLogger{
 			ctx:        ctx,
 			client:     client,
@@ -74,12 +75,11 @@ func NewLogger(ctx context.Context) Logger {
 		}
 	}
 
-	DebugLogger.Println("fallback to noopLogger: enableLogs disabled")
-	return &noopLogger{} // fallback: does nothing
+	debuglog.Println("fallback to noopLogger: enableLogs disabled")
+	return &noopLogger{}
 }
 
 func (l *sentryLogger) Write(p []byte) (int, error) {
-	// Avoid sending double newlines to Sentry
 	msg := strings.TrimRight(string(p), "\n")
 	l.Info().Emit(msg)
 	return len(p), nil
@@ -89,20 +89,30 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	if message == "" {
 		return
 	}
-	hub := GetHubFromContext(ctx)
-	if hub == nil {
-		hub = CurrentHub()
-	}
-
 	var traceID TraceID
 	var spanID SpanID
 	var span *Span
 	var user User
 
+	span = SpanFromContext(ctx)
+	if span == nil {
+		span = SpanFromContext(l.ctx)
+	}
+	hub := GetHubFromContext(ctx)
+	if hub == nil {
+		hub = GetHubFromContext(l.ctx)
+	}
+	if hub == nil {
+		hub = CurrentHub()
+	}
+
 	scope := hub.Scope()
 	if scope != nil {
 		scope.mu.Lock()
-		span = scope.span
+		// Use span from hub only as last resort
+		if span == nil {
+			span = scope.span
+		}
 		if span != nil {
 			traceID = span.TraceID
 			spanID = span.SpanID
@@ -134,8 +144,6 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	for k, v := range entryAttrs {
 		attrs[k] = v
 	}
-
-	// Set default attributes
 	if release := l.client.options.Release; release != "" {
 		attrs["sentry.release"] = Attribute{Value: release, Type: AttributeString}
 	}
@@ -183,11 +191,17 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	}
 
 	if log != nil {
-		l.client.batchLogger.logCh <- *log
+		if l.client.telemetryBuffer != nil {
+			if !l.client.telemetryBuffer.Add(log) {
+				debuglog.Print("Dropping event: log buffer full or category missing")
+			}
+		} else if l.client.batchLogger != nil {
+			l.client.batchLogger.logCh <- *log
+		}
 	}
 
 	if l.client.options.Debug {
-		DebugLogger.Printf(message, args...)
+		debuglog.Printf(message, args...)
 	}
 }
 
@@ -198,7 +212,7 @@ func (l *sentryLogger) SetAttributes(attrs ...attribute.Builder) {
 	for _, v := range attrs {
 		t, ok := mapTypesToStr[v.Value.Type()]
 		if !ok || t == "" {
-			DebugLogger.Printf("invalid attribute type set: %v", t)
+			debuglog.Printf("invalid attribute type set: %v", t)
 			continue
 		}
 
@@ -276,7 +290,7 @@ func (l *sentryLogger) Panic() LogEntry {
 		level:       LogLevelFatal,
 		severity:    LogSeverityFatal,
 		attributes:  make(map[string]Attribute),
-		shouldPanic: true, // this should panic instead of exit
+		shouldPanic: true,
 	}
 }
 

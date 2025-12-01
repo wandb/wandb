@@ -1,8 +1,6 @@
 package sentry
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,18 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getsentry/sentry-go/internal/debuglog"
+	"github.com/getsentry/sentry-go/internal/protocol"
 	exec "golang.org/x/sys/execabs"
 )
 
 func uuid() string {
-	id := make([]byte, 16)
-	// Prefer rand.Read over rand.Reader, see https://go-review.googlesource.com/c/go/+/272326/.
-	_, _ = rand.Read(id)
-	id[6] &= 0x0F // clear version
-	id[6] |= 0x40 // set version to 4 (random uuid)
-	id[8] &= 0x3F // clear variant
-	id[8] |= 0x80 // set to IETF variant
-	return hex.EncodeToString(id)
+	return protocol.GenerateEventID()
 }
 
 func fileExists(fileName string) bool {
@@ -62,7 +55,7 @@ func defaultRelease() (release string) {
 	}
 	for _, e := range envs {
 		if release = os.Getenv(e); release != "" {
-			DebugLogger.Printf("Using release from environment variable %s: %s", e, release)
+			debuglog.Printf("Using release from environment variable %s: %s", e, release)
 			return release
 		}
 	}
@@ -89,23 +82,23 @@ func defaultRelease() (release string) {
 			if err, ok := err.(*exec.ExitError); ok && len(err.Stderr) > 0 {
 				fmt.Fprintf(&s, ": %s", err.Stderr)
 			}
-			DebugLogger.Print(s.String())
+			debuglog.Print(s.String())
 		} else {
 			release = strings.TrimSpace(string(b))
-			DebugLogger.Printf("Using release from Git: %s", release)
+			debuglog.Printf("Using release from Git: %s", release)
 			return release
 		}
 	}
 
-	DebugLogger.Print("Some Sentry features will not be available. See https://docs.sentry.io/product/releases/.")
-	DebugLogger.Print("To stop seeing this message, pass a Release to sentry.Init or set the SENTRY_RELEASE environment variable.")
+	debuglog.Print("Some Sentry features will not be available. See https://docs.sentry.io/product/releases/.")
+	debuglog.Print("To stop seeing this message, pass a Release to sentry.Init or set the SENTRY_RELEASE environment variable.")
 	return ""
 }
 
 func revisionFromBuildInfo(info *debug.BuildInfo) string {
 	for _, setting := range info.Settings {
 		if setting.Key == "vcs.revision" && setting.Value != "" {
-			DebugLogger.Printf("Using release from debug info: %s", setting.Value)
+			debuglog.Printf("Using release from debug info: %s", setting.Value)
 			return setting.Value
 		}
 	}

@@ -1,0 +1,12 @@
+*.log
+~*
+*.tmp
+tmp
+*.txt
+dist
+*.test
+*.prof
+*.conf
+**/.env
+**/bin/**
+*.out

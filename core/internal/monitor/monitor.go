@@ -20,6 +20,7 @@ import (
 
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -71,6 +72,9 @@ type SystemMonitor struct {
 	// The in-memory metrics buffer for the system monitor.
 	buffer *Buffer
 
+	// runHandle is a handle to the eventually-initialized run.
+	runHandle *runhandle.RunHandle
+
 	// settings is the settings for the system monitor.
 	settings *settings.Settings
 
@@ -95,6 +99,9 @@ type SystemMonitorFactory struct {
 	// A logger for internal debug logging.
 	Logger *observability.CoreLogger
 
+	// RunHandle is a handle to the eventually-initialized run.
+	RunHandle *runhandle.RunHandle
+
 	// Stream settings.
 	Settings *settings.Settings
 
@@ -117,6 +124,7 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 		ctx:              ctx,
 		cancel:           cancel,
 		wg:               sync.WaitGroup{},
+		runHandle:        f.RunHandle,
 		settings:         f.Settings,
 		logger:           f.Logger,
 		extraWork:        extraWork,
@@ -172,7 +180,7 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 			fmt.Errorf("monitor: failed to initialize GPU resource: %v", err))
 	}
 
-	if tpu := NewTPU(); tpu != nil {
+	if tpu := NewTPU(sm.logger); tpu != nil {
 		sm.resources = append(sm.resources, tpu)
 	}
 
@@ -185,6 +193,7 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 		CoreWeaveMetadataParams{
 			GraphqlClient: sm.graphqlClient,
 			Logger:        sm.logger,
+			RunHandle:     sm.runHandle,
 			Settings:      sm.settings,
 		},
 	); cwm != nil {

@@ -64,9 +64,23 @@ def convert_v2_config(v2_config: dict[str, Any]) -> dict[str, Any]:
     return {
         # Convert v2 config keys to v1 keys
         **{_V1_CONFIG_KEYS.get(k, k): v for k, v in v2_config.items()},
-        # This is a v1-only config key. In v2, it no longer exists and is effectively always True.
+        # This is a v1-only config key. In v2 it no longer exists and is
+        # effectively always True.
         "underscore_attrs_are_private": True,
     }
+
+
+# HACKS: In older python versions and/or pydantic v1, we have fewer
+# tools to help us resolve annotations reliably before the type is fully built.
+# String comparison is brittle, but it'll have to do.
+def _is_list_like_ann(ann_str: str) -> bool:
+    # Handle "Optional[List[T]]", "List[T]", "list[T]"
+    return ann_str.strip().lower().startswith(("list[", "optional[list["))
+
+
+def _is_str_like_ann(ann_str: str) -> bool:
+    # Handle "Optional[str]", "str"
+    return ann_str.strip().lower() in {"str", "optional[str]"}
 
 
 @lru_cache(maxsize=None)  # Reduce repeat introspection via `signature()`
@@ -75,11 +89,9 @@ def allowed_arg_names(func: Callable) -> set[str]:
     return set(signature(func).parameters)
 
 
-# Pydantic BaseModels are defined with a custom metaclass, but its namespace
-# has changed between pydantic versions.
-#
-# In v1, it can be imported as `from pydantic.main import ModelMetaclass`
-# In v2, it's defined in an internal module so we avoid directly importing it.
+# Pydantic BaseModels use a custom metaclass, but its namespace changed between
+# versions. In v1 import it via `from pydantic.main import ModelMetaclass`; in
+# v2 it lives in an internal module, so avoid importing it directly.
 PydanticModelMetaclass: type = type(pydantic.BaseModel)
 
 
@@ -91,7 +103,16 @@ class V1MixinMetaclass(PydanticModelMetaclass):
         namespace: dict[str, Any],
         **kwargs: Any,
     ):
-        # In the class definition, convert the model config, if any:
+        # Type checks run in a Pydantic v2 environment, so tell mypy to analyze
+        # certain types in here as if they were from v1.
+        # Note that this code should never even run unless Pydantic v1 is detected.
+        if TYPE_CHECKING:
+            from pydantic.v1.fields import FieldInfo
+        else:
+            from pydantic.fields import FieldInfo
+
+        # ------------------------------------------------------------------------------
+        # Convert any inline model config, e.g.:
         #     class MyModel(BaseModel):  # BEFORE (v2)
         #         model_config = ConfigDict(populate_by_name=True)
         #
@@ -100,6 +121,30 @@ class V1MixinMetaclass(PydanticModelMetaclass):
         #             allow_population_by_field_name = True
         if config_dict := namespace.pop("model_config", None):
             namespace["Config"] = type("Config", (), convert_v2_config(config_dict))
+
+        # ------------------------------------------------------------------------------
+        # Rename v2 Field() args to their v1 equivalents, if possible
+        if annotations := namespace.get("__annotations__"):
+            for field_name, obj in namespace.items():
+                if (
+                    # Process annotated `Field(...)` assignments
+                    isinstance(field := obj, FieldInfo)
+                    and (ann := annotations.get(field_name))
+                ):
+                    # For list-like fields, rename:
+                    # - `max_length (v2) -> max_items (v1)`
+                    # - `min_length (v2) -> min_items (v1)`
+                    # In v1: lists -> `{min,max}_items`; strings -> `{min,max}_length`.
+                    # In v2: lists OR strings -> `{min,max}_length`.
+                    if _is_list_like_ann(ann):
+                        field.max_items, field.max_length = field.max_length, None
+                        field.min_items, field.min_length = field.min_length, None
+
+                    # For str-like fields, rename:
+                    # - `pattern (v2) -> regex (v1)`
+                    elif _is_str_like_ann(ann):
+                        field.regex = field.extra.pop("pattern", None)
+
         return super().__new__(cls, name, bases, namespace, **kwargs)
 
     @property
@@ -107,12 +152,9 @@ class V1MixinMetaclass(PydanticModelMetaclass):
         return self.__fields__  # type: ignore[deprecated]
 
 
-# Mixin to ensure compatibility of Pydantic models if Pydantic v1 is detected.
-# These are "best effort" implementations and cannot guarantee complete
-# compatibility in v1 environments.
-#
-# Whenever possible, users should strongly prefer upgrading to Pydantic v2 to
-# ensure full compatibility.
+# Mixin to maintain compatibility with Pydantic v1. These are best-effort
+# shims and cannot guarantee complete compatibility. Whenever possible, prefer
+# upgrading to Pydantic v2 for full support.
 class V1Mixin(metaclass=V1MixinMetaclass):
     # Internal compat helpers
     @classmethod
@@ -157,7 +199,8 @@ class V1Mixin(metaclass=V1MixinMetaclass):
         allowed_keys = allowed_arg_names(self.dict) & kwargs.keys()
         dict_ = self.dict(**{k: kwargs[k] for k in allowed_keys})
 
-        # Ugly hack: Try to serialize `Json` fields correctly when `round_trip=True` in pydantic v1
+        # Hack: serialize `Json` fields correctly when `round_trip=True` in
+        # pydantic v1.
         if kwargs.get("round_trip", False):
             by_alias: bool = kwargs.get("by_alias", False)
             return self._dump_json_vals(dict_, by_alias=by_alias)
@@ -169,7 +212,8 @@ class V1Mixin(metaclass=V1MixinMetaclass):
         allowed_keys = allowed_arg_names(self.json) & kwargs.keys()
         json_ = self.json(**{k: kwargs[k] for k in allowed_keys})
 
-        # Ugly hack: Try to serialize `Json` fields correctly when `round_trip=True` in pydantic v1
+        # Hack: serialize `Json` fields correctly when `round_trip=True` in
+        # pydantic v1.
         if kwargs.get("round_trip", False):
             by_alias: bool = kwargs.get("by_alias", False)
             dict_ = json.loads(json_)
@@ -187,7 +231,8 @@ class V1Mixin(metaclass=V1MixinMetaclass):
         return self.__fields_set__
 
 
-# Placeholder. Pydantic v2 is already compatible with itself, so no need for extra mixins.
+# Placeholder. Pydantic v2 is already compatible with itself, so no extra
+# mixins are required.
 class V2Mixin:
     pass
 
@@ -223,11 +268,12 @@ else:
     V2ValidatorMode = Literal["before", "after", "wrap", "plain"]
 
     # NOTE:
-    # - `to_lower_camel` in v1 is the equivalent of `to_camel` in v2 (i.e. to lowerCamelCase)
-    # - `to_camel` in v1 is the equivalent of `to_pascal` in v2 (i.e. to UpperCamelCase)
+    # - `to_lower_camel` in v1 equals `to_camel` in v2 (lowerCamelCase).
+    # - `to_camel` in v1 equals `to_pascal` in v2 (UpperCamelCase).
     to_camel = to_lower_camel
 
-    # Lets us use `@field_validator` from v2, while calling `@validator` from v1 if needed.
+    # Ensures we can use v2's `@field_validator` by invoking v1's `@validator`
+    # if v1 is detected.
     def field_validator(
         *fields: str,
         mode: V2ValidatorMode = "after",
@@ -242,27 +288,29 @@ else:
             allow_reuse=True,
         )
 
-    # Lets us use `@model_validator` from v2, while calling `@root_validator` from v1 if needed.
+    # Ensures we can use v2's `@model_validator` by invoking v1's `@root_validator`
+    # if v1 is detected.
     def model_validator(*, mode: V2ValidatorMode, **_: Any) -> Callable:
         if mode == "after":
 
             def _decorator(v2_method: Callable) -> Any:
-                # Patch the behavior for `@model_validator(mode="after")` in v1.
-                #
-                # This is necessarily complicated because:
-                # - `@model_validator(mode="after")` always decorates an instance method in v2,
-                #   i.e. the decorated function has `self` as the first arg.
-                # - `@root_validator(pre=False)` always decorates a classmethod in v1,
-                #   i.e. the decorated function has `cls` as the first arg.
+                # Patch the behavior for `@model_validator(mode="after")` in
+                # v1. This is complicated because:
+                # - In v2 it decorates an instance method, so the function takes
+                #   `self` as the first argument.
+                # - In v1 `@root_validator(pre=False)` decorates a classmethod,
+                #   so the function takes `cls` as the first argument.
 
                 def v1_method(
                     cls: type[V1Model], values: dict[str, Any]
                 ) -> dict[str, Any]:
-                    # values should already be validated in an "after" validator, so use `construct()`
-                    # to instantiate without (re-)validating.
+                    # Values should already be validated in an "after"
+                    # validator, so use `construct()` to instantiate without
+                    # revalidating.
                     v_self = v2_method(cls.construct(**values))
 
-                    # Pydantic v1 expects the validator to return a dict of {field_name -> value}
+                    # Pydantic v1 expects the validator to return a
+                    # `{field_name -> value}` mapping.
                     return {f: getattr(v_self, f) for f in v_self.__fields__}
 
                 return pydantic.root_validator(pre=False, allow_reuse=True)(  # type: ignore[call-overload]
@@ -293,7 +341,7 @@ else:
         return always_property if (func is None) else always_property(func)
 
     class AliasChoices:  # type: ignore [no-redef]
-        """Placeholder class for Pydantic v2's AliasChoices for partial v1 compatibility."""
+        """Placeholder for Pydantic v2's AliasChoices to retain partial v1 support."""
 
         aliases: list[str]
 

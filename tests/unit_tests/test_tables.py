@@ -348,7 +348,7 @@ def test_table_logging_mode_incremental_warnings(mock_wandb_log):
 
     t.add_data("test", "test")
 
-    assert mock_wandb_log.warned(
+    mock_wandb_log.assert_warned(
         "You have exceeded 100 increments for this table. "
         "Only the latest 100 increments will be visualized in the run workspace."
     )

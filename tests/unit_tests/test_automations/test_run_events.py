@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 import json
+import operator
+from typing import Any, Iterable
 
+import pytest
 from hypothesis import given
-from hypothesis.strategies import DrawFn, SearchStrategy, composite, sampled_from
+from hypothesis.strategies import DrawFn, SearchStrategy, composite, lists, sampled_from
+from pydantic import ValidationError
 from pytest import raises
-from wandb.automations import MetricChangeFilter, MetricThresholdFilter, RunEvent
-from wandb.automations._filters.run_metrics import Agg, MetricAgg, MetricVal
+from wandb.automations import (
+    MetricChangeFilter,
+    MetricThresholdFilter,
+    MetricZScoreFilter,
+    RunEvent,
+)
+from wandb.automations._filters.run_metrics import Agg, ChangeDir, MetricAgg, MetricVal
+from wandb.automations._filters.run_states import ReportedRunState
+from wandb.automations.events import StateFilter
 
 from ._strategies import (
     aggs,
@@ -14,8 +25,11 @@ from ._strategies import (
     ints_or_floats,
     metric_change_filters,
     metric_names,
+    metric_zscore_filters,
+    neg_numbers,
     nonpos_numbers,
     pos_numbers,
+    run_states,
     window_sizes,
 )
 
@@ -96,7 +110,7 @@ def test_metric_threshold_binop_vs_method_is_equivalent(
     assert repr(metric <= threshold) == repr(metric.lte(threshold))
 
 
-def test_run_metric_threshold_cannot_be_aggregated_twice():
+def test_metric_threshold_cannot_be_aggregated_twice():
     """Check that run metric thresholds forbid multiple aggregations."""
     with raises(AttributeError):
         RunEvent.metric("my-metric").avg(5).average(10)
@@ -199,6 +213,290 @@ def test_metric_change_filter_repr(metric: MetricVal | MetricAgg, delta: float):
     assert metric_filter_repr == repr(f"{expected_lhs} decreases {delta}")
 
 
+@given(metric_filter=metric_zscore_filters())
+def test_metric_zscore_filter_serialization(metric_filter: MetricZScoreFilter):
+    """Check that a normally-instantiated `MetricZScoreFilter` produces the expected JSON-serializable dict."""
+    expected_dict = {
+        "name": metric_filter.name,
+        "window_size": metric_filter.window,
+        "threshold": metric_filter.threshold,
+        "change_dir": metric_filter.change_dir.value,
+    }
+
+    assert metric_filter.model_dump() == expected_dict
+    assert json.loads(metric_filter.model_dump_json()) == expected_dict
+
+
+@given(
+    name=metric_names,
+    window=window_sizes,
+    threshold=pos_numbers,
+)
+def test_metric_zscore_filter_repr(name: str, window: int, threshold: float):
+    """Check that a metric zscore filter has the expected human-readable representation."""
+    # Test with change_dir=ANY
+    metric_filter = MetricZScoreFilter(
+        name=name, window=window, threshold=threshold, change_dir=ChangeDir.ANY
+    )
+    assert repr(metric_filter) == repr(f"abs(zscore({name!r})) > {threshold}")
+
+    # Test with change_dir=INCREASE
+    metric_filter = MetricZScoreFilter(
+        name=name,
+        window=window,
+        threshold=threshold,
+        change_dir=ChangeDir.INCREASE,
+    )
+    assert repr(metric_filter) == repr(f"zscore({name!r}) > +{threshold}")
+
+    # Test with change_dir=DECREASE
+    metric_filter = MetricZScoreFilter(
+        name=name,
+        window=window,
+        threshold=threshold,
+        change_dir=ChangeDir.DECREASE,
+    )
+    assert repr(metric_filter) == repr(f"zscore({name!r}) < -{threshold}")
+
+
+@given(
+    name=metric_names,
+    window=window_sizes,
+    invalid_threshold=nonpos_numbers,
+)
+def test_metric_zscore_filter_requires_positive_threshold(
+    name: str, window: int, invalid_threshold: int | float
+):
+    """Check that a `MetricZScoreFilter` only accepts a POSITIVE threshold."""
+    with raises(ValidationError):
+        MetricZScoreFilter(
+            name=name,
+            window=window,
+            threshold=invalid_threshold,
+            change_dir=ChangeDir.ANY,
+        )
+
+
+@given(
+    name=metric_names,
+    invalid_window=nonpos_numbers,
+    threshold=pos_numbers,
+)
+def test_metric_zscore_filter_requires_positive_window_size(
+    name: str, invalid_window: int | float, threshold: float
+):
+    """Check that a `MetricZScoreFilter` only accepts a POSITIVE window_size."""
+    with raises(ValidationError):
+        MetricZScoreFilter(
+            name=name,
+            window=invalid_window,
+            threshold=threshold,
+            change_dir=ChangeDir.ANY,
+        )
+
+
+@given(
+    name=metric_names,
+    window=window_sizes,
+    threshold=pos_numbers,
+    invalid_change_dir=sampled_from(
+        [
+            None,  # None should be rejected
+            123,  # Numeric values should be rejected
+            "INVALID",  # invalid string value
+        ]
+    ),
+)
+def test_metric_zscore_filter_requires_valid_change_dir(
+    name: str, window: int, threshold: float, invalid_change_dir: Any
+):
+    """Check that a `MetricZScoreFilter` requires a valid change_dir."""
+    with raises(ValidationError):
+        MetricZScoreFilter(
+            name=name,
+            window_size=window,
+            threshold=threshold,
+            change_dir=invalid_change_dir,
+        )
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+    pos_threshold=pos_numbers,
+    neg_threshold=neg_numbers,
+)
+@pytest.mark.parametrize(
+    "operator,use_abs,expected_change_dir",
+    [
+        # Test > operator (INCREASE direction)
+        (">", False, ChangeDir.INCREASE),
+        # Test < operator (DECREASE direction)
+        ("<", False, ChangeDir.DECREASE),
+        # Test > with .abs() - abs() is applied after, so ANY wins
+        (">", True, ChangeDir.ANY),
+        # Note: < with .abs() is not allowed (raises ValueError)
+    ],
+)
+def test_declarative_metric_zscore_filter_with_operators(
+    metric_name: str,
+    window: int,
+    pos_threshold: float,
+    neg_threshold: float,
+    operator: str,
+    use_abs: bool,
+    expected_change_dir: ChangeDir,
+):
+    """Check that the declarative syntax RunEvent.metric().zscore() > threshold works correctly."""
+    # Create the base zscore filter
+    base_zscore = RunEvent.metric(metric_name).zscore(window)
+
+    if use_abs:
+        base_zscore = base_zscore.abs()
+
+    # Select threshold based on operator, not use_abs
+    # > operator needs positive threshold, < operator needs negative threshold
+    threshold = pos_threshold if operator == ">" else neg_threshold
+
+    if operator == ">":
+        metric_filter = base_zscore > threshold
+    elif operator == "<":
+        metric_filter = base_zscore < threshold
+    else:
+        raise ValueError(f"Unsupported operator: {operator}")
+
+    # Verify the filter properties
+    assert isinstance(metric_filter, MetricZScoreFilter)
+    assert metric_filter.name == metric_name
+    assert metric_filter.window == window
+    assert metric_filter.threshold == abs(threshold)
+    assert metric_filter.change_dir == expected_change_dir
+
+    # Verify serialization
+    expected_dict = {
+        "name": metric_name,
+        "window_size": window,
+        "threshold": abs(threshold),
+        "change_dir": expected_change_dir.value,
+    }
+    assert metric_filter.model_dump() == expected_dict
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+    negative_threshold=neg_numbers,
+)
+def test_declarative_metric_zscore_filter_rejects_negative_threshold(
+    metric_name: str,
+    window: int,
+    negative_threshold: float,
+):
+    """Check that negative or zero thresholds are rejected for zscore > and abs(>) operators."""
+    zscore_filter = RunEvent.metric(metric_name).zscore(window)
+
+    with raises(ValueError):
+        _ = zscore_filter > negative_threshold
+    with raises(ValueError):
+        _ = zscore_filter.abs() > negative_threshold
+    with raises(ValueError):
+        _ = zscore_filter.abs() < negative_threshold
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+    threshold=pos_numbers,
+)
+def test_declarative_metric_zscore_filter_lt_rejects_positive_threshold(
+    metric_name: str,
+    window: int,
+    threshold: float,
+):
+    """Check that positive thresholds are rejected for zscore < operator."""
+    zscore_filter = RunEvent.metric(metric_name).zscore(window)
+
+    with raises(ValueError):
+        _ = zscore_filter < threshold
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+)
+def test_declarative_metric_zscore_filter_abs_is_idempotent(
+    metric_name: str,
+    window: int,
+):
+    """Check that calling abs() on an already absolute z-score filter is idempotent."""
+    zscore_filter = RunEvent.metric(metric_name).zscore(window)
+
+    # All these should work and produce equivalent results
+    abs_once = zscore_filter.abs()
+    abs_twice = zscore_filter.abs().abs()
+    abs_builtin_once = abs(zscore_filter)
+    abs_builtin_twice = abs(abs(zscore_filter))
+    abs_mixed = abs(zscore_filter.abs())
+
+    # All should have is_absolute=True
+    assert abs_once.is_absolute
+    assert abs_twice.is_absolute
+    assert abs_builtin_once.is_absolute
+    assert abs_builtin_twice.is_absolute
+    assert abs_mixed.is_absolute
+
+    # All should be equivalent
+    assert abs_once == abs_twice == abs_builtin_once == abs_builtin_twice == abs_mixed
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+)
+def test_declarative_metric_zscore_filter_cannot_chain_comparisons(
+    metric_name: str,
+    window: int,
+):
+    """Check that comparison operators cannot be chained on z-score filters"""
+    zscore_operand = RunEvent.metric(metric_name).zscore(window)
+
+    # Create filters for both increase and decrease directions
+    filter_increase = zscore_operand > 3
+    filter_decrease = zscore_operand < -3
+
+    # Verify filters were created correctly
+    assert isinstance(filter_increase, MetricZScoreFilter)
+    assert isinstance(filter_decrease, MetricZScoreFilter)
+    assert filter_increase.change_dir == ChangeDir.INCREASE
+    assert filter_decrease.change_dir == ChangeDir.DECREASE
+
+    # Test both filter types to ensure consistent behavior
+    for zscore_filter in [filter_increase, filter_decrease]:
+        # Comparison operators should fail with TypeError
+        for op in [operator.gt, operator.lt, operator.ge, operator.le]:
+            with raises(TypeError, match="not supported"):
+                op(zscore_filter, 1)
+
+        # Comparison methods should fail with AttributeError
+        for method in ["gt", "lt", "gte", "lte"]:
+            with raises(AttributeError, match=method):
+                getattr(zscore_filter, method)(1)
+
+
+@given(states=lists(run_states, max_size=10))
+def test_state_filter_serialization(states: list[str | ReportedRunState]):
+    """Check that a normally-instantiated `RunStateFilter` produces the expected JSON-serializable dict."""
+    # When serialized, valid states should be converted to all-caps strings and deduplicated
+    expected_state_strs = sorted(set(ReportedRunState(s).value.upper() for s in states))
+    expected_dict = {"states": expected_state_strs}
+
+    state_filter = StateFilter(states=states)
+
+    assert state_filter.model_dump() == expected_dict
+    assert json.loads(state_filter.model_dump_json()) == expected_dict
+
+
+# ---------------------------------------------------------------------------
 @given(
     name=metric_names,
     window=window_sizes,
@@ -400,3 +698,75 @@ def test_declarative_metric_change_filter_requires_positive_delta(
         metric.decreases_by(frac=invalid_delta)
     with raises(ValueError):
         metric.decreases_by(diff=invalid_delta)
+
+
+@given(state=run_states)
+def test_declarative_state_filter_on_single_valid_state(state: str | ReportedRunState):
+    """Check that a `StateFilter` on a single valid run state works as expected."""
+    assert isinstance(state, (str, ReportedRunState))  # sanity check
+
+    # When serialized, a valid state should be converted to an all-caps string
+    expected_state_str = ReportedRunState(state).value.upper()
+
+    expected_filter = StateFilter(states=[state])
+    expected_dict = {"states": [expected_state_str]}
+
+    # via the `==` operator
+    state_filter = RunEvent.state == state
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+    # via the `.eq()` method
+    state_filter = RunEvent.state.eq(state)
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+    # via the `.in_()` method
+    state_filter = RunEvent.state.in_([state])
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+
+@given(states=lists(run_states, min_size=1, max_size=10))
+def test_declarative_state_filter_on_multiple_valid_states(
+    states: list[str | ReportedRunState],
+):
+    """Check that a `StateFilter` on multiple valid run states works as expected."""
+
+    # sanity checks -- states should be an iterable of valid states, not a single state
+    assert isinstance(states, Iterable)
+    assert not isinstance(states, (str, ReportedRunState))
+
+    # When serialized, valid states should be converted to all-caps strings and deduplicated
+    expected_state_strs = sorted(set(ReportedRunState(s).value.upper() for s in states))
+
+    expected_filter = StateFilter(states=states)
+    expected_dict = {"states": expected_state_strs}
+
+    # via the `.in_()` method
+    state_filter = RunEvent.state.in_(states)
+    assert state_filter == expected_filter
+    assert state_filter.model_dump() == expected_dict
+
+
+_INVALID_RUN_STATES: list[Any] = [None, 123, "", "INVALID", "not-a-real-state"]
+
+
+@given(state=sampled_from(_INVALID_RUN_STATES))
+def test_declarative_state_filter_on_single_invalid_state(state: Any):
+    """Check that a `StateFilter` on a single invalid state raises a ValueError."""
+    with raises((ValueError, TypeError)):  # via the `==` operator
+        _ = RunEvent.state == state
+
+    with raises((ValueError, TypeError)):  # via the `.eq()` method
+        _ = RunEvent.state.eq(state)
+
+    with raises((ValueError, TypeError)):  # via the `.in_()` method
+        _ = RunEvent.state.in_([state])
+
+
+@given(states=lists(sampled_from(_INVALID_RUN_STATES), min_size=1, max_size=10))
+def test_declarative_state_filter_on_multiple_invalid_states(states: list[Any]):
+    """Check that a `StateFilter` on multiple invalid states raises a ValueError."""
+    with raises(ValueError):  # via the `.in_()` method
+        _ = RunEvent.state.in_(states)

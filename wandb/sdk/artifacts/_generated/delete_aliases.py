@@ -5,16 +5,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 
-class DeleteAliases(GQLBase):
-    delete_aliases: Optional[DeleteAliasesDeleteAliases] = Field(alias="deleteAliases")
+class DeleteAliases(GQLResult):
+    result: Optional[DeleteAliasesResult]
 
 
-class DeleteAliasesDeleteAliases(GQLBase):
+class DeleteAliasesResult(GQLResult):
     success: bool
 
 

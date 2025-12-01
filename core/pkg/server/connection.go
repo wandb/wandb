@@ -18,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/wbapi"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
@@ -95,6 +96,9 @@ type Connection struct {
 
 	// logLevel is the log level
 	logLevel slog.Level
+
+	// apiRequestHandler handles processing API related requests from clients.
+	wbapi *wbapi.WandbAPI
 }
 
 func NewConnection(
@@ -327,6 +331,10 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleSync(wg, msg.RequestId, x.Sync)
 		case *spb.ServerRequest_SyncStatus:
 			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
+		case *spb.ServerRequest_ApiInitRequest:
+			nc.handleApiInit(msg.RequestId, x.ApiInitRequest)
+		case *spb.ServerRequest_ApiRequest:
+			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
 			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
@@ -584,6 +592,52 @@ func (nc *Connection) handleSyncStatus(
 		ServerResponseType: &spb.ServerResponse_SyncStatusResponse{
 			SyncStatusResponse: response,
 		},
+	})
+}
+
+func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
+	settings := settings.From(request.GetSettings())
+	nc.wbapi = wbapi.NewWandbAPI(settings)
+	nc.Respond(&spb.ServerResponse{
+		RequestId: id,
+		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
+			ApiInitResponse: &spb.ServerApiInitResponse{},
+		},
+	})
+}
+
+func (nc *Connection) handleApi(
+	wg *sync.WaitGroup,
+	id string,
+	request *spb.ApiRequest,
+) {
+	if nc.wbapi == nil {
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_ApiResponse{
+				ApiResponse: &spb.ApiResponse{
+					Response: &spb.ApiResponse_ApiErrorResponse{
+						ApiErrorResponse: &spb.ApiErrorResponse{
+							Message: "WandbAPI is not initialized",
+						},
+					},
+				},
+			},
+		})
+		return
+	}
+
+	wg.Go(func() {
+		response := nc.wbapi.HandleRequest(id, request)
+
+		if response != nil {
+			nc.Respond(&spb.ServerResponse{
+				RequestId: id,
+				ServerResponseType: &spb.ServerResponse_ApiResponse{
+					ApiResponse: response,
+				},
+			})
+		}
 	})
 }
 

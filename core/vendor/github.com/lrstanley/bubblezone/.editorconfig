@@ -1,0 +1,53 @@
+# THIS FILE IS GENERATED! DO NOT EDIT! Maintained by Terraform.
+#
+# editorconfig:  https://editorconfig.org/
+# actual source: https://github.com/lrstanley/.github/blob/master/terraform/github-common-files/templates/.editorconfig
+#
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 4
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 100
+
+[*.tf]
+indent_size = 2
+
+[*.go]
+indent_style = tab
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{md,py,sh,yml,yaml,cjs,js,ts,vue,css}]
+max_line_length = 105
+
+[*.{yml,yaml,toml}]
+indent_size = 2
+
+[*.json]
+indent_size = 2
+insert_final_newline = ignore
+
+[*.html]
+max_line_length = 140
+indent_size = 2
+
+[*.{cjs,js,ts,vue,css}]
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+
+[**.min.js]
+indent_style = ignore
+insert_final_newline = ignore
+
+[*.bat]
+indent_style = tab

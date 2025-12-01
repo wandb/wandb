@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any, Literal, Optional, Union
 
 from pydantic import BeforeValidator, Field
-from typing_extensions import Annotated, Self, get_args
+from typing_extensions import Annotated, Self, TypeVar, get_args
 
-from wandb._pydantic import GQLBase, GQLId, Typename
+from wandb._pydantic import GQLBase, GQLId
 from wandb._strutils import nameof
 
 from ._generated import (
@@ -21,14 +21,16 @@ from ._generated import (
     QueueJobActionFields,
 )
 from ._validators import (
+    JsonEncoded,
     LenientStrEnum,
-    SerializedToJson,
     default_if_none,
-    to_input_action,
-    to_saved_action,
+    parse_input_action,
+    parse_saved_action,
     upper_if_str,
 )
 from .integrations import SlackIntegration, WebhookIntegration
+
+T = TypeVar("T")
 
 
 # NOTE: Name shortened for readability and defined publicly for easier access
@@ -62,40 +64,49 @@ class SavedLaunchJobAction(QueueJobActionFields):
 # The "input" types (`Send{Notification,Webhook}`) will only have an `integration_id`,
 # and we don't want/need to fetch the other `{Slack,Webhook}Integration` fields if
 # we can avoid it.
-class _SavedActionSlackIntegration(GQLBase, extra="allow"):
-    typename__: Typename[Literal["SlackIntegration"]] = "SlackIntegration"
+class _SlackIntegrationStub(GQLBase):
+    typename__: Annotated[
+        Literal["SlackIntegration"],
+        Field(alias="__typename", frozen=True, repr=False),
+    ] = "SlackIntegration"
     id: GQLId
 
 
-class _SavedActionWebhookIntegration(GQLBase, extra="allow"):
-    typename__: Typename[Literal["GenericWebhookIntegration"]] = (
-        "GenericWebhookIntegration"
-    )
+class _WebhookIntegrationStub(GQLBase):
+    typename__: Annotated[
+        Literal["GenericWebhookIntegration"],
+        Field(alias="__typename", frozen=True, repr=False),
+    ] = "GenericWebhookIntegration"
     id: GQLId
 
 
-class SavedNotificationAction(NotificationActionFields):
+class SavedNotificationAction(NotificationActionFields, frozen=False):
     action_type: Literal[ActionType.NOTIFICATION] = ActionType.NOTIFICATION
-    integration: _SavedActionSlackIntegration
+    integration: _SlackIntegrationStub
+
+    title: Optional[str]
+    message: Optional[str]
+    severity: Optional[AlertSeverity]
 
 
-class SavedWebhookAction(GenericWebhookActionFields):
+class SavedWebhookAction(GenericWebhookActionFields, frozen=False):
     action_type: Literal[ActionType.GENERIC_WEBHOOK] = ActionType.GENERIC_WEBHOOK
-    integration: _SavedActionWebhookIntegration
+    integration: _WebhookIntegrationStub
 
     # We override the type of the `requestPayload` field since the original GraphQL
     # schema (and generated class) effectively defines it as a string, when we know
     # and need to anticipate the expected structure of the JSON-serialized data.
-    request_payload: Annotated[
-        Optional[SerializedToJson[dict[str, Any]]],
-        Field(alias="requestPayload"),
-    ] = None  # type: ignore[assignment]
+    request_payload: Optional[JsonEncoded[dict[str, Any]]] = None  # type: ignore[assignment]
 
 
-class SavedNoOpAction(NoOpActionFields, frozen=True):
+class SavedNoOpAction(NoOpActionFields, frozen=False):
     action_type: Literal[ActionType.NO_OP] = ActionType.NO_OP
 
-    no_op: Annotated[bool, BeforeValidator(default_if_none)] = True
+    no_op: Annotated[
+        bool,
+        BeforeValidator(default_if_none),
+        Field(repr=False, frozen=True),
+    ] = True
     """Placeholder field, only needed to conform to schema requirements.
 
     There should never be a need to set this field explicitly, as its value is ignored.
@@ -110,7 +121,7 @@ SavedAction = Annotated[
         SavedWebhookAction,
         SavedNoOpAction,
     ],
-    BeforeValidator(to_saved_action),
+    BeforeValidator(parse_saved_action),
     Field(discriminator="typename__"),
 ]
 # for runtime type checks
@@ -132,7 +143,7 @@ class SendNotification(_BaseActionInput, NotificationActionInput):
     integration_id: GQLId
     """The ID of the Slack integration that will be used to send the notification."""
 
-    # Note: Validation aliases are meant to provide continuity with prior `wandb.alert()` API.
+    # Note: Validation aliases preserve continuity with the prior `wandb.alert()` API.
     title: str = ""
     """The title of the sent notification."""
 
@@ -157,10 +168,7 @@ class SendNotification(_BaseActionInput, NotificationActionInput):
     ) -> Self:
         """Define a notification action that sends to the given (Slack) integration."""
         return cls(
-            integration_id=integration.id,
-            title=title,
-            message=text,
-            severity=level,
+            integration_id=integration.id, title=title, message=text, severity=level
         )
 
 
@@ -173,7 +181,7 @@ class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
     """The ID of the webhook integration that will be used to send the request."""
 
     # overrides the generated field type to parse/serialize JSON strings
-    request_payload: Optional[SerializedToJson[dict[str, Any]]] = Field(  # type: ignore[assignment]
+    request_payload: Optional[JsonEncoded[dict[str, Any]]] = Field(  # type: ignore[assignment]
         default=None, alias="requestPayload"
     )
     """The payload, possibly with template variables, to send in the webhook request."""
@@ -183,7 +191,7 @@ class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
         cls,
         integration: WebhookIntegration,
         *,
-        payload: Optional[SerializedToJson[dict[str, Any]]] = None,
+        payload: Optional[JsonEncoded[dict[str, Any]]] = None,
     ) -> Self:
         """Define a webhook action that sends to the given (webhook) integration."""
         return cls(integration_id=integration.id, request_payload=payload)
@@ -208,7 +216,7 @@ InputAction = Annotated[
         SendWebhook,
         DoNothing,
     ],
-    BeforeValidator(to_input_action),
+    BeforeValidator(parse_input_action),
     Field(discriminator="action_type"),
 ]
 # for runtime type checks

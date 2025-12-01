@@ -12,14 +12,10 @@ import time
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
-import yaml
-
 import wandb
-from wandb import util, wandb_lib, wandb_sdk
-from wandb.agents.pyagent import pyagent
-from wandb.apis import InternalApi
-from wandb.sdk.launch.sweeps import utils as sweep_utils
-from wandb.sdk.lib import ipython
+from wandb import util
+from wandb.sdk import wandb_login
+from wandb.sdk.lib import config_util, ipython
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +214,8 @@ class Agent:
 
     def run(self):  # noqa: C901
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
+        import yaml
+
         sweep_obj = self._api.sweep(self._sweep_id, "{}")
         if sweep_obj:
             sweep_yaml = sweep_obj.get("config")
@@ -374,6 +372,8 @@ class Agent:
         return response
 
     def _command_run(self, command):
+        from wandb.sdk.launch.sweeps import utils as sweep_utils
+
         logger.info(
             "Agent starting run with config:\n"
             + "\n".join(
@@ -406,9 +406,7 @@ class Agent:
         base_dir = os.environ.get(wandb.env.DIR, "")
         sweep_param_path = os.path.join(base_dir, config_file)
         os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
-        wandb_lib.config_util.save_config_file_from_dict(
-            sweep_param_path, command["args"]
-        )
+        config_util.save_config_file_from_dict(sweep_param_path, command["args"])
 
         env = dict(os.environ)
 
@@ -512,6 +510,9 @@ class AgentApi:
 def run_agent(
     sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
 ):
+    from wandb.apis import InternalApi
+    from wandb.sdk.launch.sweeps import utils as sweep_utils
+
     parts = dict(entity=entity, project=project, name=sweep_id)
     err = sweep_utils.parse_sweep_id(parts)
     if err:
@@ -585,11 +586,13 @@ def agent(
             run is sent to a project labeled "Uncategorized".
         count: The number of sweep config trials to try.
     """
+    from wandb.agents.pyagent import pyagent
+
     global _INSTANCES
     _INSTANCES += 1
     try:
         # make sure we are logged in
-        wandb_sdk.wandb_login._login(_silent=True)
+        wandb_login._login(_silent=True)
         if function:
             return pyagent(sweep_id, function, entity, project, count)
         return run_agent(

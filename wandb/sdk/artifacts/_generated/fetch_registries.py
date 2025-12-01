@@ -3,30 +3,40 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
-from .fragments import RegistriesPage
+from .fragments import PageInfoFragment, RegistryFragment
 
 
-class FetchRegistries(GQLBase):
+class FetchRegistries(GQLResult):
     organization: Optional[FetchRegistriesOrganization]
 
 
-class FetchRegistriesOrganization(GQLBase):
+class FetchRegistriesOrganization(GQLResult):
     org_entity: Optional[FetchRegistriesOrganizationOrgEntity] = Field(
         alias="orgEntity"
     )
 
 
-class FetchRegistriesOrganizationOrgEntity(GQLBase):
-    name: str
-    projects: Optional[RegistriesPage]
+class FetchRegistriesOrganizationOrgEntity(GQLResult):
+    projects: Optional[FetchRegistriesOrganizationOrgEntityProjects]
+
+
+class FetchRegistriesOrganizationOrgEntityProjects(GQLResult):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[FetchRegistriesOrganizationOrgEntityProjectsEdges]
+
+
+class FetchRegistriesOrganizationOrgEntityProjectsEdges(GQLResult):
+    node: Optional[RegistryFragment]
 
 
 FetchRegistries.model_rebuild()
 FetchRegistriesOrganization.model_rebuild()
 FetchRegistriesOrganizationOrgEntity.model_rebuild()
+FetchRegistriesOrganizationOrgEntityProjects.model_rebuild()
+FetchRegistriesOrganizationOrgEntityProjectsEdges.model_rebuild()

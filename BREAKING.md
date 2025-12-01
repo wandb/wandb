@@ -126,3 +126,8 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @tonyyli-wandb
     - Deprecated in 0.21.1 (https://github.com/wandb/wandb/pull/10205)
     - can do in >= 0.23
+
+- Remove the `anonymous` setting and corresponding parameter from `wandb.init()` and `wandb.login()`:
+    - Owner: @timoffex
+    - Deprecated after 0.23.0
+    - Can do after May 2026. It depends on when the PyTorch Lightning W&B integration (and possibly others) can be updated to not pass `anonymous` (even set to `None`)

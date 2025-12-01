@@ -430,7 +430,7 @@ def test_log_internal():
 def test_settings_static():
     from wandb.sdk.internal.settings_static import SettingsStatic
 
-    static_settings = SettingsStatic(Settings().to_proto())
+    static_settings = SettingsStatic({})
     assert "base_url" in static_settings
     assert static_settings.base_url == "https://api.wandb.ai"
 

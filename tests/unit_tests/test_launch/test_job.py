@@ -111,13 +111,13 @@ def test_configure_notebook_artifact_job(mocker, tmp_path):
 
 
 def test_make_job_name(test_settings):
-    builder = JobBuilder(settings=test_settings())
+    builder = JobBuilder(settings=test_settings(), files_dir="")
     name = builder._make_job_name("testing*123")
 
     assert name == "job-testing_123"
 
     settings = test_settings({"job_name": "custom-name"})
-    builder = JobBuilder(settings=settings)
+    builder = JobBuilder(settings=settings, files_dir="")
     name = builder._make_job_name("testing*123")
 
     assert name == "custom-name"

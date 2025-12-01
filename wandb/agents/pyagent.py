@@ -17,6 +17,7 @@ import traceback
 import wandb
 from wandb.apis import InternalApi
 from wandb.sdk.launch.sweeps import utils as sweep_utils
+from wandb.sdk.lib import config_util
 
 logger = logging.getLogger(__name__)
 
@@ -283,9 +284,7 @@ class Agent:
             base_dir = os.environ.get(wandb.env.DIR, "")
             sweep_param_path = os.path.join(base_dir, config_file)
             os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
-            wandb.wandb_lib.config_util.save_config_file_from_dict(
-                sweep_param_path, job.config
-            )
+            config_util.save_config_file_from_dict(sweep_param_path, job.config)
             os.environ[wandb.env.SWEEP_ID] = self._sweep_id
             wandb.teardown()
 

@@ -1,8 +1,6 @@
 """sample tests."""
 
-import wandb
-
-sample = wandb.wandb_sdk.internal.sample
+from wandb.sdk.internal import sample
 
 
 def doit(num, samples=None):

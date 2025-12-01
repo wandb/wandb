@@ -12,9 +12,10 @@ import tensorflow as tf
 import tensorflow.keras.backend as K  # noqa: N812
 
 import wandb
-from wandb.proto.wandb_deprecated import Deprecated
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
-from wandb.sdk.lib.deprecate import deprecate
+from wandb.sdk.lib import telemetry
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.util import add_import_hook
 
 
@@ -413,9 +414,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
 
-        deprecate(
-            field_name=Deprecated.keras_callback,
-            warning_message=(
+        warn_and_record_deprecation(
+            feature=Deprecated(keras_callback=True),
+            message=(
                 "WandbCallback is deprecated and will be removed in a future release. "
                 "Please use the WandbMetricsLogger, WandbModelCheckpoint, and WandbEvalCallback "
                 "callbacks instead. "
@@ -423,7 +424,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             ),
         )
 
-        with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
+        with telemetry.context(run=wandb.run) as tel:
             tel.feature.keras = True
         self.validation_data = None
         # This is kept around for legacy reasons
@@ -446,9 +447,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.filepath = os.path.join(wandb.run.dir, "model-best.h5")
         self.save_model = save_model
         if save_model:
-            deprecate(
-                field_name=Deprecated.keras_callback__save_model,
-                warning_message=(
+            warn_and_record_deprecation(
+                feature=Deprecated(keras_callback__save_model=True),
+                message=(
                     "The save_model argument by default saves the model in the HDF5 format that cannot save "
                     "custom objects like subclassed models and custom layers. This behavior will be deprecated "
                     "in a future release in favor of the SavedModel format. Meanwhile, the HDF5 model is saved "
@@ -465,9 +466,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         data_type = kwargs.get("data_type", None)
         if data_type is not None:
-            deprecate(
-                field_name=Deprecated.keras_callback__data_type,
-                warning_message=(
+            warn_and_record_deprecation(
+                feature=Deprecated(keras_callback__data_type=True),
+                message=(
                     "The data_type argument of wandb.keras.WandbCallback is deprecated "
                     "and will be removed in a future release. Please use input_type instead.\n"
                     "Setting input_type = data_type."

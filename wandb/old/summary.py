@@ -7,8 +7,8 @@ from wandb_gql import gql
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.sdk import lib as wandb_lib
 from wandb.sdk.data_types.utils import val_to_json
+from wandb.sdk.lib import filenames
 
 DEEP_SUMMARY_FNAME = "wandb.h5"
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
@@ -359,7 +359,7 @@ def upload_h5(file, run_id, entity=None, project=None):
 class FileSummary(Summary):
     def __init__(self, run):
         super().__init__(run)
-        self._fname = os.path.join(run.dir, wandb_lib.filenames.SUMMARY_FNAME)
+        self._fname = os.path.join(run.dir, filenames.SUMMARY_FNAME)
         self.load()
 
     def load(self):

@@ -30,6 +30,10 @@ const (
 	// See https://github.com/wandb/core/pull/7339 for history.
 	defaultMaxFileLineBytes = (10 << 20) - (100 << 10)
 
+	// defaultMaxRequestSizeBytes is a default approximate maximum size in bytes
+	// for a FileStream request.
+	defaultMaxRequestSizeBytes = 10 << 20
+
 	// Retry filestream requests for 7 days before dropping chunk
 	// retry_count = seconds_in_7_days / max_retry_time + num_retries_until_max_60_sec
 	//             = 7 * 86400 / 60 + ceil(log2(60/2))
@@ -77,17 +81,11 @@ type FileStream interface {
 	// StreamUpdate uploads information through the filestream API.
 	StreamUpdate(update Update)
 
-	// StopState returns the last-known stop decision (unknown/false/true).
-	StopState() StopState
+	// IsStopped returns whether the run has been requested to stop.
+	//
+	// This happens if the user pressed the Stop button in the UI.
+	IsStopped() bool
 }
-
-type StopState uint32
-
-const (
-	StopUnknown StopState = iota
-	StopFalse
-	StopTrue
-)
 
 // fileStream is a stream of data to the server
 type fileStream struct {
@@ -128,8 +126,10 @@ type fileStream struct {
 	deadChan     chan struct{}
 	deadChanOnce *sync.Once
 
-	// state is the last-known stopped status as reported by the backend.
-	state atomic.Uint32
+	// stopState is the last-known stopped status as reported by the backend.
+	//
+	// Once it becomes true, it does not switch back to false.
+	stopState atomic.Bool
 }
 
 // FileStreamProviders binds FileStreamFactory.
@@ -239,8 +239,8 @@ func (fs *fileStream) FinishWithoutExit() {
 	fs.logger.Debug("filestream: closed")
 }
 
-// StopState returns the last-known stop decision (unknown/false/true).
-func (fs *fileStream) StopState() StopState { return StopState(fs.state.Load()) }
+// IsStopped implements FileStream.IsStopped.
+func (fs *fileStream) IsStopped() bool { return fs.stopState.Load() }
 
 // logFatalAndStopWorking logs a fatal error and kills the filestream.
 //

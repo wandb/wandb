@@ -23,10 +23,10 @@ jobs:
     name: Prepare release (${{ inputs.version }})
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -73,27 +73,22 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v3.3.0
         with:
           package-dir: .
           output-dir: dist
         env:
-          # In cp36-*, the wheel name sometimes includes additional dashes that
-          # make it invalid, breaking the job.
-          #
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-* cp37-*
           CIBW_ARCHS_LINUX: aarch64
           CIBW_BEFORE_ALL_LINUX: >
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
@@ -122,7 +117,7 @@ jobs:
           - macos-14
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
@@ -132,7 +127,7 @@ jobs:
       # See comment above CIBW_BEFORE_ALL_LINUX.
       ##################################################
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
@@ -141,16 +136,11 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v3.3.0
         with:
           package-dir: .
           output-dir: dist
         env:
-          # In cp36-*, the wheel name sometimes includes additional dashes that
-          # make it invalid, breaking the job.
-          #
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-* cp37-*
           CIBW_ARCHS_LINUX: x86_64 #aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
@@ -185,12 +175,12 @@ jobs:
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -217,12 +207,12 @@ jobs:
       id-token: write # trusted publishing
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
       - name: Download distribution
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: artifacts/
           pattern: wandb-sdk-distribution-*
@@ -270,7 +260,7 @@ jobs:
 
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -296,12 +286,12 @@ jobs:
 
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
       - name: Set up latest Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
 
       - name: Install wandb from TestPyPI with --no-binary
         run: |
@@ -326,7 +316,7 @@ jobs:
       url: https://pypi.org/p/wandb
     steps:
       - name: Download distribution
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: artifacts/
           pattern: wandb-sdk-distribution-*
@@ -350,13 +340,13 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.update-changelog && !inputs.dry-run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -392,7 +382,7 @@ jobs:
     if: ${{ inputs.update-changelog && !inputs.dry-run }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
       - name: Create Source Archives
@@ -444,3 +434,37 @@ jobs:
             - Release notes: https://github.com/${{ github.repository }}/releases/tag/v${{ github.event.inputs.version }}
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  # This job exists so that there's some traceability between SDK releases and
+  # potential issues in wandb/core. core contains references to this released
+  # artifact, so we want to update those as close to the release as possible.
+  # In the event of a failure building wandb/core, the actor that ran this
+  # release will be notified.
+  notify-core:
+    name: notify wandb/core of release
+    runs-on: ubuntu-latest
+    needs: [pypi-publish]
+
+    steps:
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.WANDBOT_3000_APP_ID }}
+          private-key: ${{ secrets.WANDBOT_3000_PRIVATE_KEY }}
+          owner: wandb
+          repositories: |
+            core
+
+      - name: Repository dispatch
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: "${{ steps.app-token.outputs.token }}"
+          repository: wandb/core
+          event-type: wandb-sdk-released
+          client-payload: |-
+            {
+              "version": "${{ inputs.version }}",
+              "actor": "${{ github.actor }}",
+              "actor_id": "${{ github.actor_id }}"
+            }

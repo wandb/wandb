@@ -3,32 +3,43 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
-from .fragments import RegistryVersionsPage
+from .fragments import ArtifactMembershipFragment, PageInfoFragment
 
 
-class RegistryVersions(GQLBase):
+class RegistryVersions(GQLResult):
     organization: Optional[RegistryVersionsOrganization]
 
 
-class RegistryVersionsOrganization(GQLBase):
+class RegistryVersionsOrganization(GQLResult):
     org_entity: Optional[RegistryVersionsOrganizationOrgEntity] = Field(
         alias="orgEntity"
     )
 
 
-class RegistryVersionsOrganizationOrgEntity(GQLBase):
+class RegistryVersionsOrganizationOrgEntity(GQLResult):
     name: str
-    artifact_memberships: Optional[RegistryVersionsPage] = Field(
-        alias="artifactMemberships"
-    )
+    artifact_memberships: Optional[
+        RegistryVersionsOrganizationOrgEntityArtifactMemberships
+    ] = Field(alias="artifactMemberships")
+
+
+class RegistryVersionsOrganizationOrgEntityArtifactMemberships(GQLResult):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[RegistryVersionsOrganizationOrgEntityArtifactMembershipsEdges]
+
+
+class RegistryVersionsOrganizationOrgEntityArtifactMembershipsEdges(GQLResult):
+    node: Optional[ArtifactMembershipFragment]
 
 
 RegistryVersions.model_rebuild()
 RegistryVersionsOrganization.model_rebuild()
 RegistryVersionsOrganizationOrgEntity.model_rebuild()
+RegistryVersionsOrganizationOrgEntityArtifactMemberships.model_rebuild()
+RegistryVersionsOrganizationOrgEntityArtifactMembershipsEdges.model_rebuild()
