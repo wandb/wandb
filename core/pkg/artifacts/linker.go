@@ -89,7 +89,10 @@ func (al *ArtifactLinker) Link() (response *gql.LinkArtifactResponse, err error)
 // the organization parameter, or an error if it is empty. Otherwise, this returns the
 // fetched value after validating that the given organization, if not empty, matches
 // either the org's display or entity name.
-func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organization string) (string, error) {
+func (al *ArtifactLinker) resolveOrgEntityName(
+	portfolioEntity string,
+	organization string,
+) (string, error) {
 	orgFieldNames, err := GetGraphQLFields(al.Ctx, al.GraphqlClient, "Organization")
 	if err != nil {
 		return "", err
@@ -131,8 +134,12 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 	inputMatchesOrgName := organization == orgDisplayName
 	inputMatchesOrgEntityName := organization == orgEntityName
 	if organization != "" && !inputMatchesOrgName && !inputMatchesOrgEntityName {
-		return "", fmt.Errorf("artifact belongs to the organization %q and cannot be linked/fetched with %q. "+
-			"Please update the target path with the correct organization name", orgDisplayName, organization)
+		return "", fmt.Errorf(
+			"artifact belongs to the organization %q and cannot be linked/fetched with %q. "+
+				"Please update the target path with the correct organization name",
+			orgDisplayName,
+			organization,
+		)
 	}
 	return orgEntityName, nil
 }

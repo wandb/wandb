@@ -262,13 +262,33 @@ func TestLinkRegistryArtifact(t *testing.T) {
 		errorMessage      string
 	}{
 		{"Link registry artifact with orgName updated server", "orgName", false, ""},
-		{"Link registry artifact with orgName old server", "orgName", true, expectLinkArtifactFailure},
-		{"Link registry artifact with orgEntity name updated server", "orgEntityName_123", false, ""},
+		{
+			"Link registry artifact with orgName old server",
+			"orgName",
+			true,
+			expectLinkArtifactFailure,
+		},
+		{
+			"Link registry artifact with orgEntity name updated server",
+			"orgEntityName_123",
+			false,
+			"",
+		},
 		{"Link registry artifact with orgEntity name old server", "orgEntityName_123", true, ""},
 		{"Link registry artifact with short hand path updated server", "", false, ""},
 		{"Link registry artifact with short hand path old server", "", true, "unsupported"},
-		{"Link with wrong org/orgEntity name with updated server", "potato", false, "update the target path"},
-		{"Link with wrong org/orgEntity name with updated server", "potato", true, expectLinkArtifactFailure},
+		{
+			"Link with wrong org/orgEntity name with updated server",
+			"potato",
+			false,
+			"update the target path",
+		},
+		{
+			"Link with wrong org/orgEntity name with updated server",
+			"potato",
+			true,
+			expectLinkArtifactFailure,
+		},
 	}
 	for _, tc := range testCases {
 		mockGQL := gqlmock.NewMockClient()

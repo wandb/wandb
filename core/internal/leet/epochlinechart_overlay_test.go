@@ -33,7 +33,10 @@ func TestEpochLineChart_DrawInspectionOverlay_RendersHairlineAndLegend_RightSide
 
 	// Inspect near X=5 -> expect legend to the right of the vertical hairline.
 	wantX := 5.0
-	px := int(math.Round((wantX - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) * float64(c.GraphWidth())))
+	px := int(math.Round(
+		(wantX - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) *
+			float64(c.GraphWidth()),
+	))
 	c.StartInspection(px)
 	c.Draw()
 
@@ -77,7 +80,10 @@ func TestInspectAtDataX_SnapsToNearestAndPixel(t *testing.T) {
 	require.True(t, ok)
 
 	// Expected pixel for X=5
-	expectPX := int(math.Round((5.0 - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) * float64(c.GraphWidth())))
+	expectPX := int(math.Round(
+		(5.0 - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) *
+			float64(c.GraphWidth()),
+	))
 	require.Equal(t, expectPX, px, "hairline should pixel-snap to the exact sample X")
 }
 
@@ -105,7 +111,10 @@ func TestInspection_RepositionsOnXDomainExpansion(t *testing.T) {
 
 	// Start inspecting at X=10 (middle of initial view).
 	wantX := 10.0
-	startPX := int(math.Round((wantX - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) * float64(c.GraphWidth())))
+	startPX := int(math.Round(
+		(wantX - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) *
+			float64(c.GraphWidth()),
+	))
 	c.StartInspection(startPX)
 
 	// Sanity: active and anchored to ~X=10.
@@ -128,7 +137,10 @@ func TestInspection_RepositionsOnXDomainExpansion(t *testing.T) {
 	require.True(t, active1B)
 	require.InDelta(t, wantX, x1, 1e-9)
 
-	expectPX := int(math.Round((wantX - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) * float64(c.GraphWidth())))
+	expectPX := int(math.Round(
+		(wantX - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) *
+			float64(c.GraphWidth()),
+	))
 	require.Equal(t, expectPX, newPX)
 	require.Less(t, newPX, oldPX, "overlay should move left as view widens from 20 to 30")
 }
@@ -147,7 +159,10 @@ func TestInspection_RepositionsOnResize(t *testing.T) {
 	require.InDelta(t, 30.0, c.ViewMaxX(), 1e-9)
 
 	wantX := 15.0
-	startPX := int(math.Round((wantX - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) * float64(c.GraphWidth())))
+	startPX := int(math.Round(
+		(wantX - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) *
+			float64(c.GraphWidth()),
+	))
 	c.StartInspection(startPX)
 	oldPX, _ := c.TestInspectionMouseX()
 
@@ -160,7 +175,10 @@ func TestInspection_RepositionsOnResize(t *testing.T) {
 	require.True(t, a)
 	require.InDelta(t, wantX, x, 1e-9)
 
-	expectPX := int(math.Round((wantX - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) * float64(c.GraphWidth())))
+	expectPX := int(math.Round(
+		(wantX - c.ViewMinX()) / (c.ViewMaxX() - c.ViewMinX()) *
+			float64(c.GraphWidth()),
+	))
 	require.Equal(t, expectPX, newPX)
 	require.Greater(t, newPX, oldPX, "overlay should move right when width doubles")
 }

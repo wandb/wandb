@@ -46,8 +46,18 @@ func TestExponentialBackoffWithJitter_HTTP429(t *testing.T) {
 	expectedMin := time.Duration(retryAfter) * time.Second
 	expectedMax := expectedMin + time.Duration(0.25*float64(expectedMin))
 
-	assert.GreaterOrEqual(t, backoff, expectedMin, "Backoff should be greater than or equal to Retry-After")
-	assert.LessOrEqual(t, backoff, expectedMax, "Backoff should be less than or equal to Retry-After plus jitter")
+	assert.GreaterOrEqual(
+		t,
+		backoff,
+		expectedMin,
+		"Backoff should be greater than or equal to Retry-After",
+	)
+	assert.LessOrEqual(
+		t,
+		backoff,
+		expectedMax,
+		"Backoff should be less than or equal to Retry-After plus jitter",
+	)
 }
 
 func TestExponentialBackoffWithJitter_MaxBackoffLimit(t *testing.T) {

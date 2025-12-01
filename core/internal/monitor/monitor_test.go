@@ -71,39 +71,74 @@ func TestSystemMonitor_UnexpectedTransitions(t *testing.T) {
 
 	// Resume when stopped
 	sm.Resume()
-	assert.Equal(t, monitor.StateStopped, sm.GetState(), "Resume should not change state when stopped")
+	assert.Equal(
+		t,
+		monitor.StateStopped,
+		sm.GetState(),
+		"Resume should not change state when stopped",
+	)
 
 	// Pause when stopped
 	sm.Pause()
-	assert.Equal(t, monitor.StateStopped, sm.GetState(), "Pause should not change state when stopped")
+	assert.Equal(
+		t,
+		monitor.StateStopped,
+		sm.GetState(),
+		"Pause should not change state when stopped",
+	)
 
 	// Start and then unexpected transitions
 	sm.Start(nil)
 	assert.Equal(t, monitor.StateRunning, sm.GetState(), "Start should change state to running")
 
 	sm.Start(nil) // Start when already running
-	assert.Equal(t, monitor.StateRunning, sm.GetState(), "Start should not change state when already running")
+	assert.Equal(
+		t,
+		monitor.StateRunning,
+		sm.GetState(),
+		"Start should not change state when already running",
+	)
 
 	sm.Resume() // Resume when running
-	assert.Equal(t, monitor.StateRunning, sm.GetState(), "Resume should not change state when running")
+	assert.Equal(
+		t,
+		monitor.StateRunning,
+		sm.GetState(),
+		"Resume should not change state when running",
+	)
 
 	// Pause and then unexpected transitions
 	sm.Pause()
 	assert.Equal(t, monitor.StatePaused, sm.GetState(), "Pause should change state to paused")
 
 	sm.Pause() // Pause when already paused
-	assert.Equal(t, monitor.StatePaused, sm.GetState(), "Pause should not change state when already paused")
+	assert.Equal(
+		t,
+		monitor.StatePaused,
+		sm.GetState(),
+		"Pause should not change state when already paused",
+	)
 
 	sm.Start(nil) // Start when paused
 	assert.Equal(t, monitor.StatePaused, sm.GetState(), "Start should not change state when paused")
 
 	// Finish from any state
 	sm.Finish()
-	assert.Equal(t, monitor.StateStopped, sm.GetState(), "Finish should change state to stopped from paused")
+	assert.Equal(
+		t,
+		monitor.StateStopped,
+		sm.GetState(),
+		"Finish should change state to stopped from paused",
+	)
 
 	sm.Start(nil)
 	sm.Finish()
-	assert.Equal(t, monitor.StateStopped, sm.GetState(), "Finish should change state to stopped from running")
+	assert.Equal(
+		t,
+		monitor.StateStopped,
+		sm.GetState(),
+		"Finish should change state to stopped from running",
+	)
 }
 
 func TestSystemMonitor_FullCycle(t *testing.T) {
@@ -142,11 +177,25 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 		err  error
 		want bool
 	}{
-		{"NetstatMissing", errors.New(`exec: "netstat": executable file not found in $PATH`), false},
+		{
+			"NetstatMissing",
+			errors.New(`exec: "netstat": executable file not found in $PATH`),
+			false,
+		},
 		{"GrpcUnavailable", status.Error(codes.Unavailable, "connection error"), false},
-		{"ConnRefused", errors.New(`transport: Error while dialing: dial unix /tmp/x.sock: connect: connection refused`), false},
+		{
+			"ConnRefused",
+			errors.New(
+				`transport: Error while dialing: dial unix /tmp/x.sock: connect: connection refused`,
+			),
+			false,
+		},
 		{"WinIncorrectFunction", errors.New("Incorrect function."), false},
-		{"MissingProcDiskstats", errors.New("open /proc/diskstats: no such file or directory"), false},
+		{
+			"MissingProcDiskstats",
+			errors.New("open /proc/diskstats: no such file or directory"),
+			false,
+		},
 		{"OtherError", errors.New("some other error"), true},
 	}
 	for _, tt := range tests {
