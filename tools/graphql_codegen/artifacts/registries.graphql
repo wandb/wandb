@@ -91,7 +91,26 @@ query FetchRegistry($name: String, $entity: String) {
   }
 }
 
-query FetchRegistries(
+query FetchRegistries($organization: String!, $cursor: String, $perPage: Int) {
+  organization(name: $organization) {
+    registries(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...RegistryFragment
+        }
+      }
+    }
+  }
+}
+
+# Legacy query to fetch all registries via `organization.orgEntity.projects`, when:
+# - The server doesn't directly support `organization.registries`
+# - We're passing non-null registry filters to the query. These are yet unsupported by
+#   `organization.registries` (as of 2025-11-26).
+query LegacyFetchRegistries(
   $organization: String!
   $filters: JSONString
   $cursor: String

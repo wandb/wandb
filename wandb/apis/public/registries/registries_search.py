@@ -12,7 +12,8 @@ from wandb_gql import gql
 from wandb._analytics import tracked
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 from wandb.apis.public.utils import gql_compat
-from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields, server_supports
 
 from ._utils import ensure_registry_prefix_on_names
 
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
     from wandb.apis.public.registries.registry import Registry
     from wandb.sdk.artifacts._generated import (
         ArtifactMembershipFragment,
+        FetchRegistries,
+        LegacyFetchRegistries,
         RegistryCollectionFragment,
         RegistryFragment,
     )
@@ -37,7 +40,8 @@ if TYPE_CHECKING:
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     """A lazy iterator of `Registry` objects."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: Document  # Must be set per-instance
+    _result_cls: type[FetchRegistries | LegacyFetchRegistries]
     last_response: RegistryConnection | None
 
     def __init__(
@@ -47,10 +51,17 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
     ):
-        if self.QUERY is None:
-            from wandb.sdk.artifacts._generated import FETCH_REGISTRIES_GQL
+        from wandb.sdk.artifacts import _generated as gen
 
-            type(self).QUERY = gql(FETCH_REGISTRIES_GQL)
+        # At the current time, the new `organization.registries` query is only supported:
+        # - on newer server versions
+        # - when no filters are provided to the query
+        if server_supports(client, pb.REGISTRIES_ON_ORGANIZATION) and (not filter):
+            self.QUERY = gql(gen.FETCH_REGISTRIES_GQL)
+            self._result_cls = gen.FetchRegistries
+        else:
+            self.QUERY = gql(gen.LEGACY_FETCH_REGISTRIES_GQL)
+            self._result_cls = gen.LegacyFetchRegistries
 
         self.client = client
         self.organization = organization
@@ -100,18 +111,33 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import FetchRegistries
+        from wandb.sdk.artifacts._generated import (
+            FetchRegistries,
+            LegacyFetchRegistries,
+        )
         from wandb.sdk.artifacts._models.pagination import RegistryConnection
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = FetchRegistries.model_validate(data)
-        if not ((org := result.organization) and (org_entity := org.org_entity)):
+        result = self._result_cls.model_validate(data)
+
+        # FIXME: Tighten this up a bit, this results in `conn` being unbound in the `try` block below.
+        if isinstance(result, LegacyFetchRegistries) and not (
+            (org := result.organization)
+            and (org_entity := org.org_entity)
+            and (conn := org_entity.projects)
+        ):
+            raise ValueError(
+                f"Organization {self.organization!r} not found. Please verify the organization name is correct."
+            )
+
+        elif isinstance(result, FetchRegistries) and not (
+            (org := result.organization) and (conn := org.registries)
+        ):
             raise ValueError(
                 f"Organization {self.organization!r} not found. Please verify the organization name is correct."
             )
 
         try:
-            conn = org_entity.projects
             self.last_response = RegistryConnection.model_validate(conn)
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e

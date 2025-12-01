@@ -28,6 +28,7 @@ __all__ = [
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "FETCH_REGISTRY_GQL",
+    "LEGACY_FETCH_REGISTRIES_GQL",
     "LINK_ARTIFACT_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
@@ -1709,7 +1710,54 @@ fragment RegistryFragment on Project {
 """
 
 FETCH_REGISTRIES_GQL = """
-query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
+query FetchRegistries($organization: String!, $cursor: String, $perPage: Int) {
+  organization(name: $organization) {
+    registries(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...RegistryFragment
+        }
+      }
+    }
+  }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
+fragment RegistryFragment on Project {
+  __typename
+  id
+  name
+  entity {
+    name
+    organization {
+      name
+    }
+  }
+  description
+  createdAt
+  updatedAt
+  access
+  allowAllArtifactTypes: allowAllArtifactTypesInRegistry
+  artifactTypes(includeAll: true) {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+}
+"""
+
+LEGACY_FETCH_REGISTRIES_GQL = """
+query LegacyFetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
   organization(name: $organization) {
     orgEntity {
       projects(filters: $filters, after: $cursor, first: $perPage) {
