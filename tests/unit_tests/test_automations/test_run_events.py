@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import operator
 from typing import Any, Iterable
 
+import pytest
 from hypothesis import given
 from hypothesis.strategies import DrawFn, SearchStrategy, composite, lists, sampled_from
 from pydantic import ValidationError
@@ -24,6 +26,7 @@ from ._strategies import (
     metric_change_filters,
     metric_names,
     metric_zscore_filters,
+    neg_numbers,
     nonpos_numbers,
     pos_numbers,
     run_states,
@@ -315,6 +318,169 @@ def test_metric_zscore_filter_requires_valid_change_dir(
             threshold=threshold,
             change_dir=invalid_change_dir,
         )
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+    pos_threshold=pos_numbers,
+    neg_threshold=neg_numbers,
+)
+@pytest.mark.parametrize(
+    "operator,use_abs,expected_change_dir",
+    [
+        # Test > operator (INCREASE direction)
+        (">", False, ChangeDir.INCREASE),
+        # Test < operator (DECREASE direction)
+        ("<", False, ChangeDir.DECREASE),
+        # Test > with .abs() - abs() is applied after, so ANY wins
+        (">", True, ChangeDir.ANY),
+        # Note: < with .abs() is not allowed (raises ValueError)
+    ],
+)
+def test_declarative_metric_zscore_filter_with_operators(
+    metric_name: str,
+    window: int,
+    pos_threshold: float,
+    neg_threshold: float,
+    operator: str,
+    use_abs: bool,
+    expected_change_dir: ChangeDir,
+):
+    """Check that the declarative syntax RunEvent.metric().zscore() > threshold works correctly."""
+    # Create the base zscore filter
+    base_zscore = RunEvent.metric(metric_name).zscore(window)
+
+    if use_abs:
+        base_zscore = base_zscore.abs()
+
+    # Select threshold based on operator, not use_abs
+    # > operator needs positive threshold, < operator needs negative threshold
+    threshold = pos_threshold if operator == ">" else neg_threshold
+
+    if operator == ">":
+        metric_filter = base_zscore > threshold
+    elif operator == "<":
+        metric_filter = base_zscore < threshold
+    else:
+        raise ValueError(f"Unsupported operator: {operator}")
+
+    # Verify the filter properties
+    assert isinstance(metric_filter, MetricZScoreFilter)
+    assert metric_filter.name == metric_name
+    assert metric_filter.window == window
+    assert metric_filter.threshold == abs(threshold)
+    assert metric_filter.change_dir == expected_change_dir
+
+    # Verify serialization
+    expected_dict = {
+        "name": metric_name,
+        "window_size": window,
+        "threshold": abs(threshold),
+        "change_dir": expected_change_dir.value,
+    }
+    assert metric_filter.model_dump() == expected_dict
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+    negative_threshold=neg_numbers,
+)
+def test_declarative_metric_zscore_filter_rejects_negative_threshold(
+    metric_name: str,
+    window: int,
+    negative_threshold: float,
+):
+    """Check that negative or zero thresholds are rejected for zscore > and abs(>) operators."""
+    zscore_filter = RunEvent.metric(metric_name).zscore(window)
+
+    with raises(ValueError):
+        _ = zscore_filter > negative_threshold
+    with raises(ValueError):
+        _ = zscore_filter.abs() > negative_threshold
+    with raises(ValueError):
+        _ = zscore_filter.abs() < negative_threshold
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+    threshold=pos_numbers,
+)
+def test_declarative_metric_zscore_filter_lt_rejects_positive_threshold(
+    metric_name: str,
+    window: int,
+    threshold: float,
+):
+    """Check that positive thresholds are rejected for zscore < operator."""
+    zscore_filter = RunEvent.metric(metric_name).zscore(window)
+
+    with raises(ValueError):
+        _ = zscore_filter < threshold
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+)
+def test_declarative_metric_zscore_filter_abs_is_idempotent(
+    metric_name: str,
+    window: int,
+):
+    """Check that calling abs() on an already absolute z-score filter is idempotent."""
+    zscore_filter = RunEvent.metric(metric_name).zscore(window)
+
+    # All these should work and produce equivalent results
+    abs_once = zscore_filter.abs()
+    abs_twice = zscore_filter.abs().abs()
+    abs_builtin_once = abs(zscore_filter)
+    abs_builtin_twice = abs(abs(zscore_filter))
+    abs_mixed = abs(zscore_filter.abs())
+
+    # All should have is_absolute=True
+    assert abs_once.is_absolute
+    assert abs_twice.is_absolute
+    assert abs_builtin_once.is_absolute
+    assert abs_builtin_twice.is_absolute
+    assert abs_mixed.is_absolute
+
+    # All should be equivalent
+    assert abs_once == abs_twice == abs_builtin_once == abs_builtin_twice == abs_mixed
+
+
+@given(
+    metric_name=metric_names,
+    window=window_sizes,
+)
+def test_declarative_metric_zscore_filter_cannot_chain_comparisons(
+    metric_name: str,
+    window: int,
+):
+    """Check that comparison operators cannot be chained on z-score filters"""
+    zscore_operand = RunEvent.metric(metric_name).zscore(window)
+
+    # Create filters for both increase and decrease directions
+    filter_increase = zscore_operand > 3
+    filter_decrease = zscore_operand < -3
+
+    # Verify filters were created correctly
+    assert isinstance(filter_increase, MetricZScoreFilter)
+    assert isinstance(filter_decrease, MetricZScoreFilter)
+    assert filter_increase.change_dir == ChangeDir.INCREASE
+    assert filter_decrease.change_dir == ChangeDir.DECREASE
+
+    # Test both filter types to ensure consistent behavior
+    for zscore_filter in [filter_increase, filter_decrease]:
+        # Comparison operators should fail with TypeError
+        for op in [operator.gt, operator.lt, operator.ge, operator.le]:
+            with raises(TypeError, match="not supported"):
+                op(zscore_filter, 1)
+
+        # Comparison methods should fail with AttributeError
+        for method in ["gt", "lt", "gte", "lte"]:
+            with raises(AttributeError, match=method):
+                getattr(zscore_filter, method)(1)
 
 
 @given(states=lists(run_states, max_size=10))
