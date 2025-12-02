@@ -70,7 +70,6 @@ func NewParquetDataIterator(
 func (r *ParquetDataIterator) UpdateQueryRange(
 	minValue float64,
 	maxValue float64,
-	selectAll bool,
 ) error {
 
 	// Update the selected range

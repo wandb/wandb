@@ -112,7 +112,6 @@ func (h *HistoryReader) getParquetHistory(
 		err := partition.UpdateQueryRange(
 			float64(minStep),
 			float64(maxStep),
-			false,
 		)
 		if err != nil {
 			return nil, err
