@@ -231,29 +231,22 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 func (m *Model) dispatch(msg tea.Msg) []tea.Cmd {
 	switch t := msg.(type) {
 	case InitMsg:
-		return m.onInit(t)
+		return m.handleInit(t)
 	case ChunkedBatchMsg:
-		return m.onChunkedBatch(t)
+		return m.handleChunkedBatch(t)
 	case BatchedRecordsMsg:
-		return m.onBatched(t)
+		return m.handleBatched(t)
 	case HeartbeatMsg:
-		return m.onHeartbeat()
+		return m.handleHeartbeat()
 	case FileChangedMsg:
-		return m.onFileChange()
-	case tea.KeyMsg:
-		_, cmd := m.handleKeyMsg(t)
-		if cmd != nil {
-			return []tea.Cmd{cmd}
-		}
-	case tea.MouseMsg, tea.WindowSizeMsg, LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
-		_, cmd := m.handleOther(msg)
-		if cmd != nil {
-			return []tea.Cmd{cmd}
-		}
+		return m.handleFileChange()
+	case tea.WindowSizeMsg:
+		m.handleWindowResize(t)
+	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
+		return m.handleSidebarAnimation(msg)
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
-		_, cmd := m.processRecordMsg(msg)
-		if cmd != nil {
+		if _, cmd := m.handleRecordMsg(msg); cmd != nil {
 			return []tea.Cmd{cmd}
 		}
 	}

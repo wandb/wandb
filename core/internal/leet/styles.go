@@ -229,6 +229,12 @@ var (
 	axisStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
 	labelStyle = lipgloss.NewStyle().Foreground(colorText)
+
+	inspectionLineStyle = lipgloss.NewStyle().Foreground(colorSubtle)
+
+	inspectionLegendStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.AdaptiveColor{Light: "#111111", Dark: "#EEEEEE"}).
+				Background(lipgloss.AdaptiveColor{Light: "#EEEEEE", Dark: "#333333"})
 )
 
 // Status bar styles.
@@ -288,7 +294,7 @@ const AnimationFrame = AnimationDuration / AnimationSteps
 
 // Help screen styles.
 var (
-	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).Width(20)
+	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).Width(24)
 
 	helpDescStyle = lipgloss.NewStyle().Foreground(colorText)
 

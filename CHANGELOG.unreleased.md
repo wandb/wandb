@@ -15,9 +15,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- Regex support in metrics and run overview filters in W&B LEET TUI (@dmitryduev in https://github.com/wandb/wandb/pull/10919)
+- Chart inspection in W&B LEET TUI: right-click and drag to show (x, y) at the nearest data point; hold Alt for synchronized inspection across all visible charts (@dmitryduev in https://github.com/wandb/wandb/pull/10989)
 - The automations API now supports creating and editing automations that trigger on run states (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10848)
 - The automations API now support basic zscore automation events (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10931)
-- Regex support in metrics and run overview filters in W&B LEET TUI (@dmitryduev in https://github.com/wandb/wandb/pull/10919)
 - Simplified the syntax for creating z-score metric automation triggers in the automations API (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10953)
 
 ### Changed

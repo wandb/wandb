@@ -50,9 +50,9 @@ func (m *Model) TestGetLeftSidebar() *LeftSidebar {
 	return m.leftSidebar
 }
 
-// TestProcessRecordMsg processes a record message
-func (m *Model) TestProcessRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
-	return m.processRecordMsg(msg)
+// TestHandleRecordMsg processes a record message
+func (m *Model) TestHandleRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
+	return m.handleRecordMsg(msg)
 }
 
 // TestHandleChartGridClick handles a click on the main chart grid
@@ -82,7 +82,29 @@ func (c *TimeSeriesLineChart) TestSeriesCount() int {
 	return len(c.series)
 }
 
-// CurrentPage returns the current grid of charts.
-func (g *SystemMetricsGrid) CurrentPage() [][]*TimeSeriesLineChart {
+// TestCurrentPage returns the current grid of charts.
+func (g *SystemMetricsGrid) TestCurrentPage() [][]*TimeSeriesLineChart {
 	return g.currentPage
+}
+
+// TestInspectionMouseX exposes the current overlay pixel X for tests.
+// This keeps production APIs clean while allowing focused assertions.
+func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {
+	return c.inspection.MouseX, c.inspection.Active
+}
+
+// TestChartAt returns the chart at (row, col) on the current page (or nil).
+func (mg *MetricsGrid) TestChartAt(row, col int) *EpochLineChart {
+	mg.mu.RLock()
+	defer mg.mu.RUnlock()
+	if row < 0 || row >= len(mg.currentPage) ||
+		col < 0 || col >= len(mg.currentPage[row]) {
+		return nil
+	}
+	return mg.currentPage[row][col]
+}
+
+// TestSyncInspectActive exposes the synchronized inspection flag for tests.
+func (mg *MetricsGrid) TestSyncInspectActive() bool {
+	return mg.syncInspectActive
 }
