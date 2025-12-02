@@ -16,6 +16,7 @@ type ParquetDataIterator struct {
 	recordReader pqarrow.RecordReader
 	current      *RowGroupIterator
 
+	// lastStep is the last step value that has been read from the parquet file.
 	lastStep int64
 }
 
@@ -43,10 +44,21 @@ func (r *ParquetDataIterator) GetSelectedRows() *SelectedRowsRange {
 	return r.selectedRows
 }
 
+// UpdateQueryRange updates the range of rows
+// that should be read from the parquet file.
+//
+// When the minValue is less than the r.lastStep,
+// a new row group iterator is created.
+//
+// If an error occurs, the iterator is no longer valid and should be released.
 func (r *ParquetDataIterator) UpdateQueryRange(
 	minValue float64,
 	maxValue float64,
 ) error {
+	if r.current == nil && int64(minValue) >= r.lastStep {
+		return nil
+	}
+
 	// Update the selected range
 	r.selectedRows = SelectRowsInRange(
 		r.fileReader,
@@ -54,7 +66,6 @@ func (r *ParquetDataIterator) UpdateQueryRange(
 		minValue,
 		maxValue,
 	)
-	r.current.selectedRows = r.selectedRows
 
 	// When we want data from minValue we need to create a new record reader
 	// since the Arrow RecordReader doesn't support backward seeking
@@ -62,6 +73,7 @@ func (r *ParquetDataIterator) UpdateQueryRange(
 	if int64(minValue) < r.lastStep {
 		return r.createNewRecordReader()
 	}
+	r.current.selectedRows = r.selectedRows
 
 	return nil
 }
@@ -82,6 +94,8 @@ func (r *ParquetDataIterator) Next() (bool, error) {
 
 		if !r.recordReader.Next() {
 			r.current.Release()
+			r.current = nil
+
 			return false, nil
 		}
 

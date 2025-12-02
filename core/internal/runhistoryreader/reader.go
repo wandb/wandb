@@ -112,8 +112,16 @@ func (h *HistoryReader) getParquetHistory(
 	ctx context.Context,
 	minStep int64,
 	maxStep int64,
-) ([]iterator.KeyValueList, error) {
-	results := []iterator.KeyValueList{}
+) (results []iterator.KeyValueList, err error) {
+	defer func() {
+		if err != nil {
+			for _, partition := range h.partitions {
+				partition.Release()
+			}
+		}
+	}()
+
+	results = []iterator.KeyValueList{}
 
 	for _, partition := range h.partitions {
 		err := partition.UpdateQueryRange(

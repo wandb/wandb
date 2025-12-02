@@ -110,8 +110,7 @@ func (t *RowGroupIterator) Next() (bool, error) {
 			return false, err
 		}
 		if valid {
-			hasAllColumns := t.checkRowHasAllColumns()
-			if hasAllColumns {
+			if t.checkRowHasAllColumns() {
 				return true, nil
 			}
 		}
