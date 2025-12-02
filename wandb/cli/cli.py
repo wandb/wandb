@@ -1731,7 +1731,7 @@ def launch_agent(
     "-f",
     is_flag=True,
     default=False,
-    help="Create child processes in a new process group to automatically receive signals sent to the agent.",
+    help="""Forward signals delivered to the agent (e.g. SIGINT/SIGTERM) to its child runs so they can shut down cleanly.""",
 )
 @click.argument("sweep_id")
 @display_error
