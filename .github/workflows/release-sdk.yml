@@ -423,17 +423,14 @@ jobs:
         id: slack
         uses: slackapi/slack-github-action@v2.1.1
         with:
-          # Slack channel id, channel name, or user id to post message.
-          # See also: https://api.slack.com/methods/chat.postMessage#channels
-          # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
-          channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
-          # For posting a simple plain text message
-          slack-message: |
-            W&B SDK ${{ github.event.inputs.version }} released :tada::
-            - PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/
-            - Release notes: https://github.com/${{ github.repository }}/releases/tag/v${{ github.event.inputs.version }}
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
+            text: |
+              W&B SDK ${{ github.event.inputs.version }} released :tada::
+              - PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/
+              - Release notes: https://github.com/${{ github.repository }}/releases/tag/v${{ github.event.inputs.version }}
 
   # This job exists so that there's some traceability between SDK releases and
   # potential issues in wandb/core. core contains references to this released
