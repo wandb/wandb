@@ -18,6 +18,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - The automations API now supports creating and editing automations that trigger on run states (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10848)
 - The automations API now support basic zscore automation events (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10931)
 - Regex support in metrics and run overview filters in W&B LEET TUI (@dmitryduev in https://github.com/wandb/wandb/pull/10919)
+- Simplified the syntax for creating z-score metric automation triggers in the automations API (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10953)
 
 ### Changed
 
@@ -38,4 +39,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Use explicitly provided API key in `wandb.init(settings=wandb.Settings(api_key="..."))` for login. Use the key from run when logging artifacts via `run.log_artifact` (@pingleiwandb in https://github.com/wandb/wandb/pull/10914)
 - W&B LEET TUI correctly displays negative Y axis tick values and base/display units of certain system metrics (@dmitryduev in https://github.com/wandb/wandb/pull/10905)
 - Fixed a rare infinite loop in `console_capture.py` (@timoffex in https://github.com/wandb/wandb/pull/10955)
-- File upload/download now respects `WANDB_X_EXTRA_HTTP_HEADERS` except for [reference artifacts](https://docs.wandb.ai/models/artifacts/track-external-files). (@pingleiwandb in https://github.com/wandb/wandb/pull/10761)
+- File upload/download now respects `WANDB_X_EXTRA_HTTP_HEADERS` except for [reference artifacts](https://docs.wandb.ai/models/artifacts/track-external-files)

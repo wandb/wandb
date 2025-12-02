@@ -31,7 +31,7 @@ type ArtifactDownloader struct {
 	// Resources
 	Ctx             context.Context
 	GraphqlClient   graphql.Client
-	DownloadManager filetransfer.FileTransferManager
+	DownloadManager filetransfer.FileTransferManager // Download files
 	FileCache       Cache
 	// Input
 	ArtifactID             string
@@ -41,8 +41,6 @@ type ArtifactDownloader struct {
 	PathPrefix             string // Currently unused
 
 	// HTTP client for downloading manifest json.
-	// Synchronized requests, not using the async
-	// [DownloadManager] for now.
 	httpClient   *retryablehttp.Client
 	logger       *observability.CoreLogger
 	extraHeaders map[string]string
@@ -68,9 +66,8 @@ func NewArtifactDownloader(
 
 	}
 
-	// Create HTTP client for manifest json downloads using
-	// config from FileTransferManager.
-	// TODO: Remove this when refactoring file transfer.
+	// Apply config from filetransfer for retry policy
+	// TODO: Use filetransfer directly when it supports synchronous download.
 	client := retryablehttp.NewClient()
 	client.Logger = logger
 	client.CheckRetry = filetransfer.FileTransferRetryPolicy
@@ -127,7 +124,7 @@ func (ad *ArtifactDownloader) downloadManifestFromURL(
 ) (Manifest, error) {
 	req, err := retryablehttp.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return Manifest{}, fmt.Errorf("create request failed: %w", err)
+		return Manifest{}, fmt.Errorf("create request failed: %v", err)
 	}
 
 	// Apply extra headers
@@ -137,7 +134,7 @@ func (ad *ArtifactDownloader) downloadManifestFromURL(
 
 	resp, err := ad.httpClient.Do(req)
 	if err != nil {
-		return Manifest{}, fmt.Errorf("http request failed: %w", err)
+		return Manifest{}, fmt.Errorf("http request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -152,12 +149,12 @@ func (ad *ArtifactDownloader) downloadManifestFromURL(
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return Manifest{}, fmt.Errorf("read response body failed: %w", err)
+		return Manifest{}, fmt.Errorf("read response body failed: %v", err)
 	}
 
 	var manifest Manifest
 	if err := json.Unmarshal(body, &manifest); err != nil {
-		return Manifest{}, fmt.Errorf("decode manifest JSON failed: %w", err)
+		return Manifest{}, fmt.Errorf("decode manifest JSON failed: %v", err)
 	}
 
 	return manifest, nil
