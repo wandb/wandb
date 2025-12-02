@@ -466,5 +466,9 @@ jobs:
             {
               "version": "${{ inputs.version }}",
               "actor": "${{ github.actor }}",
-              "actor_id": "${{ github.actor_id }}"
+              "actor_id": "${{ github.actor_id }}",
+              "repository": "${{ github.repository }}",
+              "workflow_ref": "${{ github.workflow_ref }}",
+              "run_id": "${{ github.run_id }}",
+              "dry_run": ${{ inputs.dry-run }}
             }
