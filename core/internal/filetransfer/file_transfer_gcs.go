@@ -163,7 +163,8 @@ func (ft *GCSFileTransfer) downloadFiles(
 			if err != nil {
 				if errors.Is(err, ErrObjectIsDirectory) {
 					ft.logger.Debug(
-						"GCSFileTransfer: Download: skipping reference because it seems to be a folder",
+						"GCSFileTransfer: Download: skipping reference because"+
+							" it seems to be a folder",
 						"bucket", bucket.BucketName(),
 						"object", objectName,
 					)

@@ -116,7 +116,11 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 
 	// Verify page changed (different charts)
 	if firstPageChart != nil && secondPageChart != nil {
-		require.NotEqual(t, firstPageChart, secondPageChart, "navigation did not change displayed charts")
+		require.NotEqual(t,
+			firstPageChart,
+			secondPageChart,
+			"navigation did not change displayed charts",
+		)
 	}
 
 	// Test navigation backward (wrap around)

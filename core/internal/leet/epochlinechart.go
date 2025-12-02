@@ -286,7 +286,10 @@ func (c *EpochLineChart) Draw() {
 	lb := sort.Search(len(c.xData), func(i int) bool { return c.xData[i] >= c.ViewMinX() })
 	// Add a tiny epsilon so a point exactly at viewMax isn't dropped by rounding.
 	eps := c.pixelEpsX(c.ViewMaxX() - c.ViewMinX())
-	ub := sort.Search(len(c.xData), func(i int) bool { return c.xData[i] > c.ViewMaxX()+eps }) // exclusive
+	ub := sort.Search(
+		len(c.xData),
+		func(i int) bool { return c.xData[i] > c.ViewMaxX()+eps },
+	) // exclusive
 	if ub-lb <= 0 {
 		c.dirty = false
 		return

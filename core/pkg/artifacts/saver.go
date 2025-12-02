@@ -141,6 +141,7 @@ type ArtifactSaver struct {
 }
 
 type multipartUploadInfo = []gql.CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart
+
 type updateArtifactManifestAttrs = gql.UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest
 
 type serverFileResponse struct {
@@ -275,7 +276,9 @@ func (as *ArtifactSaver) updateManifest(
 		return updateArtifactManifestAttrs{}, err
 	}
 	if response == nil || response.GetUpdateArtifactManifest() == nil {
-		return updateArtifactManifestAttrs{}, fmt.Errorf("received invalid response from UpdateArtifactManifest")
+		return updateArtifactManifestAttrs{}, fmt.Errorf(
+			"received invalid response from UpdateArtifactManifest",
+		)
 	}
 	return response.GetUpdateArtifactManifest().ArtifactManifest, nil
 }
@@ -751,7 +754,8 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		return artifactID, nil
 	}
 	// DELETED is for old servers, see https://github.com/wandb/wandb/pull/6190
-	if artifactAttrs.State != gql.ArtifactStatePending && artifactAttrs.State != gql.ArtifactStateDeleted {
+	if artifactAttrs.State != gql.ArtifactStatePending &&
+		artifactAttrs.State != gql.ArtifactStateDeleted {
 		return "", fmt.Errorf("unexpected artifact state %v", artifactAttrs.State)
 	}
 
@@ -780,7 +784,12 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		_ = os.Remove(manifestFile)
 	}()
 
-	uploadUrl, uploadHeaders, err := as.upsertManifest(artifactID, baseArtifactId, manifestAttrs.Id, manifestDigest)
+	uploadUrl, uploadHeaders, err := as.upsertManifest(
+		artifactID,
+		baseArtifactId,
+		manifestAttrs.Id,
+		manifestDigest,
+	)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.upsertManifest: %w", err)
 	}

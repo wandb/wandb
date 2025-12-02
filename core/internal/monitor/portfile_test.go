@@ -83,7 +83,11 @@ func TestReadFile(t *testing.T) {
 					t.Fatal("Expected an error, but got nil")
 				}
 				if !strings.Contains(err.Error(), tc.expectedErrMsg) {
-					t.Errorf("Expected error message to contain %q, but got %q", tc.expectedErrMsg, err.Error())
+					t.Errorf(
+						"Expected error message to contain %q, but got %q",
+						tc.expectedErrMsg,
+						err.Error(),
+					)
 				}
 			} else {
 				if err != nil {

@@ -11,7 +11,11 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-func newMetricsGrid(t *testing.T, rows, cols, width, height int, focus *leet.Focus) *leet.MetricsGrid {
+func newMetricsGrid(
+	t *testing.T,
+	rows, cols, width, height int,
+	focus *leet.Focus,
+) *leet.MetricsGrid {
 	t.Helper()
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
@@ -184,7 +188,10 @@ func TestMetricsGrid_Inspection_FocusedOnly(t *testing.T) {
 	require.NotNil(t, ch0)
 
 	// Choose anchor X=3 -> rel pixel.
-	relPX := int(math.Round((3.0 - ch0.ViewMinX()) / (ch0.ViewMaxX() - ch0.ViewMinX()) * float64(ch0.GraphWidth())))
+	relPX := int(math.Round(
+		(3.0 - ch0.ViewMinX()) / (ch0.ViewMaxX() - ch0.ViewMinX()) *
+			float64(ch0.GraphWidth()),
+	))
 	adjX := computeAdjustedX(t, ch0, dims.CellWWithPadding, 0, relPX)
 
 	// Start non-synced inspection on (row=0,col=0).
@@ -193,7 +200,10 @@ func TestMetricsGrid_Inspection_FocusedOnly(t *testing.T) {
 	require.False(t, grid.TestChartAt(0, 1).IsInspecting(), "other chart should not be inspecting")
 
 	// Move to X=5; only the focused chart updates.
-	relPX = int(math.Round((5.0 - ch0.ViewMinX()) / (ch0.ViewMaxX() - ch0.ViewMinX()) * float64(ch0.GraphWidth())))
+	relPX = int(math.Round(
+		(5.0 - ch0.ViewMinX()) / (ch0.ViewMaxX() - ch0.ViewMinX()) *
+			float64(ch0.GraphWidth()),
+	))
 	adjX = computeAdjustedX(t, ch0, dims.CellWWithPadding, 0, relPX)
 	grid.UpdateInspection(adjX, 0, 0, dims)
 
@@ -233,7 +243,10 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 	require.NotNil(t, chB)
 
 	// Start synchronized at X=3 on alpha.
-	relPX := int(math.Round((3.0 - chA.ViewMinX()) / (chA.ViewMaxX() - chA.ViewMinX()) * float64(chA.GraphWidth())))
+	relPX := int(math.Round(
+		(3.0 - chA.ViewMinX()) / (chA.ViewMaxX() - chA.ViewMinX()) *
+			float64(chA.GraphWidth()),
+	))
 	adjX := computeAdjustedX(t, chA, dims.CellWWithPadding, 0, relPX)
 	grid.StartInspection(adjX, 0, 0, dims /*synced*/, true)
 	require.True(t, grid.TestSyncInspectActive())
@@ -249,7 +262,10 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 	require.InDelta(t, 2.0, xB, 1e-6)
 
 	// Move synchronized anchor to ~X=7.
-	relPX = int(math.Round((7.0 - chA.ViewMinX()) / (chA.ViewMaxX() - chA.ViewMinX()) * float64(chA.GraphWidth())))
+	relPX = int(math.Round(
+		(7.0 - chA.ViewMinX()) / (chA.ViewMaxX() - chA.ViewMinX()) *
+			float64(chA.GraphWidth()),
+	))
 	adjX = computeAdjustedX(t, chA, dims.CellWWithPadding, 0, relPX)
 	grid.UpdateInspection(adjX, 0, 0, dims)
 

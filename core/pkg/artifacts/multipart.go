@@ -179,7 +179,12 @@ func (worker *multipartHashWorker) hashFileParts(
 		partSize := min(worker.chunkSize, worker.fileSize-offset)
 		hexMD5, err := hashencode.ComputeReaderHexMD5(io.NewSectionReader(file, offset, partSize))
 		if err != nil {
-			return fmt.Errorf("worker %d failed to compute hash for part %d: %w", worker.id, part, err)
+			return fmt.Errorf(
+				"worker %d failed to compute hash for part %d: %w",
+				worker.id,
+				part,
+				err,
+			)
 		}
 
 		// Each worker is updating different index of the partsInfo slice so there is no race condition.

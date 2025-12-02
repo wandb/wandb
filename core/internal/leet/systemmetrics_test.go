@@ -27,7 +27,12 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			def := leet.MatchMetricDef(tc.metric)
-			require.Equal(t, fmt.Sprintf("%s (%s)", tc.wantName, tc.wantUnit), def.Title(), "metric: %s", tc.metric)
+			require.Equal(t,
+				fmt.Sprintf("%s (%s)", tc.wantName, tc.wantUnit),
+				def.Title(),
+				"metric: %s",
+				tc.metric,
+			)
 		})
 	}
 }

@@ -14,7 +14,10 @@ import (
 )
 
 func TestSidebarFilter_AppliesAndClears(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	cfg := leet.NewConfigManager(
+		filepath.Join(t.TempDir(), "config.json"),
+		observability.NewNoOpLogger(),
+	)
 	s := leet.NewLeftSidebar(cfg)
 
 	s.ProcessRunMsg(leet.RunMsg{
@@ -39,7 +42,10 @@ func TestSidebarFilter_AppliesAndClears(t *testing.T) {
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	cfg := leet.NewConfigManager(
+		filepath.Join(t.TempDir(), "config.json"),
+		observability.NewNoOpLogger(),
+	)
 	s := leet.NewLeftSidebar(cfg)
 
 	s.ProcessRunMsg(leet.RunMsg{
@@ -56,7 +62,10 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 }
 
 func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	cfg := leet.NewConfigManager(
+		filepath.Join(t.TempDir(), "config.json"),
+		observability.NewNoOpLogger(),
+	)
 	s := leet.NewLeftSidebar(cfg)
 
 	s.ProcessRunMsg(leet.RunMsg{
@@ -93,7 +102,10 @@ func expandSidebar(t *testing.T, s *leet.LeftSidebar, termWidth int, rightVisibl
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	cfg := leet.NewConfigManager(
+		filepath.Join(t.TempDir(), "config.json"),
+		observability.NewNoOpLogger(),
+	)
 	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 120, false)
@@ -138,7 +150,10 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	cfg := leet.NewConfigManager(
+		filepath.Join(t.TempDir(), "config.json"),
+		observability.NewNoOpLogger(),
+	)
 	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 120, false)
@@ -191,7 +206,10 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 }
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	cfg := leet.NewConfigManager(
+		filepath.Join(t.TempDir(), "config.json"),
+		observability.NewNoOpLogger(),
+	)
 	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 120, false)
@@ -230,7 +248,10 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 }
 
 func TestSidebar_TruncateValue(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	cfg := leet.NewConfigManager(
+		filepath.Join(t.TempDir(), "config.json"),
+		observability.NewNoOpLogger(),
+	)
 	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
@@ -256,7 +277,10 @@ func TestSidebar_TruncateValue(t *testing.T) {
 }
 
 func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	cfg := leet.NewConfigManager(
+		filepath.Join(t.TempDir(), "config.json"),
+		observability.NewNoOpLogger(),
+	)
 	s := leet.NewLeftSidebar(cfg)
 
 	s.ProcessRunMsg(leet.RunMsg{
