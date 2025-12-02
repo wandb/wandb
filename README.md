@@ -53,7 +53,7 @@ import wandb
 project = "my-awesome-project"
 
 # Dictionary with hyperparameters
-config = {"epochs" : 1337, "lr" : 3e-4}
+config = {"epochs": 1337, "lr": 3e-4}
 
 # The `with` syntax marks the run as finished upon exiting the `with` block,
 # and it marks the run "failed" if there's an exception.
@@ -107,7 +107,7 @@ Weights & Biases ❤️ open source, and we welcome contributions from the commu
 
 # W&B Community
 
-Be a part of the growing W&B Community and interact with the W&B team in our [Discord](https://wandb.me/discord). Stay connected with the latest ML updates and tutorials with [W&B Fully Connected](https://wandb.ai/fully-connected).
+Be a part of the growing W&B Community and interact with the W&B team in our [Discord](https://wandb.me/discord). Stay connected with the latest AI updates and tutorials with [W&B Fully Connected](https://wandb.ai/fully-connected).
 
 &nbsp;
 
