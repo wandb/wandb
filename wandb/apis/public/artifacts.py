@@ -214,11 +214,7 @@ class ArtifactType:
         )
 
         gql_op = gql(PROJECT_ARTIFACT_TYPE_GQL)
-        gql_vars = {
-            "entity": self.entity,
-            "project": self.project,
-            "artifactType": self.type,
-        }
+        gql_vars = {"entity": self.entity, "project": self.project, "type": self.type}
         data = self.client.execute(gql_op, variable_values=gql_vars)
         result = ProjectArtifactType.model_validate(data)
         if not ((proj := result.project) and (artifact_type := proj.artifact_type)):
@@ -302,7 +298,7 @@ class ArtifactCollections(
         self.entity = entity
         self.project = project
         self.type_name = type_name
-        variables = {"entity": entity, "project": project, "artifactType": type_name}
+        variables = {"entity": entity, "project": project, "type": type_name}
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
@@ -434,7 +430,7 @@ class ArtifactCollection:
         return self._saved.created_at
 
     def load(
-        self, entity: str, project: str, artifact_type: str, name: str
+        self, entity: str, project: str, type_: str, name: str
     ) -> ArtifactCollectionFragment:
         """Fetch and return the validated artifact collection data from W&B.
 
@@ -446,21 +442,16 @@ class ArtifactCollection:
         )
 
         gql_op = gql_compat(PROJECT_ARTIFACT_COLLECTION_GQL)
-        gql_vars = {
-            "entity": entity,
-            "project": project,
-            "artifactType": artifact_type,
-            "name": name,
-        }
+        gql_vars = {"entity": entity, "project": project, "type": type_, "name": name}
         data = self.client.execute(gql_op, variable_values=gql_vars)
         result = ProjectArtifactCollection.model_validate(data)
         if not (
             result.project
             and (proj := result.project)
-            and (type_ := proj.artifact_type)
-            and (collection := type_.artifact_collection)
+            and (artifact_type := proj.artifact_type)
+            and (collection := artifact_type.artifact_collection)
         ):
-            raise ValueError(f"Could not find artifact type {artifact_type!s}")
+            raise ValueError(f"Could not find artifact type {type_!r}")
         return collection
 
     @normalize_exceptions
@@ -731,8 +722,8 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         self.tags = always_list(tags or [])
         self.order = order
         variables = {
-            "project": self.project,
             "entity": self.entity,
+            "project": self.project,
             "order": self.order,
             "type": self.type,
             "collection": self.collection_name,
@@ -820,7 +811,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             self.QUERY = gql_compat(query_str, omit_fields=omit_artifact_fields(client))
 
         self.run = run
-        variables = {"entity": run.entity, "project": run.project, "runName": run.id}
+        variables = {"entity": run.entity, "project": run.project, "run": run.id}
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
@@ -867,8 +858,8 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         per_page: int = 50,
     ):
         from wandb.sdk.artifacts._generated import (
-            ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
-            ARTIFACT_VERSION_FILES_GQL,
+            GET_ARTIFACT_FILES_GQL,
+            GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
         )
         from wandb.sdk.artifacts._gqlutils import server_supports
 
@@ -878,7 +869,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         self.artifact = artifact
 
         if self.query_via_membership:
-            query_str = ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL
+            query_str = GET_ARTIFACT_MEMBERSHIP_FILES_GQL
             variables = {
                 "entity": artifact.entity,
                 "project": artifact.project,
@@ -887,12 +878,12 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
                 "fileNames": names,
             }
         else:
-            query_str = ARTIFACT_VERSION_FILES_GQL
+            query_str = GET_ARTIFACT_FILES_GQL
             variables = {
                 "entity": artifact.source_entity,
                 "project": artifact.source_project,
                 "name": artifact.source_name,
-                "artifactType": artifact.type,
+                "type": artifact.type,
                 "fileNames": names,
             }
 
@@ -912,8 +903,8 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
     @override
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._generated import (
-            ArtifactCollectionMembershipFiles,
-            ArtifactVersionFiles,
+            GetArtifactFiles,
+            GetArtifactMembershipFiles,
         )
         from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
 
@@ -921,10 +912,10 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
 
         # Extract the inner `*Connection` result for faster/easier access.
         if self.query_via_membership:
-            result = ArtifactCollectionMembershipFiles.model_validate(data)
+            result = GetArtifactMembershipFiles.model_validate(data)
             conn = result.project.artifact_collection.artifact_membership.files
         else:
-            result = ArtifactVersionFiles.model_validate(data)
+            result = GetArtifactFiles.model_validate(data)
             conn = result.project.artifact_type.artifact.files
 
         if conn is None:

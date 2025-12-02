@@ -80,22 +80,9 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   }
 }
 
-fragment VersionedArtifactConnectionFragment on VersionedArtifactConnection {
-  totalCount
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      ...ArtifactFragment
-    }
-    version
-  }
-}
-
 query ProjectArtifacts(
-  $project: String!
   $entity: String!
+  $project: String!
   $type: String!
   $collection: String!
   $cursor: String
@@ -104,37 +91,22 @@ query ProjectArtifacts(
   $filters: JSONString
   $includeAliases: Boolean = true
 ) {
-  project(name: $project, entityName: $entity) {
+  project(entityName: $entity, name: $project) {
     artifactType(name: $type) {
       artifactCollection(name: $collection) {
-        artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-          ...VersionedArtifactConnectionFragment
+        artifacts(after: $cursor, first: $perPage, order: $order, filters: $filters) {
+          totalCount
+          pageInfo {
+            ...PageInfoFragment
+          }
+          edges {
+            version
+            node {
+              ...ArtifactFragment
+            }
+          }
         }
       }
-    }
-  }
-}
-
-fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
-  totalCount
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      ...ArtifactFragment
-    }
-  }
-}
-
-fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
-  totalCount
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      ...ArtifactFragment
     }
   }
 }
@@ -142,15 +114,23 @@ fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
 query RunOutputArtifacts(
   $entity: String!
   $project: String!
-  $runName: String!
+  $run: String!
   $cursor: String
   $perPage: Int
   $includeAliases: Boolean = true
 ) {
-  project(name: $project, entityName: $entity) {
-    run(name: $runName) {
+  project(entityName: $entity, name: $project) {
+    run(name: $run) {
       artifacts: outputArtifacts(after: $cursor, first: $perPage) {
-        ...RunOutputArtifactConnectionFragment
+        totalCount
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactFragment
+          }
+        }
       }
     }
   }
@@ -159,15 +139,23 @@ query RunOutputArtifacts(
 query RunInputArtifacts(
   $entity: String!
   $project: String!
-  $runName: String!
+  $run: String!
   $cursor: String
   $perPage: Int
   $includeAliases: Boolean = true
 ) {
-  project(name: $project, entityName: $entity) {
-    run(name: $runName) {
+  project(entityName: $entity, name: $project) {
+    run(name: $run) {
       artifacts: inputArtifacts(after: $cursor, first: $perPage) {
-        ...RunInputArtifactConnectionFragment
+        totalCount
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...ArtifactFragment
+          }
+        }
       }
     }
   }
