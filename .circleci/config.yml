@@ -433,9 +433,14 @@ jobs:
 
   unit-tests-go:
     docker:
-      - image: cimg/go:<<pipeline.parameters.go_version>>
+      - image: cimg/base:current
     steps:
       - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update
+      - install_go
       - run:
           name: Run wandb core's Go tests and collect coverage
           command: |
