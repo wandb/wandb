@@ -1150,6 +1150,8 @@ func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.Downlo
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,
 		s.fileTransferManager,
+		s.logger,
+		s.settings.GetExtraHTTPHeaders(),
 		msg.ArtifactId,
 		msg.DownloadRoot,
 		msg.AllowMissingReferences,
