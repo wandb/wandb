@@ -485,7 +485,7 @@ def _maybe_update_credentials(settings: Settings) -> None:
             "The api_key and identity_token_file settings cannot be used together."
         )
 
-    from wandb.sdk.lib import auth as wbauth
+    from wandb.sdk.lib import wbauth
 
     if settings.api_key:
         wbauth.use_explicit_auth(
@@ -579,7 +579,7 @@ def teardown(exit_code: int | None = None) -> None:
     """
     global _singleton
 
-    from wandb.sdk.lib import auth as wbauth
+    from wandb.sdk.lib import wbauth
 
     with _singleton_lock:
         orig_singleton = _singleton

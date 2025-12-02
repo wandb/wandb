@@ -3,7 +3,7 @@ import textwrap
 
 import pytest
 from wandb.errors import AuthenticationError
-from wandb.sdk.lib.auth import (
+from wandb.sdk.lib.wbauth import (
     AuthApiKey,
     AuthIdentityTokenFile,
     authenticate_session,

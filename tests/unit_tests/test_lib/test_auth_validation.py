@@ -1,5 +1,5 @@
 import pytest
-from wandb.sdk.lib.auth import validation
+from wandb.sdk.lib.wbauth import validation
 
 
 @pytest.mark.parametrize(

@@ -12,7 +12,7 @@ from wandb.apis.public import runs
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
-from wandb.sdk.lib import auth
+from wandb.sdk.lib import wbauth
 
 
 @pytest.fixture(autouse=True)
@@ -213,8 +213,8 @@ def test_initialize_api_authenticates(
 ):
     mock_verify_login = MagicMock()
     monkeypatch.setattr(wandb_login, "_verify_login", mock_verify_login)
-    auth.use_explicit_auth(
-        auth.AuthApiKey(api_key="1234" * 10, host="https://test-url"),
+    wbauth.use_explicit_auth(
+        wbauth.AuthApiKey(api_key="1234" * 10, host="https://test-url"),
         source="test",
     )
 
@@ -232,8 +232,8 @@ def test_initialize_api_uses_explicit_key(
 ):
     mock_verify_login = MagicMock()
     monkeypatch.setattr(wandb_login, "_verify_login", mock_verify_login)
-    auth.use_explicit_auth(
-        auth.AuthApiKey(api_key="wrong" * 8, host="https://test-url"),
+    wbauth.use_explicit_auth(
+        wbauth.AuthApiKey(api_key="wrong" * 8, host="https://test-url"),
         source="test",
     )
 

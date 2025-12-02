@@ -421,7 +421,7 @@ class Api:
 
     @property
     def api_key(self) -> str | None:
-        from wandb.sdk.lib import auth as wbauth
+        from wandb.sdk.lib import wbauth
 
         if (  #
             (auth := wbauth.session_credentials(host=self.api_url))

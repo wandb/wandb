@@ -10,8 +10,7 @@ import click
 import wandb
 from wandb.errors import AuthenticationError, term
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import auth as wbauth
-from wandb.sdk.lib import settings_file
+from wandb.sdk.lib import settings_file, wbauth
 from wandb.sdk.lib.deprecation import UNSET, DoNotSet
 
 from ..apis import InternalApi
