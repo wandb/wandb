@@ -331,9 +331,6 @@ def _login(
         return True, None
 
     if key:
-        if problems := auth.check_api_key(key):
-            raise AuthenticationError(problems)
-
         if verify:
             _verify_login(key, wlogin._settings.base_url)
 
