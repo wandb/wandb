@@ -179,7 +179,7 @@ class ServiceConnection:
     def api_request(
         self,
         api_request: wandb_api_pb2.ApiRequest,
-        timeout: int | None = None,
+        timeout: float | None = None,
     ) -> wandb_api_pb2.ApiResponse:
         """Send an ApiRequest and wait for a response."""
         request = spb.ServerRequest()

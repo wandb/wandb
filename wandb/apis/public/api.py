@@ -416,7 +416,7 @@ class Api:
     def _send_api_request(
         self,
         request: ApiRequest,
-        timeout: int | None = None,
+        timeout: float | None = None,
     ) -> ApiResponse:
         """Sends an API request to the backend service.
 
