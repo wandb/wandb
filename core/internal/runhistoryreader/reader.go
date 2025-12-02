@@ -101,6 +101,13 @@ func (h *HistoryReader) GetHistorySteps(
 	return results, nil
 }
 
+// Release calls the Release method on each partition's ParquetDataIterator.
+func (h *HistoryReader) Release() {
+	for _, partition := range h.partitions {
+		partition.Release()
+	}
+}
+
 func (h *HistoryReader) getParquetHistory(
 	ctx context.Context,
 	minStep int64,
@@ -267,8 +274,16 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 
 func (h *HistoryReader) makeRowIteratorsFromFiles(
 	ctx context.Context,
-) ([]*iterator.ParquetDataIterator, error) {
-	partitions := make([]*iterator.ParquetDataIterator, 0, len(h.parquetFiles))
+) (partitions []*iterator.ParquetDataIterator, err error) {
+	defer func() {
+		if err != nil {
+			for _, partition := range partitions {
+				partition.Release()
+			}
+		}
+	}()
+
+	partitions = make([]*iterator.ParquetDataIterator, 0, len(h.parquetFiles))
 	for _, parquetFile := range h.parquetFiles {
 		selectedRows := iterator.SelectRowsInRange(
 			parquetFile,
@@ -293,9 +308,6 @@ func (h *HistoryReader) makeRowIteratorsFromFiles(
 			selectedColumns,
 		)
 		if err != nil {
-			for _, partition := range partitions {
-				partition.Release()
-			}
 			return nil, err
 		}
 

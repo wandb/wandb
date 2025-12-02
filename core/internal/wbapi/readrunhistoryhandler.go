@@ -200,7 +200,11 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryCleanup(
 	request *spb.ScanRunHistoryCleanup,
 ) *spb.ApiResponse {
 	requestId := request.GetRequestId()
-	delete(f.scanHistoryReaders, requestId)
+	historyReader, ok := f.scanHistoryReaders[requestId]
+	if ok && historyReader != nil {
+		historyReader.Release()
+		delete(f.scanHistoryReaders, requestId)
+	}
 
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_ReadRunHistoryResponse{

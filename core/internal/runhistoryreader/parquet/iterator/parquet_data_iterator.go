@@ -14,7 +14,7 @@ type ParquetDataIterator struct {
 	fileReader      *pqarrow.FileReader
 
 	recordReader pqarrow.RecordReader
-	current      RowIterator
+	current      *RowGroupIterator
 
 	lastStep int64
 }
@@ -25,57 +25,36 @@ func NewParquetDataIterator(
 	selectedRows *SelectedRowsRange,
 	selectedColumns *SelectedColumns,
 ) (*ParquetDataIterator, error) {
-	columnIndices := selectedColumns.GetColumnIndices()
-	rowGroupIndices, err := selectedRows.GetRowGroupIndices()
-	if err != nil {
-		return nil, err
-	}
-
-	recordReader, err := reader.GetRecordReader(
-		ctx,
-		columnIndices,
-		rowGroupIndices,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// No rows to read
-	if !recordReader.Next() {
-		return nil, nil
-	}
-
-	current, err := NewRowGroupIterator(
-		recordReader.RecordBatch(),
-		selectedColumns,
-		selectedRows,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ParquetDataIterator{
-		ctx: ctx,
-
+	pqDataIterator := &ParquetDataIterator{
+		ctx:             ctx,
 		selectedRows:    selectedRows,
 		selectedColumns: selectedColumns,
 		fileReader:      reader,
+		lastStep:        0,
+	}
+	err := pqDataIterator.createNewRecordReader()
+	if err != nil {
+		return nil, err
+	}
+	return pqDataIterator, nil
+}
 
-		recordReader: recordReader,
-		current:      current,
-		lastStep:     0,
-	}, nil
+func (r *ParquetDataIterator) GetSelectedRows() *SelectedRowsRange {
+	return r.selectedRows
 }
 
 func (r *ParquetDataIterator) UpdateQueryRange(
 	minValue float64,
 	maxValue float64,
 ) error {
-
 	// Update the selected range
-	r.selectedRows.minValue = minValue
-	r.selectedRows.maxValue = maxValue
-	// r.selectedRows.selectAll = selectAll
+	r.selectedRows = SelectRowsInRange(
+		r.fileReader,
+		StepKey,
+		minValue,
+		maxValue,
+	)
+	r.current.selectedRows = r.selectedRows
 
 	// When we want data from minValue we need to create a new record reader
 	// since the Arrow RecordReader doesn't support backward seeking
@@ -89,6 +68,11 @@ func (r *ParquetDataIterator) UpdateQueryRange(
 
 // Next implements RowIterator.Next.
 func (r *ParquetDataIterator) Next() (bool, error) {
+	// If there's no current iterator (e.g., empty file), return false
+	if r.current == nil {
+		return false, nil
+	}
+
 	for {
 		next, err := r.current.Next()
 		if next || err != nil {
@@ -115,19 +99,29 @@ func (r *ParquetDataIterator) Next() (bool, error) {
 
 // Value implements RowIterator.Value.
 func (r *ParquetDataIterator) Value() KeyValueList {
+	if r.current == nil {
+		return nil
+	}
 	return r.current.Value()
 }
 
 // Release implements RowIterator.Release.
 func (r *ParquetDataIterator) Release() {
-	r.current.Release()
-	r.recordReader.Release()
+	if r.current != nil {
+		r.current.Release()
+	}
+	if r.recordReader != nil {
+		r.recordReader.Release()
+	}
 }
 
 // createNewRecordReader creates a fresh RecordReader when going backwards or restarting.
 // This adds latency but is necessary since the Arrow RecordReader doesn't
 // support backward seeking after data has been consumed.
 func (r *ParquetDataIterator) createNewRecordReader() error {
+	// Release the old resources
+	r.Release()
+
 	// Create a new record reader for the updated range
 	columnIndices := r.selectedColumns.GetColumnIndices()
 	rowGroupIndices, err := r.selectedRows.GetRowGroupIndices()
@@ -147,8 +141,7 @@ func (r *ParquetDataIterator) createNewRecordReader() error {
 
 	// No rows to read
 	if !r.recordReader.Next() {
-		r.current = &NoopRowIterator{}
-		r.lastStep = 0
+		r.current = nil
 		return nil
 	}
 
@@ -164,6 +157,7 @@ func (r *ParquetDataIterator) createNewRecordReader() error {
 	if err != nil {
 		return err
 	}
+
 	r.current = current
 	r.lastStep = 0
 	return nil
