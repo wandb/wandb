@@ -357,7 +357,9 @@ func (m *Model) ShouldRestart() bool {
 func (m *Model) logPanic(context string) {
 	if r := recover(); r != nil {
 		stackTrace := string(debug.Stack())
-		m.logger.CaptureError(fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace))
+		m.logger.CaptureError(
+			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace),
+		)
 		panic(r)
 	}
 }

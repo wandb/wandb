@@ -259,7 +259,11 @@ func TestReadAvailableRecords_BatchProcessing(t *testing.T) {
 				{NestedKey: []string{"loss"}, ValueJson: fmt.Sprintf("%f", float64(i)*0.1)},
 			},
 		}
-		require.NoError(t, w.Write(&spb.Record{RecordType: &spb.Record_History{History: h}}), "write history %d", i)
+		require.NoError(t,
+			w.Write(&spb.Record{RecordType: &spb.Record_History{History: h}}),
+			"write history %d",
+			i,
+		)
 	}
 	w.Close()
 

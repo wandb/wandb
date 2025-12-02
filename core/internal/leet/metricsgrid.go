@@ -334,7 +334,8 @@ func (mg *MetricsGrid) renderGridCell(row, col int, dims GridDims) string {
 	mg.mu.RLock()
 	defer mg.mu.RUnlock()
 
-	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) && mg.currentPage[row][col] != nil {
+	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
+		mg.currentPage[row][col] != nil {
 		chart := mg.currentPage[row][col]
 		chartView := chart.View()
 

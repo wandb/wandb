@@ -1019,7 +1019,10 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 
 // sendRequestRunFinishWithoutExit triggers the shutdown of the stream without marking the run as finished
 // on the server.
-func (s *Sender) sendRequestRunFinishWithoutExit(record *spb.Record, _ *spb.RunFinishWithoutExitRequest) {
+func (s *Sender) sendRequestRunFinishWithoutExit(
+	record *spb.Record,
+	_ *spb.RunFinishWithoutExitRequest,
+) {
 	if s.finishWithoutExitRecord != nil {
 		s.logger.CaptureError(
 			errors.New("sender: received RequestRunFinishWithoutExit more than once, ignoring"))
@@ -1118,7 +1121,10 @@ func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifact
 		if result.Err != nil {
 			response.ErrorMessage = result.Err.Error()
 			// TODO: it will send error to sentry, do we want it?
-			s.logger.CaptureError(fmt.Errorf("sender: failed to log artifact: %v", result.Err), "artifactID", result.ArtifactID)
+			s.logger.CaptureError(
+				fmt.Errorf("sender: failed to log artifact: %v", result.Err),
+				"artifactID", result.ArtifactID,
+			)
 		} else {
 			response.ArtifactId = result.ArtifactID
 		}
@@ -1144,7 +1150,9 @@ func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.Downlo
 
 	if s.graphqlClient == nil {
 		// Offline mode handling:
-		s.logger.Error("sender: sendRequestDownloadArtifact: cannot download artifact in offline mode")
+		s.logger.Error(
+			"sender: sendRequestDownloadArtifact: cannot download artifact in offline mode",
+		)
 		response.ErrorMessage = "Artifact downloads are not supported in offline mode."
 	} else if err := artifacts.NewArtifactDownloader(
 		s.runWork.BeforeEndCtx(),

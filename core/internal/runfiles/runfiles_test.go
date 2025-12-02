@@ -454,7 +454,11 @@ func TestUploader(t *testing.T) {
 			})
 			// Wait until CreateRunFiles scheduling is done.
 			uploader.(UploaderTesting).FlushSchedulingForTest()
-			require.Len(t, fakeFileTransfer.Tasks(), 1, "first upload should schedule exactly one task")
+			require.Len(t,
+				fakeFileTransfer.Tasks(),
+				1,
+				"first upload should schedule exactly one task",
+			)
 
 			// Complete the first upload so savedFile records the last uploaded state.
 			fakeFileTransfer.Tasks()[0].Complete(nil)
@@ -496,7 +500,11 @@ func TestUploader(t *testing.T) {
 				},
 			})
 			uploader.(UploaderTesting).FlushSchedulingForTest()
-			require.Len(t, fakeFileTransfer.Tasks(), 1, "first upload should schedule exactly one task")
+			require.Len(t,
+				fakeFileTransfer.Tasks(),
+				1,
+				"first upload should schedule exactly one task",
+			)
 
 			// Complete the first upload.
 			fakeFileTransfer.Tasks()[0].Complete(nil)

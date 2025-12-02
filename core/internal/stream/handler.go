@@ -568,7 +568,10 @@ func (h *Handler) handleCodeSave() {
 
 	programAbsolute := h.settings.GetProgramAbsolutePath()
 	if _, err := os.Stat(programAbsolute); err != nil {
-		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
+		h.logger.Warn(
+			"handleCodeSave: program absolute path does not exist",
+			"path", programAbsolute,
+		)
 		return
 	}
 
