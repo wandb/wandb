@@ -459,6 +459,13 @@ class Settings(BaseModel, validate_assignment=True):
     table_raise_on_max_row_limit_exceeded: bool = False
     """Whether to raise an exception when table row limits are exceeded."""
 
+    use_dot_wandb: Optional[bool] = None
+    """Whether to use a hidden `.wandb` or visible `wandb` directory for run data.
+
+    If True, the SDK uses `.wandb`. If False, `wandb`.
+    If not set, defaults to `.wandb` if it already exists, otherwise `wandb`.
+    """
+
     username: Optional[str] = None
     """Username."""
 
@@ -1727,13 +1734,13 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def wandb_dir(self) -> str:
         """Full path to the wandb directory."""
-        stage_dir = (
-            ".wandb" + os.sep
-            if os.path.exists(os.path.join(self.root_dir, ".wandb"))
-            else "wandb" + os.sep
-        )
-        path = os.path.join(self.root_dir, stage_dir)
-        return os.path.expanduser(path)
+        if self.use_dot_wandb is None:
+            use_dot = pathlib.Path(self.root_dir, ".wandb").exists()
+        else:
+            use_dot = self.use_dot_wandb
+
+        dirname = ".wandb" if use_dot else "wandb"
+        return str(pathlib.Path(self.root_dir, dirname).expanduser())
 
     # Methods to collect and update settings from different sources.
     #
