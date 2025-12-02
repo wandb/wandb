@@ -45,7 +45,6 @@ from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
@@ -275,7 +274,6 @@ class Api:
         self._extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
-        self._extra_http_headers.update(_thread_local_api_settings.headers or {})
 
         auth = None
         api_key = api_key or self.default_settings.get("api_key")
@@ -283,7 +281,7 @@ class Api:
             auth = ("api", api_key)
         elif self.access_token is not None:
             self._extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
-        elif _thread_local_api_settings.cookies is None:
+        else:
             auth = ("api", self.api_key or "")
 
         proxies = self.settings("_proxies") or json.loads(
@@ -304,7 +302,6 @@ class Api:
                 timeout=self.HTTP_TIMEOUT,
                 auth=auth,
                 url=f"{self.settings('base_url')}/graphql",
-                cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
             )
         )
@@ -418,9 +415,6 @@ class Api:
 
     @property
     def api_key(self) -> str | None:
-        if _thread_local_api_settings.api_key:
-            return _thread_local_api_settings.api_key
-
         if (  #
             (settings := wandb_setup.singleton().settings_if_loaded)
             and (api_key := settings.api_key)
@@ -2888,18 +2882,17 @@ class Api:
 
         check_httpclient_logger_handler()
 
-        http_headers = _thread_local_api_settings.headers or {}
+        http_headers = {}
 
         auth = None
         if self.access_token is not None:
             http_headers["Authorization"] = f"Bearer {self.access_token}"
-        elif _thread_local_api_settings.cookies is None:
+        else:
             auth = ("api", self.api_key or "")
 
         response = requests.get(
             url,
             auth=auth,
-            cookies=_thread_local_api_settings.cookies or {},
             headers=http_headers,
             stream=True,
         )
