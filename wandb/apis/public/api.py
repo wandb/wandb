@@ -416,6 +416,7 @@ class Api:
     def _send_api_request(
         self,
         request: ApiRequest,
+        timeout: int | None = None,
     ) -> ApiResponse:
         """Sends an API request to the backend service.
 
@@ -429,7 +430,7 @@ class Api:
             self._start_backend_service()
 
         assert self._service is not None
-        return self._service.api_request(request)
+        return self._service.api_request(request, timeout=timeout)
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
