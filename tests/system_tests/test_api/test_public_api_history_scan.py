@@ -70,7 +70,7 @@ def test_run_beta_scan_history(wandb_backend_spy, parquet_file_server):
         f"{run.entity}/{run.project}/{run.id}",
     )
 
-    scan = run._beta_scan_history()
+    scan = run.beta_scan_history()
 
     history = [row for row in scan]
     assert history == [
@@ -102,7 +102,7 @@ def test_run_beta_scan_history__iter_resets(
         f"{run.entity}/{run.project}/{run.id}",
     )
 
-    scan = run._beta_scan_history()
+    scan = run.beta_scan_history()
 
     history = []
     i = 0
@@ -151,7 +151,7 @@ def test_run_beta_scan_history__exits_on_run_max_step(
         f"{run.entity}/{run.project}/{run.id}",
     )
 
-    scan = run._beta_scan_history(max_step=100)
+    scan = run.beta_scan_history(max_step=100)
 
     history = [row for row in scan]
     assert history == [
@@ -184,7 +184,7 @@ def test_run_beta_scan_history__exits_on_requested_max_step(
         f"{run.entity}/{run.project}/{run.id}",
     )
 
-    scan = run._beta_scan_history(max_step=1)
+    scan = run.beta_scan_history(max_step=1)
 
     history = [row for row in scan]
     assert history == [
