@@ -439,7 +439,7 @@ jobs:
       - run:
           name: Install system deps
           command: |
-            apt-get update
+            sudo apt-get update
       - install_go
       - run:
           name: Run wandb core's Go tests and collect coverage
