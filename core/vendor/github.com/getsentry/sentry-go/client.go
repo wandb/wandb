@@ -380,9 +380,11 @@ func NewClient(options ClientOptions) (*Client, error) {
 
 	client.setupTransport()
 
-	if !options.DisableTelemetryBuffer {
-		client.setupTelemetryBuffer()
-	} else if options.EnableLogs {
+	// noop Telemetry Buffers fow now
+	// if !options.DisableTelemetryBuffer {
+	// 	client.setupTelemetryBuffer()
+	// } else
+	if options.EnableLogs {
 		client.batchLogger = NewBatchLogger(&client)
 		client.batchLogger.Start()
 	}
@@ -408,7 +410,7 @@ func (client *Client) setupTransport() {
 	client.Transport = transport
 }
 
-func (client *Client) setupTelemetryBuffer() {
+func (client *Client) setupTelemetryBuffer() { // nolint: unused
 	if client.options.DisableTelemetryBuffer {
 		return
 	}
