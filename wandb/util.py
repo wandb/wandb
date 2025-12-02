@@ -56,7 +56,6 @@ from wandb.errors import (
     WandbCoreNotAvailableError,
 )
 from wandb.errors.term import terminput
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
@@ -1387,14 +1386,10 @@ def download_file_from_url(
 ) -> None:
     import requests
 
-    auth = None
-    if not _thread_local_api_settings.cookies:
-        auth = ("api", api_key or "")
+    auth = ("api", api_key or "")
     response = requests.get(
         source_url,
         auth=auth,
-        headers=_thread_local_api_settings.headers,
-        cookies=_thread_local_api_settings.cookies,
         stream=True,
         timeout=5,
     )
@@ -1410,14 +1405,10 @@ def download_file_from_url(
 def download_file_into_memory(source_url: str, api_key: str | None = None) -> bytes:
     import requests
 
-    auth = None
-    if not _thread_local_api_settings.cookies:
-        auth = ("api", api_key or "")
+    auth = ("api", api_key or "")
     response = requests.get(
         source_url,
         auth=auth,
-        headers=_thread_local_api_settings.headers,
-        cookies=_thread_local_api_settings.cookies,
         stream=True,
         timeout=5,
     )
