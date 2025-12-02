@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"sort"
@@ -61,6 +62,9 @@ type EpochLineChart struct {
 
 	// yMin/yMax are the observed Y bounds used to compute padded Y axes.
 	yMin, yMax float64
+
+	// inspection holds the chart overlay state.
+	inspection ChartInspection
 }
 
 func NewEpochLineChart(width, height int, title string) *EpochLineChart {
@@ -159,6 +163,11 @@ func (c *EpochLineChart) updateRanges() {
 	}
 
 	c.SetXYRange(c.MinX(), c.MaxX(), newYMin, newYMax)
+
+	// Keep inspection overlay consistent if the view/domain changed.
+	if c.inspection.Active {
+		c.refreshInspectionAfterViewChange()
+	}
 }
 
 // calculatePadding determines appropriate padding for the Y axis
@@ -330,7 +339,67 @@ func (c *EpochLineChart) Draw() {
 		patterns,
 		style)
 
+	// Overlay: vertical crosshair + legend.
+	c.drawInspectionOverlay(startX)
+
 	c.dirty = false
+}
+
+// drawInspectionOverlay renders the vertical crosshair line and the (x, y)
+// legend beside it when inspection mode is active.
+func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
+	if !c.inspection.Active || c.GraphWidth() <= 0 || c.GraphHeight() <= 0 {
+		return
+	}
+	canvasX := graphStartX + c.inspection.MouseX
+
+	// Vertical hairline across the graph area.
+	for y := 0; y < c.GraphHeight(); y++ {
+		c.Canvas.SetCell(
+			canvas.Point{X: canvasX, Y: y},
+			canvas.NewCellWithStyle(boxLightVertical, inspectionLineStyle),
+		)
+	}
+
+	// Legend: "X: Y" near the hairline (middle row), placed to the side that fits.
+	label := fmt.Sprintf("%v: %v", c.inspection.DataX, formatSigFigs(c.inspection.DataY, 4))
+	labelRunes := []rune(label)
+
+	legendY := c.GraphHeight() / 2
+	rightBound := graphStartX + c.GraphWidth()
+
+	legendX := canvasX + 1
+	if legendX+len(labelRunes) >= rightBound {
+		legendX = canvasX - 1 - len(labelRunes)
+	}
+	if legendX < graphStartX {
+		legendX = graphStartX
+	}
+
+	for i, ch := range labelRunes {
+		c.Canvas.SetCell(
+			canvas.Point{X: legendX + i, Y: legendY},
+			canvas.NewCellWithStyle(ch, inspectionLegendStyle),
+		)
+	}
+}
+
+// Binary-search utility over monotonic xData.
+func (c *EpochLineChart) findNearestDataPoint(mouseX int) (dataX, dataY float64, idx int, ok bool) {
+	if len(c.xData) == 0 || c.GraphWidth() <= 0 {
+		return 0, 0, -1, false
+	}
+	xRange := c.ViewMaxX() - c.ViewMinX()
+	if xRange <= 0 {
+		return 0, 0, -1, false
+	}
+	targetX := c.ViewMinX() + (float64(mouseX)/float64(c.GraphWidth()))*xRange
+
+	bestIdx := nearestIndexForX(c.xData, targetX)
+	if bestIdx < 0 {
+		return 0, 0, -1, false
+	}
+	return c.xData[bestIdx], c.yData[bestIdx], bestIdx, true
 }
 
 // pixelEpsX returns ~1 horizontal pixel in X units for the current graph.
@@ -464,4 +533,131 @@ func TruncateTitle(title string, maxWidth int) string {
 // SetGraphStyle swaps the style used for drawing.
 func (c *EpochLineChart) SetGraphStyle(s lipgloss.Style) {
 	c.graphStyle.Store(s)
+}
+
+// ChartInspection holds state for the crosshair overlay displayed during
+// right-click inspection.
+type ChartInspection struct {
+	// Active indicates whether inspection mode is on.
+	Active bool
+	// MouseX is the vertical crosshair position in graph-local pixels.
+	MouseX int
+	// DataX, DataY are coordinates of the nearest data sample.
+	DataX, DataY float64
+}
+
+// nearestIndexForX returns the index of the sample in xs that is closest to targetX.
+// xs must be non-decreasing.
+//
+// Returns -1 if input slice is empty
+func nearestIndexForX(xs []float64, targetX float64) int {
+	if len(xs) == 0 {
+		return -1
+	}
+	j := sort.SearchFloat64s(xs, targetX)
+
+	// Inspect the nearest values to find the best match.
+	bestIdx := -1
+	bestDist := math.Inf(1)
+	for _, i := range []int{j - 1, j, j + 1} {
+		if i < 0 || i >= len(xs) {
+			continue
+		}
+		if d := math.Abs(xs[i] - targetX); d < bestDist {
+			bestDist, bestIdx = d, i
+		}
+	}
+	return bestIdx
+}
+
+// snapInspectionToDataX finds the nearest sample to targetX, updates the
+// inspection (DataX, DataY) and snaps the hairline MouseX to the sample's
+// exact x-position in the current view.
+func (c *EpochLineChart) snapInspectionToDataX(targetX float64) {
+	if !c.inspection.Active || c.GraphWidth() <= 0 || len(c.xData) == 0 {
+		return
+	}
+
+	xRange := c.ViewMaxX() - c.ViewMinX()
+	if xRange <= 0 {
+		return
+	}
+
+	idx := nearestIndexForX(c.xData, targetX)
+	if idx < 0 {
+		return
+	}
+
+	c.inspection.DataX = c.xData[idx]
+	c.inspection.DataY = c.yData[idx]
+
+	// Pixel snap to the exact dataX under current view.
+	mouseXFrac := (c.inspection.DataX - c.ViewMinX()) / xRange
+	mouseX := int(math.Round(mouseXFrac * float64(c.GraphWidth())))
+	c.inspection.MouseX = max(0, min(c.GraphWidth()-1, mouseX))
+
+	// Need a redraw.
+	c.dirty = true
+}
+
+// InspectAtDataX turns inspection on and positions the crosshair/legend
+// at the sample nearest to targetX (in data coordinates), snapping the
+// hairline to the sample's exact X.
+func (c *EpochLineChart) InspectAtDataX(targetX float64) {
+	if len(c.xData) == 0 || c.GraphWidth() <= 0 {
+		return
+	}
+	c.inspection.Active = true
+	c.snapInspectionToDataX(targetX)
+}
+
+// refreshInspectionAfterViewChange keeps the hairline aligned with the same DataX
+// after the X view/domain changed (e.g., new data expands the domain).
+func (c *EpochLineChart) refreshInspectionAfterViewChange() {
+	if !c.inspection.Active {
+		return
+	}
+	c.snapInspectionToDataX(c.inspection.DataX)
+}
+
+// StartInspection begins inspection mode at the given graph-local mouse X.
+func (c *EpochLineChart) StartInspection(mouseX int) {
+	if len(c.xData) == 0 || c.GraphWidth() <= 0 {
+		return
+	}
+	c.inspection.Active = true
+	c.UpdateInspection(mouseX)
+}
+
+// UpdateInspection updates the crosshair position and snaps to the nearest
+// data point based on the current mouse X position.
+func (c *EpochLineChart) UpdateInspection(mouseX int) {
+	if !c.inspection.Active || c.GraphWidth() <= 0 {
+		return
+	}
+	// Clamp to the drawable graph area.
+	c.inspection.MouseX = max(0, min(c.GraphWidth()-1, mouseX))
+
+	// Resolve the data point under the mouse, then reuse the unified snap logic.
+	if dataX, _, _, ok := c.findNearestDataPoint(mouseX); ok {
+		c.snapInspectionToDataX(dataX)
+	}
+	c.dirty = true
+}
+
+// EndInspection exits inspection mode.
+func (c *EpochLineChart) EndInspection() {
+	c.inspection = ChartInspection{}
+	c.dirty = true
+}
+
+// IsInspecting reports whether inspection is active for this chart.
+func (c *EpochLineChart) IsInspecting() bool { return c.inspection.Active }
+
+// InspectionData returns the coordinates of the currently inspected point
+// and whether inspection is active.
+//
+// Used for cross-chart synchronization.
+func (c *EpochLineChart) InspectionData() (x, y float64, active bool) {
+	return c.inspection.DataX, c.inspection.DataY, c.inspection.Active
 }

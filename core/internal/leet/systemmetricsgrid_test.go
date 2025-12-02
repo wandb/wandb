@@ -99,7 +99,7 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 	require.Equal(t, 4, grid.ChartCount())
 
 	// Test navigation forward
-	initialCharts := grid.CurrentPage()
+	initialCharts := grid.TestCurrentPage()
 	var firstPageChart *leet.TimeSeriesLineChart
 	if initialCharts[0][0] != nil {
 		firstPageChart = initialCharts[0][0]
@@ -108,7 +108,7 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 	grid.Navigate(1) // Move to page 2
 	grid.LoadCurrentPage()
 
-	secondPageCharts := grid.CurrentPage()
+	secondPageCharts := grid.TestCurrentPage()
 	var secondPageChart *leet.TimeSeriesLineChart
 	if secondPageCharts[0][0] != nil {
 		secondPageChart = secondPageCharts[0][0]
