@@ -8,6 +8,7 @@ query RunParquetHistory(
         run(name: $runName) {
             parquetHistory(liveKeys: $liveKeys) {
                 parquetUrls
+                liveData
             }
         }
     }

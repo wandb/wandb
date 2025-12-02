@@ -865,6 +865,30 @@ func (v *FetchOrgEntityFromEntityResponse) GetEntity() *FetchOrgEntityFromEntity
 	return v.Entity
 }
 
+// HistoryPageProject includes the requested fields of the GraphQL type Project.
+type HistoryPageProject struct {
+	Run *HistoryPageProjectRun `json:"run"`
+}
+
+// GetRun returns HistoryPageProject.Run, and is useful for accessing the field via an interface.
+func (v *HistoryPageProject) GetRun() *HistoryPageProjectRun { return v.Run }
+
+// HistoryPageProjectRun includes the requested fields of the GraphQL type Run.
+type HistoryPageProjectRun struct {
+	History []string `json:"history"`
+}
+
+// GetHistory returns HistoryPageProjectRun.History, and is useful for accessing the field via an interface.
+func (v *HistoryPageProjectRun) GetHistory() []string { return v.History }
+
+// HistoryPageResponse is returned by HistoryPage on success.
+type HistoryPageResponse struct {
+	Project *HistoryPageProject `json:"project"`
+}
+
+// GetProject returns HistoryPageResponse.Project, and is useful for accessing the field via an interface.
+func (v *HistoryPageResponse) GetProject() *HistoryPageProject { return v.Project }
+
 // InputFieldsResponse is returned by InputFields on success.
 type InputFieldsResponse struct {
 	TypeInfo *InputFieldsTypeInfoType `json:"TypeInfo"`
@@ -1075,11 +1099,15 @@ func (v *RunParquetHistoryProjectRun) GetParquetHistory() RunParquetHistoryProje
 
 // RunParquetHistoryProjectRunParquetHistory includes the requested fields of the GraphQL type ParquetHistory.
 type RunParquetHistoryProjectRunParquetHistory struct {
-	ParquetUrls []string `json:"parquetUrls"`
+	ParquetUrls []string      `json:"parquetUrls"`
+	LiveData    []interface{} `json:"liveData"`
 }
 
 // GetParquetUrls returns RunParquetHistoryProjectRunParquetHistory.ParquetUrls, and is useful for accessing the field via an interface.
 func (v *RunParquetHistoryProjectRunParquetHistory) GetParquetUrls() []string { return v.ParquetUrls }
+
+// GetLiveData returns RunParquetHistoryProjectRunParquetHistory.LiveData, and is useful for accessing the field via an interface.
+func (v *RunParquetHistoryProjectRunParquetHistory) GetLiveData() []interface{} { return v.LiveData }
 
 // RunParquetHistoryResponse is returned by RunParquetHistory on success.
 type RunParquetHistoryResponse struct {
@@ -1210,6 +1238,30 @@ type RunStoppedStatusResponse struct {
 
 // GetProject returns RunStoppedStatusResponse.Project, and is useful for accessing the field via an interface.
 func (v *RunStoppedStatusResponse) GetProject() *RunStoppedStatusProject { return v.Project }
+
+// SampledHistoryPageProject includes the requested fields of the GraphQL type Project.
+type SampledHistoryPageProject struct {
+	Run *SampledHistoryPageProjectRun `json:"run"`
+}
+
+// GetRun returns SampledHistoryPageProject.Run, and is useful for accessing the field via an interface.
+func (v *SampledHistoryPageProject) GetRun() *SampledHistoryPageProjectRun { return v.Run }
+
+// SampledHistoryPageProjectRun includes the requested fields of the GraphQL type Run.
+type SampledHistoryPageProjectRun struct {
+	SampledHistory []interface{} `json:"sampledHistory"`
+}
+
+// GetSampledHistory returns SampledHistoryPageProjectRun.SampledHistory, and is useful for accessing the field via an interface.
+func (v *SampledHistoryPageProjectRun) GetSampledHistory() []interface{} { return v.SampledHistory }
+
+// SampledHistoryPageResponse is returned by SampledHistoryPage on success.
+type SampledHistoryPageResponse struct {
+	Project *SampledHistoryPageProject `json:"project"`
+}
+
+// GetProject returns SampledHistoryPageResponse.Project, and is useful for accessing the field via an interface.
+func (v *SampledHistoryPageResponse) GetProject() *SampledHistoryPageProject { return v.Project }
 
 // ServerFeaturesQueryResponse is returned by ServerFeaturesQuery on success.
 type ServerFeaturesQueryResponse struct {
@@ -1840,6 +1892,34 @@ type __FetchOrgEntityFromEntityInput struct {
 // GetEntityName returns __FetchOrgEntityFromEntityInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__FetchOrgEntityFromEntityInput) GetEntityName() string { return v.EntityName }
 
+// __HistoryPageInput is used internally by genqlient
+type __HistoryPageInput struct {
+	Entity   string `json:"entity"`
+	Project  string `json:"project"`
+	Run      string `json:"run"`
+	MinStep  int64  `json:"minStep"`
+	MaxStep  int64  `json:"maxStep"`
+	PageSize int    `json:"pageSize"`
+}
+
+// GetEntity returns __HistoryPageInput.Entity, and is useful for accessing the field via an interface.
+func (v *__HistoryPageInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __HistoryPageInput.Project, and is useful for accessing the field via an interface.
+func (v *__HistoryPageInput) GetProject() string { return v.Project }
+
+// GetRun returns __HistoryPageInput.Run, and is useful for accessing the field via an interface.
+func (v *__HistoryPageInput) GetRun() string { return v.Run }
+
+// GetMinStep returns __HistoryPageInput.MinStep, and is useful for accessing the field via an interface.
+func (v *__HistoryPageInput) GetMinStep() int64 { return v.MinStep }
+
+// GetMaxStep returns __HistoryPageInput.MaxStep, and is useful for accessing the field via an interface.
+func (v *__HistoryPageInput) GetMaxStep() int64 { return v.MaxStep }
+
+// GetPageSize returns __HistoryPageInput.PageSize, and is useful for accessing the field via an interface.
+func (v *__HistoryPageInput) GetPageSize() int { return v.PageSize }
+
 // __InputFieldsInput is used internally by genqlient
 type __InputFieldsInput struct {
 	TypeName string `json:"typeName"`
@@ -1991,6 +2071,26 @@ func (v *__RunStoppedStatusInput) GetProjectName() *string { return v.ProjectNam
 
 // GetRunId returns __RunStoppedStatusInput.RunId, and is useful for accessing the field via an interface.
 func (v *__RunStoppedStatusInput) GetRunId() string { return v.RunId }
+
+// __SampledHistoryPageInput is used internally by genqlient
+type __SampledHistoryPageInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Run     string `json:"run"`
+	Spec    string `json:"spec"`
+}
+
+// GetEntity returns __SampledHistoryPageInput.Entity, and is useful for accessing the field via an interface.
+func (v *__SampledHistoryPageInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __SampledHistoryPageInput.Project, and is useful for accessing the field via an interface.
+func (v *__SampledHistoryPageInput) GetProject() string { return v.Project }
+
+// GetRun returns __SampledHistoryPageInput.Run, and is useful for accessing the field via an interface.
+func (v *__SampledHistoryPageInput) GetRun() string { return v.Run }
+
+// GetSpec returns __SampledHistoryPageInput.Spec, and is useful for accessing the field via an interface.
+func (v *__SampledHistoryPageInput) GetSpec() string { return v.Spec }
 
 // __TypeFieldsInput is used internally by genqlient
 type __TypeFieldsInput struct {
@@ -2616,6 +2716,52 @@ func FetchOrgEntityFromEntity(
 	return data_, err_
 }
 
+// The query executed by HistoryPage.
+const HistoryPage_Operation = `
+query HistoryPage ($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			history(minStep: $minStep, maxStep: $maxStep, samples: $pageSize)
+		}
+	}
+}
+`
+
+func HistoryPage(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+	minStep int64,
+	maxStep int64,
+	pageSize int,
+) (data_ *HistoryPageResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "HistoryPage",
+		Query:  HistoryPage_Operation,
+		Variables: &__HistoryPageInput{
+			Entity:   entity,
+			Project:  project,
+			Run:      run,
+			MinStep:  minStep,
+			MaxStep:  maxStep,
+			PageSize: pageSize,
+		},
+	}
+
+	data_ = &HistoryPageResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The query executed by InputFields.
 const InputFields_Operation = `
 query InputFields ($typeName: String!) {
@@ -2843,6 +2989,7 @@ query RunParquetHistory ($entity: String!, $project: String!, $runName: String!,
 		run(name: $runName) {
 			parquetHistory(liveKeys: $liveKeys) {
 				parquetUrls
+				liveData
 			}
 		}
 	}
@@ -2967,6 +3114,48 @@ func RunStoppedStatus(
 	}
 
 	data_ = &RunStoppedStatusResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by SampledHistoryPage.
+const SampledHistoryPage_Operation = `
+query SampledHistoryPage ($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			sampledHistory(specs: [$spec])
+		}
+	}
+}
+`
+
+func SampledHistoryPage(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+	spec string,
+) (data_ *SampledHistoryPageResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "SampledHistoryPage",
+		Query:  SampledHistoryPage_Operation,
+		Variables: &__SampledHistoryPageInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+			Spec:    spec,
+		},
+	}
+
+	data_ = &SampledHistoryPageResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

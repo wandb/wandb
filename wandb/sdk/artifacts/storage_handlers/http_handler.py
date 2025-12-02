@@ -13,7 +13,6 @@ from typing_extensions import Self
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
@@ -72,8 +71,6 @@ class HTTPHandler(StorageHandler):
         return self._session.get(
             url,
             stream=True,
-            cookies=_thread_local_api_settings.cookies,
-            headers=_thread_local_api_settings.headers,
         )
 
     def load_path(

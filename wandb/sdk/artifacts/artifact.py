@@ -52,7 +52,6 @@ from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_setup
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import retry, telemetry
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import check_exists, system_preferred_path
@@ -2107,23 +2106,7 @@ class Artifact:
                 return
             download_logger.notify_downloaded()
 
-        def _init_thread(
-            api_key: str | None, cookies: dict | None, headers: dict | None
-        ) -> None:
-            """Initialize the thread-local API settings in the CURRENT thread."""
-            _thread_local_api_settings.api_key = api_key
-            _thread_local_api_settings.cookies = cookies
-            _thread_local_api_settings.headers = headers
-
-        with ThreadPoolExecutor(
-            max_workers=64,
-            initializer=_init_thread,
-            initargs=(
-                _thread_local_api_settings.api_key,
-                _thread_local_api_settings.cookies,
-                _thread_local_api_settings.headers,
-            ),
-        ) as executor:
+        with ThreadPoolExecutor(max_workers=64) as executor:
             batch_size = env.get_artifact_fetch_file_url_batch_size()
 
             active_futures = set()

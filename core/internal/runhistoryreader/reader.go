@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,6 +27,10 @@ type HistoryReader struct {
 
 	keys         []string
 	parquetFiles []*pqarrow.FileReader
+
+	// Stores the minimum step where live (not yet exported) data starts.
+	// This is used to determine if we need to query the W&B backend for data.
+	minLiveStep int64
 }
 
 // New returns a new HistoryReader.
@@ -45,6 +50,8 @@ func New(
 		project:       project,
 		runId:         runId,
 		keys:          keys,
+
+		minLiveStep: math.MaxInt64,
 	}
 
 	err := historyReader.initParquetFiles(ctx)
@@ -55,7 +62,7 @@ func New(
 	return historyReader, nil
 }
 
-// GetHistorySteps gets all history rows for the given keys
+// GetHistorySteps gets all history rows for HistoryReader's keys
 // that fall between minStep and maxStep.
 // Returns a list of KVMapLists, where each item in the list is a history row.
 func (h *HistoryReader) GetHistorySteps(
@@ -63,45 +70,49 @@ func (h *HistoryReader) GetHistorySteps(
 	minStep int64,
 	maxStep int64,
 ) ([]iterator.KeyValueList, error) {
-	partitions := make([]iterator.RowIterator, len(h.parquetFiles))
-	for i, parquetFile := range h.parquetFiles {
-		selectedRows := iterator.SelectRows(
-			parquetFile,
-			iterator.StepKey,
-			float64(minStep),
-			float64(maxStep),
-			false,
-		)
-		selectAllColumns := len(h.keys) == 0
-		selectedColumns, err := iterator.SelectColumns(
-			iterator.StepKey,
-			h.keys,
-			parquetFile.ParquetReader().MetaData().Schema,
-			selectAllColumns,
-		)
-		if err != nil {
-			return nil, err
-		}
+	results := []iterator.KeyValueList{}
+	selectAllColumns := len(h.keys) == 0
 
-		rowIterator, err := iterator.NewRowIterator(
-			ctx,
-			parquetFile,
-			selectedRows,
-			selectedColumns,
-		)
-		if err != nil {
-			for _, partition := range partitions {
-				partition.Release()
-			}
-			return nil, err
-		}
-		partitions[i] = rowIterator
+	parquetHistory, err := h.getParquetHistory(
+		ctx,
+		minStep,
+		maxStep,
+		selectAllColumns,
+	)
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, parquetHistory...)
+
+	liveHistory, err := h.getLiveData(ctx, minStep, maxStep, selectAllColumns)
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, liveHistory...)
+
+	return results, nil
+}
+
+func (h *HistoryReader) getParquetHistory(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+	selectAllColumns bool,
+) ([]iterator.KeyValueList, error) {
+	results := []iterator.KeyValueList{}
+
+	partitions, err := h.getRowIteratorsFromFiles(
+		ctx,
+		minStep,
+		maxStep,
+		selectAllColumns,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	multiIterator := iterator.NewMultiIterator(partitions)
 	defer multiIterator.Release()
-
-	results := []iterator.KeyValueList{}
 	for {
 		next, err := multiIterator.Next()
 		if err != nil {
@@ -125,9 +136,9 @@ func (h *HistoryReader) GetHistorySteps(
 //
 // The order of the URLs returned is not guaranteed
 // to be the same order as the order the run history partitions were created in.
-func (h *HistoryReader) getRunHistoryFileUrls(
+func (h *HistoryReader) getRunHistoryFileUrlsWithLiveSteps(
 	ctx context.Context,
-) ([]string, error) {
+) (signedUrls []string, liveData []any, err error) {
 	response, err := gql.RunParquetHistory(
 		ctx,
 		h.graphqlClient,
@@ -137,15 +148,16 @@ func (h *HistoryReader) getRunHistoryFileUrls(
 		[]string{iterator.StepKey},
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if response.GetProject() == nil || response.GetProject().GetRun() == nil {
-		return nil, fmt.Errorf("no parquet history found for run %s", h.runId)
+		return nil, nil, fmt.Errorf("no parquet history found for run %s", h.runId)
 	}
 
-	signedUrls := response.GetProject().GetRun().GetParquetHistory().ParquetUrls
-	return signedUrls, nil
+	liveData = response.GetProject().GetRun().GetParquetHistory().LiveData
+	signedUrls = response.GetProject().GetRun().GetParquetHistory().ParquetUrls
+	return signedUrls, liveData, nil
 }
 
 func (h *HistoryReader) downloadRunHistoryFile(
@@ -180,8 +192,15 @@ func (h *HistoryReader) downloadRunHistoryFile(
 
 // initParquetFiles creates a parquet file reader
 // for each of the run's history files.
+//
+// It should be called before calling GetHistorySteps.
 func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
-	signedUrls, err := h.getRunHistoryFileUrls(ctx)
+	signedUrls, liveData, err := h.getRunHistoryFileUrlsWithLiveSteps(ctx)
+	if err != nil {
+		return err
+	}
+
+	h.minLiveStep, err = getMinLiveStep(liveData)
 	if err != nil {
 		return err
 	}
@@ -228,4 +247,47 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (h *HistoryReader) getRowIteratorsFromFiles(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+	selectAllColumns bool,
+) ([]iterator.RowIterator, error) {
+	partitions := make([]iterator.RowIterator, 0, len(h.parquetFiles))
+	for _, parquetFile := range h.parquetFiles {
+		selectedRows := iterator.SelectRows(
+			parquetFile,
+			iterator.StepKey,
+			float64(minStep),
+			float64(maxStep),
+			false,
+		)
+		selectedColumns, err := iterator.SelectColumns(
+			iterator.StepKey,
+			h.keys,
+			parquetFile.ParquetReader().MetaData().Schema,
+			selectAllColumns,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		rowIterator, err := iterator.NewRowIterator(
+			ctx,
+			parquetFile,
+			selectedRows,
+			selectedColumns,
+		)
+		if err != nil {
+			for _, partition := range partitions {
+				partition.Release()
+			}
+			return nil, err
+		}
+		partitions = append(partitions, rowIterator)
+	}
+
+	return partitions, nil
 }
