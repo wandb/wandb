@@ -18,11 +18,12 @@ def fake_netrc_path(
 
 
 def test_read(fake_netrc_path: pathlib.Path):
-    fake_netrc_path.write_text("machine test login user password pass")
+    key = "test" * 10
+    fake_netrc_path.write_text(f"machine test login user password {key}")
 
     result = wbnetrc.read_netrc_auth(host="https://test")
 
-    assert result == "pass"
+    assert result == key
 
 
 def test_read_host_not_found(fake_netrc_path: pathlib.Path):

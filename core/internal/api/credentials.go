@@ -271,7 +271,10 @@ func (c *oauth2CredentialProvider) trySaveCredentialsToFile(credentials Credenti
 // in OAuth RFC 7523. The access token is then returned with its expiration time.
 func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
 	url := fmt.Sprintf("%s/oidc/token", c.baseURL)
-	data := fmt.Sprintf("grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s", c.identityToken)
+	data := fmt.Sprintf(
+		"grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s",
+		c.identityToken,
+	)
 	req, err := http.NewRequest("POST", url, strings.NewReader(data))
 	if err != nil {
 		return accessTokenInfo{}, err

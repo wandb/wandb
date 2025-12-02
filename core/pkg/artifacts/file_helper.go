@@ -12,7 +12,9 @@ import (
 //
 // Returns the path to the temporary file, the Base64-encoded MD5 digest of the JSON data,
 // the size of the file, and an error if something goes wrong during the process.
-func WriteJSONToTempFileWithMetadata(data any) (filename string, digest string, size int64, err error) {
+func WriteJSONToTempFileWithMetadata(
+	data any,
+) (filename string, digest string, size int64, err error) {
 	// Create a temporary file
 	f, err := os.CreateTemp("", "tmpfile-")
 	if err != nil {

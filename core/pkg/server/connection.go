@@ -390,7 +390,12 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	sentryClient.CaptureMessage("wandb-core", nil)
 
 	if err := nc.streamMux.AddStream(streamId, strm); err != nil {
-		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
+		slog.Error(
+			"handleInformInit: error adding stream",
+			"err", err,
+			"streamId", streamId,
+			"id", nc.id,
+		)
 		// TODO: should we Close the stream?
 		return
 	}
@@ -522,7 +527,12 @@ func (nc *Connection) handleInformFinish(msg *spb.ServerInformFinishRequest) {
 	// Attempt to remove the stream from the stream multiplexer
 	strm, err := nc.streamMux.RemoveStream(streamId)
 	if err != nil {
-		slog.Error("handleInformFinish: error removing stream", "err", err, "streamId", streamId, "id", nc.id)
+		slog.Error(
+			"handleInformFinish: error removing stream",
+			"err", err,
+			"streamId", streamId,
+			"id", nc.id,
+		)
 		return
 	}
 

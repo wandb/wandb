@@ -231,29 +231,22 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 func (m *Model) dispatch(msg tea.Msg) []tea.Cmd {
 	switch t := msg.(type) {
 	case InitMsg:
-		return m.onInit(t)
+		return m.handleInit(t)
 	case ChunkedBatchMsg:
-		return m.onChunkedBatch(t)
+		return m.handleChunkedBatch(t)
 	case BatchedRecordsMsg:
-		return m.onBatched(t)
+		return m.handleBatched(t)
 	case HeartbeatMsg:
-		return m.onHeartbeat()
+		return m.handleHeartbeat()
 	case FileChangedMsg:
-		return m.onFileChange()
-	case tea.KeyMsg:
-		_, cmd := m.handleKeyMsg(t)
-		if cmd != nil {
-			return []tea.Cmd{cmd}
-		}
-	case tea.MouseMsg, tea.WindowSizeMsg, LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
-		_, cmd := m.handleOther(msg)
-		if cmd != nil {
-			return []tea.Cmd{cmd}
-		}
+		return m.handleFileChange()
+	case tea.WindowSizeMsg:
+		m.handleWindowResize(t)
+	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
+		return m.handleSidebarAnimation(msg)
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
-		_, cmd := m.processRecordMsg(msg)
-		if cmd != nil {
+		if _, cmd := m.handleRecordMsg(msg); cmd != nil {
 			return []tea.Cmd{cmd}
 		}
 	}
@@ -364,7 +357,9 @@ func (m *Model) ShouldRestart() bool {
 func (m *Model) logPanic(context string) {
 	if r := recover(); r != nil {
 		stackTrace := string(debug.Stack())
-		m.logger.CaptureError(fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace))
+		m.logger.CaptureError(
+			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace),
+		)
 		panic(r)
 	}
 }
@@ -442,9 +437,10 @@ func (m *Model) buildOverviewFilterStatus() string {
 		filterInfo = "no matches"
 	}
 	return fmt.Sprintf(
-		"Overview filter (%s): %s_ [%s] (Enter to apply • Tab to toggle mode)",
+		"Overview filter (%s): %s%s [%s] (Enter to apply • Tab to toggle mode)",
 		m.leftSidebar.FilterMode().String(),
 		m.leftSidebar.FilterQuery(),
+		string(mediumShadeBlock),
 		filterInfo,
 	)
 }
@@ -454,9 +450,10 @@ func (m *Model) buildOverviewFilterStatus() string {
 // Should be guarded by the caller's check that filter input is active.
 func (m *Model) buildMetricsFilterStatus() string {
 	return fmt.Sprintf(
-		"Filter (%s): %s_ [%d/%d] (Enter to apply • Tab to toggle mode)",
+		"Filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
 		m.metricsGrid.FilterMode().String(),
 		m.metricsGrid.FilterQuery(),
+		string(mediumShadeBlock),
 		m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount())
 }
 

@@ -28,6 +28,7 @@ from wandb.analytics import get_sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
 from wandb.errors.links import url_registry
+from wandb.old import core as old_core
 from wandb.sdk import wandb_login, wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
@@ -43,7 +44,7 @@ from wandb.sync import SyncManager, get_run_from_path, get_runs
 from .beta import beta
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
-_wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
+_wandb_dir = old_core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
     _wandb_dir = tempfile.gettempdir()
 

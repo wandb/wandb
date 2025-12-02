@@ -249,26 +249,6 @@ class RunInfoFragment(GQLResult):
     project: Optional[ProjectInfoFragment]
 
 
-class RunInputArtifactConnectionFragment(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RunInputArtifactConnectionFragmentEdges]
-
-
-class RunInputArtifactConnectionFragmentEdges(GQLResult):
-    node: Optional[ArtifactFragment]
-
-
-class RunOutputArtifactConnectionFragment(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RunOutputArtifactConnectionFragmentEdges]
-
-
-class RunOutputArtifactConnectionFragmentEdges(GQLResult):
-    node: Optional[ArtifactFragment]
-
-
 class TeamMemberFragment(GQLResult):
     typename__: Typename[Literal["Member"]] = "Member"
     id: Optional[str]
@@ -333,17 +313,6 @@ class UserRegistryMemberFragment(GQLResult):
     role: RegistryRoleFragment
 
 
-class VersionedArtifactConnectionFragment(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[VersionedArtifactConnectionFragmentEdges]
-
-
-class VersionedArtifactConnectionFragmentEdges(GQLResult):
-    node: ArtifactFragment
-    version: str
-
-
 ArtifactAliasFragment.model_rebuild()
 ProjectInfoFragment.model_rebuild()
 TagFragment.model_rebuild()
@@ -364,11 +333,8 @@ RegistryCollectionFragment.model_rebuild()
 RegistryFragment.model_rebuild()
 RegistryRoleFragment.model_rebuild()
 RunInfoFragment.model_rebuild()
-RunInputArtifactConnectionFragment.model_rebuild()
-RunOutputArtifactConnectionFragment.model_rebuild()
 TeamMemberFragment.model_rebuild()
 TeamFragment.model_rebuild()
 TeamRegistryMemberFragment.model_rebuild()
 TypeInfoFragment.model_rebuild()
 UserRegistryMemberFragment.model_rebuild()
-VersionedArtifactConnectionFragment.model_rebuild()

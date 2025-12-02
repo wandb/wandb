@@ -227,7 +227,9 @@ var metricDefs = []MetricDef{
 	{Name: "Neuron Model Code", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.\d+\.neuroncore_memory_usage\.model_code(\/l:.+)?$`)},
 	{Name: "Neuron Scratchpad", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
-		Regex: regexp.MustCompile(`^trn\.\d+\.neuroncore_memory_usage\.model_shared_scratchpad(\/l:.+)?$`)},
+		Regex: regexp.MustCompile(
+			`^trn\.\d+\.neuroncore_memory_usage\.model_shared_scratchpad(\/l:.+)?$`,
+		)},
 	{Name: "Neuron Runtime", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,
 		Regex: regexp.MustCompile(`^trn\.\d+\.neuroncore_memory_usage\.runtime_memory(\/l:.+)?$`)},
 	{Name: "Neuron Tensors", Unit: UnitGiB, MinY: 0, MaxY: 32, AutoRange: true,

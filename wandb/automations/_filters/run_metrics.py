@@ -243,12 +243,15 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
 
     @overload
     def changes_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
+
     @overload
     def changes_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
+
     @overload  # NOTE: This overload is for internal use only.
     def changes_by(
         self, *, diff: PosNum | None, frac: PosNum | None, _dir: ChangeDir
     ) -> MetricChangeFilter: ...
+
     def changes_by(
         self,
         *,
@@ -288,8 +291,10 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
 
     @overload
     def increases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
+
     @overload
     def increases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
+
     def increases_by(
         self, *, diff: PosNum | None = None, frac: PosNum | None = None
     ) -> MetricChangeFilter:
@@ -301,8 +306,10 @@ class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
 
     @overload
     def decreases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
+
     @overload
     def decreases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
+
     def decreases_by(
         self, *, diff: PosNum | None = None, frac: PosNum | None = None
     ) -> MetricChangeFilter:
@@ -332,6 +339,19 @@ class MetricVal(BaseMetricOperand):
     def mean(self, window: int) -> MetricAgg:
         return self.avg(window=window)
 
+    def zscore(self, window: int) -> ZScoreMetricOperand:
+        """Returns a z-score metric builder for fluent filter construction.
+
+        Use with comparison operators to create z-score filters:
+        - `metric.zscore(30) > 3` - detects z-score increases above 3 std devs
+        - `metric.zscore(30) < -3` - detects z-score decreases below -3 std devs
+        - `metric.zscore(30).abs() > 3` - detects abs z-score deviations above 3 std devs
+
+        Note:
+        - The `>=` operator behaves the same as `>`, and `<=` behaves the same as `<`.
+        """
+        return ZScoreMetricOperand(name=self.name, window=window)
+
 
 class MetricAgg(BaseMetricOperand):
     """Represents an aggregated metric value when defining metric event filters."""
@@ -341,17 +361,117 @@ class MetricAgg(BaseMetricOperand):
     window: Annotated[PositiveInt, Field(alias="window_size")]
 
 
+class ZScoreMetricOperand(GQLBase, extra="forbid"):
+    """Helper class to build z-score metric filters with comparison operators.
+
+    This class enables fluent construction of z-score filters using Python
+    comparison operators (>, <, >=, <=) and the builtin abs() function.
+
+    Note: When defining a z-score threshold, the `>` and `>=` operators are
+    interchangeable, as are the `<=` and `<` operators, since the z-score defines
+    a threshold on a continuous value. At runtime, the filter is evaluated
+    using the inclusive operators (`>=` or `<=`).
+    """
+
+    name: str
+    """Name of the metric to monitor."""
+
+    window: PositiveInt
+    """Size of the window to calculate the metric mean and standard deviation over."""
+
+    is_absolute: bool = Field(default=False, repr=False)
+    """Whether to check the absolute value of the z-score (ignoring direction)."""
+
+    def lt(self, value: int | float, /) -> MetricZScoreFilter:
+        """Returns a filter that watches for `zscore(metric) < -threshold`.
+
+        Args:
+            value: The z-score threshold value to compare against.
+                   The absolute value is used as the threshold.
+        """
+        if self.is_absolute:
+            raise ValueError("Cannot use absolute z-score with < operator")
+
+        if value >= 0:
+            raise ValueError("Negative z-score threshold required")
+
+        return MetricZScoreFilter(
+            name=self.name,
+            window=self.window,
+            change_dir=ChangeDir.DECREASE,
+            threshold=abs(value),
+        )
+
+    def __lt__(self, value: int | float, /) -> MetricZScoreFilter:
+        return self.lt(value)
+
+    def __le__(self, value: int | float, /) -> MetricZScoreFilter:
+        """Alias for `<` operator - behaves identically to `__lt__`.
+
+        Returns a filter that watches for `zscore(metric) < -threshold`.
+        Note: `<=` and `<` are treated as equivalent for z-score filters.
+        """
+        return self.lt(value)
+
+    def gt(self, value: int | float, /) -> MetricZScoreFilter:
+        """Returns a filter that watches for `zscore(metric) > threshold`.
+
+        If `is_absolute` is True, watches for `abs(zscore(metric)) > threshold`.
+
+        Args:
+            value: The z-score threshold value to compare against.
+                   The absolute value is used as the threshold.
+        """
+        if value <= 0:
+            raise ValueError(f"Expected positive threshold, got: {value=}")
+
+        return MetricZScoreFilter(
+            name=self.name,
+            window=self.window,
+            change_dir=ChangeDir.ANY if self.is_absolute else ChangeDir.INCREASE,
+            threshold=abs(value),
+        )
+
+    def __gt__(self, value: int | float, /) -> MetricZScoreFilter:
+        return self.gt(value)
+
+    def __ge__(self, value: int | float, /) -> MetricZScoreFilter:
+        """Alias for `>` operator - behaves identically to `__gt__`.
+
+        Returns a filter that watches for `zscore(metric) > threshold`.
+        If `is_absolute` is True, watches for `abs(zscore(metric)) > threshold`.
+        Note: `>=` and `>` are treated as equivalent for z-score filters.
+        """
+        return self.gt(value)
+
+    def __abs__(self) -> ZScoreMetricOperand:
+        """Returns a z-score filter that checks the absolute value.
+
+        This allows watching for z-score deviations in either direction.
+        Use with comparison operators: `abs(metric.zscore(window)) > threshold`.
+        """
+        return self.model_copy(update={"is_absolute": True})
+
+    def abs(self) -> ZScoreMetricOperand:
+        """Returns a z-score filter that checks the absolute value.
+
+        Alias for `__abs__()` that can be called as a method.
+        Allows using either `abs(zscore)` or `zscore.abs()`.
+        """
+        return self.__abs__()
+
+
 class MetricZScoreFilter(GQLBase, extra="forbid"):
     name: str
     """Name of the observed metric."""
 
-    window: Annotated[PositiveInt, Field(alias="window_size")]
+    window: Annotated[PositiveInt, Field(alias="window_size")] = 30
     """Size of the window to calculate the metric mean and standard deviation over."""
 
-    threshold: PosNum
+    threshold: PosNum = 3.0
     """Threshold for the z-score."""
 
-    change_dir: ChangeDir
+    change_dir: ChangeDir = ChangeDir.ANY
     """Direction of the z-score change to watch for."""
 
     def __and__(self, other: Any) -> RunMetricFilter:

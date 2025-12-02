@@ -75,7 +75,11 @@ func (lr *LiveStore) Read() (*spb.Record, error) {
 		if len(head) > 32 {
 			head = head[:32]
 		}
-		return nil, fmt.Errorf("livestore: unmarshal: %w (payload[0:32]=%s)", err, hex.EncodeToString(head))
+		return nil, fmt.Errorf(
+			"livestore: unmarshal: %w (payload[0:32]=%s)",
+			err,
+			hex.EncodeToString(head),
+		)
 	}
 	return msg, nil
 }

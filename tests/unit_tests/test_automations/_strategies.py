@@ -266,6 +266,19 @@ nonpos_numbers: SearchStrategy[int | float] = one_of(
 )
 """Invalid "change_amount" values (i.e. `frac` or `diff`)."""
 
+neg_numbers: SearchStrategy[int | float] = one_of(
+    integers(max_value=-1),
+    floats(
+        max_value=0,
+        exclude_max=True,
+        width=32,
+        allow_nan=False,
+        allow_infinity=False,
+        allow_subnormal=False,
+    ),
+)
+"""Valid negative threshold values for zscore < operator."""
+
 
 @composite
 def metric_threshold_filters(
