@@ -244,10 +244,7 @@ class Runs(SizedPaginator["Run"]):
     filters = {"state": "finished", "config.optimizer": "adam"}
 
     runs = Api().runs(
-        client=api.client,
-        entity="entity",
-        project="project_name",
-        filters=filters,
+        path="username/projectname",  # Replace with your username and project name
     )
 
     # Iterate over runs and print details
