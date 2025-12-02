@@ -27,9 +27,9 @@ from wandb_gql import gql
 
 from wandb._iterutils import always_list
 from wandb._pydantic import Connection, ConnectionWithTotal, Edge
-from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
+from wandb.errors import ResponseError
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
@@ -71,12 +71,9 @@ def _run_artifacts_mode_to_gql() -> dict[Literal["logged", "used"], str]:
     This keeps import-time light and only loads the generated GQL
     when RunArtifacts is actually used.
     """
-    from wandb.sdk.artifacts._generated import (
-        RUN_INPUT_ARTIFACTS_GQL,
-        RUN_OUTPUT_ARTIFACTS_GQL,
-    )
+    from wandb.sdk.artifacts import _generated as gen
 
-    return {"logged": RUN_OUTPUT_ARTIFACTS_GQL, "used": RUN_INPUT_ARTIFACTS_GQL}
+    return {"logged": gen.RUN_OUTPUT_ARTIFACTS_GQL, "used": gen.RUN_INPUT_ARTIFACTS_GQL}
 
 
 class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
@@ -94,23 +91,19 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
 
             type(self).QUERY = gql(ARTIFACT_COLLECTION_ALIASES_GQL)
 
+        self._conn_path = ("artifactCollection", "aliases")
+
         variables = {"id": collection_id}
         super().__init__(client, variables=variables, per_page=per_page)
 
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import (
-            ArtifactAliasFragment,
-            ArtifactCollectionAliases,
-        )
-
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = ArtifactCollectionAliases.model_validate(data)
+        from wandb.sdk.artifacts._generated import ArtifactAliasFragment
 
         # Extract the inner `*Connection` result for faster/easier access.
-        if not ((coll := result.artifact_collection) and (conn := coll.aliases)):
-            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
-
-        self.last_response = Connection[ArtifactAliasFragment].model_validate(conn)
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        self.last_response = Connection[ArtifactAliasFragment].from_result(
+            data, *self._conn_path
+        )
 
     def _convert(self, node: ArtifactAliasFragment) -> str:
         return node.alias
@@ -137,6 +130,8 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
             type(self).QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
 
+        self._conn_path = ("project", "artifactTypes")
+
         self.entity = entity
         self.project = project
         variables = {"entity": entity, "project": project}
@@ -145,17 +140,11 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
-        from wandb.sdk.artifacts._generated import ProjectArtifactTypes
         from wandb.sdk.artifacts._models.pagination import ArtifactTypeConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = ProjectArtifactTypes.model_validate(data)
-
         # Extract the inner `*Connection` result for faster/easier access.
-        if not ((proj := result.project) and (conn := proj.artifact_types)):
-            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
-
-        self.last_response = ArtifactTypeConnection.model_validate(conn)
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        self.last_response = ArtifactTypeConnection.from_result(data, *self._conn_path)
 
     def _convert(self, node: ArtifactTypeFragment) -> ArtifactType:
         return ArtifactType(
@@ -218,7 +207,7 @@ class ArtifactType:
         data = self.client.execute(gql_op, variable_values=gql_vars)
         result = ProjectArtifactType.model_validate(data)
         if not ((proj := result.project) and (artifact_type := proj.artifact_type)):
-            raise ValueError(f"Could not find artifact type {self.type!r}")
+            raise ResponseError(f"Could not find artifact type {self.type!r}")
         return ArtifactTypeFragment.model_validate(artifact_type)
 
     @property
@@ -295,6 +284,8 @@ class ArtifactCollections(
 
             type(self).QUERY = gql(PROJECT_ARTIFACT_COLLECTIONS_GQL)
 
+        self._conn_path = ("project", "artifactType", "artifactCollections")
+
         self.entity = entity
         self.project = project
         self.type_name = type_name
@@ -304,21 +295,13 @@ class ArtifactCollections(
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
-        from wandb.sdk.artifacts._generated import ProjectArtifactCollections
         from wandb.sdk.artifacts._models.pagination import ArtifactCollectionConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = ProjectArtifactCollections.model_validate(data)
-
         # Extract the inner `*Connection` result for faster/easier access.
-        if not (
-            (proj := result.project)
-            and (artifact_type := proj.artifact_type)
-            and (conn := artifact_type.artifact_collections)
-        ):
-            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
-
-        self.last_response = ArtifactCollectionConnection.model_validate(conn)
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        self.last_response = ArtifactCollectionConnection.from_result(
+            data, *self._conn_path
+        )
 
     def _convert(self, node: ArtifactCollectionFragment) -> ArtifactCollection | None:
         if not node.project:
@@ -451,7 +434,7 @@ class ArtifactCollection:
             and (artifact_type := proj.artifact_type)
             and (collection := artifact_type.artifact_collection)
         ):
-            raise ValueError(f"Could not find artifact type {type_!r}")
+            raise ResponseError(f"Could not find artifact type {type_!r}")
         return collection
 
     @normalize_exceptions
@@ -713,6 +696,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
         omit_fields = omit_artifact_fields(client)
         self.QUERY = gql_compat(PROJECT_ARTIFACTS_GQL, omit_fields=omit_fields)
+        self._conn_path = ("project", "artifactType", "artifactCollection", "artifacts")
 
         self.entity = entity
         self.collection_name = collection_name
@@ -733,23 +717,12 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import ArtifactFragment, ProjectArtifacts
+        from wandb.sdk.artifacts._generated import ArtifactFragment
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = ProjectArtifacts.model_validate(data)
-
-        # Extract the inner `*Connection` result for faster/easier access.
-        if not (
-            (proj := result.project)
-            and (type_ := proj.artifact_type)
-            and (collection := type_.artifact_collection)
-            and (conn := collection.artifacts)
-        ):
-            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
-
-        self.last_response = _ArtifactConnectionGeneric[
-            ArtifactFragment
-        ].model_validate(conn)
+        self.last_response = _ArtifactConnectionGeneric[ArtifactFragment].from_result(
+            data, *self._conn_path
+        )
 
     # FIXME: For now, we deliberately override the signatures of:
     # - `_convert()`
@@ -807,22 +780,23 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             query_str = _run_artifacts_mode_to_gql()[mode]
         except LookupError:
             raise ValueError("mode must be logged or used")
-        else:
-            self.QUERY = gql_compat(query_str, omit_fields=omit_artifact_fields(client))
 
-        self.run = run
+        self.QUERY = gql_compat(query_str, omit_fields=omit_artifact_fields(client))
+        self._conn_path = ("project", "run", "artifacts")
+
         variables = {"entity": run.entity, "project": run.project, "run": run.id}
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._models.pagination import RunArtifactConnection
-
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        from wandb._pydantic import ConnectionWithTotal
+        from wandb.sdk.artifacts._generated import ArtifactFragment
 
         # Extract the inner `*Connection` result for faster/easier access.
-        inner_data = data["project"]["run"]["artifacts"]
-        self.last_response = RunArtifactConnection.model_validate(inner_data)
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        self.last_response = ConnectionWithTotal[ArtifactFragment].from_result(
+            data, *self._conn_path
+        )
 
     def _convert(self, node: ArtifactFragment) -> Artifact | None:
         from wandb.sdk.artifacts._validators import FullArtifactPath
@@ -863,12 +837,15 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         )
         from wandb.sdk.artifacts._gqlutils import server_supports
 
-        self.query_via_membership = server_supports(
-            client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
-        )
-        self.artifact = artifact
+        omit_fields = set()
+        if not client.version_supported("0.12.21"):
+            # The server must advertise at least SDK 0.12.21
+            # to get storagePath
+            omit_fields.add("storagePath")
+        if not server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
+            omit_fields.add("totalCount")
 
-        if self.query_via_membership:
+        if server_supports(client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES):
             query_str = GET_ARTIFACT_MEMBERSHIP_FILES_GQL
             variables = {
                 "entity": artifact.entity,
@@ -877,6 +854,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
                 "alias": artifact.version,
                 "fileNames": names,
             }
+            conn_path = ("project", "artifactCollection", "artifactMembership", "files")
         else:
             query_str = GET_ARTIFACT_FILES_GQL
             variables = {
@@ -886,42 +864,22 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
                 "type": artifact.type,
                 "fileNames": names,
             }
+            conn_path = ("project", "artifactType", "artifact", "files")
 
-        omit_fields = set()
-
-        # The server must advertise at least SDK 0.12.21
-        # to get storagePath
-        if not client.version_supported("0.12.21"):
-            omit_fields.add("storagePath")
-
-        if not server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
-            omit_fields.add("totalCount")
+        # Used to extract the inner `*Connection` result for faster/easier access.
+        self._conn_path = conn_path
 
         self.QUERY = gql_compat(query_str, omit_fields=omit_fields)
+        self.artifact = artifact
+
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import (
-            GetArtifactFiles,
-            GetArtifactMembershipFiles,
-        )
         from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-
-        # Extract the inner `*Connection` result for faster/easier access.
-        if self.query_via_membership:
-            result = GetArtifactMembershipFiles.model_validate(data)
-            conn = result.project.artifact_collection.artifact_membership.files
-        else:
-            result = GetArtifactFiles.model_validate(data)
-            conn = result.project.artifact_type.artifact.files
-
-        if conn is None:
-            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
-
-        self.last_response = ArtifactFileConnection.model_validate(conn)
+        self.last_response = ArtifactFileConnection.from_result(data, *self._conn_path)
 
     @property
     def path(self) -> list[str]:

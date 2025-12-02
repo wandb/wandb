@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import PositiveInt, ValidationError
+from pydantic import PositiveInt
 from typing_extensions import override
 from wandb_gql import gql
 
@@ -51,6 +51,8 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             from wandb.sdk.artifacts._generated import FETCH_REGISTRIES_GQL
 
             type(self).QUERY = gql(FETCH_REGISTRIES_GQL)
+
+        self._conn_path = ("organization", "orgEntity", "projects")
 
         self.client = client
         self.organization = organization
@@ -100,21 +102,10 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import FetchRegistries
         from wandb.sdk.artifacts._models.pagination import RegistryConnection
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = FetchRegistries.model_validate(data)
-        if not ((org := result.organization) and (org_entity := org.org_entity)):
-            raise ValueError(
-                f"Organization {self.organization!r} not found. Please verify the organization name is correct."
-            )
-
-        try:
-            conn = org_entity.projects
-            self.last_response = RegistryConnection.model_validate(conn)
-        except (LookupError, AttributeError, ValidationError) as e:
-            raise ValueError("Unexpected response data") from e
+        self.last_response = RegistryConnection.from_result(data, *self._conn_path)
 
     def _convert(self, node: RegistryFragment) -> Registry:
         from wandb.apis.public.registries.registry import Registry
@@ -149,6 +140,8 @@ class Collections(
             from wandb.sdk.artifacts._generated import REGISTRY_COLLECTIONS_GQL
 
             type(self).QUERY = gql(REGISTRY_COLLECTIONS_GQL)
+
+        self._conn_path = ("organization", "orgEntity", "artifactCollections")
 
         self.client = client
         self.organization = organization
@@ -186,21 +179,12 @@ class Collections(
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import RegistryCollections
         from wandb.sdk.artifacts._models.pagination import RegistryCollectionConnection
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = RegistryCollections.model_validate(data)
-        if not ((org := result.organization) and (org_entity := org.org_entity)):
-            raise ValueError(
-                f"Organization {self.organization!r} not found. Please verify the organization name is correct."
-            )
-
-        try:
-            conn = org_entity.artifact_collections
-            self.last_response = RegistryCollectionConnection.model_validate(conn)
-        except (LookupError, AttributeError, ValidationError) as e:
-            raise ValueError("Unexpected response data") from e
+        self.last_response = RegistryCollectionConnection.from_result(
+            data, *self._conn_path
+        )
 
     def _convert(self, node: RegistryCollectionFragment) -> ArtifactCollection | None:
         from wandb._pydantic import gql_typename
@@ -245,6 +229,8 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         omit_fields = omit_artifact_fields(client)
         self.QUERY = gql_compat(REGISTRY_VERSIONS_GQL, omit_fields=omit_fields)
 
+        self._conn_path = ("organization", "orgEntity", "artifactMemberships")
+
         self.client = client
         self.organization = organization
         self.registry_filter = registry_filter
@@ -276,21 +262,12 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import RegistryVersions
         from wandb.sdk.artifacts._models.pagination import ArtifactMembershipConnection
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = RegistryVersions.model_validate(data)
-        if not ((org := result.organization) and (org_entity := org.org_entity)):
-            raise ValueError(
-                f"Organization {self.organization!r} not found. Please verify the organization name is correct."
-            )
-
-        try:
-            conn = org_entity.artifact_memberships
-            self.last_response = ArtifactMembershipConnection.model_validate(conn)
-        except (LookupError, AttributeError, ValidationError) as e:
-            raise ValueError("Unexpected response data") from e
+        self.last_response = ArtifactMembershipConnection.from_result(
+            data, *self._conn_path
+        )
 
     def _convert(self, node: ArtifactMembershipFragment) -> Artifact | None:
         from wandb.sdk.artifacts._validators import FullArtifactPath
