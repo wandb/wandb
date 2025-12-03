@@ -13,7 +13,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.lib.hashutil import md5_file_hex
 
 
-def test_fetching_artifact_files(user):
+def test_fetching_artifact_files(user: str, api: Api):
     project = "test"
 
     with wandb.init(entity=user, project=project) as run:
@@ -24,9 +24,7 @@ def test_fetching_artifact_files(user):
         run.log_artifact(artifact, aliases=["sequence"])
 
     # fetch artifact and its file successfully
-    artifact = Api().artifact(
-        name=f"{user}/{project}/test-artifact:v0", type="test-type"
-    )
+    artifact = api.artifact(name=f"{user}/{project}/test-artifact:v0", type="test-type")
     boom = artifact.files()[0]
     assert boom.name == "test-name"
     artifact_path = artifact.download()
@@ -35,7 +33,7 @@ def test_fetching_artifact_files(user):
     assert open(file_path).read() == "testing"
 
 
-def test_save_aliases_after_logging_artifact(user):
+def test_save_aliases_after_logging_artifact(user: str, api: Api):
     project = "test"
     with wandb.init(entity=user, project=project) as run:
         artifact = wandb.Artifact("test-artifact", "test-type")
@@ -48,19 +46,17 @@ def test_save_aliases_after_logging_artifact(user):
         artifact.save()
 
     # fetch artifact and verify alias exists
-    artifact = Api().artifact(
-        name=f"{user}/{project}/test-artifact:v0", type="test-type"
-    )
+    artifact = api.artifact(name=f"{user}/{project}/test-artifact:v0", type="test-type")
     aliases = artifact.aliases
     assert "hello" in aliases
 
 
 @fixture
-def server_supports_artifact_tags() -> bool:
+def server_supports_artifact_tags(user: str, api: Api) -> bool:
     """Identifies if we're testing against an older server version that doesn't support artifact tags (e.g. in CI)."""
-    from wandb.sdk.internal import internal_api
+    from wandb.sdk.artifacts._gqlutils import allowed_fields
 
-    return "tags" in internal_api.Api().server_artifact_introspection()
+    return "tags" in allowed_fields(api.client, "Artifact")
 
 
 def test_save_artifact_with_tags_repeated(
@@ -246,7 +242,9 @@ def test_log_artifact_with_invalid_tags(tmp_path, user, api, invalid_tags):
             run.log_artifact(artifact, tags=invalid_tags)
 
 
-def test_retrieve_artifacts_by_tags(user, server_supports_artifact_tags):
+def test_retrieve_artifacts_by_tags(
+    user: str, api: Api, server_supports_artifact_tags: bool
+):
     project = "test"
     artifact_name = "test-artifact"
     artifact_type = "test-type"
@@ -260,7 +258,7 @@ def test_retrieve_artifacts_by_tags(user, server_supports_artifact_tags):
 
     artifact_name = f"{user}/{project}/{artifact_name}"
 
-    for logged_artifact in Api().artifacts(type_name=artifact_type, name=artifact_name):
+    for logged_artifact in api.artifacts(type_name=artifact_type, name=artifact_name):
         version = int(logged_artifact.version.strip("v"))
         if version % 3 == 0:
             logged_artifact.tags.append("fizz")
@@ -269,9 +267,7 @@ def test_retrieve_artifacts_by_tags(user, server_supports_artifact_tags):
         logged_artifact.save()
 
     # Retrieve all artifacts with a given tag.
-    artifacts = Api().artifacts(
-        type_name=artifact_type, name=artifact_name, tags="fizz"
-    )
+    artifacts = api.artifacts(type_name=artifact_type, name=artifact_name, tags="fizz")
     retrieved_artifacts = list(artifacts)
     if server_supports_artifact_tags:
         assert len(retrieved_artifacts) == 4  # v0, v3, v6, v9
@@ -279,7 +275,7 @@ def test_retrieve_artifacts_by_tags(user, server_supports_artifact_tags):
         assert len(retrieved_artifacts) == 0
 
     # Retrieve only the artifacts that match multiple tags.
-    artifacts = Api().artifacts(
+    artifacts = api.artifacts(
         type_name=artifact_type, name=artifact_name, tags=["fizz", "buzz"]
     )
     retrieved_artifacts = list(artifacts)
@@ -290,7 +286,7 @@ def test_retrieve_artifacts_by_tags(user, server_supports_artifact_tags):
         assert len(retrieved_artifacts) == 0
 
 
-def test_update_aliases_on_artifact(user):
+def test_update_aliases_on_artifact(user: str, api: Api):
     project = "test"
     with wandb.init(entity=user, project=project) as run:
         artifact = wandb.Artifact("test-artifact", "test-type")
@@ -302,15 +298,13 @@ def test_update_aliases_on_artifact(user):
         artifact.wait()
 
     # fetch artifact under original parent sequence
-    artifact = Api().artifact(
-        name=f"{user}/{project}/test-artifact:v0", type="test-type"
-    )
+    artifact = api.artifact(name=f"{user}/{project}/test-artifact:v0", type="test-type")
     aliases = artifact.aliases
     assert "sequence" in aliases
 
     # fetch artifact under portfolio
     # and change aliases under portfolio only
-    artifact = Api().artifact(
+    artifact = api.artifact(
         name=f"{user}/{project}/my-sample-portfolio:v0", type="test-type"
     )
     aliases = artifact.aliases
@@ -319,7 +313,7 @@ def test_update_aliases_on_artifact(user):
     artifact.aliases.append("boom")
     artifact.save()
 
-    artifact = Api().artifact(
+    artifact = api.artifact(
         name=f"{user}/{project}/my-sample-portfolio:v0", type="test-type"
     )
     aliases = artifact.aliases
@@ -328,7 +322,7 @@ def test_update_aliases_on_artifact(user):
     assert "sequence" not in aliases
 
 
-def test_artifact_version(user):
+def test_artifact_version(user: str, api: Api):
     def create_test_artifact(content: str):
         art = wandb.Artifact("test-artifact", "test-type")
         Path("boom.txt").write_text(content)
@@ -349,7 +343,7 @@ def test_artifact_version(user):
         art.wait()
 
     # Pull down from portfolio, verify version is indexed from portfolio not sequence
-    artifact = Api().artifact(
+    artifact = api.artifact(
         name=f"{project}/my-sample-portfolio:latest", type="test-type"
     )
 
@@ -357,7 +351,7 @@ def test_artifact_version(user):
     assert artifact.source_version == "v1"
 
 
-def test_delete_collection(user):
+def test_delete_collection(user: str, api: Api):
     with wandb.init(project="test") as run:
         art = wandb.Artifact("test-artifact", "test-type")
         with art.new_file("test.txt", "w") as f:
@@ -365,18 +359,18 @@ def test_delete_collection(user):
         run.log_artifact(art)
         run.link_artifact(art, "test/test-portfolio")
 
-    project = Api().artifact_type("test-type", project="test")
+    project = api.artifact_type("test-type", project="test")
     portfolio = project.collection("test-portfolio")
     portfolio.delete()
 
     with raises(CommError):
-        Api().artifact(
+        api.artifact(
             name=f"{project.entity}/test/test-portfolio:latest",
             type="test-type",
         )
 
     # The base artifact should still exist.
-    Api().artifact(
+    api.artifact(
         name=f"{project.entity}/test/test-artifact:latest",
         type="test-type",
     )
@@ -386,13 +380,15 @@ def test_delete_collection(user):
 
     # Until now.
     with raises(CommError):
-        Api().artifact(
+        api.artifact(
             name=f"{project.entity}/test/test-artifact:latest",
             type="test-type",
         )
 
 
-def test_log_with_wrong_type_entity_project(user, logged_artifact):
+def test_log_with_wrong_type_entity_project(
+    user: str, api: Api, logged_artifact: Artifact
+):
     # todo: logged_artifact does not work with core
     entity, project = logged_artifact.entity, logged_artifact.project
 
@@ -424,7 +420,7 @@ def test_log_artifact_with_above_max_metadata_keys(user):
             run.log_artifact(artifact)
 
 
-def test_log_artifact_with_inf_metadata_values(user, api):
+def test_log_artifact_with_inf_metadata_values(user: str):
     # NOTE: The backend doesn't currently handle JS-compatible `Infinity/-Infinity`, values.
     # At the time of writing, we'll forbid them to avoid surprises, but revisit if we add backend support in the future.
     draft_metadata = {
@@ -451,7 +447,7 @@ def test_log_artifact_with_inf_metadata_values(user, api):
         artifact2.save()
 
 
-def test_log_artifact_with_nan_metadata_values(user, api):
+def test_log_artifact_with_nan_metadata_values(user: str, api: Api):
     """Check that NaN values are encoded as None (JSON null) values."""
     import numpy as np
 
@@ -487,11 +483,11 @@ def test_log_artifact_with_nan_metadata_values(user, api):
     assert api.artifact(artifact2.qualified_name).metadata == expected_saved_metadata
 
 
-def test_run_log_artifact(user):
+def test_run_log_artifact(user: str, api: Api):
     # Prepare data.
     with wandb.init() as run:
         pass
-    run = wandb.Api().run(run.path)
+    run = api.run(run.path)
 
     artifact = wandb.Artifact("my_artifact", type="test")
     artifact.save()
@@ -506,7 +502,7 @@ def test_run_log_artifact(user):
     assert actual_artifacts[0].qualified_name == artifact.qualified_name
 
 
-def test_artifact_enable_tracking_flag(user, api, mocker):
+def test_artifact_enable_tracking_flag(user: str, api: Api, mocker):
     """Test that enable_tracking flag is correctly passed through the API chain."""
     entity = user
     project = "test-project"
@@ -559,14 +555,10 @@ def test_artifact_history_step(user, api):
             run.log_artifact(art)
             wandb.log({"metric": 5})
 
-    artifact = api.artifact(
-        name=f"{entity}/{project}/{artifact_name}:v0",
-    )
+    artifact = api.artifact(name=f"{entity}/{project}/{artifact_name}:v0")
     assert artifact.history_step is None
 
-    artifact = api.artifact(
-        name=f"{entity}/{project}/{artifact_name}:v1",
-    )
+    artifact = api.artifact(name=f"{entity}/{project}/{artifact_name}:v1")
     assert artifact.history_step == 0
 
 
@@ -593,9 +585,7 @@ def test_artifact_multipart_download(user, api):
         run.log_artifact(art)
 
     # Download artifact
-    artifact = api.artifact(
-        name=f"{entity}/{project}/{artifact_name}:v0",
-    )
+    artifact = api.artifact(name=f"{entity}/{project}/{artifact_name}:v0")
     # Force multipart download because the file is too small
     stored_folder = artifact.download(multipart=True, skip_cache=True)
     # Verify checksum
