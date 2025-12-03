@@ -18,7 +18,7 @@ from .events import (
     RunStateFilter,
 )
 from .integrations import Integration, SlackIntegration, WebhookIntegration
-from .scopes import ArtifactCollectionScope, ProjectScope, ScopeType
+from .scopes import ArtifactCollectionScope, ProjectScope, RegistryScope, ScopeType
 
 # ----------------------------------------------------------------------------
 # WARNINGS on import
@@ -51,6 +51,7 @@ __all__ = [
     "ScopeType",  # doc:exclude
     "ArtifactCollectionScope",  # doc:exclude
     "ProjectScope",  # doc:exclude
+    "RegistryScope",  # doc:exclude
     # Events
     "EventType",  # doc:exclude
     "OnAddArtifactAlias",

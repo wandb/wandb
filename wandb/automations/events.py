@@ -44,13 +44,15 @@ class EventType(LenientStrEnum):
 
     CREATE_ARTIFACT = "CREATE_ARTIFACT"
     ADD_ARTIFACT_ALIAS = "ADD_ARTIFACT_ALIAS"
-    LINK_ARTIFACT = "LINK_MODEL"
+    LINK_MODEL = "LINK_MODEL"
+    LINK_ARTIFACT = LINK_MODEL
     # Note: "LINK_MODEL" is the (legacy) value expected by the backend, but we
     # name it "LINK_ARTIFACT" here in the public API for clarity and consistency.
 
     # ---------------------------------------------------------------------------
     # Events triggered by Run conditions
-    RUN_METRIC_THRESHOLD = "RUN_METRIC"
+    RUN_METRIC = "RUN_METRIC"
+    RUN_METRIC_THRESHOLD = RUN_METRIC  # Alias for clarity
     RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
     RUN_STATE = "RUN_STATE"
     RUN_METRIC_ZSCORE = "RUN_METRIC_ZSCORE"

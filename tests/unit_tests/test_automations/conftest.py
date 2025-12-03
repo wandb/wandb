@@ -9,8 +9,9 @@ from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
 from typing_extensions import TypeAlias
-from wandb._strutils import b64encode_ascii
+from wandb._strutils import b64encode_ascii, nameof
 from wandb.apis.public import ArtifactCollection, Project
+from wandb.apis.public.registries.registry import Registry
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -28,7 +29,7 @@ from wandb.automations import (
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
 from wandb.automations.events import InputEvent, OnRunState, SavedEvent
-from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
+from wandb.sdk.artifacts._generated import ArtifactCollectionFragment, RegistryFragment
 
 # default Hypothesis settings
 settings.register_profile("default", max_examples=100)
@@ -138,21 +139,52 @@ def project(mock_client: Mock) -> Project:
     )
 
 
+@fixture(scope="session")
+def registry(mock_client: Mock) -> Registry:
+    """A simulated `Registry` that could be returned by `wandb.Api`.
+
+    This might be typically fetched via `Api.registry()`, `Api.registries()`, etc.
+
+    For unit-testing purposes, this has been heavily mocked.
+    Tests relying on real `wandb.Api` calls should live in system tests.
+    """
+    registry_name = "wandb-registry-test-registry"
+    organization_name = "test-organization"
+    entity_name = "test-entity"
+    return Registry(
+        client=mock_client,
+        name=registry_name,
+        entity=entity_name,
+        organization=organization_name,
+        attrs=RegistryFragment(
+            id=make_graphql_id(prefix="Project"),
+            name=registry_name,
+            description="This is a fake registry.",
+            created_at="2021-01-01T00:00:00Z",
+            updated_at=None,
+            access="organization",
+            allow_all_artifact_types=True,
+            artifact_types={"edges": []},
+            entity={"name": entity_name, "organization": {"name": organization_name}},
+        ),
+    )
+
+
 # Exclude deprecated scope/event/action types from those expected to be exposed for valid behavior
-def valid_scopes() -> list[ScopeType]:
-    return sorted(set(ScopeType))
+def valid_scopes() -> list[str]:
+    return [*sorted(e.name for e in set(ScopeType)), "REGISTRY"]
 
 
-def valid_input_events() -> list[EventType]:
-    return sorted(set(EventType) - set(INVALID_INPUT_EVENTS))
+def valid_input_events() -> list[str]:
+    return sorted(e.name for e in set(EventType).difference(INVALID_INPUT_EVENTS))
 
 
-def valid_input_actions() -> list[ActionType]:
-    return sorted(set(ActionType) - set(INVALID_INPUT_ACTIONS))
+def valid_input_actions() -> list[str]:
+    return sorted(e.name for e in set(ActionType).difference(INVALID_INPUT_ACTIONS))
 
 
 # Invalid (event, scope) combinations that should be skipped
-@lru_cache(maxsize=None)
+@lru_cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
@@ -163,25 +195,25 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     }
 
 
-@fixture(params=valid_scopes(), ids=lambda x: f"scope={x.value}")
-def scope_type(request: FixtureRequest) -> ScopeType:
+@fixture(params=valid_scopes(), ids=lambda scope: f"{scope=}")
+def scope_type(request: FixtureRequest) -> str:
     """An automation scope type."""
     return request.param
 
 
-@fixture(params=valid_input_events(), ids=lambda x: f"event={x.value}")
-def event_type(request: FixtureRequest, scope_type: ScopeType) -> EventType:
+@fixture(params=valid_input_events(), ids=lambda event: f"{event=}")
+def event_type(request: FixtureRequest, scope_type: str) -> str:
     """An automation event type."""
     event_type = request.param
 
-    if (event_type, scope_type) in invalid_events_and_scopes():
-        skip(f"Event {event_type.value!r} doesn't support scope {scope_type.value!r}")
+    if (EventType[event_type], ScopeType[scope_type]) in invalid_events_and_scopes():
+        skip(f"Event {event_type!r} doesn't support scope {scope_type!r}")
 
     return event_type
 
 
-@fixture(params=valid_input_actions(), ids=lambda x: f"action={x.value}")
-def action_type(request: FixtureRequest) -> ActionType:
+@fixture(params=valid_input_actions(), ids=lambda action: f"{action=}")
+def action_type(request: FixtureRequest) -> str:
     """An automation action type."""
     return request.param
 
@@ -191,9 +223,10 @@ def action_type(request: FixtureRequest) -> ActionType:
 @fixture
 def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
     """A (mocked) wandb object to use as the scope for an automation."""
-    scope2fixture: dict[ScopeType, str] = {
-        ScopeType.ARTIFACT_COLLECTION: artifact_collection.__name__,
-        ScopeType.PROJECT: project.__name__,
+    scope2fixture: dict[str, str] = {
+        ScopeType.ARTIFACT_COLLECTION.name: nameof(artifact_collection),
+        ScopeType.PROJECT.name: nameof(project),
+        "REGISTRY": nameof(registry),  # bit of a hack
     }
     return request.getfixturevalue(scope2fixture[scope_type])
 
@@ -266,17 +299,17 @@ def on_run_state(scope: ScopableWandbType) -> OnRunState:
 
 
 @fixture
-def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
+def input_event(request: FixtureRequest, event_type: str) -> InputEvent:
     """An event object for defining a **new** automation."""
 
-    event2fixture: dict[EventType, str] = {
-        EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
-        EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
-        EventType.LINK_ARTIFACT: on_link_artifact.__name__,
-        EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
-        EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
-        EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,
-        EventType.RUN_STATE: on_run_state.__name__,
+    event2fixture: dict[str, str] = {
+        EventType.CREATE_ARTIFACT.name: nameof(on_create_artifact),
+        EventType.ADD_ARTIFACT_ALIAS.name: nameof(on_add_artifact_alias),
+        EventType.LINK_ARTIFACT.name: nameof(on_link_artifact),
+        EventType.RUN_METRIC_THRESHOLD.name: nameof(on_run_metric_threshold),
+        EventType.RUN_METRIC_CHANGE.name: nameof(on_run_metric_change),
+        EventType.RUN_METRIC_ZSCORE: nameof(on_run_metric_zscore),
+        EventType.RUN_STATE.name: nameof(on_run_state),
     }
     return request.getfixturevalue(event2fixture[event_type])
 
@@ -315,12 +348,12 @@ def do_nothing() -> DoNothing:
 
 
 @fixture
-def input_action(request: FixtureRequest, action_type: ActionType) -> InputAction:
+def input_action(request: FixtureRequest, action_type: str) -> InputAction:
     """An action object for defining a **new** automation."""
-    action2fixture: dict[ActionType, str] = {
-        ActionType.NOTIFICATION: send_notification.__name__,
-        ActionType.GENERIC_WEBHOOK: send_webhook.__name__,
-        ActionType.NO_OP: do_nothing.__name__,
+    action2fixture: dict[str, str] = {
+        ActionType.NOTIFICATION.name: nameof(send_notification),
+        ActionType.GENERIC_WEBHOOK.name: nameof(send_webhook),
+        ActionType.NO_OP.name: nameof(do_nothing),
     }
     return request.getfixturevalue(action2fixture[action_type])
 
