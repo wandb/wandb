@@ -20,7 +20,7 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 - The automations API now supports creating and editing automations that trigger on run states (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10848)
 - The automations API now support basic zscore automation events (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10931)
 - Simplified the syntax for creating z-score metric automation triggers in the automations API (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10953)
-- `beta_history_scan` method to `Run` objects for client-side history parsing (@jacobromero in https://github.com/wandb/wandb/pull/10875)
+- `beta_history_scan` method to `Run` objects for faster history scanning performance with `wandb.Api` (@jacobromero in https://github.com/wandb/wandb/pull/10779)
 
 ### Changed
 
