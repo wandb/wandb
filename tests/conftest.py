@@ -24,8 +24,7 @@ from click.testing import CliRunner
 from wandb import Api
 from wandb.errors import term
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.lib import auth as wbauth
-from wandb.sdk.lib import filesystem, module, runid
+from wandb.sdk.lib import filesystem, module, runid, wbauth
 from wandb.sdk.lib.gitlib import GitRepo
 from wandb.sdk.lib.paths import StrPath
 
