@@ -7,6 +7,7 @@ from wandb import util
 from wandb.errors import links, term
 
 from . import saas, validation, wbnetrc
+from .host_url import HostUrl
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ _LOGIN_CHOICES = [
 
 def prompt_and_save_api_key(
     *,
-    host: str,
+    host: str | HostUrl,
     no_offline: bool = False,
     no_create: bool = False,
     referrer: str = "",
@@ -45,6 +46,9 @@ def prompt_and_save_api_key(
         NotATerminalError: If a terminal is not available.
         TimeoutError: If the specified timeout expired.
     """
+    if not isinstance(host, HostUrl):
+        host = HostUrl(host)
+
     api_key = _prompt_api_key(
         host=host,
         no_offline=no_offline,
@@ -56,14 +60,14 @@ def prompt_and_save_api_key(
     if not api_key:
         return None
 
-    wbnetrc.write_netrc_auth(host=host, api_key=api_key)
+    wbnetrc.write_netrc_auth(host=host.url, api_key=api_key)
 
     return api_key
 
 
 def _prompt_api_key(
     *,
-    host: str,
+    host: HostUrl,
     no_offline: bool = False,
     no_create: bool = False,
     referrer: str = "",
@@ -106,7 +110,7 @@ def _prompt_api_key(
             term.termerror("Not implemented. Please select another choice.")
 
 
-def _use_existing_account(host: str, referrer: str) -> str:
+def _use_existing_account(host: HostUrl, referrer: str) -> str:
     """Prompt the user to paste an API key from an existing W&B account.
 
     Args:
@@ -116,7 +120,7 @@ def _use_existing_account(host: str, referrer: str) -> str:
     Returns:
         The API key entered by the user.
     """
-    if saas.is_wandb_domain(host):
+    if saas.is_wandb_domain(host.url):
         help_url = links.url_registry.url("wandb-server")
         term.termlog(
             f"Logging into {host}. "
@@ -131,7 +135,7 @@ def _use_existing_account(host: str, referrer: str) -> str:
     )
 
 
-def _create_new_account(host: str, referrer: str) -> str:
+def _create_new_account(host: HostUrl, referrer: str) -> str:
     """Prompt the user to create a new W&B account.
 
     Args:
@@ -149,7 +153,7 @@ def _create_new_account(host: str, referrer: str) -> str:
     )
 
 
-def _authorize_url(host: str, *, signup: bool, referrer: str) -> str:
+def _authorize_url(host: str | HostUrl, *, signup: bool, referrer: str) -> str:
     """Returns the URL for the web page showing the user's API key.
 
     Args:
@@ -157,7 +161,7 @@ def _authorize_url(host: str, *, signup: bool, referrer: str) -> str:
         signup: If true, shows a signup page.
         referrer: The referrer to add to the URL, if any.
     """
-    app_url = util.app_url(host)
+    app_url = util.app_url(str(host))
     scheme, netloc, _, _, _ = urlsplit(app_url, scheme="https")
 
     query_parts: list[str] = []

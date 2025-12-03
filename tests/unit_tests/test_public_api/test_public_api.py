@@ -8,10 +8,26 @@ import wandb
 from requests import HTTPError
 from wandb import Api
 from wandb.apis import internal
+from wandb.apis.public import runs
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.lib import auth
+
+
+@pytest.fixture(autouse=True)
+def patch_server_features(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent unit tests from attempting to contact the real server."""
+    monkeypatch.setattr(
+        runs,
+        "_server_provides_project_id_for_run",
+        lambda *args, **kwargs: False,
+    )
+    monkeypatch.setattr(
+        runs,
+        "_server_provides_internal_id_for_project",
+        lambda *args, **kwargs: False,
+    )
 
 
 def test_api_auto_login_no_tty():
@@ -35,7 +51,7 @@ def test_base_url_sanitization():
         "user/proj/runs/run",  # path_url
     ],
 )
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path(path):
     user, project, run = Api()._parse_path(path)
     assert user == "user"
@@ -43,14 +59,14 @@ def test_parse_path(path):
     assert run == "run"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_project_path():
     entity, project = Api()._parse_project_path("user/proj")
     assert entity == "user"
     assert project == "proj"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_project_path_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
         entity, project = Api()._parse_project_path("proj")
@@ -58,7 +74,7 @@ def test_parse_project_path_proj():
         assert project == "proj"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_docker_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
         user, project, run = Api()._parse_path("proj:run")
@@ -67,7 +83,7 @@ def test_parse_path_docker_proj():
         assert run == "run"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_user_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
         user, project, run = Api()._parse_path("proj/run")
@@ -76,7 +92,7 @@ def test_parse_path_user_proj():
         assert run == "run"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
         user, project, run = Api()._parse_path("proj")
@@ -85,7 +101,7 @@ def test_parse_path_proj():
         assert run == "proj"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_id():
     with mock.patch.dict(
         "os.environ", {"WANDB_ENTITY": "mock_entity", "WANDB_PROJECT": "proj"}
@@ -96,7 +112,7 @@ def test_parse_path_id():
         assert run == "run"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_direct_specification_of_api_key():
     # test_settings has a different API key
     api = Api(api_key="abcd" * 10)
@@ -110,13 +126,13 @@ def test_direct_specification_of_api_key():
         "test/test",
     ],
 )
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_from_path_project_type(path):
     project = Api().from_path(path)
     assert isinstance(project, wandb.apis.public.Project)
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_report_to_html():
     path = "test/test/reports/My-Report--XYZ"
     report = Api().from_path(path)
@@ -192,55 +208,45 @@ def test_create_custom_chart(monkeypatch):
     )
 
 
-@pytest.mark.usefixtures("skip_verify_login")
-def test_initialize_api_prompts_for_api_key(monkeypatch: pytest.MonkeyPatch):
-    mock_prompt_api_key = MagicMock()
-    mock_prompt_api_key.return_value = "test-api-key"
-    monkeypatch.setattr(auth, "prompt_and_save_api_key", mock_prompt_api_key)
-
-    Api()
-
-    mock_prompt_api_key.assert_called_once()
-
-
-def test_initialize_api_does_not_prompt_for_api_key__when_api_key_is_provided(
+def test_initialize_api_authenticates(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    mock_prompt_api_key = MagicMock()
     mock_verify_login = MagicMock()
-    monkeypatch.setattr(auth, "prompt_and_save_api_key", mock_prompt_api_key)
     monkeypatch.setattr(wandb_login, "_verify_login", mock_verify_login)
+    auth.use_explicit_auth(
+        auth.AuthApiKey(api_key="1234" * 10, host="https://test-url"),
+        source="test",
+    )
+
+    api = Api(overrides={"base_url": "https://test-url"})
+
+    assert api.api_key == "1234" * 10
+    mock_verify_login.assert_called_once_with(
+        key="1234" * 10,
+        base_url="https://test-url",
+    )
+
+
+def test_initialize_api_uses_explicit_key(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mock_verify_login = MagicMock()
+    monkeypatch.setattr(wandb_login, "_verify_login", mock_verify_login)
+    auth.use_explicit_auth(
+        auth.AuthApiKey(api_key="wrong" * 8, host="https://test-url"),
+        source="test",
+    )
 
     api = Api(api_key="test-api-key", overrides={"base_url": "https://test-url"})
 
-    mock_prompt_api_key.assert_not_called()
+    assert api.api_key == "test-api-key"
     mock_verify_login.assert_called_once_with(
         key="test-api-key",
         base_url="https://test-url",
     )
-    assert api.api_key == "test-api-key"
 
 
-def test_initialize_api_does_not_prompt_for_api_key__when_using_env_var(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    mock_prompt_api_key = MagicMock()
-    mock_verify_login = MagicMock()
-    monkeypatch.setattr(auth, "prompt_and_save_api_key", mock_prompt_api_key)
-    monkeypatch.setattr(wandb_login, "_verify_login", mock_verify_login)
-    monkeypatch.setenv("WANDB_API_KEY", "test-api-key-from-env")
-
-    api = Api(overrides={"base_url": "https://test-url"})
-
-    mock_prompt_api_key.assert_not_called()
-    mock_verify_login.assert_called_once_with(
-        key="test-api-key-from-env",
-        base_url="https://test-url",
-    )
-    assert api.api_key == "test-api-key-from-env"
-
-
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary_config():
     run = wandb.apis.public.Run(
         client=wandb.Api().client,
@@ -252,37 +258,35 @@ def test_create_run_with_dictionary_config():
     assert run.config == {"test": "test"}
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary__config_not_parsable():
-    with mock.patch.object(wandb, "login", mock.MagicMock()):
-        run = wandb.apis.public.Run(
+    run = wandb.apis.public.Run(
+        client=wandb.Api().client,
+        entity="test",
+        project="test",
+        run_id="test",
+        attrs={
+            "config": {"test": "test"},
+        },
+    )
+    assert run.config == {"test": "test"}
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_create_run_with_dictionary__throws_error():
+    with pytest.raises(wandb.errors.CommError):
+        wandb.apis.public.Run(
             client=wandb.Api().client,
             entity="test",
             project="test",
             run_id="test",
             attrs={
-                "config": {"test": "test"},
+                "config": 1,
             },
         )
-        assert run.config == {"test": "test"}
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
-def test_create_run_with_dictionary__throws_error():
-    with mock.patch.object(wandb, "login", mock.MagicMock()):
-        with pytest.raises(wandb.errors.CommError):
-            wandb.apis.public.Run(
-                client=wandb.Api().client,
-                entity="test",
-                project="test",
-                run_id="test",
-                attrs={
-                    "config": 1,
-                },
-            )
-
-
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_project_id_lazy_load(monkeypatch):
     api = wandb.Api()
     mock_execute = MagicMock(
@@ -309,7 +313,7 @@ def test_project_id_lazy_load(monkeypatch):
     mock_execute.assert_called_once()
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_project_load__raises_error(monkeypatch):
     api = wandb.Api()
     mock_execute = MagicMock(side_effect=HTTPError(response=MagicMock(status_code=404)))

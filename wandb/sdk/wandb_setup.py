@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING, Any, Union
 import wandb
 import wandb.integration.sagemaker as sagemaker
 from wandb.env import CONFIG_DIR
+from wandb.errors import UsageError
 from wandb.sdk.lib import asyncio_manager, import_hooks, wb_logging
 
 from .lib import config_util, server
@@ -269,9 +270,6 @@ class _WandbSetup:
     def update_user_settings(self) -> None:
         # Get rid of cached results to force a refresh.
         self._server = None
-        user_settings = self._load_user_settings()
-        if user_settings is not None:
-            self.settings.update_from_dict(user_settings)
 
     def _early_logger_flush(self, new_logger: Logger) -> None:
         if self._logger is new_logger:
@@ -464,7 +462,48 @@ def _setup(
 
         _singleton = current_singleton
 
-    return _singleton
+    # Update after configuring the _singleton.
+    #
+    # Do not hold the lock while updating credentials, as it writes back
+    # to settings.
+    if settings:
+        _maybe_update_credentials(settings)
+
+    return current_singleton
+
+
+def _maybe_update_credentials(settings: Settings) -> None:
+    """Update session credentials if they're set on settings.
+
+    This is a refactoring step for moving credentials into a separate module
+    and out of settings. If a user calls `wandb.setup()` explicitly with an
+    api_key or other credential, this overwrites credentials that might have
+    been set by a call to `wandb.login()`.
+    """
+    if settings.api_key and settings.identity_token_file:
+        raise UsageError(
+            "The api_key and identity_token_file settings cannot be used together."
+        )
+
+    from wandb.sdk.lib import auth as wbauth
+
+    if settings.api_key:
+        wbauth.use_explicit_auth(
+            wbauth.AuthApiKey(
+                host=settings.base_url,
+                api_key=settings.api_key,
+            ),
+            source="wandb.setup()",
+        )
+
+    elif settings.identity_token_file:
+        wbauth.use_explicit_auth(
+            wbauth.AuthIdentityTokenFile(
+                host=settings.base_url,
+                path=settings.identity_token_file,
+            ),
+            source="wandb.setup()",
+        )
 
 
 def setup(settings: Settings | None = None) -> _WandbSetup:
@@ -540,9 +579,13 @@ def teardown(exit_code: int | None = None) -> None:
     """
     global _singleton
 
+    from wandb.sdk.lib import auth as wbauth
+
     with _singleton_lock:
         orig_singleton = _singleton
         _singleton = None
 
-        if orig_singleton:
-            orig_singleton._teardown(exit_code=exit_code)
+    if orig_singleton:
+        orig_singleton._teardown(exit_code=exit_code)
+
+    wbauth.unauthenticate_session(update_settings=False)

@@ -45,10 +45,11 @@ from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk import wandb_login
+from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
+from wandb.sdk.lib import auth as wbauth
 from wandb.sdk.lib import retry, runid
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.gql_request import GraphQLSession
@@ -368,28 +369,25 @@ class Api:
 
     def _load_api_key(self, base_url: str) -> str:
         """Load or prompt for an API key."""
-        try:
-            _, key = wandb_login._login(
-                host=base_url,
-                force=True,
-                update_api_key=False,
-                no_oidc=True,
-                _silent=(
-                    self.settings.get("silent", False)  #
-                    or self.settings.get("quiet", False)
-                ),
-            )
-        except wandb_login.OidcError:
-            raise UsageError(
-                "wandb.Api cannot be used with federated identities."
-                + " Please make sure you are not setting WANDB_IDENTITY_TOKEN_FILE"
-                + " or the identity_token_file setting."
-            ) from None
+        auth = wbauth.authenticate_session(
+            host=base_url,
+            source="wandb.Api()",
+            no_offline=True,
+            input_timeout=wandb_setup.singleton().settings.login_timeout,
+        )
 
-        if not key:
+        if not auth:
             raise UsageError("No API key configured. Use `wandb login` to log in.")
+        if not isinstance(auth, wbauth.AuthApiKey):
+            message = (
+                "wandb.Api() can only use API key authentication, but you have"
+                " another form of credentials configured."
+                " Check if you have set WANDB_IDENTITY_TOKEN_FILE."
+                f" Current credentials: {auth}"
+            )
+            raise UsageError(message)
 
-        return key
+        return auth.api_key
 
     def _configure_sentry(self) -> None:
         if not env.error_reporting_enabled():

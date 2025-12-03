@@ -1,6 +1,5 @@
 import pathlib
 import textwrap
-from typing import Iterator
 
 import pytest
 from wandb.errors import AuthenticationError
@@ -9,21 +8,10 @@ from wandb.sdk.lib.auth import (
     AuthIdentityTokenFile,
     authenticate_session,
     session_credentials,
-    unauthenticate_session,
     use_explicit_auth,
 )
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
-
-
-@pytest.fixture(autouse=True)
-def clear_auth_for_tests() -> Iterator[None]:
-    auth = unauthenticate_session()
-    try:
-        yield
-    finally:
-        if auth:
-            use_explicit_auth(auth, source=__name__)
 
 
 def test_auth_repr_no_secrets():
