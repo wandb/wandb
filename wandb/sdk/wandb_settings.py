@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import configparser
 import json
 import logging
 import os
@@ -34,7 +33,7 @@ from wandb._pydantic import (
 )
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
-from wandb.sdk.lib import deprecation, urls
+from wandb.sdk.lib import deprecation, settings_file, urls
 
 from .lib import credentials, filesystem, ipython
 from .lib.run_moment import RunMoment
@@ -1749,23 +1748,69 @@ class Settings(BaseModel, validate_assignment=True):
     # in the correct order. Most of the updates are done in
     # wandb/sdk/wandb_setup.py::_WandbSetup._settings_setup.
 
-    def update_from_system_config_file(self):
-        """Update settings from the system config file.
+    def read_system_settings(self) -> settings_file.SettingsFiles:
+        """Read settings from the workspace and global settings files.
+
+        The files are determined by the settings_system and settings_workspace
+        settings.
+
+        The resulting object is a snapshot of the system settings at the time
+        this function is used and does not reflect the settings on this Settings
+        object. It can be used to update the files, and it should be short-lived
+        since it does not reflect external changes to the files.
+
+        Updating the settings files does not update this Settings instance
+        and vice versa.
 
         <!-- lazydoc-ignore: internal -->
         """
-        if not self.settings_system or not os.path.exists(self.settings_system):
-            return
-        self._load_config_file(self.settings_system)
+        local_settings = pathlib.Path(self.settings_workspace)
 
-    def update_from_workspace_config_file(self):
-        """Update settings from the workspace config file.
+        if self.settings_system:
+            global_settings = pathlib.Path(self.settings_system)
+        else:
+            global_settings = None
+
+        return settings_file.SettingsFiles(
+            global_settings=global_settings,
+            local_settings=local_settings,
+        )
+
+    def update_from_system_settings(self) -> None:
+        """Load settings from the settings files.
 
         <!-- lazydoc-ignore: internal -->
         """
-        if not self.settings_workspace or not os.path.exists(self.settings_workspace):
-            return
-        self._load_config_file(self.settings_workspace)
+        system_settings = self.read_system_settings()
+
+        if not self.quiet and (sources := system_settings.sources):
+            parts = ["Loaded settings from"]
+            for source in sources:
+                parts.append(f"  {source}")
+            wandb.termlog("\n".join(parts))
+
+        value: object  # Can be transformed arbitrarily.
+        for key, value in system_settings.all().items():
+            if key == "ignore_globs":
+                value = value.split(",")
+
+            elif key == "anonymous":
+                wandb.termwarn(
+                    "Deprecated setting 'anonymous' has no effect and will be"
+                    + " removed in a future version of wandb."
+                    + " Please delete it manually or by running `wandb login`"
+                    + " to avoid errors.",
+                    repeat=False,
+                )
+                value = deprecation.UNSET
+
+            elif key in ("settings_system", "root_dir"):
+                wandb.termwarn(
+                    f"Ignoring setting {key!r} which is not allowed in a settings file."
+                    + " Please delete it manually to avoid errors in the future."
+                )
+
+            setattr(self, key, value)
 
     def update_from_env_vars(self, environ: Dict[str, Any]):
         """Update settings from environment variables.
@@ -2025,34 +2070,6 @@ class Settings(BaseModel, validate_assignment=True):
             return relative_path
 
         return None
-
-    def _load_config_file(
-        self,
-        file_name: str,
-        section: str = "default",
-    ) -> None:
-        """Load settings from a section in a config file."""
-        parser = configparser.ConfigParser()
-        parser.add_section(section)
-        parser.read(file_name)
-
-        key: str
-        value: object
-        for key, value in parser[section].items():
-            if key == "ignore_globs":
-                value = value.split(",")
-
-            elif key == "anonymous":
-                wandb.termwarn(
-                    f"Deprecated setting 'anonymous' in {file_name} has no"
-                    + " effect and will be removed in a future version of wandb."
-                    + " Please delete it manually or by running `wandb login`"
-                    + " to avoid errors.",
-                    repeat=False,
-                )
-                value = deprecation.UNSET
-
-            setattr(self, key, value)
 
     def _project_url_base(self) -> str:
         """Construct the base URL for the project."""
