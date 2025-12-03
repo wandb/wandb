@@ -10,13 +10,12 @@ from pathlib import Path
 import numpy as np
 import wandb
 from pytest import mark, raises
-from wandb import Api, Artifact
+from wandb import Api, Artifact, env
 from wandb.errors import CommError
-from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
-from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import md5_string
 
 
@@ -245,15 +244,14 @@ def test_remove_after_log(user):
             retrieved.remove("file1.txt")
 
 
+@mark.usefixtures("override_env_cache_dir")
 @mark.parametrize(
     # Valid values for `skip_cache` in `Artifact.download()`
     "skip_download_cache",
     [None, False, True],
 )
-def test_download_respects_skip_cache(user, tmp_path, monkeypatch, skip_download_cache):
-    # Setup cache dir
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
-    cache = artifact_file_cache.get_artifact_file_cache()
+def test_download_respects_skip_cache(user, tmp_path, skip_download_cache):
+    cache = get_artifact_file_cache()
 
     artifact = wandb.Artifact(name="cache-test", type="dataset")
     orig_content = "test123"
@@ -293,11 +291,9 @@ def test_download_respects_skip_cache(user, tmp_path, monkeypatch, skip_download
         assert downloaded_content == orig_content
 
 
-def test_uploaded_artifacts_are_unstaged(user, tmp_path, monkeypatch):
-    # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
-    staging_dir = Path(get_staging_dir())
-
+# Use a separate staging directory for the duration of this test.
+@mark.usefixtures("override_env_staging_dir")
+def test_uploaded_artifacts_are_unstaged(user, staging_dir):
     def dir_size():
         return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
 
@@ -353,18 +349,14 @@ def test_large_manifests_passed_by_file(user, monkeypatch, mocker):
         assert entry.extra["test_key"] == {"x": 1}
 
 
-def test_mutable_uploads_with_cache_enabled(user, tmp_path, monkeypatch, api):
-    # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
-    staging_dir = Path(get_staging_dir())
-
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
-    cache = artifact_file_cache.get_artifact_file_cache()
+# Use a separate staging directory for the duration of this test.
+@mark.usefixtures("override_env_staging_dir", "override_env_cache_dir")
+def test_mutable_uploads_with_cache_enabled(user, tmp_path, staging_dir):
+    cache = get_artifact_file_cache()
 
     data_path = Path(tmp_path / "random.txt")
+    data_path.write_text("test 123")
     artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open(data_path, "w") as f:
-        f.write("test 123")
     manifest_entry = artifact.add_file(data_path)
 
     # The file is staged
@@ -384,13 +376,10 @@ def test_mutable_uploads_with_cache_enabled(user, tmp_path, monkeypatch, api):
     assert len(staging_files) == 0
 
 
-def test_mutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
-    # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
-    staging_dir = Path(get_staging_dir())
-
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
-    cache = artifact_file_cache.get_artifact_file_cache()
+# Use a separate staging directory for the duration of this test.
+@mark.usefixtures("override_env_staging_dir", "override_env_cache_dir")
+def test_mutable_uploads_with_cache_disabled(user, tmp_path, staging_dir):
+    cache = get_artifact_file_cache()
 
     data_path = Path(tmp_path / "random.txt")
     artifact = wandb.Artifact(name="stage-test", type="dataset")
@@ -415,18 +404,14 @@ def test_mutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
     assert len(staging_files) == 0
 
 
-def test_immutable_uploads_with_cache_enabled(user, tmp_path, monkeypatch):
-    # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
-    staging_dir = Path(get_staging_dir())
-
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
-    cache = artifact_file_cache.get_artifact_file_cache()
+# Use a separate staging directory for the duration of this test.
+@mark.usefixtures("override_env_staging_dir", "override_env_cache_dir")
+def test_immutable_uploads_with_cache_enabled(user, tmp_path, staging_dir):
+    cache = get_artifact_file_cache()
 
     data_path = Path(tmp_path / "random.txt")
+    data_path.write_text("test 123")
     artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open(data_path, "w") as f:
-        f.write("test 123")
     manifest_entry = artifact.add_file(data_path, policy="immutable")
 
     # The file is not staged
@@ -441,13 +426,10 @@ def test_immutable_uploads_with_cache_enabled(user, tmp_path, monkeypatch):
     assert found
 
 
-def test_immutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
-    # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
-    staging_dir = Path(get_staging_dir())
-
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
-    cache = artifact_file_cache.get_artifact_file_cache()
+# Use a separate staging directory for the duration of this test.
+@mark.usefixtures("override_env_staging_dir", "override_env_cache_dir")
+def test_immutable_uploads_with_cache_disabled(user, tmp_path, staging_dir):
+    cache = get_artifact_file_cache()
 
     data_path = Path(tmp_path / "random.txt")
     artifact = wandb.Artifact(name="stage-test", type="dataset")
@@ -506,10 +488,10 @@ def test_artifact_wait_failure(user, timeout):
             run.log_artifact(artifact).wait(timeout=timeout)
 
 
+@mark.usefixtures("override_env_cache_dir")
 def test_check_existing_artifact_before_download(user, tmp_path, monkeypatch):
     """Don't re-download an artifact if it's already in the desired location."""
-    cache_dir = tmp_path / "cache"
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache_dir = Path(env.get_cache_dir())
 
     original_file = tmp_path / "test.txt"
     original_file.write_text("hello")
@@ -603,9 +585,10 @@ def test_log_reference_directly(example_files, user):
     assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
 
 
-def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
-    art_dir = tmp_path / "an-unusual-path"
-    monkeypatch.setenv("WANDB_ARTIFACT_DIR", str(art_dir))
+@mark.usefixtures("override_env_artifact_dir")
+def test_artifact_download_root(logged_artifact):
+    art_dir = Path(env.get_artifact_dir())
+
     name_path = logged_artifact.name
     if platform.system() == "Windows":
         name_path = name_path.replace(":", "-")
