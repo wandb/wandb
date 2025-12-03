@@ -1464,7 +1464,7 @@ class Run(Attrs):
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
-    def _beta_scan_history(
+    def beta_scan_history(
         self,
         keys: list[str] | None = None,
         page_size=1000,
