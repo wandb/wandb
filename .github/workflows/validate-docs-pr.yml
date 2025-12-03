@@ -7,6 +7,7 @@ on:
 jobs:
   check-docs-reference:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.base.ref == 'mаin'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6

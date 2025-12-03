@@ -113,6 +113,7 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		true,
 	)
 	require.NoError(t, err)
 
@@ -188,6 +189,7 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		true,
 	)
 	require.NoError(t, err)
 
@@ -242,6 +244,7 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{"metric1"},
+		true,
 	)
 	require.NoError(t, err)
 
@@ -313,6 +316,7 @@ func TestHistoryReader_GetHistorySteps_AllLiveData(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		true,
 	)
 	require.NoError(t, err)
 
@@ -377,6 +381,7 @@ func TestHistoryReader_GetHistorySteps_AllLiveData_WithKeys(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{"metric1"},
+		true,
 	)
 	require.NoError(t, err)
 
@@ -459,6 +464,7 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		true,
 	)
 	require.NoError(t, err)
 
@@ -504,6 +510,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnInvalidLiveData(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		false,
 	)
 	assert.ErrorContains(t, err, "expected LiveData to be map[string]any")
 }
@@ -535,6 +542,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnMissingStepKey(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		false,
 	)
 	assert.ErrorContains(t, err, "expected LiveData to contain step key")
 }
@@ -566,6 +574,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnNonConvertibleStepValue(t *testi
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		false,
 	)
 	assert.ErrorContains(t, err, "expected step value to be convertible to int")
 }
@@ -617,6 +626,7 @@ func TestHistoryReader_GetHistorySteps_ConvertsStepValueToInt(t *testing.T) {
 				mockGQL,
 				http.DefaultClient,
 				[]string{},
+				false,
 			)
 			assert.NoError(t, err)
 		})

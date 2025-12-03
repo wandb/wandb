@@ -6,15 +6,13 @@ This authenticates your machine to log data to your account.
 from __future__ import annotations
 
 import enum
-import os
 
 import click
 
 import wandb
 from wandb.errors import AuthenticationError, UsageError, term
-from wandb.old.settings import Settings as OldSettings
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import auth
+from wandb.sdk.lib import auth, settings_file
 from wandb.sdk.lib.deprecation import UNSET, DoNotSet
 
 from ..apis import InternalApi
@@ -22,35 +20,6 @@ from ..apis import InternalApi
 
 class OidcError(Exception):
     """OIDC is configured but not allowed."""
-
-
-def _handle_host_wandb_setting(host: str | None, cloud: bool = False) -> None:
-    """Write the host parameter to the global settings file.
-
-    This takes the parameter from wandb.login or wandb login for use by the
-    application's APIs.
-    """
-    _api = InternalApi()
-    if host == "https://api.wandb.ai" or (host is None and cloud):
-        _api.clear_setting("base_url", globally=True, persist=True)
-        # To avoid writing an empty local settings file, we only clear if it exists
-        if os.path.exists(OldSettings._local_path()):
-            _api.clear_setting("base_url", persist=True)
-    elif host:
-        host = host.rstrip("/")
-        # force relogin if host is specified
-        _api.set_setting("base_url", host, globally=True, persist=True)
-
-
-def _clear_anonymous_setting() -> None:
-    """Delete the 'anonymous' setting from the global settings file.
-
-    This setting is being removed, and this helps users remove it from their
-    settings file by using `wandb login`. We do it here because `wandb login`
-    used to automatically write the anonymous setting.
-    """
-    api = InternalApi()
-    api.clear_setting("anonymous", globally=True, persist=True)
 
 
 def login(
@@ -127,8 +96,13 @@ def login(
         term.termwarn("Unable to verify login in offline mode.")
         return False
 
-    _handle_host_wandb_setting(host)
-    _clear_anonymous_setting()
+    if host:
+        host = host.rstrip("/")
+
+    _update_system_settings(
+        global_settings.read_system_settings(),
+        host=host,
+    )
 
     logged_in, _ = _login(
         key=key,
@@ -140,6 +114,27 @@ def login(
         referrer=referrer,
     )
     return logged_in
+
+
+def _update_system_settings(
+    system_settings: settings_file.SettingsFiles,
+    *,
+    host: str | None,
+) -> None:
+    """Update the user's system settings files."""
+    # 'anonymous' is deprecated; we clear it automatically for now.
+    system_settings.clear("anonymous", globally=True)
+
+    if host:
+        if host == "https://api.wandb.ai":
+            system_settings.clear("base_url", globally=True)
+        else:
+            system_settings.set("base_url", host, globally=True)
+
+    try:
+        system_settings.save()
+    except settings_file.SaveSettingsError as e:
+        wandb.termwarn(str(e))
 
 
 class ApiKeyStatus(enum.Enum):

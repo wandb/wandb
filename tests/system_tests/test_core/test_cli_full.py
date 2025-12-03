@@ -6,6 +6,7 @@ import pytest
 import wandb
 import wandb.errors.term
 from wandb.cli import cli
+from wandb.sdk import wandb_setup
 
 
 @pytest.fixture
@@ -188,6 +189,7 @@ def test_cli_offline(user, runner):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.offline)
         assert result.exit_code == 0
+        wandb_setup.singleton().settings.update_from_system_settings()
 
         with wandb.init() as run:
             assert run.settings._offline

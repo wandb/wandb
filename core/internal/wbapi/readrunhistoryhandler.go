@@ -2,14 +2,17 @@ package wbapi
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync/atomic"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -20,6 +23,7 @@ import (
 type RunHistoryAPIHandler struct {
 	graphqlClient graphql.Client
 	httpClient    *retryablehttp.Client
+	sentryClient  *sentry_ext.Client
 
 	// currentRequestId is the id of the last scan init request made.
 	//
@@ -34,7 +38,10 @@ type RunHistoryAPIHandler struct {
 	scanHistoryReaders map[int32]*runhistoryreader.HistoryReader
 }
 
-func NewRunHistoryAPIHandler(settings *settings.Settings) *RunHistoryAPIHandler {
+func NewRunHistoryAPIHandler(
+	settings *settings.Settings,
+	sentryClient *sentry_ext.Client,
+) *RunHistoryAPIHandler {
 	backend := stream.NewBackend(observability.NewNoOpLogger(), settings)
 	graphqlClient := stream.NewGraphQLClient(
 		backend,
@@ -54,6 +61,7 @@ func NewRunHistoryAPIHandler(settings *settings.Settings) *RunHistoryAPIHandler 
 		httpClient:         httpClient,
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
+		sentryClient:       sentryClient,
 	}
 }
 
@@ -82,6 +90,16 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 	request *spb.ScanRunHistoryInit,
 ) *spb.ApiResponse {
+	f.sentryClient.CaptureMessage(
+		"handleScanRunHistoryInit",
+		map[string]string{
+			"entity":  request.Entity,
+			"project": request.Project,
+			"runId":   request.RunId,
+		},
+	)
+	defer f.sentryClient.Flush(2)
+
 	requestId := f.currentRequestId.Add(1)
 	requestKeys := request.GetKeys()
 
@@ -93,6 +111,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 		f.graphqlClient,
 		http.DefaultClient,
 		requestKeys,
+		request.UseCache,
 	)
 	if err != nil {
 		return &spb.ApiResponse{
@@ -141,6 +160,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 	minStep := request.MinStep
 	maxStep := request.MaxStep
 
+	getHistoryStepsStart := time.Now()
 	historySteps, err := historyReader.GetHistorySteps(
 		context.Background(),
 		minStep,
@@ -155,6 +175,19 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 			},
 		}
 	}
+	getHistoryStepsEnd := time.Now()
+	f.sentryClient.CaptureMessage(
+		fmt.Sprintf(
+			"handleScanRunHistoryRead: getHistorySteps time: %dms",
+			getHistoryStepsEnd.Sub(getHistoryStepsStart).Milliseconds(),
+		),
+		map[string]string{
+			"entity":  historyReader.GetEntity(),
+			"project": historyReader.GetProject(),
+			"runId":   historyReader.GetRunId(),
+		},
+	)
+	defer f.sentryClient.Flush(2)
 
 	historyRows := make([]*spb.HistoryRow, 0, len(historySteps))
 	for _, historyStep := range historySteps {

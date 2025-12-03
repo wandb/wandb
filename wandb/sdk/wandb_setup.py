@@ -222,20 +222,7 @@ class _WandbSetup:
             self._settings.settings_system = str(
                 pathlib.Path("~", ".config", "wandb", "settings").expanduser()
             )
-
-        # load settings from the system config
-        if self._settings.settings_system:
-            self._logger.info(
-                f"Loading settings from {self._settings.settings_system}",
-            )
-        self._settings.update_from_system_config_file()
-
-        # load settings from the workspace config
-        if self._settings.settings_workspace:
-            self._logger.info(
-                f"Loading settings from {self._settings.settings_workspace}",
-            )
-        self._settings.update_from_workspace_config_file()
+        self._settings.update_from_system_settings()
 
         # load settings from the environment variables
         self._logger.info("Loading settings from environment variables")
