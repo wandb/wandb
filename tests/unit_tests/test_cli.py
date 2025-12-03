@@ -4,12 +4,14 @@ import importlib
 import netrc
 import os
 import subprocess
+import time
 import traceback
 from unittest import mock
 
 import pytest
 import wandb
 import wandb.docker
+from wandb import env
 from wandb.cli import cli
 
 DOCKER_SHA = (
@@ -544,3 +546,78 @@ def test_cli_debug_log_scoping(runner, test_settings):
                 importlib.reload(cli)
                 assert cli._username == test_user
                 assert cli._wandb_log_path.endswith(f"debug-cli.{test_user}.log")
+
+
+@pytest.mark.parametrize(
+    "file_age_seconds,age_threshold,should_delete",
+    [
+        (2 * 24 * 60 * 60, "1d", True),  # 2 day old file, threshold 1 day -> delete
+        (1 * 60 * 60, "1d", False),  # 1 hour old file, threshold 1 hour -> keep
+    ],
+)
+def test_purge_cache(
+    runner,
+    monkeypatch,
+    tmp_path,
+    file_age_seconds,
+    age_threshold,
+    should_delete,
+):
+    cache_dir = tmp_path / "wandb_cache"
+    cache_dir.mkdir()
+    monkeypatch.setattr(env, "get_cache_dir", lambda: cache_dir)
+
+    # Create a test file with the specified age
+    current_time = time.time()
+    test_file = cache_dir / "test_file.txt"
+    test_file.write_text("test content")
+    os.utime(
+        test_file,
+        (current_time - file_age_seconds, current_time - file_age_seconds),
+    )
+
+    result = runner.invoke(cli.purge_cache, ["--age", age_threshold, "--force"])
+    assert result.exit_code == 0
+
+    if should_delete:
+        assert "Deleted 1 file(s)" in result.output
+        assert not test_file.exists(), "File should have been deleted"
+    else:
+        assert "Deleted 0 file(s)" in result.output
+        assert test_file.exists(), "File should still exist"
+
+
+def test_purge_cache_no_cache_dir(runner, monkeypatch, tmp_path):
+    non_existent_dir = tmp_path / "non_existent"
+    monkeypatch.setattr(env, "get_cache_dir", lambda: non_existent_dir)
+
+    result = runner.invoke(cli.purge_cache)
+
+    assert result.exit_code == 0
+    assert "Cache directory does not exist" in result.output
+
+
+def test_purge_cache_invalid_age(runner, monkeypatch, tmp_path):
+    cache_dir = tmp_path / "wandb_cache"
+    cache_dir.mkdir()
+    monkeypatch.setattr(env, "get_cache_dir", lambda: cache_dir)
+
+    result = runner.invoke(cli.purge_cache, ["--age", "invalid"])
+
+    assert result.exit_code == 1
+
+
+def test_purge_cache_subdirectories(runner, monkeypatch, tmp_path):
+    cache_dir = tmp_path / "wandb_cache"
+    cache_dir.mkdir()
+    subdir = cache_dir / "subdir"
+    subdir.mkdir()
+    monkeypatch.setattr(env, "get_cache_dir", lambda: cache_dir)
+    file = subdir / "old_file.txt"
+    file.write_text("old content in subdir")
+
+    result = runner.invoke(cli.purge_cache, ["--force"])
+
+    assert result.exit_code == 0
+    assert "Deleted 1 file(s)" in result.output
+    assert not file.exists()

@@ -21,6 +21,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - The automations API now support basic zscore automation events (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10931)
 - Simplified the syntax for creating z-score metric automation triggers in the automations API (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10953)
 - `beta_history_scan` method to `Run` objects for client-side history parsing (@jacobromero in https://github.com/wandb/wandb/pull/10875)
+- `wandb purge-cache` command to clean up cached files (@jacobromero in https://github.com/wandb/wandb/pull/10996)
 
 ### Changed
 
