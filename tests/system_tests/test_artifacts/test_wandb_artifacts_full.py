@@ -664,21 +664,21 @@ def test_log_and_download_with_path_prefix(user, tmp_path):
     assert (download_dir / "other-thing.txt").is_file()
 
 
-def test_retrieve_missing_artifact(logged_artifact):
+def test_retrieve_missing_artifact(logged_artifact: Artifact, api: Api):
     with raises(CommError, match="project 'bar' not found"):
-        Api().artifact(f"foo/bar/{logged_artifact.name}")
+        api.artifact(f"foo/bar/{logged_artifact.name}")
 
     with raises(CommError, match="project 'bar' not found"):
-        Api().artifact(f"{logged_artifact.entity}/bar/{logged_artifact.name}")
+        api.artifact(f"{logged_artifact.entity}/bar/{logged_artifact.name}")
 
     with raises(CommError):
-        Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
+        api.artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
 
     with raises(CommError):
-        Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
+        api.artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
 
 
-def test_new_draft(user):
+def test_new_draft(user: str, api: Api):
     art = wandb.Artifact("test-artifact", "test-type")
     with art.new_file("boom.txt", "w") as f:
         f.write("detonation")
@@ -691,7 +691,7 @@ def test_new_draft(user):
         run.log_artifact(art, aliases=["a"])
         run.link_artifact(art, f"{project}/my-sample-portfolio")
 
-    parent = Api().artifact(f"{project}/my-sample-portfolio:latest")
+    parent = api.artifact(f"{project}/my-sample-portfolio:latest")
     draft = parent.new_draft()
 
     # entity/project/name should all match the *source* artifact.
@@ -726,7 +726,7 @@ def test_new_draft(user):
     with wandb.init(project=project) as run:
         run.log_artifact(draft)
 
-    child = Api().artifact(f"{project}/test-artifact:latest")
+    child = api.artifact(f"{project}/test-artifact:latest")
     assert child.version == "v1"
 
     assert len(child.manifest.entries) == 2
@@ -743,7 +743,9 @@ def test_get_artifact_collection(logged_artifact):
     assert logged_artifact.type == collection.type
 
 
-def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
+def test_used_artifacts_preserve_original_project(
+    user: str, api: Api, logged_artifact: Artifact
+):
     """Run artifacts from the API should preserve the original project they were created in."""
     orig_project = logged_artifact.project  # Original project that created the artifact
     new_project = "new-project"  # New project using the same artifact

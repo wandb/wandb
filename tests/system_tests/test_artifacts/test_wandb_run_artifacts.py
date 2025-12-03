@@ -1,10 +1,15 @@
 from __future__ import annotations
 
-from unittest import mock
+import os
+from contextlib import nullcontext
+from pathlib import Path
 
 import wandb
-from pytest import fixture, mark, raises
+from pytest import FixtureRequest, fixture, mark, raises
+from pytest_mock import MockerFixture
+from wandb import Api
 from wandb.errors import CommError
+from wandb.util import make_artifact_name_safe
 
 
 @fixture
@@ -15,7 +20,7 @@ def sample_data():
     yield artifact
 
 
-def test_artifacts_in_config(user, sample_data, test_settings):
+def test_artifacts_in_config(user: str, sample_data, test_settings, api: Api):
     with wandb.init(settings=test_settings()) as run:
         artifact = run.use_artifact("boom-data:v0")
         logged_artifact = wandb.Artifact("my-arti", type="dataset")
@@ -42,7 +47,7 @@ def test_artifacts_in_config(user, sample_data, test_settings):
             "Instances of wandb.Artifact can only be top level keys in a run's config"
         )
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -71,12 +76,14 @@ def test_artifacts_in_config(user, sample_data, test_settings):
     }
 
 
-def test_artifact_string_run_config_init(user, sample_data, test_settings):
+def test_artifact_string_run_config_init(
+    user: str, sample_data, test_settings, api: Api
+):
     config = {"dataset": f"wandb-artifact://{user}/uncategorized/boom-data:v0"}
     with wandb.init(settings=test_settings(), config=config) as run:
         dataset = run.config.dataset
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -87,12 +94,14 @@ def test_artifact_string_run_config_init(user, sample_data, test_settings):
     }
 
 
-def test_artifact_string_run_config_set_item(user, sample_data, test_settings):
+def test_artifact_string_run_config_set_item(
+    user: str, sample_data, test_settings, api: Api
+):
     with wandb.init(settings=test_settings()) as run:
         run.config.dataset = f"wandb-artifact://{run.settings.base_url}/{user}/uncategorized/boom-data:v0"
         dataset = run.config.dataset
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -103,12 +112,14 @@ def test_artifact_string_run_config_set_item(user, sample_data, test_settings):
     }
 
 
-def test_artifact_string_digest_run_config_update(user, sample_data, test_settings):
+def test_artifact_string_digest_run_config_update(
+    user: str, sample_data, test_settings, api: Api
+):
     with wandb.init(settings=test_settings()) as run:
         run.config.update({"dataset": f"wandb-artifact://_id/{sample_data.id}"})
         dataset = run.config.dataset
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -119,12 +130,14 @@ def test_artifact_string_digest_run_config_update(user, sample_data, test_settin
     }
 
 
-def test_artifact_string_digest_run_config_init(user, sample_data, test_settings):
+def test_artifact_string_digest_run_config_init(
+    user: str, sample_data, test_settings, api: Api
+):
     config = {"dataset": f"wandb-artifact://_id/{sample_data.id}"}
     with wandb.init(settings=test_settings(), config=config) as run:
         dataset = run.config.dataset
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -135,14 +148,16 @@ def test_artifact_string_digest_run_config_init(user, sample_data, test_settings
     }
 
 
-def test_artifact_string_digest_run_config_set_item(user, sample_data, test_settings):
+def test_artifact_string_digest_run_config_set_item(
+    user: str, sample_data, test_settings, api: Api
+):
     with wandb.init(settings=test_settings()) as run:
         run.config.dataset = (
             f"wandb-artifact://{run.settings.base_url}/_id/{sample_data.id}"
         )
         dataset = run.config.dataset
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -153,14 +168,16 @@ def test_artifact_string_digest_run_config_set_item(user, sample_data, test_sett
     }
 
 
-def test_artifact_string_run_config_update(user, sample_data, test_settings):
+def test_artifact_string_run_config_update(
+    user: str, sample_data, test_settings, api: Api
+):
     with wandb.init(settings=test_settings()) as run:
         run.config.update(
             {"dataset": f"wandb-artifact://{user}/uncategorized/boom-data:v0"}
         )
         dataset = run.config.dataset
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -171,8 +188,8 @@ def test_artifact_string_run_config_update(user, sample_data, test_settings):
     }
 
 
-def test_wandb_artifact_config_update(user, test_settings):
-    open("file1.txt", "w").write("hello")
+def test_wandb_artifact_config_update(user: str, test_settings, api: Api):
+    Path("file1.txt").write_text("hello")
     artifact = wandb.Artifact("test_reference_download", "dataset")
     artifact.add_file("file1.txt")
     artifact.add_reference(
@@ -182,7 +199,7 @@ def test_wandb_artifact_config_update(user, test_settings):
         run.config.update({"test_reference_download": artifact})
         assert run.config.test_reference_download == artifact
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     config_art = {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -198,8 +215,8 @@ def test_wandb_artifact_config_update(user, test_settings):
         assert run.config.test_reference_download.id == artifact.id
 
 
-def test_wandb_artifact_config_set_item(user, test_settings):
-    open("file1.txt", "w").write("hello")
+def test_wandb_artifact_config_set_item(user: str, test_settings, api: Api):
+    Path("file1.txt").write_text("hello")
     artifact = wandb.Artifact("test_reference_download", "dataset")
     artifact.add_file("file1.txt")
     artifact.add_reference(
@@ -209,7 +226,7 @@ def test_wandb_artifact_config_set_item(user, test_settings):
         run.config.test_reference_download = artifact
         assert run.config.test_reference_download == artifact
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["test_reference_download"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -228,13 +245,15 @@ def test_use_artifact(user, test_settings):
         assert artifact.digest == "64e7c61456b10382e2f3b571ac24b659"
 
 
-def test_public_artifact_run_config_init(user, sample_data, test_settings):
-    art = wandb.Api().artifact("boom-data:v0", type="dataset")
+def test_public_artifact_run_config_init(
+    user: str, sample_data, test_settings, api: Api
+):
+    art = api.artifact("boom-data:v0", type="dataset")
     config = {"dataset": art}
     with wandb.init(settings=test_settings(), config=config) as run:
         assert run.config.dataset == art
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -245,13 +264,15 @@ def test_public_artifact_run_config_init(user, sample_data, test_settings):
     }
 
 
-def test_public_artifact_run_config_set_item(user, sample_data, test_settings):
-    art = wandb.Api().artifact("boom-data:v0", type="dataset")
+def test_public_artifact_run_config_set_item(
+    user: str, sample_data, test_settings, api: Api
+):
+    art = api.artifact("boom-data:v0", type="dataset")
     with wandb.init(settings=test_settings()) as run:
         run.config.dataset = art
         assert run.config.dataset == art
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -262,14 +283,16 @@ def test_public_artifact_run_config_set_item(user, sample_data, test_settings):
     }
 
 
-def test_public_artifact_run_config_update(user, sample_data, test_settings):
-    art = wandb.Api().artifact("boom-data:v0", type="dataset")
+def test_public_artifact_run_config_update(
+    user: str, sample_data, test_settings, api: Api
+):
+    art = api.artifact("boom-data:v0", type="dataset")
     config = {"dataset": art}
     with wandb.init(settings=test_settings()) as run:
         run.config.update(config)
         assert run.config.dataset == art
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -280,8 +303,8 @@ def test_public_artifact_run_config_update(user, sample_data, test_settings):
     }
 
 
-def test_wandb_artifact_init_config(user, test_settings):
-    open("file1.txt", "w").write("hello")
+def test_wandb_artifact_init_config(user: str, test_settings, api: Api):
+    Path("file1.txt").write_text("hello")
     artifact = wandb.Artifact("test_reference_download", "dataset")
     artifact.add_file("file1.txt")
     artifact.add_reference(
@@ -291,7 +314,7 @@ def test_wandb_artifact_init_config(user, test_settings):
     with wandb.init(settings=test_settings(), config=config) as run:
         assert run.config.test_reference_download == artifact
 
-    run = wandb.Api().run(f"uncategorized/{run.id}")
+    run = api.run(f"uncategorized/{run.id}")
     assert run.config["test_reference_download"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -302,46 +325,50 @@ def test_wandb_artifact_init_config(user, test_settings):
     }
 
 
-def test_log_code_settings(user):
-    with open("test.py", "w") as f:
-        f.write('print("test")')
+def test_log_code_settings(user: str, api: Api):
+    Path("test.py").write_text('print("test")')
+
     settings = wandb.Settings(save_code=True, code_dir=".")
     with wandb.init(settings=settings) as run:
         pass
 
-    artifact_name = wandb.util.make_artifact_name_safe(
+    artifact_name = make_artifact_name_safe(
         f"source-{run.project}-{run._settings.program_relpath}"
     )
-    wandb.Api().artifact(f"{artifact_name}:v0")
+    api.artifact(f"{artifact_name}:v0")
 
 
 @mark.parametrize("save_code", [True, False])
-def test_log_code_env(wandb_backend_spy, save_code):
+def test_log_code_env(
+    request: FixtureRequest, mocker: MockerFixture, wandb_backend_spy, save_code
+):
     # test for WB-7468
-    with mock.patch.dict("os.environ", WANDB_SAVE_CODE=str(save_code).lower()):
-        with open("test.py", "w") as f:
-            f.write('print("test")')
+    mocker.patch.dict(os.environ, WANDB_SAVE_CODE=str(save_code).lower())
 
-        # simulate user turning on code saving in UI
-        gql = wandb_backend_spy.gql
-        wandb_backend_spy.stub_gql(
-            gql.Matcher(operation="Viewer"),
-            gql.once(
-                content={
-                    "data": {"viewer": {"flags": """{"code_saving_enabled": true}"""}}
-                },
-                status=200,
-            ),
-        )
-        settings = wandb.Settings(save_code=None, code_dir=".")
-        with wandb.init(settings=settings) as run:
-            assert run._settings.save_code is save_code
+    Path("test.py").write_text('print("test")')
 
-        artifact_name = wandb.util.make_artifact_name_safe(
-            f"source-{run.project}-{run._settings.program_relpath}"
-        )
-        if save_code:
-            wandb.Api().artifact(f"{artifact_name}:v0")
-        else:
-            with raises(CommError):
-                wandb.Api().artifact(f"{artifact_name}:v0")
+    # simulate user turning on code saving in UI
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Viewer"),
+        gql.once(
+            content={
+                "data": {"viewer": {"flags": """{"code_saving_enabled": true}"""}}
+            },
+            status=200,
+        ),
+    )
+
+    # The Api fixture must be requested AFTER the response is stubbed/mocked
+    api = request.getfixturevalue("api")
+
+    settings = wandb.Settings(save_code=None, code_dir=".")
+    with wandb.init(settings=settings) as run:
+        assert run._settings.save_code is save_code
+
+    artifact_name = make_artifact_name_safe(
+        f"source-{run.project}-{run._settings.program_relpath}"
+    )
+    expectation = nullcontext() if save_code else raises(CommError)
+    with expectation:
+        api.artifact(f"{artifact_name}:v0")

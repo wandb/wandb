@@ -8,7 +8,8 @@ from contextlib import nullcontext
 
 import requests
 import wandb
-from pytest import fixture, mark, raises, skip
+from pytest import FixtureRequest, fixture, mark, raises, skip
+from wandb import Api
 from wandb._strutils import nameof
 from wandb.errors import CommError
 from wandb.proto import wandb_internal_pb2 as pb
@@ -25,11 +26,11 @@ from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 
 @fixture
 def sample_data():
-    with wandb.init(id="first_run", settings={"silent": True}):
+    with wandb.init(id="first_run", settings={"silent": True}) as run:
         artifact = wandb.Artifact("mnist", type="dataset")
         with artifact.new_file("digits.h5") as f:
             f.write("v0")
-        wandb.run.log_artifact(artifact, aliases=["my_alias"])
+        run.log_artifact(artifact, aliases=["my_alias"])
 
         artifact = wandb.Artifact("mnist", type="dataset")
         table = wandb.Table(
@@ -40,14 +41,14 @@ def sample_data():
             ],
         )
         artifact.add(table, name="t")
-        wandb.run.log_artifact(artifact)
+        run.log_artifact(artifact)
 
-    with wandb.init(id="second_run", settings={"silent": True}):
-        wandb.run.use_artifact("mnist:v0")
-        wandb.run.use_artifact("mnist:v1")
+    with wandb.init(id="second_run", settings={"silent": True}) as run:
+        run.use_artifact("mnist:v0")
+        run.use_artifact("mnist:v1")
 
 
-def test_artifact_versions(user, api, sample_data):
+def test_artifact_versions(user: str, api: Api, sample_data):
     versions = api.artifact_versions("dataset", "mnist")
     assert len(versions) == 2
     assert {version.name for version in versions} == {"mnist:v0", "mnist:v1"}
@@ -96,7 +97,7 @@ def test_artifact_file(user, api, sample_data):
     assert path == os.path.join(".", "artifacts", part, "digits.h5")
 
 
-def test_artifact_files(user, api, sample_data, wandb_backend_spy):
+def test_artifact_files(user: str, sample_data, api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     if server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         assert (
@@ -110,6 +111,10 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     paths = [f.storage_path for f in art.files()]
     assert paths[0].startswith("wandb_artifacts/")
 
+
+def test_artifact_files_on_legacy_local_install(
+    request: FixtureRequest, user: str, sample_data, wandb_backend_spy
+):
     # Assert we don't break legacy local installs
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
@@ -124,7 +129,9 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
         ),
     )
 
-    api = wandb.Api()
+    # The Api fixture must be requested AFTER the response is stubbed/mocked
+    api: Api = request.getfixturevalue("api")
+
     art = api.artifact("mnist:v0", type="dataset")
     files = art.files(per_page=1)
     assert "storagePath" not in files[0]._attrs.keys()
@@ -149,7 +156,7 @@ def test_artifacts_files_filtered_length(user, api, sample_data, wandb_backend_s
     artifact.save()
     artifact.wait()
 
-    assert_artifact = wandb.Api().artifact(artifact.qualified_name)
+    assert_artifact = api.artifact(artifact.qualified_name)
     assert len(assert_artifact.files()) == number_of_files
     assert len(assert_artifact.files(names=["file0.txt"])) == 1
     assert len(assert_artifact.files(names=["file0.txt", "file1.txt"])) == 2
