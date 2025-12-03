@@ -72,7 +72,12 @@ def leet(path: str | None = None) -> None:
 @click.option(
     "-n",
     default=5,
-    help="Max number of runs to sync at a time.",
+    help="""Max number of runs to sync at a time.
+
+    When syncing multiple files that are part of the same run,
+    the files are synced sequentially in order of start time
+    regardless of this setting.
+    """,
 )
 def sync(
     paths: tuple[str, ...],

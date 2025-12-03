@@ -18,6 +18,8 @@ from wandb.sdk.lib.printer import new_printer
 from wandb.sdk.mailbox.mailbox import Mailbox
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
+
 _T = TypeVar("_T")
 
 
@@ -195,6 +197,30 @@ def test_syncs_run(tmp_path, wandb_backend_spy, runner: CliRunner):
 
         files = snapshot.uploaded_files(run_id=run.id)
         assert "test_file.txt" in files
+
+
+def test_syncs_resumed_run(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    with wandb.init(mode="offline") as run1:
+        run1.log({"x": 1})
+    with wandb.init(id=run1.id, resume="must", mode="offline") as run2:
+        run2.log({"x": 2})
+    with wandb.init(id=run1.id, resume="must", mode="offline") as run3:
+        run3.log({"x": 3})
+    run1_dir = run1.settings.sync_dir
+    run2_dir = run2.settings.sync_dir
+    run3_dir = run3.settings.sync_dir
+
+    runner.invoke(cli.beta, f"sync {run3_dir} {run1_dir} {run2_dir}")
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run1.id)
+        assert len(history) == 3
+        assert history[0]["x"] == 1
+        assert history[1]["x"] == 2
+        assert history[2]["x"] == 3
 
 
 @pytest.mark.parametrize("skip_synced", (True, False))
