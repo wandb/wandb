@@ -90,26 +90,23 @@ func (sc *SelectedColumns) GetRequestedColumns() map[string]struct{} {
 	return sc.requestedColumns
 }
 
-// SelectedRows contains the information about how to filter rows
-// read from the parquet file.
-type SelectedRows struct {
-	selectAll         bool
+// SelectedRowsRange contains the information about which rows
+// to read from the parquet file.
+type SelectedRowsRange struct {
 	parquetFileReader *pqarrow.FileReader
 	indexKey          string
 	minValue          float64
 	maxValue          float64
 }
 
-// SelectRows returns a SelectedRows struct.
-func SelectRows(
+// SelectRowsInRange returns a SelectedRows struct.
+func SelectRowsInRange(
 	pf *pqarrow.FileReader,
 	indexKey string,
 	minValue float64,
 	maxValue float64,
-	selectAll bool,
-) *SelectedRows {
-	return &SelectedRows{
-		selectAll:         selectAll,
+) *SelectedRowsRange {
+	return &SelectedRowsRange{
 		parquetFileReader: pf,
 		indexKey:          indexKey,
 		minValue:          minValue,
@@ -117,7 +114,7 @@ func SelectRows(
 	}
 }
 
-func (sr *SelectedRows) GetIndexKey() string {
+func (sr *SelectedRowsRange) GetIndexKey() string {
 	return sr.indexKey
 }
 
@@ -125,69 +122,62 @@ func (sr *SelectedRows) GetIndexKey() string {
 //
 // It does this by checking if the index key value
 // is within the min and max value range.
-func (sr *SelectedRows) GetRowGroupIndices() ([]int, error) {
+func (sr *SelectedRowsRange) GetRowGroupIndices() ([]int, error) {
 	var rowGroupIndices []int
 
-	// If selecting all rows, then return all row groups.
-	if sr.selectAll {
-		rowGroupIndices = make(
-			[]int,
-			sr.parquetFileReader.ParquetReader().NumRowGroups(),
+	// filter row groups that are outside of the requested step range
+	metadata := sr.parquetFileReader.ParquetReader().MetaData()
+	for i := 0; i < len(metadata.RowGroups); i++ {
+		fileMinValue, fileMaxValue, err := getColumnRangeFromStats(
+			metadata,
+			i,
+			sr.indexKey,
 		)
-		for i := range rowGroupIndices {
-			rowGroupIndices[i] = i
+		if err != nil {
+			return nil, err
 		}
-	} else {
-		// filter row groups that are outside of the requested step range
-		metadata := sr.parquetFileReader.ParquetReader().MetaData()
-		for i := 0; i < len(metadata.RowGroups); i++ {
-			fileMinValue, fileMaxValue, err := getColumnRangeFromStats(
-				metadata,
-				i,
-				sr.indexKey,
-			)
-			if err != nil {
-				return nil, err
-			}
 
-			if fileMinValue < sr.maxValue && fileMaxValue >= sr.minValue {
-				rowGroupIndices = append(rowGroupIndices, i)
-			}
+		if fileMinValue < sr.maxValue && fileMaxValue >= sr.minValue {
+			rowGroupIndices = append(rowGroupIndices, i)
 		}
 	}
 
 	return rowGroupIndices, nil
 }
 
-// IsRowValid checks if the current row within a row group
-// is valid based on SelectedRows min and max values.
-func (sr *SelectedRows) IsRowValid(
-	columnIterators map[string]keyIteratorPair,
-) bool {
-	if sr.selectAll {
-		return true
-	}
-
-	indexColumnIterator := columnIterators[sr.indexKey].Iterator
-	if indexColumnIterator == nil {
+// IsRowGreaterThanMinValue returns whether the requested index column's value
+// is greater than the min value for the selected range.
+//
+// If the current row does not have a value for the index column,
+// then it returns false.
+func (sr *SelectedRowsRange) IsRowGreaterThanMinValue(rowIndexValue any) bool {
+	if rowIndexValue == nil {
 		return false
 	}
 
-	switch indexColumnIterator.Value().(type) {
+	switch value := rowIndexValue.(type) {
 	case int64:
-		minValue := int64(sr.minValue)
-		maxValue := int64(sr.maxValue)
-		colValue, ok := indexColumnIterator.Value().(int64)
-		if !ok {
-			return false
-		}
-		return colValue >= minValue && colValue < maxValue
+		return value >= int64(sr.minValue)
 	case float64:
-		colValue, ok := indexColumnIterator.Value().(float64)
-		if !ok {
-			return false
-		}
-		return colValue >= sr.minValue && colValue < sr.maxValue
+		return value >= float64(sr.minValue)
+	default:
+		return false
+	}
+
+}
+
+// IsRowLessThanMaxValue returns whether the requested index column's value
+// is less than the max value for the selected range.
+func (sr *SelectedRowsRange) IsRowLessThanMaxValue(rowIndexValue any) bool {
+	if rowIndexValue == nil {
+		return false
+	}
+
+	switch value := rowIndexValue.(type) {
+	case int64:
+		return value < int64(sr.maxValue)
+	case float64:
+		return value < float64(sr.maxValue)
 	default:
 		return false
 	}
