@@ -81,7 +81,7 @@ def test_wb_value(test_settings: SettingsFactory):
         assert wbvalue != WBValue()
 
 
-def test_log_dataframe(user: str, api: Api, test_settings: SettingsFactory):
+def test_log_dataframe(user: str, api: Api: str, api: Api, test_settings: SettingsFactory):
     import pandas as pd
 
     with wandb.init(settings=test_settings()) as run:
@@ -172,7 +172,7 @@ def test_reference_table_artifacts(
         run.log_artifact(art)
 
 
-def test_table_mutation_logging(user: str, api: Api, test_settings: SettingsFactory):
+def test_table_mutation_logging(user: str, api: Api: str, test_settings: SettingsFactory):
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="MUTABLE")
     with wandb.init(settings=test_settings()) as run:
         t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
@@ -189,7 +189,7 @@ def test_table_mutation_logging(user: str, api: Api, test_settings: SettingsFact
     assert len(table_artifacts) == 3
 
 
-def test_incr_logging_initial_log(user: str, api: Api, test_settings: SettingsFactory):
+def test_incr_logging_initial_log(user: str, api: Api: str, test_settings: SettingsFactory):
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     with wandb.init(settings=test_settings()) as run:
         t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
@@ -204,7 +204,7 @@ def test_incr_logging_initial_log(user: str, api: Api, test_settings: SettingsFa
 
 
 def test_incr_logging_add_data_reset_state_and_increment_counter(
-    user: str,
+    user: str: str,
     test_settings: SettingsFactory,
 ):
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
@@ -343,7 +343,7 @@ def test_resumed_run_incremental_table(user: str, test_settings: SettingsFactory
 
 
 def test_resumed_run_nothing_prev_logged_to_key(
-    user: str,
+    user: str: str,
     test_settings: SettingsFactory,
     api: Api,
 ):

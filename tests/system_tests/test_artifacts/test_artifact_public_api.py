@@ -28,7 +28,7 @@ from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib.paths import StrPath
 
 if TYPE_CHECKING:
-    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
+    pass
 
 
 @fixture
@@ -38,7 +38,7 @@ def sample_data(user: str) -> None:
     # environment variables for the duration of the test.
     _ = user
 
-    with wandb.init(id="first_run", settings={"silent": True}) as run:
+    with wandb.init(id="first_run", settings={"silent": True}) as run as run:
         artifact = wandb.Artifact("mnist", type="dataset")
         with artifact.new_file("digits.h5") as f:
             f.write("v0")
