@@ -337,9 +337,8 @@ def test_artifact_save_run(user, test_settings, assets_path):
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
-    run = wandb.init(settings=test_settings())
-    artifact.save()
-    run.finish()
+    with wandb.init(settings=test_settings()) as _:
+        artifact.save()
 
 
 def test_artifact_save_norun_nosettings(user, assets_path):
