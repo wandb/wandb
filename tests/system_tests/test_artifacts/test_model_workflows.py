@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import pathlib
 
-import pytest
 import wandb
+from pytest import raises
 from wandb import env
 
 
@@ -15,7 +17,7 @@ class FakeArtifact:
 
 def test_offline_link_artifact(user):
     run = wandb.init(mode="offline")
-    with pytest.raises(NotImplementedError):
+    with raises(NotImplementedError):
         run.link_artifact(FakeArtifact(), "entity/project/portfolio", "latest")
     run.finish()
 
@@ -63,7 +65,7 @@ def test_use_model_error_artifact_type(
 
     logged_artifact = run.log_artifact(local_path, name="test-model", type="dataset")
     logged_artifact.wait()
-    with pytest.raises(AssertionError):
+    with raises(AssertionError):
         _ = run.use_model("test-model:v0")
     run.finish()
 
@@ -95,7 +97,7 @@ def test_link_model_error_artifact_type(
 
     logged_artifact = run.log_artifact(local_path, name="test_model", type="dataset")
     logged_artifact.wait()
-    with pytest.raises(AssertionError):
+    with raises(AssertionError):
         run.link_model(local_path, "test_portfolio", "test_model")
     run.finish()
 

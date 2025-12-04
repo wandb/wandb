@@ -1,9 +1,11 @@
-import pytest
+from __future__ import annotations
+
 import wandb
+from pytest import fixture
 from wandb.sdk.artifacts.artifact import Artifact
 
 
-@pytest.fixture
+@fixture
 def logged_artifact(user, example_files) -> Artifact:
     with wandb.init(entity=user, project="project") as run:
         artifact = wandb.Artifact("test-artifact", "dataset")
@@ -13,7 +15,7 @@ def logged_artifact(user, example_files) -> Artifact:
     return wandb.Api().artifact(f"{user}/project/test-artifact:v0")
 
 
-@pytest.fixture
+@fixture
 def linked_artifact(user, logged_artifact) -> Artifact:
     with wandb.init(entity=user, project="other-project") as run:
         run.link_artifact(logged_artifact, "linked-from-portfolio")
