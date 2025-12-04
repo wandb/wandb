@@ -1,3 +1,6 @@
+import random
+
+import pytest
 from wandb.sdk.lib import runid
 
 
@@ -11,3 +14,23 @@ def test_generate_id_is_base36():
 
 def test_generate_id_default_8_chars():
     assert len(runid.generate_id()) == 8
+
+
+@pytest.fixture
+def isolate_random_state():
+    orig_state = random.getstate()
+    try:
+        yield
+    finally:
+        random.setstate(orig_state)
+
+
+@pytest.mark.usefixtures("isolate_random_state")
+def test_generate_fast_id_independent_of_global_seed():
+    random.seed(42)
+    id1 = runid.generate_fast_id(128)
+
+    random.seed(42)
+    id2 = runid.generate_fast_id(128)
+
+    assert id1 != id2, "generate_fast_id should not be affected by global random.seed()"
