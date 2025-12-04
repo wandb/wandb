@@ -62,14 +62,19 @@ func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
 	for {
 		record, err := store.Read()
 		if err != nil {
-			return nil, fmt.Errorf("runsync: didn't find run info: %v", err)
+			return nil, &SyncError{
+				Err:      err,
+				Message:  "didn't find run info",
+				UserText: fmt.Sprintf("Failed to read %q: %v", r.path, err),
+			}
 		}
 
 		if run := record.GetRun(); run != nil {
 			return &RunInfo{
-				Entity:  run.Entity,
-				Project: run.Project,
-				RunID:   run.RunId,
+				Entity:    run.Entity,
+				Project:   run.Project,
+				RunID:     run.RunId,
+				StartTime: run.StartTime.AsTime(),
 			}, nil
 		}
 	}

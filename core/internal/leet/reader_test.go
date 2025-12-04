@@ -31,8 +31,8 @@ func TestParseHistory_StepAndMetrics(t *testing.T) {
 		{NestedKey: []string{"_runtime"}, ValueJson: "1.2"},
 	}}
 	msg := leet.ParseHistory(h).(leet.HistoryMsg)
-	require.Equal(t, 2, msg.Step)
-	require.Equal(t, 0.5, msg.Metrics["loss"])
+	require.Equal(t, 2.0, msg.Metrics["loss"].X[0])
+	require.Equal(t, 0.5, msg.Metrics["loss"].Y[0])
 }
 
 func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
@@ -65,8 +65,8 @@ func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	require.Equal(t, 2, len(batch.Msgs))
 
 	assert.IsType(t, leet.HistoryMsg{}, batch.Msgs[0])
-	assert.EqualValues(t, 1, batch.Msgs[0].(leet.HistoryMsg).Step)
-	assert.EqualValues(t, 0.42, batch.Msgs[0].(leet.HistoryMsg).Metrics["loss"])
+	assert.EqualValues(t, 1, batch.Msgs[0].(leet.HistoryMsg).Metrics["loss"].X[0])
+	assert.EqualValues(t, 0.42, batch.Msgs[0].(leet.HistoryMsg).Metrics["loss"].Y[0])
 	assert.IsType(t, leet.FileCompleteMsg{}, batch.Msgs[1])
 	assert.EqualValues(t, 0, batch.Msgs[1].(leet.FileCompleteMsg).ExitCode)
 }
@@ -175,7 +175,7 @@ func TestReadNext_MultipleRecordTypes(t *testing.T) {
 				summaryMsg, ok := msg.(leet.SummaryMsg)
 				require.True(t, ok, "expected SummaryMsg, got %T", msg)
 				require.NotNil(t, summaryMsg.Summary)
-				require.Len(t, summaryMsg.Summary.Update, 1)
+				require.Len(t, summaryMsg.Summary[0].Update, 1)
 			},
 		},
 		{
@@ -259,7 +259,11 @@ func TestReadAvailableRecords_BatchProcessing(t *testing.T) {
 				{NestedKey: []string{"loss"}, ValueJson: fmt.Sprintf("%f", float64(i)*0.1)},
 			},
 		}
-		require.NoError(t, w.Write(&spb.Record{RecordType: &spb.Record_History{History: h}}), "write history %d", i)
+		require.NoError(t,
+			w.Write(&spb.Record{RecordType: &spb.Record_History{History: h}}),
+			"write history %d",
+			i,
+		)
 	}
 	w.Close()
 
@@ -284,7 +288,7 @@ func TestReadAvailableRecords_BatchProcessing(t *testing.T) {
 		}
 		histMsg, ok := subMsg.(leet.HistoryMsg)
 		require.True(t, ok, "msg %d: expected HistoryMsg, got %T", i, subMsg)
-		require.Equal(t, i, histMsg.Step, "msg %d", i)
+		require.Equal(t, float64(i), histMsg.Metrics["loss"].X[0], "msg %d", i)
 	}
 
 	// Test reading when no more data available

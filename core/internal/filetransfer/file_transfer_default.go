@@ -24,6 +24,10 @@ type DefaultFileTransfer struct {
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
+
+	// extraHeaders attached to presigned urls, using same set of
+	// headers from graphql requests.
+	extraHeaders map[string]string
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
@@ -31,18 +35,24 @@ func NewDefaultFileTransfer(
 	client *retryablehttp.Client,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
+	extraHeaders map[string]string,
 ) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
 		logger:            logger,
 		client:            client,
 		fileTransferStats: fileTransferStats,
+		extraHeaders:      extraHeaders,
 	}
 	return fileTransfer
 }
 
 // Upload implements FileTransfer.Upload
 func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
-	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)
+	ft.logger.Debug(
+		"default file transfer: uploading file",
+		"path", task.Path,
+		"url", task.Url,
+	)
 
 	// open the file for reading and defer closing it
 	file, err := os.Open(task.Path)
@@ -66,14 +76,17 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		return err
 	}
 
-	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, requestBody)
+	req, err := ft.newRequest(http.MethodPut, task.Url, requestBody)
 	if err != nil {
 		return err
 	}
 	for _, header := range task.Headers {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) != 2 {
-			ft.logger.Error("file transfer: upload: invalid header", "header", header)
+			ft.logger.Error(
+				"file transfer: upload: invalid header",
+				"header", header,
+			)
 			continue
 		}
 		req.Header.Set(parts[0], parts[1])
@@ -87,16 +100,19 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		// Try to read the body to know the detail error message
-		return attachErrorResponseBody("file transfer: upload: failed to upload: status: "+resp.Status,
-			resp)
+		return attachErrorResponseBody(
+			"file transfer: upload: failed to upload: status: "+resp.Status,
+			resp,
+		)
 	}
 	task.Response = resp
 
 	return nil
 }
 
-// attachErrorResponseBody returns an error with the error prefix and the first 1024 bytes of the response body.
-// It closes the response body after reading the first 1024 bytes.
+// attachErrorResponseBody returns an error with the error prefix and
+// the first 1024 bytes of the response body. It closes the response
+// body after reading the first 1024 bytes.
 func attachErrorResponseBody(errPrefix string, resp *http.Response) error {
 	// Only read first 1024 bytes of error message
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
@@ -109,7 +125,11 @@ func attachErrorResponseBody(errPrefix string, resp *http.Response) error {
 
 // Download implements FileTransfer.Download
 func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
-	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
+	ft.logger.Debug(
+		"default file transfer: downloading file",
+		"path", task.Path,
+		"url", task.Url,
+	)
 	dir := path.Dir(task.Path)
 
 	// Check if the directory already exists
@@ -125,7 +145,11 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	}
 
 	// TODO: redo it to use the progress writer, to track the download progress
-	resp, err := ft.client.Get(task.Url)
+	req, err := ft.newRequest(http.MethodGet, task.Url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -162,6 +186,21 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 	return nil
+}
+
+func (ft *DefaultFileTransfer) newRequest(
+	method string,
+	url string,
+	body io.Reader,
+) (*retryablehttp.Request, error) {
+	req, err := retryablehttp.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range ft.extraHeaders {
+		req.Header.Set(k, v)
+	}
+	return req, nil
 }
 
 func getUploadRequestBody(

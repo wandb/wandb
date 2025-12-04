@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 from typing_extensions import Self
 
 from wandb._pydantic import field_validator
@@ -26,17 +26,13 @@ class ArtifactCollectionData(ArtifactsBase):
         Note that this would be a breaking change.
     """
 
-    model_config = ConfigDict(
-        str_min_length=1,  # Strings cannot be empty
-    )
-
     typename__: str = Field(alias="__typename", frozen=True, repr=False)
     """The GraphQL `__typename` for this object."""
 
     id: str = Field(frozen=True, repr=False)
     """The encoded GraphQL ID for this object."""
 
-    name: str
+    name: str = Field(min_length=1)  # Disallow empty strings
     """The name of this collection."""
 
     type: str
@@ -106,9 +102,5 @@ class ArtifactCollectionData(ArtifactsBase):
             project=obj.project.name,
             entity=obj.project.entity.name,
             tags=[e.node.name for e in obj.tags.edges if e.node],
-            aliases=(
-                [e.node.alias for e in obj.aliases.edges if e.node]
-                if obj.aliases
-                else []
-            ),
+            aliases=None,
         )

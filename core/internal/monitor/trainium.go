@@ -333,7 +333,10 @@ func (t *Trainium) Sample() (*spb.StatsRecord, error) {
 			err = json.Unmarshal(jsonBytes, &hostMemoryUsage)
 		}
 		if err != nil {
-			t.logger.CaptureError(fmt.Errorf("trainium: failed to unmarshal host memory usage: %v", err))
+			t.logger.CaptureError(
+				fmt.Errorf(
+					"trainium: failed to unmarshal host memory usage: %v",
+					err))
 		}
 	}
 
@@ -350,7 +353,8 @@ func (t *Trainium) Sample() (*spb.StatsRecord, error) {
 				}
 			}
 			if err != nil {
-				t.logger.CaptureError(fmt.Errorf("trainium: failed to unmarshal neuroncore memory usage: %v", err))
+				t.logger.CaptureError(
+					fmt.Errorf("trainium: failed to unmarshal neuroncore memory usage: %v", err))
 			}
 		}
 	}
@@ -361,7 +365,9 @@ func (t *Trainium) Sample() (*spb.StatsRecord, error) {
 	if localRank != "" {
 		localRankInt, _ := strconv.Atoi(localRank)
 		neuroncoreUtilization = map[int]float64{localRankInt: neuroncoreUtilization[localRankInt]}
-		neuroncoreMemoryUsage = map[int]NeuronCoreMemoryUsage{localRankInt: neuroncoreMemoryUsage[localRankInt]}
+		neuroncoreMemoryUsage = map[int]NeuronCoreMemoryUsage{
+			localRankInt: neuroncoreMemoryUsage[localRankInt],
+		}
 	}
 
 	stats := TrainiumStats{

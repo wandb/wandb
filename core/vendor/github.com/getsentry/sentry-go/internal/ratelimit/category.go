@@ -94,9 +94,9 @@ func (c Category) GetPriority() Priority {
 	case CategoryMonitor:
 		return PriorityHigh
 	case CategoryLog:
-		return PriorityMedium
-	case CategoryTransaction:
 		return PriorityLow
+	case CategoryTransaction:
+		return PriorityMedium
 	default:
 		return PriorityMedium
 	}

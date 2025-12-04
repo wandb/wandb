@@ -8,7 +8,7 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.25.3"
+    default: "1.25.5"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -433,9 +433,14 @@ jobs:
 
   unit-tests-go:
     docker:
-      - image: cimg/go:<<pipeline.parameters.go_version>>
+      - image: cimg/base:current
     steps:
       - checkout
+      - run:
+          name: Install system deps
+          command: |
+            sudo apt-get update
+      - install_go
       - run:
           name: Run wandb core's Go tests and collect coverage
           command: |

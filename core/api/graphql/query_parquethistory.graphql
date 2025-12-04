@@ -1,0 +1,15 @@
+query RunParquetHistory(
+    $entity: String!,
+    $project: String!,
+    $runName: String!,
+    $liveKeys: [String!]!
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $runName) {
+            parquetHistory(liveKeys: $liveKeys) {
+                parquetUrls
+                liveData
+            }
+        }
+    }
+}

@@ -14,6 +14,7 @@ import tensorflow.keras.backend as K  # noqa: N812
 import wandb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+from wandb.sdk.lib import telemetry
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.util import add_import_hook
 
@@ -423,7 +424,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             ),
         )
 
-        with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
+        with telemetry.context(run=wandb.run) as tel:
             tel.feature.keras = True
         self.validation_data = None
         # This is kept around for legacy reasons

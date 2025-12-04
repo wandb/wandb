@@ -4,11 +4,8 @@ import json
 import os
 
 import pytest
-import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
-
-datastore = wandb.wandb_sdk.internal.datastore
-
+from wandb.sdk.internal import datastore
 
 FNAME = "test.dat"
 

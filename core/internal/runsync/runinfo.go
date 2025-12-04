@@ -2,6 +2,7 @@ package runsync
 
 import (
 	"strings"
+	"time"
 )
 
 // RunInfo is basic information about a run that can be extracted from
@@ -12,6 +13,9 @@ type RunInfo struct {
 	// Entity and Project may be empty to indicate that the user's defaults
 	// should be used.
 	Entity, Project, RunID string
+
+	// StartTime is the time this run instance was initialized.
+	StartTime time.Time
 }
 
 // Path returns the run's full path in the form entity/project/id

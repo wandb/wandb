@@ -11,6 +11,8 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 
 from __future__ import annotations
 
+from wandb.sdk.lib.deprecation import UNSET, DoNotSet
+
 __all__ = (
     "__version__",  # doc:exclude
     "init",
@@ -94,7 +96,7 @@ from wandb.errors import Error
 from wandb.errors.term import termerror, termlog, termsetup, termwarn
 from wandb.sdk import Artifact, Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
-from wandb.sdk.interface.interface import PolicyName
+from wandb.sdk.lib.filesystem import PolicyName
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
@@ -106,7 +108,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.22.4.dev1"
+__version__: str = "0.23.2.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -147,7 +149,6 @@ def init(
     job_type: str | None = None,
     mode: Literal["online", "offline", "disabled", "shared"] | None = None,
     force: bool | None = None,
-    anonymous: Literal["never", "allow", "must"] | None = None,
     reinit: (
         bool
         | Literal[
@@ -166,6 +167,7 @@ def init(
     sync_tensorboard: bool | None = None,
     monitor_gym: bool | None = None,
     settings: Settings | dict[str, Any] | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> Run:
     """<sdk/wandb_init.py::init>"""
     ...
@@ -178,7 +180,6 @@ def finish(
     ...
 
 def login(
-    anonymous: Literal["must", "allow", "never"] | None = None,
     key: str | None = None,
     relogin: bool | None = None,
     host: str | None = None,
@@ -186,6 +187,7 @@ def login(
     timeout: int | None = None,
     verify: bool = False,
     referrer: str | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> bool:
     """<sdk/wandb_login.py::login>"""
     ...

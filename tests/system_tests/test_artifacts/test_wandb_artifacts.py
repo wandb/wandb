@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Iterator, Mapping, Optional
+from typing import Iterator, Mapping, Optional, Union
 from urllib.parse import quote
 
 import numpy as np
@@ -17,6 +17,7 @@ import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 import wandb.sdk.internal.sender
+from pytest import mark, param
 from wandb import Artifact, util
 from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
@@ -1714,7 +1715,16 @@ def test_setting_invalid_artifact_collection_name(user, api, invalid_name):
     assert collection.name == orig_name
 
 
-def test_save_artifact_sequence(monkeypatch, user, api):
+@mark.parametrize(
+    "new_description",
+    [
+        param("", id="empty string"),
+        param("New description.", id="non-empty string"),
+    ],
+)
+def test_save_artifact_sequence(
+    user: str, api: wandb.Api, new_description: Union[str, None]
+):
     with wandb.init() as run:
         artifact = Artifact("sequence_name", "data")
         run.log_artifact(artifact)
@@ -1722,7 +1732,7 @@ def test_save_artifact_sequence(monkeypatch, user, api):
 
         artifact = run.use_artifact("sequence_name:latest")
         collection = api.artifact_collection("data", "sequence_name")
-        collection.description = "new description"
+        collection.description = new_description
         collection.name = "new_name"
         collection.type = "new_type"
         collection.tags = ["tag"]
@@ -1733,7 +1743,7 @@ def test_save_artifact_sequence(monkeypatch, user, api):
         collection = artifact.collection
         assert collection.type == "new_type"
         assert collection.name == "new_name"
-        assert collection.description == "new description"
+        assert collection.description == new_description
         assert len(collection.tags) == 1 and collection.tags[0] == "tag"
 
         collection.tags = ["new_tag"]
@@ -1779,7 +1789,17 @@ def test_artifact_model_registry_url(user, api):
         assert linked_model_art.url == expected_url
 
 
-def test_save_artifact_portfolio(user, api):
+@mark.parametrize(
+    "new_description",
+    [
+        param(None, id="null"),
+        param("", id="empty string"),
+        param("New description.", id="non-empty string"),
+    ],
+)
+def test_save_artifact_portfolio(
+    user: str, api: wandb.Api, new_description: Union[str, None]
+):
     with wandb.init() as run:
         artifact = Artifact("image_data", "data")
         run.log_artifact(artifact)
@@ -1787,7 +1807,7 @@ def test_save_artifact_portfolio(user, api):
         artifact.wait()
 
         portfolio = api.artifact_collection("data", "portfolio_name")
-        portfolio.description = "new description"
+        portfolio.description = new_description
         portfolio.name = "new_name"
         with pytest.raises(ValueError):
             portfolio.type = "new_type"
@@ -1797,7 +1817,7 @@ def test_save_artifact_portfolio(user, api):
         port_artifact = run.use_artifact("new_name:v0")
         portfolio = port_artifact.collection
         assert portfolio.name == "new_name"
-        assert portfolio.description == "new description"
+        assert portfolio.description == new_description
         assert len(portfolio.tags) == 1 and portfolio.tags[0] == "tag"
 
         portfolio.tags = ["new_tag"]

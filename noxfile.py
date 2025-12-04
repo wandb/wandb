@@ -797,7 +797,7 @@ def wandb_core_size_check(session: nox.Session) -> None:
     session.log(f"Difference:   {fmt_size(abs(diff))} ({pct:+.0%})")
     session.log("=" * 60)
 
-    if pct > 10:
+    if pct > 0.10:
         session.log(
             textwrap.dedent("""\
 
@@ -808,9 +808,12 @@ def wandb_core_size_check(session: nox.Session) -> None:
                   2. Document the reason in your PR description.
             """)
         )
-        session.error(f"Binary size increased by {pct:.1f}% (>10% threshold)")
-    elif pct > 5:
-        session.warn(f"Binary size increased by {pct:.1f}%")
+        session.error(f"Binary size increased by {pct:+.0%} (>10% threshold)")
+    # If the binary size has increased due to lib upgrades
+    # It maybe related to some locally modified changes in the vendored arrow-go code.
+    # See: https://github.com/wandb/wandb/pull/10712 for the files that were modified.
+    elif pct > 0.05:
+        session.warn(f"Binary size increased by {pct:+.0%}")
 
 
 @nox.session(name="wandb-import-time-check", python="3.12")
@@ -849,7 +852,7 @@ def wandb_import_time_check(session: nox.Session) -> None:
     session.log(f"Difference:   {abs(diff):.2g} ({pct:+.0%})")
     session.log("=" * 60)
 
-    if pct > 20:
+    if pct > 0.20:
         session.log(
             textwrap.dedent("""\
 
@@ -866,5 +869,5 @@ def wandb_import_time_check(session: nox.Session) -> None:
             """)
         )
         session.error(f"Import time increased by {pct:+.0%} (>20% threshold)")
-    elif pct > 10:
+    elif pct > 0.10:
         session.warn(f"Import time increased by {pct:+.0%}")

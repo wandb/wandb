@@ -7,6 +7,11 @@ def test_deadlocks():
     subprocess.check_call(["python", str(script)], timeout=5)
 
 
+def test_infinite_loop():
+    script = pathlib.Path(__file__).parent / "infinite_loop.py"
+    subprocess.check_call(["python", str(script)], timeout=5)
+
+
 def test_patch_stdout_and_stderr():
     script = pathlib.Path(__file__).parent / "patch_stdout_and_stderr.py"
 

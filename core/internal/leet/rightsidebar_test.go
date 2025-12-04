@@ -21,8 +21,8 @@ func expandRightSidebar(t *testing.T, rs *leet.RightSidebar, termWidth int, left
 func TestRightSidebar_UpdateDimensions_ToggleAndViewHeader(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	// Keep the system grid small to simplify layout.
 	_, _ = cfg.SetSystemRows(1), cfg.SetSystemCols(1)
+	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 
 	rs := leet.NewRightSidebar(cfg, &leet.Focus{}, logger)
 
@@ -30,13 +30,10 @@ func TestRightSidebar_UpdateDimensions_ToggleAndViewHeader(t *testing.T) {
 	expandRightSidebar(t, rs, termWidth, false)
 
 	// Width should equal clamped int(termWidth * SidebarWidthRatio).
-	want := int(float64(termWidth) * leet.SidebarWidthRatio)
-	if want < leet.SidebarMinWidth {
-		want = leet.SidebarMinWidth
-	}
-	if want > leet.SidebarMaxWidth {
-		want = leet.SidebarMaxWidth
-	}
+	want := min(
+		max(int(float64(termWidth)*leet.SidebarWidthRatio), leet.SidebarMinWidth),
+		leet.SidebarMaxWidth,
+	)
 	require.Equal(t, want, rs.Width())
 
 	// Ensure View renders header text once visible and grid ensured.
@@ -49,6 +46,7 @@ func TestRightSidebar_HandleMouseClick_FocusToggleAndClear(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_, _ = cfg.SetSystemRows(1), cfg.SetSystemCols(1)
+	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 
 	rs := leet.NewRightSidebar(cfg, &leet.Focus{}, logger)
 	expandRightSidebar(t, rs, 160, false)
@@ -83,6 +81,7 @@ func TestRightSidebar_HeaderShowsPaginationInfo(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	// 1x1 grid -> ItemsPerPage == 1, so multiple charts produce pagination info.
 	_, _ = cfg.SetSystemRows(1), cfg.SetSystemCols(1)
+	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 
 	rs := leet.NewRightSidebar(cfg, &leet.Focus{}, logger)
 	expandRightSidebar(t, rs, 140, false)

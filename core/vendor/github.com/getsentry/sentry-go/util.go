@@ -1,8 +1,6 @@
 package sentry
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,18 +9,12 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go/internal/debuglog"
+	"github.com/getsentry/sentry-go/internal/protocol"
 	exec "golang.org/x/sys/execabs"
 )
 
 func uuid() string {
-	id := make([]byte, 16)
-	// Prefer rand.Read over rand.Reader, see https://go-review.googlesource.com/c/go/+/272326/.
-	_, _ = rand.Read(id)
-	id[6] &= 0x0F // clear version
-	id[6] |= 0x40 // set version to 4 (random uuid)
-	id[8] &= 0x3F // clear variant
-	id[8] |= 0x80 // set to IETF variant
-	return hex.EncodeToString(id)
+	return protocol.GenerateEventID()
 }
 
 func fileExists(fileName string) bool {

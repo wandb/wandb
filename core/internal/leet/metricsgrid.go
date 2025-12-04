@@ -41,11 +41,14 @@ type MetricsGrid struct {
 	focus *Focus // focus.Row/Col only meaningful relative to currentPage
 
 	// Filter state.
-	filter FilterState
+	filter Filter
 
 	// Stable color assignment.
-	colorOfTitle map[string]string
+	colorOfTitle map[string]lipgloss.AdaptiveColor
 	nextColorIdx int
+
+	// synchronized inspection session state (active only between press/release)
+	syncInspectActive bool
 }
 
 func NewMetricsGrid(
@@ -63,7 +66,7 @@ func NewMetricsGrid(
 		currentPage:  make([][]*EpochLineChart, gridRows),
 		focus:        focus,
 		logger:       logger,
-		colorOfTitle: make(map[string]string),
+		colorOfTitle: make(map[string]lipgloss.AdaptiveColor),
 	}
 
 	for r := range gridRows {
@@ -95,7 +98,7 @@ func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) G
 // creating charts as needed, resorting, reapplying filters, and reloading the page.
 // It preserves focus on the previously focused chart when possible.
 // Returns true if there was anything to draw.
-func (mg *MetricsGrid) ProcessHistory(step int, metrics map[string]float64) bool {
+func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 	if len(metrics) == 0 {
 		return false
 	}
@@ -107,7 +110,9 @@ func (mg *MetricsGrid) ProcessHistory(step int, metrics map[string]float64) bool
 	dims := mg.CalculateChartDimensions(mg.width, mg.height)
 
 	mg.mu.Lock()
-	for name, val := range metrics {
+	var wg sync.WaitGroup
+
+	for name, data := range metrics {
 		chart, exists := mg.byTitle[name]
 		if !exists {
 			chart = NewEpochLineChart(dims.CellW, dims.CellH, name)
@@ -119,13 +124,17 @@ func (mg *MetricsGrid) ProcessHistory(step int, metrics map[string]float64) bool
 				mg.logger.Debug(fmt.Sprintf("metricsgrid: created %d charts", len(mg.all)))
 			}
 		}
-		chart.AddPoint(float64(step), val)
+		wg.Go(func() {
+			chart.AddData(data)
+		})
 	}
+
+	wg.Wait()
 
 	// Keep ordering, colors, maps and filtered set in sync.
 	if needsSort {
-		mg.sortChartsNoLock() // re-sorts + assigns stable colors
-		// mg.applyFilterNoLock(mg.filter.applied) // keep filtered mirror / subset
+		mg.sortChartsNoLock()  // re-sorts + assigns stable colors
+		mg.applyFilterNoLock() // keep filtered mirror / subset
 	} else {
 		// No new charts; keep pagination but refresh visible page contents.
 		mg.loadCurrentPageNoLock()
@@ -153,7 +162,7 @@ func (mg *MetricsGrid) effectiveGridSize() GridSize {
 //
 // Caller must hold mg.mu (RLock is fine).
 func (mg *MetricsGrid) chartsToShowNoLock() []*EpochLineChart {
-	if mg.filter.applied == "" {
+	if mg.filter.Query() == "" {
 		return mg.all
 	}
 	return mg.filtered
@@ -163,14 +172,14 @@ func (mg *MetricsGrid) chartsToShowNoLock() []*EpochLineChart {
 //
 // Caller must hold mg.mu (RLock is fine).
 func (mg *MetricsGrid) effectiveChartCountNoLock() int {
-	if mg.filter.applied == "" {
+	if mg.filter.Query() == "" {
 		return len(mg.all)
 	}
 	return len(mg.filtered)
 }
 
 // colorForNoLock returns a stable color for a given metric title.
-func (mg *MetricsGrid) colorForNoLock(title string) string {
+func (mg *MetricsGrid) colorForNoLock(title string) lipgloss.AdaptiveColor {
 	if c, ok := mg.colorOfTitle[title]; ok {
 		return c
 	}
@@ -195,12 +204,11 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 
 		// Stable color per title (no reshuffling when new charts arrive).
 		col := mg.colorForNoLock(chart.Title())
-		chart.graphStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(col))
+		chart.SetGraphStyle(lipgloss.NewStyle().Foreground(col))
 	}
 
 	// Ensure filtered mirrors all when filter is empty.
-	if mg.filter.applied == "" {
+	if mg.filter.Query() == "" {
 		mg.filtered = append(make([]*EpochLineChart, 0, len(mg.all)), mg.all...)
 	}
 }
@@ -271,7 +279,6 @@ func (mg *MetricsGrid) renderHeader(size GridSize) string {
 
 	chartCount := mg.effectiveChartCountNoLock()
 	totalCount := len(mg.all)
-	filterApplied := mg.filter.applied != ""
 
 	itemsPerPage := ItemsPerPage(size)
 	totalPages := mg.nav.TotalPages()
@@ -280,7 +287,7 @@ func (mg *MetricsGrid) renderHeader(size GridSize) string {
 		startIdx, endIdx := mg.nav.PageBounds(chartCount, itemsPerPage)
 		startIdx++ // Display as 1-indexed
 
-		if filterApplied {
+		if mg.filter.Query() != "" {
 			navInfo = navInfoStyle.Render(
 				fmt.Sprintf(" [%d-%d of %d filtered from %d total]",
 					startIdx, endIdx, chartCount, totalCount))
@@ -327,7 +334,8 @@ func (mg *MetricsGrid) renderGridCell(row, col int, dims GridDims) string {
 	mg.mu.RLock()
 	defer mg.mu.RUnlock()
 
-	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) && mg.currentPage[row][col] != nil {
+	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
+		mg.currentPage[row][col] != nil {
 		chart := mg.currentPage[row][col]
 		chartView := chart.View()
 
@@ -523,42 +531,181 @@ func (mg *MetricsGrid) HandleWheel(
 	dims GridDims,
 	wheelUp bool,
 ) {
-	size := mg.effectiveGridSize()
-
-	// Inspect under read lock.
-	mg.mu.RLock()
-	if row < 0 || row >= size.Rows || col < 0 || col >= size.Cols ||
-		row >= len(mg.currentPage) || col >= len(mg.currentPage[row]) ||
-		mg.currentPage[row][col] == nil {
-		mg.mu.RUnlock()
+	chart, relX, needFocus, ok := mg.hitChartAndRelX(adjustedX, row, col, dims)
+	if !ok || chart == nil {
 		return
 	}
-	chart := mg.currentPage[row][col]
+	if relX < 0 || relX >= chart.GraphWidth() {
+		return
+	}
+	if needFocus {
+		mg.clearFocus()
+		mg.setFocus(row, col)
+	}
+
+	dir := "out"
+	if wheelUp {
+		dir = "in"
+	}
+	chart.HandleZoom(dir, relX)
+	chart.DrawIfNeeded()
+}
+
+// IsFilterMode returns true if the metrics grid is currently in filter input mode.
+func (mg *MetricsGrid) IsFilterMode() bool {
+	return mg.filter.IsActive()
+}
+
+// IsFiltering returns true if the metrics grid has an applied filter.
+func (mg *MetricsGrid) IsFiltering() bool {
+	return !mg.filter.IsActive() && mg.filter.Query() != ""
+}
+
+// FilterQuery returns the current filter pattern.
+func (mg *MetricsGrid) FilterQuery() string {
+	return mg.filter.Query()
+}
+
+// hitChartAndRelX returns the chart under (row, col) on the grid
+// with relative graph-local X.
+//
+// needFocus is true if this chart differs from current focus.
+// ok is false if row/col doesn't map to a visible chart.
+func (mg *MetricsGrid) hitChartAndRelX(
+	adjustedX, row, col int,
+	dims GridDims,
+) (chart *EpochLineChart, relX int, needFocus, ok bool) {
+	size := mg.effectiveGridSize()
+
+	mg.mu.RLock()
+	defer mg.mu.RUnlock()
+
+	if row < 0 || row >= size.Rows || col < 0 || col >= size.Cols ||
+		row >= len(mg.currentPage) || col >= len(mg.currentPage[row]) {
+		return nil, 0, false, false
+	}
+	chart = mg.currentPage[row][col]
+	if chart == nil {
+		return nil, 0, false, false
+	}
 
 	chartStartX := col * dims.CellWWithPadding
 	graphStartX := chartStartX + 1
 	if chart.YStep() > 0 {
 		graphStartX += chart.Origin().X + 1
 	}
-	relativeMouseX := adjustedX - graphStartX
-	needFocus := mg.focus.Type != FocusMainChart ||
-		mg.focus.Row != row || mg.focus.Col != col
-	mg.mu.RUnlock()
+	relX = adjustedX - graphStartX
 
-	if relativeMouseX < 0 || relativeMouseX >= chart.GraphWidth() {
+	needFocus = mg.focus.Type != FocusMainChart || mg.focus.Row != row || mg.focus.Col != col
+	return chart, relX, needFocus, true
+}
+
+// StartInspection focuses the chart and begins inspection if inside the graph.
+//
+// If synced==true (Alt+right-press), a synchronized inspection session starts:
+// the anchor X from the focused chart is broadcast to all visible charts.
+func (mg *MetricsGrid) StartInspection(adjustedX, row, col int, dims GridDims, synced bool) {
+	chart, relX, needFocus, ok := mg.hitChartAndRelX(adjustedX, row, col, dims)
+	if !ok || chart == nil {
 		return
 	}
 
-	// Focus the chart when zooming (if not already focused).
+	// Clamp to graph bounds at the chart level, but ignore wildly out-of-bounds here.
+	if relX < -2 || relX > chart.GraphWidth()+1 {
+		return
+	}
+
 	if needFocus {
 		mg.clearFocus()
 		mg.setFocus(row, col)
 	}
 
-	direction := "out"
-	if wheelUp {
-		direction = "in"
-	}
-	chart.HandleZoom(direction, relativeMouseX)
+	chart.StartInspection(relX)
 	chart.DrawIfNeeded()
+
+	if synced {
+		mg.syncInspectActive = true
+		if x, _, active := chart.InspectionData(); active {
+			mg.broadcastInspectAtDataX(x)
+		}
+	}
+}
+
+// UpdateInspection updates the crosshair position on the focused chart.
+//
+// If a synchronized inspection session is active, broadcasts the position
+// to all visible charts on the current page.
+func (mg *MetricsGrid) UpdateInspection(adjustedX, row, col int, dims GridDims) {
+	chart, relX, _, ok := mg.hitChartAndRelX(adjustedX, row, col, dims)
+	if !ok || chart == nil || !chart.IsInspecting() {
+		return
+	}
+
+	chart.StartInspection(relX)
+	chart.DrawIfNeeded()
+
+	if mg.syncInspectActive {
+		if x, _, active := chart.InspectionData(); active {
+			mg.broadcastInspectAtDataX(x)
+		}
+	}
+}
+
+// EndInspection clears inspection mode.
+//
+// If a synchronized session is active, clears inspection on all visible charts;
+// otherwise clears only the focused chart.
+func (mg *MetricsGrid) EndInspection() {
+	if mg.syncInspectActive {
+		mg.broadcastEndInspection()
+		mg.syncInspectActive = false
+		return
+	}
+
+	if mg.focus.Type != FocusMainChart || mg.focus.Row < 0 || mg.focus.Col < 0 {
+		return
+	}
+	mg.mu.RLock()
+	var chart *EpochLineChart
+	if mg.focus.Row < len(mg.currentPage) &&
+		mg.focus.Col < len(mg.currentPage[mg.focus.Row]) {
+		chart = mg.currentPage[mg.focus.Row][mg.focus.Col]
+	}
+	mg.mu.RUnlock()
+	if chart != nil {
+		chart.EndInspection()
+		chart.DrawIfNeeded()
+	}
+}
+
+// broadcastInspectAtDataX applies InspectAtDataX to all visible charts on the current page.
+func (mg *MetricsGrid) broadcastInspectAtDataX(anchorX float64) {
+	mg.mu.RLock()
+	page := mg.currentPage
+	mg.mu.RUnlock()
+
+	for r := range page {
+		for c := range page[r] {
+			if ch := page[r][c]; ch != nil {
+				ch.InspectAtDataX(anchorX)
+				ch.DrawIfNeeded()
+			}
+		}
+	}
+}
+
+// broadcastEndInspection clears inspection on all visible charts on the current page.
+func (mg *MetricsGrid) broadcastEndInspection() {
+	mg.mu.RLock()
+	page := mg.currentPage
+	mg.mu.RUnlock()
+
+	for r := range page {
+		for c := range page[r] {
+			if ch := page[r][c]; ch != nil && ch.IsInspecting() {
+				ch.EndInspection()
+				ch.DrawIfNeeded()
+			}
+		}
+	}
 }

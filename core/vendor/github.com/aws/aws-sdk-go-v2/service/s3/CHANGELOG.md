@@ -1,3 +1,36 @@
+# v1.93.0 (2025-12-02)
+
+* **Feature**: New S3 Storage Class FSX_ONTAP
+* **Dependency Update**: Updated to the latest SDK module versions
+* **Dependency Update**: Upgrade to smithy-go v1.24.0. Notably this version of the library reduces the allocation footprint of the middleware system. We observe a ~10% reduction in allocations per SDK call with this change.
+
+# v1.92.1 (2025-11-25)
+
+* **Bug Fix**: Add error check for endpoint param binding during auth scheme resolution to fix panic reported in #3234
+* **Bug Fix**: Fix missing error message when service returns a specific type of error.
+
+# v1.92.0 (2025-11-20)
+
+* **Feature**: Enable / Disable ABAC on a general purpose bucket.
+
+# v1.91.1 (2025-11-19.2)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.91.0 (2025-11-19)
+
+* **Feature**: Adds support for blocking SSE-C writes to general purpose buckets.
+
+# v1.90.2 (2025-11-12)
+
+* **Bug Fix**: Further reduce allocation overhead when the metrics system isn't in-use.
+* **Bug Fix**: Reduce allocation overhead when the client doesn't have any HTTP interceptors configured.
+* **Bug Fix**: Remove blank trace spans towards the beginning of the request that added no additional information. This conveys a slight reduction in overall allocations.
+
+# v1.90.1 (2025-11-11)
+
+* **Bug Fix**: Return validation error if input region is not a valid host label.
+
 # v1.90.0 (2025-11-05)
 
 * **Feature**: Launch IPv6 dual-stack support for S3 Express

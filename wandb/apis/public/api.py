@@ -41,14 +41,15 @@ from wandb.apis.public.utils import (
     gql_compat,
     parse_org_from_registry_path,
 )
+from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk import wandb_login
+from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
-from wandb.sdk.lib import retry, runid
+from wandb.sdk.lib import retry, runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.gql_request import GraphQLSession
 
@@ -305,29 +306,20 @@ class Api:
                 or configured in the environment.
         """
         self.settings = InternalApi().settings()
-
-        _overrides = overrides or {}
-        self.settings.update(_overrides)
+        self.settings.update(overrides or {})
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
-        if "organization" in _overrides:
-            self.settings["organization"] = _overrides["organization"]
-        if "username" in _overrides and "entity" not in _overrides:
-            wandb.termwarn(
-                'Passing "username" to Api is deprecated. please use "entity" instead.'
-            )
-            self.settings["entity"] = _overrides["username"]
 
-        use_api_key = api_key is not None or _thread_local_api_settings.cookies is None
-
-        if use_api_key:
+        if api_key:
+            self.api_key = api_key
+        else:
             self.api_key = self._load_api_key(
                 base_url=self.settings["base_url"],
-                init_api_key=api_key,
             )
-            wandb_login._verify_login(
-                key=self.api_key,
-                base_url=self.settings["base_url"],
-            )
+
+        wandb_login._verify_login(
+            key=self.api_key,
+            base_url=self.settings["base_url"],
+        )
 
         self._viewer = None
         self._projects = {}
@@ -336,9 +328,6 @@ class Api:
         self._reports = {}
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
-        auth = None
-        if use_api_key:
-            auth = ("api", self.api_key)
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
         )
@@ -347,15 +336,13 @@ class Api:
                 headers={
                     "User-Agent": self.user_agent,
                     "Use-Admin-Privileges": "true",
-                    **(_thread_local_api_settings.headers or {}),
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
-                auth=auth,
+                auth=("api", self.api_key),
                 url="{}/graphql".format(self.settings["base_url"]),
-                cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
             )
         )
@@ -363,49 +350,48 @@ class Api:
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
 
-    def _load_api_key(
-        self,
-        base_url: str,
-        init_api_key: str | None = None,
-    ) -> str:
-        """Attempts to load a configured API key or prompt if one is not found.
+        self._backend: wandb.sdk.backend.backend.Backend | None = None
+        self._service = None
 
-        The API key is loaded in the following order:
-            1. User explicitly provided api key
-            2. Thread local api key
-            3. Environment variable
-            4. Netrc file
-            5. Prompt for api key using wandb.login
-        """
-        import requests
+    def _start_backend_service(self):
+        """Starts the backend service and initializes resources to enable handling API requests."""
+        from wandb.sdk import wandb_setup
 
-        # Use explicit key before thread local.
-        # This allow user switching keys without picking up the wrong key from thread local.
-        if init_api_key is not None:
-            return init_api_key
-        if _thread_local_api_settings.api_key:
-            return _thread_local_api_settings.api_key
-        if os.getenv("WANDB_API_KEY"):
-            return os.environ["WANDB_API_KEY"]
+        self._stream_id = str(runid.generate_id())
+        singleton = wandb_setup.singleton()
+        self._settings = singleton.settings.model_copy()
+        self._settings.base_url = self.settings["base_url"]
+        self._settings.silent = True
 
-        auth = requests.utils.get_netrc_auth(base_url)
-        if auth:
-            return auth[-1]
+        self._service = singleton.ensure_service()
+        self._service.api_init_request(self._settings.to_proto())
 
-        _, prompted_key = wandb_login._login(
+    def _load_api_key(self, base_url: str) -> str:
+        """Load or prompt for an API key."""
+        auth = wbauth.authenticate_session(
             host=base_url,
-            key=None,
-            # We will explicitly verify the key later
-            verify=False,
-            _silent=(
-                self.settings.get("silent", False) or self.settings.get("quiet", False)
-            ),
-            update_api_key=False,
-            _disable_warning=True,
+            source="wandb.Api()",
+            no_offline=True,
+            input_timeout=wandb_setup.singleton().settings.login_timeout,
         )
-        return prompted_key
+
+        if not auth:
+            raise UsageError("No API key configured. Use `wandb login` to log in.")
+        if not isinstance(auth, wbauth.AuthApiKey):
+            message = (
+                "wandb.Api() can only use API key authentication, but you have"
+                " another form of credentials configured."
+                " Check if you have set WANDB_IDENTITY_TOKEN_FILE."
+                f" Current credentials: {auth}"
+            )
+            raise UsageError(message)
+
+        return auth.api_key
 
     def _configure_sentry(self) -> None:
+        if not env.error_reporting_enabled():
+            return
+
         import requests
 
         try:
@@ -423,6 +409,25 @@ class Api:
                 "email": email,
             },
         )
+
+    def _send_api_request(
+        self,
+        request: ApiRequest,
+        timeout: float | None = None,
+    ) -> ApiResponse:
+        """Sends an API request to the backend service.
+
+        Creates the backend service attribute if it has not been created yet.
+
+        TODO: remove this helper function once all requests are routed through wandb-core.
+        The backend service should be created and initalized
+        during the instantiation of the Api object.
+        """
+        if self._service is None:
+            self._start_backend_service()
+
+        assert self._service is not None
+        return self._service.api_request(request, timeout=timeout)
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -1254,6 +1259,7 @@ class Api:
             self.client,
             entity,
             project,
+            api=self,
             filters=filters,
             order=order,
             per_page=per_page,
@@ -1278,7 +1284,12 @@ class Api:
         if not self._runs.get(path):
             # Individual runs should load full data by default
             self._runs[path] = public.Run(
-                self.client, entity, project, run_id, lazy=False
+                self.client,
+                entity,
+                project,
+                run_id,
+                api=self,
+                lazy=False,
             )
         return self._runs[path]
 
@@ -2024,8 +2035,8 @@ class Api:
         """
         from wandb.apis.public.integrations import Integrations
 
-        params = {"entityName": entity or self.default_entity}
-        return Integrations(client=self.client, variables=params, per_page=per_page)
+        variables = {"entity": entity or self.default_entity}
+        return Integrations(self.client, variables=variables, per_page=per_page)
 
     @tracked
     def webhook_integrations(
@@ -2066,10 +2077,8 @@ class Api:
         """
         from wandb.apis.public.integrations import WebhookIntegrations
 
-        params = {"entityName": entity or self.default_entity}
-        return WebhookIntegrations(
-            client=self.client, variables=params, per_page=per_page
-        )
+        variables = {"entity": entity or self.default_entity}
+        return WebhookIntegrations(self.client, variables=variables, per_page=per_page)
 
     @tracked
     def slack_integrations(
@@ -2110,10 +2119,8 @@ class Api:
         """
         from wandb.apis.public.integrations import SlackIntegrations
 
-        params = {"entityName": entity or self.default_entity}
-        return SlackIntegrations(
-            client=self.client, variables=params, per_page=per_page
-        )
+        variables = {"entity": entity or self.default_entity}
+        return SlackIntegrations(self.client, variables=variables, per_page=per_page)
 
     def _supports_automation(
         self,
@@ -2264,7 +2271,7 @@ class Api:
         )
 
         # For now, we need to use different queries depending on whether entity is given
-        variables = {"entityName": entity}
+        variables = {"entity": entity}
         if entity is None:
             gql_str = GET_AUTOMATIONS_GQL  # Automations for viewer
         else:
@@ -2274,7 +2281,7 @@ class Api:
         omit_fragments = self._omitted_automation_fragments()
         query = gql_compat(gql_str, omit_fragments=omit_fragments)
         iterator = Automations(
-            client=self.client, variables=variables, per_page=per_page, _query=query
+            self.client, variables=variables, per_page=per_page, _query=query
         )
 
         # FIXME: this is crude, move this client-side filtering logic into backend

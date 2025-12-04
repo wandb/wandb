@@ -823,16 +823,17 @@ def test_json_dump_uncompressed_with_numpy_datatypes():
     assert iostr.getvalue() == '{"a": [1, 2.0, 3]}'
 
 
-@pytest.mark.skipif(
-    platform.system() != "Windows",
-    reason="Drive letters are only relevant on Windows",
-)
 @pytest.mark.parametrize(
-    "path1,path2,expected",
+    "internet_state",
     [
-        ("C:\\foo", "C:\\bar", True),
-        ("C:\\foo", "D:\\bar", False),
+        True,
+        False,
     ],
 )
-def test_are_windows_paths_on_same_drive(path1, path2, expected):
-    assert util.are_paths_on_same_drive(path1, path2) == expected
+def test_has_internet(internet_state):
+    if internet_state:
+        mock_create_connection = mock.MagicMock()
+    else:
+        mock_create_connection = mock.MagicMock(side_effect=OSError)
+    with mock.patch("socket.create_connection", new=mock_create_connection):
+        assert util._has_internet() is internet_state

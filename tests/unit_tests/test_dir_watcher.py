@@ -13,7 +13,7 @@ from wandb.filesync.dir_watcher import DirWatcher, PolicyEnd, PolicyLive, Policy
 from wandb.sdk.internal.file_pusher import FilePusher
 
 if TYPE_CHECKING:
-    from wandb.sdk.interface.interface import PolicyName
+    from wandb.sdk.lib.filesystem import PolicyName
 
 
 @pytest.fixture

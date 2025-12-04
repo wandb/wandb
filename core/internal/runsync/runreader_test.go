@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type testFixtures struct {
@@ -132,13 +134,15 @@ func isExitRecord(code int32) gomock.Matcher {
 
 func Test_Extract_FindsRunRecord(t *testing.T) {
 	x := setup(t)
+	startTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	wandbFileWithRecords(t,
 		x.TransactionLog,
 		&spb.Record{RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
-				Entity:  "test entity",
-				Project: "test project",
-				RunId:   "test run ID",
+				Entity:    "test entity",
+				Project:   "test project",
+				RunId:     "test run ID",
+				StartTime: timestamppb.New(startTime),
 			},
 		}})
 
@@ -146,9 +150,10 @@ func Test_Extract_FindsRunRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, &runsync.RunInfo{
-		Entity:  "test entity",
-		Project: "test project",
-		RunID:   "test run ID",
+		Entity:    "test entity",
+		Project:   "test project",
+		RunID:     "test run ID",
+		StartTime: startTime,
 	}, runInfo)
 }
 

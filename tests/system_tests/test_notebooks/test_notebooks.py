@@ -6,21 +6,11 @@ import subprocess
 import sys
 from unittest import mock
 
-import pytest
 import wandb
-import wandb.sdk.lib.apikey
 import wandb.util
 
 
-def test_login_timeout(notebook, monkeypatch):
-    monkeypatch.setattr(
-        wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=True: x[0]
-    )
-    monkeypatch.setattr(
-        wandb.wandb_lib.apikey,
-        "prompt_choices",
-        lambda x, input_timeout=None, jupyter=True: x[0],
-    )
+def test_login_timeout(notebook):
     with notebook("login_timeout.ipynb", skip_api_key_env=True) as nb:
         nb.execute_all()
         output = nb.cell_output_text(1)
@@ -158,18 +148,6 @@ def test_notebook_not_exists(mocked_ipython, user, capsys):
         _, err = capsys.readouterr()
         assert "WANDB_NOTEBOOK_NAME should be a path" in err
         run.finish()
-
-
-def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
-    # test for WB-5264
-    # when we try to call wandb.login(), should fail with no-tty
-    with mock.patch.object(
-        wandb.sdk.lib.apikey,
-        "_is_databricks",
-        return_value=True,
-    ):
-        with pytest.raises(wandb.UsageError, match="tty"):
-            wandb.login()
 
 
 def test_mocked_notebook_html_default(user, run_id, mocked_ipython):

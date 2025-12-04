@@ -102,12 +102,12 @@ class Registry:
         return self._current.organization
 
     @property
-    def description(self) -> str:
+    def description(self) -> str | None:
         """Description of the registry."""
         return self._current.description
 
     @description.setter
-    def description(self, value: str):
+    def description(self, value: str) -> None:
         """Set the description of the registry."""
         self._current.description = value
 

@@ -121,7 +121,6 @@ func NewConnection(
 		sentryClient:       params.SentryClient,
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
-		wbapi:              wbapi.NewWandbAPI(),
 	}
 }
 
@@ -332,6 +331,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleSync(wg, msg.RequestId, x.Sync)
 		case *spb.ServerRequest_SyncStatus:
 			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
+		case *spb.ServerRequest_ApiInitRequest:
+			nc.handleApiInit(msg.RequestId, x.ApiInitRequest)
 		case *spb.ServerRequest_ApiRequest:
 			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
@@ -389,7 +390,12 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	sentryClient.CaptureMessage("wandb-core", nil)
 
 	if err := nc.streamMux.AddStream(streamId, strm); err != nil {
-		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
+		slog.Error(
+			"handleInformInit: error adding stream",
+			"err", err,
+			"streamId", streamId,
+			"id", nc.id,
+		)
 		// TODO: should we Close the stream?
 		return
 	}
@@ -521,7 +527,12 @@ func (nc *Connection) handleInformFinish(msg *spb.ServerInformFinishRequest) {
 	// Attempt to remove the stream from the stream multiplexer
 	strm, err := nc.streamMux.RemoveStream(streamId)
 	if err != nil {
-		slog.Error("handleInformFinish: error removing stream", "err", err, "streamId", streamId, "id", nc.id)
+		slog.Error(
+			"handleInformFinish: error removing stream",
+			"err", err,
+			"streamId", streamId,
+			"id", nc.id,
+		)
 		return
 	}
 
@@ -594,13 +605,49 @@ func (nc *Connection) handleSyncStatus(
 	})
 }
 
+func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
+	settings := settings.From(request.GetSettings())
+	nc.wbapi = wbapi.NewWandbAPI(settings, nc.sentryClient)
+	nc.Respond(&spb.ServerResponse{
+		RequestId: id,
+		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
+			ApiInitResponse: &spb.ServerApiInitResponse{},
+		},
+	})
+}
+
 func (nc *Connection) handleApi(
 	wg *sync.WaitGroup,
 	id string,
 	request *spb.ApiRequest,
 ) {
+	if nc.wbapi == nil {
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_ApiResponse{
+				ApiResponse: &spb.ApiResponse{
+					Response: &spb.ApiResponse_ApiErrorResponse{
+						ApiErrorResponse: &spb.ApiErrorResponse{
+							Message: "WandbAPI is not initialized",
+						},
+					},
+				},
+			},
+		})
+		return
+	}
+
 	wg.Go(func() {
-		nc.wbapi.HandleRequest(id, request, nc.Respond)
+		response := nc.wbapi.HandleRequest(id, request)
+
+		if response != nil {
+			nc.Respond(&spb.ServerResponse{
+				RequestId: id,
+				ServerResponseType: &spb.ServerResponse_ApiResponse{
+					ApiResponse: response,
+				},
+			})
+		}
 	})
 }
 

@@ -66,7 +66,7 @@ func NewLogger(ctx context.Context) Logger {
 	}
 
 	client := hub.Client()
-	if client != nil && client.batchLogger != nil {
+	if client != nil && client.options.EnableLogs {
 		return &sentryLogger{
 			ctx:        ctx,
 			client:     client,
@@ -76,11 +76,10 @@ func NewLogger(ctx context.Context) Logger {
 	}
 
 	debuglog.Println("fallback to noopLogger: enableLogs disabled")
-	return &noopLogger{} // fallback: does nothing
+	return &noopLogger{}
 }
 
 func (l *sentryLogger) Write(p []byte) (int, error) {
-	// Avoid sending double newlines to Sentry
 	msg := strings.TrimRight(string(p), "\n")
 	l.Info().Emit(msg)
 	return len(p), nil
@@ -145,8 +144,6 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	for k, v := range entryAttrs {
 		attrs[k] = v
 	}
-
-	// Set default attributes
 	if release := l.client.options.Release; release != "" {
 		attrs["sentry.release"] = Attribute{Value: release, Type: AttributeString}
 	}
@@ -194,7 +191,13 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	}
 
 	if log != nil {
-		l.client.batchLogger.logCh <- *log
+		if l.client.telemetryBuffer != nil {
+			if !l.client.telemetryBuffer.Add(log) {
+				debuglog.Print("Dropping event: log buffer full or category missing")
+			}
+		} else if l.client.batchLogger != nil {
+			l.client.batchLogger.logCh <- *log
+		}
 	}
 
 	if l.client.options.Debug {
@@ -287,7 +290,7 @@ func (l *sentryLogger) Panic() LogEntry {
 		level:       LogLevelFatal,
 		severity:    LogSeverityFatal,
 		attributes:  make(map[string]Attribute),
-		shouldPanic: true, // this should panic instead of exit
+		shouldPanic: true,
 	}
 }
 

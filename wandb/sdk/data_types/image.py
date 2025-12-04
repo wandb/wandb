@@ -424,10 +424,7 @@ class Image(BatchableMedia):
             if data.ndim > 2:
                 data = data.squeeze()
 
-            self._image = pil_image.fromarray(
-                data,
-                mode=mode,
-            )
+            self._image = pil_image.fromarray(data).convert(mode)
         else:
             if hasattr(data, "numpy"):  # TF data eager tensors
                 data = data.numpy()
@@ -440,10 +437,7 @@ class Image(BatchableMedia):
             mode = mode or self.guess_mode(data, file_type)
             data = _guess_and_rescale_to_0_255(data) if normalize else data  # type: ignore [arg-type]
             data = _convert_to_uint8(data)  # type: ignore [arg-type]
-            self._image = pil_image.fromarray(
-                data,
-                mode=mode,
-            )
+            self._image = pil_image.fromarray(data).convert(mode)
 
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)

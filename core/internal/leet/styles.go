@@ -8,7 +8,10 @@ import (
 
 // Immutable UI constants.
 const (
-	StatusBarHeight      = 1
+	StatusBarHeight = 1
+	// Horizontal padding for the status bar (left and right).
+	StatusBarPadding = 1
+
 	MinChartWidth        = 20
 	MinChartHeight       = 5
 	MinMetricChartWidth  = 18
@@ -60,6 +63,9 @@ const (
 
 	// unicodeSpace is the regular whitespace.
 	unicodeSpace rune = '\u0020'
+
+	// mediumShadeBlock is a medium-shaded block.
+	mediumShadeBlock rune = '\u2592' // ▒
 )
 
 // WANDB brand colors.
@@ -76,10 +82,12 @@ var teal450 = lipgloss.AdaptiveColor{
 }
 
 // Functional colors not specific to any visual component.
-// Ideally these should be adaptive!
 var (
 	// Color for main items such as chart titles.
-	colorAccent = lipgloss.Color("250")
+	colorAccent = lipgloss.AdaptiveColor{
+		Light: "#6c6c6c",
+		Dark:  "#bcbcbc",
+	}
 
 	// Main text color that appears the most frequently on the screen.
 	colorText = lipgloss.Color("245")
@@ -89,7 +97,10 @@ var (
 	colorSubtle = lipgloss.Color("240")
 
 	// Color for layout elements, like borders and separator lines.
-	colorLayout = lipgloss.Color("238")
+	colorLayout = lipgloss.AdaptiveColor{
+		Light: "#949494",
+		Dark:  "#444444",
+	}
 
 	// Color for layout elements when they're highlighted or focused.
 	colorLayoutHighlight = teal450
@@ -100,12 +111,21 @@ var (
 
 	// Color for lower-level headings; more frequent than headings.
 	// Help page keys, metrics grid header.
-	colorSubheading = lipgloss.Color("230")
+	colorSubheading = lipgloss.AdaptiveColor{
+		Light: "#3a3a3a",
+		Dark:  "#eeeeee",
+	}
 
 	// Colors for key-value pairs such as run summary or config items.
 	colorItemKey   = lipgloss.Color("243")
-	colorItemValue = lipgloss.Color("252")
-	colorSelected  = lipgloss.Color("238")
+	colorItemValue = lipgloss.AdaptiveColor{
+		Light: "#262626",
+		Dark:  "#d0d0d0",
+	}
+	colorSelected = lipgloss.AdaptiveColor{
+		Light: "#c6c6c6",
+		Dark:  "#444444",
+	}
 )
 
 // ASCII art for the loading screen and the help page.
@@ -131,57 +151,57 @@ const leetArt = `
 // Each scheme consists of an ordered list of colors,
 // where each new graph, and/or a line on a multi-line graph takes the next color.
 // Colors get reused in a cyclic manner.
-var colorSchemes = map[string][]string{
+var colorSchemes = map[string][]lipgloss.AdaptiveColor{
 	"sunset-glow": { // Golden-pink gradient
-		"#E281FE",
-		"#E78DE3",
-		"#E993D5",
-		"#ED9FBB",
-		"#F0A5AD",
-		"#F2AB9F",
-		"#F6B784",
-		"#F8BD78",
-		"#FBC36B",
-		"#FFCF4F",
+		lipgloss.AdaptiveColor{Light: "#B84FD4", Dark: "#E281FE"},
+		lipgloss.AdaptiveColor{Light: "#BD5AB9", Dark: "#E78DE3"},
+		lipgloss.AdaptiveColor{Light: "#BF60AB", Dark: "#E993D5"},
+		lipgloss.AdaptiveColor{Light: "#C36C91", Dark: "#ED9FBB"},
+		lipgloss.AdaptiveColor{Light: "#C67283", Dark: "#F0A5AD"},
+		lipgloss.AdaptiveColor{Light: "#C87875", Dark: "#F2AB9F"},
+		lipgloss.AdaptiveColor{Light: "#CC8451", Dark: "#F6B784"},
+		lipgloss.AdaptiveColor{Light: "#CE8A45", Dark: "#F8BD78"},
+		lipgloss.AdaptiveColor{Light: "#D19038", Dark: "#FBC36B"},
+		lipgloss.AdaptiveColor{Light: "#D59C1C", Dark: "#FFCF4F"},
 	},
 	"wandb-vibe-10": {
-		"#B1B4B9",
-		"#58D3DB",
-		"#5ED6A4",
-		"#FCA36F",
-		"#FF7A88",
-		"#7DB1FA",
-		"#BBE06B",
-		"#FFCF4D",
-		"#E180FF",
-		"#B199FF",
+		lipgloss.AdaptiveColor{Light: "#B1B4B9", Dark: "#B1B4B9"},
+		lipgloss.AdaptiveColor{Light: "#58D3DB", Dark: "#58D3DB"},
+		lipgloss.AdaptiveColor{Light: "#5ED6A4", Dark: "#5ED6A4"},
+		lipgloss.AdaptiveColor{Light: "#FCA36F", Dark: "#FCA36F"},
+		lipgloss.AdaptiveColor{Light: "#FF7A88", Dark: "#FF7A88"},
+		lipgloss.AdaptiveColor{Light: "#7DB1FA", Dark: "#7DB1FA"},
+		lipgloss.AdaptiveColor{Light: "#BBE06B", Dark: "#BBE06B"},
+		lipgloss.AdaptiveColor{Light: "#FFCF4D", Dark: "#FFCF4D"},
+		lipgloss.AdaptiveColor{Light: "#E180FF", Dark: "#E180FF"},
+		lipgloss.AdaptiveColor{Light: "#B199FF", Dark: "#B199FF"},
 	},
 	"wandb-vibe-20": {
-		"#D4D5D9",
-		"#565C66",
-		"#A9EDF2",
-		"#038194",
-		"#A1F0CB",
-		"#00875A",
-		"#FFCFB2",
-		"#C2562F",
-		"#FFC7CA",
-		"#CC2944",
-		"#BDD9FF",
-		"#1F59C4",
-		"#D0ED9D",
-		"#5F8A2D",
-		"#FFE49E",
-		"#B8740F",
-		"#EFC2FC",
-		"#9E36C2",
-		"#D6C9FF",
-		"#6645D1",
+		lipgloss.AdaptiveColor{Light: "#D4D5D9", Dark: "#D4D5D9"},
+		lipgloss.AdaptiveColor{Light: "#565C66", Dark: "#565C66"},
+		lipgloss.AdaptiveColor{Light: "#A9EDF2", Dark: "#A9EDF2"},
+		lipgloss.AdaptiveColor{Light: "#038194", Dark: "#038194"},
+		lipgloss.AdaptiveColor{Light: "#A1F0CB", Dark: "#A1F0CB"},
+		lipgloss.AdaptiveColor{Light: "#00875A", Dark: "#00875A"},
+		lipgloss.AdaptiveColor{Light: "#FFCFB2", Dark: "#FFCFB2"},
+		lipgloss.AdaptiveColor{Light: "#C2562F", Dark: "#C2562F"},
+		lipgloss.AdaptiveColor{Light: "#FFC7CA", Dark: "#FFC7CA"},
+		lipgloss.AdaptiveColor{Light: "#CC2944", Dark: "#CC2944"},
+		lipgloss.AdaptiveColor{Light: "#BDD9FF", Dark: "#BDD9FF"},
+		lipgloss.AdaptiveColor{Light: "#1F59C4", Dark: "#1F59C4"},
+		lipgloss.AdaptiveColor{Light: "#D0ED9D", Dark: "#D0ED9D"},
+		lipgloss.AdaptiveColor{Light: "#5F8A2D", Dark: "#5F8A2D"},
+		lipgloss.AdaptiveColor{Light: "#FFE49E", Dark: "#FFE49E"},
+		lipgloss.AdaptiveColor{Light: "#B8740F", Dark: "#B8740F"},
+		lipgloss.AdaptiveColor{Light: "#EFC2FC", Dark: "#EFC2FC"},
+		lipgloss.AdaptiveColor{Light: "#9E36C2", Dark: "#9E36C2"},
+		lipgloss.AdaptiveColor{Light: "#D6C9FF", Dark: "#D6C9FF"},
+		lipgloss.AdaptiveColor{Light: "#6645D1", Dark: "#6645D1"},
 	},
 }
 
 // GraphColors returns the colors for the current color scheme.
-func GraphColors() []string {
+func GraphColors() []lipgloss.AdaptiveColor {
 	return colorSchemes[DefaultColorScheme]
 }
 
@@ -198,7 +218,9 @@ var (
 
 // Chart styles.
 var (
-	borderStyle = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(colorLayout)
+	borderStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(colorLayout)
 
 	titleStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
 
@@ -209,45 +231,62 @@ var (
 	axisStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
 	labelStyle = lipgloss.NewStyle().Foreground(colorText)
+
+	inspectionLineStyle = lipgloss.NewStyle().Foreground(colorSubtle)
+
+	inspectionLegendStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.AdaptiveColor{Light: "#111111", Dark: "#EEEEEE"}).
+				Background(lipgloss.AdaptiveColor{Light: "#EEEEEE", Dark: "#333333"})
 )
 
 // Status bar styles.
 var (
-	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(colorLayoutHighlight)
+	statusBarStyle = lipgloss.NewStyle().
+		Foreground(moon900).
+		Background(colorLayoutHighlight).
+		Padding(0, StatusBarPadding)
 )
 
 // Left sidebar styles.
 var (
-	sidebarStyle              = lipgloss.NewStyle().Padding(0, 1)
-	sidebarBorderStyle        = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(colorLayout)
-	sidebarHeaderStyle        = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginBottom(1)
-	sidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
-	sidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
-	sidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
-	sidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
-	RightBorder               = lipgloss.Border{
+	leftSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
+	leftSidebarBorderStyle = lipgloss.NewStyle().
+				Border(RightBorder).
+				BorderForeground(colorLayout)
+	leftSidebarHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorSubheading).
+				MarginBottom(1)
+	leftSidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
+	leftSidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
+	leftSidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
+	leftSidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
+	RightBorder                   = lipgloss.Border{
 		Top:         string(unicodeSpace),
 		Bottom:      string(unicodeSpace),
 		Left:        "",
-		Right:       string(verticalLine),
+		Right:       string(boxLightVertical),
 		TopLeft:     string(unicodeSpace),
-		TopRight:    string(verticalLine),
+		TopRight:    string(unicodeSpace),
 		BottomLeft:  string(unicodeSpace),
-		BottomRight: string(verticalLine),
+		BottomRight: string(boxLightVertical),
 	}
 )
 
 // Right sidebar styles.
 var (
 	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
-	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(colorLayout)
-	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginLeft(1)
-	LeftBorder              = lipgloss.Border{
+	rightSidebarBorderStyle = lipgloss.NewStyle().Border(LeftBorder).BorderForeground(colorLayout)
+	rightSidebarHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorSubheading).
+				MarginLeft(1)
+	LeftBorder = lipgloss.Border{
 		Top:         string(unicodeSpace),
 		Bottom:      string(unicodeSpace),
 		Left:        string(boxLightVertical),
 		Right:       "",
-		TopLeft:     string(verticalLine),
+		TopLeft:     string(unicodeSpace),
 		TopRight:    string(unicodeSpace),
 		BottomLeft:  string(verticalLine),
 		BottomRight: string(unicodeSpace),
@@ -260,9 +299,12 @@ const AnimationDuration = 150 * time.Millisecond
 // AnimationSteps is the number of steps in sidebar animations.
 const AnimationSteps = 10
 
+// AnimationFrame is the tick interval used for sidebar animations.
+const AnimationFrame = AnimationDuration / AnimationSteps
+
 // Help screen styles.
 var (
-	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).Width(20)
+	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).Width(24)
 
 	helpDescStyle = lipgloss.NewStyle().Foreground(colorText)
 

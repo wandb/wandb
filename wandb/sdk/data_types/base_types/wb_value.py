@@ -233,63 +233,63 @@ class WBValue:
 
     def _get_artifact_entry_ref_url(self) -> Optional[str]:
         # If the object is coming from another artifact
-        if self._artifact_source and self._artifact_source.name:
-            ref_entry = self._artifact_source.artifact.get_entry(
-                type(self).with_suffix(self._artifact_source.name)
-            )
-            return str(ref_entry.ref_url())
+        if (source := self._artifact_source) and (source_name := source.name):
+            ref_entry = source.artifact.get_entry(self.with_suffix(source_name))
+            return ref_entry.ref_url()
+
         # Else, if the object is destined for another artifact and we support client IDs
-        elif (
-            self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._client_id is not None
-            and self._artifact_target.artifact._final
+        if (
+            (target := self._artifact_target)
+            and target.name
+            and (client_id := target.artifact._client_id) is not None
+            and target.artifact._final
             and _server_accepts_client_ids()
         ):
-            return f"wandb-client-artifact://{self._artifact_target.artifact._client_id}/{type(self).with_suffix(self._artifact_target.name)}"
+            return (
+                f"wandb-client-artifact://{client_id}/{self.with_suffix(target.name)}"
+            )
+
         # Else if we do not support client IDs, but online, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed
         # once those versions are no longer supported. This path uses a .wait
         # which blocks the user process on artifact upload.
-        elif (
-            self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._is_draft_save_started()
+        if (
+            (target := self._artifact_target)
+            and target.name
+            and target.artifact._is_draft_save_started()
             and not _is_maybe_offline()
             and not _server_accepts_client_ids()
         ):
-            self._artifact_target.artifact.wait()
-            ref_entry = self._artifact_target.artifact.get_entry(
-                type(self).with_suffix(self._artifact_target.name)
-            )
-            return str(ref_entry.ref_url())
+            target.artifact.wait()
+            ref_entry = target.artifact.get_entry(self.with_suffix(target.name))
+            return ref_entry.ref_url()
+
         return None
 
     def _get_artifact_entry_latest_ref_url(self) -> Optional[str]:
         if (
-            self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._client_id is not None
-            and self._artifact_target.artifact._final
+            (target := self._artifact_target)
+            and target.name
+            and (sequence_client_id := target.artifact._sequence_client_id) is not None
+            and target.artifact._final
             and _server_accepts_client_ids()
         ):
-            return f"wandb-client-artifact://{self._artifact_target.artifact._sequence_client_id}:latest/{type(self).with_suffix(self._artifact_target.name)}"
+            return f"wandb-client-artifact://{sequence_client_id}:latest/{self.with_suffix(target.name)}"
+
         # Else if we do not support client IDs, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed
         # once those versions are no longer supported. This path uses a .wait
         # which blocks the user process on artifact upload.
-        elif (
-            self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._is_draft_save_started()
+        if (
+            (target := self._artifact_target)
+            and target.name
+            and target.artifact._is_draft_save_started()
             and not _is_maybe_offline()
             and not _server_accepts_client_ids()
         ):
-            self._artifact_target.artifact.wait()
-            ref_entry = self._artifact_target.artifact.get_entry(
-                type(self).with_suffix(self._artifact_target.name)
-            )
-            return str(ref_entry.ref_url())
+            target.artifact.wait()
+            ref_entry = target.artifact.get_entry(self.with_suffix(target.name))
+            return ref_entry.ref_url()
         return None

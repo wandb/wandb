@@ -94,7 +94,7 @@ func (g *SystemMetricsGrid) effectiveGridSize() GridSize {
 }
 
 // nextColorHex returns the next color from the palette.
-func (g *SystemMetricsGrid) nextColorHex() string {
+func (g *SystemMetricsGrid) nextColorHex() lipgloss.AdaptiveColor {
 	colors := colorSchemes[g.config.SystemColorScheme()]
 	color := colors[g.nextColor%len(colors)]
 	g.nextColor++
@@ -106,10 +106,10 @@ func (g *SystemMetricsGrid) nextColorHex() string {
 //
 // The first call returns the color *after* the base color,
 // so the base can be used for the first series.
-func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() string {
+func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() lipgloss.AdaptiveColor {
 	colors := colorSchemes[g.config.SystemColorScheme()]
 	idx := baseIdx + 1
-	return func() string {
+	return func() lipgloss.AdaptiveColor {
 		c := colors[idx%len(colors)]
 		idx++
 		return c
@@ -128,7 +128,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) *TimeSeriesLineCha
 
 	// Base color by color mode.
 	var (
-		baseColor string
+		baseColor lipgloss.AdaptiveColor
 		baseIdx   int
 	)
 	colorMode := g.config.SystemColorMode()
@@ -244,7 +244,9 @@ func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 	g.logger.Debug(fmt.Sprintf("systemmetricsgrid: HandleMouseClick: row=%d, col=%d", row, col))
 
 	if g.focus.Type == FocusSystemChart && row == g.focus.Row && col == g.focus.Col {
-		g.logger.Debug("systemmetricsgrid: HandleMouseClick: clicking on focused chart - unfocusing")
+		g.logger.Debug(
+			"systemmetricsgrid: HandleMouseClick: clicking on focused chart - unfocusing",
+		)
 		g.ClearFocus()
 		return false
 	}

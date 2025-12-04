@@ -32,7 +32,7 @@ from wandb._pydantic import (
     field_validator,
     model_validator,
 )
-from wandb.sdk.artifacts._generated import ArtifactVersionFiles
+from wandb.sdk.artifacts._generated import GetArtifactFiles
 
 
 def test_field_validator_before():
@@ -258,6 +258,85 @@ def test_model_dump_methods_with_json_fields():
     assert json.loads(rt_json) == obj.model_dump(round_trip=True)
 
 
+def test_field_constraints_on_list_fields():
+    class ListFields(CompatBaseModel):
+        required_list: List[int] = Field(min_length=1, max_length=3)
+        optional_list: Optional[List[str]] = Field(
+            default=None, min_length=1, max_length=3
+        )
+
+    # Valid values
+    valid_model1 = ListFields(required_list=[1, 2, 3])
+    assert valid_model1.required_list == [1, 2, 3]
+    assert valid_model1.optional_list is None
+
+    valid_model2 = ListFields(required_list=[1, 2, 3], optional_list=None)
+    assert valid_model2.required_list == [1, 2, 3]
+    assert valid_model2.optional_list is None
+
+    valid_model3 = ListFields(required_list=[1], optional_list=["hello"])
+    assert valid_model3.required_list == [1]
+    assert valid_model3.optional_list == ["hello"]
+
+    # Invalid values
+    with raises(ValidationError):
+        # required too short
+        ListFields(required_list=[])
+    with raises(ValidationError):
+        # required too long
+        ListFields(required_list=[1, 2, 3, 4])
+    with raises(ValidationError):
+        # required ok; optional too short
+        ListFields(required_list=[1, 2, 3], optional_list=[])
+    with raises(ValidationError):
+        # required ok; optional too long
+        ListFields(required_list=[1], optional_list=["hello", "world", "foo", "bar"])
+
+
+def test_field_constraints_on_str_fields():
+    class StringFields(CompatBaseModel):
+        required_str: str = Field(min_length=1, max_length=3, pattern=r"^[a-z]+$")
+        optional_str: Optional[str] = Field(
+            default=None, min_length=1, max_length=3, pattern=r"^[a-z]+$"
+        )
+
+    # Valid values
+    valid_model1 = StringFields(required_str="abc")
+    assert valid_model1.required_str == "abc"
+    assert valid_model1.optional_str is None
+
+    valid_model2 = StringFields(required_str="abc", optional_str=None)
+    assert valid_model2.required_str == "abc"
+    assert valid_model2.optional_str is None
+
+    valid_model3 = StringFields(required_str="a", optional_str="def")
+    assert valid_model3.required_str == "a"
+    assert valid_model3.optional_str == "def"
+
+    # Invalid values
+    with raises(ValidationError):
+        # required too short
+        StringFields(required_str="")
+    with raises(ValidationError):
+        # required too long
+        StringFields(required_str="abcd")
+    with raises(ValidationError):
+        # required ok; optional too short
+        StringFields(required_str="a", optional_str="")
+    with raises(ValidationError):
+        # required ok; optional too long
+        StringFields(required_str="a", optional_str="abcd")
+    with raises(ValidationError):
+        # required doesn't match pattern; optional ok
+        StringFields(required_str="ABC", optional_str="def")
+    with raises(ValidationError):
+        # required ok; optional doesn't match pattern
+        StringFields(required_str="abc", optional_str="DEF")
+    with raises(ValidationError):
+        # neither matches pattern
+        StringFields(required_str="ABC", optional_str="123")
+
+
 # ------------------------------------------------------------------------------
 def test_generated_pydantic_fragment_validates_response_data():
     """Check that the generated fragment validates the response data.
@@ -296,7 +375,7 @@ def test_generated_pydantic_fragment_validates_response_data():
             }
         }
     }
-    validated = ArtifactVersionFiles.model_validate(response_data)
+    validated = GetArtifactFiles.model_validate(response_data)
     assert (
         validated.project.artifact_type.artifact.files.edges[0].node.name
         == "random_image.png"
