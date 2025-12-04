@@ -1222,13 +1222,16 @@ class Api:
 
         Examples:
         ```python
+        import wandb
+        from wandb.apis.public import Api
+
         # Find runs in project where config.experiment_name has been set to "foo"
-        api.runs(path="my_entity/project", filters={"config.experiment_name": "foo"})
+        Api.runs(path="my_entity/project", filters={"config.experiment_name": "foo"})
         ```
 
         ```python
         # Find runs in project where config.experiment_name has been set to "foo" or "bar"
-        api.runs(
+        Api.runs(
             path="my_entity/project",
             filters={
                 "$or": [
@@ -1242,7 +1245,7 @@ class Api:
         ```python
         # Find runs in project where config.experiment_name matches a regex
         # (anchors are not supported)
-        api.runs(
+        Api.runs(
             path="my_entity/project",
             filters={"config.experiment_name": {"$regex": "b.*"}},
         )
@@ -1251,14 +1254,14 @@ class Api:
         ```python
         # Find runs in project where the run name matches a regex
         # (anchors are not supported)
-        api.runs(
+        Api.runs(
             path="my_entity/project", filters={"display_name": {"$regex": "^foo.*"}}
         )
         ```
 
         ```python
         # Find runs in project sorted by ascending loss
-        api.runs(path="my_entity/project", order="+summary_metrics.loss")
+        Api.runs(path="my_entity/project", order="+summary_metrics.loss")
         ```
         """
         entity, project = self._parse_project_path(path)
