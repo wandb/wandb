@@ -1,4 +1,5 @@
 import pathlib
+import re
 import textwrap
 
 import pytest
@@ -19,7 +20,7 @@ def test_error_writing(tmp_path: pathlib.Path):
 
     with pytest.raises(
         settings_file.SaveSettingsError,
-        match=f"Error updating settings at {local_settings}",
+        match=f"Error updating settings at {re.escape(str(local_settings))}",
     ):
         system_settings.save()
 
