@@ -1,6 +1,7 @@
 package leet_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -319,4 +320,40 @@ func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
 	info = s.FilterInfo()
 	// Expect two matches under Config (train.loss, train.acc)
 	require.Contains(t, info, "Config: 2")
+}
+
+func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
+	cfg := leet.NewConfigManager(
+		filepath.Join(t.TempDir(), "config.json"),
+		observability.NewNoOpLogger(),
+	)
+	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
+	s := leet.NewLeftSidebar(cfg)
+	expandSidebar(t, s, 120, false)
+
+	// Make enough config items to have multiple pages at small height.
+	var updates []*spb.ConfigItem
+	for i := range 10 {
+		updates = append(updates, &spb.ConfigItem{
+			NestedKey: []string{"k", fmt.Sprintf("v%d", i)},
+			ValueJson: "x",
+		})
+	}
+	s.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{Update: updates},
+	})
+
+	// Small height -> ItemsPerPage=1, ensure view is built.
+	_ = s.View(15)
+
+	// Navigate down a few items to force CurrentPage > 0.
+	for range 5 {
+		s.Update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+
+	// Larger height -> ItemsPerPage increases. This used to panic.
+	require.NotPanics(t, func() {
+		view := s.View(40)
+		require.NotEmpty(t, view)
+	})
 }
