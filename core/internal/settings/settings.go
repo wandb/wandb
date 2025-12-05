@@ -168,6 +168,13 @@ func (s *Settings) GetRootDir() string {
 	return s.Proto.RootDir.GetValue()
 }
 
+// The path to the "wandb" workspace directory.
+//
+// Often a path like `./wandb/`.
+func (s *Settings) GetWandbDir() string {
+	return s.Proto.WandbDir.GetValue()
+}
+
 // The directory for storing log files.
 func (s *Settings) GetLogDir() string {
 	return s.Proto.LogDir.GetValue()

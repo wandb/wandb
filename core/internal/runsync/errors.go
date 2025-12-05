@@ -28,9 +28,9 @@ func (e *SyncError) Error() string {
 	}
 }
 
-// logSyncFailure logs and possibly captures an error that prevents sync
+// LogSyncFailure logs and possibly captures an error that prevents sync
 // from succeeding.
-func logSyncFailure(logger *observability.CoreLogger, err error) {
+func LogSyncFailure(logger *observability.CoreLogger, err error) {
 	if syncErr, ok := err.(*SyncError); ok && syncErr.UserText != "" {
 		logger.Error(syncErr.Error())
 	} else {
