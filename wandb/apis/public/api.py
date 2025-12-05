@@ -439,6 +439,8 @@ class Api:
         run_id: str | None = None,
         project: str | None = None,
         entity: str | None = None,
+        state: Literal["running", "pending"] = "running",
+        command: str | None = None,
     ) -> public.Run:
         """Create a new run.
 
@@ -449,13 +451,23 @@ class Api:
                 log the run to a project called "Uncategorized".
             entity: The entity that owns the project. If no entity is
                 specified, log the run to the default entity.
+            state: The initial state of the run. Either "running" or "pending".
+                Defaults to "running".
+            command: The command used to run the script (e.g., "python train.py").
 
         Returns:
             The newly created `Run`.
         """
         if entity is None:
             entity = self.default_entity
-        return public.Run.create(self, run_id=run_id, project=project, entity=entity)
+        return public.Run.create(
+            self,
+            run_id=run_id,
+            project=project,
+            entity=entity,
+            state=state,
+            command=command,
+        )
 
     def create_run_queue(
         self,
