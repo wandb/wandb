@@ -16,3 +16,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Fixed `Invalid Client ID digest` error when creating artifacts after calling `random.seed()`. Client IDs could collide when random state was seeded deterministically. (@pingleiwandb in https://github.com/wandb/wandb/pull/11039)
+- runs queried from `wandb.Api()` shows the string representation in notebooks running in VSCode rather than a broken HTML window (@jacobromero in https://github.com/wandb/wandb/pull/11040)
