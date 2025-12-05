@@ -234,41 +234,6 @@ class Runs(SizedPaginator["Run"]):
         per_page: (int) The number of runs to fetch per request (default is 50).
         include_sweeps: (bool) Whether to include sweep information in the
             runs. Defaults to True.
-
-    Examples:
-    ```python
-    from wandb.apis.public.runs import Runs
-    from wandb.apis.public import Api
-
-    # Get all runs from a project that satisfy the filters
-    filters = {"state": "finished", "config.optimizer": "adam"}
-
-    runs = Api().runs(
-        client=api.client,
-        entity="entity",
-        project="project_name",
-        filters=filters,
-    )
-
-    # Iterate over runs and print details
-    for run in runs:
-        print(f"Run name: {run.name}")
-        print(f"Run ID: {run.id}")
-        print(f"Run URL: {run.url}")
-        print(f"Run state: {run.state}")
-        print(f"Run config: {run.config}")
-        print(f"Run summary: {run.summary}")
-        print(f"Run history (samples=5): {run.history(samples=5)}")
-        print("----------")
-
-    # Get histories for all runs with specific metrics
-    histories_df = runs.histories(
-        samples=100,  # Number of samples per run
-        keys=["loss", "accuracy"],  # Metrics to fetch
-        x_axis="_step",  # X-axis metric
-        format="pandas",  # Return as pandas DataFrame
-    )
-    ```
     """
 
     def __init__(
