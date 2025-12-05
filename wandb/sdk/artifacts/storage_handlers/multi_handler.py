@@ -14,34 +14,42 @@ if TYPE_CHECKING:
 
 
 class MultiHandler(_BaseStorageHandler):
-    _handlers: list[StorageHandler]
-    _default_handler: StorageHandler | None
-
     def __init__(
         self,
         handlers: list[StorageHandler] | None = None,
         default_handler: StorageHandler | None = None,
     ) -> None:
+        # group handlers by scheme for faster repeat lookups
+        # handlers_by_scheme: dict[str, deque[StorageHandler]] = defaultdict(deque)
+        # for h in handlers or []:
+        #     handlers_by_scheme[h._scheme].append(h)
+        # self._handlers = handlers_by_scheme
+
         self._handlers = handlers or []
+
+        # Set the fallback handler
         self._default_handler = default_handler
 
-    def _get_handler(self, url: FilePathStr | URIStr) -> StorageHandler:
-        parsed_url = urlparse(url)
-        for handler in self._handlers:
-            if handler.can_handle(parsed_url):
-                return handler
-        if self._default_handler is not None:
-            return self._default_handler
-        raise ValueError(f'No storage handler registered for url "{url!s}"')
+    def _get_handler(self, url: str) -> StorageHandler:
+        parsed = urlparse(url)
+        # matching_handlers = (
+        #     h for h in self._handlers[parsed.scheme] if h.can_handle(parsed)
+        # )
+        matching_handlers = (h for h in self._handlers if h.can_handle(parsed))
+        if hdlr := next(matching_handlers, self._default_handler):
+            return hdlr
+        raise ValueError(f"No storage handler registered for url: {url!r}")
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> URIStr | FilePathStr:
-        assert manifest_entry.ref is not None
-        handler = self._get_handler(manifest_entry.ref)
-        return handler.load_path(manifest_entry, local=local)
+        if (ref_uri := manifest_entry.ref) is None:
+            raise ValueError(
+                f"Missing ref URI for manifest entry: {manifest_entry.path}"
+            )
+        return self._get_handler(ref_uri).load_path(manifest_entry, local=local)
 
     def store_path(
         self,
@@ -51,7 +59,6 @@ class MultiHandler(_BaseStorageHandler):
         checksum: bool = True,
         max_objects: int | None = None,
     ) -> list[ArtifactManifestEntry]:
-        handler = self._get_handler(path)
-        return handler.store_path(
+        return self._get_handler(path).store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects
         )
