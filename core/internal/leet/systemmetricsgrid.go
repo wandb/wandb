@@ -244,7 +244,9 @@ func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 	g.logger.Debug(fmt.Sprintf("systemmetricsgrid: HandleMouseClick: row=%d, col=%d", row, col))
 
 	if g.focus.Type == FocusSystemChart && row == g.focus.Row && col == g.focus.Col {
-		g.logger.Debug("systemmetricsgrid: HandleMouseClick: clicking on focused chart - unfocusing")
+		g.logger.Debug(
+			"systemmetricsgrid: HandleMouseClick: clicking on focused chart - unfocusing",
+		)
 		g.ClearFocus()
 		return false
 	}

@@ -419,8 +419,18 @@ func TestMustResumeValidSummary(t *testing.T) {
 	// check the value of the summary are correct
 	assert.Len(t, params.Summary, 4, "GetUpdates should return correct summary")
 	assert.Equal(t, 0.5, params.Summary["loss"], "GetUpdates should return correct summary")
-	assert.Equal(t, float64(40.2), params.Summary["_runtime"], "GetUpdates should return correct summary")
-	assert.Equal(t, float64(20.3), params.Summary["_wandb"].(map[string]any)["runtime"], "GetUpdates should return correct summary")
+	assert.Equal(
+		t,
+		float64(40.2),
+		params.Summary["_runtime"],
+		"GetUpdates should return correct summary",
+	)
+	assert.Equal(
+		t,
+		float64(20.3),
+		params.Summary["_wandb"].(map[string]any)["runtime"],
+		"GetUpdates should return correct summary",
+	)
 
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
@@ -617,7 +627,12 @@ func TestMustResumeValidEvents(t *testing.T) {
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 
 	assert.Len(t, params.Summary, 1, "GetUpdates should return correct summary")
-	assert.Equal(t, int64(20), params.Summary["_runtime"], "GetUpdates should return correct summary")
+	assert.Equal(
+		t,
+		int64(20),
+		params.Summary["_runtime"],
+		"GetUpdates should return correct summary",
+	)
 }
 
 func TestMustResumeNullValue(t *testing.T) {
@@ -701,8 +716,17 @@ func TestMustResumeNullValue(t *testing.T) {
 
 			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
-			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
-			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+			assert.IsType(
+				t,
+				&runbranch.BranchError{},
+				err,
+				"GetUpdates should return a BranchError",
+			)
+			assert.NotNil(
+				t,
+				err.(*runbranch.BranchError).Response,
+				"BranchError should have a response",
+			)
 		})
 	}
 }
@@ -838,8 +862,17 @@ func TestMustResumeInvalidHistory(t *testing.T) {
 
 			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
-			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
-			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+			assert.IsType(
+				t,
+				&runbranch.BranchError{},
+				err,
+				"GetUpdates should return a BranchError",
+			)
+			assert.NotNil(
+				t,
+				err.(*runbranch.BranchError).Response,
+				"BranchError should have a response",
+			)
 		})
 	}
 }
@@ -946,8 +979,17 @@ func TestMustResumeInvalidConfig(t *testing.T) {
 
 			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
-			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
-			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+			assert.IsType(
+				t,
+				&runbranch.BranchError{},
+				err,
+				"GetUpdates should return a BranchError",
+			)
+			assert.NotNil(
+				t,
+				err.(*runbranch.BranchError).Response,
+				"BranchError should have a response",
+			)
 		})
 	}
 }
@@ -1007,10 +1049,30 @@ func TestNotNeverResumeFileStreamOffset(t *testing.T) {
 			params := &runbranch.RunParams{}
 			err = resumeState.UpdateForResume(params, runconfig.New())
 			assert.Nil(t, err, "GetUpdates should not return an error")
-			assert.Len(t, params.FileStreamOffset, 3, "GetUpdates should return correct file stream offset")
-			assert.Equal(t, 10, params.FileStreamOffset[filestream.HistoryChunk], "GetUpdates should return correct file stream offset")
-			assert.Equal(t, 13, params.FileStreamOffset[filestream.EventsChunk], "GetUpdates should return correct file stream offset")
-			assert.Equal(t, 15, params.FileStreamOffset[filestream.OutputChunk], "GetUpdates should return correct file stream offset")
+			assert.Len(
+				t,
+				params.FileStreamOffset,
+				3,
+				"GetUpdates should return correct file stream offset",
+			)
+			assert.Equal(
+				t,
+				10,
+				params.FileStreamOffset[filestream.HistoryChunk],
+				"GetUpdates should return correct file stream offset",
+			)
+			assert.Equal(
+				t,
+				13,
+				params.FileStreamOffset[filestream.EventsChunk],
+				"GetUpdates should return correct file stream offset",
+			)
+			assert.Equal(
+				t,
+				15,
+				params.FileStreamOffset[filestream.OutputChunk],
+				"GetUpdates should return correct file stream offset",
+			)
 		})
 	}
 }
@@ -1069,9 +1131,24 @@ func TestExtractRunState(t *testing.T) {
 	assert.Nil(t, err, "GetUpdates should not return an error")
 
 	// Test FileStreamOffset
-	assert.Equal(t, historyLineCount, params.FileStreamOffset[filestream.HistoryChunk], "Incorrect history line count")
-	assert.Equal(t, eventsLineCount, params.FileStreamOffset[filestream.EventsChunk], "Incorrect events line count")
-	assert.Equal(t, logLineCount, params.FileStreamOffset[filestream.OutputChunk], "Incorrect log line count")
+	assert.Equal(
+		t,
+		historyLineCount,
+		params.FileStreamOffset[filestream.HistoryChunk],
+		"Incorrect history line count",
+	)
+	assert.Equal(
+		t,
+		eventsLineCount,
+		params.FileStreamOffset[filestream.EventsChunk],
+		"Incorrect events line count",
+	)
+	assert.Equal(
+		t,
+		logLineCount,
+		params.FileStreamOffset[filestream.OutputChunk],
+		"Incorrect log line count",
+	)
 
 	// Test StartingStep
 	assert.Equal(t, int64(5), params.StartingStep, "Incorrect starting step")
@@ -1256,7 +1333,12 @@ func TestExtractRunStateNilCases(t *testing.T) {
 
 			if tc.expectError {
 				assert.NotNil(t, err, "GetUpdates should return an error")
-				assert.Contains(t, err.Error(), tc.errorContains, "Error message should contain expected text")
+				assert.Contains(
+					t,
+					err.Error(),
+					tc.errorContains,
+					"Error message should contain expected text",
+				)
 			} else {
 				assert.Nil(t, err, "GetUpdates should not return an error")
 			}

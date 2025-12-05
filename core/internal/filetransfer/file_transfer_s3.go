@@ -17,10 +17,26 @@ import (
 )
 
 type S3Client interface {
-	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
-	GetObjectAttributes(ctx context.Context, params *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, error)
-	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
-	ListObjectVersions(ctx context.Context, params *s3.ListObjectVersionsInput, optFns ...func(*s3.Options)) (*s3.ListObjectVersionsOutput, error)
+	GetObject(
+		ctx context.Context,
+		params *s3.GetObjectInput,
+		optFns ...func(*s3.Options),
+	) (*s3.GetObjectOutput, error)
+	GetObjectAttributes(
+		ctx context.Context,
+		params *s3.GetObjectAttributesInput,
+		optFns ...func(*s3.Options),
+	) (*s3.GetObjectAttributesOutput, error)
+	ListObjectsV2(
+		ctx context.Context,
+		params *s3.ListObjectsV2Input,
+		optFns ...func(*s3.Options),
+	) (*s3.ListObjectsV2Output, error)
+	ListObjectVersions(
+		ctx context.Context,
+		params *s3.ListObjectVersionsInput,
+		optFns ...func(*s3.Options),
+	) (*s3.ListObjectVersionsOutput, error)
 }
 
 const maxS3Workers int = 500

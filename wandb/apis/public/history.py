@@ -21,6 +21,7 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import api, runs
 from wandb.proto import wandb_api_pb2 as apb
+from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 
 class BetaHistoryScan:
@@ -37,6 +38,7 @@ class BetaHistoryScan:
         max_step: int,
         keys: list[str] | None = None,
         page_size: int = 1000,
+        use_cache: bool = True,
     ):
         self.run = run
         self.min_step = min_step
@@ -51,6 +53,7 @@ class BetaHistoryScan:
             project=self.run.project,
             run_id=self.run.id,
             keys=self.keys,
+            use_cache=use_cache,
         )
         scan_run_history_init_request = apb.ReadRunHistoryRequest(
             scan_run_history_init=scan_run_history_init
@@ -95,8 +98,6 @@ class BetaHistoryScan:
                 return row
             if self.page_offset >= self.max_step:
                 raise StopIteration()
-            if self.page_offset >= self.run.lastHistoryStep:
-                raise StopIteration()
             self._load_next()
 
     def _load_next(self):
@@ -140,7 +141,7 @@ class BetaHistoryScan:
             scan_run_history_cleanup=scan_run_history_cleanup
         )
 
-        with contextlib.suppress(ConnectionResetError):
+        with contextlib.suppress(ConnectionResetError, MailboxClosedError):
             api._send_api_request(
                 apb.ApiRequest(
                     read_run_history_request=scan_run_history_cleanup_request

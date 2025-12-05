@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import matplotlib
 import numpy as np
-import pytest
 import wandb
+from pytest import fixture, mark, raises
 from wandb import data_types
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.internal import incremental_table_util
@@ -27,7 +29,7 @@ def filter_artifacts_by_type(run, *artifact_types):
     return [art for art in run.logged_artifacts() if art.type in artifact_types]
 
 
-@pytest.fixture
+@fixture
 def sample_data():
     artifact = wandb.Artifact("N", type="dataset")
     artifact.save()
@@ -39,10 +41,10 @@ def test_wb_value(user, sample_data, test_settings):
     public_art = run.use_artifact("N:latest")
 
     wbvalue = data_types.WBValue()
-    with pytest.raises(NotImplementedError):
+    with raises(NotImplementedError):
         wbvalue.to_json(local_art)
 
-    with pytest.raises(NotImplementedError):
+    with raises(NotImplementedError):
         data_types.WBValue.from_json({}, public_art)
 
     assert data_types.WBValue.with_suffix("item") == "item.json"
@@ -83,7 +85,7 @@ def test_log_dataframe(user, test_settings):
     assert len(table_artifacts) == 1
 
 
-@pytest.mark.parametrize("log_mode", ["IMMUTABLE", "MUTABLE", "INCREMENTAL"])
+@mark.parametrize("log_mode", ["IMMUTABLE", "MUTABLE", "INCREMENTAL"])
 def test_table_logged_from_run_with_special_characters_in_name(
     user, test_settings, log_mode
 ):
@@ -99,7 +101,7 @@ def test_table_logged_from_run_with_special_characters_in_name(
         run.log({"my-table": table}, step=1)
 
 
-@pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
+@mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
 def test_reference_table_logging(
     user, test_settings, wandb_backend_spy, max_cli_version
 ):
@@ -510,5 +512,5 @@ def test_incremental_tables_cannot_be_logged_on_multiple_runs(
 
     with wandb.init(settings=test_settings(), mode="offline") as run2:
         incr_table.add_data(2, "2")
-        with pytest.raises(AssertionError):
+        with raises(AssertionError):
             run2.log({"table": incr_table})

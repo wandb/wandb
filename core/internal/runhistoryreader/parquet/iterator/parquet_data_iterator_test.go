@@ -2,6 +2,7 @@ package iterator
 
 import (
 	"context"
+	"math"
 	"path/filepath"
 	"testing"
 
@@ -21,8 +22,7 @@ func getRowIteratorForFile(
 	indexKey string,
 	minValue float64,
 	maxValue float64,
-	selectAllRows bool,
-) RowIterator {
+) *ParquetDataIterator {
 	t.Helper()
 
 	pr, err := file.OpenParquetFile(filePath, true)
@@ -30,7 +30,7 @@ func getRowIteratorForFile(
 	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
 	require.NoError(t, err)
 
-	selectedRows := SelectRows(r, indexKey, minValue, maxValue, selectAllRows)
+	selectedRows := SelectRowsInRange(r, indexKey, minValue, maxValue)
 
 	selectAllColumns := len(keys) == 0
 	selectedColumns, err := SelectColumns(
@@ -83,7 +83,6 @@ func TestRowIterator_WithHistoryPageRange(t *testing.T) {
 		StepKey,
 		0,
 		2,
-		false,
 	)
 
 	next, err := it.Next()
@@ -96,7 +95,7 @@ func TestRowIterator_WithHistoryPageRange(t *testing.T) {
 
 	// Verify no more data returned
 	next, err = it.Next()
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrRowExceedsMaxValue)
 	assert.False(t, next, "Expected no more data returned")
 }
 
@@ -128,7 +127,6 @@ func TestRowIterator_WithEventsPageRange(t *testing.T) {
 		TimestampKey,
 		0.0,
 		2.0,
-		false,
 	)
 
 	next, err := it.Next()
@@ -141,7 +139,7 @@ func TestRowIterator_WithEventsPageRange(t *testing.T) {
 
 	// Verify no more data returned
 	next, err = it.Next()
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrRowExceedsMaxValue)
 	assert.False(t, next, "Expected no more data returned")
 }
 
@@ -157,7 +155,6 @@ func TestRowIterator_ReleaseFreesMemory(t *testing.T) {
 		StepKey,
 		0,
 		0,
-		true,
 	)
 
 	next, err := it.Next()
@@ -211,8 +208,7 @@ func TestRowIterator_WithComplexColumns(t *testing.T) {
 		[]string{},
 		StepKey,
 		0,
-		0,
-		true,
+		math.MaxInt64,
 	)
 
 	// Verify all rows match the input data

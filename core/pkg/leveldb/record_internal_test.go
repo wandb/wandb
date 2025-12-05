@@ -713,7 +713,12 @@ func TestSeekRecord(t *testing.T) {
 
 			rData, _ := io.ReadAll(rec)
 			if !bytes.Equal(rData, recs.records[i]) {
-				t.Fatalf("Unexpected output in record #%d's data, got %v want %v", i, rData, recs.records[i])
+				t.Fatalf(
+					"Unexpected output in record #%d's data, got %v want %v",
+					i,
+					rData,
+					recs.records[i],
+				)
 			}
 		}
 	}

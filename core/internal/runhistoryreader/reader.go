@@ -2,8 +2,11 @@ package runhistoryreader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,6 +29,11 @@ type HistoryReader struct {
 
 	keys         []string
 	parquetFiles []*pqarrow.FileReader
+	partitions   []*iterator.ParquetDataIterator
+
+	// Stores the minimum step where live (not yet exported) data starts.
+	// This is used to determine if we need to query the W&B backend for data.
+	minLiveStep int64
 }
 
 // New returns a new HistoryReader.
@@ -37,6 +45,7 @@ func New(
 	graphqlClient graphql.Client,
 	httpClient *http.Client,
 	keys []string,
+	useCache bool,
 ) (*HistoryReader, error) {
 	historyReader := &HistoryReader{
 		entity:        entity,
@@ -45,17 +54,37 @@ func New(
 		project:       project,
 		runId:         runId,
 		keys:          keys,
+
+		minLiveStep: math.MaxInt64,
 	}
 
-	err := historyReader.initParquetFiles(ctx)
+	err := historyReader.initParquetFiles(ctx, useCache)
 	if err != nil {
 		return nil, err
 	}
 
+	partitions, err := historyReader.makeRowIteratorsFromFiles(ctx)
+	if err != nil {
+		return nil, err
+	}
+	historyReader.partitions = partitions
+
 	return historyReader, nil
 }
 
-// GetHistorySteps gets all history rows for the given keys
+func (h *HistoryReader) GetEntity() string {
+	return h.entity
+}
+
+func (h *HistoryReader) GetProject() string {
+	return h.project
+}
+
+func (h *HistoryReader) GetRunId() string {
+	return h.runId
+}
+
+// GetHistorySteps gets all history rows for HistoryReader's keys
 // that fall between minStep and maxStep.
 // Returns a list of KVMapLists, where each item in the list is a history row.
 func (h *HistoryReader) GetHistorySteps(
@@ -63,48 +92,65 @@ func (h *HistoryReader) GetHistorySteps(
 	minStep int64,
 	maxStep int64,
 ) ([]iterator.KeyValueList, error) {
-	partitions := make([]iterator.RowIterator, len(h.parquetFiles))
-	for i, parquetFile := range h.parquetFiles {
-		selectedRows := iterator.SelectRows(
-			parquetFile,
-			iterator.StepKey,
-			float64(minStep),
-			float64(maxStep),
-			false,
-		)
-		selectAllColumns := len(h.keys) == 0
-		selectedColumns, err := iterator.SelectColumns(
-			iterator.StepKey,
-			h.keys,
-			parquetFile.ParquetReader().MetaData().Schema,
-			selectAllColumns,
-		)
-		if err != nil {
-			return nil, err
-		}
+	results := []iterator.KeyValueList{}
+	selectAllColumns := len(h.keys) == 0
 
-		rowIterator, err := iterator.NewRowIterator(
-			ctx,
-			parquetFile,
-			selectedRows,
-			selectedColumns,
-		)
+	parquetHistory, err := h.getParquetHistory(
+		ctx,
+		minStep,
+		maxStep,
+	)
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, parquetHistory...)
+
+	liveHistory, err := h.getLiveData(ctx, minStep, maxStep, selectAllColumns)
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, liveHistory...)
+
+	return results, nil
+}
+
+// Release calls the Release method on each partition's ParquetDataIterator.
+func (h *HistoryReader) Release() {
+	for _, partition := range h.partitions {
+		partition.Release()
+	}
+}
+
+func (h *HistoryReader) getParquetHistory(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+) (results []iterator.KeyValueList, err error) {
+	defer func() {
 		if err != nil {
-			for _, partition := range partitions {
+			for _, partition := range h.partitions {
 				partition.Release()
 			}
+		}
+	}()
+
+	results = []iterator.KeyValueList{}
+
+	for _, partition := range h.partitions {
+		err := partition.UpdateQueryRange(
+			float64(minStep),
+			float64(maxStep),
+		)
+		if err != nil {
 			return nil, err
 		}
-		partitions[i] = rowIterator
 	}
 
-	multiIterator := iterator.NewMultiIterator(partitions)
-	defer multiIterator.Release()
-
-	results := []iterator.KeyValueList{}
+	multiIterator := iterator.NewMultiIterator(h.partitions)
 	for {
 		next, err := multiIterator.Next()
-		if err != nil {
+		if err != nil && !errors.Is(err, iterator.ErrRowExceedsMaxValue) {
+			slog.Error("error getting next row", "error", err)
 			return nil, err
 		}
 		if !next {
@@ -125,9 +171,9 @@ func (h *HistoryReader) GetHistorySteps(
 //
 // The order of the URLs returned is not guaranteed
 // to be the same order as the order the run history partitions were created in.
-func (h *HistoryReader) getRunHistoryFileUrls(
+func (h *HistoryReader) getRunHistoryFileUrlsWithLiveSteps(
 	ctx context.Context,
-) ([]string, error) {
+) (signedUrls []string, liveData []any, err error) {
 	response, err := gql.RunParquetHistory(
 		ctx,
 		h.graphqlClient,
@@ -137,15 +183,16 @@ func (h *HistoryReader) getRunHistoryFileUrls(
 		[]string{iterator.StepKey},
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if response.GetProject() == nil || response.GetProject().GetRun() == nil {
-		return nil, fmt.Errorf("no parquet history found for run %s", h.runId)
+		return nil, nil, fmt.Errorf("no parquet history found for run %s", h.runId)
 	}
 
-	signedUrls := response.GetProject().GetRun().GetParquetHistory().ParquetUrls
-	return signedUrls, nil
+	liveData = response.GetProject().GetRun().GetParquetHistory().LiveData
+	signedUrls = response.GetProject().GetRun().GetParquetHistory().ParquetUrls
+	return signedUrls, liveData, nil
 }
 
 func (h *HistoryReader) downloadRunHistoryFile(
@@ -180,8 +227,23 @@ func (h *HistoryReader) downloadRunHistoryFile(
 
 // initParquetFiles creates a parquet file reader
 // for each of the run's history files.
-func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
-	signedUrls, err := h.getRunHistoryFileUrls(ctx)
+//
+// It should be called before calling GetHistorySteps.
+func (h *HistoryReader) initParquetFiles(
+	ctx context.Context,
+	useCache bool,
+) error {
+	signedUrls, liveData, err := h.getRunHistoryFileUrlsWithLiveSteps(ctx)
+	if err != nil {
+		return err
+	}
+
+	h.minLiveStep, err = getMinLiveStep(liveData)
+	if err != nil {
+		return err
+	}
+
+	dir, err := getUserRunHistoryCacheDir()
 	if err != nil {
 		return err
 	}
@@ -189,19 +251,23 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 	for i, url := range signedUrls {
 		var parquetFile *pqarrow.FileReader
 
-		// When the user doesn't specify any keys,
-		// It is faster to download the entire parquet file
-		// and process it locally.
-		if len(h.keys) == 0 {
-			tmpDir := os.TempDir()
-			fileName := fmt.Sprintf("run_history_%d.parquet", i)
+		fileName := fmt.Sprintf("%s_%s_%s_%d.runhistory.parquet", h.entity, h.project, h.runId, i)
+		parquetFilePath := filepath.Join(dir, fileName)
 
-			err := h.downloadRunHistoryFile(url, tmpDir, fileName)
+		if _, err := os.Stat(parquetFilePath); useCache && err == nil {
+			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
+			if err != nil {
+				return err
+			}
+		} else if len(h.keys) == 0 {
+			// When the user doesn't specify any keys,
+			// It is faster to download the entire parquet file
+			// and process it locally.
+			err = h.downloadRunHistoryFile(url, dir, fileName)
 			if err != nil {
 				return err
 			}
 
-			parquetFilePath := filepath.Join(tmpDir, fileName)
 			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
 			if err != nil {
 				return err
@@ -228,4 +294,66 @@ func (h *HistoryReader) initParquetFiles(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (h *HistoryReader) makeRowIteratorsFromFiles(
+	ctx context.Context,
+) (partitions []*iterator.ParquetDataIterator, err error) {
+	defer func() {
+		if err != nil {
+			for _, partition := range partitions {
+				partition.Release()
+			}
+		}
+	}()
+
+	partitions = make([]*iterator.ParquetDataIterator, 0, len(h.parquetFiles))
+	for _, parquetFile := range h.parquetFiles {
+		selectedRows := iterator.SelectRowsInRange(
+			parquetFile,
+			iterator.StepKey,
+			0,
+			float64(math.MaxInt64),
+		)
+		selectedColumns, err := iterator.SelectColumns(
+			iterator.StepKey,
+			h.keys,
+			parquetFile.ParquetReader().MetaData().Schema,
+			len(h.keys) == 0,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		parquetDataIterator, err := iterator.NewRowIterator(
+			ctx,
+			parquetFile,
+			selectedRows,
+			selectedColumns,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if parquetDataIterator != nil {
+			partitions = append(partitions, parquetDataIterator)
+		}
+	}
+	return partitions, nil
+}
+
+// getUserRunHistoryCacheDir returns the user's run history cache directory.
+//
+// returns the value of WANDB_CACHE_DIR environment variable if it is set.
+// Otherwise it falls back to the OS provided cache directory.
+func getUserRunHistoryCacheDir() (string, error) {
+	dir := os.Getenv("WANDB_CACHE_DIR")
+	if dir == "" {
+		dir, _ = os.UserCacheDir()
+		dir = filepath.Join(dir, "wandb", "runhistory")
+	}
+	if dir == "" {
+		return "", fmt.Errorf("failed to get runhistory cache directory")
+	}
+	return dir, nil
 }

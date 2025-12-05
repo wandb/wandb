@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
+
+from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import RunOutputArtifactConnectionFragment
+from .fragments import ArtifactFragment, PageInfoFragment
 
 
 class RunOutputArtifacts(GQLResult):
@@ -19,9 +21,21 @@ class RunOutputArtifactsProject(GQLResult):
 
 
 class RunOutputArtifactsProjectRun(GQLResult):
-    artifacts: Optional[RunOutputArtifactConnectionFragment]
+    artifacts: Optional[RunOutputArtifactsProjectRunArtifacts]
+
+
+class RunOutputArtifactsProjectRunArtifacts(GQLResult):
+    total_count: int = Field(alias="totalCount")
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[RunOutputArtifactsProjectRunArtifactsEdges]
+
+
+class RunOutputArtifactsProjectRunArtifactsEdges(GQLResult):
+    node: Optional[ArtifactFragment]
 
 
 RunOutputArtifacts.model_rebuild()
 RunOutputArtifactsProject.model_rebuild()
 RunOutputArtifactsProjectRun.model_rebuild()
+RunOutputArtifactsProjectRunArtifacts.model_rebuild()
+RunOutputArtifactsProjectRunArtifactsEdges.model_rebuild()

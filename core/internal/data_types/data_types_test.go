@@ -65,8 +65,10 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 						"b": {
 							Name: data_types.ListTypeName,
 							Params: &data_types.ListType{
-								ElementType: data_types.TypeRepresentation{Name: data_types.NumberTypeName},
-								Length:      3,
+								ElementType: data_types.TypeRepresentation{
+									Name: data_types.NumberTypeName,
+								},
+								Length: 3,
 							},
 						},
 					},
@@ -91,8 +93,10 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 								ElementType: data_types.TypeRepresentation{
 									Name: data_types.ListTypeName,
 									Params: &data_types.ListType{
-										ElementType: data_types.TypeRepresentation{Name: data_types.NumberTypeName},
-										Length:      2,
+										ElementType: data_types.TypeRepresentation{
+											Name: data_types.NumberTypeName,
+										},
+										Length: 2,
 									},
 								},
 								Length: 2,

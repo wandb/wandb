@@ -96,7 +96,11 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	// Seed minimal run + metrics so both the main grid and system grid can render.
 	writeRecord(t, writer, &spb.Record{
 		RecordType: &spb.Record_Run{
-			Run: &spb.RunRecord{RunId: "test-run", DisplayName: "Test Run", Project: "test-project"},
+			Run: &spb.RunRecord{
+				RunId:       "test-run",
+				DisplayName: "Test Run",
+				Project:     "test-project",
+			},
 		},
 	})
 	writeRecord(t, writer, &spb.Record{

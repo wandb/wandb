@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import links, term
-from wandb.sdk.lib.auth import prompt, saas, wbnetrc
+from wandb.sdk.lib.wbauth import prompt, saas, wbnetrc
 
 from tests.fixtures.emulated_terminal import EmulatedTerminal
 

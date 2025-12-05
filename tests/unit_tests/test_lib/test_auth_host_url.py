@@ -1,5 +1,5 @@
 import pytest
-from wandb.sdk.lib.auth.host_url import HostUrl
+from wandb.sdk.lib.wbauth.host_url import HostUrl
 
 
 def test_validates_url():

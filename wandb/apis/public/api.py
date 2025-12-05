@@ -45,12 +45,11 @@ from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk import wandb_login
+from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
-from wandb.sdk.lib import retry, runid
+from wandb.sdk.lib import retry, runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.gql_request import GraphQLSession
 
@@ -310,17 +309,17 @@ class Api:
         self.settings.update(overrides or {})
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
-        use_api_key = api_key is not None or _thread_local_api_settings.cookies is None
-
-        if use_api_key:
+        if api_key:
+            self.api_key = api_key
+        else:
             self.api_key = self._load_api_key(
                 base_url=self.settings["base_url"],
-                init_api_key=api_key,
             )
-            wandb_login._verify_login(
-                key=self.api_key,
-                base_url=self.settings["base_url"],
-            )
+
+        wandb_login._verify_login(
+            key=self.api_key,
+            base_url=self.settings["base_url"],
+        )
 
         self._viewer = None
         self._projects = {}
@@ -329,9 +328,6 @@ class Api:
         self._reports = {}
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
-        auth = None
-        if use_api_key:
-            auth = ("api", self.api_key)
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
         )
@@ -340,15 +336,13 @@ class Api:
                 headers={
                     "User-Agent": self.user_agent,
                     "Use-Admin-Privileges": "true",
-                    **(_thread_local_api_settings.headers or {}),
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
-                auth=auth,
+                auth=("api", self.api_key),
                 url="{}/graphql".format(self.settings["base_url"]),
-                cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
             )
         )
@@ -372,41 +366,27 @@ class Api:
         self._service = singleton.ensure_service()
         self._service.api_init_request(self._settings.to_proto())
 
-    def _load_api_key(
-        self,
-        base_url: str,
-        init_api_key: str | None = None,
-    ) -> str:
+    def _load_api_key(self, base_url: str) -> str:
         """Load or prompt for an API key."""
-        # Use explicit key before thread local.
-        # This allow user switching keys without picking up the wrong key from thread local.
-        if init_api_key is not None:
-            return init_api_key
-        if _thread_local_api_settings.api_key:
-            return _thread_local_api_settings.api_key
+        auth = wbauth.authenticate_session(
+            host=base_url,
+            source="wandb.Api()",
+            no_offline=True,
+            input_timeout=wandb_setup.singleton().settings.login_timeout,
+        )
 
-        try:
-            _, key = wandb_login._login(
-                host=base_url,
-                force=True,
-                update_api_key=False,
-                no_oidc=True,
-                _silent=(
-                    self.settings.get("silent", False)  #
-                    or self.settings.get("quiet", False)
-                ),
-            )
-        except wandb_login.OidcError:
-            raise UsageError(
-                "wandb.Api cannot be used with federated identities."
-                + " Please make sure you are not setting WANDB_IDENTITY_TOKEN_FILE"
-                + " or the identity_token_file setting."
-            ) from None
-
-        if not key:
+        if not auth:
             raise UsageError("No API key configured. Use `wandb login` to log in.")
+        if not isinstance(auth, wbauth.AuthApiKey):
+            message = (
+                "wandb.Api() can only use API key authentication, but you have"
+                " another form of credentials configured."
+                " Check if you have set WANDB_IDENTITY_TOKEN_FILE."
+                f" Current credentials: {auth}"
+            )
+            raise UsageError(message)
 
-        return key
+        return auth.api_key
 
     def _configure_sentry(self) -> None:
         if not env.error_reporting_enabled():
@@ -433,6 +413,7 @@ class Api:
     def _send_api_request(
         self,
         request: ApiRequest,
+        timeout: float | None = None,
     ) -> ApiResponse:
         """Sends an API request to the backend service.
 
@@ -446,7 +427,7 @@ class Api:
             self._start_backend_service()
 
         assert self._service is not None
-        return self._service.api_request(request)
+        return self._service.api_request(request, timeout=timeout)
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.

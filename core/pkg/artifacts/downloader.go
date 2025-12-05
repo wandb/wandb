@@ -2,17 +2,23 @@ package artifacts
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
+	"net/http"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 const (
@@ -20,11 +26,12 @@ const (
 	MAX_BACKLOG int = 5000
 )
 
+// ArtifactDownloader downloads artifact manifest and files.
 type ArtifactDownloader struct {
 	// Resources
 	Ctx             context.Context
 	GraphqlClient   graphql.Client
-	DownloadManager filetransfer.FileTransferManager
+	DownloadManager filetransfer.FileTransferManager // Download files
 	FileCache       Cache
 	// Input
 	ArtifactID             string
@@ -32,12 +39,19 @@ type ArtifactDownloader struct {
 	AllowMissingReferences bool   // Currently unused
 	SkipCache              bool   // Currently unused
 	PathPrefix             string // Currently unused
+
+	// HTTP client for downloading manifest json.
+	httpClient   *retryablehttp.Client
+	logger       *observability.CoreLogger
+	extraHeaders map[string]string
 }
 
 func NewArtifactDownloader(
 	ctx context.Context,
 	graphQLClient graphql.Client,
 	downloadManager filetransfer.FileTransferManager,
+	logger *observability.CoreLogger,
+	extraHeaders map[string]string,
 	artifactID string,
 	downloadRoot string,
 	allowMissingReferences bool,
@@ -51,6 +65,18 @@ func NewArtifactDownloader(
 		fileCache = NewHashOnlyCache()
 
 	}
+
+	// Apply config from filetransfer for retry policy
+	// TODO: Use filetransfer directly when it supports synchronous download.
+	client := retryablehttp.NewClient()
+	client.Logger = logger
+	client.CheckRetry = filetransfer.FileTransferRetryPolicy
+	client.RetryMax = filetransfer.DefaultRetryMax
+	client.RetryWaitMin = filetransfer.DefaultRetryWaitMin
+	client.RetryWaitMax = filetransfer.DefaultRetryWaitMax
+	client.HTTPClient.Timeout = filetransfer.DefaultNonRetryTimeout
+	client.Backoff = clients.ExponentialBackoffWithJitter
+
 	return &ArtifactDownloader{
 		Ctx:                    ctx,
 		GraphqlClient:          graphQLClient,
@@ -61,10 +87,14 @@ func NewArtifactDownloader(
 		SkipCache:              skipCache,
 		PathPrefix:             pathPrefix,
 		FileCache:              fileCache,
+		httpClient:             client,
+		logger:                 logger,
+		extraHeaders:           extraHeaders,
 	}
 }
 
-func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest Manifest, rerr error) {
+func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (Manifest, error) {
+	// Get manifest json download (presigned) url
 	response, err := gql.ArtifactManifest(
 		ad.Ctx,
 		ad.GraphqlClient,
@@ -73,7 +103,7 @@ func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest M
 	if err != nil {
 		return Manifest{}, err
 	} else if response == nil {
-		return Manifest{}, fmt.Errorf("could not get manifest for artifact")
+		return Manifest{}, fmt.Errorf("could not get manifest download url for artifact")
 	}
 	artifact := response.Artifact
 	if artifact == nil {
@@ -84,10 +114,49 @@ func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest M
 		return Manifest{}, fmt.Errorf("could not access manifest for artifact")
 	}
 	directURL := artifactManifest.GetFile().DirectUrl
-	manifest, err = loadManifestFromURL(directURL)
+
+	// Download and decode
+	return ad.downloadManifestFromURL(directURL)
+}
+
+func (ad *ArtifactDownloader) downloadManifestFromURL(
+	url string,
+) (Manifest, error) {
+	req, err := retryablehttp.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, fmt.Errorf("create request failed: %v", err)
 	}
+
+	// Apply extra headers
+	for k, v := range ad.extraHeaders {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := ad.httpClient.Do(req)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("http request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return Manifest{}, fmt.Errorf(
+			"download failed: status: %s, body: %s",
+			resp.Status,
+			string(body),
+		)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("read response body failed: %v", err)
+	}
+
+	var manifest Manifest
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		return Manifest{}, fmt.Errorf("decode manifest JSON failed: %v", err)
+	}
+
 	return manifest, nil
 }
 

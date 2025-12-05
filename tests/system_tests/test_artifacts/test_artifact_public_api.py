@@ -1,14 +1,16 @@
+from __future__ import annotations
+
 import os
 import platform
 import random
 import string
 from contextlib import nullcontext
 
-import pytest
 import requests
 import wandb
+from pytest import fixture, mark, raises, skip
 from wandb._strutils import nameof
-from wandb.errors.errors import CommError
+from wandb.errors import CommError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
     ArtifactByName,
@@ -21,7 +23,7 @@ from wandb.sdk.artifacts._gqlutils import allowed_fields, server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 
 
-@pytest.fixture
+@fixture
 def sample_data():
     with wandb.init(id="first_run", settings={"silent": True}):
         artifact = wandb.Artifact("mnist", type="dataset")
@@ -133,7 +135,7 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
 
 def test_artifacts_files_filtered_length(user, api, sample_data, wandb_backend_spy):
     if not server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
-        pytest.skip("Server doesn't support FileConnection.totalCount")
+        skip("Server doesn't support FileConnection.totalCount")
 
     # creating a new artifact with files
     artifact_name = "".join(
@@ -186,15 +188,15 @@ def test_artifact_exists_raises_on_timeout(mocker, user, api, sample_data):
     # The following will have to do for now.
     mocker.patch.object(api, "_artifact", side_effect=requests.Timeout())
 
-    with pytest.raises(CommError) as exc_info:
+    with raises(CommError) as exc_info:
         api.artifact_exists("mnist:v0")
     assert isinstance(exc_info.value.exc, requests.Timeout)
 
-    with pytest.raises(CommError) as exc_info:
+    with raises(CommError) as exc_info:
         api.artifact_exists("mnist-fake:v0")
     assert isinstance(exc_info.value.exc, requests.Timeout)
 
-    with pytest.raises(CommError):
+    with raises(CommError):
         api.artifact_exists("mnist-fake:v0")
     assert isinstance(exc_info.value.exc, requests.Timeout)
 
@@ -210,11 +212,11 @@ def test_artifact_collection_exists_raises_on_timeout(mocker, user, api, sample_
     # The following will have to do for now.
     mocker.patch.object(api, "artifact_collection", side_effect=requests.Timeout())
 
-    with pytest.raises(CommError) as exc_info:
+    with raises(CommError) as exc_info:
         api.artifact_collection_exists("mnist", "dataset")
     assert isinstance(exc_info.value.exc, requests.Timeout)
 
-    with pytest.raises(CommError) as exc_info:
+    with raises(CommError) as exc_info:
         api.artifact_collection_exists("mnist-fake", "dataset")
     assert isinstance(exc_info.value.exc, requests.Timeout)
 
@@ -222,7 +224,7 @@ def test_artifact_collection_exists_raises_on_timeout(mocker, user, api, sample_
 def test_artifact_delete(user, api, sample_data):
     art = api.artifact("mnist:v0", type="dataset")
     # The artifact has aliases, so fail unless delete_aliases is set.
-    with pytest.raises(wandb.errors.CommError):
+    with raises(CommError):
         art.delete()
     art.delete(delete_aliases=True)
 
@@ -294,7 +296,7 @@ def test_artifact_bracket_accessor(user, api, sample_data):
     art = api.artifact("mnist:v1", type="dataset")
     assert art["t"].__class__ == wandb.Table
     assert art["s"] is None
-    with pytest.raises(ArtifactFinalizedError):
+    with raises(ArtifactFinalizedError):
         art["s"] = wandb.Table(data=[], columns=[])
 
 
@@ -306,13 +308,13 @@ def test_artifact_manual_link(user, api, sample_data):
 def test_artifact_manual_error(user, api, sample_data):
     run = api.run("uncategorized/first_run")
     art = wandb.Artifact("test", type="dataset")
-    with pytest.raises(wandb.CommError):
+    with raises(CommError):
         run.log_artifact(art)
-    with pytest.raises(wandb.CommError):
+    with raises(CommError):
         run.use_artifact(art)
-    with pytest.raises(wandb.CommError):
+    with raises(CommError):
         run.use_artifact("mnist:v0")
-    with pytest.raises(wandb.CommError):
+    with raises(CommError):
         run.log_artifact("mnist:v0")
 
 
@@ -385,7 +387,7 @@ def test_parse_artifact_path(user, api):
     assert entity == "entity" and project == "project" and path == "artifact"
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     (
         "artifact_path",
         "resolve_org_entity_name",
@@ -438,7 +440,7 @@ def test_fetch_registry_artifact(
     from tests.fixtures.wandb_backend_spy.gql_match import Constant, Matcher
 
     if "orgEntity" not in allowed_fields(api.client, "Organization"):
-        pytest.skip("Must test against server that supports `Organization.orgEntity`")
+        skip("Must test against server that supports `Organization.orgEntity`")
 
     server_supports_artifact_via_membership = server_supports(
         api.client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
@@ -544,7 +546,7 @@ def test_fetch_registry_artifact(
     if expected_artifact_fetched:
         expectation = nullcontext()
     else:
-        expectation = pytest.raises(CommError)
+        expectation = raises(CommError)
 
     with expectation:
         api.artifact(artifact_path)

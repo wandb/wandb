@@ -2,7 +2,7 @@ import pathlib
 import textwrap
 
 import pytest
-from wandb.sdk.lib.auth import wbnetrc
+from wandb.sdk.lib.wbauth import wbnetrc
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 

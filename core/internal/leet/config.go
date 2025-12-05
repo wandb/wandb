@@ -93,8 +93,14 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 	cm := &ConfigManager{
 		path: path,
 		config: Config{
-			MetricsGrid:         GridConfig{Rows: DefaultMetricsGridRows, Cols: DefaultMetricsGridCols},
-			SystemGrid:          GridConfig{Rows: DefaultSystemGridRows, Cols: DefaultSystemGridCols},
+			MetricsGrid: GridConfig{
+				Rows: DefaultMetricsGridRows,
+				Cols: DefaultMetricsGridCols,
+			},
+			SystemGrid: GridConfig{
+				Rows: DefaultSystemGridRows,
+				Cols: DefaultSystemGridCols,
+			},
 			ColorScheme:         DefaultColorScheme,
 			SystemColorScheme:   DefaultSystemColorScheme,
 			SystemColorMode:     DefaultSystemColorMode,

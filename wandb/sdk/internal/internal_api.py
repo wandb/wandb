@@ -40,12 +40,10 @@ from wandb.analytics import get_sentry
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
-from wandb.old.settings import Settings
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
@@ -257,12 +255,16 @@ class Api:
             "_proxies": default_overrides.get("_proxies", None),
         }
 
-        self.retry_timedelta = retry_timedelta or datetime.timedelta(days=7)
-        self.retry_uploads = 10
-        self._settings = Settings(
-            load_settings=load_settings,
-            root_dir=self.default_settings.get("root_dir"),
-        )
+        if load_settings:
+            global_settings = wandb_setup.singleton().settings
+            if root_dir := self.default_settings["root_dir"]:
+                global_settings = global_settings.model_copy()
+                global_settings.root_dir = root_dir
+
+            self._settings = global_settings.read_system_settings().all()
+        else:
+            self._settings = {}
+
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
             "system_sample_seconds": 2,
@@ -270,12 +272,14 @@ class Api:
             "heartbeat_seconds": 30,
         }
 
+        self.retry_timedelta = retry_timedelta or datetime.timedelta(days=7)
+        self.retry_uploads = 10
+
         # todo: remove these hacky hacks after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
         self._extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
-        self._extra_http_headers.update(_thread_local_api_settings.headers or {})
 
         auth = None
         api_key = api_key or self.default_settings.get("api_key")
@@ -283,7 +287,7 @@ class Api:
             auth = ("api", api_key)
         elif self.access_token is not None:
             self._extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
-        elif _thread_local_api_settings.cookies is None:
+        else:
             auth = ("api", self.api_key or "")
 
         proxies = self.settings("_proxies") or json.loads(
@@ -304,7 +308,6 @@ class Api:
                 timeout=self.HTTP_TIMEOUT,
                 auth=auth,
                 url=f"{self.settings('base_url')}/graphql",
-                cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
             )
         )
@@ -418,20 +421,17 @@ class Api:
 
     @property
     def api_key(self) -> str | None:
-        if _thread_local_api_settings.api_key:
-            return _thread_local_api_settings.api_key
+        from wandb.sdk.lib import wbauth
 
         if (  #
-            (settings := wandb_setup.singleton().settings_if_loaded)
-            and (api_key := settings.api_key)
+            (auth := wbauth.session_credentials(host=self.api_url))
+            and isinstance(auth, wbauth.AuthApiKey)
         ):
-            return api_key
-
-        from wandb.sdk.lib import auth
+            return auth.api_key
 
         return (
             os.getenv(env.API_KEY)
-            or auth.read_netrc_auth(host=self.api_url)
+            or wbauth.read_netrc_auth(host=self.api_url)
             or parse_sm_secrets().get(env.API_KEY)
             or self.default_settings.get("api_key")
         )
@@ -478,16 +478,12 @@ class Api:
         return self.viewer().get("entity")  # type: ignore
 
     @overload
-    def settings(self, key: None = None, section: str = ...) -> dict[str, Any]: ...
+    def settings(self, key: None = None) -> dict[str, Any]: ...
 
     @overload
-    def settings(self, key: str, section: str = ...) -> Any: ...
+    def settings(self, key: str) -> Any: ...
 
-    def settings(
-        self,
-        key: str | None = None,
-        section: str = Settings.DEFAULT_SECTION,
-    ) -> Any:
+    def settings(self, key: str | None = None) -> Any:
         """The settings overridden from the wandb/settings file.
 
         Args:
@@ -505,47 +501,35 @@ class Api:
                     "organization": "my-org",
                 }
         """
-        result = dict(self.default_settings)
-        result.update(self._settings.items(section=section))
+        result: dict[str, Any] = dict(self.default_settings)
+        result.update(self._settings)
         result.update(
             {
                 "entity": env.get_entity(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "entity",
-                        fallback=result.get("entity"),
+                        result.get("entity"),
                     ),
                     env=self._environ,
                 ),
                 "organization": env.get_organization(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "organization",
-                        fallback=result.get("organization"),
+                        result.get("organization"),
                     ),
                     env=self._environ,
                 ),
                 "project": env.get_project(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "project",
-                        fallback=result.get("project"),
+                        result.get("project"),
                     ),
                     env=self._environ,
                 ),
                 "base_url": env.get_base_url(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "base_url",
-                        fallback=result.get("base_url"),
-                    ),
-                    env=self._environ,
-                ),
-                "ignore_globs": env.get_ignore(
-                    self._settings.get(
-                        Settings.DEFAULT_SECTION,
-                        "ignore_globs",
-                        fallback=result.get("ignore_globs"),
+                        result.get("base_url"),
                     ),
                     env=self._environ,
                 ),
@@ -554,19 +538,12 @@ class Api:
 
         return result if key is None else result[key]
 
-    def clear_setting(
-        self, key: str, globally: bool = False, persist: bool = False
-    ) -> None:
-        self._settings.clear(
-            Settings.DEFAULT_SECTION, key, globally=globally, persist=persist
-        )
+    def clear_setting(self, key: str) -> None:
+        self._settings.pop(key, None)
 
-    def set_setting(
-        self, key: str, value: Any, globally: bool = False, persist: bool = False
-    ) -> None:
-        self._settings.set(
-            Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist
-        )
+    def set_setting(self, key: str, value: Any) -> None:
+        self._settings[key] = value
+
         if key == "entity":
             env.set_entity(value, env=self._environ)
         elif key == "project":
@@ -2888,18 +2865,17 @@ class Api:
 
         check_httpclient_logger_handler()
 
-        http_headers = _thread_local_api_settings.headers or {}
+        http_headers = {}
 
         auth = None
         if self.access_token is not None:
             http_headers["Authorization"] = f"Bearer {self.access_token}"
-        elif _thread_local_api_settings.cookies is None:
+        else:
             auth = ("api", self.api_key or "")
 
         response = requests.get(
             url,
             auth=auth,
-            cookies=_thread_local_api_settings.cookies or {},
             headers=http_headers,
             stream=True,
         )

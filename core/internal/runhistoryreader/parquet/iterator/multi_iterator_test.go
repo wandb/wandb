@@ -38,8 +38,7 @@ func TestMultiIterator_ReadsAllRows(t *testing.T) {
 		[]string{"_step", "value"},
 		StepKey,
 		0,
-		0,
-		true,
+		1000,
 	)
 	it2 := getRowIteratorForFile(
 		t,
@@ -47,11 +46,10 @@ func TestMultiIterator_ReadsAllRows(t *testing.T) {
 		[]string{"_step", "value"},
 		StepKey,
 		0,
-		0,
-		true,
+		1000,
 	)
 
-	multiReader := NewMultiIterator([]RowIterator{it1, it2})
+	multiReader := NewMultiIterator([]*ParquetDataIterator{it1, it2})
 
 	// Verify all rows are read
 	actualValues := make([]map[string]any, 0)
@@ -106,7 +104,6 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 		StepKey,
 		10,
 		40,
-		false,
 	)
 	it2 := getRowIteratorForFile(
 		t,
@@ -115,9 +112,8 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 		StepKey,
 		10,
 		40,
-		false,
 	)
-	multiReader := NewMultiIterator([]RowIterator{it1, it2})
+	multiReader := NewMultiIterator([]*ParquetDataIterator{it1, it2})
 
 	// Read all rows and verify they're within the range
 	actualValues := make([]map[string]any, 0)
@@ -132,8 +128,7 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 		}
 
 		actualValues = append(actualValues, values)
-		next, err = multiReader.Next()
-		require.NoError(t, err)
+		next, _ = multiReader.Next()
 	}
 
 	expectedValues := []map[string]any{

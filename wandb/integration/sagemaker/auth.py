@@ -5,7 +5,7 @@ from typing import Any
 
 from wandb import env
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import auth as wbauth
+from wandb.sdk.lib import wbauth
 
 
 def sagemaker_auth(

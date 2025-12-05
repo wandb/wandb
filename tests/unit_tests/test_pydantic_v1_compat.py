@@ -32,7 +32,7 @@ from wandb._pydantic import (
     field_validator,
     model_validator,
 )
-from wandb.sdk.artifacts._generated import ArtifactVersionFiles
+from wandb.sdk.artifacts._generated import GetArtifactFiles
 
 
 def test_field_validator_before():
@@ -375,7 +375,7 @@ def test_generated_pydantic_fragment_validates_response_data():
             }
         }
     }
-    validated = ArtifactVersionFiles.model_validate(response_data)
+    validated = GetArtifactFiles.model_validate(response_data)
     assert (
         validated.project.artifact_type.artifact.files.edges[0].node.name
         == "random_image.png"

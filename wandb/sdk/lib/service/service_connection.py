@@ -179,13 +179,14 @@ class ServiceConnection:
     def api_request(
         self,
         api_request: wandb_api_pb2.ApiRequest,
+        timeout: float | None = None,
     ) -> wandb_api_pb2.ApiResponse:
         """Send an ApiRequest and wait for a response."""
         request = spb.ServerRequest()
         request.api_request.CopyFrom(api_request)
         handle = self._asyncer.run(lambda: self._client.deliver(request))
         try:
-            response = handle.wait_or(timeout=10)
+            response = handle.wait_or(timeout=timeout)
         except (MailboxClosedError, HandleAbandonedError):
             raise WandbApiFailedError(
                 "Failed to initialize API resources:"

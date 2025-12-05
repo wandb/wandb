@@ -171,7 +171,7 @@ class BackendFixtureFactory:
 
     def make_user(self, name: str | None = None, admin: bool = False) -> str:
         """Create a new user and return their username."""
-        name = name or (f"user-{self.worker_id}-{random_string(length=40)}")
+        name = name or (f"user_{self.worker_id}-{random_string(length=40)}")
 
         self.send_cmds(
             UserCmd("up", username=name, admin=admin),

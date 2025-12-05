@@ -3,8 +3,8 @@ from __future__ import annotations
 import os
 import re
 
-import pytest
 import wandb
+from pytest import fixture, mark, raises
 from wandb import Api
 from wandb.errors import CommError
 from wandb.sdk.artifacts._validators import FullArtifactPath
@@ -55,7 +55,7 @@ def test_save_aliases_after_logging_artifact(user):
     assert "hello" in aliases
 
 
-@pytest.fixture
+@fixture
 def server_supports_artifact_tags() -> bool:
     """Identifies if we're testing against an older server version that doesn't support artifact tags (e.g. in CI)."""
     from wandb.sdk.internal import internal_api
@@ -88,14 +88,14 @@ def test_save_artifact_with_tags_repeated(
         assert artifact.tags == []
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "orig_tags",
     (
         ["orig-tag", "other-tag"],
         ["orig-TAG 1", "other-tag"],
     ),
 )
-@pytest.mark.parametrize("edit_tags_inplace", (True, False))
+@mark.parametrize("edit_tags_inplace", (True, False))
 def test_save_tags_after_logging_artifact(
     tmp_path,
     user,
@@ -183,7 +183,7 @@ INVALID_TAG_LISTS = (
 )
 
 
-@pytest.mark.parametrize("tags_to_add", INVALID_TAG_LISTS)
+@mark.parametrize("tags_to_add", INVALID_TAG_LISTS)
 def test_save_invalid_tags_after_logging_artifact(
     tmp_path, user, api, tags_to_add, server_supports_artifact_tags
 ):
@@ -214,7 +214,7 @@ def test_save_invalid_tags_after_logging_artifact(
     else:
         assert fetched_artifact.tags == []
 
-    with pytest.raises((ValueError, CommError), match=re.compile(r"Invalid tag", re.I)):
+    with raises((ValueError, CommError), match=re.compile(r"Invalid tag", re.I)):
         fetched_artifact.tags.extend(tags_to_add)
         fetched_artifact.save()
 
@@ -228,7 +228,7 @@ def test_save_invalid_tags_after_logging_artifact(
         assert final_tags == []
 
 
-@pytest.mark.parametrize("invalid_tags", INVALID_TAG_LISTS)
+@mark.parametrize("invalid_tags", INVALID_TAG_LISTS)
 def test_log_artifact_with_invalid_tags(tmp_path, user, api, invalid_tags):
     project = "test"
     artifact_name = "test-artifact"
@@ -242,7 +242,7 @@ def test_log_artifact_with_invalid_tags(tmp_path, user, api, invalid_tags):
         artifact.add_file(str(artifact_filepath), "test-name")
 
         # Logging an artifact with invalid tags should fail
-        with pytest.raises(ValueError, match=re.compile(r"Invalid tag", re.IGNORECASE)):
+        with raises(ValueError, match=re.compile(r"Invalid tag", re.IGNORECASE)):
             run.log_artifact(artifact, tags=invalid_tags)
 
 
@@ -372,7 +372,7 @@ def test_delete_collection(user):
     portfolio = project.collection("test-portfolio")
     portfolio.delete()
 
-    with pytest.raises(wandb.errors.CommError):
+    with raises(CommError):
         Api().artifact(
             name=f"{project.entity}/test/test-portfolio:latest",
             type="test-type",
@@ -388,7 +388,7 @@ def test_delete_collection(user):
     sequence.delete()
 
     # Until now.
-    with pytest.raises(wandb.errors.CommError):
+    with raises(CommError):
         Api().artifact(
             name=f"{project.entity}/test/test-artifact:latest",
             type="test-type",
@@ -401,19 +401,19 @@ def test_log_with_wrong_type_entity_project(user, logged_artifact):
 
     draft = logged_artifact.new_draft()
     draft._type = "futz"
-    with pytest.raises(ValueError, match="already exists with type 'dataset'"):
+    with raises(ValueError, match="already exists with type 'dataset'"):
         with wandb.init(entity=entity, project=project) as run:
             run.log_artifact(draft)
 
     draft = logged_artifact.new_draft()
     draft._source_entity = "mistaken"
-    with pytest.raises(ValueError, match="owned by entity 'mistaken'"):
+    with raises(ValueError, match="owned by entity 'mistaken'"):
         with wandb.init(entity=entity, project=project) as run:
             run.log_artifact(draft)
 
     draft = logged_artifact.new_draft()
     draft._source_project = "wrong"
-    with pytest.raises(ValueError, match="exists in project 'wrong'"):
+    with raises(ValueError, match="exists in project 'wrong'"):
         with wandb.init(entity=entity, project=project) as run:
             run.log_artifact(draft)
 
@@ -423,7 +423,7 @@ def test_log_artifact_with_above_max_metadata_keys(user):
     for i in range(101):
         artifact.metadata[f"key_{i}"] = f"value_{i}"
     with wandb.init(entity=user, project="test") as run:
-        with pytest.raises(ValueError):
+        with raises(ValueError):
             run.log_artifact(artifact)
 
 
@@ -442,13 +442,13 @@ def test_log_artifact_with_inf_metadata_values(user, api):
     }
 
     # In-place update
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         artifact1 = wandb.Artifact(name="test-artifact-1", type="test")
         artifact1.metadata.update(draft_metadata)
         artifact1.save()
 
     # Proper attribute assignment
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         artifact2 = wandb.Artifact(name="test-artifact-2", type="test")
         artifact2.metadata = draft_metadata
         artifact2.save()
