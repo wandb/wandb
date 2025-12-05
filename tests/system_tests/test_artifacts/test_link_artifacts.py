@@ -109,24 +109,24 @@ def test_artifact_is_link(user, api):
         artifact = wandb.Artifact(collection_name, artifact_type)
         run.log_artifact(artifact)
         artifact.wait()
-        assert not artifact.is_link
+        assert artifact.is_link is False
 
         link_collection = "test_link_collection"
         run.link_artifact(artifact=artifact, target_path=link_collection)
 
         link_name = f"{artifact.entity}/{artifact.project}/{link_collection}:latest"
         artifact = run.use_artifact(artifact.qualified_name)
-        assert not artifact.is_link
+        assert artifact.is_link is False
 
         linked_model_art = run.use_artifact(link_name)
-        assert linked_model_art.is_link
+        assert linked_model_art.is_link is True
 
         # test api
         api_artifact = api.artifact(artifact.qualified_name)
-        assert not api_artifact.is_link
+        assert api_artifact.is_link is False
 
         api_artifact = api.artifact(link_name)
-        assert api_artifact.is_link
+        assert api_artifact.is_link is True
 
         # test collection api
         source_col = api.artifact_collection(
@@ -135,14 +135,14 @@ def test_artifact_is_link(user, api):
         )
         versions = source_col.artifacts()
         assert len(versions) == 1
-        assert not versions[0].is_link
+        assert versions[0].is_link is False
 
         link_col = api.artifact_collection(
             artifact_type, f"{artifact.entity}/{artifact.project}/{link_collection}"
         )
         versions = link_col.artifacts()
         assert len(versions) == 1
-        assert versions[0].is_link
+        assert versions[0].is_link is True
 
 
 def test_linked_artifacts_field(user, api):
@@ -153,7 +153,7 @@ def test_linked_artifacts_field(user, api):
         artifact = wandb.Artifact(collection_name, artifact_type)
         run.log_artifact(artifact)
         artifact.wait()
-        assert not artifact.is_link
+        assert artifact.is_link is False
 
         link_collections = [
             "test_link_collection_1",
@@ -165,14 +165,11 @@ def test_linked_artifacts_field(user, api):
 
         linked_artifacts = artifact.linked_artifacts
         assert len(linked_artifacts) == len(link_collections)
-        for linked_artifact in linked_artifacts:
-            assert linked_artifact.is_link
-            assert linked_artifact.linked_artifacts == []
-            assert (
-                linked_artifact.source_artifact.qualified_name
-                == artifact.qualified_name
-            )
-            assert linked_artifact.collection.name in link_collections
+        for linked in linked_artifacts:
+            assert linked.is_link is True
+            assert linked.linked_artifacts == []
+            assert linked.source_artifact.qualified_name == artifact.qualified_name
+            assert linked.collection.name in link_collections
 
         # test unlink
         linked_artifacts[0].unlink()
