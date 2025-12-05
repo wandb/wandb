@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+from pathlib import Path
 
 import wandb
 from pytest import fixture, mark, raises
@@ -36,16 +37,15 @@ def test_fetching_artifact_files(user):
 
 def test_save_aliases_after_logging_artifact(user):
     project = "test"
-    run = wandb.init(entity=user, project=project)
-    artifact = wandb.Artifact("test-artifact", "test-type")
-    with open("boom.txt", "w") as f:
-        f.write("testing")
-    artifact.add_file("boom.txt", "test-name")
-    run.log_artifact(artifact, aliases=["sequence"])
-    artifact.wait()
-    artifact.aliases.append("hello")
-    artifact.save()
-    run.finish()
+    with wandb.init(entity=user, project=project) as run:
+        artifact = wandb.Artifact("test-artifact", "test-type")
+        Path("boom.txt").write_text("testing")
+
+        artifact.add_file("boom.txt", "test-name")
+        run.log_artifact(artifact, aliases=["sequence"])
+        artifact.wait()
+        artifact.aliases.append("hello")
+        artifact.save()
 
     # fetch artifact and verify alias exists
     artifact = Api().artifact(
@@ -292,15 +292,14 @@ def test_retrieve_artifacts_by_tags(user, server_supports_artifact_tags):
 
 def test_update_aliases_on_artifact(user):
     project = "test"
-    run = wandb.init(entity=user, project=project)
-    artifact = wandb.Artifact("test-artifact", "test-type")
-    with open("boom.txt", "w") as f:
-        f.write("testing")
-    artifact.add_file("boom.txt", "test-name")
-    art = run.log_artifact(artifact, aliases=["sequence"])
-    run.link_artifact(art, f"{user}/{project}/my-sample-portfolio")
-    artifact.wait()
-    run.finish()
+    with wandb.init(entity=user, project=project) as run:
+        artifact = wandb.Artifact("test-artifact", "test-type")
+        Path("boom.txt").write_text("testing")
+
+        artifact.add_file("boom.txt", "test-name")
+        art = run.log_artifact(artifact, aliases=["sequence"])
+        run.link_artifact(art, f"{user}/{project}/my-sample-portfolio")
+        artifact.wait()
 
     # fetch artifact under original parent sequence
     artifact = Api().artifact(
@@ -332,24 +331,22 @@ def test_update_aliases_on_artifact(user):
 def test_artifact_version(user):
     def create_test_artifact(content: str):
         art = wandb.Artifact("test-artifact", "test-type")
-        with open("boom.txt", "w") as f:
-            f.write(content)
+        Path("boom.txt").write_text(content)
+
         art.add_file("boom.txt", "test-name")
         return art
 
     # Create an artifact sequence + portfolio (auto-created if it doesn't exist)
     project = "test"
-    run = wandb.init(project=project)
+    with wandb.init(project=project) as run:
+        art = create_test_artifact("aaaaa")
+        run.log_artifact(art, aliases=["a"])
+        art.wait()
 
-    art = create_test_artifact("aaaaa")
-    run.log_artifact(art, aliases=["a"])
-    art.wait()
-
-    art = create_test_artifact("bbbb")
-    run.log_artifact(art, aliases=["b"])
-    run.link_artifact(art, f"{project}/my-sample-portfolio")
-    art.wait()
-    run.finish()
+        art = create_test_artifact("bbbb")
+        run.log_artifact(art, aliases=["b"])
+        run.link_artifact(art, f"{project}/my-sample-portfolio")
+        art.wait()
 
     # Pull down from portfolio, verify version is indexed from portfolio not sequence
     artifact = Api().artifact(

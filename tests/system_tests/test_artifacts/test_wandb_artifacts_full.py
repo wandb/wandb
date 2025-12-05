@@ -38,42 +38,38 @@ def test_add_table_from_dataframe(user):
     wb_table_bool = wandb.Table(dataframe=df_bool)
     wb_table_timestamp = wandb.Table(dataframe=df_timestamp)
 
-    run = wandb.init()
-    artifact = wandb.Artifact("table-example", "dataset")
-    artifact.add(wb_table_float, "wb_table_float")
-    artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
-    artifact.add(wb_table_float32, "wb_table_float32")
-    artifact.add(wb_table_bool, "wb_table_bool")
+    with wandb.init() as run:
+        artifact = wandb.Artifact("table-example", "dataset")
+        artifact.add(wb_table_float, "wb_table_float")
+        artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
+        artifact.add(wb_table_float32, "wb_table_float32")
+        artifact.add(wb_table_bool, "wb_table_bool")
 
-    # check that timestamp is correctly converted to ms and not ns
-    json_repr = wb_table_timestamp.to_json(artifact)
-    assert "data" in json_repr and np.isclose(
-        json_repr["data"][0][0],
-        current_time.replace(tzinfo=timezone.utc).timestamp() * 1000,
-    )
-    artifact.add(wb_table_timestamp, "wb_table_timestamp")
+        # check that timestamp is correctly converted to ms and not ns
+        json_repr = wb_table_timestamp.to_json(artifact)
+        assert "data" in json_repr and np.isclose(
+            json_repr["data"][0][0],
+            current_time.replace(tzinfo=timezone.utc).timestamp() * 1000,
+        )
+        artifact.add(wb_table_timestamp, "wb_table_timestamp")
 
-    run.log_artifact(artifact)
-
-    run.finish()
+        run.log_artifact(artifact)
 
 
 def test_artifact_error_for_invalid_aliases(user):
-    run = wandb.init()
-    artifact = wandb.Artifact("test-artifact", "dataset")
-    error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
-    for aliases in error_aliases:
-        with raises(ValueError) as e_info:
+    with wandb.init() as run:
+        artifact = wandb.Artifact("test-artifact", "dataset")
+        error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
+        for aliases in error_aliases:
+            with raises(ValueError) as e_info:
+                run.log_artifact(artifact, aliases=aliases)
+            assert (
+                str(e_info.value)
+                == "Aliases must not contain any of the following characters: '/', ':'"
+            )
+
+        for aliases in [["latest", "boom_test-q"]]:
             run.log_artifact(artifact, aliases=aliases)
-        assert (
-            str(e_info.value)
-            == "Aliases must not contain any of the following characters: '/', ':'"
-        )
-
-    for aliases in [["latest", "boom_test-q"]]:
-        run.log_artifact(artifact, aliases=aliases)
-
-    run.finish()
 
 
 @mark.parametrize(
@@ -106,13 +102,12 @@ def test_artifact_upsert_no_id(user):
     artifact_type = "dataset"
 
     # Upsert without a group or id should fail
-    run = wandb.init()
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    artifact.add(image, "image_1")
-    with raises(TypeError):
-        run.upsert_artifact(artifact)
-    run.finish()
+    with wandb.init() as run:
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        artifact.add(image, "image_1")
+        with raises(TypeError):
+            run.upsert_artifact(artifact)
 
 
 def test_artifact_upsert_group_id(user):
@@ -123,12 +118,11 @@ def test_artifact_upsert_group_id(user):
     artifact_type = "dataset"
 
     # Upsert with a group should succeed
-    run = wandb.init(group=group_name)
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    artifact.add(image, "image_1")
-    run.upsert_artifact(artifact)
-    run.finish()
+    with wandb.init(group=group_name) as run:
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        artifact.add(image, "image_1")
+        run.upsert_artifact(artifact)
 
 
 def test_artifact_upsert_distributed_id(user):
@@ -139,12 +133,11 @@ def test_artifact_upsert_distributed_id(user):
     artifact_type = "dataset"
 
     # Upsert with a distributed_id should succeed
-    run = wandb.init()
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    artifact.add(image, "image_2")
-    run.upsert_artifact(artifact, distributed_id=group_name)
-    run.finish()
+    with wandb.init() as run:
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        artifact.add(image, "image_2")
+        run.upsert_artifact(artifact, distributed_id=group_name)
 
 
 def test_artifact_finish_no_id(user):
@@ -154,11 +147,10 @@ def test_artifact_finish_no_id(user):
     artifact_type = "dataset"
 
     # Finish without a distributed_id should fail
-    run = wandb.init()
-    artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    with raises(TypeError):
-        run.finish_artifact(artifact)
-    run.finish()
+    with wandb.init() as run:
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        with raises(TypeError):
+            run.finish_artifact(artifact)
 
 
 def test_artifact_finish_group_id(user):
@@ -169,10 +161,9 @@ def test_artifact_finish_group_id(user):
     artifact_type = "dataset"
 
     # Finish with a distributed_id should succeed
-    run = wandb.init(group=group_name)
-    artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    run.finish_artifact(artifact)
-    run.finish()
+    with wandb.init(group=group_name) as run:
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        run.finish_artifact(artifact)
 
 
 def test_artifact_finish_distributed_id(user):
@@ -183,10 +174,9 @@ def test_artifact_finish_distributed_id(user):
     artifact_type = "dataset"
 
     # Finish with a distributed_id should succeed
-    run = wandb.init()
-    artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    run.finish_artifact(artifact, distributed_id=group_name)
-    run.finish()
+    with wandb.init() as run:
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        run.finish_artifact(artifact, distributed_id=group_name)
 
 
 @mark.parametrize("incremental", [False, True])
@@ -478,33 +468,30 @@ def test_immutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
 
 
 def test_local_references(user):
-    run = wandb.init()
-
     def make_table():
         return wandb.Table(columns=[], data=[])
 
-    t1 = make_table()
-    artifact1 = wandb.Artifact("test_local_references", "dataset")
-    artifact1.add(t1, "t1")
-    assert artifact1.manifest.entries["t1.table.json"].ref is None
-    run.log_artifact(artifact1)
-    artifact2 = wandb.Artifact("test_local_references_2", "dataset")
-    artifact2.add(t1, "t2")
-    assert artifact2.manifest.entries["t2.table.json"].ref is not None
-    run.finish()
+    with wandb.init() as run:
+        t1 = make_table()
+        artifact1 = wandb.Artifact("test_local_references", "dataset")
+        artifact1.add(t1, "t1")
+        assert artifact1.manifest.entries["t1.table.json"].ref is None
+        run.log_artifact(artifact1)
+        artifact2 = wandb.Artifact("test_local_references_2", "dataset")
+        artifact2.add(t1, "t2")
+        assert artifact2.manifest.entries["t2.table.json"].ref is not None
 
 
 def test_artifact_wait_success(user):
     # Test artifact wait() timeout parameter
     timeout = 60
     leeway = 0.50
-    run = wandb.init()
-    artifact = wandb.Artifact("art", type="dataset")
-    start_timestamp = time.time()
-    run.log_artifact(artifact).wait(timeout=timeout)
-    elapsed_time = time.time() - start_timestamp
-    assert elapsed_time < timeout * (1 + leeway)
-    run.finish()
+    with wandb.init() as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        start_timestamp = time.time()
+        run.log_artifact(artifact).wait(timeout=timeout)
+        elapsed_time = time.time() - start_timestamp
+        assert elapsed_time < timeout * (1 + leeway)
 
 
 @mark.parametrize("timeout", [0, 1e-6])
@@ -512,12 +499,11 @@ def test_artifact_wait_failure(user, timeout):
     # Test to expect WaitTimeoutError when wait timeout is reached and large image
     # wasn't uploaded yet
     image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    run = wandb.init()
-    with raises(WaitTimeoutError):
-        artifact = wandb.Artifact("art", type="image")
-        artifact.add(image, "image")
-        run.log_artifact(artifact).wait(timeout=timeout)
-    run.finish()
+    with wandb.init() as run:
+        with raises(WaitTimeoutError):
+            artifact = wandb.Artifact("art", type="image")
+            artifact.add(image, "image")
+            run.log_artifact(artifact).wait(timeout=timeout)
 
 
 def test_check_existing_artifact_before_download(user, tmp_path, monkeypatch):
