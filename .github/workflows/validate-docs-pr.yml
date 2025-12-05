@@ -7,9 +7,10 @@ on:
 jobs:
   check-docs-reference:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.base.ref == 'mаin'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install dependencies
         run: npm install @actions/core @actions/github

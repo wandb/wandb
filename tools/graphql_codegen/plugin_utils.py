@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import Any, Iterable
 
-if TYPE_CHECKING:
-    from typing_extensions import TypeGuard
+from pydantic import BaseModel, Field, field_validator
+from typing_extensions import TypeGuard
 
 
 def imported_names(stmt: ast.Import | ast.ImportFrom) -> list[str]:
@@ -17,6 +17,15 @@ def imported_names(stmt: ast.Import | ast.ImportFrom) -> list[str]:
 def base_class_names(class_def: ast.ClassDef) -> list[str]:
     """Return the (str) names of the base classes of this class definition."""
     return [base.id for base in class_def.bases]
+
+
+def is_field_call(expr: ast.expr | None) -> TypeGuard[ast.Call]:
+    """Return True if this expression is a `Field(...)` function call."""
+    return (
+        isinstance(expr, ast.Call)
+        and isinstance(expr.func, ast.Name)
+        and expr.func.id == "Field"
+    )
 
 
 def is_redundant_class(stmt: ast.stmt) -> TypeGuard[ast.ClassDef]:
@@ -81,3 +90,46 @@ def make_literal(*vals: Any) -> ast.Subscript:
     inner_nodes = [ast.Constant(val) for val in vals]
     inner_slice = ast.Tuple(inner_nodes) if len(inner_nodes) > 1 else inner_nodes[0]
     return ast.Subscript(ast.Name("Literal"), slice=inner_slice)
+
+
+# ---------------------------------------------------------------------------
+# helpers to convert GraphQL `@constraints` → pydantic Field constraints
+#
+# Note that since this should only ever be executed in a dev environment,
+# we're free to use Pydantic v2-only features here.
+# ---------------------------------------------------------------------------
+class ParsedConstraints(BaseModel, extra="ignore", populate_by_name=True):
+    """Constraint values parsed from a GraphQL `@constraints` directive.
+
+    - Field names are the arg names of the GraphQL `@constraints(...)` directive.
+    - Serialization aliases are the arg names of the pydantic (V2) `Field(...)` calls.
+    """
+
+    def to_ast_keywords(self) -> list[ast.keyword]:
+        """Convert the parsed constraints to Python AST `keyword` nodes."""
+        pydantic_kwargs = self.model_dump(by_alias=True, exclude_none=True)
+        return [
+            ast.keyword(arg=name, value=ast.Constant(val))
+            for name, val in pydantic_kwargs.items()
+        ]
+
+
+class ListConstraints(ParsedConstraints):
+    min: int | None = Field(None, serialization_alias="min_length")
+    max: int | None = Field(None, serialization_alias="max_length")
+
+
+class StringConstraints(ParsedConstraints):
+    min: int | None = Field(None, serialization_alias="min_length")
+    max: int | None = Field(None, serialization_alias="max_length")
+    pattern: str | None = None
+
+    @field_validator("pattern")
+    def _unescape_pattern(cls, v: str | None) -> str | None:
+        """The patterns in the GraphQL schema are double-escaped, so unescape them once."""
+        return v.replace(r"\\", "\\") if v else v
+
+
+class NumericConstraints(ParsedConstraints):
+    min: int | None = Field(None, serialization_alias="ge")
+    max: int | None = Field(None, serialization_alias="le")

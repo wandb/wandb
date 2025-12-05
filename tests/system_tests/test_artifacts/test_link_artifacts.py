@@ -1,5 +1,7 @@
-import pytest
+from __future__ import annotations
+
 import wandb
+from pytest import raises
 
 
 def test_get_artifact_collection_from_linked_artifact(linked_artifact):
@@ -36,7 +38,7 @@ def test_unlink_artifact(logged_artifact, linked_artifact, api):
     assert api.artifact_exists(linked_artifact_path) is False
 
     # Unlinking the source artifact should not be possible
-    with pytest.raises(ValueError, match=r"use 'Artifact.delete' instead"):
+    with raises(ValueError, match=r"use 'Artifact.delete' instead"):
         source_artifact.unlink()
 
     # ... and the source artifact should *still* exist

@@ -27,7 +27,7 @@ import (
 // Asia Pacific (Sydney), Asia Pacific (Tokyo), Europe (Ireland), and South America
 // (São Paulo).
 //
-// You can store individual objects of up to 5 TB in Amazon S3. You create a copy
+// You can store individual objects of up to 50 TB in Amazon S3. You create a copy
 // of your object up to 5 GB in size in a single atomic action using this API.
 // However, to copy an object greater than 5 GB, you must use the multipart upload
 // Upload Part - Copy (UploadPartCopy) API. For more information, see [Copy Object Using the REST Multipart Upload API].
@@ -1061,40 +1061,7 @@ func (c *Client) addOperationCopyObjectMiddlewares(stack *middleware.Stack, opti
 	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptExecution(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptBeforeSerialization(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAfterSerialization(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptBeforeSigning(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAfterSigning(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptTransmit(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptBeforeDeserialization(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAfterDeserialization(stack, options); err != nil {
-		return err
-	}
-	if err = addSpanInitializeStart(stack); err != nil {
-		return err
-	}
-	if err = addSpanInitializeEnd(stack); err != nil {
-		return err
-	}
-	if err = addSpanBuildRequestStart(stack); err != nil {
-		return err
-	}
-	if err = addSpanBuildRequestEnd(stack); err != nil {
+	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil

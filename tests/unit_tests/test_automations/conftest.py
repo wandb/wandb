@@ -27,7 +27,7 @@ from wandb.automations import (
 )
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
-from wandb.automations.events import InputEvent, SavedEvent
+from wandb.automations.events import InputEvent, OnRunState, SavedEvent
 from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
 
 # default Hypothesis settings
@@ -158,6 +158,8 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
         (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
+        (EventType.RUN_METRIC_ZSCORE, ScopeType.ARTIFACT_COLLECTION),
+        (EventType.RUN_STATE, ScopeType.ARTIFACT_COLLECTION),
     }
 
 
@@ -241,6 +243,29 @@ def on_run_metric_change(scope: ScopableWandbType) -> OnRunMetric:
 
 
 @fixture
+def on_run_metric_zscore(scope: ScopableWandbType) -> OnRunMetric:
+    from wandb.automations._filters.run_metrics import ChangeDir, MetricZScoreFilter
+
+    return OnRunMetric(
+        scope=scope,
+        filter=MetricZScoreFilter(
+            name="my-metric",
+            window=5,
+            threshold=2.0,
+            change_dir=ChangeDir.ANY,
+        ),
+    )
+
+
+@fixture
+def on_run_state(scope: ScopableWandbType) -> OnRunState:
+    return OnRunState(
+        scope=scope,
+        filter=RunEvent.name.contains("my-run") & (RunEvent.state == "failed"),
+    )
+
+
+@fixture
 def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     """An event object for defining a **new** automation."""
 
@@ -250,6 +275,8 @@ def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
+        EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,
+        EventType.RUN_STATE: on_run_state.__name__,
     }
     return request.getfixturevalue(event2fixture[event_type])
 

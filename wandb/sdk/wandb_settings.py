@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import configparser
 import json
 import logging
 import os
@@ -16,8 +15,8 @@ from datetime import datetime
 # the latter is not supported in pydantic<2.6 and Python<3.10.
 # Dict, List, and Tuple are used for backwards compatibility
 # with pydantic v1 and Python<3.9.
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
-from urllib.parse import quote, unquote, urlencode
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from urllib.parse import quote, unquote
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,120 +33,13 @@ from wandb._pydantic import (
 )
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
+from wandb.sdk.lib import deprecation, settings_file, urls
 
-from .lib import credentials, ipython
+from .lib import credentials, filesystem, ipython
 from .lib.run_moment import RunMoment
 
-validate_url: Callable[[str], None]
-
-if IS_PYDANTIC_V2:
-    from pydantic_core import SchemaValidator, core_schema
-
-    def validate_url(url: str) -> None:
-        """Validate a URL string."""
-        url_validator = SchemaValidator(
-            core_schema.url_schema(
-                allowed_schemes=["http", "https"],
-                strict=True,
-            )
-        )
-        url_validator.validate_python(url)
-else:
+if not IS_PYDANTIC_V2:
     from pydantic import root_validator
-
-    def validate_url(url: str) -> None:
-        """Validate the base url of the wandb server.
-
-        param value: URL to validate
-
-        Based on the Django URLValidator, but with a few additional checks.
-
-        Copyright (c) Django Software Foundation and individual contributors.
-        All rights reserved.
-
-        Redistribution and use in source and binary forms, with or without modification,
-        are permitted provided that the following conditions are met:
-
-            1. Redistributions of source code must retain the above copyright notice,
-               this list of conditions and the following disclaimer.
-
-            2. Redistributions in binary form must reproduce the above copyright
-               notice, this list of conditions and the following disclaimer in the
-               documentation and/or other materials provided with the distribution.
-
-            3. Neither the name of Django nor the names of its contributors may be used
-               to endorse or promote products derived from this software without
-               specific prior written permission.
-
-        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-        ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-        WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-        ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-        (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-        LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-        ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-        SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-        """
-        from urllib.parse import urlparse, urlsplit
-
-        if url is None:
-            return
-
-        ul = "\u00a1-\uffff"  # Unicode letters range (must not be a raw string).
-
-        # IP patterns
-        ipv4_re = (
-            r"(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)"
-            r"(?:\.(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}"
-        )
-        ipv6_re = r"\[[0-9a-f:.]+\]"  # (simple regex, validated later)
-
-        # Host patterns
-        hostname_re = (
-            r"[a-z" + ul + r"0-9](?:[a-z" + ul + r"0-9-]{0,61}[a-z" + ul + r"0-9])?"
-        )
-        # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
-        domain_re = r"(?:\.(?!-)[a-z" + ul + r"0-9-]{1,63}(?<!-))*"
-        tld_re = (
-            r"\."  # dot
-            r"(?!-)"  # can't start with a dash
-            r"(?:[a-z" + ul + "-]{2,63}"  # domain label
-            r"|xn--[a-z0-9]{1,59})"  # or punycode label
-            r"(?<!-)"  # can't end with a dash
-            r"\.?"  # may have a trailing dot
-        )
-        # host_re = "(" + hostname_re + domain_re + tld_re + "|localhost)"
-        # todo?: allow hostname to be just a hostname (no tld)?
-        host_re = "(" + hostname_re + domain_re + f"({tld_re})?" + "|localhost)"
-
-        regex = re.compile(
-            r"^(?:[a-z0-9.+-]*)://"  # scheme is validated separately
-            r"(?:[^\s:@/]+(?::[^\s:@/]*)?@)?"  # user:pass authentication
-            r"(?:" + ipv4_re + "|" + ipv6_re + "|" + host_re + ")"
-            r"(?::[0-9]{1,5})?"  # port
-            r"(?:[/?#][^\s]*)?"  # resource path
-            r"\Z",
-            re.IGNORECASE,
-        )
-        schemes = {"http", "https"}
-        unsafe_chars = frozenset("\t\r\n")
-
-        scheme = url.split("://")[0].lower()
-        split_url = urlsplit(url)
-        parsed_url = urlparse(url)
-
-        if parsed_url.netloc == "":
-            raise ValueError(f"Invalid URL: {url}")
-        elif unsafe_chars.intersection(url):
-            raise ValueError("URL cannot contain unsafe characters")
-        elif scheme not in schemes:
-            raise ValueError("URL must start with `http(s)://`")
-        elif not regex.search(url):
-            raise ValueError(f"{url} is not a valid server address")
-        elif split_url.hostname is None or len(split_url.hostname) > 253:
-            raise ValueError("hostname is invalid")
 
 
 def _path_convert(*args: str) -> str:
@@ -156,6 +48,7 @@ def _path_convert(*args: str) -> str:
 
 
 CLIENT_ONLY_SETTINGS = (
+    "anonymous",
     "files_dir",
     "max_end_of_run_history_metrics",
     "max_end_of_run_summary_metrics",
@@ -204,19 +97,11 @@ class Settings(BaseModel, validate_assignment=True):
     allow_val_change: bool = False
     """Flag to allow modification of `Config` values after they've been set."""
 
-    anonymous: Optional[Literal["allow", "must", "never"]] = None
-    """Controls anonymous data logging.
-
-    Possible values are:
-    - "never": requires you to link your W&B account before
-       tracking the run, so you don't accidentally create an anonymous
-       run.
-    - "allow": lets a logged-in user track runs with their account, but
-       lets someone who is running the script without a W&B account see
-       the charts in the UI.
-    - "must": sends the run to an anonymous account instead of to a
-       signed-up user account.
-    """
+    anonymous: deprecation.DoNotSet = Field(
+        default=deprecation.UNSET,
+        exclude=True,
+    )
+    """Deprecated and will be removed."""
 
     api_key: Optional[str] = None
     """The W&B API key."""
@@ -573,6 +458,13 @@ class Settings(BaseModel, validate_assignment=True):
     table_raise_on_max_row_limit_exceeded: bool = False
     """Whether to raise an exception when table row limits are exceeded."""
 
+    use_dot_wandb: Optional[bool] = None
+    """Whether to use a hidden `.wandb` or visible `wandb` directory for run data.
+
+    If True, the SDK uses `.wandb`. If False, `wandb`.
+    If not set, defaults to `.wandb` if it already exists, otherwise `wandb`.
+    """
+
     username: Optional[str] = None
     """Username."""
 
@@ -897,8 +789,8 @@ class Settings(BaseModel, validate_assignment=True):
     """Filter to apply to metrics collected from OpenMetrics `/metrics` endpoints.
 
     Supports two formats:
-     - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-     - ("metric regex pattern 1", "metric regex pattern 2", ...)
+     - `{"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}`
+     - `("metric regex pattern 1", "metric regex pattern 2", ...)`
     """
 
     x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
@@ -995,7 +887,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         This is a compatibility layer to handle previous versions of the settings.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         new_values = {}
         for key in values:
@@ -1013,7 +905,7 @@ class Settings(BaseModel, validate_assignment=True):
         def validate_mutual_exclusion_of_branching_args(self) -> Self:
             """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
 
-            <!-- lazydoc-ignore: internal -->
+            <!-- lazydoc-ignore-classmethod: internal -->
             """
             if (
                 sum(
@@ -1063,6 +955,18 @@ class Settings(BaseModel, validate_assignment=True):
             return values
 
     # Field validators.
+    @field_validator("anonymous", mode="after")
+    @classmethod
+    def validate_anonymous(cls, value: object) -> object:
+        if value is not deprecation.UNSET:
+            wandb.termwarn(
+                "The anonymous setting has no effect and will be removed"
+                + " in a future version.",
+                repeat=False,
+            )
+
+        return value
+
     @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, value):
@@ -1081,7 +985,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         <!-- lazydoc-ignore-classmethod: internal -->
         """
-        validate_url(value)
+        urls.validate_url(value)
         # wandb.ai-specific checks
         if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
             # user might guess app.wandb.ai or wandb.ai is the default cloud server
@@ -1121,7 +1025,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console_chunk_max_bytes(cls, value):
         """Validate the console_chunk_max_bytes value.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value < 0:
             raise ValueError("console_chunk_max_bytes must be non-negative")
@@ -1133,7 +1037,7 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_console_chunk_max_seconds(cls, value):
         """Validate the console_chunk_max_seconds value.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value < 0:
             raise ValueError("console_chunk_max_seconds must be non-negative")
@@ -1219,7 +1123,7 @@ class Settings(BaseModel, validate_assignment=True):
         """
         if value is None:
             return None
-        validate_url(value)
+        urls.validate_url(value)
         return value.rstrip("/")
 
     @field_validator("https_proxy", mode="after")
@@ -1231,7 +1135,7 @@ class Settings(BaseModel, validate_assignment=True):
         """
         if value is None:
             return None
-        validate_url(value)
+        urls.validate_url(value)
         return value.rstrip("/")
 
     @field_validator("ignore_globs", mode="after")
@@ -1418,7 +1322,7 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_coreweave_metadata_base_url", mode="after")
     @classmethod
     def validate_x_stats_coreweave_metadata_base_url(cls, value):
-        validate_url(value)
+        urls.validate_url(value)
         return value.rstrip("/")
 
     @field_validator("x_stats_gpu_device_ids", mode="before")
@@ -1754,9 +1658,7 @@ class Settings(BaseModel, validate_assignment=True):
         if not project_url:
             return ""
 
-        query = self._get_url_query_string()
-
-        return f"{project_url}{query}"
+        return project_url
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1778,10 +1680,9 @@ class Settings(BaseModel, validate_assignment=True):
         if not all([project_url, self.run_id]):
             return ""
 
-        query = self._get_url_query_string()
         # Exclude specific safe characters from URL encoding to prevent 404 errors
         safe_chars = "=+&$@"
-        return f"{project_url}/runs/{quote(self.run_id or '', safe=safe_chars)}{query}"
+        return f"{project_url}/runs/{quote(self.run_id or '', safe=safe_chars)}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1797,8 +1698,7 @@ class Settings(BaseModel, validate_assignment=True):
         if not all([project_url, self.sweep_id]):
             return ""
 
-        query = self._get_url_query_string()
-        return f"{project_url}/sweeps/{quote(self.sweep_id or '')}{query}"
+        return f"{project_url}/sweeps/{quote(self.sweep_id or '')}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1833,13 +1733,13 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def wandb_dir(self) -> str:
         """Full path to the wandb directory."""
-        stage_dir = (
-            ".wandb" + os.sep
-            if os.path.exists(os.path.join(self.root_dir, ".wandb"))
-            else "wandb" + os.sep
-        )
-        path = os.path.join(self.root_dir, stage_dir)
-        return os.path.expanduser(path)
+        if self.use_dot_wandb is None:
+            use_dot = pathlib.Path(self.root_dir, ".wandb").exists()
+        else:
+            use_dot = self.use_dot_wandb
+
+        dirname = ".wandb" if use_dot else "wandb"
+        return str(pathlib.Path(self.root_dir, dirname).expanduser())
 
     # Methods to collect and update settings from different sources.
     #
@@ -1848,27 +1748,69 @@ class Settings(BaseModel, validate_assignment=True):
     # in the correct order. Most of the updates are done in
     # wandb/sdk/wandb_setup.py::_WandbSetup._settings_setup.
 
-    def update_from_system_config_file(self):
-        """Update settings from the system config file.
+    def read_system_settings(self) -> settings_file.SettingsFiles:
+        """Read settings from the workspace and global settings files.
+
+        The files are determined by the settings_system and settings_workspace
+        settings.
+
+        The resulting object is a snapshot of the system settings at the time
+        this function is used and does not reflect the settings on this Settings
+        object. It can be used to update the files, and it should be short-lived
+        since it does not reflect external changes to the files.
+
+        Updating the settings files does not update this Settings instance
+        and vice versa.
 
         <!-- lazydoc-ignore: internal -->
         """
-        if not self.settings_system or not os.path.exists(self.settings_system):
-            return
-        for key, value in self._load_config_file(self.settings_system).items():
-            if value is not None:
-                setattr(self, key, value)
+        local_settings = pathlib.Path(self.settings_workspace)
 
-    def update_from_workspace_config_file(self):
-        """Update settings from the workspace config file.
+        if self.settings_system:
+            global_settings = pathlib.Path(self.settings_system)
+        else:
+            global_settings = None
+
+        return settings_file.SettingsFiles(
+            global_settings=global_settings,
+            local_settings=local_settings,
+        )
+
+    def update_from_system_settings(self) -> None:
+        """Load settings from the settings files.
 
         <!-- lazydoc-ignore: internal -->
         """
-        if not self.settings_workspace or not os.path.exists(self.settings_workspace):
-            return
-        for key, value in self._load_config_file(self.settings_workspace).items():
-            if value is not None:
-                setattr(self, key, value)
+        system_settings = self.read_system_settings()
+
+        if not self.quiet and (sources := system_settings.sources):
+            parts = ["Loaded settings from"]
+            for source in sources:
+                parts.append(f"  {source}")
+            wandb.termlog("\n".join(parts))
+
+        value: object  # Can be transformed arbitrarily.
+        for key, value in system_settings.all().items():
+            if key == "ignore_globs":
+                value = value.split(",")
+
+            elif key == "anonymous":
+                wandb.termwarn(
+                    "Deprecated setting 'anonymous' has no effect and will be"
+                    + " removed in a future version of wandb."
+                    + " Please delete it manually or by running `wandb login`"
+                    + " to avoid errors.",
+                    repeat=False,
+                )
+                value = deprecation.UNSET
+
+            elif key in ("settings_system", "root_dir"):
+                wandb.termwarn(
+                    f"Ignoring setting {key!r} which is not allowed in a settings file."
+                    + " Please delete it manually to avoid errors in the future."
+                )
+
+            setattr(self, key, value)
 
     def update_from_env_vars(self, environ: Dict[str, Any]):
         """Update settings from environment variables.
@@ -2111,9 +2053,11 @@ class Settings(BaseModel, validate_assignment=True):
         if not root:
             return None
 
-        # For windows if the root and program are on different drives,
+        # For windows, if the root and program are on different drives,
         # os.path.relpath will raise a ValueError.
-        if not util.are_paths_on_same_drive(root, program):
+        if not filesystem.are_paths_on_same_drive(
+            pathlib.Path(root), pathlib.Path(program)
+        ):
             return None
 
         full_path_to_program = os.path.join(
@@ -2127,19 +2071,6 @@ class Settings(BaseModel, validate_assignment=True):
 
         return None
 
-    @staticmethod
-    def _load_config_file(file_name: str, section: str = "default") -> dict:
-        """Load a config file and return the settings for a given section."""
-        parser = configparser.ConfigParser()
-        parser.add_section(section)
-        parser.read(file_name)
-        config: Dict[str, Any] = dict()
-        for k in parser[section]:
-            config[k] = parser[section][k]
-            if k == "ignore_globs":
-                config[k] = config[k].split(",")
-        return config
-
     def _project_url_base(self) -> str:
         """Construct the base URL for the project."""
         if not all([self.entity, self.project]):
@@ -2147,18 +2078,6 @@ class Settings(BaseModel, validate_assignment=True):
 
         app_url = util.app_url(self.base_url)
         return f"{app_url}/{quote(self.entity or '')}/{quote(self.project or '')}"
-
-    def _get_url_query_string(self) -> str:
-        """Construct the query string for project, run, and sweep URLs."""
-        if self.anonymous not in ["allow", "must"]:
-            return ""
-
-        # TODO: remove dependency on Api()
-        from .lib import apikey
-
-        api_key = apikey.api_key(settings=self)
-
-        return f"?{urlencode({'apiKey': api_key})}"
 
     @staticmethod
     def _runmoment_preprocessor(

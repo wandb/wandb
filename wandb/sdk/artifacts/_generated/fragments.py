@@ -43,7 +43,6 @@ class ArtifactCollectionFragment(GQLResult):
     project: Optional[ProjectInfoFragment]
     type: ArtifactCollectionFragmentType
     tags: ArtifactCollectionFragmentTags
-    aliases: Optional[ArtifactCollectionFragmentAliases] = None
 
 
 class ArtifactCollectionFragmentType(GQLResult):
@@ -56,22 +55,6 @@ class ArtifactCollectionFragmentTags(GQLResult):
 
 class ArtifactCollectionFragmentTagsEdges(GQLResult):
     node: TagFragment
-
-
-class ArtifactCollectionFragmentAliases(GQLResult):
-    edges: List[ArtifactCollectionFragmentAliasesEdges]
-
-
-class ArtifactCollectionFragmentAliasesEdges(GQLResult):
-    node: Optional[ArtifactAliasFragment]
-
-
-class ArtifactCollectionSummary(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
-    id: GQLId
-    name: str
-    description: Optional[str]
-    created_at: str = Field(alias="createdAt")
 
 
 class CollectionInfoFragment(GQLResult):
@@ -207,7 +190,6 @@ class RegistryCollectionFragment(GQLResult):
     project: Optional[ProjectInfoFragment]
     type: RegistryCollectionFragmentType
     tags: RegistryCollectionFragmentTags
-    aliases: RegistryCollectionFragmentAliases
 
 
 class RegistryCollectionFragmentType(GQLResult):
@@ -220,14 +202,6 @@ class RegistryCollectionFragmentTags(GQLResult):
 
 class RegistryCollectionFragmentTagsEdges(GQLResult):
     node: TagFragment
-
-
-class RegistryCollectionFragmentAliases(GQLResult):
-    edges: List[RegistryCollectionFragmentAliasesEdges]
-
-
-class RegistryCollectionFragmentAliasesEdges(GQLResult):
-    node: Optional[ArtifactAliasFragment]
 
 
 class RegistryFragment(GQLResult):
@@ -273,26 +247,6 @@ class RunInfoFragment(GQLResult):
     id: GQLId
     name: str
     project: Optional[ProjectInfoFragment]
-
-
-class RunInputArtifactConnectionFragment(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RunInputArtifactConnectionFragmentEdges]
-
-
-class RunInputArtifactConnectionFragmentEdges(GQLResult):
-    node: Optional[ArtifactFragment]
-
-
-class RunOutputArtifactConnectionFragment(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RunOutputArtifactConnectionFragmentEdges]
-
-
-class RunOutputArtifactConnectionFragmentEdges(GQLResult):
-    node: Optional[ArtifactFragment]
 
 
 class TeamMemberFragment(GQLResult):
@@ -359,22 +313,10 @@ class UserRegistryMemberFragment(GQLResult):
     role: RegistryRoleFragment
 
 
-class VersionedArtifactConnectionFragment(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[VersionedArtifactConnectionFragmentEdges]
-
-
-class VersionedArtifactConnectionFragmentEdges(GQLResult):
-    node: ArtifactFragment
-    version: str
-
-
 ArtifactAliasFragment.model_rebuild()
 ProjectInfoFragment.model_rebuild()
 TagFragment.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
-ArtifactCollectionSummary.model_rebuild()
 CollectionInfoFragment.model_rebuild()
 SourceCollectionInfoFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
@@ -391,11 +333,8 @@ RegistryCollectionFragment.model_rebuild()
 RegistryFragment.model_rebuild()
 RegistryRoleFragment.model_rebuild()
 RunInfoFragment.model_rebuild()
-RunInputArtifactConnectionFragment.model_rebuild()
-RunOutputArtifactConnectionFragment.model_rebuild()
 TeamMemberFragment.model_rebuild()
 TeamFragment.model_rebuild()
 TeamRegistryMemberFragment.model_rebuild()
 TypeInfoFragment.model_rebuild()
 UserRegistryMemberFragment.model_rebuild()
-VersionedArtifactConnectionFragment.model_rebuild()

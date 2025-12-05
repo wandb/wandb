@@ -20,6 +20,7 @@ import random
 import re
 import secrets
 import shlex
+import socket
 import string
 import sys
 import tarfile
@@ -55,7 +56,6 @@ from wandb.errors import (
     WandbCoreNotAvailableError,
 )
 from wandb.errors.term import terminput
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
@@ -1324,11 +1324,16 @@ def prompt_choices(
 ) -> str:
     """Prompt the user to choose from a list of options.
 
+    If exactly one choice is given, it is returned immediately.
+
     Raises:
         TimeoutError: if input_timeout is specified and expires.
         NotATerminalError: if the output device is not capable.
         KeyboardInterrupt: if the user aborts by pressing Ctrl+C.
     """
+    if len(choices) == 1:
+        return choices[0]
+
     for i, choice_str in enumerate(choices):
         wandb.termlog(f"({i + 1}) {choice_str}")
 
@@ -1381,14 +1386,10 @@ def download_file_from_url(
 ) -> None:
     import requests
 
-    auth = None
-    if not _thread_local_api_settings.cookies:
-        auth = ("api", api_key or "")
+    auth = ("api", api_key or "")
     response = requests.get(
         source_url,
         auth=auth,
-        headers=_thread_local_api_settings.headers,
-        cookies=_thread_local_api_settings.cookies,
         stream=True,
         timeout=5,
     )
@@ -1404,14 +1405,10 @@ def download_file_from_url(
 def download_file_into_memory(source_url: str, api_key: str | None = None) -> bytes:
     import requests
 
-    auth = None
-    if not _thread_local_api_settings.cookies:
-        auth = ("api", api_key or "")
+    auth = ("api", api_key or "")
     response = requests.get(
         source_url,
         auth=auth,
-        headers=_thread_local_api_settings.headers,
-        cookies=_thread_local_api_settings.cookies,
         stream=True,
         timeout=5,
     )
@@ -1473,25 +1470,6 @@ def auto_project_name(program: str | None) -> str:
     if sub_path != ".":
         project += "-" + sub_path
     return str(project.replace(os.sep, "_"))
-
-
-def are_paths_on_same_drive(path1: str, path2: str) -> bool:
-    """Check if two paths are on the same drive.
-
-    This check is only relevant on Windows,
-    since the concept of drives only exists on Windows.
-    """
-    if platform.system() != "Windows":
-        return True
-
-    try:
-        path1_drive = pathlib.Path(path1).resolve().drive
-        path2_drive = pathlib.Path(path2).resolve().drive
-    except OSError:
-        # If either path is not a valid Windows path, an OSError is raised.
-        return False
-
-    return path1_drive == path2_drive
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
@@ -1610,6 +1588,21 @@ def _is_kaggle() -> bool:
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules
     )
+
+
+def _has_internet() -> bool:
+    """Returns whether we have internet access.
+
+    Checks for internet access by attempting to open a DNS connection to
+    Google's root servers.
+    """
+    try:
+        s = socket.create_connection(("8.8.8.8", 53), 0.5)
+        s.close()
+    except OSError:
+        return False
+
+    return True
 
 
 def _is_likely_kaggle() -> bool:
@@ -1957,18 +1950,12 @@ def working_set() -> Iterable[InstalledDistribution]:
     from importlib.metadata import distributions
 
     for d in distributions():
-        try:
+        with contextlib.suppress(KeyError, UnicodeDecodeError, TypeError):
             # In some distributions, the "Name" attribute may not be present,
-            # which can raise a KeyError. To handle this, we catch the exception
-            # and skip those distributions.
+            # or the metadata itself may be None or malformed, which can raise
+            # KeyError, UnicodeDecodeError, or TypeError.
             # For additional context, see: https://github.com/python/importlib_metadata/issues/371.
-
-            # From Sentry events we observed that UnicodeDecodeError can occur when
-            # trying to decode the metadata of a distribution. To handle this, we catch
-            # the exception and skip those distributions.
             yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
-        except (KeyError, UnicodeDecodeError):
-            pass
 
 
 def get_core_path() -> str:

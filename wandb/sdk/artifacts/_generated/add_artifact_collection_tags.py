@@ -5,22 +5,18 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLResult
 
 from .fragments import TagFragment
 
 
 class AddArtifactCollectionTags(GQLResult):
-    create_artifact_collection_tag_assignments: Optional[
-        AddArtifactCollectionTagsCreateArtifactCollectionTagAssignments
-    ] = Field(alias="createArtifactCollectionTagAssignments")
+    result: Optional[AddArtifactCollectionTagsResult]
 
 
-class AddArtifactCollectionTagsCreateArtifactCollectionTagAssignments(GQLResult):
+class AddArtifactCollectionTagsResult(GQLResult):
     tags: List[TagFragment]
 
 
 AddArtifactCollectionTags.model_rebuild()
-AddArtifactCollectionTagsCreateArtifactCollectionTagAssignments.model_rebuild()
+AddArtifactCollectionTagsResult.model_rebuild()

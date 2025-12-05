@@ -14,18 +14,16 @@ from .enums import ArtifactCollectionState
 
 
 class DeleteArtifactSequence(GQLResult):
-    delete_artifact_sequence: Optional[DeleteArtifactSequenceDeleteArtifactSequence] = (
-        Field(alias="deleteArtifactSequence")
-    )
+    result: Optional[DeleteArtifactSequenceResult]
 
 
-class DeleteArtifactSequenceDeleteArtifactSequence(GQLResult):
-    artifact_collection: DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection = Field(
+class DeleteArtifactSequenceResult(GQLResult):
+    artifact_collection: DeleteArtifactSequenceResultArtifactCollection = Field(
         alias="artifactCollection"
     )
 
 
-class DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection(GQLResult):
+class DeleteArtifactSequenceResultArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -33,4 +31,4 @@ class DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection(GQLResult):
 
 
 DeleteArtifactSequence.model_rebuild()
-DeleteArtifactSequenceDeleteArtifactSequence.model_rebuild()
+DeleteArtifactSequenceResult.model_rebuild()

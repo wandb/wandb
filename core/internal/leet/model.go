@@ -33,15 +33,20 @@ type Model struct {
 	runPath string
 
 	// Run state tracking.
-	fileComplete bool
-	isLoading    bool
-	runState     RunState
+	runState RunState
+
+	// isLoading controls whether the loading screen is displayed.
+	//
+	// Defaults to true and is set to false once a RunRecord is
+	// successfully loaded from the transaction log.
+	isLoading bool
 
 	// Data reader.
 	reader *WandbReader
 
-	// Transaction log (.wandb file) watch and heartbeat managemenmt.
+	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
+	fileComplete bool
 	heartbeatMgr *HeartbeatManager
 	watcherChan  chan tea.Msg
 
@@ -82,20 +87,20 @@ func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogg
 	heartbeatInterval := cfg.HeartbeatInterval()
 	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
 
-	focusState := &Focus{Type: FocusNone, Row: -1, Col: -1}
+	focus := NewFocus()
 	watcherChan := make(chan tea.Msg, 4096)
 
 	m := &Model{
 		config:       cfg,
 		keyMap:       buildKeyMap(),
 		help:         NewHelp(),
-		focus:        focusState,
+		focus:        focus,
 		fileComplete: false,
 		isLoading:    true,
 		runPath:      runPath,
-		metricsGrid:  NewMetricsGrid(cfg, focusState, logger),
+		metricsGrid:  NewMetricsGrid(cfg, focus, logger),
 		leftSidebar:  NewLeftSidebar(cfg),
-		rightSidebar: NewRightSidebar(cfg, focusState, logger),
+		rightSidebar: NewRightSidebar(cfg, focus, logger),
 		watcherMgr:   NewWatcherManager(watcherChan, logger),
 		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, watcherChan, logger),
 		watcherChan:  watcherChan,
@@ -133,8 +138,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmds []tea.Cmd
 
-	// Forward UI messages to children.
-	if isUIMsg(msg) {
+	// Forward UI messages to children if not in filter mode.
+	if isUIMsg(msg) && !m.metricsGrid.IsFilterMode() && !m.leftSidebar.IsFilterMode() {
 		if s, c := m.leftSidebar.Update(msg); c != nil {
 			m.leftSidebar = s
 			cmds = append(cmds, c)
@@ -197,7 +202,7 @@ func isUIMsg(msg tea.Msg) bool {
 // handleHelp centralizes help toggle and routing while active.
 func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	// Don't toggle help while any filter UI is active.
-	if m.metricsGrid.filter.inputActive || m.leftSidebar.IsFilterMode() {
+	if m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode() {
 		return false, nil
 	}
 
@@ -226,29 +231,22 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 func (m *Model) dispatch(msg tea.Msg) []tea.Cmd {
 	switch t := msg.(type) {
 	case InitMsg:
-		return m.onInit(t)
+		return m.handleInit(t)
 	case ChunkedBatchMsg:
-		return m.onChunkedBatch(t)
+		return m.handleChunkedBatch(t)
 	case BatchedRecordsMsg:
-		return m.onBatched(t)
+		return m.handleBatched(t)
 	case HeartbeatMsg:
-		return m.onHeartbeat()
+		return m.handleHeartbeat()
 	case FileChangedMsg:
-		return m.onFileChange()
-	case tea.KeyMsg:
-		_, cmd := m.handleKeyMsg(t)
-		if cmd != nil {
-			return []tea.Cmd{cmd}
-		}
-	case tea.MouseMsg, tea.WindowSizeMsg, LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
-		_, cmd := m.handleOther(msg)
-		if cmd != nil {
-			return []tea.Cmd{cmd}
-		}
+		return m.handleFileChange()
+	case tea.WindowSizeMsg:
+		m.handleWindowResize(t)
+	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
+		return m.handleSidebarAnimation(msg)
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
-		_, cmd := m.processRecordMsg(msg)
-		if cmd != nil {
+		if _, cmd := m.handleRecordMsg(msg); cmd != nil {
 			return []tea.Cmd{cmd}
 		}
 	}
@@ -359,7 +357,9 @@ func (m *Model) ShouldRestart() bool {
 func (m *Model) logPanic(context string) {
 	if r := recover(); r != nil {
 		stackTrace := string(debug.Stack())
-		m.logger.CaptureError(fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace))
+		m.logger.CaptureError(
+			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace),
+		)
 		panic(r)
 	}
 }
@@ -412,10 +412,13 @@ func (m *Model) renderStatusBar() string {
 
 // buildStatusText builds the main status text.
 func (m *Model) buildStatusText() string {
-	if m.leftSidebar.filter.inputActive {
+	if m.help.IsActive() {
+		return ""
+	}
+	if m.leftSidebar.IsFilterMode() {
 		return m.buildOverviewFilterStatus()
 	}
-	if m.metricsGrid.filter.inputActive {
+	if m.metricsGrid.IsFilterMode() {
 		return m.buildMetricsFilterStatus()
 	}
 	if m.pendingGridConfig != gridConfigNone {
@@ -433,18 +436,25 @@ func (m *Model) buildOverviewFilterStatus() string {
 	if filterInfo == "" {
 		filterInfo = "no matches"
 	}
-	return fmt.Sprintf("Overview filter: %s_ [%s] (@e/@c/@s for sections • Enter to apply)",
-		m.leftSidebar.FilterQuery(), filterInfo)
+	return fmt.Sprintf(
+		"Overview filter (%s): %s%s [%s] (Enter to apply • Tab to toggle mode)",
+		m.leftSidebar.FilterMode().String(),
+		m.leftSidebar.FilterQuery(),
+		string(mediumShadeBlock),
+		filterInfo,
+	)
 }
 
 // buildMetricsFilterStatus builds status for metrics filter mode.
+//
+// Should be guarded by the caller's check that filter input is active.
 func (m *Model) buildMetricsFilterStatus() string {
-	matchCount := m.metricsGrid.effectiveChartCountNoLock()
-	m.metricsGrid.mu.RLock()
-	totalCount := len(m.metricsGrid.all)
-	m.metricsGrid.mu.RUnlock()
-	return fmt.Sprintf("Filter: %s_ [%d/%d matches] (Enter to apply)",
-		m.metricsGrid.filter.draft, matchCount, totalCount)
+	return fmt.Sprintf(
+		"Filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
+		m.metricsGrid.FilterMode().String(),
+		m.metricsGrid.FilterQuery(),
+		string(mediumShadeBlock),
+		m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount())
 }
 
 // buildGridConfigStatus builds status for grid configuration mode.
@@ -465,13 +475,9 @@ func (m *Model) buildGridConfigStatus() string {
 
 // buildLoadingStatus builds status for loading mode.
 func (m *Model) buildLoadingStatus() string {
-	m.metricsGrid.mu.RLock()
-	chartCount := len(m.metricsGrid.all)
-	m.metricsGrid.mu.RUnlock()
-
 	if m.recordsLoaded > 0 {
 		return fmt.Sprintf("Loading data... [%d records, %d metrics]",
-			m.recordsLoaded, chartCount)
+			m.recordsLoaded, m.metricsGrid.ChartCount())
 	}
 	return "Loading data..."
 }
@@ -481,13 +487,12 @@ func (m *Model) buildActiveStatus() string {
 	var parts []string
 
 	// Add filter info if active.
-	if m.metricsGrid.filter.applied != "" {
-		m.metricsGrid.mu.RLock()
-		filteredCount := len(m.metricsGrid.filtered)
-		totalCount := len(m.metricsGrid.all)
-		m.metricsGrid.mu.RUnlock()
-		parts = append(parts, fmt.Sprintf("Filter: \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
-			m.metricsGrid.filter.applied, filteredCount, totalCount))
+	if m.metricsGrid.IsFiltering() {
+		parts = append(parts, fmt.Sprintf(
+			"Filter (%s): \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
+			m.metricsGrid.FilterMode().String(),
+			m.metricsGrid.FilterQuery(),
+			m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount()))
 	}
 
 	// Add overview filter info if active.
@@ -521,10 +526,10 @@ func (m *Model) buildActiveStatus() string {
 
 // buildHelpText builds the help text for the status bar.
 func (m *Model) buildHelpText() string {
-	if !m.metricsGrid.filter.inputActive && !m.leftSidebar.filter.inputActive {
-		return "h: help"
+	if m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode() {
+		return ""
 	}
-	return ""
+	return "h: help"
 }
 
 // Layout represents the computed layout dimensions for the main UI.

@@ -153,21 +153,25 @@ func KeyBindings() []BindingCategory {
 					Keys:        []string{"left", "right"},
 					Description: "Navigate pages in section",
 				},
-				{
-					Keys:        []string{"@e", "@c", "@s"},
-					Description: "Filter specific section (environment/config/summary)",
-				},
 			},
 		},
 		{
 			Name: "Mouse",
 			Bindings: []KeyBinding{
 				{
-					Keys:        []string{"mouse wheel"},
+					Keys:        []string{"wheel"},
 					Description: "Zoom in/out on focused chart",
 				},
 				{
-					Keys:        []string{"shift+mouse select"},
+					Keys:        []string{"right-click+drag"},
+					Description: "Inspect: show (x, y) at nearest point on a chart",
+				},
+				{
+					Keys:        []string{"alt+right-click+drag"},
+					Description: "Inspect all visible charts in sync",
+				},
+				{
+					Keys:        []string{"shift+drag"},
 					Description: "Select text",
 				},
 			},

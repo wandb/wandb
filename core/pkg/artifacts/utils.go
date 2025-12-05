@@ -16,7 +16,11 @@ func IsArtifactRegistryProject(project string) bool {
 }
 
 // GetGraphQLInputFields returns the fields of a GraphQL input type given its name.
-func GetGraphQLInputFields(ctx context.Context, client graphql.Client, typeName string) ([]string, error) {
+func GetGraphQLInputFields(
+	ctx context.Context,
+	client graphql.Client,
+	typeName string,
+) ([]string, error) {
 	response, err := gql.InputFields(ctx, client, typeName)
 	if err != nil {
 		return nil, err
@@ -34,7 +38,11 @@ func GetGraphQLInputFields(ctx context.Context, client graphql.Client, typeName 
 }
 
 // GetGraphQLFields returns the fields for a given a GraphQL object type name into a string array.
-func GetGraphQLFields(ctx context.Context, client graphql.Client, typeName string) ([]string, error) {
+func GetGraphQLFields(
+	ctx context.Context,
+	client graphql.Client,
+	typeName string,
+) ([]string, error) {
 	response, err := gql.TypeFields(ctx, client, typeName)
 	if err != nil {
 		return nil, err

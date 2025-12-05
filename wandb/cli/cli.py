@@ -1,5 +1,4 @@
 import asyncio
-import configparser
 import datetime
 import getpass
 import json
@@ -21,15 +20,15 @@ import yaml
 from click.exceptions import ClickException
 
 import wandb
-import wandb.env
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
-from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
+from wandb import Config, Error, env, util, wandb_agent
 from wandb.analytics import get_sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
 from wandb.errors.links import url_registry
-from wandb.sdk import wandb_setup
+from wandb.old import core as old_core
+from wandb.sdk import wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.internal.internal_api import Api as SDKInternalApi
@@ -38,13 +37,13 @@ from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, settings_file
 from wandb.sync import SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
-_wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
+_wandb_dir = old_core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
     _wandb_dir = tempfile.gettempdir()
 
@@ -254,7 +253,13 @@ def projects(entity, display=True):
 @click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
-@click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
+@click.option(
+    "--anonymously",
+    default=False,
+    hidden=True,
+    is_flag=True,
+    help="Log in anonymously",
+)
 @click.option(
     "--verify/--no-verify",
     default=False,
@@ -274,9 +279,20 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     the `login` command with host parameters.
     """
     # TODO: handle no_offline
-    anon_mode = "must" if anonymously else "never"
+    if anonymously:
+        wandb.termwarn(
+            "The --anonymously parameter has no effect and will be removed"
+            + " in a future version.",
+            repeat=False,
+        )
 
-    wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
+    if host and cloud:
+        wandb.termerror("Cannot use --host and --cloud together.")
+        sys.exit(1)
+
+    if cloud:
+        host = "https://api.wandb.ai"
+
     # A change in click or the test harness means key can be none...
     key = key[0] if key is not None and len(key) > 0 else None
     relogin = True if key or relogin else False
@@ -286,7 +302,6 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     global_settings.x_disable_viewer = relogin and not verify
 
     wandb.login(
-        anonymous=anon_mode,
         force=True,
         host=host,
         key=key,
@@ -313,30 +328,28 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 @click.pass_context
 @display_error
 def init(ctx, project, entity, reset, mode):
-    from wandb.old.core import __stage_dir__, _set_stage_dir, wandb_dir
-
-    if __stage_dir__ is None:
-        _set_stage_dir("wandb")
+    # Load settings from environment variables and other normal sources.
+    global_settings = wandb_setup.singleton().settings
 
     # non-interactive init
     if reset or project or entity or mode:
-        api = InternalApi()
+        system_settings = global_settings.read_system_settings()
+
         if reset:
-            api.clear_setting("entity", persist=True)
-            api.clear_setting("project", persist=True)
-            api.clear_setting("mode", persist=True)
-            # TODO(jhr): clear more settings?
+            system_settings.clear("entity")
+            system_settings.clear("project")
+            system_settings.clear("mode")
         if entity:
-            api.set_setting("entity", entity, persist=True)
+            system_settings.set("entity", entity)
         if project:
-            api.set_setting("project", project, persist=True)
+            system_settings.set("project", project)
         if mode:
-            api.set_setting("mode", mode, persist=True)
+            system_settings.set("mode", mode)
+
+        system_settings.save()
         return
 
-    if os.path.isdir(wandb_dir()) and os.path.exists(
-        os.path.join(wandb_dir(), "settings")
-    ):
+    if os.path.exists(global_settings.settings_workspace):
         click.confirm(
             click.style(
                 "This directory has been configured previously, should we re-configure it?",
@@ -408,12 +421,13 @@ def init(ctx, project, entity, reset, mode):
     except ClickWandbException:
         raise ClickException(f"Could not find team: {entity}")
 
-    api.set_setting("entity", entity, persist=True)
-    api.set_setting("project", project, persist=True)
-    api.set_setting("base_url", api.settings().get("base_url"), persist=True)
+    system_settings = global_settings.read_system_settings()
+    system_settings.set("entity", entity)
+    system_settings.set("project", project)
+    system_settings.save()
 
-    filesystem.mkdir_exists_ok(wandb_dir())
-    with open(os.path.join(wandb_dir(), ".gitignore"), "w") as file:
+    filesystem.mkdir_exists_ok(global_settings.wandb_dir)
+    with open(os.path.join(global_settings.wandb_dir, ".gitignore"), "w") as file:
         file.write("*\n!settings")
 
     click.echo(
@@ -949,7 +963,7 @@ def sweep(
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{action} sweep with ID: {styled_id}")
 
-    sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")
@@ -1218,7 +1232,7 @@ def launch_sweep(
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{'Resumed' if resume_id else 'Created'} sweep with ID: {styled_id}")
-    sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")
@@ -2319,7 +2333,17 @@ def start(ctx, port, env, daemon, upgrade, edge):
         "wandb-local",
     ] + env_vars
     host = f"http://localhost:{port}"
-    api.set_setting("base_url", host, globally=True, persist=True)
+
+    system_settings = wandb_setup.singleton().settings.read_system_settings()
+    system_settings.set("base_url", host, globally=True)
+
+    try:
+        system_settings.save()
+    except settings_file.SaveSettingsError as e:
+        msg = "Failed to update base_url setting"
+        logger.exception(msg)
+        wandb.termerror(f"{msg}: {e}")
+
     if daemon:
         command += ["-d"]
     command += [image]
@@ -2408,10 +2432,7 @@ def put(
     entity, project, artifact_name = public_api._parse_artifact_path(name)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
-    # TODO: settings nightmare...
-    api = InternalApi()
-    api.set_setting("entity", entity)
-    api.set_setting("project", project)
+
     artifact = wandb.Artifact(name=artifact_name, type=type, description=description)
     artifact_path = f"{entity}/{project}/{artifact_name}:{alias[0]}"
     if os.path.isdir(path):
@@ -2731,11 +2752,10 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
 @display_error
 def online():
     """Undo `wandb offline`."""
-    api = InternalApi()
-    try:
-        api.clear_setting("mode", persist=True)
-    except configparser.Error:
-        pass
+    system_settings = wandb_setup.singleton().settings.read_system_settings()
+    system_settings.clear("mode")
+    system_settings.save()
+
     click.echo(
         "W&B online. Running your script from this directory will now sync to the cloud."
     )
@@ -2748,16 +2768,14 @@ def offline():
 
     Use `wandb online` or `wandb sync` to upload offline runs.
     """
-    api = InternalApi()
-    try:
-        api.set_setting("mode", "offline", persist=True)
-        click.echo(
-            "W&B offline. Running your script from this directory will only write metadata locally. Use wandb disabled to completely turn off W&B."
-        )
-    except configparser.Error:
-        click.echo(
-            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=offline"
-        )
+    system_settings = wandb_setup.singleton().settings.read_system_settings()
+    system_settings.set("mode", "offline")
+    system_settings.save()
+
+    click.echo(
+        "W&B offline. Running your script from this directory will only write"
+        + " metadata locally. Use `wandb disabled` to completely turn off W&B."
+    )
 
 
 @cli.command("on", hidden=True)
@@ -2797,14 +2815,11 @@ def status(settings):
     help="Disable W&B service",
 )
 def disabled(service):
-    api = InternalApi()
-    try:
-        api.set_setting("mode", "disabled", persist=True)
-        click.echo("W&B disabled.")
-    except configparser.Error:
-        click.echo(
-            "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=disabled"
-        )
+    system_settings = wandb_setup.singleton().settings.read_system_settings()
+    system_settings.set("mode", "disabled")
+    system_settings.save()
+
+    click.echo("W&B disabled.")
 
 
 @cli.command("enabled", help="Enable W&B.")
@@ -2816,14 +2831,11 @@ def disabled(service):
     help="Enable W&B service",
 )
 def enabled(service):
-    api = InternalApi()
-    try:
-        api.set_setting("mode", "online", persist=True)
-        click.echo("W&B enabled.")
-    except configparser.Error:
-        click.echo(
-            "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
-        )
+    system_settings = wandb_setup.singleton().settings.read_system_settings()
+    system_settings.set("mode", "online")
+    system_settings.save()
+
+    click.echo("W&B enabled.")
 
 
 @cli.command(

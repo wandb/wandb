@@ -8,9 +8,7 @@ __all__ = [
     "GET_AUTOMATIONS_BY_ENTITY_GQL",
     "GET_AUTOMATIONS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
-    "SLACK_INTEGRATIONS_BY_ENTITY_GQL",
     "UPDATE_AUTOMATION_GQL",
-    "WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL",
 ]
 
 GET_AUTOMATIONS_GQL = """
@@ -137,8 +135,8 @@ fragment WebhookIntegrationFields on GenericWebhookIntegration {
 """
 
 GET_AUTOMATIONS_BY_ENTITY_GQL = """
-query GetAutomationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  scope: entity(name: $entityName) {
+query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
+  scope: entity(name: $entity) {
     projects(after: $cursor, first: $perPage) {
       pageInfo {
         ...PageInfoFields
@@ -476,8 +474,8 @@ mutation DeleteAutomation($id: ID!) {
 """
 
 INTEGRATIONS_BY_ENTITY_GQL = """
-query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  entity(name: $entityName) {
+query IntegrationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
+  entity(name: $entity) {
     integrations(after: $cursor, first: $perPage) {
       pageInfo {
         ...PageInfoFields
@@ -503,66 +501,6 @@ fragment SlackIntegrationFields on SlackIntegration {
   id
   teamName
   channelName
-}
-
-fragment WebhookIntegrationFields on GenericWebhookIntegration {
-  __typename
-  id
-  name
-  urlEndpoint
-}
-"""
-
-SLACK_INTEGRATIONS_BY_ENTITY_GQL = """
-query SlackIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  entity(name: $entityName) {
-    integrations(after: $cursor, first: $perPage) {
-      pageInfo {
-        ...PageInfoFields
-      }
-      edges {
-        node {
-          __typename
-          ...SlackIntegrationFields
-        }
-      }
-    }
-  }
-}
-
-fragment PageInfoFields on PageInfo {
-  endCursor
-  hasNextPage
-}
-
-fragment SlackIntegrationFields on SlackIntegration {
-  __typename
-  id
-  teamName
-  channelName
-}
-"""
-
-WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL = """
-query WebhookIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  entity(name: $entityName) {
-    integrations(after: $cursor, first: $perPage) {
-      pageInfo {
-        ...PageInfoFields
-      }
-      edges {
-        node {
-          __typename
-          ...WebhookIntegrationFields
-        }
-      }
-    }
-  }
-}
-
-fragment PageInfoFields on PageInfo {
-  endCursor
-  hasNextPage
 }
 
 fragment WebhookIntegrationFields on GenericWebhookIntegration {

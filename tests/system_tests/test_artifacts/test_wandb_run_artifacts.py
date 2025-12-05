@@ -1,11 +1,13 @@
-import os
+from __future__ import annotations
+
 from unittest import mock
 
-import pytest
 import wandb
+from pytest import fixture, mark, raises
+from wandb.errors import CommError
 
 
-@pytest.fixture
+@fixture
 def sample_data():
     artifact = wandb.Artifact("boom-data", type="dataset")
     artifact.save()
@@ -22,19 +24,19 @@ def test_artifacts_in_config(user, sample_data, test_settings):
         run.config.dataset = artifact
         run.config.logged_artifact = logged_artifact
         run.config.update({"myarti": artifact})
-        with pytest.raises(ValueError) as e_info:
+        with raises(ValueError) as e_info:
             run.config.nested_dataset = {"nested": artifact}
         assert str(e_info.value) == (
             "Instances of wandb.Artifact can only be top level keys in a run's config"
         )
 
-        with pytest.raises(ValueError) as e_info:
+        with raises(ValueError) as e_info:
             run.config.dict_nested = {"one_nest": {"two_nest": artifact}}
         assert str(e_info.value) == (
             "Instances of wandb.Artifact can only be top level keys in a run's config"
         )
 
-        with pytest.raises(ValueError) as e_info:
+        with raises(ValueError) as e_info:
             run.config.update({"one_nest": {"two_nest": artifact}})
         assert str(e_info.value) == (
             "Instances of wandb.Artifact can only be top level keys in a run's config"
@@ -313,7 +315,7 @@ def test_log_code_settings(user):
     wandb.Api().artifact(f"{artifact_name}:v0")
 
 
-@pytest.mark.parametrize("save_code", [True, False])
+@mark.parametrize("save_code", [True, False])
 def test_log_code_env(wandb_backend_spy, save_code):
     # test for WB-7468
     with mock.patch.dict("os.environ", WANDB_SAVE_CODE=str(save_code).lower()):
@@ -341,23 +343,5 @@ def test_log_code_env(wandb_backend_spy, save_code):
         if save_code:
             wandb.Api().artifact(f"{artifact_name}:v0")
         else:
-            with pytest.raises(wandb.errors.CommError):
+            with raises(CommError):
                 wandb.Api().artifact(f"{artifact_name}:v0")
-
-
-@pytest.mark.xfail(reason="Backend race condition")
-def test_anonymous_mode_artifact(user, capsys, local_settings):
-    copied_env = os.environ.copy()
-    copied_env.pop("WANDB_API_KEY")
-    copied_env.pop("WANDB_USERNAME")
-    copied_env.pop("WANDB_ENTITY")
-    with mock.patch.dict("os.environ", copied_env, clear=True):
-        run = wandb.init(anonymous="must")
-        run.log_artifact(wandb.Artifact("my-arti", type="dataset"))
-        run.finish()
-
-    _, err = capsys.readouterr()
-
-    assert (
-        "Artifacts logged anonymously cannot be claimed and expire after 7 days." in err
-    )

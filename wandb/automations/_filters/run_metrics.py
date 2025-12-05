@@ -124,7 +124,11 @@ class BaseMetricFilter(GQLBase, ABC, extra="forbid"):
 
 
 class MetricThresholdFilter(BaseMetricFilter):  # from: RunMetricThresholdFilter
-    """Filter that compares a metric value against a user-defined threshold."""
+    """Filter that compares an **absolute** metric value against a user-defined threshold.
+
+    The value may be a single value or an aggregated result over a window of
+    multiple values.
+    """
 
     name: str
     agg: Annotated[Optional[Agg], Field(alias="agg_op")] = None
@@ -178,8 +182,8 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     """Ignored."""
 
     # ------------------------------------------------------------------------------
-    change_type: Annotated[ChangeType, Field(alias="change_type")]
-    change_dir: Annotated[ChangeDir, Field(alias="change_dir")]
+    change_type: ChangeType
+    change_dir: ChangeDir
     threshold: Annotated[PosNum, Field(alias="change_amount")]
 
     def __repr__(self) -> str:
@@ -195,7 +199,7 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
         return repr(rf"{metric} {verb} {amt}")
 
 
-class BaseMetricOperand(GQLBase, extra="forbid"):
+class BaseMetricOperand(GQLBase, ABC, extra="forbid"):
     def gt(self, value: int | float, /) -> MetricThresholdFilter:
         """Returns a filter that watches for `metric_expr > threshold`."""
         return self > value
@@ -239,12 +243,15 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
 
     @overload
     def changes_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
+
     @overload
     def changes_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
+
     @overload  # NOTE: This overload is for internal use only.
     def changes_by(
         self, *, diff: PosNum | None, frac: PosNum | None, _dir: ChangeDir
     ) -> MetricChangeFilter: ...
+
     def changes_by(
         self,
         *,
@@ -263,27 +270,31 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
                 metric. Must be positive. For example, `frac=0.1` denotes a 10% relative
                 increase or decrease.
         """
-        # Enforce mutually exclusive keyword args
-        if (frac is None) is (diff is None):
+        if (
+            # Enforce mutually exclusive keyword args
+            ((frac is None) and (diff is None))
+            or ((frac is not None) and (diff is not None))
+        ):
             raise ValueError("Must provide exactly one of `frac` or `diff`")
 
         # Enforce positive values
         if (frac is not None) and (frac <= 0):
-            raise ValueError(f"Expected positive quantity, got: {frac=}")
+            raise ValueError(f"Expected positive threshold, got: {frac=}")
         if (diff is not None) and (diff <= 0):
-            raise ValueError(f"Expected positive quantity, got: {diff=}")
+            raise ValueError(f"Expected positive threshold, got: {diff=}")
 
         if diff is None:
-            change_kws = dict(change_type=ChangeType.REL, threshold=frac)
-            return MetricChangeFilter(**dict(self), change_dir=_dir, **change_kws)
+            kws = dict(change_dir=_dir, change_type=ChangeType.REL, threshold=frac)
         else:
-            change_kws = dict(change_type=ChangeType.ABS, threshold=diff)
-            return MetricChangeFilter(**dict(self), change_dir=_dir, **change_kws)
+            kws = dict(change_dir=_dir, change_type=ChangeType.ABS, threshold=diff)
+        return MetricChangeFilter(**dict(self), **kws)
 
     @overload
     def increases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
+
     @overload
     def increases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
+
     def increases_by(
         self, *, diff: PosNum | None = None, frac: PosNum | None = None
     ) -> MetricChangeFilter:
@@ -295,8 +306,10 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
 
     @overload
     def decreases_by(self, *, diff: PosNum, frac: None) -> MetricChangeFilter: ...
+
     @overload
     def decreases_by(self, *, diff: None, frac: PosNum) -> MetricChangeFilter: ...
+
     def decreases_by(
         self, *, diff: PosNum | None = None, frac: PosNum | None = None
     ) -> MetricChangeFilter:
@@ -308,7 +321,7 @@ class BaseMetricOperand(GQLBase, extra="forbid"):
 
 
 class MetricVal(BaseMetricOperand):
-    """A single, unaggregated metric value for defining filters."""
+    """Represents a single metric value when defining metric event filters."""
 
     name: str
 
@@ -326,10 +339,168 @@ class MetricVal(BaseMetricOperand):
     def mean(self, window: int) -> MetricAgg:
         return self.avg(window=window)
 
+    def zscore(self, window: int) -> ZScoreMetricOperand:
+        """Returns a z-score metric builder for fluent filter construction.
+
+        Use with comparison operators to create z-score filters:
+        - `metric.zscore(30) > 3` - detects z-score increases above 3 std devs
+        - `metric.zscore(30) < -3` - detects z-score decreases below -3 std devs
+        - `metric.zscore(30).abs() > 3` - detects abs z-score deviations above 3 std devs
+
+        Note:
+        - The `>=` operator behaves the same as `>`, and `<=` behaves the same as `<`.
+        """
+        return ZScoreMetricOperand(name=self.name, window=window)
+
 
 class MetricAgg(BaseMetricOperand):
-    """Aggregated metric value for defining metric filters."""
+    """Represents an aggregated metric value when defining metric event filters."""
 
     name: str
     agg: Annotated[Agg, Field(alias="agg_op")]
     window: Annotated[PositiveInt, Field(alias="window_size")]
+
+
+class ZScoreMetricOperand(GQLBase, extra="forbid"):
+    """Helper class to build z-score metric filters with comparison operators.
+
+    This class enables fluent construction of z-score filters using Python
+    comparison operators (>, <, >=, <=) and the builtin abs() function.
+
+    Note: When defining a z-score threshold, the `>` and `>=` operators are
+    interchangeable, as are the `<=` and `<` operators, since the z-score defines
+    a threshold on a continuous value. At runtime, the filter is evaluated
+    using the inclusive operators (`>=` or `<=`).
+    """
+
+    name: str
+    """Name of the metric to monitor."""
+
+    window: PositiveInt
+    """Size of the window to calculate the metric mean and standard deviation over."""
+
+    is_absolute: bool = Field(default=False, repr=False)
+    """Whether to check the absolute value of the z-score (ignoring direction)."""
+
+    def lt(self, value: int | float, /) -> MetricZScoreFilter:
+        """Returns a filter that watches for `zscore(metric) < -threshold`.
+
+        Args:
+            value: The z-score threshold value to compare against.
+                   The absolute value is used as the threshold.
+        """
+        if self.is_absolute:
+            raise ValueError("Cannot use absolute z-score with < operator")
+
+        if value >= 0:
+            raise ValueError("Negative z-score threshold required")
+
+        return MetricZScoreFilter(
+            name=self.name,
+            window=self.window,
+            change_dir=ChangeDir.DECREASE,
+            threshold=abs(value),
+        )
+
+    def __lt__(self, value: int | float, /) -> MetricZScoreFilter:
+        return self.lt(value)
+
+    def __le__(self, value: int | float, /) -> MetricZScoreFilter:
+        """Alias for `<` operator - behaves identically to `__lt__`.
+
+        Returns a filter that watches for `zscore(metric) < -threshold`.
+        Note: `<=` and `<` are treated as equivalent for z-score filters.
+        """
+        return self.lt(value)
+
+    def gt(self, value: int | float, /) -> MetricZScoreFilter:
+        """Returns a filter that watches for `zscore(metric) > threshold`.
+
+        If `is_absolute` is True, watches for `abs(zscore(metric)) > threshold`.
+
+        Args:
+            value: The z-score threshold value to compare against.
+                   The absolute value is used as the threshold.
+        """
+        if value <= 0:
+            raise ValueError(f"Expected positive threshold, got: {value=}")
+
+        return MetricZScoreFilter(
+            name=self.name,
+            window=self.window,
+            change_dir=ChangeDir.ANY if self.is_absolute else ChangeDir.INCREASE,
+            threshold=abs(value),
+        )
+
+    def __gt__(self, value: int | float, /) -> MetricZScoreFilter:
+        return self.gt(value)
+
+    def __ge__(self, value: int | float, /) -> MetricZScoreFilter:
+        """Alias for `>` operator - behaves identically to `__gt__`.
+
+        Returns a filter that watches for `zscore(metric) > threshold`.
+        If `is_absolute` is True, watches for `abs(zscore(metric)) > threshold`.
+        Note: `>=` and `>` are treated as equivalent for z-score filters.
+        """
+        return self.gt(value)
+
+    def __abs__(self) -> ZScoreMetricOperand:
+        """Returns a z-score filter that checks the absolute value.
+
+        This allows watching for z-score deviations in either direction.
+        Use with comparison operators: `abs(metric.zscore(window)) > threshold`.
+        """
+        return self.model_copy(update={"is_absolute": True})
+
+    def abs(self) -> ZScoreMetricOperand:
+        """Returns a z-score filter that checks the absolute value.
+
+        Alias for `__abs__()` that can be called as a method.
+        Allows using either `abs(zscore)` or `zscore.abs()`.
+        """
+        return self.__abs__()
+
+
+class MetricZScoreFilter(GQLBase, extra="forbid"):
+    name: str
+    """Name of the observed metric."""
+
+    window: Annotated[PositiveInt, Field(alias="window_size")] = 30
+    """Size of the window to calculate the metric mean and standard deviation over."""
+
+    threshold: PosNum = 3.0
+    """Threshold for the z-score."""
+
+    change_dir: ChangeDir = ChangeDir.ANY
+    """Direction of the z-score change to watch for."""
+
+    def __and__(self, other: Any) -> RunMetricFilter:
+        """Returns `(metric_filter & run_filter)` as a `RunMetricFilter`."""
+        from wandb.automations.events import RunMetricFilter
+
+        if isinstance(run_filter := other, (BaseOp, FilterExpr)):
+            # Treat `other` as a run filter and build a RunMetricEvent. Let the
+            # metric filter validators wrap or nest as appropriate.
+            return RunMetricFilter(run=run_filter, metric=self)
+        return NotImplemented
+
+    def __rand__(self, other: BaseOp | FilterExpr) -> RunMetricFilter:
+        """Ensures `&` is commutative for run and metric filters.
+
+        I.e. `(run_filter & metric_filter) == (metric_filter & run_filter)`.
+        """
+        return self.__and__(other)
+
+    def __repr__(self) -> str:
+        if self.change_dir is ChangeDir.ANY:
+            return repr(rf"abs(zscore({self.name!r})) > {self.threshold}")
+        elif self.change_dir is ChangeDir.DECREASE:
+            return repr(rf"zscore({self.name!r}) < -{self.threshold}")
+        else:  # ChangeDir.INCREASE
+            return repr(rf"zscore({self.name!r}) > +{self.threshold}")
+
+    @override
+    def __rich_repr__(self) -> RichReprResult:
+        """Returns the `rich` pretty-print representation of the metric filter."""
+        # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
+        yield None, repr(self)

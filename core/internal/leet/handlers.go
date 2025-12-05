@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// processRecordMsg handles messages that carry data from the .wandb file.
-func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
+// handleRecordMsg handles messages that carry data from the .wandb file.
+func (m *Model) handleRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	defer m.logPanic("processRecordMsg")
 
 	start := time.Now()
@@ -18,18 +18,19 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	}()
 
 	switch msg := msg.(type) {
+	case RunMsg:
+		m.logger.Debug("model: processing RunMsg")
+		m.leftSidebar.ProcessRunMsg(msg)
+		m.runState = RunStateRunning
+		m.isLoading = false
+		return m, nil
+
 	case HistoryMsg:
 		m.logger.Debug("model: processing HistoryMsg")
 		if m.runState == RunStateRunning && !m.fileComplete {
 			m.heartbeatMgr.Reset(m.isRunning)
 		}
 		return m.handleHistoryMsg(msg)
-
-	case RunMsg:
-		m.logger.Debug("model: processing RunMsg")
-		m.leftSidebar.ProcessRunMsg(msg)
-		m.runState = RunStateRunning
-		return m, nil
 
 	case StatsMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
@@ -89,9 +90,6 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	defer timeit(m.logger, "Model.handleHistoryMsg")()
 	// Route to the grid; it handles sorting/filtering/pagination/focus itself.
 	shouldDraw := m.metricsGrid.ProcessHistory(msg.Metrics)
-	if m.isLoading && m.metricsGrid.ChartCount() > 0 {
-		m.isLoading = false
-	}
 	if shouldDraw && !m.suppressDraw {
 		m.metricsGrid.drawVisible()
 	}
@@ -164,10 +162,11 @@ func (m *Model) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Model,
 		layout.height,
 	)
 
+	// Chart 2D indices on the grid.
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
 
-	// Handle left click for focus
+	// Handle left click for chart focus.
 	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
 		tea.MouseEvent(msg).Action == tea.MouseActionPress {
 		m.rightSidebar.ClearFocus()
@@ -175,18 +174,32 @@ func (m *Model) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Model,
 		return m, nil
 	}
 
-	// Handle wheel events for zoom
-	if !tea.MouseEvent(msg).IsWheel() {
-		return m, nil
+	// Handle right click/hold+move/release for chart data inspection.
+	if tea.MouseEvent(msg).Button == tea.MouseButtonRight {
+		// Holding Alt activates synchronised inspection across all charts
+		// visible on the current page.
+		alt := tea.MouseEvent(msg).Alt
+
+		switch tea.MouseEvent(msg).Action {
+		case tea.MouseActionPress:
+			m.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
+		case tea.MouseActionMotion:
+			m.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+		case tea.MouseActionRelease:
+			m.metricsGrid.EndInspection()
+		}
 	}
 
-	m.metricsGrid.HandleWheel(
-		adjustedX,
-		row,
-		col,
-		dims,
-		msg.Button == tea.MouseButtonWheelUp,
-	)
+	// Handle wheel events for zoom.
+	if tea.MouseEvent(msg).IsWheel() {
+		m.metricsGrid.HandleWheel(
+			adjustedX,
+			row,
+			col,
+			dims,
+			msg.Button == tea.MouseButtonWheelUp,
+		)
+	}
 
 	return m, nil
 }
@@ -197,7 +210,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m.handleOverviewFilter(msg)
 	}
 
-	if m.metricsGrid.filter.inputActive {
+	if m.metricsGrid.IsFilterMode() {
 		return m.handleMetricsFilter(msg)
 	}
 
@@ -337,21 +350,21 @@ func (m *Model) handleEnterMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 }
 
 func (m *Model) handleClearMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	if m.metricsGrid.filter.applied != "" {
+	if m.metricsGrid.FilterQuery() != "" {
 		m.metricsGrid.ClearFilter()
 	}
-	// TODO: unset focus?
+	m.focus.Reset()
 	return m, nil
 }
 
 func (m *Model) handleEnterOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	m.leftSidebar.StartFilter()
+	m.leftSidebar.EnterFilterMode()
 	return m, nil
 }
 
 func (m *Model) handleClearOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	if m.leftSidebar.IsFiltering() {
-		m.leftSidebar.clearFilter()
+		m.leftSidebar.ClearFilter()
 	}
 	return m, nil
 }
@@ -385,21 +398,12 @@ func (m *Model) handleMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	case tea.KeyEnter:
 		m.metricsGrid.ExitFilterMode(true)
 		return m, nil
-	case tea.KeyBackspace:
-		if len(m.metricsGrid.filter.draft) > 0 {
-			m.metricsGrid.filter.draft = m.metricsGrid.filter.draft[:len(m.metricsGrid.filter.draft)-1]
-			m.metricsGrid.ApplyFilter(m.metricsGrid.filter.draft)
-			m.metricsGrid.drawVisible()
-		}
+	case tea.KeyTab:
+		m.metricsGrid.ToggleFilterMatchMode()
 		return m, nil
-	case tea.KeyRunes:
-		m.metricsGrid.filter.draft += string(msg.Runes)
-		m.metricsGrid.ApplyFilter(m.metricsGrid.filter.draft)
-		m.metricsGrid.drawVisible()
-		return m, nil
-	case tea.KeySpace:
-		m.metricsGrid.filter.draft += " "
-		m.metricsGrid.ApplyFilter(m.metricsGrid.filter.draft)
+	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
+		m.metricsGrid.UpdateFilterDraft(msg)
+		m.metricsGrid.ApplyFilter()
 		m.metricsGrid.drawVisible()
 		return m, nil
 	default:
@@ -409,37 +413,18 @@ func (m *Model) handleMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 // handleOverviewFilter handles overview filter keyboard input.
 func (m *Model) handleOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	if !m.leftSidebar.IsFilterMode() {
-		return m, nil
-	}
-
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.leftSidebar.CancelFilter()
-		return m, nil
-
+		m.leftSidebar.ExitFilterMode(false)
 	case tea.KeyEnter:
-		m.leftSidebar.ConfirmFilter()
-		return m, nil
-
-	case tea.KeyBackspace:
-		input := m.leftSidebar.FilterDraft()
-		if len(input) > 0 {
-			m.leftSidebar.UpdateFilter(input[:len(input)-1])
-		}
-		return m, nil
-
-	case tea.KeyRunes:
-		input := m.leftSidebar.FilterDraft()
-		m.leftSidebar.UpdateFilter(input + string(msg.Runes))
-		return m, nil
-
-	case tea.KeySpace:
-		input := m.leftSidebar.FilterDraft()
-		m.leftSidebar.UpdateFilter(input + " ")
-		return m, nil
+		m.leftSidebar.ExitFilterMode(true)
+	case tea.KeyTab:
+		m.leftSidebar.ToggleFilterMatchMode()
+	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
+		m.leftSidebar.UpdateFilterDraft(msg)
+		m.leftSidebar.ApplyFilter()
+		m.leftSidebar.updateSectionHeights()
 	}
-
 	return m, nil
 }
 
@@ -495,21 +480,15 @@ func (m *Model) handleConfigNumberKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleOther handles remaining message types
-func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.MouseMsg:
-		return m.handleMouseMsg(msg)
-
-	case tea.WindowSizeMsg:
-		m.handleWindowResize(msg)
-
+// handleSidebarAnimation handles sidebar animation.
+func (m *Model) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
+	switch msg.(type) {
 	case LeftSidebarAnimationMsg:
 		layout := m.computeViewports()
 		m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
 		if m.leftSidebar.IsAnimating() {
-			return m, m.leftSidebar.animationCmd()
+			return []tea.Cmd{m.leftSidebar.animationCmd()}
 		}
 
 		m.endAnimating()
@@ -520,14 +499,14 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 		m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
 		if m.rightSidebar.IsAnimating() {
-			return m, m.rightSidebar.animationCmd()
+			return []tea.Cmd{m.rightSidebar.animationCmd()}
 		}
 
 		m.endAnimating()
 		m.leftSidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
 	}
 
-	return m, nil
+	return nil
 }
 
 // handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
@@ -540,7 +519,7 @@ func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea
 	m.suppressDraw = suppressRedraw
 	for _, subMsg := range subMsgs {
 		var cmd tea.Cmd
-		m, cmd = m.processRecordMsg(subMsg)
+		m, cmd = m.handleRecordMsg(subMsg)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -550,14 +529,11 @@ func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea
 		m.metricsGrid.drawVisible()
 	}
 
-	if m.isLoading && m.metricsGrid.ChartCount() > 0 {
-		m.isLoading = false
-	}
 	return cmds
 }
 
-// onInit handles InitMsg (reader ready).
-func (m *Model) onInit(msg InitMsg) []tea.Cmd {
+// handleInit handles InitMsg (reader ready).
+func (m *Model) handleInit(msg InitMsg) []tea.Cmd {
 	m.logger.Debug("model: InitMsg received, reader initialized")
 	m.reader = msg.Reader
 	m.loadStartTime = time.Now()
@@ -565,8 +541,8 @@ func (m *Model) onInit(msg InitMsg) []tea.Cmd {
 	return []tea.Cmd{ReadAllRecordsChunked(m.reader)}
 }
 
-// onChunkedBatch handles boot-load chunked batches.
-func (m *Model) onChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
+// handleChunkedBatch handles boot-load chunked batches.
+func (m *Model) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	defer timeit(m.logger, "Model.onChunkedBatch")()
 
 	m.logger.Debug(
@@ -594,16 +570,16 @@ func (m *Model) onChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	return cmds
 }
 
-// onBatched handles live drain batches.
-func (m *Model) onBatched(msg BatchedRecordsMsg) []tea.Cmd {
+// handleBatched handles live drain batches.
+func (m *Model) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := m.handleRecordsBatch(msg.Msgs, true)
 	cmds = append(cmds, ReadAvailableRecords(m.reader))
 	return cmds
 }
 
-// onHeartbeat triggers a live read and re-arms the heartbeat.
-func (m *Model) onHeartbeat() []tea.Cmd {
+// handleHeartbeat triggers a live read and re-arms the heartbeat.
+func (m *Model) handleHeartbeat() []tea.Cmd {
 	m.logger.Debug("model: processing HeartbeatMsg")
 	m.heartbeatMgr.Reset(m.isRunning)
 	return []tea.Cmd{
@@ -612,8 +588,8 @@ func (m *Model) onHeartbeat() []tea.Cmd {
 	}
 }
 
-// onFileChange coalesces change notifications into a read.
-func (m *Model) onFileChange() []tea.Cmd {
+// handleFileChange coalesces change notifications into a read.
+func (m *Model) handleFileChange() []tea.Cmd {
 	m.heartbeatMgr.Reset(m.isRunning)
 	return []tea.Cmd{
 		ReadAvailableRecords(m.reader),

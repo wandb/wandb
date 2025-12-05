@@ -63,6 +63,9 @@ const (
 
 	// unicodeSpace is the regular whitespace.
 	unicodeSpace rune = '\u0020'
+
+	// mediumShadeBlock is a medium-shaded block.
+	mediumShadeBlock rune = '\u2592' // ▒
 )
 
 // WANDB brand colors.
@@ -215,7 +218,9 @@ var (
 
 // Chart styles.
 var (
-	borderStyle = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(colorLayout)
+	borderStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(colorLayout)
 
 	titleStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
 
@@ -226,6 +231,12 @@ var (
 	axisStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
 	labelStyle = lipgloss.NewStyle().Foreground(colorText)
+
+	inspectionLineStyle = lipgloss.NewStyle().Foreground(colorSubtle)
+
+	inspectionLegendStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.AdaptiveColor{Light: "#111111", Dark: "#EEEEEE"}).
+				Background(lipgloss.AdaptiveColor{Light: "#EEEEEE", Dark: "#333333"})
 )
 
 // Status bar styles.
@@ -238,9 +249,14 @@ var (
 
 // Left sidebar styles.
 var (
-	leftSidebarStyle              = lipgloss.NewStyle().Padding(0, 1)
-	leftSidebarBorderStyle        = lipgloss.NewStyle().Border(RightBorder).BorderForeground(colorLayout)
-	leftSidebarHeaderStyle        = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginBottom(1)
+	leftSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
+	leftSidebarBorderStyle = lipgloss.NewStyle().
+				Border(RightBorder).
+				BorderForeground(colorLayout)
+	leftSidebarHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorSubheading).
+				MarginBottom(1)
 	leftSidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
 	leftSidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
 	leftSidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
@@ -261,8 +277,11 @@ var (
 var (
 	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
 	rightSidebarBorderStyle = lipgloss.NewStyle().Border(LeftBorder).BorderForeground(colorLayout)
-	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginLeft(1)
-	LeftBorder              = lipgloss.Border{
+	rightSidebarHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorSubheading).
+				MarginLeft(1)
+	LeftBorder = lipgloss.Border{
 		Top:         string(unicodeSpace),
 		Bottom:      string(unicodeSpace),
 		Left:        string(boxLightVertical),
@@ -285,7 +304,7 @@ const AnimationFrame = AnimationDuration / AnimationSteps
 
 // Help screen styles.
 var (
-	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).Width(20)
+	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).Width(24)
 
 	helpDescStyle = lipgloss.NewStyle().Foreground(colorText)
 

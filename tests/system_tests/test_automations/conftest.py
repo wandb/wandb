@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import secrets
-import unittest
 from functools import lru_cache
 from string import ascii_lowercase, digits
 from typing import Callable, Iterator, Union
@@ -20,6 +19,7 @@ from wandb.automations import (
     OnCreateArtifact,
     OnLinkArtifact,
     OnRunMetric,
+    OnRunState,
     RunEvent,
     ScopeType,
     SendWebhook,
@@ -83,12 +83,7 @@ def api(user: str) -> wandb.Api:
     since the default `api` fixture is function-scoped, meaning it does not
     play well with other module-scoped fixtures.
     """
-    with unittest.mock.patch.object(
-        wandb.sdk.wandb_login,
-        "_login",
-        return_value=(True, None),
-    ):
-        yield wandb.Api()
+    return wandb.Api(api_key=user)
 
 
 @fixture(scope="module")
@@ -169,12 +164,14 @@ def valid_input_actions() -> list[ActionType]:
 
 
 # Invalid (event, scope) combinations that should be skipped
-@lru_cache(maxsize=None)
+@lru_cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
         (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
+        (EventType.RUN_METRIC_ZSCORE, ScopeType.ARTIFACT_COLLECTION),
+        (EventType.RUN_STATE, ScopeType.ARTIFACT_COLLECTION),
     }
 
 
@@ -259,6 +256,28 @@ def on_run_metric_change(scope) -> OnRunMetric:
 
 
 @fixture
+def on_run_metric_zscore(scope) -> OnRunMetric:
+    from wandb.automations import MetricZScoreFilter
+    from wandb.automations._filters.run_metrics import ChangeDir
+
+    run_filter = RunEvent.name.contains("my-run")
+    metric_filter = MetricZScoreFilter(
+        name="my-metric",
+        window=5,
+        threshold=2.0,
+        change_dir=ChangeDir.ANY,
+    )
+    return OnRunMetric(scope=scope, filter=run_filter & metric_filter)
+
+
+@fixture
+def on_run_state(scope) -> OnRunState:
+    run_filter = RunEvent.name.contains("my-run")
+    state_filter = RunEvent.state == "failed"
+    return OnRunState(scope=scope, filter=run_filter & state_filter)
+
+
+@fixture
 def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     """An event object for defining a **new** automation."""
     event2fixture: dict[EventType, str] = {
@@ -267,6 +286,8 @@ def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
+        EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,
+        EventType.RUN_STATE: on_run_state.__name__,
     }
     return request.getfixturevalue(event2fixture[event_type])
 

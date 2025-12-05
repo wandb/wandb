@@ -26,7 +26,7 @@ func stubColorProvider(colors ...string) func() lipgloss.AdaptiveColor {
 func TestNewTimeSeriesLineChart_ConstructsAndInitializes(t *testing.T) {
 	def := &leet.MetricDef{
 		Name:       "CPU",
-		Unit:       "%",
+		Unit:       leet.UnitPercent,
 		MinY:       0,
 		MaxY:       100,
 		AutoRange:  true,
@@ -53,7 +53,7 @@ func TestNewTimeSeriesLineChart_ConstructsAndInitializes(t *testing.T) {
 func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
 	def := &leet.MetricDef{
 		Name:       "Mem",
-		Unit:       "GB",
+		Unit:       leet.UnitGiB,
 		MinY:       0,
 		MaxY:       64,
 		AutoRange:  true,
@@ -96,7 +96,7 @@ func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
 func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 	def := &leet.MetricDef{
 		Name:       "CPU",
-		Unit:       "%",
+		Unit:       leet.UnitPercent,
 		MinY:       0,
 		MaxY:       100,
 		AutoRange:  true,

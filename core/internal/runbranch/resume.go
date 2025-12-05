@@ -104,8 +104,10 @@ func (rb *ResumeBranch) UpdateForResume(
 		if err != nil && rb.mode == "must" {
 			info := &spb.ErrorInfo{
 				Code: spb.ErrorInfo_USAGE,
-				Message: fmt.Sprintf("The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
-					params.RunID),
+				Message: fmt.Sprintf(
+					"The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
+					params.RunID,
+				),
 			}
 			err = fmt.Errorf("could not resume run: %s", err)
 			return &BranchError{Err: err, Response: info}

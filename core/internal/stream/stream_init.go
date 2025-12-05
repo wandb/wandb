@@ -232,6 +232,7 @@ func NewFileTransferManager(
 		fileTransferRetryClient,
 		logger,
 		fileTransferStats,
+		settings.GetExtraHTTPHeaders(),
 	)
 
 	// Set the Proxy function on the HTTP client.
@@ -248,6 +249,7 @@ func NewFileTransferManager(
 
 	// Set the "Proxy-Authorization" header for the CONNECT requests
 	// to the proxy server if the header is present in the extra headers.
+	// NOTE: [NewGraphQLClient] and [NewFileStream] does this in backend.NewClient
 	if header, ok := settings.GetExtraHTTPHeaders()["Proxy-Authorization"]; ok {
 		transport.ProxyConnectHeader = http.Header{
 			"Proxy-Authorization": []string{header},

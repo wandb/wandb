@@ -30,7 +30,10 @@ func TestRightSidebar_UpdateDimensions_ToggleAndViewHeader(t *testing.T) {
 	expandRightSidebar(t, rs, termWidth, false)
 
 	// Width should equal clamped int(termWidth * SidebarWidthRatio).
-	want := min(max(int(float64(termWidth)*leet.SidebarWidthRatio), leet.SidebarMinWidth), leet.SidebarMaxWidth)
+	want := min(
+		max(int(float64(termWidth)*leet.SidebarWidthRatio), leet.SidebarMinWidth),
+		leet.SidebarMaxWidth,
+	)
 	require.Equal(t, want, rs.Width())
 
 	// Ensure View renders header text once visible and grid ensured.

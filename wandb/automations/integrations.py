@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Union
+from typing import Union
 
 from pydantic import Field, TypeAdapter
 from typing_extensions import Annotated
@@ -30,7 +30,7 @@ Integration = Annotated[
 ]
 
 # INTERNAL USE ONLY: For parsing integrations from paginated responses
-IntegrationListAdapter: TypeAdapter[list[Integration]] = TypeAdapter(List[Integration])
+IntegrationAdapter: TypeAdapter[Integration] = TypeAdapter(Integration)
 
 
 __all__ = [

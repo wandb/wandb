@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.40.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.40.0.
+
+### Bug Fixes
+
+- Disable `DisableTelemetryBuffer` flag and noop Telemetry Buffer, to prevent a panic at runtime ([#1149](https://github.com/getsentry/sentry-go/pull/1149)).
+
+## 0.39.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.39.0.
+
+### Features
+
+- Drop events from the telemetry buffer when rate-limited or transport is full, allowing the buffer queue to empty itself under load ([#1138](https://github.com/getsentry/sentry-go/pull/1138)).
+
+### Bug Fixes
+
+- Fix scheduler's `hasWork()` method to check if buffers are ready to flush. The previous implementation was causing CPU spikes ([#1143](https://github.com/getsentry/sentry-go/pull/1143)).
+
+## 0.38.0
+
+### Breaking Changes
+
+### Features
+
+- Introduce a new async envelope transport and telemetry buffer to prioritize and batch events ([#1094](https://github.com/getsentry/sentry-go/pull/1094), [#1093](https://github.com/getsentry/sentry-go/pull/1093), [#1107](https://github.com/getsentry/sentry-go/pull/1107)).
+  - Advantages:
+    - Prioritized, per-category buffers (errors, transactions, logs, check-ins) reduce starvation and improve resilience under load
+    - Batching for high-volume logs (up to 100 items or 5s) cuts network overhead
+    - Bounded memory with eviction policies
+    - Improved flush behavior with context-aware flushing
+- Add `ClientOptions.DisableTelemetryBuffer` to opt out and fall back to the legacy transport layer (`HTTPTransport` / `HTTPSyncTransport`).
+  
+  ```go
+  err := sentry.Init(sentry.ClientOptions{
+    Dsn: "__DSN__",
+    DisableTelemetryBuffer: true, // fallback to legacy transport
+  })
+  ```
+
+### Notes
+
+- If a custom `Transport` is provided, the SDK automatically disables the telemetry buffer and uses the legacy transport for compatibility.
+
+## 0.37.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.37.0.
+
+### Breaking Changes
+
+- Behavioral change for the `TraceIgnoreStatusCodes` option. The option now defaults to ignoring 404 status codes ([#1122](https://github.com/getsentry/sentry-go/pull/1122)).
+
+### Features
+
+- Add `sentry.origin` attribute to structured logs to identify log origin for `slog` and `logrus` integrations (`auto.log.slog`, `auto.log.logrus`) ([#1121](https://github.com/getsentry/sentry-go/pull/1121)).
+
+### Bug Fixes
+
+- Fix `slog` event handler to use the initial context, ensuring events use the correct hub/span when the emission context lacks one ([#1133](https://github.com/getsentry/sentry-go/pull/1133)).
+- Improve exception chain processing by checking pointer values when tracking visited errors, avoiding instability for certain wrapped errors ([#1132](https://github.com/getsentry/sentry-go/pull/1132)).
+
+### Misc
+
+- Bump `golang.org/x/net` to v0.38.0 ([#1126](https://github.com/getsentry/sentry-go/pull/1126)).
+
 ## 0.36.2
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.36.2.

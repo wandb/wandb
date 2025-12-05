@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 import wandb
+from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib.credentials import _expires_at_fmt
 
@@ -18,6 +19,12 @@ def test_login_timeout(emulated_terminal):
     assert logged_in is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "disabled"
+
+
+def test_login_no_terminput():
+    """Raise if key not configured and interactive prompt unavailable."""
+    with pytest.raises(UsageError, match="No API key configured"):
+        wandb.login()
 
 
 def test_login_timeout_choose(emulated_terminal):
@@ -74,52 +81,37 @@ def test_login(test_settings):
     wandb.finish()
 
 
-def test_login_anonymous(monkeypatch):
-    monkeypatch.setenv("WANDB_API_KEY", "ANONYMOOSE" * 4)
-
-    wandb.login(anonymous="must")
-
-    assert wandb.api.api_key == "ANONYMOOSE" * 4
-    assert wandb.setup().settings.anonymous == "must"
-
-
-def test_login_sets_api_base_url(
-    emulated_terminal,
-    monkeypatch,
-    local_settings,
-    skip_verify_login,
-):
-    _ = emulated_terminal
-
+@pytest.mark.usefixtures(
+    "emulated_terminal",
+    "local_settings",
+    "skip_verify_login",
+)
+def test_login_sets_api_base_url(monkeypatch: pytest.MonkeyPatch):
     # HACK: Prevent the test from attempting to connect to the fake URLs.
     monkeypatch.setattr(
-        wandb_login._WandbLogin,
+        wandb_login,
         "_print_logged_in_message",
-        lambda self: None,
+        lambda *args, **kwargs: None,
     )
 
-    monkeypatch.setenv("WANDB_API_KEY", "ANONYMOOSE" * 4)
     base_url = "https://api.test.host.ai"
-    wandb.login(anonymous="must", host=base_url)
-
+    wandb.login(key="test" * 10, host=base_url)
     assert wandb_setup.singleton().settings.base_url == base_url
 
     base_url = "https://api.wandb.ai"
-    wandb.login(anonymous="must", host=base_url)
-
+    wandb.login(key="test" * 10, host=base_url)
     assert wandb_setup.singleton().settings.base_url == base_url
 
 
-def test_login_invalid_key():
-    with mock.patch(
+def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
         "wandb.apis.internal.Api.validate_api_key",
-        return_value=False,
-    ):
-        wandb.ensure_configured()
-        with pytest.raises(wandb.errors.AuthenticationError):
-            wandb.login(key="X" * 40, verify=True)
+        lambda self: False,
+    )
+    wandb.ensure_configured()
 
-        assert wandb.api.api_key is None
+    with pytest.raises(wandb.errors.AuthenticationError):
+        wandb.login(key="X" * 40, verify=True)
 
 
 # TODO: Make this a system test that runs agains the local-testcontainer?

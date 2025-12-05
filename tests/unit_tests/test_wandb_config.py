@@ -2,7 +2,7 @@
 
 import pytest
 import yaml
-from wandb import wandb_sdk
+from wandb import sdk as wandb_sdk
 
 
 def get_callback(d):

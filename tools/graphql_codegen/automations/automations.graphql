@@ -129,8 +129,8 @@ query GetAutomations($cursor: String, $perPage: Int) {
     }
   }
 }
-query GetAutomationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  scope: entity(name: $entityName) {
+query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
+  scope: entity(name: $entity) {
     projects(after: $cursor, first: $perPage) {
       pageInfo {
         ...PageInfoFields
@@ -168,8 +168,8 @@ mutation DeleteAutomation($id: ID!) {
 }
 
 # ------------------------------------------------------------------------------
-query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  entity(name: $entityName) {
+query IntegrationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
+  entity(name: $entity) {
     integrations(after: $cursor, first: $perPage) {
       pageInfo {
         ...PageInfoFields
@@ -177,36 +177,6 @@ query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int)
       edges {
         node {
           ...SlackIntegrationFields
-          ...WebhookIntegrationFields
-        }
-      }
-    }
-  }
-}
-
-query SlackIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  entity(name: $entityName) {
-    integrations(after: $cursor, first: $perPage) {
-      pageInfo {
-        ...PageInfoFields
-      }
-      edges {
-        node {
-          ...SlackIntegrationFields
-        }
-      }
-    }
-  }
-}
-
-query WebhookIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
-  entity(name: $entityName) {
-    integrations(after: $cursor, first: $perPage) {
-      pageInfo {
-        ...PageInfoFields
-      }
-      edges {
-        node {
           ...WebhookIntegrationFields
         }
       }

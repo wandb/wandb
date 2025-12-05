@@ -20,6 +20,57 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ServerApiInitRequest instructs the backend process
+// to initialize resources to handle ApiRequests.
+//
+// This should be sent once prior to sending any ApiRequests.
+type ServerApiInitRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Settings *Settings `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
+}
+
+func (x *ServerApiInitRequest) Reset() {
+	*x = ServerApiInitRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ServerApiInitRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServerApiInitRequest) ProtoMessage() {}
+
+func (x *ServerApiInitRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[0]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServerApiInitRequest.ProtoReflect.Descriptor instead.
+func (*ServerApiInitRequest) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ServerApiInitRequest) GetSettings() *Settings {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
 // ApiRequest is a request to the backend process
 // to perform an action related to an API call.
 type ApiRequest struct {
@@ -29,14 +80,14 @@ type ApiRequest struct {
 
 	// Types that are assignable to Request:
 	//
-	//	*ApiRequest_ReadRunHistory
+	//	*ApiRequest_ReadRunHistoryRequest
 	Request isApiRequest_Request `protobuf_oneof:"request"`
 }
 
 func (x *ApiRequest) Reset() {
 	*x = ApiRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_api_proto_msgTypes[0]
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -49,7 +100,7 @@ func (x *ApiRequest) String() string {
 func (*ApiRequest) ProtoMessage() {}
 
 func (x *ApiRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_api_proto_msgTypes[0]
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62,7 +113,7 @@ func (x *ApiRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApiRequest.ProtoReflect.Descriptor instead.
 func (*ApiRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{0}
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{1}
 }
 
 func (m *ApiRequest) GetRequest() isApiRequest_Request {
@@ -72,9 +123,9 @@ func (m *ApiRequest) GetRequest() isApiRequest_Request {
 	return nil
 }
 
-func (x *ApiRequest) GetReadRunHistory() *ReadRunHistoryApiRequest {
-	if x, ok := x.GetRequest().(*ApiRequest_ReadRunHistory); ok {
-		return x.ReadRunHistory
+func (x *ApiRequest) GetReadRunHistoryRequest() *ReadRunHistoryRequest {
+	if x, ok := x.GetRequest().(*ApiRequest_ReadRunHistoryRequest); ok {
+		return x.ReadRunHistoryRequest
 	}
 	return nil
 }
@@ -83,11 +134,58 @@ type isApiRequest_Request interface {
 	isApiRequest_Request()
 }
 
-type ApiRequest_ReadRunHistory struct {
-	ReadRunHistory *ReadRunHistoryApiRequest `protobuf:"bytes,1,opt,name=read_run_history,json=readRunHistory,proto3,oneof"`
+type ApiRequest_ReadRunHistoryRequest struct {
+	ReadRunHistoryRequest *ReadRunHistoryRequest `protobuf:"bytes,1,opt,name=read_run_history_request,json=readRunHistoryRequest,proto3,oneof"`
 }
 
-func (*ApiRequest_ReadRunHistory) isApiRequest_Request() {}
+func (*ApiRequest_ReadRunHistoryRequest) isApiRequest_Request() {}
+
+type ServerApiInitResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ErrorMessage string `protobuf:"bytes,1,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+}
+
+func (x *ServerApiInitResponse) Reset() {
+	*x = ServerApiInitResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ServerApiInitResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServerApiInitResponse) ProtoMessage() {}
+
+func (x *ServerApiInitResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServerApiInitResponse.ProtoReflect.Descriptor instead.
+func (*ServerApiInitResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ServerApiInitResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
 
 // ApiResponse is a response from the backend process for an ApiRequest.
 type ApiResponse struct {
@@ -97,14 +195,15 @@ type ApiResponse struct {
 
 	// Types that are assignable to Response:
 	//
-	//	*ApiResponse_ReadRunHistory
+	//	*ApiResponse_ReadRunHistoryResponse
+	//	*ApiResponse_ApiErrorResponse
 	Response isApiResponse_Response `protobuf_oneof:"response"`
 }
 
 func (x *ApiResponse) Reset() {
 	*x = ApiResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_api_proto_msgTypes[1]
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -117,7 +216,7 @@ func (x *ApiResponse) String() string {
 func (*ApiResponse) ProtoMessage() {}
 
 func (x *ApiResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_api_proto_msgTypes[1]
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -130,7 +229,7 @@ func (x *ApiResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApiResponse.ProtoReflect.Descriptor instead.
 func (*ApiResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{1}
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{3}
 }
 
 func (m *ApiResponse) GetResponse() isApiResponse_Response {
@@ -140,9 +239,16 @@ func (m *ApiResponse) GetResponse() isApiResponse_Response {
 	return nil
 }
 
-func (x *ApiResponse) GetReadRunHistory() *ReadRunHistoryApiResponse {
-	if x, ok := x.GetResponse().(*ApiResponse_ReadRunHistory); ok {
-		return x.ReadRunHistory
+func (x *ApiResponse) GetReadRunHistoryResponse() *ReadRunHistoryResponse {
+	if x, ok := x.GetResponse().(*ApiResponse_ReadRunHistoryResponse); ok {
+		return x.ReadRunHistoryResponse
+	}
+	return nil
+}
+
+func (x *ApiResponse) GetApiErrorResponse() *ApiErrorResponse {
+	if x, ok := x.GetResponse().(*ApiResponse_ApiErrorResponse); ok {
+		return x.ApiErrorResponse
 	}
 	return nil
 }
@@ -151,43 +257,43 @@ type isApiResponse_Response interface {
 	isApiResponse_Response()
 }
 
-type ApiResponse_ReadRunHistory struct {
-	ReadRunHistory *ReadRunHistoryApiResponse `protobuf:"bytes,1,opt,name=read_run_history,json=readRunHistory,proto3,oneof"`
+type ApiResponse_ReadRunHistoryResponse struct {
+	ReadRunHistoryResponse *ReadRunHistoryResponse `protobuf:"bytes,1,opt,name=read_run_history_response,json=readRunHistoryResponse,proto3,oneof"`
 }
 
-func (*ApiResponse_ReadRunHistory) isApiResponse_Response() {}
+type ApiResponse_ApiErrorResponse struct {
+	ApiErrorResponse *ApiErrorResponse `protobuf:"bytes,2,opt,name=api_error_response,json=apiErrorResponse,proto3,oneof"`
+}
 
-type ReadRunHistoryApiRequest struct {
+func (*ApiResponse_ReadRunHistoryResponse) isApiResponse_Response() {}
+
+func (*ApiResponse_ApiErrorResponse) isApiResponse_Response() {}
+
+type ApiErrorResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Entity  string       `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
-	Project string       `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
-	RunId   string       `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
-	Keys    []string     `protobuf:"bytes,4,rep,name=keys,proto3" json:"keys,omitempty"`
-	MinStep int64        `protobuf:"varint,5,opt,name=min_step,json=minStep,proto3" json:"min_step,omitempty"`
-	MaxStep int64        `protobuf:"varint,6,opt,name=max_step,json=maxStep,proto3" json:"max_step,omitempty"`
-	XInfo   *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+	Message string `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 }
 
-func (x *ReadRunHistoryApiRequest) Reset() {
-	*x = ReadRunHistoryApiRequest{}
+func (x *ApiErrorResponse) Reset() {
+	*x = ApiErrorResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_api_proto_msgTypes[2]
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *ReadRunHistoryApiRequest) String() string {
+func (x *ApiErrorResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReadRunHistoryApiRequest) ProtoMessage() {}
+func (*ApiErrorResponse) ProtoMessage() {}
 
-func (x *ReadRunHistoryApiRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_api_proto_msgTypes[2]
+func (x *ApiErrorResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -198,86 +304,318 @@ func (x *ReadRunHistoryApiRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReadRunHistoryApiRequest.ProtoReflect.Descriptor instead.
-func (*ReadRunHistoryApiRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{2}
+// Deprecated: Use ApiErrorResponse.ProtoReflect.Descriptor instead.
+func (*ApiErrorResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *ReadRunHistoryApiRequest) GetEntity() string {
+func (x *ApiErrorResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type ReadRunHistoryRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to Request:
+	//
+	//	*ReadRunHistoryRequest_ScanRunHistoryInit
+	//	*ReadRunHistoryRequest_ScanRunHistory
+	//	*ReadRunHistoryRequest_ScanRunHistoryCleanup
+	Request isReadRunHistoryRequest_Request `protobuf_oneof:"request"`
+}
+
+func (x *ReadRunHistoryRequest) Reset() {
+	*x = ReadRunHistoryRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReadRunHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadRunHistoryRequest) ProtoMessage() {}
+
+func (x *ReadRunHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadRunHistoryRequest.ProtoReflect.Descriptor instead.
+func (*ReadRunHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{5}
+}
+
+func (m *ReadRunHistoryRequest) GetRequest() isReadRunHistoryRequest_Request {
+	if m != nil {
+		return m.Request
+	}
+	return nil
+}
+
+func (x *ReadRunHistoryRequest) GetScanRunHistoryInit() *ScanRunHistoryInit {
+	if x, ok := x.GetRequest().(*ReadRunHistoryRequest_ScanRunHistoryInit); ok {
+		return x.ScanRunHistoryInit
+	}
+	return nil
+}
+
+func (x *ReadRunHistoryRequest) GetScanRunHistory() *ScanRunHistory {
+	if x, ok := x.GetRequest().(*ReadRunHistoryRequest_ScanRunHistory); ok {
+		return x.ScanRunHistory
+	}
+	return nil
+}
+
+func (x *ReadRunHistoryRequest) GetScanRunHistoryCleanup() *ScanRunHistoryCleanup {
+	if x, ok := x.GetRequest().(*ReadRunHistoryRequest_ScanRunHistoryCleanup); ok {
+		return x.ScanRunHistoryCleanup
+	}
+	return nil
+}
+
+type isReadRunHistoryRequest_Request interface {
+	isReadRunHistoryRequest_Request()
+}
+
+type ReadRunHistoryRequest_ScanRunHistoryInit struct {
+	ScanRunHistoryInit *ScanRunHistoryInit `protobuf:"bytes,1,opt,name=scan_run_history_init,json=scanRunHistoryInit,proto3,oneof"`
+}
+
+type ReadRunHistoryRequest_ScanRunHistory struct {
+	ScanRunHistory *ScanRunHistory `protobuf:"bytes,2,opt,name=scan_run_history,json=scanRunHistory,proto3,oneof"`
+}
+
+type ReadRunHistoryRequest_ScanRunHistoryCleanup struct {
+	ScanRunHistoryCleanup *ScanRunHistoryCleanup `protobuf:"bytes,3,opt,name=scan_run_history_cleanup,json=scanRunHistoryCleanup,proto3,oneof"`
+}
+
+func (*ReadRunHistoryRequest_ScanRunHistoryInit) isReadRunHistoryRequest_Request() {}
+
+func (*ReadRunHistoryRequest_ScanRunHistory) isReadRunHistoryRequest_Request() {}
+
+func (*ReadRunHistoryRequest_ScanRunHistoryCleanup) isReadRunHistoryRequest_Request() {}
+
+type ReadRunHistoryResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to Response:
+	//
+	//	*ReadRunHistoryResponse_ScanRunHistoryInit
+	//	*ReadRunHistoryResponse_RunHistory
+	//	*ReadRunHistoryResponse_ScanRunHistoryCleanup
+	Response isReadRunHistoryResponse_Response `protobuf_oneof:"response"`
+}
+
+func (x *ReadRunHistoryResponse) Reset() {
+	*x = ReadRunHistoryResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReadRunHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadRunHistoryResponse) ProtoMessage() {}
+
+func (x *ReadRunHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadRunHistoryResponse.ProtoReflect.Descriptor instead.
+func (*ReadRunHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{6}
+}
+
+func (m *ReadRunHistoryResponse) GetResponse() isReadRunHistoryResponse_Response {
+	if m != nil {
+		return m.Response
+	}
+	return nil
+}
+
+func (x *ReadRunHistoryResponse) GetScanRunHistoryInit() *ScanRunHistoryInitResponse {
+	if x, ok := x.GetResponse().(*ReadRunHistoryResponse_ScanRunHistoryInit); ok {
+		return x.ScanRunHistoryInit
+	}
+	return nil
+}
+
+func (x *ReadRunHistoryResponse) GetRunHistory() *RunHistoryResponse {
+	if x, ok := x.GetResponse().(*ReadRunHistoryResponse_RunHistory); ok {
+		return x.RunHistory
+	}
+	return nil
+}
+
+func (x *ReadRunHistoryResponse) GetScanRunHistoryCleanup() *ScanRunHistoryCleanupResponse {
+	if x, ok := x.GetResponse().(*ReadRunHistoryResponse_ScanRunHistoryCleanup); ok {
+		return x.ScanRunHistoryCleanup
+	}
+	return nil
+}
+
+type isReadRunHistoryResponse_Response interface {
+	isReadRunHistoryResponse_Response()
+}
+
+type ReadRunHistoryResponse_ScanRunHistoryInit struct {
+	ScanRunHistoryInit *ScanRunHistoryInitResponse `protobuf:"bytes,1,opt,name=scan_run_history_init,json=scanRunHistoryInit,proto3,oneof"`
+}
+
+type ReadRunHistoryResponse_RunHistory struct {
+	RunHistory *RunHistoryResponse `protobuf:"bytes,2,opt,name=run_history,json=runHistory,proto3,oneof"`
+}
+
+type ReadRunHistoryResponse_ScanRunHistoryCleanup struct {
+	ScanRunHistoryCleanup *ScanRunHistoryCleanupResponse `protobuf:"bytes,3,opt,name=scan_run_history_cleanup,json=scanRunHistoryCleanup,proto3,oneof"`
+}
+
+func (*ReadRunHistoryResponse_ScanRunHistoryInit) isReadRunHistoryResponse_Response() {}
+
+func (*ReadRunHistoryResponse_RunHistory) isReadRunHistoryResponse_Response() {}
+
+func (*ReadRunHistoryResponse_ScanRunHistoryCleanup) isReadRunHistoryResponse_Response() {}
+
+// ScanRunHistoryInit is a request to initialize
+// a scan over a run's history.
+//
+// Because scan history request will be made over a series of requests,
+// We want to keep initialize and keep track of the resources
+// associated with the scan request.
+type ScanRunHistoryInit struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Entity   string   `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
+	Project  string   `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	RunId    string   `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	Keys     []string `protobuf:"bytes,4,rep,name=keys,proto3" json:"keys,omitempty"`
+	UseCache bool     `protobuf:"varint,5,opt,name=use_cache,json=useCache,proto3" json:"use_cache,omitempty"`
+}
+
+func (x *ScanRunHistoryInit) Reset() {
+	*x = ScanRunHistoryInit{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ScanRunHistoryInit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScanRunHistoryInit) ProtoMessage() {}
+
+func (x *ScanRunHistoryInit) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScanRunHistoryInit.ProtoReflect.Descriptor instead.
+func (*ScanRunHistoryInit) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ScanRunHistoryInit) GetEntity() string {
 	if x != nil {
 		return x.Entity
 	}
 	return ""
 }
 
-func (x *ReadRunHistoryApiRequest) GetProject() string {
+func (x *ScanRunHistoryInit) GetProject() string {
 	if x != nil {
 		return x.Project
 	}
 	return ""
 }
 
-func (x *ReadRunHistoryApiRequest) GetRunId() string {
+func (x *ScanRunHistoryInit) GetRunId() string {
 	if x != nil {
 		return x.RunId
 	}
 	return ""
 }
 
-func (x *ReadRunHistoryApiRequest) GetKeys() []string {
+func (x *ScanRunHistoryInit) GetKeys() []string {
 	if x != nil {
 		return x.Keys
 	}
 	return nil
 }
 
-func (x *ReadRunHistoryApiRequest) GetMinStep() int64 {
+func (x *ScanRunHistoryInit) GetUseCache() bool {
 	if x != nil {
-		return x.MinStep
+		return x.UseCache
 	}
-	return 0
+	return false
 }
 
-func (x *ReadRunHistoryApiRequest) GetMaxStep() int64 {
-	if x != nil {
-		return x.MaxStep
-	}
-	return 0
-}
-
-func (x *ReadRunHistoryApiRequest) GetXInfo() *XRecordInfo {
-	if x != nil {
-		return x.XInfo
-	}
-	return nil
-}
-
-type ReadRunHistoryApiResponse struct {
+type ScanRunHistoryInitResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	HistoryRows  []*HistoryRow `protobuf:"bytes,1,rep,name=history_rows,json=historyRows,proto3" json:"history_rows,omitempty"`
-	ErrorMessage string        `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	RequestId int32 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 }
 
-func (x *ReadRunHistoryApiResponse) Reset() {
-	*x = ReadRunHistoryApiResponse{}
+func (x *ScanRunHistoryInitResponse) Reset() {
+	*x = ScanRunHistoryInitResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_api_proto_msgTypes[3]
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *ReadRunHistoryApiResponse) String() string {
+func (x *ScanRunHistoryInitResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReadRunHistoryApiResponse) ProtoMessage() {}
+func (*ScanRunHistoryInitResponse) ProtoMessage() {}
 
-func (x *ReadRunHistoryApiResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_api_proto_msgTypes[3]
+func (x *ScanRunHistoryInitResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -288,23 +626,128 @@ func (x *ReadRunHistoryApiResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReadRunHistoryApiResponse.ProtoReflect.Descriptor instead.
-func (*ReadRunHistoryApiResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{3}
+// Deprecated: Use ScanRunHistoryInitResponse.ProtoReflect.Descriptor instead.
+func (*ScanRunHistoryInitResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *ReadRunHistoryApiResponse) GetHistoryRows() []*HistoryRow {
+func (x *ScanRunHistoryInitResponse) GetRequestId() int32 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
+// ScanRunHistory is a request to scan
+// over a portion of a run's history.
+type ScanRunHistory struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	MinStep   int64 `protobuf:"varint,1,opt,name=min_step,json=minStep,proto3" json:"min_step,omitempty"`
+	MaxStep   int64 `protobuf:"varint,2,opt,name=max_step,json=maxStep,proto3" json:"max_step,omitempty"`
+	RequestId int32 `protobuf:"varint,3,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+}
+
+func (x *ScanRunHistory) Reset() {
+	*x = ScanRunHistory{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ScanRunHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScanRunHistory) ProtoMessage() {}
+
+func (x *ScanRunHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScanRunHistory.ProtoReflect.Descriptor instead.
+func (*ScanRunHistory) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ScanRunHistory) GetMinStep() int64 {
+	if x != nil {
+		return x.MinStep
+	}
+	return 0
+}
+
+func (x *ScanRunHistory) GetMaxStep() int64 {
+	if x != nil {
+		return x.MaxStep
+	}
+	return 0
+}
+
+func (x *ScanRunHistory) GetRequestId() int32 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
+type RunHistoryResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	HistoryRows []*HistoryRow `protobuf:"bytes,1,rep,name=history_rows,json=historyRows,proto3" json:"history_rows,omitempty"`
+}
+
+func (x *RunHistoryResponse) Reset() {
+	*x = RunHistoryResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RunHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunHistoryResponse) ProtoMessage() {}
+
+func (x *RunHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunHistoryResponse.ProtoReflect.Descriptor instead.
+func (*RunHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RunHistoryResponse) GetHistoryRows() []*HistoryRow {
 	if x != nil {
 		return x.HistoryRows
 	}
 	return nil
-}
-
-func (x *ReadRunHistoryApiResponse) GetErrorMessage() string {
-	if x != nil {
-		return x.ErrorMessage
-	}
-	return ""
 }
 
 type HistoryRow struct {
@@ -318,7 +761,7 @@ type HistoryRow struct {
 func (x *HistoryRow) Reset() {
 	*x = HistoryRow{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_api_proto_msgTypes[4]
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -331,7 +774,7 @@ func (x *HistoryRow) String() string {
 func (*HistoryRow) ProtoMessage() {}
 
 func (x *HistoryRow) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_api_proto_msgTypes[4]
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -344,7 +787,7 @@ func (x *HistoryRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HistoryRow.ProtoReflect.Descriptor instead.
 func (*HistoryRow) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{4}
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *HistoryRow) GetHistoryItems() []*ParquetHistoryItem {
@@ -366,7 +809,7 @@ type ParquetHistoryItem struct {
 func (x *ParquetHistoryItem) Reset() {
 	*x = ParquetHistoryItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_api_proto_msgTypes[5]
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -379,7 +822,7 @@ func (x *ParquetHistoryItem) String() string {
 func (*ParquetHistoryItem) ProtoMessage() {}
 
 func (x *ParquetHistoryItem) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_api_proto_msgTypes[5]
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -392,7 +835,7 @@ func (x *ParquetHistoryItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParquetHistoryItem.ProtoReflect.Descriptor instead.
 func (*ParquetHistoryItem) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{5}
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ParquetHistoryItem) GetKey() string {
@@ -409,63 +852,215 @@ func (x *ParquetHistoryItem) GetValueJson() string {
 	return ""
 }
 
+// ScanRunHistoryCleanup is a request to cleanup
+// any resources associated with a scan request.
+type ScanRunHistoryCleanup struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	RequestId int32 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+}
+
+func (x *ScanRunHistoryCleanup) Reset() {
+	*x = ScanRunHistoryCleanup{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ScanRunHistoryCleanup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScanRunHistoryCleanup) ProtoMessage() {}
+
+func (x *ScanRunHistoryCleanup) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScanRunHistoryCleanup.ProtoReflect.Descriptor instead.
+func (*ScanRunHistoryCleanup) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ScanRunHistoryCleanup) GetRequestId() int32 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
+type ScanRunHistoryCleanupResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *ScanRunHistoryCleanupResponse) Reset() {
+	*x = ScanRunHistoryCleanupResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_api_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ScanRunHistoryCleanupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScanRunHistoryCleanupResponse) ProtoMessage() {}
+
+func (x *ScanRunHistoryCleanupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScanRunHistoryCleanupResponse.ProtoReflect.Descriptor instead.
+func (*ScanRunHistoryCleanupResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{14}
+}
+
 var File_wandb_proto_wandb_api_proto protoreflect.FileDescriptor
 
 var file_wandb_proto_wandb_api_proto_rawDesc = []byte{
 	0x0a, 0x1b, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x77, 0x61,
 	0x6e, 0x64, 0x62, 0x5f, 0x61, 0x70, 0x69, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x0e, 0x77,
-	0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x1a, 0x1c, 0x77,
+	0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x1a, 0x20, 0x77,
 	0x61, 0x6e, 0x64, 0x62, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x77, 0x61, 0x6e, 0x64, 0x62,
-	0x5f, 0x62, 0x61, 0x73, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x6d, 0x0a, 0x0a, 0x41,
-	0x70, 0x69, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x54, 0x0a, 0x10, 0x72, 0x65, 0x61,
-	0x64, 0x5f, 0x72, 0x75, 0x6e, 0x5f, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x0b, 0x32, 0x28, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65,
-	0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x65, 0x61, 0x64, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74,
-	0x6f, 0x72, 0x79, 0x41, 0x70, 0x69, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x48, 0x00, 0x52,
-	0x0e, 0x72, 0x65, 0x61, 0x64, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x42,
-	0x09, 0x0a, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x70, 0x0a, 0x0b, 0x41, 0x70,
-	0x69, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x55, 0x0a, 0x10, 0x72, 0x65, 0x61,
-	0x64, 0x5f, 0x72, 0x75, 0x6e, 0x5f, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x0b, 0x32, 0x29, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65,
-	0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x65, 0x61, 0x64, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74,
-	0x6f, 0x72, 0x79, 0x41, 0x70, 0x69, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x48, 0x00,
-	0x52, 0x0e, 0x72, 0x65, 0x61, 0x64, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79,
-	0x42, 0x0a, 0x0a, 0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0xe0, 0x01, 0x0a,
-	0x18, 0x52, 0x65, 0x61, 0x64, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x41,
-	0x70, 0x69, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x16, 0x0a, 0x06, 0x65, 0x6e, 0x74,
-	0x69, 0x74, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x65, 0x6e, 0x74, 0x69, 0x74,
-	0x79, 0x12, 0x18, 0x0a, 0x07, 0x70, 0x72, 0x6f, 0x6a, 0x65, 0x63, 0x74, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x07, 0x70, 0x72, 0x6f, 0x6a, 0x65, 0x63, 0x74, 0x12, 0x15, 0x0a, 0x06, 0x72,
-	0x75, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x72, 0x75, 0x6e,
-	0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6b, 0x65, 0x79, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x09,
-	0x52, 0x04, 0x6b, 0x65, 0x79, 0x73, 0x12, 0x19, 0x0a, 0x08, 0x6d, 0x69, 0x6e, 0x5f, 0x73, 0x74,
-	0x65, 0x70, 0x18, 0x05, 0x20, 0x01, 0x28, 0x03, 0x52, 0x07, 0x6d, 0x69, 0x6e, 0x53, 0x74, 0x65,
-	0x70, 0x12, 0x19, 0x0a, 0x08, 0x6d, 0x61, 0x78, 0x5f, 0x73, 0x74, 0x65, 0x70, 0x18, 0x06, 0x20,
-	0x01, 0x28, 0x03, 0x52, 0x07, 0x6d, 0x61, 0x78, 0x53, 0x74, 0x65, 0x70, 0x12, 0x31, 0x0a, 0x05,
-	0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77,
-	0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52,
-	0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x22,
-	0x7f, 0x0a, 0x19, 0x52, 0x65, 0x61, 0x64, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72,
-	0x79, 0x41, 0x70, 0x69, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3d, 0x0a, 0x0c,
-	0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x5f, 0x72, 0x6f, 0x77, 0x73, 0x18, 0x01, 0x20, 0x03,
-	0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72,
-	0x6e, 0x61, 0x6c, 0x2e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x6f, 0x77, 0x52, 0x0b,
-	0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x6f, 0x77, 0x73, 0x12, 0x23, 0x0a, 0x0d, 0x65,
-	0x72, 0x72, 0x6f, 0x72, 0x5f, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x0c, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65,
-	0x22, 0x55, 0x0a, 0x0a, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x6f, 0x77, 0x12, 0x47,
-	0x0a, 0x0d, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x5f, 0x69, 0x74, 0x65, 0x6d, 0x73, 0x18,
-	0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x22, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e,
-	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x50, 0x61, 0x72, 0x71, 0x75, 0x65, 0x74, 0x48, 0x69,
-	0x73, 0x74, 0x6f, 0x72, 0x79, 0x49, 0x74, 0x65, 0x6d, 0x52, 0x0c, 0x68, 0x69, 0x73, 0x74, 0x6f,
-	0x72, 0x79, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x22, 0x45, 0x0a, 0x12, 0x50, 0x61, 0x72, 0x71, 0x75,
-	0x65, 0x74, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x49, 0x74, 0x65, 0x6d, 0x12, 0x10, 0x0a,
-	0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12,
-	0x1d, 0x0a, 0x0a, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x5f, 0x6a, 0x73, 0x6f, 0x6e, 0x18, 0x10, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x09, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x4a, 0x73, 0x6f, 0x6e, 0x42, 0x1b,
-	0x5a, 0x19, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x73, 0x65, 0x72, 0x76, 0x69,
-	0x63, 0x65, 0x5f, 0x67, 0x6f, 0x5f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x5f, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22,
+	0x4c, 0x0a, 0x14, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x41, 0x70, 0x69, 0x49, 0x6e, 0x69, 0x74,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x34, 0x0a, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69,
+	0x6e, 0x67, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e, 0x77, 0x61, 0x6e, 0x64,
+	0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69,
+	0x6e, 0x67, 0x73, 0x52, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x22, 0x79, 0x0a,
+	0x0a, 0x41, 0x70, 0x69, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x60, 0x0a, 0x18, 0x72,
+	0x65, 0x61, 0x64, 0x5f, 0x72, 0x75, 0x6e, 0x5f, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x5f,
+	0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x25, 0x2e,
+	0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52,
+	0x65, 0x61, 0x64, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x48, 0x00, 0x52, 0x15, 0x72, 0x65, 0x61, 0x64, 0x52, 0x75, 0x6e, 0x48,
+	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x42, 0x09, 0x0a,
+	0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x3c, 0x0a, 0x15, 0x53, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x41, 0x70, 0x69, 0x49, 0x6e, 0x69, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x23, 0x0a, 0x0d, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x5f, 0x6d, 0x65, 0x73, 0x73, 0x61,
+	0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x4d,
+	0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0xd0, 0x01, 0x0a, 0x0b, 0x41, 0x70, 0x69, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x63, 0x0a, 0x19, 0x72, 0x65, 0x61, 0x64, 0x5f, 0x72,
+	0x75, 0x6e, 0x5f, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x5f, 0x72, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x26, 0x2e, 0x77, 0x61, 0x6e, 0x64,
+	0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x65, 0x61, 0x64, 0x52,
+	0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x48, 0x00, 0x52, 0x16, 0x72, 0x65, 0x61, 0x64, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74,
+	0x6f, 0x72, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x50, 0x0a, 0x12, 0x61,
+	0x70, 0x69, 0x5f, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x5f, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f,
+	0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x41, 0x70, 0x69, 0x45, 0x72, 0x72, 0x6f,
+	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x48, 0x00, 0x52, 0x10, 0x61, 0x70, 0x69,
+	0x45, 0x72, 0x72, 0x6f, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x0a, 0x0a,
+	0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x2c, 0x0a, 0x10, 0x41, 0x70, 0x69,
+	0x45, 0x72, 0x72, 0x6f, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a,
+	0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07,
+	0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0xa9, 0x02, 0x0a, 0x15, 0x52, 0x65, 0x61, 0x64,
+	0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x12, 0x57, 0x0a, 0x15, 0x73, 0x63, 0x61, 0x6e, 0x5f, 0x72, 0x75, 0x6e, 0x5f, 0x68, 0x69,
+	0x73, 0x74, 0x6f, 0x72, 0x79, 0x5f, 0x69, 0x6e, 0x69, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x22, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61,
+	0x6c, 0x2e, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79,
+	0x49, 0x6e, 0x69, 0x74, 0x48, 0x00, 0x52, 0x12, 0x73, 0x63, 0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48,
+	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x49, 0x6e, 0x69, 0x74, 0x12, 0x4a, 0x0a, 0x10, 0x73, 0x63,
+	0x61, 0x6e, 0x5f, 0x72, 0x75, 0x6e, 0x5f, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74,
+	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73,
+	0x74, 0x6f, 0x72, 0x79, 0x48, 0x00, 0x52, 0x0e, 0x73, 0x63, 0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48,
+	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x60, 0x0a, 0x18, 0x73, 0x63, 0x61, 0x6e, 0x5f, 0x72,
+	0x75, 0x6e, 0x5f, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x5f, 0x63, 0x6c, 0x65, 0x61, 0x6e,
+	0x75, 0x70, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x25, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62,
+	0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x75,
+	0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x43, 0x6c, 0x65, 0x61, 0x6e, 0x75, 0x70, 0x48,
+	0x00, 0x52, 0x15, 0x73, 0x63, 0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72,
+	0x79, 0x43, 0x6c, 0x65, 0x61, 0x6e, 0x75, 0x70, 0x42, 0x09, 0x0a, 0x07, 0x72, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x22, 0xb6, 0x02, 0x0a, 0x16, 0x52, 0x65, 0x61, 0x64, 0x52, 0x75, 0x6e, 0x48,
+	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5f,
+	0x0a, 0x15, 0x73, 0x63, 0x61, 0x6e, 0x5f, 0x72, 0x75, 0x6e, 0x5f, 0x68, 0x69, 0x73, 0x74, 0x6f,
+	0x72, 0x79, 0x5f, 0x69, 0x6e, 0x69, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e,
+	0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53,
+	0x63, 0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x49, 0x6e, 0x69,
+	0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x48, 0x00, 0x52, 0x12, 0x73, 0x63, 0x61,
+	0x6e, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x49, 0x6e, 0x69, 0x74, 0x12,
+	0x45, 0x0a, 0x0b, 0x72, 0x75, 0x6e, 0x5f, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x22, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74,
+	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x48, 0x00, 0x52, 0x0a, 0x72, 0x75, 0x6e, 0x48,
+	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x68, 0x0a, 0x18, 0x73, 0x63, 0x61, 0x6e, 0x5f, 0x72,
+	0x75, 0x6e, 0x5f, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x5f, 0x63, 0x6c, 0x65, 0x61, 0x6e,
+	0x75, 0x70, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2d, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62,
+	0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x75,
+	0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x43, 0x6c, 0x65, 0x61, 0x6e, 0x75, 0x70, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x48, 0x00, 0x52, 0x15, 0x73, 0x63, 0x61, 0x6e, 0x52,
+	0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x43, 0x6c, 0x65, 0x61, 0x6e, 0x75, 0x70,
+	0x42, 0x0a, 0x0a, 0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x8e, 0x01, 0x0a,
+	0x12, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x49,
+	0x6e, 0x69, 0x74, 0x12, 0x16, 0x0a, 0x06, 0x65, 0x6e, 0x74, 0x69, 0x74, 0x79, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x06, 0x65, 0x6e, 0x74, 0x69, 0x74, 0x79, 0x12, 0x18, 0x0a, 0x07, 0x70,
+	0x72, 0x6f, 0x6a, 0x65, 0x63, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x70, 0x72,
+	0x6f, 0x6a, 0x65, 0x63, 0x74, 0x12, 0x15, 0x0a, 0x06, 0x72, 0x75, 0x6e, 0x5f, 0x69, 0x64, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x72, 0x75, 0x6e, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04,
+	0x6b, 0x65, 0x79, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04, 0x6b, 0x65, 0x79, 0x73,
+	0x12, 0x1b, 0x0a, 0x09, 0x75, 0x73, 0x65, 0x5f, 0x63, 0x61, 0x63, 0x68, 0x65, 0x18, 0x05, 0x20,
+	0x01, 0x28, 0x08, 0x52, 0x08, 0x75, 0x73, 0x65, 0x43, 0x61, 0x63, 0x68, 0x65, 0x22, 0x3b, 0x0a,
+	0x1a, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x49,
+	0x6e, 0x69, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x1d, 0x0a, 0x0a, 0x72,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52,
+	0x09, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x49, 0x64, 0x22, 0x65, 0x0a, 0x0e, 0x53, 0x63,
+	0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x19, 0x0a, 0x08,
+	0x6d, 0x69, 0x6e, 0x5f, 0x73, 0x74, 0x65, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x07,
+	0x6d, 0x69, 0x6e, 0x53, 0x74, 0x65, 0x70, 0x12, 0x19, 0x0a, 0x08, 0x6d, 0x61, 0x78, 0x5f, 0x73,
+	0x74, 0x65, 0x70, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x07, 0x6d, 0x61, 0x78, 0x53, 0x74,
+	0x65, 0x70, 0x12, 0x1d, 0x0a, 0x0a, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x5f, 0x69, 0x64,
+	0x18, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x09, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x49,
+	0x64, 0x22, 0x53, 0x0a, 0x12, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3d, 0x0a, 0x0c, 0x68, 0x69, 0x73, 0x74, 0x6f,
+	0x72, 0x79, 0x5f, 0x72, 0x6f, 0x77, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1a, 0x2e,
+	0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x48,
+	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x6f, 0x77, 0x52, 0x0b, 0x68, 0x69, 0x73, 0x74, 0x6f,
+	0x72, 0x79, 0x52, 0x6f, 0x77, 0x73, 0x22, 0x55, 0x0a, 0x0a, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72,
+	0x79, 0x52, 0x6f, 0x77, 0x12, 0x47, 0x0a, 0x0d, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x5f,
+	0x69, 0x74, 0x65, 0x6d, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x22, 0x2e, 0x77, 0x61,
+	0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x50, 0x61, 0x72,
+	0x71, 0x75, 0x65, 0x74, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x49, 0x74, 0x65, 0x6d, 0x52,
+	0x0c, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x22, 0x45, 0x0a,
+	0x12, 0x50, 0x61, 0x72, 0x71, 0x75, 0x65, 0x74, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x49,
+	0x74, 0x65, 0x6d, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x1d, 0x0a, 0x0a, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x5f, 0x6a,
+	0x73, 0x6f, 0x6e, 0x18, 0x10, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x76, 0x61, 0x6c, 0x75, 0x65,
+	0x4a, 0x73, 0x6f, 0x6e, 0x22, 0x36, 0x0a, 0x15, 0x53, 0x63, 0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48,
+	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x43, 0x6c, 0x65, 0x61, 0x6e, 0x75, 0x70, 0x12, 0x1d, 0x0a,
+	0x0a, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x05, 0x52, 0x09, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x49, 0x64, 0x22, 0x1f, 0x0a, 0x1d,
+	0x53, 0x63, 0x61, 0x6e, 0x52, 0x75, 0x6e, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x43, 0x6c,
+	0x65, 0x61, 0x6e, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x1b, 0x5a,
+	0x19, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63,
+	0x65, 0x5f, 0x67, 0x6f, 0x5f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x33,
 }
 
 var (
@@ -480,27 +1075,43 @@ func file_wandb_proto_wandb_api_proto_rawDescGZIP() []byte {
 	return file_wandb_proto_wandb_api_proto_rawDescData
 }
 
-var file_wandb_proto_wandb_api_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_wandb_proto_wandb_api_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_wandb_proto_wandb_api_proto_goTypes = []interface{}{
-	(*ApiRequest)(nil),                // 0: wandb_internal.ApiRequest
-	(*ApiResponse)(nil),               // 1: wandb_internal.ApiResponse
-	(*ReadRunHistoryApiRequest)(nil),  // 2: wandb_internal.ReadRunHistoryApiRequest
-	(*ReadRunHistoryApiResponse)(nil), // 3: wandb_internal.ReadRunHistoryApiResponse
-	(*HistoryRow)(nil),                // 4: wandb_internal.HistoryRow
-	(*ParquetHistoryItem)(nil),        // 5: wandb_internal.ParquetHistoryItem
-	(*XRecordInfo)(nil),               // 6: wandb_internal._RecordInfo
+	(*ServerApiInitRequest)(nil),          // 0: wandb_internal.ServerApiInitRequest
+	(*ApiRequest)(nil),                    // 1: wandb_internal.ApiRequest
+	(*ServerApiInitResponse)(nil),         // 2: wandb_internal.ServerApiInitResponse
+	(*ApiResponse)(nil),                   // 3: wandb_internal.ApiResponse
+	(*ApiErrorResponse)(nil),              // 4: wandb_internal.ApiErrorResponse
+	(*ReadRunHistoryRequest)(nil),         // 5: wandb_internal.ReadRunHistoryRequest
+	(*ReadRunHistoryResponse)(nil),        // 6: wandb_internal.ReadRunHistoryResponse
+	(*ScanRunHistoryInit)(nil),            // 7: wandb_internal.ScanRunHistoryInit
+	(*ScanRunHistoryInitResponse)(nil),    // 8: wandb_internal.ScanRunHistoryInitResponse
+	(*ScanRunHistory)(nil),                // 9: wandb_internal.ScanRunHistory
+	(*RunHistoryResponse)(nil),            // 10: wandb_internal.RunHistoryResponse
+	(*HistoryRow)(nil),                    // 11: wandb_internal.HistoryRow
+	(*ParquetHistoryItem)(nil),            // 12: wandb_internal.ParquetHistoryItem
+	(*ScanRunHistoryCleanup)(nil),         // 13: wandb_internal.ScanRunHistoryCleanup
+	(*ScanRunHistoryCleanupResponse)(nil), // 14: wandb_internal.ScanRunHistoryCleanupResponse
+	(*Settings)(nil),                      // 15: wandb_internal.Settings
 }
 var file_wandb_proto_wandb_api_proto_depIdxs = []int32{
-	2, // 0: wandb_internal.ApiRequest.read_run_history:type_name -> wandb_internal.ReadRunHistoryApiRequest
-	3, // 1: wandb_internal.ApiResponse.read_run_history:type_name -> wandb_internal.ReadRunHistoryApiResponse
-	6, // 2: wandb_internal.ReadRunHistoryApiRequest._info:type_name -> wandb_internal._RecordInfo
-	4, // 3: wandb_internal.ReadRunHistoryApiResponse.history_rows:type_name -> wandb_internal.HistoryRow
-	5, // 4: wandb_internal.HistoryRow.history_items:type_name -> wandb_internal.ParquetHistoryItem
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	15, // 0: wandb_internal.ServerApiInitRequest.settings:type_name -> wandb_internal.Settings
+	5,  // 1: wandb_internal.ApiRequest.read_run_history_request:type_name -> wandb_internal.ReadRunHistoryRequest
+	6,  // 2: wandb_internal.ApiResponse.read_run_history_response:type_name -> wandb_internal.ReadRunHistoryResponse
+	4,  // 3: wandb_internal.ApiResponse.api_error_response:type_name -> wandb_internal.ApiErrorResponse
+	7,  // 4: wandb_internal.ReadRunHistoryRequest.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInit
+	9,  // 5: wandb_internal.ReadRunHistoryRequest.scan_run_history:type_name -> wandb_internal.ScanRunHistory
+	13, // 6: wandb_internal.ReadRunHistoryRequest.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanup
+	8,  // 7: wandb_internal.ReadRunHistoryResponse.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInitResponse
+	10, // 8: wandb_internal.ReadRunHistoryResponse.run_history:type_name -> wandb_internal.RunHistoryResponse
+	14, // 9: wandb_internal.ReadRunHistoryResponse.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanupResponse
+	11, // 10: wandb_internal.RunHistoryResponse.history_rows:type_name -> wandb_internal.HistoryRow
+	12, // 11: wandb_internal.HistoryRow.history_items:type_name -> wandb_internal.ParquetHistoryItem
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_api_proto_init() }
@@ -508,10 +1119,10 @@ func file_wandb_proto_wandb_api_proto_init() {
 	if File_wandb_proto_wandb_api_proto != nil {
 		return
 	}
-	file_wandb_proto_wandb_base_proto_init()
+	file_wandb_proto_wandb_settings_proto_init()
 	if !protoimpl.UnsafeEnabled {
 		file_wandb_proto_wandb_api_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ApiRequest); i {
+			switch v := v.(*ServerApiInitRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -523,7 +1134,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_api_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ApiResponse); i {
+			switch v := v.(*ApiRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -535,7 +1146,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_api_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReadRunHistoryApiRequest); i {
+			switch v := v.(*ServerApiInitResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -547,7 +1158,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_api_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReadRunHistoryApiResponse); i {
+			switch v := v.(*ApiResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -559,7 +1170,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_api_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HistoryRow); i {
+			switch v := v.(*ApiErrorResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -571,6 +1182,90 @@ func file_wandb_proto_wandb_api_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_api_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReadRunHistoryRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_api_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReadRunHistoryResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_api_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ScanRunHistoryInit); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_api_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ScanRunHistoryInitResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_api_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ScanRunHistory); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_api_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RunHistoryResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_api_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*HistoryRow); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_api_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ParquetHistoryItem); i {
 			case 0:
 				return &v.state
@@ -582,12 +1277,47 @@ func file_wandb_proto_wandb_api_proto_init() {
 				return nil
 			}
 		}
-	}
-	file_wandb_proto_wandb_api_proto_msgTypes[0].OneofWrappers = []interface{}{
-		(*ApiRequest_ReadRunHistory)(nil),
+		file_wandb_proto_wandb_api_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ScanRunHistoryCleanup); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_api_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ScanRunHistoryCleanupResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	file_wandb_proto_wandb_api_proto_msgTypes[1].OneofWrappers = []interface{}{
-		(*ApiResponse_ReadRunHistory)(nil),
+		(*ApiRequest_ReadRunHistoryRequest)(nil),
+	}
+	file_wandb_proto_wandb_api_proto_msgTypes[3].OneofWrappers = []interface{}{
+		(*ApiResponse_ReadRunHistoryResponse)(nil),
+		(*ApiResponse_ApiErrorResponse)(nil),
+	}
+	file_wandb_proto_wandb_api_proto_msgTypes[5].OneofWrappers = []interface{}{
+		(*ReadRunHistoryRequest_ScanRunHistoryInit)(nil),
+		(*ReadRunHistoryRequest_ScanRunHistory)(nil),
+		(*ReadRunHistoryRequest_ScanRunHistoryCleanup)(nil),
+	}
+	file_wandb_proto_wandb_api_proto_msgTypes[6].OneofWrappers = []interface{}{
+		(*ReadRunHistoryResponse_ScanRunHistoryInit)(nil),
+		(*ReadRunHistoryResponse_RunHistory)(nil),
+		(*ReadRunHistoryResponse_ScanRunHistoryCleanup)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -595,7 +1325,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_wandb_proto_wandb_api_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -180,7 +180,7 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 			fmt.Errorf("monitor: failed to initialize GPU resource: %v", err))
 	}
 
-	if tpu := NewTPU(); tpu != nil {
+	if tpu := NewTPU(sm.logger); tpu != nil {
 		sm.resources = append(sm.resources, tpu)
 	}
 
@@ -363,7 +363,8 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 //
 // This operation may take some time, so we perform it on a best-effort basis.
 func (sm *SystemMonitor) Probe() {
-	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() && sm.settings.IsPrimary() {
+	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() &&
+		sm.settings.IsPrimary() {
 		go func() {
 			sm.logger.Debug("monitor: collecting the environment and resource information")
 

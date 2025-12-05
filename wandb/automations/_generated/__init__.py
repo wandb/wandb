@@ -7,17 +7,13 @@ __all__ = [
     "GET_AUTOMATIONS_BY_ENTITY_GQL",
     "GET_AUTOMATIONS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
-    "SLACK_INTEGRATIONS_BY_ENTITY_GQL",
     "UPDATE_AUTOMATION_GQL",
-    "WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL",
     "GetAutomations",
     "GetAutomationsByEntity",
     "CreateAutomation",
     "UpdateAutomation",
     "DeleteAutomation",
     "IntegrationsByEntity",
-    "SlackIntegrationsByEntity",
-    "WebhookIntegrationsByEntity",
     "CreateGenericWebhookIntegration",
     "CreateFilterTriggerInput",
     "CreateGenericWebhookIntegrationInput",
@@ -89,10 +85,6 @@ from .operations import (
     GET_AUTOMATIONS_BY_ENTITY_GQL,
     GET_AUTOMATIONS_GQL,
     INTEGRATIONS_BY_ENTITY_GQL,
-    SLACK_INTEGRATIONS_BY_ENTITY_GQL,
     UPDATE_AUTOMATION_GQL,
-    WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL,
 )
-from .slack_integrations_by_entity import SlackIntegrationsByEntity
 from .update_automation import UpdateAutomation
-from .webhook_integrations_by_entity import WebhookIntegrationsByEntity

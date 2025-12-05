@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import platform
 import shutil
@@ -6,8 +8,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
-import pytest
 import wandb
+from pytest import mark, raises
 from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
@@ -61,7 +63,7 @@ def test_artifact_error_for_invalid_aliases(user):
     artifact = wandb.Artifact("test-artifact", "dataset")
     error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
     for aliases in error_aliases:
-        with pytest.raises(ValueError) as e_info:
+        with raises(ValueError) as e_info:
             run.log_artifact(artifact, aliases=aliases)
         assert (
             str(e_info.value)
@@ -74,7 +76,7 @@ def test_artifact_error_for_invalid_aliases(user):
     run.finish()
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "invalid_name",
     [
         "a" * (NAME_MAXLEN + 1),  # Name too long
@@ -87,13 +89,13 @@ def test_artifact_error_for_invalid_name(tmp_path, user, api, invalid_name):
     file_path.write_text("test data")
 
     # It should not be possible to log the artifact
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         with wandb.init() as run:
             logged = run.log_artifact(file_path, name=invalid_name)
             logged.wait()
 
     # It should not be possible to retrieve the artifact either
-    with pytest.raises(CommError):
+    with raises(CommError):
         _ = api.artifact(f"{invalid_name}:latest")
 
 
@@ -108,7 +110,7 @@ def test_artifact_upsert_no_id(user):
     artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
     image = wandb.Image(np.random.randint(0, 255, (10, 10)))
     artifact.add(image, "image_1")
-    with pytest.raises(TypeError):
+    with raises(TypeError):
         run.upsert_artifact(artifact)
     run.finish()
 
@@ -154,7 +156,7 @@ def test_artifact_finish_no_id(user):
     # Finish without a distributed_id should fail
     run = wandb.init()
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    with pytest.raises(TypeError):
+    with raises(TypeError):
         run.finish_artifact(artifact)
     run.finish()
 
@@ -187,7 +189,7 @@ def test_artifact_finish_distributed_id(user):
     run.finish()
 
 
-@pytest.mark.parametrize("incremental", [False, True])
+@mark.parametrize("incremental", [False, True])
 def test_add_file_respects_incremental(tmp_path, user, api, incremental):
     art_name = "incremental-test"
     art_type = "dataset"
@@ -219,8 +221,8 @@ def test_add_file_respects_incremental(tmp_path, user, api, incremental):
         assert final_manifest_entry_keys == {new_filepath.name}
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky on CI")
+@mark.flaky
+@mark.xfail(reason="flaky on CI")
 def test_edit_after_add(user):
     artifact = wandb.Artifact(name="hi-art", type="dataset")
     filename = "file1.txt"
@@ -249,11 +251,11 @@ def test_remove_after_log(user):
     with wandb.init() as run:
         retrieved = run.use_artifact("hi-art:latest")
 
-        with pytest.raises(ArtifactFinalizedError):
+        with raises(ArtifactFinalizedError):
             retrieved.remove("file1.txt")
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     # Valid values for `skip_cache` in `Artifact.download()`
     "skip_download_cache",
     [None, False, True],
@@ -505,13 +507,13 @@ def test_artifact_wait_success(user):
     run.finish()
 
 
-@pytest.mark.parametrize("timeout", [0, 1e-6])
+@mark.parametrize("timeout", [0, 1e-6])
 def test_artifact_wait_failure(user, timeout):
     # Test to expect WaitTimeoutError when wait timeout is reached and large image
     # wasn't uploaded yet
     image = wandb.Image(np.random.randint(0, 255, (10, 10)))
     run = wandb.init()
-    with pytest.raises(WaitTimeoutError):
+    with raises(WaitTimeoutError):
         artifact = wandb.Artifact("art", type="image")
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
@@ -580,7 +582,7 @@ def test_check_changed_artifact_then_download(user, tmp_path):
         assert file2.read_text() == "hello"
 
 
-@pytest.mark.parametrize("path_type", [str, Path])
+@mark.parametrize("path_type", [str, Path])
 def test_log_dir_directly(example_files, user, path_type):
     with wandb.init() as run:
         run_id = run.id
@@ -592,7 +594,7 @@ def test_log_dir_directly(example_files, user, path_type):
     assert artifact.name == f"run-{run_id}-{Path(example_files).name}:v0"
 
 
-@pytest.mark.parametrize("path_type", [str, Path])
+@mark.parametrize("path_type", [str, Path])
 def test_log_file_directly(example_file, user, path_type):
     with wandb.init() as run:
         run_id = run.id
@@ -677,16 +679,16 @@ def test_log_and_download_with_path_prefix(user, tmp_path):
 
 
 def test_retrieve_missing_artifact(logged_artifact):
-    with pytest.raises(CommError, match="project 'bar' not found"):
+    with raises(CommError, match="project 'bar' not found"):
         Api().artifact(f"foo/bar/{logged_artifact.name}")
 
-    with pytest.raises(CommError, match="project 'bar' not found"):
+    with raises(CommError, match="project 'bar' not found"):
         Api().artifact(f"{logged_artifact.entity}/bar/{logged_artifact.name}")
 
-    with pytest.raises(CommError):
+    with raises(CommError):
         Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
 
-    with pytest.raises(CommError):
+    with raises(CommError):
         Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
 
 
@@ -781,7 +783,7 @@ def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
 def test_internal_artifacts(user):
     internal_type = f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid"
     with wandb.init() as run:
-        with pytest.raises(ValueError, match="is reserved for internal use"):
+        with raises(ValueError, match="is reserved for internal use"):
             artifact = wandb.Artifact(name="test-artifact", type=internal_type)
 
         artifact = InternalArtifact(name="test-artifact", type=internal_type)
@@ -817,7 +819,7 @@ def test_storage_policy_storage_region_not_available(user):
         # NOTE: We match on the region name instead of exact API error because different versions of server fails at different APIs.
         # In latest version, storageRegion is passed in `CreateArtifact` and it would return soemthing like `CreateArtifact invalid storageRegion: coreweave-us`
         # In previous version, storageRegion is ignored in graphql APIs but used in `CommitArtifact` from manifest json and ther error is `malformed region: coreweave-us`
-        with pytest.raises(ValueError, match="coreweave-us"):
+        with raises(ValueError, match="coreweave-us"):
             art = wandb.Artifact("test", type="dataset", storage_region="coreweave-us")
             run.log_artifact(art)
             art.wait()
