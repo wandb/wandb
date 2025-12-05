@@ -1425,9 +1425,17 @@ class Run(Attrs):
         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_html_(self) -> str:
+        if wandb.jupyter.running_in_vscode_notebook():
+            import html
+
+            return html.escape(self._str_repr())
+
         return self.to_html()
 
     def __repr__(self):
+        return self._str_repr()
+
+    def _str_repr(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
     def beta_scan_history(
