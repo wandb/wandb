@@ -108,6 +108,11 @@ message Settings {
   // By default, this is the current working directory.
   google.protobuf.StringValue root_dir = 105;
 
+  // The path to the "wandb" workspace directory.
+  //
+  // Often a path like `./wandb/`.
+  google.protobuf.StringValue wandb_dir = 142;
+
   // The directory for storing log files.
   google.protobuf.StringValue log_dir = 85;
 
@@ -509,7 +514,6 @@ message Settings {
   google.protobuf.BoolValue table_raise_on_max_row_limit_exceeded = 138;
   google.protobuf.StringValue timespec = 139;
   google.protobuf.StringValue tmp_dir = 140;
-  google.protobuf.StringValue wandb_dir = 142;
   google.protobuf.StringValue x_jupyter_name = 143;
   google.protobuf.StringValue x_jupyter_path = 144;
   google.protobuf.StringValue job_name = 145;

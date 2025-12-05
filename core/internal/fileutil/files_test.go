@@ -1,8 +1,11 @@
 package fileutil_test
 
 import (
+	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/fileutil"
 )
 
@@ -96,4 +99,24 @@ func TestSanitizeWindowsFilename(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateUnique(t *testing.T) {
+	basePath := filepath.Join(t.TempDir(), "my-file")
+
+	file1, err := fileutil.CreateUnique(basePath, "txt", 0o644)
+	require.NoError(t, err)
+	require.NoError(t, file1.Close())
+
+	file2, err := fileutil.CreateUnique(basePath, "txt", 0o644)
+	require.NoError(t, err)
+	require.NoError(t, file2.Close())
+
+	file3, err := fileutil.CreateUnique(basePath, "txt", 0o644)
+	require.NoError(t, err)
+	require.NoError(t, file3.Close())
+
+	assert.Equal(t, "my-file.txt", filepath.Base(file1.Name()))
+	assert.Equal(t, "my-file.1.txt", filepath.Base(file2.Name()))
+	assert.Equal(t, "my-file.2.txt", filepath.Base(file3.Name()))
 }
