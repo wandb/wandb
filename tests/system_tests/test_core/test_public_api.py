@@ -288,6 +288,20 @@ def test_run_create(user, wandb_backend_spy):
     assert upsert_bucket_spy.requests[0].variables["project"] == "test"
 
 
+def test_run_create_with_command(user):
+    """Test that create_run with command uploads a metadata file."""
+    command = "python train.py --epochs 10"
+    run = Api().create_run(project="test", command=command)
+
+    # Verify the run was created
+    assert run.id is not None
+
+    # Verify the metadata file was uploaded with the command
+    files = list(run.files())
+    file_names = [f.name for f in files]
+    assert "wandb-metadata.json" in file_names
+
+
 def test_run_update(wandb_backend_spy):
     gql = wandb_backend_spy.gql
     upsert_bucket_spy = gql.Capture()
