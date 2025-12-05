@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import multiprocessing
 import os
@@ -44,41 +45,16 @@ class AgentProcess:
         # Store original handlers
         self._original_handlers = {}
 
-        def _forward_signal(signum, frame):
-            # Forward signal to child process only
-            if self._popen:
-                if platform.system() == "Windows" and signum in (
-                    signal.SIGINT,
-                    signal.SIGTERM,
-                ):
-                    # On Windows, we can only send CTRL_BREAK_EVENT or CTRL_C_EVENT
-                    self._popen.send_signal(signal.CTRL_BREAK_EVENT)
-                else:
-                    self._popen.send_signal(signum)
-            if self._proc:
-                if hasattr(signal, "SIGKILL") and signum == signal.SIGKILL:
-                    self._proc.kill()
-                else:
-                    self._proc.send_signal(signum)
-
-            # Call original handler to ensure parent process handles signal
-            original_handler = self._original_handlers.get(signum)
-            if original_handler and callable(original_handler):
-                original_handler(signum, frame)
-
         # Set up handlers for all possible signals
         if forward_signals:
             for signum in signal.valid_signals():
-                try:
-                    # Skip signals that can't be caught
-                    if signum in (signal.SIGKILL, signal.SIGSTOP):
-                        continue
-                    # Store original handler before replacing it
-                    self._original_handlers[signum] = signal.getsignal(signum)
-                    signal.signal(signum, _forward_signal)
-                except (OSError, ValueError):
-                    # Some signals might not be supported on all platforms
+                # Skip signals that can't be caught
+                if signum in (signal.SIGKILL, signal.SIGSTOP):
                     continue
+                with contextlib.suppress(OSError, ValueError):
+                    # Some signals might not be supported on all platforms
+                    self._original_handlers[signum] = signal.getsignal(signum)
+                    signal.signal(signum, self._forward_signal)
 
         if command:
             if platform.system() == "Windows":
@@ -127,6 +103,28 @@ class AgentProcess:
             self._proc.start()
         else:
             raise AgentError("Agent Process requires command or function")
+
+    def _forward_signal(self, signum, frame):
+        """Forward a received signal to any child process, mirroring the agent's behavior."""
+        if self._popen:
+            if platform.system() == "Windows" and signum in (
+                signal.SIGINT,
+                signal.SIGTERM,
+            ):
+                # On Windows, we can only send CTRL_BREAK_EVENT or CTRL_C_EVENT
+                self._popen.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                self._popen.send_signal(signum)
+        if self._proc:
+            if hasattr(signal, "SIGKILL") and signum == signal.SIGKILL:
+                self._proc.kill()
+            else:
+                self._proc.send_signal(signum)
+
+        # Call original handler to ensure parent process handles signal
+        original_handler = self._original_handlers.get(signum)
+        if original_handler and callable(original_handler):
+            original_handler(signum, frame)
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
         if env:
