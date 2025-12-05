@@ -161,6 +161,14 @@ func processResponse(
 		return err
 	} else if oldConfig != nil {
 		config.MergeResumedConfig(oldConfig)
+
+		commit, remote := extractGitValues(oldConfig)
+		if params.Commit == "" {
+			params.Commit = commit
+		}
+		if params.RemoteURL == "" {
+			params.RemoteURL = remote
+		}
 	}
 
 	if filestreamOffset, err := processAllOffsets(
@@ -270,4 +278,44 @@ func processResponse(
 	params.Resumed = true
 
 	return nil
+}
+
+// extractGitValues extracts the git values from the config
+func extractGitValues(config map[string]any) (string, string) {
+	wandbConfig, ok := config["_wandb"].(map[string]any)
+	if !ok {
+		return "", ""
+	}
+	envConfig, ok := wandbConfig["e"].(map[string]any)
+	if !ok {
+		return "", ""
+	}
+
+	var commit, remote string
+	if len(envConfig) == 1 {
+		var writerInfo map[string]any
+		for _, value := range envConfig {
+			writerInfo, ok = value.(map[string]any)
+			if !ok {
+				return "", ""
+			}
+		}
+
+		gitValues, ok := writerInfo["git"].(map[string]any)
+		if !ok {
+			return "", ""
+		}
+
+		commit, ok = gitValues["commit"].(string)
+		if !ok {
+			commit = ""
+		}
+
+		remote, ok = gitValues["remote"].(string)
+		if !ok {
+			remote = ""
+		}
+	}
+
+	return commit, remote
 }
