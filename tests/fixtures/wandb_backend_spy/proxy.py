@@ -190,7 +190,11 @@ class WandbBackendProxy:
             response = await self._relay(request)
 
         if spy:
-            spy.post_graphql(await request.body(), response.body)
+            spy.post_graphql(
+                await request.body(),
+                response.body,
+                response_code=response.status_code,
+            )
 
         return response
 
