@@ -1,10 +1,12 @@
 import errno
+import json
 import os
 import random
 import tempfile
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 import wandb
 from pydantic import ValidationError
@@ -19,6 +21,7 @@ from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
+from wandb.sdk.artifacts.storage_policies._factories import make_http_session
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.lib.hashutil import ETag, md5_string
 
@@ -586,3 +589,22 @@ def test_artifact_with_valid_storage_region(storage_region: str):
 def test_artifact_with_invalid_storage_region(storage_region: Any):
     with raises(ValidationError):
         wandb.Artifact("test", type="dataset", storage_region=storage_region)
+
+
+def test_make_http_session_applies_custom_headers_from_env():
+    custom_headers = {"User-Agent": "custom-agent/1.0", "X-Custom-Header": "test"}
+
+    with mock.patch.dict(
+        os.environ, {"WANDB_X_EXTRA_HTTP_HEADERS": json.dumps(custom_headers)}
+    ):
+        session = make_http_session()
+        assert custom_headers.items() <= session.headers.items()
+
+
+def test_make_http_session_without_custom_headers():
+    env_copy = os.environ.copy()
+    env_copy.pop("WANDB_X_EXTRA_HTTP_HEADERS", None)
+
+    with mock.patch.dict(os.environ, env_copy, clear=True):
+        session = make_http_session()
+        assert "X-Custom-Header" not in session.headers
