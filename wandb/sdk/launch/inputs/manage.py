@@ -8,6 +8,7 @@ def manage_config_file(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
     schema: Optional[Any] = None,
+    strict: bool = False,
 ):
     r"""Declare an overridable configuration file for a launch job.
 
@@ -48,6 +49,8 @@ def manage_config_file(
             describing which attributes will be editable from the Launch drawer.
             Accepts both an instance of a Pydantic BaseModel class or the BaseModel
             class itself.
+        strict (bool): If True, generates strict JSON Schema that rejects
+            unknown properties and requires all fields (default: False).
 
     Raises:
         LaunchError: If the path is not valid, or if there is no active run.
@@ -58,13 +61,14 @@ def manage_config_file(
     # "Optional[dict | <something with a .model_json_schema() method>]"
     from .internal import handle_config_file_input
 
-    return handle_config_file_input(path, include, exclude, schema)
+    return handle_config_file_input(path, include, exclude, schema, strict)
 
 
 def manage_wandb_config(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
     schema: Optional[Any] = None,
+    strict: bool = False,
 ):
     r"""Declare wandb.config as an overridable configuration for a launch job.
 
@@ -100,6 +104,8 @@ def manage_wandb_config(
             describing which attributes will be editable from the Launch drawer.
             Accepts both an instance of a Pydantic BaseModel class or the BaseModel
             class itself.
+        strict (bool): If True, generates strict JSON Schema that rejects
+            unknown properties and requires all fields (default: False).
 
     Raises:
         LaunchError: If there is no active run.
@@ -110,4 +116,4 @@ def manage_wandb_config(
     # "Optional[dict | <something with a .model_json_schema() method>]"
     from .internal import handle_run_config_input
 
-    handle_run_config_input(include, exclude, schema)
+    handle_run_config_input(include, exclude, schema, strict)
