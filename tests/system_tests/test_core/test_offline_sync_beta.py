@@ -18,6 +18,7 @@ from wandb.sdk.lib.printer import new_printer
 from wandb.sdk.mailbox.mailbox import Mailbox
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
+from tests.fixtures.emulated_terminal import EmulatedTerminal
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 _T = TypeVar("_T")
@@ -127,6 +128,7 @@ class _Tester:
         project: str,
         run_id: str,
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
+        _, _, _, _, _ = paths, settings, entity, project, run_id
         return await self._make_handle(
             self._init_sync_addrs,
             lambda r: r.init_sync_response,
@@ -137,6 +139,7 @@ class _Tester:
         id: str,
         parallelism: int,
     ) -> MailboxHandle[wandb_sync_pb2.ServerSyncResponse]:
+        _, _ = id, parallelism
         return await self._make_handle(
             self._sync_addrs,
             lambda r: r.sync_response,
@@ -146,6 +149,7 @@ class _Tester:
         self,
         id: str,
     ) -> MailboxHandle[wandb_sync_pb2.ServerSyncStatusResponse]:
+        _ = id
         return await self._make_handle(
             self._sync_status_addrs,
             lambda r: r.sync_status_response,
@@ -167,14 +171,18 @@ class _Tester:
 
 
 @pytest.fixture
-def skip_asyncio_sleep(monkeypatch):
-    async def do_nothing(duration):
-        pass
+def skip_asyncio_sleep(monkeypatch: pytest.MonkeyPatch):
+    async def do_nothing(duration: float) -> None:
+        _ = duration
 
     monkeypatch.setattr(beta_sync, "_SLEEP", do_nothing)
 
 
-def test_syncs_run(tmp_path, wandb_backend_spy, runner: CliRunner):
+def test_syncs_run(
+    tmp_path: pathlib.Path,
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
     test_file = tmp_path / "test_file.txt"
     test_file.touch()
 
@@ -253,7 +261,11 @@ def test_sync_to_other_path(
 
 
 @pytest.mark.parametrize("skip_synced", (True, False))
-def test_skip_synced(tmp_path, runner: CliRunner, skip_synced):
+def test_skip_synced(
+    tmp_path: pathlib.Path,
+    runner: CliRunner,
+    skip_synced: bool,
+):
     (tmp_path / "run-1.wandb").touch()
     (tmp_path / "run-2.wandb").touch()
     (tmp_path / "run-2.wandb.synced").touch()
@@ -289,7 +301,7 @@ def test_merges_symlinks(
     ]
 
 
-def test_sync_wandb_file(tmp_path, runner: CliRunner):
+def test_sync_wandb_file(tmp_path: pathlib.Path, runner: CliRunner):
     file = tmp_path / "run.wandb"
     file.touch()
 
@@ -300,7 +312,7 @@ def test_sync_wandb_file(tmp_path, runner: CliRunner):
     assert lines[1].endswith("run.wandb")
 
 
-def test_sync_run_directory(tmp_path, runner: CliRunner):
+def test_sync_run_directory(tmp_path: pathlib.Path, runner: CliRunner):
     run_dir = tmp_path / "some-run"
     run_dir.mkdir()
     (run_dir / "run.wandb").touch()
@@ -312,7 +324,7 @@ def test_sync_run_directory(tmp_path, runner: CliRunner):
     assert lines[1].endswith("run.wandb")
 
 
-def test_sync_wandb_directory(tmp_path, runner: CliRunner):
+def test_sync_wandb_directory(tmp_path: pathlib.Path, runner: CliRunner):
     wandb_dir = tmp_path / "wandb-dir"
     run1_dir = wandb_dir / "run-1"
     run2_dir = wandb_dir / "run-2"
@@ -377,8 +389,11 @@ def test_prints_relative_paths(
     ]
 
 
-def test_prints_status_updates(skip_asyncio_sleep, tmp_path, emulated_terminal):
-    _ = skip_asyncio_sleep
+@pytest.mark.usefixtures("skip_asyncio_sleep")
+def test_prints_status_updates(
+    tmp_path: pathlib.Path,
+    emulated_terminal: EmulatedTerminal,
+):
     wandb_file = tmp_path / "run-test-progress.wandb"
     singleton = wandb_setup.singleton()
     mailbox = Mailbox(singleton.asyncer)
@@ -406,7 +421,7 @@ def test_prints_status_updates(skip_asyncio_sleep, tmp_path, emulated_terminal):
         await tester.respond_sync_status(new_infos=[], new_errors=[])
 
     async def do_test():
-        tester = _Tester(mailbox=mailbox)
+        tester: Any = _Tester(mailbox=mailbox)
 
         async with asyncio_compat.open_task_group(exit_timeout=5) as group:
             group.start_soon(simulate_service(tester))
