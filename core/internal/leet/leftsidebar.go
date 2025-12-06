@@ -375,20 +375,14 @@ func (s *LeftSidebar) renderSectionItems(section *SectionView, width int) []stri
 	maxValueWidth := width - maxKeyWidth - 1
 
 	itemCount := len(section.FilteredItems)
-	if itemCount == 0 || section.ItemsPerPage() <= 0 {
+	if itemCount == 0 {
 		return nil
 	}
 
 	startIdx := section.CurrentPage() * section.ItemsPerPage()
 	endIdx := min(startIdx+section.ItemsPerPage(), itemCount)
-	actualItemsToShow := endIdx - startIdx
-	if actualItemsToShow <= 0 {
-		// Out‑of‑range page; with normalizePagination this shouldn't happen,
-		// but defensively avoid negative capacities.
-		return nil
-	}
 
-	itemsToRender := min(actualItemsToShow, section.ItemsPerPage())
+	itemsToRender := min(endIdx-startIdx, section.ItemsPerPage())
 
 	lines := make([]string, 0, itemsToRender)
 	for i := range itemsToRender {

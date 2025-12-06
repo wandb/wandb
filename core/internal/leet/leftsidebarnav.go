@@ -125,7 +125,7 @@ func (s *SectionView) PageDown() {
 	}
 }
 
-// Up navigates to start page.
+// Home navigates to start page.
 func (s *SectionView) Home() {
 	s.currentPage = 0
 	s.currentLine = 0
