@@ -30,11 +30,10 @@ func TestRecordIterator_ErrorsOnMissingColumns(t *testing.T) {
 			requestedColumns: map[string]struct{}{"_step": {}, "acc": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
-			indexKey:  StepKey,
-			minValue:  0,
-			maxValue:  1,
+		&SelectedRowsRange{
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 1,
 		},
 	)
 
@@ -61,11 +60,10 @@ func TestRecordIterator_ErrorsOnMissingIndexKey(t *testing.T) {
 			requestedColumns: map[string]struct{}{"acc": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
-			indexKey:  StepKey,
-			minValue:  0,
-			maxValue:  1,
+		&SelectedRowsRange{
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 1,
 		},
 	)
 
@@ -101,11 +99,10 @@ func TestRecordIterator_FiltersRowsWithEmptyColumns(t *testing.T) {
 			requestedColumns: map[string]struct{}{"_step": {}, "acc": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
-			indexKey:  StepKey,
-			minValue:  0,
-			maxValue:  1,
+		&SelectedRowsRange{
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 1,
 		},
 	)
 	require.NoError(t, err)
@@ -123,7 +120,7 @@ func TestRecordIterator_FiltersRowsWithEmptyColumns(t *testing.T) {
 
 	// Verify no more data returned
 	next, err = reader.Next()
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrRowExceedsMaxValue)
 	assert.False(t, next, "Expected no more data returned")
 }
 
@@ -146,11 +143,10 @@ func TestRecordIterator_FiltersRowsWithStepOutOfRange(t *testing.T) {
 			requestedColumns: map[string]struct{}{"_step": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
-			indexKey:  StepKey,
-			minValue:  1,
-			maxValue:  2,
+		&SelectedRowsRange{
+			indexKey: StepKey,
+			minValue: 1,
+			maxValue: 2,
 		},
 	)
 	require.NoError(t, err)
@@ -166,7 +162,7 @@ func TestRecordIterator_FiltersRowsWithStepOutOfRange(t *testing.T) {
 
 	// Verify no more data returned
 	next, err = reader.Next()
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrRowExceedsMaxValue)
 	assert.False(t, next, "Expected no more data returned")
 }
 
@@ -190,11 +186,10 @@ func TestRecordIterator_ReleaseFreesMemory(t *testing.T) {
 			requestedColumns: map[string]struct{}{"_step": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
-			indexKey:  StepKey,
-			minValue:  0,
-			maxValue:  3,
+		&SelectedRowsRange{
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 3,
 		},
 	)
 	if err != nil {
@@ -236,11 +231,10 @@ func TestRecordIterator_WithEmptyRecordIsNil(t *testing.T) {
 			requestedColumns: map[string]struct{}{"_step": {}},
 			selectAll:        false,
 		},
-		&SelectedRows{
-			selectAll: false,
-			indexKey:  StepKey,
-			minValue:  0,
-			maxValue:  0,
+		&SelectedRowsRange{
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 0,
 		},
 	)
 	require.NoError(t, err)

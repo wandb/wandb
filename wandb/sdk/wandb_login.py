@@ -5,52 +5,15 @@ This authenticates your machine to log data to your account.
 
 from __future__ import annotations
 
-import enum
-import os
-
 import click
 
 import wandb
-from wandb.errors import AuthenticationError, UsageError, term
-from wandb.old.settings import Settings as OldSettings
+from wandb.errors import AuthenticationError, term
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import auth
+from wandb.sdk.lib import settings_file, wbauth
 from wandb.sdk.lib.deprecation import UNSET, DoNotSet
 
 from ..apis import InternalApi
-
-
-class OidcError(Exception):
-    """OIDC is configured but not allowed."""
-
-
-def _handle_host_wandb_setting(host: str | None, cloud: bool = False) -> None:
-    """Write the host parameter to the global settings file.
-
-    This takes the parameter from wandb.login or wandb login for use by the
-    application's APIs.
-    """
-    _api = InternalApi()
-    if host == "https://api.wandb.ai" or (host is None and cloud):
-        _api.clear_setting("base_url", globally=True, persist=True)
-        # To avoid writing an empty local settings file, we only clear if it exists
-        if os.path.exists(OldSettings._local_path()):
-            _api.clear_setting("base_url", persist=True)
-    elif host:
-        host = host.rstrip("/")
-        # force relogin if host is specified
-        _api.set_setting("base_url", host, globally=True, persist=True)
-
-
-def _clear_anonymous_setting() -> None:
-    """Delete the 'anonymous' setting from the global settings file.
-
-    This setting is being removed, and this helps users remove it from their
-    settings file by using `wandb login`. We do it here because `wandb login`
-    used to automatically write the anonymous setting.
-    """
-    api = InternalApi()
-    api.clear_setting("anonymous", globally=True, persist=True)
 
 
 def login(
@@ -127,8 +90,13 @@ def login(
         term.termwarn("Unable to verify login in offline mode.")
         return False
 
-    _handle_host_wandb_setting(host)
-    _clear_anonymous_setting()
+    if host:
+        host = host.rstrip("/")
+
+    _update_system_settings(
+        global_settings.read_system_settings(),
+        host=host,
+    )
 
     logged_in, _ = _login(
         key=key,
@@ -137,144 +105,30 @@ def login(
         force=force,
         timeout=timeout,
         verify=verify,
-        referrer=referrer,
+        referrer=referrer or "models",
     )
     return logged_in
 
 
-class ApiKeyStatus(enum.Enum):
-    VALID = 1
-    NOTTY = 2
-    OFFLINE = 3
-    DISABLED = 4
+def _update_system_settings(
+    system_settings: settings_file.SettingsFiles,
+    *,
+    host: str | None,
+) -> None:
+    """Update the user's system settings files."""
+    # 'anonymous' is deprecated; we clear it automatically for now.
+    system_settings.clear("anonymous", globally=True)
 
-
-class _WandbLogin:
-    def __init__(
-        self,
-        force: bool | None = None,
-        host: str | None = None,
-        key: str | None = None,
-        relogin: bool | None = None,
-        timeout: int | None = None,
-    ):
-        self._relogin = relogin
-
-        login_settings = {
-            "api_key": key,
-            "base_url": host,
-            "force": force,
-            "login_timeout": timeout,
-        }
-
-        self._wandb_setup = wandb_setup.singleton()
-        self._wandb_setup.settings.update_from_dict(login_settings)
-        self._settings = self._wandb_setup.settings
-
-    def _print_logged_in_message(self) -> None:
-        """Prints a message telling the user they are logged in."""
-        username = self._wandb_setup._get_username()
-
-        if username:
-            host_str = (
-                f" to {click.style(self._settings.base_url, fg='green')}"
-                if self._settings.base_url
-                else ""
-            )
-
-            # check to see if we got an entity from the setup call or from the user
-            entity = self._settings.entity or self._wandb_setup._get_entity()
-
-            entity_str = ""
-            # check if entity exist, valid (is part of a certain team) and different from the username
-            if (
-                entity
-                and entity in self._wandb_setup._get_teams()
-                and entity != username
-            ):
-                entity_str = f" ({click.style(entity, fg='yellow')})"
-
-            login_state_str = f"Currently logged in as: {click.style(username, fg='yellow')}{entity_str}{host_str}"
+    if host:
+        if host == "https://api.wandb.ai":
+            system_settings.clear("base_url", globally=True)
         else:
-            login_state_str = "W&B API key is configured"
+            system_settings.set("base_url", host, globally=True)
 
-        login_info_str = (
-            f"Use {click.style('`wandb login --relogin`', bold=True)} to force relogin"
-        )
-        wandb.termlog(
-            f"{login_state_str}. {login_info_str}",
-            repeat=False,
-        )
-
-    def try_save_api_key(self, key: str) -> None:
-        """Saves the API key to disk for future use."""
-        if self._settings._notebook and not self._settings.silent:
-            wandb.termwarn(
-                "If you're specifying your api key in code, ensure this"
-                + " code is not shared publicly."
-                + "\nConsider setting the WANDB_API_KEY environment variable,"
-                + " or running `wandb login` from the command line."
-            )
-
-        try:
-            auth.write_netrc_auth(host=self._settings.base_url, api_key=key)
-        except auth.WriteNetrcError as e:
-            wandb.termwarn(str(e))
-
-    def update_session(
-        self,
-        key: str | None,
-        status: ApiKeyStatus = ApiKeyStatus.VALID,
-    ) -> None:
-        """Updates mode and API key settings on the global setup object.
-
-        If we're online, this also pulls in user settings from the server.
-        """
-        login_settings = dict()
-        if status == ApiKeyStatus.OFFLINE:
-            login_settings = dict(mode="offline")
-        elif status == ApiKeyStatus.DISABLED:
-            login_settings = dict(mode="disabled")
-        elif key:
-            login_settings = dict(api_key=key)
-        self._wandb_setup.settings.update_from_dict(login_settings)
-        # Whenever the key changes, make sure to pull in user settings
-        # from server.
-        if not self._wandb_setup.settings._offline:
-            self._wandb_setup.update_user_settings()
-
-    def prompt_api_key(self, referrer: str) -> tuple[str | None, ApiKeyStatus]:
-        """Prompt the user for an API key.
-
-        Returns:
-            (key, VALID) if a key was provided.
-            (None, OFFLINE) if the user selected offline mode.
-            (None, DISABLED) if a timeout occurred.
-
-        Raises:
-            UsageError: If interactive prompting is unavailable.
-        """
-        try:
-            key = auth.prompt_and_save_api_key(
-                host=self._settings.base_url,
-                no_offline=self._settings.force,
-                no_create=self._settings.force,
-                referrer=referrer,
-                input_timeout=self._settings.login_timeout,
-            )
-
-        except TimeoutError:
-            wandb.termlog("W&B disabled due to login timeout.")
-            return None, ApiKeyStatus.DISABLED
-
-        except term.NotATerminalError:
-            message = "No API key configured. Use `wandb login` to log in."
-            raise UsageError(message) from None
-
-        if not key:
-            return None, ApiKeyStatus.OFFLINE
-
-        return key, ApiKeyStatus.VALID
+    try:
+        system_settings.save()
+    except settings_file.SaveSettingsError as e:
+        wandb.termwarn(str(e))
 
 
 def _login(
@@ -283,39 +137,36 @@ def _login(
     relogin: bool | None = None,
     host: str | None = None,
     force: bool | None = None,
-    timeout: int | None = None,
+    timeout: float | None = None,
     verify: bool = False,
     referrer: str = "models",
     update_api_key: bool = True,
-    no_oidc: bool = False,
     _silent: bool | None = None,
 ) -> tuple[bool, str | None]:
-    """Logs in to W&B.
+    """Log in to W&B.
 
-    This is the internal implementation of wandb.login(),
-    with many of the same arguments as wandb.login().
-    Additional arguments are documented below.
+    Arguments are the same as for wandb.login() with the following additions:
 
     Args:
-        update_api_key: If true, the api key will be saved or updated
-            in the users .netrc file.
-        no_oidc: If true, raise an OidcError instead of returning early if OIDC
-            credentials are configured.
+        update_api_key: If true and an explicit API key is given, it will be
+            saved to the .netrc file.
         _silent: If true, will not print any messages to the console.
 
     Returns:
-        bool: If the login was successful
-            or the user is assumed to be already be logged in.
-        str: The API key used to log in,
-            or None if the api key was not verified during the login process.
+        A pair (is_successful, key).
     """
-    wlogin = _WandbLogin(
-        force=force,
-        host=host,
-        key=key,
-        relogin=relogin,
-        timeout=timeout,
-    )
+    settings = wandb_setup.singleton().settings
+
+    if host is None:
+        host = settings.base_url
+    if relogin is None:
+        relogin = settings.relogin
+    if force is None:
+        force = settings.force
+    if timeout is None:
+        timeout = settings.login_timeout
+    if _silent is None:
+        _silent = settings.silent
 
     if wandb.util._is_kaggle() and not wandb.util._has_internet():
         term.termerror(
@@ -324,55 +175,113 @@ def _login(
         )
         return False, None
 
-    if wlogin._settings.identity_token_file:
-        if no_oidc:
-            raise OidcError
+    if key:
+        auth = _use_explicit_key(
+            key,
+            host=host,
+            settings=settings,
+            update_api_key=update_api_key,
+            silent=_silent,
+        )
+    else:
+        auth = _find_or_prompt_for_key(
+            settings,
+            host=host,
+            force=force,
+            relogin=relogin,
+            referrer=referrer,
+            input_timeout=timeout,
+        )
 
+    if verify and isinstance(auth, wbauth.AuthApiKey):
+        _verify_login(key=auth.api_key, base_url=auth.host.url)
+
+    wandb_setup.singleton().update_user_settings()
+    if not _silent:
+        _print_logged_in_message(settings, host=host)
+
+    if auth is None:
+        return False, None
+    elif isinstance(auth, wbauth.AuthApiKey):
+        return True, auth.api_key
+    else:
         return True, None
 
-    if key:
-        if problems := auth.check_api_key(key):
-            raise AuthenticationError(problems)
 
-        if verify:
-            _verify_login(key, wlogin._settings.base_url)
+def _use_explicit_key(
+    key: str,
+    settings: wandb.Settings,
+    *,
+    host: str,
+    update_api_key: bool,
+    silent: bool,
+) -> wbauth.Auth:
+    """Log in with an explicit key.
 
-        if update_api_key:
-            wlogin.try_save_api_key(key)
+    Same arguments as `_login()`.
+    """
+    if settings._notebook and not silent:
+        term.termwarn(
+            "If you're specifying your api key in code, ensure this"
+            + " code is not shared publicly."
+            + "\nConsider setting the WANDB_API_KEY environment variable,"
+            + " or running `wandb login` from the command line."
+        )
 
-        wlogin.update_session(key, status=ApiKeyStatus.VALID)
+    auth = wbauth.AuthApiKey(host=host, api_key=key)
+    wbauth.use_explicit_auth(auth, source="wandb.login()")
 
-        if not _silent:
-            wlogin._print_logged_in_message()
+    if update_api_key:
+        try:
+            wbauth.write_netrc_auth(
+                host=auth.host.url,
+                api_key=auth.api_key,
+            )
+        except wbauth.WriteNetrcError as e:
+            wandb.termwarn(str(e))
 
-        return True, key
+    return auth
 
-    # See if there already is a key in settings. This is true if WANDB_API_KEY
-    # was set or login() already happened.
-    if not relogin and (settings_key := wlogin._settings.api_key):
-        key = settings_key
-        key_status = ApiKeyStatus.VALID
 
-    # Otherwise, try the .netrc file.
-    elif not relogin and (
-        netrc_key := auth.read_netrc_auth(host=wlogin._settings.base_url)
-    ):
-        key = netrc_key
-        key_status = ApiKeyStatus.VALID
+def _find_or_prompt_for_key(
+    settings: wandb.Settings,
+    *,
+    host: str,
+    force: bool,
+    relogin: bool,
+    referrer: str,
+    input_timeout: float | None,
+) -> wbauth.Auth | None:
+    """Log in without an explicit key.
 
-    # Finally (or necessarily, if relogin was set), prompt interactively.
-    else:
-        key, key_status = wlogin.prompt_api_key(referrer=referrer)
+    Same arguments as `_login()`.
+    """
+    timed_out = False
+    auth: wbauth.Auth | None = None
 
-    # The key may be None if offline mode was selected interactively.
+    try:
+        auth = wbauth.authenticate_session(
+            host=host,
+            source="wandb.login()",
+            no_offline=force,
+            no_create=force,
+            referrer=referrer,
+            input_timeout=input_timeout,
+            relogin=relogin,
+        )
 
-    if key and verify:
-        _verify_login(key, wlogin._settings.base_url)
-    wlogin.update_session(key, status=key_status)
-    if key and not _silent:
-        wlogin._print_logged_in_message()
+    except TimeoutError:
+        timed_out = True
 
-    return key is not None, key
+    if not auth:
+        if timed_out:
+            term.termwarn("W&B disabled due to login timeout.")
+            settings.mode = "disabled"
+        else:
+            term.termlog("Using W&B in offline mode.")
+            settings.mode = "offline"
+
+    return auth
 
 
 def _verify_login(key: str, base_url: str) -> None:
@@ -397,5 +306,34 @@ def _verify_login(key: str, base_url: str) -> None:
     if not is_api_key_valid:
         raise AuthenticationError(
             f"API key verification failed for host {base_url}."
-            " Make sure your API key is valid."
+            + " Make sure your API key is valid."
         )
+
+
+def _print_logged_in_message(settings: wandb.Settings, *, host: str) -> None:
+    """Print a message telling the user they are logged in."""
+    singleton = wandb_setup.singleton()
+    username = singleton._get_username()
+
+    if username:
+        host_str = f" to {click.style(host, fg='green')}" if host else ""
+
+        # check to see if we got an entity from the setup call or from the user
+        entity = settings.entity or singleton._get_entity()
+
+        entity_str = ""
+        # check if entity exist, valid (is part of a certain team) and different from the username
+        if entity and entity in singleton._get_teams() and entity != username:
+            entity_str = f" ({click.style(entity, fg='yellow')})"
+
+        login_state_str = f"Currently logged in as: {click.style(username, fg='yellow')}{entity_str}{host_str}"
+    else:
+        login_state_str = "W&B API key is configured"
+
+    login_info_str = (
+        f"Use {click.style('`wandb login --relogin`', bold=True)} to force relogin"
+    )
+    term.termlog(
+        f"{login_state_str}. {login_info_str}",
+        repeat=False,
+    )

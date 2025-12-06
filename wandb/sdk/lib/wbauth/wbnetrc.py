@@ -10,13 +10,14 @@ from urllib.parse import urlsplit
 from wandb.errors import term
 
 from .auth import AuthApiKey, AuthWithSource
+from .host_url import HostUrl
 
 
 class WriteNetrcError(Exception):
     """Could not write to the netrc file."""
 
 
-def read_netrc_auth(*, host: str) -> str | None:
+def read_netrc_auth(*, host: str | HostUrl) -> str | None:
     """Read a W&B API key from the .netrc file.
 
     Args:
@@ -30,6 +31,9 @@ def read_netrc_auth(*, host: str) -> str | None:
         AuthenticationError: If an API key is found but is not in
             a valid format.
     """
+    if not isinstance(host, HostUrl):
+        host = HostUrl(host)
+
     if not (auth := read_netrc_auth_with_source(host=host)):
         return None
 
@@ -37,7 +41,7 @@ def read_netrc_auth(*, host: str) -> str | None:
     return auth.auth.api_key
 
 
-def read_netrc_auth_with_source(*, host: str) -> AuthWithSource | None:
+def read_netrc_auth_with_source(*, host: HostUrl) -> AuthWithSource | None:
     """Read a W&B API key from the .netrc file.
 
     Args:
@@ -69,7 +73,7 @@ def read_netrc_auth_with_source(*, host: str) -> AuthWithSource | None:
 
         return None
 
-    if not (netloc := urlsplit(host).netloc):
+    if not (netloc := urlsplit(host.url).netloc):
         return None
     if not (creds := netrc_file.authenticators(netloc)):
         return None

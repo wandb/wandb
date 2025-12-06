@@ -89,20 +89,17 @@ def test_login(test_settings):
 def test_login_sets_api_base_url(monkeypatch: pytest.MonkeyPatch):
     # HACK: Prevent the test from attempting to connect to the fake URLs.
     monkeypatch.setattr(
-        wandb_login._WandbLogin,
+        wandb_login,
         "_print_logged_in_message",
-        lambda self: None,
+        lambda *args, **kwargs: None,
     )
 
-    monkeypatch.setenv("WANDB_API_KEY", "test" * 10)
     base_url = "https://api.test.host.ai"
-    wandb.login(host=base_url)
-
+    wandb.login(key="test" * 10, host=base_url)
     assert wandb_setup.singleton().settings.base_url == base_url
 
     base_url = "https://api.wandb.ai"
-    wandb.login(host=base_url)
-
+    wandb.login(key="test" * 10, host=base_url)
     assert wandb_setup.singleton().settings.base_url == base_url
 
 

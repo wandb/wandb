@@ -234,41 +234,6 @@ class Runs(SizedPaginator["Run"]):
         per_page: (int) The number of runs to fetch per request (default is 50).
         include_sweeps: (bool) Whether to include sweep information in the
             runs. Defaults to True.
-
-    Examples:
-    ```python
-    from wandb.apis.public.runs import Runs
-    from wandb.apis.public import Api
-
-    # Get all runs from a project that satisfy the filters
-    filters = {"state": "finished", "config.optimizer": "adam"}
-
-    runs = Api().runs(
-        client=api.client,
-        entity="entity",
-        project="project_name",
-        filters=filters,
-    )
-
-    # Iterate over runs and print details
-    for run in runs:
-        print(f"Run name: {run.name}")
-        print(f"Run ID: {run.id}")
-        print(f"Run URL: {run.url}")
-        print(f"Run state: {run.state}")
-        print(f"Run config: {run.config}")
-        print(f"Run summary: {run.summary}")
-        print(f"Run history (samples=5): {run.history(samples=5)}")
-        print("----------")
-
-    # Get histories for all runs with specific metrics
-    histories_df = runs.histories(
-        samples=100,  # Number of samples per run
-        keys=["loss", "accuracy"],  # Metrics to fetch
-        x_axis="_step",  # X-axis metric
-        format="pandas",  # Return as pandas DataFrame
-    )
-    ```
     """
 
     def __init__(
@@ -1464,12 +1429,13 @@ class Run(Attrs):
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
-    def _beta_scan_history(
+    def beta_scan_history(
         self,
         keys: list[str] | None = None,
         page_size=1000,
         min_step=0,
         max_step=None,
+        use_cache=True,
     ) -> public.BetaHistoryScan:
         """Returns an iterable collection of all history records for a run.
 
@@ -1483,6 +1449,9 @@ class Run(Attrs):
             page_size: the number of history records to read at a time.
             min_step: The minimum step to start reading history from (inclusive).
             max_step: The maximum step to read history up to (exclusive).
+            use_cache: When set to True, checks the WANDB_CACHE_DIR for a run history.
+                If the run history is not found in the cache, it will be downloaded from the server.
+                If set to False, the run history will be downloaded every time.
 
         Returns:
             A BetaHistoryScan object,
@@ -1498,5 +1467,6 @@ class Run(Attrs):
             max_step=max_step or self.lastHistoryStep + 1,
             keys=keys,
             page_size=page_size,
+            use_cache=use_cache,
         )
         return beta_history_scan

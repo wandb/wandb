@@ -37,7 +37,6 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
 from wandb.sdk.artifacts.storage_policies.register import WANDB_STORAGE_POLICY
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
@@ -155,20 +154,20 @@ class WandbStoragePolicy(StoragePolicy):
 
         if manifest_entry._download_url is None:
             auth = None
-            headers = _thread_local_api_settings.headers
-            cookies = _thread_local_api_settings.cookies
+            headers: dict[str, str] = {}
 
             # For auth, prefer using (in order): auth header, cookies, HTTP Basic Auth
             if token := self._api.access_token:
-                headers = {**(headers or {}), "Authorization": f"Bearer {token}"}
-            elif cookies is not None:
-                pass
+                headers = {"Authorization": f"Bearer {token}"}
             else:
                 auth = ("api", self._api.api_key or "")
 
             file_url = self._file_url(artifact, manifest_entry)
             response = self._session.get(
-                file_url, auth=auth, cookies=cookies, headers=headers, stream=True
+                file_url,
+                auth=auth,
+                headers=headers,
+                stream=True,
             )
 
         with cache_open(mode="wb") as file:

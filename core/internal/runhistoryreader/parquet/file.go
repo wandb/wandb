@@ -33,7 +33,6 @@ func LocalParquetFile(
 func RemoteParquetFile(
 	reader parquet.ReaderAtSeeker,
 ) (*pqarrow.FileReader, error) {
-
 	fileReader, err := file.NewParquetReader(
 		reader,
 	)

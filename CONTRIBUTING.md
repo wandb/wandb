@@ -213,7 +213,7 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.25.4` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.25.5` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 
 ```shell
 brew install go@1.25
@@ -319,7 +319,7 @@ where `x.y` is the first version that includes all features you need.
 To mark a feature as deprecated and track its usage in telemetry:
 
 1. Add a new boolean field `<deprecated_feature>` to the
-`Deprecated` message in `wandb/proto/wandb_telemetry.proto`.
+   `Deprecated` message in `wandb/proto/wandb_telemetry.proto`.
 2. Rebuild protocol buffer files by running `nox -t proto`.
 3. Call `wandb.sdk.lib.deprecation.warn_and_record_deprecation` in your code:
 

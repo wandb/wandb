@@ -77,7 +77,10 @@ func newStructIterator(data arrow.Array) (*structIterator, error) {
 	}, nil
 }
 
-func (s *structIterator) Next() bool {
+func (s *structIterator) Next() (ok bool) {
+	if s == nil || s.data == nil {
+		return false
+	}
 	s.offset++
 	if s.offset >= s.data.Len() {
 		return false
@@ -91,6 +94,12 @@ func (s *structIterator) Next() bool {
 }
 
 func (s *structIterator) Value() interface{} {
+	if s == nil || s.data == nil {
+		return nil
+	}
+	if s.offset < 0 || s.offset >= s.data.Len() {
+		return nil
+	}
 	if s.data.IsNull(s.offset) {
 		return nil
 	}
@@ -120,22 +129,43 @@ func newListIterator(data arrow.Array) (*listIterator, error) {
 	}, nil
 }
 
-func (c *listIterator) Next() bool {
+func (c *listIterator) Next() (ok bool) {
+	if c == nil || c.data == nil {
+		return false
+	}
 	c.offset++
 	return c.offset < c.data.Len()
 }
 
 func (c *listIterator) Value() any {
+	if c == nil || c.data == nil {
+		return nil
+	}
+	if c.offset < 0 || c.offset >= c.data.Len() {
+		return nil
+	}
 	if c.data.IsNull(c.offset) {
 		return nil
 	}
 	offset := c.data.Offset() + c.offset
-	beg := int(c.data.Offsets()[offset])
-	end := int(c.data.Offsets()[offset+1])
+	offsets := c.data.Offsets()
+
+	if offset < 0 || offset+1 >= len(offsets) {
+		return []any{}
+	}
+
+	beg := int(offsets[offset])
+	end := int(offsets[offset+1])
 	if end <= beg {
 		return []any{}
 	}
-	s := array.NewSlice(c.data.ListValues(), int64(beg), int64(end))
+
+	listValues := c.data.ListValues()
+	if listValues == nil || beg < 0 || end > listValues.Len() {
+		return []any{}
+	}
+
+	s := array.NewSlice(listValues, int64(beg), int64(end))
 	defer s.Release()
 	it, err := newColumnIterator(s)
 	if err != nil {
@@ -168,21 +198,19 @@ func newScalarIterator(data arrow.Array, accessor accessorFunc) *scalarIterator 
 	}
 }
 
-func (c *scalarIterator) Next() bool {
+func (c *scalarIterator) Next() (ok bool) {
+	if c == nil || c.data == nil {
+		return false
+	}
+
 	c.offset++
 	return c.offset < c.data.Len()
 }
 
 func (c *scalarIterator) Value() (value any) {
-	defer func() {
-		// A panic may occur when the underlying data array is corrupt,
-		// e.g. index out of bounds panic even when c.offset < c.data.Len()
-		// For now, just catch the panic and return nil to avoid killing the calling process.
-		if p := recover(); p != nil {
-			// TODO: Bubble up some sort of corruption indicator for observability
-			value = nil
-		}
-	}()
+	if c == nil || c.data == nil || c.accessor == nil {
+		return nil
+	}
 	if c.data.IsNull(c.offset) {
 		return nil
 	}
@@ -190,27 +218,51 @@ func (c *scalarIterator) Value() (value any) {
 }
 
 func int32Accessor(data arrow.Array, offset int) any {
-	return data.(*array.Int32).Value(offset)
+	arr := data.(*array.Int32)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	return arr.Value(offset)
 }
 
 func uint32Accessor(data arrow.Array, offset int) any {
-	return data.(*array.Uint32).Value(offset)
+	arr := data.(*array.Uint32)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	return arr.Value(offset)
 }
 
 func int64Accessor(data arrow.Array, offset int) any {
-	return data.(*array.Int64).Value(offset)
+	arr := data.(*array.Int64)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	return arr.Value(offset)
 }
 
 func uint64Accessor(data arrow.Array, offset int) any {
-	return data.(*array.Uint64).Value(offset)
+	arr := data.(*array.Uint64)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	return arr.Value(offset)
 }
 
 func float32Accessor(data arrow.Array, offset int) any {
-	return data.(*array.Float32).Value(offset)
+	arr := data.(*array.Float32)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	return arr.Value(offset)
 }
 
 func float64Accessor(data arrow.Array, offset int) any {
-	value := data.(*array.Float64).Value(offset)
+	arr := data.(*array.Float64)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	value := arr.Value(offset)
 	// Check for special float values - can't use switch due to NaN comparison
 	if math.IsNaN(value) {
 		return "NaN"
@@ -225,11 +277,19 @@ func float64Accessor(data arrow.Array, offset int) any {
 }
 
 func stringAccessor(data arrow.Array, offset int) any {
-	return data.(*array.String).Value(offset)
+	arr := data.(*array.String)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	return arr.Value(offset)
 }
 
 func binaryAccessor(data arrow.Array, offset int) any {
-	raw := data.(*array.Binary).Value(offset)
+	arr := data.(*array.Binary)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	raw := arr.Value(offset)
 	var value []byte
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return raw
@@ -238,14 +298,26 @@ func binaryAccessor(data arrow.Array, offset int) any {
 }
 
 func fixedBinaryAccessor(data arrow.Array, offset int) any {
-	return data.(*array.FixedSizeBinary).Value(offset)
+	arr := data.(*array.FixedSizeBinary)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	return arr.Value(offset)
 }
 
 func time64Accessor(data arrow.Array, offset int) any {
-	ts := int64(data.(*array.Time64).Value(offset))
+	arr := data.(*array.Time64)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	ts := int64(arr.Value(offset))
 	return time.Unix(ts/1e9, ts%1e9)
 }
 
 func booleanAccessor(data arrow.Array, offset int) any {
-	return data.(*array.Boolean).Value(offset)
+	arr := data.(*array.Boolean)
+	if offset < 0 || offset >= arr.Len() {
+		return nil
+	}
+	return arr.Value(offset)
 }

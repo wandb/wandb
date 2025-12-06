@@ -1,21 +1,21 @@
 from __future__ import annotations
 
-import contextlib
 import os
 import threading
 
 from wandb import env
-from wandb.errors import AuthenticationError, term
+from wandb.errors import AuthenticationError, UsageError, term
 from wandb.sdk import wandb_setup
 
 from . import prompt, wbnetrc
 from .auth import Auth, AuthApiKey, AuthIdentityTokenFile, AuthWithSource
+from .host_url import HostUrl
 
 _session_auth_lock = threading.Lock()
 _session_auth: Auth | None = None
 
 
-def session_credentials(*, host: str) -> Auth | None:
+def session_credentials(*, host: str | HostUrl) -> Auth | None:
     """Returns the configured session credentials.
 
     Returns None if session credentials are configured for a different host.
@@ -27,13 +27,25 @@ def session_credentials(*, host: str) -> Auth | None:
             return None
 
 
-def _locked_set_session_auth(auth: Auth | None) -> None:
+def _locked_set_session_auth(
+    auth: Auth | None,
+    *,
+    update_settings: bool = True,
+) -> None:
     """Update session credentials.
 
     Updates the global _session_auth variable and the global settings.
     This is a refactoring step to transition away from storing auth in settings.
+
+    Args:
+        update_settings: Defaults to true. If false, skips updating the global
+            settings (which may cause them to be loaded).
     """
     global _session_auth
+    _session_auth = auth
+
+    if not update_settings:
+        return
 
     settings = wandb_setup.singleton().settings
 
@@ -54,24 +66,26 @@ def _locked_set_session_auth(auth: Auth | None) -> None:
     else:
         raise NotImplementedError(str(auth))
 
-    _session_auth = auth
 
-
-def unauthenticate_session() -> Auth | None:
+def unauthenticate_session(*, update_settings: bool = True) -> Auth | None:
     """Clear the session credentials.
+
+    Args:
+        update_settings: Defaults to true. If false, skips updating the global
+            settings (which may cause them to be loaded).
 
     Returns:
         The previous credentials, if any.
     """
     with _session_auth_lock:
         auth = _session_auth
-        _locked_set_session_auth(None)
+        _locked_set_session_auth(None, update_settings=update_settings)
         return auth
 
 
 def authenticate_session(
     *,
-    host: str,
+    host: str | HostUrl,
     source: str,
     no_offline: bool = False,
     no_create: bool = False,
@@ -83,6 +97,9 @@ def authenticate_session(
 
     If the session credentials are already configured for the given host,
     returns them. Otherwise, uses system credentials or prompts interactively.
+
+    The return value is only None if the user selected offline mode in
+    the interactive prompt.
 
     Args:
         host: The W&B server URL.
@@ -98,14 +115,18 @@ def authenticate_session(
     Raises:
         TimeoutError: If an interactive prompt is shown and input_timeout expires.
         AuthenticationError: If credentials are found but have an invalid format.
+        UsageError: If interactive prompting is needed but unavailable.
     """
+    if not isinstance(host, HostUrl):
+        host = HostUrl(host)
+
     if not relogin and (auth := session_credentials(host=host)):
         return auth
 
     if not relogin and (auth := _use_system_auth(host=host, source=source)):
         return auth
 
-    with contextlib.suppress(term.NotATerminalError):
+    try:
         return _use_prompted_auth(
             host=host,
             no_offline=no_offline,
@@ -113,8 +134,10 @@ def authenticate_session(
             referrer=referrer,
             input_timeout=input_timeout,
         )
-
-    return None
+    except term.NotATerminalError:
+        raise UsageError(
+            "No API key configured. Use `wandb login` to log in."
+        ) from None
 
 
 def use_explicit_auth(auth: Auth, *, source: str) -> None:
@@ -142,7 +165,7 @@ def use_explicit_auth(auth: Auth, *, source: str) -> None:
         _locked_set_session_auth(auth)
 
 
-def _use_system_auth(*, host: str, source: str) -> Auth | None:
+def _use_system_auth(*, host: HostUrl, source: str) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
     Loads credentials from environment variables or the .netrc file.
@@ -176,7 +199,7 @@ def _use_system_auth(*, host: str, source: str) -> Auth | None:
         return _session_auth
 
 
-def _try_env_auth(*, host: str) -> AuthWithSource | None:
+def _try_env_auth(*, host: HostUrl) -> AuthWithSource | None:
     """Returns credentials from environment variables, if set.
 
     Raises an authentication error if an invalid combination of environment
@@ -211,7 +234,7 @@ def _try_env_auth(*, host: str) -> AuthWithSource | None:
 
 def _use_prompted_auth(
     *,
-    host: str,
+    host: HostUrl,
     no_offline: bool,
     no_create: bool,
     referrer: str,

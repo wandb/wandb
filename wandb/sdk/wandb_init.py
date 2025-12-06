@@ -189,13 +189,16 @@ class _WandbInit:
         if run_settings._noop or run_settings._offline:
             return
 
+        # Only pass an explicit key when the key was provided directly
+        # to ensure correct messaging in _login().
+        explicit_key = init_settings.api_key
+
         wandb_login._login(
             host=run_settings.base_url,
             force=run_settings.force,
-            key=run_settings.api_key,
-            # Do not save an explicitly provided API key to .netrc.
-            update_api_key=run_settings.api_key is None,
             _silent=run_settings.quiet or run_settings.silent,
+            key=explicit_key,
+            update_api_key=explicit_key is None,
         )
 
     def warn_env_vars_change_after_setup(self) -> _PrinterCallback:

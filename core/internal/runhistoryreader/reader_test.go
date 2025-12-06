@@ -113,6 +113,7 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		true,
 	)
 	require.NoError(t, err)
 
@@ -142,6 +143,11 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 	ctx := t.Context()
 	tempDir := t.TempDir()
+
+	// Ensure we use a clean cache directory for this test
+	os.Setenv("WANDB_CACHE_DIR", tempDir)
+	defer os.Unsetenv("WANDB_CACHE_DIR")
+
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
@@ -157,10 +163,12 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 		{"_step": int64(3), "metric1": 3.0},
 		{"_step": int64(4), "metric1": 4.0},
 	}
+
 	servers := make([]*httptest.Server, 2)
 	for i, data := range [][]map[string]any{data1, data2} {
 		parquetFilePath := filepath.Join(tempDir, fmt.Sprintf("test%d.parquet", i))
 		iteratortest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+
 		parquetContent, err := os.ReadFile(parquetFilePath)
 		require.NoError(t, err)
 		servers[i] = createHttpServer(
@@ -172,6 +180,7 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 		servers[0].URL + "/test1.parquet",
 		servers[1].URL + "/test2.parquet",
 	})
+
 	reader, err := New(
 		ctx,
 		"test-entity",
@@ -180,12 +189,13 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		true,
 	)
 	require.NoError(t, err)
 
 	results, err := reader.GetHistorySteps(ctx, 1, 4)
-
 	assert.NoError(t, err)
+
 	assert.Len(t, results, 2)
 	expectedResults := []iterator.KeyValueList{
 		{
@@ -198,7 +208,7 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 		},
 	}
 	for i, result := range results {
-		assert.ElementsMatch(t, expectedResults[i], result)
+		assert.ElementsMatch(t, expectedResults[i], result, "Result %d doesn't match expected", i)
 	}
 }
 
@@ -234,6 +244,7 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{"metric1"},
+		true,
 	)
 	require.NoError(t, err)
 
@@ -305,6 +316,7 @@ func TestHistoryReader_GetHistorySteps_AllLiveData(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		true,
 	)
 	require.NoError(t, err)
 
@@ -369,6 +381,7 @@ func TestHistoryReader_GetHistorySteps_AllLiveData_WithKeys(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{"metric1"},
+		true,
 	)
 	require.NoError(t, err)
 
@@ -390,7 +403,10 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 	ctx := t.Context()
 	tempDir := t.TempDir()
 
-	// Create parquet file with steps 0-2
+	os.Setenv("WANDB_CACHE_DIR", tempDir)
+	defer os.Unsetenv("WANDB_CACHE_DIR")
+
+	// Create parquet file with only step 0
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
@@ -409,7 +425,7 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 
 	mockGQL := gqlmock.NewMockClient()
 
-	// Mock RunParquetHistory with parquet files AND live data for steps 3-4
+	// Mock RunParquetHistory with parquet files AND live data starting
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("RunParquetHistory"),
 		fmt.Sprintf(`{
@@ -426,7 +442,7 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 		}`, server.URL),
 	)
 
-	// Mock HistoryPage for the live data request (steps 3-4)
+	// Mock HistoryPage for the live data request
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("HistoryPage"),
 		`{
@@ -448,10 +464,11 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		true,
 	)
 	require.NoError(t, err)
 
-	// Request data that spans both parquet (0-2) and live data (3-4)
+	// Request data that spans both parquet (step 0) and live data (step 1)
 	results, err := reader.GetHistorySteps(ctx, 0, 2)
 
 	assert.NoError(t, err)
@@ -493,6 +510,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnInvalidLiveData(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		false,
 	)
 	assert.ErrorContains(t, err, "expected LiveData to be map[string]any")
 }
@@ -524,6 +542,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnMissingStepKey(t *testing.T) {
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		false,
 	)
 	assert.ErrorContains(t, err, "expected LiveData to contain step key")
 }
@@ -555,6 +574,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnNonConvertibleStepValue(t *testi
 		mockGQL,
 		http.DefaultClient,
 		[]string{},
+		false,
 	)
 	assert.ErrorContains(t, err, "expected step value to be convertible to int")
 }
@@ -606,6 +626,7 @@ func TestHistoryReader_GetHistorySteps_ConvertsStepValueToInt(t *testing.T) {
 				mockGQL,
 				http.DefaultClient,
 				[]string{},
+				false,
 			)
 			assert.NoError(t, err)
 		})

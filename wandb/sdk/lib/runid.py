@@ -6,6 +6,10 @@ from string import ascii_lowercase, digits
 
 _ID_CHARS = f"{ascii_lowercase}{digits}"
 
+# Create a dedicated Random instance with its own state so it
+# is not affected by global random.seed() calls
+_random = random.Random()
+
 
 def generate_id(length: int = 8) -> str:
     """Generate a random base-36 string of `length` digits."""
@@ -19,5 +23,8 @@ def generate_fast_id(length: int = 8) -> str:
 
     In local testing at the time of implementation, this is ~30-50x faster than
     `generate_id` when generating 128-character IDs.
+
+    Uses a dedicated Random instance to avoid being affected by global
+    random.seed() calls from user code or libraries.
     """
-    return "".join(random.choices(_ID_CHARS, k=length))
+    return "".join(_random.choices(_ID_CHARS, k=length))
