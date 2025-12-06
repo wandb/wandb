@@ -1,6 +1,7 @@
 import wandb
 from wandb._pydantic import IS_PYDANTIC_V2
 
+from ._history.executions import ExecutedAutomation
 from .actions import ActionType, DoNothing, SendNotification, SendWebhook
 from .automations import Automation, NewAutomation
 from .events import (
@@ -72,6 +73,8 @@ __all__ = [
     # Automations
     "Automation",
     "NewAutomation",
+    # Automation History
+    "ExecutedAutomation",
     # Integrations
     "Integration",  # doc:exclude
     "SlackIntegration",  # doc:exclude

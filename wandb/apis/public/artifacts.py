@@ -22,6 +22,7 @@ from typing import (
     TypeVar,
 )
 
+from pydantic import PositiveInt
 from typing_extensions import override
 from wandb_gql import gql
 
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
     from wandb_gql import Client
     from wandb_graphql.language.ast import Document
 
+    from wandb.apis.public import ExecutedAutomations
     from wandb.sdk.artifacts._generated import (
         ArtifactAliasFragment,
         ArtifactCollectionFragment,
@@ -662,6 +664,19 @@ class ArtifactCollection:
 
     def __repr__(self) -> str:
         return f"<ArtifactCollection {self.name} ({self.type})>"
+
+    @normalize_exceptions
+    def automation_history(self, per_page: PositiveInt = 50) -> ExecutedAutomations:
+        """Return a paginated collection of automations in this project."""
+        from wandb.apis.public import ExecutedAutomations
+        from wandb.automations._generated import GET_COLLECTION_AUTOMATION_HISTORY_GQL
+
+        return ExecutedAutomations(
+            self.client,
+            variables={"id": self.id},
+            per_page=per_page,
+            _query=gql(GET_COLLECTION_AUTOMATION_HISTORY_GQL),
+        )
 
 
 class _ArtifactEdgeGeneric(Edge[TNode]):
