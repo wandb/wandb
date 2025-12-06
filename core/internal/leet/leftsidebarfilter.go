@@ -63,7 +63,7 @@ func (s *LeftSidebar) IsFiltering() bool {
 }
 
 // ApplyFilter recomputes FilteredItems for each section based on the current matcher.
-// Also auto‑focuses the “best” section (most matches) while the query is non‑empty.
+// Also auto‑focuses the section with most matches while the query is non‑empty.
 func (s *LeftSidebar) ApplyFilter() {
 	matcher := s.filter.Matcher()
 
@@ -78,9 +78,7 @@ func (s *LeftSidebar) ApplyFilter() {
 			}
 		}
 		s.sections[i].FilteredItems = filtered
-		s.sections[i].FilterMatches = len(filtered)
-		s.sections[i].CurrentPage = 0
-		s.sections[i].CursorPos = 0
+		s.sections[i].Home()
 	}
 
 	// While query is non‑empty (draft or applied), drive focus to the best section.
@@ -97,7 +95,7 @@ func (s *LeftSidebar) focusBestMatchSection() {
 	max := 0
 
 	for i := range s.sections {
-		if m := s.sections[i].FilterMatches; m > max {
+		if m := len(s.sections[i].FilteredItems); m > max {
 			max = m
 			best = i
 		}
@@ -111,26 +109,23 @@ func (s *LeftSidebar) focusBestMatchSection() {
 
 // FilterInfo returns a compact, human‑readable per‑section match summary for the status bar.
 func (s *LeftSidebar) FilterInfo() string {
-	// Only show during input or when a non‑empty filter is applied.
-	if !s.filter.IsActive() && s.filter.Query() == "" {
+	// Only show during input or with an active filter.
+	if !s.IsFilterMode() && s.FilterQuery() == "" {
 		return ""
 	}
 
 	var parts []string
 	for _, sec := range s.sections {
-		if sec.FilterMatches > 0 {
-			// Keep names short but clear; omit zero counts to reduce noise.
-			title := sec.Title
-			switch title {
-			case "Environment":
-				title = "Env"
-			case "Config":
-				title = "Config"
-			case "Summary":
-				title = "Summary"
-			}
-			parts = append(parts, fmt.Sprintf("%s: %d", title, sec.FilterMatches))
+		filterMatches := len(sec.FilteredItems)
+		if filterMatches == 0 {
+			continue
 		}
+
+		title := sec.Title
+		if title == "Environment" {
+			title = "Env"
+		}
+		parts = append(parts, fmt.Sprintf("%s: %d", title, filterMatches))
 	}
 	if len(parts) == 0 {
 		return "no matches"

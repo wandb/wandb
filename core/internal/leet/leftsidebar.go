@@ -19,19 +19,6 @@ const (
 	sidebarHeaderLines = 7
 )
 
-// SectionView represents a paginated section in the overview.
-type SectionView struct {
-	Title         string
-	Items         []KeyValuePair
-	FilteredItems []KeyValuePair
-	CurrentPage   int
-	ItemsPerPage  int
-	CursorPos     int // Position within current page
-	Height        int // Total allocated height for this section (including title)
-	Active        bool
-	FilterMatches int
-}
-
 // LeftSidebar stores and displays run metadata.
 //
 // It handles presentation concerns: sections, filtering, navigation, layout, and rendering.
@@ -41,6 +28,7 @@ type LeftSidebar struct {
 	runOverview *RunOverview
 
 	// UI state: sections, filtering, navigation.
+	// TODO: encapsulate and refactor
 	sections      []SectionView
 	activeSection int
 
@@ -54,14 +42,17 @@ type LeftSidebar struct {
 func NewLeftSidebar(config *ConfigManager) *LeftSidebar {
 	animState := NewAnimationState(config.LeftSidebarVisible(), SidebarMinWidth)
 
+	es := SectionView{Title: "Environment", Active: true}
+	es.SetItemsPerPage(10)
+	cs := SectionView{Title: "Config"}
+	cs.SetItemsPerPage(15)
+	ss := SectionView{Title: "Summary"}
+	ss.SetItemsPerPage(20)
+
 	return &LeftSidebar{
-		animState:   animState,
-		runOverview: NewRunOverview(),
-		sections: []SectionView{
-			{Title: "Environment", ItemsPerPage: 10, Active: true},
-			{Title: "Config", ItemsPerPage: 15},
-			{Title: "Summary", ItemsPerPage: 20},
-		},
+		animState:     animState,
+		runOverview:   NewRunOverview(),
+		sections:      []SectionView{es, cs, ss},
 		activeSection: 0,
 	}
 }
@@ -91,9 +82,9 @@ func (s *LeftSidebar) Update(msg tea.Msg) (*LeftSidebar, tea.Cmd) {
 			case tea.KeyShiftTab:
 				s.navigateSection(-1)
 			case tea.KeyLeft:
-				s.navigatePage(-1)
+				s.navigatePageUp()
 			case tea.KeyRight:
-				s.navigatePage(1)
+				s.navigatePageDown()
 			}
 		}
 	}
@@ -205,8 +196,8 @@ func (s *LeftSidebar) SelectedItem() (key, value string) {
 		return "", ""
 	}
 
-	startIdx := section.CurrentPage * section.ItemsPerPage
-	itemIdx := startIdx + section.CursorPos
+	startIdx := section.CurrentPage() * section.ItemsPerPage()
+	itemIdx := startIdx + section.CurrentLine()
 
 	if itemIdx >= 0 && itemIdx < len(section.FilteredItems) {
 		item := section.FilteredItems[itemIdx]
@@ -218,16 +209,16 @@ func (s *LeftSidebar) SelectedItem() (key, value string) {
 
 // updateSections pulls data from the model and updates UI sections.
 func (s *LeftSidebar) updateSections() {
-	var currentKey, currentValue string
+	var selectedKey string
 	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
-		currentKey, currentValue = s.SelectedItem()
+		selectedKey, _ = s.SelectedItem()
 	}
 
 	s.sections[0].Items = s.runOverview.EnvironmentItems()
 	s.sections[1].Items = s.runOverview.ConfigItems()
 	s.sections[2].Items = s.runOverview.SummaryItems()
 
-	if s.IsFilterMode() || s.FilterQuery() != "" {
+	if s.IsFilterMode() || s.IsFiltering() {
 		s.ApplyFilter()
 	} else {
 		for i := range s.sections {
@@ -237,10 +228,10 @@ func (s *LeftSidebar) updateSections() {
 
 	s.updateSectionHeights()
 
-	if currentKey == "" {
+	if selectedKey == "" {
 		s.selectFirstAvailableItem()
 	} else {
-		s.restoreSelection(currentKey, currentValue)
+		s.restoreSelection(selectedKey)
 	}
 }
 
@@ -348,8 +339,8 @@ func (s *LeftSidebar) renderSectionHeader(section *SectionView) string {
 	totalItems := len(section.Items)
 	filteredItems := len(section.FilteredItems)
 
-	startIdx := section.CurrentPage * section.ItemsPerPage
-	endIdx := min(startIdx+section.ItemsPerPage, filteredItems)
+	startIdx := section.CurrentPage() * section.ItemsPerPage()
+	endIdx := min(startIdx+section.ItemsPerPage(), filteredItems)
 
 	titleText := section.Title
 	infoText := s.buildSectionInfo(section, totalItems, filteredItems, startIdx, endIdx)
@@ -363,11 +354,11 @@ func (s *LeftSidebar) buildSectionInfo(
 	totalItems, filteredItems, startIdx, endIdx int,
 ) string {
 	switch {
-	case (s.filter.IsActive() || s.filter.Query() != "") && filteredItems != totalItems:
+	case (s.IsFilterMode() || s.filter.Query() != "") && filteredItems != totalItems:
 		// Filtered view with pagination.
 		return fmt.Sprintf(" [%d-%d of %d filtered from %d]",
 			startIdx+1, endIdx, filteredItems, totalItems)
-	case filteredItems > section.ItemsPerPage:
+	case filteredItems > section.ItemsPerPage():
 		// Paginated view.
 		return fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, filteredItems)
 	case filteredItems > 0:
@@ -383,16 +374,26 @@ func (s *LeftSidebar) renderSectionItems(section *SectionView, width int) []stri
 	maxKeyWidth := int(float64(width) * leftSidebarKeyWidthRatio)
 	maxValueWidth := width - maxKeyWidth - 1
 
-	startIdx := section.CurrentPage * section.ItemsPerPage
-	endIdx := min(startIdx+section.ItemsPerPage, len(section.FilteredItems))
-	actualItemsToShow := endIdx - startIdx
+	itemCount := len(section.FilteredItems)
+	if itemCount == 0 || section.ItemsPerPage() <= 0 {
+		return nil
+	}
 
-	itemsToRender := min(actualItemsToShow, section.ItemsPerPage)
+	startIdx := section.CurrentPage() * section.ItemsPerPage()
+	endIdx := min(startIdx+section.ItemsPerPage(), itemCount)
+	actualItemsToShow := endIdx - startIdx
+	if actualItemsToShow <= 0 {
+		// Out‑of‑range page; with normalizePagination this shouldn't happen,
+		// but defensively avoid negative capacities.
+		return nil
+	}
+
+	itemsToRender := min(actualItemsToShow, section.ItemsPerPage())
 
 	lines := make([]string, 0, itemsToRender)
 	for i := range itemsToRender {
 		itemIdx := startIdx + i
-		if itemIdx >= len(section.FilteredItems) {
+		if itemIdx >= itemCount {
 			break
 		}
 
@@ -415,7 +416,7 @@ func (s *LeftSidebar) renderItem(
 	valueStyle := leftSidebarValueStyle
 
 	// Highlight selected item.
-	if section.Active && posInPage == section.CursorPos {
+	if section.Active && posInPage == section.CurrentLine() {
 		keyStyle = keyStyle.Background(colorSelected)
 		valueStyle = valueStyle.Background(colorSelected)
 	}
