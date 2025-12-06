@@ -1,10 +1,12 @@
 package runsync
 
 import (
+	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"golang.org/x/sync/errgroup"
 )
@@ -19,6 +21,9 @@ type RunSyncOperationFactory struct{}
 type RunSyncOperation struct {
 	syncers []*RunSyncer
 	printer *observability.Printer
+
+	logFile *DebugSyncLogFile
+	logger  *observability.CoreLogger
 }
 
 func (f *RunSyncOperationFactory) New(
@@ -30,9 +35,16 @@ func (f *RunSyncOperationFactory) New(
 		printer: observability.NewPrinter(),
 	}
 
+	logFile, err := OpenDebugSyncLogFile(settings.From(globalSettings))
+	if err != nil {
+		slog.Error("runsync: couldn't create log file", "error", err)
+	}
+	op.logFile = logFile
+	op.logger = NewSyncLogger(logFile, slog.LevelInfo)
+
 	for _, path := range paths {
 		settings := MakeSyncSettings(globalSettings, path)
-		factory := InjectRunSyncerFactory(settings)
+		factory := InjectRunSyncerFactory(settings, op.logger)
 		op.syncers = append(op.syncers, factory.New(path, updates))
 	}
 
@@ -41,10 +53,12 @@ func (f *RunSyncOperationFactory) New(
 
 // Do starts syncing and blocks until all sync work completes.
 func (op *RunSyncOperation) Do(parallelism int) *spb.ServerSyncResponse {
+	defer op.logFile.Close()
+
 	plan, err := op.initAndPlan()
 
 	if err != nil {
-		// TODO: Log the error.
+		LogSyncFailure(op.logger, err)
 		return &spb.ServerSyncResponse{
 			Messages: []*spb.ServerSyncMessage{ToSyncErrorMessage(err)},
 		}
@@ -59,8 +73,11 @@ func (op *RunSyncOperation) Do(parallelism int) *spb.ServerSyncResponse {
 				err := syncer.Sync()
 
 				if err != nil {
+					LogSyncFailure(op.logger, err)
+
 					// TODO: Print this at ERROR level, not INFO.
 					op.printer.Write(ToUserText(err))
+
 					break
 				}
 			}
