@@ -1455,14 +1455,14 @@ class Run(Attrs):
         if wandb.jupyter.running_in_vscode_notebook():
             import html
 
-            return html.escape(self._str_repr())
+            return html.escape(self._string_representation())
 
         return self.to_html()
 
     def __repr__(self) -> str:
-        return self._str_repr()
+        return self._string_representation()
 
-    def _str_repr(self) -> str:
+    def _string_representation(self) -> str:
         return f"<{nameof(type(self))} {'/'.join(self.path)} ({self.state})>"
 
     def beta_scan_history(
