@@ -23,6 +23,7 @@ type RunSyncOperation struct {
 
 func (f *RunSyncOperationFactory) New(
 	paths []string,
+	updates *RunSyncUpdates,
 	globalSettings *spb.Settings,
 ) *RunSyncOperation {
 	op := &RunSyncOperation{
@@ -32,7 +33,7 @@ func (f *RunSyncOperationFactory) New(
 	for _, path := range paths {
 		settings := MakeSyncSettings(globalSettings, path)
 		factory := InjectRunSyncerFactory(settings)
-		op.syncers = append(op.syncers, factory.New(path))
+		op.syncers = append(op.syncers, factory.New(path, updates))
 	}
 
 	return op

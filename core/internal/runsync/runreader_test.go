@@ -47,6 +47,7 @@ func setup(t *testing.T) testFixtures {
 	return testFixtures{
 		RunReader: factory.New(
 			transactionLog,
+			nil,
 			mockRecordParser,
 			fakeRunWork,
 		),
@@ -173,7 +174,7 @@ func Test_Extract_ErrorIfNoFile(t *testing.T) {
 	runInfo, err := x.RunReader.ExtractRunInfo()
 
 	assert.Nil(t, runInfo)
-	assert.ErrorContains(t, err, "failed to open store")
+	assert.ErrorContains(t, err, "failed to open reader")
 }
 
 func Test_TurnsAllRecordsIntoWork(t *testing.T) {

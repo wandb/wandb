@@ -33,6 +33,15 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
 
     PATH_FIELD_NUMBER: builtins.int
     SETTINGS_FIELD_NUMBER: builtins.int
+    NEW_ENTITY_FIELD_NUMBER: builtins.int
+    NEW_PROJECT_FIELD_NUMBER: builtins.int
+    NEW_RUN_ID_FIELD_NUMBER: builtins.int
+    new_entity: builtins.str
+    """An updated entity to use for all paths being synced."""
+    new_project: builtins.str
+    """An updated project to use for all paths being synced."""
+    new_run_id: builtins.str
+    """A new ID to use for all paths being synced."""
     @property
     def path(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
         """Paths to the .wandb files to upload.
@@ -49,9 +58,12 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
         *,
         path: collections.abc.Iterable[builtins.str] | None = ...,
         settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
+        new_entity: builtins.str = ...,
+        new_project: builtins.str = ...,
+        new_run_id: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["path", b"path", "settings", b"settings"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["new_entity", b"new_entity", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
 
 global___ServerInitSyncRequest = ServerInitSyncRequest
 
