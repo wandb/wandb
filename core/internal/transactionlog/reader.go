@@ -59,7 +59,7 @@ func NewReader(
 		return nil, fmt.Errorf("transactionlog: bad header: %v", err)
 	}
 
-	return &Reader{reader: reader, source: source}, nil
+	return &Reader{reader: reader, source: source, logger: logger}, nil
 }
 
 // SeekRecord seeks the underlying file to a specific offset.
