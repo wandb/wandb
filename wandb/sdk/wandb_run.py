@@ -1353,7 +1353,7 @@ class Run:
         if self._settings.silent:
             return False
 
-        if not ipython.in_jupyter():
+        if not ipython.in_jupyter() or ipython.in_vscode_notebook():
             return False
 
         try:
@@ -1372,6 +1372,11 @@ class Run:
 
         <!-- lazydoc-ignore: internal -->
         """
+        if ipython.in_vscode_notebook():
+            import html
+
+            return html.escape(str(self))
+
         url = self._settings.run_url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""

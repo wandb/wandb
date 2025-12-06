@@ -491,16 +491,3 @@ class Notebook:
         except (OSError, validator.NotebookValidationError):
             wandb.termerror("Unable to save notebook session history.")
             logger.exception("Unable to save notebook session history.")
-
-
-def running_in_vscode_notebook() -> bool:
-    try:
-        from IPython import get_ipython
-
-        ipython = get_ipython()
-        if not ipython:
-            return False
-
-        return ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__") is not None
-    except ModuleNotFoundError:
-        return False

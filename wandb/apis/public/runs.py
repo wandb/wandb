@@ -1452,7 +1452,7 @@ class Run(Attrs):
         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     def _repr_html_(self) -> str:
-        if wandb.jupyter.running_in_vscode_notebook():
+        if ipython.in_vscode_notebook():
             import html
 
             return html.escape(self._string_representation())
