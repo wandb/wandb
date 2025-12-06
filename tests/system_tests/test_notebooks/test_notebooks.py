@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import pathlib
@@ -6,6 +7,7 @@ import subprocess
 import sys
 from unittest import mock
 
+import nbformat
 import wandb
 import wandb.util
 
@@ -181,6 +183,36 @@ def test_mocked_notebook_run_display(user, mocked_ipython):
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
     assert any("<iframe" in html for html in displayed_html)
+
+
+def test_mocked_notebook_run_display_vscode(user, mocked_ipython):
+    _ = user
+    mocked_ipython.kernel.shell.user_ns["__vsc_ipynb_file__"] = (
+        "/path/to/notebook.ipynb"
+    )
+
+    with wandb.init() as run:
+        run.display()
+    displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
+
+    assert not any("<iframe" in html for html in displayed_html)
+
+
+def test_api_run_in_in_vscode_does_not_show_iframe(notebook):
+    with notebook("api_run_display.ipynb") as nb:
+        setup_cell = io.StringIO()
+        setup_cell.write(
+            "from IPython import get_ipython\n"
+            'get_ipython().kernel.shell.user_ns["__vsc_ipynb_file__"] = "api_run_display.ipynb"',
+        )
+        nb.nb.cells.insert(0, nbformat.v4.new_code_cell(setup_cell.getvalue()))
+
+        nb.execute_all()
+
+        cell = nb.nb.cells[-1]
+        cell_output = cell["outputs"][0]
+        html = cell_output["data"]["text/html"]
+        assert "<iframe" not in html
 
 
 def test_code_saving(notebook):
