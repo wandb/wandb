@@ -176,6 +176,14 @@ func (fs *BoundOS) Readlink(link string) (string, error) {
 	return os.Readlink(link)
 }
 
+func (fs *BoundOS) Chmod(path string, mode os.FileMode) error {
+	abspath, err := fs.abs(path)
+	if err != nil {
+		return err
+	}
+	return os.Chmod(abspath, mode)
+}
+
 // Chroot returns a new OS filesystem, with the base dir set to the
 // result of joining the provided path with the underlying base dir.
 func (fs *BoundOS) Chroot(path string) (billy.Filesystem, error) {
