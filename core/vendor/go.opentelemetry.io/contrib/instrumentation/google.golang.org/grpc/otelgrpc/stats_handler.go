@@ -8,18 +8,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	grpc_codes "google.golang.org/grpc/codes"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/stats"
-	"google.golang.org/grpc/status"
-
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
-	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
-	"go.opentelemetry.io/otel/semconv/v1.34.0/rpcconv"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
+	"go.opentelemetry.io/otel/semconv/v1.37.0/rpcconv"
 	"go.opentelemetry.io/otel/trace"
+	grpc_codes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/stats"
+	"google.golang.org/grpc/status"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal"
 )
@@ -27,10 +26,11 @@ import (
 type gRPCContextKey struct{}
 
 type gRPCContext struct {
-	inMessages  int64
-	outMessages int64
-	metricAttrs []attribute.KeyValue
-	record      bool
+	inMessages    int64
+	outMessages   int64
+	metricAttrs   []attribute.KeyValue
+	metricAttrSet attribute.Set
+	record        bool
 }
 
 type serverHandler struct {
@@ -39,8 +39,8 @@ type serverHandler struct {
 	tracer trace.Tracer
 
 	duration rpcconv.ServerDuration
-	inSize   rpcconv.ServerRequestSize
-	outSize  rpcconv.ServerResponseSize
+	inSize   int64Hist
+	outSize  int64Hist
 	inMsg    rpcconv.ServerRequestsPerRPC
 	outMsg   rpcconv.ServerResponsesPerRPC
 }
@@ -91,12 +91,12 @@ func NewServerHandler(opts ...Option) stats.Handler {
 }
 
 // TagConn can attach some information to the given context.
-func (h *serverHandler) TagConn(ctx context.Context, info *stats.ConnTagInfo) context.Context {
+func (*serverHandler) TagConn(ctx context.Context, _ *stats.ConnTagInfo) context.Context {
 	return ctx
 }
 
 // HandleConn processes the Conn stats.
-func (h *serverHandler) HandleConn(ctx context.Context, info stats.ConnStats) {
+func (*serverHandler) HandleConn(context.Context, stats.ConnStats) {
 }
 
 // TagRPC can attach some information to the given context.
@@ -112,9 +112,12 @@ func (h *serverHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) cont
 	}
 
 	if record {
+		// Make a new slice to avoid aliasing into the same attrs slice used by metrics.
+		spanAttributes := make([]attribute.KeyValue, 0, len(attrs)+len(h.SpanAttributes))
+		spanAttributes = append(append(spanAttributes, attrs...), h.SpanAttributes...)
 		opts := []trace.SpanStartOption{
 			trace.WithSpanKind(trace.SpanKindServer),
-			trace.WithAttributes(append(attrs, h.SpanAttributes...)...),
+			trace.WithAttributes(spanAttributes...),
 		}
 		if h.PublicEndpoint || (h.PublicEndpointFn != nil && h.PublicEndpointFn(ctx, info)) {
 			opts = append(opts, trace.WithNewRoot())
@@ -134,6 +137,7 @@ func (h *serverHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) cont
 		metricAttrs: append(attrs, h.MetricAttributes...),
 		record:      record,
 	}
+	gctx.metricAttrSet = attribute.NewSet(gctx.metricAttrs...)
 
 	return context.WithValue(ctx, gRPCContextKey{}, &gctx)
 }
@@ -158,8 +162,8 @@ type clientHandler struct {
 	tracer trace.Tracer
 
 	duration rpcconv.ClientDuration
-	inSize   rpcconv.ClientResponseSize
-	outSize  rpcconv.ClientRequestSize
+	inSize   int64Hist
+	outSize  int64Hist
 	inMsg    rpcconv.ClientResponsesPerRPC
 	outMsg   rpcconv.ClientRequestsPerRPC
 }
@@ -220,11 +224,14 @@ func (h *clientHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) cont
 	}
 
 	if record {
+		// Make a new slice to avoid aliasing into the same attrs slice used by metrics.
+		spanAttributes := make([]attribute.KeyValue, 0, len(attrs)+len(h.SpanAttributes))
+		spanAttributes = append(append(spanAttributes, attrs...), h.SpanAttributes...)
 		ctx, _ = h.tracer.Start(
 			ctx,
 			name,
 			trace.WithSpanKind(trace.SpanKindClient),
-			trace.WithAttributes(append(attrs, h.SpanAttributes...)...),
+			trace.WithAttributes(spanAttributes...),
 		)
 	}
 
@@ -232,6 +239,7 @@ func (h *clientHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) cont
 		metricAttrs: append(attrs, h.MetricAttributes...),
 		record:      record,
 	}
+	gctx.metricAttrSet = attribute.NewSet(gctx.metricAttrs...)
 
 	return inject(context.WithValue(ctx, gRPCContextKey{}, &gctx), h.Propagators)
 }
@@ -253,17 +261,17 @@ func (h *clientHandler) HandleRPC(ctx context.Context, rs stats.RPCStats) {
 }
 
 // TagConn can attach some information to the given context.
-func (h *clientHandler) TagConn(ctx context.Context, info *stats.ConnTagInfo) context.Context {
+func (*clientHandler) TagConn(ctx context.Context, _ *stats.ConnTagInfo) context.Context {
 	return ctx
 }
 
 // HandleConn processes the Conn stats.
-func (h *clientHandler) HandleConn(context.Context, stats.ConnStats) {
+func (*clientHandler) HandleConn(context.Context, stats.ConnStats) {
 	// no-op
 }
 
 type int64Hist interface {
-	Record(context.Context, int64, ...attribute.KeyValue)
+	RecordSet(context.Context, int64, attribute.Set)
 }
 
 func (c *config) handleRPC(
@@ -287,7 +295,7 @@ func (c *config) handleRPC(
 	case *stats.InPayload:
 		if gctx != nil {
 			messageId = atomic.AddInt64(&gctx.inMessages, 1)
-			inSize.Record(ctx, int64(rs.Length), gctx.metricAttrs...)
+			inSize.RecordSet(ctx, int64(rs.Length), gctx.metricAttrSet)
 		}
 
 		if c.ReceivedEvent && span.IsRecording() {
@@ -303,7 +311,7 @@ func (c *config) handleRPC(
 	case *stats.OutPayload:
 		if gctx != nil {
 			messageId = atomic.AddInt64(&gctx.outMessages, 1)
-			outSize.Record(ctx, int64(rs.Length), gctx.metricAttrs...)
+			outSize.RecordSet(ctx, int64(rs.Length), gctx.metricAttrSet)
 		}
 
 		if c.SentEvent && span.IsRecording() {
@@ -344,6 +352,9 @@ func (c *config) handleRPC(
 
 		var metricAttrs []attribute.KeyValue
 		if gctx != nil {
+			// Don't use gctx.metricAttrSet here, because it requires passing
+			// multiple RecordOptions, which would call metric.mergeSets and
+			// allocate a new set for each Record call.
 			metricAttrs = make([]attribute.KeyValue, 0, len(gctx.metricAttrs)+1)
 			metricAttrs = append(metricAttrs, gctx.metricAttrs...)
 		}
