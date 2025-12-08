@@ -39,5 +39,8 @@ type Directive struct {
 }
 
 func (d *Directive) ArgumentMap(vars map[string]interface{}) map[string]interface{} {
+	if d.Definition == nil {
+		return nil
+	}
 	return arg2map(d.Definition.Arguments, d.Arguments, vars)
 }

@@ -153,28 +153,23 @@ func envColorProfile(env environ) (p Profile) {
 		p = ANSI
 	}
 
-	parts := strings.Split(term, "-")
-	switch parts[0] {
-	case "alacritty",
-		"contour",
-		"foot",
-		"ghostty",
-		"kitty",
-		"rio",
-		"st",
-		"wezterm":
+	switch {
+	case strings.Contains(term, "alacritty"),
+		strings.Contains(term, "contour"),
+		strings.Contains(term, "foot"),
+		strings.Contains(term, "ghostty"),
+		strings.Contains(term, "kitty"),
+		strings.Contains(term, "rio"),
+		strings.Contains(term, "st"),
+		strings.Contains(term, "wezterm"):
 		return TrueColor
-	case "xterm":
-		if len(parts) > 1 {
-			switch parts[1] {
-			case "ghostty", "kitty":
-				// These terminals can be defined as xterm-TERMNAME
-				return TrueColor
-			}
-		}
-	case "tmux", "screen":
+	case strings.HasPrefix(term, "tmux"), strings.HasPrefix(term, "screen"):
 		if p < ANSI256 {
 			p = ANSI256
+		}
+	case strings.HasPrefix(term, "xterm"):
+		if p < ANSI {
+			p = ANSI
 		}
 	}
 

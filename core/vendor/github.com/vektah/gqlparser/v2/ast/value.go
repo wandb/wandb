@@ -29,9 +29,10 @@ type Value struct {
 	Comment  *CommentGroup
 
 	// Require validation
-	Definition         *Definition
-	VariableDefinition *VariableDefinition
-	ExpectedType       *Type
+	Definition             *Definition
+	VariableDefinition     *VariableDefinition
+	ExpectedType           *Type
+	ExpectedTypeHasDefault bool
 }
 
 type ChildValue struct {
