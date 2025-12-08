@@ -11,6 +11,148 @@ const (
 	sectionMinHeight = 2
 )
 
+// SectionView represents a paginated section in the overview.
+type SectionView struct {
+	Title         string
+	Items         []KeyValuePair
+	FilteredItems []KeyValuePair
+
+	itemsPerPage int
+	currentPage  int
+	currentLine  int
+
+	Height int // Total allocated height for this section (including title)
+	Active bool
+}
+
+func (s *SectionView) ItemsPerPage() int {
+	return s.itemsPerPage
+}
+func (s *SectionView) CurrentPage() int {
+	return s.currentPage
+}
+func (s *SectionView) CurrentLine() int {
+	return s.currentLine
+}
+
+func (s *SectionView) SetItemsPerPage(n int) {
+	if n <= 0 {
+		n = 1
+	}
+	s.itemsPerPage = n
+}
+
+// Up navigates to previous item.
+func (s *SectionView) Up() {
+	s.currentLine--
+
+	// Still on the same page?
+	if s.currentLine >= 0 {
+		return
+	}
+
+	totalItems := len(s.FilteredItems)
+	totalPages := (totalItems + s.itemsPerPage - 1) / s.itemsPerPage
+
+	s.currentPage--
+
+	if s.currentPage >= 0 {
+		// Moved to previous page - go to last line.
+		s.currentLine = s.itemsPerPage - 1
+		return
+	}
+
+	// Wrapped around to last page.
+	s.currentPage = totalPages - 1
+	if remainder := totalItems % s.itemsPerPage; remainder == 0 {
+		s.currentLine = s.itemsPerPage - 1
+	} else {
+		s.currentLine = remainder - 1
+	}
+}
+
+// Down navigates to next item.
+func (s *SectionView) Down() {
+	s.currentLine++
+
+	totalItems := len(s.FilteredItems)
+	totalPages := (totalItems + s.itemsPerPage - 1) / s.itemsPerPage
+
+	itemsOnPage := s.itemsPerPage
+	if s.currentPage == totalPages-1 {
+		if remainder := totalItems % s.itemsPerPage; remainder != 0 {
+			itemsOnPage = remainder
+		}
+	}
+
+	if s.currentLine < itemsOnPage {
+		return
+	}
+
+	// Move to next page - go to first line.
+	s.currentPage++
+	s.currentLine = 0
+
+	// Wrapped around to first page.
+	if s.currentPage >= totalPages {
+		s.currentPage = 0
+	}
+}
+
+// PageUp navigates to previous page.
+func (s *SectionView) PageUp() {
+	s.currentLine = 0
+	s.currentPage--
+
+	totalItems := len(s.FilteredItems)
+	totalPages := (totalItems + s.itemsPerPage - 1) / s.itemsPerPage
+
+	if s.currentPage < 0 {
+		s.currentPage = totalPages - 1
+	}
+}
+
+// PageDown navigates to next page.
+func (s *SectionView) PageDown() {
+	s.currentLine = 0
+	s.currentPage++
+
+	totalItems := len(s.FilteredItems)
+	totalPages := (totalItems + s.itemsPerPage - 1) / s.itemsPerPage
+
+	if s.currentPage >= totalPages {
+		s.currentPage = 0
+	}
+}
+
+// Up navigates to start page.
+func (s *SectionView) Home() {
+	s.currentPage = 0
+	s.currentLine = 0
+}
+
+func (s *SectionView) SetPageAndLine(page, line int) {
+	totalItems := len(s.FilteredItems)
+	totalPages := (totalItems + s.itemsPerPage - 1) / s.itemsPerPage
+
+	itemsOnPage := s.itemsPerPage
+	if s.currentPage == totalPages-1 {
+		if remainder := totalItems % s.itemsPerPage; remainder != 0 {
+			itemsOnPage = remainder
+		}
+	}
+
+	if page < 0 || page > totalPages-1 {
+		return
+	}
+	if line < 0 || line > itemsOnPage-1 {
+		return
+	}
+
+	s.currentPage = page
+	s.currentLine = line
+}
+
 // updateSectionHeights dynamically allocates heights to sections.
 func (s *LeftSidebar) updateSectionHeights() {
 	if s.height == 0 {
@@ -182,9 +324,9 @@ func (s *LeftSidebar) updateItemsPerPage() {
 	for i := range s.sections {
 		if s.sections[i].Height > 0 {
 			// Height includes title line, so items per page is height - 1.
-			s.sections[i].ItemsPerPage = max(s.sections[i].Height-1, 1)
+			s.sections[i].SetItemsPerPage(max(s.sections[i].Height-1, 1))
 		} else {
-			s.sections[i].ItemsPerPage = 0
+			s.sections[i].SetItemsPerPage(0)
 		}
 	}
 }
@@ -196,13 +338,7 @@ func (s *LeftSidebar) navigateUp() {
 	}
 
 	section := &s.sections[s.activeSection]
-	if section.CursorPos > 0 {
-		section.CursorPos--
-	} else if section.CurrentPage > 0 {
-		// Move to previous page, last item.
-		section.CurrentPage--
-		section.CursorPos = section.ItemsPerPage - 1
-	}
+	section.Up()
 }
 
 // navigateDown moves cursor down within the active section.
@@ -212,17 +348,7 @@ func (s *LeftSidebar) navigateDown() {
 	}
 
 	section := &s.sections[s.activeSection]
-	startIdx := section.CurrentPage * section.ItemsPerPage
-	endIdx := min(startIdx+section.ItemsPerPage, len(section.FilteredItems))
-	itemsOnPage := endIdx - startIdx
-
-	if section.CursorPos < itemsOnPage-1 {
-		section.CursorPos++
-	} else if endIdx < len(section.FilteredItems) {
-		// Move to next page, first item.
-		section.CurrentPage++
-		section.CursorPos = 0
-	}
+	section.Down()
 }
 
 // navigateSection jumps between sections, skipping empty ones.
@@ -235,7 +361,7 @@ func (s *LeftSidebar) navigateSection(direction int) {
 	idx := prev
 
 	// Try each section in the given direction.
-	for i := 0; i < len(s.sections); i++ {
+	for range len(s.sections) {
 		idx += direction
 		if idx < 0 {
 			idx = len(s.sections) - 1
@@ -259,38 +385,31 @@ func (s *LeftSidebar) navigateSection(direction int) {
 	s.sections[prev].Active = true
 }
 
-// navigatePage changes page within active section.
-func (s *LeftSidebar) navigatePage(direction int) {
+// navigatePageUp changes page to previous within active section.
+func (s *LeftSidebar) navigatePageUp() {
 	if !s.isValidActiveSection() {
 		return
 	}
 
 	section := &s.sections[s.activeSection]
-	if section.ItemsPerPage == 0 {
+	section.PageUp()
+}
+
+// navigatePageDown changes page to next within active section.
+func (s *LeftSidebar) navigatePageDown() {
+	if !s.isValidActiveSection() {
 		return
 	}
 
-	totalPages := (len(section.FilteredItems) + section.ItemsPerPage - 1) / section.ItemsPerPage
-
-	if totalPages <= 1 {
-		return
-	}
-
-	section.CurrentPage += direction
-	if section.CurrentPage < 0 {
-		section.CurrentPage = totalPages - 1
-	} else if section.CurrentPage >= totalPages {
-		section.CurrentPage = 0
-	}
-
-	section.CursorPos = 0
+	section := &s.sections[s.activeSection]
+	section.PageDown()
 }
 
 // selectFirstAvailableItem selects the first item in the first non-empty section.
 func (s *LeftSidebar) selectFirstAvailableItem() {
 	// Find first non-empty section.
 	for i := range s.sections {
-		if len(s.sections[i].FilteredItems) > 0 && s.sections[i].ItemsPerPage > 0 {
+		if len(s.sections[i].FilteredItems) > 0 && s.sections[i].ItemsPerPage() > 0 {
 			s.setActiveSection(i)
 			return
 		}
@@ -301,23 +420,10 @@ func (s *LeftSidebar) selectFirstAvailableItem() {
 }
 
 // restoreSelection attempts to restore the previously selected item.
-func (s *LeftSidebar) restoreSelection(previousKey, previousValue string) {
-	// Try to find exact key+value match in current active section.
-	if s.tryRestoreInSection(s.activeSection, previousKey, previousValue, true) {
-		return
-	}
-
+func (s *LeftSidebar) restoreSelection(previousKey string) {
 	// Try to find key-only match in current active section.
-	if s.tryRestoreInSection(s.activeSection, previousKey, previousValue, false) {
+	if s.tryRestoreInSection(previousKey) {
 		return
-	}
-
-	// Try to find in any section (key-only match).
-	for sectionIdx := range s.sections {
-		if s.tryRestoreInSection(sectionIdx, previousKey, "", false) {
-			s.setActiveSection(sectionIdx)
-			return
-		}
 	}
 
 	// Could not restore, select first available.
@@ -327,26 +433,24 @@ func (s *LeftSidebar) restoreSelection(previousKey, previousValue string) {
 // tryRestoreInSection attempts to restore selection in a specific section.
 //
 // Returns true if successful.
-func (s *LeftSidebar) tryRestoreInSection(sectionIdx int, key, value string, matchValue bool) bool {
-	if sectionIdx < 0 || sectionIdx >= len(s.sections) {
+func (s *LeftSidebar) tryRestoreInSection(key string) bool {
+	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return false
 	}
 
-	section := &s.sections[sectionIdx]
-	if section.ItemsPerPage == 0 {
+	section := &s.sections[s.activeSection]
+	if section.ItemsPerPage() == 0 {
 		return false
 	}
 
 	for i, item := range section.FilteredItems {
 		keyMatch := item.Key == key
-		valueMatch := !matchValue || item.Value == value
 
-		if keyMatch && valueMatch {
-			page := i / section.ItemsPerPage
-			posInPage := i % section.ItemsPerPage
+		if keyMatch {
+			page := i / section.ItemsPerPage()
+			line := i % section.ItemsPerPage()
 
-			section.CurrentPage = page
-			section.CursorPos = posInPage
+			section.SetPageAndLine(page, line)
 			return true
 		}
 	}
@@ -365,8 +469,6 @@ func (s *LeftSidebar) setActiveSection(idx int) {
 	s.activeSection = idx
 	if idx >= 0 && idx < len(s.sections) {
 		s.sections[idx].Active = true
-		s.sections[idx].CurrentPage = 0
-		s.sections[idx].CursorPos = 0
 	}
 }
 
