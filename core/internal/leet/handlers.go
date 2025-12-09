@@ -214,7 +214,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m.handleMetricsFilter(msg)
 	}
 
-	if m.pendingGridConfig != gridConfigNone {
+	if m.config.IsAwaitingGridConfig() {
 		return m.handleConfigNumberKey(msg)
 	}
 
@@ -370,22 +370,22 @@ func (m *Model) handleClearOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 }
 
 func (m *Model) handleConfigMetricsCols(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	m.pendingGridConfig = gridConfigMetricsCols
+	m.config.SetPendingGridConfig(gridConfigMetricsCols)
 	return m, nil
 }
 
 func (m *Model) handleConfigMetricsRows(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	m.pendingGridConfig = gridConfigMetricsRows
+	m.config.SetPendingGridConfig(gridConfigMetricsRows)
 	return m, nil
 }
 
 func (m *Model) handleConfigSystemCols(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	m.pendingGridConfig = gridConfigSystemCols
+	m.config.SetPendingGridConfig(gridConfigSystemCols)
 	return m, nil
 }
 
 func (m *Model) handleConfigSystemRows(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	m.pendingGridConfig = gridConfigSystemRows
+	m.config.SetPendingGridConfig(gridConfigSystemRows)
 	return m, nil
 }
 
@@ -430,43 +430,18 @@ func (m *Model) handleOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 // handleConfigNumberKey handles number input for configuration.
 func (m *Model) handleConfigNumberKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	defer m.config.SetPendingGridConfig(gridConfigNone)
+
 	if msg.String() == "esc" {
-		m.pendingGridConfig = gridConfigNone
 		return m, nil
 	}
 
 	num, err := strconv.Atoi(msg.String())
-	if err != nil || num < 1 || num > 9 {
-		m.pendingGridConfig = gridConfigNone
+	if err != nil {
 		return m, nil
 	}
 
-	var statusMsg string
-	switch m.pendingGridConfig {
-	case gridConfigMetricsCols:
-		err = m.config.SetMetricsCols(num)
-		if err == nil {
-			statusMsg = fmt.Sprintf("Metrics grid columns set to %d", num)
-		}
-	case gridConfigMetricsRows:
-		err = m.config.SetMetricsRows(num)
-		if err == nil {
-			statusMsg = fmt.Sprintf("Metrics grid rows set to %d", num)
-		}
-	case gridConfigSystemCols:
-		err = m.config.SetSystemCols(num)
-		if err == nil {
-			statusMsg = fmt.Sprintf("System grid columns set to %d", num)
-		}
-	case gridConfigSystemRows:
-		err = m.config.SetSystemRows(num)
-		if err == nil {
-			statusMsg = fmt.Sprintf("System grid rows set to %d", num)
-		}
-	}
-
-	m.pendingGridConfig = gridConfigNone
-
+	statusMsg, err := m.config.SetGridConfig(num)
 	if err != nil {
 		m.logger.Error(fmt.Sprintf("model: failed to update config: %v", err))
 		return m, nil
