@@ -83,10 +83,11 @@ type GridConfig struct {
 // All setter methods automatically save changes to disk.
 // Getters use read locks for concurrent access.
 type ConfigManager struct {
-	mu     sync.RWMutex
-	path   string
-	config Config
-	logger *observability.CoreLogger
+	mu                sync.RWMutex
+	path              string
+	config            Config
+	pendingGridConfig gridConfigTarget
+	logger            *observability.CoreLogger
 }
 
 func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigManager {
@@ -356,6 +357,68 @@ func (cm *ConfigManager) SetRightSidebarVisible(visible bool) error {
 	defer cm.mu.Unlock()
 	cm.config.RightSidebarVisible = visible
 	return cm.save()
+}
+
+func (cm *ConfigManager) IsAwaitingGridConfig() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.pendingGridConfig != gridConfigNone
+}
+
+// SetPendingGridConfig set the pending metrics/system grid configuration target.
+func (cm *ConfigManager) SetPendingGridConfig(gct gridConfigTarget) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.pendingGridConfig = gct
+}
+
+// SetGridConfig sets a value for a pending grid config target (metrics or system).
+func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
+	cm.mu.RLock()
+	pgc := cm.pendingGridConfig
+	cm.mu.RUnlock()
+
+	var err error
+
+	switch pgc {
+	case gridConfigMetricsCols:
+		if err = cm.SetMetricsCols(num); err == nil { // success
+			return fmt.Sprintf("Metrics grid columns set to %d", num), nil
+		}
+	case gridConfigMetricsRows:
+		if err = cm.SetMetricsRows(num); err == nil { // success
+			return fmt.Sprintf("Metrics grid rows set to %d", num), nil
+		}
+	case gridConfigSystemCols:
+		if err = cm.SetSystemCols(num); err == nil { // success
+			return fmt.Sprintf("System grid columns set to %d", num), nil
+		}
+	case gridConfigSystemRows:
+		if err = cm.SetSystemRows(num); err == nil { // success
+			return fmt.Sprintf("System grid rows set to %d", num), nil
+		}
+	}
+
+	return "", err
+}
+
+// GridConfigStatus returns the status message to display when awaiting grid config input.
+func (cm *ConfigManager) GridConfigStatus() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	switch cm.pendingGridConfig {
+	case gridConfigMetricsCols:
+		return "Press 1-9 to set metrics grid columns (ESC to cancel)"
+	case gridConfigMetricsRows:
+		return "Press 1-9 to set metrics grid rows (ESC to cancel)"
+	case gridConfigSystemCols:
+		return "Press 1-9 to set system grid columns (ESC to cancel)"
+	case gridConfigSystemRows:
+		return "Press 1-9 to set system grid rows (ESC to cancel)"
+	default:
+		return ""
+	}
 }
 
 // leetConfigPath returns the path where the config should be stored.
