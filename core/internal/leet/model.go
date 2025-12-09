@@ -419,7 +419,7 @@ func (m *Model) buildStatusText() string {
 		return m.buildMetricsFilterStatus()
 	}
 	if m.config.IsAwaitingGridConfig() {
-		return m.buildGridConfigStatus()
+		return m.config.GridConfigStatus()
 	}
 	if m.isLoading {
 		return m.buildLoadingStatus()
@@ -452,11 +452,6 @@ func (m *Model) buildMetricsFilterStatus() string {
 		m.metricsGrid.FilterQuery(),
 		string(mediumShadeBlock),
 		m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount())
-}
-
-// buildGridConfigStatus builds status for grid configuration mode.
-func (m *Model) buildGridConfigStatus() string {
-	return m.config.GridConfigStatus()
 }
 
 // buildLoadingStatus builds status for loading mode.
