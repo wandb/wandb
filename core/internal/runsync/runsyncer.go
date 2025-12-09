@@ -119,7 +119,6 @@ func (rs *RunSyncer) Sync() error {
 
 	err := g.Wait()
 	if err != nil {
-		logSyncFailure(rs.logger, err)
 		return err
 	}
 

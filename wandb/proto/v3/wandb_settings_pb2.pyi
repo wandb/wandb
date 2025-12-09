@@ -194,6 +194,7 @@ class Settings(google.protobuf.message.Message):
     ORGANIZATION_FIELD_NUMBER: builtins.int
     X_START_TIME_FIELD_NUMBER: builtins.int
     ROOT_DIR_FIELD_NUMBER: builtins.int
+    WANDB_DIR_FIELD_NUMBER: builtins.int
     LOG_DIR_FIELD_NUMBER: builtins.int
     LOG_INTERNAL_FIELD_NUMBER: builtins.int
     IGNORE_GLOBS_FIELD_NUMBER: builtins.int
@@ -354,7 +355,6 @@ class Settings(google.protobuf.message.Message):
     TABLE_RAISE_ON_MAX_ROW_LIMIT_EXCEEDED_FIELD_NUMBER: builtins.int
     TIMESPEC_FIELD_NUMBER: builtins.int
     TMP_DIR_FIELD_NUMBER: builtins.int
-    WANDB_DIR_FIELD_NUMBER: builtins.int
     X_JUPYTER_NAME_FIELD_NUMBER: builtins.int
     X_JUPYTER_PATH_FIELD_NUMBER: builtins.int
     JOB_NAME_FIELD_NUMBER: builtins.int
@@ -415,6 +415,12 @@ class Settings(google.protobuf.message.Message):
         Such as the wandb directory, and the run directory.
 
         By default, this is the current working directory.
+        """
+    @property
+    def wandb_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The path to the "wandb" workspace directory.
+
+        Often a path like `./wandb/`.
         """
     @property
     def log_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
@@ -934,8 +940,6 @@ class Settings(google.protobuf.message.Message):
     @property
     def tmp_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
-    def wandb_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
     def x_jupyter_name(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def x_jupyter_path(self) -> google.protobuf.wrappers_pb2.StringValue: ...
@@ -959,6 +963,7 @@ class Settings(google.protobuf.message.Message):
         organization: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_start_time: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         root_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        wandb_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
         ignore_globs: global___ListStringValue | None = ...,
@@ -1119,7 +1124,6 @@ class Settings(google.protobuf.message.Message):
         table_raise_on_max_row_limit_exceeded: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         timespec: google.protobuf.wrappers_pb2.StringValue | None = ...,
         tmp_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        wandb_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_jupyter_name: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_jupyter_path: google.protobuf.wrappers_pb2.StringValue | None = ...,
         job_name: google.protobuf.wrappers_pb2.StringValue | None = ...,

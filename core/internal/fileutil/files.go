@@ -161,3 +161,32 @@ func SanitizeFilename(filename string) string {
 	}
 	return SanitizeLinuxFilename(filename)
 }
+
+// CreateUnique creates a new file and opens it for writing.
+//
+// If $basePath.$extension doesn't exist, it is created.
+// Otherwise, the file $basePath.$num.$extension is created, where $num is the
+// smallest positive integer for which the resulting path doesn't already exist.
+//
+// OS errors are returned directly.
+func CreateUnique(
+	basePath string,
+	extension string,
+	perm os.FileMode,
+) (*os.File, error) {
+	file, err := os.OpenFile(
+		fmt.Sprintf("%s.%s", basePath, extension),
+		os.O_CREATE|os.O_EXCL|os.O_WRONLY,
+		perm,
+	)
+
+	for number := 1; errors.Is(err, os.ErrExist); number++ {
+		file, err = os.OpenFile(
+			fmt.Sprintf("%s.%d.%s", basePath, number, extension),
+			os.O_CREATE|os.O_EXCL|os.O_WRONLY,
+			perm,
+		)
+	}
+
+	return file, err
+}
