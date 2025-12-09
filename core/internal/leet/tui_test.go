@@ -31,10 +31,10 @@ func newTestModel(
 	cfg *leet.ConfigManager,
 	runPath string,
 	w, h int,
-) (*teatest.TestModel, *leet.Model) {
+) (*teatest.TestModel, *leet.RunModel) {
 	t.Helper()
 	logger := observability.NewNoOpLogger()
-	m := leet.NewModel(runPath, cfg, logger)
+	m := leet.NewRunModel(runPath, cfg, logger)
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(w, h))
 	tm.Send(tea.WindowSizeMsg{Width: w, Height: h})
 	return tm, m

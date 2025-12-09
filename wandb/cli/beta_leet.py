@@ -49,7 +49,7 @@ def _wandb_file_path(path: str | None) -> str:
 def launch(path: str | None) -> Never:
     get_sentry().configure_scope(process_context="leet")
 
-    wandb_file = _wandb_file_path(path)
+    # wandb_file = _wandb_file_path(path)
 
     try:
         core_path = get_core_path()
@@ -62,7 +62,8 @@ def launch(path: str | None) -> Never:
         if is_debug(default="False"):
             args.extend(["--log-level", "-4"])
 
-        args.append(wandb_file)
+        # args.append(wandb_file)
+        args.append(wandb_setup.singleton().settings.wandb_dir)
 
         result = subprocess.run(
             args,

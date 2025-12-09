@@ -236,11 +236,21 @@ Flags:
 		},
 	)
 
+	wandbDir := fs.Arg(0)
+	m := leet.NewModel(wandbDir, nil, logger)
+	program := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+
+	if _, err := program.Run(); err != nil {
+		return exitCodeErrorInternal
+	}
+
+	return exitCodeSuccess
+
 	wandbFile := fs.Arg(0)
 
-	// Run the TUI; allow in-process restarts (Alt+R) without re-parsing flags.
+	// Run the TUI in single run mode; allow in-process restarts (Alt+R) without re-parsing flags.
 	for {
-		model := leet.NewModel(wandbFile, nil, logger)
+		model := leet.NewRunModel(wandbFile, nil, logger)
 		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 		finalModel, err := p.Run()
@@ -250,7 +260,7 @@ Flags:
 		}
 
 		// If the model requests a restart, loop again.
-		if m, ok := finalModel.(*leet.Model); ok && m.ShouldRestart() {
+		if m, ok := finalModel.(*leet.RunModel); ok && m.ShouldRestart() {
 			continue
 		}
 

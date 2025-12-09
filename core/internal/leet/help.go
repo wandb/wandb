@@ -88,7 +88,7 @@ func (h *HelpModel) generateHelpContent() string {
 // SetSize updates the size of the help screen.
 func (h *HelpModel) SetSize(width, height int) {
 	h.width = width
-	h.height = height - StatusBarHeight // Account for status bar
+	h.height = height - StatusBarHeight
 	h.viewport.Width = width
 	h.viewport.Height = h.height
 	h.viewport.SetContent(h.generateHelpContent())
