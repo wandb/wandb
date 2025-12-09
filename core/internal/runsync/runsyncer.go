@@ -48,7 +48,10 @@ type RunSyncer struct {
 }
 
 // New initializes a sync operation without starting it.
-func (f *RunSyncerFactory) New(path string) *RunSyncer {
+func (f *RunSyncerFactory) New(
+	path string,
+	updates *RunSyncUpdates,
+) *RunSyncer {
 	// A small buffer helps smooth out filesystem hiccups if they happen
 	// and we're processing data fast enough. This is otherwise unnecessary.
 	const runWorkBufferSize = 32
@@ -60,7 +63,7 @@ func (f *RunSyncerFactory) New(path string) *RunSyncer {
 		/*fileReadDelay=*/ waiting.NewDelay(5*time.Second),
 	)
 	recordParser := f.RecordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
-	runReader := f.RunReaderFactory.New(path, recordParser, runWork)
+	runReader := f.RunReaderFactory.New(path, updates, recordParser, runWork)
 
 	return &RunSyncer{
 		path: path,

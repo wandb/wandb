@@ -122,6 +122,10 @@ class _Tester:
         self,
         paths: set[pathlib.Path],
         settings: wandb.Settings,
+        *,
+        entity: str,
+        project: str,
+        run_id: str,
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
         return await self._make_handle(
             self._init_sync_addrs,
@@ -221,6 +225,31 @@ def test_syncs_resumed_run(
         assert history[0]["x"] == 1
         assert history[1]["x"] == 2
         assert history[2]["x"] == 3
+
+
+def test_sync_to_other_path(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    # It is too cumbersome to change the run's entity in this test
+    # as it requires creating a new user, so we only test changing
+    # the project and ID.
+    with wandb.init(mode="offline", project="project1") as run:
+        run.log({"x": 1})
+
+    runner.invoke(
+        cli.beta,
+        f"sync -p project2 --id {run.id}-copy {run.settings.sync_dir}",
+    )
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(
+            run_id=f"{run.id}-copy",
+            project="project2",
+        )
+
+        assert len(history) == 1
+        assert history[0]["x"] == 1
 
 
 @pytest.mark.parametrize("skip_synced", (True, False))
@@ -385,6 +414,9 @@ def test_prints_status_updates(skip_asyncio_sleep, tmp_path, emulated_terminal):
                 beta_sync._do_sync(
                     set([wandb_file]),
                     service=tester,  # type: ignore (we only mock used methods)
+                    entity="",
+                    project="",
+                    run_id="",
                     settings=wandb.Settings(),
                     printer=new_printer(),
                     parallelism=1,

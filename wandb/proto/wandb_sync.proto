@@ -19,6 +19,15 @@ message ServerInitSyncRequest {
 
   // Settings to use when syncing.
   Settings settings = 2;
+
+  // An updated entity to use for all paths being synced.
+  string new_entity = 3;
+
+  // An updated project to use for all paths being synced.
+  string new_project = 4;
+
+  // A new ID to use for all paths being synced.
+  string new_run_id = 5;
 }
 
 // Indicates a sync operation is ready.
