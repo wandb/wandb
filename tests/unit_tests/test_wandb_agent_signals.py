@@ -3,7 +3,6 @@ import signal
 from unittest import mock
 
 import pytest
-
 from wandb import wandb_agent
 
 
