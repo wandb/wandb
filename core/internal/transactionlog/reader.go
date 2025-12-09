@@ -19,6 +19,10 @@ type Reader struct {
 	reader *leveldb.Reader // nil when closed
 	source io.ReadCloser
 	logger *observability.CoreLogger
+
+	// lastReadOffset is the offset the last Read started at, used for retrying
+	// that Read from the same position.
+	lastReadOffset int64
 }
 
 // OpenReader opens a .wandb file for reading.
@@ -75,7 +79,8 @@ func (r *Reader) SeekRecord(offset int64) error {
 // On EOF, the error wraps io.EOF.
 //
 // Errors are not fatal, and calling Read again will attempt to skip
-// corrupt data.
+// corrupt data. ResetLastRead can be used to attempt to read the same
+// position in the transaction log again.
 func (r *Reader) Read() (*spb.Record, error) {
 	if r.reader == nil {
 		return nil, errors.New("transactionlog: reader is closed")
@@ -85,6 +90,7 @@ func (r *Reader) Read() (*spb.Record, error) {
 	// No-op if there is no error.
 	defer r.reader.Recover()
 
+	r.lastReadOffset = r.reader.NextOffset()
 	recordReader, err := r.reader.Next()
 
 	switch {
@@ -106,6 +112,13 @@ func (r *Reader) Read() (*spb.Record, error) {
 	}
 
 	return msg, nil
+}
+
+// ResetLastRead returns to the previous Read position to allow retrying
+// the same read after an error.
+func (r *Reader) ResetLastRead() error {
+	r.logger.Info("transactionlog: resetting to offset", "offset", r.lastReadOffset)
+	return r.SeekRecord(r.lastReadOffset)
 }
 
 // Close closes the file.
