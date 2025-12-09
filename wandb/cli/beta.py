@@ -51,6 +51,15 @@ def leet(path: str | None = None) -> None:
 @beta.command()
 @click.argument("paths", type=click.Path(exists=True), nargs=-1)
 @click.option(
+    "--live",
+    is_flag=True,
+    default=False,
+    help="""Sync a run while it's still being logged.
+
+    This may hang if the process generating the run crashes uncleanly.
+    """,
+)
+@click.option(
     "-e",
     "--entity",
     default="",
@@ -106,6 +115,7 @@ def leet(path: str | None = None) -> None:
 )
 def sync(
     paths: tuple[str, ...],
+    live: bool,
     entity: str,
     project: str,
     run_id: str,
@@ -139,6 +149,7 @@ def sync(
 
     beta_sync.sync(
         [pathlib.Path(path) for path in paths],
+        live=live,
         entity=entity,
         project=project,
         run_id=run_id,

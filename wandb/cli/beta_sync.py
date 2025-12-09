@@ -27,6 +27,7 @@ _SLEEP = asyncio.sleep  # patched in tests
 def sync(
     paths: list[pathlib.Path],
     *,
+    live: bool,
     entity: str,
     project: str,
     run_id: str,
@@ -38,6 +39,8 @@ def sync(
     """Replay one or more .wandb files.
 
     Args:
+        live: Whether to enable 'live' mode, which indefinitely retries reading
+            incomplete transaction logs.
         entity: The entity override for all paths, or an empty string.
         project: The project override for all paths, or an empty string.
         run_id: The run ID override for all paths, or an empty string.
@@ -72,6 +75,7 @@ def sync(
     singleton.asyncer.run(
         lambda: _do_sync(
             wandb_files,
+            live=live,
             service=service,
             entity=entity,
             project=project,
@@ -86,6 +90,7 @@ def sync(
 async def _do_sync(
     wandb_files: set[pathlib.Path],
     *,
+    live: bool,
     service: ServiceConnection,
     entity: str,
     project: str,
@@ -101,6 +106,7 @@ async def _do_sync(
     init_handle = await service.init_sync(
         wandb_files,
         settings,
+        live=live,
         entity=entity,
         project=project,
         run_id=run_id,

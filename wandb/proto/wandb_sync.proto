@@ -17,6 +17,9 @@ message ServerInitSyncRequest {
   // Paths should be absolute.
   repeated string path = 1;
 
+  // Whether to perform a live sync.
+  bool live = 6;
+
   // Settings to use when syncing.
   Settings settings = 2;
 
