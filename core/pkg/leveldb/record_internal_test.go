@@ -39,6 +39,7 @@ func TestZeroBlocks(t *testing.T) {
 
 func testGenerator(t *testing.T, reset func(), gen func() (string, bool)) {
 	buf := new(bytes.Buffer)
+	offsets := make([]int64, 0)
 
 	reset()
 	w := NewWriterExt(buf, CRCAlgoCustom, 0)
@@ -47,13 +48,21 @@ func testGenerator(t *testing.T, reset func(), gen func() (string, bool)) {
 		if !ok {
 			break
 		}
+
 		ww, err := w.Next()
 		if err != nil {
 			t.Fatalf("writer.Next: %v", err)
 		}
+
 		if _, err := ww.Write([]byte(s)); err != nil {
 			t.Fatalf("Write: %v", err)
 		}
+
+		offset, err := w.LastRecordOffset()
+		if err != nil {
+			t.Fatalf("writer.LastRecordOffset: %v", err)
+		}
+		offsets = append(offsets, offset)
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
@@ -66,10 +75,19 @@ func testGenerator(t *testing.T, reset func(), gen func() (string, bool)) {
 		if !ok {
 			break
 		}
-		rr, err := r.Next()
+
+		expectedOffset := offsets[0]
+		offsets = offsets[1:]
+
+		rr, offset, err := r.NextWithOffset()
 		if err != nil {
 			t.Fatalf("reader.Next: %v", err)
 		}
+
+		if offset != expectedOffset {
+			t.Fatalf("got offset %d, expected %d", offset, expectedOffset)
+		}
+
 		x, err := io.ReadAll(rr)
 		if err != nil {
 			t.Fatalf("ReadAll: %v", err)
@@ -731,14 +749,20 @@ func TestSeekRecord(t *testing.T) {
 	}
 	check(1)
 
-	// Now seek past the end of the file and verify it causes an error.
+	// Now seek past the end of the file and verify it does not cause an error.
 	err = r.SeekRecord(1 << 20)
+	if err != nil {
+		t.Fatalf("Seeking past EOF returned unexpected error: %v", err)
+	}
+
+	// Reading after the end of the file should return EOF.
+	_, err = r.Next()
 	if err == nil {
-		t.Fatalf("Seek past the end of a file didn't cause an error")
+		t.Fatalf("Reading past EOF did not return EOF")
+	} else if err != io.EOF {
+		t.Fatalf("Reading past EOF returned unexpected error: %v", err)
 	}
-	if err != io.EOF {
-		t.Fatalf("Seeking past EOF raised unexpected error: %v", err)
-	}
+
 	r.Recover() // Verify recovery works.
 
 	// Validate the current records are returned after seeking to a valid offset.
