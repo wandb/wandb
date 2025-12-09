@@ -47,9 +47,14 @@ class AgentProcess:
 
         # Set up handlers for all possible signals
         if forward_signals:
+            skip_signals = {
+                getattr(signal, "SIGKILL", None),
+                getattr(signal, "SIGSTOP", None),
+            }
+            skip_signals.discard(None)
             for signum in signal.valid_signals():
                 # Skip signals that can't be caught
-                if signum in (signal.SIGKILL, signal.SIGSTOP):
+                if signum in skip_signals:
                     continue
                 with contextlib.suppress(OSError, ValueError):
                     # Some signals might not be supported on all platforms
