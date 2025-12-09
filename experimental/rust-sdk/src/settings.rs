@@ -54,10 +54,6 @@ impl Settings {
         self.proto.sync_dir.clone().unwrap()
     }
 
-    pub fn files_dir(&self) -> String {
-        self.proto.files_dir.clone().unwrap()
-    }
-
     pub fn offline(&self) -> bool {
         self.proto.offline.clone().unwrap()
     }
@@ -98,7 +94,6 @@ impl Default for Settings {
                 sync_dir: Some(".wandb/None-None-None".to_string()),
                 run_url: Some("undefined".to_string()),
                 run_name: Some("gloomy-morning-1".to_string()),
-                files_dir: Some("undefined".to_string()),
                 ..Default::default()
             },
         }

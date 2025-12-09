@@ -5,7 +5,7 @@ use prost::Message;
 use std::{
     collections::HashMap,
     io::{BufWriter, Write},
-    net::TcpStream,
+    os::unix::net::UnixStream,
     // sync::mpsc::{channel, Receiver, RecvError, Sender},
     sync::mpsc::{channel, Sender},
     sync::{Arc, Mutex},
@@ -41,11 +41,11 @@ impl Interface {
 
 #[derive(Debug)]
 pub struct Connection {
-    pub stream: TcpStream,
+    pub stream: UnixStream,
 }
 
 impl Connection {
-    pub fn new(stream: TcpStream) -> Self {
+    pub fn new(stream: UnixStream) -> Self {
         let conn = Connection { stream };
 
         conn
@@ -83,6 +83,7 @@ impl Connection {
                     message.clone(),
                 ),
             ),
+            request_id: String::new(),
         };
 
         let (sender, receiver) = channel();
@@ -104,9 +105,8 @@ impl Connection {
         message.encode(&mut buf).unwrap();
 
         tracing::debug!(
-            "Sending message {:?} to run {}",
-            message,
-            self.stream.peer_addr().unwrap()
+            "Sending message {:?} to wandb-core via Unix socket",
+            message
         );
         let mut writer = BufWriter::with_capacity(16384, &self.stream);
 
@@ -155,10 +155,7 @@ impl Connection {
     }
 
     pub fn recv(&self, handles: &Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>) {
-        tracing::debug!(
-            "Receiving messages from run {}",
-            self.stream.peer_addr().unwrap()
-        );
+        tracing::debug!("Receiving messages from wandb-core via Unix socket");
         loop {
             tracing::debug!("Waiting for message...");
             let msg = self.recv_message();
