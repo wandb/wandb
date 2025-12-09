@@ -147,6 +147,10 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 
 // Reraise reports panics to Sentry.
 func (cl *CoreLogger) Reraise(args ...any) {
+	if cl.sentry == nil {
+		return
+	}
+
 	if err := recover(); err != nil {
 		cl.sentry.Reraise(err, cl.withArgs(args...))
 	}
