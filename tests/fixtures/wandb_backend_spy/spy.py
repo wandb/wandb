@@ -7,6 +7,7 @@ import threading
 from typing import Any, Iterator
 
 import fastapi
+from typing_extensions import NamedTuple
 
 from . import gql_match
 
@@ -16,7 +17,7 @@ class WandbBackendSpy:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._runs: dict[str, _RunData] = {}
+        self._runs: _Runs = _Runs()
         self._gql_stubs: list[gql_match.GQLStub] = []
         self._filestream_stubs: list[_FileStreamResponse] = []
 
@@ -134,9 +135,10 @@ class WandbBackendSpy:
         self,
         request_raw: bytes,
         response_raw: bytes,
+        response_code: int,
     ) -> None:
         """Spy on a GraphQL request and response."""
-        request = json.loads(request_raw)
+        request: dict[str, Any] = json.loads(request_raw)
 
         with self._lock:
             query: str | None = request.get("query")
@@ -144,14 +146,17 @@ class WandbBackendSpy:
             if query is None or variables is None:
                 return
 
-            self._spy_upsert_bucket(query, variables)
+            if 200 <= response_code < 300:
+                response: dict[str, Any] = json.loads(response_raw)
+                self._spy_upsert_bucket(query, variables, response)
 
     def _spy_upsert_bucket(
         self,
         query: str,
         variables: dict[str, Any],
+        response: dict[str, Any],
     ) -> None:
-        """Change spied state based on UpsertBucket requests.
+        """Change spied state based on successful UpsertBucket requests.
 
         Requires self._lock.
         """
@@ -171,7 +176,21 @@ class WandbBackendSpy:
         else:
             raise KeyError("Unexpected UpsertBucket without name or id")
 
-        run = self._runs.setdefault(run_id, _RunData())
+        # All variants of the UpsertBucket mutation request the entity and
+        # project name. This is lucky as it lets us identify the run based
+        # on the server's response here.
+        #
+        # In case the response has an unexpected structure, these default names
+        # may help debug tests. We would need a more complicated setup to
+        # correctly record such mutations.
+        entity = "wandb_backend_spy-ERROR"
+        project = "wandb_backend_spy-ERROR"
+        with contextlib.suppress(KeyError):
+            bucket = response["data"]["upsertBucket"]["bucket"]
+            project = bucket["project"]["name"]
+            entity = bucket["project"]["entity"]["name"]
+
+        run = self._runs.setdefault(entity, project, run_id, _RunData())
 
         config = variables.get("config")
         if config is not None:
@@ -214,7 +233,7 @@ class WandbBackendSpy:
         request = json.loads(request_raw)
 
         with self._lock:
-            run = self._runs.setdefault(run_id, _RunData())
+            run = self._runs.setdefault(entity, project, run_id, _RunData())
 
             run._was_ever_preempting |= request.get("preempting", False)
             run._uploaded_files |= set(request.get("uploaded", []))
@@ -238,7 +257,7 @@ class WandbBackendSnapshot:
     def run_ids(self) -> set[str]:
         """Returns the IDs of all runs."""
         spy = self._assert_valid()
-        return set(spy._runs.keys())
+        return spy._runs.all_ids()
 
     def uploaded_files(self, *, run_id: str) -> set[str]:
         """Returns the set of files uploaded for the run.
@@ -247,9 +266,15 @@ class WandbBackendSnapshot:
         FileStream requests, and doesn't track actual file uploads.
         """
         spy = self._assert_valid()
-        return spy._runs[run_id]._uploaded_files
+        return spy._runs.get(run_id)._uploaded_files
 
-    def history(self, *, run_id: str) -> dict[int, Any]:
+    def history(
+        self,
+        *,
+        run_id: str,
+        entity: str | None = None,
+        project: str | None = None,
+    ) -> dict[int, Any]:
         """Returns the history file for the run.
 
         The file is represented as a dict that maps integer offsets to
@@ -262,11 +287,7 @@ class WandbBackendSnapshot:
             KeyError: if the run does not exist.
         """
         spy = self._assert_valid()
-
-        try:
-            run = spy._runs[run_id]
-        except KeyError as e:
-            raise KeyError(f"No run with ID {run_id}") from e
+        run = spy._runs.get(run_id, entity=entity, project=project)
 
         history_file = run._file_stream_files.get("wandb-history.jsonl", {})
         history_parsed: dict[int, Any] = {}
@@ -287,11 +308,7 @@ class WandbBackendSnapshot:
             KeyError: if the run does not exist.
         """
         spy = self._assert_valid()
-
-        try:
-            run = spy._runs[run_id]
-        except KeyError as e:
-            raise KeyError(f"No run with ID {run_id}") from e
+        run = spy._runs.get(run_id)
 
         return dict(run._file_stream_files.get("output.log", {}))
 
@@ -305,11 +322,7 @@ class WandbBackendSnapshot:
             KeyError: if the run does not exist.
         """
         spy = self._assert_valid()
-
-        try:
-            run = spy._runs[run_id]
-        except KeyError as e:
-            raise KeyError(f"No run with ID {run_id}") from e
+        run = spy._runs.get(run_id)
 
         summary_file = run._file_stream_files.get("wandb-summary.json", {})
         last_line_offset = max(summary_file.keys(), default=None)
@@ -327,11 +340,7 @@ class WandbBackendSnapshot:
             KeyError: if the run does not exist.
         """
         spy = self._assert_valid()
-
-        try:
-            run = spy._runs[run_id]
-        except KeyError as e:
-            raise KeyError(f"No run with ID {run_id}") from e
+        run = spy._runs.get(run_id)
 
         events_file = run._file_stream_files.get("wandb-events.jsonl", {})
         events_parsed: dict[int, Any] = {}
@@ -351,11 +360,7 @@ class WandbBackendSnapshot:
         """
         spy = self._assert_valid()
 
-        try:
-            config = spy._runs[run_id]._config_json_string
-        except KeyError as e:
-            raise KeyError(f"No run with ID {run_id}") from e
-
+        config = spy._runs.get(run_id)._config_json_string
         if config is None:
             raise AssertionError(f"No config for run {run_id}")
 
@@ -405,10 +410,7 @@ class WandbBackendSnapshot:
             KeyError: if the run does not exist.
         """
         spy = self._assert_valid()
-        try:
-            return spy._runs[run_id]._tags
-        except KeyError as e:
-            raise KeyError(f"No run with ID {run_id}") from e
+        return spy._runs.get(run_id)._tags
 
     def remote(self, *, run_id: str) -> str | None:
         """Returns the run's remote repository, if any.
@@ -420,10 +422,7 @@ class WandbBackendSnapshot:
             KeyError: if the run does not exist.
         """
         spy = self._assert_valid()
-        try:
-            return spy._runs[run_id]._remote
-        except KeyError as e:
-            raise KeyError(f"No run with ID {run_id}") from e
+        return spy._runs.get(run_id)._remote
 
     def commit(self, *, run_id: str) -> str | None:
         """Returns the run's commit, if any.
@@ -435,10 +434,7 @@ class WandbBackendSnapshot:
             KeyError: if the run does not exist.
         """
         spy = self._assert_valid()
-        try:
-            return spy._runs[run_id]._commit
-        except KeyError as e:
-            raise KeyError(f"No run with ID {run_id}") from e
+        return spy._runs.get(run_id)._commit
 
     def sweep_name(self, *, run_id: str) -> str | None:
         """Returns the sweep to which the run belongs, if any.
@@ -450,25 +446,22 @@ class WandbBackendSnapshot:
             KeyError: if the run does not exist.
         """
         spy = self._assert_valid()
-        try:
-            return spy._runs[run_id]._sweep_name
-        except KeyError as e:
-            raise KeyError(f"No run with ID {run_id}") from e
+        return spy._runs.get(run_id)._sweep_name
 
     def was_ever_preempting(self, *, run_id: str) -> bool:
         """Returns whether the run was ever marked 'preempting'."""
         spy = self._assert_valid()
-        return spy._runs[run_id]._was_ever_preempting
+        return spy._runs.get(run_id)._was_ever_preempting
 
     def completed(self, *, run_id: str) -> bool:
         """Returns whether the run was marked as completed."""
         spy = self._assert_valid()
-        return spy._runs[run_id]._completed
+        return spy._runs.get(run_id)._completed
 
     def exit_code(self, *, run_id: str) -> int | None:
         """Returns the exit code of the run."""
         spy = self._assert_valid()
-        return spy._runs[run_id]._exit_code
+        return spy._runs.get(run_id)._exit_code
 
     def _assert_valid(self) -> WandbBackendSpy:
         """Raise an error if we're not inside freeze()."""
@@ -476,6 +469,80 @@ class WandbBackendSnapshot:
             raise AssertionError("Snapshot cannot be used outside of freeze().")
 
         return self._spy
+
+
+class _EntityProject(NamedTuple):
+    """A run's entity and project."""
+
+    entity: str
+    project: str
+
+
+class _Runs:
+    """A mapping from run paths to recorded run data."""
+
+    def __init__(self) -> None:
+        self._run_by_id: dict[str, dict[_EntityProject, _RunData]] = {}
+
+    def all_ids(self) -> set[str]:
+        """Returns all run IDs recorded."""
+        return set(self._run_by_id.keys())
+
+    def setdefault(
+        self,
+        entity: str,
+        project: str,
+        run_id: str,
+        value: _RunData,
+    ) -> _RunData:
+        """Returns the data for the specified run, maybe creating it."""
+        entity_project_to_run = self._run_by_id.setdefault(run_id, {})
+        return entity_project_to_run.setdefault(
+            _EntityProject(entity, project),
+            value,
+        )
+
+    def get(
+        self,
+        run_id: str,
+        *,
+        entity: str | None = None,
+        project: str | None = None,
+    ) -> _RunData:
+        """Returns the data for the specified run.
+
+        Args:
+            run_id: The run's ID.
+            entity: The run's entity, or None if unambiguous.
+            project: The run's project, or None if unambiguous.
+
+        Raises:
+            KeyError: If the specified run is not found.
+        """
+        entity_project_to_run = self._run_by_id.get(run_id)
+        if not entity_project_to_run:
+            raise KeyError(f"No run with ID {run_id}")
+
+        matches: dict[_EntityProject, _RunData] = {}
+        for (e, p), data in entity_project_to_run.items():
+            if entity is not None and e and e != entity:
+                continue
+            if project is not None and p and p != project:
+                continue
+            matches[_EntityProject(e, p)] = data
+
+        if not matches:
+            raise KeyError(f"No run matching {run_id=}, {entity=}, {project=}")
+
+        if len(matches) > 1:
+            message = (
+                "Found more than one entry matching"
+                + f" {run_id=}, {entity=}, {project=}:"
+                + f" {list(matches.keys())}"
+            )
+            raise KeyError(message)
+
+        return list(matches.values())[0]
 
 
 class _RunData:
