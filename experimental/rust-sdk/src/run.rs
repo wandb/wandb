@@ -124,7 +124,7 @@ impl Run {
                 wandb_internal::RunRecord {
                     run_id: self.id(),
                     project: self.project(),
-                    // display_name: "gooba-gaba".to_string(),
+                    display_name: self.settings.proto.run_name.clone().unwrap_or_default(),
                     info: Some(wandb_internal::RecordInfo {
                         stream_id: self.id(),
                         ..Default::default()
@@ -213,10 +213,11 @@ impl Run {
         }
     }
 
-    pub fn log(&self, data: HashMap<String, Value>) {
+    pub fn log(&self, data: HashMap<String, Value>, step: Option<i64>) {
         tracing::debug!("Logging to run {}", self.id());
 
         let mut partial_history_request = wandb_internal::PartialHistoryRequest {
+            step: step.map(|num| wandb_internal::HistoryStep { num }),
             ..Default::default()
         };
 
