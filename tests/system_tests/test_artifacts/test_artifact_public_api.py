@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Callable
 
 import requests
 import wandb
-from pytest import FixtureRequest, fixture, mark, raises, skip
+from pytest import fixture, mark, raises, skip
 from pytest_mock import MockerFixture
 from wandb import Api
 from wandb._strutils import nameof
@@ -108,11 +108,8 @@ def test_artifact_get_path_download(api: Api):
 def test_artifact_file(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     path = art.file()
-    if platform.system() == "Windows":
-        part = "mnist-v0"
-    else:
-        part = "mnist:v0"
-    assert path == os.path.join(".", "artifacts", part, "digits.h5")
+    expected_subpath = "mnist-v0" if (platform.system() == "Windows") else "mnist:v0"
+    assert path == os.path.join(".", "artifacts", expected_subpath, "digits.h5")
 
 
 @mark.usefixtures("sample_data")
@@ -133,7 +130,8 @@ def test_artifact_files(api: Api):
 
 @mark.usefixtures("sample_data")
 def test_artifact_files_on_legacy_local_install(
-    request: FixtureRequest, wandb_backend_spy: WandbBackendSpy
+    wandb_backend_spy: WandbBackendSpy,
+    api: Api,
 ):
     # Assert we don't break legacy local installs
     gql = wandb_backend_spy.gql
@@ -148,9 +146,6 @@ def test_artifact_files_on_legacy_local_install(
             status=200,
         ),
     )
-
-    # The Api fixture must be requested AFTER the response is stubbed/mocked
-    api: Api = request.getfixturevalue("api")
 
     art = api.artifact("mnist:v0", type="dataset")
     files = art.files(per_page=1)
