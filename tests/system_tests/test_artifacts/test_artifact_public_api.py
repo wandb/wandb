@@ -11,6 +11,7 @@ from typing import Callable
 import requests
 import wandb
 from pytest import MonkeyPatch, fixture, mark, raises, skip
+from pytest_mock import MockerFixture
 from wandb import Api
 from wandb._strutils import nameof
 from wandb.errors import CommError
@@ -135,7 +136,8 @@ def test_artifact_files(api: Api):
 
 @mark.usefixtures("sample_data")
 def test_artifact_files_on_legacy_local_install(
-    user: str, api: Api, wandb_backend_spy: WandbBackendSpy
+    wandb_backend_spy: WandbBackendSpy,
+    api: Api,
 ):
     # Assert we don't break legacy local installs
     gql = wandb_backend_spy.gql

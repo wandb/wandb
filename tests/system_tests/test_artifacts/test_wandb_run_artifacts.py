@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import wandb
 from pytest import fixture, mark, raises
-from wandb import Api, Artifact
+from wandb import Artifact, env
 from wandb.errors import CommError
 from wandb.util import make_artifact_name_safe
 
 if TYPE_CHECKING:
     from wandb import Api
+
+    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 
 @fixture
@@ -363,9 +364,6 @@ def test_log_code_env(
     wandb_backend_spy: WandbBackendSpy,
 ):
     # test for WB-7468
-    mocker.patch.dict(os.environ, WANDB_SAVE_CODE=str(save_code).lower())
-
-    Path("test.py").write_text('print("test")')
 
     # simulate user turning on code saving in UI
     gql = wandb_backend_spy.gql
