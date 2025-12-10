@@ -1,3 +1,7 @@
+# v1.93.2 (2025-12-09)
+
+* No change notes available for this release.
+
 # v1.93.1 (2025-12-08)
 
 * **Dependency Update**: Updated to the latest SDK module versions
