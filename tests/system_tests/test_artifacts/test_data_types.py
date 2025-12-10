@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Callable
 import matplotlib
 import numpy as np
 import wandb
-from pytest import fixture, mark, raises
+from pytest import MonkeyPatch, fixture, mark, raises
 from wandb import Api
 from wandb.data_types import Table, WBValue
 from wandb.sdk.data_types._dtypes import TypedDictType
@@ -255,7 +255,11 @@ def test_incr_logging_multiple_logs(user: str, test_settings, api: Api):
     assert len(table_artifacts) == 3
 
 
-def test_using_incrementally_logged_table(user, test_settings, monkeypatch):
+def test_using_incrementally_logged_table(
+    user: str,
+    test_settings: Callable[[], wandb.Settings],
+    monkeypatch: MonkeyPatch,
+):
     # override get_entry_name to use deterministic timestamps
     log_count = 0
 
@@ -447,7 +451,9 @@ def test_resumed_run_no_prev_incr_table_nonwbvalue(
 
 
 def test_resumed_run_incremental_table_ordering(
-    user: str, test_settings: Callable[[], wandb.Settings], monkeypatch
+    user: str,
+    test_settings: Callable[[], wandb.Settings],
+    monkeypatch: MonkeyPatch,
 ):
     """
     Test that incremental tables maintain proper ordering when:

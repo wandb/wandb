@@ -30,13 +30,16 @@ from wandb.sdk.lib.paths import StrPath
 if TYPE_CHECKING:
     from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
+pytestmark = [
+    # Requesting the `user` fixture from ALL tests in this module sets login
+    # environment variables for the duration of each test.
+    mark.usefixtures("user"),
+]
+
 
 @fixture
-def sample_data(user: str) -> None:
+def sample_data() -> None:
     """Generate some sample artifacts for tests in this module."""
-    # Note: we request `user` to set login envvars for the duration of the test
-    _ = user  # prevent IDE warnings for unused variables
-
     with wandb.init(id="first_run", settings={"silent": True}) as run:
         artifact = wandb.Artifact("mnist", type="dataset")
         with artifact.new_file("digits.h5") as f:
@@ -321,11 +324,9 @@ def test_artifact_run_logged(user: str, api: Api):
 @mark.usefixtures("sample_data")
 def test_artifact_run_logged_cursor(user: str, api: Api):
     artifacts = api.run("uncategorized/first_run").logged_artifacts()
-    count = 0
-    for _artifact in artifacts:
-        count += 1
-
-    assert len(artifacts) == count
+    len_artifacts = len(artifacts)
+    count = sum(1 for _ in artifacts)
+    assert len_artifacts == count
 
 
 @mark.usefixtures("sample_data")
@@ -600,11 +601,7 @@ def test_fetch_registry_artifact(
     mock_responder = Constant(content=mock_rsp)
     wandb_backend_spy.stub_gql(match=op_matcher, respond=mock_responder)
 
-    if expected_artifact_fetched:
-        expectation = nullcontext()
-    else:
-        expectation = raises(CommError)
-
+    expectation = nullcontext() if expected_artifact_fetched else raises(CommError)
     with expectation:
         api.artifact(artifact_path)
 
