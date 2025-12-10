@@ -60,7 +60,9 @@ def server_supports_artifact_tags(user: str, api: Api) -> bool:
 
 
 def test_save_artifact_with_tags_repeated(
-    user, server_supports_artifact_tags, logged_artifact
+    user: str,
+    server_supports_artifact_tags: bool,
+    logged_artifact: Artifact,
 ):
     tags1 = ["tag1", "tag2"]
     tags2 = ["tag3", "tag4"]
@@ -93,12 +95,12 @@ def test_save_artifact_with_tags_repeated(
 )
 @mark.parametrize("edit_tags_inplace", (True, False))
 def test_save_tags_after_logging_artifact(
-    tmp_path,
-    user,
-    api,
-    orig_tags,
-    edit_tags_inplace,
-    server_supports_artifact_tags,
+    tmp_path: Path,
+    user: str,
+    api: Api,
+    orig_tags: list[str],
+    edit_tags_inplace: bool,
+    server_supports_artifact_tags: bool,
 ):
     project = "test"
     artifact_name = "test-artifact"
@@ -181,7 +183,11 @@ INVALID_TAG_LISTS = (
 
 @mark.parametrize("tags_to_add", INVALID_TAG_LISTS)
 def test_save_invalid_tags_after_logging_artifact(
-    tmp_path, user, api, tags_to_add, server_supports_artifact_tags
+    tmp_path: Path,
+    user: str,
+    api: Api,
+    tags_to_add: list[str],
+    server_supports_artifact_tags: bool,
 ):
     project = "test"
     artifact_name = "test-artifact"
@@ -225,7 +231,11 @@ def test_save_invalid_tags_after_logging_artifact(
 
 
 @mark.parametrize("invalid_tags", INVALID_TAG_LISTS)
-def test_log_artifact_with_invalid_tags(tmp_path, user, api, invalid_tags):
+def test_log_artifact_with_invalid_tags(
+    tmp_path: Path,
+    user: str,
+    invalid_tags: list[str],
+):
     project = "test"
     artifact_name = "test-artifact"
     artifact_type = "test-type"
@@ -243,7 +253,9 @@ def test_log_artifact_with_invalid_tags(tmp_path, user, api, invalid_tags):
 
 
 def test_retrieve_artifacts_by_tags(
-    user: str, api: Api, server_supports_artifact_tags: bool
+    user: str,
+    api: Api,
+    server_supports_artifact_tags: bool,
 ):
     project = "test"
     artifact_name = "test-artifact"
@@ -387,7 +399,9 @@ def test_delete_collection(user: str, api: Api):
 
 
 def test_log_with_wrong_type_entity_project(
-    user: str, api: Api, logged_artifact: Artifact
+    user: str,
+    api: Api,
+    logged_artifact: Artifact,
 ):
     # todo: logged_artifact does not work with core
     entity, project = logged_artifact.entity, logged_artifact.project
@@ -411,7 +425,7 @@ def test_log_with_wrong_type_entity_project(
             run.log_artifact(draft)
 
 
-def test_log_artifact_with_above_max_metadata_keys(user):
+def test_log_artifact_with_above_max_metadata_keys(user: str):
     artifact = wandb.Artifact("my_artifact", type="test")
     for i in range(101):
         artifact.metadata[f"key_{i}"] = f"value_{i}"
@@ -540,7 +554,7 @@ def test_artifact_enable_tracking_flag(user: str, api: Api, mocker):
     )
 
 
-def test_artifact_history_step(user, api):
+def test_artifact_history_step(user: str, api: Api):
     """Test that the correct history step is returned for an artifact."""
     entity = user
     project = "test-project"
@@ -562,7 +576,7 @@ def test_artifact_history_step(user, api):
     assert artifact.history_step == 0
 
 
-def test_artifact_multipart_download(user, api):
+def test_artifact_multipart_download(user: str, api: Api):
     """Test download large artifact with multipart download."""
     # Create file with all 1 as 101MB
     file_path = "101mb.bin"
