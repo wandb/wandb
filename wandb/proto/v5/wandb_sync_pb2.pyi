@@ -32,11 +32,17 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     PATH_FIELD_NUMBER: builtins.int
+    CWD_FIELD_NUMBER: builtins.int
     LIVE_FIELD_NUMBER: builtins.int
     SETTINGS_FIELD_NUMBER: builtins.int
     NEW_ENTITY_FIELD_NUMBER: builtins.int
     NEW_PROJECT_FIELD_NUMBER: builtins.int
     NEW_RUN_ID_FIELD_NUMBER: builtins.int
+    cwd: builtins.str
+    """An absolute path to the user's current working directory.
+
+    Paths are displayed relative to this if the result is shorter.
+    """
     live: builtins.bool
     """Whether to perform a live sync."""
     new_entity: builtins.str
@@ -49,7 +55,8 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
     def path(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
         """Paths to the .wandb files to upload.
 
-        Paths should be absolute.
+        Paths should either be absolute or relative to the cwd, and all paths
+        should refer to different files.
         """
 
     @property
@@ -60,6 +67,7 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
         self,
         *,
         path: collections.abc.Iterable[builtins.str] | None = ...,
+        cwd: builtins.str = ...,
         live: builtins.bool = ...,
         settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
         new_entity: builtins.str = ...,
@@ -67,7 +75,7 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
         new_run_id: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["live", b"live", "new_entity", b"new_entity", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["cwd", b"cwd", "live", b"live", "new_entity", b"new_entity", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
 
 global___ServerInitSyncRequest = ServerInitSyncRequest
 
