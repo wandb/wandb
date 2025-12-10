@@ -1,6 +1,8 @@
+import os
 import signal
 from unittest import mock
 
+import pytest
 from wandb import wandb_agent
 
 
@@ -31,8 +33,11 @@ def _capture_handlers(monkeypatch, valid_signals):
     return installed
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only handler coverage")
 def test_agent_process_installs_handlers_for_all_valid_signals(monkeypatch):
-    valid = {signal.SIGINT, signal.SIGTERM, signal.SIGKILL}
+    valid = {signal.SIGINT, signal.SIGTERM}
+    if hasattr(signal, "SIGKILL"):
+        valid.add(signal.SIGKILL)
     handlers = _capture_handlers(monkeypatch, valid)
     original_map = {}
 
@@ -50,12 +55,14 @@ def test_agent_process_installs_handlers_for_all_valid_signals(monkeypatch):
         forward_signals=True,
     )
 
-    assert signal.SIGKILL not in handlers
+    if hasattr(signal, "SIGKILL"):
+        assert signal.SIGKILL not in handlers
     assert set(handlers) == {signal.SIGINT, signal.SIGTERM}
     for signum in handlers:
         assert proc._original_handlers[signum] == f"orig-{signum}"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only forwarding path")
 def test_agent_process_forwards_command_signal_on_posix(monkeypatch):
     handlers = _capture_handlers(monkeypatch, {signal.SIGTERM})
     dummy_holder = {}
@@ -119,6 +126,7 @@ def test_agent_process_forwards_signals_on_windows(monkeypatch):
     original.assert_called_once_with(signal.SIGTERM, None)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only function process path")
 def test_agent_process_forwards_to_function_process(monkeypatch):
     handlers = _capture_handlers(monkeypatch, {signal.SIGTERM})
 
@@ -143,6 +151,7 @@ def test_agent_process_forwards_to_function_process(monkeypatch):
     mock_proc.send_signal.assert_called_once_with(signal.SIGTERM)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only SIGKILL path")
 def test_agent_process_kills_function_process_on_sigkill(monkeypatch):
     handlers = _capture_handlers(monkeypatch, {signal.SIGTERM})
 
@@ -167,6 +176,7 @@ def test_agent_process_kills_function_process_on_sigkill(monkeypatch):
     mock_proc.kill.assert_called_once()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only signal registration path")
 def test_agent_process_continues_when_signal_registration_fails(monkeypatch):
     bad_signal = 9999
     valid = {signal.SIGTERM, bad_signal}
