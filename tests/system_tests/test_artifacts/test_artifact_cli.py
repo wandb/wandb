@@ -37,9 +37,8 @@ def test_artifact(runner, user):
     assert os.path.exists(path)
 
 
-# Use a separate staging directory for the duration of this test.
-@mark.usefixtures("override_env_staging_dir", "override_env_cache_dir")
-def test_artifact_put_with_cache_enabled(runner, user, tmp_path, api, staging_dir):
+@mark.usefixtures("override_env_dirs")
+def test_artifact_put_with_cache_enabled(runner, user, tmp_path, api, temp_staging_dir):
     cache = get_artifact_file_cache()
 
     data_dir_path = Path(tmp_path / "data")
@@ -56,7 +55,7 @@ def test_artifact_put_with_cache_enabled(runner, user, tmp_path, api, staging_di
     assert "test/simple:v0" in result.output
 
     # The staged file is deleted after logging
-    staging_files = list(staging_dir.iterdir())
+    staging_files = list(temp_staging_dir.iterdir())
     assert len(staging_files) == 0
 
     # The file is cached
@@ -66,9 +65,10 @@ def test_artifact_put_with_cache_enabled(runner, user, tmp_path, api, staging_di
     assert found
 
 
-# Use a separate staging directory for the duration of this test.
-@mark.usefixtures("override_env_staging_dir", "override_env_cache_dir")
-def test_artifact_put_with_cache_disabled(runner, user, tmp_path, api, staging_dir):
+@mark.usefixtures("override_env_dirs")
+def test_artifact_put_with_cache_disabled(
+    runner, user, tmp_path, api, temp_staging_dir
+):
     cache = get_artifact_file_cache()
 
     data_dir_path = Path(tmp_path / "data")
@@ -87,7 +87,7 @@ def test_artifact_put_with_cache_disabled(runner, user, tmp_path, api, staging_d
     assert "test/simple:v0" in result.output
 
     # The staged file is deleted after logging
-    staging_files = list(staging_dir.iterdir())
+    staging_files = list(temp_staging_dir.iterdir())
     assert len(staging_files) == 0
 
     # The file is not cached
