@@ -379,7 +379,7 @@ def test_run_retry(wandb_backend_spy):
 
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.any(),
+        gql.ANY,
         gql.once(content={"errors": ["Server down"]}, status=500),
     )
 
@@ -921,7 +921,7 @@ def test_viewer(user, api):
 def test_create_team_exists(wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.any(),
+        gql.ANY,
         gql.Constant(content={"error": "resource already exists"}, status=409),
     )
 

@@ -161,7 +161,7 @@ def test_ignore_globs_wandb_files(wandb_backend_spy):
 def test_network_fault_graphql(wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.any(),
+        gql.ANY,
         # Fail every other request for 50 requests.
         gql.Sequence(
             [
