@@ -124,12 +124,13 @@ class _Tester:
         paths: set[pathlib.Path],
         settings: wandb.Settings,
         *,
+        cwd: pathlib.Path | None,
         live: bool,
         entity: str,
         project: str,
         run_id: str,
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
-        _, _, _, _, _, _ = paths, settings, live, entity, project, run_id
+        _, _, _, _, _, _, _ = paths, settings, cwd, live, entity, project, run_id
         return await self._make_handle(
             self._init_sync_addrs,
             lambda r: r.init_sync_response,
@@ -198,7 +199,7 @@ def test_syncs_run(
     assert lines[0] == "Syncing 1 file(s):"
     assert lines[1].endswith(f"run-{run.id}.wandb")
     # More lines possible depending on status updates. Not deterministic.
-    assert lines[-1] == f"wandb: [{run.path}] Finished syncing {run.settings.sync_file}"
+    assert lines[-1].startswith(f"wandb: [{run.path}] Finished syncing")
 
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run.id)
@@ -429,6 +430,7 @@ def test_prints_status_updates(
             group.start_soon(
                 beta_sync._do_sync(
                     set([wandb_file]),
+                    cwd=None,
                     live=False,
                     service=tester,  # type: ignore (we only mock used methods)
                     entity="",

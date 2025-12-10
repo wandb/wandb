@@ -52,10 +52,19 @@ def sync(
         verbose: Verbose mode for printing more info.
         parallelism: Max number of runs to sync at a time.
     """
-    wandb_files: set[pathlib.Path] = set()
-    for path in paths:
-        for wandb_file in _find_wandb_files(path, skip_synced=skip_synced):
-            wandb_files.add(wandb_file.resolve())
+    try:
+        cwd = pathlib.Path.cwd()
+    except OSError:
+        cwd = None
+
+    wandb_files = _to_unique_files(
+        (
+            wandb_file
+            for path in paths
+            for wandb_file in _find_wandb_files(path, skip_synced=skip_synced)
+        ),
+        verbose=verbose,
+    )
 
     if not wandb_files:
         click.echo("No files to sync.")
@@ -75,6 +84,7 @@ def sync(
     singleton.asyncer.run(
         lambda: _do_sync(
             wandb_files,
+            cwd=cwd,
             live=live,
             service=service,
             entity=entity,
@@ -87,9 +97,40 @@ def sync(
     )
 
 
+def _to_unique_files(
+    paths: Iterator[pathlib.Path],
+    *,
+    verbose: bool,
+) -> set[pathlib.Path]:
+    """Returns paths with duplicates removed.
+
+    Determines file equality the same way as os.path.samefile().
+    """
+    id_to_path: dict[tuple[int, int], pathlib.Path] = dict()
+
+    # Sort in reverse so that the last path written to the map is
+    # alphabetically earliest.
+    for path in sorted(paths, reverse=True):
+        try:
+            stat = path.stat()
+        except OSError as e:
+            click.echo(f"Failed to stat {path}: {e}")
+            continue
+
+        id = (stat.st_ino, stat.st_dev)
+
+        if verbose and (other_path := id_to_path.get(id)):
+            click.echo(f"{path} is the same as {other_path}")
+
+        id_to_path[id] = path
+
+    return set(id_to_path.values())
+
+
 async def _do_sync(
     wandb_files: set[pathlib.Path],
     *,
+    cwd: pathlib.Path | None,
     live: bool,
     service: ServiceConnection,
     entity: str,
@@ -106,6 +147,7 @@ async def _do_sync(
     init_handle = await service.init_sync(
         wandb_files,
         settings,
+        cwd=cwd,
         live=live,
         entity=entity,
         project=project,
