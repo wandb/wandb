@@ -21,7 +21,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
 
 from pydantic import ValidationError
-from typing_extensions import Unpack
+from typing_extensions import Unpack, overload
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -954,7 +954,12 @@ class Api:
             project = parts[0]
         return entity, project, id
 
-    def _parse_artifact_path(self, path):
+    @overload
+    def _parse_artifact_path(self, path: None) -> tuple[str | None, str]: ...
+    @overload
+    def _parse_artifact_path(self, path: str) -> tuple[str | None, str, str]: ...
+
+    def _parse_artifact_path(self, path: str | None) -> tuple[str | None, ...]:
         """Return project, entity and artifact name for project specified by path."""
         from wandb.sdk.artifacts._validators import ArtifactPath
 
