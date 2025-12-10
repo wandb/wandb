@@ -5,10 +5,13 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import printer as p
 from wandb.sdk.lib import progress
 
+from tests.fixtures.emulated_terminal import EmulatedTerminal
+from tests.fixtures.mock_wandb_log import MockWandbLog
+
 
 @pytest.fixture()
 def dynamic_progress_printer(
-    emulated_terminal,
+    emulated_terminal: EmulatedTerminal,
 ) -> Iterator[progress.ProgressPrinter]:
     """A ProgressPrinter writing to an emulated terminal."""
     # Ensure dynamic text is supported.
@@ -31,7 +34,10 @@ def static_progress_printer() -> Iterator[progress.ProgressPrinter]:
         yield progress_printer
 
 
-def test_minimal_operations_dynamic(emulated_terminal, dynamic_progress_printer):
+def test_minimal_operations_dynamic(
+    emulated_terminal: EmulatedTerminal,
+    dynamic_progress_printer: progress.ProgressPrinter,
+):
     dynamic_progress_printer.update(
         pb.OperationStats(
             total_operations=4,
@@ -53,26 +59,29 @@ def test_minimal_operations_dynamic(emulated_terminal, dynamic_progress_printer)
 
 
 def test_grouped_operations_dynamic(
-    emulated_terminal,
-    dynamic_progress_printer,
-    monkeypatch,
+    emulated_terminal: EmulatedTerminal,
+    dynamic_progress_printer: progress.ProgressPrinter,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(progress, "_MAX_LINES_TO_PRINT", 7)
 
     dynamic_progress_printer.update(
-        {
-            "run1": pb.OperationStats(
+        [
+            pb.OperationStats(
+                label="run1",
                 total_operations=100,
                 operations=[
                     pb.Operation(desc="op 1", runtime_seconds=45.315),
                     pb.Operation(desc="op 2", runtime_seconds=9.123),
                 ],
             ),
-            "run2": pb.OperationStats(
+            pb.OperationStats(
+                label="run2",
                 total_operations=20,
                 operations=[],  # no operations => group not printed
             ),
-            "run3": pb.OperationStats(
+            pb.OperationStats(
+                label="run3",
                 total_operations=3,
                 operations=[
                     pb.Operation(desc="op 3", runtime_seconds=5000),
@@ -80,7 +89,7 @@ def test_grouped_operations_dynamic(
                     pb.Operation(desc="op 4"),
                 ],
             ),
-        }
+        ]
     )
 
     assert emulated_terminal.read_stderr() == [
@@ -95,30 +104,32 @@ def test_grouped_operations_dynamic(
 
 
 def test_grouped_operations_near_max_lines(
-    emulated_terminal,
-    dynamic_progress_printer,
-    monkeypatch,
+    emulated_terminal: EmulatedTerminal,
+    dynamic_progress_printer: progress.ProgressPrinter,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(progress, "_MAX_LINES_TO_PRINT", 5)
 
     # The first run takes 4 lines, but the second run needs at least 2 lines,
     # so it is not printed.
     dynamic_progress_printer.update(
-        {
-            "run1": pb.OperationStats(
+        [
+            pb.OperationStats(
+                label="run1",
                 total_operations=100,
                 operations=[
                     pb.Operation(desc="op 1", runtime_seconds=45.315),
                     pb.Operation(desc="op 2", runtime_seconds=9.123),
                 ],
             ),
-            "run2": pb.OperationStats(
+            pb.OperationStats(
+                label="run2",
                 total_operations=20,
                 operations=[
                     pb.Operation(desc="op 3", runtime_seconds=5000),
                 ],
             ),
-        }
+        ]
     )
 
     assert emulated_terminal.read_stderr() == [
@@ -129,7 +140,10 @@ def test_grouped_operations_near_max_lines(
     ]
 
 
-def test_minimal_operations_static(mock_wandb_log, static_progress_printer):
+def test_minimal_operations_static(
+    mock_wandb_log: MockWandbLog,
+    static_progress_printer: progress.ProgressPrinter,
+):
     static_progress_printer.update(
         pb.OperationStats(
             total_operations=200,
@@ -144,40 +158,47 @@ def test_minimal_operations_static(mock_wandb_log, static_progress_printer):
 
 
 def test_grouped_operations_static(
-    mock_wandb_log,
-    static_progress_printer,
-    monkeypatch,
+    mock_wandb_log: MockWandbLog,
+    static_progress_printer: progress.ProgressPrinter,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(progress, "_MAX_OPS_TO_PRINT", 3)
 
     static_progress_printer.update(
-        {
-            "run1": pb.OperationStats(
+        [
+            pb.OperationStats(
+                label="run1",
                 total_operations=100,
                 operations=[pb.Operation(desc="op 1"), pb.Operation(desc="op 2")],
             ),
-            "run2": pb.OperationStats(
+            pb.OperationStats(
+                label="run2",
                 total_operations=20,
                 operations=[],  # no operations => group not printed
             ),
-            "run3": pb.OperationStats(
+            pb.OperationStats(
+                label="run3",
                 total_operations=3,
                 operations=[
                     pb.Operation(desc="op 3"),
                     pb.Operation(desc="op 4"),  # over limit => not printed
                 ],
             ),
-            "run4": pb.OperationStats(  # over limit => not printed
+            pb.OperationStats(  # over limit => not printed
+                label="run4",
                 total_operations=1,
                 operations=[pb.Operation(desc="op 5")],
             ),
-        }
+        ]
     )
 
     mock_wandb_log.assert_logged("[run1] op 1; op 2; [run3] op 3 (+ 121 more)")
 
 
-def test_does_not_print_empty_lines(capsys, static_progress_printer):
+def test_does_not_print_empty_lines(
+    capsys: pytest.CaptureFixture[str],
+    static_progress_printer: progress.ProgressPrinter,
+):
     stats1 = pb.OperationStats(
         total_operations=1,
         operations=[pb.Operation(desc="op 1", runtime_seconds=123)],
@@ -197,8 +218,8 @@ def test_does_not_print_empty_lines(capsys, static_progress_printer):
 
 
 def test_operation_progress_and_error(
-    emulated_terminal,
-    dynamic_progress_printer,
+    emulated_terminal: EmulatedTerminal,
+    dynamic_progress_printer: progress.ProgressPrinter,
 ):
     dynamic_progress_printer.update(
         pb.OperationStats(
@@ -220,7 +241,10 @@ def test_operation_progress_and_error(
     ]
 
 
-def test_operation_subtasks(emulated_terminal, dynamic_progress_printer):
+def test_operation_subtasks(
+    emulated_terminal: EmulatedTerminal,
+    dynamic_progress_printer: progress.ProgressPrinter,
+):
     subsubtask = pb.Operation(
         desc="subsubtask",
         runtime_seconds=5,
@@ -257,7 +281,10 @@ def test_operation_subtasks(emulated_terminal, dynamic_progress_printer):
     ]
 
 
-def test_remaining_operations(emulated_terminal, dynamic_progress_printer):
+def test_remaining_operations(
+    emulated_terminal: EmulatedTerminal,
+    dynamic_progress_printer: progress.ProgressPrinter,
+):
     dynamic_progress_printer.update(
         pb.OperationStats(
             total_operations=20,
@@ -273,7 +300,10 @@ def test_remaining_operations(emulated_terminal, dynamic_progress_printer):
     ]
 
 
-def test_no_operations_text(emulated_terminal, dynamic_progress_printer):
+def test_no_operations_text(
+    emulated_terminal: EmulatedTerminal,
+    dynamic_progress_printer: progress.ProgressPrinter,
+):
     dynamic_progress_printer.update(pb.OperationStats())
 
     assert emulated_terminal.read_stderr() == ["wandb: ⢿ DEFAULT TEXT"]

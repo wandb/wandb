@@ -2633,8 +2633,20 @@ class OperationStats(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    LABEL_FIELD_NUMBER: builtins.int
     OPERATIONS_FIELD_NUMBER: builtins.int
     TOTAL_OPERATIONS_FIELD_NUMBER: builtins.int
+    label: builtins.str
+    """An optional short label for this set of operations.
+
+    This is used when multiple OperationStats are presented simultaneously,
+    such as when syncing multiple runs in parallel.
+
+    The difference between an Operation with subtasks and a labeled
+    OperationStats is that the latter does not represent an ongoing task.
+    For that reason, the label is optional and there is no duration,
+    progress information or error status.
+    """
     @property
     def operations(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___Operation]:
         """The ongoing operations sorted by usefulness for the user to see.
@@ -2650,10 +2662,11 @@ class OperationStats(google.protobuf.message.Message):
     def __init__(
         self,
         *,
+        label: builtins.str = ...,
         operations: collections.abc.Iterable[global___Operation] | None = ...,
         total_operations: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["operations", b"operations", "total_operations", b"total_operations"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["label", b"label", "operations", b"operations", "total_operations", b"total_operations"]) -> None: ...
 
 global___OperationStats = OperationStats
 
