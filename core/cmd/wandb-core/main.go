@@ -5,7 +5,7 @@
 // Usage:
 //
 //	wandb-core [service flags]
-//	wandb-core leet [<run-directory>] [leet flags]
+//	wandb-core leet [<wandb-directory>] [leet flags]
 //
 // Service flags: see `wandb-core -h`.
 // Leet flags:    see `wandb-core leet -h`.
@@ -169,17 +169,18 @@ func leetMain(args []string) int {
 		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
 	disableAnalytics := fs.Bool("no-observability", false,
 		"Disables observability features such as metrics and logging analytics.")
+	runFile := fs.String("run-file", "",
+		"Path to a .wandb file to open directly in single-run view.")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
 A terminal UI for viewing your W&B runs locally.
 
 Usage:
-  wandb-core leet [flags] <wandb-file>
+  wandb-core leet [flags] <wandb-directory>
+
 Arguments:
-  <wandb-file>       Path to the .wandb file of a W&B run.
-                     Example:
-                       /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb
+  <wandb-directory>  Path to the wandb directory containing run folders.
 
 Options:
   -h, --help         Show this help message
@@ -189,11 +190,10 @@ Flags:
 		fs.PrintDefaults()
 	}
 
-	err := fs.Parse(args)
-	if err == flag.ErrHelp {
-		return exitCodeSuccess
-	}
-	if err != nil {
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return exitCodeSuccess
+		}
 		return exitCodeErrorArgs
 	}
 
@@ -237,30 +237,28 @@ Flags:
 	)
 
 	wandbDir := fs.Arg(0)
-	m := leet.NewModel(wandbDir, nil, logger)
-	program := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
-
-	if _, err := program.Run(); err != nil {
-		return exitCodeErrorInternal
+	if wandbDir == "" {
+		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
+		fs.Usage()
+		return exitCodeErrorArgs
 	}
 
-	return exitCodeSuccess
-
-	wandbFile := fs.Arg(0)
-
-	// Run the TUI in single run mode; allow in-process restarts (Alt+R) without re-parsing flags.
 	for {
-		model := leet.NewRunModel(wandbFile, nil, logger)
-		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+		m := leet.NewModel(leet.ModelParams{
+			WandbDir: wandbDir,
+			RunFile:  *runFile,
+			Logger:   logger,
+		})
+		program := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
-		finalModel, err := p.Run()
+		finalModel, err := program.Run()
 		if err != nil {
 			logger.CaptureError(fmt.Errorf("wandb-leet: %v", err))
 			return exitCodeErrorInternal
 		}
 
-		// If the model requests a restart, loop again.
-		if m, ok := finalModel.(*leet.RunModel); ok && m.ShouldRestart() {
+		// TODO: If the model requests a restart, loop again.
+		if _, ok := finalModel.(*leet.Model); ok { //ok && fm.ShouldRestart() {
 			continue
 		}
 

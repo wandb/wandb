@@ -79,3 +79,6 @@ type LeftSidebarAnimationMsg struct{}
 
 // RightSidebarAnimationMsg is sent during right sidebar animations.
 type RightSidebarAnimationMsg struct{}
+
+// WorkspaceRunsAnimationMsg
+type WorkspaceRunsAnimationMsg struct{}

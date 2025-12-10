@@ -1,12 +1,8 @@
+// model.go
 package leet
 
 import (
-	"os"
-	"strings"
-
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -19,151 +15,127 @@ const (
 )
 
 type Model struct {
-	mode viewMode
-
-	// workspace view
+	mode      viewMode
 	workspace *Workspace
-
-	// current selected run
-	run *RunModel
-
-	config *ConfigManager
-
-	logger *observability.CoreLogger
+	run       *RunModel
 
 	width, height int
-}
-
-func NewModel(wandbDirPath string, cfg *ConfigManager, logger *observability.CoreLogger) *Model {
-	if cfg == nil {
-		cfg = NewConfigManager(leetConfigPath(), logger)
-	}
-
-	return &Model{
-		workspace: &Workspace{
-			wandbDirPath: wandbDirPath,
-			runPicker:    viewport.New(80, 20),
-		},
-		config: cfg,
-		logger: logger,
-	}
-}
-
-type Workspace struct {
-	// move to runPicker
-	wandbDirPath string
-
-	runPicker viewport.Model
-
-	// runPicker *runPicker --> This is an unnecessary level of abstraction, just use Workspace.
-	// filesystem view of the wandb dir.
-	// each line is selectable with Space.
-	// selecting a run loads metric data of the run in the container
-	// and turns on watching if it's a live run.
-	// display a colored block next to run id; use that color for the run's plots
-	// option to "pin" a run. "queue" for the "order"?
-
-	// wandbDirWatcher *WandbDirWatcher. make it part of the runPicker!
-	// watch for new runs, or simply ls the wandb dir every N seconds.
-	// once a run is added, add it to the container.
-
-	// runs container. make it part of the runPicker!
-	// on load, populated with everything in the wandb dir and
-	// selects the latest run or the exact one provided in the command.
-	// preloads basic run metadata from the run record.
-	// marks finished runs? or only after one is selected?
-	// selected runs add data to a container in epochlinecharts.
-	// draw method pulls data to plot from there based on the current
-	// selected runs.
-	//
-	// when no run is selected, display the wandb leet ascii art.
-
-	filter Filter
 
 	config *ConfigManager
-
 	logger *observability.CoreLogger
 }
 
-func (w *Workspace) View() string {
-	runs, err := os.ReadDir(w.wandbDirPath)
-	if err != nil {
-		return "ERROR"
+type ModelParams struct {
+	WandbDir string
+	RunFile  string
+	Config   *ConfigManager
+	Logger   *observability.CoreLogger
+}
+
+func NewModel(params ModelParams) *Model {
+	if params.Config == nil {
+		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
 	}
 
-	evenLineStyle := lipgloss.NewStyle().Background(colorItemValue)
-	oddLineStyle := lipgloss.NewStyle().Background(colorAccent)
+	ws := NewWorkspace(params.WandbDir, params.Config, params.Logger)
 
-	content := ""
-
-	for i, run := range runs {
-		if !strings.HasPrefix(run.Name(), "run") && !strings.HasPrefix(run.Name(), "offline-run") {
-			continue
-		}
-		// TODO: check that it's a folder that contains a .wandb file
-
-		// TODO: apply the filter
-
-		if i%2 == 0 {
-			content += evenLineStyle.Render(run.Name()) + "\n"
-		} else {
-			content += oddLineStyle.Render(run.Name()) + "\n"
-		}
-
+	m := &Model{
+		mode:      viewModeWorkspace,
+		workspace: ws,
+		config:    params.Config,
+		logger:    params.Logger,
 	}
-	w.runPicker.SetContent(content)
 
-	runPickerContentStyle := lipgloss.NewStyle().MarginLeft(2).MarginTop(2)
+	// If a run file is specified, start in single-run mode.
+	if params.RunFile != "" {
+		m.run = NewRunModel(params.RunFile, params.Config, params.Logger)
+		m.mode = viewModeRun
+	}
 
-	return runPickerContentStyle.Render(w.runPicker.View())
+	return m
 }
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(
-		windowTitleCmd(),
-		// initializeWorkspace(wandbDirPath string), // do I need this at all? prob not
-	)
+	cmds := []tea.Cmd{windowTitleCmd()}
+
+	if m.mode == viewModeRun && m.run != nil {
+		cmds = append(cmds, m.run.Init())
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	switch t := msg.(type) {
-	case tea.KeyMsg:
-		newM, c := m.handleKeyMsg(t)
-		if c != nil {
-			cmds = append(cmds, c)
-		}
-		return newM, tea.Batch(cmds...)
-	case tea.WindowSizeMsg:
-		m.handleWindowResize(t)
-		return m, tea.Batch(cmds...)
+	if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width, m.height = wsMsg.Width, wsMsg.Height
 	}
 
-	return m, nil
-}
-
-// handleWindowResize handles window resize messages.
-func (m *Model) handleWindowResize(msg tea.WindowSizeMsg) {
-	m.width, m.height = msg.Width, msg.Height
-	m.workspace.runPicker.Width, m.workspace.runPicker.Height = msg.Width, msg.Height
-}
-
-func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// TODO: build and use a keyMap, similar to RunModel
+	// Handle mode switching.
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch m.mode {
+		case viewModeWorkspace:
+			if keyMsg.Type == tea.KeyEnter {
+				return m, m.enterRunView()
+			}
+		case viewModeRun:
+			if keyMsg.Type == tea.KeyEsc {
+				return m, m.exitRunView()
+			}
+		}
+	}
 
 	var cmd tea.Cmd
-
-	switch msg.String() {
-	case "q":
-		return m, tea.Quit
-	default:
-		m.workspace.runPicker, cmd = m.workspace.runPicker.Update(msg)
+	switch m.mode {
+	case viewModeWorkspace:
+		cmd = m.workspace.Update(msg)
+	case viewModeRun:
+		_, cmd = m.run.Update(msg)
 	}
 
 	return m, cmd
 }
 
 func (m *Model) View() string {
-	return m.workspace.View()
+	switch m.mode {
+	case viewModeWorkspace:
+		return m.workspace.View()
+	case viewModeRun:
+		if m.run != nil {
+			return m.run.View()
+		}
+		return ""
+	default:
+		return ""
+	}
+}
+
+// enterRunView switches to single-run view for the selected run.
+func (m *Model) enterRunView() tea.Cmd {
+	wandbFile := m.workspace.SelectedRunWandbFile()
+	if wandbFile == "" {
+		return nil
+	}
+
+	m.run = NewRunModel(wandbFile, m.config, m.logger)
+	m.mode = viewModeRun
+
+	// Initialize with current dimensions and start loading.
+	return tea.Batch(
+		m.run.Init(),
+		func() tea.Msg {
+			return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+		},
+	)
+}
+
+// exitRunView returns to the workspace view.
+func (m *Model) exitRunView() tea.Cmd {
+	// TODO: add caching?
+	if m.run != nil {
+		m.run.Cleanup()
+		m.run = nil
+	}
+
+	m.mode = viewModeWorkspace
+	return nil
 }

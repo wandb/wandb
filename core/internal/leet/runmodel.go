@@ -88,7 +88,7 @@ func NewRunModel(runPath string, cfg *ConfigManager, logger *observability.CoreL
 	focus := NewFocus()
 	watcherChan := make(chan tea.Msg, 4096)
 
-	m := &RunModel{
+	return &RunModel{
 		config:       cfg,
 		keyMap:       buildKeyMap(),
 		help:         NewHelp(),
@@ -104,8 +104,6 @@ func NewRunModel(runPath string, cfg *ConfigManager, logger *observability.CoreL
 		watcherChan:  watcherChan,
 		logger:       logger,
 	}
-
-	return m
 }
 
 // Init initializes the model and returns the initial command.
@@ -531,6 +529,24 @@ func (m *RunModel) computeViewports() Layout {
 	contentH := max(m.height-StatusBarHeight, 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
+}
+
+// Cleanup releases resources held by the RunModel.
+//
+// Called when switching to workspace view.
+func (m *RunModel) Cleanup() {
+	m.stateMu.Lock()
+	defer m.stateMu.Unlock()
+
+	if m.heartbeatMgr != nil {
+		m.heartbeatMgr.Stop()
+	}
+	if m.watcherMgr != nil {
+		m.watcherMgr.Finish()
+	}
+	if m.reader != nil {
+		m.reader.Close()
+	}
 }
 
 // timeit logs a debug timing line on exit for the given scope.

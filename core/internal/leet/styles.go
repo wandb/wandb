@@ -312,3 +312,22 @@ var (
 
 	helpContentStyle = lipgloss.NewStyle().MarginLeft(2).MarginTop(1)
 )
+
+// Workspace view mode styles.
+var (
+	workspaceTopMarginLines = 2
+	workspaceHeaderLines    = 1
+
+	colorOddRunStyle = lipgloss.AdaptiveColor{
+		Light: "#d0d0d0",
+		Dark:  "#1c1c1c",
+	}
+	colorSelectedRunStyle = lipgloss.AdaptiveColor{
+		Dark:  "#FCBC32",
+		Light: "#FCBC32",
+	}
+
+	evenRunStyle     = lipgloss.NewStyle()
+	oddRunStyle      = lipgloss.NewStyle().Background(colorOddRunStyle)
+	selectedRunStyle = lipgloss.NewStyle().Background(colorSelectedRunStyle)
+)
