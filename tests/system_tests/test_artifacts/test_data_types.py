@@ -1,16 +1,25 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Callable
+
 import matplotlib
 import numpy as np
 import wandb
-from pytest import fixture, mark, raises
-from wandb import data_types
-from wandb.sdk.data_types import _dtypes
+from pytest import MonkeyPatch, fixture, mark, raises
+from typing_extensions import TypeAlias
+from wandb import Api
+from wandb.data_types import Table, WBValue
+from wandb.sdk.data_types._dtypes import TypedDictType
 from wandb.sdk.internal import incremental_table_util
+
+if TYPE_CHECKING:
+    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 matplotlib.use("Agg")
 
 data = np.random.randint(255, size=(1000))
+
+SettingsFactory: TypeAlias = Callable[..., wandb.Settings]
 
 
 def filter_artifacts_by_type(run, *artifact_types):
@@ -30,62 +39,63 @@ def filter_artifacts_by_type(run, *artifact_types):
 
 
 @fixture
-def sample_data():
+def sample_data(user: str) -> None:
+    # NOTE: Requesting the `user` fixture is important as it sets auth
+    # environment variables for the duration of the test.
+    _ = user
+
     artifact = wandb.Artifact("N", type="dataset")
     artifact.save()
 
 
-def test_wb_value(user, sample_data, test_settings):
+@mark.usefixtures("sample_data")
+def test_wb_value(test_settings: SettingsFactory):
     with wandb.init(settings=test_settings()) as run:
         local_art = wandb.Artifact("N", "T")
         public_art = run.use_artifact("N:latest")
 
-        wbvalue = data_types.WBValue()
+        wbvalue = WBValue()
         with raises(NotImplementedError):
             wbvalue.to_json(local_art)
 
         with raises(NotImplementedError):
-            data_types.WBValue.from_json({}, public_art)
+            WBValue.from_json({}, public_art)
 
-        assert data_types.WBValue.with_suffix("item") == "item.json"
+        assert WBValue.with_suffix("item") == "item.json"
 
-        table = data_types.WBValue.init_from_json(
+        table = WBValue.init_from_json(
             {
                 "_type": "table",
                 "data": [[]],
                 "columns": [],
-                "column_types": _dtypes.TypedDictType({}).to_json(),
+                "column_types": TypedDictType({}).to_json(),
             },
             public_art,
         )
-        assert isinstance(table, data_types.WBValue) and isinstance(
-            table, wandb.data_types.Table
-        )
+        assert isinstance(table, WBValue) and isinstance(table, Table)
 
-        type_mapping = data_types.WBValue.type_mapping()
-        assert all(
-            [issubclass(type_mapping[key], data_types.WBValue) for key in type_mapping]
-        )
+        type_mapping = WBValue.type_mapping()
+        assert all([issubclass(type_mapping[key], WBValue) for key in type_mapping])
 
         assert wbvalue == wbvalue
-        assert wbvalue != data_types.WBValue()
+        assert wbvalue != WBValue()
 
 
-def test_log_dataframe(user, test_settings):
+def test_log_dataframe(user: str, api: Api, test_settings: SettingsFactory):
     import pandas as pd
 
     with wandb.init(settings=test_settings()) as run:
         cv_results = pd.DataFrame(data={"test_col": [1, 2, 3], "test_col2": [4, 5, 6]})
         run.log({"results_df": cv_results})
 
-    api_run = wandb.Api().run(f"uncategorized/{run.id}")
+    api_run = api.run(f"uncategorized/{run.id}")
     table_artifacts = filter_artifacts_by_type(api_run, "run_table")
     assert len(table_artifacts) == 1
 
 
 @mark.parametrize("log_mode", ["IMMUTABLE", "MUTABLE", "INCREMENTAL"])
 def test_table_logged_from_run_with_special_characters_in_name(
-    user, test_settings, log_mode
+    user: str, log_mode: str
 ):
     name_and_id = "random-run-id-=1234567-seed-0"  # Contains special characters
 
@@ -101,7 +111,10 @@ def test_table_logged_from_run_with_special_characters_in_name(
 
 @mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
 def test_reference_table_logging(
-    user, test_settings, wandb_backend_spy, max_cli_version
+    user: str,
+    test_settings: SettingsFactory,
+    wandb_backend_spy: WandbBackendSpy,
+    max_cli_version: str,
 ):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
@@ -127,7 +140,11 @@ def test_reference_table_logging(
         run.log({"logged_table": t})
 
 
-def test_reference_table_artifacts(user, test_settings, wandb_backend_spy):
+def test_reference_table_artifacts(
+    user: str,
+    test_settings: SettingsFactory,
+    wandb_backend_spy: WandbBackendSpy,
+):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="ServerInfo"),
@@ -155,7 +172,7 @@ def test_reference_table_artifacts(user, test_settings, wandb_backend_spy):
         run.log_artifact(art)
 
 
-def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
+def test_table_mutation_logging(user: str, api: Api, test_settings: SettingsFactory):
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="MUTABLE")
     with wandb.init(settings=test_settings()) as run:
         t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
@@ -167,18 +184,18 @@ def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
         t.get_column("expected")
         run.log({"table": t})
 
-    api_run = wandb.Api().run(f"uncategorized/{run.id}")
+    api_run = api.run(f"uncategorized/{run.id}")
     table_artifacts = filter_artifacts_by_type(api_run, "run_table")
     assert len(table_artifacts) == 3
 
 
-def test_incr_logging_initial_log(user, test_settings):
+def test_incr_logging_initial_log(user: str, api: Api, test_settings: SettingsFactory):
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     with wandb.init(settings=test_settings()) as run:
         t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
         run.log({"table": t})
 
-    api_run = wandb.Api().run(f"uncategorized/{run.id}")
+    api_run = api.run(f"uncategorized/{run.id}")
     table_artifacts = filter_artifacts_by_type(api_run, "wandb-run-incremental-table")
     assert len(table_artifacts) == 1
     assert t._last_logged_idx == 0
@@ -186,7 +203,10 @@ def test_incr_logging_initial_log(user, test_settings):
     assert t._increment_num == 0
 
 
-def test_incr_logging_add_data_reset_state_and_increment_counter(user, test_settings):
+def test_incr_logging_add_data_reset_state_and_increment_counter(
+    user: str,
+    test_settings: SettingsFactory,
+):
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     with wandb.init(settings=test_settings()) as run:
         t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
@@ -202,7 +222,7 @@ def test_incr_logging_add_data_reset_state_and_increment_counter(user, test_sett
     assert len(t._previous_increments_paths) == 1
 
 
-def test_incr_logging_multiple_logs(user, test_settings):
+def test_incr_logging_multiple_logs(user: str, test_settings, api: Api):
     """Test multiple logging operations on an incremental table."""
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     with wandb.init(settings=test_settings()) as run:
@@ -230,12 +250,16 @@ def test_incr_logging_multiple_logs(user, test_settings):
     assert t._increment_num == 2
     assert len(t._previous_increments_paths) == 2
 
-    api_run = wandb.Api().run(f"uncategorized/{run.id}")
+    api_run = api.run(f"uncategorized/{run.id}")
     table_artifacts = filter_artifacts_by_type(api_run, "wandb-run-incremental-table")
     assert len(table_artifacts) == 3
 
 
-def test_using_incrementally_logged_table(user, test_settings, monkeypatch):
+def test_using_incrementally_logged_table(
+    user: str,
+    test_settings: SettingsFactory,
+    monkeypatch: MonkeyPatch,
+):
     # override get_entry_name to use deterministic timestamps
     log_count = 0
 
@@ -271,7 +295,11 @@ def test_using_incrementally_logged_table(user, test_settings, monkeypatch):
         assert incremental_table.columns == ["expected", "actual", "img"]
 
 
-def test_table_incremental_logging_empty(user, test_settings, wandb_backend_spy):
+def test_table_incremental_logging_empty(
+    user: str,
+    test_settings: SettingsFactory,
+    api: Api,
+):
     """Test that empty incremental tables are handled correctly."""
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
     with wandb.init(settings=test_settings()) as run:
@@ -279,13 +307,13 @@ def test_table_incremental_logging_empty(user, test_settings, wandb_backend_spy)
         t.add_data("1", "first")
         run.log({"table": t})  # Should log first increment
 
-    api_run = wandb.Api().run(f"uncategorized/{run.id}")
+    api_run = api.run(f"uncategorized/{run.id}")
 
     table_artifacts = filter_artifacts_by_type(api_run, "wandb-run-incremental-table")
     assert len(table_artifacts) == 2
 
 
-def test_resumed_run_incremental_table(user, test_settings):
+def test_resumed_run_incremental_table(user: str, test_settings: SettingsFactory):
     """
     Test that incremental tables are logged correctly from a resumed run.
 
@@ -314,7 +342,11 @@ def test_resumed_run_incremental_table(user, test_settings):
         assert t._increment_num == 3
 
 
-def test_resumed_run_nothing_prev_logged_to_key(user, test_settings):
+def test_resumed_run_nothing_prev_logged_to_key(
+    user: str,
+    test_settings: SettingsFactory,
+    api: Api,
+):
     """
     Test that incremental tables log normally in a resumed run when
     logged to a key that hasn't been logged to yet.
@@ -338,13 +370,17 @@ def test_resumed_run_nothing_prev_logged_to_key(user, test_settings):
 
         assert t._last_logged_idx == 1
 
-    api_run = wandb.Api().run(f"uncategorized/{resumed_run.id}")
+    api_run = api.run(f"uncategorized/{resumed_run.id}")
 
     table_artifacts = filter_artifacts_by_type(api_run, "wandb-run-incremental-table")
     assert len(table_artifacts) == 2
 
 
-def test_resumed_run_no_prev_incr_table_wbvalue(user, test_settings):
+def test_resumed_run_no_prev_incr_table_wbvalue(
+    user: str,
+    test_settings: SettingsFactory,
+    api: Api,
+):
     """
     Test that incremental tables log normally in a resumed run even if
     they weren't previously logged
@@ -372,7 +408,7 @@ def test_resumed_run_no_prev_incr_table_wbvalue(user, test_settings):
 
         assert t._last_logged_idx == 3
 
-    api_run = wandb.Api().run(f"uncategorized/{resumed_run.id}")
+    api_run = api.run(f"uncategorized/{resumed_run.id}")
 
     table_artifacts = filter_artifacts_by_type(
         api_run, "run_table", "wandb-run-incremental-table"
@@ -380,7 +416,11 @@ def test_resumed_run_no_prev_incr_table_wbvalue(user, test_settings):
     assert len(table_artifacts) == 4
 
 
-def test_resumed_run_no_prev_incr_table_nonwbvalue(user, test_settings):
+def test_resumed_run_no_prev_incr_table_nonwbvalue(
+    user: str,
+    test_settings: SettingsFactory,
+    api: Api,
+):
     """
     Test that incremental tables log normally in a resumed run even if
     they weren't previously logged
@@ -407,13 +447,17 @@ def test_resumed_run_no_prev_incr_table_nonwbvalue(user, test_settings):
 
         assert t._last_logged_idx == 3
 
-    api_run = wandb.Api().run(f"uncategorized/{resumed_run.id}")
+    api_run = api.run(f"uncategorized/{resumed_run.id}")
 
     table_artifacts = filter_artifacts_by_type(api_run, "wandb-run-incremental-table")
     assert len(table_artifacts) == 3
 
 
-def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch):
+def test_resumed_run_incremental_table_ordering(
+    user: str,
+    test_settings: SettingsFactory,
+    monkeypatch: MonkeyPatch,
+):
     """
     Test that incremental tables maintain proper ordering when:
     1. Initial run logs some data
@@ -483,7 +527,7 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
 
 
 def test_incremental_tables_cannot_be_logged_on_multiple_runs(
-    test_settings,
+    test_settings: SettingsFactory,
 ):
     with wandb.init(settings=test_settings(), mode="offline") as run1:
         incr_table = wandb.Table(columns=["step", "value"], log_mode="INCREMENTAL")
