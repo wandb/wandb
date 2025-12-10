@@ -29,13 +29,16 @@ from wandb.sdk.lib.paths import StrPath
 if TYPE_CHECKING:
     pass
 
+pytestmark = [
+    # Requesting the `user` fixture from ALL tests in this module sets login
+    # environment variables for the duration of each test.
+    mark.usefixtures("user"),
+]
+
 
 @fixture
-def sample_data(user: str) -> None:
+def sample_data() -> None:
     """Generate some sample artifacts for tests in this module."""
-    # Note: we request `user` to set login envvars for the duration of the test
-    _ = user  # prevent IDE warnings for unused variables
-
     with wandb.init(id="first_run", settings={"silent": True}) as run:
         artifact = wandb.Artifact("mnist", type="dataset")
         with artifact.new_file("digits.h5") as f:
