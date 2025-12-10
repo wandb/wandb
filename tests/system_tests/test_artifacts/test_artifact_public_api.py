@@ -6,12 +6,11 @@ import random
 import string
 from contextlib import nullcontext
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import Callable
 
 import requests
 import wandb
 from pytest import MonkeyPatch, fixture, mark, raises, skip
-from pytest_mock import MockerFixture
 from wandb import Api
 from wandb._strutils import nameof
 from wandb.errors import CommError
@@ -34,11 +33,10 @@ if TYPE_CHECKING:
 @fixture
 def sample_data(user: str) -> None:
     """Generate some sample artifacts for tests in this module."""
-    # NOTE: Requesting the `user` fixture is important as it sets auth
-    # environment variables for the duration of the test.
-    _ = user
+    # Note: we request `user` to set login envvars for the duration of the test
+    _ = user  # prevent IDE warnings for unused variables
 
-    with wandb.init(id="first_run", settings={"silent": True}) as run as run:
+    with wandb.init(id="first_run", settings={"silent": True}) as run:
         artifact = wandb.Artifact("mnist", type="dataset")
         with artifact.new_file("digits.h5") as f:
             f.write("v0")
@@ -61,14 +59,14 @@ def sample_data(user: str) -> None:
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_versions(api: Api):
+def test_artifact_versions(user: str, api: Api):
     versions = api.artifact_versions("dataset", "mnist")
     assert len(versions) == 2
     assert {version.name for version in versions} == {"mnist:v0", "mnist:v1"}
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_type(api: Api):
+def test_artifact_type(user: str, api: Api):
     atype = api.artifact_type("dataset")
     assert atype.name == "dataset"
     col = atype.collection("mnist")
@@ -78,13 +76,13 @@ def test_artifact_type(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_types(api: Api):
+def test_artifact_types(user: str, api: Api):
     atypes = api.artifact_types()
     assert {atype.name for atype in atypes} == {"dataset"}
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_get_path(api: Api):
+def test_artifact_get_path(user: str, api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     assert art.type == "dataset"
     assert art.name == "mnist:v0"
@@ -97,7 +95,7 @@ def test_artifact_get_path(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_get_path_download(api: Api):
+def test_artifact_get_path_download(user: str, api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     path = art.get_entry("digits.h5").download(os.getcwd())
     assert os.path.exists("./digits.h5")
@@ -105,7 +103,7 @@ def test_artifact_get_path_download(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_file(api: Api):
+def test_artifact_file(user: str, api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     path = art.file()
     expected_subpath = "mnist-v0" if (platform.system() == "Windows") else "mnist:v0"
@@ -113,7 +111,7 @@ def test_artifact_file(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_files(api: Api):
+def test_artifact_files(user: str, api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     if server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         assert (
@@ -130,8 +128,7 @@ def test_artifact_files(api: Api):
 
 @mark.usefixtures("sample_data")
 def test_artifact_files_on_legacy_local_install(
-    wandb_backend_spy: WandbBackendSpy,
-    api: Api,
+    user: str, api: Api, wandb_backend_spy: WandbBackendSpy
 ):
     # Assert we don't break legacy local installs
     gql = wandb_backend_spy.gql
@@ -156,7 +153,9 @@ def test_artifact_files_on_legacy_local_install(
 
 
 @mark.usefixtures("sample_data")
-def test_artifacts_files_filtered_length(api: Api):
+def test_artifacts_files_filtered_length(
+    user: str, api: Api, wandb_backend_spy: WandbBackendSpy
+):
     if not server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         skip("Server doesn't support FileConnection.totalCount")
 
@@ -179,7 +178,7 @@ def test_artifacts_files_filtered_length(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_download(api: Api):
+def test_artifact_download(user: str, api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     path = art.download()
     if platform.system() == "Windows":
@@ -191,20 +190,20 @@ def test_artifact_download(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_exists(api: Api):
+def test_artifact_exists(user: str, api: Api):
     assert api.artifact_exists("mnist:v0") is True
     assert api.artifact_exists("mnist:v2") is False
     assert api.artifact_exists("mnist-fake:v0") is False
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_collection_exists(api: Api):
+def test_artifact_collection_exists(user: str, api: Api):
     assert api.artifact_collection_exists("mnist", "dataset") is True
     assert api.artifact_collection_exists("mnist-fake", "dataset") is False
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
+def test_artifact_exists_raises_on_timeout(mocker: MockerFixture, user: str, api: Api):
     # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
     # actual python methods, but this is complicated by the fact that we need to instantiate
     # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
@@ -229,7 +228,9 @@ def test_artifact_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_collection_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
+def test_artifact_collection_exists_raises_on_timeout(
+    mocker: MockerFixture, user: str, api: Api
+):
     # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
     # actual python methods, but this is complicated by the fact that we need to instantiate
     # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
@@ -250,7 +251,7 @@ def test_artifact_collection_exists_raises_on_timeout(mocker: MockerFixture, api
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_delete(api: Api):
+def test_artifact_delete(user: str, api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     # The artifact has aliases, so fail unless delete_aliases is set.
     with raises(CommError):
@@ -259,7 +260,7 @@ def test_artifact_delete(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_delete_on_linked_artifact(api: Api):
+def test_artifact_delete_on_linked_artifact(user: str, api: Api):
     portfolio = "portfolio_name"
 
     source_art = api.artifact("mnist:v0", type="dataset")
@@ -282,7 +283,7 @@ def test_artifact_delete_on_linked_artifact(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_checkout(api: Api):
+def test_artifact_checkout(user: str, api: Api):
     # Create a file that should be removed as part of checkout
     os.makedirs(os.path.join(".", "artifacts", "mnist"))
     with open(os.path.join(".", "artifacts", "mnist", "bogus"), "w") as f:
@@ -295,7 +296,7 @@ def test_artifact_checkout(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_run_used(api: Api):
+def test_artifact_run_used(user: str, api: Api):
     run = api.run("uncategorized/second_run")
     arts = run.used_artifacts()
     assert len(arts) == 2
@@ -303,7 +304,7 @@ def test_artifact_run_used(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_run_logged(api: Api):
+def test_artifact_run_logged(user: str, api: Api):
     run = api.run("uncategorized/first_run")
     arts = run.logged_artifacts()
     assert len(arts) == 2
@@ -311,7 +312,7 @@ def test_artifact_run_logged(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_run_logged_cursor(api: Api):
+def test_artifact_run_logged_cursor(user: str, api: Api):
     artifacts = api.run("uncategorized/first_run").logged_artifacts()
     len_artifacts = len(artifacts)
     count = sum(1 for _ in artifacts)
@@ -319,14 +320,14 @@ def test_artifact_run_logged_cursor(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_manual_use(api: Api):
+def test_artifact_manual_use(user: str, api: Api):
     run = api.run("uncategorized/second_run")
     art = api.artifact("mnist:v0", type="dataset")
     run.use_artifact(art)
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_bracket_accessor(api: Api):
+def test_artifact_bracket_accessor(user: str, api: Api):
     art = api.artifact("mnist:v1", type="dataset")
     assert art["t"].__class__ == wandb.Table
     assert art["s"] is None
@@ -335,13 +336,13 @@ def test_artifact_bracket_accessor(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_manual_link(api: Api):
+def test_artifact_manual_link(user: str, api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     art.link("portfolio_name")
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_manual_error(api: Api):
+def test_artifact_manual_error(user: str, api: Api):
     run = api.run("uncategorized/first_run")
     art = wandb.Artifact("test", type="dataset")
     with raises(CommError):
@@ -355,7 +356,7 @@ def test_artifact_manual_error(api: Api):
 
 
 @mark.usefixtures("sample_data")
-def test_artifact_verify(api: Api):
+def test_artifact_verify(user: str, api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     art.download()
     art.verify()
@@ -397,7 +398,7 @@ def test_artifact_save_norun_nosettings(
     artifact.save()
 
 
-def test_parse_artifact_path(user: str, api: Api):
+def test_parse_artifact_path(user: str: str, api: Api: Api):
     path = "entity/project/artifact:alias/with/slashes"
     entity, project, name = api._parse_artifact_path(path)
     assert entity == "entity"
