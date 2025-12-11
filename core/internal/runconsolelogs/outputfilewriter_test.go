@@ -15,19 +15,9 @@ import (
 	"github.com/wandb/wandb/core/internal/paths"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/sparselist"
-	"github.com/wandb/wandb/core/internal/terminalemulator"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
-
-// Helper to create a RunLogsLine with content.
-func makeRunLogsLine(content string) *RunLogsLine {
-	return &RunLogsLine{
-		LineContent: terminalemulator.LineContent{
-			Content: []rune(content),
-		},
-	}
-}
 
 // Helper to verify chunk files exist and return their paths.
 func getChunkFiles(t *testing.T, tmpDir string) []string {
@@ -80,15 +70,15 @@ func TestOutputFileWriterRotationBySize(t *testing.T) {
 
 	// Write first batch - should fit in one chunk.
 	changes1 := &sparselist.SparseList[*RunLogsLine]{}
-	changes1.Put(0, makeRunLogsLine(strings.Repeat("a", 30)))
-	changes1.Put(1, makeRunLogsLine(strings.Repeat("b", 30)))
+	changes1.Put(0, RunLogsLineForTest(strings.Repeat("a", 30)))
+	changes1.Put(1, RunLogsLineForTest(strings.Repeat("b", 30)))
 	err := writer.WriteToFile(changes1)
 	assert.NoError(t, err)
 
 	// Write second batch - should trigger rotation (total > 100 bytes).
 	changes2 := &sparselist.SparseList[*RunLogsLine]{}
-	changes2.Put(2, makeRunLogsLine(strings.Repeat("c", 30)))
-	changes2.Put(3, makeRunLogsLine(strings.Repeat("d", 30)))
+	changes2.Put(2, RunLogsLineForTest(strings.Repeat("c", 30)))
+	changes2.Put(3, RunLogsLineForTest(strings.Repeat("d", 30)))
 	err = writer.WriteToFile(changes2)
 	assert.NoError(t, err)
 
@@ -97,7 +87,7 @@ func TestOutputFileWriterRotationBySize(t *testing.T) {
 
 	// Write more data to create the second chunk file.
 	changes3 := &sparselist.SparseList[*RunLogsLine]{}
-	changes3.Put(4, makeRunLogsLine("e"))
+	changes3.Put(4, RunLogsLineForTest("e"))
 	err = writer.WriteToFile(changes3)
 	assert.NoError(t, err)
 
@@ -126,7 +116,7 @@ func TestOutputFileWriterRotationByTime(t *testing.T) {
 
 	// Write initial lines.
 	changes1 := &sparselist.SparseList[*RunLogsLine]{}
-	changes1.Put(0, makeRunLogsLine("first batch"))
+	changes1.Put(0, RunLogsLineForTest("first batch"))
 	err := writer.WriteToFile(changes1)
 	assert.NoError(t, err)
 
@@ -135,7 +125,7 @@ func TestOutputFileWriterRotationByTime(t *testing.T) {
 
 	// Write more lines - should trigger time-based rotation.
 	changes2 := &sparselist.SparseList[*RunLogsLine]{}
-	changes2.Put(1, makeRunLogsLine("second batch"))
+	changes2.Put(1, RunLogsLineForTest("second batch"))
 	err = writer.WriteToFile(changes2)
 	assert.NoError(t, err)
 
@@ -144,7 +134,7 @@ func TestOutputFileWriterRotationByTime(t *testing.T) {
 
 	// Write data to ensure second chunk file is created.
 	changes3 := &sparselist.SparseList[*RunLogsLine]{}
-	changes3.Put(2, makeRunLogsLine("more data"))
+	changes3.Put(2, RunLogsLineForTest("more data"))
 	err = writer.WriteToFile(changes3)
 	assert.NoError(t, err)
 
@@ -173,9 +163,9 @@ func TestOutputFileWriterNoRotation(t *testing.T) {
 
 	// Write some data.
 	changes := &sparselist.SparseList[*RunLogsLine]{}
-	changes.Put(0, makeRunLogsLine("line 1"))
-	changes.Put(1, makeRunLogsLine("line 2"))
-	changes.Put(2, makeRunLogsLine("line 3"))
+	changes.Put(0, RunLogsLineForTest("line 1"))
+	changes.Put(1, RunLogsLineForTest("line 2"))
+	changes.Put(2, RunLogsLineForTest("line 3"))
 	err := writer.WriteToFile(changes)
 	assert.NoError(t, err)
 
@@ -236,7 +226,7 @@ func TestOutputFileWriterEmptyChanges(t *testing.T) {
 
 	// Write actual data.
 	changes := &sparselist.SparseList[*RunLogsLine]{}
-	changes.Put(0, makeRunLogsLine("content"))
+	changes.Put(0, RunLogsLineForTest("content"))
 	err = writer.WriteToFile(changes)
 	assert.NoError(t, err)
 
@@ -265,7 +255,7 @@ func TestOutputFileWriterBothSizeAndTime(t *testing.T) {
 	// Size-based rotation should happen first.
 	changes1 := &sparselist.SparseList[*RunLogsLine]{}
 	for i := range 5 {
-		changes1.Put(i, makeRunLogsLine(strings.Repeat("x", 50)))
+		changes1.Put(i, RunLogsLineForTest(strings.Repeat("x", 50)))
 	}
 	err := writer.WriteToFile(changes1)
 	assert.NoError(t, err)
@@ -275,7 +265,7 @@ func TestOutputFileWriterBothSizeAndTime(t *testing.T) {
 
 	// Write small data to create new chunk.
 	changes2 := &sparselist.SparseList[*RunLogsLine]{}
-	changes2.Put(5, makeRunLogsLine("small"))
+	changes2.Put(5, RunLogsLineForTest("small"))
 	err = writer.WriteToFile(changes2)
 	assert.NoError(t, err)
 
@@ -284,7 +274,7 @@ func TestOutputFileWriterBothSizeAndTime(t *testing.T) {
 
 	// Trigger rotation check with another write.
 	changes3 := &sparselist.SparseList[*RunLogsLine]{}
-	changes3.Put(6, makeRunLogsLine("trigger"))
+	changes3.Put(6, RunLogsLineForTest("trigger"))
 	err = writer.WriteToFile(changes3)
 	assert.NoError(t, err)
 
@@ -293,7 +283,7 @@ func TestOutputFileWriterBothSizeAndTime(t *testing.T) {
 
 	// Write data to create third chunk.
 	changes4 := &sparselist.SparseList[*RunLogsLine]{}
-	changes4.Put(7, makeRunLogsLine("final"))
+	changes4.Put(7, RunLogsLineForTest("final"))
 	err = writer.WriteToFile(changes4)
 	assert.NoError(t, err)
 
@@ -322,10 +312,10 @@ func TestOutputFileWriterCrossChunkLineModification(t *testing.T) {
 
 	// Write lines 0-3 (triggers rotation at ~120 bytes).
 	changes1 := &sparselist.SparseList[*RunLogsLine]{}
-	changes1.Put(0, makeRunLogsLine(strings.Repeat("a", 30)))
-	changes1.Put(1, makeRunLogsLine(strings.Repeat("b", 30)))
-	changes1.Put(2, makeRunLogsLine(strings.Repeat("c", 30)))
-	changes1.Put(3, makeRunLogsLine(strings.Repeat("d", 30)))
+	changes1.Put(0, RunLogsLineForTest(strings.Repeat("a", 30)))
+	changes1.Put(1, RunLogsLineForTest(strings.Repeat("b", 30)))
+	changes1.Put(2, RunLogsLineForTest(strings.Repeat("c", 30)))
+	changes1.Put(3, RunLogsLineForTest(strings.Repeat("d", 30)))
 	err := writer.WriteToFile(changes1)
 	assert.NoError(t, err)
 
@@ -334,8 +324,8 @@ func TestOutputFileWriterCrossChunkLineModification(t *testing.T) {
 
 	// Try to modify line 1 from the previous chunk - should be silently ignored.
 	changes2 := &sparselist.SparseList[*RunLogsLine]{}
-	changes2.Put(1, makeRunLogsLine("modified line 1"))
-	changes2.Put(4, makeRunLogsLine("new line 4"))
+	changes2.Put(1, RunLogsLineForTest("modified line 1"))
+	changes2.Put(4, RunLogsLineForTest("new line 4"))
 	err = writer.WriteToFile(changes2)
 	assert.NoError(t, err)
 

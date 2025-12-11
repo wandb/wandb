@@ -25,6 +25,11 @@ type LineContent struct {
 	Content []rune
 }
 
+// ContentAsString returns a copy of the line's current content.
+func (l *LineContent) ContentAsString() string {
+	return string(l.Content)
+}
+
 // PutChar updates the line and returns whether it was modified.
 func (l *LineContent) PutChar(c rune, offset int) bool {
 	if offset >= l.MaxLength {
