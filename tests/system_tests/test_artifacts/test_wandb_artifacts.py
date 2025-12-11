@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Iterator, Mapping
+from typing import Callable, Iterator, Mapping
 from urllib.parse import quote
 
 import numpy as np
@@ -1347,25 +1347,25 @@ def test_artifact_table_deserialize_timestamp_column():
         ]
 
 
-def test_add_obj_wbimage_no_classes(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
+@fixture
+def im_path(assets_path: Callable[[str], Path]) -> str:
+    return str(assets_path("2x2.png"))
 
+
+def test_add_obj_wbimage_no_classes(im_path: str, artifact: Artifact):
     wb_image = wandb.Image(
         im_path,
-        masks={
-            "ground_truth": {
-                "path": im_path,
-            },
-        },
+        masks={"ground_truth": {"path": im_path}},
     )
     with raises(ValueError):
         artifact.add(wb_image, "my-image")
 
 
-def test_add_obj_wbimage(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
-    wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+def test_add_obj_wbimage(im_path: str, artifact: Artifact):
+    wb_image = wandb.Image(
+        im_path,
+        classes=[{"id": 0, "name": "person"}],
+    )
     artifact.add(wb_image, "my-image")
 
     assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
@@ -1430,10 +1430,11 @@ def test_add_obj_wbimage_again_after_edit(
     assert manifest_contents1.keys() == manifest_contents2.keys()
 
 
-def test_add_obj_using_brackets(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
-    wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+def test_add_obj_using_brackets(im_path: str, artifact: Artifact):
+    wb_image = wandb.Image(
+        im_path,
+        classes=[{"id": 0, "name": "person"}],
+    )
     artifact["my-image"] = wb_image
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
@@ -1514,9 +1515,7 @@ def test_deduplicate_wbimagemask_from_array(artifact, add_duplicate):
         assert len(artifact.manifest.entries) == 4
 
 
-def test_add_obj_wbimage_classes_obj(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbimage_classes_obj(im_path: str, artifact: Artifact):
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
@@ -1538,9 +1537,7 @@ def test_add_obj_wbimage_classes_obj(assets_path, artifact):
     }
 
 
-def test_add_obj_wbimage_classes_obj_already_added(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbimage_classes_obj_already_added(im_path: str, artifact: Artifact):
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     artifact.add(classes, "my-classes")
     wb_image = wandb.Image(im_path, classes=classes)
@@ -1567,9 +1564,7 @@ def test_add_obj_wbimage_classes_obj_already_added(assets_path, artifact):
     }
 
 
-def test_add_obj_wbimage_image_already_added(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbimage_image_already_added(im_path: str, artifact: Artifact):
     artifact.add_file(im_path)
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
@@ -1588,9 +1583,7 @@ def test_add_obj_wbimage_image_already_added(assets_path, artifact):
     }
 
 
-def test_add_obj_wbtable_images(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbtable_images(im_path: str, artifact: Artifact):
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     wb_table = wandb.Table(["examples"])
     wb_table.add_data(wb_image)
