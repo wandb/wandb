@@ -7,17 +7,26 @@ import re
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Final
 
 import fastapi
 from typing_extensions import Any, TypeAlias, override
 
-# Matches queries containing a line in one of the following forms:
+# Matches GraphQL operations containing a line in one of the following forms:
 #   mutation OpName(
 #   mutation OpName{
 #   query OpName(
 #   query OpName{
-_GQL_OPNAME_RE = re.compile(r"(?m)^(mutation|query)\s+(\w+)\s*[\(\{]")
+_GQL_OPNAME_RE = re.compile(
+    r"""
+    ^\s*                # Optional leading whitespace
+    (mutation|query)    # GQL operation type
+    \s+                 # Required separator
+    (?P<opname>\w+)     # GQL operation name
+    \s*
+    [\(\{]
+    """,
+    flags=re.MULTILINE | re.VERBOSE,
+)
 
 
 # NOTE: In Python 3.12+, this would be done with a `type` statement.
@@ -37,26 +46,24 @@ class Matcher:
         operation: str | None = None,
         variables: dict[str, Any] | None = None,
     ) -> None:
-        self._operation = operation or None
+        self._operation = operation
         self._variables = variables or {}
 
     def matches(self, query: str, variables: dict[str, Any]) -> bool:
         """Returns whether this matches the GQL request."""
-        if (query_match := _GQL_OPNAME_RE.search(query)) is None:
-            return False
-
-        opname = query_match.group(2)
-        if self._operation != opname:
-            return False
-
-        return all(
-            (key in variables) and (variables[key] == expected)
-            for key, expected in self._variables.items()
+        return (
+            # The operation name must match.
+            (op_match := _GQL_OPNAME_RE.search(query)) is not None
+            and self._operation == op_match.group("opname")
+            and
+            # Extra incoming variables are allowed, missing variables are not.
+            self._variables.items() <= variables.items()
         )
 
 
-ANY: Final[Matcher] = Matcher()
-"""A matcher that matches any request."""
+def anything() -> Matcher:
+    """A Matcher that matches any request."""
+    return Matcher()
 
 
 @dataclass(frozen=True)
