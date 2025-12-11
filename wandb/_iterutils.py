@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable
-from typing import TYPE_CHECKING, Any, Iterable, TypeVar, Union, overload
+from typing import TYPE_CHECKING, Any, Iterable, Protocol, TypeVar, Union, overload
 
 if TYPE_CHECKING:
     T = TypeVar("T")
@@ -71,3 +71,52 @@ def one(
     raise (
         too_long or ValueError("Expected 1 item in iterable, got multiple")
     ) from None
+
+
+class PathLookupError(KeyError, IndexError, TypeError):
+    """Error raise when a nested path lookup fails."""
+
+    path: tuple[int | str, ...]
+    loc: tuple[int | str, ...]
+    error: Exception
+
+    def __init__(
+        self, path: tuple[int | str, ...], loc: tuple[int | str, ...], error: Exception
+    ):
+        self.path = path
+        self.loc = loc
+        self.error = error
+
+    def __str__(self) -> str:
+        path_str = ".".join(map(str, self.path))
+        loc_str = ".".join(map(str, self.loc))
+        return f"Unable to access {loc_str!r} in path {path_str!r}, got error: {self.error}"
+
+
+class SupportsLookup(Protocol):
+    def __getitem__(self, key: int | str) -> Any: ...
+
+
+def get_path(obj: SupportsLookup, path: Iterable[int | str]) -> Any:
+    """Get the nested inner object at the given path.
+
+    Args:
+        obj: The object to get the nested inner object from.
+        path: The path to the nested inner object.
+
+    Returns:
+        The nested inner object.
+
+    Raises:
+        PathLookupError: If the path is invalid or the object does not support the path.
+    """
+    path = tuple(path)
+    curr = obj
+    for depth, key in enumerate(path, start=1):
+        try:
+            curr = curr[key]
+        except (LookupError, TypeError) as e:
+            # Note: TypeError occurs if we try to access a string index in a list,
+            # or if `data` doesn't support indexing
+            raise PathLookupError(path=path, loc=path[:depth], error=e)
+    return curr
