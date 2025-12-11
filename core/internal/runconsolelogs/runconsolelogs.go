@@ -21,9 +21,10 @@ import (
 )
 
 const (
-	maxTerminalLines      = 32
-	maxTerminalLineLength = 4096
-	ConsoleFileName       = "output.log"
+	maxTerminalLines       = 32
+	maxTerminalLineLength  = 4096
+	outputFileDebounceTime = 5 * time.Second
+	ConsoleFileName        = "output.log"
 )
 
 // Sender processes OutputRawRecords.
@@ -144,7 +145,7 @@ func New(params Params) *Sender {
 	}
 
 	writer := NewDebouncedWriter(
-		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
+		rate.NewLimiter(rate.Every(outputFileDebounceTime), 1),
 		func(lines *sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
 				if err := fileWriter.WriteToFile(lines); err != nil {

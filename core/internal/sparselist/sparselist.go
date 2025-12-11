@@ -198,6 +198,15 @@ type Run[T any] struct {
 	Items []T
 }
 
+// ToMap returns this list as a map from indices to values.
+func (l *SparseList[T]) ToMap() map[int]T {
+	if l == nil {
+		return nil
+	}
+
+	return maps.Clone(l.items)
+}
+
 // ToRuns returns the runs of consecutive values in the list.
 func (l *SparseList[T]) ToRuns() []Run[T] {
 	if l == nil {

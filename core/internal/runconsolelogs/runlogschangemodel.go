@@ -46,6 +46,15 @@ type RunLogsLine struct {
 	StreamLabel string
 }
 
+// RunLogsLineForTest returns a RunLogsLine with the specified content.
+//
+// Defined for testing.
+func RunLogsLineForTest(content string) *RunLogsLine {
+	line := &RunLogsLine{}
+	line.Content = []rune(content)
+	return line
+}
+
 // Clone returns a deep copy of the line.
 func (l *RunLogsLine) Clone() *RunLogsLine {
 	return &RunLogsLine{
