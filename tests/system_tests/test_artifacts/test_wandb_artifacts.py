@@ -1979,9 +1979,9 @@ def test_manifest_json_invalid_version(version):
     assert "manifest version" in str(e.value)
 
 
+@mark.usefixtures("override_env_dirs")
 @mark.flaky
 @mark.xfail(reason="flaky")
-@mark.usefixtures("override_env_cache_dir")
 def test_cache_cleanup_allows_upload(user, artifact):
     cache = get_artifact_file_cache()
 
