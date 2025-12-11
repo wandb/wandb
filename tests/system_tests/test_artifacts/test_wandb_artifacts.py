@@ -8,14 +8,13 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Iterator, Mapping
+from typing import Callable, Iterator, Mapping
 from urllib.parse import quote
 
 import numpy as np
 import requests
 import responses
 import wandb
-import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 import wandb.sdk.internal.sender
 from pytest import fixture, mark, param, raises
 from wandb import Api, Artifact, util
@@ -23,6 +22,10 @@ from wandb.data_types import ImageMask, PartitionedTable
 from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
@@ -1344,25 +1347,25 @@ def test_artifact_table_deserialize_timestamp_column():
         ]
 
 
-def test_add_obj_wbimage_no_classes(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
+@fixture
+def im_path(assets_path: Callable[[str], Path]) -> str:
+    return str(assets_path("2x2.png"))
 
+
+def test_add_obj_wbimage_no_classes(im_path: str, artifact: Artifact):
     wb_image = wandb.Image(
         im_path,
-        masks={
-            "ground_truth": {
-                "path": im_path,
-            },
-        },
+        masks={"ground_truth": {"path": im_path}},
     )
     with raises(ValueError):
         artifact.add(wb_image, "my-image")
 
 
-def test_add_obj_wbimage(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
-    wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+def test_add_obj_wbimage(im_path: str, artifact: Artifact):
+    wb_image = wandb.Image(
+        im_path,
+        classes=[{"id": 0, "name": "person"}],
+    )
     artifact.add(wb_image, "my-image")
 
     assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
@@ -1427,10 +1430,11 @@ def test_add_obj_wbimage_again_after_edit(
     assert manifest_contents1.keys() == manifest_contents2.keys()
 
 
-def test_add_obj_using_brackets(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
-    wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+def test_add_obj_using_brackets(im_path: str, artifact: Artifact):
+    wb_image = wandb.Image(
+        im_path,
+        classes=[{"id": 0, "name": "person"}],
+    )
     artifact["my-image"] = wb_image
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
@@ -1511,9 +1515,7 @@ def test_deduplicate_wbimagemask_from_array(artifact, add_duplicate):
         assert len(artifact.manifest.entries) == 4
 
 
-def test_add_obj_wbimage_classes_obj(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbimage_classes_obj(im_path: str, artifact: Artifact):
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
@@ -1535,9 +1537,7 @@ def test_add_obj_wbimage_classes_obj(assets_path, artifact):
     }
 
 
-def test_add_obj_wbimage_classes_obj_already_added(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbimage_classes_obj_already_added(im_path: str, artifact: Artifact):
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     artifact.add(classes, "my-classes")
     wb_image = wandb.Image(im_path, classes=classes)
@@ -1564,9 +1564,7 @@ def test_add_obj_wbimage_classes_obj_already_added(assets_path, artifact):
     }
 
 
-def test_add_obj_wbimage_image_already_added(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbimage_image_already_added(im_path: str, artifact: Artifact):
     artifact.add_file(im_path)
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
@@ -1585,9 +1583,7 @@ def test_add_obj_wbimage_image_already_added(assets_path, artifact):
     }
 
 
-def test_add_obj_wbtable_images(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbtable_images(im_path: str, artifact: Artifact):
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     wb_table = wandb.Table(["examples"])
     wb_table.add_data(wb_image)
@@ -1921,7 +1917,7 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    cache = artifact_file_cache.ArtifactFileCache(tmp_path)
+    cache = ArtifactFileCache(tmp_path)
     path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
     with opener() as f:
         f.write(123 * "a")
@@ -1983,11 +1979,11 @@ def test_manifest_json_invalid_version(version):
     assert "manifest version" in str(e.value)
 
 
+@mark.usefixtures("override_env_dirs")
 @mark.flaky
 @mark.xfail(reason="flaky")
-def test_cache_cleanup_allows_upload(user, tmp_path, monkeypatch, artifact):
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
-    cache = artifact_file_cache.get_artifact_file_cache()
+def test_cache_cleanup_allows_upload(user, artifact):
+    cache = get_artifact_file_cache()
 
     with open("test-file", "wb") as f:
         f.truncate(2**20)
