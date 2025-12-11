@@ -27,7 +27,7 @@ type filestreamWriter struct {
 }
 
 func (w *filestreamWriter) SendChanged(
-	changes sparselist.SparseList[*RunLogsLine],
+	changes *sparselist.SparseList[*RunLogsLine],
 ) {
 	lines := sparselist.Map(changes, func(line *RunLogsLine) string {
 		if w.Structured {

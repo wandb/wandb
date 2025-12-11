@@ -11,10 +11,10 @@ import (
 )
 
 func TestInvokesCallback(t *testing.T) {
-	flushes := make(chan sparselist.SparseList[*RunLogsLine], 1)
+	flushes := make(chan *sparselist.SparseList[*RunLogsLine], 1)
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Inf, 1),
-		func(lines sparselist.SparseList[*RunLogsLine]) {
+		func(lines *sparselist.SparseList[*RunLogsLine]) {
 			flushes <- lines
 		},
 	)
