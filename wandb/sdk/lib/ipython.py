@@ -71,6 +71,20 @@ def in_notebook() -> bool:
     return _get_python_type() != "python"
 
 
+def in_vscode_notebook() -> bool:
+    """Returns True if we're in a VSCode notebook."""
+    try:
+        from IPython import get_ipython
+
+        ipython = get_ipython()
+        if not ipython:
+            return False
+
+        return ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__") is not None
+    except ModuleNotFoundError:
+        return False
+
+
 class ProgressWidget:
     """A simple wrapper to render a nice progress bar with a label."""
 
