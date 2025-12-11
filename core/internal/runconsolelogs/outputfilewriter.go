@@ -9,9 +9,24 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/sparselist"
+	"golang.org/x/time/rate"
+)
+
+const (
+	// outputFileDebounceTime is how long to wait before flushing to disk.
+	//
+	// On distributed filesystems, open() and close() calls can be expensive.
+	// We only upload output.log at the end of a run (or at an infrequent rate
+	// if chunking), and the only reason to flush data to disk before then
+	// is to limit RAM usage.
+	//
+	// Note on chunking: we may exceed the chunking duration by this amount
+	// of time, uploading a chunk a little later than specified.
+	outputFileDebounceTime = 5 * time.Second
 )
 
 // outputFileWriter saves run console logs on disk.
@@ -22,6 +37,9 @@ import (
 // Chunks are uploaded on file rotation and/or on Finish.
 type outputFileWriter struct {
 	mu sync.Mutex
+
+	// debouncer batches updates to avoid hitting the filesystem too frequently.
+	debouncer *debouncedWriter
 
 	// Output file naming.
 	filesDir        string
@@ -43,12 +61,13 @@ type outputFileWriter struct {
 	currentChunkLineOffset int // Starting line number for current chunk.
 	nextGlobalLine         int // Next line number to be written globally.
 
-	// broken indicates whether an error occured in WriteToFile.
+	// broken indicates whether an error occured in writeToFile.
 	//
-	// When true, WriteToFile is a no-op.
+	// When true, writeToFile is a no-op.
 	broken bool
 
-	uploader runfiles.Uploader
+	logger        *observability.CoreLogger
+	uploaderOrNil runfiles.Uploader
 }
 
 // OutputFileWriterParams contains parameters for creating an outputFileWriter.
@@ -58,39 +77,55 @@ type OutputFileWriterParams struct {
 	Multipart        bool
 	MaxChunkBytes    int64
 	MaxChunkDuration time.Duration
-	Uploader         runfiles.Uploader
+
+	Logger        *observability.CoreLogger
+	UploaderOrNil runfiles.Uploader
 }
 
 func NewOutputFileWriter(params OutputFileWriterParams) *outputFileWriter {
 	extension := filepath.Ext(string(params.OutputFileName))
 	baseFileName := strings.TrimSuffix(string(params.OutputFileName), extension)
 
-	return &outputFileWriter{
+	fileWriter := &outputFileWriter{
 		filesDir:         params.FilesDir,
 		baseFileName:     baseFileName,
 		outputExtension:  extension,
 		multipart:        params.Multipart,
 		maxChunkBytes:    params.MaxChunkBytes,
 		maxChunkDuration: params.MaxChunkDuration,
-		uploader:         params.Uploader,
+
+		logger:        params.Logger,
+		uploaderOrNil: params.UploaderOrNil,
 	}
+
+	fileWriter.debouncer = NewDebouncedWriter(
+		rate.NewLimiter(rate.Every(outputFileDebounceTime), 1),
+		fileWriter.writeToFile,
+	)
+
+	return fileWriter
 }
 
-// WriteToFile writes console log changes to the current chunk file.
+// UpdateLine schedules a debounced update to the current chunk file.
+func (w *outputFileWriter) UpdateLine(lineNum int, line *RunLogsLine) {
+	w.debouncer.OnChanged(lineNum, line)
+}
+
+// writeToFile writes console log changes to the current chunk file.
 //
 // This method handles line number offset translation from global to chunk-local
 // coordinates and triggers chunk rotation when size or time limits are exceeded.
 //
 // If w.broken is true, this is a no-op.
-func (w *outputFileWriter) WriteToFile(
+func (w *outputFileWriter) writeToFile(
 	changes *sparselist.SparseList[*RunLogsLine],
-) error {
+) {
 	if w.broken {
-		return nil
+		return
 	}
 
 	if changes.Len() == 0 {
-		return nil
+		return
 	}
 
 	w.mu.Lock()
@@ -100,7 +135,9 @@ func (w *outputFileWriter) WriteToFile(
 	if w.currentChunk == nil {
 		if err := w.createNewChunk(); err != nil {
 			w.broken = true
-			return fmt.Errorf("failed to create chunk: %v", err)
+			w.logger.CaptureError(
+				fmt.Errorf("runconsolelogs: failed to create chunk: %v", err))
+			return
 		}
 	}
 
@@ -122,7 +159,8 @@ func (w *outputFileWriter) WriteToFile(
 
 	if err := w.currentChunk.UpdateLines(lines); err != nil {
 		w.broken = true
-		return fmt.Errorf("failed to write to chunk: %v", err)
+		w.logger.CaptureError(fmt.Errorf("failed to write to chunk: %v", err))
+		return
 	}
 
 	// This is an estimate as UpdateLines could pop or replay lines near the end.
@@ -131,8 +169,6 @@ func (w *outputFileWriter) WriteToFile(
 	if w.shouldRotate() {
 		w.rotateChunk()
 	}
-
-	return nil
 }
 
 // shouldRotate determines if the current chunk should be rotated.
@@ -184,7 +220,12 @@ func (w *outputFileWriter) createNewChunk() error {
 // This method should be called synchronously while holding the w.mu lock.
 func (w *outputFileWriter) rotateChunk() {
 	// Schedule the uploading of the current chunk.
-	w.uploader.UploadNow(w.currentChunkRelativePath, filetransfer.RunFileKindWandb)
+	if w.uploaderOrNil != nil {
+		w.uploaderOrNil.UploadNow(
+			w.currentChunkRelativePath,
+			filetransfer.RunFileKindWandb,
+		)
+	}
 
 	// Update offset for next chunk.
 	w.currentChunkLineOffset = w.nextGlobalLine
@@ -200,8 +241,9 @@ func (w *outputFileWriter) rotateChunk() {
 // This method should be called before the filestream is closed to ensure
 // all console output is uploaded.
 func (w *outputFileWriter) Finish() {
-	var path paths.RelativePath
+	w.debouncer.Finish()
 
+	var path paths.RelativePath
 	w.mu.Lock()
 	if w.currentChunk != nil && w.currentChunkRelativePath != "" {
 		path = w.currentChunkRelativePath
@@ -212,8 +254,8 @@ func (w *outputFileWriter) Finish() {
 	}
 	w.mu.Unlock()
 
-	if path != "" {
-		w.uploader.UploadNow(path, filetransfer.RunFileKindWandb)
+	if path != "" && w.uploaderOrNil != nil {
+		w.uploaderOrNil.UploadNow(path, filetransfer.RunFileKindWandb)
 	}
 }
 

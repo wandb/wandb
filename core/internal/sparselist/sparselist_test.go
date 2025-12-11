@@ -26,6 +26,7 @@ func TestNilSparseList(t *testing.T) {
 	nilList.ForEach(func(i int, s string) { t.Fatal("shouldn't run") })
 
 	assert.Empty(t, nilList.ToRuns())
+	assert.Empty(t, nilList.ToMap())
 
 	list := &sparselist.SparseList[string]{}
 	assert.NotPanics(t, func() { list.Update(nilList) })
@@ -81,10 +82,8 @@ func TestSparseListUpdate(t *testing.T) {
 	list1.Update(list2)
 
 	assert.Equal(t,
-		[]sparselist.Run[string]{
-			{Start: 0, Items: []string{"a", "x", "c", "y"}},
-		},
-		list1.ToRuns())
+		map[int]string{0: "a", 1: "x", 2: "c", 3: "y"},
+		list1.ToMap())
 }
 
 func TestSparseListIndices(t *testing.T) {
@@ -117,8 +116,6 @@ func TestSparseListMap(t *testing.T) {
 		func(x float64) float64 { return -x })
 
 	assert.Equal(t,
-		[]sparselist.Run[float64]{
-			{Start: 0, Items: []float64{-1.23, -4.56, -7.89}},
-		},
-		result.ToRuns())
+		map[int]float64{0: -1.23, 1: -4.56, 2: -7.89},
+		result.ToMap())
 }

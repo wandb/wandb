@@ -14,10 +14,8 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -45,15 +43,16 @@ type Sender struct {
 	// console messages.
 	consoleOutputFile paths.RelativePath
 
-	writer *debouncedWriter
-
 	logger                *observability.CoreLogger
 	runfilesUploaderOrNil runfiles.Uploader
 
 	// captureEnabled indicates whether to capture console output.
 	captureEnabled bool
 
-	// fileWriter handles writing to disk (either single file or chunked).
+	// fsWriter pushes updates to the FileStream.
+	fsWriter *filestreamWriter
+
+	// fileWriter writes updates to disk (either single file or chunked).
 	fileWriter *outputFileWriter
 
 	// isMultipart indicates whether we're using chunked file output.
@@ -125,10 +124,10 @@ func New(params Params) *Sender {
 
 	var fsWriter *filestreamWriter
 	if params.FileStreamOrNil != nil {
-		fsWriter = &filestreamWriter{
-			FileStream: params.FileStreamOrNil,
-			Structured: params.Structured,
-		}
+		fsWriter = NewFileStreamWriter(
+			params.Structured,
+			params.FileStreamOrNil,
+		)
 	}
 
 	var fileWriter *outputFileWriter
@@ -139,33 +138,23 @@ func New(params Params) *Sender {
 			Multipart:        params.Multipart,
 			MaxChunkBytes:    int64(params.ChunkMaxBytes),
 			MaxChunkDuration: time.Duration(int64(params.ChunkMaxSeconds)) * time.Second,
-			Uploader:         params.RunfilesUploaderOrNil,
+			Logger:           params.Logger,
+			UploaderOrNil:    params.RunfilesUploaderOrNil,
 		})
 	}
 
-	writer := NewDebouncedWriter(
-		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
-		func(lines *sparselist.SparseList[*RunLogsLine]) {
-			if fileWriter != nil {
-				if err := fileWriter.WriteToFile(lines); err != nil {
-					params.Logger.CaptureError(
-						fmt.Errorf(
-							"runconsolelogs: failed to write to file: %v",
-							err,
-						))
-				}
-			}
-
-			if fsWriter != nil {
-				fsWriter.SendChanged(lines)
-			}
-		},
-	)
 	model := &RunLogsChangeModel{
 		maxLines:      maxTerminalLines,
 		maxLineLength: maxTerminalLineLength,
-		onChange:      writer.OnChanged,
 		getNow:        params.GetNow,
+		onChange: func(lineNum int, line *RunLogsLine) {
+			if fileWriter != nil {
+				fileWriter.UpdateLine(lineNum, line)
+			}
+			if fsWriter != nil {
+				fsWriter.UpdateLine(lineNum, line)
+			}
+		},
 	}
 
 	return &Sender{
@@ -180,10 +169,10 @@ func New(params Params) *Sender {
 
 		consoleOutputFile: outputFileName,
 
-		writer:                writer,
 		logger:                params.Logger,
 		runfilesUploaderOrNil: params.RunfilesUploaderOrNil,
 		captureEnabled:        params.EnableCapture,
+		fsWriter:              fsWriter,
 		fileWriter:            fileWriter,
 		isMultipart:           params.Multipart,
 	}
@@ -197,8 +186,10 @@ func (s *Sender) Finish() {
 	s.isFinished = true
 	s.mu.Unlock()
 
-	s.writer.Finish()
-	if s.captureEnabled && s.runfilesUploaderOrNil != nil {
+	if s.fsWriter != nil {
+		s.fsWriter.Finish()
+	}
+	if s.fileWriter != nil {
 		s.fileWriter.Finish()
 	}
 }

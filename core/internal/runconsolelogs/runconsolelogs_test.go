@@ -132,8 +132,7 @@ func TestSender_LabelChangesOutputFileName_SingleFile(t *testing.T) {
 	s.StreamLogs(&spb.OutputRawRecord{Line: "hello\n"})
 	s.Finish()
 
-	rel, _ := paths.Relative("output_train.log")
-	want := filepath.Join(dir, string(*rel))
+	want := filepath.Join(dir, "output_train.log")
 
 	_, err := os.Stat(want)
 	require.NoError(t, err, "expected labeled output file to exist")
