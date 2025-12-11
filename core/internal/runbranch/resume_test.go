@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/runbranch"
@@ -244,7 +245,7 @@ func TestMustResumeValidHistory(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 
 	history := `["{\"_step\":1,\"_runtime\":50}"]`
-	config := "{}"
+	config := `{}`
 	summary := `{"_step": 1, "_runtime": 50}`
 	historyLineCount := 1
 	eventsLineCount := 0
@@ -1451,4 +1452,117 @@ func TestResumedRunNotes(t *testing.T) {
 	assert.Nil(t, err, "GetUpdates should not return an error")
 
 	assert.Equal(t, notes, params.Notes, "Notes should be set to the value from the response")
+}
+
+func TestResume_SetsGitValuesFromPreviousRun(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	config := `{
+		"_wandb":{
+			"value":{
+				"e":{
+					"writerid":{
+						"git":{
+							"commit":"commit_hash",
+							"remote":"remote_url"
+						}
+					}
+				}
+			}
+		}
+	}`
+	eventsLineCount := 0
+	historyLineCount := 0
+	historyTail := `[]`
+	logLineCount := 0
+	summary := `{}`
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Config:           &config,
+				EventsLineCount:  &eventsLineCount,
+				EventsTail:       `[]`,
+				HistoryLineCount: &historyLineCount,
+				HistoryTail:      &historyTail,
+				LogLineCount:     &logLineCount,
+				Name:             "TestRun",
+				SummaryMetrics:   &summary,
+				WandbConfig:      `{"t": 1}`,
+			},
+		},
+	}
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+	params := &runbranch.RunParams{}
+
+	err = resumeState.UpdateForResume(params, runconfig.New())
+	require.NoError(t, err)
+
+	assert.Equal(t, "commit_hash", params.Commit)
+	assert.Equal(t, "remote_url", params.RemoteURL)
+}
+
+func TestResume_DoesNotOverrideGitValuesIfAlreadySet(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	config := `{
+		"_wandb":{
+			"value":{
+				"e":{
+					"writerid":{
+						"git":{
+							"commit":"commit_hash",
+							"remote":"remote_url"
+						}
+					}
+				}
+			}
+		}
+	}`
+	eventsLineCount := 0
+	historyLineCount := 0
+	historyTail := `[]`
+	logLineCount := 0
+	summary := `{}`
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Config:           &config,
+				EventsLineCount:  &eventsLineCount,
+				EventsTail:       `[]`,
+				HistoryLineCount: &historyLineCount,
+				HistoryTail:      &historyTail,
+				LogLineCount:     &logLineCount,
+				Name:             "TestRun",
+				SummaryMetrics:   &summary,
+				WandbConfig:      `{"t": 1}`,
+			},
+		},
+	}
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+	params := &runbranch.RunParams{
+		Commit:    "commit_hash_set",
+		RemoteURL: "remote_url_set",
+	}
+
+	err = resumeState.UpdateForResume(params, runconfig.New())
+	require.NoError(t, err)
+
+	assert.Equal(t, "commit_hash_set", params.Commit)
+	assert.Equal(t, "remote_url_set", params.RemoteURL)
 }
