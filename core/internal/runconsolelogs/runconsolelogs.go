@@ -145,7 +145,7 @@ func New(params Params) *Sender {
 
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
-		func(lines sparselist.SparseList[*RunLogsLine]) {
+		func(lines *sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
 				if err := fileWriter.WriteToFile(lines); err != nil {
 					params.Logger.CaptureError(

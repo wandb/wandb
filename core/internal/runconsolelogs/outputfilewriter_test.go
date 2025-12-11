@@ -79,14 +79,14 @@ func TestOutputFileWriterRotationBySize(t *testing.T) {
 	})
 
 	// Write first batch - should fit in one chunk.
-	changes1 := sparselist.SparseList[*RunLogsLine]{}
+	changes1 := &sparselist.SparseList[*RunLogsLine]{}
 	changes1.Put(0, makeRunLogsLine(strings.Repeat("a", 30)))
 	changes1.Put(1, makeRunLogsLine(strings.Repeat("b", 30)))
 	err := writer.WriteToFile(changes1)
 	assert.NoError(t, err)
 
 	// Write second batch - should trigger rotation (total > 100 bytes).
-	changes2 := sparselist.SparseList[*RunLogsLine]{}
+	changes2 := &sparselist.SparseList[*RunLogsLine]{}
 	changes2.Put(2, makeRunLogsLine(strings.Repeat("c", 30)))
 	changes2.Put(3, makeRunLogsLine(strings.Repeat("d", 30)))
 	err = writer.WriteToFile(changes2)
@@ -96,7 +96,7 @@ func TestOutputFileWriterRotationBySize(t *testing.T) {
 	assert.Len(t, uploader.uploadedPaths, 1)
 
 	// Write more data to create the second chunk file.
-	changes3 := sparselist.SparseList[*RunLogsLine]{}
+	changes3 := &sparselist.SparseList[*RunLogsLine]{}
 	changes3.Put(4, makeRunLogsLine("e"))
 	err = writer.WriteToFile(changes3)
 	assert.NoError(t, err)
@@ -125,7 +125,7 @@ func TestOutputFileWriterRotationByTime(t *testing.T) {
 	})
 
 	// Write initial lines.
-	changes1 := sparselist.SparseList[*RunLogsLine]{}
+	changes1 := &sparselist.SparseList[*RunLogsLine]{}
 	changes1.Put(0, makeRunLogsLine("first batch"))
 	err := writer.WriteToFile(changes1)
 	assert.NoError(t, err)
@@ -134,7 +134,7 @@ func TestOutputFileWriterRotationByTime(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Write more lines - should trigger time-based rotation.
-	changes2 := sparselist.SparseList[*RunLogsLine]{}
+	changes2 := &sparselist.SparseList[*RunLogsLine]{}
 	changes2.Put(1, makeRunLogsLine("second batch"))
 	err = writer.WriteToFile(changes2)
 	assert.NoError(t, err)
@@ -143,7 +143,7 @@ func TestOutputFileWriterRotationByTime(t *testing.T) {
 	assert.Len(t, uploader.uploadedPaths, 1)
 
 	// Write data to ensure second chunk file is created.
-	changes3 := sparselist.SparseList[*RunLogsLine]{}
+	changes3 := &sparselist.SparseList[*RunLogsLine]{}
 	changes3.Put(2, makeRunLogsLine("more data"))
 	err = writer.WriteToFile(changes3)
 	assert.NoError(t, err)
@@ -172,7 +172,7 @@ func TestOutputFileWriterNoRotation(t *testing.T) {
 	})
 
 	// Write some data.
-	changes := sparselist.SparseList[*RunLogsLine]{}
+	changes := &sparselist.SparseList[*RunLogsLine]{}
 	changes.Put(0, makeRunLogsLine("line 1"))
 	changes.Put(1, makeRunLogsLine("line 2"))
 	changes.Put(2, makeRunLogsLine("line 3"))
@@ -230,12 +230,12 @@ func TestOutputFileWriterEmptyChanges(t *testing.T) {
 	})
 
 	// Write empty changes.
-	emptyChanges := sparselist.SparseList[*RunLogsLine]{}
+	emptyChanges := &sparselist.SparseList[*RunLogsLine]{}
 	err := writer.WriteToFile(emptyChanges)
 	assert.NoError(t, err)
 
 	// Write actual data.
-	changes := sparselist.SparseList[*RunLogsLine]{}
+	changes := &sparselist.SparseList[*RunLogsLine]{}
 	changes.Put(0, makeRunLogsLine("content"))
 	err = writer.WriteToFile(changes)
 	assert.NoError(t, err)
@@ -263,7 +263,7 @@ func TestOutputFileWriterBothSizeAndTime(t *testing.T) {
 	})
 
 	// Size-based rotation should happen first.
-	changes1 := sparselist.SparseList[*RunLogsLine]{}
+	changes1 := &sparselist.SparseList[*RunLogsLine]{}
 	for i := range 5 {
 		changes1.Put(i, makeRunLogsLine(strings.Repeat("x", 50)))
 	}
@@ -274,7 +274,7 @@ func TestOutputFileWriterBothSizeAndTime(t *testing.T) {
 	assert.Len(t, uploader.uploadedPaths, 1)
 
 	// Write small data to create new chunk.
-	changes2 := sparselist.SparseList[*RunLogsLine]{}
+	changes2 := &sparselist.SparseList[*RunLogsLine]{}
 	changes2.Put(5, makeRunLogsLine("small"))
 	err = writer.WriteToFile(changes2)
 	assert.NoError(t, err)
@@ -283,7 +283,7 @@ func TestOutputFileWriterBothSizeAndTime(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Trigger rotation check with another write.
-	changes3 := sparselist.SparseList[*RunLogsLine]{}
+	changes3 := &sparselist.SparseList[*RunLogsLine]{}
 	changes3.Put(6, makeRunLogsLine("trigger"))
 	err = writer.WriteToFile(changes3)
 	assert.NoError(t, err)
@@ -292,7 +292,7 @@ func TestOutputFileWriterBothSizeAndTime(t *testing.T) {
 	assert.Len(t, uploader.uploadedPaths, 2)
 
 	// Write data to create third chunk.
-	changes4 := sparselist.SparseList[*RunLogsLine]{}
+	changes4 := &sparselist.SparseList[*RunLogsLine]{}
 	changes4.Put(7, makeRunLogsLine("final"))
 	err = writer.WriteToFile(changes4)
 	assert.NoError(t, err)
@@ -321,7 +321,7 @@ func TestOutputFileWriterCrossChunkLineModification(t *testing.T) {
 	})
 
 	// Write lines 0-3 (triggers rotation at ~120 bytes).
-	changes1 := sparselist.SparseList[*RunLogsLine]{}
+	changes1 := &sparselist.SparseList[*RunLogsLine]{}
 	changes1.Put(0, makeRunLogsLine(strings.Repeat("a", 30)))
 	changes1.Put(1, makeRunLogsLine(strings.Repeat("b", 30)))
 	changes1.Put(2, makeRunLogsLine(strings.Repeat("c", 30)))
@@ -333,7 +333,7 @@ func TestOutputFileWriterCrossChunkLineModification(t *testing.T) {
 	assert.Len(t, uploader.uploadedPaths, 1)
 
 	// Try to modify line 1 from the previous chunk - should be silently ignored.
-	changes2 := sparselist.SparseList[*RunLogsLine]{}
+	changes2 := &sparselist.SparseList[*RunLogsLine]{}
 	changes2.Put(1, makeRunLogsLine("modified line 1"))
 	changes2.Put(4, makeRunLogsLine("new line 4"))
 	err = writer.WriteToFile(changes2)

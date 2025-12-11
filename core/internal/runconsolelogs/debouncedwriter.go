@@ -14,10 +14,10 @@ type debouncedWriter struct {
 	wg sync.WaitGroup
 
 	isFlushing bool
-	flush      func(sparselist.SparseList[*RunLogsLine])
+	flush      func(*sparselist.SparseList[*RunLogsLine])
 	rateLimit  *rate.Limiter
 
-	buffer sparselist.SparseList[*RunLogsLine]
+	buffer *sparselist.SparseList[*RunLogsLine]
 }
 
 // NewDebouncedWriter creates a writer that buffers changes and invokes flush
@@ -26,11 +26,12 @@ type debouncedWriter struct {
 // Stops invoking `flush` after the context is cancelled.
 func NewDebouncedWriter(
 	rateLimit *rate.Limiter,
-	flush func(sparselist.SparseList[*RunLogsLine]),
+	flush func(*sparselist.SparseList[*RunLogsLine]),
 ) *debouncedWriter {
 	return &debouncedWriter{
 		flush:     flush,
 		rateLimit: rateLimit,
+		buffer:    &sparselist.SparseList[*RunLogsLine]{},
 	}
 }
 
@@ -68,7 +69,7 @@ func (b *debouncedWriter) loopFlushBuffer() {
 		}
 
 		lines := b.buffer
-		b.buffer = sparselist.SparseList[*RunLogsLine]{}
+		b.buffer = &sparselist.SparseList[*RunLogsLine]{}
 		b.mu.Unlock()
 
 		b.flush(lines)
