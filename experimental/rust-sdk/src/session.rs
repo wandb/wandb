@@ -1,7 +1,7 @@
 use core::panic;
 use std::io;
 use std::io::Result;
-use std::net::TcpStream;
+use std::os::unix::net::UnixStream;
 
 use sentry;
 use std::env;
@@ -22,10 +22,10 @@ pub struct Session {
 #[derive(Debug)]
 pub struct SessionInner {
     settings: Settings,
-    addr: String,
+    socket_path: String,
 }
 
-pub fn get_core_address() -> String {
+pub fn get_core_socket_path() -> String {
     // TODO: get and set WANDB_CORE env variable to handle multiprocessing
     let current_dir =
         env::var("_WANDB_CORE_PATH").expect("Environment variable _WANDB_CORE_PATH is not set");
@@ -39,35 +39,34 @@ pub fn get_core_address() -> String {
         command: core_cmd,
         child_process: None,
     };
-    let port = launcher.start();
+    let socket_path = launcher.start();
 
-    if let Ok(port) = port {
-        format!("127.0.0.1:{}", port)
+    if let Ok(socket_path) = socket_path {
+        socket_path
     } else {
         sentry::capture_error(&io::Error::new(
             io::ErrorKind::Other,
-            "Couldn't get port from launcher...",
+            "Couldn't get Unix socket path from launcher...",
         ));
-        tracing::error!("Couldn't get port from launcher...");
+        tracing::error!("Couldn't get Unix socket path from launcher...");
         panic!();
     }
 }
 
 impl SessionInner {
-    pub fn connect(&self) -> TcpStream {
-        tracing::debug!("Connecting to {}", self.addr);
+    pub fn connect(&self) -> UnixStream {
+        tracing::debug!("Connecting to Unix socket at {}", self.socket_path);
 
-        if let Ok(stream) = TcpStream::connect(&self.addr) {
-            tracing::debug!("Stream peer address: {}", stream.peer_addr().unwrap());
-            tracing::debug!("Stream local address: {}", stream.local_addr().unwrap());
+        if let Ok(stream) = UnixStream::connect(&self.socket_path) {
+            tracing::debug!("Connected to wandb-core via Unix socket");
 
             return stream;
         } else {
             sentry::capture_error(&io::Error::new(
                 io::ErrorKind::Other,
-                "Couldn't connect to server...",
+                "Couldn't connect to wandb-core Unix socket...",
             ));
-            tracing::error!("Couldn't connect to server...");
+            tracing::error!("Couldn't connect to wandb-core Unix socket at {}", self.socket_path);
             panic!();
         }
     }
@@ -89,6 +88,7 @@ impl Drop for SessionInner {
                     },
                 ),
             ),
+            request_id: String::new(),
         };
         tracing::debug!(
             "Sending inform teardown request {:?}",
@@ -103,8 +103,8 @@ impl Drop for SessionInner {
 
 impl Session {
     pub fn new(settings: Settings) -> Result<Session> {
-        let addr = get_core_address();
-        let inner = Arc::new(SessionInner { settings, addr });
+        let socket_path = get_core_socket_path();
+        let inner = Arc::new(SessionInner { settings, socket_path });
         Ok(Session { inner })
     }
 
