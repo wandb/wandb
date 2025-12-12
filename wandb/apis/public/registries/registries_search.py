@@ -12,18 +12,15 @@ from wandb_gql import gql
 from wandb._analytics import tracked
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.utils import gql_compat
-from wandb.sdk.artifacts._generated import (
-    FETCH_REGISTRIES_GQL,
-    REGISTRY_COLLECTIONS_GQL,
-    REGISTRY_VERSIONS_GQL,
-    ArtifactCollectionType,
-    FetchRegistries,
-    RegistriesPage,
-    RegistryCollections,
-    RegistryCollectionsPage,
-    RegistryVersions,
-    RegistryVersionsPage,
-)
+from wandb.sdk.artifacts._generated import (FETCH_REGISTRIES_GQL,
+                                            REGISTRY_COLLECTIONS_GQL,
+                                            REGISTRY_VERSIONS_GQL,
+                                            ArtifactCollectionType,
+                                            FetchRegistries, RegistriesPage,
+                                            RegistryCollections,
+                                            RegistryCollectionsPage,
+                                            RegistryVersions,
+                                            RegistryVersionsPage)
 from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
 from wandb.sdk.artifacts._validators import remove_registry_prefix
 
@@ -190,6 +187,17 @@ class Collections(Paginator["ArtifactCollection"]):
             artifact_filter=filter,
         )
 
+    @tracked
+    def versions_temp(self, filter: dict[str, Any] | None = None) -> VersionsTemp:
+        """Returns minimal version data (membership ID and collection name)."""
+        return VersionsTemp(
+            client=self.client,
+            organization=self.organization,
+            registry_filter=self.registry_filter,
+            collection_filter=self.collection_filter,
+            artifact_filter=filter,
+        )
+
     @property
     def length(self):
         if self.last_response is None:
@@ -333,6 +341,8 @@ class Versions(Paginator["Artifact"]):
             return []
 
         nodes = (e.node for e in self.last_response.edges)
+        for node in nodes:
+            print(f"node: {node}")
         return [
             Artifact._from_attrs(
                 entity=project.entity.name,
@@ -348,4 +358,153 @@ class Versions(Paginator["Artifact"]):
                 and (project := collection.project)
                 and (artifact := node.artifact)
             )
+        ]
+
+
+class VersionsTemp(Paginator[dict[str, Any]]):
+    """A lazy iterator that returns minimal artifact membership data."""
+
+    # Simplified GraphQL query that only fetches collection name and membership ID
+    QUERY_GQL = """
+    query RegistryVersionsTemp(
+        $organization: String!
+        $registryFilter: JSONString
+        $collectionFilter: JSONString
+        $artifactFilter: JSONString
+        $cursor: String
+        $perPage: Int
+    ) {
+        organization(name: $organization) {
+            orgEntity {
+                name
+                artifactMemberships(
+                    projectFilters: $registryFilter
+                    collectionFilters: $collectionFilter
+                    filters: $artifactFilter
+                    after: $cursor
+                    first: $perPage
+                ) {
+                    pageInfo {
+                        endCursor
+                        hasNextPage
+                    }
+                    edges {
+                        node {
+                            id
+                            artifactCollection {
+                                name
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """
+
+    def __init__(
+        self,
+        client: Client,
+        organization: str,
+        registry_filter: dict[str, Any] | None = None,
+        collection_filter: dict[str, Any] | None = None,
+        artifact_filter: dict[str, Any] | None = None,
+        per_page: int = 100,
+    ):
+        self.client = client
+        self.organization = organization
+        self.registry_filter = registry_filter
+        self.collection_filter = collection_filter
+        self.artifact_filter = artifact_filter or {}
+        self.last_response: dict[str, Any] | None = None
+
+        self.QUERY = gql(self.QUERY_GQL)
+
+        variables = {
+            "registryFilter": json.dumps(f) if (f := registry_filter) else None,
+            "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
+            "artifactFilter": json.dumps(f) if (f := artifact_filter) else None,
+            "organization": organization,
+        }
+
+        super().__init__(client, variables, per_page)
+
+    def __next__(self):
+        # Implement custom next since it's possible to load empty pages because of auth
+        self.index += 1
+        while len(self.objects) <= self.index:
+            if not self._load_page():
+                raise StopIteration
+        return self.objects[self.index]
+
+    @property
+    def length(self) -> int | None:
+        if self.last_response is None:
+            return None
+        edges = (
+            self.last_response.get("organization", {})
+            .get("orgEntity", {})
+            .get("artifactMemberships", {})
+            .get("edges", [])
+        )
+        return len(edges)
+
+    @property
+    def more(self) -> bool:
+        if self.last_response is None:
+            return True
+        page_info = (
+            self.last_response.get("organization", {})
+            .get("orgEntity", {})
+            .get("artifactMemberships", {})
+            .get("pageInfo", {})
+        )
+        return page_info.get("hasNextPage", False)
+
+    @property
+    def cursor(self) -> str | None:
+        if self.last_response is None:
+            return None
+        page_info = (
+            self.last_response.get("organization", {})
+            .get("orgEntity", {})
+            .get("artifactMemberships", {})
+            .get("pageInfo", {})
+        )
+        return page_info.get("endCursor")
+
+    @override
+    def _update_response(self) -> None:
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        self.last_response = data
+        print(f"data: {data}")
+        if not (
+            data.get("organization")
+            and data["organization"].get("orgEntity")
+        ):
+            raise ValueError(
+                f"Organization {self.organization!r} not found. Please verify the organization name is correct."
+            )
+
+    def convert_objects(self) -> list[dict[str, Any]]:
+        """Convert response to list of dicts with membership_id and collection_name."""
+        if self.last_response is None:
+            print(f"last_response is None: {self.last_response}")
+            return []
+
+        edges = (
+            self.last_response.get("organization", {})
+            .get("orgEntity", {})
+            .get("artifactMemberships", {})
+            .get("edges", [])
+        )
+
+        print(f"edges: {edges}")
+        return [
+            {
+                "membership_id": edge["node"]["id"],
+                "collection_name": edge["node"]["artifactCollection"]["name"],
+            }
+            for edge in edges
+            if edge.get("node") and edge["node"].get("artifactCollection")
         ]
