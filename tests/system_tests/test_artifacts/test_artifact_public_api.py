@@ -5,10 +5,14 @@ import platform
 import random
 import string
 from contextlib import nullcontext
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable
 
 import requests
 import wandb
 from pytest import fixture, mark, raises, skip
+from pytest_mock import MockerFixture
+from wandb import Api
 from wandb._strutils import nameof
 from wandb.errors import CommError
 from wandb.proto import wandb_internal_pb2 as pb
@@ -21,15 +25,24 @@ from wandb.sdk.artifacts._generated import (
 )
 from wandb.sdk.artifacts._gqlutils import allowed_fields, server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
+from wandb.sdk.lib.paths import StrPath
+
+if TYPE_CHECKING:
+    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 
 @fixture
-def sample_data():
-    with wandb.init(id="first_run", settings={"silent": True}):
+def sample_data(user: str) -> None:
+    """Generate some sample artifacts for tests in this module."""
+    # NOTE: Requesting the `user` fixture is important as it sets auth
+    # environment variables for the duration of the test.
+    _ = user
+
+    with wandb.init(id="first_run", settings={"silent": True}) as run:
         artifact = wandb.Artifact("mnist", type="dataset")
         with artifact.new_file("digits.h5") as f:
             f.write("v0")
-        wandb.run.log_artifact(artifact, aliases=["my_alias"])
+        run.log_artifact(artifact, aliases=["my_alias"])
 
         artifact = wandb.Artifact("mnist", type="dataset")
         table = wandb.Table(
@@ -40,20 +53,22 @@ def sample_data():
             ],
         )
         artifact.add(table, name="t")
-        wandb.run.log_artifact(artifact)
+        run.log_artifact(artifact)
 
-    with wandb.init(id="second_run", settings={"silent": True}):
-        wandb.run.use_artifact("mnist:v0")
-        wandb.run.use_artifact("mnist:v1")
+    with wandb.init(id="second_run", settings={"silent": True}) as run:
+        run.use_artifact("mnist:v0")
+        run.use_artifact("mnist:v1")
 
 
-def test_artifact_versions(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_versions(api: Api):
     versions = api.artifact_versions("dataset", "mnist")
     assert len(versions) == 2
     assert {version.name for version in versions} == {"mnist:v0", "mnist:v1"}
 
 
-def test_artifact_type(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_type(api: Api):
     atype = api.artifact_type("dataset")
     assert atype.name == "dataset"
     col = atype.collection("mnist")
@@ -62,12 +77,14 @@ def test_artifact_type(user, api, sample_data):
     assert cols[0].name == "mnist"
 
 
-def test_artifact_types(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_types(api: Api):
     atypes = api.artifact_types()
     assert {atype.name for atype in atypes} == {"dataset"}
 
 
-def test_artifact_get_path(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_get_path(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     assert art.type == "dataset"
     assert art.name == "mnist:v0"
@@ -79,24 +96,24 @@ def test_artifact_get_path(user, api, sample_data):
     assert actual_path == os.path.abspath(expected_path)
 
 
-def test_artifact_get_path_download(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_get_path_download(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     path = art.get_entry("digits.h5").download(os.getcwd())
     assert os.path.exists("./digits.h5")
     assert path == os.path.join(os.getcwd(), "digits.h5")
 
 
-def test_artifact_file(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_file(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     path = art.file()
-    if platform.system() == "Windows":
-        part = "mnist-v0"
-    else:
-        part = "mnist:v0"
-    assert path == os.path.join(".", "artifacts", part, "digits.h5")
+    expected_subpath = "mnist-v0" if (platform.system() == "Windows") else "mnist:v0"
+    assert path == os.path.join(".", "artifacts", expected_subpath, "digits.h5")
 
 
-def test_artifact_files(user, api, sample_data, wandb_backend_spy):
+@mark.usefixtures("sample_data")
+def test_artifact_files(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     if server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         assert (
@@ -110,6 +127,12 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     paths = [f.storage_path for f in art.files()]
     assert paths[0].startswith("wandb_artifacts/")
 
+
+@mark.usefixtures("sample_data")
+def test_artifact_files_on_legacy_local_install(
+    wandb_backend_spy: WandbBackendSpy,
+    api: Api,
+):
     # Assert we don't break legacy local installs
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
@@ -124,7 +147,6 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
         ),
     )
 
-    api = wandb.Api()
     art = api.artifact("mnist:v0", type="dataset")
     files = art.files(per_page=1)
     assert "storagePath" not in files[0]._attrs.keys()
@@ -133,7 +155,8 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
     assert files.cursor is not None
 
 
-def test_artifacts_files_filtered_length(user, api, sample_data, wandb_backend_spy):
+@mark.usefixtures("sample_data")
+def test_artifacts_files_filtered_length(api: Api):
     if not server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         skip("Server doesn't support FileConnection.totalCount")
 
@@ -149,13 +172,14 @@ def test_artifacts_files_filtered_length(user, api, sample_data, wandb_backend_s
     artifact.save()
     artifact.wait()
 
-    assert_artifact = wandb.Api().artifact(artifact.qualified_name)
+    assert_artifact = api.artifact(artifact.qualified_name)
     assert len(assert_artifact.files()) == number_of_files
     assert len(assert_artifact.files(names=["file0.txt"])) == 1
     assert len(assert_artifact.files(names=["file0.txt", "file1.txt"])) == 2
 
 
-def test_artifact_download(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_download(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     path = art.download()
     if platform.system() == "Windows":
@@ -166,18 +190,21 @@ def test_artifact_download(user, api, sample_data):
     assert os.listdir(path) == ["digits.h5"]
 
 
-def test_artifact_exists(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_exists(api: Api):
     assert api.artifact_exists("mnist:v0") is True
     assert api.artifact_exists("mnist:v2") is False
     assert api.artifact_exists("mnist-fake:v0") is False
 
 
-def test_artifact_collection_exists(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_collection_exists(api: Api):
     assert api.artifact_collection_exists("mnist", "dataset") is True
     assert api.artifact_collection_exists("mnist-fake", "dataset") is False
 
 
-def test_artifact_exists_raises_on_timeout(mocker, user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
     # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
     # actual python methods, but this is complicated by the fact that we need to instantiate
     # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
@@ -201,7 +228,8 @@ def test_artifact_exists_raises_on_timeout(mocker, user, api, sample_data):
     assert isinstance(exc_info.value.exc, requests.Timeout)
 
 
-def test_artifact_collection_exists_raises_on_timeout(mocker, user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_collection_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
     # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
     # actual python methods, but this is complicated by the fact that we need to instantiate
     # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
@@ -221,7 +249,8 @@ def test_artifact_collection_exists_raises_on_timeout(mocker, user, api, sample_
     assert isinstance(exc_info.value.exc, requests.Timeout)
 
 
-def test_artifact_delete(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_delete(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     # The artifact has aliases, so fail unless delete_aliases is set.
     with raises(CommError):
@@ -229,7 +258,8 @@ def test_artifact_delete(user, api, sample_data):
     art.delete(delete_aliases=True)
 
 
-def test_artifact_delete_on_linked_artifact(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_delete_on_linked_artifact(api: Api):
     portfolio = "portfolio_name"
 
     source_art = api.artifact("mnist:v0", type="dataset")
@@ -251,7 +281,8 @@ def test_artifact_delete_on_linked_artifact(user, api, sample_data):
     assert api.artifact_exists(linked_path) is False
 
 
-def test_artifact_checkout(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_checkout(api: Api):
     # Create a file that should be removed as part of checkout
     os.makedirs(os.path.join(".", "artifacts", "mnist"))
     with open(os.path.join(".", "artifacts", "mnist", "bogus"), "w") as f:
@@ -263,36 +294,39 @@ def test_artifact_checkout(user, api, sample_data):
     assert os.listdir(path) == ["digits.h5"]
 
 
-def test_artifact_run_used(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_run_used(api: Api):
     run = api.run("uncategorized/second_run")
     arts = run.used_artifacts()
     assert len(arts) == 2
     assert {art.name for art in arts} == {"mnist:v0", "mnist:v1"}
 
 
-def test_artifact_run_logged(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_run_logged(api: Api):
     run = api.run("uncategorized/first_run")
     arts = run.logged_artifacts()
     assert len(arts) == 2
     assert {art.name for art in arts} == {"mnist:v0", "mnist:v1"}
 
 
-def test_artifact_run_logged_cursor(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_run_logged_cursor(api: Api):
     artifacts = api.run("uncategorized/first_run").logged_artifacts()
-    count = 0
-    for _artifact in artifacts:
-        count += 1
-
-    assert len(artifacts) == count
+    len_artifacts = len(artifacts)
+    count = sum(1 for _ in artifacts)
+    assert len_artifacts == count
 
 
-def test_artifact_manual_use(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_manual_use(api: Api):
     run = api.run("uncategorized/second_run")
     art = api.artifact("mnist:v0", type="dataset")
     run.use_artifact(art)
 
 
-def test_artifact_bracket_accessor(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_bracket_accessor(api: Api):
     art = api.artifact("mnist:v1", type="dataset")
     assert art["t"].__class__ == wandb.Table
     assert art["s"] is None
@@ -300,12 +334,14 @@ def test_artifact_bracket_accessor(user, api, sample_data):
         art["s"] = wandb.Table(data=[], columns=[])
 
 
-def test_artifact_manual_link(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_manual_link(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     art.link("portfolio_name")
 
 
-def test_artifact_manual_error(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_manual_error(api: Api):
     run = api.run("uncategorized/first_run")
     art = wandb.Artifact("test", type="dataset")
     with raises(CommError):
@@ -318,13 +354,18 @@ def test_artifact_manual_error(user, api, sample_data):
         run.log_artifact("mnist:v0")
 
 
-def test_artifact_verify(user, api, sample_data):
+@mark.usefixtures("sample_data")
+def test_artifact_verify(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     art.download()
     art.verify()
 
 
-def test_artifact_save_norun(user, test_settings, assets_path):
+def test_artifact_save_norun(
+    user: str,
+    test_settings: Callable[[], wandb.Settings],
+    assets_path: Callable[[StrPath], Path],
+):
     im_path = str(assets_path("2x2.png"))
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
@@ -332,7 +373,11 @@ def test_artifact_save_norun(user, test_settings, assets_path):
     artifact.save(settings=test_settings())
 
 
-def test_artifact_save_run(user, test_settings, assets_path):
+def test_artifact_save_run(
+    user: str,
+    test_settings: Callable[[], wandb.Settings],
+    assets_path: Callable[[StrPath], Path],
+):
     im_path = str(assets_path("2x2.png"))
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
@@ -341,7 +386,10 @@ def test_artifact_save_run(user, test_settings, assets_path):
         artifact.save()
 
 
-def test_artifact_save_norun_nosettings(user, assets_path):
+def test_artifact_save_norun_nosettings(
+    user: str,
+    assets_path: Callable[[StrPath], Path],
+):
     im_path = str(assets_path("2x2.png"))
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
@@ -349,41 +397,36 @@ def test_artifact_save_norun_nosettings(user, assets_path):
     artifact.save()
 
 
-def test_parse_artifact_path(user, api):
-    entity, project, path = api._parse_artifact_path(
-        "entity/project/artifact:alias/with/slashes"
-    )
-    assert (
-        entity == "entity"
-        and project == "project"
-        and path == "artifact:alias/with/slashes"
-    )
+def test_parse_artifact_path(user: str, api: Api):
+    path = "entity/project/artifact:alias/with/slashes"
+    entity, project, name = api._parse_artifact_path(path)
+    assert entity == "entity"
+    assert project == "project"
+    assert name == "artifact:alias/with/slashes"
 
-    entity, project, path = api._parse_artifact_path(
-        "entity/project/artifact:alias:with:colons"
-    )
-    assert (
-        entity == "entity"
-        and project == "project"
-        and path == "artifact:alias:with:colons"
-    )
+    path = "entity/project/artifact:alias:with:colons"
+    entity, project, name = api._parse_artifact_path(path)
+    assert entity == "entity"
+    assert project == "project"
+    assert name == "artifact:alias:with:colons"
 
-    entity, project, path = api._parse_artifact_path(
-        "entity/project/artifact:alias:with:colons/and/slashes"
-    )
-    assert (
-        entity == "entity"
-        and project == "project"
-        and path == "artifact:alias:with:colons/and/slashes"
-    )
+    path = "entity/project/artifact:alias:with:colons/and/slashes"
+    entity, project, name = api._parse_artifact_path(path)
+    assert entity == "entity"
+    assert project == "project"
+    assert name == "artifact:alias:with:colons/and/slashes"
 
-    entity, project, path = api._parse_artifact_path(
-        "artifact:alias/with:colons:and/slashes"
-    )
-    assert path == "artifact:alias/with:colons:and/slashes"
+    path = "artifact:alias/with:colons:and/slashes"
+    entity, project, name = api._parse_artifact_path(path)
+    assert entity == api.default_entity
+    assert project == "uncategorized"
+    assert name == "artifact:alias/with:colons:and/slashes"
 
-    entity, project, path = api._parse_artifact_path("entity/project/artifact")
-    assert entity == "entity" and project == "project" and path == "artifact"
+    path = "entity/project/artifact"
+    entity, project, name = api._parse_artifact_path(path)
+    assert entity == "entity"
+    assert project == "project"
+    assert name == "artifact"
 
 
 @mark.parametrize(
@@ -542,11 +585,7 @@ def test_fetch_registry_artifact(
     mock_responder = Constant(content=mock_rsp)
     wandb_backend_spy.stub_gql(match=op_matcher, respond=mock_responder)
 
-    if expected_artifact_fetched:
-        expectation = nullcontext()
-    else:
-        expectation = raises(CommError)
-
+    expectation = nullcontext() if expected_artifact_fetched else raises(CommError)
     with expectation:
         api.artifact(artifact_path)
 
