@@ -33,6 +33,9 @@ Note:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from pydantic import PositiveInt
 from wandb_gql import gql
 
 from wandb.apis import public
@@ -42,6 +45,9 @@ from wandb.apis.paginator import Paginator
 from wandb.apis.public.api import RetryingClient
 from wandb.apis.public.sweeps import Sweeps
 from wandb.sdk.lib import ipython
+
+if TYPE_CHECKING:
+    from wandb.apis.public import ExecutedAutomations
 
 PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
     id
@@ -261,6 +267,19 @@ class Project(Attrs):
             A `Sweeps` object, which is an iterable collection of `Sweep` objects.
         """
         return Sweeps(self.client, self.entity, self.name, per_page=per_page)
+
+    @normalize_exceptions
+    def automation_history(self, per_page: PositiveInt = 50) -> ExecutedAutomations:
+        """Return a paginated collection of automations in this project."""
+        from wandb.apis.public import ExecutedAutomations
+        from wandb.automations._generated import GET_PROJECT_AUTOMATION_HISTORY_GQL
+
+        return ExecutedAutomations(
+            self.client,
+            variables={"project": self.name, "entity": self.entity},
+            per_page=per_page,
+            _query=gql(GET_PROJECT_AUTOMATION_HISTORY_GQL),
+        )
 
     @property
     def id(self) -> str:
