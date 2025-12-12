@@ -1,0 +1,106 @@
+import paddle
+import paddle.nn as nn
+import pytest
+from wandb.integration.paddle import wandb_paddle
+
+
+def test_nested_shape():
+    shape = wandb_paddle.nested_shape([2, 4, 5])
+    assert shape == [[], [], []]
+
+    shape = wandb_paddle.nested_shape(
+        [
+            paddle.ones((2, 3), requires_grad=True),
+            paddle.ones((4, 5), requires_grad=True),
+        ]
+    )
+    assert shape == [[2, 3], [4, 5]]
+
+    # create recursive lists of tensors (t3 includes itself)
+    t1 = paddle.ones((2, 3), requires_grad=True)
+    t2 = paddle.ones((4, 5), requires_grad=True)
+    t3 = [t1, t2]
+    t3.append(t3)
+    t3.append(t2)
+    shape = wandb_paddle.nested_shape([t1, t2, t3])
+    assert shape == [[2, 3], [4, 5], [[2, 3], [4, 5], 0, [4, 5]]]
+
+
+@pytest.mark.parametrize(
+    "test_input,expected",
+    [
+        (paddle.tensor([1.0, 2.0, 3.0]), False),
+        (paddle.tensor([0.0, 0.0, 0.0]), False),
+        (paddle.tensor([1.0]), False),
+        (paddle.tensor([]), True),
+        (paddle.tensor([1.0, float("nan"), float("nan")]), False),
+        (paddle.tensor([1.0, float("inf"), -float("inf")]), False),
+        (paddle.tensor([1.0, float("nan"), float("inf")]), False),
+        (paddle.tensor([float("nan"), float("nan"), float("nan")]), True),
+        (paddle.tensor([float("inf"), float("inf"), -float("inf")]), True),
+        (paddle.tensor([float("nan"), float("inf"), -float("inf")]), True),
+    ],
+)
+def test_no_finite_values(test_input, expected):
+    paddle_history = wandb_paddle.PaddleHistory()
+
+    assert paddle_history._no_finite_values(test_input) is expected
+
+
+@pytest.mark.parametrize(
+    "test_input,expected",
+    [
+        (paddle.tensor([0.0, 1.0, 2.0]), paddle.tensor([0.0, 1.0, 2.0])),
+        (paddle.tensor([1.0]), paddle.tensor([1.0])),
+        (paddle.tensor([0.0, float("inf"), -float("inf")]), paddle.tensor([0.0])),
+        (paddle.tensor([0.0, float("nan"), float("inf")]), paddle.tensor([0.0])),
+    ],
+)
+def test_remove_infs_nans(test_input, expected):
+    paddle_history = wandb_paddle.PaddleHistory()
+
+    assert paddle.compat.equal(paddle_history._remove_infs_nans(test_input), expected)
+
+
+def test_double_log(mock_run):
+    run = mock_run()
+    net = nn.Linear(10, 2)
+    run.watch(net, log_graph=True)
+    with pytest.raises(ValueError):
+        run.watch(net, log_graph=True)
+
+
+@pytest.mark.skip("do not support watching paddle jit model")
+def test_watch_parameters_paddle_jit(mock_run, log_type, mock_wandb_log):
+    run = mock_run(use_magic_mock=True)
+    net = paddle.jit.to_static(nn.Linear(10, 2))
+    run.watch(net, log=log_type)
+
+    mock_wandb_log.assert_warned("skipping parameter tracking")
+
+
+@pytest.mark.skip("do not support watching paddle jit model")
+def test_watch_graph_paddle_jit(mock_run, mock_wandb_log):
+    run = mock_run(use_magic_mock=True)
+
+    class Net(nn.Layer):
+        def __init__(self):
+            super().__init__()
+            self.layer_1 = nn.Linear(10, 2)
+
+        def forward(self, x):
+            return self.layer_1(x)
+
+    net = paddle.jit.to_static(Net())
+    run.watch(net, log_graph=True)
+
+    mock_wandb_log.assert_warned("skipping graph tracking")
+
+
+def test_watch_bad_argument(mock_run):
+    run = mock_run(use_magic_mock=True)
+    net = nn.Linear(10, 2)
+    with pytest.raises(
+        ValueError, match="log must be one of 'gradients', 'parameters', 'all', or None"
+    ):
+        run.watch(net, log="bad_argument")

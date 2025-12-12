@@ -15,6 +15,7 @@ import wandb
 from .lib import telemetry
 
 if TYPE_CHECKING:
+    import paddle  # type: ignore [import-not-found]
     import torch  # type: ignore [import-not-found]
 
 logger = logging.getLogger("wandb")
@@ -24,7 +25,10 @@ _global_watch_idx = 0
 
 def _watch(
     run: wandb.Run,
-    models: torch.nn.Module | Sequence[torch.nn.Module],
+    models: torch.nn.Module
+    | Sequence[torch.nn.Module]
+    | paddle.nn.Layer
+    | Sequence[paddle.nn.Layer],
     criterion: torch.F | None = None,
     log: Literal["gradients", "parameters", "all"] | None = "gradients",
     log_freq: int = 1000,
@@ -80,10 +84,14 @@ def _watch(
         "torch", required="wandb.watch only works with pytorch, couldn't import torch."
     )
 
+    paddle = wandb.util.get_module(
+        "paddle", required="wandb.watch only works with paddle, couldn't import paddle."
+    )
+
     for model in models:
-        if not isinstance(model, torch.nn.Module):
+        if not isinstance(model, (torch.nn.Module, paddle.nn.Layer)):
             raise TypeError(
-                f"Expected a pytorch model (torch.nn.Module). Received {type(model)}"
+                f"Expected a pytorch model (torch.nn.Module) or paddle model (paddle.nn.Layer). Received {type(model)}"
             )
 
     graphs = []
@@ -99,23 +107,41 @@ def _watch(
             prefix = f"graph_{global_idx}"
 
         if log_parameters:
-            run._torch.add_log_parameters_hook(
-                model,
-                prefix=prefix,
-                log_freq=log_freq,
-            )
+            if isinstance(model, torch.nn.Module):
+                run._torch.add_log_parameters_hook(
+                    model,
+                    prefix=prefix,
+                    log_freq=log_freq,
+                )
+            elif isinstance(model, paddle.nn.Layer):
+                run._paddle.add_log_parameters_hook(
+                    model,
+                    prefix=prefix,
+                    log_freq=log_freq,
+                )
 
         if log_gradients:
-            run._torch.add_log_gradients_hook(
-                model,
-                prefix=prefix,
-                log_freq=log_freq,
-            )
+            if isinstance(model, torch.nn.Module):
+                run._torch.add_log_gradients_hook(
+                    model,
+                    prefix=prefix,
+                    log_freq=log_freq,
+                )
+            elif isinstance(model, paddle.nn.Layer):
+                run._paddle.add_log_gradients_hook(
+                    model,
+                    prefix=prefix,
+                    log_freq=log_freq,
+                )
 
         if log_graph:
-            graph = run._torch.hook_torch(model, criterion, graph_idx=global_idx)
+            if isinstance(model, torch.nn.Module):
+                graph = run._torch.hook_torch(model, criterion, graph_idx=global_idx)
+            elif isinstance(model, paddle.nn.Layer):
+                graph = run._paddle.hook_paddle(model, criterion, graph_idx=global_idx)
+
             graphs.append(graph)
-            # NOTE: the graph is set in run.summary by hook_torch on the backward pass
+            # NOTE: the graph is set in run.summary by hook_torch/hook_paddle on the backward pass
     return graphs
 
 

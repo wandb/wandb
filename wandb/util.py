@@ -294,6 +294,8 @@ def get_h5_typename(o: Any) -> Any:
         return "tensorflow.Tensor"
     elif is_pytorch_tensor_typename(typename):
         return "torch.Tensor"
+    elif is_paddle_tensor_typename(typename):
+        return "torch.Tensor"
     else:
         return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
 
@@ -434,7 +436,19 @@ def is_pytorch_tensor(obj: Any) -> bool:
     return isinstance(obj, torch.Tensor)
 
 
+def is_paddle_tensor(obj: Any) -> bool:
+    import paddle  # type: ignore
+
+    return isinstance(obj, paddle.Tensor)
+
+
 def is_pytorch_tensor_typename(typename: str) -> bool:
+    return typename.startswith("torch.") and (
+        "Tensor" in typename or "Variable" in typename
+    )
+
+
+def is_paddle_tensor_typename(typename: str) -> bool:
     return typename.startswith("torch.") and (
         "Tensor" in typename or "Variable" in typename
     )
@@ -615,7 +629,11 @@ def json_friendly(  # noqa: C901
             obj = obj.eval()
         except RuntimeError:
             obj = obj.numpy()
-    elif is_pytorch_tensor_typename(typename) or is_fastai_tensor_typename(typename):
+    elif (
+        is_pytorch_tensor_typename(typename)
+        or is_fastai_tensor_typename(typename)
+        or is_paddle_tensor_typename(typename)
+    ):
         try:
             if obj.requires_grad:
                 obj = obj.detach()

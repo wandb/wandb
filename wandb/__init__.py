@@ -51,6 +51,7 @@ from wandb.sdk.lib import preinit as _preinit
 from wandb.sdk.lib import lazyloader as _lazyloader
 
 from wandb.integration.torch import wandb_torch
+from wandb.integration.paddle import wandb_paddle
 
 from wandb.sdk.data_types._private import _cleanup_media_tmp_dir
 

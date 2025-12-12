@@ -29,6 +29,7 @@ from wandb import trigger
 from wandb.analytics import get_sentry
 from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
+from wandb.integration.paddle import wandb_paddle
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
@@ -625,6 +626,7 @@ class Run:
         self._printer = printer.new_printer(settings)
 
         self._torch_history: wandb_torch.TorchHistory | None = None  # type: ignore
+        self._paddle_history: wandb_paddle.PaddleHistory | None = None  # type: ignore
 
         self._backend = None
         self._internal_run_interface = None
@@ -812,6 +814,12 @@ class Run:
         if self._torch_history is None:
             self._torch_history = wandb_torch.TorchHistory()  # type: ignore
         return self._torch_history
+
+    @property
+    def _paddle(self) -> wandb_paddle.PaddleHistory:  # type: ignore
+        if self._paddle_history is None:
+            self._paddle_history = wandb_paddle.PaddleHistory()  # type: ignore
+        return self._paddle_history
 
     @property
     @_log_to_run
