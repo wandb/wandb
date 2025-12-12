@@ -83,7 +83,7 @@ func NewOutputFileWriter(params OutputFileWriterParams) *outputFileWriter {
 //
 // If w.broken is true, this is a no-op.
 func (w *outputFileWriter) WriteToFile(
-	changes sparselist.SparseList[*RunLogsLine],
+	changes *sparselist.SparseList[*RunLogsLine],
 ) error {
 	if w.broken {
 		return nil
@@ -104,7 +104,7 @@ func (w *outputFileWriter) WriteToFile(
 		}
 	}
 
-	lines := sparselist.SparseList[string]{}
+	lines := &sparselist.SparseList[string]{}
 	var addedBytes int64
 
 	changes.ForEach(func(globalLineNum int, line *RunLogsLine) {

@@ -30,7 +30,7 @@ type FileStreamRequest struct {
 	// Unlike history and system metrics, we often update past lines in
 	// console logs due to terminal emulation. For example, this is how
 	// tqdm-like progress bars work.
-	ConsoleLines sparselist.SparseList[string]
+	ConsoleLines *sparselist.SparseList[string]
 
 	// UploadedFiles is a set of files that have been uploaded.
 	//
@@ -69,7 +69,11 @@ func (r *FileStreamRequest) Merge(next *FileStreamRequest) {
 		r.SummaryUpdates.Merge(next.SummaryUpdates)
 	}
 
-	r.ConsoleLines.Update(next.ConsoleLines)
+	if r.ConsoleLines == nil {
+		r.ConsoleLines = next.ConsoleLines
+	} else {
+		r.ConsoleLines.Update(next.ConsoleLines)
+	}
 
 	if r.UploadedFiles == nil {
 		r.UploadedFiles = next.UploadedFiles

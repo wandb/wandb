@@ -6,7 +6,7 @@ import (
 
 // LogsUpdate is new lines in a run's console output.
 type LogsUpdate struct {
-	Lines sparselist.SparseList[string]
+	Lines *sparselist.SparseList[string]
 }
 
 func (u *LogsUpdate) Apply(ctx UpdateContext) error {
