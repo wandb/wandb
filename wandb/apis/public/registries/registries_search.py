@@ -391,9 +391,8 @@ class VersionsTemp(Paginator[dict[str, Any]]):
                     edges {
                         node {
                             id
-                            artifactCollection {
-                                name
-                            }
+                            artifactCollectionName
+                            versionIndex
                         }
                     }
                 }
@@ -477,7 +476,7 @@ class VersionsTemp(Paginator[dict[str, Any]]):
     def _update_response(self) -> None:
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         self.last_response = data
-        print(f"data: {data}")
+        print(f"result: {data}")
         if not (
             data.get("organization")
             and data["organization"].get("orgEntity")
@@ -489,7 +488,6 @@ class VersionsTemp(Paginator[dict[str, Any]]):
     def convert_objects(self) -> list[dict[str, Any]]:
         """Convert response to list of dicts with membership_id and collection_name."""
         if self.last_response is None:
-            print(f"last_response is None: {self.last_response}")
             return []
 
         edges = (
@@ -499,12 +497,11 @@ class VersionsTemp(Paginator[dict[str, Any]]):
             .get("edges", [])
         )
 
-        print(f"edges: {edges}")
         return [
             {
-                "membership_id": edge["node"]["id"],
-                "collection_name": edge["node"]["artifactCollection"]["name"],
+                "id": edge["node"]["id"],
+                "artifact_collection_name": edge["node"]["artifactCollectionName"],
+                "version_index": edge["node"]["versionIndex"],
             }
             for edge in edges
-            if edge.get("node") and edge["node"].get("artifactCollection")
         ]
