@@ -106,25 +106,21 @@ class WandbBackendSpy:
         query = request.get("query", "")
         variables = request.get("variables", {})
 
-        for matcher, responder in reversed(stubs):
-            if not matcher.matches(query, variables):
-                continue
-
-            response = responder.respond(query, variables)
-            if not response:
-                continue
-
-            return response
-
-        return None
+        matching_responses = (
+            response
+            for matcher, responder in reversed(stubs)
+            if matcher.matches(query, variables)
+            and (response := responder.respond(query, variables))
+        )
+        return next(matching_responses, None)
 
     def intercept_filestream(self) -> fastapi.Response | None:
         """Intercept a FileStream request to produce a fake response."""
         with self._lock:
-            stubs = self._filestream_stubs
-            if not stubs:
+            try:
+                stub = self._filestream_stubs.pop()
+            except IndexError:
                 return None
-            stub = stubs.pop()
 
         return fastapi.Response(
             status_code=stub.status,
