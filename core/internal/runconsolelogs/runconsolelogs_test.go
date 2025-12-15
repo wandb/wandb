@@ -81,7 +81,7 @@ func TestFileStreamUpdatesDisabled(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 
 	request := fileStream.GetRequest(settings.New())
-	assert.Equal(t, []sparselist.Run[string]{}, request.ConsoleLines.ToRuns())
+	assert.Empty(t, request.ConsoleLines.ToRuns())
 }
 
 func TestSender_Multipart_WritesChunkAndUploadsOnFinish(t *testing.T) {

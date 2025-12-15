@@ -79,10 +79,10 @@ func TestSummary_Merge_CombinesUpdates(t *testing.T) {
 }
 
 func TestConsole_MergeUpdatesPreferringLast(t *testing.T) {
-	req1 := &FileStreamRequest{}
+	req1 := &FileStreamRequest{ConsoleLines: &sparselist.SparseList[string]{}}
 	req1.ConsoleLines.Put(0, "req1 - 0")
 	req1.ConsoleLines.Put(5, "req1 - 5")
-	req2 := &FileStreamRequest{}
+	req2 := &FileStreamRequest{ConsoleLines: &sparselist.SparseList[string]{}}
 	req2.ConsoleLines.Put(0, "req2 - 0")
 	req2.ConsoleLines.Put(6, "req2 - 6")
 
