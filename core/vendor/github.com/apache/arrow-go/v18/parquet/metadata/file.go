@@ -19,6 +19,7 @@ package metadata
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"io"
 	"reflect"
@@ -481,7 +482,7 @@ func (f *FileMetaData) VerifySignature(signature []byte) bool {
 	var buf bytes.Buffer
 	buf.Grow(enc.CiphertextSizeDelta() + len(data))
 	encryptedLen := enc.SignedFooterEncrypt(&buf, data, []byte(key), []byte(aad), nonce)
-	return bytes.Equal(buf.Bytes()[encryptedLen-encryption.GcmTagLength:], tag)
+	return subtle.ConstantTimeCompare(buf.Bytes()[encryptedLen-encryption.GcmTagLength:], tag) == 1
 }
 
 // WriteTo will serialize and write out this file metadata, encrypting it if

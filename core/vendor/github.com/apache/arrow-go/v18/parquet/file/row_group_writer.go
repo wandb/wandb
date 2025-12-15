@@ -66,17 +66,18 @@ type BufferedRowGroupWriter interface {
 }
 
 type rowGroupWriter struct {
-	sink             utils.WriterTell
-	metadata         *metadata.RowGroupMetaDataBuilder
-	props            *parquet.WriterProperties
-	bytesWritten     int64
-	closed           bool
-	ordinal          int16
-	nextColumnIdx    int
-	nrows            int
-	buffered         bool
-	fileEncryptor    encryption.FileEncryptor
-	pageIndexBuilder *metadata.PageIndexBuilder
+	sink                   utils.WriterTell
+	metadata               *metadata.RowGroupMetaDataBuilder
+	props                  *parquet.WriterProperties
+	bytesWritten           int64
+	compressedBytesWritten int64
+	closed                 bool
+	ordinal                int16
+	nextColumnIdx          int
+	nrows                  int
+	buffered               bool
+	fileEncryptor          encryption.FileEncryptor
+	pageIndexBuilder       *metadata.PageIndexBuilder
 
 	columnWriters []ColumnChunkWriter
 	pager         PageWriter
@@ -153,6 +154,7 @@ func (rg *rowGroupWriter) NextColumn() (ColumnChunkWriter, error) {
 			return nil, err
 		}
 		rg.bytesWritten += rg.columnWriters[0].TotalBytesWritten()
+		rg.compressedBytesWritten += rg.columnWriters[0].TotalCompressedBytes()
 	}
 	rg.nextColumnIdx++
 
@@ -214,7 +216,7 @@ func (rg *rowGroupWriter) TotalCompressedBytes() int64 {
 			total += wr.TotalCompressedBytes()
 		}
 	}
-	return total
+	return total + rg.compressedBytesWritten
 }
 
 func (rg *rowGroupWriter) TotalBytesWritten() int64 {
@@ -240,6 +242,7 @@ func (rg *rowGroupWriter) Close() error {
 					return err
 				}
 				rg.bytesWritten += wr.TotalBytesWritten()
+				rg.compressedBytesWritten += wr.TotalCompressedBytes()
 			}
 		}
 

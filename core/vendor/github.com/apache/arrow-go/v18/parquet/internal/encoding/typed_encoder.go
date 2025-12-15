@@ -17,11 +17,13 @@
 package encoding
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"unsafe"
 
 	"github.com/apache/arrow-go/v18/arrow"
+	"github.com/apache/arrow-go/v18/arrow/compute"
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/internal/bitutils"
 	shared_utils "github.com/apache/arrow-go/v18/internal/utils"
@@ -151,9 +153,19 @@ func (enc *typedDictEncoder[T]) PutSpaced(in []T, validBits []byte, validBitsOff
 	})
 }
 
-type arrvalues[T int32 | int64 | float32 | float64] interface {
+type arrvalues[T arrow.ValueType] interface {
 	arrow.TypedArray[T]
 	Values() []T
+}
+
+func (enc *typedDictEncoder[T]) NormalizeDict(values arrow.Array) (arrow.Array, error) {
+	if _, ok := values.(arrvalues[T]); ok {
+		values.Retain()
+		return values, nil
+	}
+
+	ctx := compute.WithAllocator(context.Background(), enc.mem)
+	return compute.CastToType(ctx, values, arrow.GetDataType[T]())
 }
 
 func (enc *typedDictEncoder[T]) PutDictionary(values arrow.Array) error {
@@ -162,10 +174,20 @@ func (enc *typedDictEncoder[T]) PutDictionary(values arrow.Array) error {
 	}
 
 	enc.dictEncodedSize += values.Len() * int(unsafe.Sizeof(T(0)))
-	data := values.(arrvalues[T]).Values()
-
 	typedMemo := enc.memo.(TypedMemoTable[T])
-	for _, val := range data {
+	data, ok := values.(arrvalues[T])
+	if !ok {
+		var err error
+		ctx := compute.WithAllocator(context.Background(), enc.mem)
+		values, err = compute.CastToType(ctx, values, arrow.GetDataType[T]())
+		if err != nil {
+			return err
+		}
+		defer values.Release()
+		data = values.(arrvalues[T])
+	}
+
+	for _, val := range data.Values() {
 		if _, _, err := typedMemo.InsertOrGet(val); err != nil {
 			return err
 		}

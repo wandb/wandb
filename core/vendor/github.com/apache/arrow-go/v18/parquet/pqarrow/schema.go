@@ -685,7 +685,7 @@ func listToSchemaField(n *schema.GroupNode, currentLevels file.LevelInfo, ctx *s
 
 	currentLevels.Increment(n)
 
-	out.Children = make([]SchemaField, n.NumFields())
+	out.Children = makeSchemaFields(n.NumFields())
 	ctx.LinkParent(out, parent)
 	ctx.LinkParent(&out.Children[0], out)
 
@@ -774,7 +774,7 @@ func listToSchemaField(n *schema.GroupNode, currentLevels file.LevelInfo, ctx *s
 
 func groupToStructField(n *schema.GroupNode, currentLevels file.LevelInfo, ctx *schemaTree, out *SchemaField) error {
 	arrowFields := make([]arrow.Field, 0, n.NumFields())
-	out.Children = make([]SchemaField, n.NumFields())
+	out.Children = makeSchemaFields(n.NumFields())
 
 	for i := 0; i < n.NumFields(); i++ {
 		if err := nodeToSchemaField(n.Field(i), currentLevels, ctx, out, &out.Children[i]); err != nil {
@@ -825,10 +825,10 @@ func mapToSchemaField(n *schema.GroupNode, currentLevels file.LevelInfo, ctx *sc
 
 	currentLevels.Increment(n)
 	repeatedAncestorDef := currentLevels.IncrementRepeated()
-	out.Children = make([]SchemaField, 1)
+	out.Children = makeSchemaFields(1)
 
 	kvfield := &out.Children[0]
-	kvfield.Children = make([]SchemaField, 2)
+	kvfield.Children = makeSchemaFields(2)
 
 	keyField := &kvfield.Children[0]
 	valueField := &kvfield.Children[1]
@@ -876,7 +876,7 @@ func variantToSchemaField(n *schema.GroupNode, currentLevels file.LevelInfo, ctx
 
 	if n.RepetitionType() == parquet.Repetitions.Repeated {
 		// list of variants
-		out.Children = make([]SchemaField, 1)
+		out.Children = makeSchemaFields(1)
 		repeatedAncestorDef := currentLevels.IncrementRepeated()
 		if err := groupToStructField(n, currentLevels, ctx, &out.Children[0]); err != nil {
 			return err
@@ -925,7 +925,7 @@ func groupToSchemaField(n *schema.GroupNode, currentLevels file.LevelInfo, ctx *
 		//   r/o TYPE[0] f0
 		//   r/o TYPE[1] f1
 		// }
-		out.Children = make([]SchemaField, 1)
+		out.Children = makeSchemaFields(1)
 		repeatedAncestorDef := currentLevels.IncrementRepeated()
 		if err := groupToStructField(n, currentLevels, ctx, &out.Children[0]); err != nil {
 			return err
@@ -987,7 +987,7 @@ func nodeToSchemaField(n schema.Node, currentLevels file.LevelInfo, ctx *schemaT
 	if primitive.RepetitionType() == parquet.Repetitions.Repeated {
 		// one-level list encoding e.g. a: repeated int32;
 		repeatedAncestorDefLevel := currentLevels.IncrementRepeated()
-		out.Children = make([]SchemaField, 1)
+		out.Children = makeSchemaFields(1)
 		child := arrow.Field{Name: primitive.Name(), Type: arrowType, Nullable: false}
 		populateLeaf(colIndex, &child, currentLevels, ctx, out, &out.Children[0])
 		out.Field = &arrow.Field{Name: primitive.Name(), Type: arrow.ListOf(child.Type), Nullable: false,
@@ -1206,7 +1206,7 @@ func NewSchemaManifest(sc *schema.Schema, meta metadata.KeyValueMetadata, props 
 		ColIndexToField: make(map[int]*SchemaField),
 		ChildToParent:   make(map[*SchemaField]*SchemaField),
 		descr:           sc,
-		Fields:          make([]SchemaField, sc.Root().NumFields()),
+		Fields:          makeSchemaFields(sc.Root().NumFields()),
 	}
 	ctx.props = props
 	if ctx.props == nil {
@@ -1257,4 +1257,12 @@ func FromParquet(sc *schema.Schema, props *ArrowReadProperties, kv metadata.KeyV
 		return arrow.NewSchema(fields, &meta), nil
 	}
 	return arrow.NewSchema(fields, manifest.SchemaMeta), nil
+}
+
+func makeSchemaFields(n int) []SchemaField {
+	fields := make([]SchemaField, n)
+	for i := range fields {
+		fields[i].ColIndex = -1
+	}
+	return fields
 }

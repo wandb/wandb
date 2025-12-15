@@ -368,6 +368,7 @@ func (rr *recordReader) Release() {
 		rr.defLevels.Release()
 		rr.repLevels.Release()
 		rr.defLevels, rr.repLevels = nil, nil
+		rr.Close()
 	}
 }
 
@@ -952,16 +953,17 @@ func (bd *byteArrayDictRecordReader) flushBuilder() {
 
 func (bd *byteArrayDictRecordReader) maybeWriteNewDictionary() error {
 	rdr := bd.ColumnChunkReader.(*ByteArrayColumnChunkReader)
-	if rdr.newDictionary {
-		// if there is a new dictionary, we may need to flush the builder,
-		// then insert the new dictionary values
+	// Only process dictionary if it's been read but not yet inserted into builder
+	if rdr.dictState == dictReadNotInserted {
+		// Flush the builder and insert the new dictionary values
 		bd.flushBuilder()
 		bd.bldr.(*array.BinaryDictionaryBuilder).ResetFull()
 		dec := rdr.curDecoder.(*encoding.DictByteArrayDecoder)
 		if err := dec.InsertDictionary(bd.bldr); err != nil {
 			return err
 		}
-		rdr.newDictionary = false
+		// Mark dictionary as fully processed (read + inserted)
+		rdr.dictState = dictFullyProcessed
 	}
 	return nil
 }

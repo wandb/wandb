@@ -113,6 +113,12 @@ type DictEncoder interface {
 	// of [0,dictSize) and is not validated. Returns an error if a non-integral
 	// array is passed.
 	PutIndices(arrow.Array) error
+	// NormalizeDict takes an arrow array and normalizes it to a parquet
+	// native type. e.g. a dictionary of type int8 will be cast to an int32
+	// dictionary for parquet storage.
+	//
+	// The returned array must always be released by the caller.
+	NormalizeDict(arrow.Array) (arrow.Array, error)
 }
 
 var bufferPool = sync.Pool{
