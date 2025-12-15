@@ -27,14 +27,14 @@ func (m *RunModel) handleRecordMsg(msg tea.Msg) (*RunModel, tea.Cmd) {
 
 	case HistoryMsg:
 		m.logger.Debug("model: processing HistoryMsg")
-		if m.runState == RunStateRunning && !m.fileComplete {
+		if m.runState == RunStateRunning {
 			m.heartbeatMgr.Reset(m.isRunning)
 		}
 		return m.handleHistoryMsg(msg)
 
 	case StatsMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
-		if m.runState == RunStateRunning && !m.fileComplete {
+		if m.runState == RunStateRunning {
 			m.heartbeatMgr.Reset(m.isRunning)
 		}
 		m.rightSidebar.ProcessStatsMsg(msg)
@@ -52,33 +52,27 @@ func (m *RunModel) handleRecordMsg(msg tea.Msg) (*RunModel, tea.Cmd) {
 
 	case FileCompleteMsg:
 		m.logger.Debug("model: processing FileCompleteMsg - file is complete!")
-		if !m.fileComplete {
-			m.fileComplete = true
-			switch msg.ExitCode {
-			case 0:
-				m.runState = RunStateFinished
-			default:
-				m.runState = RunStateFailed
-			}
-			m.leftSidebar.SetRunState(m.runState)
-			m.heartbeatMgr.Stop()
-			if m.watcherMgr.IsStarted() {
-				m.logger.Debug("model: finishing watcher")
-				m.watcherMgr.Finish()
-			}
+		switch msg.ExitCode {
+		case 0:
+			m.runState = RunStateFinished
+		default:
+			m.runState = RunStateFailed
 		}
+		m.leftSidebar.SetRunState(m.runState)
+
+		m.logger.Debug("model: stopping heartbeats and finishing watcher")
+		m.heartbeatMgr.Stop()
+		m.watcherMgr.Finish()
+
 		return m, nil
 
 	case ErrorMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
-		m.fileComplete = true
 		m.runState = RunStateFailed
 		m.leftSidebar.SetRunState(m.runState)
+		m.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
 		m.heartbeatMgr.Stop()
-		if m.watcherMgr.IsStarted() {
-			m.logger.Debug("model: finishing watcher due to error")
-			m.watcherMgr.Finish()
-		}
+		m.watcherMgr.Finish()
 		return m, nil
 	}
 
@@ -534,7 +528,7 @@ func (m *RunModel) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	}
 
 	// Boot load complete -> begin live mode once.
-	if !m.fileComplete && !m.watcherMgr.IsStarted() {
+	if m.runState == RunStateRunning && !m.watcherMgr.IsStarted() {
 		if err := m.watcherMgr.Start(m.runPath); err != nil {
 			m.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
 		} else {

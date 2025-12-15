@@ -12,7 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-// RunModel hodls data/state related to a single W&B run.
+// RunModel holds data/state related to a single W&B run.
 //
 // Implements tea.Model.
 // It coordinates the main metrics grid, sidebars, help screen, and data loading.
@@ -44,9 +44,7 @@ type RunModel struct {
 
 	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
-	fileComplete bool
 	heartbeatMgr *HeartbeatManager
-	watcherChan  chan tea.Msg
 
 	// Chart focus state.
 	focus *Focus
@@ -86,22 +84,20 @@ func NewRunModel(runPath string, cfg *ConfigManager, logger *observability.CoreL
 	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
 
 	focus := NewFocus()
-	watcherChan := make(chan tea.Msg, 4096)
+	ch := make(chan tea.Msg, 4096)
 
 	return &RunModel{
 		config:       cfg,
 		keyMap:       buildKeyMap(),
 		help:         NewHelp(),
 		focus:        focus,
-		fileComplete: false,
 		isLoading:    true,
 		runPath:      runPath,
 		metricsGrid:  NewMetricsGrid(cfg, focus, logger),
 		leftSidebar:  NewLeftSidebar(cfg),
 		rightSidebar: NewRightSidebar(cfg, focus, logger),
-		watcherMgr:   NewWatcherManager(watcherChan, logger),
-		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, watcherChan, logger),
-		watcherChan:  watcherChan,
+		watcherMgr:   NewWatcherManager(ch, logger),
+		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, ch, logger),
 		logger:       logger,
 	}
 }
@@ -362,7 +358,7 @@ func (m *RunModel) logPanic(context string) {
 
 // isRunning returns whether the run is currently active.
 func (m *RunModel) isRunning() bool {
-	return m.runState == RunStateRunning && !m.fileComplete
+	return m.runState == RunStateRunning
 }
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen.
