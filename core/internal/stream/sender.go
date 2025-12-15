@@ -393,10 +393,14 @@ func (s *Sender) sendRecord(record *spb.Record) {
 		s.sendArtifact(record, x.Artifact)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
-			errors.New("sender: sendRecord: nil RecordType"))
+			fmt.Errorf(
+				"sender: sendRecord: nil RecordType, number %d",
+				record.GetNum()))
 	default:
 		s.logger.CaptureFatalAndPanic(
-			fmt.Errorf("sender: sendRecord: unexpected type %T", x))
+			fmt.Errorf(
+				"sender: sendRecord: unexpected type %T, number %d",
+				x, record.GetNum()))
 	}
 }
 
