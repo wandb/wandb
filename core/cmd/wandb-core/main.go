@@ -257,8 +257,8 @@ Flags:
 			return exitCodeErrorInternal
 		}
 
-		// TODO: If the model requests a restart, loop again.
-		if _, ok := finalModel.(*leet.Model); ok { //ok && fm.ShouldRestart() {
+		// If the model requests a restart, loop again.
+		if fm, ok := finalModel.(*leet.Model); ok && fm.ShouldRestart() {
 			continue
 		}
 

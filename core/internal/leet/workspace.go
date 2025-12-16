@@ -21,6 +21,9 @@ type Workspace struct {
 
 	runs PagedList
 
+	selectedRuns map[string]bool // runDirName -> selected
+	pinnedRun    string          // runDirName or ""
+
 	// runPicker *runPicker --> This is an unnecessary level of abstraction, just use Workspace.
 	// filesystem view of the wandb dir.
 	// each line is selectable with Space.
@@ -67,10 +70,11 @@ func NewWorkspace(
 
 	return &Workspace{
 		runsAnimState: NewAnimationState(true, SidebarMinWidth), // TODO: make visibility configurable
-		wandbDir:  wandbDir,
+		wandbDir:      wandbDir,
 		config:        cfg,
 		logger:        logger,
 		runs:          runs,
+		selectedRuns:  make(map[string]bool),
 	}
 }
 
@@ -87,6 +91,7 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case tea.WindowSizeMsg:
 		w.updateDimensions(t.Width, t.Height)
 
+	// TODO: wire key bindings
 	case tea.KeyMsg:
 		switch t.String() {
 		case "q":
@@ -106,7 +111,21 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 			return nil
 		}
 
+		switch t.String() {
+		case "p":
+			if cur, ok := w.runs.CurrentItem(); ok {
+				w.togglePin(cur.Key)
+				// TODO: metrics: reassign primary run.
+			}
+			return nil
+		}
+
 		switch t.Type {
+		case tea.KeySpace:
+			if cur, ok := w.runs.CurrentItem(); ok {
+				w.toggleRunSelected(cur.Key)
+				// TODO: metrics load/unload.
+			}
 		case tea.KeyUp:
 			w.runs.Up()
 		case tea.KeyDown:
@@ -120,7 +139,6 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 		}
 
 	case WorkspaceRunsAnimationMsg:
-		w.logger.Debug(fmt.Sprintf("%v", "UPDATING sfad"))
 		if !w.runsAnimState.Update(time.Now()) {
 			return w.runsAnimationCmd()
 		}
@@ -131,7 +149,6 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 // View renders the runs section: header + paginated list with zebra rows.
 func (w *Workspace) View() string {
-	w.logger.Info(fmt.Sprintf("CALLED VIEW %v", w.runsAnimState))
 	var parts []string
 
 	// Render left sidebar with run picker.
@@ -150,6 +167,37 @@ func (w *Workspace) View() string {
 	return lipgloss.Place(w.width, w.height, lipgloss.Left, lipgloss.Top, fullView)
 }
 
+func (w *Workspace) toggleRunSelected(runKey string) {
+	if runKey == "" {
+		return
+	}
+	if w.selectedRuns[runKey] {
+		delete(w.selectedRuns, runKey)
+		if w.pinnedRun == runKey {
+			w.pinnedRun = ""
+		}
+	} else {
+		w.selectedRuns[runKey] = true
+		if w.pinnedRun == "" {
+			w.pinnedRun = runKey
+		}
+	}
+	// TODO: trigger metrics load/unload for this run.
+}
+
+func (w *Workspace) togglePin(runKey string) {
+	if runKey == "" {
+		return
+	}
+	if w.pinnedRun == runKey {
+		w.pinnedRun = ""
+		return
+	}
+	w.pinnedRun = runKey
+	w.selectedRuns[runKey] = true
+	// TODO: reassign primary series in charts.
+}
+
 func (w *Workspace) renderRuns() string {
 	// TODO: do this on the first load and when told by the dir watcher/heartbeat
 	// outside of View().
@@ -159,7 +207,7 @@ func (w *Workspace) renderRuns() string {
 
 	startIdx, endIdx := w.syncRunsPage()
 	header := w.renderRunsHeader(startIdx, endIdx) + "\n"
-	lines := w.renderRunLines(startIdx, endIdx, contentWidth)
+	lines := w.renderRunLines(contentWidth)
 
 	if len(lines) == 0 {
 		lines = []string{"(no runs found)"}
@@ -191,6 +239,7 @@ func (w *Workspace) renderMetrics() string {
 	logoContent := lipgloss.JoinVertical(
 		lipgloss.Center,
 		artStyle.Render(wandbArt),
+		artStyle.Render(sphericalCowInAVacuum),
 		artStyle.Render(leetArt),
 	)
 
@@ -381,40 +430,66 @@ func (w *Workspace) renderRunsHeader(startIdx, endIdx int) string {
 }
 
 // renderRunLines renders the visible slice with zebra background and selection.
-func (w *Workspace) renderRunLines(startIdx, endIdx, contentWidth int) []string {
-	items := w.runs.FilteredItems
-	if len(items) == 0 || startIdx >= endIdx || startIdx >= len(items) {
-		return nil
-	}
+func (w *Workspace) renderRunLines(contentWidth int) []string {
+	itemsPerPage := w.runs.ItemsPerPage()
+	startIdx := w.runs.CurrentPage() * itemsPerPage
+	endIdx := min(startIdx+itemsPerPage, len(w.runs.FilteredItems))
 
 	lines := make([]string, 0, endIdx-startIdx)
-
-	// Selection index relative to the current page (for highlighting).
 	selectedLine := w.runs.CurrentLine()
-	pageSpan := endIdx - startIdx
-	if selectedLine < 0 || selectedLine >= pageSpan {
-		selectedLine = -1 // nothing selected on this page
-	}
 
-	for i := range pageSpan {
-		idx := startIdx + i
-		if idx >= len(items) {
-			break
-		}
-		name := truncateValue(items[idx].Key, contentWidth)
+	for i := startIdx; i < endIdx; i++ {
+		idxOnPage := i - startIdx
+		item := w.runs.FilteredItems[i]
 
-		// Zebra by global index for stability across pages.
+		// Determine row style
 		style := evenRunStyle
-		if idx%2 == 1 {
+		if idxOnPage%2 == 1 {
 			style = oddRunStyle
 		}
-
-		if i == selectedLine {
+		if idxOnPage == selectedLine {
 			style = selectedRunStyle
 		}
 
-		// Apply full width so background extends to edge.
-		lines = append(lines, style.Width(contentWidth).Render(name))
+		// TODO: Stable mapping for consistent colors: refactor and clean up.
+		runKey := item.Key
+		runID := extractRunID(runKey)
+		runPath := filepath.Join(w.wandbDir, runKey, "run-"+runID+".wandb")
+
+		graphColors := GraphColors()
+		colorIdx := mapStringToIndex(runPath, len(graphColors))
+
+		isSelected := w.selectedRuns[runKey]
+		isPinned := w.pinnedRun == runKey
+
+		// Determine marker
+		mark := " "
+		if isSelected {
+			mark = "●"
+		}
+		if isPinned {
+			mark = "▶" // ✪ ◎ ▲ ▶ ◉ ▬ ◆ ▣ ■
+		}
+
+		// Render prefix without background
+		prefix := lipgloss.NewStyle().Foreground(graphColors[colorIdx]).Render(mark + " ")
+		prefixWidth := lipgloss.Width(prefix)
+
+		// Apply subtle muting to unselected/unpinned runs
+		nameStyle := style
+		if !isSelected && !isPinned {
+			nameStyle = nameStyle.Foreground(colorText)
+		}
+
+		// Render name with background and optional muting
+		nameWidth := max(contentWidth-prefixWidth, 1)
+		name := nameStyle.Render(truncateValue(runKey, nameWidth))
+
+		// Pad the styled name to fill remaining width
+		paddingNeeded := contentWidth - prefixWidth - lipgloss.Width(name)
+		padding := style.Render(strings.Repeat(" ", max(paddingNeeded, 0)))
+
+		lines = append(lines, prefix+name+padding)
 	}
 
 	return lines

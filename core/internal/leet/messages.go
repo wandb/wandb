@@ -12,6 +12,7 @@ type MetricData struct {
 
 // HistoryMsg contains metrics data from a wandb history record.
 type HistoryMsg struct {
+	RunPath string
 	Metrics map[string]MetricData
 }
 

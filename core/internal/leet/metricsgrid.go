@@ -98,7 +98,8 @@ func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) G
 // creating charts as needed, resorting, reapplying filters, and reloading the page.
 // It preserves focus on the previously focused chart when possible.
 // Returns true if there was anything to draw.
-func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
+func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
+	metrics := msg.Metrics
 	if len(metrics) == 0 {
 		return false
 	}
@@ -125,7 +126,7 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 			}
 		}
 		wg.Go(func() {
-			chart.AddData(data)
+			chart.AddData(msg.RunPath, data)
 		})
 	}
 
@@ -202,9 +203,11 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 	for _, chart := range mg.all {
 		mg.byTitle[chart.Title()] = chart
 
+		// TODO? In single-run view, use different colors?
 		// Stable color per title (no reshuffling when new charts arrive).
-		col := mg.colorForNoLock(chart.Title())
-		chart.SetGraphStyle(lipgloss.NewStyle().Foreground(col))
+		mg.colorForNoLock(chart.Title())
+		// col := mg.colorForNoLock(chart.Title())
+		// chart.SetGraphStyle(lipgloss.NewStyle().Foreground(col))
 	}
 
 	// Ensure filtered mirrors all when filter is empty.

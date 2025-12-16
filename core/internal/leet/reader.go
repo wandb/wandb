@@ -17,6 +17,7 @@ import (
 
 // WandbReader handles reading records from a W&B LevelDB-style transaction log (.wandb file).
 type WandbReader struct {
+	runPath string
 	// store is a W&B LevelDB-style transaction log that may be actively written.
 	store *LiveStore
 	// exitSeen indicates whether an ExitRecord has been seen.
@@ -36,7 +37,7 @@ func NewWandbReader(runPath string, logger *observability.CoreLogger) (*WandbRea
 		return nil, fmt.Errorf("reader: failed to create live store: %v", err)
 	}
 
-	return &WandbReader{store: store}, nil
+	return &WandbReader{runPath: runPath, store: store}, nil
 }
 
 // ReadAllRecordsChunked reads all available records in chunks
@@ -95,7 +96,7 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 
 	// Consolidate history and summary.
 	if len(histories) > 0 {
-		msgs = append(msgs, ConcatenateHistory(histories))
+		msgs = append(msgs, r.ConcatenateHistory(histories))
 	}
 	if len(summaries) > 0 {
 		msgs = append(msgs, ConcatenateSummary(summaries))
@@ -119,8 +120,9 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 // ConcatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
 //
 // Assumes that the history messages are ordered.
-func ConcatenateHistory(messages []HistoryMsg) HistoryMsg {
+func (r *WandbReader) ConcatenateHistory(messages []HistoryMsg) HistoryMsg {
 	h := HistoryMsg{
+		RunPath: r.runPath,
 		Metrics: make(map[string]MetricData),
 	}
 
@@ -228,7 +230,7 @@ func (r *WandbReader) recordToMsg(record *spb.Record) tea.Msg {
 			Config:      rec.Run.GetConfig(),
 		}
 	case *spb.Record_History:
-		return ParseHistory(rec.History)
+		return ParseHistory(r.runPath, rec.History)
 	case *spb.Record_Stats:
 		return ParseStats(rec.Stats)
 	case *spb.Record_Summary:
@@ -241,7 +243,7 @@ func (r *WandbReader) recordToMsg(record *spb.Record) tea.Msg {
 }
 
 // ParseHistory extracts metrics from a history record.
-func ParseHistory(history *spb.HistoryRecord) tea.Msg {
+func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 	if history == nil {
 		return nil
 	}
@@ -285,7 +287,7 @@ func ParseHistory(history *spb.HistoryRecord) tea.Msg {
 	for k, y := range values {
 		metrics[k] = MetricData{X: []float64{x}, Y: []float64{y}}
 	}
-	return HistoryMsg{Metrics: metrics}
+	return HistoryMsg{RunPath: runPath, Metrics: metrics}
 }
 
 // ParseStats extracts metrics from a stats record.

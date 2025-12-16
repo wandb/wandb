@@ -3,7 +3,7 @@ package leet
 // PagedList represents a paginated list of items.
 type PagedList struct {
 	Title         string
-	Items         []KeyValuePair
+	Items         []KeyValuePair // TODO: use pointers
 	FilteredItems []KeyValuePair
 
 	itemsPerPage int
@@ -140,4 +140,14 @@ func (s *PagedList) SetPageAndLine(page, line int) {
 
 	s.currentPage = page
 	s.currentLine = line
+}
+
+func (s *PagedList) CurrentItem() (KeyValuePair, bool) {
+	totalItems := len(s.FilteredItems)
+	start := s.currentPage * s.itemsPerPage
+	idx := start + s.currentLine
+	if idx < 0 || idx >= totalItems {
+		return KeyValuePair{}, false
+	}
+	return s.FilteredItems[idx], true
 }

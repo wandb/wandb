@@ -109,6 +109,11 @@ func (m *Model) View() string {
 	}
 }
 
+func (m *Model) ShouldRestart() bool {
+	// TODO: wire this up.
+	return false
+}
+
 // enterRunView switches to single-run view for the selected run.
 func (m *Model) enterRunView() tea.Cmd {
 	wandbFile := m.workspace.SelectedRunWandbFile()
