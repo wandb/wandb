@@ -333,13 +333,16 @@ func (s *TFEventReader) readFromCurrent(
 	ctx context.Context,
 	count uint64,
 ) (bool, error) {
-	// Read at least 16KB from the file each time to minimize the number of
+	// Read at least 1 MiB from the file each time to minimize the number of
 	// times we have to reopen it, without using too much memory.
 	//
 	// Note that the file may exist in the cloud, in which case this is the
 	// number of bytes we will try to download. It's best to download as much
 	// as we can to avoid frequently re-establishing a connection.
-	const readBufferMinSize = 1 << 14
+	//
+	// Similarly, on distributed filesystems (like NFS, not directly a cloud)
+	// open() and close() are relatively expensive and should be minimized.
+	const readBufferMinSize = 1 * 1024 * 1024
 	readBufferSize := max(int64(count)-int64(len(s.buffer)), readBufferMinSize)
 
 	file, err := s.tfeventsBucket.NewRangeReader(
