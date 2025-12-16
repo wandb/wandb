@@ -62,7 +62,8 @@ func (h *HelpModel) generateHelpContent() string {
 		Bold(true)
 
 	// Build the ASCII art section separately
-	artSection := artStyle.Render(wandbArt) + "\n" + artStyle.Render(leetArt) + "\n\n"
+	artSection := artStyle.Render(
+		lipgloss.JoinHorizontal(lipgloss.Top, wandbArt, "    ", leetArt)) + "\n\n"
 
 	// Build the help entries section
 	helpSection := ""

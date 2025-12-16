@@ -11,6 +11,7 @@ import (
 
 	"github.com/NimbleMarkets/ntcharts/canvas"
 	"github.com/NimbleMarkets/ntcharts/canvas/graph"
+	"github.com/NimbleMarkets/ntcharts/canvas/runes"
 	"github.com/NimbleMarkets/ntcharts/linechart"
 	"github.com/charmbracelet/lipgloss"
 	lru "github.com/hashicorp/golang-lru"
@@ -75,6 +76,14 @@ type EpochLineChart struct {
 	data  map[string]*Series
 	order []string
 
+	// opaqueCompositing controls whether braille pattern combination is opaque.
+	//
+	// ntcharts' default is to merge braille patterns already on the canvas
+	// with the new one, which can lead to color "spilling".
+	//
+	// TODO: implement the same for time-series plots.
+	opaqueCompositing bool
+
 	// focused indicates whether this chart is focused in the grid.
 	focused bool
 
@@ -114,12 +123,13 @@ func NewEpochLineChart(width, height int, title string) *EpochLineChart {
 				return UnitScalar.Format(v)
 			}),
 		),
-		data:  make(map[string]*Series),
-		title: title,
-		xMin:  math.Inf(1),
-		xMax:  math.Inf(-1),
-		yMin:  math.Inf(1),
-		yMax:  math.Inf(-1),
+		data:              make(map[string]*Series),
+		opaqueCompositing: true, // TODO: make this configurable
+		title:             title,
+		xMin:              math.Inf(1),
+		xMax:              math.Inf(-1),
+		yMin:              math.Inf(1),
+		yMax:              math.Inf(-1),
 	}
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
@@ -138,8 +148,13 @@ func (c *EpochLineChart) AddData(key string, data MetricData) {
 		c.order = append(c.order, key)
 	}
 
-	s.X = slices.Concat(s.X, data.X)
-	s.Y = slices.Concat(s.Y, data.Y)
+	if len(data.X) == 0 || len(data.Y) == 0 {
+		return
+	}
+	// Amortized linear growth. Do not use slices.Concat, it results
+	// in O(n²) allocations blowing up memory footprint.
+	s.X = append(s.X, data.X...)
+	s.Y = append(s.Y, data.Y...)
 
 	xMin, xMax := slices.Min(data.X), slices.Max(data.X)
 	yMin, yMax := slices.Min(data.Y), slices.Max(data.Y)
@@ -155,6 +170,10 @@ func (c *EpochLineChart) AddData(key string, data MetricData) {
 
 // updateRanges updates the chart ranges based on current data.
 func (c *EpochLineChart) updateRanges() {
+	if c.SeriesCount() == 0 {
+		return
+	}
+
 	// Y range with padding.
 	valueRange := c.yMax - c.yMin
 	if valueRange == 0 {
@@ -380,18 +399,64 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 	patterns := bGrid.BraillePatterns()
 	style := s.style.Load().(lipgloss.Style)
 
-	graph.DrawBraillePatterns(&c.Canvas,
-		canvas.Point{X: startX, Y: 0},
-		patterns,
-		style)
+	if c.opaqueCompositing {
+		DrawBraillePatternsOccluded(
+			&c.Canvas,
+			canvas.Point{X: startX, Y: 0},
+			patterns,
+			style,
+		)
+	} else {
+		graph.DrawBraillePatterns(
+			&c.Canvas,
+			canvas.Point{X: startX, Y: 0},
+			patterns,
+			style,
+		)
+	}
+}
+
+func DrawBraillePatternsOccluded(
+	m *canvas.Model,
+	p canvas.Point,
+	b [][]rune,
+	s lipgloss.Style,
+) {
+	for y, row := range b {
+		for x, r := range row {
+			if r != runes.BrailleBlockOffset {
+				DrawBrailleRune(m, p.Add(canvas.Point{X: x, Y: y}), r, s)
+			}
+		}
+	}
+}
+
+// DrawBrailleRune draws a braille rune onto the canvas at the given (X,Y)
+// coordinate using the provided style.
+//
+// If a braille rune is already present at that location, it is replaced.
+// This makes braille-based charts composited in "painter's algorithm" order:
+// the most recently drawn series wins when multiple series overlap,
+// which keeps multi-series plots visually clean.
+//
+// Does nothing if r is runes.Null or r is not a braille pattern.
+func DrawBrailleRune(m *canvas.Model, p canvas.Point, r rune, s lipgloss.Style) {
+	if r == runes.Null || !runes.IsBraillePattern(r) {
+		return
+	}
+
+	// Opaque write: later series overwrite earlier ones in this cell.
+	m.SetCell(p, canvas.NewCellWithStyle(r, s))
 }
 
 // drawInspectionOverlay renders the vertical crosshair line and the (x, y)
-// legend beside it when inspection mode is active.
+// legends beside it when inspection mode is active.
 func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 	if !c.inspection.Active || c.GraphWidth() <= 0 || c.GraphHeight() <= 0 {
 		return
 	}
+
+	// Hairline X in canvas coordinates.
 	canvasX := graphStartX + c.inspection.MouseX
 
 	// Vertical hairline across the graph area.
@@ -402,27 +467,111 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 		)
 	}
 
-	// Legend: "X: Y" near the hairline (middle row), placed to the side that fits.
-	// TODO: extend inspection to multiple series, now plots the top.
-	label := fmt.Sprintf("%v: %v", c.inspection.DataX, formatSigFigs(c.inspection.DataY, 4))
-	labelRunes := []rune(label)
+	// We anchor inspection at a single data X and show values for all series at that X.
+	anchorX := c.inspection.DataX
+	if !isFinite(anchorX) || len(c.order) == 0 {
+		return
+	}
 
-	legendY := c.GraphHeight() / 2
+	type legendEntry struct {
+		labelRunes []rune
+		blockRunes []rune
+		blockStyle lipgloss.Style
+	}
+
+	blockRunes := []rune("▬▬")
+	entries := make([]legendEntry, 0, len(c.order))
+	maxLabelWidth := 0
+
+	// Build entries in *render order*: topmost series first (last in c.order).
+	for i := len(c.order) - 1; i >= 0; i-- {
+		key := c.order[i]
+		s, ok := c.data[key]
+		if !ok || len(s.X) == 0 {
+			continue
+		}
+
+		idx := nearestIndexForX(s.X, anchorX)
+		if idx < 0 || idx >= len(s.Y) {
+			continue
+		}
+
+		yVal := s.Y[idx]
+		label := fmt.Sprintf("%v: %v", anchorX, formatSigFigs(yVal, 4))
+		labelRunes := []rune(label)
+		if lw := len(labelRunes); lw > maxLabelWidth {
+			maxLabelWidth = lw
+		}
+
+		seriesStyle := s.style.Load().(lipgloss.Style)
+		// Inherit background and base text styling from the inspection legend style
+		// but keep the series' foreground color for the block.
+		blockStyle := seriesStyle.Inherit(inspectionLegendStyle)
+
+		entries = append(entries, legendEntry{
+			labelRunes: labelRunes,
+			blockRunes: blockRunes,
+			blockStyle: blockStyle,
+		})
+	}
+
+	if len(entries) == 0 {
+		return
+	}
+
+	// Don't draw more legend rows than we have vertical space for.
+	if len(entries) > c.GraphHeight() {
+		entries = entries[:c.GraphHeight()]
+	}
+
+	totalLegendWidth := len(blockRunes) + 1 + maxLabelWidth // blocks + space + label
 	rightBound := graphStartX + c.GraphWidth()
 
+	// Prefer placing the legend to the right of the hairline if it fits.
 	legendX := canvasX + 1
-	if legendX+len(labelRunes) >= rightBound {
-		legendX = canvasX - 1 - len(labelRunes)
+	if legendX+totalLegendWidth >= rightBound {
+		legendX = canvasX - 1 - totalLegendWidth
 	}
 	if legendX < graphStartX {
 		legendX = graphStartX
 	}
 
-	for i, ch := range labelRunes {
+	// Vertically center the block of legend rows within the graph.
+	legendHeight := len(entries)
+	legendYStart := max(c.GraphHeight()/2-legendHeight/2, 0)
+	if legendYStart+legendHeight > c.GraphHeight() {
+		legendYStart = max(c.GraphHeight()-legendHeight, 0)
+	}
+
+	// Render each legend row: colored block(s) + space + "X: Y".
+	for i, entry := range entries {
+		y := legendYStart + i
+		x := legendX
+
+		// Colored block (tied to series color).
+		for _, r := range entry.blockRunes {
+			c.Canvas.SetCell(
+				canvas.Point{X: x, Y: y},
+				canvas.NewCellWithStyle(r, entry.blockStyle),
+			)
+			x++
+		}
+
+		// Space between block and text, styled as legend.
 		c.Canvas.SetCell(
-			canvas.Point{X: legendX + i, Y: legendY},
-			canvas.NewCellWithStyle(ch, inspectionLegendStyle),
+			canvas.Point{X: x, Y: y},
+			canvas.NewCellWithStyle(' ', inspectionLegendStyle),
 		)
+		x++
+
+		// "X: Y" text.
+		for _, ch := range entry.labelRunes {
+			c.Canvas.SetCell(
+				canvas.Point{X: x, Y: y},
+				canvas.NewCellWithStyle(ch, inspectionLegendStyle),
+			)
+			x++
+		}
 	}
 }
 
@@ -594,6 +743,59 @@ func (c *EpochLineChart) SetGraphStyle(s lipgloss.Style) {
 	}
 }
 
+func (c *EpochLineChart) SeriesCount() int {
+	return len(c.data)
+}
+
+func (c *EpochLineChart) RemoveSeries(key string) {
+	if _, ok := c.data[key]; !ok {
+		return
+	}
+	delete(c.data, key)
+
+	// Remove from draw order.
+	for i, k := range c.order {
+		if k == key {
+			c.order = append(c.order[:i], c.order[i+1:]...)
+			break
+		}
+	}
+
+	c.recomputeBounds()
+	c.updateRanges()
+	c.dirty = true
+}
+
+// TODO: instead, keep and use x/y min/max per series.
+func (c *EpochLineChart) recomputeBounds() {
+	// Reset to “no data” sentinels.
+	c.xMin = math.Inf(1)
+	c.xMax = math.Inf(-1)
+	c.yMin = math.Inf(1)
+	c.yMax = math.Inf(-1)
+
+	for _, s := range c.data {
+		if len(s.X) == 0 || len(s.Y) == 0 {
+			continue
+		}
+		xMin, xMax := slices.Min(s.X), slices.Max(s.X)
+		yMin, yMax := slices.Min(s.Y), slices.Max(s.Y)
+
+		if xMin < c.xMin {
+			c.xMin = xMin
+		}
+		if xMax > c.xMax {
+			c.xMax = xMax
+		}
+		if yMin < c.yMin {
+			c.yMin = yMin
+		}
+		if yMax > c.yMax {
+			c.yMax = yMax
+		}
+	}
+}
+
 // ChartInspection holds state for the crosshair overlay displayed during
 // right-click inspection.
 type ChartInspection struct {
@@ -749,4 +951,31 @@ func (c *EpochLineChart) IsInspecting() bool { return c.inspection.Active }
 // Used for cross-chart synchronization.
 func (c *EpochLineChart) InspectionData() (x, y float64, active bool) {
 	return c.inspection.DataX, c.inspection.DataY, c.inspection.Active
+}
+
+// PromoteSeriesToTop moves the given series key to the end of the draw order,
+// so it is drawn last (visually on top) while preserving relative order of
+// the other series.
+func (c *EpochLineChart) PromoteSeriesToTop(key string) {
+	if key == "" || len(c.order) == 0 {
+		return
+	}
+
+	// Find the series in the current order.
+	idx := -1
+	for i, k := range c.order {
+		if k == key {
+			idx = i
+			break
+		}
+	}
+
+	// Not present or already last.
+	if idx == -1 || idx == len(c.order)-1 {
+		return
+	}
+
+	// Move the series to the end.
+	c.order = append(append(c.order[:idx], c.order[idx+1:]...), key)
+	c.dirty = true
 }

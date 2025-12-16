@@ -14,6 +14,7 @@ import (
 // RunState indicates the current state of the run.
 type RunState int32
 
+// TODO: refactor: zeroth option should be RunStateUnknown
 const (
 	RunStateRunning RunState = iota
 	RunStateFinished

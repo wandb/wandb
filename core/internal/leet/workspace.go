@@ -47,7 +47,20 @@ type Workspace struct {
 	//
 	// when no run is selected, display the wandb leet ascii art.
 
+	// TODO: filter for the run selector.
+	// TODO: Allow filtering by run properties, e.g. projects or tags.
 	filter Filter
+
+	// Multi‑run metrics state.
+	focus       *Focus
+	metricsGrid *MetricsGrid
+
+	// Per‑run streaming state keyed by runDirName.
+	runsByKey map[string]*workspaceRun
+
+	// Heartbeat for live runs.
+	liveChan     chan tea.Msg
+	heartbeatMgr *HeartbeatManager
 
 	config *ConfigManager
 	logger *observability.CoreLogger
@@ -55,26 +68,45 @@ type Workspace struct {
 	width, height int
 }
 
-// NewWorkspace constructs a workspace bound to a W&B directory.
 func NewWorkspace(
 	wandbDir string,
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
 ) *Workspace {
-	runs := PagedList{ // TODO: refactor to allow non-KeyValue items + make filtered ones pointers
+	logger.Info(fmt.Sprintf("model: creating new workspace for wandbDir: %s", wandbDir))
+
+	if cfg == nil {
+		cfg = NewConfigManager(leetConfigPath(), logger)
+	}
+
+	// TODO: refactor to allow non-KeyValue items + make filtered ones pointers
+	runs := PagedList{
 		Title:  "Runs",
 		Active: true,
 	}
 	// Avoid zero itemsPerPage; we'll refine on first resize.
 	runs.SetItemsPerPage(1)
 
+	focus := NewFocus()
+
+	// Heartbeat for all live workspace runs shares a single channel.
+	ch := make(chan tea.Msg, 4096)
+	hbInterval := cfg.HeartbeatInterval()
+	logger.Info(fmt.Sprintf("workspace: heartbeat interval set to %v", hbInterval))
+
+	// TODO: make visibility configurable
 	return &Workspace{
-		runsAnimState: NewAnimationState(true, SidebarMinWidth), // TODO: make visibility configurable
+		runsAnimState: NewAnimationState(true, SidebarMinWidth),
 		wandbDir:      wandbDir,
 		config:        cfg,
 		logger:        logger,
 		runs:          runs,
 		selectedRuns:  make(map[string]bool),
+		focus:         focus,
+		metricsGrid:   NewMetricsGrid(cfg, focus, logger),
+		runsByKey:     make(map[string]*workspaceRun),
+		liveChan:      ch,
+		heartbeatMgr:  NewHeartbeatManager(hbInterval, ch, logger),
 	}
 }
 
@@ -93,58 +125,217 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 	// TODO: wire key bindings
 	case tea.KeyMsg:
-		switch t.String() {
-		case "q":
-			return tea.Quit
-		case "[":
-			w.runsAnimState.Toggle()
-			return w.runsAnimationCmd()
-		}
+		return w.handleKeyMsg(t)
 
-		// Handle wandb dir navigation and run selection.
-		if !w.runsAnimState.IsExpanded() {
-			return nil
-		}
-
-		// Nothing to navigate yet.
-		if len(w.runs.FilteredItems) == 0 {
-			return nil
-		}
-
-		switch t.String() {
-		case "p":
-			if cur, ok := w.runs.CurrentItem(); ok {
-				w.togglePin(cur.Key)
-				// TODO: metrics: reassign primary run.
-			}
-			return nil
-		}
-
-		switch t.Type {
-		case tea.KeySpace:
-			if cur, ok := w.runs.CurrentItem(); ok {
-				w.toggleRunSelected(cur.Key)
-				// TODO: metrics load/unload.
-			}
-		case tea.KeyUp:
-			w.runs.Up()
-		case tea.KeyDown:
-			w.runs.Down()
-		case tea.KeyPgUp, tea.KeyRight:
-			w.runs.PageUp()
-		case tea.KeyPgDown, tea.KeyLeft:
-			w.runs.PageDown()
-		case tea.KeyHome:
-			w.runs.Home()
-		}
+	case tea.MouseMsg:
+		return w.handleMouse(t)
 
 	case WorkspaceRunsAnimationMsg:
-		if !w.runsAnimState.Update(time.Now()) {
-			return w.runsAnimationCmd()
-		}
+		return w.handleRunsAnimation()
+
+	case WorkspaceInitMsg:
+		return w.handleWorkspaceInit(t)
+
+	case WorkspaceChunkedBatchMsg:
+		return w.handleWorkspaceChunkedBatch(t)
+
+	case WorkspaceBatchedRecordsMsg:
+		return w.handleWorkspaceBatchedRecords(t)
+
+	case WorkspaceFileChangedMsg:
+		return w.handleWorkspaceFileChanged(t)
+
+	case HeartbeatMsg:
+		return w.handleHeartbeat()
 	}
 
 	return nil
+}
+
+func (w *Workspace) handleRunsAnimation() tea.Cmd {
+	done := w.runsAnimState.Update(time.Now())
+	l := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
+	if !done {
+		return w.runsAnimationCmd()
+	}
+	return nil
+}
+
+// TODO: wire up key bindings.
+func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return tea.Quit
+	case "[":
+		w.runsAnimState.Toggle()
+		return w.runsAnimationCmd()
+	}
+
+	// 1) Metrics filter mode has highest priority.
+	if w.metricsGrid != nil && w.metricsGrid.IsFilterMode() {
+		w.metricsGrid.handleMetricsFilterKey(msg)
+		return nil
+	}
+
+	// 2) Grid layout config: reuse the same mechanism as the run view.
+	if w.config.IsAwaitingGridConfig() {
+		w.metricsGrid.handleGridConfigNumberKey(msg, w.computeViewports())
+		return nil
+	}
+
+	// 3) Metrics navigation / filter / layout (mirror single‑run key bindings).
+	switch msg.String() {
+	case "N", "pgup":
+		if w.metricsGrid != nil {
+			w.metricsGrid.Navigate(-1)
+		}
+		return nil
+	case "n", "pgdown":
+		if w.metricsGrid != nil {
+			w.metricsGrid.Navigate(1)
+		}
+		return nil
+	case "/":
+		if w.metricsGrid != nil {
+			w.metricsGrid.EnterFilterMode()
+		}
+		return nil
+	case "ctrl+l":
+		if w.metricsGrid != nil && w.metricsGrid.FilterQuery() != "" {
+			w.metricsGrid.ClearFilter()
+		}
+		w.focus.Reset()
+		return nil
+	case "c":
+		w.config.SetPendingGridConfig(gridConfigMetricsCols)
+		return nil
+	case "r":
+		w.config.SetPendingGridConfig(gridConfigMetricsRows)
+		return nil
+	}
+
+	// 4) Run selector navigation & selection (only when sidebar is open).
+	if !w.runsAnimState.IsExpanded() {
+		return nil
+	}
+	if len(w.runs.FilteredItems) == 0 {
+		return nil
+	}
+
+	// Run pinning
+	if msg.String() == "p" {
+		if cur, ok := w.runs.CurrentItem(); ok {
+			// Ensure the run is selected so its metrics are visible.
+			if !w.selectedRuns[cur.Key] {
+				if cmd := w.toggleRunSelected(cur.Key); cmd != nil {
+					// Start loading data for this run, then pin it.
+					w.togglePin(cur.Key)
+					return cmd
+				}
+			}
+			w.togglePin(cur.Key)
+		}
+		return nil
+	}
+
+	switch msg.Type {
+	case tea.KeySpace:
+		if cur, ok := w.runs.CurrentItem(); ok {
+			return w.toggleRunSelected(cur.Key)
+		}
+	case tea.KeyUp:
+		w.runs.Up()
+	case tea.KeyDown:
+		w.runs.Down()
+	case tea.KeyRight:
+		// consistent with “Run overview navigation” in single‑run view
+		w.runs.PageUp()
+	case tea.KeyLeft:
+		w.runs.PageDown()
+	case tea.KeyHome:
+		w.runs.Home()
+	}
+
+	return nil
+}
+
+func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	// TODO: If the sidebar is visible and the click is inside it, we can
+	// later allow click‑to‑select runs. For now, just clear metrics focus.
+	if w.runsAnimState.IsVisible() && msg.X < w.runsAnimState.Width() {
+		w.metricsGrid.clearFocus()
+		return nil
+	}
+
+	return w.handleMetricsMouse(msg)
+}
+
+func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
+	if w.metricsGrid == nil {
+		return nil
+	}
+
+	const (
+		gridPaddingX = 1
+		gridPaddingY = 1
+		headerOffset = 1 // metrics header lines
+	)
+
+	leftOffset := 0
+	if w.runsAnimState.IsVisible() {
+		leftOffset = w.runsAnimState.Width()
+	}
+
+	adjustedX := msg.X - leftOffset - gridPaddingX
+	adjustedY := msg.Y - gridPaddingY - headerOffset
+	if adjustedX < 0 || adjustedY < 0 {
+		return nil
+	}
+
+	contentWidth := max(w.width-leftOffset, 0)
+	contentHeight := max(w.height-StatusBarHeight, 0)
+	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
+
+	row := adjustedY / dims.CellHWithPadding
+	col := adjustedX / dims.CellWWithPadding
+
+	me := tea.MouseEvent(msg)
+
+	switch me.Button {
+	case tea.MouseButtonLeft:
+		if me.Action == tea.MouseActionPress {
+			w.metricsGrid.HandleClick(row, col)
+		}
+	case tea.MouseButtonRight:
+		// Holding Alt activates synchronised inspection across all charts
+		// visible on the current page.
+		alt := tea.MouseEvent(msg).Alt
+
+		switch me.Action {
+		case tea.MouseActionPress:
+			w.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
+		case tea.MouseActionRelease:
+			w.metricsGrid.EndInspection()
+		case tea.MouseActionMotion:
+			w.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+		}
+	case tea.MouseButtonWheelUp:
+		w.metricsGrid.HandleWheel(adjustedX, row, col, dims, true)
+	case tea.MouseButtonWheelDown:
+		w.metricsGrid.HandleWheel(adjustedX, row, col, dims, false)
+	}
+
+	return nil
+}
+
+// Init wires up long‑running commands for the workspace.
+func (w *Workspace) Init() tea.Cmd {
+	if w.heartbeatMgr == nil || w.liveChan == nil {
+		return nil
+	}
+	// Start listening; the heartbeat manager will decide when to emit.
+	return w.waitForLiveMsg
 }
 
 // View renders the runs section: header + paginated list with zebra rows.
@@ -167,35 +358,70 @@ func (w *Workspace) View() string {
 	return lipgloss.Place(w.width, w.height, lipgloss.Left, lipgloss.Top, fullView)
 }
 
-func (w *Workspace) toggleRunSelected(runKey string) {
+func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 	if runKey == "" {
-		return
+		return nil
 	}
-	if w.selectedRuns[runKey] {
+
+	if _, alreadySelected := w.selectedRuns[runKey]; alreadySelected {
+		// Deselect this run.
 		delete(w.selectedRuns, runKey)
 		if w.pinnedRun == runKey {
 			w.pinnedRun = ""
 		}
-	} else {
-		w.selectedRuns[runKey] = true
-		if w.pinnedRun == "" {
-			w.pinnedRun = runKey
+
+		// Drop this run's series from all charts and close its reader.
+		if run, ok := w.runsByKey[runKey]; ok {
+			if w.metricsGrid != nil {
+				w.metricsGrid.RemoveSeries(run.wandbPath)
+			}
+			if run.reader != nil {
+				run.reader.Close()
+			}
+			delete(w.runsByKey, runKey)
 		}
+
+		// If no selected runs remain live, stop heartbeats.
+		if w.heartbeatMgr != nil && !w.anyRunRunning() {
+			w.heartbeatMgr.Stop()
+		}
+		return nil
 	}
-	// TODO: trigger metrics load/unload for this run.
+
+	// Newly selected.
+	w.selectedRuns[runKey] = true
+	if w.pinnedRun == "" {
+		w.pinnedRun = runKey
+	}
+
+	// Always (re)initialize the reader + metrics for this run.
+	wandbFile := w.runWandbFile(runKey)
+	if wandbFile == "" {
+		return nil
+	}
+	return w.initReaderCmd(runKey, wandbFile)
 }
 
 func (w *Workspace) togglePin(runKey string) {
 	if runKey == "" {
 		return
 	}
+
 	if w.pinnedRun == runKey {
+		// Unpin but keep selection unchanged.
 		w.pinnedRun = ""
+		if w.metricsGrid != nil {
+			w.metricsGrid.drawVisible()
+		}
 		return
 	}
+
 	w.pinnedRun = runKey
-	w.selectedRuns[runKey] = true
-	// TODO: reassign primary series in charts.
+
+	if w.metricsGrid != nil {
+		w.refreshPinnedRun()
+		w.metricsGrid.drawVisible()
+	}
 }
 
 func (w *Workspace) renderRuns() string {
@@ -231,28 +457,38 @@ func (w *Workspace) renderRuns() string {
 }
 
 func (w *Workspace) renderMetrics() string {
-	// TODO
-	artStyle := lipgloss.NewStyle().
-		Foreground(colorHeading).
-		Bold(true)
+	contentWidth := max(w.width-w.runsAnimState.Width(), 0)
+	contentHeight := max(w.height-StatusBarHeight, 0)
 
-	logoContent := lipgloss.JoinVertical(
-		lipgloss.Center,
-		artStyle.Render(wandbArt),
-		artStyle.Render(sphericalCowInAVacuum),
-		artStyle.Render(leetArt),
-	)
+	if contentWidth <= 0 || contentHeight <= 0 {
+		return ""
+	}
 
-	centeredLogo := lipgloss.Place(
-		w.width-w.runsAnimState.Width(),
-		w.height-StatusBarHeight-1,
-		lipgloss.Center,
-		lipgloss.Center,
-		logoContent,
-	)
+	// No runs selected: show the logo + spherical cow without any header.
+	if len(w.selectedRuns) == 0 || w.metricsGrid == nil {
+		artStyle := lipgloss.NewStyle().
+			Foreground(colorHeading).
+			Bold(true)
 
-	header := headerContainerStyle.Render(headerStyle.Render(metricsHeader))
-	return lipgloss.JoinVertical(lipgloss.Left, header, centeredLogo)
+		logoContent := lipgloss.JoinVertical(
+			lipgloss.Center,
+			artStyle.Render(wandbArt),
+			artStyle.Render(sphericalCowInAVacuum),
+			artStyle.Render(leetArt),
+		)
+
+		return lipgloss.Place(
+			contentWidth,
+			contentHeight,
+			lipgloss.Center,
+			lipgloss.Center,
+			logoContent,
+		)
+	}
+
+	// When we have selected runs, render the metrics grid.
+	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
+	return w.metricsGrid.View(dims)
 }
 
 func (w *Workspace) renderStatusBar() string {
@@ -272,13 +508,87 @@ func (w *Workspace) renderStatusBar() string {
 }
 
 func (w *Workspace) buildStatusText() string {
-	return w.wandbDir
+	// Metrics filter input mode has top priority.
+	if w.metricsGrid != nil && w.metricsGrid.IsFilterMode() {
+		return w.buildMetricsFilterStatus()
+	}
+
+	// Grid layout prompt (rows/cols) for metrics/system grids.
+	if w.config != nil && w.config.IsAwaitingGridConfig() {
+		return w.config.GridConfigStatus()
+	}
+
+	// When we add a run-filter input, it can be handled here similarly.
+	return w.buildActiveStatus()
+}
+
+func (w *Workspace) buildMetricsFilterStatus() string {
+	if w.metricsGrid == nil {
+		return ""
+	}
+	return fmt.Sprintf(
+		"Filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
+		w.metricsGrid.FilterMode().String(),
+		w.metricsGrid.FilterQuery(),
+		string(mediumShadeBlock),
+		w.metricsGrid.FilteredChartCount(),
+		w.metricsGrid.ChartCount(),
+	)
+}
+
+// buildActiveStatus summarizes the active filters and selection when no
+// dedicated input mode (filter / grid config) is active.
+func (w *Workspace) buildActiveStatus() string {
+	var parts []string
+
+	if w.metricsGrid != nil && w.metricsGrid.IsFiltering() {
+		parts = append(parts, fmt.Sprintf(
+			"Filter (%s): %q [%d/%d] (/ to change, ctrl+l to clear)",
+			w.metricsGrid.FilterMode().String(),
+			w.metricsGrid.FilterQuery(),
+			w.metricsGrid.FilteredChartCount(),
+			w.metricsGrid.ChartCount(),
+		))
+	}
+
+	totalRuns := len(w.runs.Items)
+	if totalRuns > 0 {
+		selected := len(w.selectedRuns)
+		if selected == 0 {
+			parts = append(parts, fmt.Sprintf("Runs: 0/%d selected", totalRuns))
+		} else {
+			parts = append(parts, fmt.Sprintf("Runs: %d/%d selected", selected, totalRuns))
+		}
+	}
+
+	if w.pinnedRun != "" {
+		parts = append(parts, fmt.Sprintf("Pinned: %s", w.pinnedRun))
+	}
+
+	if len(parts) == 0 {
+		return w.wandbDir
+	}
+	return strings.Join(parts, " • ")
 }
 
 // buildHelpText builds the help text for the status bar.
 func (w *Workspace) buildHelpText() string {
-	// TODO: return "" in filtering mode (runs or metrics)
+	// Hide help hint while any workspace-level filter / grid config is active.
+	if w.IsFiltering() || w.config.IsAwaitingGridConfig() {
+		return ""
+	}
 	return "h: help"
+}
+
+// IsFiltering reports whether any workspace-level filter UI is active.
+func (w *Workspace) IsFiltering() bool {
+	if w.metricsGrid != nil && w.metricsGrid.IsFilterMode() {
+		return true
+	}
+	if w.filter.IsActive() {
+		return true
+	}
+	return false
 }
 
 func (w *Workspace) updateDimensions(width, height int) {
@@ -287,20 +597,20 @@ func (w *Workspace) updateDimensions(width, height int) {
 	calculatedWidth := int(float64(width) * SidebarWidthRatio)
 	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
 	w.runsAnimState.SetExpandedWidth(expandedWidth)
+
+	l := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
 }
 
-// // computeViewports returns (leftW, contentW, rightW, contentH).
-// func (w *Workspace) computeViewports() Layout {
-// 	leftW, rightW := 0, 0
-// 	if w.runsAnimState.IsVisible() {
-// 		leftW = w.runsAnimState.currentWidth
-// 	}
+// computeViewports returns (leftW, contentW, rightW, contentH).
+func (w *Workspace) computeViewports() Layout {
+	leftW, rightW := w.runsAnimState.Width(), 0
 
-// 	contentW := max(w.width-leftW-rightW-2, 1)
-// 	contentH := max(w.height-StatusBarHeight, 1)
+	contentW := max(w.width-leftW-rightW, 1)
+	contentH := max(w.height-StatusBarHeight, 1)
 
-// 	return Layout{leftW, contentW, rightW, contentH}
-// }
+	return Layout{leftW, contentW, rightW, contentH}
+}
 
 // runsAnimationCmd returns a command to continue the animation on section toggle.
 func (w *Workspace) runsAnimationCmd() tea.Cmd {
@@ -510,13 +820,7 @@ func (w *Workspace) SelectedRunWandbFile() string {
 		return ""
 	}
 
-	folderName := w.runs.FilteredItems[idx].Key
-	runID := extractRunID(folderName)
-	if runID == "" {
-		return ""
-	}
-
-	return filepath.Join(w.wandbDir, folderName, "run-"+runID+".wandb")
+	return w.runWandbFile(w.runs.FilteredItems[idx].Key)
 }
 
 // extractRunID extracts the run ID from a folder name.
@@ -529,4 +833,25 @@ func extractRunID(folderName string) string {
 		return ""
 	}
 	return folderName[lastHyphen+1:]
+}
+
+// runWandbFile returns the full path to the .wandb file for the given run folder.
+func (w *Workspace) runWandbFile(folderName string) string {
+	runID := extractRunID(folderName)
+	if runID == "" {
+		return ""
+	}
+	return filepath.Join(w.wandbDir, folderName, "run-"+runID+".wandb")
+}
+
+// refreshPinnedRun ensures the pinned run (if any) is drawn on top in all charts.
+func (w *Workspace) refreshPinnedRun() {
+	if w.metricsGrid == nil || w.pinnedRun == "" {
+		return
+	}
+	run, ok := w.runsByKey[w.pinnedRun]
+	if !ok || run == nil || run.wandbPath == "" {
+		return
+	}
+	w.metricsGrid.PromoteSeriesToTop(run.wandbPath)
 }

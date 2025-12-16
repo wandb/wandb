@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -62,9 +61,9 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 	hitEOF := false
 
 	for recordCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
-		start := time.Now()
+		// start := time.Now()
 		record, err := r.store.Read()
-		r.store.logger.Debug(fmt.Sprintf("perf: r.store.Read() took %s", time.Since(start)))
+		// r.store.logger.Debug(fmt.Sprintf("perf: r.store.Read() took %s", time.Since(start)))
 		if err != nil {
 			break
 		}
@@ -129,10 +128,9 @@ func (r *WandbReader) ConcatenateHistory(messages []HistoryMsg) HistoryMsg {
 	for _, msg := range messages {
 		for metricName, data := range msg.Metrics {
 			existing := h.Metrics[metricName]
-			h.Metrics[metricName] = MetricData{
-				X: slices.Concat(existing.X, data.X),
-				Y: slices.Concat(existing.Y, data.Y),
-			}
+			existing.X = append(existing.X, data.X...)
+			existing.Y = append(existing.Y, data.Y...)
+			h.Metrics[metricName] = existing
 		}
 	}
 
@@ -282,10 +280,10 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 		return nil
 	}
 
-	x := float64(step)
+	x := []float64{float64(step)}
 	metrics := make(map[string]MetricData, len(values))
 	for k, y := range values {
-		metrics[k] = MetricData{X: []float64{x}, Y: []float64{y}}
+		metrics[k] = MetricData{X: x, Y: []float64{y}}
 	}
 	return HistoryMsg{RunPath: runPath, Metrics: metrics}
 }

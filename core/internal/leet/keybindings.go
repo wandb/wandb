@@ -25,9 +25,10 @@ func KeyBindings() []BindingCategory {
 			Name: "General",
 			Bindings: []KeyBinding{
 				{
+					// TODO:
 					Keys:        []string{"h", "?"},
 					Description: "Toggle this help screen",
-					Handler:     (*RunModel).handleToggleHelp,
+					// Handler:     (*RunModel).handleToggleHelp,
 				},
 				{
 					Keys:        []string{"q", "ctrl+c"},

@@ -3,6 +3,7 @@ package leet
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -21,6 +22,8 @@ type Model struct {
 
 	width, height int
 
+	help *HelpModel
+
 	config *ConfigManager
 	logger *observability.CoreLogger
 }
@@ -37,11 +40,10 @@ func NewModel(params ModelParams) *Model {
 		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
 	}
 
-	ws := NewWorkspace(params.WandbDir, params.Config, params.Logger)
-
 	m := &Model{
 		mode:      viewModeWorkspace,
-		workspace: ws,
+		workspace: NewWorkspace(params.WandbDir, params.Config, params.Logger),
+		help:      NewHelp(),
 		config:    params.Config,
 		logger:    params.Logger,
 	}
@@ -58,6 +60,13 @@ func NewModel(params ModelParams) *Model {
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{windowTitleCmd()}
 
+	// Workspace always exists; initialize its long‑running commands.
+	if m.workspace != nil {
+		if cmd := m.workspace.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
 	if m.mode == viewModeRun && m.run != nil {
 		cmds = append(cmds, m.run.Init())
 	}
@@ -68,34 +77,63 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = wsMsg.Width, wsMsg.Height
+		m.help.SetSize(wsMsg.Width, wsMsg.Height)
+	}
+
+	if handled, cmd := m.handleHelp(msg); handled {
+		return m, cmd
+	}
+
+	// Snapshot filter/config state *before* sub-models see this key.
+	var awaitingUserInput bool
+	if (m.workspace != nil && m.workspace.IsFiltering()) ||
+		(m.run != nil && m.run.IsFiltering()) ||
+		(m.config != nil && m.config.IsAwaitingGridConfig()) {
+		awaitingUserInput = true
+	}
+
+	var cmds []tea.Cmd
+
+	// Handle sub-component updates.
+	switch m.mode {
+	case viewModeWorkspace:
+		if cmd := m.workspace.Update(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case viewModeRun:
+		// Keep the workspace's background tasks (watchers/heartbeats) alive
+		// even while we're in the single-run view.
+		if cmd := m.workspace.Update(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+
+		if _, cmd := m.run.Update(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	// Handle mode switching.
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch m.mode {
 		case viewModeWorkspace:
-			if keyMsg.Type == tea.KeyEnter {
+			if keyMsg.Type == tea.KeyEnter && !awaitingUserInput {
 				return m, m.enterRunView()
 			}
 		case viewModeRun:
-			if keyMsg.Type == tea.KeyEsc {
+			if keyMsg.Type == tea.KeyEsc && !awaitingUserInput {
 				return m, m.exitRunView()
 			}
 		}
 	}
 
-	var cmd tea.Cmd
-	switch m.mode {
-	case viewModeWorkspace:
-		cmd = m.workspace.Update(msg)
-	case viewModeRun:
-		_, cmd = m.run.Update(msg)
-	}
-
-	return m, cmd
+	return m, tea.Batch(cmds...)
 }
 
 func (m *Model) View() string {
+	if m.help.IsActive() {
+		return m.renderHelpScreen()
+	}
+
 	switch m.mode {
 	case viewModeWorkspace:
 		return m.workspace.View()
@@ -112,6 +150,61 @@ func (m *Model) View() string {
 func (m *Model) ShouldRestart() bool {
 	// TODO: wire this up.
 	return false
+}
+
+// handleHelp centralizes help toggle and routing while active.
+func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
+	switch m.mode {
+	case viewModeWorkspace:
+		// TODO: add logic once filtring is wired up.
+		if m.workspace.IsFiltering() {
+			return false, nil
+		}
+	case viewModeRun:
+		// TODO: add a public help to m.run
+		if m.run.IsFiltering() {
+			return false, nil
+		}
+	}
+
+	// Toggle on 'h' / '?'
+	if km, ok := msg.(tea.KeyMsg); ok {
+		switch km.String() {
+		case "h", "?":
+			m.help.Toggle()
+			return true, nil
+		}
+	}
+
+	// When help is visible, it owns key/mouse events.
+	if m.help.IsActive() {
+		switch msg.(type) {
+		case tea.KeyMsg, tea.MouseMsg:
+			updated, cmd := m.help.Update(msg)
+			m.help = updated
+			return true, cmd
+		}
+	}
+	return false, nil
+}
+
+// renderHelpScreen renders the help screen.
+func (m *Model) renderHelpScreen() string {
+	helpView := m.help.View()
+
+	helpText := "h: help"
+	spaceForHelp := max(max(m.width-2*StatusBarPadding, 0), 0)
+	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
+
+	fullStatus := rightAligned
+
+	statusBar := statusBarStyle.
+		Width(m.width).
+		MaxWidth(m.width).
+		Render(fullStatus)
+
+	content := lipgloss.JoinVertical(lipgloss.Left, helpView, statusBar)
+	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
 }
 
 // enterRunView switches to single-run view for the selected run.

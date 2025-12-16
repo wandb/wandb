@@ -53,7 +53,6 @@ type RunModel struct {
 	metricsGrid  *MetricsGrid
 	leftSidebar  *LeftSidebar
 	rightSidebar *RightSidebar
-	help         *HelpModel
 
 	// Sidebar animation synchronization.
 	animationMu sync.Mutex
@@ -73,8 +72,12 @@ type RunModel struct {
 	logger *observability.CoreLogger
 }
 
-func NewRunModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogger) *RunModel {
-	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
+func NewRunModel(
+	runPath string,
+	cfg *ConfigManager,
+	logger *observability.CoreLogger,
+) *RunModel {
+	logger.Info(fmt.Sprintf("model: creating new run model for runPath: %s", runPath))
 
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
@@ -89,7 +92,6 @@ func NewRunModel(runPath string, cfg *ConfigManager, logger *observability.CoreL
 	return &RunModel{
 		config:       cfg,
 		keyMap:       buildKeyMap(),
-		help:         NewHelp(),
 		focus:        focus,
 		isLoading:    true,
 		runPath:      runPath,
@@ -122,11 +124,6 @@ func (m *RunModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer timeit(m.logger, "Model.Update")()
 	m.stateMu.Lock()
 	defer m.stateMu.Unlock()
-
-	// Help screen takes priority.
-	if handled, cmd := m.handleHelp(msg); handled {
-		return m, cmd
-	}
 
 	var cmds []tea.Cmd
 
@@ -171,7 +168,6 @@ func (m *RunModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleWindowResize handles window resize messages.
 func (m *RunModel) handleWindowResize(msg tea.WindowSizeMsg) {
 	m.width, m.height = msg.Width, msg.Height
-	m.help.SetSize(msg.Width, msg.Height)
 
 	m.leftSidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
 	m.rightSidebar.UpdateDimensions(msg.Width, m.leftSidebar.IsVisible())
@@ -189,34 +185,6 @@ func isUIMsg(msg tea.Msg) bool {
 	default:
 		return false
 	}
-}
-
-// handleHelp centralizes help toggle and routing while active.
-func (m *RunModel) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
-	// Don't toggle help while any filter UI is active.
-	if m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode() {
-		return false, nil
-	}
-
-	// Toggle on 'h' / '?'
-	if km, ok := msg.(tea.KeyMsg); ok {
-		switch km.String() {
-		case "h", "?":
-			m.help.Toggle()
-			return true, nil
-		}
-	}
-
-	// When help is visible, it owns key/mouse events.
-	if m.help.IsActive() {
-		switch msg.(type) {
-		case tea.KeyMsg, tea.MouseMsg:
-			updated, cmd := m.help.Update(msg)
-			m.help = updated
-			return true, cmd
-		}
-	}
-	return false, nil
 }
 
 // dispatch routes message types to appropriate handlers.
@@ -270,20 +238,7 @@ func (m *RunModel) View() string {
 		return m.renderLoadingScreen()
 	}
 
-	if m.help.IsActive() {
-		return m.renderHelpScreen()
-	}
-
 	return m.renderMainView()
-}
-
-// renderHelpScreen renders the help screen.
-func (m *RunModel) renderHelpScreen() string {
-	helpView := m.help.View()
-	statusBar := m.renderStatusBar()
-
-	content := lipgloss.JoinVertical(lipgloss.Left, helpView, statusBar)
-	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
 }
 
 // renderMainView renders the main application view.
@@ -404,9 +359,6 @@ func (m *RunModel) renderStatusBar() string {
 
 // buildStatusText builds the main status text.
 func (m *RunModel) buildStatusText() string {
-	if m.help.IsActive() {
-		return ""
-	}
 	if m.leftSidebar.IsFilterMode() {
 		return m.buildOverviewFilterStatus()
 	}
@@ -506,6 +458,10 @@ func (m *RunModel) buildHelpText() string {
 		return ""
 	}
 	return "h: help"
+}
+
+func (m *RunModel) IsFiltering() bool {
+	return m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode()
 }
 
 // Layout represents the computed layout dimensions for the main UI.

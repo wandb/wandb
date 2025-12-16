@@ -3,8 +3,10 @@ package leet
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -111,7 +113,7 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 	dims := mg.CalculateChartDimensions(mg.width, mg.height)
 
 	mg.mu.Lock()
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 
 	for name, data := range metrics {
 		chart, exists := mg.byTitle[name]
@@ -125,12 +127,13 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 				mg.logger.Debug(fmt.Sprintf("metricsgrid: created %d charts", len(mg.all)))
 			}
 		}
-		wg.Go(func() {
-			chart.AddData(msg.RunPath, data)
-		})
+		// wg.Go(func() {
+		// 	chart.AddData(msg.RunPath, data)
+		// })
+		chart.AddData(msg.RunPath, data)
 	}
 
-	wg.Wait()
+	// wg.Wait()
 
 	// Keep ordering, colors, maps and filtered set in sync.
 	if needsSort {
@@ -710,5 +713,98 @@ func (mg *MetricsGrid) broadcastEndInspection() {
 				ch.DrawIfNeeded()
 			}
 		}
+	}
+}
+
+func (mg *MetricsGrid) handleMetricsFilterKey(msg tea.KeyMsg) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		mg.ExitFilterMode(false)
+	case tea.KeyEnter:
+		mg.ExitFilterMode(true)
+	case tea.KeyTab:
+		mg.ToggleFilterMatchMode()
+	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
+		mg.UpdateFilterDraft(msg)
+		mg.ApplyFilter()
+		mg.drawVisible()
+	}
+}
+
+// Grid-layout config handler.
+func (mg *MetricsGrid) handleGridConfigNumberKey(msg tea.KeyMsg, layout Layout) {
+	defer mg.config.SetPendingGridConfig(gridConfigNone)
+
+	if msg.String() == "esc" {
+		return
+	}
+
+	num, err := strconv.Atoi(msg.String())
+	if err != nil {
+		return
+	}
+
+	statusMsg, err := mg.config.SetGridConfig(num)
+	if err != nil {
+		mg.logger.Error(fmt.Sprintf("model: failed to update config: %v", err))
+		return
+	}
+
+	mg.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+	mg.logger.Info(statusMsg)
+}
+
+func (mg *MetricsGrid) RemoveSeries(key string) {
+	if mg == nil || key == "" {
+		return
+	}
+
+	mg.mu.Lock()
+	if len(mg.all) == 0 {
+		mg.mu.Unlock()
+		return
+	}
+
+	filtered := mg.all[:0]
+	for _, ch := range mg.all {
+		ch.RemoveSeries(key)
+		if ch.SeriesCount() > 0 {
+			filtered = append(filtered, ch)
+		}
+	}
+	mg.all = filtered
+
+	// Rebuild index by title to stay consistent.
+	mg.byTitle = make(map[string]*EpochLineChart, len(mg.all))
+	for _, ch := range mg.all {
+		mg.byTitle[ch.Title()] = ch
+	}
+
+	// Reapply filter + nav on the pruned chart set.
+	mg.applyFilterNoLock()
+	mg.mu.Unlock()
+
+	mg.drawVisible()
+}
+
+// PromoteSeriesToTop ensures the given series key is drawn last in all charts.
+// Used by the workspace to keep a pinned run visually on top.
+func (mg *MetricsGrid) PromoteSeriesToTop(seriesKey string) {
+	if mg == nil || seriesKey == "" {
+		return
+	}
+
+	mg.mu.Lock()
+	defer mg.mu.Unlock()
+
+	if len(mg.all) == 0 {
+		return
+	}
+
+	for _, ch := range mg.all {
+		if ch == nil {
+			continue
+		}
+		ch.PromoteSeriesToTop(seriesKey)
 	}
 }

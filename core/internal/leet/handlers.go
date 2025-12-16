@@ -2,7 +2,6 @@ package leet
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -219,10 +218,11 @@ func (m *RunModel) handleKeyMsg(msg tea.KeyMsg) (*RunModel, tea.Cmd) {
 	return m, nil
 }
 
-func (m *RunModel) handleToggleHelp(msg tea.KeyMsg) (*RunModel, tea.Cmd) {
-	m.help.Toggle()
-	return m, nil
-}
+// TODO: move to top model once its keybindings are wired.
+// func (m *RunModel) handleToggleHelp(msg tea.KeyMsg) (*RunModel, tea.Cmd) {
+// 	m.help.Toggle()
+// 	return m, nil
+// }
 
 func (m *RunModel) handleQuit(msg tea.KeyMsg) (*RunModel, tea.Cmd) {
 	m.logger.Debug("model: quit requested")
@@ -385,24 +385,8 @@ func (m *RunModel) handleConfigSystemRows(msg tea.KeyMsg) (*RunModel, tea.Cmd) {
 
 // handleMetricsFilter handles filter mode input for metrics
 func (m *RunModel) handleMetricsFilter(msg tea.KeyMsg) (*RunModel, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
-		m.metricsGrid.ExitFilterMode(false)
-		return m, nil
-	case tea.KeyEnter:
-		m.metricsGrid.ExitFilterMode(true)
-		return m, nil
-	case tea.KeyTab:
-		m.metricsGrid.ToggleFilterMatchMode()
-		return m, nil
-	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
-		m.metricsGrid.UpdateFilterDraft(msg)
-		m.metricsGrid.ApplyFilter()
-		m.metricsGrid.drawVisible()
-		return m, nil
-	default:
-		return m, nil
-	}
+	m.metricsGrid.handleMetricsFilterKey(msg)
+	return m, nil
 }
 
 // handleOverviewFilter handles overview filter keyboard input.
@@ -424,27 +408,7 @@ func (m *RunModel) handleOverviewFilter(msg tea.KeyMsg) (*RunModel, tea.Cmd) {
 
 // handleConfigNumberKey handles number input for configuration.
 func (m *RunModel) handleConfigNumberKey(msg tea.KeyMsg) (*RunModel, tea.Cmd) {
-	defer m.config.SetPendingGridConfig(gridConfigNone)
-
-	if msg.String() == "esc" {
-		return m, nil
-	}
-
-	num, err := strconv.Atoi(msg.String())
-	if err != nil {
-		return m, nil
-	}
-
-	statusMsg, err := m.config.SetGridConfig(num)
-	if err != nil {
-		m.logger.Error(fmt.Sprintf("model: failed to update config: %v", err))
-		return m, nil
-	}
-
-	layout := m.computeViewports()
-	m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
-
-	m.logger.Info(statusMsg)
+	m.metricsGrid.handleGridConfigNumberKey(msg, m.computeViewports())
 
 	return m, nil
 }
