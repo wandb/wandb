@@ -50,7 +50,7 @@ class ArtifactCollectionData(ArtifactsBase):
     entity: str = Field(frozen=True)
     """The name of the entity that owns this collection's project."""
 
-    aliases: Optional[Tuple[str, ...]] = Field(default=None, frozen=True)
+    aliases: Optional[Tuple[str, ...]] = Field(default=None, frozen=False)
     """All aliases assigned to artifact versions within this collection.
 
     Note:
