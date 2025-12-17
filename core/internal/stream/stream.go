@@ -210,6 +210,7 @@ func (s *Stream) maybeSavingToTransactionLog(
 	r, err := transactionlog.OpenReader(
 		s.settings.GetTransactionLogPath(),
 		s.logger,
+		/*live*/ false, // backward seeking not needed for flow control
 	)
 	if err != nil {
 		// Capture the error because if we can open for writing,

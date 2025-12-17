@@ -155,7 +155,7 @@ func (r *RunReader) closeRunWork() {
 
 // open returns an opened transaction log Reader.
 func (r *RunReader) open() (*transactionlog.Reader, error) {
-	reader, err := transactionlog.OpenReader(r.path, r.logger)
+	reader, err := transactionlog.OpenReader(r.path, r.logger, true /*live*/)
 
 	if err == nil {
 		return reader, nil

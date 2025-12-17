@@ -24,7 +24,11 @@ func ReaderWriter(t *testing.T) (
 	w, err := transactionlog.OpenWriter(path)
 	require.NoError(t, err)
 
-	r, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	r, err := transactionlog.OpenReader(
+		path,
+		observabilitytest.NewTestLogger(t),
+		true,
+	)
 	require.NoError(t, err)
 
 	return r, w
@@ -45,7 +49,7 @@ func RecordsReader(
 			contentReader, // read
 			contentReader, // seek
 			&nopCloser{},
-		}, observabilitytest.NewTestLogger(t))
+		}, observabilitytest.NewTestLogger(t), true)
 	require.NoError(t, err)
 
 	return r
@@ -63,25 +67,17 @@ func UnseekableReader(t *testing.T) *transactionlog.Reader {
 			content,
 			&errSeeker{},
 			&nopCloser{},
-		}, observabilitytest.NewTestLogger(t))
+		}, observabilitytest.NewTestLogger(t), false)
 	require.NoError(t, err)
 
 	return r
 }
 
-// RecordThenErrorReader is a reader for which Read() first returns the given
-// record, and then returns an error.
-//
-// Since leveldb's SeekRecord() method reads and validates the first chunk
-// in a block, this is the only way to make Read() return an error without
-// also making SeekRecord() return an error.
-func RecordThenErrorReader(
-	t *testing.T,
-	record *spb.Record,
-) *transactionlog.Reader {
+// ErrorReader is a reader for which Read always returns a given error.
+func ErrorReader(t *testing.T) *transactionlog.Reader {
 	t.Helper()
 
-	content := validWandbFile(t, record)
+	content := validWandbFile(t)
 	addInvalidChunk(content)
 	contentReader := bytes.NewReader(content.Bytes())
 
@@ -92,6 +88,7 @@ func RecordThenErrorReader(
 			&nopCloser{},
 		},
 		observabilitytest.NewTestLogger(t),
+		true,
 	)
 	require.NoError(t, err)
 

@@ -1,15 +1,18 @@
 package transactionlog_test
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/transactionlog"
+	"github.com/wandb/wandb/core/internal/transactionlogtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -34,7 +37,11 @@ func Test_ReadAfterWrite(t *testing.T) {
 	require.NoError(t, writer.Write(&spb.Record{Num: 123}))
 	require.NoError(t, writer.Close())
 
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	reader, err := transactionlog.OpenReader(
+		path,
+		observabilitytest.NewTestLogger(t),
+		true,
+	)
 	require.NoError(t, err)
 	record, err := reader.Read()
 	require.NoError(t, err)
@@ -67,7 +74,11 @@ func Test_Write_AlreadyClosed(t *testing.T) {
 func Test_OpenReader_NoFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	reader, err := transactionlog.OpenReader(
+		path,
+		observabilitytest.NewTestLogger(t),
+		true,
+	)
 
 	assert.Nil(t, reader)
 	assert.ErrorIs(t, err, os.ErrNotExist)
@@ -77,7 +88,11 @@ func Test_OpenReader_BadHeader(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 	require.NoError(t, os.WriteFile(path, []byte{}, 0o666))
 
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	reader, err := transactionlog.OpenReader(
+		path,
+		observabilitytest.NewTestLogger(t),
+		true,
+	)
 
 	assert.Nil(t, reader)
 	assert.ErrorContains(t, err, "bad header")
@@ -85,7 +100,11 @@ func Test_OpenReader_BadHeader(t *testing.T) {
 
 func Test_Read_AlreadyClosed(t *testing.T) {
 	path := emptyWandbFile(t)
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	reader, err := transactionlog.OpenReader(
+		path,
+		observabilitytest.NewTestLogger(t),
+		true,
+	)
 	require.NoError(t, err)
 
 	reader.Close()
@@ -97,7 +116,11 @@ func Test_Read_AlreadyClosed(t *testing.T) {
 
 func Test_Read_EOF(t *testing.T) {
 	path := emptyWandbFile(t)
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	reader, err := transactionlog.OpenReader(
+		path,
+		observabilitytest.NewTestLogger(t),
+		true,
+	)
 	require.NoError(t, err)
 
 	record, err := reader.Read()
@@ -137,7 +160,11 @@ func Test_Read_SkipsCorruptData(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	reader, err := transactionlog.OpenReader(
+		path,
+		observabilitytest.NewTestLogger(t),
+		true,
+	)
 	require.NoError(t, err)
 	defer reader.Close()
 
@@ -162,7 +189,11 @@ func Test_ResetLastRead(t *testing.T) {
 	require.NoError(t, writer.Write(&spb.Record{Num: 15}))
 	require.NoError(t, writer.Close())
 
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	reader, err := transactionlog.OpenReader(
+		path,
+		observabilitytest.NewTestLogger(t),
+		true,
+	)
 	require.NoError(t, err)
 	defer reader.Close()
 
@@ -177,5 +208,74 @@ func Test_ResetLastRead(t *testing.T) {
 		record, err = reader.Read()
 		require.NoError(t, err)
 		assert.EqualValues(t, num, record.GetNum())
+	}
+}
+
+func Test_Live_ResetLastRead_NoIO(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+
+	// A record that takes up around 1.25 blocks in the transaction log file.
+	//
+	// This helps test that cutoff logic correctly uses the block offset.
+	makeBigRecord := func(num int64) *spb.Record {
+		return &spb.Record{
+			Num: num,
+			RecordType: &spb.Record_History{
+				History: &spb.HistoryRecord{
+					Item: []*spb.HistoryItem{
+						{
+							Key:       "x",
+							ValueJson: strings.Repeat("abcdefgh", 4*1024*1.25),
+						},
+					},
+				},
+			},
+		}
+	}
+
+	writer, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	for i := range 4 {
+		require.NoError(t, writer.Write(makeBigRecord(int64(i))))
+	}
+	require.NoError(t, writer.Close())
+
+	// Open the file manually to wrap in a reader that intercepts IO.
+	file, err := os.Open(path)
+	require.NoError(t, err)
+	defer file.Close()
+
+	fileIO := transactionlogtest.NewToggleableReadSeeker(file)
+	reader, err := transactionlog.NewReader(
+		fileIO,
+		observabilitytest.NewTestLogger(t),
+		true,
+	)
+	require.NoError(t, err)
+
+	// For all but the last records, there should be no IO when rereading.
+	for i := range 4 {
+		// Allow IO, so that we may read one record.
+		fileIO.SetError(nil)
+
+		rec, err := reader.Read()
+		require.NoError(t, err)
+		assert.EqualValues(t, i, rec.GetNum())
+
+		// Now turn off IO and attempt rereading.
+		if i < 3 {
+			// For all but the last record, there will be no seeking or reading.
+			fileIO.SetError(errors.New("unexpected IO"))
+		} else {
+			// For the last record, a single read will be attempted to
+			// check if the final block got more data. However, no seeking
+			// should occur.
+			fileIO.SetSeekError(errors.New("unexpected seek"))
+		}
+
+		require.NoError(t, reader.ResetLastRead())
+		rec, err = reader.Read()
+		require.NoError(t, err)
+		assert.EqualValues(t, i, rec.GetNum())
 	}
 }

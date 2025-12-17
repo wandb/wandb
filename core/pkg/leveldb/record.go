@@ -134,6 +134,13 @@ var (
 	errZeroChunk = errors.New("leveldb/record: block appears to be zeroed")
 )
 
+// BlockOffset returns the position of the block containing a seek position.
+func BlockOffset(position int64) (block int64, offset int) {
+	block = position &^ blockSizeMask
+	offset = int(position & blockSizeMask)
+	return
+}
+
 type flusher interface {
 	Flush() error
 }
@@ -467,8 +474,7 @@ func (r *Reader) SeekRecord(offset int64) error {
 	r.recovering, r.last = false, false
 
 	// Seek to an exact block offset.
-	r.nextChunkStart = int(offset & blockSizeMask)
-	r.blockOffset = offset &^ blockSizeMask
+	r.blockOffset, r.nextChunkStart = BlockOffset(offset)
 	_, r.err = s.Seek(r.blockOffset, io.SeekStart)
 
 	return r.err
