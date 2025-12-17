@@ -158,7 +158,7 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
 
 class RunStateFilter(GQLBase):  # from: TriggeringRunStateEvent
     """Represents a filter for triggering events based on changes in run states."""
-    
+
     run: Annotated[
         JsonEncoded[MongoLikeFilter],
         AfterValidator(wrap_run_event_run_filter),
@@ -294,7 +294,7 @@ class OnCreateArtifact(_BaseMutationEventInput):
 
     event = OnCreateArtifact(scope=collection)
     ```
-"""
+    """
 
     event_type: Literal[EventType.CREATE_ARTIFACT] = EventType.CREATE_ARTIFACT
 
