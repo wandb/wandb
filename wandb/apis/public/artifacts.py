@@ -419,8 +419,8 @@ class ArtifactCollection:
             aliases = list(
                 _ArtifactCollectionAliases(self.client, collection_id=self.id)
             )
-            self._saved.aliases = aliases
-            self._current.aliases = aliases.copy()
+            self._saved = self._saved.model_copy(update={"aliases": aliases})
+            self._current = self._current.model_copy(update={"aliases": aliases})
 
         return list(self._saved.aliases)
 
