@@ -1886,6 +1886,62 @@ def test_save_artifact_portfolio(user: str, api: Api, new_description: str | Non
         assert len(portfolio.tags) == 1 and portfolio.tags[0] == "new_tag"
 
 
+def test_artifact_collection_aliases(user: str, api: Api, logged_artifact: Artifact):
+    artifact1 = Artifact("test-artifact-1", "data")
+    artifact2 = Artifact("test-artifact-2", "data")
+
+    latest = "latest"
+    alias1, alias2 = "test-alias-1", "test-alias-2"
+    link_alias1, link_alias2 = "link-alias-1", "link-alias-2"
+    extra = "extra"
+
+    # Log the source artifacts
+    with wandb.init() as run:
+        run.log_artifact(artifact1, aliases=[alias1])
+        run.log_artifact(artifact2, aliases=[alias2])
+        artifact1.wait()
+        artifact2.wait()
+
+    # Link both source artifacts to a different collection
+    linked1 = artifact1.link("test-collection", aliases=[link_alias1])
+    linked2 = artifact2.link("test-collection", aliases=[link_alias2])
+
+    expected_src_aliases1 = [latest, alias1]
+    expected_src_aliases2 = [latest, alias2]
+    expected_link_aliases = [latest, link_alias1, link_alias2]
+
+    # Check the aliases on the source collections
+    src_collection1 = api.artifact_collection(name="test-artifact-1", type_name="data")
+    assert sorted(src_collection1.aliases) == sorted(expected_src_aliases1)
+    src_collection2 = api.artifact_collection(name="test-artifact-2", type_name="data")
+    assert sorted(src_collection2.aliases) == sorted(expected_src_aliases2)
+
+    # Check the aliases on the target collection
+    link_collection = api.artifact_collection(name="test-collection", type_name="data")
+    assert sorted(link_collection.aliases) == sorted(expected_link_aliases)
+
+    # Collection aliases are updated when an alias is added to a *member* version
+    linked1.aliases += [extra]
+    linked1.save()
+
+    link_collection = api.artifact_collection(name="test-collection", type_name="data")
+    assert sorted(link_collection.aliases) == sorted([*expected_link_aliases, extra])
+
+    # Collection aliases should be deduplicated, so adding the same alias
+    # within a collection should not change the the collection aliases
+    linked2.aliases += [extra]
+    linked2.save()
+
+    link_collection = api.artifact_collection(name="test-collection", type_name="data")
+    assert sorted(link_collection.aliases) == sorted([*expected_link_aliases, extra])
+
+    # The original source collection aliases should not have changed
+    src_collection1 = api.artifact_collection(name="test-artifact-1", type_name="data")
+    assert sorted(src_collection1.aliases) == sorted(expected_src_aliases1)
+    src_collection2 = api.artifact_collection(name="test-artifact-2", type_name="data")
+    assert sorted(src_collection2.aliases) == sorted(expected_src_aliases2)
+
+
 def test_s3_storage_handler_load_path_missing_reference_allowed(
     monkeypatch, user, capsys, artifact
 ):
