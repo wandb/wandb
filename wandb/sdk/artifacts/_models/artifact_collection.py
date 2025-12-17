@@ -53,6 +53,10 @@ class ArtifactCollectionData(ArtifactsBase):
     aliases: Optional[Tuple[str, ...]] = Field(default=None, frozen=True)
     """All aliases assigned to artifact versions within this collection.
 
+    Deliberately immutable since this should be a read-only attribute.
+    Collection aliases are gathered from member artifact versions and should
+    not be directly editable on the artifact collection itself.
+
     Note:
         `None` indicates that aliases have not been fetched or parsed yet for
         any reason, NOT that aliases are absent in this collection.
