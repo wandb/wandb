@@ -709,7 +709,6 @@ class Run(Attrs):
                 # just for the sake of this one.
                 self.sweep = public.Sweep.get(
                     self.client,
-                    self._api,
                     self.entity,
                     self.project,
                     self.sweep_name,
