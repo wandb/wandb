@@ -28,11 +28,23 @@ fragment ArtifactSequenceScopeFields on ArtifactSequence {
   name
 }
 
+# Convenience fragment to select all known scope types
+fragment AnyTriggerScope on TriggerScope {
+  ...ProjectScopeFields
+  ...ArtifactPortfolioScopeFields
+  ...ArtifactSequenceScopeFields
+}
+
 # ------------------------------------------------------------------------------
 fragment FilterEventFields on FilterEventTriggeringCondition {
   __typename
   eventType
   filter
+}
+
+# Convenience fragment to select all known event types
+fragment AnyTriggerCondition on TriggeringCondition {
+  ...FilterEventFields
 }
 
 # ------------------------------------------------------------------------------
@@ -44,7 +56,6 @@ fragment QueueJobActionFields on QueueJobTriggeredAction {
   }
   template
 }
-
 fragment NotificationActionFields on NotificationTriggeredAction {
   __typename
   integration {
@@ -54,7 +65,6 @@ fragment NotificationActionFields on NotificationTriggeredAction {
   message
   severity
 }
-
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
   __typename
   integration {
@@ -62,10 +72,17 @@ fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
   }
   requestPayload
 }
-
 fragment NoOpActionFields on NoOpTriggeredAction {
   __typename
   noOp # GraphQL doesn't support empty objects, so this should be an ignored placeholder field
+}
+
+# Convenience fragment to select all known trigger scope types
+fragment AnyTriggerAction on TriggeredAction {
+  ...QueueJobActionFields
+  ...NotificationActionFields
+  ...GenericWebhookActionFields
+  ...NoOpActionFields
 }
 
 # ------------------------------------------------------------------------------
@@ -81,18 +98,13 @@ fragment TriggerFields on Trigger {
   enabled
 
   scope {
-    ...ProjectScopeFields
-    ...ArtifactPortfolioScopeFields
-    ...ArtifactSequenceScopeFields
+    ...AnyTriggerScope
   }
   event: triggeringCondition {
-    ...FilterEventFields
+    ...AnyTriggerCondition
   }
   action: triggeredAction {
-    ...QueueJobActionFields
-    ...NotificationActionFields
-    ...GenericWebhookActionFields
-    ...NoOpActionFields
+    ...AnyTriggerAction
   }
 }
 
@@ -129,6 +141,7 @@ query GetAutomations($cursor: String, $perPage: Int) {
     }
   }
 }
+
 query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
   scope: entity(name: $entity) {
     projects(after: $cursor, first: $perPage) {

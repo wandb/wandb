@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from pydantic import Field
+from pydantic import Field, PositiveInt
 from typing_extensions import Annotated
 
 from wandb._pydantic import GQLId, GQLInput
@@ -12,6 +12,9 @@ from ._generated import TriggerFields
 from .actions import InputAction, SavedAction
 from .events import InputEvent, SavedEvent
 from .scopes import AutomationScope
+
+if TYPE_CHECKING:
+    from wandb.apis.public.automations import ExecutedAutomations
 
 
 # ------------------------------------------------------------------------------
@@ -47,6 +50,21 @@ class Automation(TriggerFields, frozen=False):
 
     action: SavedAction
     """The action that will execute when this automation is triggered."""
+
+    def history(self, per_page: PositiveInt = 50) -> ExecutedAutomations:
+        from wandb_gql import gql
+
+        from wandb.apis.public import Api, ExecutedAutomations
+        from wandb.automations._generated import GET_AUTOMATION_HISTORY_GQL
+
+        # FIXME: there needs to be a default client session (like other python libraries do)
+        # that avoids the perf hit of instantiating the entire Api/InternalApi classes.
+        return ExecutedAutomations(
+            Api().client,
+            variables={"id": self.id},
+            per_page=per_page,
+            _query=gql(GET_AUTOMATION_HISTORY_GQL),
+        )
 
 
 class NewAutomation(GQLInput, extra="forbid", validate_default=False):

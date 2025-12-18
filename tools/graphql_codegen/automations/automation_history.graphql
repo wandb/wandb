@@ -1,0 +1,205 @@
+fragment ArtifactEventDetailsFields on ArtifactEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+}
+fragment ArtifactAliasEventDetailsFields on ArtifactAliasEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+  alias
+}
+fragment ArtifactTagEventDetailsFields on ArtifactTagEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+  tag
+}
+fragment RunMetricEventDetailsFields on RunMetricEventDetails {
+  __typename
+  runName
+  projectName
+  entityName
+  metricName
+  metricValues
+}
+fragment RunStateEventDetailsFields on RunStateEventDetails {
+  __typename
+  runName
+  projectName
+  entityName
+  newRunState
+}
+
+# Convenience fragment for including all known trigger event details types in a single selection.
+fragment AnyTriggerEventDetails on TriggerEventDetails {
+  ...ArtifactEventDetailsFields
+  ...ArtifactAliasEventDetailsFields
+  ...ArtifactTagEventDetailsFields
+  ...RunMetricEventDetailsFields
+  ...RunStateEventDetailsFields
+}
+
+# ---------------------------------------------------------------------------
+fragment QueueJobActionArgsFields on QueueJobActionArgs {
+  __typename
+  runSpec
+  priority
+}
+fragment SlackNotificationActionArgsFields on SlackNotificationActionArgs {
+  __typename
+  title
+  titleURL
+  text
+  severity
+  integration {
+    ...SlackIntegrationFields
+  }
+}
+fragment GenericWebhookActionArgsFields on GenericWebhookActionArgs {
+  __typename
+  requestPayload
+  integration {
+    ...WebhookIntegrationFields
+  }
+}
+fragment NoOpActionArgsFields on NoOpActionArgs {
+  __typename
+  noOp
+}
+
+# Convenience fragment for including all known trigger action details types in a single selection.
+fragment AnyTriggerActionDetails on TriggerActionDetails {
+  ...QueueJobActionArgsFields
+  ...SlackNotificationActionArgsFields
+  ...GenericWebhookActionArgsFields
+  ...NoOpActionArgsFields
+}
+
+# ---------------------------------------------------------------------------
+fragment DefaultTriggerResultDetailsFields on DefaultTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+}
+fragment HttpTriggerResultDetailsFields on HttpTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+  status
+  statusCode
+  body
+}
+fragment QueuedJobTriggerResultDetailsFields on QueuedJobTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+  runQueueItemID
+}
+
+# Convenience fragment for including all known trigger result details types in a single selection.
+fragment AnyTriggerResultDetails on TriggerResultDetails {
+  ...DefaultTriggerResultDetailsFields
+  ...HttpTriggerResultDetailsFields
+  ...QueuedJobTriggerResultDetailsFields
+}
+
+# ---------------------------------------------------------------------------
+fragment TriggerExecutionFields on TriggerExecution {
+  __typename
+  id
+
+  automationID: triggerID
+  automationName: triggerName
+
+  triggeredAt: createdAt
+  state
+  scope {
+    ...AnyTriggerScope
+  }
+  event {
+    kind: eventType
+    details: data {
+      ...AnyTriggerEventDetails
+    }
+  }
+  action {
+    kind: actionType
+    details: data {
+      ...AnyTriggerActionDetails
+    }
+  }
+  result {
+    kind: resultType
+    details: data {
+      ...AnyTriggerResultDetails
+    }
+  }
+}
+
+# Get automation execution history for a specific automation
+query GetAutomationHistory($id: ID!, $cursor: String, $perPage: Int) {
+  triggerExecutions(triggerID: $id, after: $cursor, first: $perPage) {
+    totalCount
+    pageInfo {
+      ...PageInfoFields
+    }
+    edges {
+      node {
+        ...TriggerExecutionFields
+      }
+    }
+  }
+}
+
+# Get automation execution history for all automations in a specific project
+query GetProjectAutomationHistory(
+  $project: String!
+  $entity: String!
+  $cursor: String
+  $perPage: Int
+  $filters: JSONString
+) {
+  scope: project(name: $project, entityName: $entity) {
+    triggerExecutions(projectOnly: false, after: $cursor, first: $perPage, filters: $filters) {
+      totalCount
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...TriggerExecutionFields
+        }
+      }
+    }
+  }
+}
+
+# Get automation execution history for all automations in a specific artifact collection
+query GetCollectionAutomationHistory($id: ID!, $cursor: String, $perPage: Int, $filters: JSONString) {
+  scope: artifactCollection(id: $id) {
+    triggerExecutions(after: $cursor, first: $perPage, filters: $filters) {
+      totalCount
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...TriggerExecutionFields
+        }
+      }
+    }
+  }
+}

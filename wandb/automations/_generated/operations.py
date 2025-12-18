@@ -7,9 +7,655 @@ __all__ = [
     "DELETE_AUTOMATION_GQL",
     "GET_AUTOMATIONS_BY_ENTITY_GQL",
     "GET_AUTOMATIONS_GQL",
+    "GET_AUTOMATION_HISTORY_GQL",
+    "GET_COLLECTION_AUTOMATION_HISTORY_GQL",
+    "GET_PROJECT_AUTOMATION_HISTORY_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
     "UPDATE_AUTOMATION_GQL",
 ]
+
+GET_AUTOMATION_HISTORY_GQL = """
+query GetAutomationHistory($id: ID!, $cursor: String, $perPage: Int) {
+  triggerExecutions(triggerID: $id, after: $cursor, first: $perPage) {
+    totalCount
+    pageInfo {
+      ...PageInfoFields
+    }
+    edges {
+      node {
+        ...TriggerExecutionFields
+      }
+    }
+  }
+}
+
+fragment AnyTriggerActionDetails on TriggerActionDetails {
+  ...QueueJobActionArgsFields
+  ...SlackNotificationActionArgsFields
+  ...GenericWebhookActionArgsFields
+  ...NoOpActionArgsFields
+}
+
+fragment AnyTriggerEventDetails on TriggerEventDetails {
+  ...ArtifactEventDetailsFields
+  ...ArtifactAliasEventDetailsFields
+  ...ArtifactTagEventDetailsFields
+  ...RunMetricEventDetailsFields
+  ...RunStateEventDetailsFields
+}
+
+fragment AnyTriggerResultDetails on TriggerResultDetails {
+  ...DefaultTriggerResultDetailsFields
+  ...HttpTriggerResultDetailsFields
+  ...QueuedJobTriggerResultDetailsFields
+}
+
+fragment AnyTriggerScope on TriggerScope {
+  ...ProjectScopeFields
+  ...ArtifactPortfolioScopeFields
+  ...ArtifactSequenceScopeFields
+}
+
+fragment ArtifactAliasEventDetailsFields on ArtifactAliasEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+  alias
+}
+
+fragment ArtifactEventDetailsFields on ArtifactEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+}
+
+fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
+  __typename
+  id
+  name
+}
+
+fragment ArtifactSequenceScopeFields on ArtifactSequence {
+  __typename
+  id
+  name
+}
+
+fragment ArtifactTagEventDetailsFields on ArtifactTagEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+  tag
+}
+
+fragment DefaultTriggerResultDetailsFields on DefaultTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+}
+
+fragment GenericWebhookActionArgsFields on GenericWebhookActionArgs {
+  __typename
+  requestPayload
+  integration {
+    ...WebhookIntegrationFields
+  }
+}
+
+fragment HttpTriggerResultDetailsFields on HttpTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+  status
+  statusCode
+  body
+}
+
+fragment NoOpActionArgsFields on NoOpActionArgs {
+  __typename
+  noOp
+}
+
+fragment PageInfoFields on PageInfo {
+  endCursor
+  hasNextPage
+}
+
+fragment ProjectScopeFields on Project {
+  __typename
+  id
+  name
+}
+
+fragment QueueJobActionArgsFields on QueueJobActionArgs {
+  __typename
+  runSpec
+  priority
+}
+
+fragment QueuedJobTriggerResultDetailsFields on QueuedJobTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+  runQueueItemID
+}
+
+fragment RunMetricEventDetailsFields on RunMetricEventDetails {
+  __typename
+  runName
+  projectName
+  entityName
+  metricName
+  metricValues
+}
+
+fragment RunStateEventDetailsFields on RunStateEventDetails {
+  __typename
+  runName
+  projectName
+  entityName
+  newRunState
+}
+
+fragment SlackIntegrationFields on SlackIntegration {
+  __typename
+  id
+  teamName
+  channelName
+}
+
+fragment SlackNotificationActionArgsFields on SlackNotificationActionArgs {
+  __typename
+  title
+  titleURL
+  text
+  severity
+  integration {
+    ...SlackIntegrationFields
+  }
+}
+
+fragment TriggerExecutionFields on TriggerExecution {
+  __typename
+  id
+  automationID: triggerID
+  automationName: triggerName
+  triggeredAt: createdAt
+  state
+  scope {
+    ...AnyTriggerScope
+  }
+  event {
+    kind: eventType
+    details: data {
+      ...AnyTriggerEventDetails
+    }
+  }
+  action {
+    kind: actionType
+    details: data {
+      ...AnyTriggerActionDetails
+    }
+  }
+  result {
+    kind: resultType
+    details: data {
+      ...AnyTriggerResultDetails
+    }
+  }
+}
+
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
+}
+"""
+
+GET_PROJECT_AUTOMATION_HISTORY_GQL = """
+query GetProjectAutomationHistory($project: String!, $entity: String!, $cursor: String, $perPage: Int, $filters: JSONString) {
+  scope: project(name: $project, entityName: $entity) {
+    triggerExecutions(
+      projectOnly: false
+      after: $cursor
+      first: $perPage
+      filters: $filters
+    ) {
+      totalCount
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...TriggerExecutionFields
+        }
+      }
+    }
+  }
+}
+
+fragment AnyTriggerActionDetails on TriggerActionDetails {
+  ...QueueJobActionArgsFields
+  ...SlackNotificationActionArgsFields
+  ...GenericWebhookActionArgsFields
+  ...NoOpActionArgsFields
+}
+
+fragment AnyTriggerEventDetails on TriggerEventDetails {
+  ...ArtifactEventDetailsFields
+  ...ArtifactAliasEventDetailsFields
+  ...ArtifactTagEventDetailsFields
+  ...RunMetricEventDetailsFields
+  ...RunStateEventDetailsFields
+}
+
+fragment AnyTriggerResultDetails on TriggerResultDetails {
+  ...DefaultTriggerResultDetailsFields
+  ...HttpTriggerResultDetailsFields
+  ...QueuedJobTriggerResultDetailsFields
+}
+
+fragment AnyTriggerScope on TriggerScope {
+  ...ProjectScopeFields
+  ...ArtifactPortfolioScopeFields
+  ...ArtifactSequenceScopeFields
+}
+
+fragment ArtifactAliasEventDetailsFields on ArtifactAliasEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+  alias
+}
+
+fragment ArtifactEventDetailsFields on ArtifactEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+}
+
+fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
+  __typename
+  id
+  name
+}
+
+fragment ArtifactSequenceScopeFields on ArtifactSequence {
+  __typename
+  id
+  name
+}
+
+fragment ArtifactTagEventDetailsFields on ArtifactTagEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+  tag
+}
+
+fragment DefaultTriggerResultDetailsFields on DefaultTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+}
+
+fragment GenericWebhookActionArgsFields on GenericWebhookActionArgs {
+  __typename
+  requestPayload
+  integration {
+    ...WebhookIntegrationFields
+  }
+}
+
+fragment HttpTriggerResultDetailsFields on HttpTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+  status
+  statusCode
+  body
+}
+
+fragment NoOpActionArgsFields on NoOpActionArgs {
+  __typename
+  noOp
+}
+
+fragment PageInfoFields on PageInfo {
+  endCursor
+  hasNextPage
+}
+
+fragment ProjectScopeFields on Project {
+  __typename
+  id
+  name
+}
+
+fragment QueueJobActionArgsFields on QueueJobActionArgs {
+  __typename
+  runSpec
+  priority
+}
+
+fragment QueuedJobTriggerResultDetailsFields on QueuedJobTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+  runQueueItemID
+}
+
+fragment RunMetricEventDetailsFields on RunMetricEventDetails {
+  __typename
+  runName
+  projectName
+  entityName
+  metricName
+  metricValues
+}
+
+fragment RunStateEventDetailsFields on RunStateEventDetails {
+  __typename
+  runName
+  projectName
+  entityName
+  newRunState
+}
+
+fragment SlackIntegrationFields on SlackIntegration {
+  __typename
+  id
+  teamName
+  channelName
+}
+
+fragment SlackNotificationActionArgsFields on SlackNotificationActionArgs {
+  __typename
+  title
+  titleURL
+  text
+  severity
+  integration {
+    ...SlackIntegrationFields
+  }
+}
+
+fragment TriggerExecutionFields on TriggerExecution {
+  __typename
+  id
+  automationID: triggerID
+  automationName: triggerName
+  triggeredAt: createdAt
+  state
+  scope {
+    ...AnyTriggerScope
+  }
+  event {
+    kind: eventType
+    details: data {
+      ...AnyTriggerEventDetails
+    }
+  }
+  action {
+    kind: actionType
+    details: data {
+      ...AnyTriggerActionDetails
+    }
+  }
+  result {
+    kind: resultType
+    details: data {
+      ...AnyTriggerResultDetails
+    }
+  }
+}
+
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
+}
+"""
+
+GET_COLLECTION_AUTOMATION_HISTORY_GQL = """
+query GetCollectionAutomationHistory($id: ID!, $cursor: String, $perPage: Int, $filters: JSONString) {
+  scope: artifactCollection(id: $id) {
+    __typename
+    triggerExecutions(after: $cursor, first: $perPage, filters: $filters) {
+      totalCount
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...TriggerExecutionFields
+        }
+      }
+    }
+  }
+}
+
+fragment AnyTriggerActionDetails on TriggerActionDetails {
+  ...QueueJobActionArgsFields
+  ...SlackNotificationActionArgsFields
+  ...GenericWebhookActionArgsFields
+  ...NoOpActionArgsFields
+}
+
+fragment AnyTriggerEventDetails on TriggerEventDetails {
+  ...ArtifactEventDetailsFields
+  ...ArtifactAliasEventDetailsFields
+  ...ArtifactTagEventDetailsFields
+  ...RunMetricEventDetailsFields
+  ...RunStateEventDetailsFields
+}
+
+fragment AnyTriggerResultDetails on TriggerResultDetails {
+  ...DefaultTriggerResultDetailsFields
+  ...HttpTriggerResultDetailsFields
+  ...QueuedJobTriggerResultDetailsFields
+}
+
+fragment AnyTriggerScope on TriggerScope {
+  ...ProjectScopeFields
+  ...ArtifactPortfolioScopeFields
+  ...ArtifactSequenceScopeFields
+}
+
+fragment ArtifactAliasEventDetailsFields on ArtifactAliasEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+  alias
+}
+
+fragment ArtifactEventDetailsFields on ArtifactEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+}
+
+fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
+  __typename
+  id
+  name
+}
+
+fragment ArtifactSequenceScopeFields on ArtifactSequence {
+  __typename
+  id
+  name
+}
+
+fragment ArtifactTagEventDetailsFields on ArtifactTagEventDetails {
+  __typename
+  artifactMetadata
+  artifactVersionIndex
+  artifactCollectionName
+  projectName
+  entityName
+  tag
+}
+
+fragment DefaultTriggerResultDetailsFields on DefaultTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+}
+
+fragment GenericWebhookActionArgsFields on GenericWebhookActionArgs {
+  __typename
+  requestPayload
+  integration {
+    ...WebhookIntegrationFields
+  }
+}
+
+fragment HttpTriggerResultDetailsFields on HttpTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+  status
+  statusCode
+  body
+}
+
+fragment NoOpActionArgsFields on NoOpActionArgs {
+  __typename
+  noOp
+}
+
+fragment PageInfoFields on PageInfo {
+  endCursor
+  hasNextPage
+}
+
+fragment ProjectScopeFields on Project {
+  __typename
+  id
+  name
+}
+
+fragment QueueJobActionArgsFields on QueueJobActionArgs {
+  __typename
+  runSpec
+  priority
+}
+
+fragment QueuedJobTriggerResultDetailsFields on QueuedJobTriggerResultDetails {
+  __typename
+  error {
+    message
+  }
+  runQueueItemID
+}
+
+fragment RunMetricEventDetailsFields on RunMetricEventDetails {
+  __typename
+  runName
+  projectName
+  entityName
+  metricName
+  metricValues
+}
+
+fragment RunStateEventDetailsFields on RunStateEventDetails {
+  __typename
+  runName
+  projectName
+  entityName
+  newRunState
+}
+
+fragment SlackIntegrationFields on SlackIntegration {
+  __typename
+  id
+  teamName
+  channelName
+}
+
+fragment SlackNotificationActionArgsFields on SlackNotificationActionArgs {
+  __typename
+  title
+  titleURL
+  text
+  severity
+  integration {
+    ...SlackIntegrationFields
+  }
+}
+
+fragment TriggerExecutionFields on TriggerExecution {
+  __typename
+  id
+  automationID: triggerID
+  automationName: triggerName
+  triggeredAt: createdAt
+  state
+  scope {
+    ...AnyTriggerScope
+  }
+  event {
+    kind: eventType
+    details: data {
+      ...AnyTriggerEventDetails
+    }
+  }
+  action {
+    kind: actionType
+    details: data {
+      ...AnyTriggerActionDetails
+    }
+  }
+  result {
+    kind: resultType
+    details: data {
+      ...AnyTriggerResultDetails
+    }
+  }
+}
+
+fragment WebhookIntegrationFields on GenericWebhookIntegration {
+  __typename
+  id
+  name
+  urlEndpoint
+}
+"""
 
 GET_AUTOMATIONS_GQL = """
 query GetAutomations($cursor: String, $perPage: Int) {
@@ -25,6 +671,23 @@ query GetAutomations($cursor: String, $perPage: Int) {
       }
     }
   }
+}
+
+fragment AnyTriggerAction on TriggeredAction {
+  ...QueueJobActionFields
+  ...NotificationActionFields
+  ...GenericWebhookActionFields
+  ...NoOpActionFields
+}
+
+fragment AnyTriggerCondition on TriggeringCondition {
+  ...FilterEventFields
+}
+
+fragment AnyTriggerScope on TriggerScope {
+  ...ProjectScopeFields
+  ...ArtifactPortfolioScopeFields
+  ...ArtifactSequenceScopeFields
 }
 
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
@@ -111,18 +774,13 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
-    ...ProjectScopeFields
-    ...ArtifactPortfolioScopeFields
-    ...ArtifactSequenceScopeFields
+    ...AnyTriggerScope
   }
   event: triggeringCondition {
-    ...FilterEventFields
+    ...AnyTriggerCondition
   }
   action: triggeredAction {
-    ...QueueJobActionFields
-    ...NotificationActionFields
-    ...GenericWebhookActionFields
-    ...NoOpActionFields
+    ...AnyTriggerAction
   }
 }
 
@@ -150,6 +808,23 @@ query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
   }
 }
 
+fragment AnyTriggerAction on TriggeredAction {
+  ...QueueJobActionFields
+  ...NotificationActionFields
+  ...GenericWebhookActionFields
+  ...NoOpActionFields
+}
+
+fragment AnyTriggerCondition on TriggeringCondition {
+  ...FilterEventFields
+}
+
+fragment AnyTriggerScope on TriggerScope {
+  ...ProjectScopeFields
+  ...ArtifactPortfolioScopeFields
+  ...ArtifactSequenceScopeFields
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -234,18 +909,13 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
-    ...ProjectScopeFields
-    ...ArtifactPortfolioScopeFields
-    ...ArtifactSequenceScopeFields
+    ...AnyTriggerScope
   }
   event: triggeringCondition {
-    ...FilterEventFields
+    ...AnyTriggerCondition
   }
   action: triggeredAction {
-    ...QueueJobActionFields
-    ...NotificationActionFields
-    ...GenericWebhookActionFields
-    ...NoOpActionFields
+    ...AnyTriggerAction
   }
 }
 
@@ -266,6 +936,23 @@ mutation CreateAutomation($input: CreateFilterTriggerInput!) {
   }
 }
 
+fragment AnyTriggerAction on TriggeredAction {
+  ...QueueJobActionFields
+  ...NotificationActionFields
+  ...GenericWebhookActionFields
+  ...NoOpActionFields
+}
+
+fragment AnyTriggerCondition on TriggeringCondition {
+  ...FilterEventFields
+}
+
+fragment AnyTriggerScope on TriggerScope {
+  ...ProjectScopeFields
+  ...ArtifactPortfolioScopeFields
+  ...ArtifactSequenceScopeFields
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -338,18 +1025,13 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
-    ...ProjectScopeFields
-    ...ArtifactPortfolioScopeFields
-    ...ArtifactSequenceScopeFields
+    ...AnyTriggerScope
   }
   event: triggeringCondition {
-    ...FilterEventFields
+    ...AnyTriggerCondition
   }
   action: triggeredAction {
-    ...QueueJobActionFields
-    ...NotificationActionFields
-    ...GenericWebhookActionFields
-    ...NoOpActionFields
+    ...AnyTriggerAction
   }
 }
 
@@ -370,6 +1052,23 @@ mutation UpdateAutomation($input: UpdateFilterTriggerInput!) {
   }
 }
 
+fragment AnyTriggerAction on TriggeredAction {
+  ...QueueJobActionFields
+  ...NotificationActionFields
+  ...GenericWebhookActionFields
+  ...NoOpActionFields
+}
+
+fragment AnyTriggerCondition on TriggeringCondition {
+  ...FilterEventFields
+}
+
+fragment AnyTriggerScope on TriggerScope {
+  ...ProjectScopeFields
+  ...ArtifactPortfolioScopeFields
+  ...ArtifactSequenceScopeFields
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -442,18 +1141,13 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
-    ...ProjectScopeFields
-    ...ArtifactPortfolioScopeFields
-    ...ArtifactSequenceScopeFields
+    ...AnyTriggerScope
   }
   event: triggeringCondition {
-    ...FilterEventFields
+    ...AnyTriggerCondition
   }
   action: triggeredAction {
-    ...QueueJobActionFields
-    ...NotificationActionFields
-    ...GenericWebhookActionFields
-    ...NoOpActionFields
+    ...AnyTriggerAction
   }
 }
 
