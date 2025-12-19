@@ -770,7 +770,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
                 project=self.project,
                 name=f"{self.collection_name}:{edge.version}",
             ),
-            attrs=edge.node,
+            src_art=edge.node,
             client=self.client,
         )
 
@@ -836,7 +836,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
                 project=node.artifact_sequence.project.name,
                 name=f"{node.artifact_sequence.name}:v{node.version_index}",
             ),
-            attrs=node,
+            src_art=node,
             client=self.client,
         )
 
