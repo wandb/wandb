@@ -30,6 +30,8 @@ message ServerApiInitResponse {
 message ApiResponse {
   oneof response {
     ReadRunHistoryResponse read_run_history_response = 1;
+    DownloadRunHistoryResponse download_run_history_response = 3;
+
     ApiErrorResponse api_error_response = 2;
   }
 }
@@ -45,6 +47,7 @@ message ReadRunHistoryRequest {
     ScanRunHistoryInit scan_run_history_init = 1;
     ScanRunHistory scan_run_history = 2;
     ScanRunHistoryCleanup scan_run_history_cleanup = 3;
+    DownloadRunHistory download_run_history = 4;
   }
 }
 
@@ -53,6 +56,7 @@ message ReadRunHistoryResponse {
     ScanRunHistoryInitResponse scan_run_history_init = 1;
     RunHistoryResponse run_history = 2;
     ScanRunHistoryCleanupResponse scan_run_history_cleanup = 3;
+    DownloadRunHistoryResponse download_run_history = 4;
   }
 }
 
@@ -104,3 +108,17 @@ message ScanRunHistoryCleanup {
 message ScanRunHistoryCleanupResponse {}
 
 // End of Scan run history
+
+// Download run history
+
+message DownloadRunHistory {
+  string entity = 1;
+  string project = 2;
+  string run_id = 3;
+  string download_dir = 4;
+}
+
+message DownloadRunHistoryResponse {
+  repeated string file_names = 1;
+  bool contains_live_data = 2;
+}
