@@ -399,7 +399,7 @@ class Artifact:
     def _from_attrs(
         cls,
         path: FullArtifactPath,
-        attrs: ArtifactFragment,
+        src_art: ArtifactFragment,
         client: RetryingClient,
         *,
         # aliases/version_index are taken from the membership, if given
@@ -412,7 +412,7 @@ class Artifact:
         artifact._project = path.project
         artifact._name = path.name
 
-        artifact._assign_attrs(attrs, membership=membership)
+        artifact._assign_attrs(src_art, membership=membership)
 
         artifact.finalize()
 
@@ -425,7 +425,7 @@ class Artifact:
     # doesn't make it clear if the artifact is a link or not and have to manually set it.
     def _assign_attrs(
         self,
-        art: ArtifactFragment,
+        src_art: ArtifactFragment,
         *,
         # aliases/version_index are taken from the membership, if given
         membership: ArtifactMembershipFragment | None = None,
@@ -434,15 +434,15 @@ class Artifact:
         """Update this Artifact's attributes using the server response."""
         from ._validators import validate_metadata, validate_ttl_duration_seconds
 
-        self._id = art.id
+        self._id = src_art.id
 
-        src_collection = art.artifact_sequence
+        src_collection = src_art.artifact_sequence
         src_project = src_collection.project
 
         self._source_entity = src_project.entity.name if src_project else ""
         self._source_project = src_project.name if src_project else ""
-        self._source_name = f"{src_collection.name}:v{art.version_index}"
-        self._source_version = f"v{art.version_index}"
+        self._source_name = f"{src_collection.name}:v{src_art.version_index}"
+        self._source_version = f"v{src_art.version_index}"
 
         self._entity = self._entity or self._source_entity
         self._project = self._project or self._source_project
@@ -459,20 +459,20 @@ class Artifact:
         else:
             self._is_link = is_link
 
-        self._type = art.artifact_type.name
-        self._description = art.description
+        self._type = src_art.artifact_type.name
+        self._description = src_art.description
 
         # The future of aliases is to move all alias fetches to the membership level
         # so we don't have to do the collection fetches below
         if membership:
             aliases = [a.alias for a in membership.aliases]
-        elif art.aliases:
+        elif src_art.aliases:
             entity = self._entity
             project = self._project
             collection = self._name.split(":")[0]
             aliases = [
                 a.alias
-                for a in art.aliases
+                for a in src_art.aliases
                 if (
                     (alias_coll := a.artifact_collection)
                     and (alias_proj := alias_coll.project)
@@ -497,7 +497,7 @@ class Artifact:
             if membership and (m_version_index := membership.version_index) is not None:
                 version = f"v{m_version_index}"
             else:
-                version = f"v{art.version_index}"
+                version = f"v{src_art.version_index}"
         except TooManyItemsError:
             msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
             raise ValueError(msg) from None
@@ -508,29 +508,29 @@ class Artifact:
         self._aliases = copy(other_aliases)
         self._saved_aliases = copy(other_aliases)
 
-        self._tags = [tag.name for tag in (art.tags or [])]
+        self._tags = [tag.name for tag in (src_art.tags or [])]
         self._saved_tags = copy(self._tags)
 
-        self._metadata = validate_metadata(art.metadata)
+        self._metadata = validate_metadata(src_art.metadata)
 
         self._ttl_duration_seconds = validate_ttl_duration_seconds(
-            art.ttl_duration_seconds
+            src_art.ttl_duration_seconds
         )
         self._ttl_is_inherited = (
-            True if (art.ttl_is_inherited is None) else art.ttl_is_inherited
+            True if (src_art.ttl_is_inherited is None) else src_art.ttl_is_inherited
         )
 
-        self._state = ArtifactState(art.state)
-        self._size = art.size
-        self._digest = art.digest
+        self._state = ArtifactState(src_art.state)
+        self._size = src_art.size
+        self._digest = src_art.digest
 
         self._manifest = None
 
-        self._commit_hash = art.commit_hash
-        self._file_count = art.file_count
-        self._created_at = art.created_at
-        self._updated_at = art.updated_at
-        self._history_step = art.history_step
+        self._commit_hash = src_art.commit_hash
+        self._file_count = src_art.file_count
+        self._created_at = src_art.created_at
+        self._updated_at = src_art.updated_at
+        self._history_step = src_art.history_step
 
     @ensure_logged
     def new_draft(self) -> Artifact:
