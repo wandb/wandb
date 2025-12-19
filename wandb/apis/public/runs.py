@@ -713,6 +713,7 @@ class Run(Attrs):
                     self.project,
                     self.sweep_name,
                     withRuns=False,
+                    api=self._api,
                 )
 
         if not self._is_loaded or force:

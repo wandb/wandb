@@ -1354,7 +1354,13 @@ class Api:
         """
         entity, project, sweep_id = self._parse_path(path)
         if not self._sweeps.get(path):
-            self._sweeps[path] = public.Sweep(self.client, entity, project, sweep_id)
+            self._sweeps[path] = public.Sweep(
+                self.client,
+                entity,
+                project,
+                sweep_id,
+                api=self,
+            )
         return self._sweeps[path]
 
     @normalize_exceptions

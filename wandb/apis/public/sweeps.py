@@ -241,7 +241,15 @@ class Sweep(Attrs):
     """
     )
 
-    def __init__(self, client, entity, project, sweep_id, attrs=None):
+    def __init__(
+        self,
+        client,
+        entity,
+        project,
+        sweep_id,
+        attrs=None,
+        api: public.Api | None = None,
+    ):
         # TODO: Add agents / flesh this out.
         super().__init__(dict(attrs or {}))
         self.client = client
@@ -249,6 +257,7 @@ class Sweep(Attrs):
         self.project = project
         self.id = sweep_id
         self.runs = []
+        self._api = api
 
         self.load(force=not attrs)
 
@@ -313,6 +322,7 @@ class Sweep(Attrs):
                 order=order,
                 filters=filters,
                 per_page=1,
+                api=self._api,
             )[0]
         except IndexError:
             return None
@@ -367,6 +377,7 @@ class Sweep(Attrs):
         sid: str | None = None,
         order: str | None = None,
         query: str | None = None,
+        api: public.Api | None = None,
         **kwargs,
     ):
         """Execute a query against the cloud backend.
@@ -418,6 +429,7 @@ class Sweep(Attrs):
             order=order,
             per_page=10,
             filters={"$and": [{"sweep": sweep.id}]},
+            api=api,
         )
 
         return sweep
