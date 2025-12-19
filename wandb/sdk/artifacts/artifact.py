@@ -474,11 +474,11 @@ class Artifact:
                 a.alias
                 for a in art.aliases
                 if (
-                    (collection := a.artifact_collection)
-                    and (proj := collection.project)
-                    and proj.entity.name == entity
-                    and proj.name == project
-                    and collection.name == collection
+                    (alias_coll := a.artifact_collection)
+                    and (alias_proj := alias_coll.project)
+                    and alias_proj.entity.name == entity
+                    and alias_proj.name == project
+                    and alias_coll.name == collection
                 )
             ]
         else:
