@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "wandb/proto/wandb_settings.proto";
+import "wandb/proto/wandb_internal.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
@@ -30,7 +31,6 @@ message ServerApiInitResponse {
 message ApiResponse {
   oneof response {
     ReadRunHistoryResponse read_run_history_response = 1;
-    DownloadRunHistoryResponse download_run_history_response = 3;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -53,7 +53,10 @@ message ReadRunHistoryRequest {
     ScanRunHistoryInit scan_run_history_init = 1;
     ScanRunHistory scan_run_history = 2;
     ScanRunHistoryCleanup scan_run_history_cleanup = 3;
-    DownloadRunHistory download_run_history = 4;
+
+    DownloadRunHistoryInit download_run_history_init = 4;
+    DownloadRunHistoryStart download_run_history_start = 5;
+    DownloadRunHistoryStatus download_run_history_status = 6;
   }
 }
 
@@ -62,7 +65,10 @@ message ReadRunHistoryResponse {
     ScanRunHistoryInitResponse scan_run_history_init = 1;
     RunHistoryResponse run_history = 2;
     ScanRunHistoryCleanupResponse scan_run_history_cleanup = 3;
-    DownloadRunHistoryResponse download_run_history = 4;
+
+    DownloadRunHistoryInitResponse download_run_history_init = 4;
+    DownloadRunHistoryStartResponse download_run_history_start = 5;
+    DownloadRunHistoryStatusResponse download_run_history_status = 6;
   }
 }
 
@@ -117,8 +123,7 @@ message ScanRunHistoryCleanupResponse {}
 
 // Download run history
 
-// A request to download a run's history exports.
-message DownloadRunHistory {
+message DownloadRunHistoryInit {
   // The entity who owns the run.
   string entity = 1;
   // The project that the run belongs to.
@@ -135,16 +140,46 @@ message DownloadRunHistory {
   bool require_complete_history = 5;
 }
 
-// A response to a DownloadRunHistory request.
-message DownloadRunHistoryResponse {
-  // The list of file names that were downloaded.
-  // Each value is the full path to the downloaded file.
-  repeated string file_names = 1;
+message DownloadRunHistoryInitResponse {
+  // The request id of the download operation.
+  //
+  // This is used to identify the download operation,
+  // and request status updates of the download operation.
+  int32 request_id = 1;
 
-  // Whether the run contains data that has not been exported to parquet files yet.
+  // Whether the run contains live data not yet exported to parquet.
   bool contains_live_data = 2;
+}
+
+// A request to start a download operation for a run's history exports.
+message DownloadRunHistoryStart {
+  // The request id of the download operation.
+  int32 request_id = 1;
+}
+
+// A response to a DownloadRunHistoryStart request.
+message DownloadRunHistoryStartResponse {
+  // Files that have been successfully downloaded.
+  repeated string downloaded_files = 1;
+
+  // Map of file paths to error messages for failed downloads.
+  map<string, string> errors = 2;
 }
 
 // IncompleteRunHistoryError is an error that is returned when the run history
 // has live data that has not been exported to parquet files yet.
 message IncompleteRunHistoryError {}
+
+// DownloadRunHistoryStatus requests the status of an ongoing download operation.
+message DownloadRunHistoryStatus {
+  // The request id of an ongoing download operation.
+  int32 request_id = 1;
+}
+
+message DownloadRunHistoryStatusResponse {
+  // Whether the download operation has completed.
+  bool completed = 1;
+
+  // Operation stats for progress display.
+  wandb_internal.OperationStats operation_stats = 2;
+}
