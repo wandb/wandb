@@ -190,3 +190,41 @@ def test_run_beta_scan_history__exits_on_requested_max_step(
     assert history == [
         {"_step": 0, "acc": 0.5, "loss": 1.0},
     ]
+
+
+def test_sweep_run_history_scan(
+    wandb_backend_spy,
+    parquet_file_server,
+    user,
+):
+    sweep_config = {
+        "name": "test-sweep",
+        "method": "random",
+        "parameters": {
+            "learning_rate": {"min": 0.001, "max": 0.1},
+        },
+    }
+    sweep_id = wandb.sweep(sweep_config, project="test")
+    parquet_data_path = "parquet/sweep_run.parquet"
+    run_data = {
+        "_step": [0],
+        "acc": [0.5],
+    }
+    parquet_file_server.serve_data_as_parquet_file(parquet_data_path, run_data)
+    stub_run_parquet_history(
+        wandb_backend_spy, parquet_file_server, [parquet_data_path]
+    )
+    stub_api_run_history_keys(wandb_backend_spy, 2)
+    with wandb.init(settings={"sweep_id": sweep_id}):
+        pass
+
+    api = wandb.Api()
+    sweep = api.sweep(f"{user}/test/sweeps/{sweep_id}")
+
+    sweep_runs = list(sweep.runs)
+    assert len(sweep_runs) == 1
+
+    sweep_run = sweep_runs[0]
+    scan = sweep_run.beta_scan_history()
+    history = [row for row in scan]
+    assert history == [{"_step": 0, "acc": 0.5}]
