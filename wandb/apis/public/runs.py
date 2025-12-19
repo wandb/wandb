@@ -40,12 +40,12 @@ import pathlib
 import tempfile
 import time
 import urllib
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Collection, Iterator, Literal, Mapping
 
 from wandb_gql import gql
 
 import wandb
+import wandb.apis.public.runhistory as runhistory
 from wandb import env, util
 from wandb._strutils import nameof
 from wandb.apis import public
@@ -122,31 +122,6 @@ LIGHTWEIGHT_RUN_FRAGMENT = """fragment LightweightRunFragment on Run {
 # Fragment name constants to avoid string parsing
 RUN_FRAGMENT_NAME = "RunFragment"
 LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
-
-
-class IncompleteRunHistoryError(Exception):
-    """Raised when run history has incomplete history.
-
-    Incomplete history occurs when there is some data
-    that has not been exported to parquet files yet.
-    Typically due to an on-going run.
-    """
-
-
-@dataclass(frozen=True)
-class DownloadHistoryResult:
-    """Result of downloading a run's history exports.
-
-    Attributes:
-        paths: The paths to the downloaded history files.
-        errors: A dictionary of errors that occurred while downloading the history files.
-        contains_live_data: Whether the run contains live data,
-            not yet exported to parquet files:w.
-    """
-
-    paths: list[pathlib.Path]
-    contains_live_data: bool
-    errors: dict[pathlib.Path, str] | None = None
 
 
 def _create_runs_query(
@@ -1640,7 +1615,7 @@ class Run(Attrs):
         self,
         download_dir: pathlib.Path | str,
         require_complete_history: bool = True,
-    ) -> DownloadHistoryResult:
+    ) -> runhistory.DownloadHistoryResult:
         """Download any parquet history files for the run to the provided directory.
 
         Args:
@@ -1651,23 +1626,30 @@ class Run(Attrs):
 
         Returns:
             A DownloadHistoryResult.
+
+        Raises:
+            IncompleteRunHistoryError: If require_complete_history is True
+                and the run contains data not yet exported to parquet files.
+            WandbApiFailedError: If the API request fails for reasons other than
+                incomplete history.
         """
         if self._api is None:
             self._api = public.Api()
 
+        init_download_request = apb.DownloadRunHistoryInit(
+            entity=self.entity,
+            project=self.project,
+            run_id=self.id,
+            download_dir=str(download_dir),
+            require_complete_history=require_complete_history,
+        )
         api_request = apb.ApiRequest(
             read_run_history_request=apb.ReadRunHistoryRequest(
-                download_run_history=apb.DownloadRunHistory(
-                    entity=self.entity,
-                    project=self.project,
-                    run_id=self.id,
-                    download_dir=str(download_dir),
-                    require_complete_history=require_complete_history,
-                )
+                download_run_history_init=init_download_request,
             )
         )
 
-        response: apb.ApiResponse | None = None
+        response: apb.ApiResponse
         try:
             response = self._api._send_api_request(api_request)
         except WandbApiFailedError as e:
@@ -1676,21 +1658,15 @@ class Run(Attrs):
                 and e.response.error_type is not None
                 and e.response.error_type == apb.ErrorType.INCOMPLETE_RUN_HISTORY_ERROR
             ):
-                raise IncompleteRunHistoryError() from None
+                raise runhistory.IncompleteRunHistoryError() from None
+            else:
+                raise WandbApiFailedError("Failed to download history") from e
 
-        if response is None:
-            raise wandb.Error(
-                "Failed to download run history exports, no response from server"
-            )
+        contains_live_data = response.read_run_history_response.download_run_history_init.contains_live_data
+        if require_complete_history and contains_live_data:
+            raise runhistory.IncompleteRunHistoryError()
 
-        contains_live_data: bool = (
-            response.download_run_history_response.contains_live_data
+        request_id = (
+            response.read_run_history_response.download_run_history_init.request_id
         )
-        file_names: list[pathlib.Path] = []
-        for file_name in response.download_run_history_response.file_names:
-            file_names.append(pathlib.Path(download_dir, file_name))
-
-        return DownloadHistoryResult(
-            paths=file_names,
-            contains_live_data=contains_live_data,
-        )
+        return runhistory.wait_for_download(self._api, request_id, contains_live_data)

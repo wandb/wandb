@@ -23,6 +23,9 @@ type FileTransferStats interface {
 
 	// UpdateUploadStats updates the upload stats for a file.
 	UpdateUploadStats(newInfo FileUploadInfo)
+
+	// UpdateDownloadStats updates the download stats for a file.
+	UpdateDownloadStats(newInfo FileDownloadInfo)
 }
 
 type fileTransferStats struct {
@@ -30,10 +33,14 @@ type fileTransferStats struct {
 
 	done *atomic.Bool
 
-	statsByPath map[string]FileUploadInfo
+	uploadStatsByPath map[string]FileUploadInfo
 
 	uploadedBytes *atomic.Int64
 	totalBytes    *atomic.Int64
+
+	downloadStatsByPath  map[string]FileDownloadInfo
+	downloadedBytes      *atomic.Int64
+	totalDownloadedBytes *atomic.Int64
 
 	wandbCount    *atomic.Int32
 	mediaCount    *atomic.Int32
@@ -45,10 +52,14 @@ func NewFileTransferStats() FileTransferStats {
 	return &fileTransferStats{
 		done: &atomic.Bool{},
 
-		statsByPath: make(map[string]FileUploadInfo),
+		uploadStatsByPath: make(map[string]FileUploadInfo),
 
 		uploadedBytes: &atomic.Int64{},
 		totalBytes:    &atomic.Int64{},
+
+		downloadStatsByPath:  make(map[string]FileDownloadInfo),
+		downloadedBytes:      &atomic.Int64{},
+		totalDownloadedBytes: &atomic.Int64{},
 
 		wandbCount:    &atomic.Int32{},
 		mediaCount:    &atomic.Int32{},
@@ -98,16 +109,41 @@ type FileUploadInfo struct {
 	TotalBytes int64
 }
 
+type FileDownloadInfo struct {
+	// The local path to the file being downloaded.
+	Path string
+
+	// The number of bytes downloaded so far.
+	DownloadedBytes int64
+
+	// The total number of bytes being downloaded.
+	TotalBytes int64
+}
+
 func (fts *fileTransferStats) UpdateUploadStats(newInfo FileUploadInfo) {
 	fts.Lock()
 	defer fts.Unlock()
 
-	if oldInfo, ok := fts.statsByPath[newInfo.Path]; ok {
+	if oldInfo, ok := fts.uploadStatsByPath[newInfo.Path]; ok {
 		fts.addStats(oldInfo, -1)
 	}
 
-	fts.statsByPath[newInfo.Path] = newInfo
+	fts.uploadStatsByPath[newInfo.Path] = newInfo
 	fts.addStats(newInfo, 1)
+}
+
+func (fts *fileTransferStats) UpdateDownloadStats(newInfo FileDownloadInfo) {
+	fts.Lock()
+	defer fts.Unlock()
+
+	if oldInfo, ok := fts.downloadStatsByPath[newInfo.Path]; ok {
+		fts.downloadedBytes.Add(-oldInfo.DownloadedBytes)
+		fts.totalDownloadedBytes.Add(-oldInfo.TotalBytes)
+	}
+
+	fts.downloadStatsByPath[newInfo.Path] = newInfo
+	fts.downloadedBytes.Add(newInfo.DownloadedBytes)
+	fts.totalDownloadedBytes.Add(newInfo.TotalBytes)
 }
 
 func (fts *fileTransferStats) addStats(info FileUploadInfo, mult int64) {

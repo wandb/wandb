@@ -1,6 +1,7 @@
 package filetransfer
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -140,7 +141,6 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 
-	// TODO: redo it to use the progress writer, to track the download progress
 	req, err := retryablehttp.NewRequest(http.MethodGet, task.Url, nil)
 	if err != nil {
 		return err
@@ -177,8 +177,34 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		}
 	}(resp.Body)
 
-	_, err = io.Copy(file, resp.Body)
+	progress, err := wboperation.Get(task.Context).NewProgress()
 	if err != nil {
+		ft.logger.CaptureError(fmt.Errorf("file transfer: download: %v", err))
+	}
+
+	// If Size is not set, try to get it from Content-Length header
+	size := task.Size
+	if size == 0 && resp.ContentLength > 0 {
+		size = resp.ContentLength
+	}
+
+	progressWriter := NewProgressWriter(
+		file,
+		size,
+		func(processed, total int64) {
+			if task.ProgressCallback != nil {
+				task.ProgressCallback(int(processed), int(total))
+			}
+
+			if size == 0 {
+				progress.SetBytesDone(int(processed))
+			} else {
+				progress.SetBytesOfTotal(int(processed), int(total))
+			}
+		},
+	)
+	_, err = io.Copy(progressWriter, resp.Body)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
 	return nil
@@ -256,58 +282,4 @@ func getUploadRequestBody(
 		)
 	}
 	return requestBody, nil
-}
-
-type ProgressReader struct {
-	reader   io.ReadSeeker
-	len      int64
-	read     int64
-	callback func(processed, total int64)
-}
-
-func NewProgressReader(
-	reader io.ReadSeeker,
-	size int64,
-	callback func(processed, total int64),
-) *ProgressReader {
-	return &ProgressReader{
-		reader:   reader,
-		len:      size,
-		callback: callback,
-	}
-}
-
-// Seek implements io.Seeker.
-func (pr *ProgressReader) Seek(offset int64, whence int) (n int64, err error) {
-	n, err = pr.reader.Seek(offset, whence)
-
-	if err == nil {
-		pr.read = n
-		pr.invokeCallback()
-	}
-
-	return
-}
-
-// Read implements io.Reader.
-func (pr *ProgressReader) Read(p []byte) (n int, err error) {
-	n, err = pr.reader.Read(p)
-
-	if err == nil {
-		pr.read += int64(n)
-		pr.invokeCallback()
-	}
-
-	return
-}
-
-// Len implements retryablehttp.LenReader.
-func (pr *ProgressReader) Len() int {
-	return int(pr.len)
-}
-
-func (pr *ProgressReader) invokeCallback() {
-	if pr.callback != nil {
-		pr.callback(pr.read, pr.len)
-	}
 }

@@ -52,6 +52,7 @@ from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.gql_request import GraphQLSession
+from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 if TYPE_CHECKING:
     from wandb.automations import (
@@ -311,6 +312,23 @@ class Api:
 
         assert self._service is not None
         return self._service.api_request(request, timeout=timeout)
+
+    async def _send_api_request_async(
+        self,
+        request: ApiRequest,
+        timeout: float | None = None,
+    ) -> MailboxHandle[ApiResponse]:
+        """Sends an API request to the backend service asynchronously.
+
+        Args:
+            request: The API request to send.
+            timeout: The timeout for the request.
+        """
+        if self._service is None:
+            self._start_backend_service()
+
+        assert self._service is not None
+        return await self._service.api_request_async(request)
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
