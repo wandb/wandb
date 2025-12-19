@@ -85,14 +85,10 @@ def test_sweep_api_get_sweep_run(
     _ = use_local_wandb_backend
     _project = "test"
     with wandb.init(entity=user, project=_project) as run:
-        run_id = run.id
-        run.log({"x": 1})
-        run.finish()
         sweep_id = wandb.sweep(
             sweep_config,
             entity=user,
             project=_project,
-            prior_runs=[run_id],
         )
 
     # Create a sweep run (a run associated with the sweep)
