@@ -385,6 +385,9 @@ class Artifact:
                 f"Please update your paths to point to the migrated registry directly, '{proj.name}/{name}'."
             )
 
+        # Update the target path to use the actual project/entity names returned in the
+        # response, in case they differ from the original target path
+        # E.g. uppercase vs lowercase, migrated legacy model registry, etc.
         new_target = replace(target, prefix=proj.entity.name, project=proj.name)
 
         if not (artifact := membership.artifact):
