@@ -91,14 +91,13 @@ def test_sweep_api_get_sweep_run(
             project=_project,
         )
 
-    # Create a sweep run (a run associated with the sweep)
+    # Create a sweep run
     with wandb.init(
         entity=user, project=_project, settings={"sweep_id": sweep_id}
     ) as sweep_run:
         sweep_run.log({"y": 2})
         sweep_run_id = sweep_run.id
 
-    # Retrieve the sweep run via API
     api = Api()
     run = api.run(f"{user}/{_project}/{sweep_run_id}")
     assert run._attrs.get("summaryMetrics", {}).get("y") == 2
