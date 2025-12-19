@@ -13,6 +13,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- `download_history_exports` in `api.Run` class to download exported run history in parquet file format (@jacobromero in https://github.com/wandb/wandb/pull/11094)
+
 ### Changed
 
 - When a settings file (such as `./wandb/settings` or `~/.config/wandb/settings`) contains an invalid setting, all settings files are ignored and an error is printed (@timoffex in https://github.com/wandb/wandb/pull/11207)
