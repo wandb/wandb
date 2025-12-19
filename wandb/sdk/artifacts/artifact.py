@@ -311,14 +311,14 @@ class Artifact:
         result = ArtifactMembershipByName.model_validate(data)
 
         if not (project := result.project):
-            raise ValueError(
-                f"project {path.project!r} not found under entity {path.prefix!r}"
-            )
+            msg = f"project {path.project!r} not found under entity {path.prefix!r}"
+            raise ValueError(msg)
+
         if not (membership := project.artifact_collection_membership):
             entity_project = f"{path.prefix}/{path.project}"
-            raise ValueError(
-                f"artifact membership {path.name!r} not found in {entity_project!r}"
-            )
+            msg = f"artifact membership {path.name!r} not found in {entity_project!r}"
+            raise ValueError(msg)
+
         return cls._from_membership(membership, target=path, client=client)
 
     @classmethod
@@ -350,12 +350,13 @@ class Artifact:
         result = ArtifactByName.model_validate(data)
 
         if not (project := result.project):
-            raise ValueError(
-                f"project {path.project!r} not found under entity {path.prefix!r}"
-            )
+            msg = f"project {path.project!r} not found in entity {path.prefix!r}"
+            raise ValueError(msg)
+
         if not (artifact := project.artifact):
             entity_project = f"{path.prefix}/{path.project}"
-            raise ValueError(f"artifact {path.name!r} not found in {entity_project!r}")
+            msg = f"artifact {path.name!r} not found in {entity_project!r}"
+            raise ValueError(msg)
 
         return cls._from_attrs(path, artifact, client)
 
@@ -383,15 +384,16 @@ class Artifact:
                 f"Your request was redirected to the corresponding artifact {name!r} in the new registry. "
                 f"Please update your paths to point to the migrated registry directly, '{proj.name}/{name}'."
             )
-            new_target = replace(target, prefix=proj.entity.name, project=proj.name)
-        else:
-            new_target = copy(target)
+
+        # Update the target path to use the actual project/entity names returned in the
+        # response, in case they differ from the original target path
+        # E.g. uppercase vs lowercase, migrated legacy model registry, etc.
+        new_target = replace(target, prefix=proj.entity.name, project=proj.name)
 
         if not (artifact := membership.artifact):
             raise ValueError(f"Artifact {target.to_str()!r} not found in response")
 
-        aliases = [a.alias for a in membership.aliases]
-        return cls._from_attrs(new_target, artifact, client, aliases=aliases)
+        return cls._from_attrs(new_target, artifact, client, membership=membership)
 
     @classmethod
     def _from_attrs(
@@ -399,7 +401,9 @@ class Artifact:
         path: FullArtifactPath,
         attrs: ArtifactFragment,
         client: RetryingClient,
-        aliases: list[str] | None = None,
+        *,
+        # aliases/version_index are taken from the membership, if given
+        membership: ArtifactMembershipFragment | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -408,7 +412,7 @@ class Artifact:
         artifact._project = path.project
         artifact._name = path.name
 
-        artifact._assign_attrs(attrs, aliases)
+        artifact._assign_attrs(attrs, membership=membership)
 
         artifact.finalize()
 
@@ -422,7 +426,9 @@ class Artifact:
     def _assign_attrs(
         self,
         art: ArtifactFragment,
-        aliases: list[str] | None = None,
+        *,
+        # aliases/version_index are taken from the membership, if given
+        membership: ArtifactMembershipFragment | None = None,
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
@@ -458,35 +464,40 @@ class Artifact:
 
         # The future of aliases is to move all alias fetches to the membership level
         # so we don't have to do the collection fetches below
-        if aliases:
-            processed_aliases = aliases
+        if membership:
+            aliases = [a.alias for a in membership.aliases]
         elif art.aliases:
             entity = self._entity
             project = self._project
             collection = self._name.split(":")[0]
-            processed_aliases = [
-                art_alias.alias
-                for art_alias in art.aliases
+            aliases = [
+                a.alias
+                for a in art.aliases
                 if (
-                    (coll := art_alias.artifact_collection)
-                    and (proj := coll.project)
-                    and proj.entity.name == entity
-                    and proj.name == project
-                    and coll.name == collection
+                    (alias_coll := a.artifact_collection)
+                    and (alias_proj := alias_coll.project)
+                    and alias_proj.entity.name == entity
+                    and alias_proj.name == project
+                    and alias_coll.name == collection
                 )
             ]
         else:
-            processed_aliases = []
+            aliases = []
 
-        version_aliases = list(filter(alias_is_version_index, processed_aliases))
-        other_aliases = list(filterfalse(alias_is_version_index, processed_aliases))
+        version_aliases = list(filter(alias_is_version_index, aliases))
+        other_aliases = list(filterfalse(alias_is_version_index, aliases))
 
         try:
             version = one(
                 version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
             )
         except TooFewItemsError:
-            version = f"v{art.version_index}"  # default to the source version
+            # default to the membership version if passed to this method,
+            # otherwise fallback to the source version
+            if membership and (m_version_index := membership.version_index) is not None:
+                version = f"v{m_version_index}"
+            else:
+                version = f"v{art.version_index}"
         except TooManyItemsError:
             msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
             raise ValueError(msg) from None
@@ -494,8 +505,8 @@ class Artifact:
         self._version = version
         self._name = self._name if (":" in self._name) else f"{self._name}:{version}"
 
-        self._aliases = other_aliases
-        self._saved_aliases = copy(self._aliases)
+        self._aliases = copy(other_aliases)
+        self._saved_aliases = copy(other_aliases)
 
         self._tags = [tag.name for tag in (art.tags or [])]
         self._saved_tags = copy(self._tags)
