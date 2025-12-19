@@ -311,14 +311,14 @@ class Artifact:
         result = ArtifactMembershipByName.model_validate(data)
 
         if not (project := result.project):
-            raise ValueError(
-                f"project {path.project!r} not found under entity {path.prefix!r}"
-            )
+            msg = f"project {path.project!r} not found under entity {path.prefix!r}"
+            raise ValueError(msg)
+
         if not (membership := project.artifact_collection_membership):
             entity_project = f"{path.prefix}/{path.project}"
-            raise ValueError(
-                f"artifact membership {path.name!r} not found in {entity_project!r}"
-            )
+            msg = f"artifact membership {path.name!r} not found in {entity_project!r}"
+            raise ValueError(msg)
+
         return cls._from_membership(membership, target=path, client=client)
 
     @classmethod
@@ -350,12 +350,13 @@ class Artifact:
         result = ArtifactByName.model_validate(data)
 
         if not (project := result.project):
-            raise ValueError(
-                f"project {path.project!r} not found under entity {path.prefix!r}"
-            )
+            msg = f"project {path.project!r} not found in entity {path.prefix!r}"
+            raise ValueError(msg)
+
         if not (artifact := project.artifact):
             entity_project = f"{path.prefix}/{path.project}"
-            raise ValueError(f"artifact {path.name!r} not found in {entity_project!r}")
+            msg = f"artifact {path.name!r} not found in {entity_project!r}"
+            raise ValueError(msg)
 
         return cls._from_attrs(path, artifact, client)
 
@@ -391,7 +392,14 @@ class Artifact:
             raise ValueError(f"Artifact {target.to_str()!r} not found in response")
 
         aliases = [a.alias for a in membership.aliases]
-        return cls._from_attrs(new_target, artifact, client, aliases=aliases)
+        version_idx = membership.version_index
+        return cls._from_attrs(
+            new_target,
+            artifact,
+            client,
+            aliases=aliases,
+            version_idx=version_idx,
+        )
 
     @classmethod
     def _from_attrs(
@@ -399,7 +407,10 @@ class Artifact:
         path: FullArtifactPath,
         attrs: ArtifactFragment,
         client: RetryingClient,
+        *,
+        # aliases and version_idx are fetched from ArtifactCollectionMembership
         aliases: list[str] | None = None,
+        version_idx: int | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -408,7 +419,7 @@ class Artifact:
         artifact._project = path.project
         artifact._name = path.name
 
-        artifact._assign_attrs(attrs, aliases)
+        artifact._assign_attrs(attrs, aliases=aliases, version_idx=version_idx)
 
         artifact.finalize()
 
@@ -422,7 +433,10 @@ class Artifact:
     def _assign_attrs(
         self,
         art: ArtifactFragment,
+        *,
+        # aliases and version_idx are fetched from ArtifactCollectionMembership
         aliases: list[str] | None = None,
+        version_idx: int | None = None,
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
@@ -486,7 +500,9 @@ class Artifact:
                 version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
             )
         except TooFewItemsError:
-            version = f"v{art.version_index}"  # default to the source version
+            # default to the membership version if passed to this method,
+            # otherwise fallback to the source version
+            version = f"v{version_idx or art.version_index}"
         except TooManyItemsError:
             msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
             raise ValueError(msg) from None

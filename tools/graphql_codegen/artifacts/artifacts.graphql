@@ -211,7 +211,7 @@ query ArtifactMembershipByName(
   $entity: String!
   $project: String!
   $name: String!
-  $includeAliases: Boolean = true
+  $includeAliases: Boolean = false # True includes ALL aliases from the source artifact, and we want only aliases for this membership
 ) {
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {

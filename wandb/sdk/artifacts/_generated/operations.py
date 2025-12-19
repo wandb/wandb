@@ -1067,7 +1067,7 @@ fragment TagFragment on Tag {
 """
 
 ARTIFACT_MEMBERSHIP_BY_NAME_GQL = """
-query ArtifactMembershipByName($entity: String!, $project: String!, $name: String!, $includeAliases: Boolean = true) {
+query ArtifactMembershipByName($entity: String!, $project: String!, $name: String!, $includeAliases: Boolean = false) {
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
       ...ArtifactMembershipFragment
