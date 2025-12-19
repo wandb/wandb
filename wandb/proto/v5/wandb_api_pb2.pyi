@@ -80,20 +80,24 @@ class ApiResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: builtins.int
+    DOWNLOAD_RUN_HISTORY_RESPONSE_FIELD_NUMBER: builtins.int
     API_ERROR_RESPONSE_FIELD_NUMBER: builtins.int
     @property
     def read_run_history_response(self) -> global___ReadRunHistoryResponse: ...
+    @property
+    def download_run_history_response(self) -> global___DownloadRunHistoryResponse: ...
     @property
     def api_error_response(self) -> global___ApiErrorResponse: ...
     def __init__(
         self,
         *,
         read_run_history_response: global___ReadRunHistoryResponse | None = ...,
+        download_run_history_response: global___DownloadRunHistoryResponse | None = ...,
         api_error_response: global___ApiErrorResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["read_run_history_response", "api_error_response"] | None: ...
+    def HasField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "download_run_history_response", b"download_run_history_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "download_run_history_response", b"download_run_history_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["read_run_history_response", "download_run_history_response", "api_error_response"] | None: ...
 
 global___ApiResponse = ApiResponse
 
@@ -121,22 +125,26 @@ class ReadRunHistoryRequest(google.protobuf.message.Message):
     SCAN_RUN_HISTORY_INIT_FIELD_NUMBER: builtins.int
     SCAN_RUN_HISTORY_FIELD_NUMBER: builtins.int
     SCAN_RUN_HISTORY_CLEANUP_FIELD_NUMBER: builtins.int
+    DOWNLOAD_RUN_HISTORY_FIELD_NUMBER: builtins.int
     @property
     def scan_run_history_init(self) -> global___ScanRunHistoryInit: ...
     @property
     def scan_run_history(self) -> global___ScanRunHistory: ...
     @property
     def scan_run_history_cleanup(self) -> global___ScanRunHistoryCleanup: ...
+    @property
+    def download_run_history(self) -> global___DownloadRunHistory: ...
     def __init__(
         self,
         *,
         scan_run_history_init: global___ScanRunHistoryInit | None = ...,
         scan_run_history: global___ScanRunHistory | None = ...,
         scan_run_history_cleanup: global___ScanRunHistoryCleanup | None = ...,
+        download_run_history: global___DownloadRunHistory | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["request", b"request", "scan_run_history", b"scan_run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["request", b"request", "scan_run_history", b"scan_run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["request", b"request"]) -> typing.Literal["scan_run_history_init", "scan_run_history", "scan_run_history_cleanup"] | None: ...
+    def HasField(self, field_name: typing.Literal["download_run_history", b"download_run_history", "request", b"request", "scan_run_history", b"scan_run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["download_run_history", b"download_run_history", "request", b"request", "scan_run_history", b"scan_run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["request", b"request"]) -> typing.Literal["scan_run_history_init", "scan_run_history", "scan_run_history_cleanup", "download_run_history"] | None: ...
 
 global___ReadRunHistoryRequest = ReadRunHistoryRequest
 
@@ -147,22 +155,26 @@ class ReadRunHistoryResponse(google.protobuf.message.Message):
     SCAN_RUN_HISTORY_INIT_FIELD_NUMBER: builtins.int
     RUN_HISTORY_FIELD_NUMBER: builtins.int
     SCAN_RUN_HISTORY_CLEANUP_FIELD_NUMBER: builtins.int
+    DOWNLOAD_RUN_HISTORY_FIELD_NUMBER: builtins.int
     @property
     def scan_run_history_init(self) -> global___ScanRunHistoryInitResponse: ...
     @property
     def run_history(self) -> global___RunHistoryResponse: ...
     @property
     def scan_run_history_cleanup(self) -> global___ScanRunHistoryCleanupResponse: ...
+    @property
+    def download_run_history(self) -> global___DownloadRunHistoryResponse: ...
     def __init__(
         self,
         *,
         scan_run_history_init: global___ScanRunHistoryInitResponse | None = ...,
         run_history: global___RunHistoryResponse | None = ...,
         scan_run_history_cleanup: global___ScanRunHistoryCleanupResponse | None = ...,
+        download_run_history: global___DownloadRunHistoryResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["response", b"response", "run_history", b"run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["response", b"response", "run_history", b"run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["scan_run_history_init", "run_history", "scan_run_history_cleanup"] | None: ...
+    def HasField(self, field_name: typing.Literal["download_run_history", b"download_run_history", "response", b"response", "run_history", b"run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["download_run_history", b"download_run_history", "response", b"response", "run_history", b"run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["scan_run_history_init", "run_history", "scan_run_history_cleanup", "download_run_history"] | None: ...
 
 global___ReadRunHistoryResponse = ReadRunHistoryResponse
 
@@ -320,3 +332,48 @@ class ScanRunHistoryCleanupResponse(google.protobuf.message.Message):
     ) -> None: ...
 
 global___ScanRunHistoryCleanupResponse = ScanRunHistoryCleanupResponse
+
+@typing.final
+class DownloadRunHistory(google.protobuf.message.Message):
+    """Download run history"""
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    ENTITY_FIELD_NUMBER: builtins.int
+    PROJECT_FIELD_NUMBER: builtins.int
+    RUN_ID_FIELD_NUMBER: builtins.int
+    DOWNLOAD_DIR_FIELD_NUMBER: builtins.int
+    entity: builtins.str
+    project: builtins.str
+    run_id: builtins.str
+    download_dir: builtins.str
+    def __init__(
+        self,
+        *,
+        entity: builtins.str = ...,
+        project: builtins.str = ...,
+        run_id: builtins.str = ...,
+        download_dir: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["download_dir", b"download_dir", "entity", b"entity", "project", b"project", "run_id", b"run_id"]) -> None: ...
+
+global___DownloadRunHistory = DownloadRunHistory
+
+@typing.final
+class DownloadRunHistoryResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    FILE_NAMES_FIELD_NUMBER: builtins.int
+    CONTAINS_LIVE_DATA_FIELD_NUMBER: builtins.int
+    contains_live_data: builtins.bool
+    @property
+    def file_names(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    def __init__(
+        self,
+        *,
+        file_names: collections.abc.Iterable[builtins.str] | None = ...,
+        contains_live_data: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["contains_live_data", b"contains_live_data", "file_names", b"file_names"]) -> None: ...
+
+global___DownloadRunHistoryResponse = DownloadRunHistoryResponse

@@ -13,6 +13,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -80,6 +81,8 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 		return f.handleScanRunHistoryRead(request.GetScanRunHistory())
 	case *spb.ReadRunHistoryRequest_ScanRunHistoryCleanup:
 		return f.handleScanRunHistoryCleanup(request.GetScanRunHistoryCleanup())
+	case *spb.ReadRunHistoryRequest_DownloadRunHistory:
+		return f.handleDownloadRunHistory(request.GetDownloadRunHistory())
 	}
 
 	return nil
@@ -250,6 +253,67 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryCleanup(
 				Response: &spb.ReadRunHistoryResponse_ScanRunHistoryCleanup{
 					ScanRunHistoryCleanup: &spb.ScanRunHistoryCleanupResponse{},
 				},
+			},
+		},
+	}
+}
+
+// handleDownloadRunHistory handles a request to download
+// a run's history.
+func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
+	request *spb.DownloadRunHistory,
+) *spb.ApiResponse {
+	signedUrls, liveData, err := parquet.GetSignedUrlsWithLiveSteps(
+		context.Background(),
+		f.graphqlClient,
+		request.Entity,
+		request.Project,
+		request.RunId,
+	)
+	if err != nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: err.Error(),
+				},
+			},
+		}
+	}
+
+	containsLiveData := len(liveData) > 0
+
+	fileNames := make([]string, 0, len(signedUrls))
+	for i, url := range signedUrls {
+		fileName := fmt.Sprintf(
+			"%s_%s_%s_%d.runhistory.parquet",
+			request.Entity,
+			request.Project,
+			request.RunId,
+			i,
+		)
+		err = parquet.DownloadRunHistoryFile(
+			http.DefaultClient,
+			url,
+			request.DownloadDir,
+			fileName,
+		)
+		if err != nil {
+			return &spb.ApiResponse{
+				Response: &spb.ApiResponse_ApiErrorResponse{
+					ApiErrorResponse: &spb.ApiErrorResponse{
+						Message: err.Error(),
+					},
+				},
+			}
+		}
+		fileNames = append(fileNames, fileName)
+	}
+
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_DownloadRunHistoryResponse{
+			DownloadRunHistoryResponse: &spb.DownloadRunHistoryResponse{
+				FileNames:        fileNames,
+				ContainsLiveData: containsLiveData,
 			},
 		},
 	}

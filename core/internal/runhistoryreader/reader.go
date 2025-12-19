@@ -35,6 +35,8 @@ type HistoryReader struct {
 	// Stores the minimum step where live (not yet exported) data starts.
 	// This is used to determine if we need to query the W&B backend for data.
 	minLiveStep int64
+
+	filePaths []string
 }
 
 // New returns a new HistoryReader.
@@ -234,7 +236,13 @@ func (h *HistoryReader) initParquetFiles(
 	ctx context.Context,
 	useCache bool,
 ) error {
-	signedUrls, liveData, err := h.getRunHistoryFileUrlsWithLiveSteps(ctx)
+	signedUrls, liveData, err := parquet.GetSignedUrlsWithLiveSteps(
+		ctx,
+		h.graphqlClient,
+		h.entity,
+		h.project,
+		h.runId,
+	)
 	if err != nil {
 		return err
 	}
@@ -256,6 +264,7 @@ func (h *HistoryReader) initParquetFiles(
 		parquetFilePath := filepath.Join(dir, fileName)
 
 		if _, err := os.Stat(parquetFilePath); useCache && err == nil {
+			h.filePaths = append(h.filePaths, parquetFilePath)
 			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
 			if err != nil {
 				return err
@@ -264,11 +273,17 @@ func (h *HistoryReader) initParquetFiles(
 			// When the user doesn't specify any keys,
 			// It is faster to download the entire parquet file
 			// and process it locally.
-			err = h.downloadRunHistoryFile(url, dir, fileName)
+			err = parquet.DownloadRunHistoryFile(
+				h.httpClient,
+				url,
+				dir,
+				fileName,
+			)
 			if err != nil {
 				return err
 			}
 
+			h.filePaths = append(h.filePaths, parquetFilePath)
 			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
 			if err != nil {
 				return err

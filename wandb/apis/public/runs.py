@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 import tempfile
 import time
 import urllib
@@ -52,6 +53,7 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk.lib import ipython, json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
 
@@ -1564,3 +1566,47 @@ class Run(Attrs):
             use_cache=use_cache,
         )
         return beta_history_scan
+
+    def download_history_exports(
+        self,
+        download_dir: pathlib.Path | str,
+    ) -> tuple[list[pathlib.Path], bool]:
+        """Download any parquet history files for the run to the provided directory.
+
+        If the run contains live data (data that is not yet exported to parquet),
+        then the second return value will be True.
+
+        Args:
+            download_dir: The directory to download the history files to.
+
+        Returns:
+            A tuple containing the list of file names
+            and a boolean indicating if the run contains live data.
+        """
+        if self._api is None:
+            self._api = public.Api()
+
+        api_request = apb.ApiRequest(
+            read_run_history_request=apb.ReadRunHistoryRequest(
+                download_run_history=apb.DownloadRunHistory(
+                    entity=self.entity,
+                    project=self.project,
+                    run_id=self.id,
+                    download_dir=str(download_dir),
+                )
+            )
+        )
+        response: apb.ApiResponse = self._api._send_api_request(api_request)
+
+        if (
+            response.HasField("api_error_response")
+            and response.api_error_response is not None
+        ):
+            raise RuntimeError()
+
+        file_names: list[pathlib.Path] = []
+        for file_name in response.download_run_history_response.file_names:
+            file_names.append(pathlib.Path(download_dir, file_name))
+
+        contains_live_data = response.download_run_history_response.contains_live_data
+        return file_names, contains_live_data
