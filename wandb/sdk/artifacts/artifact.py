@@ -471,14 +471,14 @@ class Artifact:
             project = self._project
             collection = self._name.split(":")[0]
             aliases = [
-                art_alias.alias
-                for art_alias in art.aliases
+                a.alias
+                for a in art.aliases
                 if (
-                    (coll := art_alias.artifact_collection)
-                    and (proj := coll.project)
+                    (collection := a.artifact_collection)
+                    and (proj := collection.project)
                     and proj.entity.name == entity
                     and proj.name == project
-                    and coll.name == collection
+                    and collection.name == collection
                 )
             ]
         else:
