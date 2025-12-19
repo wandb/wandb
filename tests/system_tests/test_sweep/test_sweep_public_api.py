@@ -4,6 +4,7 @@ from wandb import Api
 from wandb.apis.public.sweeps import Sweep
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb_gql import gql
+from pprint import pprint
 
 from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
@@ -76,6 +77,35 @@ def test_sweep_api_expected_run_count(
     assert len(sweep._attrs["priorRuns"]["edges"]) == 1
     assert sweep._attrs["priorRuns"]["edges"][0]["node"]["name"] == run_id
 
+def test_sweep_api_get_sweep_run(
+    use_local_wandb_backend,
+    user,
+):
+    sweep_config = SWEEP_CONFIG_GRID
+    _ = use_local_wandb_backend
+    _project = "test"
+    with wandb.init(entity=user, project=_project) as run:
+        run_id = run.id
+        run.log({"x": 1})
+        run.finish()
+        sweep_id = wandb.sweep(
+            sweep_config,
+            entity=user,
+            project=_project,
+            prior_runs=[run_id],
+        )
+
+    # Create a sweep run (a run associated with the sweep)
+    with wandb.init(
+        entity=user, project=_project, settings={"sweep_id": sweep_id}
+    ) as sweep_run:
+        sweep_run.log({"y": 2})
+        sweep_run_id = sweep_run.id
+
+    # Retrieve the sweep run via API
+    api = Api()
+    run = api.run(f"{user}/{_project}/{sweep_run_id}")
+    assert run._attrs.get("summaryMetrics", {}).get("y") == 2
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_api(use_local_wandb_backend, user, sweep_config):
