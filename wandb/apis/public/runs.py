@@ -1247,6 +1247,8 @@ class Run(Attrs):
             artifact.type,
             artifact_collection_name,
             artifact.digest,
+            entity_name=self.entity,
+            project_name=self.project,
             aliases=aliases,
             tags=tags,
         )
