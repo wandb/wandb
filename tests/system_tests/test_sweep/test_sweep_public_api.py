@@ -1,5 +1,6 @@
 import pytest
 import wandb
+from pprint import pprint
 from wandb import Api
 from wandb.apis.public.sweeps import Sweep
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -100,6 +101,8 @@ def test_sweep_api_get_sweep_run(
 
     api = Api()
     run = api.run(f"{user}/{_project}/{sweep_run_id}")
+
+    assert run.sweep.id == sweep_id
     assert run._attrs.get("summaryMetrics", {}).get("y") == 2
 
 
