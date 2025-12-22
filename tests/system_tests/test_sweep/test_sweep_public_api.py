@@ -1,6 +1,5 @@
 import pytest
 import wandb
-from pprint import pprint
 from wandb import Api
 from wandb.apis.public.sweeps import Sweep
 from wandb.sdk.internal.internal_api import Api as InternalApi
