@@ -17,6 +17,7 @@ from ._private import MEDIA_TMP
 from .base_types.wb_value import WBValue
 
 if TYPE_CHECKING:
+    import paddle  # type: ignore
     import sklearn  # type: ignore
     import tensorflow  # type: ignore
     import torch  # type: ignore
@@ -346,6 +347,13 @@ def _get_torch() -> ModuleType:
     )
 
 
+def _get_paddle() -> ModuleType:
+    return cast(
+        ModuleType,
+        util.get_module("paddle", "ModelAdapter requires `paddle`"),
+    )
+
+
 class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
     _log_type = "pytorch-model-file"
     _path_extension = "pt"
@@ -364,6 +372,26 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
             model_obj,
             dir_or_file_path,
             pickle_module=_get_cloudpickle(),
+        )
+
+
+class _PaddleSavedModel(_PicklingSavedModel["paddle.nn.Layer"]):
+    _log_type = "paddle-model-file"
+    _path_extension = "pd"
+
+    @staticmethod
+    def _deserialize(dir_or_file_path: str) -> paddle.nn.Layer:
+        return _get_paddle().load(dir_or_file_path)
+
+    @staticmethod
+    def _validate_obj(obj: Any) -> bool:
+        return isinstance(obj, _get_paddle().nn.Layer)
+
+    @staticmethod
+    def _serialize(model_obj: paddle.nn.Layer, dir_or_file_path: str) -> None:
+        _get_paddle().save(
+            model_obj,
+            dir_or_file_path,
         )
 
 
