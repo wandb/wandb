@@ -2,6 +2,7 @@ package runsync
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -36,6 +37,7 @@ type RunSyncer struct {
 	mu      sync.Mutex
 	runInfo *RunInfo
 
+	path        string
 	displayPath DisplayPath
 
 	logger     *observability.CoreLogger
@@ -74,6 +76,7 @@ func (f *RunSyncerFactory) New(
 	)
 
 	return &RunSyncer{
+		path:        path,
 		displayPath: displayPath,
 
 		logger:     f.Logger,
@@ -120,8 +123,25 @@ func (rs *RunSyncer) Sync() error {
 		return err
 	}
 
+	// NOTE: The Sender may fail to upload a run, but we still mark it synced.
+	// This is not the desired behavior; we just lack an error propagation
+	// mechanism.
+	rs.markSynced()
+
 	rs.printer.Infof("Finished syncing %s", rs.displayPath)
 	return nil
+}
+
+// markSynced creates the .synced file to mark the run as successfully synced.
+func (rs *RunSyncer) markSynced() {
+	// 666 = read-writable by all (the umask generally turns this into 644)
+	err := os.WriteFile(rs.path+".synced", nil, 0o666)
+	if err != nil {
+		rs.logger.Error(
+			"runsync: couldn't create .synced file",
+			"error", err,
+			"path", rs.path)
+	}
 }
 
 // Stats returns the sync operation's status info, labeled as necessary.
