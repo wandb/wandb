@@ -83,26 +83,25 @@ def test_sweep_api_get_sweep_run(
 ):
     sweep_config = SWEEP_CONFIG_GRID
     _ = use_local_wandb_backend
-    _project = "test"
-    with wandb.init(entity=user, project=_project) as run:
-        sweep_id = wandb.sweep(
-            sweep_config,
-            entity=user,
-            project=_project,
-        )
+    project = "test"
+    sweep_id = wandb.sweep(
+        sweep_config,
+        entity=user,
+        project=project,
+    )
 
     # Create a sweep run
     with wandb.init(
-        entity=user, project=_project, settings={"sweep_id": sweep_id}
+        entity=user, project=project, settings=wandb.Settings(sweep_id=sweep_id)
     ) as sweep_run:
         sweep_run.log({"y": 2})
         sweep_run_id = sweep_run.id
 
     api = Api()
-    run = api.run(f"{user}/{_project}/{sweep_run_id}")
+    run = api.run(f"{user}/{project}/{sweep_run_id}")
 
     assert run.sweep.id == sweep_id
-    assert run._attrs.get("summaryMetrics", {}).get("y") == 2
+    assert run.summary_metrics.get("y") == 2
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
