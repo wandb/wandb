@@ -465,13 +465,6 @@ func (h *Handler) handleHeader(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStartRequest) {
-	// if sync is enabled, we don't need to do anything just forward the record
-	// to the sender so it can start the relevant components
-	if h.settings.IsSync() {
-		h.fwdRecord(record)
-		return
-	}
-
 	var ok bool
 	run := request.Run
 
@@ -689,7 +682,7 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	h.runTimer.Stop()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
-	if !h.settings.IsSync() && !h.settings.IsEnableServerSideDerivedSummary() {
+	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
 	}
 
