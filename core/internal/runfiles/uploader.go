@@ -113,11 +113,6 @@ func (u *uploader) Process(record *spb.FilesRecord) {
 	}
 	defer u.stateMu.Unlock()
 
-	// Ignore file records in sync mode---we just upload everything at the end.
-	if u.settings.IsSync() {
-		return
-	}
-
 	nowFiles := make([]paths.RelativePath, 0)
 
 	for _, file := range record.GetFiles() {
