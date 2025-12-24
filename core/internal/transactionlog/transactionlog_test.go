@@ -31,14 +31,14 @@ func Test_ReadAfterWrite(t *testing.T) {
 
 	writer, err := transactionlog.OpenWriter(path)
 	require.NoError(t, err)
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
-	require.NoError(t, err)
-	defer reader.Close()
-
 	require.NoError(t, writer.Write(&spb.Record{Num: 123}))
 	require.NoError(t, writer.Close())
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
 	record, err := reader.Read()
 	require.NoError(t, err)
+	reader.Close()
 
 	assert.EqualValues(t, 123, record.Num)
 }
@@ -150,4 +150,32 @@ func Test_Read_SkipsCorruptData(t *testing.T) {
 	assert.NoError(t, err3)
 	assert.EqualValues(t, 13, record1.GetNum())
 	assert.EqualValues(t, 31, record3.GetNum())
+}
+
+func Test_ResetLastRead(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+
+	writer, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	require.NoError(t, writer.Write(&spb.Record{Num: 13}))
+	require.NoError(t, writer.Write(&spb.Record{Num: 14}))
+	require.NoError(t, writer.Write(&spb.Record{Num: 15}))
+	require.NoError(t, writer.Close())
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
+	defer reader.Close()
+
+	// Test reading, resetting, and reading again after each record.
+	for _, num := range []int{13, 14, 15} {
+		record, err := reader.Read()
+		require.NoError(t, err)
+		assert.EqualValues(t, num, record.GetNum())
+
+		require.NoError(t, reader.ResetLastRead())
+
+		record, err = reader.Read()
+		require.NoError(t, err)
+		assert.EqualValues(t, num, record.GetNum())
+	}
 }

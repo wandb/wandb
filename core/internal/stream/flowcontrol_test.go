@@ -147,16 +147,13 @@ func TestStopsDiscardingOnStoreError(t *testing.T) {
 
 	t.Run("broken Read", func(t *testing.T) {
 		_, w := transactionlogtest.ReaderWriter(t)
-		r := transactionlogtest.RecordThenErrorReader(t, &spb.Record{Num: 1})
+		r := transactionlogtest.ErrorReader(t)
 		x := setup(t, r, w, stream.FlowControlParams{
 			InMemorySize: 0,
 			Limit:        1000,
 		})
-		x.MockRecordParser.EXPECT().
-			Parse(gomock.Any()).
-			Return(&runworktest.NoopWork{})
 
-		feedInputUntilOutputCount(t, x, 2)
+		feedInputUntilOutputCount(t, x, 1)
 
 		assert.Contains(t, x.Logs.String(), "failed reading")
 	})
