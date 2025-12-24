@@ -2,21 +2,31 @@
 
 from __future__ import annotations
 
-import abc
-import dataclasses
 import json
 import re
 import threading
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 import fastapi
 from typing_extensions import Any, TypeAlias, override
 
-# Matches queries containing a line in one of the following forms:
+# Matches GraphQL operations containing a line in one of the following forms:
 #   mutation OpName(
 #   mutation OpName{
 #   query OpName(
 #   query OpName{
-_GQL_OPNAME_RE = re.compile(r"(?m)^(mutation|query)\s+(\w+)\s*[\(\{]")
+_GQL_OPNAME_RE = re.compile(
+    r"""
+    ^\s*                # Optional leading whitespace
+    (mutation|query)    # GQL operation type
+    \s+                 # Required separator
+    (?P<opname>\w+)     # GQL operation name
+    \s*
+    [\(\{]
+    """,
+    flags=re.MULTILINE | re.VERBOSE,
+)
 
 
 # NOTE: In Python 3.12+, this would be done with a `type` statement.
@@ -41,30 +51,22 @@ class Matcher:
 
     def matches(self, query: str, variables: dict[str, Any]) -> bool:
         """Returns whether this matches the GQL request."""
-        query_match = _GQL_OPNAME_RE.search(query)
-
-        if not query_match:
-            return False
-
-        opname = query_match.group(2)
-        if self._operation is not None and self._operation != opname:
-            return False
-
-        for key, expected in self._variables.items():
-            if key not in variables:
-                return False
-            if variables[key] != expected:
-                return False
-
-        return True
+        return (
+            # The operation name must match.
+            (op_match := _GQL_OPNAME_RE.search(query)) is not None
+            and self._operation == op_match.group("opname")
+            and
+            # Extra incoming variables are allowed, missing variables are not.
+            self._variables.items() <= variables.items()
+        )
 
 
-def any() -> Matcher:
-    """A matcher that matches any request."""
+def anything() -> Matcher:
+    """A Matcher that matches any request."""
     return Matcher()
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class Request:
     """The data in a GraphQL request."""
 
@@ -72,7 +74,7 @@ class Request:
     variables: dict[str, Any]
 
 
-class Responder(abc.ABC):
+class Responder(ABC):
     """An object that produces responses to GQL requests.
 
     Unlike matchers, responders may be stateful.
@@ -115,7 +117,7 @@ class Responder(abc.ABC):
             self._requests.append(Request(query=query, variables=variables))
             return self._respond(query, variables)
 
-    @abc.abstractmethod
+    @abstractmethod
     def _respond(
         self,
         query: str,
@@ -125,6 +127,7 @@ class Responder(abc.ABC):
 
         Always called with `self._lock` held.
         """
+        raise NotImplementedError
 
 
 class Capture(Responder):
@@ -162,10 +165,7 @@ class Constant(Responder):
         query: str,
         variables: dict[str, Any],
     ) -> fastapi.Response | None:
-        return fastapi.Response(
-            self._content,
-            status_code=self._status,
-        )
+        return fastapi.Response(content=self._content, status_code=self._status)
 
 
 class Sequence(Responder):
@@ -186,12 +186,9 @@ class Sequence(Responder):
         query: str,
         variables: dict[str, Any],
     ) -> fastapi.Response | None:
-        responder = next(self._responders, None)
-
-        if not responder:
-            return None
-
-        return responder.respond(query, variables)
+        if responder := next(self._responders, None):
+            return responder.respond(query, variables)
+        return None
 
 
 def once(
