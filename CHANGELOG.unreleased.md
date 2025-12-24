@@ -21,3 +21,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Fixed `Run.__exit__` type annotations to accept `None` values, which are passed when no exception is raised.
 - Fixed `Invalid Client ID digest` error when creating artifacts after calling `random.seed()`. Client IDs could collide when random state was seeded deterministically. (@pingleiwandb in https://github.com/wandb/wandb/pull/11039)
+- runs queried from `wandb.Api()` shows the string representation in notebooks running in VSCode rather than a broken HTML window (@jacobromero in https://github.com/wandb/wandb/pull/11040)
