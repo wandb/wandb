@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import links, term
-from wandb.sdk.lib.wbauth import prompt, saas, wbnetrc
+from wandb.sdk.lib.wbauth import host_url, prompt, saas, wbnetrc
 
 from tests.fixtures.emulated_terminal import EmulatedTerminal
 
@@ -17,14 +17,12 @@ def mock_write_netrc(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 
 def test_authorize_url_uses_app_url():
     result = prompt._authorize_url(
-        "https://api.wandb.ai",
+        host_url.HostUrl("https://my-api", app_url="https://my-ui"),
         signup=False,
         referrer="",
     )
 
-    # There's special logic to map several API URL formats to "app" URLs.
-    # This just tests that we're not using the API URL directly.
-    assert result == "https://wandb.ai/authorize"
+    assert result == "https://my-ui/authorize"
 
 
 def test_timeout(emulated_terminal: EmulatedTerminal):
