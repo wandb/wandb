@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -196,16 +197,16 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 
 	record, err := r.store.Read()
 
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		if r.exitSeen {
-			return FileCompleteMsg{ExitCode: r.exitCode}, io.EOF
+			return FileCompleteMsg{ExitCode: r.exitCode}, err
 		}
 		// We hit EOF, but the run isn't finished yet.
-		return nil, io.EOF
+		return nil, err
 	}
 
 	return r.recordToMsg(record), nil

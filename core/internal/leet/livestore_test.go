@@ -1,6 +1,7 @@
 package leet_test
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	"github.com/wandb/wandb/core/pkg/leveldb"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -54,8 +56,11 @@ func TestNewLiveStore_InvalidHeader(t *testing.T) {
 	require.NoError(t, err)
 	tmpFile.Close()
 
-	_, err = leet.NewLiveStore(tmpFile.Name(), observability.NewNoOpLogger())
-	require.Error(t, err)
+	store, err := leet.NewLiveStore(tmpFile.Name(), observability.NewNoOpLogger())
+	require.NoError(t, err)
+
+	_, err = store.Read()
+	require.ErrorContains(t, err, "bad header")
 }
 
 // TestLiveStore_ReadValidRecords tests reading valid records
@@ -115,7 +120,7 @@ func TestLiveStore_ReadAfterClose(t *testing.T) {
 	// Try to read after close.
 	_, err = ls.Read()
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "livestore: db is closed")
+	require.Equal(t, err.Error(), "livestore: reader is closed")
 }
 
 // TestLiveStore_LiveRead_ConcurrentWriterFlushes writes records in one goroutine
@@ -176,7 +181,7 @@ func TestLiveStore_LiveRead_ConcurrentWriterFlushes(t *testing.T) {
 	}(tmp.Name())
 
 	// Reader on the same file.
-	ls, err := leet.NewLiveStore(tmp.Name(), observability.NewNoOpLogger())
+	ls, err := leet.NewLiveStore(tmp.Name(), observabilitytest.NewTestLogger(t))
 	require.NoError(t, err)
 	defer ls.Close()
 
@@ -187,7 +192,7 @@ func TestLiveStore_LiveRead_ConcurrentWriterFlushes(t *testing.T) {
 			t.Fatalf("timeout waiting for record %d/%d", i, total)
 		default:
 			rec, err := ls.Read()
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				// No complete record yet; try again shortly.
 				time.Sleep(1 * time.Millisecond)
 				continue
@@ -206,7 +211,7 @@ func TestLiveStore_LiveRead_OpenedBeforeWriter(t *testing.T) {
 	_ = tmp.Close()
 
 	// Start reader first: header may not exist yet; allowed by NewLiveStore.
-	ls, err := leet.NewLiveStore(tmp.Name(), observability.NewNoOpLogger())
+	ls, err := leet.NewLiveStore(tmp.Name(), observabilitytest.NewTestLogger(t))
 	require.NoError(t, err)
 	defer ls.Close()
 
@@ -252,7 +257,7 @@ func TestLiveStore_LiveRead_OpenedBeforeWriter(t *testing.T) {
 			t.Fatal("timeout waiting for first record")
 		default:
 			rec, err := ls.Read()
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				time.Sleep(1 * time.Millisecond)
 				continue
 			}

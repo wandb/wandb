@@ -12,6 +12,9 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func short(s string) string {
@@ -269,6 +272,87 @@ func TestNonExhaustiveRead(t *testing.T) {
 			t.Fatalf("read #%d: got %q want %q", i, got, want)
 		}
 	}
+}
+
+func TestTruncationEOF(t *testing.T) {
+	// Test that truncating a block at any point leads to either
+	// EOF or ErrUnexpectedEOF when reading.
+
+	// testData contains two records: the first is 1 byte long and consists
+	// of a single full chunk, and the second takes up 32 KiB so that it
+	// ends in the second block.
+	var testData []byte
+	{
+		buf := new(bytes.Buffer)
+
+		w := NewWriterExt(buf, CRCAlgoCustom, 0)
+
+		w0, err := w.Next()
+		require.NoError(t, err)
+		_, err = io.WriteString(w0, "x")
+		require.NoError(t, err)
+
+		w1, err := w.Next()
+		require.NoError(t, err)
+		_, err = io.WriteString(w1, big("abcd", 32*1024))
+		require.NoError(t, err)
+
+		require.NoError(t, w.Close())
+
+		testData = buf.Bytes()
+	}
+
+	t.Run("0 is EOF", func(t *testing.T) {
+		r := NewReader(bytes.NewReader(testData[:0]))
+		_, err := r.Next()
+		assert.ErrorIs(t, err, io.EOF)
+	})
+
+	t.Run("inside WB header is EOF", func(t *testing.T) {
+		r := NewReader(bytes.NewReader(testData[:1]))
+		_, err := r.Next()
+		assert.ErrorIs(t, err, io.EOF)
+	})
+
+	t.Run("between records is EOF", func(t *testing.T) {
+		// Truncate before the first record.
+		r := NewReader(bytes.NewReader(testData[:7]))
+		_, err := r.Next()
+		assert.ErrorIs(t, err, io.EOF)
+
+		// Truncate before the second record.
+		r = NewReader(bytes.NewReader(testData[:15]))
+		_, err = r.Next()
+		require.NoError(t, err)
+		_, err = r.Next()
+		assert.ErrorIs(t, err, io.EOF)
+	})
+
+	// The first record is a single 8-byte chunk; just test all positions.
+	for i := range 7 {
+		name := fmt.Sprintf("inside chunk is ErrUnexpectedEOF (offset %d)", i)
+		t.Run(name, func(t *testing.T) {
+			r := NewReader(bytes.NewReader(testData[:7+1+i]))
+			_, err := r.Next()
+			assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		})
+	}
+
+	t.Run("at boundary inside record is ErrUnexpectedEOF", func(t *testing.T) {
+		r := NewReader(bytes.NewReader(testData[:32*1024]))
+
+		// Seek the second record.
+		err := r.SeekRecord(7 + 7 + 1) // W&B header; 1st chunk header & content
+		require.NoError(t, err)
+
+		// No error in Next because first chunk is fully included.
+		rr, err := r.Next()
+		require.NoError(t, err)
+
+		// But reading should error out, since the record is truncated.
+		_, err = io.ReadAll(rr)
+		assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	})
 }
 
 func TestStaleReader(t *testing.T) {
