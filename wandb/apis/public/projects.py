@@ -41,6 +41,7 @@ from wandb_gql import gql
 from wandb._pydantic import Connection
 from wandb._strutils import nameof
 from wandb.apis import public
+from wandb.apis._displayable import Displayable
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator
@@ -142,7 +143,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         return f"<Projects {self.entity}>"
 
 
-class Project(Attrs):
+class Project(Attrs, Displayable):
     """A project is a namespace for runs.
 
     Args:
@@ -210,9 +211,6 @@ class Project(Attrs):
             style += "display:none;"
             prefix = ipython.toggle_button("project")
         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
-
-    def _repr_html_(self) -> str:
-        return self.to_html()
 
     def __repr__(self):
         return "<Project {}>".format("/".join(self.path))

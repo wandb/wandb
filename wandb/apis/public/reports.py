@@ -15,6 +15,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb.apis import public
+from wandb.apis._displayable import Displayable
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
 from wandb.sdk.lib import ipython
@@ -140,7 +141,7 @@ class Reports(SizedPaginator["BetaReport"]):
         return "<Reports {}>".format("/".join(self.project.path))
 
 
-class BetaReport(Attrs):
+class BetaReport(Attrs, Displayable):
     """BetaReport is a class associated with reports created in W&B.
 
     Provides access to report attributes (name, description, user, spec,
@@ -275,9 +276,6 @@ class BetaReport(Attrs):
             style += "display:none;"
             prefix = ipython.toggle_button("report")
         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
-
-    def _repr_html_(self) -> str:
-        return self.to_html()
 
 
 class PythonMongoishQueryGenerator:
