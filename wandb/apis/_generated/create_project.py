@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
 
 from pydantic import Field
+from typing_extensions import Any
 
 from wandb._pydantic import GQLId, GQLResult
 

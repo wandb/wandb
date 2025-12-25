@@ -2,12 +2,3 @@
 # Source: core/api/graphql/schemas/schema-latest.graphql
 
 from __future__ import annotations
-
-from typing import Optional
-
-from wandb._pydantic import GQLInput
-
-
-class ArtifactTypeInput(GQLInput):
-    name: str
-    description: Optional[str] = None
