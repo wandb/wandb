@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult
@@ -18,33 +16,4 @@ class ProjectFragment(GQLResult):
     is_benchmark: bool = Field(alias="isBenchmark")
 
 
-class RegistryFragment(GQLResult):
-    id: GQLId
-    allow_all_artifact_types_in_registry: bool = Field(
-        alias="allowAllArtifactTypesInRegistry"
-    )
-    artifact_types: RegistryFragmentArtifactTypes = Field(alias="artifactTypes")
-    name: str
-    description: Optional[str]
-    created_at: str = Field(alias="createdAt")
-    updated_at: Optional[str] = Field(alias="updatedAt")
-    access: Optional[str]
-
-
-class RegistryFragmentArtifactTypes(GQLResult):
-    edges: List[RegistryFragmentArtifactTypesEdges]
-
-
-class RegistryFragmentArtifactTypesEdges(GQLResult):
-    node: Optional[RegistryFragmentArtifactTypesEdgesNode]
-
-
-class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
-    name: str
-
-
 ProjectFragment.model_rebuild()
-RegistryFragment.model_rebuild()
-RegistryFragmentArtifactTypes.model_rebuild()
-RegistryFragmentArtifactTypesEdges.model_rebuild()
-RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
