@@ -33,7 +33,7 @@ Note:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
 from wandb_gql import gql
@@ -41,24 +41,20 @@ from wandb_gql import gql
 from wandb._pydantic import Connection
 from wandb._strutils import nameof
 from wandb.apis import public
-from wandb.apis._generated import (
-    GET_PROJECT_GQL,
-    GET_PROJECTS_GQL,
-    GetProject,
-    GetProjects,
-    ProjectFragment,
-)
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.paginator import Paginator
+from wandb.apis.paginator import RelayPaginator
 from wandb.apis.public.api import RetryingClient
 from wandb.apis.public.sweeps import Sweeps
 from wandb.sdk.lib import ipython
 
-_ProjectConnection = Connection[ProjectFragment]
+if TYPE_CHECKING:
+    from wandb_graphql.language.ast import Document
+
+    from wandb.apis._generated import ProjectFragment
 
 
-class Projects(Paginator["Project"]):
+class Projects(RelayPaginator["ProjectFragment", "Project"]):
     """An lazy iterator of `Project` objects.
 
     An iterable interface to access projects created and saved by the entity.
@@ -84,9 +80,8 @@ class Projects(Paginator["Project"]):
     ```
     """
 
-    last_response: _ProjectConnection | None
-
-    QUERY = gql(GET_PROJECTS_GQL)
+    QUERY: ClassVar[Document | None] = None
+    last_response: Connection[ProjectFragment] | None
 
     def __init__(
         self,
@@ -101,14 +96,20 @@ class Projects(Paginator["Project"]):
             entity: The entity which owns the projects.
             per_page: The number of projects to fetch per request to the API.
         """
-        self.client = client
+        if self.QUERY is None:
+            from wandb.apis._generated import GET_PROJECTS_GQL
+
+            type(self).QUERY = gql(GET_PROJECTS_GQL)
+
         self.entity = entity
         variables = {"entity": self.entity}
-        super().__init__(client, variables, per_page)
+        super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
+        from wandb.apis._generated import GetProjects, ProjectFragment
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = GetProjects.model_validate(data)
 
@@ -116,7 +117,7 @@ class Projects(Paginator["Project"]):
         if not (conn := result.models):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = _ProjectConnection.model_validate(conn)
+        self.last_response = Connection[ProjectFragment].model_validate(conn)
 
     @property
     def length(self) -> None:
@@ -129,34 +130,13 @@ class Projects(Paginator["Project"]):
         # For backwards compatibility, even though this isn't a SizedPaginator
         return None
 
-    @property
-    def more(self) -> bool:
-        """Returns `True` if there are more projects to fetch. Returns
-        `False` if there are no more projects to fetch.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return (conn := self.last_response) is None or conn.has_next
-
-    @property
-    def cursor(self) -> str | None:
-        """Returns the cursor position for pagination of project results.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        return conn.next_cursor if (conn := self.last_response) else None
-
-    def convert_objects(self) -> list[Project]:
-        """Converts GraphQL edges to File objects.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response is None:
-            return []
-        return [
-            Project(self.client, self.entity, node.name, node.model_dump())
-            for node in self.last_response.nodes()
-        ]
+    def _convert(self, node: ProjectFragment) -> Project:
+        return Project(
+            self.client,
+            entity=self.entity,
+            project=node.name,
+            attrs=node.model_dump(),
+        )
 
     def __repr__(self):
         return f"<Projects {self.entity}>"
@@ -170,8 +150,6 @@ class Project(Attrs):
         name (str): The name of the project.
         entity (str): The entity name that owns the project.
     """
-
-    QUERY = gql(GET_PROJECT_GQL)
 
     def __init__(
         self,
@@ -197,9 +175,11 @@ class Project(Attrs):
     def _load(self) -> None:
         from requests import HTTPError
 
+        from wandb.apis._generated import GET_PROJECT_GQL, GetProject
+
         variable_values = {"project": self.name, "entity": self.entity}
         try:
-            data = self.client.execute(self.QUERY, variable_values)
+            data = self.client.execute(gql(GET_PROJECT_GQL), variable_values)
         except HTTPError as e:
             raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e
 
