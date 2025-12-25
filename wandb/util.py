@@ -45,7 +45,7 @@ from typing import (
     Union,
 )
 
-from typing_extensions import Any, Generator, TypeGuard, TypeVar
+from typing_extensions import Any, Generator, TypeGuard, TypeVar, deprecated
 
 import wandb
 import wandb.env
@@ -257,12 +257,21 @@ if pandas_spec is not None:
 VALUE_BYTES_LIMIT = 100000
 
 
+@deprecated("Read the `app_url` setting from the appropriate Settings object.")
 def app_url(api_url: str) -> str:
-    """Return the frontend app url without a trailing slash."""
-    # TODO: move me to settings
-    app_url = wandb.env.get_app_url()
-    if app_url is not None:
+    """Returns the URL for the W&B UI without a trailing slash."""
+    if app_url := wandb.env.get_app_url():
         return str(app_url.strip("/"))
+
+    return api_to_app_url(api_url)
+
+
+def api_to_app_url(api_url: str) -> str:
+    """Convert the API URL to an app (UI) URL.
+
+    Unlike the deprecated `app_url()`, this is a pure function: it does
+    not consult environment variables.
+    """
     if "://api.wandb.test" in api_url:
         # dev mode
         return api_url.replace("://api.", "://app.").strip("/")

@@ -24,3 +24,22 @@ def test_normalizes_url(raw_url: str):
 
 def test_repr():
     assert repr(HostUrl("https://some-url")) == "HostUrl('https://some-url')"
+
+
+def test_app_url_explicit():
+    url = HostUrl("https://api", app_url="https://my-ui")
+
+    assert url.app_url == "https://my-ui"
+
+
+def test_app_url_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("WANDB_APP_URL", "https://my-ui")
+    url = HostUrl("https://api")
+
+    assert url.app_url == "https://my-ui"
+
+
+def test_app_url_default():
+    url = HostUrl("https://api.wandb.ai")
+
+    assert url.app_url == "https://wandb.ai"
