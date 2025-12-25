@@ -1,4 +1,11 @@
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
 fragment ProjectFragment on Project {
+  __typename
   id
   name
   entityName
@@ -14,8 +21,7 @@ query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
       }
     }
     pageInfo {
-      endCursor
-      hasNextPage
+      ...PageInfoFragment
     }
   }
 }
