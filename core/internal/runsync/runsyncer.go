@@ -1,6 +1,7 @@
 package runsync
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waiting"
@@ -29,6 +31,7 @@ type RunSyncerFactory struct {
 	RecordParserFactory *stream.RecordParserFactory
 	RunReaderFactory    *RunReaderFactory
 	SenderFactory       *stream.SenderFactory
+	Settings            *settings.Settings
 	TBHandlerFactory    *tensorboard.TBHandlerFactory
 }
 
@@ -39,6 +42,7 @@ type RunSyncer struct {
 
 	path        string
 	displayPath DisplayPath
+	settings    *settings.Settings
 
 	logger     *observability.CoreLogger
 	operations *wboperation.WandbOperations
@@ -78,6 +82,7 @@ func (f *RunSyncerFactory) New(
 	return &RunSyncer{
 		path:        path,
 		displayPath: displayPath,
+		settings:    f.Settings,
 
 		logger:     f.Logger,
 		operations: f.Operations,
@@ -104,6 +109,8 @@ func (rs *RunSyncer) Init() (*RunInfo, error) {
 
 // Sync uploads the .wandb file.
 func (rs *RunSyncer) Sync() error {
+	rs.printRunURL()
+
 	g := &errgroup.Group{}
 
 	// Process the transaction log and close RunWork at the end.
@@ -142,6 +149,25 @@ func (rs *RunSyncer) markSynced() {
 			"error", err,
 			"path", rs.path)
 	}
+}
+
+// printRunURL prints the URL for viewing the run.
+func (rs *RunSyncer) printRunURL() {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	if rs.runInfo == nil {
+		rs.logger.CaptureError(errors.New("runsync: printRunURL: no run info"))
+		return
+	}
+
+	url, err := rs.runInfo.URL(rs.settings.GetAppURL())
+	if err != nil {
+		rs.logger.CaptureError(fmt.Errorf("runsync: printRunURL: %v", err))
+		return
+	}
+
+	rs.printer.Writef("Syncing to %s", url)
 }
 
 // Stats returns the sync operation's status info, labeled as necessary.
