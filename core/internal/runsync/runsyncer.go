@@ -8,7 +8,9 @@ import (
 
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waiting"
@@ -27,8 +29,10 @@ type RunSyncerFactory struct {
 	Operations          *wboperation.WandbOperations
 	Printer             *observability.Printer
 	RecordParserFactory *stream.RecordParserFactory
+	RunHandle           *runhandle.RunHandle
 	RunReaderFactory    *RunReaderFactory
 	SenderFactory       *stream.SenderFactory
+	Settings            *settings.Settings
 	TBHandlerFactory    *tensorboard.TBHandlerFactory
 }
 
@@ -39,10 +43,12 @@ type RunSyncer struct {
 
 	path        string
 	displayPath DisplayPath
+	settings    *settings.Settings
 
 	logger     *observability.CoreLogger
 	operations *wboperation.WandbOperations
 	printer    *observability.Printer
+	runHandle  *runhandle.RunHandle
 	runReader  *RunReader
 	runWork    runwork.RunWork
 	sender     *stream.Sender
@@ -78,10 +84,12 @@ func (f *RunSyncerFactory) New(
 	return &RunSyncer{
 		path:        path,
 		displayPath: displayPath,
+		settings:    f.Settings,
 
 		logger:     f.Logger,
 		operations: f.Operations,
 		printer:    f.Printer,
+		runHandle:  f.RunHandle,
 		runReader:  runReader,
 		runWork:    runWork,
 		sender:     sender,
@@ -105,6 +113,20 @@ func (rs *RunSyncer) Init() (*RunInfo, error) {
 // Sync uploads the .wandb file.
 func (rs *RunSyncer) Sync() error {
 	g := &errgroup.Group{}
+
+	// Print the run's URL once we know it.
+	g.Go(func() error {
+		ctx := rs.runWork.BeforeEndCtx()
+
+		select {
+		case <-rs.runHandle.Ready():
+			rs.printRunURL()
+		case <-ctx.Done():
+			rs.logger.Error("runsync: didn't print run URL, handle never became ready")
+		}
+
+		return nil
+	})
 
 	// Process the transaction log and close RunWork at the end.
 	//
@@ -141,6 +163,29 @@ func (rs *RunSyncer) markSynced() {
 			"runsync: couldn't create .synced file",
 			"error", err,
 			"path", rs.path)
+	}
+}
+
+// printRunURL prints the URL for viewing the run.
+func (rs *RunSyncer) printRunURL() {
+	upserter, err := rs.runHandle.Upserter()
+	if err != nil {
+		rs.logger.CaptureError(fmt.Errorf("runsync: printRunURL: %v", err))
+		return
+	}
+
+	url, err := upserter.RunPath().URL(rs.settings.GetAppURL())
+	if err != nil {
+		rs.logger.CaptureError(fmt.Errorf("runsync: printRunURL: %v", err))
+		return
+	}
+
+	displayName := upserter.DisplayName()
+
+	if len(displayName) > 0 {
+		rs.printer.Infof("View run %s at %s", displayName, url)
+	} else {
+		rs.printer.Infof("View run at %s", url)
 	}
 }
 
