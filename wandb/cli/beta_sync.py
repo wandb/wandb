@@ -165,7 +165,7 @@ class _SyncStatusLoop:
 
                 for msg in response.new_messages:
                     self._printer.display(msg.content, level=msg.severity)
-                progress.update(dict(response.stats))
+                progress.update(list(response.stats))
 
     async def _rate_limit_check_done(self) -> bool:
         """Wait for rate limit and return whether _done is set."""
