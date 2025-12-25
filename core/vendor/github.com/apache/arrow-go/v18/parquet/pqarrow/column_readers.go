@@ -319,7 +319,7 @@ func (sr *structReader) BuildArray(lenBound int64) (*arrow.Chunked, error) {
 			return nil, err
 		}
 
-		childArrData[i], err = chunksToSingle(field)
+		childArrData[i], err = chunksToSingle(field, sr.rctx.mem)
 		field.Release() // release field before checking
 		if err != nil {
 			return nil, err
@@ -442,7 +442,7 @@ func (lr *listReader) BuildArray(lenBound int64) (*arrow.Chunked, error) {
 		validityBuffer.Resize(int(bitutil.BytesForBits(validityIO.Read)))
 	}
 
-	item, err := chunksToSingle(arr)
+	item, err := chunksToSingle(arr, lr.rctx.mem)
 	if err != nil {
 		return nil, err
 	}
@@ -489,9 +489,7 @@ func newFixedSizeListReader(rctx *readerCtx, field *arrow.Field, info file.Level
 }
 
 // helper function to combine chunks into a single array.
-//
-// nested data conversion for chunked array outputs not yet implemented
-func chunksToSingle(chunked *arrow.Chunked) (arrow.ArrayData, error) {
+func chunksToSingle(chunked *arrow.Chunked, mem memory.Allocator) (arrow.ArrayData, error) {
 	switch len(chunked.Chunks()) {
 	case 0:
 		return array.NewData(chunked.DataType(), 0, []*memory.Buffer{nil, nil}, nil, 0, 0), nil
@@ -499,8 +497,17 @@ func chunksToSingle(chunked *arrow.Chunked) (arrow.ArrayData, error) {
 		data := chunked.Chunk(0).Data()
 		data.Retain() // we pass control to the caller
 		return data, nil
-	default: // if an item reader yields a chunked array, this is not yet implemented
-		return nil, arrow.ErrNotImplemented
+	default:
+		// concatenate multiple chunks into a single array
+		concatenated, err := array.Concatenate(chunked.Chunks(), mem)
+		if err != nil {
+			return nil, err
+		}
+		defer concatenated.Release()
+
+		data := concatenated.Data()
+		data.Retain()
+		return data, nil
 	}
 }
 

@@ -40,12 +40,9 @@ def build_wandb_core(
     # dependencies (grpc/stats/opentelemetry.test) that pull in the entire
     # envoyproxy/go-control-plane package.
     #
-    # The `parquet_read_only` is used to disable building writing related code.
+    # The `pqarrow_read_only` is used to disable building writing related code.
     # Reducing the size of importing arrow-go into wandb-core by 11MB.
-    # The vendored code has been modified until the changes are merged into arrow-go.
-    #
-    # See: https://github.com/wandb/wandb/pull/10712 for the files that were modified.
-    build_tags = ["-tags", "disable_grpc_modules parquet_read_only"]
+    build_tags = ["-tags", "disable_grpc_modules pqarrow_read_only"]
     coverage_flags = ["-cover"] if with_code_coverage else []
     race_detect_flags = ["-race"] if with_race_detection else []
     output_flags = ["-o", str(".." / output_path)]
