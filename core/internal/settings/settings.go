@@ -196,6 +196,13 @@ func (s *Settings) GetSyncDir() string {
 	return s.Proto.SyncDir.GetValue()
 }
 
+// GetAppURL returns the base URL for the W&B UI.
+//
+// Used for constructing printable URLs like the run URL.
+func (s *Settings) GetAppURL() string {
+	return s.Proto.AppUrl.GetValue()
+}
+
 // The URL for the W&B backend.
 //
 // Used for GraphQL and "filestream" operations.

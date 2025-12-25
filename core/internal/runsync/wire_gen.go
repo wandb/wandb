@@ -95,6 +95,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		RecordParserFactory: recordParserFactory,
 		RunReaderFactory:    runReaderFactory,
 		SenderFactory:       senderFactory,
+		Settings:            settings2,
 		TBHandlerFactory:    tbHandlerFactory,
 	}
 	return runSyncerFactory
