@@ -20,7 +20,7 @@ require (
 	github.com/getsentry/sentry-go v0.40.0
 	github.com/go-git/go-git/v5 v5.16.4
 	github.com/google/wire v0.7.0
-	github.com/googleapis/gax-go/v2 v2.15.0
+	github.com/googleapis/gax-go/v2 v2.16.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/prometheus/client_golang v1.23.2
@@ -36,7 +36,7 @@ require (
 	golang.org/x/time v0.14.0
 	google.golang.org/api v0.257.0
 	google.golang.org/grpc v1.77.0
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 )
 
