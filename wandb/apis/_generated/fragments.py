@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from pydantic import Field
-from typing_extensions import Literal
+from typing_extensions import Any
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
@@ -21,7 +21,7 @@ class CreatedProjectFragment(GQLResult):
 
 
 class PageInfoFragment(GQLResult):
-    typename__: Typename[Literal["PageInfo"]] = "PageInfo"
+    typename__: Typename[Literal[PageInfo]] = "PageInfo"
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
@@ -105,37 +105,12 @@ class FullUserFragmentTeamsEdgesNode(GQLResult):
 
 
 class ProjectFragment(GQLResult):
-    typename__: Typename[Literal["Project"]] = "Project"
+    typename__: Typename[Literal[Project]] = "Project"
     id: GQLId
     name: str
     entity_name: str = Field(alias="entityName")
     created_at: str = Field(alias="createdAt")
     is_benchmark: bool = Field(alias="isBenchmark")
-
-
-class RegistryFragment(GQLResult):
-    id: GQLId
-    allow_all_artifact_types_in_registry: bool = Field(
-        alias="allowAllArtifactTypesInRegistry"
-    )
-    artifact_types: RegistryFragmentArtifactTypes = Field(alias="artifactTypes")
-    name: str
-    description: Optional[str]
-    created_at: str = Field(alias="createdAt")
-    updated_at: Optional[str] = Field(alias="updatedAt")
-    access: Optional[str]
-
-
-class RegistryFragmentArtifactTypes(GQLResult):
-    edges: List[RegistryFragmentArtifactTypesEdges]
-
-
-class RegistryFragmentArtifactTypesEdges(GQLResult):
-    node: Optional[RegistryFragmentArtifactTypesEdgesNode]
-
-
-class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
-    name: str
 
 
 class UserFragment(GQLResult):
@@ -150,14 +125,10 @@ ApiKeyFragment.model_rebuild()
 FullUserFragment.model_rebuild()
 FullUserFragmentApiKeys.model_rebuild()
 FullUserFragmentApiKeysEdges.model_rebuild()
+ApiKeyFragment.model_rebuild()
 FullUserFragmentTeams.model_rebuild()
 FullUserFragmentTeamsEdges.model_rebuild()
 FullUserFragmentTeamsEdgesNode.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
-RegistryFragment.model_rebuild()
-RegistryFragmentArtifactTypes.model_rebuild()
-RegistryFragmentArtifactTypesEdges.model_rebuild()
-RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
 UserFragment.model_rebuild()
-ApiKeyFragment.model_rebuild()
