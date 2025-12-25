@@ -5,96 +5,13 @@ __all__ = [
     "CREATE_PROJECT_GQL",
     "CREATE_USER_FROM_ADMIN_GQL",
     "DELETE_API_KEY_GQL",
-    "DELETE_PROJECT_GQL",
-    "FETCH_REGISTRY_GQL",
     "GENERATE_API_KEY_GQL",
     "GET_DEFAULT_ENTITY_GQL",
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
     "GET_VIEWER_GQL",
-    "RENAME_PROJECT_GQL",
     "SEARCH_USERS_GQL",
-    "UPSERT_REGISTRY_PROJECT_GQL",
 ]
-
-FETCH_REGISTRY_GQL = """
-query FetchRegistry($name: String, $entityName: String) {
-  entity(name: $entityName) {
-    project(name: $name) {
-      ...RegistryFragment
-    }
-  }
-}
-
-fragment RegistryFragment on Project {
-  id
-  allowAllArtifactTypesInRegistry
-  artifactTypes(includeAll: true) {
-    edges {
-      node {
-        name
-      }
-    }
-  }
-  name
-  description
-  createdAt
-  updatedAt
-  access
-}
-"""
-
-RENAME_PROJECT_GQL = """
-mutation renameProject($entityName: String!, $oldProjectName: String!, $newProjectName: String!) {
-  renameProject(
-    input: {entityName: $entityName, oldProjectName: $oldProjectName, newProjectName: $newProjectName}
-  ) {
-    project {
-      name
-    }
-    inserted
-  }
-}
-"""
-
-UPSERT_REGISTRY_PROJECT_GQL = """
-mutation UpsertRegistryProject($description: String, $entityName: String, $name: String, $access: String, $allowAllArtifactTypesInRegistry: Boolean, $artifactTypes: [ArtifactTypeInput!]) {
-  upsertModel(
-    input: {description: $description, entityName: $entityName, name: $name, access: $access, allowAllArtifactTypesInRegistry: $allowAllArtifactTypesInRegistry, artifactTypes: $artifactTypes}
-  ) {
-    project {
-      ...RegistryFragment
-    }
-    inserted
-  }
-}
-
-fragment RegistryFragment on Project {
-  id
-  allowAllArtifactTypesInRegistry
-  artifactTypes(includeAll: true) {
-    edges {
-      node {
-        name
-      }
-    }
-  }
-  name
-  description
-  createdAt
-  updatedAt
-  access
-}
-"""
-
-DELETE_PROJECT_GQL = """
-mutation deleteProject($id: String!) {
-  deleteModel(input: {id: $id}) {
-    success
-    __typename
-  }
-}
-"""
 
 GET_PROJECTS_GQL = """
 query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
