@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import pathlib
+import tempfile
+from typing import Any
+
+import pytest
 import wandb
 
 
@@ -7,6 +12,7 @@ def stub_run_parquet_history(
     wandb_backend_spy,
     parquet_file_server,
     parquet_files_locations: list[str],
+    live_data: list[dict[str, Any]] | None = None,
 ):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
@@ -20,7 +26,12 @@ def stub_run_parquet_history(
                                 "parquetUrls": [
                                     f"http://localhost:{parquet_file_server.port}/{path}"
                                     for path in parquet_files_locations
-                                ]
+                                ],
+                                **(
+                                    {"liveData": live_data}
+                                    if live_data is not None
+                                    else {}
+                                ),
                             }
                         }
                     }
@@ -190,3 +201,56 @@ def test_run_beta_scan_history__exits_on_requested_max_step(
     assert history == [
         {"_step": 0, "acc": 0.5, "loss": 1.0},
     ]
+
+
+@pytest.mark.parametrize(
+    "parquet_files,live_data",
+    [
+        (["parquet/1.parquet", "parquet/2.parquet"], None),
+        (["parquet/1.parquet", "parquet/2.parquet"], [{"_step": 3}]),
+    ],
+    ids=["no_live_data", "contains_live_data"],
+)
+def test_run_download_history_exports(
+    wandb_backend_spy,
+    parquet_file_server,
+    parquet_files,
+    live_data,
+):
+    """Test downloading history exports with different configurations."""
+    # Create sample parquet data with history metrics
+    run_data = {"_step": [0, 1, 2]}
+    for parquet_path in parquet_files:
+        parquet_file_server.serve_data_as_parquet_file(parquet_path, run_data)
+    stub_run_parquet_history(
+        wandb_backend_spy,
+        parquet_file_server,
+        parquet_files,
+        live_data=live_data,
+    )
+    stub_api_run_history_keys(wandb_backend_spy, 2)
+    with wandb.init() as run:
+        pass
+
+    run = wandb.Api().run(
+        f"{run.entity}/{run.project}/{run.id}",
+    )
+
+    download_dir = tempfile.mkdtemp()
+    file_names, contains_live_data = run.download_history_exports(
+        download_dir=download_dir
+    )
+
+    expected_file_names = [
+        pathlib.Path(
+            download_dir,
+            f"{run.entity}_{run.project}_{run.id}_{i}.runhistory.parquet",
+        )
+        for i in range(len(parquet_files))
+    ]
+    assert file_names == expected_file_names
+
+    for file_name in file_names:
+        assert file_name.exists()
+
+    assert contains_live_data == (live_data is not None and len(live_data) > 0)
