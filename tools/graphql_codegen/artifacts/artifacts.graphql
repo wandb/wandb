@@ -36,13 +36,12 @@ fragment ArtifactFragment on Artifact {
   }
   description
   metadata
-  ttlDurationSeconds @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
-  ttlIsInherited @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
-  tags @include(if: true) {
-    # Workaround: ensures generated pydantic field defaults to `None`
+  ttlDurationSeconds
+  ttlIsInherited
+  tags {
     ...TagFragment
   }
-  historyStep @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
+  historyStep
   state
   size
   digest

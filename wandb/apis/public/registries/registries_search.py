@@ -11,8 +11,6 @@ from wandb_gql import gql
 
 from wandb._analytics import tracked
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
-from wandb.apis.public.utils import gql_compat
-from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 
 from ._utils import ensure_registry_prefix_on_names
 
@@ -242,8 +240,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
     ):
         from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
 
-        omit_fields = omit_artifact_fields(client)
-        self.QUERY = gql_compat(REGISTRY_VERSIONS_GQL, omit_fields=omit_fields)
+        self.QUERY = gql(REGISTRY_VERSIONS_GQL)
 
         self.client = client
         self.organization = organization
