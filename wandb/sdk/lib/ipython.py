@@ -75,14 +75,14 @@ def in_vscode_notebook() -> bool:
     """Returns True if we're in a VSCode notebook."""
     try:
         from IPython import get_ipython
-
-        ipython = get_ipython()
-        if not ipython:
-            return False
-
-        return ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__") is not None
     except ModuleNotFoundError:
         return False
+
+    ipython = get_ipython()
+    if not ipython:
+        return False
+
+    return ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__") is not None
 
 
 class ProgressWidget:
