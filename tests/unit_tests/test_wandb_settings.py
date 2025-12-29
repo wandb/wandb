@@ -153,6 +153,16 @@ def test_base_url_validation():
         s.base_url = "new"
 
 
+def test_app_url_default():
+    s = Settings(base_url="https://api.wandb.ai")
+    assert s.app_url == "https://wandb.ai"
+
+
+def test_app_url_override():
+    s = Settings(base_url="https://api.wandb.ai", app_url_override="https://my-ui")
+    assert s.app_url == "https://my-ui"
+
+
 def test_get_non_existent_attribute():
     s = Settings()
     with pytest.raises(AttributeError):
