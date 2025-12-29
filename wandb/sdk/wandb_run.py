@@ -1370,6 +1370,9 @@ class Run:
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying the current run.
 
+        If the run is being displayed in a VSCode notebook,
+        the string representation of the run is returned instead.
+
         <!-- lazydoc-ignore: internal -->
         """
         if ipython.in_vscode_notebook():

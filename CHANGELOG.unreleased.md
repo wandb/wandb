@@ -33,4 +33,4 @@ This version removes the legacy, deprecated `wandb.beta.workflows` module, inclu
 - Fixed CLI error when listing empty artifacts (@ruhiparvatam in https://github.com/wandb/wandb/pull/11157)
 - Fixed regression for calling `api.run()` on a Sweeps run (@willtryagain in https://github.com/wandb/wandb/pull/11088 and @kelu-wandb in https://github.com/wandb/wandb/pull/11097)
 - Fixed the "View run at" message printed at the end of a run which sometimes did not include a URL (@timoffex in https://github.com/wandb/wandb/pull/11113)
-- runs queried from `wandb.Api()` shows the string representation in notebooks running in VSCode rather than a broken HTML window (@jacobromero in https://github.com/wandb/wandb/pull/11040)
+- Runs queried from wandb.Api() now display a string representation in VSCode notebooks instead of a broken HTML window (@jacobromero in https://github.com/wandb/wandb/pull/11040)
