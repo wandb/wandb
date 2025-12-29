@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import os
+from contextlib import nullcontext
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import wandb
-from pytest import fixture, mark, raises
+from pytest import FixtureRequest, fixture, mark, raises
+from pytest_mock import MockerFixture
 from wandb import Artifact, env
 from wandb.errors import CommError
 from wandb.util import make_artifact_name_safe

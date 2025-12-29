@@ -6,7 +6,7 @@ import random
 import string
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 import requests
 import wandb
