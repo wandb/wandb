@@ -44,8 +44,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
 from wandb.apis.public.utils import gql_compat
 from wandb.data_types import WBValue
-from wandb.errors import CommError
-from wandb.errors.errors import UnsupportedError
+from wandb.errors import CommError, ResponseError, UnsupportedError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
@@ -312,12 +311,12 @@ class Artifact:
 
         if not (project := result.project):
             msg = f"project {path.project!r} not found under entity {path.prefix!r}"
-            raise ValueError(msg)
+            raise ResponseError(msg)
 
         if not (membership := project.artifact_collection_membership):
             entity_project = f"{path.prefix}/{path.project}"
             msg = f"artifact membership {path.name!r} not found in {entity_project!r}"
-            raise ValueError(msg)
+            raise ResponseError(msg)
 
         return cls._from_membership(membership, target=path, client=client)
 
@@ -351,12 +350,12 @@ class Artifact:
 
         if not (project := result.project):
             msg = f"project {path.project!r} not found in entity {path.prefix!r}"
-            raise ValueError(msg)
+            raise ResponseError(msg)
 
         if not (artifact := project.artifact):
             entity_project = f"{path.prefix}/{path.project}"
             msg = f"artifact {path.name!r} not found in {entity_project!r}"
-            raise ValueError(msg)
+            raise ResponseError(msg)
 
         return cls._from_attrs(path, artifact, client)
 
@@ -374,7 +373,9 @@ class Artifact:
             and (name := collection.name)
             and (proj := collection.project)
         ):
-            raise ValueError("Missing artifact collection project in GraphQL response")
+            raise ResponseError(
+                "Missing artifact collection project in GraphQL response"
+            )
 
         if is_artifact_registry_project(proj.name) and (
             target.project == "model-registry"
@@ -391,7 +392,7 @@ class Artifact:
         new_target = replace(target, prefix=proj.entity.name, project=proj.name)
 
         if not (artifact := membership.artifact):
-            raise ValueError(f"Artifact {target.to_str()!r} not found in response")
+            raise ResponseError(f"Artifact {target.to_str()!r} not found in response")
 
         return cls._from_attrs(new_target, artifact, client, membership=membership)
 
@@ -732,7 +733,7 @@ class Artifact:
             return self
         if self._source_artifact is None:
             if (client := self._client) is None:
-                raise ValueError("Client is not initialized")
+                raise RuntimeError("Client is not initialized")
 
             try:
                 path = FullArtifactPath(
@@ -1070,7 +1071,7 @@ class Artifact:
             response = requests.get(manifest.file.direct_url)
             return ArtifactManifest.from_manifest_json(from_json(response.content))
 
-        raise ValueError("Failed to fetch artifact manifest")
+        raise ResponseError("Failed to fetch artifact manifest")
 
     @property
     def digest(self) -> str:
@@ -1251,7 +1252,7 @@ class Artifact:
 
             response = result.response.log_artifact_response
             if response.error_message:
-                raise ValueError(response.error_message)
+                raise ResponseError(response.error_message)
             self._populate_after_save(response.artifact_id)
         return self
 
@@ -1266,7 +1267,7 @@ class Artifact:
         result = ArtifactByID.model_validate(data)
 
         if not (artifact := result.artifact):
-            raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
+            raise ResponseError(f"Unable to fetch artifact with id: {artifact_id!r}")
 
         # _populate_after_save is only called on source artifacts, not linked artifacts
         # We have to manually set is_link because we aren't fetching the collection
@@ -1342,7 +1343,7 @@ class Artifact:
 
         result = UpdateArtifact.model_validate(data).result
         if not (result and (artifact := result.artifact)):
-            raise ValueError("Unable to parse updateArtifact response")
+            raise ResponseError("Unable to parse updateArtifact response")
         self._assign_attrs(artifact)
 
         self._ttl_changed = False  # Reset after updating artifact
@@ -2066,7 +2067,7 @@ class Artifact:
 
         response = result.response.download_artifact_response
         if response.error_message:
-            raise ValueError(f"Error downloading artifact: {response.error_message}")
+            raise ResponseError(f"Error downloading artifact: {response.error_message}")
 
         return FilePathStr(root)
 
@@ -2217,7 +2218,7 @@ class Artifact:
                     and (membership := collection.artifact_membership)
                     and (files := membership.files)
                 ):
-                    raise ValueError(
+                    raise ResponseError(
                         f"Unable to fetch files for artifact: {self.name!r}"
                     )
                 return FileWithUrlConnection.model_validate(files)
@@ -2228,7 +2229,7 @@ class Artifact:
                 result = GetArtifactFileUrls.model_validate(data)
 
                 if not ((artifact := result.artifact) and (files := artifact.files)):
-                    raise ValueError(
+                    raise ResponseError(
                         f"Unable to fetch files for artifact: {self.name!r}"
                     )
                 return FileWithUrlConnection.model_validate(files)
@@ -2517,7 +2518,7 @@ class Artifact:
 
         # Old behavior, which requires re-fetching the linked artifact to return it
         if not (result and (version_idx := result.version_index) is not None):
-            raise ValueError("Unable to parse linked artifact version from response")
+            raise ResponseError("Unable to parse linked artifact version from response")
 
         link_name = f"{target.to_str()}:v{version_idx}"
         return Api(overrides={"entity": self.source_entity})._artifact(link_name)
@@ -2541,10 +2542,10 @@ class Artifact:
 
     @normalize_exceptions
     def _unlink(self) -> None:
-        from ._generated import UNLINK_ARTIFACT_GQL, UnlinkArtifactInput
-
         if self._client is None:
             raise RuntimeError("Client not initialized for artifact mutations")
+
+        from ._generated import UNLINK_ARTIFACT_GQL, UnlinkArtifactInput
 
         mutation = gql(UNLINK_ARTIFACT_GQL)
         gql_input = UnlinkArtifactInput(
@@ -2678,7 +2679,7 @@ class Artifact:
             )
 
         if (client := self._client) is None:
-            raise ValueError("Client is not initialized")
+            raise RuntimeError("Client is not initialized")
 
         gql_op = gql_compat(FETCH_LINKED_ARTIFACTS_GQL)
         data = client.execute(gql_op, variable_values={"artifactID": self.id})
@@ -2689,7 +2690,7 @@ class Artifact:
             and (memberships := artifact.artifact_memberships)
             and (membership_edges := memberships.edges)
         ):
-            raise ValueError("Unable to find any artifact memberships for artifact")
+            raise ResponseError("Unable to find any artifact memberships for artifact")
 
         linked_artifacts: deque[Artifact] = deque()
         linked_nodes = (
@@ -2716,7 +2717,7 @@ class Artifact:
                 and (proj := col.project)
                 and (proj.entity.name and proj.name)
             ):
-                raise ValueError("Unable to fetch fields for linked artifact")
+                raise ResponseError("Unable to fetch fields for linked artifact")
 
             link_fields = LinkArtifactFields(
                 entity_name=proj.entity.name,
