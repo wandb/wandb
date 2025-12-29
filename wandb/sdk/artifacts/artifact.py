@@ -2570,7 +2570,9 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        from ._generated import ARTIFACT_USED_BY_GQL, ArtifactUsedBy
+        from wandb._pydantic import ConnectionWithTotal
+
+        from ._generated import ARTIFACT_USED_BY_GQL, ArtifactUsedBy, RunInfoFragment
 
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact queries")
@@ -2580,15 +2582,11 @@ class Artifact:
         data = client.execute(query, variable_values=gql_vars)
         result = ArtifactUsedBy.model_validate(data)
 
-        if (
-            (artifact := result.artifact)
-            and (used_by := artifact.used_by)
-            and (edges := used_by.edges)
-        ):
-            run_nodes = (e.node for e in edges)
+        if (artifact := result.artifact) and (used_by := artifact.used_by):
+            conn = ConnectionWithTotal[RunInfoFragment].model_validate(used_by)
             return [
                 Run(client, proj.entity.name, proj.name, run.name)
-                for run in run_nodes
+                for run in conn.nodes()
                 if (proj := run.project)
             ]
         return []

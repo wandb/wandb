@@ -233,6 +233,10 @@ fragment RunInfoFragment on Run {
 query ArtifactUsedBy($id: ID!) {
   artifact(id: $id) {
     usedBy {
+      totalCount
+      pageInfo {
+        ...PageInfoFragment
+      }
       edges {
         node {
           ...RunInfoFragment
