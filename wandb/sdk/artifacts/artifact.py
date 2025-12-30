@@ -69,12 +69,7 @@ from wandb.util import (
 )
 
 from ._factories import make_storage_policy
-from ._gqlutils import (
-    org_info_from_entity,
-    resolve_org_entity_name,
-    server_supports,
-    type_info,
-)
+from ._gqlutils import org_info_from_entity, resolve_org_entity_name, server_supports
 from ._validators import ensure_logged, ensure_not_finalized
 from .artifact_download_logger import ArtifactDownloadLogger
 from .artifact_instance_cache import (
@@ -1271,26 +1266,13 @@ class Artifact:
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        collection = self.name.split(":")[0]
+        entity, project, collection = self.entity, self.project, self.name.split(":")[0]
 
-        update_alias_inputs = None
-        if type_info(client, "AddAliasesInput") is not None:
-            # wandb backend version >= 0.13.0
-            old_aliases, new_aliases = set(self._saved_aliases), set(self.aliases)
-            target = FullArtifactPath(
-                prefix=self.entity, project=self.project, name=collection
-            )
-            if added_aliases := (new_aliases - old_aliases):
-                self._add_aliases(added_aliases, target=target)
-            if deleted_aliases := (old_aliases - new_aliases):
-                self._delete_aliases(deleted_aliases, target=target)
-            self._saved_aliases = copy(self.aliases)
-        else:
-            # wandb backend version < 0.13.0
-            update_alias_inputs = [
-                {"artifactCollectionName": collection, "alias": alias}
-                for alias in self.aliases
-            ]
+        old_aliases, new_aliases = set(self._saved_aliases), set(self.aliases)
+        target = FullArtifactPath(prefix=entity, project=project, name=collection)
+        self._add_aliases(new_aliases - old_aliases, target=target)
+        self._delete_aliases(old_aliases - new_aliases, target=target)
+        self._saved_aliases = copy(self.aliases)
 
         old_tags, new_tags = set(self._saved_tags), set(self.tags)
 
@@ -1300,7 +1282,6 @@ class Artifact:
             description=self.description,
             metadata=json_dumps_safer(self.metadata),
             ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
-            aliases=update_alias_inputs,
             tags_to_add=[{"tagName": t} for t in validate_tags(new_tags - old_tags)],
             tags_to_delete=[{"tagName": t} for t in validate_tags(old_tags - new_tags)],
         )
@@ -1320,23 +1301,26 @@ class Artifact:
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        target_props = {
-            "entityName": target.prefix,
-            "projectName": target.project,
-            "artifactCollectionName": target.name,
-        }
-        alias_inputs = [{**target_props, "alias": name} for name in alias_names]
-        gql_op = gql(ADD_ALIASES_GQL)
-        gql_input = AddAliasesInput(artifact_id=self.id, aliases=alias_inputs)
-        gql_vars = {"input": gql_input.model_dump()}
-        try:
-            client.execute(gql_op, variable_values=gql_vars)
-        except CommError as e:
-            raise CommError(
-                "You do not have permission to add"
-                f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
-                f" to this artifact: {alias_names!r}"
-            ) from e
+        # If there aren't any aliases to add, we can skip the GraphQL call.
+        if alias_names:
+            target_props = {
+                "entityName": target.prefix,
+                "projectName": target.project,
+                "artifactCollectionName": target.name,
+            }
+            alias_inputs = [{**target_props, "alias": name} for name in alias_names]
+            gql_op = gql(ADD_ALIASES_GQL)
+            gql_input = AddAliasesInput(artifact_id=self.id, aliases=alias_inputs)
+            gql_vars = {"input": gql_input.model_dump()}
+            try:
+                client.execute(gql_op, variable_values=gql_vars)
+            except CommError as e:
+                msg = (
+                    "You do not have permission to add"
+                    f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
+                    f" to this artifact: {alias_names!r}"
+                )
+                raise CommError(msg) from e
 
     def _delete_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
         from ._generated import DELETE_ALIASES_GQL, DeleteAliasesInput
@@ -1344,23 +1328,26 @@ class Artifact:
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        target_props = {
-            "entityName": target.prefix,
-            "projectName": target.project,
-            "artifactCollectionName": target.name,
-        }
-        alias_inputs = [{**target_props, "alias": name} for name in alias_names]
-        gql_op = gql(DELETE_ALIASES_GQL)
-        gql_input = DeleteAliasesInput(artifact_id=self.id, aliases=alias_inputs)
-        gql_vars = {"input": gql_input.model_dump()}
-        try:
-            client.execute(gql_op, variable_values=gql_vars)
-        except CommError as e:
-            raise CommError(
-                f"You do not have permission to delete"
-                f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
-                f" from this artifact: {alias_names!r}"
-            ) from e
+        # If there aren't any aliases to delete, we can skip the GraphQL call.
+        if alias_names:
+            target_props = {
+                "entityName": target.prefix,
+                "projectName": target.project,
+                "artifactCollectionName": target.name,
+            }
+            alias_inputs = [{**target_props, "alias": name} for name in alias_names]
+            gql_op = gql(DELETE_ALIASES_GQL)
+            gql_input = DeleteAliasesInput(artifact_id=self.id, aliases=alias_inputs)
+            gql_vars = {"input": gql_input.model_dump()}
+            try:
+                client.execute(gql_op, variable_values=gql_vars)
+            except CommError as e:
+                msg = (
+                    f"You do not have permission to delete"
+                    f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
+                    f" from this artifact: {alias_names!r}"
+                )
+                raise CommError(msg) from e
 
     # Adding, removing, getting entries.
 
