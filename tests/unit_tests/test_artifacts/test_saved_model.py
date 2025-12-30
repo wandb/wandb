@@ -147,6 +147,9 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
         },
         versionIndex=0,
         description=None,
+        tags=[],
+        ttlDurationSeconds=-2,
+        ttlIsInherited=False,
         metadata=None,
         state="COMMITTED",
         size=0,
@@ -155,6 +158,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
         fileCount=0,
         createdAt="FAKE_CREATED_AT",
         updatedAt=None,
+        historyStep=None,
     )
     pub = ArtifactPatch._from_attrs(
         path,
