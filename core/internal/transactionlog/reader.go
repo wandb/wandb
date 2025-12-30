@@ -117,7 +117,7 @@ func (r *Reader) Read() (*spb.Record, error) {
 // ResetLastRead returns to the previous Read position to allow retrying
 // the same read after an error.
 func (r *Reader) ResetLastRead() error {
-	r.logger.Info("transactionlog: resetting to offset", "offset", r.lastReadOffset)
+	r.logger.Debug("transactionlog: resetting to offset", "offset", r.lastReadOffset)
 	return r.SeekRecord(r.lastReadOffset)
 }
 
