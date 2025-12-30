@@ -73,7 +73,6 @@ from ._gqlutils import (
     org_info_from_entity,
     resolve_org_entity_name,
     server_supports,
-    supports_enable_tracking_var,
     type_info,
 )
 from ._validators import ensure_logged, ensure_not_finalized
@@ -330,14 +329,13 @@ class Artifact:
         if server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
             return cls._membership_from_name(path=path, client=client)
 
-        omit_vars = None if supports_enable_tracking_var(client) else {"enableTracking"}
         gql_vars = {
             "entity": path.prefix,
             "project": path.project,
             "name": path.name,
             "enableTracking": enable_tracking,
         }
-        gql_op = gql_compat(ARTIFACT_BY_NAME_GQL, omit_variables=omit_vars)
+        gql_op = gql(ARTIFACT_BY_NAME_GQL)
         data = client.execute(gql_op, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
 
