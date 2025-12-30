@@ -267,9 +267,9 @@ class Artifact:
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        query = gql(ARTIFACT_BY_ID_GQL)
+        gql_op = gql(ARTIFACT_BY_ID_GQL)
 
-        data = client.execute(query, variable_values={"id": artifact_id})
+        data = client.execute(gql_op, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
         if (artifact := result.artifact) is None:
@@ -301,9 +301,9 @@ class Artifact:
                 "by this version of wandb server. Consider updating to the latest version."
             )
 
-        query = gql(ARTIFACT_MEMBERSHIP_BY_NAME_GQL)
+        gql_op = gql(ARTIFACT_MEMBERSHIP_BY_NAME_GQL)
         gql_vars = {"entity": path.prefix, "project": path.project, "name": path.name}
-        data = client.execute(query, variable_values=gql_vars)
+        data = client.execute(gql_op, variable_values=gql_vars)
         result = ArtifactMembershipByName.model_validate(data)
 
         if not (project := result.project):
@@ -337,8 +337,8 @@ class Artifact:
             "name": path.name,
             "enableTracking": enable_tracking,
         }
-        query = gql_compat(ARTIFACT_BY_NAME_GQL, omit_variables=omit_vars)
-        data = client.execute(query, variable_values=gql_vars)
+        gql_op = gql_compat(ARTIFACT_BY_NAME_GQL, omit_variables=omit_vars)
+        data = client.execute(gql_op, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
 
         if not (project := result.project):
@@ -1251,8 +1251,8 @@ class Artifact:
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
-        query = gql(ARTIFACT_BY_ID_GQL)
-        data = client.execute(query, variable_values={"id": artifact_id})
+        gql_op = gql(ARTIFACT_BY_ID_GQL)
+        data = client.execute(gql_op, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
         if not (artifact := result.artifact):
@@ -1294,8 +1294,7 @@ class Artifact:
                 for alias in self.aliases
             ]
 
-        added_tags = validate_tags(set(self.tags) - set(self._saved_tags))
-        deleted_tags = validate_tags(set(self._saved_tags) - set(self.tags))
+        old_tags, new_tags = set(self._saved_tags), set(self.tags)
 
         gql_op = gql(UPDATE_ARTIFACT_GQL)
         gql_input = UpdateArtifactInput(
@@ -1304,8 +1303,8 @@ class Artifact:
             metadata=json_dumps_safer(self.metadata),
             ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
             aliases=update_alias_inputs,
-            tags_to_add=[{"tagName": t} for t in added_tags],
-            tags_to_delete=[{"tagName": t} for t in deleted_tags],
+            tags_to_add=[{"tagName": t} for t in validate_tags(new_tags - old_tags)],
+            tags_to_delete=[{"tagName": t} for t in validate_tags(old_tags - new_tags)],
         )
         gql_vars = {"input": gql_input.model_dump()}
         data = client.execute(gql_op, variable_values=gql_vars)
