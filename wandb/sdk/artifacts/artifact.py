@@ -500,7 +500,7 @@ class Artifact:
         self._aliases = copy(other_aliases)
         self._saved_aliases = copy(other_aliases)
 
-        self._tags = [tag.name for tag in (src_art.tags or [])]
+        self._tags = [tag.name for tag in src_art.tags]
         self._saved_tags = copy(self._tags)
 
         self._metadata = validate_metadata(src_art.metadata)
@@ -508,9 +508,7 @@ class Artifact:
         self._ttl_duration_seconds = validate_ttl_duration_seconds(
             src_art.ttl_duration_seconds
         )
-        self._ttl_is_inherited = (
-            True if (src_art.ttl_is_inherited is None) else src_art.ttl_is_inherited
-        )
+        self._ttl_is_inherited = src_art.ttl_is_inherited
 
         self._state = ArtifactState(src_art.state)
         self._size = src_art.size
