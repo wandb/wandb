@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 import wandb
-from pytest import fixture, mark, raises
+from pytest import mark, raises
 from wandb import Api
 from wandb.errors import CommError
 from wandb.sdk.artifacts._validators import FullArtifactPath
@@ -51,19 +51,7 @@ def test_save_aliases_after_logging_artifact(user: str, api: Api):
     assert "hello" in aliases
 
 
-@fixture
-def server_supports_artifact_tags(user: str, api: Api) -> bool:
-    """Identifies if we're testing against an older server version that doesn't support artifact tags (e.g. in CI)."""
-    from wandb.sdk.artifacts._gqlutils import allowed_fields
-
-    return "tags" in allowed_fields(api.client, "Artifact")
-
-
-def test_save_artifact_with_tags_repeated(
-    user: str,
-    server_supports_artifact_tags: bool,
-    logged_artifact: Artifact,
-):
+def test_save_artifact_with_tags_repeated(user: str, logged_artifact: Artifact):
     tags1 = ["tag1", "tag2"]
     tags2 = ["tag3", "tag4"]
 
@@ -72,18 +60,12 @@ def test_save_artifact_with_tags_repeated(
     artifact.tags = tags1
     artifact.save()
 
-    if server_supports_artifact_tags:
-        assert set(artifact.tags) == set(tags1)
-    else:
-        assert artifact.tags == []
+    assert set(artifact.tags) == set(tags1)
 
     artifact.tags = artifact.tags + tags2
     artifact.save()
 
-    if server_supports_artifact_tags:
-        assert set(artifact.tags) == set(tags1 + tags2)
-    else:
-        assert artifact.tags == []
+    assert set(artifact.tags) == set(tags1 + tags2)
 
 
 @mark.parametrize(
@@ -100,7 +82,6 @@ def test_save_tags_after_logging_artifact(
     api: Api,
     orig_tags: list[str],
     edit_tags_inplace: bool,
-    server_supports_artifact_tags: bool,
 ):
     project = "test"
     artifact_name = "test-artifact"
@@ -124,11 +105,8 @@ def test_save_tags_after_logging_artifact(
     # Add new tags after and outside the run
     fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
 
-    if server_supports_artifact_tags:
-        # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
-        assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
-    else:
-        assert fetched_artifact.tags == []
+    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+    assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
 
     curr_tags = fetched_artifact.tags
     if edit_tags_inplace:
@@ -154,13 +132,8 @@ def test_save_tags_after_logging_artifact(
     # fetch the final artifact and verify its tags
     final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
 
-    if server_supports_artifact_tags:
-        # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
-        assert sorted(final_tags) == sorted(
-            {*orig_tags, *tags_to_add} - {*tags_to_delete}
-        )
-    else:
-        assert final_tags == []
+    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+    assert sorted(final_tags) == sorted({*orig_tags, *tags_to_add} - {*tags_to_delete})
 
 
 INVALID_TAGS = (
@@ -187,7 +160,6 @@ def test_save_invalid_tags_after_logging_artifact(
     user: str,
     api: Api,
     tags_to_add: list[str],
-    server_supports_artifact_tags: bool,
 ):
     project = "test"
     artifact_name = "test-artifact"
@@ -210,11 +182,8 @@ def test_save_invalid_tags_after_logging_artifact(
     # Add new tags after and outside the run
     fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
 
-    if server_supports_artifact_tags:
-        # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
-        assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
-    else:
-        assert fetched_artifact.tags == []
+    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+    assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
 
     with raises((ValueError, CommError), match=re.compile(r"Invalid tag", re.I)):
         fetched_artifact.tags.extend(tags_to_add)
@@ -223,11 +192,8 @@ def test_save_invalid_tags_after_logging_artifact(
     # tags should remain unchanged
     final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
 
-    if server_supports_artifact_tags:
-        # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
-        assert sorted(final_tags) == sorted(set(orig_tags))
-    else:
-        assert final_tags == []
+    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+    assert sorted(final_tags) == sorted(set(orig_tags))
 
 
 @mark.parametrize("invalid_tags", INVALID_TAG_LISTS)
@@ -252,11 +218,7 @@ def test_log_artifact_with_invalid_tags(
             run.log_artifact(artifact, tags=invalid_tags)
 
 
-def test_retrieve_artifacts_by_tags(
-    user: str,
-    api: Api,
-    server_supports_artifact_tags: bool,
-):
+def test_retrieve_artifacts_by_tags(user: str, api: Api):
     project = "test"
     artifact_name = "test-artifact"
     artifact_type = "test-type"
@@ -281,21 +243,15 @@ def test_retrieve_artifacts_by_tags(
     # Retrieve all artifacts with a given tag.
     artifacts = api.artifacts(type_name=artifact_type, name=artifact_name, tags="fizz")
     retrieved_artifacts = list(artifacts)
-    if server_supports_artifact_tags:
-        assert len(retrieved_artifacts) == 4  # v0, v3, v6, v9
-    else:
-        assert len(retrieved_artifacts) == 0
+    assert len(retrieved_artifacts) == 4  # v0, v3, v6, v9
 
     # Retrieve only the artifacts that match multiple tags.
     artifacts = api.artifacts(
         type_name=artifact_type, name=artifact_name, tags=["fizz", "buzz"]
     )
     retrieved_artifacts = list(artifacts)
-    if server_supports_artifact_tags:
-        assert len(retrieved_artifacts) == 1
-        assert retrieved_artifacts[0].version == "v0"
-    else:
-        assert len(retrieved_artifacts) == 0
+    assert len(retrieved_artifacts) == 1
+    assert retrieved_artifacts[0].version == "v0"
 
 
 def test_update_aliases_on_artifact(user: str, api: Api):
