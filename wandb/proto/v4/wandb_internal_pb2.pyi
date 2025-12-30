@@ -64,6 +64,8 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """
     TOTAL_COUNT_IN_FILE_CONNECTION: _ServerFeature.ValueType  # 15
     """Indicates that the server supports returning the total file count in a file connection."""
+    REGISTRIES_ON_ORGANIZATION: _ServerFeature.ValueType  # 16
+    """Indicates that the server supports querying for registries on an organization."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -107,6 +109,8 @@ mutation.
 """
 TOTAL_COUNT_IN_FILE_CONNECTION: ServerFeature.ValueType  # 15
 """Indicates that the server supports returning the total file count in a file connection."""
+REGISTRIES_ON_ORGANIZATION: ServerFeature.ValueType  # 16
+"""Indicates that the server supports querying for registries on an organization."""
 global___ServerFeature = ServerFeature
 
 @typing_extensions.final

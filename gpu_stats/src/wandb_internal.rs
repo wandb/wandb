@@ -2936,6 +2936,8 @@ pub enum ServerFeature {
     ArtifactMembershipInLinkArtifactResponse = 14,
     /// Indicates that the server supports returning the total file count in a file connection.
     TotalCountInFileConnection = 15,
+    /// Indicates that the server supports querying for registries on an organization.
+    RegistriesOnOrganization = 16,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2972,6 +2974,7 @@ impl ServerFeature {
                 "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE"
             }
             Self::TotalCountInFileConnection => "TOTAL_COUNT_IN_FILE_CONNECTION",
+            Self::RegistriesOnOrganization => "REGISTRIES_ON_ORGANIZATION",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3007,6 +3010,7 @@ impl ServerFeature {
                 Some(Self::ArtifactMembershipInLinkArtifactResponse)
             }
             "TOTAL_COUNT_IN_FILE_CONNECTION" => Some(Self::TotalCountInFileConnection),
+            "REGISTRIES_ON_ORGANIZATION" => Some(Self::RegistriesOnOrganization),
             _ => None,
         }
     }
