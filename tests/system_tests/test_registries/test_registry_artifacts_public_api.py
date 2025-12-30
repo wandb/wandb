@@ -22,9 +22,9 @@ from wandb.sdk.artifacts._gqlutils import server_supports
 def mock_artifact_fragment_data() -> dict[str, Any]:
     fragment = ArtifactFragment(
         name="test-collection",  # NOTE: relevant
-        versionIndex=0,  # NOTE: relevant
-        artifactType={"name": "model"},
-        artifactSequence={
+        version_index=0,  # NOTE: relevant
+        artifact_type={"name": "model"},
+        artifact_sequence={
             "name": "test-collection",
             "project": {
                 "name": "orig-project",
@@ -33,14 +33,18 @@ def mock_artifact_fragment_data() -> dict[str, Any]:
         },
         id="PLACEHOLDER",
         description="PLACEHOLDER",
+        tags=[],
+        ttl_duration_seconds=-2,
+        ttl_is_inherited=False,
         metadata="{}",
         state="COMMITTED",
         size=0,
         digest="FAKE_DIGEST",
-        fileCount=0,
-        commitHash="PLACEHOLDER",
-        createdAt="PLACEHOLDER",
-        updatedAt=None,
+        file_count=0,
+        commit_hash="PLACEHOLDER",
+        created_at="PLACEHOLDER",
+        updated_at=None,
+        history_step=None,
     )
     return fragment.model_dump()
 
