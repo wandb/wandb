@@ -9,9 +9,8 @@ import time
 from itertools import filterfalse
 from typing import Iterable, Iterator
 
-import click
-
 import wandb
+from wandb.errors import term
 from wandb.proto.wandb_sync_pb2 import ServerSyncResponse
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import asyncio_compat
@@ -75,18 +74,18 @@ def sync(
     )
 
     if not wandb_files:
-        click.echo("No runs to sync.")
+        term.termlog("No runs to sync.")
         return
 
     if dry_run:
-        click.echo(f"Would sync {len(wandb_files)} run(s):")
+        term.termlog(f"Would sync {len(wandb_files)} run(s):")
         _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
         return
 
-    click.echo(f"Syncing {len(wandb_files)} run(s):")
+    term.termlog(f"Syncing {len(wandb_files)} run(s):")
     _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
 
-    if ask_for_confirmation and not click.confirm("Sync the listed runs?"):
+    if ask_for_confirmation and not term.confirm("Sync the listed runs?"):
         return
 
     service = singleton.ensure_service()
@@ -124,13 +123,13 @@ def _to_unique_files(
         try:
             stat = path.stat()
         except OSError as e:
-            click.echo(f"Failed to stat {path}: {e}")
+            term.termerror(f"Failed to stat {path}: {e}")
             continue
 
         id = (stat.st_ino, stat.st_dev)
 
         if verbose and (other_path := id_to_path.get(id)):
-            click.echo(f"{path} is the same as {other_path}")
+            term.termlog(f"{path} is the same as {other_path}")
 
         id_to_path[id] = path
 
@@ -300,8 +299,8 @@ def _print_sorted_paths(
     max_lines = len(sorted_paths) if verbose else _MAX_LIST_LINES
 
     for i in range(min(len(sorted_paths), max_lines)):
-        click.echo(f"  {sorted_paths[i]}")
+        term.termlog(f"  {sorted_paths[i]}")
 
     if len(sorted_paths) > max_lines:
         remaining = len(sorted_paths) - max_lines
-        click.echo(f"  +{remaining:,d} more (pass --verbose to see all)")
+        term.termlog(f"  +{remaining:,d} more (pass --verbose to see all)")
