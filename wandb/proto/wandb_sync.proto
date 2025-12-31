@@ -17,6 +17,9 @@ message ServerInitSyncRequest {
   // Paths should be absolute.
   repeated string path = 1;
 
+  // Whether to perform a live sync.
+  bool live = 6;
+
   // Settings to use when syncing.
   Settings settings = 2;
 
@@ -78,6 +81,7 @@ message ServerSyncMessage {
   enum Severity {
     SEVERITY_NOTSET = 0;
     SEVERITY_INFO = 20;
+    SEVERITY_WARNING = 30;
     SEVERITY_ERROR = 40;
   }
 

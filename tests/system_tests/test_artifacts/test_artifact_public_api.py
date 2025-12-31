@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Callable
 
 import requests
 import wandb
-from pytest import fixture, mark, raises, skip
+from pytest import MonkeyPatch, fixture, mark, raises, skip
 from pytest_mock import MockerFixture
 from wandb import Api
 from wandb._strutils import nameof
@@ -522,6 +522,9 @@ def test_fetch_registry_artifact(
         },
         id="PLACEHOLDER",
         description="PLACEHOLDER",
+        tags=[],
+        ttl_duration_seconds=-2,
+        ttl_is_inherited=False,
         metadata="{}",
         state="COMMITTED",
         size=0,
@@ -530,6 +533,7 @@ def test_fetch_registry_artifact(
         commit_hash="PLACEHOLDER",
         created_at="PLACEHOLDER",
         updated_at=None,
+        history_step=None,
         # ------------------------------------------------------------------------------
     ).model_dump()
 
@@ -600,3 +604,33 @@ def test_fetch_registry_artifact(
         assert mock_responder.total_calls == 1
     else:
         assert mock_responder.total_calls == 0
+
+
+def test_log_artifact_ignores_wandb_project_env_var(
+    user: str,
+    api: Api,
+    monkeypatch: MonkeyPatch,
+):
+    """Verify run.log_artifact() uses the run's project, not WANDB_PROJECT.
+
+    Regression test for WB-29463: log_artifact should use the run's actual
+    entity/project, not environment variables.
+    """
+    # Create a run and log an artifact
+    with wandb.init(settings={"silent": True}) as run:
+        artifact = wandb.Artifact("test-artifact", type="dataset")
+        with artifact.new_file("test.txt") as f:
+            f.write("test content")
+        run.log_artifact(artifact)
+
+    run_path = f"{run.entity}/{run.project}/{run.id}"
+
+    # Set WANDB_PROJECT to a DIFFERENT project (this should be ignored)
+    monkeypatch.setenv("WANDB_PROJECT", "nonexistent-project")
+
+    # Retrieve the run via API and try to log the same artifact
+    api_run = api.run(run_path)
+    art = api.artifact(f"{run.entity}/{run.project}/test-artifact:v0")
+
+    # This should succeed using the run's project, not WANDB_PROJECT
+    api_run.log_artifact(art)

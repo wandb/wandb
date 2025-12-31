@@ -251,7 +251,7 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 	fs.logger.CaptureFatal(fmt.Errorf("filestream: fatal error: %v", err))
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
-		fs.printer.Write(
+		fs.printer.Errorf(
 			"Fatal error while uploading data. Some run data will" +
 				" not be synced, but it will still be written to disk. Use" +
 				" `wandb sync` at the end of the run to try uploading.",

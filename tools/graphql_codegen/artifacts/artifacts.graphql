@@ -36,13 +36,12 @@ fragment ArtifactFragment on Artifact {
   }
   description
   metadata
-  ttlDurationSeconds @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
-  ttlIsInherited @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
-  tags @include(if: true) {
-    # Workaround: ensures generated pydantic field defaults to `None`
+  ttlDurationSeconds
+  ttlIsInherited
+  tags {
     ...TagFragment
   }
-  historyStep @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
+  historyStep
   state
   size
   digest
@@ -211,7 +210,7 @@ query ArtifactMembershipByName(
   $entity: String!
   $project: String!
   $name: String!
-  $includeAliases: Boolean = true
+  $includeAliases: Boolean = false # True includes ALL aliases from the source artifact, and we want only aliases for this membership
 ) {
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {

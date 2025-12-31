@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 202
+// Next ID: 203
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
 
@@ -121,6 +121,9 @@ message Settings {
 
   // Unix glob patterns relative to `files_dir` to not upload.
   ListStringValue ignore_globs = 78;
+
+  // The URL for the W&B UI.
+  google.protobuf.StringValue app_url = 202;
 
   // The URL for the W&B backend.
   //

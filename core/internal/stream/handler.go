@@ -764,11 +764,18 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 
 func (h *Handler) handleRequestInternalMessages(record *spb.Record) {
 	messages := h.terminalPrinter.Read()
+
+	// TODO: Respect message severity in the InternalMessages request.
+	messageContents := make([]string, 0, len(messages))
+	for _, message := range messages {
+		messageContents = append(messageContents, message.Content)
+	}
+
 	response := &spb.Response{
 		ResponseType: &spb.Response_InternalMessagesResponse{
 			InternalMessagesResponse: &spb.InternalMessagesResponse{
 				Messages: &spb.InternalMessages{
-					Warning: messages,
+					Warning: messageContents,
 				},
 			},
 		},
@@ -893,7 +900,7 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 				"current", current,
 			)
 
-			h.terminalPrinter.Writef(
+			h.terminalPrinter.Warnf(
 				"Tried to log to step %d that is less than the current step %d."+
 					" Steps must be monotonically increasing, so this data"+
 					" will be ignored. See https://wandb.me/define-metric"+
@@ -988,7 +995,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	if err != nil {
 		h.logger.CaptureError(
 			fmt.Errorf("handler: error flattening run history: %v", err))
-		h.terminalPrinter.Writef(
+		h.terminalPrinter.Warnf(
 			"There was an issue processing run metrics in step %d;"+
 				" some data may be missing.",
 			currentStep,

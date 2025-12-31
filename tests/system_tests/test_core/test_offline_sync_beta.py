@@ -124,11 +124,12 @@ class _Tester:
         paths: set[pathlib.Path],
         settings: wandb.Settings,
         *,
+        live: bool,
         entity: str,
         project: str,
         run_id: str,
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
-        _, _, _, _, _ = paths, settings, entity, project, run_id
+        _, _, _, _, _, _ = paths, settings, live, entity, project, run_id
         return await self._make_handle(
             self._init_sync_addrs,
             lambda r: r.init_sync_response,
@@ -428,6 +429,7 @@ def test_prints_status_updates(
             group.start_soon(
                 beta_sync._do_sync(
                     set([wandb_file]),
+                    live=False,
                     service=tester,  # type: ignore (we only mock used methods)
                     entity="",
                     project="",

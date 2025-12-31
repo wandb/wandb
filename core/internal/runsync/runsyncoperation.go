@@ -29,6 +29,7 @@ type RunSyncOperation struct {
 func (f *RunSyncOperationFactory) New(
 	paths []string,
 	updates *RunSyncUpdates,
+	live bool,
 	globalSettings *spb.Settings,
 ) *RunSyncOperation {
 	op := &RunSyncOperation{
@@ -45,7 +46,8 @@ func (f *RunSyncOperationFactory) New(
 	for _, path := range paths {
 		settings := MakeSyncSettings(globalSettings, path)
 		factory := InjectRunSyncerFactory(settings, op.logger)
-		op.syncers = append(op.syncers, factory.New(path, updates))
+		op.syncers = append(op.syncers,
+			factory.New(path, updates, live))
 	}
 
 	return op
@@ -74,10 +76,7 @@ func (op *RunSyncOperation) Do(parallelism int) *spb.ServerSyncResponse {
 
 				if err != nil {
 					LogSyncFailure(op.logger, err)
-
-					// TODO: Print this at ERROR level, not INFO.
-					op.printer.Write(ToUserText(err))
-
+					op.printer.Errorf("%s", ToUserText(err))
 					break
 				}
 			}
@@ -154,8 +153,8 @@ func (op *RunSyncOperation) popMessages() []*spb.ServerSyncMessage {
 
 	for _, message := range op.printer.Read() {
 		messages = append(messages, &spb.ServerSyncMessage{
-			Severity: spb.ServerSyncMessage_SEVERITY_INFO,
-			Content:  message,
+			Severity: spb.ServerSyncMessage_Severity(message.Severity),
+			Content:  message.Content,
 		})
 	}
 

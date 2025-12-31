@@ -32,10 +32,13 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     PATH_FIELD_NUMBER: builtins.int
+    LIVE_FIELD_NUMBER: builtins.int
     SETTINGS_FIELD_NUMBER: builtins.int
     NEW_ENTITY_FIELD_NUMBER: builtins.int
     NEW_PROJECT_FIELD_NUMBER: builtins.int
     NEW_RUN_ID_FIELD_NUMBER: builtins.int
+    live: builtins.bool
+    """Whether to perform a live sync."""
     new_entity: builtins.str
     """An updated entity to use for all paths being synced."""
     new_project: builtins.str
@@ -57,13 +60,14 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
         self,
         *,
         path: collections.abc.Iterable[builtins.str] | None = ...,
+        live: builtins.bool = ...,
         settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
         new_entity: builtins.str = ...,
         new_project: builtins.str = ...,
         new_run_id: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["new_entity", b"new_entity", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["live", b"live", "new_entity", b"new_entity", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
 
 global___ServerInitSyncRequest = ServerInitSyncRequest
 
@@ -212,6 +216,7 @@ class ServerSyncMessage(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         SEVERITY_NOTSET: ServerSyncMessage._Severity.ValueType  # 0
         SEVERITY_INFO: ServerSyncMessage._Severity.ValueType  # 20
+        SEVERITY_WARNING: ServerSyncMessage._Severity.ValueType  # 30
         SEVERITY_ERROR: ServerSyncMessage._Severity.ValueType  # 40
 
     class Severity(_Severity, metaclass=_SeverityEnumTypeWrapper):
@@ -219,6 +224,7 @@ class ServerSyncMessage(google.protobuf.message.Message):
 
     SEVERITY_NOTSET: ServerSyncMessage.Severity.ValueType  # 0
     SEVERITY_INFO: ServerSyncMessage.Severity.ValueType  # 20
+    SEVERITY_WARNING: ServerSyncMessage.Severity.ValueType  # 30
     SEVERITY_ERROR: ServerSyncMessage.Severity.ValueType  # 40
 
     SEVERITY_FIELD_NUMBER: builtins.int

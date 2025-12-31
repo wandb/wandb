@@ -6,16 +6,32 @@ import (
 	"time"
 )
 
+// Severity is the severity of a printed message.
+//
+// The integer values match Python's logging module constants for convenience.
+type Severity int
+
+const (
+	Info    Severity = 20
+	Warning Severity = 30
+	Error   Severity = 40
+)
+
 // Printer stores console messages to display to the user.
 type Printer struct {
-	sync.Mutex
-	messages []string
+	mu       sync.Mutex
+	messages []PrinterMessage
 
 	// For rate-limited messages, this is the next time a message may be sent.
 	rateLimits map[string]time.Time
 
 	// getNow allows stubbing out [time.Now] in tests.
 	getNow func() time.Time
+}
+
+type PrinterMessage struct {
+	Severity Severity
+	Content  string
 }
 
 func NewPrinter() *Printer {
@@ -29,14 +45,14 @@ func NewPrinter() *Printer {
 		for {
 			<-time.After(time.Minute)
 
-			printer.Lock()
+			printer.mu.Lock()
 			now := printer.getNow()
 			for msg, blockUntil := range printer.rateLimits {
 				if now.After(blockUntil) {
 					delete(printer.rateLimits, msg)
 				}
 			}
-			printer.Unlock()
+			printer.mu.Unlock()
 		}
 	}()
 
@@ -44,28 +60,39 @@ func NewPrinter() *Printer {
 }
 
 // Read returns all buffered messages and clears the buffer.
-func (p *Printer) Read() []string {
-	p.Lock()
-	defer p.Unlock()
+func (p *Printer) Read() []PrinterMessage {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	polledMessages := p.messages
-	p.messages = make([]string, 0)
+	p.messages = make([]PrinterMessage, 0)
 
 	return polledMessages
 }
 
-// Write adds a message to the console.
-func (p *Printer) Write(message string) {
-	p.Lock()
-	defer p.Unlock()
-	p.messages = append(p.messages, message)
+// Infof writes a Sprintf-formatted message at INFO level.
+func (p *Printer) Infof(format string, args ...any) {
+	p.writef(Info, format, args...)
 }
 
-// Writef adds a Sprintf-formatted message to the console.
-func (p *Printer) Writef(format string, args ...any) {
-	p.Lock()
-	defer p.Unlock()
-	p.messages = append(p.messages, fmt.Sprintf(format, args...))
+// Warnf writes a Sprintf-formatted message at WARNING level.
+func (p *Printer) Warnf(format string, args ...any) {
+	p.writef(Warning, format, args...)
+}
+
+// Errorf writes a Sprintf-formatted message at ERROR level.
+func (p *Printer) Errorf(format string, args ...any) {
+	p.writef(Error, format, args...)
+}
+
+// writef adds a Sprintf-formatted message to the console.
+func (p *Printer) writef(severity Severity, format string, args ...any) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.messages = append(p.messages, PrinterMessage{
+		Severity: severity,
+		Content:  fmt.Sprintf(format, args...),
+	})
 }
 
 // AtMostEvery allows rate-limiting how often a message is printed.
@@ -74,13 +101,14 @@ func (p *Printer) Writef(format string, args ...any) {
 //
 //	printer.
 //		AtMostEvery(time.Minute).
-//		Writef("Got number %d", dynamicNumber)
+//		Infof("Got number %d", dynamicNumber)
 //
 // The format string is used as the key for rate limiting. In the
 // above example, the statement may run with different values of
 // `dynamicNumber`, but a message will only be printed once a minute.
+// The message severity is not part of the key.
 //
-// Note, this doesn't affect regular `printer.Write(message)` calls.
+// Note, this doesn't affect regular `printer.Infof(message)` and other calls.
 // The duration is only checked when `AtMostEvery()` is used.
 //
 // This should always be used with the same duration. If the duration
@@ -97,10 +125,25 @@ type writeDSL struct {
 	rateLimitPeriod time.Duration
 }
 
-// See [Printer.Writef].
-func (dsl writeDSL) Writef(format string, args ...any) {
-	dsl.printer.Lock()
-	defer dsl.printer.Unlock()
+// See [Printer.Infof].
+func (dsl writeDSL) Infof(format string, args ...any) {
+	dsl.writef(Info, format, args...)
+}
+
+// See [Printer.Warnf].
+func (dsl writeDSL) Warnf(format string, args ...any) {
+	dsl.writef(Warning, format, args...)
+}
+
+// See [Printer.Errorf].
+func (dsl writeDSL) Errorf(format string, args ...any) {
+	dsl.writef(Error, format, args...)
+}
+
+// See [Printer.writef].
+func (dsl writeDSL) writef(severity Severity, format string, args ...any) {
+	dsl.printer.mu.Lock()
+	defer dsl.printer.mu.Unlock()
 
 	if dsl.rateLimitPeriod > 0 {
 		blockUntil := dsl.printer.rateLimits[format]
@@ -114,5 +157,8 @@ func (dsl writeDSL) Writef(format string, args ...any) {
 	}
 
 	dsl.printer.messages = append(dsl.printer.messages,
-		fmt.Sprintf(format, args...))
+		PrinterMessage{
+			Severity: severity,
+			Content:  fmt.Sprintf(format, args...),
+		})
 }

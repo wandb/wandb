@@ -1,10 +1,12 @@
 package transactionlog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/pkg/leveldb"
@@ -19,6 +21,26 @@ type Reader struct {
 	reader *leveldb.Reader // nil when closed
 	source io.ReadCloser
 	logger *observability.CoreLogger
+
+	// bufPool is a pool containing at most one byte buffer used as the Record
+	// buffer in a previous Read() operation.
+	//
+	// This assumes that a large record is likely to be followed by another
+	// large record, so reusing a single large allocation reduces GC pressure
+	// and is probably not wasteful.
+	//
+	// This is a pool to allow the slice to be GC'ed every once in a while,
+	// in particular when reading pauses for some time. This is useful for
+	// flow control, LEET and live-mode syncing. The pool is per-Reader
+	// because different transaction logs may have different record sizes.
+	bufPool sync.Pool
+
+	// lastReadOffset is the offset the last Read started at, used for retrying
+	// that Read from the same position.
+	lastReadOffset int64
+
+	// headerValid is whether the W&B header has been verified.
+	headerValid bool
 }
 
 // OpenReader opens a .wandb file for reading.
@@ -54,12 +76,12 @@ func NewReader(
 ) (*Reader, error) {
 	reader := leveldb.NewReaderExt(source, leveldb.CRCAlgoIEEE)
 
-	err := reader.VerifyWandbHeader(wandbStoreVersion)
-	if err != nil {
-		return nil, fmt.Errorf("transactionlog: bad header: %v", err)
-	}
-
-	return &Reader{reader: reader, source: source, logger: logger}, nil
+	return &Reader{
+		reader:  reader,
+		source:  source,
+		logger:  logger,
+		bufPool: sync.Pool{New: func() any { return new(bytes.Buffer) }},
+	}, nil
 }
 
 // SeekRecord seeks the underlying file to a specific offset.
@@ -75,7 +97,9 @@ func (r *Reader) SeekRecord(offset int64) error {
 // On EOF, the error wraps io.EOF.
 //
 // Errors are not fatal, and calling Read again will attempt to skip
-// corrupt data.
+// corrupt data. ResetLastRead can be used to attempt to read the same
+// position in the transaction log again. The error wraps EOF
+// or ErrUnexpectedEOF if it may be resolved by waiting for more data.
 func (r *Reader) Read() (*spb.Record, error) {
 	if r.reader == nil {
 		return nil, errors.New("transactionlog: reader is closed")
@@ -85,27 +109,59 @@ func (r *Reader) Read() (*spb.Record, error) {
 	// No-op if there is no error.
 	defer r.reader.Recover()
 
-	recordReader, err := r.reader.Next()
+	r.lastReadOffset = r.reader.NextOffset()
 
-	switch {
-	case errors.Is(err, io.EOF):
+	// Verify the W&B header before the first read.
+	if err := r.verifyWBHeaderBeforeFirstRead(); err != nil {
 		return nil, err
-	case err != nil:
-		return nil, fmt.Errorf(
-			"transactionlog: error getting next record: %v", err)
 	}
 
-	buf, err := io.ReadAll(recordReader)
+	recordReader, err := r.reader.Next()
+
 	if err != nil {
-		return nil, fmt.Errorf("transactionlog: error reading: %v", err)
+		return nil, fmt.Errorf(
+			"transactionlog: error getting next record: %w", err)
+	}
+
+	buf := r.bufPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		r.bufPool.Put(buf)
+	}()
+
+	_, err = io.Copy(buf, recordReader)
+	if err != nil {
+		return nil, fmt.Errorf("transactionlog: error reading: %w", err)
 	}
 
 	msg := &spb.Record{}
-	if err = proto.Unmarshal(buf, msg); err != nil {
+	if err = proto.Unmarshal(buf.Bytes(), msg); err != nil {
 		return nil, fmt.Errorf("transactionlog: error unmarshaling: %v", err)
 	}
 
 	return msg, nil
+}
+
+// verifyWBHeaderBeforeFirstRead verifies the W&B header if it hasn't yet been
+// verified.
+func (r *Reader) verifyWBHeaderBeforeFirstRead() error {
+	if r.headerValid {
+		return nil
+	}
+
+	if err := r.reader.VerifyWandbHeader(wandbStoreVersion); err != nil {
+		return fmt.Errorf("transactionlog: bad header: %w", err)
+	}
+
+	r.headerValid = true
+	return nil
+}
+
+// ResetLastRead returns to the previous Read position to allow retrying
+// the same read after an error.
+func (r *Reader) ResetLastRead() error {
+	r.logger.Debug("transactionlog: resetting to offset", "offset", r.lastReadOffset)
+	return r.SeekRecord(r.lastReadOffset)
 }
 
 // Close closes the file.

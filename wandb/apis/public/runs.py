@@ -708,7 +708,6 @@ class Run(Attrs):
                 # just for the sake of this one.
                 self.sweep = public.Sweep.get(
                     self.client,
-                    self._api,
                     self.entity,
                     self.project,
                     self.sweep_name,
@@ -1247,6 +1246,8 @@ class Run(Attrs):
             artifact.type,
             artifact_collection_name,
             artifact.digest,
+            entity_name=self.entity,
+            project_name=self.project,
             aliases=aliases,
             tags=tags,
         )

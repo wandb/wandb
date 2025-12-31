@@ -12,6 +12,9 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func short(s string) string {
@@ -39,6 +42,7 @@ func TestZeroBlocks(t *testing.T) {
 
 func testGenerator(t *testing.T, reset func(), gen func() (string, bool)) {
 	buf := new(bytes.Buffer)
+	offsets := make([]int64, 0)
 
 	reset()
 	w := NewWriterExt(buf, CRCAlgoCustom, 0)
@@ -47,13 +51,21 @@ func testGenerator(t *testing.T, reset func(), gen func() (string, bool)) {
 		if !ok {
 			break
 		}
+
 		ww, err := w.Next()
 		if err != nil {
 			t.Fatalf("writer.Next: %v", err)
 		}
+
 		if _, err := ww.Write([]byte(s)); err != nil {
 			t.Fatalf("Write: %v", err)
 		}
+
+		offset, err := w.LastRecordOffset()
+		if err != nil {
+			t.Fatalf("writer.LastRecordOffset: %v", err)
+		}
+		offsets = append(offsets, offset)
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
@@ -66,10 +78,20 @@ func testGenerator(t *testing.T, reset func(), gen func() (string, bool)) {
 		if !ok {
 			break
 		}
+
+		expectedOffset := offsets[0]
+		offsets = offsets[1:]
+
+		offset := r.NextOffset()
 		rr, err := r.Next()
 		if err != nil {
 			t.Fatalf("reader.Next: %v", err)
 		}
+
+		if offset != expectedOffset {
+			t.Fatalf("got offset %d, expected %d", offset, expectedOffset)
+		}
+
 		x, err := io.ReadAll(rr)
 		if err != nil {
 			t.Fatalf("ReadAll: %v", err)
@@ -250,6 +272,87 @@ func TestNonExhaustiveRead(t *testing.T) {
 			t.Fatalf("read #%d: got %q want %q", i, got, want)
 		}
 	}
+}
+
+func TestTruncationEOF(t *testing.T) {
+	// Test that truncating a block at any point leads to either
+	// EOF or ErrUnexpectedEOF when reading.
+
+	// testData contains two records: the first is 1 byte long and consists
+	// of a single full chunk, and the second takes up 32 KiB so that it
+	// ends in the second block.
+	var testData []byte
+	{
+		buf := new(bytes.Buffer)
+
+		w := NewWriterExt(buf, CRCAlgoCustom, 0)
+
+		w0, err := w.Next()
+		require.NoError(t, err)
+		_, err = io.WriteString(w0, "x")
+		require.NoError(t, err)
+
+		w1, err := w.Next()
+		require.NoError(t, err)
+		_, err = io.WriteString(w1, big("abcd", 32*1024))
+		require.NoError(t, err)
+
+		require.NoError(t, w.Close())
+
+		testData = buf.Bytes()
+	}
+
+	t.Run("0 is EOF", func(t *testing.T) {
+		r := NewReader(bytes.NewReader(testData[:0]))
+		_, err := r.Next()
+		assert.ErrorIs(t, err, io.EOF)
+	})
+
+	t.Run("inside WB header is EOF", func(t *testing.T) {
+		r := NewReader(bytes.NewReader(testData[:1]))
+		_, err := r.Next()
+		assert.ErrorIs(t, err, io.EOF)
+	})
+
+	t.Run("between records is EOF", func(t *testing.T) {
+		// Truncate before the first record.
+		r := NewReader(bytes.NewReader(testData[:7]))
+		_, err := r.Next()
+		assert.ErrorIs(t, err, io.EOF)
+
+		// Truncate before the second record.
+		r = NewReader(bytes.NewReader(testData[:15]))
+		_, err = r.Next()
+		require.NoError(t, err)
+		_, err = r.Next()
+		assert.ErrorIs(t, err, io.EOF)
+	})
+
+	// The first record is a single 8-byte chunk; just test all positions.
+	for i := range 7 {
+		name := fmt.Sprintf("inside chunk is ErrUnexpectedEOF (offset %d)", i)
+		t.Run(name, func(t *testing.T) {
+			r := NewReader(bytes.NewReader(testData[:7+1+i]))
+			_, err := r.Next()
+			assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		})
+	}
+
+	t.Run("at boundary inside record is ErrUnexpectedEOF", func(t *testing.T) {
+		r := NewReader(bytes.NewReader(testData[:32*1024]))
+
+		// Seek the second record.
+		err := r.SeekRecord(7 + 7 + 1) // W&B header; 1st chunk header & content
+		require.NoError(t, err)
+
+		// No error in Next because first chunk is fully included.
+		rr, err := r.Next()
+		require.NoError(t, err)
+
+		// But reading should error out, since the record is truncated.
+		_, err = io.ReadAll(rr)
+		assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	})
 }
 
 func TestStaleReader(t *testing.T) {
@@ -731,14 +834,20 @@ func TestSeekRecord(t *testing.T) {
 	}
 	check(1)
 
-	// Now seek past the end of the file and verify it causes an error.
+	// Now seek past the end of the file and verify it does not cause an error.
 	err = r.SeekRecord(1 << 20)
+	if err != nil {
+		t.Fatalf("Seeking past EOF returned unexpected error: %v", err)
+	}
+
+	// Reading after the end of the file should return EOF.
+	_, err = r.Next()
 	if err == nil {
-		t.Fatalf("Seek past the end of a file didn't cause an error")
+		t.Fatalf("Reading past EOF did not return EOF")
+	} else if err != io.EOF {
+		t.Fatalf("Reading past EOF returned unexpected error: %v", err)
 	}
-	if err != io.EOF {
-		t.Fatalf("Seeking past EOF raised unexpected error: %v", err)
-	}
+
 	r.Recover() // Verify recovery works.
 
 	// Validate the current records are returned after seeking to a valid offset.

@@ -1,5 +1,7 @@
 """Plugin module to customize GraphQL-to-Python code generation.
 
+NOTE: As this is a dev-only tool, Python 3.10+ is required.
+
 For more info, see:
 - https://github.com/mirumee/ariadne-codegen/blob/main/PLUGINS.md
 - https://github.com/mirumee/ariadne-codegen/blob/main/ariadne_codegen/plugins/base.py
@@ -10,6 +12,7 @@ from __future__ import annotations
 import ast
 import subprocess
 import sys
+from collections import deque
 from contextlib import suppress
 from itertools import chain
 from pathlib import Path
@@ -182,6 +185,55 @@ class GraphQLCodegenPlugin(Plugin):
                 # Keep only imported names that aren't being dropped
                 kept_names = sorted(set(imported_names(imp)) - omit_names)
                 yield make_import_from(imp.module, kept_names, level=imp.level)
+
+    def _ensure_all_model_rebuilds(self, module: ast.Module) -> ast.Module:
+        """Ensure that all generated classes call `model_rebuild()` after being defined.
+
+        NOTE: This is intended only as a workaround to accommodate pydantic v1
+        compatibility issues.
+
+        Context: In some cases, depending on the order of class definitions/imports/etc.,
+        pydantic v1 requires calling `.update_forward_refs()` (i.e. `.model_rebuild()` in v2)
+        when it would no longer be necessary in pydantic v2.
+
+        Example error from pydantic v1:
+
+            pydantic.errors.ConfigError: field "args" not yet prepared
+            so type is still a ForwardRef, you might need to call
+            TypeInfoFragmentFields.update_forward_refs().
+
+        We can probably drop this codegen hack/workaround once pydantic v1 is no longer supported.
+        """
+        import_stmts = deque()  # e.g. `from typing import ...`
+        classdef_stmts = deque()  # e.g. `class MyFragmentFields(BaseModel): ...`
+
+        for stmt in module.body:
+            match stmt:
+                case ast.ImportFrom() | ast.Import():
+                    import_stmts.append(stmt)
+                case ast.ClassDef():
+                    classdef_stmts.append(stmt)
+                case ast.Expr(value=ast.Call(func=ast.Attribute(attr="model_rebuild"))):
+                    # e.g. `MyFragmentFields.model_rebuild()`
+                    # We'll regenerate these from scratch
+                    pass
+                case _:
+                    msg = f"Unexpected AST statement in module: {ast.dump(stmt)}"
+                    raise ValueError(msg)
+
+        rebuild_stmts = [
+            ast.Expr(
+                value=ast.Call(
+                    func=ast.Attribute(value=ast.Name(cl.name), attr="model_rebuild"),
+                    args=[],
+                    keywords=[],
+                )
+            )
+            for cl in classdef_stmts
+        ]
+
+        module.body = [*import_stmts, *classdef_stmts, *rebuild_stmts]
+        return module
 
     def process_schema(self, schema: GraphQLSchema) -> GraphQLSchema:
         # `ariadne-codegen` doesn't automatically recognize standard introspection fields
@@ -396,6 +448,7 @@ class GraphQLCodegenPlugin(Plugin):
                     # - omit default: Fragment defined on a GQL interface with multiple impls.
                     stmt.value = ast.Constant(names[0]) if len(names) == 1 else None
 
+        module = self._ensure_all_model_rebuilds(module)
         return self._rewrite_generated_module(module)
 
     def _rewrite_generated_module(self, module: ast.Module) -> ast.Module:
@@ -439,37 +492,40 @@ class PydanticModuleRewriter(ast.NodeTransformer):
         return node
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
-        if isinstance(node.target, ast.Name) and node.target.id == "typename__":
-            # e.g. BEFORE: `typename__: Literal["MyType"] = Field(alias="__typename")`
-            # e.g. AFTER:  `typename__: Typename[Literal["MyType"]]`
+        match node:
+            case ast.AnnAssign(target=ast.Name("typename__")):
+                # e.g. BEFORE: `typename__: Literal["MyType"] = Field(alias="__typename")`
+                # e.g. AFTER:  `typename__: Typename[Literal["MyType"]]`
 
-            # T -> Typename[T]
-            node.annotation = ast.Subscript(ast.Name(TYPENAME), node.annotation)
+                # T -> Typename[T]
+                node.annotation = ast.Subscript(ast.Name(TYPENAME), node.annotation)
 
-            # Drop `= Field(alias="__typename")`, if present
-            if (
-                isinstance(call := node.value, ast.Call)
-                and isinstance(call.func, ast.Name)
-                and call.func.id == "Field"
-                and len(call.keywords) == 1
-                and call.keywords[0].arg == "alias"
+                # Drop `= Field(alias="__typename")`, if present
+                match node.value:
+                    case ast.Call(
+                        func=ast.Name("Field"),
+                        keywords=[ast.keyword("alias")],
+                    ):
+                        node.value = None
+                    case _:
+                        pass
+
+            # If this is a union of a single type, drop the `Field(discriminator=...)`
+            # since pydantic may complain.
+            # See: https://github.com/pydantic/pydantic/issues/3636
+            case ast.AnnAssign(
+                annotation=ast.Subscript(
+                    value=ast.Name("Union"),
+                    slice=ast.Tuple([ast.Name() as only_type]),
+                )
             ):
-                node.value = None
+                # e.g. BEFORE: `field: Union[OnlyType,] = Field(discriminator="...")`
+                # e.g. AFTER:  `field: OnlyType`
+                node.annotation = only_type  # Union[T,] -> T
+                node.value = None  # drop `= Field(discriminator=...)`, if present
 
-        # If this is a union of a single type, drop the `Field(discriminator=...)`
-        # since pydantic may complain.
-        # See: https://github.com/pydantic/pydantic/issues/3636
-        elif (
-            isinstance(annotation := node.annotation, ast.Subscript)
-            and isinstance(annotation.value, ast.Name)
-            and annotation.value.id == "Union"
-            and isinstance(annotation.slice, ast.Tuple)
-            and len(annotation.slice.elts) == 1
-        ):
-            # e.g. BEFORE: `field: Union[OnlyType,] = Field(discriminator="...")`
-            # e.g. AFTER:  `field: OnlyType`
-            node.annotation = annotation.slice.elts[0]  # Union[T,] -> T
-            node.value = None  # drop `= Field(discriminator=...)`, if present
+            case _:
+                pass
 
         return self.generic_visit(node)
 

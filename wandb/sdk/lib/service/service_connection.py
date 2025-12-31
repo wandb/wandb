@@ -116,6 +116,7 @@ class ServiceConnection:
         paths: set[pathlib.Path],
         settings: wandb_settings.Settings,
         *,
+        live: bool,
         entity: str,
         project: str,
         run_id: str,
@@ -123,6 +124,7 @@ class ServiceConnection:
         """Send a ServerInitSyncRequest."""
         init_sync = wandb_sync_pb2.ServerInitSyncRequest(
             path=(str(path) for path in paths),
+            live=live,
             settings=settings.to_proto(),
             new_entity=entity,
             new_project=project,

@@ -546,7 +546,7 @@ def log(
     ```
 
     Only one level of nesting is supported; `run.log({"a/b/c": 1})`
-    produces a section named "a/b".
+    produces a section named "a".
 
     `run.log()` is not intended to be called more than a few times per second.
     For optimal performance, limit your logging to once every N iterations,

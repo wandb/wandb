@@ -19,16 +19,6 @@ if TYPE_CHECKING:
         FetchOrgInfoFromEntityEntity,
     )
 
-OMITTABLE_ARTIFACT_FIELDS = frozenset(
-    {
-        "ttlDurationSeconds",
-        "ttlIsInherited",
-        "aliases",
-        "tags",
-        "historyStep",
-    }
-)
-
 
 @lru_cache(maxsize=16)
 def type_info(client: RetryingClient, typename: str) -> TypeInfoFragment | None:
@@ -89,27 +79,10 @@ def server_supports(client: RetryingClient, feature: str | int) -> bool:
     return server_features(client).get(name) or False
 
 
-def supports_enable_tracking_var(client: RetryingClient) -> bool:
-    """Return True if `Project.artifact` accepts `enableTracking`."""
-    typ = type_info(client, "Project")
-    if (
-        typ
-        and typ.fields
-        and (art_field := next((f for f in typ.fields if f.name == "artifact"), None))
-    ):
-        return any("enableTracking" == arg.name for arg in art_field.args)
-    return False
-
-
 def allowed_fields(client: RetryingClient, typename: str) -> set[str]:
     """Returns the allowed field names for a given GraphQL type."""
     typ = type_info(client, typename)
     return {f.name for f in typ.fields} if (typ and typ.fields) else set()
-
-
-def omit_artifact_fields(client: RetryingClient) -> set[str]:
-    """Return Artifact fields to omit from GraphQL requests for compatibility."""
-    return set(OMITTABLE_ARTIFACT_FIELDS) - allowed_fields(client, "Artifact")
 
 
 @dataclass(frozen=True)
