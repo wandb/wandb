@@ -53,10 +53,17 @@ def sync(
         verbose: Verbose mode for printing more info.
         parallelism: Max number of runs to sync at a time.
     """
+    singleton = wandb_setup.singleton()
+
     try:
         cwd = pathlib.Path.cwd()
     except OSError:
         cwd = None
+
+    ask_for_confirmation = False
+    if not paths:
+        paths = [pathlib.Path(singleton.settings.wandb_dir)]
+        ask_for_confirmation = True
 
     wandb_files = _to_unique_files(
         (
@@ -68,18 +75,20 @@ def sync(
     )
 
     if not wandb_files:
-        click.echo("No files to sync.")
+        click.echo("No runs to sync.")
         return
 
     if dry_run:
-        click.echo(f"Would sync {len(wandb_files)} file(s):")
+        click.echo(f"Would sync {len(wandb_files)} run(s):")
         _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
         return
 
-    click.echo(f"Syncing {len(wandb_files)} file(s):")
+    click.echo(f"Syncing {len(wandb_files)} run(s):")
     _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
 
-    singleton = wandb_setup.singleton()
+    if ask_for_confirmation and not click.confirm("Sync the listed runs?"):
+        return
+
     service = singleton.ensure_service()
     printer = new_printer()
     singleton.asyncer.run(
