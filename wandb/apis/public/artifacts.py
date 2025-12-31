@@ -890,16 +890,11 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
                 "fileNames": names,
             }
 
-        omit_fields = set()
-
-        # The server must advertise at least SDK 0.12.21
-        # to get storagePath
-        if not client.version_supported("0.12.21"):
-            omit_fields.add("storagePath")
-
-        if not server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
-            omit_fields.add("totalCount")
-
+        omit_fields = (
+            None
+            if server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+            else {"totalCount"}
+        )
         self.QUERY = gql_compat(query_str, omit_fields=omit_fields)
         super().__init__(client, variables=variables, per_page=per_page)
 
