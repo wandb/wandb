@@ -137,9 +137,9 @@ func (op *RunSyncOperation) initAndPlan() (map[string][]*RunSyncer, error) {
 
 // Status returns the operation's status.
 func (op *RunSyncOperation) Status() *spb.ServerSyncStatusResponse {
-	stats := make(map[string]*spb.OperationStats, len(op.syncers))
+	stats := make([]*spb.OperationStats, 0, len(op.syncers))
 	for _, syncer := range op.syncers {
-		syncer.AddStats(stats)
+		stats = append(stats, syncer.Stats())
 	}
 
 	return &spb.ServerSyncStatusResponse{

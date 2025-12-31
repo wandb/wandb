@@ -97,6 +97,8 @@ func (ops *WandbOperations) New(desc string) *WandbOperation {
 }
 
 // ToProto returns a snapshot of the ongoing operations.
+//
+// The label field is not set and should be set by the caller if needed.
 func (ops *WandbOperations) ToProto() *spb.OperationStats {
 	if ops == nil {
 		return &spb.OperationStats{}
