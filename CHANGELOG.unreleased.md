@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - `wandb agent` and `wandb.agent()` now accept a `forward_signals` flag (CLI: `--forward-signals/-f`) to relay SIGINT/SIGTERM and other catchable signals from the agent to its sweep child runs, enabling cleaner shutdowns when you interrupt an agent process (@kylegoyette, @domphan-wandb in https://github.com/wandb/wandb/pull/9651)
+- `wandb beta sync` now supports a `--live` option for syncing a run while it's being logged (@timoffex in https://github.com/wandb/wandb/pull/11079)
 
 ### Fixed
 

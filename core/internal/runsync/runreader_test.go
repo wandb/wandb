@@ -48,6 +48,7 @@ func setup(t *testing.T) testFixtures {
 		RunReader: factory.New(
 			transactionLog,
 			nil,
+			false,
 			mockRecordParser,
 			fakeRunWork,
 		),
