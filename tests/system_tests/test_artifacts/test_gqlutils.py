@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol
 
 from pytest import fixture, mark, raises
-from wandb.errors import UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._gqlutils import (
     allowed_fields,
@@ -53,21 +52,6 @@ def mock_org_entity_support(mock_gql_response: GQLResponseMocker):
                     {"name": "name", "args": []},
                     {"name": "orgEntity", "args": []},
                 ],
-                "inputFields": [],
-            }
-        },
-    )
-
-
-@fixture
-def mock_no_org_entity_support(mock_gql_response: GQLResponseMocker):
-    mock_gql_response(
-        operation="TypeInfo",
-        variables={"name": "Organization"},
-        data={
-            "__type": {
-                "name": "Organization",
-                "fields": [],
                 "inputFields": [],
             }
         },
@@ -313,21 +297,6 @@ def test_resolve_org_entity_name_with_nonexistent_entity(
 
     with raises(ValueError, match="Unable to find organization for entity"):
         resolve_org_entity_name(api.client, entity)
-
-
-@mark.usefixtures(mock_no_org_entity_support.__name__)
-def test_resolve_org_entity_name_with_old_server(api: Api):
-    entity = "any-entity"
-
-    # Should error without organization
-    with raises(UnsupportedError, match="unavailable for your server version"):
-        resolve_org_entity_name(api.client, entity)
-
-    # Should return organization as-is when specified
-    assert (
-        resolve_org_entity_name(api.client, entity, "org-name-input")
-        == "org-name-input"
-    )
 
 
 @mark.usefixtures(mock_org_entity_support.__name__)
