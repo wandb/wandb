@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 import wandb
 from wandb import util
@@ -135,3 +137,31 @@ def test_can_use_terminput_databricks(
     monkeypatch.setattr(util, "_is_databricks", lambda: True)
 
     assert not term.can_use_terminput()
+
+
+@pytest.mark.parametrize(
+    "inputs, expected_result",
+    (
+        ([" y "], True),
+        (["Y "], True),
+        (["yes"], True),
+        ([" n"], False),
+        (["No "], False),
+        ([" N"], False),
+        (["", "yellow", "no"], False),
+        (["no yes", "yes"], True),
+    ),
+)
+def test_confirm(
+    inputs: list[str],
+    expected_result: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remaining_inputs = list(inputs)
+
+    def mock_terminput(*args, **kwargs) -> str:
+        return remaining_inputs.pop()
+
+    monkeypatch.setattr(term, "_terminput", mock_terminput)
+
+    assert term.confirm("What?") == expected_result
