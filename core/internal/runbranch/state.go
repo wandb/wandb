@@ -1,6 +1,8 @@
 package runbranch
 
 import (
+	"errors"
+	"net/url"
 	"slices"
 	"time"
 
@@ -15,6 +17,26 @@ type RunPath struct {
 	Entity  string
 	Project string
 	RunID   string
+}
+
+// URL returns the URL for the run path given the URL for the W&B web UI.
+//
+// If the run's entity or project is not known, this returns an error.
+func (path RunPath) URL(appURL string) (string, error) {
+	switch {
+	case len(path.Entity) == 0:
+		return "", errors.New("no entity")
+	case len(path.Project) == 0:
+		return "", errors.New("no project")
+	case len(path.RunID) == 0:
+		return "", errors.New("no run ID")
+	}
+
+	entity := url.PathEscape(path.Entity)
+	project := url.PathEscape(path.Project)
+	runID := url.PathEscape(path.RunID)
+
+	return url.JoinPath(appURL, entity, project, "runs", runID)
 }
 
 type BranchPoint struct {

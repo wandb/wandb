@@ -277,12 +277,12 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 	s.Close()
 
-	printFooter(s.settings)
+	s.printFooter()
 }
 
-func printFooter(settings *settings.Settings) {
+func (s *Stream) printFooter() {
 	// Silent mode disables any footer output
-	if settings.IsSilent() {
+	if s.settings.IsSilent() {
 		return
 	}
 
@@ -291,20 +291,22 @@ func printFooter(settings *settings.Settings) {
 	)
 
 	formatter.Println("")
-	if settings.IsOffline() {
+	if s.settings.IsOffline() {
 		formatter.Println("You can sync this run to the cloud by running:")
 		formatter.Println(
 			pfxout.WithStyle(
-				fmt.Sprintf("wandb sync %v", settings.GetSyncDir()),
+				fmt.Sprintf("wandb sync %v", s.settings.GetSyncDir()),
 				pfxout.Bold,
 			),
 		)
+	} else if runURL, err := s.runURL(); err != nil {
+		s.logger.CaptureError(fmt.Errorf("stream: runURL: %v", err))
 	} else {
 		formatter.Println(
 			fmt.Sprintf(
 				"🚀 View run %v at: %v",
-				pfxout.WithColor(settings.GetDisplayName(), pfxout.Yellow),
-				pfxout.WithColor(settings.GetRunURL(), pfxout.Blue),
+				pfxout.WithColor(s.settings.GetDisplayName(), pfxout.Yellow),
+				pfxout.WithColor(runURL, pfxout.Blue),
 			),
 		)
 	}
@@ -313,7 +315,7 @@ func printFooter(settings *settings.Settings) {
 	if err != nil {
 		return
 	}
-	relLogDir, err := filepath.Rel(currentDir, settings.GetLogDir())
+	relLogDir, err := filepath.Rel(currentDir, s.settings.GetLogDir())
 	if err != nil {
 		return
 	}
@@ -323,4 +325,14 @@ func printFooter(settings *settings.Settings) {
 			pfxout.WithColor(relLogDir, pfxout.BrightMagenta),
 		),
 	)
+}
+
+// runURL returns the URL for the run if available, or else an error.
+func (s *Stream) runURL() (string, error) {
+	upserter, err := s.runHandle.Upserter()
+	if err != nil {
+		return "", err
+	}
+
+	return upserter.RunPath().URL(s.settings.GetAppURL())
 }
