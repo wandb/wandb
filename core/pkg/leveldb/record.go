@@ -286,10 +286,12 @@ func (r *Reader) readChunkInBlock(start int) (byte, error) {
 	r.j = start + headerSize + int(length)
 	r.nextChunkStart = startOfChunkAfter(r.j)
 
-	if r.j > r.n {
-		return 0, errors.New("leveldb/record: invalid chunk (length overflows block)")
-	}
-	if checksum != r.crc(r.buf[r.i-1:r.j]) {
+	switch {
+	case r.j > blockSize:
+		return 0, fmt.Errorf("leveldb/record: chunk too long (%d)", length)
+	case r.j > r.n:
+		return 0, io.ErrUnexpectedEOF
+	case checksum != r.crc(r.buf[r.i-1:r.j]):
 		return 0, errors.New("leveldb/record: invalid chunk (checksum mismatch)")
 	}
 
@@ -350,10 +352,18 @@ func (r *Reader) isShortBlock() bool {
 // VerifyWandbHeader checks for a W&B header with the correct version.
 //
 // The reader must be positioned at the start.
+//
+// The error wraps EOF if there's no data at all and ErrUnexpectedEOF
+// if there's not enough data to hold a header.
 func (r *Reader) VerifyWandbHeader(expectedVersion byte) error {
-	r.err = r.readBlock()
-	if r.err != nil {
-		return r.err
+	if r.blockOffset != 0 {
+		return errors.New("leveldb/record: reader not in first block")
+	}
+
+	if r.n == 0 {
+		if r.err = r.readBlock(); r.err != nil {
+			return r.err
+		}
 	}
 
 	if r.n < wandbHeaderLength {
@@ -398,8 +408,15 @@ func (r *Reader) NextOffset() int64 {
 // underlying reader is not seekable or did not start at position 0, then
 // the offset is not usable.
 //
-// The error wraps io.EOF if there are no more records. The reader becomes
-// stale after the next call to Next() and should no longer be used.
+// The error wraps io.EOF if there are no more records and ErrUnexpectedEOF
+// if there's less data than expected based on the first chunk's header.
+// The reader does the same. In general, EOF and ErrUnexpectedEOF are returned
+// if and only if the error may be resolved by appending more data to the file
+// and using SeekRecord to reread the block. Other errors indicate data
+// corruption.
+//
+// The reader becomes stale after the next call to Next() and should no longer
+// be used.
 func (r *Reader) Next() (io.Reader, error) {
 	r.seq++
 	if r.err != nil {
