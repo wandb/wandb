@@ -320,6 +320,26 @@ def terminput(
     return _terminput(prefixed_prompt, timeout=timeout, hide=hide)
 
 
+def confirm(prompt: str) -> bool:
+    """Prompt the user with a yes/no question.
+
+    Args:
+        prompt: A prompt ending with a question mark (not whitespace),
+            like "Are you sure?".
+
+    Returns:
+        The user's choice.
+    """
+    prompt = f"{prompt} [y/n] "
+    while True:
+        answer = terminput(prompt).strip().lower()
+
+        if answer in ("n", "no"):
+            return False
+        if answer in ("y", "yes"):
+            return True
+
+
 def _terminput(
     prefixed_prompt: str,
     *,

@@ -196,7 +196,7 @@ def test_syncs_run(
     result = runner.invoke(cli.beta, f"sync {run.settings.sync_dir}")
 
     lines = result.output.splitlines()
-    assert lines[0] == "Syncing 1 run(s):"
+    assert lines[0] == "wandb: Syncing 1 run(s):"
     assert lines[1].endswith(f"run-{run.id}.wandb")
     # More lines possible depending on status updates. Not deterministic.
     assert lines[-1].startswith(f"wandb: [{run.path}] Finished syncing")
@@ -228,13 +228,13 @@ def test_sync_defaults_to_wandb_dir(tmp_path: pathlib.Path, runner: CliRunner):
     result = runner.invoke(cli.beta, "sync", input="n")
 
     assert result.output.splitlines() == [
-        "Syncing 5 run(s):",
-        f"  {paths[0]}",
-        f"  {paths[1]}",
-        f"  {paths[2]}",
-        f"  {paths[3]}",
-        f"  {paths[4]}",
-        "Sync the listed runs? [y/N]: n",
+        "wandb: Syncing 5 run(s):",
+        f"wandb:   {paths[0]}",
+        f"wandb:   {paths[1]}",
+        f"wandb:   {paths[2]}",
+        f"wandb:   {paths[3]}",
+        f"wandb:   {paths[4]}",
+        "wandb: Sync the listed runs? [y/n] n",
     ]
 
 
@@ -323,8 +323,8 @@ def test_merges_symlinks(
     result = runner.invoke(cli.beta, "sync --dry-run .")
 
     assert result.output.splitlines() == [
-        "Would sync 1 run(s):",
-        "  actual-run/run.wandb",
+        "wandb: Would sync 1 run(s):",
+        "wandb:   actual-run/run.wandb",
     ]
 
 
@@ -335,7 +335,7 @@ def test_sync_wandb_file(tmp_path: pathlib.Path, runner: CliRunner):
     result = runner.invoke(cli.beta, f"sync --dry-run {file}")
 
     lines = result.output.splitlines()
-    assert lines[0] == "Would sync 1 run(s):"
+    assert lines[0] == "wandb: Would sync 1 run(s):"
     assert lines[1].endswith("run.wandb")
 
 
@@ -347,7 +347,7 @@ def test_sync_run_directory(tmp_path: pathlib.Path, runner: CliRunner):
     result = runner.invoke(cli.beta, f"sync --dry-run {run_dir}")
 
     lines = result.output.splitlines()
-    assert lines[0] == "Would sync 1 run(s):"
+    assert lines[0] == "wandb: Would sync 1 run(s):"
     assert lines[1].endswith("run.wandb")
 
 
@@ -365,7 +365,7 @@ def test_sync_wandb_directory(tmp_path: pathlib.Path, runner: CliRunner):
     result = runner.invoke(cli.beta, f"sync --dry-run {wandb_dir}")
 
     lines = result.output.splitlines()
-    assert lines[0] == "Would sync 2 run(s):"
+    assert lines[0] == "wandb: Would sync 2 run(s):"
     assert lines[1].endswith("run-1.wandb")
     assert lines[2].endswith("run-2.wandb")
 
@@ -383,10 +383,10 @@ def test_truncates_printed_paths(
     result = runner.invoke(cli.beta, f"sync --dry-run {tmp_path}")
 
     lines = result.output.splitlines()
-    assert lines[0] == "Would sync 20 run(s):"
+    assert lines[0] == "wandb: Would sync 20 run(s):"
     for line in lines[1:6]:
-        assert re.fullmatch(r"  .+/run-\d+\.wandb", line)
-    assert lines[6] == "  +15 more (pass --verbose to see all)"
+        assert re.fullmatch(r"wandb:   .+/run-\d+\.wandb", line)
+    assert lines[6] == "wandb:   +15 more (pass --verbose to see all)"
 
 
 def test_prints_relative_paths(
@@ -406,11 +406,11 @@ def test_prints_relative_paths(
     result = runner.invoke(cli.beta, f"sync --dry-run {tmp_path}")
 
     assert result.output.splitlines() == [
-        "Would sync 2 run(s):",
+        "wandb: Would sync 2 run(s):",
         *sorted(
             [
-                "  run-relative.wandb",
-                f"  {dir2_not / 'run-absolute.wandb'}",
+                "wandb:   run-relative.wandb",
+                f"wandb:   {dir2_not / 'run-absolute.wandb'}",
             ]
         ),
     ]
