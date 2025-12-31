@@ -481,9 +481,6 @@ def test_fetch_registry_artifact(
 ):
     from tests.fixtures.wandb_backend_spy.gql_match import Constant, Matcher
 
-    # if "orgEntity" not in allowed_fields(api.client, "Organization"):
-    #     skip("Must test against server that supports `Organization.orgEntity`")
-
     server_supports_artifact_via_membership = server_supports(
         api.client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
     )
