@@ -292,14 +292,12 @@ def test_project_id_lazy_load(monkeypatch):
     api = wandb.Api()
     mock_execute = MagicMock(
         return_value={
-            "project": ProjectFragment.model_validate(
-                {
-                    "id": "123",
-                    "name": "test-project",
-                    "entityName": "test-entity",
-                    "createdAt": "2021-01-01T00:00:00Z",
-                    "isBenchmark": False,
-                }
+            "project": ProjectFragment(
+                id="123",
+                name="test-project",
+                entity_name="test-entity",
+                created_at="2021-01-01T00:00:00Z",
+                is_benchmark=False,
             ).model_dump()
         }
     )

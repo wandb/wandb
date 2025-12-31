@@ -10,6 +10,7 @@ import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
+from wandb.apis._generated import ProjectFragment
 from wandb.apis.public import File
 from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
@@ -472,13 +473,13 @@ def test_projects(user, wandb_backend_spy):
             "models": {
                 "edges": [
                     {
-                        "node": {
-                            "id": "fake-project-id",
-                            "name": f"test_{i}",
-                            "entityName": user,
-                            "createdAt": "2021-01-01T00:00:00Z",
-                            "isBenchmark": False,
-                        },
+                        "node": ProjectFragment(
+                            id="fake-project-id",
+                            name=f"test_{i}",
+                            entity_name=user,
+                            created_at="2021-01-01T00:00:00Z",
+                            is_benchmark=False,
+                        ).model_dump(),
                     }
                     for i in range(num_projects)
                 ],

@@ -6,38 +6,37 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import Field
-from typing_extensions import Any
 
 from wandb._pydantic import GQLId, GQLResult
 
 
 class CreateProject(GQLResult):
-    upsert_model: Optional[CreateProjectUpsertModel] = Field(alias="upsertModel")
+    result: Optional[CreateProjectResult]
 
 
-class CreateProjectUpsertModel(GQLResult):
-    project: Optional[CreateProjectUpsertModelProject]
-    model: Optional[CreateProjectUpsertModelModel]
+class CreateProjectResult(GQLResult):
+    project: Optional[CreateProjectResultProject]
+    model: Optional[CreateProjectResultModel]
     inserted: Optional[bool]
 
 
-class CreateProjectUpsertModelProject(GQLResult):
+class CreateProjectResultProject(GQLResult):
     id: GQLId
     name: str
     entity_name: str = Field(alias="entityName")
     description: Optional[str]
     access: Optional[str]
-    views: Optional[Any]
+    views: Optional[str]
 
 
-class CreateProjectUpsertModelModel(GQLResult):
+class CreateProjectResultModel(GQLResult):
     id: GQLId
     name: str
     entity_name: str = Field(alias="entityName")
     description: Optional[str]
     access: Optional[str]
-    views: Optional[Any]
+    views: Optional[str]
 
 
 CreateProject.model_rebuild()
-CreateProjectUpsertModel.model_rebuild()
+CreateProjectResult.model_rebuild()

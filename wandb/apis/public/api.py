@@ -31,7 +31,6 @@ from wandb._analytics import tracked
 from wandb._iterutils import one
 from wandb._strutils import nameof
 from wandb.apis import public
-from wandb.apis._generated import CREATE_PROJECT_GQL
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries, Registry
@@ -243,8 +242,6 @@ class Api:
         """
     )
 
-    CREATE_PROJECT = gql(CREATE_PROJECT_GQL)
-
     def __init__(
         self,
         overrides: dict[str, Any] | None = None,
@@ -395,7 +392,10 @@ class Api:
             name: The name of the new project.
             entity: The entity of the new project.
         """
-        self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
+        from wandb.apis._generated import CREATE_PROJECT_GQL, UpsertModelInput
+
+        gql_input = UpsertModelInput(name=name, entity_name=entity)
+        self.client.execute(gql(CREATE_PROJECT_GQL), {"input": gql_input.model_dump()})
 
     def create_run(
         self,

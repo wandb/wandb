@@ -6,19 +6,25 @@ __all__ = ["CREATE_PROJECT_GQL", "GET_PROJECTS_GQL", "GET_PROJECT_GQL"]
 GET_PROJECTS_GQL = """
 query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
   models(entityName: $entity, after: $cursor, first: $perPage) {
+    pageInfo {
+      ...PageInfoFragment
+    }
     edges {
       node {
         ...ProjectFragment
       }
     }
-    pageInfo {
-      endCursor
-      hasNextPage
-    }
   }
 }
 
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
 fragment ProjectFragment on Project {
+  __typename
   id
   name
   entityName
@@ -28,13 +34,14 @@ fragment ProjectFragment on Project {
 """
 
 GET_PROJECT_GQL = """
-query GetProject($project: String!, $entity: String!) {
-  project(name: $project, entityName: $entity) {
+query GetProject($name: String!, $entity: String!) {
+  project(name: $name, entityName: $entity) {
     ...ProjectFragment
   }
 }
 
 fragment ProjectFragment on Project {
+  __typename
   id
   name
   entityName
@@ -44,10 +51,8 @@ fragment ProjectFragment on Project {
 """
 
 CREATE_PROJECT_GQL = """
-mutation CreateProject($description: String, $entityName: String, $id: String, $name: String, $framework: String, $access: String, $views: JSONString) {
-  upsertModel(
-    input: {description: $description, entityName: $entityName, id: $id, name: $name, framework: $framework, access: $access, views: $views}
-  ) {
+mutation CreateProject($input: UpsertModelInput!) {
+  result: upsertModel(input: $input) {
     project {
       id
       name

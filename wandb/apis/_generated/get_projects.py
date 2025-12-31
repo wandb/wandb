@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import ProjectFragment
+from .fragments import PageInfoFragment, ProjectFragment
 
 
 class GetProjects(GQLResult):
@@ -17,17 +17,12 @@ class GetProjects(GQLResult):
 
 
 class GetProjectsModels(GQLResult):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
     edges: List[GetProjectsModelsEdges]
-    page_info: GetProjectsModelsPageInfo = Field(alias="pageInfo")
 
 
 class GetProjectsModelsEdges(GQLResult):
     node: Optional[ProjectFragment]
-
-
-class GetProjectsModelsPageInfo(GQLResult):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
 
 
 GetProjects.model_rebuild()

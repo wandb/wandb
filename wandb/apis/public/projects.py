@@ -33,12 +33,11 @@ Note:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Mapping
 
 from typing_extensions import override
 from wandb_gql import gql
 
-from wandb._pydantic import Connection
 from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
@@ -51,6 +50,7 @@ from wandb.sdk.lib import ipython
 if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
+    from wandb._pydantic import Connection
     from wandb.apis._generated import ProjectFragment
 
 
@@ -102,21 +102,18 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
             type(self).QUERY = gql(GET_PROJECTS_GQL)
 
         self.entity = entity
-        variables = {"entity": self.entity}
-        super().__init__(client, variables=variables, per_page=per_page)
+        super().__init__(client, variables={"entity": entity}, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
+        from wandb._pydantic import Connection
         from wandb.apis._generated import GetProjects, ProjectFragment
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = GetProjects.model_validate(data)
-
-        # Extract the inner `*Connection` result for faster/easier access.
         if not (conn := result.models):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
-
         self.last_response = Connection[ProjectFragment].model_validate(conn)
 
     @property
@@ -131,12 +128,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         return None
 
     def _convert(self, node: ProjectFragment) -> Project:
-        return Project(
-            self.client,
-            entity=self.entity,
-            project=node.name,
-            attrs=node.model_dump(),
-        )
+        return Project(self.client, self.entity, node.name, node.model_dump())
 
     def __repr__(self):
         return f"<Projects {self.entity}>"
@@ -156,7 +148,7 @@ class Project(Attrs):
         client: RetryingClient,
         entity: str,
         project: str,
-        attrs: dict,
+        attrs: Mapping[str, Any],
     ) -> Project:
         """A single project associated with an entity.
 
@@ -166,7 +158,7 @@ class Project(Attrs):
             project: The name of the project to query.
             attrs: The attributes of the project.
         """
-        super().__init__(dict(attrs))
+        super().__init__(attrs)
         self._is_loaded = bool(attrs)
         self.client = client
         self.name = project
@@ -177,11 +169,11 @@ class Project(Attrs):
 
         from wandb.apis._generated import GET_PROJECT_GQL, GetProject
 
-        variable_values = {"project": self.name, "entity": self.entity}
+        gql_vars = {"name": self.name, "entity": self.entity}
         try:
-            data = self.client.execute(gql(GET_PROJECT_GQL), variable_values)
+            data = self.client.execute(gql(GET_PROJECT_GQL), gql_vars)
         except HTTPError as e:
-            raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e
+            raise ValueError(f"Unable to fetch project ID: {gql_vars!r}") from e
 
         project = GetProject.model_validate(data).project
         self._attrs = project.model_dump() if project else {}

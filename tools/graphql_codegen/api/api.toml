@@ -29,3 +29,6 @@ type = "str"
 
 [tool.ariadne-codegen.scalars.Int64]
 type = "int"  # ariadne-codegen types `Int64` as `Any` by default
+
+[tool.ariadne-codegen.scalars.JSONString]
+type = "str"  # ariadne-codegen types `JSONString` as `Any` by default

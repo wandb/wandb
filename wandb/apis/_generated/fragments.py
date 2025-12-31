@@ -3,12 +3,22 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from typing import Optional
 
-from wandb._pydantic import GQLId, GQLResult
+from pydantic import Field
+from typing_extensions import Literal
+
+from wandb._pydantic import GQLId, GQLResult, Typename
+
+
+class PageInfoFragment(GQLResult):
+    typename__: Typename[Literal["PageInfo"]] = "PageInfo"
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
 
 
 class ProjectFragment(GQLResult):
+    typename__: Typename[Literal["Project"]] = "Project"
     id: GQLId
     name: str
     entity_name: str = Field(alias="entityName")
@@ -16,4 +26,5 @@ class ProjectFragment(GQLResult):
     is_benchmark: bool = Field(alias="isBenchmark")
 
 
+PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
