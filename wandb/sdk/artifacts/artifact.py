@@ -70,7 +70,6 @@ from wandb.util import (
 
 from ._factories import make_storage_policy
 from ._gqlutils import (
-    omit_artifact_fields,
     org_info_from_entity,
     resolve_org_entity_name,
     server_supports,
@@ -268,9 +267,9 @@ class Artifact:
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
+        gql_op = gql(ARTIFACT_BY_ID_GQL)
 
-        data = client.execute(query, variable_values={"id": artifact_id})
+        data = client.execute(gql_op, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
         if (artifact := result.artifact) is None:
@@ -302,12 +301,9 @@ class Artifact:
                 "by this version of wandb server. Consider updating to the latest version."
             )
 
-        query = gql_compat(
-            ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
-            omit_fields=omit_artifact_fields(client),
-        )
+        gql_op = gql(ARTIFACT_MEMBERSHIP_BY_NAME_GQL)
         gql_vars = {"entity": path.prefix, "project": path.project, "name": path.name}
-        data = client.execute(query, variable_values=gql_vars)
+        data = client.execute(gql_op, variable_values=gql_vars)
         result = ArtifactMembershipByName.model_validate(data)
 
         if not (project := result.project):
@@ -341,12 +337,8 @@ class Artifact:
             "name": path.name,
             "enableTracking": enable_tracking,
         }
-        query = gql_compat(
-            ARTIFACT_BY_NAME_GQL,
-            omit_variables=omit_vars,
-            omit_fields=omit_artifact_fields(client),
-        )
-        data = client.execute(query, variable_values=gql_vars)
+        gql_op = gql_compat(ARTIFACT_BY_NAME_GQL, omit_variables=omit_vars)
+        data = client.execute(gql_op, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
 
         if not (project := result.project):
@@ -508,7 +500,7 @@ class Artifact:
         self._aliases = copy(other_aliases)
         self._saved_aliases = copy(other_aliases)
 
-        self._tags = [tag.name for tag in (src_art.tags or [])]
+        self._tags = [tag.name for tag in src_art.tags]
         self._saved_tags = copy(self._tags)
 
         self._metadata = validate_metadata(src_art.metadata)
@@ -516,9 +508,7 @@ class Artifact:
         self._ttl_duration_seconds = validate_ttl_duration_seconds(
             src_art.ttl_duration_seconds
         )
-        self._ttl_is_inherited = (
-            True if (src_art.ttl_is_inherited is None) else src_art.ttl_is_inherited
-        )
+        self._ttl_is_inherited = src_art.ttl_is_inherited
 
         self._state = ArtifactState(src_art.state)
         self._size = src_art.size
@@ -1261,8 +1251,8 @@ class Artifact:
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
-        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
-        data = client.execute(query, variable_values={"id": artifact_id})
+        gql_op = gql(ARTIFACT_BY_ID_GQL)
+        data = client.execute(gql_op, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
         if not (artifact := result.artifact):
@@ -1304,40 +1294,19 @@ class Artifact:
                 for alias in self.aliases
             ]
 
-        omit_fields = omit_artifact_fields(client)
-        omit_variables = set()
+        old_tags, new_tags = set(self._saved_tags), set(self.tags)
 
-        if {"ttlIsInherited", "ttlDurationSeconds"} & omit_fields:
-            if self._ttl_changed:
-                termwarn(
-                    "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
-                )
-
-            omit_variables |= {"ttlDurationSeconds"}
-
-        added_tags = validate_tags(set(self.tags) - set(self._saved_tags))
-        deleted_tags = validate_tags(set(self._saved_tags) - set(self.tags))
-
-        if {"tags"} & omit_fields:
-            if added_tags or deleted_tags:
-                termwarn(
-                    "Server not compatible with Artifact tags. "
-                    "To use Artifact tags, please upgrade the server to v0.85 or higher."
-                )
-
-            omit_variables |= {"tagsToAdd", "tagsToDelete"}
-
-        gql_op = gql_compat(UPDATE_ARTIFACT_GQL, omit_fields=omit_fields)
+        gql_op = gql(UPDATE_ARTIFACT_GQL)
         gql_input = UpdateArtifactInput(
             artifact_id=self.id,
             description=self.description,
             metadata=json_dumps_safer(self.metadata),
             ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
             aliases=update_alias_inputs,
-            tags_to_add=[{"tagName": t} for t in added_tags],
-            tags_to_delete=[{"tagName": t} for t in deleted_tags],
+            tags_to_add=[{"tagName": t} for t in validate_tags(new_tags - old_tags)],
+            tags_to_delete=[{"tagName": t} for t in validate_tags(old_tags - new_tags)],
         )
-        gql_vars = {"input": gql_input.model_dump(exclude=omit_variables)}
+        gql_vars = {"input": gql_input.model_dump()}
         data = client.execute(gql_op, variable_values=gql_vars)
 
         result = UpdateArtifact.model_validate(data).result

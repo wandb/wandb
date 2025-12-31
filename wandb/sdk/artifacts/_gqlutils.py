@@ -19,16 +19,6 @@ if TYPE_CHECKING:
         FetchOrgInfoFromEntityEntity,
     )
 
-OMITTABLE_ARTIFACT_FIELDS = frozenset(
-    {
-        "ttlDurationSeconds",
-        "ttlIsInherited",
-        "aliases",
-        "tags",
-        "historyStep",
-    }
-)
-
 
 @lru_cache(maxsize=16)
 def type_info(client: RetryingClient, typename: str) -> TypeInfoFragment | None:
@@ -105,11 +95,6 @@ def allowed_fields(client: RetryingClient, typename: str) -> set[str]:
     """Returns the allowed field names for a given GraphQL type."""
     typ = type_info(client, typename)
     return {f.name for f in typ.fields} if (typ and typ.fields) else set()
-
-
-def omit_artifact_fields(client: RetryingClient) -> set[str]:
-    """Return Artifact fields to omit from GraphQL requests for compatibility."""
-    return set(OMITTABLE_ARTIFACT_FIELDS) - allowed_fields(client, "Artifact")
 
 
 @dataclass(frozen=True)

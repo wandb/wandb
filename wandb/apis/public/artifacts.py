@@ -33,7 +33,6 @@ from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
@@ -441,7 +440,7 @@ class ArtifactCollection:
             ProjectArtifactCollection,
         )
 
-        gql_op = gql_compat(PROJECT_ARTIFACT_COLLECTION_GQL)
+        gql_op = gql(PROJECT_ARTIFACT_COLLECTION_GQL)
         gql_vars = {"entity": entity, "project": project, "type": type_, "name": name}
         data = self.client.execute(gql_op, variable_values=gql_vars)
         result = ProjectArtifactCollection.model_validate(data)
@@ -711,8 +710,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     ):
         from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
 
-        omit_fields = omit_artifact_fields(client)
-        self.QUERY = gql_compat(PROJECT_ARTIFACTS_GQL, omit_fields=omit_fields)
+        self.QUERY = gql(PROJECT_ARTIFACTS_GQL)
 
         self.entity = entity
         self.collection_name = collection_name
@@ -808,7 +806,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         except LookupError:
             raise ValueError("mode must be logged or used")
         else:
-            self.QUERY = gql_compat(query_str, omit_fields=omit_artifact_fields(client))
+            self.QUERY = gql(query_str)
 
         self.run = run
         variables = {"entity": run.entity, "project": run.project, "run": run.id}

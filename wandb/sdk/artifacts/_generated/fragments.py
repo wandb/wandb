@@ -77,12 +77,10 @@ class ArtifactFragment(GQLResult):
     artifact_type: ArtifactFragmentArtifactType = Field(alias="artifactType")
     description: Optional[str]
     metadata: Optional[str]
-    ttl_duration_seconds: Optional[int] = Field(
-        alias="ttlDurationSeconds", default=None
-    )
-    ttl_is_inherited: Optional[bool] = Field(alias="ttlIsInherited", default=None)
-    tags: Optional[List[TagFragment]] = None
-    history_step: Optional[int] = Field(alias="historyStep", default=None)
+    ttl_duration_seconds: int = Field(alias="ttlDurationSeconds")
+    ttl_is_inherited: bool = Field(alias="ttlIsInherited")
+    tags: List[TagFragment]
+    history_step: Optional[int] = Field(alias="historyStep")
     state: ArtifactState
     size: int
     digest: str

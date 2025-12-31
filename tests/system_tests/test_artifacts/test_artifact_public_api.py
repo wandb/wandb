@@ -522,6 +522,9 @@ def test_fetch_registry_artifact(
         },
         id="PLACEHOLDER",
         description="PLACEHOLDER",
+        tags=[],
+        ttl_duration_seconds=-2,
+        ttl_is_inherited=False,
         metadata="{}",
         state="COMMITTED",
         size=0,
@@ -530,6 +533,7 @@ def test_fetch_registry_artifact(
         commit_hash="PLACEHOLDER",
         created_at="PLACEHOLDER",
         updated_at=None,
+        history_step=None,
         # ------------------------------------------------------------------------------
     ).model_dump()
 
