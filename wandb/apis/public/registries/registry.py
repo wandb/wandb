@@ -31,8 +31,7 @@ from ._utils import (
 from .registries_search import Collections, Versions
 
 if TYPE_CHECKING:
-    from wandb_gql import Client
-
+    from wandb.apis.public.api import RetryingClient
     from wandb.sdk.artifacts._generated import RegistryFragment
 
 
@@ -47,7 +46,7 @@ class Registry:
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         organization: str,
         entity: str,
         name: str,
@@ -223,7 +222,7 @@ class Registry:
     @tracked
     def create(
         cls,
-        client: Client,
+        client: RetryingClient,
         organization: str,
         name: str,
         visibility: Literal["organization", "restricted"],
