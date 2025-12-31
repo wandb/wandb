@@ -9,23 +9,16 @@ Note:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Mapping
 
 from requests import HTTPError
 from wandb_gql import gql
 
 import wandb
-from wandb.apis._generated import (
-    CREATE_USER_FROM_ADMIN_GQL,
-    DELETE_API_KEY_GQL,
-    GENERATE_API_KEY_GQL,
-    CreateUserFromAdmin,
-    GenerateApiKey,
-)
 from wandb.apis.attrs import Attrs
 
 if TYPE_CHECKING:
-    from .api import Api
+    from .api import Api, RetryingClient
 
 
 class User(Attrs):
@@ -43,11 +36,7 @@ class User(Attrs):
         Some operations require admin privileges
     """
 
-    CREATE_USER_MUTATION = gql(CREATE_USER_FROM_ADMIN_GQL)
-    DELETE_API_KEY_MUTATION = gql(DELETE_API_KEY_GQL)
-    GENERATE_API_KEY_MUTATION = gql(GENERATE_API_KEY_GQL)
-
-    def __init__(self, client, attrs):
+    def __init__(self, client: RetryingClient, attrs: Mapping[str, Any]):
         super().__init__(attrs)
         self._client = client
         self._user_api: Api | None = None
@@ -71,10 +60,13 @@ class User(Attrs):
         Returns:
             A `User` object
         """
-        data = api.client.execute(
-            cls.CREATE_USER_MUTATION,
-            {"email": email, "admin": admin},
+        from wandb.apis._generated import (
+            CREATE_USER_FROM_ADMIN_GQL,
+            CreateUserFromAdmin,
         )
+
+        gql_op = gql(CREATE_USER_FROM_ADMIN_GQL)
+        data = api.client.execute(gql_op, {"email": email, "admin": admin})
         user = CreateUserFromAdmin.model_validate(data).create_user.user
         return cls(api.client, user.model_dump())
 
@@ -115,10 +107,12 @@ class User(Attrs):
         Raises:
             ValueError if the api_key couldn't be found
         """
+        from wandb.apis._generated import DELETE_API_KEY_GQL
+
         idx = self.api_keys.index(api_key)
         api_key_id = self._attrs["apiKeys"]["edges"][idx]["node"]["id"]
         try:
-            self._client.execute(self.DELETE_API_KEY_MUTATION, {"id": api_key_id})
+            self._client.execute(gql(DELETE_API_KEY_GQL), {"id": api_key_id})
         except HTTPError:
             return False
         return True
@@ -133,11 +127,12 @@ class User(Attrs):
         Returns:
             The new api key, or None on failure
         """
+        from wandb.apis._generated import GENERATE_API_KEY_GQL, GenerateApiKey
+
         try:
             # We must make this call using credentials from the original user
-            data = self.user_api.client.execute(
-                self.GENERATE_API_KEY_MUTATION, {"description": description}
-            )
+            gql_op = gql(GENERATE_API_KEY_GQL)
+            data = self.user_api.client.execute(gql_op, {"description": description})
             key = GenerateApiKey.model_validate(data).generate_api_key.api_key
             self._attrs["apiKeys"]["edges"].append({"node": key.model_dump()})
         except (HTTPError, AttributeError):

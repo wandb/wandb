@@ -6,106 +6,58 @@ from __future__ import annotations
 from typing import List, Optional
 
 from pydantic import Field
-from typing_extensions import Any
+from typing_extensions import Literal
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
 
-class CreatedProjectFragment(GQLResult):
+class ApiKeyFragment(GQLResult):
     id: GQLId
     name: str
-    entity_name: str = Field(alias="entityName")
     description: Optional[str]
-    access: Optional[str]
-    views: Optional[str]
+
+
+class FullUserFragment(GQLResult):
+    id: GQLId
+    name: str
+    username: Optional[str]
+    email: Optional[str]
+    admin: Optional[bool]
+    flags: Optional[str]
+    entity: Optional[str]
+    deleted_at: Optional[str] = Field(alias="deletedAt")
+    api_keys: Optional[FullUserFragmentApiKeys] = Field(alias="apiKeys")
+    teams: Optional[FullUserFragmentTeams]
+
+
+class FullUserFragmentApiKeys(GQLResult):
+    edges: List[FullUserFragmentApiKeysEdges]
+
+
+class FullUserFragmentApiKeysEdges(GQLResult):
+    node: Optional[ApiKeyFragment]
+
+
+class FullUserFragmentTeams(GQLResult):
+    edges: List[FullUserFragmentTeamsEdges]
+
+
+class FullUserFragmentTeamsEdges(GQLResult):
+    node: Optional[FullUserFragmentTeamsEdgesNode]
+
+
+class FullUserFragmentTeamsEdgesNode(GQLResult):
+    name: str
 
 
 class PageInfoFragment(GQLResult):
-    typename__: Typename[Literal[PageInfo]] = "PageInfo"
+    typename__: Typename[Literal["PageInfo"]] = "PageInfo"
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class ApiKeyFragment(GQLResult):
-    id: GQLId
-    name: str
-    description: Optional[str]
-
-
-class FullUserFragment(GQLResult):
-    id: GQLId
-    name: str
-    username: Optional[str]
-    email: Optional[str]
-    admin: Optional[bool]
-    flags: Optional[Any]
-    entity: Optional[str]
-    deleted_at: Optional[str] = Field(alias="deletedAt")
-    api_keys: Optional[FullUserFragmentApiKeys] = Field(alias="apiKeys")
-    teams: Optional[FullUserFragmentTeams]
-
-
-class FullUserFragmentApiKeys(GQLResult):
-    edges: List[FullUserFragmentApiKeysEdges]
-
-
-class FullUserFragmentApiKeysEdges(GQLResult):
-    node: Optional[ApiKeyFragment]
-
-
-class FullUserFragmentTeams(GQLResult):
-    edges: List[FullUserFragmentTeamsEdges]
-
-
-class FullUserFragmentTeamsEdges(GQLResult):
-    node: Optional[FullUserFragmentTeamsEdgesNode]
-
-
-class FullUserFragmentTeamsEdgesNode(GQLResult):
-    name: str
-
-
-class ApiKeyFragment(GQLResult):
-    id: GQLId
-    name: str
-    description: Optional[str]
-
-
-class FullUserFragment(GQLResult):
-    id: GQLId
-    name: str
-    username: Optional[str]
-    email: Optional[str]
-    admin: Optional[bool]
-    flags: Optional[Any]
-    entity: Optional[str]
-    deleted_at: Optional[str] = Field(alias="deletedAt")
-    api_keys: Optional[FullUserFragmentApiKeys] = Field(alias="apiKeys")
-    teams: Optional[FullUserFragmentTeams]
-
-
-class FullUserFragmentApiKeys(GQLResult):
-    edges: List[FullUserFragmentApiKeysEdges]
-
-
-class FullUserFragmentApiKeysEdges(GQLResult):
-    node: Optional[ApiKeyFragment]
-
-
-class FullUserFragmentTeams(GQLResult):
-    edges: List[FullUserFragmentTeamsEdges]
-
-
-class FullUserFragmentTeamsEdges(GQLResult):
-    node: Optional[FullUserFragmentTeamsEdgesNode]
-
-
-class FullUserFragmentTeamsEdgesNode(GQLResult):
-    name: str
-
-
 class ProjectFragment(GQLResult):
-    typename__: Typename[Literal[Project]] = "Project"
+    typename__: Typename[Literal["Project"]] = "Project"
     id: GQLId
     name: str
     entity_name: str = Field(alias="entityName")

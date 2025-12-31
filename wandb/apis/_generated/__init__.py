@@ -32,7 +32,13 @@ __all__ = [
 from .create_project import CreateProject
 from .create_user_from_admin import CreateUserFromAdmin
 from .delete_api_key import DeleteApiKey
-from .fragments import ApiKeyFragment, FullUserFragment, ProjectFragment, UserFragment
+from .fragments import (
+    ApiKeyFragment,
+    FullUserFragment,
+    PageInfoFragment,
+    ProjectFragment,
+    UserFragment,
+)
 from .generate_api_key import GenerateApiKey
 from .get_default_entity import GetDefaultEntity
 from .get_project import GetProject

@@ -31,14 +31,6 @@ from wandb._analytics import tracked
 from wandb._iterutils import one
 from wandb._strutils import nameof
 from wandb.apis import public
-from wandb.apis._generated import (
-    GET_DEFAULT_ENTITY_GQL,
-    GET_VIEWER_GQL,
-    SEARCH_USERS_GQL,
-    GetDefaultEntity,
-    GetViewer,
-    SearchUsers,
-)
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries, Registry
@@ -173,10 +165,6 @@ class Api:
     """
 
     _HTTP_TIMEOUT = env.get_http_timeout(19)
-    DEFAULT_ENTITY_QUERY = gql(GET_DEFAULT_ENTITY_GQL)
-
-    VIEWER_QUERY = gql(GET_VIEWER_GQL)
-    USERS_QUERY = gql(SEARCH_USERS_GQL)
 
     def __init__(
         self,
@@ -703,8 +691,10 @@ class Api:
     @property
     def default_entity(self) -> str | None:
         """Returns the default W&B entity."""
+        from wandb.apis._generated import GET_DEFAULT_ENTITY_GQL, GetDefaultEntity
+
         if self._default_entity is None:
-            data = self._client.execute(self.DEFAULT_ENTITY_QUERY)
+            data = self._client.execute(gql(GET_DEFAULT_ENTITY_GQL))
             result = GetDefaultEntity.model_validate(data)
             if (viewer := result.viewer) and (entity := viewer.entity):
                 self._default_entity = entity
@@ -718,10 +708,12 @@ class Api:
             ValueError: If viewer data is not able to be fetched from W&B.
             requests.RequestException: If an error occurs while making the graphql request.
         """
+        from wandb.apis._generated import GET_VIEWER_GQL, GetViewer
+
         from .users import User
 
         if self._viewer is None:
-            data = self._client.execute(self.VIEWER_QUERY)
+            data = self._client.execute(gql(GET_VIEWER_GQL))
             result = GetViewer.model_validate(data)
 
             if (viewer := result.viewer) is None:
@@ -1009,9 +1001,11 @@ class Api:
         Returns:
             A `User` object or None if a user is not found.
         """
+        from wandb.apis._generated import SEARCH_USERS_GQL, SearchUsers
+
         from .users import User
 
-        data = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
+        data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
         result = SearchUsers.model_validate(data)
         if not ((users := result.users) and (edges := users.edges)):
             return None
@@ -1033,9 +1027,11 @@ class Api:
         Returns:
             An array of `User` objects.
         """
+        from wandb.apis._generated import SEARCH_USERS_GQL, SearchUsers
+
         from .users import User
 
-        data = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
+        data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
         result = SearchUsers.model_validate(data)
         if not ((users := result.users) and (edges := users.edges)):
             return []
