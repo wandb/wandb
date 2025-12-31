@@ -129,7 +129,7 @@ func (rs *RunSyncer) Sync() error {
 		return err
 	}
 
-	rs.printer.Writef("Finished syncing %s", rs.path)
+	rs.printer.Infof("Finished syncing %s", rs.path)
 	return nil
 }
 
@@ -164,9 +164,8 @@ func (rs *RunSyncer) PopMessages() []*spb.ServerSyncMessage {
 	for _, msg := range rs.printer.Read() {
 		messages = append(messages,
 			&spb.ServerSyncMessage{
-				// TODO: Existing code assumes printer messages are warnings.
-				Severity: spb.ServerSyncMessage_SEVERITY_INFO,
-				Content:  fmt.Sprintf("[%s] %s", runInfo.Path(), msg),
+				Severity: spb.ServerSyncMessage_Severity(msg.Severity),
+				Content:  fmt.Sprintf("[%s] %s", runInfo.Path(), msg.Content),
 			})
 	}
 	return messages

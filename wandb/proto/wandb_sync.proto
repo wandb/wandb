@@ -81,6 +81,7 @@ message ServerSyncMessage {
   enum Severity {
     SEVERITY_NOTSET = 0;
     SEVERITY_INFO = 20;
+    SEVERITY_WARNING = 30;
     SEVERITY_ERROR = 40;
   }
 

@@ -216,6 +216,7 @@ class ServerSyncMessage(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         SEVERITY_NOTSET: ServerSyncMessage._Severity.ValueType  # 0
         SEVERITY_INFO: ServerSyncMessage._Severity.ValueType  # 20
+        SEVERITY_WARNING: ServerSyncMessage._Severity.ValueType  # 30
         SEVERITY_ERROR: ServerSyncMessage._Severity.ValueType  # 40
 
     class Severity(_Severity, metaclass=_SeverityEnumTypeWrapper):
@@ -223,6 +224,7 @@ class ServerSyncMessage(google.protobuf.message.Message):
 
     SEVERITY_NOTSET: ServerSyncMessage.Severity.ValueType  # 0
     SEVERITY_INFO: ServerSyncMessage.Severity.ValueType  # 20
+    SEVERITY_WARNING: ServerSyncMessage.Severity.ValueType  # 30
     SEVERITY_ERROR: ServerSyncMessage.Severity.ValueType  # 40
 
     SEVERITY_FIELD_NUMBER: builtins.int

@@ -53,7 +53,7 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 		)
 		ctx.Printer.
 			AtMostEvery(time.Minute).
-			Writef(
+			Warnf(
 				"Skipped uploading run.log() data that exceeded"+
 					" size limit (%d > %d).",
 				len(line),

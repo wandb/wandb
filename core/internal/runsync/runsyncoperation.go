@@ -76,10 +76,7 @@ func (op *RunSyncOperation) Do(parallelism int) *spb.ServerSyncResponse {
 
 				if err != nil {
 					LogSyncFailure(op.logger, err)
-
-					// TODO: Print this at ERROR level, not INFO.
-					op.printer.Write(ToUserText(err))
-
+					op.printer.Errorf("%s", ToUserText(err))
 					break
 				}
 			}
@@ -156,8 +153,8 @@ func (op *RunSyncOperation) popMessages() []*spb.ServerSyncMessage {
 
 	for _, message := range op.printer.Read() {
 		messages = append(messages, &spb.ServerSyncMessage{
-			Severity: spb.ServerSyncMessage_SEVERITY_INFO,
-			Content:  message,
+			Severity: spb.ServerSyncMessage_Severity(message.Severity),
+			Content:  message.Content,
 		})
 	}
 
