@@ -61,19 +61,6 @@ def _is_cache_hit(path: Path, size: int) -> bool:
     return path.is_file() and path.stat().st_size == size
 
 
-# @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
-# class _CacheCheckResult:
-#     """An internal wrapper for the result of checking (or creating) a file path in the artifact file cache."""
-
-#     path: FilePathStr
-#     hit: bool
-#     open: Opener
-
-#     @field_validator("path", mode="before")
-#     def _validate_path(cls, v: Any) -> FilePathStr:
-#         return FilePathStr(v)  # Needed to convert Path to FilePathStr
-
-
 class _ArtifactFileCacheManager(ArtifactsBase):
     cache_dir: Path
 
@@ -105,17 +92,12 @@ class _ArtifactFileCacheManager(ArtifactsBase):
             with NamedTemporaryFile(dir=self.temp_dir) as f:
                 f.write(b"wandb")
         except PermissionError as e:
-            raise PermissionError(
-                f"Unable to write to {self.cache_dir}. "
-                "Ensure that the current user has write permissions."
-            ) from e
+            msg = f"Unable to write to {self.cache_dir}. Ensure that current user has write permissions."
+            raise PermissionError(msg) from e
         return self
 
 
 class ArtifactFileCache:
-    _config: _ArtifactFileCacheManager
-    _override_cache_path: StrPath | None
-
     def __init__(self, cache_dir: StrPath) -> None:
         self._config = _ArtifactFileCacheManager(cache_dir=cache_dir)
         self._override_cache_path: StrPath | None = None
