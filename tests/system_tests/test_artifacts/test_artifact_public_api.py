@@ -30,6 +30,12 @@ from wandb.sdk.lib.paths import StrPath
 if TYPE_CHECKING:
     from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
+pytestmark = [
+    # Requesting the `user` fixture from ALL tests in this module sets login
+    # environment variables for the duration of each test.
+    mark.usefixtures("user"),
+]
+
 
 @fixture
 def sample_data(user: str) -> None:

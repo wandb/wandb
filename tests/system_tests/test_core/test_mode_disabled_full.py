@@ -103,7 +103,7 @@ def test_access_properties(user):
 def test_disabled_no_activity(wandb_backend_spy):
     gql = wandb_backend_spy.gql
     graphql_spy = gql.Capture()
-    wandb_backend_spy.stub_gql(gql.any(), graphql_spy)
+    wandb_backend_spy.stub_gql(gql.ANY, graphql_spy)
 
     with wandb.init(settings={"mode": "disabled"}) as run:
         run.alert("alert")
@@ -120,7 +120,7 @@ def test_disabled_no_activity(wandb_backend_spy):
 def test_disabled_mode_artifact(wandb_backend_spy):
     gql = wandb_backend_spy.gql
     graphql_spy = gql.Capture()
-    wandb_backend_spy.stub_gql(gql.any(), graphql_spy)
+    wandb_backend_spy.stub_gql(gql.ANY, graphql_spy)
     run = wandb.init(settings={"mode": "disabled"})
     art = run.log_artifact(wandb.Artifact("dummy", "dummy")).wait()
     run.link_artifact(art, "dummy")
