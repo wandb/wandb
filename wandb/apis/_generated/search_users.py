@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from wandb._pydantic import GQLResult
 
-from .fragments import FullUserFragment
+from .fragments import UserFragment
 
 
 class SearchUsers(GQLResult):
@@ -19,7 +19,7 @@ class SearchUsersUsers(GQLResult):
 
 
 class SearchUsersUsersEdges(GQLResult):
-    node: Optional[FullUserFragment]
+    node: Optional[UserFragment]
 
 
 SearchUsers.model_rebuild()

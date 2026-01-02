@@ -10,7 +10,7 @@ import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
-from wandb.apis._generated import FullUserFragment, ProjectFragment
+from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.apis.public import File
 from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
@@ -949,23 +949,17 @@ def fake_search_users_response(
             "users": {
                 "edges": [
                     {
-                        "node": FullUserFragment.model_validate(
-                            {
-                                "id": "VXNlcjoxMjM=",
-                                "name": "fake-name",
-                                "username": "fake-username",
-                                "admin": False,
-                                "flags": None,
-                                "entity": "fake-entity",
-                                "deletedAt": None,
-                                "email": email,
-                                "apiKeys": {
-                                    "edges": [{"node": key} for key in api_keys]
-                                },
-                                "teams": {
-                                    "edges": [{"node": team} for team in teams],
-                                },
-                            }
+                        "node": UserFragment(
+                            id="VXNlcjoxMjM=",
+                            name="fake-name",
+                            username="fake-username",
+                            admin=False,
+                            flags=None,
+                            entity="fake-entity",
+                            deleted_at=None,
+                            email=email,
+                            api_keys={"edges": [{"node": key} for key in api_keys]},
+                            teams={"edges": [{"node": team} for team in teams]},
                         ).model_dump(),
                     }
                 ]

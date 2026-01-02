@@ -7,11 +7,11 @@ from typing import Optional
 
 from wandb._pydantic import GQLResult
 
-from .fragments import FullUserFragment
+from .fragments import UserFragment
 
 
 class GetViewer(GQLResult):
-    viewer: Optional[FullUserFragment]
+    viewer: Optional[UserFragment]
 
 
 GetViewer.model_rebuild()

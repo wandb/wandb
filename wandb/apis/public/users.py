@@ -9,7 +9,7 @@ Note:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import TYPE_CHECKING, Any, MutableMapping
 
 from requests import HTTPError
 from wandb_gql import gql
@@ -36,7 +36,7 @@ class User(Attrs):
         Some operations require admin privileges
     """
 
-    def __init__(self, client: RetryingClient, attrs: Mapping[str, Any]):
+    def __init__(self, client: RetryingClient, attrs: MutableMapping[str, Any]):
         super().__init__(attrs)
         self._client = client
         self._user_api: Api | None = None

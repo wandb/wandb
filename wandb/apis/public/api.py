@@ -714,13 +714,9 @@ class Api:
 
         if self._viewer is None:
             data = self._client.execute(gql(GET_VIEWER_GQL))
-            result = GetViewer.model_validate(data)
-
-            if (viewer := result.viewer) is None:
-                raise ValueError(
-                    "Unable to fetch user data from W&B,"
-                    " please verify your API key is valid."
-                )
+            if (viewer := GetViewer.model_validate(data).viewer) is None:
+                msg = "Unable to fetch user data from W&B, please verify your API key is valid."
+                raise ValueError(msg)
 
             self._viewer = User(self._client, viewer.model_dump())
             self._default_entity = self._viewer.entity
@@ -1006,13 +1002,12 @@ class Api:
         from .users import User
 
         data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
-        result = SearchUsers.model_validate(data)
-        if not ((users := result.users) and (edges := users.edges)):
+        users = SearchUsers.model_validate(data).users
+        if not (users and (edges := users.edges)):
             return None
         if len(edges) > 1:
-            wandb.termwarn(
-                f"Found multiple users, returning the first user matching {username_or_email!r}"
-            )
+            msg = f"Found multiple users, returning the first user matching {username_or_email!r}"
+            wandb.termwarn(msg)
         return User(self._client, edges[0].node.model_dump())
 
     def users(self, username_or_email: str) -> list[User]:
@@ -1032,8 +1027,8 @@ class Api:
         from .users import User
 
         data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
-        result = SearchUsers.model_validate(data)
-        if not ((users := result.users) and (edges := users.edges)):
+        users = SearchUsers.model_validate(data).users
+        if not (users and (edges := users.edges)):
             return []
         return [User(self._client, edge.node.model_dump()) for edge in edges]
 

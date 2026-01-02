@@ -20,7 +20,6 @@ __all__ = [
     "DeleteApiKey",
     "GenerateApiKey",
     "ApiKeyFragment",
-    "FullUserFragment",
     "ArtifactTypeInput",
     "RateLimitsInput",
     "UpsertModelInput",
@@ -28,23 +27,24 @@ __all__ = [
     "PageInfoFragment",
     "ProjectFragment",
     "UserFragment",
+    "UserInfoFragment",
 ]
 from .create_project import CreateProject
 from .create_user_from_admin import CreateUserFromAdmin
 from .delete_api_key import DeleteApiKey
 from .fragments import (
     ApiKeyFragment,
-    FullUserFragment,
     PageInfoFragment,
     ProjectFragment,
     UserFragment,
+    UserInfoFragment,
 )
 from .generate_api_key import GenerateApiKey
 from .get_default_entity import GetDefaultEntity
 from .get_project import GetProject
 from .get_projects import GetProjects
-from .input_types import ArtifactTypeInput, RateLimitsInput, UpsertModelInput
 from .get_viewer import GetViewer
+from .input_types import ArtifactTypeInput, RateLimitsInput, UpsertModelInput
 from .operations import (
     CREATE_PROJECT_GQL,
     CREATE_USER_FROM_ADMIN_GQL,

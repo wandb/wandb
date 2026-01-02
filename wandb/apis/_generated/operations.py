@@ -88,7 +88,7 @@ query SearchUsers($query: String) {
   users(query: $query) {
     edges {
       node {
-        ...FullUserFragment
+        ...UserFragment
       }
     }
   }
@@ -100,7 +100,7 @@ fragment ApiKeyFragment on ApiKey {
   description
 }
 
-fragment FullUserFragment on User {
+fragment UserFragment on User {
   id
   name
   username
@@ -129,7 +129,7 @@ fragment FullUserFragment on User {
 GET_VIEWER_GQL = """
 query GetViewer {
   viewer {
-    ...FullUserFragment
+    ...UserFragment
   }
 }
 
@@ -139,7 +139,7 @@ fragment ApiKeyFragment on ApiKey {
   description
 }
 
-fragment FullUserFragment on User {
+fragment UserFragment on User {
   id
   name
   username
@@ -178,12 +178,12 @@ CREATE_USER_FROM_ADMIN_GQL = """
 mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
   createUser(input: {email: $email, admin: $admin}) {
     user {
-      ...UserFragment
+      ...UserInfoFragment
     }
   }
 }
 
-fragment UserFragment on User {
+fragment UserInfoFragment on User {
   id
   name
   username

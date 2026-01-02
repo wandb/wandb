@@ -17,39 +17,6 @@ class ApiKeyFragment(GQLResult):
     description: Optional[str]
 
 
-class FullUserFragment(GQLResult):
-    id: GQLId
-    name: str
-    username: Optional[str]
-    email: Optional[str]
-    admin: Optional[bool]
-    flags: Optional[str]
-    entity: Optional[str]
-    deleted_at: Optional[str] = Field(alias="deletedAt")
-    api_keys: Optional[FullUserFragmentApiKeys] = Field(alias="apiKeys")
-    teams: Optional[FullUserFragmentTeams]
-
-
-class FullUserFragmentApiKeys(GQLResult):
-    edges: List[FullUserFragmentApiKeysEdges]
-
-
-class FullUserFragmentApiKeysEdges(GQLResult):
-    node: Optional[ApiKeyFragment]
-
-
-class FullUserFragmentTeams(GQLResult):
-    edges: List[FullUserFragmentTeamsEdges]
-
-
-class FullUserFragmentTeamsEdges(GQLResult):
-    node: Optional[FullUserFragmentTeamsEdgesNode]
-
-
-class FullUserFragmentTeamsEdgesNode(GQLResult):
-    name: str
-
-
 class PageInfoFragment(GQLResult):
     typename__: Typename[Literal["PageInfo"]] = "PageInfo"
     end_cursor: Optional[str] = Field(alias="endCursor")
@@ -71,16 +38,49 @@ class UserFragment(GQLResult):
     username: Optional[str]
     email: Optional[str]
     admin: Optional[bool]
+    flags: Optional[str]
+    entity: Optional[str]
+    deleted_at: Optional[str] = Field(alias="deletedAt")
+    api_keys: Optional[UserFragmentApiKeys] = Field(alias="apiKeys")
+    teams: Optional[UserFragmentTeams]
+
+
+class UserFragmentApiKeys(GQLResult):
+    edges: List[UserFragmentApiKeysEdges]
+
+
+class UserFragmentApiKeysEdges(GQLResult):
+    node: Optional[ApiKeyFragment]
+
+
+class UserFragmentTeams(GQLResult):
+    edges: List[UserFragmentTeamsEdges]
+
+
+class UserFragmentTeamsEdges(GQLResult):
+    node: Optional[UserFragmentTeamsEdgesNode]
+
+
+class UserFragmentTeamsEdgesNode(GQLResult):
+    name: str
+
+
+class UserInfoFragment(GQLResult):
+    id: GQLId
+    name: str
+    username: Optional[str]
+    email: Optional[str]
+    admin: Optional[bool]
 
 
 ApiKeyFragment.model_rebuild()
-FullUserFragment.model_rebuild()
-FullUserFragmentApiKeys.model_rebuild()
-FullUserFragmentApiKeysEdges.model_rebuild()
-ApiKeyFragment.model_rebuild()
-FullUserFragmentTeams.model_rebuild()
-FullUserFragmentTeamsEdges.model_rebuild()
-FullUserFragmentTeamsEdgesNode.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
 UserFragment.model_rebuild()
+UserFragmentApiKeys.model_rebuild()
+UserFragmentApiKeysEdges.model_rebuild()
+ApiKeyFragment.model_rebuild()
+UserFragmentTeams.model_rebuild()
+UserFragmentTeamsEdges.model_rebuild()
+UserFragmentTeamsEdgesNode.model_rebuild()
+UserInfoFragment.model_rebuild()

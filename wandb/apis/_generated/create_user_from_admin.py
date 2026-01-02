@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import UserFragment
+from .fragments import UserInfoFragment
 
 
 class CreateUserFromAdmin(GQLResult):
@@ -17,7 +17,7 @@ class CreateUserFromAdmin(GQLResult):
 
 
 class CreateUserFromAdminCreateUser(GQLResult):
-    user: Optional[UserFragment]
+    user: Optional[UserInfoFragment]
 
 
 CreateUserFromAdmin.model_rebuild()
