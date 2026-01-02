@@ -33,7 +33,7 @@ def stub_run_parquet_history(
 def stub_api_run_history_keys(wandb_backend_spy, last_step: int):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="RunHistoryKeys"),
+        gql.Matcher(operation="GetRunHistoryKeys"),
         gql.Constant(
             content={
                 "data": {

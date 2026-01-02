@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from pydantic import Field
-from typing_extensions import Literal
+from typing_extensions import Any, Literal
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
@@ -35,6 +35,33 @@ class LegacySweepFragment(GQLResult):
     config: str
 
 
+class RunUserFragment(GQLResult):
+    typename__: Typename[Literal["User"]] = "User"
+    name: str
+    username: Optional[str]
+
+
+class LightRunFragment(GQLResult):
+    typename__: Typename[Literal["Run"]] = "Run"
+    id: GQLId
+    tags: Optional[List[str]]
+    name: str
+    display_name: Optional[str] = Field(alias="displayName")
+    sweep_name: Optional[str] = Field(alias="sweepName")
+    state: Optional[str]
+    group: Optional[str]
+    job_type: Optional[str] = Field(alias="jobType")
+    commit: Optional[str]
+    read_only: Optional[bool] = Field(alias="readOnly")
+    created_at: str = Field(alias="createdAt")
+    heartbeat_at: Optional[str] = Field(alias="heartbeatAt")
+    description: Optional[str]
+    notes: Optional[str]
+    history_line_count: Optional[int] = Field(alias="historyLineCount")
+    project_id: GQLId = Field(alias="projectId")
+    user: Optional[RunUserFragment]
+
+
 class PageInfoFragment(GQLResult):
     typename__: Typename[Literal["PageInfo"]] = "PageInfo"
     end_cursor: Optional[str] = Field(alias="endCursor")
@@ -48,6 +75,13 @@ class ProjectFragment(GQLResult):
     entity_name: str = Field(alias="entityName")
     created_at: str = Field(alias="createdAt")
     is_benchmark: bool = Field(alias="isBenchmark")
+
+
+class RunFragment(LightRunFragment):
+    config: Optional[str]
+    system_metrics: Optional[str] = Field(alias="systemMetrics")
+    summary_metrics: Optional[str] = Field(alias="summaryMetrics")
+    history_keys: Optional[Any] = Field(alias="historyKeys")
 
 
 class SweepFragment(GQLResult):
@@ -110,8 +144,12 @@ class UserInfoFragment(GQLResult):
 ApiKeyFragment.model_rebuild()
 CreatedProjectFragment.model_rebuild()
 LegacySweepFragment.model_rebuild()
+RunUserFragment.model_rebuild()
+LightRunFragment.model_rebuild()
+RunUserFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
+RunFragment.model_rebuild()
 SweepFragment.model_rebuild()
 UserFragment.model_rebuild()
 UserFragmentApiKeys.model_rebuild()
