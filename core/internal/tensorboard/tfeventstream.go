@@ -87,6 +87,8 @@ func (s *tfEventStream) Start() {
 }
 
 func (s *tfEventStream) loop() {
+	defer s.reader.Close()
+
 	// Whether we're in the final stage where we read all remaining events.
 	//
 	// Stop() may be invoked while we're asleep, during which time more events
