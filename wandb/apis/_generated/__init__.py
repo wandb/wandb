@@ -10,11 +10,12 @@ __all__ = [
     "ArtifactTypeInput",
     "RateLimitsInput",
     "UpsertModelInput",
+    "CreatedProjectFragment",
     "PageInfoFragment",
     "ProjectFragment",
 ]
 from .create_project import CreateProject
-from .fragments import PageInfoFragment, ProjectFragment
+from .fragments import CreatedProjectFragment, PageInfoFragment, ProjectFragment
 from .get_project import GetProject
 from .get_projects import GetProjects
 from .input_types import ArtifactTypeInput, RateLimitsInput, UpsertModelInput

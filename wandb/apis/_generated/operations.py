@@ -54,22 +54,21 @@ CREATE_PROJECT_GQL = """
 mutation CreateProject($input: UpsertModelInput!) {
   result: upsertModel(input: $input) {
     project {
-      id
-      name
-      entityName
-      description
-      access
-      views
+      ...CreatedProjectFragment
     }
     model {
-      id
-      name
-      entityName
-      description
-      access
-      views
+      ...CreatedProjectFragment
     }
     inserted
   }
+}
+
+fragment CreatedProjectFragment on Project {
+  id
+  name
+  entityName
+  description
+  access
+  views
 }
 """

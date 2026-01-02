@@ -11,6 +11,15 @@ from typing_extensions import Literal
 from wandb._pydantic import GQLId, GQLResult, Typename
 
 
+class CreatedProjectFragment(GQLResult):
+    id: GQLId
+    name: str
+    entity_name: str = Field(alias="entityName")
+    description: Optional[str]
+    access: Optional[str]
+    views: Optional[str]
+
+
 class PageInfoFragment(GQLResult):
     typename__: Typename[Literal["PageInfo"]] = "PageInfo"
     end_cursor: Optional[str] = Field(alias="endCursor")
@@ -26,5 +35,6 @@ class ProjectFragment(GQLResult):
     is_benchmark: bool = Field(alias="isBenchmark")
 
 
+CreatedProjectFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()

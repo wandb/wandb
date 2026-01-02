@@ -1,9 +1,3 @@
-fragment PageInfoFragment on PageInfo {
-  __typename
-  endCursor
-  hasNextPage
-}
-
 fragment ProjectFragment on Project {
   __typename
   id
@@ -32,23 +26,24 @@ query GetProject($name: String!, $entity: String!) {
   }
 }
 
+# For some reason, this fragment was originally defined with different fields than ProjectFragment.
+# For now (https://github.com/wandb/wandb/pull/10690), we keep it as-is but only for continuity.
+fragment CreatedProjectFragment on Project {
+  id
+  name
+  entityName
+  description
+  access
+  views
+}
+
 mutation CreateProject($input: UpsertModelInput!) {
   result: upsertModel(input: $input) {
     project {
-      id
-      name
-      entityName
-      description
-      access
-      views
+      ...CreatedProjectFragment
     }
     model {
-      id
-      name
-      entityName
-      description
-      access
-      views
+      ...CreatedProjectFragment
     }
     inserted
   }

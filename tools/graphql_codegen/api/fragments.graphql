@@ -1,0 +1,7 @@
+# Shared/generic GraphQL fragments
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}

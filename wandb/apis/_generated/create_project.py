@@ -5,9 +5,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
+from wandb._pydantic import GQLResult
 
-from wandb._pydantic import GQLId, GQLResult
+from .fragments import CreatedProjectFragment
 
 
 class CreateProject(GQLResult):
@@ -15,27 +15,9 @@ class CreateProject(GQLResult):
 
 
 class CreateProjectResult(GQLResult):
-    project: Optional[CreateProjectResultProject]
-    model: Optional[CreateProjectResultModel]
+    project: Optional[CreatedProjectFragment]
+    model: Optional[CreatedProjectFragment]
     inserted: Optional[bool]
-
-
-class CreateProjectResultProject(GQLResult):
-    id: GQLId
-    name: str
-    entity_name: str = Field(alias="entityName")
-    description: Optional[str]
-    access: Optional[str]
-    views: Optional[str]
-
-
-class CreateProjectResultModel(GQLResult):
-    id: GQLId
-    name: str
-    entity_name: str = Field(alias="entityName")
-    description: Optional[str]
-    access: Optional[str]
-    views: Optional[str]
 
 
 CreateProject.model_rebuild()
