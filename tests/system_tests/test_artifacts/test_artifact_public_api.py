@@ -6,7 +6,7 @@ import random
 import string
 from contextlib import nullcontext
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import Callable
 
 import requests
 import wandb
@@ -26,9 +26,6 @@ from wandb.sdk.artifacts._generated import (
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib.paths import StrPath
-
-if TYPE_CHECKING:
-    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 
 @fixture
@@ -126,33 +123,6 @@ def test_artifact_files(api: Api):
         )
     paths = [f.storage_path for f in art.files()]
     assert paths[0].startswith("wandb_artifacts/")
-
-
-@mark.usefixtures("sample_data")
-def test_artifact_files_on_legacy_local_install(
-    wandb_backend_spy: WandbBackendSpy,
-    api: Api,
-):
-    # Assert we don't break legacy local installs
-    gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ServerInfo"),
-        gql.once(
-            content={
-                "data": {
-                    "serverInfo": {"cliVersionInfo": {"max_cli_version": "0.12.20"}}
-                }
-            },
-            status=200,
-        ),
-    )
-
-    art = api.artifact("mnist:v0", type="dataset")
-    files = art.files(per_page=1)
-    assert "storagePath" not in files[0]._attrs.keys()
-    assert files.last_response is not None
-    assert files.more is True
-    assert files.cursor is not None
 
 
 @mark.usefixtures("sample_data")
