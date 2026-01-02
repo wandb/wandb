@@ -39,6 +39,7 @@ __all__ = [
     "RateLimitsInput",
     "UpsertModelInput",
     "ApiKeyFragment",
+    "CreatedProjectFragment",
     "LegacySweepFragment",
     "PageInfoFragment",
     "ProjectFragment",
@@ -55,6 +56,7 @@ from .delete_api_key import DeleteApiKey
 from .delete_invite import DeleteInvite
 from .fragments import (
     ApiKeyFragment,
+    CreatedProjectFragment,
     LegacySweepFragment,
     PageInfoFragment,
     ProjectFragment,

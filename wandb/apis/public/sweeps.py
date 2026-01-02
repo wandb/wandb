@@ -326,30 +326,31 @@ class Sweep(Attrs):
             query: The query to use to execute the query.
             **kwargs: Additional keyword arguments to pass to the query.
         """
-        from wandb.apis._generated import (
-            GET_SWEEP_GQL,
-            GET_SWEEP_LEGACY_GQL,
-            GetSweep,
-            GetSweepLegacy,
-        )
+        from wandb.apis._generated import GET_SWEEP_GQL, GET_SWEEP_LEGACY_GQL
 
-        order = order or "+created_at"
-        query = query or gql(GET_SWEEP_GQL)
+        if not order:
+            order = "+created_at"
+
         variables = {"entity": entity, "project": project, "name": sid, **kwargs}
+        if query is None:
+            query = gql(GET_SWEEP_GQL)
         try:
             data = client.execute(query, variable_values=variables)
-            result = GetSweep.model_validate(data)
         except Exception:
             # Don't handle exception, rely on legacy query
             # TODO(gst): Implement updated introspection workaround
             query = gql(GET_SWEEP_LEGACY_GQL)
             data = client.execute(query, variable_values=variables)
-            result = GetSweepLegacy.model_validate(data)
 
-        if not (result.project and (sweep_fragment := result.project.sweep)):
+        # FIXME: looks like this method allows passing arbitrary GQL queries, so for now
+        # we'll have to skip trying to validate the result with a generated pydantic model.
+        if not (
+            data
+            and (proj_dict := data.get("project"))
+            and (sweep_dict := proj_dict.get("sweep"))
+        ):
             return None
-
-        sweep = cls(client, entity, project, sid, attrs=sweep_fragment.model_dump())
+        sweep = cls(client, entity, project, sid, attrs=sweep_dict)
         sweep.runs = public.Runs(
             client,
             entity,

@@ -17,6 +17,15 @@ class ApiKeyFragment(GQLResult):
     description: Optional[str]
 
 
+class CreatedProjectFragment(GQLResult):
+    id: GQLId
+    name: str
+    entity_name: str = Field(alias="entityName")
+    description: Optional[str]
+    access: Optional[str]
+    views: Optional[str]
+
+
 class LegacySweepFragment(GQLResult):
     typename__: Typename[Literal["Sweep"]] = "Sweep"
     id: GQLId
@@ -99,6 +108,7 @@ class UserInfoFragment(GQLResult):
 
 
 ApiKeyFragment.model_rebuild()
+CreatedProjectFragment.model_rebuild()
 LegacySweepFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
