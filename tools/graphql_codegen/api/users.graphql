@@ -61,7 +61,7 @@ query GetDefaultEntity {
 }
 
 mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
-  createUser(input: { email: $email, admin: $admin }) {
+  result: createUser(input: { email: $email, admin: $admin }) {
     user {
       ...UserInfoFragment
     }
@@ -69,13 +69,13 @@ mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
 }
 
 mutation DeleteApiKey($id: String!) {
-  deleteApiKey(input: { id: $id }) {
+  result: deleteApiKey(input: { id: $id }) {
     success
   }
 }
 
 mutation GenerateApiKey($description: String) {
-  generateApiKey(input: { description: $description }) {
+  result: generateApiKey(input: { description: $description }) {
     apiKey {
       ...ApiKeyFragment
     }

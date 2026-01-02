@@ -5,20 +5,18 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLResult
 
 from .fragments import UserInfoFragment
 
 
 class CreateUserFromAdmin(GQLResult):
-    create_user: Optional[CreateUserFromAdminCreateUser] = Field(alias="createUser")
+    result: Optional[CreateUserFromAdminResult]
 
 
-class CreateUserFromAdminCreateUser(GQLResult):
+class CreateUserFromAdminResult(GQLResult):
     user: Optional[UserInfoFragment]
 
 
 CreateUserFromAdmin.model_rebuild()
-CreateUserFromAdminCreateUser.model_rebuild()
+CreateUserFromAdminResult.model_rebuild()

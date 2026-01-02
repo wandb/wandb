@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, MutableMapping
 
-from requests import HTTPError
+from typing_extensions import Self
 from wandb_gql import gql
 
 import wandb
@@ -42,14 +42,14 @@ class User(Attrs):
         self._user_api: Api | None = None
 
     @property
-    def user_api(self):
+    def user_api(self) -> Api | None:
         """An instance of the api using credentials from the user."""
         if self._user_api is None and self.api_keys:
             self._user_api = wandb.Api(api_key=self.api_keys[0])
         return self._user_api
 
     @classmethod
-    def create(cls, api, email, admin=False):
+    def create(cls, api: Api, email: str, admin: bool = False) -> Self:
         """Create a new user.
 
         Args:
@@ -67,28 +67,28 @@ class User(Attrs):
 
         gql_op = gql(CREATE_USER_FROM_ADMIN_GQL)
         data = api.client.execute(gql_op, {"email": email, "admin": admin})
-        user = CreateUserFromAdmin.model_validate(data).create_user.user
+        user = CreateUserFromAdmin.model_validate(data).result.user
         return cls(api.client, user.model_dump())
 
     @property
-    def api_keys(self):
+    def api_keys(self) -> list[str]:
         """List of API key names associated with the user.
 
         Returns:
-            list[str]: Names of API keys associated with the user. Empty list if user
-                has no API keys or if API key data hasn't been loaded.
+            Names of API keys associated with the user. Empty list if user
+            has no API keys or if API key data hasn't been loaded.
         """
         if self._attrs.get("apiKeys") is None:
             return []
         return [k["node"]["name"] for k in self._attrs["apiKeys"]["edges"]]
 
     @property
-    def teams(self):
+    def teams(self) -> list[str]:
         """List of team names that the user is a member of.
 
         Returns:
-            list (list): Names of teams the user belongs to. Empty list if user has no
-                team memberships or if teams data hasn't been loaded.
+            Names of teams the user belongs to. Empty list if user has no
+            team memberships or if teams data hasn't been loaded.
         """
         if self._attrs.get("teams") is None:
             return []
@@ -107,6 +107,8 @@ class User(Attrs):
         Raises:
             ValueError if the api_key couldn't be found
         """
+        from requests import HTTPError
+
         from wandb.apis._generated import DELETE_API_KEY_GQL
 
         idx = self.api_keys.index(api_key)
@@ -127,20 +129,22 @@ class User(Attrs):
         Returns:
             The new api key, or None on failure
         """
+        from requests import HTTPError
+
         from wandb.apis._generated import GENERATE_API_KEY_GQL, GenerateApiKey
 
         try:
             # We must make this call using credentials from the original user
             gql_op = gql(GENERATE_API_KEY_GQL)
             data = self.user_api.client.execute(gql_op, {"description": description})
-            key = GenerateApiKey.model_validate(data).generate_api_key.api_key
-            self._attrs["apiKeys"]["edges"].append({"node": key.model_dump()})
+            key_fragment = GenerateApiKey.model_validate(data).result.api_key
+            self._attrs["apiKeys"]["edges"].append({"node": key_fragment.model_dump()})
         except (HTTPError, AttributeError):
             return None
         else:
-            return key.name
+            return key_fragment.name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if email := self._attrs.get("email"):
             return f"<User {email}>"
         if username := self._attrs.get("username"):

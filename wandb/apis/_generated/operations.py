@@ -176,7 +176,7 @@ query GetDefaultEntity {
 
 CREATE_USER_FROM_ADMIN_GQL = """
 mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
-  createUser(input: {email: $email, admin: $admin}) {
+  result: createUser(input: {email: $email, admin: $admin}) {
     user {
       ...UserInfoFragment
     }
@@ -194,7 +194,7 @@ fragment UserInfoFragment on User {
 
 DELETE_API_KEY_GQL = """
 mutation DeleteApiKey($id: String!) {
-  deleteApiKey(input: {id: $id}) {
+  result: deleteApiKey(input: {id: $id}) {
     success
   }
 }
@@ -202,7 +202,7 @@ mutation DeleteApiKey($id: String!) {
 
 GENERATE_API_KEY_GQL = """
 mutation GenerateApiKey($description: String) {
-  generateApiKey(input: {description: $description}) {
+  result: generateApiKey(input: {description: $description}) {
     apiKey {
       ...ApiKeyFragment
     }

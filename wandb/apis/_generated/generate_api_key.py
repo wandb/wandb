@@ -13,14 +13,12 @@ from .fragments import ApiKeyFragment
 
 
 class GenerateApiKey(GQLResult):
-    generate_api_key: Optional[GenerateApiKeyGenerateApiKey] = Field(
-        alias="generateApiKey"
-    )
+    result: Optional[GenerateApiKeyResult]
 
 
-class GenerateApiKeyGenerateApiKey(GQLResult):
+class GenerateApiKeyResult(GQLResult):
     api_key: Optional[ApiKeyFragment] = Field(alias="apiKey")
 
 
 GenerateApiKey.model_rebuild()
-GenerateApiKeyGenerateApiKey.model_rebuild()
+GenerateApiKeyResult.model_rebuild()

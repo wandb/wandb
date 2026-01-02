@@ -11,6 +11,7 @@ import wandb.apis.public
 import wandb.util
 from wandb import Api
 from wandb.apis._generated import ProjectFragment, UserFragment
+from wandb.apis._generated.generate_api_key import GenerateApiKey
 from wandb.apis.public import File
 from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
@@ -1001,14 +1002,14 @@ def stub_search_users(wandb_backend_spy):
 
 def test_query_user(stub_search_users):
     email = "test@test.com"
-    api_keys = [{"name": "Y" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}]
+    api_key = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
     teams = [{"name": "test"}]
-    stub_search_users(email=email, api_keys=api_keys, teams=teams)
+    stub_search_users(email=email, api_keys=[api_key], teams=teams)
 
     u = Api().user("test")
 
     assert u.email == email
-    assert u.api_keys == [api_keys[0]["name"]]
+    assert u.api_keys == [api_key["name"]]
     assert u.teams == [teams[0]["name"]]
     assert repr(u) == f"<User {email}>"
 
@@ -1093,7 +1094,11 @@ def test_generate_api_key_success(
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="GenerateApiKey"),
-        gql.once(content={"data": {"generateApiKey": {"apiKey": api_key_2}}}),
+        gql.once(
+            content={
+                "data": GenerateApiKey(result={"apiKey": api_key_2}).model_dump(),
+            },
+        ),
     )
 
     user = api.user(email)

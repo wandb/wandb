@@ -714,10 +714,10 @@ class Api:
 
         if self._viewer is None:
             data = self._client.execute(gql(GET_VIEWER_GQL))
-            if (viewer := GetViewer.model_validate(data).viewer) is None:
+            result = GetViewer.model_validate(data)
+            if (viewer := result.viewer) is None:
                 msg = "Unable to fetch user data from W&B, please verify your API key is valid."
                 raise ValueError(msg)
-
             self._viewer = User(self._client, viewer.model_dump())
             self._default_entity = self._viewer.entity
         return self._viewer
@@ -1002,8 +1002,8 @@ class Api:
         from .users import User
 
         data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
-        users = SearchUsers.model_validate(data).users
-        if not (users and (edges := users.edges)):
+        result = SearchUsers.model_validate(data)
+        if not ((conn := result.users) and (edges := conn.edges)):
             return None
         if len(edges) > 1:
             msg = f"Found multiple users, returning the first user matching {username_or_email!r}"
@@ -1027,8 +1027,8 @@ class Api:
         from .users import User
 
         data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
-        users = SearchUsers.model_validate(data).users
-        if not (users and (edges := users.edges)):
+        result = SearchUsers.model_validate(data)
+        if not ((conn := result.users) and (edges := conn.edges)):
             return []
         return [User(self._client, edge.node.model_dump()) for edge in edges]
 

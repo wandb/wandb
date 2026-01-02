@@ -5,16 +5,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLResult
 
 
 class DeleteApiKey(GQLResult):
-    delete_api_key: Optional[DeleteApiKeyDeleteApiKey] = Field(alias="deleteApiKey")
+    result: Optional[DeleteApiKeyResult]
 
 
-class DeleteApiKeyDeleteApiKey(GQLResult):
+class DeleteApiKeyResult(GQLResult):
     success: Optional[bool]
 
 

@@ -19,10 +19,10 @@ __all__ = [
     "CreateUserFromAdmin",
     "DeleteApiKey",
     "GenerateApiKey",
-    "ApiKeyFragment",
     "ArtifactTypeInput",
     "RateLimitsInput",
     "UpsertModelInput",
+    "ApiKeyFragment",
     "CreatedProjectFragment",
     "PageInfoFragment",
     "ProjectFragment",
@@ -34,6 +34,7 @@ from .create_user_from_admin import CreateUserFromAdmin
 from .delete_api_key import DeleteApiKey
 from .fragments import (
     ApiKeyFragment,
+    CreatedProjectFragment,
     PageInfoFragment,
     ProjectFragment,
     UserFragment,

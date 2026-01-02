@@ -17,6 +17,15 @@ class ApiKeyFragment(GQLResult):
     description: Optional[str]
 
 
+class CreatedProjectFragment(GQLResult):
+    id: GQLId
+    name: str
+    entity_name: str = Field(alias="entityName")
+    description: Optional[str]
+    access: Optional[str]
+    views: Optional[str]
+
+
 class PageInfoFragment(GQLResult):
     typename__: Typename[Literal["PageInfo"]] = "PageInfo"
     end_cursor: Optional[str] = Field(alias="endCursor")
@@ -74,6 +83,7 @@ class UserInfoFragment(GQLResult):
 
 
 ApiKeyFragment.model_rebuild()
+CreatedProjectFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
 UserFragment.model_rebuild()
