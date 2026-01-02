@@ -2,13 +2,18 @@
 # Source: tools/graphql_codegen/api/
 
 __all__ = [
+    "CREATE_INVITE_GQL",
     "CREATE_PROJECT_GQL",
+    "CREATE_SERVICE_ACCOUNT_GQL",
+    "CREATE_TEAM_GQL",
     "CREATE_USER_FROM_ADMIN_GQL",
     "DELETE_API_KEY_GQL",
+    "DELETE_INVITE_GQL",
     "GENERATE_API_KEY_GQL",
     "GET_DEFAULT_ENTITY_GQL",
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
+    "GET_TEAM_ENTITY_GQL",
     "GET_VIEWER_GQL",
     "SEARCH_USERS_GQL",
 ]
@@ -80,6 +85,90 @@ fragment CreatedProjectFragment on Project {
   description
   access
   views
+}
+"""
+
+GET_TEAM_ENTITY_GQL = """
+query GetTeamEntity($name: String!) {
+  entity(name: $name) {
+    id
+    name
+    available
+    photoUrl
+    readOnly
+    readOnlyAdmin
+    isTeam
+    privateOnly
+    storageBytes
+    codeSavingEnabled
+    defaultAccess
+    isPaid
+    members {
+      id
+      admin
+      pending
+      email
+      username
+      name
+      photoUrl
+      accountType
+      apiKey
+    }
+  }
+}
+"""
+
+CREATE_TEAM_GQL = """
+mutation CreateTeam($teamName: String!, $teamAdminUserName: String) {
+  result: createTeam(
+    input: {teamName: $teamName, teamAdminUserName: $teamAdminUserName}
+  ) {
+    entity {
+      id
+      name
+      available
+      photoUrl
+      limits
+    }
+  }
+}
+"""
+
+CREATE_INVITE_GQL = """
+mutation CreateInvite($entity: String!, $email: String, $username: String, $admin: Boolean) {
+  result: createInvite(
+    input: {entityName: $entity, email: $email, username: $username, admin: $admin}
+  ) {
+    invite {
+      id
+      name
+      email
+      createdAt
+      toUser {
+        name
+      }
+    }
+  }
+}
+"""
+
+DELETE_INVITE_GQL = """
+mutation DeleteInvite($id: String, $entity: String) {
+  result: deleteInvite(input: {id: $id, entityName: $entity}) {
+    success
+  }
+}
+"""
+
+CREATE_SERVICE_ACCOUNT_GQL = """
+mutation CreateServiceAccount($entity: String!, $description: String!) {
+  result: createServiceAccount(
+    input: {description: $description, entityName: $entity}
+  ) {
+    user {
+      id
+    }
+  }
 }
 """
 
