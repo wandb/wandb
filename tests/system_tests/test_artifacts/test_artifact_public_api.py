@@ -6,7 +6,7 @@ import random
 import string
 from contextlib import nullcontext
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import Callable
 
 import requests
 import wandb
@@ -26,9 +26,6 @@ from wandb.sdk.artifacts._generated import (
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib.paths import StrPath
-
-if TYPE_CHECKING:
-    pass
 
 
 @fixture
