@@ -44,7 +44,7 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.sdk.lib import ipython
 
 if TYPE_CHECKING:
-    from wandb.apis._generated import GetSweeps, SweepFragment
+    from wandb.apis._generated import GetSweeps
     from wandb.apis.public.api import RetryingClient
 
 
@@ -146,6 +146,7 @@ class Sweeps(SizedPaginator["Sweep"]):
         <!-- lazydoc-ignore: internal -->
         """
         from wandb._pydantic import Connection
+        from wandb.apis._generated import SweepFragment
 
         if (rsp := self.last_response) is None or (project := rsp.project) is None:
             msg = f"Could not find project {self.project!r}"
