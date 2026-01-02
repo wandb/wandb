@@ -561,13 +561,24 @@ def test_project_get_sweeps(user, wandb_backend_spy):
                     "edges": [
                         {
                             "node": {
-                                "name": "test",
+                                "__typename": "Sweep",
                                 "id": "test",
-                                "sweep_name": None,
+                                "name": "test",
+                                "displayName": None,
+                                "method": "bayes",
+                                "state": "FINISHED",
+                                "description": None,
+                                "bestLoss": None,
+                                "config": "{}",
+                                "createdAt": "2024-01-01T00:00:00",
+                                "updatedAt": None,
+                                "runCount": 0,
+                                "runCountExpected": None,
                             },
                         },
                     ],
                     "pageInfo": {
+                        "__typename": "PageInfo",
                         "endCursor": None,
                         "hasNextPage": False,
                     },
@@ -579,9 +590,19 @@ def test_project_get_sweeps(user, wandb_backend_spy):
         "data": {
             "project": {
                 "sweep": {
-                    "name": "test",
+                    "__typename": "Sweep",
                     "id": "test",
-                    "state": "finished",
+                    "name": "test",
+                    "displayName": None,
+                    "method": "bayes",
+                    "state": "FINISHED",
+                    "description": None,
+                    "bestLoss": None,
+                    "config": "{}",
+                    "createdAt": "2024-01-01T00:00:00",
+                    "updatedAt": None,
+                    "runCount": 0,
+                    "runCountExpected": None,
                 },
             },
         },
@@ -591,7 +612,7 @@ def test_project_get_sweeps(user, wandb_backend_spy):
         gql.Constant(content=body),
     )
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Sweep"),
+        gql.Matcher(operation="GetSweep"),
         gql.Constant(content=sweep_gql_body),
     )
 
@@ -605,6 +626,23 @@ def test_project_get_sweeps(user, wandb_backend_spy):
 def test_project_get_sweeps_paginated(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
 
+    def _make_sweep_node(sweep_id: str, name: str) -> dict:
+        return {
+            "__typename": "Sweep",
+            "id": sweep_id,
+            "name": name,
+            "displayName": None,
+            "method": "bayes",
+            "state": "FINISHED",
+            "description": None,
+            "bestLoss": None,
+            "config": "{}",
+            "createdAt": "2024-01-01T00:00:00",
+            "updatedAt": None,
+            "runCount": 0,
+            "runCountExpected": None,
+        }
+
     first_page_body = {
         "data": {
             "project": {
@@ -612,15 +650,12 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
                 "sweeps": {
                     "edges": [
                         {
-                            "node": {
-                                "name": "test-sweep-1",
-                                "id": "test-1",
-                                "sweep_name": None,
-                            },
+                            "node": _make_sweep_node("test-1", "test-sweep-1"),
                             "cursor": "cursor-1",
                         },
                     ],
                     "pageInfo": {
+                        "__typename": "PageInfo",
                         "hasNextPage": True,
                         "endCursor": "cursor-1",
                     },
@@ -636,15 +671,12 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
                 "sweeps": {
                     "edges": [
                         {
-                            "node": {
-                                "name": "test-sweep-2",
-                                "id": "test-2",
-                                "sweep_name": None,
-                            },
+                            "node": _make_sweep_node("test-2", "test-sweep-2"),
                             "cursor": None,
                         },
                     ],
                     "pageInfo": {
+                        "__typename": "PageInfo",
                         "hasNextPage": False,
                         "endCursor": None,
                     },
@@ -656,11 +688,7 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
     sweep_gql_body = {
         "data": {
             "project": {
-                "sweep": {
-                    "name": "test",
-                    "id": "test",
-                    "state": "finished",
-                },
+                "sweep": _make_sweep_node("test", "test"),
             },
         },
     }
@@ -676,7 +704,7 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
     )
 
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Sweep"),
+        gql.Matcher(operation="GetSweep"),
         gql.Constant(content=sweep_gql_body),
     )
 
@@ -701,6 +729,7 @@ def test_project_get_sweeps_empty(user, wandb_backend_spy):
                         "sweeps": {
                             "edges": [],
                             "pageInfo": {
+                                "__typename": "PageInfo",
                                 "hasNextPage": False,
                                 "endCursor": None,
                             },

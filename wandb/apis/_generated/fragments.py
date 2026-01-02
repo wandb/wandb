@@ -17,13 +17,13 @@ class ApiKeyFragment(GQLResult):
     description: Optional[str]
 
 
-class CreatedProjectFragment(GQLResult):
+class LegacySweepFragment(GQLResult):
+    typename__: Typename[Literal["Sweep"]] = "Sweep"
     id: GQLId
     name: str
-    entity_name: str = Field(alias="entityName")
-    description: Optional[str]
-    access: Optional[str]
-    views: Optional[str]
+    state: str
+    best_loss: Optional[float] = Field(alias="bestLoss")
+    config: str
 
 
 class PageInfoFragment(GQLResult):
@@ -39,6 +39,22 @@ class ProjectFragment(GQLResult):
     entity_name: str = Field(alias="entityName")
     created_at: str = Field(alias="createdAt")
     is_benchmark: bool = Field(alias="isBenchmark")
+
+
+class SweepFragment(GQLResult):
+    typename__: Typename[Literal["Sweep"]] = "Sweep"
+    id: GQLId
+    name: str
+    display_name: Optional[str] = Field(alias="displayName")
+    method: str
+    state: str
+    description: Optional[str]
+    best_loss: Optional[float] = Field(alias="bestLoss")
+    config: str
+    created_at: str = Field(alias="createdAt")
+    updated_at: Optional[str] = Field(alias="updatedAt")
+    run_count: int = Field(alias="runCount")
+    run_count_expected: Optional[int] = Field(alias="runCountExpected")
 
 
 class UserFragment(GQLResult):
@@ -83,9 +99,10 @@ class UserInfoFragment(GQLResult):
 
 
 ApiKeyFragment.model_rebuild()
-CreatedProjectFragment.model_rebuild()
+LegacySweepFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
+SweepFragment.model_rebuild()
 UserFragment.model_rebuild()
 UserFragmentApiKeys.model_rebuild()
 UserFragmentApiKeysEdges.model_rebuild()

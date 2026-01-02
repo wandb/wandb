@@ -12,12 +12,18 @@ __all__ = [
     "GET_DEFAULT_ENTITY_GQL",
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
+    "GET_SWEEPS_GQL",
+    "GET_SWEEP_GQL",
+    "GET_SWEEP_LEGACY_GQL",
     "GET_TEAM_ENTITY_GQL",
     "GET_VIEWER_GQL",
     "SEARCH_USERS_GQL",
     "GetProjects",
     "GetProject",
     "CreateProject",
+    "GetSweeps",
+    "GetSweep",
+    "GetSweepLegacy",
     "GetTeamEntity",
     "CreateTeam",
     "CreateInvite",
@@ -33,9 +39,10 @@ __all__ = [
     "RateLimitsInput",
     "UpsertModelInput",
     "ApiKeyFragment",
-    "CreatedProjectFragment",
+    "LegacySweepFragment",
     "PageInfoFragment",
     "ProjectFragment",
+    "SweepFragment",
     "UserFragment",
     "UserInfoFragment",
 ]
@@ -48,9 +55,10 @@ from .delete_api_key import DeleteApiKey
 from .delete_invite import DeleteInvite
 from .fragments import (
     ApiKeyFragment,
-    CreatedProjectFragment,
+    LegacySweepFragment,
     PageInfoFragment,
     ProjectFragment,
+    SweepFragment,
     UserFragment,
     UserInfoFragment,
 )
@@ -58,6 +66,9 @@ from .generate_api_key import GenerateApiKey
 from .get_default_entity import GetDefaultEntity
 from .get_project import GetProject
 from .get_projects import GetProjects
+from .get_sweep import GetSweep
+from .get_sweep_legacy import GetSweepLegacy
+from .get_sweeps import GetSweeps
 from .get_team_entity import GetTeamEntity
 from .get_viewer import GetViewer
 from .input_types import ArtifactTypeInput, RateLimitsInput, UpsertModelInput
@@ -73,6 +84,9 @@ from .operations import (
     GET_DEFAULT_ENTITY_GQL,
     GET_PROJECT_GQL,
     GET_PROJECTS_GQL,
+    GET_SWEEP_GQL,
+    GET_SWEEP_LEGACY_GQL,
+    GET_SWEEPS_GQL,
     GET_TEAM_ENTITY_GQL,
     GET_VIEWER_GQL,
     SEARCH_USERS_GQL,

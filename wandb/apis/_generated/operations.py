@@ -13,6 +13,9 @@ __all__ = [
     "GET_DEFAULT_ENTITY_GQL",
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
+    "GET_SWEEPS_GQL",
+    "GET_SWEEP_GQL",
+    "GET_SWEEP_LEGACY_GQL",
     "GET_TEAM_ENTITY_GQL",
     "GET_VIEWER_GQL",
     "SEARCH_USERS_GQL",
@@ -85,6 +88,91 @@ fragment CreatedProjectFragment on Project {
   description
   access
   views
+}
+"""
+
+GET_SWEEPS_GQL = """
+query GetSweeps($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50) {
+  project(name: $project, entityName: $entity) {
+    totalSweeps
+    sweeps(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...SweepFragment
+        }
+      }
+    }
+  }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
+fragment SweepFragment on Sweep {
+  __typename
+  id
+  name
+  displayName
+  method
+  state
+  description
+  bestLoss
+  config
+  createdAt
+  updatedAt
+  runCount
+  runCountExpected
+}
+"""
+
+GET_SWEEP_GQL = """
+query GetSweep($name: String!, $project: String, $entity: String) {
+  project(name: $project, entityName: $entity) {
+    sweep(sweepName: $name) {
+      ...SweepFragment
+    }
+  }
+}
+
+fragment SweepFragment on Sweep {
+  __typename
+  id
+  name
+  displayName
+  method
+  state
+  description
+  bestLoss
+  config
+  createdAt
+  updatedAt
+  runCount
+  runCountExpected
+}
+"""
+
+GET_SWEEP_LEGACY_GQL = """
+query GetSweepLegacy($name: String!, $project: String, $entity: String) {
+  project(name: $project, entityName: $entity) {
+    sweep(sweepName: $name) {
+      ...LegacySweepFragment
+    }
+  }
+}
+
+fragment LegacySweepFragment on Sweep {
+  __typename
+  id
+  name
+  state
+  bestLoss
+  config
 }
 """
 
