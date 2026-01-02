@@ -39,10 +39,11 @@ import os
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Collection, Iterator, Literal, Mapping
+from typing import TYPE_CHECKING, Any, ClassVar, Collection, Iterator, Literal, Mapping
 
 from typing_extensions import override
 from wandb_gql import gql
+from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import env, util
@@ -54,6 +55,7 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.utils import gql_compat
 from wandb.sdk.lib import ipython, json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
 
@@ -63,139 +65,60 @@ if TYPE_CHECKING:
     from typing_extensions import Self
     from wandb_graphql.language.ast import Document
 
+    from wandb.apis._generated import GetLightRuns, GetRuns
     from wandb.apis.public import RetryingClient
     from wandb.old.summary import HTTPSummary
 
 WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 
-RUN_FRAGMENT = """fragment RunFragment on Run {
-    id
-    tags
-    name
-    displayName
-    sweepName
-    state
-    config
-    group
-    jobType
-    commit
-    readOnly
-    createdAt
-    heartbeatAt
-    description
-    notes
-    systemMetrics
-    summaryMetrics
-    historyLineCount
-    user {
-        name
-        username
-    }
-    historyKeys
-}"""
-
-# Lightweight fragment for listing operations - excludes heavy fields
-LIGHTWEIGHT_RUN_FRAGMENT = """fragment LightweightRunFragment on Run {
-    id
-    tags
-    name
-    displayName
-    sweepName
-    state
-    group
-    jobType
-    commit
-    readOnly
-    createdAt
-    heartbeatAt
-    description
-    notes
-    historyLineCount
-    user {
-        name
-        username
-    }
-}"""
-
-# Fragment name constants to avoid string parsing
-RUN_FRAGMENT_NAME = "RunFragment"
-LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
-
 
 def _create_runs_query(
     *, lazy: bool, with_internal_id: bool, with_project_id: bool
-) -> gql:
-    """Create GraphQL query for runs with appropriate fragment."""
-    fragment = LIGHTWEIGHT_RUN_FRAGMENT if lazy else RUN_FRAGMENT
-    fragment_name = LIGHTWEIGHT_RUN_FRAGMENT_NAME if lazy else RUN_FRAGMENT_NAME
+) -> Document:
+    """Create GraphQL query for runs with appropriate fragment.
 
-    return gql(
-        f"""#graphql
-        query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
-            project(name: $project, entityName: $entity) {{
-                {"internalId" if with_internal_id else ""}
-                runCount(filters: $filters)
-                readOnly
-                runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
-                    edges {{
-                        node {{
-                            {"projectId" if with_project_id else ""}
-                            ...{fragment_name}
-                        }}
-                        cursor
-                    }}
-                    pageInfo {{
-                        endCursor
-                        hasNextPage
-                    }}
-                }}
-            }}
-        }}
-        {fragment}
-        """
-    )
+    Uses gql_compat to omit fields not supported by older servers.
+    """
+    from wandb.apis._generated import GET_LIGHT_RUNS_GQL, GET_RUNS_GQL
+
+    query_str = GET_LIGHT_RUNS_GQL if lazy else GET_RUNS_GQL
+
+    # Collect fields to omit based on server capabilities
+    omit_fields = set()
+    if not with_internal_id:
+        omit_fields.add("internalId")
+    if not with_project_id:
+        omit_fields.add("projectId")
+
+    return gql_compat(query_str, omit_fields=omit_fields)
 
 
 @normalize_exceptions
 def _server_provides_internal_id_for_project(client: RetryingClient) -> bool:
     """Returns True if the server allows us to query the internalId field for a project."""
-    query_string = """
-       query ProbeProjectInput {
-            ProjectType: __type(name:"Project") {
-                fields {
-                    name
-                }
-            }
-        }
-    """
+    from wandb.apis._generated import PROBE_FIELDS_GQL, ProbeFields
 
-    # Only perform the query once to avoid extra network calls
-    query = gql(query_string)
-    res = client.execute(query)
-    return "internalId" in [
-        x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
-    ]
+    res = client.execute(gql(PROBE_FIELDS_GQL), variable_values={"type": "Project"})
+    result = ProbeFields.model_validate(res)
+    return (
+        (type_info := result.type_info) is not None
+        and (fields := type_info.fields) is not None
+        and any(f.name == "internalId" for f in fields)
+    )
 
 
 @normalize_exceptions
 def _server_provides_project_id_for_run(client: RetryingClient) -> bool:
     """Returns True if the server allows us to query the projectId field for a run."""
-    query_string = """
-       query ProbeRunInput {
-            RunType: __type(name:"Run") {
-                fields {
-                    name
-                }
-            }
-        }
-    """
+    from wandb.apis._generated import PROBE_FIELDS_GQL, ProbeFields
 
-    # Only perform the query once to avoid extra network calls
-    query = gql(query_string)
-    res = client.execute(query)
-    return "projectId" in [
-        x["name"] for x in (res.get("RunType", {}).get("fields", [{}]))
-    ]
+    res = client.execute(gql(PROBE_FIELDS_GQL), variable_values={"type": "Run"})
+    result = ProbeFields.model_validate(res)
+    return (
+        (type_info := result.type_info) is not None
+        and (fields := type_info.fields) is not None
+        and any(f.name == "projectId" for f in fields)
+    )
 
 
 @normalize_exceptions
@@ -245,6 +168,9 @@ class Runs(SizedPaginator["Run"]):
             runs. Defaults to True.
     """
 
+    QUERY: ClassVar[Document | None] = None
+    last_response: GetRuns | GetLightRuns | None
+
     def __init__(
         self,
         client: RetryingClient,
@@ -260,10 +186,13 @@ class Runs(SizedPaginator["Run"]):
         if not order:
             order = "+created_at"
 
+        self._with_internal_id = _server_provides_internal_id_for_project(client)
+        self._with_project_id = _server_provides_project_id_for_run(client)
+
         self.QUERY = _create_runs_query(
             lazy=lazy,
-            with_internal_id=_server_provides_internal_id_for_project(client),
-            with_project_id=_server_provides_project_id_for_run(client),
+            with_internal_id=self._with_internal_id,
+            with_project_id=self._with_project_id,
         )
 
         self.entity = entity
@@ -283,7 +212,19 @@ class Runs(SizedPaginator["Run"]):
         }
         super().__init__(client, variables, per_page)
 
+    @override
+    def _update_response(self) -> None:
+        """Fetch and validate the response data for the current page."""
+        from wandb.apis._generated import GetLightRuns, GetRuns
+
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        if self._lazy:
+            self.last_response = GetLightRuns.model_validate(data)
+        else:
+            self.last_response = GetRuns.model_validate(data)
+
     @property
+    @override
     def _length(self) -> int:
         """Returns the total number of runs.
 
@@ -291,47 +232,47 @@ class Runs(SizedPaginator["Run"]):
         """
         if not self.last_response:
             self._load_page()
-        return self.last_response["project"]["runCount"]
+        return self.last_response.project.runs.total_count
 
     @property
+    @override
     def more(self) -> bool:
         """Returns whether there are more runs to fetch.
 
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return bool(
-                self.last_response["project"]["runs"]["pageInfo"]["hasNextPage"]
-            )
-        else:
-            return True
+            return self.last_response.project.runs.page_info.has_next_page
+        return True
 
     @property
-    def cursor(self):
+    @override
+    def cursor(self) -> str | None:
         """Returns the cursor position for pagination of runs results.
 
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return self.last_response["project"]["runs"]["edges"][-1]["cursor"]
-        else:
-            return None
+            return self.last_response.project.runs.page_info.end_cursor
+        return None
 
+    @override
     def convert_objects(self) -> list[Run]:
         """Converts GraphQL edges to Runs objects.
 
         <!-- lazydoc-ignore: internal -->
         """
         objs = []
-        if self.last_response is None or self.last_response.get("project") is None:
-            raise ValueError("Could not find project {}".format(self.project))
-        for run_response in self.last_response["project"]["runs"]["edges"]:
+        if (rsp := self.last_response) is None or (project := rsp.project) is None:
+            msg = f"Could not find project {self.project!r}"
+            raise ValueError(msg)
+        for edge in project.runs.edges:
             run = Run(
                 self.client,
                 self.entity,
                 self.project,
-                run_response["node"]["name"],
-                run_response["node"],
+                edge.node.name,
+                edge.node.model_dump(),
                 include_sweeps=self._include_sweeps,
                 lazy=self._lazy,
                 api=self._api,
@@ -474,7 +415,7 @@ class Runs(SizedPaginator["Run"]):
         # Switch to full mode
         self._lazy = False
 
-        # Regenerate query with full fragment
+        # Regenerate query with full fragment (use cached capability flags)
         self.QUERY = _create_runs_query(
             lazy=False,
             with_internal_id=_server_provides_internal_id_for_project(self.client),
@@ -625,26 +566,12 @@ class Run(Attrs, DisplayableMixin):
         state: Literal["running", "pending"] = "running",
     ) -> Self:
         """Create a run for the given project."""
+        from wandb.apis._generated import CREATE_RUN_GQL
+
         api._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
-        mutation = gql(
-            """
-        mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
-            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
-                bucket {
-                    project {
-                        name
-                        entity { name }
-                    }
-                    id
-                    name
-                }
-                inserted
-            }
-        }
-        """
-        )
+        mutation = gql(CREATE_RUN_GQL)
         variables = {
             "entity": entity,
             "project": project,
@@ -671,29 +598,22 @@ class Run(Attrs, DisplayableMixin):
             lazy=False,  # Created runs should have full data available immediately
         )
 
-    def _load_with_fragment(
-        self, fragment: str, fragment_name: str, force: bool = False
-    ) -> dict[str, Any]:
-        """Load run data using specified GraphQL fragment."""
+    def _load_with_query(self, *, lazy: bool, force: bool = False) -> dict[str, Any]:
+        """Load run data using the appropriate query (lazy or full).
+
+        Uses gql_compat to omit projectId if not supported by the server.
+        """
+        from wandb.apis._generated import GET_LIGHT_RUN_GQL, GET_RUN_GQL
+
         # Cache the server capability check to avoid repeated network calls
         if self._server_provides_project_id_field is None:
             self._server_provides_project_id_field = (
                 _server_provides_project_id_for_run(self.client)
             )
 
-        query = gql(
-            f"""
-        query Run($project: String!, $entity: String!, $name: String!) {{
-            project(name: $project, entityName: $entity) {{
-                run(name: $name) {{
-                    {"projectId" if self._server_provides_project_id_field else ""}
-                    ...{fragment_name}
-                }}
-            }}
-        }}
-        {fragment}
-        """
-        )
+        query_str = GET_LIGHT_RUN_GQL if lazy else GET_RUN_GQL
+        omit_fields = None if self._server_provides_project_id_field else {"projectId"}
+        query = gql_compat(query_str, omit_fields=omit_fields)
 
         if force or not self._attrs:
             response = self._exec(query)
@@ -721,22 +641,22 @@ class Run(Attrs, DisplayableMixin):
                 )
 
         if not self._is_loaded or force:
-            # Always set _project_internal_id if projectId is available, regardless of fragment type
+            # Always set _project_internal_id if projectId is available
             if "projectId" in self._attrs:
                 self._project_internal_id = int(self._attrs["projectId"])
             else:
                 self._project_internal_id = None
 
-            # Always call _load_from_attrs when using the full fragment or when the fields are actually present
-            if fragment_name == RUN_FRAGMENT_NAME or (
+            # Always call _load_from_attrs when using the full query or when the fields are present
+            if not lazy or (
                 "config" in self._attrs
                 or "summaryMetrics" in self._attrs
                 or "systemMetrics" in self._attrs
             ):
                 self._load_from_attrs()
 
-            # Only mark as loaded for lightweight fragments, not full fragments
-            if fragment_name == LIGHTWEIGHT_RUN_FRAGMENT_NAME:
+            # Only mark as loaded for lightweight queries, not full queries
+            if lazy:
                 self._is_loaded = True
 
         return self._attrs
@@ -788,28 +708,15 @@ class Run(Attrs, DisplayableMixin):
         return self._attrs
 
     def load(self, force: bool = False) -> dict[str, Any]:
-        """Load run data using appropriate fragment based on lazy mode."""
-        if self._lazy:
-            return self._load_with_fragment(
-                LIGHTWEIGHT_RUN_FRAGMENT, LIGHTWEIGHT_RUN_FRAGMENT_NAME, force
-            )
-        else:
-            return self._load_with_fragment(RUN_FRAGMENT, RUN_FRAGMENT_NAME, force)
+        """Load run data using appropriate query based on lazy mode."""
+        return self._load_with_query(lazy=self._lazy, force=force)
 
     @normalize_exceptions
     def wait_until_finished(self) -> None:
         """Check the state of the run until it is finished."""
-        query = gql(
-            """
-            query RunState($project: String!, $entity: String!, $name: String!) {
-                project(name: $project, entityName: $entity) {
-                    run(name: $name) {
-                        state
-                    }
-                }
-            }
-        """
-        )
+        from wandb.apis._generated import GET_RUN_STATE_GQL
+
+        query = gql(GET_RUN_STATE_GQL)
         while True:
             res = self._exec(query)
             state = res["project"]["run"]["state"]
@@ -822,19 +729,10 @@ class Run(Attrs, DisplayableMixin):
     @normalize_exceptions
     def update(self) -> None:
         """Persist changes to the run object to the wandb backend."""
-        mutation = gql(
-            """
-        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String, $jobType: String) {{
-            upsertBucket(input: {{id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName, jobType: $jobType}}) {{
-                bucket {{
-                    ...RunFragment
-                }}
-            }}
-        }}
-        {}
-        """.format(RUN_FRAGMENT)
-        )
-        _ = self._exec(
+        from wandb.apis._generated import UPDATE_RUN_GQL
+
+        mutation = gql(UPDATE_RUN_GQL)
+        self._exec(
             mutation,
             id=self.storage_id,
             tags=self.tags,
@@ -855,32 +753,15 @@ class Run(Attrs, DisplayableMixin):
             delete_artifacts (bool, optional): Whether to delete the artifacts
                 associated with the run.
         """
-        mutation = gql(
-            """
-            mutation DeleteRun(
-                $id: ID!,
-                {}
-            ) {{
-                deleteRun(input: {{
-                    id: $id,
-                    {}
-                }}) {{
-                    clientMutationId
-                }}
-            }}
-        """.format(
-                "$deleteArtifacts: Boolean" if delete_artifacts else "",
-                "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
-            )
-        )
+        from wandb.apis._generated import DELETE_RUN_GQL
 
-        self.client.execute(
-            mutation,
-            variable_values={
-                "id": self.storage_id,
-                "deleteArtifacts": delete_artifacts,
-            },
-        )
+        # Use gql_compat to omit deleteArtifacts variable when not needed
+        # for server compatibility (older servers don't support the variable).
+        # Extra variables in the dict are ignored by GraphQL.
+        omit_vars = None if delete_artifacts else {"deleteArtifacts"}
+        mutation = gql_compat(DELETE_RUN_GQL, omit_variables=omit_vars)
+        variables = {"id": self.storage_id, "deleteArtifacts": delete_artifacts}
+        self.client.execute(mutation, variable_values=variables)
 
     def save(self) -> None:
         """Persist changes to the run object to the W&B backend."""
@@ -902,8 +783,7 @@ class Run(Attrs, DisplayableMixin):
     def _exec(self, query: Document, **kwargs: Any) -> dict[str, Any]:
         """Execute a query against the cloud backend."""
         variables = {"entity": self.entity, "project": self.project, "name": self.id}
-        variables.update(kwargs)
-        return self.client.execute(query, variable_values=variables)
+        return self.client.execute(query, variable_values={**variables, **kwargs})
 
     def _sampled_history(
         self,
@@ -911,17 +791,10 @@ class Run(Attrs, DisplayableMixin):
         x_axis: str = "_step",
         samples: int = 500,
     ) -> list[dict[str, Any]]:
-        spec = {"keys": [x_axis] + keys, "samples": samples}
-        query = gql(
-            """
-        query RunSampledHistory($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) { sampledHistory(specs: $specs) }
-            }
-        }
-        """
-        )
+        from wandb.apis._generated import GET_RUN_SAMPLED_HISTORY_GQL
 
+        spec = {"keys": [x_axis] + keys, "samples": samples}
+        query = gql(GET_RUN_SAMPLED_HISTORY_GQL)
         response = self._exec(query, specs=[json.dumps(spec)])
         # sampledHistory returns one list per spec, we only send one spec
         return response["project"]["run"]["sampledHistory"][0]
@@ -931,16 +804,14 @@ class Run(Attrs, DisplayableMixin):
         samples: int = 500,
         stream: Literal["default", "system"] = "default",
     ) -> list[dict[str, Any]]:
-        node = "history" if stream == "default" else "events"
-        query = gql(
-            """
-        query RunFullHistory($project: String!, $entity: String!, $name: String!, $samples: Int) {{
-            project(name: $project, entityName: $entity) {{
-                run(name: $name) {{ {}(samples: $samples) }}
-            }}
-        }}
-        """.format(node)
-        )
+        from wandb.apis._generated import GET_RUN_EVENTS_GQL, GET_RUN_HISTORY_GQL
+
+        if stream == "default":
+            query = gql(GET_RUN_HISTORY_GQL)
+            node = "history"
+        else:
+            query = gql(GET_RUN_EVENTS_GQL)
+            node = "events"
 
         response = self._exec(query, samples=samples)
         return [json.loads(line) for line in response["project"]["run"][node]]
@@ -1300,7 +1171,7 @@ class Run(Attrs, DisplayableMixin):
             return self._attrs
 
         # Load full data and mark as loaded
-        result = self._load_with_fragment(RUN_FRAGMENT, RUN_FRAGMENT_NAME, force=True)
+        result = self._load_with_query(lazy=False, force=True)
         self._full_data_loaded = True
         return result
 
@@ -1423,15 +1294,9 @@ class Run(Attrs, DisplayableMixin):
     @property
     def lastHistoryStep(self) -> int:  # noqa: N802
         """Returns the last step logged in the run's history."""
-        query = gql(
-            """
-        query RunHistoryKeys($project: String!, $entity: String!, $name: String!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) { historyKeys }
-            }
-        }
-        """
-        )
+        from wandb.apis._generated import GET_RUN_HISTORY_KEYS_GQL
+
+        query = gql(GET_RUN_HISTORY_KEYS_GQL)
         response = self._exec(query)
         if (
             response is None
