@@ -14,7 +14,7 @@ class DisplayableMixin(ABC):
     """
 
     @abstractmethod
-    def to_html(self, *args, **kwargs) -> str:
+    def to_html(self, height: int = 420, hidden: bool = False) -> str:
         raise NotImplementedError
 
     def display(self, height: int = 420, hidden: bool = False) -> bool:
