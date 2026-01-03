@@ -617,8 +617,23 @@ class Run(Attrs):
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
+        command: str | None = None,
     ):
-        """Create a run for the given project."""
+        """Create a run for the given project.
+
+        Args:
+            api: The W&B API client.
+            run_id: The unique identifier for the run. If not specified,
+                a random ID will be generated.
+            project: The project where to create the run. If not specified,
+                defaults to "uncategorized".
+            entity: The entity that owns the project.
+            state: The initial state of the run. Either "running" or "pending".
+            command: The command used to run the script (e.g., "python train.py").
+
+        Returns:
+            The newly created Run.
+        """
         api._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
@@ -647,7 +662,7 @@ class Run(Attrs):
         }
         res = api.client.execute(mutation, variable_values=variables)
         res = res["upsertBucket"]["bucket"]
-        return Run(
+        run = Run(
             api.client,
             res["project"]["entity"]["name"],
             res["project"]["name"],
@@ -664,6 +679,34 @@ class Run(Attrs):
             },
             lazy=False,  # Created runs should have full data available immediately
         )
+
+        # Upload metadata file with command if provided
+        if command is not None:
+            run._upload_metadata(command=command)
+
+        return run
+
+    def _upload_metadata(self, command: str) -> None:
+        """Upload a wandb-metadata.json file with the given command.
+
+        This creates a minimal metadata file that populates the run's runInfo
+        with the program/command field.
+
+        Args:
+            command: The command used to run the script (e.g., "python train.py").
+        """
+        import json
+
+        metadata = {"program": command}
+
+        # Create a temporary directory with the metadata file
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            metadata_path = os.path.join(tmp_dir, "wandb-metadata.json")
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f)
+
+            # Use the existing upload_file method from the public API
+            self.upload_file(metadata_path, root=tmp_dir)
 
     def _load_with_fragment(
         self, fragment: str, fragment_name: str, force: bool = False

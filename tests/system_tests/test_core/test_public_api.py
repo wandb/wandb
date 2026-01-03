@@ -290,6 +290,17 @@ def test_run_create(user, wandb_backend_spy):
     assert upsert_bucket_spy.requests[0].variables["project"] == "test"
 
 
+def test_run_create_with_command(user):
+    """Test that create_run with command creates a run and uploads metadata."""
+    command = "python train.py --epochs 10"
+    run = Api().create_run(project="test", command=command)
+
+    # Verify the run was created successfully
+    assert run.id is not None
+    assert run.project == "test"
+    assert run.entity == user
+
+
 def test_run_update(wandb_backend_spy):
     gql = wandb_backend_spy.gql
     upsert_bucket_spy = gql.Capture()
