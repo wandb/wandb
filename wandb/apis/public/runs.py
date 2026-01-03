@@ -729,20 +729,20 @@ class Run(Attrs, DisplayableMixin):
     @normalize_exceptions
     def update(self) -> None:
         """Persist changes to the run object to the wandb backend."""
-        from wandb.apis._generated import UPDATE_RUN_GQL
+        from wandb.apis._generated import UPDATE_RUN_GQL, UpsertBucketInput
 
-        mutation = gql(UPDATE_RUN_GQL)
-        self._exec(
-            mutation,
+        gql_op = gql(UPDATE_RUN_GQL)
+        gql_input = UpsertBucketInput(
             id=self.storage_id,
             tags=self.tags,
             description=self.description,
             notes=self.notes,
             display_name=self.display_name,
             config=self.json_config,
-            groupName=self.group,
-            jobType=self.job_type,
+            group_name=self.group,
+            job_type=self.job_type,
         )
+        self._exec(gql_op, input=gql_input.model_dump())
         self.summary.update()
 
     @normalize_exceptions
