@@ -36,21 +36,26 @@ from __future__ import annotations
 
 import io
 import os
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from wandb_gql import gql
 from wandb_gql.client import RetryError
 
 import wandb
-from wandb import util
+from wandb._strutils import nameof
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
-from wandb.apis.public.api import Api, RetryingClient
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.runs import Run, _server_provides_internal_id_for_project
 from wandb.sdk.lib import retry
+from wandb.util import POW_2_BYTES, download_file_from_url, no_retry_auth, to_human_size
+
+if TYPE_CHECKING:
+    from wandb_graphql.language.ast import Document
+
+    from wandb.apis.public import Api, RetryingClient
 
 FILE_FRAGMENT = """fragment RunFilesFragment on Run {
     files(names: $fileNames, after: $fileCursor, first: $fileLimit, pattern: $pattern) {
@@ -103,7 +108,7 @@ class Files(SizedPaginator["File"]):
     ```
     """
 
-    def _get_query(self):
+    def _get_query(self) -> Document:
         """Generate query dynamically based on server capabilities."""
         with_internal_id = _server_provides_internal_id_for_project(self.client)
         return gql(
@@ -170,7 +175,7 @@ class Files(SizedPaginator["File"]):
         )
 
     @property
-    def _length(self):
+    def _length(self) -> int:
         """
         Returns total number of files.
 
@@ -182,7 +187,7 @@ class Files(SizedPaginator["File"]):
         return self.last_response["project"]["run"]["fileCount"]
 
     @property
-    def more(self):
+    def more(self) -> bool:
         """Returns whether there are more files to fetch.
 
         <!-- lazydoc-ignore: internal -->
@@ -195,7 +200,7 @@ class Files(SizedPaginator["File"]):
             return True
 
     @property
-    def cursor(self):
+    def cursor(self) -> str | None:
         """Returns the cursor position for pagination of file results.
 
         <!-- lazydoc-ignore: internal -->
@@ -205,14 +210,14 @@ class Files(SizedPaginator["File"]):
         else:
             return None
 
-    def update_variables(self):
+    def update_variables(self) -> None:
         """Updates the GraphQL query variables for pagination.
 
         <!-- lazydoc-ignore: internal -->
         """
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
-    def convert_objects(self):
+    def convert_objects(self) -> list[File]:
         """Converts GraphQL edges to File objects.
 
         <!-- lazydoc-ignore: internal -->
@@ -222,8 +227,8 @@ class Files(SizedPaginator["File"]):
             for r in self.last_response["project"]["run"]["files"]["edges"]
         ]
 
-    def __repr__(self):
-        return "<Files {} ({})>".format("/".join(self.run.path), len(self))
+    def __repr__(self) -> str:
+        return f"<{nameof(type(self))} {'/'.join(self.run.path)} ({len(self)})>"
 
 
 class File(Attrs):
@@ -256,7 +261,12 @@ class File(Attrs):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    def __init__(self, client, attrs, run=None):
+    def __init__(
+        self,
+        client: RetryingClient,
+        attrs: dict[str, Any],
+        run: Run | None = None,
+    ):
         self.client = client
         self._attrs = attrs
         self.run = run
@@ -265,7 +275,7 @@ class File(Attrs):
         super().__init__(dict(attrs))
 
     @property
-    def size(self):
+    def size(self) -> int:
         """Returns the size of the file in bytes."""
         size_bytes = self._attrs["sizeBytes"]
         if size_bytes is not None:
@@ -294,12 +304,12 @@ class File(Attrs):
             wandb.termwarn("path_uri is only available for files stored in S3")
             return ""
 
-    def _build_download_wrapper(self):
+    def _build_download_wrapper(self) -> Callable[..., io.TextIOWrapper]:
         import requests
 
         @retry.retriable(
             retry_timedelta=RETRY_TIMEDELTA,
-            check_retry_fn=util.no_retry_auth,
+            check_retry_fn=no_retry_auth,
             retryable_exceptions=(RetryError, requests.RequestException),
         )
         def _impl(
@@ -320,7 +330,7 @@ class File(Attrs):
                     "or exist_ok=True to leave it as is and don't error."
                 )
 
-            util.download_file_from_url(path, self.url, api.api_key)
+            download_file_from_url(path, self.url, api.api_key)
             return open(path)
 
         return _impl
@@ -354,7 +364,7 @@ class File(Attrs):
         return self._download_decorated(root, replace, exist_ok, api)
 
     @normalize_exceptions
-    def delete(self):
+    def delete(self) -> None:
         """Delete the file from the W&B server."""
         project_id_mutation_fragment = ""
         project_id_variable_fragment = ""
@@ -386,12 +396,10 @@ class File(Attrs):
             variable_values=variable_values,
         )
 
-    def __repr__(self):
-        return "<File {} ({}) {}>".format(
-            self.name,
-            self.mimetype,
-            util.to_human_size(self.size, units=util.POW_2_BYTES),
-        )
+    def __repr__(self) -> str:
+        classname = nameof(type(self))
+        size = to_human_size(self.size, units=POW_2_BYTES)
+        return f"<{classname} {self.name} ({self.mimetype}) {size}>"
 
     @normalize_exceptions
     def _server_accepts_project_id_for_delete_file(self) -> bool:
