@@ -27,8 +27,9 @@ func seedXY(n int) leet.MetricData {
 }
 
 func TestEpochLineChart_DrawInspectionOverlay_RendersHairlineAndLegend_RightSide(t *testing.T) {
-	c := leet.NewEpochLineChart(80, 12, "acc")
-	c.AddData(seedXY(30))
+	m := "acc"
+	c := leet.NewEpochLineChart(80, 12, m)
+	c.AddData(m, seedXY(30))
 	c.Draw()
 
 	// Inspect near X=5 -> expect legend to the right of the vertical hairline.
@@ -56,14 +57,15 @@ func TestEpochLineChart_DrawInspectionOverlay_RendersHairlineAndLegend_RightSide
 }
 
 func TestInspectAtDataX_SnapsToNearestAndPixel(t *testing.T) {
-	c := leet.NewEpochLineChart(80, 12, "loss")
+	m := "loss"
+	c := leet.NewEpochLineChart(80, 12, m)
 
 	// Non-uniform X to exercise nearest selection.
 	data := leet.MetricData{
 		X: []float64{0, 2, 5, 9},
 		Y: []float64{10, 20, 50, 90},
 	}
-	c.AddData(data)
+	c.AddData(m, data)
 
 	// Domain becomes [0,20] (niceMax), view = [0,20] initially.
 	c.Draw()
@@ -98,7 +100,8 @@ func TestInspectAtDataX_NoData_NoActivate(t *testing.T) {
 // When new data expands the X domain (e.g., [0,20] -> [0,30]), the overlay
 // should keep pointing at the same data X and move to the correct pixel.
 func TestInspection_RepositionsOnXDomainExpansion(t *testing.T) {
-	c := leet.NewEpochLineChart(120, 12, "loss")
+	m := "loss"
+	c := leet.NewEpochLineChart(120, 12, m)
 
 	// Seed 0..19 so nice X domain is [0,20].
 	xs := make([]float64, 20)
@@ -106,7 +109,7 @@ func TestInspection_RepositionsOnXDomainExpansion(t *testing.T) {
 	for i := range xs {
 		xs[i] = float64(i)
 	}
-	c.AddData(leet.MetricData{X: xs, Y: ys})
+	c.AddData(m, leet.MetricData{X: xs, Y: ys})
 	require.InDelta(t, 20.0, c.ViewMaxX(), 1e-9)
 
 	// Start inspecting at X=10 (middle of initial view).
@@ -124,7 +127,7 @@ func TestInspection_RepositionsOnXDomainExpansion(t *testing.T) {
 	oldPX, _ := c.TestInspectionMouseX()
 
 	// Append 20..29 -> nice view should expand to [0,30].
-	c.AddData(leet.MetricData{
+	c.AddData(m, leet.MetricData{
 		X: []float64{20, 21, 22, 23, 24, 25, 26, 27, 28, 29},
 		Y: []float64{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 	})
@@ -147,7 +150,8 @@ func TestInspection_RepositionsOnXDomainExpansion(t *testing.T) {
 
 // Resizing the chart should also keep the overlay anchored to the same DataX.
 func TestInspection_RepositionsOnResize(t *testing.T) {
-	c := leet.NewEpochLineChart(80, 12, "acc")
+	m := "acc"
+	c := leet.NewEpochLineChart(80, 12, m)
 
 	// Seed 0..29 so nice X domain is [0,30].
 	xs := make([]float64, 30)
@@ -155,7 +159,7 @@ func TestInspection_RepositionsOnResize(t *testing.T) {
 	for i := range xs {
 		xs[i] = float64(i)
 	}
-	c.AddData(leet.MetricData{X: xs, Y: ys})
+	c.AddData(m, leet.MetricData{X: xs, Y: ys})
 	require.InDelta(t, 30.0, c.ViewMaxX(), 1e-9)
 
 	wantX := 15.0

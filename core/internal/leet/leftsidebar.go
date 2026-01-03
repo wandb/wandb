@@ -29,7 +29,7 @@ type LeftSidebar struct {
 
 	// UI state: sections, filtering, navigation.
 	// TODO: encapsulate and refactor
-	sections      []SectionView
+	sections      []PagedList
 	activeSection int
 
 	// Filter state.
@@ -42,17 +42,17 @@ type LeftSidebar struct {
 func NewLeftSidebar(config *ConfigManager) *LeftSidebar {
 	animState := NewAnimationState(config.LeftSidebarVisible(), SidebarMinWidth)
 
-	es := SectionView{Title: "Environment", Active: true}
+	es := PagedList{Title: "Environment", Active: true}
 	es.SetItemsPerPage(10)
-	cs := SectionView{Title: "Config"}
+	cs := PagedList{Title: "Config"}
 	cs.SetItemsPerPage(15)
-	ss := SectionView{Title: "Summary"}
+	ss := PagedList{Title: "Summary"}
 	ss.SetItemsPerPage(20)
 
 	return &LeftSidebar{
 		animState:     animState,
 		runOverview:   NewRunOverview(),
-		sections:      []SectionView{es, cs, ss},
+		sections:      []PagedList{es, cs, ss},
 		activeSection: 0,
 	}
 }
@@ -330,7 +330,7 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 }
 
 // renderSectionHeader renders the section title with pagination info.
-func (s *LeftSidebar) renderSectionHeader(section *SectionView) string {
+func (s *LeftSidebar) renderSectionHeader(section *PagedList) string {
 	titleStyle := leftSidebarSectionStyle
 	if section.Active {
 		titleStyle = leftSidebarSectionHeaderStyle
@@ -350,7 +350,7 @@ func (s *LeftSidebar) renderSectionHeader(section *SectionView) string {
 
 // buildSectionInfo builds the pagination/count info string for a section.
 func (s *LeftSidebar) buildSectionInfo(
-	section *SectionView,
+	section *PagedList,
 	totalItems, filteredItems, startIdx, endIdx int,
 ) string {
 	switch {
@@ -370,7 +370,7 @@ func (s *LeftSidebar) buildSectionInfo(
 }
 
 // renderSectionItems renders the items for a section.
-func (s *LeftSidebar) renderSectionItems(section *SectionView, width int) []string {
+func (s *LeftSidebar) renderSectionItems(section *PagedList, width int) []string {
 	maxKeyWidth := int(float64(width) * leftSidebarKeyWidthRatio)
 	maxValueWidth := width - maxKeyWidth - 1
 
@@ -403,7 +403,7 @@ func (s *LeftSidebar) renderSectionItems(section *SectionView, width int) []stri
 func (s *LeftSidebar) renderItem(
 	item KeyValuePair,
 	posInPage int,
-	section *SectionView,
+	section *PagedList,
 	maxKeyWidth, maxValueWidth int,
 ) string {
 	keyStyle := leftSidebarKeyStyle

@@ -9,17 +9,18 @@ import (
 )
 
 func TestEpochLineChart_Range(t *testing.T) {
-	c := leet.NewEpochLineChart(100, 10, "loss")
+	m := "loss"
+	c := leet.NewEpochLineChart(100, 10, m)
 
 	// Add a couple of points; Y padding should expand range.
-	c.AddData(leet.MetricData{X: []float64{0, 1}, Y: []float64{0.5, 1.0}})
+	c.AddData(m, leet.MetricData{X: []float64{0, 1}, Y: []float64{0.5, 1.0}})
 
 	require.Less(t, c.ViewMinY(), 0.5)
 	require.Greater(t, c.ViewMaxY(), 1.0)
 
 	// Force X-range to expand in rounded tens (0..30) once we exceed 20 steps.
 	for i := range 21 {
-		c.AddData(leet.MetricData{
+		c.AddData(m, leet.MetricData{
 			X: []float64{float64(i + 2)},
 			Y: []float64{float64(i)},
 		})
@@ -32,9 +33,10 @@ func TestEpochLineChart_Range(t *testing.T) {
 }
 
 func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
-	c := leet.NewEpochLineChart(120, 12, "acc")
+	m := "acc"
+	c := leet.NewEpochLineChart(120, 12, m)
 	for i := range 40 {
-		c.AddData(leet.MetricData{
+		c.AddData(m, leet.MetricData{
 			X: []float64{float64(i)},
 			Y: []float64{0.1 + 0.02*float64(i)},
 		})
@@ -69,9 +71,10 @@ func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
 // When zooming away from the right edge (and not already at the tail),
 // the view should NOT jump to the tail.
 func TestEpochLineChart_ZoomDoesNotSnapToTailAwayFromRight(t *testing.T) {
-	c := leet.NewEpochLineChart(120, 12, "loss")
+	m := "loss"
+	c := leet.NewEpochLineChart(120, 12, m)
 	for i := range 40 {
-		c.AddData(leet.MetricData{
+		c.AddData(m, leet.MetricData{
 			X: []float64{float64(i)},
 			Y: []float64{float64(i)},
 		})
@@ -87,9 +90,10 @@ func TestEpochLineChart_ZoomDoesNotSnapToTailAwayFromRight(t *testing.T) {
 
 // When zooming near the right edge, we still anchor to the tail.
 func TestEpochLineChart_ZoomNearRightAnchorsToTail(t *testing.T) {
-	c := leet.NewEpochLineChart(120, 12, "loss")
+	m := "loss"
+	c := leet.NewEpochLineChart(120, 12, m)
 	for i := range 40 {
-		c.AddData(leet.MetricData{
+		c.AddData(m, leet.MetricData{
 			X: []float64{float64(i)},
 			Y: []float64{0.5},
 		})
