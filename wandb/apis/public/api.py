@@ -165,82 +165,6 @@ class Api:
     """
 
     _HTTP_TIMEOUT = env.get_http_timeout(19)
-    DEFAULT_ENTITY_QUERY = gql(
-        """
-        query Viewer{
-            viewer {
-                id
-                entity
-            }
-        }
-        """
-    )
-
-    VIEWER_QUERY = gql(
-        """
-        query Viewer{
-            viewer {
-                id
-                flags
-                entity
-                username
-                email
-                admin
-                apiKeys {
-                    edges {
-                        node {
-                            id
-                            name
-                            description
-                        }
-                    }
-                }
-                teams {
-                    edges {
-                        node {
-                            name
-                        }
-                    }
-                }
-            }
-        }
-        """
-    )
-    USERS_QUERY = gql(
-        """
-        query SearchUsers($query: String) {
-            users(query: $query) {
-                edges {
-                    node {
-                        id
-                        flags
-                        entity
-                        admin
-                        email
-                        deletedAt
-                        username
-                        apiKeys {
-                            edges {
-                                node {
-                                    id
-                                    name
-                                    description
-                                }
-                            }
-                        }
-                        teams {
-                            edges {
-                                node {
-                                    name
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-    )
 
     def __init__(
         self,
@@ -767,9 +691,13 @@ class Api:
     @property
     def default_entity(self) -> str | None:
         """Returns the default W&B entity."""
+        from wandb.apis._generated import GET_DEFAULT_ENTITY_GQL, GetDefaultEntity
+
         if self._default_entity is None:
-            res = self._client.execute(self.DEFAULT_ENTITY_QUERY)
-            self._default_entity = (res.get("viewer") or {}).get("entity")
+            data = self._client.execute(gql(GET_DEFAULT_ENTITY_GQL))
+            result = GetDefaultEntity.model_validate(data)
+            if (viewer := result.viewer) and (entity := viewer.entity):
+                self._default_entity = entity
         return self._default_entity
 
     @property
@@ -780,18 +708,17 @@ class Api:
             ValueError: If viewer data is not able to be fetched from W&B.
             requests.RequestException: If an error occurs while making the graphql request.
         """
+        from wandb.apis._generated import GET_VIEWER_GQL, GetViewer
+
         from .users import User
 
         if self._viewer is None:
-            viewer = self._client.execute(self.VIEWER_QUERY).get("viewer")
-
-            if viewer is None:
-                raise ValueError(
-                    "Unable to fetch user data from W&B,"
-                    " please verify your API key is valid."
-                )
-
-            self._viewer = User(self._client, viewer)
+            data = self._client.execute(gql(GET_VIEWER_GQL))
+            result = GetViewer.model_validate(data)
+            if (viewer := result.viewer) is None:
+                msg = "Unable to fetch user data from W&B, please verify your API key is valid."
+                raise ValueError(msg)
+            self._viewer = User(self._client, viewer.model_dump())
             self._default_entity = self._viewer.entity
         return self._viewer
 
@@ -1070,18 +997,18 @@ class Api:
         Returns:
             A `User` object or None if a user is not found.
         """
+        from wandb.apis._generated import SEARCH_USERS_GQL, SearchUsers
+
         from .users import User
 
-        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
-        if len(res["users"]["edges"]) == 0:
+        data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
+        result = SearchUsers.model_validate(data)
+        if not (conn := result.users) or not (edges := conn.edges):
             return None
-        elif len(res["users"]["edges"]) > 1:
-            wandb.termwarn(
-                "Found multiple users, returning the first user matching {}".format(
-                    username_or_email
-                )
-            )
-        return User(self._client, res["users"]["edges"][0]["node"])
+        if len(edges) > 1:
+            msg = f"Found multiple users, returning the first user matching {username_or_email!r}"
+            wandb.termwarn(msg)
+        return User(self._client, edges[0].node.model_dump())
 
     def users(self, username_or_email: str) -> list[User]:
         """Return all users from a partial username or email address query.
@@ -1095,10 +1022,15 @@ class Api:
         Returns:
             An array of `User` objects.
         """
+        from wandb.apis._generated import SEARCH_USERS_GQL, SearchUsers
+
         from .users import User
 
-        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
-        return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
+        data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
+        result = SearchUsers.model_validate(data)
+        if not ((conn := result.users) and (edges := conn.edges)):
+            return []
+        return [User(self._client, edge.node.model_dump()) for edge in edges]
 
     def runs(
         self,

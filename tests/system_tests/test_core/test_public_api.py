@@ -10,7 +10,8 @@ import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
-from wandb.apis._generated import ProjectFragment
+from wandb.apis._generated import ProjectFragment, UserFragment
+from wandb.apis._generated.generate_api_key import GenerateApiKey
 from wandb.apis.public import File
 from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
@@ -949,13 +950,18 @@ def fake_search_users_response(
             "users": {
                 "edges": [
                     {
-                        "node": {
-                            "email": email,
-                            "apiKeys": {"edges": [{"node": key} for key in api_keys]},
-                            "teams": {
-                                "edges": [{"node": team} for team in teams],
-                            },
-                        },
+                        "node": UserFragment(
+                            id="VXNlcjoxMjM=",
+                            name="fake-name",
+                            username="fake-username",
+                            admin=False,
+                            flags=None,
+                            entity="fake-entity",
+                            deleted_at=None,
+                            email=email,
+                            api_keys={"edges": [{"node": key} for key in api_keys]},
+                            teams={"edges": [{"node": team} for team in teams]},
+                        ).model_dump(),
                     }
                 ]
                 * count,
@@ -996,14 +1002,14 @@ def stub_search_users(wandb_backend_spy):
 
 def test_query_user(stub_search_users):
     email = "test@test.com"
-    api_keys = [{"name": "Y" * 40}]
+    api_key = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
     teams = [{"name": "test"}]
-    stub_search_users(email=email, api_keys=api_keys, teams=teams)
+    stub_search_users(email=email, api_keys=[api_key], teams=teams)
 
     u = Api().user("test")
 
     assert u.email == email
-    assert u.api_keys == [api_keys[0]["name"]]
+    assert u.api_keys == [api_key["name"]]
     assert u.teams == [teams[0]["name"]]
     assert repr(u) == f"<User {email}>"
 
@@ -1048,7 +1054,7 @@ def test_delete_api_key_success(wandb_backend_spy, stub_search_users):
         gql.once(content={"data": {"deleteApiKey": {"success": True}}}),
     )
     email = "test@test.com"
-    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
+    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
     stub_search_users(email=email, api_keys=[api_key], teams=[])
 
     user = Api().user(email)
@@ -1066,7 +1072,7 @@ def test_delete_api_key_failure(wandb_backend_spy, stub_search_users):
         ),
     )
     email = "test@test.com"
-    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
+    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
     stub_search_users(email=email, api_keys=[api_key], teams=[])
 
     user = Api().user(email)
@@ -1082,13 +1088,17 @@ def test_generate_api_key_success(
 ):
     _ = skip_verify_login  # Don't verify user API keys.
     email = "test@test.com"
-    api_key_1 = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
-    api_key_2 = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzE="}
+    api_key_1 = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
+    api_key_2 = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzE=", "description": None}
     stub_search_users(email=email, api_keys=[api_key_1], teams=[])
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="GenerateApiKey"),
-        gql.once(content={"data": {"generateApiKey": {"apiKey": api_key_2}}}),
+        gql.once(
+            content={
+                "data": GenerateApiKey(result={"apiKey": api_key_2}).model_dump(),
+            },
+        ),
     )
 
     user = api.user(email)
@@ -1108,7 +1118,7 @@ def test_generate_api_key_failure(
 ):
     _ = skip_verify_login  # Don't verify user API keys.
     email = "test@test.com"
-    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
+    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
     stub_search_users(email=email, api_keys=[api_key], teams=[])
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(

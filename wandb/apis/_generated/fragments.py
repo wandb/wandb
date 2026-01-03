@@ -3,12 +3,18 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 from typing_extensions import Literal
 
 from wandb._pydantic import GQLId, GQLResult, Typename
+
+
+class ApiKeyFragment(GQLResult):
+    id: GQLId
+    name: str
+    description: Optional[str]
 
 
 class CreatedProjectFragment(GQLResult):
@@ -35,6 +41,56 @@ class ProjectFragment(GQLResult):
     is_benchmark: bool = Field(alias="isBenchmark")
 
 
+class UserFragment(GQLResult):
+    id: GQLId
+    name: str
+    username: Optional[str]
+    email: Optional[str]
+    admin: Optional[bool]
+    flags: Optional[str]
+    entity: Optional[str]
+    deleted_at: Optional[str] = Field(alias="deletedAt")
+    api_keys: Optional[UserFragmentApiKeys] = Field(alias="apiKeys")
+    teams: Optional[UserFragmentTeams]
+
+
+class UserFragmentApiKeys(GQLResult):
+    edges: List[UserFragmentApiKeysEdges]
+
+
+class UserFragmentApiKeysEdges(GQLResult):
+    node: Optional[ApiKeyFragment]
+
+
+class UserFragmentTeams(GQLResult):
+    edges: List[UserFragmentTeamsEdges]
+
+
+class UserFragmentTeamsEdges(GQLResult):
+    node: Optional[UserFragmentTeamsEdgesNode]
+
+
+class UserFragmentTeamsEdgesNode(GQLResult):
+    name: str
+
+
+class UserInfoFragment(GQLResult):
+    id: GQLId
+    name: str
+    username: Optional[str]
+    email: Optional[str]
+    admin: Optional[bool]
+
+
+ApiKeyFragment.model_rebuild()
 CreatedProjectFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
+UserFragment.model_rebuild()
+UserFragmentApiKeys.model_rebuild()
+UserFragmentApiKeysEdges.model_rebuild()
+ApiKeyFragment.model_rebuild()
+UserFragmentTeams.model_rebuild()
+UserFragmentTeamsEdges.model_rebuild()
+UserFragmentTeamsEdgesNode.model_rebuild()
+UserInfoFragment.model_rebuild()

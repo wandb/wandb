@@ -9,10 +9,16 @@ Note:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, MutableMapping
+
+from typing_extensions import Self
 from wandb_gql import gql
 
 import wandb
 from wandb.apis.attrs import Attrs
+
+if TYPE_CHECKING:
+    from .api import Api, RetryingClient
 
 
 class User(Attrs):
@@ -30,58 +36,20 @@ class User(Attrs):
         Some operations require admin privileges
     """
 
-    CREATE_USER_MUTATION = gql(
-        """
-    mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
-        createUser(input: {email: $email, admin: $admin}) {
-            user {
-                id
-                name
-                username
-                email
-                admin
-            }
-        }
-    }
-        """
-    )
-
-    DELETE_API_KEY_MUTATION = gql(
-        """
-    mutation DeleteApiKey($id: String!) {
-        deleteApiKey(input: {id: $id}) {
-            success
-        }
-    }
-        """
-    )
-    GENERATE_API_KEY_MUTATION = gql(
-        """
-    mutation GenerateApiKey($description: String) {
-        generateApiKey(input: {description: $description}) {
-            apiKey {
-                id
-                name
-            }
-        }
-    }
-        """
-    )
-
-    def __init__(self, client, attrs):
+    def __init__(self, client: RetryingClient, attrs: MutableMapping[str, Any]):
         super().__init__(attrs)
         self._client = client
-        self._user_api = None
+        self._user_api: Api | None = None
 
     @property
-    def user_api(self):
+    def user_api(self) -> Api | None:
         """An instance of the api using credentials from the user."""
-        if self._user_api is None and len(self.api_keys) > 0:
+        if self._user_api is None and self.api_keys:
             self._user_api = wandb.Api(api_key=self.api_keys[0])
         return self._user_api
 
     @classmethod
-    def create(cls, api, email, admin=False):
+    def create(cls, api: Api, email: str, admin: bool = False) -> Self:
         """Create a new user.
 
         Args:
@@ -92,37 +60,41 @@ class User(Attrs):
         Returns:
             A `User` object
         """
-        res = api.client.execute(
-            cls.CREATE_USER_MUTATION,
-            {"email": email, "admin": admin},
+        from wandb.apis._generated import (
+            CREATE_USER_FROM_ADMIN_GQL,
+            CreateUserFromAdmin,
         )
-        return User(api.client, res["createUser"]["user"])
+
+        gql_op = gql(CREATE_USER_FROM_ADMIN_GQL)
+        data = api.client.execute(gql_op, {"email": email, "admin": admin})
+        user = CreateUserFromAdmin.model_validate(data).result.user
+        return cls(api.client, user.model_dump())
 
     @property
-    def api_keys(self):
+    def api_keys(self) -> list[str]:
         """List of API key names associated with the user.
 
         Returns:
-            list[str]: Names of API keys associated with the user. Empty list if user
-                has no API keys or if API key data hasn't been loaded.
+            Names of API keys associated with the user. Empty list if user
+            has no API keys or if API key data hasn't been loaded.
         """
         if self._attrs.get("apiKeys") is None:
             return []
         return [k["node"]["name"] for k in self._attrs["apiKeys"]["edges"]]
 
     @property
-    def teams(self):
+    def teams(self) -> list[str]:
         """List of team names that the user is a member of.
 
         Returns:
-            list (list): Names of teams the user belongs to. Empty list if user has no
-                team memberships or if teams data hasn't been loaded.
+            Names of teams the user belongs to. Empty list if user has no
+            team memberships or if teams data hasn't been loaded.
         """
         if self._attrs.get("teams") is None:
             return []
         return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
 
-    def delete_api_key(self, api_key):
+    def delete_api_key(self, api_key: str) -> bool:
         """Delete a user's api key.
 
         Args:
@@ -135,19 +107,19 @@ class User(Attrs):
         Raises:
             ValueError if the api_key couldn't be found
         """
-        import requests
+        from requests import HTTPError
+
+        from wandb.apis._generated import DELETE_API_KEY_GQL
 
         idx = self.api_keys.index(api_key)
+        api_key_id = self._attrs["apiKeys"]["edges"][idx]["node"]["id"]
         try:
-            self._client.execute(
-                self.DELETE_API_KEY_MUTATION,
-                {"id": self._attrs["apiKeys"]["edges"][idx]["node"]["id"]},
-            )
-        except requests.exceptions.HTTPError:
+            self._client.execute(gql(DELETE_API_KEY_GQL), {"id": api_key_id})
+        except HTTPError:
             return False
         return True
 
-    def generate_api_key(self, description=None):
+    def generate_api_key(self, description: str | None = None) -> str | None:
         """Generate a new api key.
 
         Args:
@@ -157,26 +129,28 @@ class User(Attrs):
         Returns:
             The new api key, or None on failure
         """
-        import requests
+        from requests import HTTPError
+
+        from wandb.apis._generated import GENERATE_API_KEY_GQL, GenerateApiKey
 
         try:
             # We must make this call using credentials from the original user
-            key = self.user_api.client.execute(
-                self.GENERATE_API_KEY_MUTATION, {"description": description}
-            )["generateApiKey"]["apiKey"]
-            self._attrs["apiKeys"]["edges"].append({"node": key})
-            return key["name"]
-        except (requests.exceptions.HTTPError, AttributeError):
+            gql_op = gql(GENERATE_API_KEY_GQL)
+            data = self.user_api.client.execute(gql_op, {"description": description})
+            key_fragment = GenerateApiKey.model_validate(data).result.api_key
+            self._attrs["apiKeys"]["edges"].append({"node": key_fragment.model_dump()})
+        except (HTTPError, AttributeError):
             return None
-
-    def __repr__(self):
-        if "email" in self._attrs:
-            return f"<User {self._attrs['email']}>"
-        elif "username" in self._attrs:
-            return f"<User {self._attrs['username']}>"
-        elif "id" in self._attrs:
-            return f"<User {self._attrs['id']}>"
-        elif "name" in self._attrs:
-            return f"<User {self._attrs['name']!r}>"
         else:
-            return "<User ???>"
+            return key_fragment.name
+
+    def __repr__(self) -> str:
+        if email := self._attrs.get("email"):
+            return f"<User {email}>"
+        if username := self._attrs.get("username"):
+            return f"<User {username}>"
+        if id_ := self._attrs.get("id"):
+            return f"<User {id_}>"
+        if name := self._attrs.get("name"):
+            return f"<User {name!r}>"
+        return "<User ???>"
