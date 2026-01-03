@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
@@ -58,6 +58,8 @@ class _BaseStorageHandler(ABC):
 
 
 class StorageHandler(_BaseStorageHandler, ABC):  # Handles a single storage protocol
+    _scheme: Any
+
     @abstractmethod
     def can_handle(self, parsed_url: ParseResult) -> bool:
         """Checks whether this handler can handle the given url.
