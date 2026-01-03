@@ -36,8 +36,10 @@ func (cr *Int32ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 	return nvalues, err
 }
 
-// ReadBatch reads batchSize values from the column.
-//
+// ReadBatchInPage and ReadBatch are used to read batchSize values from the column, currently they are
+// used in test. The former one only reads values from the same page, while the latter one reads across
+// multiple pages to fill the batch.
+
 // Returns error if values is not at least big enough to hold the number of values that will be read.
 //
 // defLvls and repLvls can be nil, or will be populated if not nil. If not nil, they must be
@@ -45,6 +47,12 @@ func (cr *Int32ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 //
 // total is the number of rows that were read, valuesRead is the actual number of physical values
 // that were read excluding nulls
+func (cr *Int32ColumnChunkReader) ReadBatchInPage(batchSize int64, values []int32, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
+	return cr.readBatchInPage(batchSize, 0, defLvls, repLvls, func(start, len int64) (int, error) {
+		return cr.curDecoder.(encoding.Int32Decoder).Decode(values[start : start+len])
+	})
+}
+
 func (cr *Int32ColumnChunkReader) ReadBatch(batchSize int64, values []int32, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
 	return cr.readBatch(batchSize, defLvls, repLvls, func(start, len int64) (int, error) {
 		return cr.curDecoder.(encoding.Int32Decoder).Decode(values[start : start+len])
@@ -64,8 +72,10 @@ func (cr *Int64ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 	return nvalues, err
 }
 
-// ReadBatch reads batchSize values from the column.
-//
+// ReadBatchInPage and ReadBatch are used to read batchSize values from the column, currently they are
+// used in test. The former one only reads values from the same page, while the latter one reads across
+// multiple pages to fill the batch.
+
 // Returns error if values is not at least big enough to hold the number of values that will be read.
 //
 // defLvls and repLvls can be nil, or will be populated if not nil. If not nil, they must be
@@ -73,6 +83,12 @@ func (cr *Int64ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 //
 // total is the number of rows that were read, valuesRead is the actual number of physical values
 // that were read excluding nulls
+func (cr *Int64ColumnChunkReader) ReadBatchInPage(batchSize int64, values []int64, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
+	return cr.readBatchInPage(batchSize, 0, defLvls, repLvls, func(start, len int64) (int, error) {
+		return cr.curDecoder.(encoding.Int64Decoder).Decode(values[start : start+len])
+	})
+}
+
 func (cr *Int64ColumnChunkReader) ReadBatch(batchSize int64, values []int64, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
 	return cr.readBatch(batchSize, defLvls, repLvls, func(start, len int64) (int, error) {
 		return cr.curDecoder.(encoding.Int64Decoder).Decode(values[start : start+len])
@@ -92,8 +108,10 @@ func (cr *Int96ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 	return nvalues, err
 }
 
-// ReadBatch reads batchSize values from the column.
-//
+// ReadBatchInPage and ReadBatch are used to read batchSize values from the column, currently they are
+// used in test. The former one only reads values from the same page, while the latter one reads across
+// multiple pages to fill the batch.
+
 // Returns error if values is not at least big enough to hold the number of values that will be read.
 //
 // defLvls and repLvls can be nil, or will be populated if not nil. If not nil, they must be
@@ -101,6 +119,12 @@ func (cr *Int96ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 //
 // total is the number of rows that were read, valuesRead is the actual number of physical values
 // that were read excluding nulls
+func (cr *Int96ColumnChunkReader) ReadBatchInPage(batchSize int64, values []parquet.Int96, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
+	return cr.readBatchInPage(batchSize, 0, defLvls, repLvls, func(start, len int64) (int, error) {
+		return cr.curDecoder.(encoding.Int96Decoder).Decode(values[start : start+len])
+	})
+}
+
 func (cr *Int96ColumnChunkReader) ReadBatch(batchSize int64, values []parquet.Int96, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
 	return cr.readBatch(batchSize, defLvls, repLvls, func(start, len int64) (int, error) {
 		return cr.curDecoder.(encoding.Int96Decoder).Decode(values[start : start+len])
@@ -120,8 +144,10 @@ func (cr *Float32ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 	return nvalues, err
 }
 
-// ReadBatch reads batchSize values from the column.
-//
+// ReadBatchInPage and ReadBatch are used to read batchSize values from the column, currently they are
+// used in test. The former one only reads values from the same page, while the latter one reads across
+// multiple pages to fill the batch.
+
 // Returns error if values is not at least big enough to hold the number of values that will be read.
 //
 // defLvls and repLvls can be nil, or will be populated if not nil. If not nil, they must be
@@ -129,6 +155,12 @@ func (cr *Float32ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 //
 // total is the number of rows that were read, valuesRead is the actual number of physical values
 // that were read excluding nulls
+func (cr *Float32ColumnChunkReader) ReadBatchInPage(batchSize int64, values []float32, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
+	return cr.readBatchInPage(batchSize, 0, defLvls, repLvls, func(start, len int64) (int, error) {
+		return cr.curDecoder.(encoding.Float32Decoder).Decode(values[start : start+len])
+	})
+}
+
 func (cr *Float32ColumnChunkReader) ReadBatch(batchSize int64, values []float32, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
 	return cr.readBatch(batchSize, defLvls, repLvls, func(start, len int64) (int, error) {
 		return cr.curDecoder.(encoding.Float32Decoder).Decode(values[start : start+len])
@@ -148,8 +180,10 @@ func (cr *Float64ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 	return nvalues, err
 }
 
-// ReadBatch reads batchSize values from the column.
-//
+// ReadBatchInPage and ReadBatch are used to read batchSize values from the column, currently they are
+// used in test. The former one only reads values from the same page, while the latter one reads across
+// multiple pages to fill the batch.
+
 // Returns error if values is not at least big enough to hold the number of values that will be read.
 //
 // defLvls and repLvls can be nil, or will be populated if not nil. If not nil, they must be
@@ -157,6 +191,12 @@ func (cr *Float64ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 //
 // total is the number of rows that were read, valuesRead is the actual number of physical values
 // that were read excluding nulls
+func (cr *Float64ColumnChunkReader) ReadBatchInPage(batchSize int64, values []float64, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
+	return cr.readBatchInPage(batchSize, 0, defLvls, repLvls, func(start, len int64) (int, error) {
+		return cr.curDecoder.(encoding.Float64Decoder).Decode(values[start : start+len])
+	})
+}
+
 func (cr *Float64ColumnChunkReader) ReadBatch(batchSize int64, values []float64, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
 	return cr.readBatch(batchSize, defLvls, repLvls, func(start, len int64) (int, error) {
 		return cr.curDecoder.(encoding.Float64Decoder).Decode(values[start : start+len])
@@ -176,8 +216,10 @@ func (cr *BooleanColumnChunkReader) Skip(nvalues int64) (int64, error) {
 	return nvalues, err
 }
 
-// ReadBatch reads batchSize values from the column.
-//
+// ReadBatchInPage and ReadBatch are used to read batchSize values from the column, currently they are
+// used in test. The former one only reads values from the same page, while the latter one reads across
+// multiple pages to fill the batch.
+
 // Returns error if values is not at least big enough to hold the number of values that will be read.
 //
 // defLvls and repLvls can be nil, or will be populated if not nil. If not nil, they must be
@@ -185,6 +227,12 @@ func (cr *BooleanColumnChunkReader) Skip(nvalues int64) (int64, error) {
 //
 // total is the number of rows that were read, valuesRead is the actual number of physical values
 // that were read excluding nulls
+func (cr *BooleanColumnChunkReader) ReadBatchInPage(batchSize int64, values []bool, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
+	return cr.readBatchInPage(batchSize, 0, defLvls, repLvls, func(start, len int64) (int, error) {
+		return cr.curDecoder.(encoding.BooleanDecoder).Decode(values[start : start+len])
+	})
+}
+
 func (cr *BooleanColumnChunkReader) ReadBatch(batchSize int64, values []bool, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
 	return cr.readBatch(batchSize, defLvls, repLvls, func(start, len int64) (int, error) {
 		return cr.curDecoder.(encoding.BooleanDecoder).Decode(values[start : start+len])
@@ -204,7 +252,12 @@ func (cr *ByteArrayColumnChunkReader) Skip(nvalues int64) (int64, error) {
 	return nvalues, err
 }
 
-// ReadBatch reads batchSize values from the column.
+// ReadBatchInPage and ReadBatch are used to read batchSize values from the column, currently they are
+// used in test. The former one only reads values from the same page, and might be shallow copies of the
+// underlying page data, while the latter one reads across multiple pages to fill the batch and values
+// have been cloned. User should choose the appropriate one based on their use cases. For example, if user
+// only needs to read and process values one by one, ReadBatchInPage is more efficient. Otherwise, if user
+// want to cache the values for later use, ReadBatch is more suitable.
 //
 // Returns error if values is not at least big enough to hold the number of values that will be read.
 //
@@ -213,9 +266,19 @@ func (cr *ByteArrayColumnChunkReader) Skip(nvalues int64) (int64, error) {
 //
 // total is the number of rows that were read, valuesRead is the actual number of physical values
 // that were read excluding nulls
+func (cr *ByteArrayColumnChunkReader) ReadBatchInPage(batchSize int64, values []parquet.ByteArray, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
+	return cr.readBatchInPage(batchSize, 0, defLvls, repLvls, func(start, len int64) (int, error) {
+		return cr.curDecoder.(encoding.ByteArrayDecoder).Decode(values[start : start+len])
+	})
+}
+
 func (cr *ByteArrayColumnChunkReader) ReadBatch(batchSize int64, values []parquet.ByteArray, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
 	return cr.readBatch(batchSize, defLvls, repLvls, func(start, len int64) (int, error) {
-		return cr.curDecoder.(encoding.ByteArrayDecoder).Decode(values[start : start+len])
+		n, err := cr.curDecoder.(encoding.ByteArrayDecoder).Decode(values[start : start+len])
+		if err == nil {
+			cloneByteArray(values[start : start+len])
+		}
+		return n, err
 	})
 }
 
@@ -232,7 +295,12 @@ func (cr *FixedLenByteArrayColumnChunkReader) Skip(nvalues int64) (int64, error)
 	return nvalues, err
 }
 
-// ReadBatch reads batchSize values from the column.
+// ReadBatchInPage and ReadBatch are used to read batchSize values from the column, currently they are
+// used in test. The former one only reads values from the same page, and might be shallow copies of the
+// underlying page data, while the latter one reads across multiple pages to fill the batch and values
+// have been cloned. User should choose the appropriate one based on their use cases. For example, if user
+// only needs to read and process values one by one, ReadBatchInPage is more efficient. Otherwise, if user
+// want to cache the values for later use, ReadBatch is more suitable.
 //
 // Returns error if values is not at least big enough to hold the number of values that will be read.
 //
@@ -241,8 +309,18 @@ func (cr *FixedLenByteArrayColumnChunkReader) Skip(nvalues int64) (int64, error)
 //
 // total is the number of rows that were read, valuesRead is the actual number of physical values
 // that were read excluding nulls
+func (cr *FixedLenByteArrayColumnChunkReader) ReadBatchInPage(batchSize int64, values []parquet.FixedLenByteArray, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
+	return cr.readBatchInPage(batchSize, 0, defLvls, repLvls, func(start, len int64) (int, error) {
+		return cr.curDecoder.(encoding.FixedLenByteArrayDecoder).Decode(values[start : start+len])
+	})
+}
+
 func (cr *FixedLenByteArrayColumnChunkReader) ReadBatch(batchSize int64, values []parquet.FixedLenByteArray, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
 	return cr.readBatch(batchSize, defLvls, repLvls, func(start, len int64) (int, error) {
-		return cr.curDecoder.(encoding.FixedLenByteArrayDecoder).Decode(values[start : start+len])
+		n, err := cr.curDecoder.(encoding.FixedLenByteArrayDecoder).Decode(values[start : start+len])
+		if err == nil {
+			cloneByteArray(values[start : start+len])
+		}
+		return n, err
 	})
 }
