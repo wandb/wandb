@@ -40,7 +40,7 @@ from wandb_gql import gql
 
 from wandb._strutils import nameof
 from wandb.apis import public
-from wandb.apis._displayable import Displayable
+from wandb.apis._displayable import DisplayableMixin
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator
@@ -135,7 +135,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         return f"<Projects {self.entity}>"
 
 
-class Project(Attrs, Displayable):
+class Project(Attrs, DisplayableMixin):
     """A project is a namespace for runs.
 
     Args:
