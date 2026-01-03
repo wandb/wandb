@@ -41,9 +41,8 @@ import time
 import urllib
 from typing import TYPE_CHECKING, Any, ClassVar, Collection, Iterator, Literal, Mapping
 
-from typing_extensions import override
+from typing_extensions import assert_never, override
 from wandb_gql import gql
-from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import env, util
@@ -186,13 +185,10 @@ class Runs(SizedPaginator["Run"]):
         if not order:
             order = "+created_at"
 
-        self._with_internal_id = _server_provides_internal_id_for_project(client)
-        self._with_project_id = _server_provides_project_id_for_run(client)
-
         self.QUERY = _create_runs_query(
             lazy=lazy,
-            with_internal_id=self._with_internal_id,
-            with_project_id=self._with_project_id,
+            with_internal_id=_server_provides_internal_id_for_project(client),
+            with_project_id=_server_provides_project_id_for_run(client),
         )
 
         self.entity = entity
@@ -217,11 +213,10 @@ class Runs(SizedPaginator["Run"]):
         """Fetch and validate the response data for the current page."""
         from wandb.apis._generated import GetLightRuns, GetRuns
 
+        result_cls = GetLightRuns if self._lazy else GetRuns
+
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        if self._lazy:
-            self.last_response = GetLightRuns.model_validate(data)
-        else:
-            self.last_response = GetRuns.model_validate(data)
+        self.last_response = result_cls.model_validate(data)
 
     @property
     @override
@@ -566,7 +561,7 @@ class Run(Attrs, DisplayableMixin):
         state: Literal["running", "pending"] = "running",
     ) -> Self:
         """Create a run for the given project."""
-        from wandb.apis._generated import CREATE_RUN_GQL
+        from wandb.apis._generated import CREATE_RUN_GQL, CreateRun
 
         api._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
@@ -578,15 +573,15 @@ class Run(Attrs, DisplayableMixin):
             "name": run_id,
             "state": state,
         }
-        res = api.client.execute(mutation, variable_values=variables)
-        res = res["upsertBucket"]["bucket"]
+        data = api.client.execute(mutation, variable_values=variables)
+        res = CreateRun.model_validate(data).upsert_bucket.bucket
         return cls(
             api.client,
-            res["project"]["entity"]["name"],
-            res["project"]["name"],
-            res["name"],
+            res.project.entity.name,
+            res.project.name,
+            res.name,
             {
-                "id": res["id"],
+                "id": res.id,
                 "config": "{}",
                 "systemMetrics": "{}",
                 "summaryMetrics": "{}",
@@ -603,7 +598,12 @@ class Run(Attrs, DisplayableMixin):
 
         Uses gql_compat to omit projectId if not supported by the server.
         """
-        from wandb.apis._generated import GET_LIGHT_RUN_GQL, GET_RUN_GQL
+        from wandb.apis._generated import (
+            GET_LIGHT_RUN_GQL,
+            GET_RUN_GQL,
+            GetLightRun,
+            GetRun,
+        )
 
         # Cache the server capability check to avoid repeated network calls
         if self._server_provides_project_id_field is None:
@@ -611,19 +611,16 @@ class Run(Attrs, DisplayableMixin):
                 _server_provides_project_id_for_run(self.client)
             )
 
+        response_cls = GetLightRun if lazy else GetRun
         query_str = GET_LIGHT_RUN_GQL if lazy else GET_RUN_GQL
         omit_fields = None if self._server_provides_project_id_field else {"projectId"}
         query = gql_compat(query_str, omit_fields=omit_fields)
 
         if force or not self._attrs:
-            response = self._exec(query)
-            if (
-                response is None
-                or response.get("project") is None
-                or response["project"].get("run") is None
-            ):
+            response = response_cls.model_validate(self._exec(query))
+            if response.project is None or response.project.run is None:
                 raise ValueError("Could not find run {}".format(self))
-            self._attrs = response["project"]["run"]
+            self._attrs = response.project.run.model_dump(exclude_none=True)
 
             self._state = self._attrs["state"]
             if self._attrs.get("user"):
@@ -641,13 +638,13 @@ class Run(Attrs, DisplayableMixin):
                 )
 
         if not self._is_loaded or force:
-            # Always set _project_internal_id if projectId is available
+            # Always set _project_internal_id if projectId is available, regardless of fragment type
             if "projectId" in self._attrs:
                 self._project_internal_id = int(self._attrs["projectId"])
             else:
                 self._project_internal_id = None
 
-            # Always call _load_from_attrs when using the full query or when the fields are present
+            # Always call _load_from_attrs when using the "full" query or when the fields are actually present
             if not lazy or (
                 "config" in self._attrs
                 or "summaryMetrics" in self._attrs
@@ -655,7 +652,7 @@ class Run(Attrs, DisplayableMixin):
             ):
                 self._load_from_attrs()
 
-            # Only mark as loaded for lightweight queries, not full queries
+            # Only mark as loaded for "lightweight" queries, not "full" queries
             if lazy:
                 self._is_loaded = True
 
@@ -714,12 +711,12 @@ class Run(Attrs, DisplayableMixin):
     @normalize_exceptions
     def wait_until_finished(self) -> None:
         """Check the state of the run until it is finished."""
-        from wandb.apis._generated import GET_RUN_STATE_GQL
+        from wandb.apis._generated import GET_RUN_STATE_GQL, GetRunState
 
         query = gql(GET_RUN_STATE_GQL)
         while True:
-            res = self._exec(query)
-            state = res["project"]["run"]["state"]
+            res = GetRunState.model_validate(self._exec(query))
+            state = res.project.run.state
             if state in ["finished", "crashed", "failed"]:
                 self._attrs["state"] = state
                 self._state = state
@@ -731,7 +728,7 @@ class Run(Attrs, DisplayableMixin):
         """Persist changes to the run object to the wandb backend."""
         from wandb.apis._generated import UPDATE_RUN_GQL, UpsertBucketInput
 
-        gql_op = gql(UPDATE_RUN_GQL)
+        mutation = gql(UPDATE_RUN_GQL)
         gql_input = UpsertBucketInput(
             id=self.storage_id,
             tags=self.tags,
@@ -739,10 +736,10 @@ class Run(Attrs, DisplayableMixin):
             notes=self.notes,
             display_name=self.display_name,
             config=self.json_config,
-            group_name=self.group,
-            job_type=self.job_type,
+            groupName=self.group,
+            jobType=self.job_type,
         )
-        self._exec(gql_op, input=gql_input.model_dump())
+        self._exec(mutation, input=gql_input.model_dump())
         self.summary.update()
 
     @normalize_exceptions
@@ -755,13 +752,18 @@ class Run(Attrs, DisplayableMixin):
         """
         from wandb.apis._generated import DELETE_RUN_GQL
 
-        # Use gql_compat to omit deleteArtifacts variable when not needed
-        # for server compatibility (older servers don't support the variable).
-        # Extra variables in the dict are ignored by GraphQL.
+        # Note (Jan 2026): For continuity, this code maintains the behavior of the prior impl,
+        # which removed the `$deleteArtifacts` argument from the GQL query string
+        # if `delete_artifacts=False` was passed into this method.
         omit_vars = None if delete_artifacts else {"deleteArtifacts"}
         mutation = gql_compat(DELETE_RUN_GQL, omit_variables=omit_vars)
-        variables = {"id": self.storage_id, "deleteArtifacts": delete_artifacts}
-        self.client.execute(mutation, variable_values=variables)
+        self.client.execute(
+            mutation,
+            variable_values={
+                "id": self.storage_id,
+                "deleteArtifacts": delete_artifacts,
+            },
+        )
 
     def save(self) -> None:
         """Persist changes to the run object to the W&B backend."""
@@ -791,13 +793,17 @@ class Run(Attrs, DisplayableMixin):
         x_axis: str = "_step",
         samples: int = 500,
     ) -> list[dict[str, Any]]:
-        from wandb.apis._generated import GET_RUN_SAMPLED_HISTORY_GQL
+        from wandb.apis._generated import (
+            GET_RUN_SAMPLED_HISTORY_GQL,
+            GetRunSampledHistory,
+        )
 
         spec = {"keys": [x_axis] + keys, "samples": samples}
         query = gql(GET_RUN_SAMPLED_HISTORY_GQL)
-        response = self._exec(query, specs=[json.dumps(spec)])
+        data = self._exec(query, specs=[json.dumps(spec)])
+        response = GetRunSampledHistory.model_validate(data)
         # sampledHistory returns one list per spec, we only send one spec
-        return response["project"]["run"]["sampledHistory"][0]
+        return response.project.run.sampled_history[0]
 
     def _full_history(
         self,
@@ -809,9 +815,11 @@ class Run(Attrs, DisplayableMixin):
         if stream == "default":
             query = gql(GET_RUN_HISTORY_GQL)
             node = "history"
-        else:
+        elif stream == "system":
             query = gql(GET_RUN_EVENTS_GQL)
             node = "events"
+        else:
+            assert_never(stream)
 
         response = self._exec(query, samples=samples)
         return [json.loads(line) for line in response["project"]["run"][node]]

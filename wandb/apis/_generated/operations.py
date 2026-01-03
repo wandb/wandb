@@ -34,6 +34,16 @@ __all__ = [
     "UPDATE_RUN_GQL",
 ]
 
+PROBE_FIELDS_GQL = """
+query ProbeFields($type: String!) {
+  typeInfo: __type(name: $type) {
+    fields {
+      name
+    }
+  }
+}
+"""
+
 GET_PROJECTS_GQL = """
 query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
   models(entityName: $entity, after: $cursor, first: $perPage) {
@@ -142,7 +152,8 @@ fragment LightRunFragment on Run {
   historyLineCount
   projectId
   user {
-    ...RunUserFragment
+    name
+    username
   }
 }
 
@@ -158,12 +169,6 @@ fragment RunFragment on Run {
   systemMetrics
   summaryMetrics
   historyKeys
-}
-
-fragment RunUserFragment on User {
-  __typename
-  name
-  username
 }
 """
 
@@ -205,7 +210,8 @@ fragment LightRunFragment on Run {
   historyLineCount
   projectId
   user {
-    ...RunUserFragment
+    name
+    username
   }
 }
 
@@ -213,12 +219,6 @@ fragment PageInfoFragment on PageInfo {
   __typename
   endCursor
   hasNextPage
-}
-
-fragment RunUserFragment on User {
-  __typename
-  name
-  username
 }
 """
 
@@ -251,7 +251,8 @@ fragment LightRunFragment on Run {
   historyLineCount
   projectId
   user {
-    ...RunUserFragment
+    name
+    username
   }
 }
 
@@ -261,12 +262,6 @@ fragment RunFragment on Run {
   systemMetrics
   summaryMetrics
   historyKeys
-}
-
-fragment RunUserFragment on User {
-  __typename
-  name
-  username
 }
 """
 
@@ -299,23 +294,8 @@ fragment LightRunFragment on Run {
   historyLineCount
   projectId
   user {
-    ...RunUserFragment
-  }
-}
-
-fragment RunUserFragment on User {
-  __typename
-  name
-  username
-}
-"""
-
-PROBE_FIELDS_GQL = """
-query ProbeFields($type: String!) {
-  typeInfo: __type(name: $type) {
-    fields {
-      name
-    }
+    name
+    username
   }
 }
 """
@@ -378,7 +358,8 @@ fragment LightRunFragment on Run {
   historyLineCount
   projectId
   user {
-    ...RunUserFragment
+    name
+    username
   }
 }
 
@@ -388,12 +369,6 @@ fragment RunFragment on Run {
   systemMetrics
   summaryMetrics
   historyKeys
-}
-
-fragment RunUserFragment on User {
-  __typename
-  name
-  username
 }
 """
 
