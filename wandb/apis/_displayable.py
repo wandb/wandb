@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 import wandb
 from wandb._strutils import nameof
-from wandb.sdk.lib import ipython
+from wandb.sdk.lib.ipython import in_jupyter
 
 
 class DisplayableMixin(ABC):
@@ -19,19 +19,17 @@ class DisplayableMixin(ABC):
 
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Display this object in jupyter."""
-        if (wandb.run and wandb.run._settings.silent) or not ipython.in_jupyter():
+        if ((curr_run := wandb.run) and curr_run._settings.silent) or not in_jupyter():
             return False
 
         try:
-            from IPython import display
+            from IPython.display import HTML, display
         except ImportError:
-            wandb.termwarn(
-                f"{nameof(self.display)}() only works in jupyter environments"
-            )
+            msg = f"{nameof(self.display)}() only works in jupyter environments"
+            wandb.termwarn(msg)
             return False
         else:
-            html = self.to_html(height, hidden)
-            display.display(display.HTML(html))
+            display(HTML(self.to_html(height=height, hidden=hidden)))
             return True
 
     def _repr_html_(self) -> str:
