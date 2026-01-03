@@ -2,6 +2,7 @@ package runsync
 
 import (
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"time"
 
@@ -28,6 +29,7 @@ type RunSyncOperation struct {
 
 func (f *RunSyncOperationFactory) New(
 	paths []string,
+	cwd string,
 	updates *RunSyncUpdates,
 	live bool,
 	globalSettings *spb.Settings,
@@ -43,11 +45,22 @@ func (f *RunSyncOperationFactory) New(
 	op.logFile = logFile
 	op.logger = NewSyncLogger(logFile, slog.LevelInfo)
 
-	for _, path := range paths {
-		settings := MakeSyncSettings(globalSettings, path)
+	for _, userPath := range paths {
+		var path string
+		switch {
+		case filepath.IsAbs(userPath):
+			path = userPath
+		case filepath.IsAbs(cwd):
+			path = filepath.Join(cwd, userPath)
+		default:
+			op.printer.Errorf("Failed to resolve %q, skipping.", userPath)
+			continue
+		}
+
+		settings := MakeSyncSettings(globalSettings, userPath)
 		factory := InjectRunSyncerFactory(settings, op.logger)
 		op.syncers = append(op.syncers,
-			factory.New(path, updates, live))
+			factory.New(path, ToDisplayPath(userPath, cwd), updates, live))
 	}
 
 	return op
