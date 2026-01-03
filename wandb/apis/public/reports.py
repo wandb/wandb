@@ -17,7 +17,7 @@ from wandb_gql import gql
 import wandb
 from wandb._strutils import nameof
 from wandb.apis import public
-from wandb.apis._displayable import Displayable
+from wandb.apis._displayable import DisplayableMixin
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
 from wandb.sdk.lib import ipython
@@ -151,7 +151,7 @@ class Reports(SizedPaginator["BetaReport"]):
         return f"<{nameof(type(self))} {'/'.join(self.project.path)}>"
 
 
-class BetaReport(Attrs, Displayable):
+class BetaReport(Attrs, DisplayableMixin):
     """BetaReport is a class associated with reports created in W&B.
 
     Provides access to report attributes (name, description, user, spec,
