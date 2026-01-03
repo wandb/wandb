@@ -5,3 +5,11 @@ query ProbeFields($type: String!) {
     }
   }
 }
+
+query ProbeInputFields($type: String!) {
+  typeInfo: __type(name: $type) {
+    inputFields {
+      name
+    }
+  }
+}

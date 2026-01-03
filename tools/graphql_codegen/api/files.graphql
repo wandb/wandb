@@ -1,0 +1,48 @@
+fragment FileFragment on File {
+  __typename
+  id
+  name
+  url(upload: $upload)
+  directUrl
+  sizeBytes
+  mimetype
+  updatedAt
+  md5
+}
+
+query GetRunFiles(
+  $project: String!
+  $entity: String!
+  $name: String!
+  $cursor: String
+  $perPage: Int = 50
+  $fileNames: [String] = []
+  $upload: Boolean = false
+  $pattern: String
+) {
+  project(name: $project, entityName: $entity) {
+    # `internalId` may not be supported by older servers.
+    # @include(if: true) makes the field optional w/default `None`.
+    # Runtime code should use `gql_compat()` to omit if needed.
+    internalId @include(if: true)
+    run(name: $name) {
+      fileCount
+      files(names: $fileNames, after: $cursor, first: $perPage, pattern: $pattern) {
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...FileFragment
+          }
+        }
+      }
+    }
+  }
+}
+
+mutation DeleteFiles($files: [ID!]!, $projectId: Int) {
+  deleteFiles(input: { files: $files, projectId: $projectId }) {
+    success
+  }
+}

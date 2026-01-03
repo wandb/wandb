@@ -11,6 +11,7 @@ import wandb.apis.public
 import wandb.util
 from wandb import Api
 from wandb.apis._generated import ProjectFragment, UserFragment
+from wandb.apis._generated.fragments import PageInfoFragment
 from wandb.apis._generated.generate_api_key import GenerateApiKey
 from wandb.apis.public import File
 from wandb.errors.errors import CommError
@@ -370,22 +371,34 @@ def test_run_file_direct(
     stub_run_gql_once()
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="RunFiles"),
+        gql.Matcher(operation="GetRunFiles"),
         gql.once(
             content={
                 "data": {
                     "project": {
+                        "internalId": "testinternalid",
                         "run": {
+                            "fileCount": 1,
                             "files": {
                                 "edges": [
                                     {
                                         "node": {
+                                            "__typename": "File",
                                             "id": "RmlsZToxODMw",
                                             "name": file_name,
+                                            "url": f"https://api.wandb.ai/files/{file_name}",
                                             "directUrl": direct_url,
-                                        }
+                                            "sizeBytes": 100,
+                                            "mimetype": "application/octet-stream",
+                                            "updatedAt": "2023-11-05T17:46:36",
+                                            "md5": "d41d8cd98f00b204e9800998ecf8427e",
+                                        },
                                     },
                                 ],
+                                "pageInfo": PageInfoFragment(
+                                    end_cursor="cursor_0",
+                                    has_next_page=False,
+                                ).model_dump(),
                             },
                         },
                     },
@@ -452,10 +465,10 @@ def test_runs_from_path_index(wandb_backend_spy):
                             }
                             for i in range(num_runs)
                         ],
-                        "pageInfo": {
-                            "endCursor": f"cursor_{num_runs - 1}",
-                            "hasNextPage": False,
-                        },
+                        "pageInfo": PageInfoFragment(
+                            end_cursor=f"cursor_{num_runs - 1}",
+                            has_next_page=False,
+                        ).model_dump(),
                     },
                 },
             },
@@ -511,10 +524,10 @@ def test_runs_from_path(user, wandb_backend_spy):
                         }
                         for i in range(ratio)
                     ],
-                    "pageInfo": {
-                        "endCursor": f"cursor_{ratio - 1}",
-                        "hasNextPage": True,
-                    },
+                    "pageInfo": PageInfoFragment(
+                        end_cursor=f"cursor_{ratio - 1}",
+                        has_next_page=True,
+                    ).model_dump(),
                 },
             },
         },
@@ -588,10 +601,10 @@ def test_projects(user, wandb_backend_spy):
                     }
                     for i in range(num_projects)
                 ],
-                "pageInfo": {
-                    "hasNextPage": False,
-                    "endCursor": "cursor-1",
-                },
+                "pageInfo": PageInfoFragment(
+                    has_next_page=False,
+                    end_cursor="cursor-1",
+                ).model_dump(),
             },
         },
     }
@@ -681,11 +694,10 @@ def test_project_get_sweeps(user, wandb_backend_spy):
                             },
                         },
                     ],
-                    "pageInfo": {
-                        "__typename": "PageInfo",
-                        "endCursor": None,
-                        "hasNextPage": False,
-                    },
+                    "pageInfo": PageInfoFragment(
+                        end_cursor=None,
+                        has_next_page=False,
+                    ).model_dump(),
                 },
             },
         },
@@ -758,11 +770,10 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
                             "cursor": "cursor-1",
                         },
                     ],
-                    "pageInfo": {
-                        "__typename": "PageInfo",
-                        "hasNextPage": True,
-                        "endCursor": "cursor-1",
-                    },
+                    "pageInfo": PageInfoFragment(
+                        has_next_page=True,
+                        end_cursor="cursor-1",
+                    ).model_dump(),
                 },
             },
         },
@@ -779,11 +790,10 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
                             "cursor": None,
                         },
                     ],
-                    "pageInfo": {
-                        "__typename": "PageInfo",
-                        "hasNextPage": False,
-                        "endCursor": None,
-                    },
+                    "pageInfo": PageInfoFragment(
+                        has_next_page=False,
+                        end_cursor=None,
+                    ).model_dump(),
                 },
             },
         },
@@ -832,11 +842,10 @@ def test_project_get_sweeps_empty(user, wandb_backend_spy):
                         "totalSweeps": 0,
                         "sweeps": {
                             "edges": [],
-                            "pageInfo": {
-                                "__typename": "PageInfo",
-                                "hasNextPage": False,
-                                "endCursor": None,
-                            },
+                            "pageInfo": PageInfoFragment(
+                                has_next_page=False,
+                                end_cursor=None,
+                            ).model_dump(),
                         },
                     },
                 },
@@ -908,10 +917,10 @@ def test_delete_files_for_multiple_runs(
                             },
                         },
                     ],
-                    "pageInfo": {
-                        "endCursor": "cursor_1",
-                        "hasNextPage": False,
-                    },
+                    "pageInfo": PageInfoFragment(
+                        end_cursor="cursor_1",
+                        has_next_page=False,
+                    ).model_dump(),
                 },
             },
         },
@@ -919,21 +928,29 @@ def test_delete_files_for_multiple_runs(
     runs_files_gql_body = {
         "data": {
             "project": {
+                "internalId": "testinternalid",
                 "run": {
+                    "fileCount": 1,
                     "files": {
                         "edges": [
                             {
                                 "node": {
+                                    "__typename": "File",
                                     "id": "RmlsZToxODMw",
                                     "name": "test.txt",
-                                    "state": "finished",
-                                    "user": {
-                                        "name": "test",
-                                        "username": "test",
-                                    },
-                                }
+                                    "url": "https://api.wandb.ai/files/test.txt",
+                                    "directUrl": "https://storage.example.com/test.txt",
+                                    "sizeBytes": 100,
+                                    "mimetype": "text/plain",
+                                    "updatedAt": "2023-11-05T17:46:36",
+                                    "md5": "d41d8cd98f00b204e9800998ecf8427e",
+                                },
                             },
                         ],
+                        "pageInfo": PageInfoFragment(
+                            end_cursor="cursor_0",
+                            has_next_page=False,
+                        ).model_dump(),
                     },
                 },
             },
@@ -946,12 +963,12 @@ def test_delete_files_for_multiple_runs(
     wandb_backend_spy.stub_gql(gql.Matcher(operation="GetLightRuns"), runs_response)
 
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="RunFiles"),
+        gql.Matcher(operation="GetRunFiles"),
         gql.Constant(content=runs_files_gql_body),
     )
     delete_spy = gql.Constant(content={"data": {"deleteFiles": {"success": True}}})
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="deleteFiles"),
+        gql.Matcher(operation="DeleteFiles"),
         delete_spy,
     )
 
@@ -980,21 +997,34 @@ def test_delete_file(
     stub_run_gql_once()
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="RunFiles"),
+        gql.Matcher(operation="GetRunFiles"),
         gql.once(
             content={
                 "data": {
                     "project": {
+                        "internalId": "testinternalid",
                         "run": {
+                            "fileCount": 1,
                             "files": {
                                 "edges": [
                                     {
                                         "node": {
+                                            "__typename": "File",
                                             "id": "RmlsZToxODMw",
                                             "name": "test.txt",
-                                        }
+                                            "url": "https://api.wandb.ai/files/test.txt",
+                                            "directUrl": "https://storage.example.com/test.txt",
+                                            "sizeBytes": 100,
+                                            "mimetype": "text/plain",
+                                            "updatedAt": "2023-11-05T17:46:36",
+                                            "md5": "d41d8cd98f00b204e9800998ecf8427e",
+                                        },
                                     },
                                 ],
+                                "pageInfo": PageInfoFragment(
+                                    end_cursor="cursor_0",
+                                    has_next_page=False,
+                                ).model_dump(),
                             },
                         },
                     },
@@ -1004,7 +1034,7 @@ def test_delete_file(
     )
     delete_spy = gql.once(content={"data": {"deleteFiles": {"success": True}}})
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="deleteFiles"),
+        gql.Matcher(operation="DeleteFiles"),
         delete_spy,
     )
 
@@ -1344,7 +1374,10 @@ def test_runs_histories(
                             },
                         },
                     ],
-                    "pageInfo": {"endCursor": "cursor_0", "hasNextPage": False},
+                    "pageInfo": PageInfoFragment(
+                        end_cursor="cursor_0",
+                        has_next_page=False,
+                    ).model_dump(),
                 },
             },
         },
@@ -1417,7 +1450,10 @@ def test_runs_histories_empty(wandb_backend_spy):
                 "runs": {
                     "totalCount": 0,
                     "edges": [],
-                    "pageInfo": {"endCursor": None, "hasNextPage": False},
+                    "pageInfo": PageInfoFragment(
+                        end_cursor=None,
+                        has_next_page=False,
+                    ).model_dump(),
                 },
             },
         },
@@ -1447,21 +1483,29 @@ def test_run_upload_file_with_directory_traversal(
     runs_files_gql_body = {
         "data": {
             "project": {
+                "internalId": "testinternalid",
                 "run": {
+                    "fileCount": 1,
                     "files": {
                         "edges": [
                             {
                                 "node": {
+                                    "__typename": "File",
                                     "id": "RmlsZToxODMw",
                                     "name": "__/test.txt",
-                                    "state": "finished",
-                                    "user": {
-                                        "name": "test",
-                                        "username": "test",
-                                    },
-                                }
+                                    "url": "https://api.wandb.ai/files/__/test.txt",
+                                    "directUrl": "https://storage.example.com/__/test.txt",
+                                    "sizeBytes": 100,
+                                    "mimetype": "text/plain",
+                                    "updatedAt": "2023-11-05T17:46:36",
+                                    "md5": "d41d8cd98f00b204e9800998ecf8427e",
+                                },
                             },
                         ],
+                        "pageInfo": PageInfoFragment(
+                            end_cursor="cursor_0",
+                            has_next_page=False,
+                        ).model_dump(),
                     },
                 },
             },
@@ -1469,7 +1513,7 @@ def test_run_upload_file_with_directory_traversal(
     }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="RunFiles"),
+        gql.Matcher(operation="GetRunFiles"),
         gql.Constant(content=runs_files_gql_body),
     )
     mock_push = mock.MagicMock()
