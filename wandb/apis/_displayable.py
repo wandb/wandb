@@ -7,8 +7,8 @@ from wandb._strutils import nameof
 from wandb.sdk.lib import ipython
 
 
-class Displayable(ABC):
-    """A base class for objects that can be displayed as HTML in jupyter environments.
+class DisplayableMixin(ABC):
+    """A mixin class for objects that can be displayed as HTML in jupyter environments.
 
     <!-- lazydoc-ignore-class: internal -->
     """
