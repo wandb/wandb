@@ -242,50 +242,6 @@ class Api:
         """
     )
 
-    CREATE_PROJECT = gql(
-        """
-        mutation upsertModel(
-            $description: String
-            $entityName: String
-            $id: String
-            $name: String
-            $framework: String
-            $access: String
-            $views: JSONString
-        ) {
-            upsertModel(
-            input: {
-                description: $description
-                entityName: $entityName
-                id: $id
-                name: $name
-                framework: $framework
-                access: $access
-                views: $views
-            }
-            ) {
-            project {
-                id
-                name
-                entityName
-                description
-                access
-                views
-            }
-            model {
-                id
-                name
-                entityName
-                description
-                access
-                views
-            }
-            inserted
-            }
-        }
-    """
-    )
-
     def __init__(
         self,
         overrides: dict[str, Any] | None = None,
@@ -436,7 +392,10 @@ class Api:
             name: The name of the new project.
             entity: The entity of the new project.
         """
-        self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
+        from wandb.apis._generated import CREATE_PROJECT_GQL, UpsertModelInput
+
+        gql_input = UpsertModelInput(name=name, entity_name=entity)
+        self.client.execute(gql(CREATE_PROJECT_GQL), {"input": gql_input.model_dump()})
 
     def create_run(
         self,

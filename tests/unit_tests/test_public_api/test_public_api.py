@@ -8,6 +8,7 @@ import wandb
 from requests import HTTPError
 from wandb import Api
 from wandb.apis import internal
+from wandb.apis._generated import ProjectFragment
 from wandb.apis.public import runs
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login
@@ -291,11 +292,13 @@ def test_project_id_lazy_load(monkeypatch):
     api = wandb.Api()
     mock_execute = MagicMock(
         return_value={
-            "project": {
-                "id": "123",
-                "createdAt": "2021-01-01T00:00:00Z",
-                "isBenchmark": False,
-            }
+            "project": ProjectFragment(
+                id="123",
+                name="test-project",
+                entity_name="test-entity",
+                created_at="2021-01-01T00:00:00Z",
+                is_benchmark=False,
+            ).model_dump()
         }
     )
     monkeypatch.setattr(wandb.apis.public.api.RetryingClient, "execute", mock_execute)

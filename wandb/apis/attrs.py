@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, MutableMapping
+from typing import Any, Mapping
 
 import wandb
 
@@ -8,8 +8,8 @@ from ..sdk.lib import ipython
 
 
 class Attrs:
-    def __init__(self, attrs: MutableMapping[str, Any]):
-        self._attrs = attrs
+    def __init__(self, attrs: Mapping[str, Any]):
+        self._attrs = dict(attrs)
 
     def snake_to_camel(self, string):
         camel = "".join([i.title() for i in string.split("_")])

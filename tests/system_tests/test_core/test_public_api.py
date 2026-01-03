@@ -10,6 +10,7 @@ import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
+from wandb.apis._generated import ProjectFragment
 from wandb.apis.public import File
 from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
@@ -472,19 +473,26 @@ def test_projects(user, wandb_backend_spy):
             "models": {
                 "edges": [
                     {
-                        "node": {"name": f"test_{i}", "entityName": user},
+                        "node": ProjectFragment(
+                            id="fake-project-id",
+                            name=f"test_{i}",
+                            entity_name=user,
+                            created_at="2021-01-01T00:00:00Z",
+                            is_benchmark=False,
+                        ).model_dump(),
                     }
                     for i in range(num_projects)
                 ],
                 "pageInfo": {
                     "hasNextPage": False,
+                    "endCursor": "cursor-1",
                 },
             },
         },
     }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Projects"),
+        gql.Matcher(operation="GetProjects"),
         gql.Constant(content=body),
     )
 
@@ -498,7 +506,7 @@ def test_projects(user, wandb_backend_spy):
 def test_project_get_id(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Project"),
+        gql.Matcher(operation="GetProject"),
         gql.once(
             content={
                 "data": {
@@ -522,7 +530,7 @@ def test_project_get_id(user, wandb_backend_spy):
 def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Project"),
+        gql.Matcher(operation="GetProject"),
         gql.once(
             content={
                 "data": {

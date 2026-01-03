@@ -1,0 +1,34 @@
+# NOTE: Paths are relative to the root of the repo
+
+[tool.ariadne-codegen]
+schema_path = "core/api/graphql/schemas/schema-latest.graphql"
+queries_path = "tools/graphql_codegen/api/"
+
+target_package_path = "wandb/apis"
+target_package_name = "_generated"
+
+include_all_inputs = false # Only generate input types needed for queries
+include_all_enums = false  # Only generate enums needed for queries
+
+plugins = [
+    "ariadne_codegen.contrib.extract_operations.ExtractOperationsPlugin",
+    "graphql_codegen.plugin.GraphQLCodegenPlugin",
+]
+
+[tool.ariadne-codegen.scalars.ID]
+type = "wandb._pydantic.GQLId"
+
+[tool.ariadne-codegen.scalars.DateTime]
+# `DateTime` fields here will continue to be parsed as plain strings here
+# for backwards compatibility with prior code.
+#
+# However, note that `DateTime` strings are compliant with RFC 3339 (an ISO 8601 profile),
+# so in the future, we may want to consider a (breaking) change to parse them as `datetime`
+# objects (or similar) instead.
+type = "str"
+
+[tool.ariadne-codegen.scalars.Int64]
+type = "int"  # ariadne-codegen types `Int64` as `Any` by default
+
+[tool.ariadne-codegen.scalars.JSONString]
+type = "str"  # ariadne-codegen types `JSONString` as `Any` by default
