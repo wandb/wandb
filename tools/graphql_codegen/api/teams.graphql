@@ -1,0 +1,67 @@
+query GetTeamEntity($name: String!) {
+  entity(name: $name) {
+    id
+    name
+    available
+    photoUrl
+    readOnly
+    readOnlyAdmin
+    isTeam
+    privateOnly
+    storageBytes
+    codeSavingEnabled
+    defaultAccess
+    isPaid
+    members {
+      id
+      admin
+      pending
+      email
+      username
+      name
+      photoUrl
+      accountType
+      apiKey
+    }
+  }
+}
+
+mutation CreateTeam($teamName: String!, $teamAdminUserName: String) {
+  result: createTeam(input: { teamName: $teamName, teamAdminUserName: $teamAdminUserName }) {
+    entity {
+      id
+      name
+      available
+      photoUrl
+      limits
+    }
+  }
+}
+
+mutation CreateInvite($entity: String!, $email: String, $username: String, $admin: Boolean) {
+  result: createInvite(input: { entityName: $entity, email: $email, username: $username, admin: $admin }) {
+    invite {
+      id
+      name
+      email
+      createdAt
+      toUser {
+        name
+      }
+    }
+  }
+}
+
+mutation DeleteInvite($id: String, $entity: String) {
+  result: deleteInvite(input: { id: $id, entityName: $entity }) {
+    success
+  }
+}
+
+mutation CreateServiceAccount($entity: String!, $description: String!) {
+  result: createServiceAccount(input: { description: $description, entityName: $entity }) {
+    user {
+      id
+    }
+  }
+}
