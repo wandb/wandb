@@ -351,10 +351,8 @@ mutation CreateRun($name: String!, $project: String, $entity: String, $state: St
 """
 
 UPDATE_RUN_GQL = """
-mutation UpdateRun($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String, $jobType: String) {
-  upsertBucket(
-    input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName, jobType: $jobType}
-  ) {
+mutation UpdateRun($input: UpsertBucketInput!) {
+  upsertBucket(input: $input) {
     bucket {
       ...RunFragment
     }
