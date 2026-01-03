@@ -19,7 +19,7 @@ class PageInfo(GQLResult):
     typename__: Literal["PageInfo"] = "PageInfo"
 
     end_cursor: Optional[str]
-    """Opaque token marking the last item in this page. Pass as `after` to fetch the next page."""
+    """Opaque token marking the end of this page and the start of the next page."""
 
     has_next_page: bool
     """True if more results exist beyond this page."""
