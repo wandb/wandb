@@ -36,6 +36,31 @@ class UpsertModelInput(GQLInput):
     )
 
 
+class UpsertBucketInput(GQLInput):
+    name: Optional[str] = Field(default=None, max_length=128)
+    group_name: Optional[str] = Field(alias="groupName", default=None, max_length=128)
+    display_name: Optional[str] = Field(alias="displayName", default=None)
+    notes: Optional[str] = None
+    description: Optional[str] = None
+    sweep: Optional[str] = Field(default=None, max_length=64)
+    id: Optional[str] = None
+    framework: Optional[str] = None
+    config: Optional[str] = None
+    summary_metrics: Optional[str] = Field(alias="summaryMetrics", default=None)
+    commit: Optional[str] = Field(default=None, max_length=64)
+    state: Optional[str] = None
+    host: Optional[str] = Field(default=None, max_length=64)
+    debug: Optional[bool] = None
+    entity_name: Optional[str] = Field(alias="entityName", default=None, max_length=64)
+    model_name: Optional[str] = Field(alias="modelName", default=None, max_length=128)
+    job_program: Optional[str] = Field(alias="jobProgram", default=None)
+    job_repo: Optional[str] = Field(alias="jobRepo", default=None, max_length=256)
+    job_type: Optional[str] = Field(alias="jobType", default=None, max_length=64)
+    tags: Optional[List[Optional[str]]] = None
+    run_queue_item_id: Optional[GQLId] = Field(alias="runQueueItemId", default=None)
+    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+
+
 class RateLimitsInput(GQLInput):
     graphql: Optional[int] = None
     sdk_graphql: Optional[int] = Field(alias="sdkGraphql", default=None)
