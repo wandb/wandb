@@ -1003,7 +1003,7 @@ class Api:
 
         data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
         result = SearchUsers.model_validate(data)
-        if not ((conn := result.users) and (edges := conn.edges)):
+        if not (conn := result.users) or not (edges := conn.edges):
             return None
         if len(edges) > 1:
             msg = f"Found multiple users, returning the first user matching {username_or_email!r}"
