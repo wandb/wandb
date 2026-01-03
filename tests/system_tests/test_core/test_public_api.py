@@ -335,8 +335,9 @@ def test_run_update(wandb_backend_spy):
 
     # Check the UpdateRun call for run metadata
     update_request = update_run_spy.requests[-1]
-    assert update_request.variables["tags"] == ["test"]
-    config = json.loads(update_request.variables["config"])
+    update_input_vars = update_request.variables["input"]
+    assert update_input_vars["tags"] == ["test"]
+    config = json.loads(update_input_vars["config"])
     assert config["foo"]["value"] == "bar"
     assert config["_wandb"]["value"] == wandb_key
 
