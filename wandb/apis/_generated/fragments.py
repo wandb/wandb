@@ -35,12 +35,6 @@ class LegacySweepFragment(GQLResult):
     config: str
 
 
-class RunUserFragment(GQLResult):
-    typename__: Typename[Literal["User"]] = "User"
-    name: str
-    username: Optional[str]
-
-
 class LightRunFragment(GQLResult):
     typename__: Typename[Literal["Run"]] = "Run"
     id: GQLId
@@ -59,7 +53,12 @@ class LightRunFragment(GQLResult):
     notes: Optional[str]
     history_line_count: Optional[int] = Field(alias="historyLineCount")
     project_id: GQLId = Field(alias="projectId")
-    user: Optional[RunUserFragment]
+    user: Optional[LightRunFragmentUser]
+
+
+class LightRunFragmentUser(GQLResult):
+    name: str
+    username: Optional[str]
 
 
 class PageInfoFragment(GQLResult):
@@ -144,9 +143,8 @@ class UserInfoFragment(GQLResult):
 ApiKeyFragment.model_rebuild()
 CreatedProjectFragment.model_rebuild()
 LegacySweepFragment.model_rebuild()
-RunUserFragment.model_rebuild()
 LightRunFragment.model_rebuild()
-RunUserFragment.model_rebuild()
+LightRunFragmentUser.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
 RunFragment.model_rebuild()
