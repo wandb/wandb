@@ -48,7 +48,7 @@ from wandb_graphql.language.ast import Document
 import wandb
 from wandb import env, util
 from wandb.apis import public
-from wandb.apis._displayable import Displayable
+from wandb.apis._displayable import DisplayableMixin
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
@@ -435,7 +435,7 @@ class Runs(SizedPaginator["Run"]):
                     future.result()
 
 
-class Run(Attrs, Displayable):
+class Run(Attrs, DisplayableMixin):
     """A single run associated with an entity and project.
 
     Args:
