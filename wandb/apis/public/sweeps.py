@@ -30,31 +30,22 @@ Note:
 from __future__ import annotations
 
 import urllib
+from typing import TYPE_CHECKING, Any, ClassVar, Mapping
 
+from typing_extensions import override
 from wandb_gql import gql
+from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import util
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
-from wandb.apis.public.api import RetryingClient
 from wandb.sdk.lib import ipython
 
-SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
-    id
-    name
-    method
-    state
-    description
-    displayName
-    bestLoss
-    config
-    createdAt
-    updatedAt
-    runCount
-}
-"""
+if TYPE_CHECKING:
+    from wandb.apis._generated import GetSweeps
+    from wandb.apis.public.api import RetryingClient
 
 
 class Sweeps(SizedPaginator["Sweep"]):
@@ -75,28 +66,8 @@ class Sweeps(SizedPaginator["Sweep"]):
     ```
     """
 
-    QUERY = gql(
-        f"""#graphql
-        query GetSweeps($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50) {{
-            project(name: $project, entityName: $entity) {{
-                totalSweeps
-                sweeps(after: $cursor, first: $perPage) {{
-                    edges {{
-                        node {{
-                            ...SweepFragment
-                        }}
-                        cursor
-                    }}
-                    pageInfo {{
-                        endCursor
-                        hasNextPage
-                    }}
-                }}
-            }}
-        }}
-        {SWEEP_FRAGMENT}
-        """
-    )
+    QUERY: ClassVar[Document | None] = None
+    last_response: GetSweeps | None
 
     def __init__(
         self,
@@ -113,81 +84,84 @@ class Sweeps(SizedPaginator["Sweep"]):
             project: The project which contains the sweeps.
             per_page: The number of sweeps to fetch per request to the API.
         """
-        self.client = client
+        if self.QUERY is None:
+            from wandb.apis._generated import GET_SWEEPS_GQL
+
+            type(self).QUERY = gql(GET_SWEEPS_GQL)
+
         self.entity = entity
         self.project = project
-        variables = {
-            "project": self.project,
-            "entity": self.entity,
-        }
+        variables = {"project": self.project, "entity": self.entity}
         super().__init__(client, variables, per_page)
 
+    @override
+    def _update_response(self) -> None:
+        """Fetch and validate the response data for the current page."""
+        from wandb.apis._generated import GetSweeps
+
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        self.last_response = GetSweeps.model_validate(data)
+
     @property
-    def _length(self):
+    @override
+    def _length(self) -> int:
         """The total number of sweeps in the project.
 
         <!-- lazydoc-ignore: internal -->
         """
-        if not self.last_response:
+        if self.last_response is None:
             self._load_page()
-
         return (
-            self.last_response["project"]["totalSweeps"]
-            if self.last_response["project"]["totalSweeps"] is not None
+            total
+            if (total := self.last_response.project.total_sweeps) is not None
             else 0
         )
 
     @property
-    def more(self):
+    @override
+    def more(self) -> bool:
         """Returns whether there are more sweeps to fetch.
 
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return bool(
-                self.last_response["project"]["sweeps"]["pageInfo"]["hasNextPage"]
-            )
-        else:
-            return True
+            return self.last_response.project.sweeps.page_info.has_next_page
+        return True
 
     @property
-    def cursor(self):
+    @override
+    def cursor(self) -> str | None:
         """Returns the cursor for the next page of sweeps.
 
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return self.last_response["project"]["sweeps"]["pageInfo"]["endCursor"]
-        else:
-            return None
+            return self.last_response.project.sweeps.page_info.end_cursor
+        return None
 
-    def update_variables(self):
-        """Updates the variables for the next page of sweeps.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        self.variables.update({"perPage": self.per_page, "cursor": self.cursor})
-
-    def convert_objects(self):
+    @override
+    def convert_objects(self) -> list[Sweep]:
         """Converts the last GraphQL response into a list of `Sweep` objects.
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response is None or self.last_response.get("project") is None:
-            raise ValueError("Could not find project {}".format(self.project))
+        from wandb._pydantic import Connection
+        from wandb.apis._generated import SweepFragment
 
-        if self.last_response["project"]["totalSweeps"] < 1:
+        if (rsp := self.last_response) is None or (project := rsp.project) is None:
+            msg = f"Could not find project {self.project!r}"
+            raise ValueError(msg)
+
+        if project.total_sweeps < 1:
             return []
-
         return [
-            # match format of existing public sweep apis
-            public.Sweep(
+            Sweep(
                 self.client,
                 self.entity,
                 self.project,
-                e["node"]["name"],
+                node.name,
             )
-            for e in self.last_response["project"]["sweeps"]["edges"]
+            for node in Connection[SweepFragment].model_validate(project.sweeps).nodes()
         ]
 
     def __repr__(self):
@@ -207,41 +181,14 @@ class Sweep(Attrs):
         expected_run_count (int): The number of expected runs for the sweep
     """
 
-    QUERY = gql(
-        """
-    query Sweep($project: String, $entity: String, $name: String!) {
-        project(name: $project, entityName: $entity) {
-            sweep(sweepName: $name) {
-                id
-                name
-                displayName
-                state
-                runCountExpected
-                bestLoss
-                config
-            }
-        }
-    }
-    """
-    )
-
-    LEGACY_QUERY = gql(
-        """
-    query Sweep($project: String, $entity: String, $name: String!) {
-        project(name: $project, entityName: $entity) {
-            sweep(sweepName: $name) {
-                id
-                name
-                state
-                bestLoss
-                config
-            }
-        }
-    }
-    """
-    )
-
-    def __init__(self, client, entity, project, sweep_id, attrs=None):
+    def __init__(
+        self,
+        client: RetryingClient,
+        entity: str,
+        project: str,
+        sweep_id: str,
+        attrs: Mapping[str, Any] | None = None,
+    ):
         # TODO: Add agents / flesh this out.
         super().__init__(dict(attrs or {}))
         self.client = client
@@ -253,12 +200,12 @@ class Sweep(Attrs):
         self.load(force=not attrs)
 
     @property
-    def entity(self):
+    def entity(self) -> str:
         """The entity associated with the sweep."""
         return self._entity
 
     @property
-    def username(self):
+    def username(self) -> str:
         """Deprecated. Use `Sweep.entity` instead."""
         wandb.termwarn("Sweep.username is deprecated. please use Sweep.entity instead.")
         return self._entity
@@ -274,9 +221,8 @@ class Sweep(Attrs):
         <!-- lazydoc-ignore: internal -->
         """
         if force or not self._attrs:
-            sweep = self.get(self.client, self.entity, self.project, self.id)
-            if sweep is None:
-                raise ValueError("Could not find sweep {}".format(self))
+            if not (sweep := self.get(self.client, self.entity, self.project, self.id)):
+                raise ValueError(f"Could not find sweep {self!r}")
             self._attrs = sweep._attrs
             self.runs = sweep.runs
 
@@ -328,9 +274,9 @@ class Sweep(Attrs):
 
         The path is a list containing the entity, project name, and sweep ID."""
         return [
-            urllib.parse.quote_plus(str(self.entity)),
-            urllib.parse.quote_plus(str(self.project)),
-            urllib.parse.quote_plus(str(self.id)),
+            urllib.parse.quote_plus(self.entity),
+            urllib.parse.quote_plus(self.project),
+            urllib.parse.quote_plus(self.id),
         ]
 
     @property
@@ -366,7 +312,7 @@ class Sweep(Attrs):
         project: str | None = None,
         sid: str | None = None,
         order: str | None = None,
-        query: str | None = None,
+        query: Document | None = None,
         **kwargs,
     ):
         """Execute a query against the cloud backend.
@@ -380,37 +326,31 @@ class Sweep(Attrs):
             query: The query to use to execute the query.
             **kwargs: Additional keyword arguments to pass to the query.
         """
+        from wandb.apis._generated import GET_SWEEP_GQL, GET_SWEEP_LEGACY_GQL
+
         if not order:
             order = "+created_at"
 
+        variables = {"entity": entity, "project": project, "name": sid, **kwargs}
         if query is None:
-            query = cls.QUERY
-
-        variables = {
-            "entity": entity,
-            "project": project,
-            "name": sid,
-        }
-        variables.update(kwargs)
-
-        response = None
+            query = gql(GET_SWEEP_GQL)
         try:
-            response = client.execute(query, variable_values=variables)
+            data = client.execute(query, variable_values=variables)
         except Exception:
             # Don't handle exception, rely on legacy query
             # TODO(gst): Implement updated introspection workaround
-            query = cls.LEGACY_QUERY
-            response = client.execute(query, variable_values=variables)
+            query = gql(GET_SWEEP_LEGACY_GQL)
+            data = client.execute(query, variable_values=variables)
 
-        if (
-            not response
-            or not response.get("project")
-            or not response["project"].get("sweep")
+        # FIXME: looks like this method allows passing arbitrary GQL queries, so for now
+        # we'll have to skip trying to validate the result with a generated pydantic model.
+        if not (
+            data
+            and (proj_dict := data.get("project"))
+            and (sweep_dict := proj_dict.get("sweep"))
         ):
             return None
-
-        sweep_response = response["project"]["sweep"]
-        sweep = cls(client, entity, project, sid, attrs=sweep_response)
+        sweep = cls(client, entity, project, sid, attrs=sweep_dict)
         sweep.runs = public.Runs(
             client,
             entity,
@@ -419,10 +359,9 @@ class Sweep(Attrs):
             per_page=10,
             filters={"$and": [{"sweep": sweep.id}]},
         )
-
         return sweep
 
-    def to_html(self, height=420, hidden=False):
+    def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this sweep."""
         url = self.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
@@ -435,7 +374,7 @@ class Sweep(Attrs):
     def _repr_html_(self) -> str:
         return self.to_html()
 
-    def __repr__(self):
-        return "<Sweep {} ({})>".format(
-            "/".join(self.path), self._attrs.get("state", "Unknown State")
-        )
+    def __repr__(self) -> str:
+        pathstr = "/".join(self.path)
+        state = self._attrs.get("state", "Unknown State")
+        return f"<Sweep {pathstr} ({state})>"
