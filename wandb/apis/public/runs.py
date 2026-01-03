@@ -1320,7 +1320,8 @@ class Run(Attrs):
         return self.to_html()
 
     def __repr__(self) -> str:
-        return "<Run {} ({})>".format("/".join(self.path), self.state)
+        pathstr = "/".join(self.path)
+        return f"<Run {pathstr} ({self.state})>"
 
     def beta_scan_history(
         self,
