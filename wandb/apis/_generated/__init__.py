@@ -30,12 +30,16 @@ __all__ = [
     "GET_SWEEP_LEGACY_GQL",
     "GET_TEAM_ENTITY_GQL",
     "GET_VIEWER_GQL",
+    "HISTORY_PAGE_GQL",
     "PROBE_FIELDS_GQL",
     "PROBE_INPUT_FIELDS_GQL",
+    "SAMPLED_HISTORY_PAGE_GQL",
     "SEARCH_USERS_GQL",
     "UPDATE_RUN_GQL",
     "GetRunFiles",
     "DeleteFiles",
+    "HistoryPage",
+    "SampledHistoryPage",
     "ProbeFields",
     "ProbeInputFields",
     "GetProjects",
@@ -125,6 +129,7 @@ from .get_sweep_legacy import GetSweepLegacy
 from .get_sweeps import GetSweeps
 from .get_team_entity import GetTeamEntity
 from .get_viewer import GetViewer
+from .history_page import HistoryPage
 from .input_types import (
     ArtifactTypeInput,
     RateLimitsInput,
@@ -161,12 +166,15 @@ from .operations import (
     GET_SWEEPS_GQL,
     GET_TEAM_ENTITY_GQL,
     GET_VIEWER_GQL,
+    HISTORY_PAGE_GQL,
     PROBE_FIELDS_GQL,
     PROBE_INPUT_FIELDS_GQL,
+    SAMPLED_HISTORY_PAGE_GQL,
     SEARCH_USERS_GQL,
     UPDATE_RUN_GQL,
 )
 from .probe_fields import ProbeFields
 from .probe_input_fields import ProbeInputFields
+from .sampled_history_page import SampledHistoryPage
 from .search_users import SearchUsers
 from .update_run import UpdateRun
