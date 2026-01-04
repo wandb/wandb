@@ -1450,7 +1450,7 @@ class Run(Attrs, DisplayableMixin):
         prefix = ""
         if hidden:
             style += "display:none;"
-            prefix = ipython.toggle_button()
+            prefix = ipython.toggle_button("run")
         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
     @override

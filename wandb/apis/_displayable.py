@@ -28,9 +28,9 @@ class DisplayableMixin(ABC):
             msg = f"{nameof(self.display)}() only works in jupyter environments"
             wandb.termwarn(msg)
             return False
-        else:
-            display(HTML(self.to_html(height=height, hidden=hidden)))
-            return True
+
+        display(HTML(self.to_html(height=height, hidden=hidden)))
+        return True
 
     def _repr_html_(self) -> str:
         return self.to_html()
