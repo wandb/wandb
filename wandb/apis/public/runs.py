@@ -48,6 +48,7 @@ from wandb_graphql.language.ast import Document
 import wandb
 from wandb import env, util
 from wandb.apis import public
+from wandb.apis._displayable import DisplayableMixin
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
@@ -434,7 +435,7 @@ class Runs(SizedPaginator["Run"]):
                     future.result()
 
 
-class Run(Attrs):
+class Run(Attrs, DisplayableMixin):
     """A single run associated with an entity and project.
 
     Args:
@@ -1313,11 +1314,8 @@ class Run(Attrs):
         prefix = ""
         if hidden:
             style += "display:none;"
-            prefix = ipython.toggle_button()
+            prefix = ipython.toggle_button("run")
         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
-
-    def _repr_html_(self) -> str:
-        return self.to_html()
 
     def __repr__(self) -> str:
         pathstr = "/".join(self.path)
