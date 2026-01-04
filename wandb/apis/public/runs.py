@@ -598,11 +598,9 @@ class Run(Attrs):
         return self._attrs.get("name")
 
     @id.setter
-    def id(self, new_id: str) -> str:
+    def id(self, new_id: str) -> None:
         """Set the unique identifier for the run."""
-        attrs = self._attrs
-        attrs["name"] = new_id
-        return new_id
+        self._attrs["name"] = new_id
 
     @property
     def name(self) -> str | None:
@@ -610,10 +608,9 @@ class Run(Attrs):
         return self._attrs.get("displayName")
 
     @name.setter
-    def name(self, new_name: str) -> str:
+    def name(self, new_name: str) -> None:
         """Set the name of the run."""
         self._attrs["displayName"] = new_name
-        return new_name
 
     @classmethod
     def create(
