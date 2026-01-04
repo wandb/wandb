@@ -10,6 +10,7 @@ import ast
 import json
 import re
 import urllib
+from typing import TYPE_CHECKING, Any
 
 from wandb_gql import gql
 
@@ -18,6 +19,10 @@ from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
 from wandb.sdk.lib import ipython
+
+if TYPE_CHECKING:
+    from .api import RetryingClient
+    from .projects import Project
 
 
 class Reports(SizedPaginator["BetaReport"]):
@@ -68,7 +73,14 @@ class Reports(SizedPaginator["BetaReport"]):
         """
     )
 
-    def __init__(self, client, project, name=None, entity=None, per_page=50):
+    def __init__(
+        self,
+        client: RetryingClient,
+        project: Project,
+        name: str | None = None,
+        entity: str | None = None,
+        per_page: int = 50,
+    ):
         self.project = project
         self.name = name
         variables = {
@@ -79,7 +91,7 @@ class Reports(SizedPaginator["BetaReport"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def _length(self):
+    def _length(self) -> int | None:
         """The number of reports in the project.
 
         <!-- lazydoc-ignore: internal -->
@@ -87,8 +99,7 @@ class Reports(SizedPaginator["BetaReport"]):
         # TODO: Add the count the backend
         if self.last_response:
             return len(self.objects)
-        else:
-            return None
+        return None
 
     @property
     def more(self) -> bool:
@@ -100,27 +111,25 @@ class Reports(SizedPaginator["BetaReport"]):
             return bool(
                 self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
             )
-        else:
-            return True
+        return True
 
     @property
-    def cursor(self):
+    def cursor(self) -> str | None:
         """Returns the cursor position for pagination of file results.
 
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
             return self.last_response["project"]["allViews"]["edges"][-1]["cursor"]
-        else:
-            return None
+        return None
 
-    def update_variables(self):
+    def update_variables(self) -> None:
         """Updates the GraphQL query variables for pagination."""
         self.variables.update(
             {"reportCursor": self.cursor, "reportLimit": self.per_page}
         )
 
-    def convert_objects(self):
+    def convert_objects(self) -> list[BetaReport]:
         """Converts GraphQL edges to File objects."""
         if self.last_response["project"] is None:
             raise ValueError(
@@ -136,7 +145,7 @@ class Reports(SizedPaginator["BetaReport"]):
             for r in self.last_response["project"]["allViews"]["edges"]
         ]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<Reports {}>".format("/".join(self.project.path))
 
 
@@ -160,7 +169,13 @@ class BetaReport(Attrs):
         created_at (string): Timestamp when the report was created.
     """
 
-    def __init__(self, client, attrs, entity=None, project=None):
+    def __init__(
+        self,
+        client: RetryingClient,
+        attrs: dict,
+        entity: str | None = None,
+        project: str | None = None,
+    ):
         self.client = client
         self.project = project
         self.entity = entity
@@ -174,7 +189,7 @@ class BetaReport(Attrs):
             self._attrs["spec"] = {}
 
     @property
-    def spec(self):
+    def spec(self) -> dict[str, Any]:
         return self._attrs["spec"]
 
     @property
@@ -182,7 +197,9 @@ class BetaReport(Attrs):
         """Get the panel sections (groups) from the report."""
         return self.spec["panelGroups"]
 
-    def runs(self, section, per_page=50, only_selected=True):
+    def runs(
+        self, section: dict[str, Any], per_page: int = 50, only_selected: bool = True
+    ) -> public.Runs:
         """Get runs associated with a section of the report."""
         run_set_idx = section.get("openRunSet", 0)
         run_set = section["runSets"][run_set_idx]
@@ -207,19 +224,19 @@ class BetaReport(Attrs):
         )
 
     @property
-    def id(self):
+    def id(self) -> str:
         return self._attrs.get("id")
 
     @property
-    def name(self):
+    def name(self) -> str | None:
         return self._attrs.get("name")
 
     @property
-    def display_name(self):
+    def display_name(self) -> str | None:
         return self._attrs.get("displayName")
 
     @property
-    def description(self):
+    def description(self) -> str | None:
         return self._attrs.get("description")
 
     @property
@@ -235,7 +252,7 @@ class BetaReport(Attrs):
         return self._attrs.get("createdAt")
 
     @property
-    def url(self):
+    def url(self) -> str | None:
         if (
             not self.client
             or not self.entity
@@ -263,7 +280,7 @@ class BetaReport(Attrs):
             ]
         )
 
-    def to_html(self, height=1024, hidden=False):
+    def to_html(self, height: int = 1024, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this report."""
         url = self.url
         if url is None:
