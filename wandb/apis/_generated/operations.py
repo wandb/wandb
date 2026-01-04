@@ -2,6 +2,7 @@
 # Source: tools/graphql_codegen/api/
 
 __all__ = [
+    "ARTIFACT_OF_TYPE_GQL",
     "CREATE_INVITE_GQL",
     "CREATE_PROJECT_GQL",
     "CREATE_RUN_GQL",
@@ -45,6 +46,7 @@ __all__ = [
     "PROJECT_VIEWS_GQL",
     "SAMPLED_HISTORY_PAGE_GQL",
     "SEARCH_USERS_GQL",
+    "SERVER_INFO_GQL",
     "UPDATE_RUN_GQL",
 ]
 
@@ -232,6 +234,36 @@ query GetRunQueueItems($projectName: String!, $entityName: String!, $runQueue: S
         edges {
           node {
             id
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+ARTIFACT_OF_TYPE_GQL = """
+query ArtifactOfType($entityName: String!, $projectName: String!, $artifactTypeName: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactType(name: $artifactTypeName) {
+      artifactCollections {
+        edges {
+          node {
+            __typename
+            artifacts {
+              edges {
+                node {
+                  id
+                  state
+                  aliases {
+                    alias
+                  }
+                  artifactSequence {
+                    name
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -650,6 +682,19 @@ query GetRunHistoryKeys($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
       historyKeys
+    }
+  }
+}
+"""
+
+SERVER_INFO_GQL = """
+query ServerInfo {
+  serverInfo {
+    cliVersionInfo
+    latestLocalVersionInfo {
+      outOfDate
+      latestVersionString
+      versionOnThisInstanceString
     }
   }
 }
