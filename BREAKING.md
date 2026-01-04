@@ -122,11 +122,6 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @jacobromero
     - Can do in >=0.22
 
-- Remove `wandb.beta.workflows`, `wandb.beta.workflows::log_model()`, `wandb.beta.workflows::link_model()`, `wandb.beta.workflows::use_model()`:
-    - Owner: @tonyyli-wandb
-    - Deprecated in 0.21.1 (https://github.com/wandb/wandb/pull/10205)
-    - Can do in >=0.23
-
 - Remove the `anonymous` setting and corresponding parameter from `wandb.init()` and `wandb.login()`:
     - Owner: @timoffex
     - Deprecated after 0.23.0
