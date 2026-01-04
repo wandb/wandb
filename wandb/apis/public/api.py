@@ -85,21 +85,6 @@ class RetryingClient:
     <!-- lazydoc-ignore-class: internal -->
     """
 
-    INFO_QUERY = gql(
-        """
-        query ServerInfo{
-            serverInfo {
-                cliVersionInfo
-                latestLocalVersionInfo {
-                    outOfDate
-                    latestVersionString
-                    versionOnThisInstanceString
-                }
-            }
-        }
-        """
-    )
-
     def __init__(self, client: Client):
         self._server_info = None
         self._client = client
@@ -140,7 +125,11 @@ class RetryingClient:
     @property
     def server_info(self):
         if self._server_info is None:
-            self._server_info = self.execute(self.INFO_QUERY).get("serverInfo")
+            from wandb.apis._generated import SERVER_INFO_GQL, ServerInfo
+
+            data = self.execute(gql(SERVER_INFO_GQL))
+            result = ServerInfo.model_validate(data)
+            self._server_info = result.server_info
         return self._server_info
 
     def version_supported(
@@ -1588,44 +1577,11 @@ class Api:
         if project is None:
             raise ValueError("Specify a project when listing jobs")
 
-        query = gql(
-            """
-        query ArtifactOfType(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactTypeName: String!,
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    artifactCollections {
-                        edges {
-                            node {
-                                artifacts {
-                                    edges {
-                                        node {
-                                            id
-                                            state
-                                            aliases {
-                                                alias
-                                            }
-                                            artifactSequence {
-                                                name
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-        )
+        from wandb.apis._generated import ARTIFACT_OF_TYPE_GQL, ArtifactOfType
 
         try:
-            artifact_query = self._client.execute(
-                query,
+            data = self._client.execute(
+                gql(ARTIFACT_OF_TYPE_GQL),
                 {
                     "projectName": project,
                     "entityName": entity,
@@ -1633,20 +1589,24 @@ class Api:
                 },
             )
 
-            if not artifact_query or not artifact_query["project"]:
+            result = ArtifactOfType.model_validate(data)
+            if result.project is None:
                 wandb.termerror(
                     f"Project: '{project}' not found in entity: '{entity}' or access denied."
                 )
                 return []
 
-            if artifact_query["project"]["artifactType"] is None:
+            if result.project.artifact_type is None:
                 return []
 
-            artifacts = artifact_query["project"]["artifactType"][
-                "artifactCollections"
-            ]["edges"]
+            artifact_collections = result.project.artifact_type.artifact_collections
+            if artifact_collections is None:
+                return []
 
-            return [x["node"]["artifacts"] for x in artifacts]
+            return [
+                edge.node.artifacts.model_dump() if edge.node.artifacts else None
+                for edge in artifact_collections.edges
+            ]
         except requests.exceptions.HTTPError:
             return False
 
