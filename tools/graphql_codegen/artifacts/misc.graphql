@@ -55,3 +55,11 @@ query FetchOrgInfoFromEntity($entity: String!) {
     }
   }
 }
+
+query FetchOrgEntityFromOrganization($organization: String!) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+    }
+  }
+}
