@@ -33,6 +33,7 @@ __all__ = [
     "HISTORY_PAGE_GQL",
     "PROBE_FIELDS_GQL",
     "PROBE_INPUT_FIELDS_GQL",
+    "PROJECT_VIEWS_GQL",
     "SAMPLED_HISTORY_PAGE_GQL",
     "SEARCH_USERS_GQL",
     "UPDATE_RUN_GQL",
@@ -45,6 +46,7 @@ __all__ = [
     "GetProjects",
     "GetProject",
     "CreateProject",
+    "ProjectViews",
     "GetRuns",
     "GetLightRuns",
     "GetRun",
@@ -169,12 +171,14 @@ from .operations import (
     HISTORY_PAGE_GQL,
     PROBE_FIELDS_GQL,
     PROBE_INPUT_FIELDS_GQL,
+    PROJECT_VIEWS_GQL,
     SAMPLED_HISTORY_PAGE_GQL,
     SEARCH_USERS_GQL,
     UPDATE_RUN_GQL,
 )
 from .probe_fields import ProbeFields
 from .probe_input_fields import ProbeInputFields
+from .project_views import ProjectViews
 from .sampled_history_page import SampledHistoryPage
 from .search_users import SearchUsers
 from .update_run import UpdateRun

@@ -34,6 +34,7 @@ __all__ = [
     "HISTORY_PAGE_GQL",
     "PROBE_FIELDS_GQL",
     "PROBE_INPUT_FIELDS_GQL",
+    "PROJECT_VIEWS_GQL",
     "SAMPLED_HISTORY_PAGE_GQL",
     "SEARCH_USERS_GQL",
     "UPDATE_RUN_GQL",
@@ -193,6 +194,45 @@ fragment CreatedProjectFragment on Project {
   description
   access
   views
+}
+"""
+
+PROJECT_VIEWS_GQL = """
+query ProjectViews($project: String!, $entity: String!, $reportCursor: String, $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
+  project(name: $project, entityName: $entity) {
+    allViews(
+      viewType: $viewType
+      viewName: $viewName
+      first: $reportLimit
+      after: $reportCursor
+    ) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          id
+          name
+          displayName
+          description
+          user {
+            username
+            photoUrl
+            email
+          }
+          spec
+          updatedAt
+          createdAt
+        }
+      }
+    }
+  }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
