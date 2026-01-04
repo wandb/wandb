@@ -1,0 +1,11 @@
+# Query to get server information
+query ServerInfo {
+  serverInfo {
+    cliVersionInfo
+    latestLocalVersionInfo {
+      outOfDate
+      latestVersionString
+      versionOnThisInstanceString
+    }
+  }
+}
