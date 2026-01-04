@@ -313,54 +313,29 @@ class QueuedRun:
         )
 
     @normalize_exceptions
-    def _get_run_queue_item_legacy(self) -> dict[str, Any]:
-        query = gql(
-            """
-            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name:$runQueue) {
-                        runQueueItems {
-                            edges {
-                                node {
-                                    id
-                                    state
-                                    associatedRunId
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            """
+    def _get_run_queue_item_legacy(self) -> dict[str, Any] | None:
+        from wandb.apis._generated import (
+            GET_RUN_QUEUE_ITEMS_LEGACY_GQL,
+            GetRunQueueItemsLegacy,
         )
+
         variable_values = {
             "projectName": self.project_queue,
             "entityName": self._entity,
             "runQueue": self.queue_name,
         }
-        res = self.client.execute(query, variable_values)
+        data = self.client.execute(gql(GET_RUN_QUEUE_ITEMS_LEGACY_GQL), variable_values)
+        result = GetRunQueueItemsLegacy.model_validate(data)
 
-        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-            if str(item["node"]["id"]) == str(self.id):
-                return item["node"]
+        for edge in result.project.run_queue.run_queue_items.edges:
+            if str(edge.node.id) == str(self.id):
+                return edge.node.model_dump()
+        return None
 
     @normalize_exceptions
     def _get_item(self) -> dict[str, Any]:
-        query = gql(
-            """
-            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!, $itemId: ID!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name: $runQueue) {
-                        runQueueItem(id: $itemId) {
-                            id
-                            state
-                            associatedRunId
-                        }
-                    }
-                }
-            }
-        """
-        )
+        from wandb.apis._generated import GET_RUN_QUEUE_ITEM_GQL, GetRunQueueItem
+
         variable_values = {
             "projectName": self.project_queue,
             "entityName": self._entity,
@@ -368,9 +343,12 @@ class QueuedRun:
             "itemId": self.id,
         }
         try:
-            res = self.client.execute(query, variable_values)  # exception w/ old server
-            if res["project"]["runQueue"].get("runQueueItem") is not None:
-                return res["project"]["runQueue"]["runQueueItem"]
+            data = self.client.execute(
+                gql(GET_RUN_QUEUE_ITEM_GQL), variable_values
+            )  # exception w/ old server
+            result = GetRunQueueItem.model_validate(data)
+            if (item := result.project.run_queue.run_queue_item) is not None:
+                return item.model_dump()
         except Exception as e:
             if "Cannot query field" not in str(e):
                 raise LaunchError(f"Unknown exception: {e}")
@@ -391,48 +369,27 @@ class QueuedRun:
     @normalize_exceptions
     def delete(self, delete_artifacts: bool = False) -> None:
         """Delete the given queued run from the wandb backend."""
-        query = gql(
-            """
-            query fetchRunQueuesFromProject($entityName: String!, $projectName: String!, $runQueueName: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name: $runQueueName) {
-                        id
-                    }
-                }
-            }
-            """
+        from wandb.apis._generated import (
+            DELETE_FROM_RUN_QUEUE_GQL,
+            FETCH_RUN_QUEUE_FROM_PROJECT_GQL,
+            FetchRunQueueFromProject,
         )
 
-        res = self.client.execute(
-            query,
-            variable_values={
-                "entityName": self.entity,
-                "projectName": self.project_queue,
-                "runQueueName": self.queue_name,
-            },
+        query_vars = {
+            "entityName": self.entity,
+            "projectName": self.project_queue,
+            "runQueueName": self.queue_name,
+        }
+        data = self.client.execute(
+            gql(FETCH_RUN_QUEUE_FROM_PROJECT_GQL), variable_values=query_vars
         )
+        result = FetchRunQueueFromProject.model_validate(data)
 
-        if res["project"].get("runQueue") is not None:
-            queue_id = res["project"]["runQueue"]["id"]
+        if result.project.run_queue is not None:
+            queue_id = result.project.run_queue.id
 
-        mutation = gql(
-            """
-            mutation DeleteFromRunQueue(
-                $queueID: ID!,
-                $runQueueItemId: ID!
-            ) {
-                deleteFromRunQueue(input: {
-                    queueID: $queueID
-                    runQueueItemId: $runQueueItemId
-                }) {
-                    success
-                    clientMutationId
-                }
-            }
-            """
-        )
         self.client.execute(
-            mutation,
+            gql(DELETE_FROM_RUN_QUEUE_GQL),
             variable_values={
                 "queueID": queue_id,
                 "runQueueItemId": self._run_queue_item_id,
@@ -595,19 +552,14 @@ class RunQueue:
     @normalize_exceptions
     def delete(self) -> None:
         """Delete the run queue from the wandb backend."""
-        query = gql(
-            """
-            mutation DeleteRunQueue($id: ID!) {
-                deleteRunQueues(input: {queueIDs: [$id]}) {
-                    success
-                    clientMutationId
-                }
-            }
-            """
-        )
+        from wandb.apis._generated import DELETE_RUN_QUEUE_GQL, DeleteRunQueue
+
         variable_values = {"id": self.id}
-        res = self._client.execute(query, variable_values)
-        if res["deleteRunQueues"]["success"]:
+        data = self._client.execute(
+            gql(DELETE_RUN_QUEUE_GQL), variable_values=variable_values
+        )
+        result = DeleteRunQueue.model_validate(data)
+        if result.delete_run_queues.success:
             self._id = None
             self._access = None
             self._default_resource_config_id = None
@@ -621,102 +573,74 @@ class RunQueue:
 
     @normalize_exceptions
     def _get_metadata(self) -> None:
-        query = gql(
-            """
-            query GetRunQueueMetadata($projectName: String!, $entityName: String!, $runQueue: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name: $runQueue) {
-                        id
-                        access
-                        defaultResourceConfigID
-                        prioritizationMode
-                        externalLinks
-                    }
-                }
-            }
-        """
+        from wandb.apis._generated import (
+            GET_RUN_QUEUE_METADATA_GQL,
+            GetRunQueueMetadata,
         )
+
         variable_values = {
             "projectName": LAUNCH_DEFAULT_PROJECT,
             "entityName": self._entity,
             "runQueue": self._name,
         }
-        res = self._client.execute(query, variable_values)
-        self._id = res["project"]["runQueue"]["id"]
-        self._access = res["project"]["runQueue"]["access"]
-        self._default_resource_config_id = res["project"]["runQueue"][
-            "defaultResourceConfigID"
-        ]
-        self._external_links = res["project"]["runQueue"]["externalLinks"]
+        data = self._client.execute(
+            gql(GET_RUN_QUEUE_METADATA_GQL), variable_values=variable_values
+        )
+        result = GetRunQueueMetadata.model_validate(data)
+        run_queue = result.project.run_queue
+        self._id = run_queue.id
+        self._access = run_queue.access.value
+        self._default_resource_config_id = run_queue.default_resource_config_id
+        self._external_links = run_queue.external_links
         if self._default_resource_config_id is None:
             self._default_resource_config = {}
-        self._prioritization_mode = res["project"]["runQueue"]["prioritizationMode"]
+        self._prioritization_mode = run_queue.prioritization_mode.value
 
     @normalize_exceptions
     def _get_default_resource_config(self) -> None:
-        query = gql(
-            """
-            query GetDefaultResourceConfig($entityName: String!, $id: ID!) {
-                entity(name: $entityName) {
-                    defaultResourceConfig(id: $id) {
-                        config
-                        resource
-                        templateVariables {
-                            name
-                            schema
-                        }
-                    }
-                }
-            }
-        """
+        from wandb.apis._generated import (
+            GET_DEFAULT_RESOURCE_CONFIG_GQL,
+            GetDefaultResourceConfig,
         )
+
         variable_values = {
             "entityName": self._entity,
             "id": self._default_resource_config_id,
         }
-        res = self._client.execute(query, variable_values)
-        self._type = res["entity"]["defaultResourceConfig"]["resource"]
-        self._default_resource_config = res["entity"]["defaultResourceConfig"]["config"]
-        self._template_variables = res["entity"]["defaultResourceConfig"][
-            "templateVariables"
+        data = self._client.execute(
+            gql(GET_DEFAULT_RESOURCE_CONFIG_GQL), variable_values=variable_values
+        )
+        result = GetDefaultResourceConfig.model_validate(data)
+        config = result.entity.default_resource_config
+        self._type = config.resource
+        self._default_resource_config = config.config
+        self._template_variables = [
+            {"name": tv.name, "schema": tv.schema_} for tv in config.template_variables
         ]
 
     @normalize_exceptions
     def _get_items(self) -> None:
-        query = gql(
-            """
-            query GetRunQueueItems($projectName: String!, $entityName: String!, $runQueue: String!) {
-                project(name: $projectName, entityName: $entityName) {
-                    runQueue(name: $runQueue) {
-                        runQueueItems(first: 100) {
-                            edges {
-                                node {
-                                    id
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        )
+        from wandb.apis._generated import GET_RUN_QUEUE_ITEMS_GQL, GetRunQueueItems
+
         variable_values = {
             "projectName": LAUNCH_DEFAULT_PROJECT,
             "entityName": self._entity,
             "runQueue": self._name,
         }
-        res = self._client.execute(query, variable_values)
-        self._items = []
-        for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
-            self._items.append(
-                QueuedRun(
-                    self._client,
-                    self._entity,
-                    LAUNCH_DEFAULT_PROJECT,
-                    self._name,
-                    item["node"]["id"],
-                )
+        data = self._client.execute(
+            gql(GET_RUN_QUEUE_ITEMS_GQL), variable_values=variable_values
+        )
+        result = GetRunQueueItems.model_validate(data)
+        self._items = [
+            QueuedRun(
+                self._client,
+                self._entity,
+                LAUNCH_DEFAULT_PROJECT,
+                self._name,
+                edge.node.id,
             )
+            for edge in result.project.run_queue.run_queue_items.edges
+        ]
 
     @classmethod
     def create(

@@ -9,10 +9,14 @@ __all__ = [
     "CREATE_USER_FROM_ADMIN_GQL",
     "DELETE_API_KEY_GQL",
     "DELETE_FILES_GQL",
+    "DELETE_FROM_RUN_QUEUE_GQL",
     "DELETE_INVITE_GQL",
     "DELETE_RUN_GQL",
+    "DELETE_RUN_QUEUE_GQL",
+    "FETCH_RUN_QUEUE_FROM_PROJECT_GQL",
     "GENERATE_API_KEY_GQL",
     "GET_DEFAULT_ENTITY_GQL",
+    "GET_DEFAULT_RESOURCE_CONFIG_GQL",
     "GET_LIGHT_RUNS_GQL",
     "GET_LIGHT_RUN_GQL",
     "GET_PROJECTS_GQL",
@@ -23,6 +27,10 @@ __all__ = [
     "GET_RUN_GQL",
     "GET_RUN_HISTORY_GQL",
     "GET_RUN_HISTORY_KEYS_GQL",
+    "GET_RUN_QUEUE_ITEMS_GQL",
+    "GET_RUN_QUEUE_ITEMS_LEGACY_GQL",
+    "GET_RUN_QUEUE_ITEM_GQL",
+    "GET_RUN_QUEUE_METADATA_GQL",
     "GET_RUN_SAMPLED_HISTORY_GQL",
     "GET_RUN_STATE_GQL",
     "GET_SWEEPS_GQL",
@@ -43,6 +51,14 @@ __all__ = [
     "SampledHistoryPage",
     "ProbeFields",
     "ProbeInputFields",
+    "GetRunQueueItemsLegacy",
+    "GetRunQueueItem",
+    "FetchRunQueueFromProject",
+    "DeleteFromRunQueue",
+    "DeleteRunQueue",
+    "GetRunQueueMetadata",
+    "GetDefaultResourceConfig",
+    "GetRunQueueItems",
     "GetProjects",
     "GetProject",
     "CreateProject",
@@ -88,6 +104,9 @@ __all__ = [
     "SweepFragment",
     "UserFragment",
     "UserInfoFragment",
+    "RunQueueAccessType",
+    "RunQueueItemState",
+    "RunQueuePrioritizationMode",
 ]
 from .create_invite import CreateInvite
 from .create_project import CreateProject
@@ -97,8 +116,12 @@ from .create_team import CreateTeam
 from .create_user_from_admin import CreateUserFromAdmin
 from .delete_api_key import DeleteApiKey
 from .delete_files import DeleteFiles
+from .delete_from_run_queue import DeleteFromRunQueue
 from .delete_invite import DeleteInvite
 from .delete_run import DeleteRun
+from .delete_run_queue import DeleteRunQueue
+from .enums import RunQueueAccessType, RunQueueItemState, RunQueuePrioritizationMode
+from .fetch_run_queue_from_project import FetchRunQueueFromProject
 from .fragments import (
     ApiKeyFragment,
     CreatedProjectFragment,
@@ -114,6 +137,7 @@ from .fragments import (
 )
 from .generate_api_key import GenerateApiKey
 from .get_default_entity import GetDefaultEntity
+from .get_default_resource_config import GetDefaultResourceConfig
 from .get_light_run import GetLightRun
 from .get_light_runs import GetLightRuns
 from .get_project import GetProject
@@ -123,6 +147,10 @@ from .get_run_events import GetRunEvents
 from .get_run_files import GetRunFiles
 from .get_run_history import GetRunHistory
 from .get_run_history_keys import GetRunHistoryKeys
+from .get_run_queue_item import GetRunQueueItem
+from .get_run_queue_items import GetRunQueueItems
+from .get_run_queue_items_legacy import GetRunQueueItemsLegacy
+from .get_run_queue_metadata import GetRunQueueMetadata
 from .get_run_sampled_history import GetRunSampledHistory
 from .get_run_state import GetRunState
 from .get_runs import GetRuns
@@ -147,10 +175,14 @@ from .operations import (
     CREATE_USER_FROM_ADMIN_GQL,
     DELETE_API_KEY_GQL,
     DELETE_FILES_GQL,
+    DELETE_FROM_RUN_QUEUE_GQL,
     DELETE_INVITE_GQL,
     DELETE_RUN_GQL,
+    DELETE_RUN_QUEUE_GQL,
+    FETCH_RUN_QUEUE_FROM_PROJECT_GQL,
     GENERATE_API_KEY_GQL,
     GET_DEFAULT_ENTITY_GQL,
+    GET_DEFAULT_RESOURCE_CONFIG_GQL,
     GET_LIGHT_RUN_GQL,
     GET_LIGHT_RUNS_GQL,
     GET_PROJECT_GQL,
@@ -160,6 +192,10 @@ from .operations import (
     GET_RUN_GQL,
     GET_RUN_HISTORY_GQL,
     GET_RUN_HISTORY_KEYS_GQL,
+    GET_RUN_QUEUE_ITEM_GQL,
+    GET_RUN_QUEUE_ITEMS_GQL,
+    GET_RUN_QUEUE_ITEMS_LEGACY_GQL,
+    GET_RUN_QUEUE_METADATA_GQL,
     GET_RUN_SAMPLED_HISTORY_GQL,
     GET_RUN_STATE_GQL,
     GET_RUNS_GQL,
