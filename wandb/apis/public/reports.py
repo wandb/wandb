@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from wandb_gql import gql
 
 import wandb
+from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
@@ -146,7 +147,7 @@ class Reports(SizedPaginator["BetaReport"]):
         ]
 
     def __repr__(self) -> str:
-        return "<Reports {}>".format("/".join(self.project.path))
+        return f"<{nameof(type(self))} {'/'.join(self.project.path)}>"
 
 
 class BetaReport(Attrs):
