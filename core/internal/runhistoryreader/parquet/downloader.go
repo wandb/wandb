@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -52,24 +51,28 @@ func GetSignedUrlsWithLiveSteps(
 	return signedUrls, liveSteps, nil
 }
 
+// DownloadRunHistoryFile downloads a run history file from a given URL
+// to the provided file path.
+//
+// The path where the file will be written to must already exist before
+// calling this function.
 func DownloadRunHistoryFile(
+	ctx context.Context,
 	httpClient *http.Client,
 	fileUrl string,
-	downloadDir string,
-	fileName string,
+	filePath string,
 ) error {
-	err := os.MkdirAll(downloadDir, 0755)
-	if err != nil {
-		return err
-	}
-
-	file, err := os.Create(filepath.Join(downloadDir, fileName))
+	file, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	resp, err := httpClient.Get(fileUrl)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fileUrl, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}

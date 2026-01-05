@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -291,6 +293,17 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
 		}
 	}
 
+	err = os.MkdirAll(request.DownloadDir, 0755)
+	if err != nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: err.Error(),
+				},
+			},
+		}
+	}
+
 	fileNames := make([]string, 0, len(signedUrls))
 	for i, url := range signedUrls {
 		fileName := fmt.Sprintf(
@@ -300,11 +313,12 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
 			request.RunId,
 			i,
 		)
+		filePath := filepath.Join(request.DownloadDir, fileName)
 		err = parquet.DownloadRunHistoryFile(
+			context.Background(),
 			http.DefaultClient,
 			url,
-			request.DownloadDir,
-			fileName,
+			filePath,
 		)
 		if err != nil {
 			return &spb.ApiResponse{

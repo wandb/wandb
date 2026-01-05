@@ -271,10 +271,10 @@ func (h *HistoryReader) initParquetFiles(
 			// It is faster to download the entire parquet file
 			// and process it locally.
 			err = parquet.DownloadRunHistoryFile(
+				ctx,
 				h.httpClient,
 				url,
-				dir,
-				fileName,
+				parquetFilePath,
 			)
 			if err != nil {
 				return err
