@@ -45,6 +45,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb import env, util
+from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
@@ -456,7 +457,7 @@ class Runs(SizedPaginator["Run"]):
             return combined_df
 
     def __repr__(self) -> str:
-        return f"<Runs {self.entity}/{self.project}>"
+        return f"<{nameof(type(self))} {self.entity}/{self.project}>"
 
     def upgrade_to_full(self) -> None:
         """Upgrade this Runs collection from lazy to full mode.
@@ -1454,7 +1455,7 @@ class Run(Attrs):
         return self.to_html()
 
     def __repr__(self) -> str:
-        return "<Run {} ({})>".format("/".join(self.path), self.state)
+        return f"<{nameof(type(self))} {'/'.join(self.path)} ({self.state})>"
 
     def beta_scan_history(
         self,
