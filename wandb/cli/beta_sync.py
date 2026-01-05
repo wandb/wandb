@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import pathlib
 import time
 from itertools import filterfalse
 from typing import Iterable, Iterator
 
-import click
-
 import wandb
+from wandb.errors import term
 from wandb.proto.wandb_sync_pb2 import ServerSyncResponse
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import asyncio_compat
@@ -52,29 +52,48 @@ def sync(
         verbose: Verbose mode for printing more info.
         parallelism: Max number of runs to sync at a time.
     """
-    wandb_files: set[pathlib.Path] = set()
-    for path in paths:
-        for wandb_file in _find_wandb_files(path, skip_synced=skip_synced):
-            wandb_files.add(wandb_file.resolve())
+    singleton = wandb_setup.singleton()
+
+    try:
+        cwd = pathlib.Path.cwd()
+    except OSError:
+        cwd = None
+
+    ask_for_confirmation = False
+    if not paths:
+        paths = [pathlib.Path(singleton.settings.wandb_dir)]
+        ask_for_confirmation = True
+
+    wandb_files = _to_unique_files(
+        (
+            wandb_file
+            for path in paths
+            for wandb_file in _find_wandb_files(path, skip_synced=skip_synced)
+        ),
+        verbose=verbose,
+    )
 
     if not wandb_files:
-        click.echo("No files to sync.")
+        term.termlog("No runs to sync.")
         return
 
     if dry_run:
-        click.echo(f"Would sync {len(wandb_files)} file(s):")
-        _print_sorted_paths(wandb_files, verbose=verbose)
+        term.termlog(f"Would sync {len(wandb_files)} run(s):")
+        _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
         return
 
-    click.echo(f"Syncing {len(wandb_files)} file(s):")
-    _print_sorted_paths(wandb_files, verbose=verbose)
+    term.termlog(f"Syncing {len(wandb_files)} run(s):")
+    _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
 
-    singleton = wandb_setup.singleton()
+    if ask_for_confirmation and not term.confirm("Sync the listed runs?"):
+        return
+
     service = singleton.ensure_service()
     printer = new_printer()
     singleton.asyncer.run(
         lambda: _do_sync(
             wandb_files,
+            cwd=cwd,
             live=live,
             service=service,
             entity=entity,
@@ -87,9 +106,40 @@ def sync(
     )
 
 
+def _to_unique_files(
+    paths: Iterator[pathlib.Path],
+    *,
+    verbose: bool,
+) -> set[pathlib.Path]:
+    """Returns paths with duplicates removed.
+
+    Determines file equality the same way as os.path.samefile().
+    """
+    id_to_path: dict[tuple[int, int], pathlib.Path] = dict()
+
+    # Sort in reverse so that the last path written to the map is
+    # alphabetically earliest.
+    for path in sorted(paths, reverse=True):
+        try:
+            stat = path.stat()
+        except OSError as e:
+            term.termerror(f"Failed to stat {path}: {e}")
+            continue
+
+        id = (stat.st_ino, stat.st_dev)
+
+        if verbose and (other_path := id_to_path.get(id)):
+            term.termlog(f"{path} is the same as {other_path}")
+
+        id_to_path[id] = path
+
+    return set(id_to_path.values())
+
+
 async def _do_sync(
     wandb_files: set[pathlib.Path],
     *,
+    cwd: pathlib.Path | None,
     live: bool,
     service: ServiceConnection,
     entity: str,
@@ -106,6 +156,7 @@ async def _do_sync(
     init_handle = await service.init_sync(
         wandb_files,
         settings,
+        cwd=cwd,
         live=live,
         entity=entity,
         project=project,
@@ -220,29 +271,36 @@ def _is_synced(path: pathlib.Path) -> bool:
     return path.with_suffix(".wandb.synced").exists()
 
 
-def _print_sorted_paths(paths: Iterable[pathlib.Path], verbose: bool) -> None:
+def _print_sorted_paths(
+    paths: Iterable[pathlib.Path],
+    verbose: bool,
+    *,
+    root: pathlib.Path | None,
+) -> None:
     """Print file paths, sorting them and truncating the list if needed.
 
     Args:
         paths: Paths to print. Must be absolute with symlinks resolved.
         verbose: If true, doesn't truncate paths.
+        root: A root directory for making paths relative.
     """
     # Prefer to print paths relative to the current working directory.
-    cwd = pathlib.Path(".").resolve()
     formatted_paths: list[str] = []
     for path in paths:
-        try:
-            formatted_path = str(path.relative_to(cwd))
-        except ValueError:
-            formatted_path = str(path)
+        formatted_path = str(path)
+
+        if root:
+            with contextlib.suppress(ValueError):
+                formatted_path = str(path.relative_to(root))
+
         formatted_paths.append(formatted_path)
 
     sorted_paths = sorted(formatted_paths)
     max_lines = len(sorted_paths) if verbose else _MAX_LIST_LINES
 
     for i in range(min(len(sorted_paths), max_lines)):
-        click.echo(f"  {sorted_paths[i]}")
+        term.termlog(f"  {sorted_paths[i]}")
 
     if len(sorted_paths) > max_lines:
         remaining = len(sorted_paths) - max_lines
-        click.echo(f"  +{remaining:,d} more (pass --verbose to see all)")
+        term.termlog(f"  +{remaining:,d} more (pass --verbose to see all)")

@@ -93,8 +93,10 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Operations:          wandbOperations,
 		Printer:             printer,
 		RecordParserFactory: recordParserFactory,
+		RunHandle:           runHandle,
 		RunReaderFactory:    runReaderFactory,
 		SenderFactory:       senderFactory,
+		Settings:            settings2,
 		TBHandlerFactory:    tbHandlerFactory,
 	}
 	return runSyncerFactory

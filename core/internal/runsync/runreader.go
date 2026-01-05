@@ -29,9 +29,10 @@ type RunReaderFactory struct {
 
 // RunReader gets information out of .wandb files.
 type RunReader struct {
-	path    string          // transaction log path
-	updates *RunSyncUpdates // modifications to make to records
-	live    bool            // "live" mode retries EOFs
+	path        string          // transaction log path
+	displayPath DisplayPath     // printable form of 'path'
+	updates     *RunSyncUpdates // modifications to make to records
+	live        bool            // "live" mode retries EOFs
 
 	seenExit bool // whether we've processed an exit record yet
 
@@ -43,15 +44,17 @@ type RunReader struct {
 
 func (f *RunReaderFactory) New(
 	path string,
+	displayPath DisplayPath,
 	updates *RunSyncUpdates,
 	live bool,
 	recordParser stream.RecordParser,
 	runWork runwork.RunWork,
 ) *RunReader {
 	return &RunReader{
-		path:    path,
-		updates: updates,
-		live:    live,
+		path:        path,
+		displayPath: displayPath,
+		updates:     updates,
+		live:        live,
 
 		logger:       f.Logger,
 		operations:   f.Operations,
@@ -77,7 +80,7 @@ func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
 			return nil, &SyncError{
 				Err:      err,
 				Message:  "didn't find run info",
-				UserText: fmt.Sprintf("Failed to read %q: %v", r.path, err),
+				UserText: fmt.Sprintf("Failed to read %q: %v", r.displayPath, err),
 			}
 		}
 
@@ -178,12 +181,12 @@ func (r *RunReader) open() (*transactionlog.Reader, error) {
 
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		syncErr.UserText = fmt.Sprintf("File does not exist: %s", r.path)
+		syncErr.UserText = fmt.Sprintf("File does not exist: %s", r.displayPath)
 
 	case errors.Is(err, os.ErrPermission):
 		syncErr.UserText = fmt.Sprintf(
 			"Permission error opening file for reading: %s",
-			r.path,
+			r.displayPath,
 		)
 	}
 

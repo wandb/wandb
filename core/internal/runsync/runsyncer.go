@@ -2,12 +2,15 @@ package runsync
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waiting"
@@ -26,8 +29,10 @@ type RunSyncerFactory struct {
 	Operations          *wboperation.WandbOperations
 	Printer             *observability.Printer
 	RecordParserFactory *stream.RecordParserFactory
+	RunHandle           *runhandle.RunHandle
 	RunReaderFactory    *RunReaderFactory
 	SenderFactory       *stream.SenderFactory
+	Settings            *settings.Settings
 	TBHandlerFactory    *tensorboard.TBHandlerFactory
 }
 
@@ -36,11 +41,14 @@ type RunSyncer struct {
 	mu      sync.Mutex
 	runInfo *RunInfo
 
-	path string
+	path        string
+	displayPath DisplayPath
+	settings    *settings.Settings
 
 	logger     *observability.CoreLogger
 	operations *wboperation.WandbOperations
 	printer    *observability.Printer
+	runHandle  *runhandle.RunHandle
 	runReader  *RunReader
 	runWork    runwork.RunWork
 	sender     *stream.Sender
@@ -49,6 +57,7 @@ type RunSyncer struct {
 // New initializes a sync operation without starting it.
 func (f *RunSyncerFactory) New(
 	path string,
+	displayPath DisplayPath,
 	updates *RunSyncUpdates,
 	live bool,
 ) *RunSyncer {
@@ -65,6 +74,7 @@ func (f *RunSyncerFactory) New(
 	recordParser := f.RecordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
 	runReader := f.RunReaderFactory.New(
 		path,
+		displayPath,
 		updates,
 		live,
 		recordParser,
@@ -72,11 +82,14 @@ func (f *RunSyncerFactory) New(
 	)
 
 	return &RunSyncer{
-		path: path,
+		path:        path,
+		displayPath: displayPath,
+		settings:    f.Settings,
 
 		logger:     f.Logger,
 		operations: f.Operations,
 		printer:    f.Printer,
+		runHandle:  f.RunHandle,
 		runReader:  runReader,
 		runWork:    runWork,
 		sender:     sender,
@@ -101,6 +114,20 @@ func (rs *RunSyncer) Init() (*RunInfo, error) {
 func (rs *RunSyncer) Sync() error {
 	g := &errgroup.Group{}
 
+	// Print the run's URL once we know it.
+	g.Go(func() error {
+		ctx := rs.runWork.BeforeEndCtx()
+
+		select {
+		case <-rs.runHandle.Ready():
+			rs.printRunURL()
+		case <-ctx.Done():
+			rs.logger.Error("runsync: didn't print run URL, handle never became ready")
+		}
+
+		return nil
+	})
+
 	// Process the transaction log and close RunWork at the end.
 	//
 	// NOTE: Closes RunWork even on error, and creates an Exit record if
@@ -118,8 +145,48 @@ func (rs *RunSyncer) Sync() error {
 		return err
 	}
 
-	rs.printer.Infof("Finished syncing %s", rs.path)
+	// NOTE: The Sender may fail to upload a run, but we still mark it synced.
+	// This is not the desired behavior; we just lack an error propagation
+	// mechanism.
+	rs.markSynced()
+
+	rs.printer.Infof("Finished syncing %s", rs.displayPath)
 	return nil
+}
+
+// markSynced creates the .synced file to mark the run as successfully synced.
+func (rs *RunSyncer) markSynced() {
+	// 666 = read-writable by all (the umask generally turns this into 644)
+	err := os.WriteFile(rs.path+".synced", nil, 0o666)
+	if err != nil {
+		rs.logger.Error(
+			"runsync: couldn't create .synced file",
+			"error", err,
+			"path", rs.path)
+	}
+}
+
+// printRunURL prints the URL for viewing the run.
+func (rs *RunSyncer) printRunURL() {
+	upserter, err := rs.runHandle.Upserter()
+	if err != nil {
+		rs.logger.CaptureError(fmt.Errorf("runsync: printRunURL: %v", err))
+		return
+	}
+
+	url, err := upserter.RunPath().URL(rs.settings.GetAppURL())
+	if err != nil {
+		rs.logger.CaptureError(fmt.Errorf("runsync: printRunURL: %v", err))
+		return
+	}
+
+	displayName := upserter.DisplayName()
+
+	if len(displayName) > 0 {
+		rs.printer.Infof("View run %s at %s", displayName, url)
+	} else {
+		rs.printer.Infof("View run at %s", url)
+	}
 }
 
 // Stats returns the sync operation's status info, labeled as necessary.
@@ -133,8 +200,7 @@ func (rs *RunSyncer) Stats() *spb.OperationStats {
 	if runInfo != nil {
 		operationsProto.Label = runInfo.Path()
 	} else {
-		// TODO: Shorten the path.
-		operationsProto.Label = rs.path // file path being synced
+		operationsProto.Label = string(rs.displayPath)
 	}
 
 	return operationsProto

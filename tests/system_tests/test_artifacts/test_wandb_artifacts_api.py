@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from pathlib import Path
 
+import responses
 import wandb
 from pytest import mark, raises
 from wandb import Api
@@ -561,3 +563,71 @@ def test_artifact_multipart_download(user: str, api: Api):
     # Verify checksum
     downloaded_md5 = md5_file_hex(os.path.join(stored_folder, file_path))
     assert downloaded_md5 == md5_value
+
+
+def test_artifact_download_http_headers(user, monkeypatch, tmp_path):
+    """Test custom HTTP headers are included in full artifact and single entry download requests."""
+    custom_headers = {
+        "X-Custom-Header": "test-value",
+        "X-Another-Header": "another-value",
+    }
+    monkeypatch.setenv("WANDB_X_EXTRA_HTTP_HEADERS", json.dumps(custom_headers))
+    # Reset the singleton so it picks up the new env var.
+    wandb.teardown()
+
+    # Create the Api after teardown to ensure it picks up the new settings.
+    api = Api()
+
+    entity = user
+    project = "test-http-headers-full"
+    artifact_name = "test-headers-artifact"
+
+    test_file = tmp_path / "a.txt"
+    test_file.write_text("a")
+    test_file2 = tmp_path / "b.txt"
+    test_file2.write_text("b")
+
+    # Upload artifact files
+    with wandb.init(entity=entity, project=project) as run:
+        art = wandb.Artifact(artifact_name, "dataset")
+        art.add_file(test_file)
+        art.add_file(test_file2)
+        run.log_artifact(art)
+        art.wait()
+
+    art_download_all = api.artifact(f"{entity}/{project}/{artifact_name}:v0")
+    # Full artifact download with responses passthrough to capture requests
+    # NOTE: PassthroughResponse capture the call while add_passthru() just passes.
+    with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
+        rsps.add_passthru(re.compile(".*graphql"))
+        rsps.add(responses.PassthroughResponse(responses.GET, re.compile(".*")))
+
+        art_download_all.download(root=tmp_path / "download_all", skip_cache=True)
+
+        storage_requests = [call.request for call in rsps.calls]
+        assert len(storage_requests) > 0
+
+        # Expect at least one request for the manifest URL
+        assert any("wandb_manifest.json" in req.url for req in storage_requests)
+
+        # Expect all requests to have been populated with the custom headers
+        for req in storage_requests:
+            assert custom_headers.items() <= req.headers.items()
+
+    # Download single entry using a new artifact
+    art_download_entry = api.artifact(f"{entity}/{project}/{artifact_name}:v0")
+    # Make sure the artifact is not the cached one with cached manifest
+    assert art_download_all != art_download_entry
+    with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
+        rsps.add_passthru(re.compile(".*graphql"))
+        rsps.add(responses.PassthroughResponse(responses.GET, re.compile(".*")))
+
+        entry = art_download_entry.get_entry("a.txt")
+        entry.download(root=tmp_path / "download_entry", skip_cache=True)
+
+        storage_requests = [call.request for call in rsps.calls]
+        assert len(storage_requests) > 0
+
+        # Expect all requests to have been populated with the custom headers
+        for req in storage_requests:
+            assert custom_headers.items() <= req.headers.items()
