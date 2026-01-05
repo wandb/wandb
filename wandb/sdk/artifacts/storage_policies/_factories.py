@@ -26,13 +26,11 @@ def raise_for_status(response: Response, *_, **__) -> None:
 
 def make_http_session() -> Session:
     """Return a `requests.Session` configured for artifact storage handlers."""
-    import os
-
     from requests import Session
     from requests.adapters import HTTPAdapter
     from urllib3.util.retry import Retry
 
-    from wandb.sdk.wandb_settings import Settings
+    from wandb.sdk import wandb_setup
 
     # Sleep length: 0, 2, 4, 8, 16, 32, 64, 120, 120, 120, 120, 120, 120, 120, 120, 120
     # seconds, i.e. a total of 20min 6s.
@@ -43,13 +41,8 @@ def make_http_session() -> Session:
     )
 
     session = Session()
-    # NOTE: Create settings here to read http headers from env vars.
-    # Otherwise, we need to propagate settings along:
-    # api -> artifact -> manifest -> storage policy.
-    # This is not ideal and won't work when user set settings directly
-    # on wandb.Api() or wandb.init(). But it works for env vars.
-    settings = Settings(silent=True)
-    settings.update_from_env_vars(dict(os.environ))
+    # Use the global settings singleton which already includes env var updates.
+    settings = wandb_setup.singleton().settings
     headers = settings.x_extra_http_headers or {}
     session.headers.update(headers)
 

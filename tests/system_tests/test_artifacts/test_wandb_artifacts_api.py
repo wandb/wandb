@@ -565,13 +565,18 @@ def test_artifact_multipart_download(user: str, api: Api):
     assert downloaded_md5 == md5_value
 
 
-def test_artifact_download_http_headers(user, api, monkeypatch, tmp_path):
+def test_artifact_download_http_headers(user, monkeypatch, tmp_path):
     """Test custom HTTP headers are included in full artifact and single entry download requests."""
     custom_headers = {
         "X-Custom-Header": "test-value",
         "X-Another-Header": "another-value",
     }
     monkeypatch.setenv("WANDB_X_EXTRA_HTTP_HEADERS", json.dumps(custom_headers))
+    # Reset the singleton so it picks up the new env var.
+    wandb.teardown()
+
+    # Create the Api after teardown to ensure it picks up the new settings.
+    api = Api()
 
     entity = user
     project = "test-http-headers-full"
