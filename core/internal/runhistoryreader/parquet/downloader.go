@@ -25,7 +25,7 @@ func GetSignedUrlsWithLiveSteps(
 	entity string,
 	project string,
 	runId string,
-) (signedUrls []string, liveData []any, err error) {
+) (signedUrls []string, liveSteps []float64, err error) {
 	response, err := gql.RunParquetHistory(
 		ctx,
 		graphqlClient,
@@ -42,9 +42,14 @@ func GetSignedUrlsWithLiveSteps(
 		return nil, nil, fmt.Errorf("no parquet history found for run %s", runId)
 	}
 
+	liveDataResponse := response.GetProject().GetRun().GetParquetHistory().LiveData
+	liveSteps, err = extractStepValuesFromLiveData(liveDataResponse)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	signedUrls = response.GetProject().GetRun().GetParquetHistory().ParquetUrls
-	liveData = response.GetProject().GetRun().GetParquetHistory().LiveData
-	return signedUrls, liveData, nil
+	return signedUrls, liveSteps, nil
 }
 
 func DownloadRunHistoryFile(
@@ -76,4 +81,29 @@ func DownloadRunHistoryFile(
 	}
 
 	return nil
+}
+
+func extractStepValuesFromLiveData(liveData []any) ([]float64, error) {
+	stepValues := make([]float64, 0, len(liveData))
+	if liveData == nil {
+		return stepValues, nil
+	}
+
+	for _, data := range liveData {
+		liveDataMap, ok := data.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("expected liveData to be map[string]any")
+		}
+		step, ok := liveDataMap[iterator.StepKey]
+		if !ok {
+			return nil, fmt.Errorf("expected liveData to contain step key")
+		}
+		stepValue, ok := step.(float64)
+		if !ok {
+			return nil, fmt.Errorf("expected step to be float64")
+		}
+
+		stepValues = append(stepValues, stepValue)
+	}
+	return stepValues, nil
 }

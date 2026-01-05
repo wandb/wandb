@@ -347,10 +347,12 @@ class DownloadRunHistory(google.protobuf.message.Message):
     PROJECT_FIELD_NUMBER: builtins.int
     RUN_ID_FIELD_NUMBER: builtins.int
     DOWNLOAD_DIR_FIELD_NUMBER: builtins.int
+    REQUIRE_COMPLETE_HISTORY_FIELD_NUMBER: builtins.int
     entity: builtins.str
     project: builtins.str
     run_id: builtins.str
     download_dir: builtins.str
+    require_complete_history: builtins.bool
     def __init__(
         self,
         *,
@@ -358,8 +360,9 @@ class DownloadRunHistory(google.protobuf.message.Message):
         project: builtins.str = ...,
         run_id: builtins.str = ...,
         download_dir: builtins.str = ...,
+        require_complete_history: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["download_dir", b"download_dir", "entity", b"entity", "project", b"project", "run_id", b"run_id"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["download_dir", b"download_dir", "entity", b"entity", "project", b"project", "require_complete_history", b"require_complete_history", "run_id", b"run_id"]) -> None: ...
 
 global___DownloadRunHistory = DownloadRunHistory
 
