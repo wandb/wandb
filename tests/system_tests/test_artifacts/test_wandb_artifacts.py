@@ -142,17 +142,35 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
                 else Blob(generation=kwargs.get("generation"))
             )
 
-        def list_blobs(self, *args, **kwargs):
+        def list_blobs(self, prefix="", versions=False, max_results=None, *args, **kwargs):
+            # For versioned lookups, return blob with the requested generation
+            if versions and prefix == override_blob_name:
+                # Return multiple generations, the caller filters by generation
+                return [
+                    Blob(name=override_blob_name, generation="1"),
+                    Blob(name=override_blob_name, generation="2"),
+                    Blob(name=override_blob_name, generation="3"),
+                ]
             if override_blob_name.endswith("/"):
                 return [
                     Blob(name=override_blob_name),
                     Blob(name=os.path.join(override_blob_name, "my_other_object.pb")),
                 ]
-            else:
+            # For single object lookup (not versioned)
+            if prefix == override_blob_name and not path:
+                return [Blob(name=override_blob_name)]
+            # For directory listing (path=True or prefix doesn't match exactly)
+            if path or prefix == "":
+                # Return objects for directory listing
                 return [
-                    Blob(name=override_blob_name),
+                    Blob(name="my_object.pb"),
                     Blob(name="my_other_object.pb"),
                 ]
+            # Default: return blobs matching prefix
+            return [
+                Blob(name=override_blob_name),
+                Blob(name="my_other_object.pb"),
+            ]
 
     class GSClient:
         def bucket(self, bucket):

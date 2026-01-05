@@ -58,6 +58,49 @@ class _GCSPath:
         )
 
 
+def _get_blob_via_list(
+    bucket: storage.Bucket,
+    key: str,
+    generation: int | str | None = None,
+) -> storage.Blob | None:
+    """Get blob metadata using list_blobs instead of get_blob.
+
+    This avoids requiring storage.objects.get permission, only needs
+    storage.objects.list permission.
+
+    Args:
+        bucket: The GCS bucket
+        key: The object key (exact match required)
+        generation: Optional specific generation (version) to retrieve
+
+    Returns:
+        The blob if found with exact key match, None otherwise
+    """
+    # Use versions=True when looking for a specific generation
+    include_versions = generation is not None
+
+    blobs = bucket.list_blobs(
+        prefix=key,
+        versions=include_versions,
+        max_results=100,  # Limit to avoid listing entire bucket
+    )
+
+    for blob in blobs:
+        # Must be exact key match (prefix can match multiple objects)
+        if blob.name != key:
+            continue
+
+        if generation is not None:
+            # Match specific generation
+            if str(blob.generation) == str(generation):
+                return blob
+        else:
+            # Return first exact match (latest version when versions=False)
+            return blob
+
+    return None
+
+
 class GCSHandler(StorageHandler):
     _scheme: str
     _client: storage.Client | None
@@ -164,7 +207,7 @@ class GCSHandler(StorageHandler):
             ]
 
         bucket = client.bucket(gcs_path.bucket)
-        obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
+        obj = _get_blob_via_list(bucket, gcs_path.key, generation=gcs_path.version)
         if (obj is None) and (gcs_path.version is not None):
             raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
 
@@ -248,12 +291,35 @@ class GCSHandler(StorageHandler):
 
 
 def _is_dir(bucket: storage.Bucket, key: str, entry_size: int | None) -> bool:
-    # A GCS folder key should end with a forward slash, but older manifest
-    # entries may omit it. To detect folders, check the size and extension,
-    # ensure there is no file with this reference, and confirm that the
-    # slash-suffixed reference exists as a folder in GCS.
-    return key.endswith("/") or (
-        not (entry_size or PurePosixPath(key).suffix)
-        and bucket.get_blob(key) is None
-        and bucket.get_blob(f"{key}/") is not None
+    """Detect if a key represents a directory.
+
+    Uses list_blobs instead of get_blob to avoid requiring
+    storage.objects.get permission.
+
+    A GCS folder key should end with a forward slash, but older manifest
+    entries may omit it. To detect folders, check the size and extension,
+    ensure there is no file with this reference, and confirm that the
+    slash-suffixed reference exists as a folder in GCS.
+    """
+    # Fast path: explicit directory marker
+    if key.endswith("/"):
+        return True
+
+    # If entry has size or file extension, it's likely a file
+    if entry_size or PurePosixPath(key).suffix:
+        return False
+
+    # Use list_blobs to check if key exists as a file
+    # list_blobs returns blobs matching the prefix
+    file_exists = any(
+        blob.name == key for blob in bucket.list_blobs(prefix=key, max_results=10)
     )
+    if file_exists:
+        return False
+
+    # Check if folder marker exists at key/
+    folder_exists = any(
+        blob.name.startswith(f"{key}/")
+        for blob in bucket.list_blobs(prefix=f"{key}/", max_results=1)
+    )
+    return folder_exists
