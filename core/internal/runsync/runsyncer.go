@@ -36,7 +36,7 @@ type RunSyncer struct {
 	mu      sync.Mutex
 	runInfo *RunInfo
 
-	path string
+	displayPath DisplayPath
 
 	logger     *observability.CoreLogger
 	operations *wboperation.WandbOperations
@@ -49,6 +49,7 @@ type RunSyncer struct {
 // New initializes a sync operation without starting it.
 func (f *RunSyncerFactory) New(
 	path string,
+	displayPath DisplayPath,
 	updates *RunSyncUpdates,
 	live bool,
 ) *RunSyncer {
@@ -65,6 +66,7 @@ func (f *RunSyncerFactory) New(
 	recordParser := f.RecordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
 	runReader := f.RunReaderFactory.New(
 		path,
+		displayPath,
 		updates,
 		live,
 		recordParser,
@@ -72,7 +74,7 @@ func (f *RunSyncerFactory) New(
 	)
 
 	return &RunSyncer{
-		path: path,
+		displayPath: displayPath,
 
 		logger:     f.Logger,
 		operations: f.Operations,
@@ -118,7 +120,7 @@ func (rs *RunSyncer) Sync() error {
 		return err
 	}
 
-	rs.printer.Infof("Finished syncing %s", rs.path)
+	rs.printer.Infof("Finished syncing %s", rs.displayPath)
 	return nil
 }
 
@@ -133,8 +135,7 @@ func (rs *RunSyncer) Stats() *spb.OperationStats {
 	if runInfo != nil {
 		operationsProto.Label = runInfo.Path()
 	} else {
-		// TODO: Shorten the path.
-		operationsProto.Label = rs.path // file path being synced
+		operationsProto.Label = string(rs.displayPath)
 	}
 
 	return operationsProto

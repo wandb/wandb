@@ -14,8 +14,14 @@ option go_package = "core/pkg/service_go_proto";
 message ServerInitSyncRequest {
   // Paths to the .wandb files to upload.
   //
-  // Paths should be absolute.
+  // Paths should either be absolute or relative to the cwd, and all paths
+  // should refer to different files.
   repeated string path = 1;
+
+  // An absolute path to the user's current working directory.
+  //
+  // Paths are displayed relative to this if the result is shorter.
+  string cwd = 7;
 
   // Whether to perform a live sync.
   bool live = 6;
