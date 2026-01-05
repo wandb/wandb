@@ -201,6 +201,9 @@ def test_syncs_run(
     # More lines possible depending on status updates. Not deterministic.
     assert lines[-1].startswith(f"wandb: [{run.path}] Finished syncing")
 
+    synced_file = pathlib.Path(run.settings.sync_file + ".synced")
+    assert synced_file.exists()
+
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run.id)
         assert len(history) == 1
