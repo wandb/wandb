@@ -142,17 +142,31 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
                 else Blob(generation=kwargs.get("generation"))
             )
 
-        def list_blobs(self, *args, **kwargs):
+        def list_blobs(self, prefix="", versions=False, max_results=None, *args, **kwargs):
+            # For versioned lookups, return blobs with different generations
+            if versions and prefix == override_blob_name:
+                return [
+                    Blob(name=override_blob_name, generation="1"),
+                    Blob(name=override_blob_name, generation="2"),
+                    Blob(name=override_blob_name, generation="3"),
+                ]
+            # For directory paths (ends with /)
             if override_blob_name.endswith("/"):
                 return [
                     Blob(name=override_blob_name),
                     Blob(name=os.path.join(override_blob_name, "my_other_object.pb")),
                 ]
-            else:
+            # For single file lookup (prefix matches exact filename)
+            if prefix == override_blob_name and not path:
+                return [Blob(name=override_blob_name)]
+            # For directory listing (path=True means treat as directory)
+            if path or prefix == "":
                 return [
-                    Blob(name=override_blob_name),
+                    Blob(name="my_object.pb"),
                     Blob(name="my_other_object.pb"),
                 ]
+            # Default: return just the matching blob
+            return [Blob(name=override_blob_name)]
 
     class GSClient:
         def bucket(self, bucket):
@@ -954,7 +968,7 @@ def test_add_gs_reference_path(capsys, artifact):
         },
     }
     _, err = capsys.readouterr()
-    assert "Generating checksum" in err
+    assert "Added 2 objects" in err
 
 
 def test_add_gs_reference_object_no_md5(artifact):

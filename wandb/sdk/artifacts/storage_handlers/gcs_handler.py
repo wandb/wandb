@@ -154,6 +154,10 @@ class GCSHandler(StorageHandler):
         # After parsing any query params / fragments for additional context,
         # such as version identifiers, pare down the path to just the bucket
         # and key.
+        # For example: gs://my-bucket/my_object.pb#2
+        # - bucket: my-bucket
+        # - key: my_object.pb
+        # - version: 2
         gcs_path = _GCSPath.from_uri(path)
         path = f"{self._scheme}://{gcs_path.bucket}/{gcs_path.key}"
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
@@ -164,29 +168,27 @@ class GCSHandler(StorageHandler):
             ]
 
         bucket = client.bucket(gcs_path.bucket)
-        obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
-        if (obj is None) and (gcs_path.version is not None):
+        # Return different versions as blobs if user specified a version
+        # https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.client.Client#google_cloud_storage_client_Client_list_blobs
+        versions = gcs_path.version is not None
+        objects = bucket.list_blobs(
+            prefix=gcs_path.key, max_results=max_objects, versions=versions
+        )
+
+        entries = [
+            self._entry_from_obj(obj, path, name, prefix=gcs_path.key)
+            for obj in objects
+            if obj
+            and not obj.name.endswith("/")
+            and (gcs_path.version is None or str(obj.generation) == gcs_path.version)
+        ]
+
+        if len(entries) > 1:
+            termlog(f"Added {len(entries)} objects with prefix {gcs_path.key!r}")
+
+        # Error if versioned object doesn't exist
+        if gcs_path.version is not None and len(entries) == 0:
             raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
-
-        # HNS buckets store directory markers as blobs, so check the blob name
-        # to see if it represents a directory.
-        with TimedIf(multi := ((obj is None) or obj.name.endswith("/"))):
-            if multi:
-                termlog(
-                    f"Generating checksum for up to {max_objects} objects with prefix {gcs_path.key!r}... ",
-                    newline=False,
-                )
-                objects = bucket.list_blobs(
-                    prefix=gcs_path.key, max_results=max_objects
-                )
-            else:
-                objects = [obj]
-
-            entries = [
-                self._entry_from_obj(obj, path, name, prefix=gcs_path.key, multi=multi)
-                for obj in objects
-                if obj and not obj.name.endswith("/")
-            ]
 
         if len(entries) > max_objects:
             raise ValueError(
@@ -201,7 +203,6 @@ class GCSHandler(StorageHandler):
         path: str,
         name: StrPath | None = None,
         prefix: str = "",
-        multi: bool = False,
     ) -> ArtifactManifestEntry:
         """Create an ArtifactManifestEntry from a GCS object.
 
@@ -209,33 +210,35 @@ class GCSHandler(StorageHandler):
             obj: The GCS object
             path: The GCS-style path (e.g.: "gs://bucket/file.txt")
             name: The user assigned name, or None if not specified
-            prefix: The prefix to add (will be the same as `path` for directories)
-            multi: Whether or not this is a multi-object add.
+            prefix: The prefix used for listing (same as key for single files)
         """
         uri = _GCSPath.from_uri(path)
 
         # Always use posix paths, since that's what S3 uses.
         posix_key = PurePosixPath(obj.name)  # the bucket key
         posix_path = PurePosixPath(uri.bucket, uri.key)  # path without the scheme
-        posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
+        posix_prefix = PurePosixPath(prefix)  # the prefix used for listing
+
+        # Check if this object is under a directory prefix
+        is_under_prefix = posix_prefix in posix_key.parents
 
         if name is None:
-            # We're adding a directory (prefix), so calculate a relative path.
-            if posix_prefix in posix_key.parents:
+            if is_under_prefix:
+                # Object is under a directory prefix, use relative path
                 posix_name = posix_key.relative_to(posix_prefix)
                 posix_ref = posix_path / posix_name
             else:
+                # Single file, use just the filename
                 posix_name = PurePosixPath(posix_key.name)
                 posix_ref = posix_path
-
-        elif multi:
-            # We're adding a directory with a name override.
+        elif is_under_prefix:
+            # Directory with custom name override
             relpath = posix_key.relative_to(posix_prefix)
             posix_name = PurePosixPath(name) / relpath
             posix_ref = posix_path / relpath
-
         else:
-            posix_name = PurePosixPath(name or "")
+            # Single file with custom name
+            posix_name = PurePosixPath(name)
             posix_ref = posix_path
 
         return ArtifactManifestEntry(
