@@ -268,7 +268,7 @@ class Runs(SizedPaginator["Run"]):
         self._project_internal_id = None
         self.filters = filters or {}
         self.order = order
-        self._sweeps = {}
+        self._sweeps: dict[str, public.Sweep] = {}
         self._include_sweeps = include_sweeps
         self._lazy = lazy
         self._api = api
