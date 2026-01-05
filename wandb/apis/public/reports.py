@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from wandb_gql import gql
 
 import wandb
+from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.paginator import SizedPaginator
@@ -146,7 +147,7 @@ class Reports(SizedPaginator["BetaReport"]):
         ]
 
     def __repr__(self) -> str:
-        return "<Reports {}>".format("/".join(self.project.path))
+        return f"<{nameof(type(self))} {'/'.join(self.project.path)}>"
 
 
 class BetaReport(Attrs):
@@ -198,7 +199,10 @@ class BetaReport(Attrs):
         return self.spec["panelGroups"]
 
     def runs(
-        self, section: dict[str, Any], per_page: int = 50, only_selected: bool = True
+        self,
+        section: dict[str, Any],
+        per_page: int = 50,
+        only_selected: bool = True,
     ) -> public.Runs:
         """Get runs associated with a section of the report."""
         run_set_idx = section.get("openRunSet", 0)
