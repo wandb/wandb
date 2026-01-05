@@ -192,7 +192,12 @@ def patch_prompt(monkeypatch):
 
 
 @pytest.fixture
-def runner():
+def runner(monkeypatch: pytest.MonkeyPatch):
+    # Allow terminput() usage when invoking with the CliRunner.
+    #
+    # This assumes that terminput() is only called within a runner.invoke()
+    # in tests that use the runner fixture.
+    monkeypatch.setattr(term, "can_use_terminput", lambda: True)
     return CliRunner()
 
 
