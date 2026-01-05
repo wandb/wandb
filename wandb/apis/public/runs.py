@@ -40,6 +40,7 @@ import pathlib
 import tempfile
 import time
 import urllib
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Collection, Iterator, Literal, Mapping
 
 from wandb_gql import gql
@@ -1570,7 +1571,8 @@ class Run(Attrs):
     def download_history_exports(
         self,
         download_dir: pathlib.Path | str,
-    ) -> tuple[list[pathlib.Path], bool]:
+        require_complete_history: bool = True,
+    ) -> DownloadHistoryResult:
         """Download any parquet history files for the run to the provided directory.
 
         If the run contains live data (data that is not yet exported to parquet),
@@ -1593,6 +1595,7 @@ class Run(Attrs):
                     project=self.project,
                     run_id=self.id,
                     download_dir=str(download_dir),
+                    require_complete_history=require_complete_history,
                 )
             )
         )
@@ -1602,11 +1605,25 @@ class Run(Attrs):
             response.HasField("api_error_response")
             and response.api_error_response is not None
         ):
-            raise RuntimeError()
+            raise RuntimeError(response.api_error_response.message)
 
+        contains_live_data: bool = response.download_run_history_response.contains_live_data
         file_names: list[pathlib.Path] = []
         for file_name in response.download_run_history_response.file_names:
             file_names.append(pathlib.Path(download_dir, file_name))
 
-        contains_live_data = response.download_run_history_response.contains_live_data
-        return file_names, contains_live_data
+        return DownloadHistoryResult(file_names, contains_live_data)
+
+@dataclass(frozen=True)
+class DownloadHistoryResult:
+    file_names: list[pathlib.Path]
+    contains_live_data: bool
+    
+    def __iter__(self):
+        return iter(self.file_names)
+
+    def __len__(self):
+        return len(self.file_names)
+
+    def __getitem__(self, index: int):
+        return self.file_names[index]

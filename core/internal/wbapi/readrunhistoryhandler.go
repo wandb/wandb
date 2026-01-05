@@ -281,6 +281,15 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
 	}
 
 	containsLiveData := len(liveData) > 0
+	if request.RequireCompleteHistory && containsLiveData {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: "Run contains data that has not been exported to parquet files yet.",
+				},
+			},
+		}
+	}
 
 	fileNames := make([]string, 0, len(signedUrls))
 	for i, url := range signedUrls {

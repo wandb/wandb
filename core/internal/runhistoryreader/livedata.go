@@ -176,36 +176,13 @@ func convertHistoryRowToKeyValueList(
 }
 
 // getMinLiveStep gets the minimum step present from the live data.
-func getMinLiveStep(liveData []any) (int64, error) {
-	minLiveStep := int64(math.MaxInt)
-	for _, liveDataItem := range liveData {
-		liveDataMap, ok := liveDataItem.(map[string]any)
-		if !ok {
-			return 0, fmt.Errorf("expected LiveData to be map[string]any")
-		}
-
-		stepValue, ok := liveDataMap[iterator.StepKey]
-		if !ok {
-			return 0, fmt.Errorf("expected LiveData to contain step key")
-		}
-
-		var stepIntValue int64
-		switch x := stepValue.(type) {
-		case float64:
-			stepIntValue = int64(x)
-		case int64:
-			stepIntValue = x
-		default:
-			return 0, fmt.Errorf(
-				"expected step value to be convertible to int, actual type: %T",
-				stepValue,
-			)
-		}
-
-		if stepIntValue < minLiveStep {
-			minLiveStep = stepIntValue
+func getMinLiveStep(liveSteps []float64) (int64, error) {
+	minLiveStep := math.MaxFloat64
+	for _, stepValue := range liveSteps {
+		if stepValue < minLiveStep {
+			minLiveStep = stepValue
 		}
 	}
 
-	return minLiveStep, nil
+	return int64(minLiveStep), nil
 }

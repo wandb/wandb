@@ -116,6 +116,7 @@ message DownloadRunHistory {
   string project = 2;
   string run_id = 3;
   string download_dir = 4;
+  bool require_complete_history = 5;
 }
 
 message DownloadRunHistoryResponse {
