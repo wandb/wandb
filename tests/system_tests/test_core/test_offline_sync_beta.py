@@ -242,24 +242,30 @@ def test_syncs_resumed_run(
     wandb_backend_spy: WandbBackendSpy,
     runner: CliRunner,
 ):
-    with wandb.init(mode="offline") as run1:
-        run1.log({"x": 1})
-    with wandb.init(id=run1.id, resume="must", mode="offline") as run2:
-        run2.log({"x": 2})
-    with wandb.init(id=run1.id, resume="must", mode="offline") as run3:
-        run3.log({"x": 3})
+    with wandb.init() as run1:
+        run1.log({"x": "a"})
+    with wandb.init(id=run1.id, resume="must") as run2:
+        run2.log({"x": "b"})
+    with wandb.init(id=run1.id, resume="must") as run3:
+        run3.log({"x": "c"})
     run1_dir = run1.settings.sync_dir
     run2_dir = run2.settings.sync_dir
     run3_dir = run3.settings.sync_dir
+    new_id = f"{run1.id}-copy"
 
-    runner.invoke(cli.beta, f"sync {run3_dir} {run1_dir} {run2_dir}")
+    runner.invoke(cli.beta, f"sync --id {new_id} {run3_dir} {run1_dir} {run2_dir}")
 
     with wandb_backend_spy.freeze() as snapshot:
-        history = snapshot.history(run_id=run1.id)
-        assert len(history) == 3
-        assert history[0]["x"] == 1
-        assert history[1]["x"] == 2
-        assert history[2]["x"] == 3
+        history = snapshot.history(run_id=new_id)
+        xs = {n: history[n]["x"] for n in history}
+
+        # Asynchrony in the backend sometimes causes it to return an old step
+        # when resuming, making the SDK overwrite that step. So, for instance,
+        # this could be {0: "a", 1: "c"} or {0: "b", 1: "c"}.
+        #
+        # When running this test 100 times on 14 pytest workers reusing the
+        # same local-testcontainer, the test flaked once for me.
+        assert xs == {0: "a", 1: "b", 2: "c"}
 
 
 def test_sync_to_other_path(
