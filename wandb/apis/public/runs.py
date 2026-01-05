@@ -1601,10 +1601,7 @@ class Run(Attrs):
         )
         response: apb.ApiResponse = self._api._send_api_request(api_request)
 
-        if (
-            response.HasField("api_error_response")
-            and response.api_error_response is not None
-        ):
+        if response.HasField("api_error_response"):
             raise RuntimeError(response.api_error_response.message)
 
         contains_live_data: bool = response.download_run_history_response.contains_live_data

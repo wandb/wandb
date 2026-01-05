@@ -111,15 +111,30 @@ message ScanRunHistoryCleanupResponse {}
 
 // Download run history
 
+// DownloadRunHistory is a request to download a run's history exports.
 message DownloadRunHistory {
+  // The entity who owns the run.
   string entity = 1;
+  // The project that the run belongs to.
   string project = 2;
+  // The ID of the run.
   string run_id = 3;
+  
+  // The directory to store the downloaded history files within.
   string download_dir = 4;
+  
+  // Whether to require the complete history to be downloaded.
+  // If the run contains data that has not been exported to parquet files yet,
+  // the run history will be considered incomplete.
   bool require_complete_history = 5;
 }
 
+// DownloadRunHistoryResponse is a response to a DownloadRunHistory request.
 message DownloadRunHistoryResponse {
+  // The list of file names that were downloaded.
+  // Each value is the full path to the downloaded file.
   repeated string file_names = 1;
+
+  // Whether the run contains data that has not been exported to parquet files yet.
   bool contains_live_data = 2;
 }
