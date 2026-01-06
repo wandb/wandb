@@ -578,7 +578,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnNonConvertibleStepValue(t *testi
 		[]string{},
 		false,
 	)
-	assert.ErrorContains(t, err, "expected step value to be convertible to int")
+	assert.ErrorContains(t, err, "expected step to be float64")
 }
 
 func TestHistoryReader_GetHistorySteps_ConvertsStepValueToInt(t *testing.T) {
