@@ -125,7 +125,24 @@ LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
 
 
 class IncompleteRunHistoryError(Exception):
-    """Raised when run history has live data."""
+    """Raised when run history has live data, but history is required to be complete."""
+
+
+@dataclass(frozen=True)
+class DownloadHistoryResult:
+    """Result of downloading a run's history exports."""
+
+    file_names: list[pathlib.Path]
+    contains_live_data: bool
+
+    def __iter__(self):
+        return iter(self.file_names)
+
+    def __len__(self):
+        return len(self.file_names)
+
+    def __getitem__(self, index: int):
+        return self.file_names[index]
 
 
 def _create_runs_query(
@@ -1630,18 +1647,3 @@ class Run(Attrs):
             file_names.append(pathlib.Path(download_dir, file_name))
 
         return DownloadHistoryResult(file_names, contains_live_data)
-
-
-@dataclass(frozen=True)
-class DownloadHistoryResult:
-    file_names: list[pathlib.Path]
-    contains_live_data: bool
-
-    def __iter__(self):
-        return iter(self.file_names)
-
-    def __len__(self):
-        return len(self.file_names)
-
-    def __getitem__(self, index: int):
-        return self.file_names[index]
