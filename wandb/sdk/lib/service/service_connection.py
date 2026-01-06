@@ -25,6 +25,14 @@ class WandbAttachFailedError(Exception):
 class WandbApiFailedError(Exception):
     """Failed to execute an API request to wandb-core."""
 
+    def __init__(
+        self,
+        message: str,
+        response: wandb_api_pb2.ApiErrorResponse | None = None,
+    ):
+        super().__init__(message)
+        self.response: wandb_api_pb2.ApiErrorResponse | None = response
+
 
 def connect_to_service(
     asyncer: asyncio_manager.AsyncioManager,
@@ -211,7 +219,10 @@ class ServiceConnection:
 
         api_response = response.api_response
         if api_response.HasField("api_error_response"):
-            raise Exception(api_response.api_error_response.message)
+            raise WandbApiFailedError(
+                api_response.api_error_response.message,
+                api_response.api_error_response,
+            )
         return api_response
 
     def api_publish(self, api_request: wandb_api_pb2.ApiRequest) -> None:

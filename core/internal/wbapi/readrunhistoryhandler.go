@@ -3,7 +3,9 @@ package wbapi
 import (
 	"context"
 	"fmt"
-	"net/http"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -55,6 +58,10 @@ func NewRunHistoryAPIHandler(
 	httpClient.RetryWaitMin = settings.GetFileTransferRetryWaitMin()
 	httpClient.RetryWaitMax = settings.GetFileTransferRetryWaitMax()
 	httpClient.HTTPClient.Timeout = settings.GetFileTransferTimeout()
+	httpClient.Logger = observability.NewCoreLogger(
+		slog.Default(),
+		nil,
+	)
 
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,
@@ -75,6 +82,8 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 		return f.handleScanRunHistoryRead(request.GetScanRunHistory())
 	case *spb.ReadRunHistoryRequest_ScanRunHistoryCleanup:
 		return f.handleScanRunHistoryCleanup(request.GetScanRunHistoryCleanup())
+	case *spb.ReadRunHistoryRequest_DownloadRunHistory:
+		return f.handleDownloadRunHistory(request.GetDownloadRunHistory())
 	}
 
 	return nil
@@ -109,7 +118,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 		request.Project,
 		request.RunId,
 		f.graphqlClient,
-		http.DefaultClient,
+		f.httpClient,
 		requestKeys,
 		request.UseCache,
 	)
@@ -245,6 +254,93 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryCleanup(
 				Response: &spb.ReadRunHistoryResponse_ScanRunHistoryCleanup{
 					ScanRunHistoryCleanup: &spb.ScanRunHistoryCleanupResponse{},
 				},
+			},
+		},
+	}
+}
+
+// handleDownloadRunHistory handles a request to download
+// a run's history.
+func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
+	request *spb.DownloadRunHistory,
+) *spb.ApiResponse {
+	signedUrls, liveData, err := parquet.GetSignedUrlsWithLiveSteps(
+		context.Background(),
+		f.graphqlClient,
+		request.Entity,
+		request.Project,
+		request.RunId,
+	)
+	if err != nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: err.Error(),
+				},
+			},
+		}
+	}
+
+	containsLiveData := len(liveData) > 0
+	if request.RequireCompleteHistory && containsLiveData {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: "Run contains data that has not been exported to parquet files yet.",
+					ErrorType: &spb.ErrorType{
+						ErrorType: &spb.ErrorType_IncompleteRunHistoryError{
+							IncompleteRunHistoryError: &spb.IncompleteRunHistoryError{},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	err = os.MkdirAll(request.DownloadDir, 0755)
+	if err != nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: err.Error(),
+				},
+			},
+		}
+	}
+
+	fileNames := make([]string, 0, len(signedUrls))
+	for i, url := range signedUrls {
+		fileName := fmt.Sprintf(
+			"%s_%s_%s_%d.runhistory.parquet",
+			request.Entity,
+			request.Project,
+			request.RunId,
+			i,
+		)
+		filePath := filepath.Join(request.DownloadDir, fileName)
+		err = parquet.DownloadRunHistoryFile(
+			context.Background(),
+			f.httpClient,
+			url,
+			filePath,
+		)
+		if err != nil {
+			return &spb.ApiResponse{
+				Response: &spb.ApiResponse_ApiErrorResponse{
+					ApiErrorResponse: &spb.ApiErrorResponse{
+						Message: err.Error(),
+					},
+				},
+			}
+		}
+		fileNames = append(fileNames, fileName)
+	}
+
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_DownloadRunHistoryResponse{
+			DownloadRunHistoryResponse: &spb.DownloadRunHistoryResponse{
+				FileNames:        fileNames,
+				ContainsLiveData: containsLiveData,
 			},
 		},
 	}
