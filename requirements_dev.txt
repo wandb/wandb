@@ -65,6 +65,8 @@ requests~=2.23
 responses
 prometheus_client
 google-cloud-aiplatform
+google-auth~=2.45
+google-auth!=2.46.0  # https://github.com/googleapis/google-auth-library-python/issues/1915
 
 # See:
 # - https://github.com/boto/botocore/pull/1107
