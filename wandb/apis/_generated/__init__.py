@@ -108,6 +108,7 @@ __all__ = [
     "SweepFragment",
     "UserFragment",
     "UserInfoFragment",
+    "ViewFragment",
     "ArtifactState",
     "RunQueueAccessType",
     "RunQueueItemState",
@@ -145,6 +146,7 @@ from .fragments import (
     SweepFragment,
     UserFragment,
     UserInfoFragment,
+    ViewFragment,
 )
 from .generate_api_key import GenerateApiKey
 from .get_default_entity import GetDefaultEntity

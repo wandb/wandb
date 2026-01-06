@@ -7,9 +7,9 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLId, GQLResult
+from wandb._pydantic import GQLResult
 
-from .fragments import PageInfoFragment
+from .fragments import PageInfoFragment, ViewFragment
 
 
 class ProjectViews(GQLResult):
@@ -21,33 +21,16 @@ class ProjectViewsProject(GQLResult):
 
 
 class ProjectViewsProjectAllViews(GQLResult):
+    total_count: int = Field(alias="totalCount")
     page_info: PageInfoFragment = Field(alias="pageInfo")
     edges: List[ProjectViewsProjectAllViewsEdges]
 
 
 class ProjectViewsProjectAllViewsEdges(GQLResult):
-    node: Optional[ProjectViewsProjectAllViewsEdgesNode]
-
-
-class ProjectViewsProjectAllViewsEdgesNode(GQLResult):
-    id: GQLId
-    name: Optional[str]
-    display_name: Optional[str] = Field(alias="displayName")
-    description: Optional[str]
-    user: Optional[ProjectViewsProjectAllViewsEdgesNodeUser]
-    spec: Optional[str]
-    updated_at: Optional[str] = Field(alias="updatedAt")
-    created_at: str = Field(alias="createdAt")
-
-
-class ProjectViewsProjectAllViewsEdgesNodeUser(GQLResult):
-    username: Optional[str]
-    photo_url: Optional[str] = Field(alias="photoUrl")
-    email: Optional[str]
+    node: Optional[ViewFragment]
 
 
 ProjectViews.model_rebuild()
 ProjectViewsProject.model_rebuild()
 ProjectViewsProjectAllViews.model_rebuild()
 ProjectViewsProjectAllViewsEdges.model_rebuild()
-ProjectViewsProjectAllViewsEdgesNode.model_rebuild()
