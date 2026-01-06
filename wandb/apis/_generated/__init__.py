@@ -12,8 +12,6 @@ __all__ = [
     "DELETE_RUN_GQL",
     "GENERATE_API_KEY_GQL",
     "GET_DEFAULT_ENTITY_GQL",
-    "GET_LIGHT_RUNS_GQL",
-    "GET_LIGHT_RUN_GQL",
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
     "GET_RUNS_GQL",
@@ -36,9 +34,7 @@ __all__ = [
     "GetProject",
     "CreateProject",
     "GetRuns",
-    "GetLightRuns",
     "GetRun",
-    "GetLightRun",
     "GetRunState",
     "CreateRun",
     "UpdateRun",
@@ -99,8 +95,6 @@ from .fragments import (
 )
 from .generate_api_key import GenerateApiKey
 from .get_default_entity import GetDefaultEntity
-from .get_light_run import GetLightRun
-from .get_light_runs import GetLightRuns
 from .get_project import GetProject
 from .get_projects import GetProjects
 from .get_run import GetRun
@@ -133,8 +127,6 @@ from .operations import (
     DELETE_RUN_GQL,
     GENERATE_API_KEY_GQL,
     GET_DEFAULT_ENTITY_GQL,
-    GET_LIGHT_RUN_GQL,
-    GET_LIGHT_RUNS_GQL,
     GET_PROJECT_GQL,
     GET_PROJECTS_GQL,
     GET_RUN_EVENTS_GQL,

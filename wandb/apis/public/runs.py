@@ -64,7 +64,7 @@ if TYPE_CHECKING:
     from typing_extensions import Self
     from wandb_graphql.language.ast import Document
 
-    from wandb.apis._generated import GetLightRuns, GetRuns
+    from wandb.apis._generated import GetRuns
     from wandb.apis.public import RetryingClient
     from wandb.old.summary import HTTPSummary
 
@@ -80,17 +80,14 @@ def _create_runs_query(
     to omit `internalId/projectId` from the query fields, as older
     servers may not support these fields.
     """
-    from wandb.apis._generated import GET_LIGHT_RUNS_GQL, GET_RUNS_GQL
+    from wandb.apis._generated import GET_RUNS_GQL
 
     # Omit fields not supported by the server
     omit_fields = {
         *(() if with_internal_id else {"internalId"}),
         *(() if with_project_id else {"projectId"}),
     }
-    return gql_compat(
-        GET_LIGHT_RUNS_GQL if lazy else GET_RUNS_GQL,
-        omit_fields=omit_fields,
-    )
+    return gql_compat(GET_RUNS_GQL, omit_fields=omit_fields)
 
 
 @normalize_exceptions
@@ -155,7 +152,7 @@ class Runs(SizedPaginator["Run"]):
     """
 
     QUERY: Document  # Must be set per-instance
-    last_response: GetRuns | GetLightRuns | None
+    last_response: GetRuns | None
 
     def __init__(
         self,
@@ -169,14 +166,19 @@ class Runs(SizedPaginator["Run"]):
         lazy: bool = True,
         api: public.Api | None = None,
     ):
+        from wandb.apis._generated import GET_RUNS_GQL
+
         if not order:
             order = "+created_at"
 
-        self.QUERY = _create_runs_query(
-            lazy=lazy,
-            with_internal_id=_server_has_field(client, "Project", "internalId"),
-            with_project_id=_server_has_field(client, "Run", "projectId"),
-        )
+        # Omit fields not supported by the server
+        with_internal_id = _server_has_field(client, "Project", "internalId")
+        with_project_id = _server_has_field(client, "Run", "projectId")
+        omit_fields = {
+            *(() if with_internal_id else {"internalId"}),
+            *(() if with_project_id else {"projectId"}),
+        }
+        self.QUERY = gql_compat(GET_RUNS_GQL, omit_fields=omit_fields)
 
         self.entity = entity
         self.project = project
@@ -190,6 +192,7 @@ class Runs(SizedPaginator["Run"]):
         variables = {
             "project": self.project,
             "entity": self.entity,
+            "lazy": self._lazy,
             "order": self.order,
             "filters": json.dumps(self.filters),
         }
@@ -198,12 +201,10 @@ class Runs(SizedPaginator["Run"]):
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
-        from wandb.apis._generated import GetLightRuns, GetRuns
-
-        result_cls = GetLightRuns if self._lazy else GetRuns
+        from wandb.apis._generated import GetRuns
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        self.last_response = result_cls.model_validate(data)
+        self.last_response = GetRuns.model_validate(data)
 
     @property
     @override
@@ -585,12 +586,7 @@ class Run(Attrs, DisplayableMixin):
 
         Uses gql_compat to omit projectId if not supported by the server.
         """
-        from wandb.apis._generated import (
-            GET_LIGHT_RUN_GQL,
-            GET_RUN_GQL,
-            GetLightRun,
-            GetRun,
-        )
+        from wandb.apis._generated import GET_RUN_GQL, GetRun
 
         # Cache the server capability check to avoid repeated network calls
         if self._server_provides_project_id_field is None:
@@ -598,13 +594,11 @@ class Run(Attrs, DisplayableMixin):
                 self.client, type="Run", field="projectId"
             )
 
-        response_cls = GetLightRun if lazy else GetRun
-        query_str = GET_LIGHT_RUN_GQL if lazy else GET_RUN_GQL
         omit_fields = None if self._server_provides_project_id_field else {"projectId"}
-        query = gql_compat(query_str, omit_fields=omit_fields)
+        query = gql_compat(GET_RUN_GQL, omit_fields=omit_fields)
 
         if force or not self._attrs:
-            response = response_cls.model_validate(self._exec(query))
+            response = GetRun.model_validate(self._exec(query))
             if response.project is None or response.project.run is None:
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response.project.run.model_dump()

@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult
 
-from .fragments import RunFragment
+from .fragments import LightRunFragment, RunFragment
 
 
 class GetRun(GQLResult):
@@ -20,7 +20,7 @@ class GetRunProject(GQLResult):
     run: Optional[GetRunProjectRun]
 
 
-class GetRunProjectRun(RunFragment):
+class GetRunProjectRun(LightRunFragment, RunFragment):
     project_id: Optional[GQLId] = Field(alias="projectId", default=None)
 
 

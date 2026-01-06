@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult
 
-from .fragments import PageInfoFragment, RunFragment
+from .fragments import LightRunFragment, PageInfoFragment, RunFragment
 
 
 class GetRuns(GQLResult):
@@ -29,7 +29,11 @@ class GetRunsProjectRuns(GQLResult):
 
 
 class GetRunsProjectRunsEdges(GQLResult):
-    node: RunFragment
+    node: GetRunsProjectRunsEdgesNode
+
+
+class GetRunsProjectRunsEdgesNode(LightRunFragment, RunFragment):
+    pass
 
 
 GetRuns.model_rebuild()

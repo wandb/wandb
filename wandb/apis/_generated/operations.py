@@ -13,8 +13,6 @@ __all__ = [
     "DELETE_RUN_GQL",
     "GENERATE_API_KEY_GQL",
     "GET_DEFAULT_ENTITY_GQL",
-    "GET_LIGHT_RUNS_GQL",
-    "GET_LIGHT_RUN_GQL",
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
     "GET_RUNS_GQL",
@@ -115,7 +113,7 @@ fragment CreatedProjectFragment on Project {
 """
 
 GET_RUNS_GQL = """
-query GetRuns($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
+query GetRuns($project: String!, $entity: String!, $lazy: Boolean!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
   project(name: $project, entityName: $entity) {
     internalId @include(if: true)
     readOnly
@@ -126,7 +124,8 @@ query GetRuns($project: String!, $entity: String!, $cursor: String, $perPage: In
       }
       edges {
         node {
-          ...RunFragment
+          ...RunFragment @skip(if: $lazy)
+          ...LightRunFragment @include(if: $lazy)
         }
       }
     }
@@ -165,65 +164,16 @@ fragment RunFragment on Run {
   systemMetrics
   summaryMetrics
   historyKeys
-}
-"""
-
-GET_LIGHT_RUNS_GQL = """
-query GetLightRuns($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
-  project(name: $project, entityName: $entity) {
-    internalId @include(if: true)
-    readOnly
-    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-      totalCount
-      pageInfo {
-        ...PageInfoFragment
-      }
-      edges {
-        node {
-          ...LightRunFragment
-        }
-      }
-    }
-  }
-}
-
-fragment LightRunFragment on Run {
-  __typename
-  id
-  tags
-  name
-  displayName
-  sweepName
-  state
-  group
-  jobType
-  commit
-  readOnly
-  createdAt
-  heartbeatAt
-  description
-  notes
-  historyLineCount
-  projectId
-  user {
-    name
-    username
-  }
-}
-
-fragment PageInfoFragment on PageInfo {
-  __typename
-  endCursor
-  hasNextPage
 }
 """
 
 GET_RUN_GQL = """
-query GetRun($name: String!, $project: String!, $entity: String!) {
+query GetRun($name: String!, $project: String!, $entity: String!, $lazy: Boolean!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
       projectId @include(if: true)
-      ...RunFragment
+      ...RunFragment @skip(if: $lazy)
+      ...LightRunFragment @include(if: $lazy)
     }
   }
 }
@@ -254,41 +204,6 @@ fragment RunFragment on Run {
   systemMetrics
   summaryMetrics
   historyKeys
-}
-"""
-
-GET_LIGHT_RUN_GQL = """
-query GetLightRun($name: String!, $project: String!, $entity: String!) {
-  project(name: $project, entityName: $entity) {
-    run(name: $name) {
-      projectId @include(if: true)
-      ...LightRunFragment
-    }
-  }
-}
-
-fragment LightRunFragment on Run {
-  __typename
-  id
-  tags
-  name
-  displayName
-  sweepName
-  state
-  group
-  jobType
-  commit
-  readOnly
-  createdAt
-  heartbeatAt
-  description
-  notes
-  historyLineCount
-  projectId
-  user {
-    name
-    username
-  }
 }
 """
 
