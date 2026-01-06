@@ -132,6 +132,30 @@ query GetRuns($project: String!, $entity: String!, $lazy: Boolean!, $cursor: Str
   }
 }
 
+fragment LightRunFragment on Run {
+  __typename
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  projectId
+  user {
+    name
+    username
+  }
+}
+
 fragment PageInfoFragment on PageInfo {
   __typename
   endCursor
@@ -175,6 +199,30 @@ query GetRun($name: String!, $project: String!, $entity: String!, $lazy: Boolean
       ...RunFragment @skip(if: $lazy)
       ...LightRunFragment @include(if: $lazy)
     }
+  }
+}
+
+fragment LightRunFragment on Run {
+  __typename
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  projectId
+  user {
+    name
+    username
   }
 }
 

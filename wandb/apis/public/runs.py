@@ -71,25 +71,6 @@ if TYPE_CHECKING:
 WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 
 
-def _create_runs_query(
-    *, lazy: bool, with_internal_id: bool, with_project_id: bool
-) -> Document:
-    """Create GraphQL query for runs with appropriate fragment.
-
-    The values of `with_internal_id/with_project_id` control whether
-    to omit `internalId/projectId` from the query fields, as older
-    servers may not support these fields.
-    """
-    from wandb.apis._generated import GET_RUNS_GQL
-
-    # Omit fields not supported by the server
-    omit_fields = {
-        *(() if with_internal_id else {"internalId"}),
-        *(() if with_project_id else {"projectId"}),
-    }
-    return gql_compat(GET_RUNS_GQL, omit_fields=omit_fields)
-
-
 @normalize_exceptions
 def _server_has_field(client: RetryingClient, type: str, field: str) -> bool:
     """Returns True if the server supports querying the GQL `FIELD` on the `OBJECT` type."""
@@ -172,11 +153,9 @@ class Runs(SizedPaginator["Run"]):
             order = "+created_at"
 
         # Omit fields not supported by the server
-        with_internal_id = _server_has_field(client, "Project", "internalId")
-        with_project_id = _server_has_field(client, "Run", "projectId")
         omit_fields = {
-            *(() if with_internal_id else {"internalId"}),
-            *(() if with_project_id else {"projectId"}),
+            *(["internalId"] * _server_has_field(client, "Project", "internalId")),
+            *(["projectId"] * _server_has_field(client, "Run", "projectId")),
         }
         self.QUERY = gql_compat(GET_RUNS_GQL, omit_fields=omit_fields)
 
@@ -396,14 +375,7 @@ class Runs(SizedPaginator["Run"]):
             return  # Already in full mode
 
         # Switch to full mode
-        self._lazy = False
-
-        # Regenerate query with full fragment
-        self.QUERY = _create_runs_query(
-            lazy=False,
-            with_internal_id=_server_has_field(self.client, "Project", "internalId"),
-            with_project_id=_server_has_field(self.client, "Run", "projectId"),
-        )
+        self._lazy = self._variables["lazy"] = False
 
         # Upgrade any existing runs that have been loaded - use parallel loading for performance
         lazy_runs = [run for run in self.objects if run._lazy]
@@ -765,7 +737,12 @@ class Run(Attrs, DisplayableMixin):
 
     def _exec(self, query: Document, **kwargs: Any) -> dict[str, Any]:
         """Execute a query against the cloud backend."""
-        variables = {"entity": self.entity, "project": self.project, "name": self.id}
+        variables = {
+            "entity": self.entity,
+            "project": self.project,
+            "name": self.id,
+            "lazy": self._lazy,
+        }
         return self.client.execute(query, variable_values={**variables, **kwargs})
 
     def _sampled_history(
