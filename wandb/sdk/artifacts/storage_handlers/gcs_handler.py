@@ -17,9 +17,6 @@ from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHand
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 from wandb.util import logger
 
-from google.auth.exceptions import GoogleAuthError
-from google.api_core.exceptions import GoogleAPICallError
-
 if TYPE_CHECKING:
     from google.cloud import storage  # type: ignore[import-not-found]
 
@@ -150,6 +147,16 @@ class GCSHandler(StorageHandler):
         checksum: bool = True,
         max_objects: int | None = None,
     ) -> list[ArtifactManifestEntry]:
+        # google-cloud-storage is optional dependency that requires
+        # pip install wandb[gcp]. Importing these modules at top of file
+        # breaks users doing pip install wandb without [gcp].
+        from google.api_core.exceptions import (  # type: ignore[import-not-found]
+            GoogleAPICallError,
+        )
+        from google.auth.exceptions import (  # type: ignore[import-not-found]
+            GoogleAuthError,
+        )
+
         client = self.init_gcs()
 
         # After parsing any query params / fragments for additional context,
@@ -175,8 +182,9 @@ class GCSHandler(StorageHandler):
         # anonymous credentials on public buckets only allows get_blob without list_blobs.
         #
         # For our system test, the error comes from anonymous credentials:
-        # google.auth.exceptions.InvalidOperation: Anonymous credentials cannot be refreshed
-        # For blob client, all the exceptions on operations as based from:
+        # google.auth.exceptions.InvalidOperation:
+        # Anonymous credentials cannot be refreshed
+        # For blob client, all the exceptions on operations are based on:
         # google.api_core.exceptions.GoogleAPICallError
         #
         # The fallback can lead to unnessary retries when user does not
@@ -208,6 +216,9 @@ class GCSHandler(StorageHandler):
             for obj in objects
             if obj
             and not obj.name.endswith("/")
+            # When version specified, require exact key match (old get_blob behavior)
+            # to avoid matching file that only matches the prefix.
+            and (gcs_path.version is None or obj.name == gcs_path.key)
             and (gcs_path.version is None or str(obj.generation) == gcs_path.version)
         ]
 
