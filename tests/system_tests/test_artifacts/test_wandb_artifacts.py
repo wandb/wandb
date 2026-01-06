@@ -125,7 +125,8 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
         def __init__(self, name=override_blob_name, metadata=None, generation=None):
             self.md5_hash = "1234567890abcde" if hash else None
             self.etag = "1234567890abcde"
-            self.generation = generation or "1"
+            # NOTE: Real GCS API returns generation as int
+            self.generation = generation if generation is not None else 1
             self.name = name
             self.size = 10
 
@@ -143,13 +144,15 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
                 else Blob(generation=kwargs.get("generation"))
             )
 
-        def list_blobs(self, prefix="", versions=False, max_results=None, *args, **kwargs):
+        def list_blobs(
+            self, prefix="", versions=False, max_results=None, *args, **kwargs
+        ):
             # For versioned lookups, return blobs with different generations
             if versions and prefix == override_blob_name:
                 return [
-                    Blob(name=override_blob_name, generation="1"),
-                    Blob(name=override_blob_name, generation="2"),
-                    Blob(name=override_blob_name, generation="3"),
+                    Blob(name=override_blob_name, generation=1),
+                    Blob(name=override_blob_name, generation=2),
+                    Blob(name=override_blob_name, generation=3),
                 ]
             # For directory paths (ends with /)
             if override_blob_name.endswith("/"):
@@ -896,7 +899,7 @@ def test_add_gs_reference_object(artifact):
         "my_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
     }
@@ -926,7 +929,7 @@ def test_add_gs_reference_object_with_version(artifact):
         "my_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "2"},
+            "extra": {"versionID": 2},
             "size": 10,
         },
     }
@@ -942,7 +945,7 @@ def test_add_gs_reference_object_with_name(artifact):
         "renamed.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
     }
@@ -958,13 +961,13 @@ def test_add_gs_reference_path(capsys, artifact):
         "my_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
         "my_other_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_other_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
     }
@@ -982,7 +985,7 @@ def test_add_gs_reference_object_no_md5(artifact):
         "my_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
     }
@@ -1000,7 +1003,7 @@ def test_add_gs_reference_with_dir_paths(artifact):
         "my_other_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_folder/my_other_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
     }
