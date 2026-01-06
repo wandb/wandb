@@ -88,7 +88,7 @@ jobs:
           cache-dependency-path: core/go.sum
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.3.0
+        uses: pypa/cibuildwheel@v3.3.1
         with:
           package-dir: .
           output-dir: dist
@@ -138,7 +138,7 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.3.0
+        uses: pypa/cibuildwheel@v3.3.1
         with:
           package-dir: .
           output-dir: dist
