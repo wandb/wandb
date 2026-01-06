@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/apache/arrow-go/v18/parquet"
+	"github.com/hashicorp/go-retryablehttp"
 )
 
 var successfulResponseStatusCodes = map[int]struct{}{
@@ -49,7 +50,7 @@ func getObjectSize(
 type HttpFileReader struct {
 	ctx context.Context
 
-	client   *http.Client
+	client   *retryablehttp.Client
 	fileSize int64
 	offset   int64
 	url      string
@@ -59,10 +60,10 @@ var _ parquet.ReaderAtSeeker = &HttpFileReader{}
 
 func NewHttpFileReader(
 	ctx context.Context,
-	client *http.Client,
+	client *retryablehttp.Client,
 	url string,
 ) (parquet.ReaderAtSeeker, error) {
-	fileSize, err := getObjectSize(ctx, client, url)
+	fileSize, err := getObjectSize(ctx, client.HTTPClient, url)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +95,7 @@ func (o *HttpFileReader) ReadAt(p []byte, off int64) (int, error) {
 	start := off
 	end := min(off+int64(len(p)), o.fileSize)
 
-	req, err := http.NewRequestWithContext(o.ctx, http.MethodGet, o.url, http.NoBody)
+	req, err := retryablehttp.NewRequest(http.MethodGet, o.url, nil)
 	if err != nil {
 		return 0, err
 	}

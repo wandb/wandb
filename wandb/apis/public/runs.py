@@ -1604,18 +1604,21 @@ class Run(Attrs):
         if response.HasField("api_error_response"):
             raise RuntimeError(response.api_error_response.message)
 
-        contains_live_data: bool = response.download_run_history_response.contains_live_data
+        contains_live_data: bool = (
+            response.download_run_history_response.contains_live_data
+        )
         file_names: list[pathlib.Path] = []
         for file_name in response.download_run_history_response.file_names:
             file_names.append(pathlib.Path(download_dir, file_name))
 
         return DownloadHistoryResult(file_names, contains_live_data)
 
+
 @dataclass(frozen=True)
 class DownloadHistoryResult:
     file_names: list[pathlib.Path]
     contains_live_data: bool
-    
+
     def __iter__(self):
         return iter(self.file_names)
 

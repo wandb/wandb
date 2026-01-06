@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -209,7 +210,8 @@ func TestGetObjectSize(t *testing.T) {
 
 func TestNewHttpFileReader(t *testing.T) {
 	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := retryablehttp.NewClient()
+	client.HTTPClient.Timeout = 10 * time.Second
 
 	t.Run("successful creation", func(t *testing.T) {
 		server := createTestServer(t)
@@ -238,7 +240,8 @@ func TestNewHttpFileReader(t *testing.T) {
 
 func TestHttpFileReader_ReadAt(t *testing.T) {
 	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := retryablehttp.NewClient()
+	client.HTTPClient.Timeout = 10 * time.Second
 	server := createTestServer(t)
 	defer server.Close()
 
@@ -296,7 +299,8 @@ func TestHttpFileReader_ReadAt(t *testing.T) {
 
 func TestHttpFileReader_Seek(t *testing.T) {
 	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := retryablehttp.NewClient()
+	client.HTTPClient.Timeout = 10 * time.Second
 	server := createTestServer(t)
 	defer server.Close()
 
@@ -391,7 +395,8 @@ func TestHttpFileReader_Seek(t *testing.T) {
 
 func TestHttpFileReader_ServerErrors(t *testing.T) {
 	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := retryablehttp.NewClient()
+	client.HTTPClient.Timeout = 10 * time.Second
 
 	t.Run("server returns error on range request", func(t *testing.T) {
 		// Create a server that returns errors for GET requests

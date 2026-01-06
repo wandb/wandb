@@ -3,7 +3,6 @@ package wbapi
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -119,7 +118,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 		request.Project,
 		request.RunId,
 		f.graphqlClient,
-		http.DefaultClient,
+		f.httpClient,
 		requestKeys,
 		request.UseCache,
 	)
@@ -316,7 +315,7 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
 		filePath := filepath.Join(request.DownloadDir, fileName)
 		err = parquet.DownloadRunHistoryFile(
 			context.Background(),
-			http.DefaultClient,
+			f.httpClient,
 			url,
 			filePath,
 		)

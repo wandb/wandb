@@ -981,16 +981,24 @@ func (*ScanRunHistoryCleanupResponse) Descriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{14}
 }
 
+// DownloadRunHistory is a request to download a run's history exports.
 type DownloadRunHistory struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Entity                 string `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
-	Project                string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
-	RunId                  string `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
-	DownloadDir            string `protobuf:"bytes,4,opt,name=download_dir,json=downloadDir,proto3" json:"download_dir,omitempty"`
-	RequireCompleteHistory bool   `protobuf:"varint,5,opt,name=require_complete_history,json=requireCompleteHistory,proto3" json:"require_complete_history,omitempty"`
+	// The entity who owns the run.
+	Entity string `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
+	// The project that the run belongs to.
+	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	// The ID of the run.
+	RunId string `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	// The directory to store the downloaded history files within.
+	DownloadDir string `protobuf:"bytes,4,opt,name=download_dir,json=downloadDir,proto3" json:"download_dir,omitempty"`
+	// Whether to require the complete history to be downloaded.
+	// If the run contains data that has not been exported to parquet files yet,
+	// the run history will be considered incomplete.
+	RequireCompleteHistory bool `protobuf:"varint,5,opt,name=require_complete_history,json=requireCompleteHistory,proto3" json:"require_complete_history,omitempty"`
 }
 
 func (x *DownloadRunHistory) Reset() {
@@ -1060,13 +1068,17 @@ func (x *DownloadRunHistory) GetRequireCompleteHistory() bool {
 	return false
 }
 
+// DownloadRunHistoryResponse is a response to a DownloadRunHistory request.
 type DownloadRunHistoryResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	FileNames        []string `protobuf:"bytes,1,rep,name=file_names,json=fileNames,proto3" json:"file_names,omitempty"`
-	ContainsLiveData bool     `protobuf:"varint,2,opt,name=contains_live_data,json=containsLiveData,proto3" json:"contains_live_data,omitempty"`
+	// The list of file names that were downloaded.
+	// Each value is the full path to the downloaded file.
+	FileNames []string `protobuf:"bytes,1,rep,name=file_names,json=fileNames,proto3" json:"file_names,omitempty"`
+	// Whether the run contains data that has not been exported to parquet files yet.
+	ContainsLiveData bool `protobuf:"varint,2,opt,name=contains_live_data,json=containsLiveData,proto3" json:"contains_live_data,omitempty"`
 }
 
 func (x *DownloadRunHistoryResponse) Reset() {
