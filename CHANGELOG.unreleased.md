@@ -21,3 +21,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - After `wandb login --host <invalid-url>`, using `wandb login --host <valid-url>` works as usual (@timoffex in https://github.com/wandb/wandb/pull/11207)
   - Regression introduced in 0.24.0
+- Fixed `artifact.add_reference("gs://...")` to use `list_blobs` instead of `get_blob` when tracking external files on Google Cloud Storage. Accessing public buckets with anonymous credentials still uses `get_blob`.
+(@pingleiwandb in https://github.com/wandb/wandb/pull/11145)
