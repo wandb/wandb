@@ -21,3 +21,9 @@ class RunQueueItemState(str, Enum):
     LEASED = "LEASED"
     CLAIMED = "CLAIMED"
     FAILED = "FAILED"
+
+
+class ArtifactState(str, Enum):
+    PENDING = "PENDING"
+    COMMITTED = "COMMITTED"
+    DELETED = "DELETED"

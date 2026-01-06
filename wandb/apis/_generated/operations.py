@@ -2,6 +2,7 @@
 # Source: tools/graphql_codegen/api/
 
 __all__ = [
+    "ARTIFACT_OF_TYPE_GQL",
     "CREATE_INVITE_GQL",
     "CREATE_PROJECT_GQL",
     "CREATE_RUN_GQL",
@@ -240,6 +241,36 @@ query GetRunQueueItems($projectName: String!, $entityName: String!, $runQueue: S
 }
 """
 
+ARTIFACT_OF_TYPE_GQL = """
+query ArtifactOfType($entityName: String!, $projectName: String!, $artifactTypeName: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactType(name: $artifactTypeName) {
+      artifactCollections {
+        edges {
+          node {
+            __typename
+            artifacts {
+              edges {
+                node {
+                  id
+                  state
+                  aliases {
+                    alias
+                  }
+                  artifactSequence {
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
 GET_PROJECTS_GQL = """
 query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
   models(entityName: $entity, after: $cursor, first: $perPage) {
@@ -368,7 +399,13 @@ query GetRuns($project: String!, $entity: String!, $cursor: String, $perPage: In
   }
 }
 
-fragment LightRunFragment on Run {
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
+fragment RunFragment on Run {
   __typename
   id
   tags
@@ -390,12 +427,30 @@ fragment LightRunFragment on Run {
     name
     username
   }
+  config
+  systemMetrics
+  summaryMetrics
+  historyKeys
 }
+"""
 
-fragment PageInfoFragment on PageInfo {
-  __typename
-  endCursor
-  hasNextPage
+GET_LIGHT_RUNS_GQL = """
+query GetLightRuns($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
+  project(name: $project, entityName: $entity) {
+    internalId
+    readOnly
+    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+      totalCount
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...LightRunFragment
+        }
+      }
+    }
+  }
 }
 
 fragment LightRunFragment on Run {
@@ -430,11 +485,10 @@ fragment PageInfoFragment on PageInfo {
 """
 
 GET_RUN_GQL = """
-query GetRun($name: String!, $project: String!, $entity: String!, $lazy: Boolean!) {
+query GetRun($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
-      ...RunFragment @skip(if: $lazy)
-      ...LightRunFragment @include(if: $lazy)
+      ...RunFragment
     }
   }
 }

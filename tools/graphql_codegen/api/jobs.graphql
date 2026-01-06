@@ -87,3 +87,30 @@ query GetRunQueueItems($projectName: String!, $entityName: String!, $runQueue: S
     }
   }
 }
+
+query ArtifactOfType($entityName: String!, $projectName: String!, $artifactTypeName: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactType(name: $artifactTypeName) {
+      artifactCollections {
+        edges {
+          node {
+            artifacts {
+              edges {
+                node {
+                  id
+                  state
+                  aliases {
+                    alias
+                  }
+                  artifactSequence {
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
