@@ -1588,44 +1588,11 @@ class Api:
         if project is None:
             raise ValueError("Specify a project when listing jobs")
 
-        query = gql(
-            """
-        query ArtifactOfType(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactTypeName: String!,
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    artifactCollections {
-                        edges {
-                            node {
-                                artifacts {
-                                    edges {
-                                        node {
-                                            id
-                                            state
-                                            aliases {
-                                                alias
-                                            }
-                                            artifactSequence {
-                                                name
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-        )
+        from wandb.apis._generated import ARTIFACT_OF_TYPE_GQL, ArtifactOfType
 
         try:
-            artifact_query = self._client.execute(
-                query,
+            data = self._client.execute(
+                gql(ARTIFACT_OF_TYPE_GQL),
                 {
                     "projectName": project,
                     "entityName": entity,
@@ -1633,20 +1600,24 @@ class Api:
                 },
             )
 
-            if not artifact_query or not artifact_query["project"]:
+            result = ArtifactOfType.model_validate(data)
+            if result.project is None:
                 wandb.termerror(
                     f"Project: '{project}' not found in entity: '{entity}' or access denied."
                 )
                 return []
 
-            if artifact_query["project"]["artifactType"] is None:
+            if result.project.artifact_type is None:
                 return []
 
-            artifacts = artifact_query["project"]["artifactType"][
-                "artifactCollections"
-            ]["edges"]
+            artifact_collections = result.project.artifact_type.artifact_collections
+            if artifact_collections is None:
+                return []
 
-            return [x["node"]["artifacts"] for x in artifacts]
+            return [
+                edge.node.artifacts.model_dump() if edge.node.artifacts else None
+                for edge in artifact_collections.edges
+            ]
         except requests.exceptions.HTTPError:
             return False
 
