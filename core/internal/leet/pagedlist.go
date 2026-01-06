@@ -124,16 +124,17 @@ func (s *PagedList) SetPageAndLine(page, line int) {
 	totalItems := len(s.FilteredItems)
 	totalPages := (totalItems + s.itemsPerPage - 1) / s.itemsPerPage
 
+	if page < 0 || page > totalPages-1 {
+		return
+	}
+
 	itemsOnPage := s.itemsPerPage
-	if s.currentPage == totalPages-1 {
+	if page == totalPages-1 {
 		if remainder := totalItems % s.itemsPerPage; remainder != 0 {
 			itemsOnPage = remainder
 		}
 	}
 
-	if page < 0 || page > totalPages-1 {
-		return
-	}
 	if line < 0 || line > itemsOnPage-1 {
 		return
 	}

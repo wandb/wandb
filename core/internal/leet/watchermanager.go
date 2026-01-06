@@ -66,6 +66,12 @@ func (wm *WatcherManager) Finish() {
 	wm.logger.Debug("watcher: finishing")
 	wm.watcher.Finish()
 	wm.started = false
+
+	// Unblock any pending WaitForMsg calls.
+	select {
+	case wm.outChan <- nil:
+	default:
+	}
 }
 
 // IsStarted returns whether the watcher is started.

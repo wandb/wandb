@@ -110,3 +110,13 @@ type WorkspaceBatchedRecordsMsg struct {
 type WorkspaceFileChangedMsg struct {
 	RunKey string
 }
+
+// WorkspaceRunDirsMsg is emitted after polling the wandb directory.
+//
+// RunKeys contains the set of run directory names (e.g. "run-..." / "offline-run-...").
+// If Err is non-nil, RunKeys may be nil and callers should treat the snapshot
+// as unusable.
+type WorkspaceRunDirsMsg struct {
+	RunKeys []string
+	Err     error
+}

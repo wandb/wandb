@@ -168,6 +168,12 @@ func (w *Workspace) handleWorkspaceInit(msg WorkspaceInitMsg) tea.Cmd {
 		return nil
 	}
 
+	if !w.selectedRuns[msg.RunKey] {
+		// The run was deselected (or removed) while the reader was initializing.
+		msg.Reader.Close()
+		return nil
+	}
+
 	run := &workspaceRun{
 		key:       msg.RunKey,
 		wandbPath: msg.RunPath,

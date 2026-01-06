@@ -2,9 +2,7 @@ package leet
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -118,6 +116,21 @@ func (w *Workspace) SetSize(width, height int) {
 	w.runs.SetItemsPerPage(available)
 }
 
+// Init wires up long‑running commands for the workspace.
+func (w *Workspace) Init() tea.Cmd {
+	var cmds []tea.Cmd
+
+	// Start polling immediately; subsequent polls are scheduled by the handler.
+	cmds = append(cmds, w.pollWandbDirCmd(0))
+
+	// Start listening; the heartbeat manager will decide when to emit.
+	if w.heartbeatMgr != nil && w.liveChan != nil {
+		cmds = append(cmds, w.waitForLiveMsg)
+	}
+
+	return tea.Batch(cmds...)
+}
+
 func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	switch t := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -135,6 +148,9 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 	case WorkspaceInitMsg:
 		return w.handleWorkspaceInit(t)
+
+	case WorkspaceRunDirsMsg:
+		return w.handleWorkspaceRunDirs(t)
 
 	case WorkspaceChunkedBatchMsg:
 		return w.handleWorkspaceChunkedBatch(t)
@@ -329,15 +345,6 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 	return nil
 }
 
-// Init wires up long‑running commands for the workspace.
-func (w *Workspace) Init() tea.Cmd {
-	if w.heartbeatMgr == nil || w.liveChan == nil {
-		return nil
-	}
-	// Start listening; the heartbeat manager will decide when to emit.
-	return w.waitForLiveMsg
-}
-
 // View renders the runs section: header + paginated list with zebra rows.
 func (w *Workspace) View() string {
 	var parts []string
@@ -363,28 +370,8 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		return nil
 	}
 
-	if _, alreadySelected := w.selectedRuns[runKey]; alreadySelected {
-		// Deselect this run.
-		delete(w.selectedRuns, runKey)
-		if w.pinnedRun == runKey {
-			w.pinnedRun = ""
-		}
-
-		// Drop this run's series from all charts and close its reader.
-		if run, ok := w.runsByKey[runKey]; ok {
-			if w.metricsGrid != nil {
-				w.metricsGrid.RemoveSeries(run.wandbPath)
-			}
-			if run.reader != nil {
-				run.reader.Close()
-			}
-			delete(w.runsByKey, runKey)
-		}
-
-		// If no selected runs remain live, stop heartbeats.
-		if w.heartbeatMgr != nil && !w.anyRunRunning() {
-			w.heartbeatMgr.Stop()
-		}
+	if _, selected := w.selectedRuns[runKey]; selected {
+		w.dropRun(runKey)
 		return nil
 	}
 
@@ -400,6 +387,32 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		return nil
 	}
 	return w.initReaderCmd(runKey, wandbFile)
+}
+
+func (w *Workspace) dropRun(runKey string) {
+	delete(w.selectedRuns, runKey)
+
+	// If we removed the pinned run, unpin it.
+	if w.pinnedRun == runKey {
+		w.pinnedRun = ""
+	}
+
+	run, ok := w.runsByKey[runKey]
+	if ok && run != nil {
+		if w.metricsGrid != nil && run.wandbPath != "" {
+			w.metricsGrid.RemoveSeries(run.wandbPath)
+		}
+		w.stopWatcher(run)
+		if run.reader != nil {
+			run.reader.Close()
+		}
+		delete(w.runsByKey, runKey)
+	}
+
+	// If no selected runs remain live, stop heartbeats.
+	if w.heartbeatMgr != nil && !w.anyRunRunning() {
+		w.heartbeatMgr.Stop()
+	}
 }
 
 func (w *Workspace) togglePin(runKey string) {
@@ -425,14 +438,10 @@ func (w *Workspace) togglePin(runKey string) {
 }
 
 func (w *Workspace) renderRuns() string {
-	// TODO: do this on the first load and when told by the dir watcher/heartbeat
-	// outside of View().
-	w.updateRunItems()
-
-	contentWidth := w.runsAnimState.Width() - leftSidebarContentPadding
-
 	startIdx, endIdx := w.syncRunsPage()
 	header := w.renderRunsHeader(startIdx, endIdx) + "\n"
+
+	contentWidth := w.runsAnimState.Width() - leftSidebarContentPadding
 	lines := w.renderRunLines(contentWidth)
 
 	if len(lines) == 0 {
@@ -617,76 +626,6 @@ func (w *Workspace) runsAnimationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
 		return WorkspaceRunsAnimationMsg{}
 	})
-}
-
-// parseRunDirTimestamp extracts the timestamp from a run folder name.
-//
-// Expected formats: "run-YYYYMMDD_HHMMSS-runid" or "offline-run-YYYYMMDD_HHMMSS-runid"
-// Returns zero time if parsing fails.
-func parseRunDirTimestamp(name string) time.Time {
-	// Strip prefix to get "YYYYMMDD_HHMMSS-runid"
-	var rest string
-	if after, ok := strings.CutPrefix(name, "offline-run-"); ok {
-		rest = after
-	} else if after, ok := strings.CutPrefix(name, "run-"); ok {
-		rest = after
-	} else {
-		return time.Time{}
-	}
-
-	if len(rest) < 15 {
-		return time.Time{}
-	}
-
-	t, err := time.Parse("20060102_150405", rest[:15])
-	if err != nil {
-		return time.Time{}
-	}
-	return t
-}
-
-// updateRunItems rebuilds Items/FilteredItems from the wandb directory.
-func (w *Workspace) updateRunItems() {
-	entries, err := os.ReadDir(w.wandbDir)
-	if err != nil {
-		return
-	}
-
-	items := w.runs.Items[:0]
-
-	for _, entry := range entries {
-		name := entry.Name()
-
-		// Only show run folders (matching previous behavior).
-		if !strings.HasPrefix(name, "run") &&
-			!strings.HasPrefix(name, "offline-run") {
-			continue
-		}
-		items = append(items, KeyValuePair{Key: name})
-	}
-
-	// Sort by most recent first (descending timestamp).
-	slices.SortFunc(items, func(a, b KeyValuePair) int {
-		ta, tb := parseRunDirTimestamp(a.Key), parseRunDirTimestamp(b.Key)
-		return tb.Compare(ta)
-	})
-
-	w.runs.Items = items
-
-	// Filter hook: once workspace filtering is wired, this will just work.
-	if w.filter.Query() == "" && !w.filter.IsActive() {
-		w.runs.FilteredItems = items
-		return
-	}
-
-	matcher := w.filter.Matcher()
-	filtered := make([]KeyValuePair, 0, len(items))
-	for _, it := range items {
-		if matcher(it.Key) {
-			filtered = append(filtered, it)
-		}
-	}
-	w.runs.FilteredItems = filtered
 }
 
 // syncRunsPage clamps the SectionView page/line against the current item set
