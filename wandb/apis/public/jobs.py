@@ -10,7 +10,7 @@ import json
 import os
 import shutil
 import time
-from typing import TYPE_CHECKING, Any, Literal, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping
 
 from wandb_gql import gql
 
@@ -19,7 +19,6 @@ from wandb import util
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError
-from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.data_types._dtypes import InvalidType, Type, TypeRegistry
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
@@ -31,6 +30,7 @@ from wandb.sdk.launch.utils import (
 
 if TYPE_CHECKING:
     from wandb.apis.public import Api, RetryingClient
+    from wandb.sdk.launch._project_spec import LaunchProject
 
 
 class Job:
@@ -83,14 +83,16 @@ class Job:
             self._set_configure_launch_project(self._configure_launch_project_container)
 
     @property
-    def name(self):
+    def name(self) -> str:
         """The name of the job."""
         return self._name
 
-    def _set_configure_launch_project(self, func):
+    def _set_configure_launch_project(self, func: Callable[[LaunchProject], None]):
         self.configure_launch_project = func
 
     def _get_code_artifact(self, artifact_string):
+        from wandb.sdk.artifacts.artifact_state import ArtifactState
+
         artifact_string, base_url, is_id = util.parse_artifact_string(artifact_string)
         if is_id:
             code_artifact = wandb.Artifact._from_id(artifact_string, self._api._client)
@@ -104,7 +106,7 @@ class Job:
             )
         return code_artifact
 
-    def _configure_launch_project_notebook(self, launch_project):
+    def _configure_launch_project_notebook(self, launch_project: LaunchProject) -> None:
         new_fname = convert_jupyter_notebook_to_script(
             self._entrypoint[-1], launch_project.project_dir
         )
@@ -112,7 +114,7 @@ class Job:
         new_entrypoint[-1] = new_fname
         launch_project.set_job_entry_point(new_entrypoint)
 
-    def _configure_launch_project_repo(self, launch_project):
+    def _configure_launch_project_repo(self, launch_project: LaunchProject) -> None:
         git_info = self._job_info.get("source", {}).get("git", {})
         _fetch_git_repo(
             launch_project.project_dir,
@@ -136,7 +138,7 @@ class Job:
         if self._base_image:
             launch_project.set_job_base_image(self._base_image)
 
-    def _configure_launch_project_artifact(self, launch_project):
+    def _configure_launch_project_artifact(self, launch_project: LaunchProject) -> None:
         artifact_string = self._job_info.get("source", {}).get("artifact")
         if artifact_string is None:
             raise LaunchError(f"Job {self.name} had no source artifact")
@@ -159,7 +161,9 @@ class Job:
         if self._base_image:
             launch_project.set_job_base_image(self._base_image)
 
-    def _configure_launch_project_container(self, launch_project):
+    def _configure_launch_project_container(
+        self, launch_project: LaunchProject
+    ) -> None:
         launch_project.docker_image = self._job_info.get("source", {}).get("image")
         if launch_project.docker_image is None:
             raise LaunchError(
@@ -168,7 +172,7 @@ class Job:
         if self._entrypoint:
             launch_project.set_job_entry_point(self._entrypoint)
 
-    def set_entrypoint(self, entrypoint: list[str]):
+    def set_entrypoint(self, entrypoint: list[str]) -> None:
         """Set the entrypoint for the job."""
         self._entrypoint = entrypoint
 
@@ -259,13 +263,13 @@ class QueuedRun:
 
     def __init__(
         self,
-        client,
-        entity,
-        project,
-        queue_name,
-        run_queue_item_id,
-        project_queue=LAUNCH_DEFAULT_PROJECT,
-        priority=None,
+        client: RetryingClient,
+        entity: str,
+        project: str,
+        queue_name: str,
+        run_queue_item_id: str,
+        project_queue: str = LAUNCH_DEFAULT_PROJECT,
+        priority: int | None = None,
     ):
         self.client = client
         self._entity = entity
@@ -273,32 +277,32 @@ class QueuedRun:
         self._queue_name = queue_name
         self._run_queue_item_id = run_queue_item_id
         self.sweep = None
-        self._run = None
+        self._run: public.Run | None = None
         self.project_queue = project_queue
         self.priority = priority
 
     @property
-    def queue_name(self):
+    def queue_name(self) -> str:
         """The name of the queue."""
         return self._queue_name
 
     @property
-    def id(self):
+    def id(self) -> str:
         """The id of the queued run."""
         return self._run_queue_item_id
 
     @property
-    def project(self):
+    def project(self) -> str:
         """The project associated with the queued run."""
         return self._project
 
     @property
-    def entity(self):
+    def entity(self) -> str:
         """The entity associated with the queued run."""
         return self._entity
 
     @property
-    def state(self):
+    def state(self) -> str:
         """The state of the queued run."""
         item = self._get_item()
         if item:
@@ -309,7 +313,7 @@ class QueuedRun:
         )
 
     @normalize_exceptions
-    def _get_run_queue_item_legacy(self) -> dict:
+    def _get_run_queue_item_legacy(self) -> dict[str, Any]:
         query = gql(
             """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
@@ -341,7 +345,7 @@ class QueuedRun:
                 return item["node"]
 
     @normalize_exceptions
-    def _get_item(self):
+    def _get_item(self) -> dict[str, Any]:
         query = gql(
             """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!, $itemId: ID!) {
@@ -374,7 +378,7 @@ class QueuedRun:
         return self._get_run_queue_item_legacy()
 
     @normalize_exceptions
-    def wait_until_finished(self):
+    def wait_until_finished(self) -> public.Run:
         """Wait for the queued run to complete and return the finished run."""
         if not self._run:
             self.wait_until_running()
@@ -385,7 +389,7 @@ class QueuedRun:
         return self._run
 
     @normalize_exceptions
-    def delete(self, delete_artifacts=False):
+    def delete(self, delete_artifacts: bool = False) -> None:
         """Delete the given queued run from the wandb backend."""
         query = gql(
             """
@@ -436,7 +440,7 @@ class QueuedRun:
         )
 
     @normalize_exceptions
-    def wait_until_running(self):
+    def wait_until_running(self) -> public.Run:
         """Wait until the queued run is running and return the run."""
         if self._run is not None:
             return self._run
@@ -464,7 +468,7 @@ class QueuedRun:
 
             time.sleep(3)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<QueuedRun {self.queue_name} ({self.id})"
 
 
@@ -498,7 +502,7 @@ class RunQueue:
         prioritization_mode: RunQueuePrioritizationMode | None = None,
         _access: RunQueueAccessType | None = None,
         _default_resource_config_id: int | None = None,
-        _default_resource_config: dict | None = None,
+        _default_resource_config: dict[str, Any] | None = None,
     ) -> None:
         self._name: str = name
         self._client = client
@@ -509,16 +513,16 @@ class RunQueue:
         self._default_resource_config = _default_resource_config
         self._template_variables = None
         self._type = None
-        self._items = None
-        self._id = None
+        self._items: list[QueuedRun] | None = None
+        self._id: str | None = None
 
     @property
-    def name(self):
+    def name(self) -> str:
         """The name of the queue."""
         return self._name
 
     @property
-    def entity(self):
+    def entity(self) -> str:
         """The entity that owns the queue."""
         return self._entity
 
@@ -556,7 +560,7 @@ class RunQueue:
         return self._type
 
     @property
-    def default_resource_config(self):
+    def default_resource_config(self) -> dict[str, Any]:
         """The default configuration for resources."""
         if self._default_resource_config is None:
             if self._default_resource_config_id is None:
@@ -565,7 +569,7 @@ class RunQueue:
         return self._default_resource_config
 
     @property
-    def template_variables(self):
+    def template_variables(self) -> dict[str, Any]:
         """Variables for resource templates."""
         if self._template_variables is None:
             if self._default_resource_config_id is None:
@@ -589,7 +593,7 @@ class RunQueue:
         return self._items
 
     @normalize_exceptions
-    def delete(self):
+    def delete(self) -> None:
         """Delete the run queue from the wandb backend."""
         query = gql(
             """
@@ -612,11 +616,11 @@ class RunQueue:
         else:
             raise CommError(f"Failed to delete run queue {self.name}")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<RunQueue {self._entity}/{self._name}>"
 
     @normalize_exceptions
-    def _get_metadata(self):
+    def _get_metadata(self) -> None:
         query = gql(
             """
             query GetRunQueueMetadata($projectName: String!, $entityName: String!, $runQueue: String!) {
@@ -649,7 +653,7 @@ class RunQueue:
         self._prioritization_mode = res["project"]["runQueue"]["prioritizationMode"]
 
     @normalize_exceptions
-    def _get_default_resource_config(self):
+    def _get_default_resource_config(self) -> None:
         query = gql(
             """
             query GetDefaultResourceConfig($entityName: String!, $id: ID!) {
@@ -678,7 +682,7 @@ class RunQueue:
         ]
 
     @normalize_exceptions
-    def _get_items(self):
+    def _get_items(self) -> None:
         query = gql(
             """
             query GetRunQueueItems($projectName: String!, $entityName: String!, $runQueue: String!) {
