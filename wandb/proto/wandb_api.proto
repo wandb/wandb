@@ -38,6 +38,13 @@ message ApiResponse {
 
 message ApiErrorResponse {
   string message = 1;
+  ErrorType error_type = 2;
+}
+
+message ErrorType {
+  oneof error_type {
+    IncompleteRunHistoryError incomplete_run_history_error = 1;
+  }
 }
 
 // Start of Scan run history
@@ -138,3 +145,7 @@ message DownloadRunHistoryResponse {
   // Whether the run contains data that has not been exported to parquet files yet.
   bool contains_live_data = 2;
 }
+
+// IncompleteRunHistoryError is an error that is returned when the run history
+// has live data that has not been exported to parquet files yet.
+message IncompleteRunHistoryError {}
