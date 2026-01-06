@@ -17,8 +17,6 @@ from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHand
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 from wandb.util import logger
 
-from ._timing import TimedIf
-
 if TYPE_CHECKING:
     from google.cloud import storage  # type: ignore[import-not-found]
 
@@ -246,6 +244,8 @@ class GCSHandler(StorageHandler):
             ref=f"{self._scheme}://{posix_ref}",
             digest=obj.etag,
             size=obj.size,
+            # NOTE: gcs returns int for generation
+            # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.blob.Blob#google_cloud_storage_blob_Blob_generation
             extra={"versionID": obj.generation},
         )
 
