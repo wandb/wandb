@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/remote"
@@ -21,7 +21,7 @@ import (
 type HistoryReader struct {
 	entity        string
 	graphqlClient graphql.Client
-	httpClient    *http.Client
+	httpClient    *retryablehttp.Client
 	project       string
 	runId         string
 
@@ -41,7 +41,7 @@ func New(
 	project string,
 	runId string,
 	graphqlClient graphql.Client,
-	httpClient *http.Client,
+	httpClient *retryablehttp.Client,
 	keys []string,
 	useCache bool,
 ) (*HistoryReader, error) {
