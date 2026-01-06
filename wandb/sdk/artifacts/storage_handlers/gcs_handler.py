@@ -166,6 +166,26 @@ class GCSHandler(StorageHandler):
             ]
 
         bucket = client.bucket(gcs_path.bucket)
+
+        # Try list_blobs first (requires storage.objects.list permission).
+        # Fall back to get_blob if list fails (for backward compatibility with
+        # anonymous credentials on public buckets that allow object access but
+        # not listing).
+        try:
+            return self._store_path_via_list(bucket, gcs_path, path, name, max_objects)
+        except Exception as e:
+            logger.warning(f"list_blobs failed, falling back to get_blob: {e}")
+            return self._store_path_via_get(bucket, gcs_path, path, name)
+
+    def _store_path_via_list(
+        self,
+        bucket: storage.Bucket,
+        gcs_path: _GCSPath,
+        path: str,
+        name: StrPath | None,
+        max_objects: int,
+    ) -> list[ArtifactManifestEntry]:
+        """Store path using list_blobs (requires storage.objects.list permission)."""
         # Return different versions as blobs if user specified a version
         # https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.client.Client#google_cloud_storage_client_Client_list_blobs
         versions = gcs_path.version is not None
@@ -194,6 +214,35 @@ class GCSHandler(StorageHandler):
             )
 
         return entries
+
+    def _store_path_via_get(
+        self,
+        bucket: storage.Bucket,
+        gcs_path: _GCSPath,
+        path: str,
+        name: StrPath | None,
+    ) -> list[ArtifactManifestEntry]:
+        """Store path using get_blob (requires storage.objects.get permission).
+
+        This is the fallback path for when list_blobs fails due to permission
+        issues (e.g., anonymous credentials on public buckets).
+
+        Note: This fallback only works for single files, not directories.
+        Directory references require list permission.
+        """
+        obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
+
+        if obj is None and gcs_path.version is not None:
+            raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
+
+        if obj is None:
+            # Object doesn't exist at exact key.
+            # In fallback mode (no list permission), we can't enumerate directories.
+            # Return empty list - the object simply doesn't exist at this path.
+            return []
+
+        # Single object found
+        return [self._entry_from_obj(obj, path, name, prefix=gcs_path.key)]
 
     def _entry_from_obj(
         self,
