@@ -3,6 +3,7 @@ package wbapi
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -57,6 +58,10 @@ func NewRunHistoryAPIHandler(
 	httpClient.RetryWaitMin = settings.GetFileTransferRetryWaitMin()
 	httpClient.RetryWaitMax = settings.GetFileTransferRetryWaitMax()
 	httpClient.HTTPClient.Timeout = settings.GetFileTransferTimeout()
+	httpClient.Logger = observability.NewCoreLogger(
+		slog.Default(),
+		nil,
+	)
 
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,
