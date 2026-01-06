@@ -57,6 +57,7 @@ from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk.lib import ipython, json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -121,6 +122,10 @@ LIGHTWEIGHT_RUN_FRAGMENT = """fragment LightweightRunFragment on Run {
 # Fragment name constants to avoid string parsing
 RUN_FRAGMENT_NAME = "RunFragment"
 LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
+
+
+class IncompleteRunHistoryError(Exception):
+    """Raised when run history has live data."""
 
 
 def _create_runs_query(
@@ -1599,10 +1604,23 @@ class Run(Attrs):
                 )
             )
         )
-        response: apb.ApiResponse = self._api._send_api_request(api_request)
 
-        if response.HasField("api_error_response"):
-            raise RuntimeError(response.api_error_response.message)
+        response: apb.ApiResponse | None = None
+        try:
+            response = self._api._send_api_request(api_request)
+        except WandbApiFailedError as e:
+            if (
+                e.response is not None
+                and e.response.error_type is not None
+                and e.response.error_type.WhichOneof("error_type")
+                == "incomplete_run_history_error"
+            ):
+                raise IncompleteRunHistoryError() from e
+
+        if response is None:
+            raise wandb.Error(
+                "Failed to download run history exports, no response from server"
+            )
 
         contains_live_data: bool = (
             response.download_run_history_response.contains_live_data

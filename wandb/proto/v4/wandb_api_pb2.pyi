@@ -110,15 +110,38 @@ class ApiErrorResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     MESSAGE_FIELD_NUMBER: builtins.int
+    ERROR_TYPE_FIELD_NUMBER: builtins.int
     message: builtins.str
+    @property
+    def error_type(self) -> global___ErrorType: ...
     def __init__(
         self,
         *,
         message: builtins.str = ...,
+        error_type: global___ErrorType | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["message", b"message"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["error_type", b"error_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["error_type", b"error_type", "message", b"message"]) -> None: ...
 
 global___ApiErrorResponse = ApiErrorResponse
+
+@typing_extensions.final
+class ErrorType(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    INCOMPLETE_RUN_HISTORY_ERROR_FIELD_NUMBER: builtins.int
+    @property
+    def incomplete_run_history_error(self) -> global___IncompleteRunHistoryError: ...
+    def __init__(
+        self,
+        *,
+        incomplete_run_history_error: global___IncompleteRunHistoryError | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["error_type", b"error_type", "incomplete_run_history_error", b"incomplete_run_history_error"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["error_type", b"error_type", "incomplete_run_history_error", b"incomplete_run_history_error"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["error_type", b"error_type"]) -> typing_extensions.Literal["incomplete_run_history_error"] | None: ...
+
+global___ErrorType = ErrorType
 
 @typing_extensions.final
 class ReadRunHistoryRequest(google.protobuf.message.Message):
@@ -339,7 +362,10 @@ global___ScanRunHistoryCleanupResponse = ScanRunHistoryCleanupResponse
 
 @typing_extensions.final
 class DownloadRunHistory(google.protobuf.message.Message):
-    """Download run history"""
+    """Download run history
+
+    DownloadRunHistory is a request to download a run's history exports.
+    """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -349,10 +375,18 @@ class DownloadRunHistory(google.protobuf.message.Message):
     DOWNLOAD_DIR_FIELD_NUMBER: builtins.int
     REQUIRE_COMPLETE_HISTORY_FIELD_NUMBER: builtins.int
     entity: builtins.str
+    """The entity who owns the run."""
     project: builtins.str
+    """The project that the run belongs to."""
     run_id: builtins.str
+    """The ID of the run."""
     download_dir: builtins.str
+    """The directory to store the downloaded history files within."""
     require_complete_history: builtins.bool
+    """Whether to require the complete history to be downloaded.
+    If the run contains data that has not been exported to parquet files yet,
+    the run history will be considered incomplete.
+    """
     def __init__(
         self,
         *,
@@ -368,13 +402,19 @@ global___DownloadRunHistory = DownloadRunHistory
 
 @typing_extensions.final
 class DownloadRunHistoryResponse(google.protobuf.message.Message):
+    """DownloadRunHistoryResponse is a response to a DownloadRunHistory request."""
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     FILE_NAMES_FIELD_NUMBER: builtins.int
     CONTAINS_LIVE_DATA_FIELD_NUMBER: builtins.int
     @property
-    def file_names(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    def file_names(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
+        """The list of file names that were downloaded.
+        Each value is the full path to the downloaded file.
+        """
     contains_live_data: builtins.bool
+    """Whether the run contains data that has not been exported to parquet files yet."""
     def __init__(
         self,
         *,
@@ -384,3 +424,17 @@ class DownloadRunHistoryResponse(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal["contains_live_data", b"contains_live_data", "file_names", b"file_names"]) -> None: ...
 
 global___DownloadRunHistoryResponse = DownloadRunHistoryResponse
+
+@typing_extensions.final
+class IncompleteRunHistoryError(google.protobuf.message.Message):
+    """IncompleteRunHistoryError is an error that is returned when the run history
+    has live data that has not been exported to parquet files yet.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    def __init__(
+        self,
+    ) -> None: ...
+
+global___IncompleteRunHistoryError = IncompleteRunHistoryError
