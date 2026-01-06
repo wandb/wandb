@@ -69,7 +69,12 @@ func DownloadRunHistoryFile(
 	}
 	defer file.Close()
 
-	req, err := retryablehttp.NewRequest(http.MethodGet, fileUrl, nil)
+	req, err := retryablehttp.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		fileUrl,
+		nil,
+	)
 	if err != nil {
 		return err
 	}

@@ -96,11 +96,11 @@ func extractStepValuesFromLiveData(liveData []any) ([]float64, error) {
 	for _, data := range liveData {
 		liveDataMap, ok := data.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("expected liveData to be map[string]any")
+			return nil, fmt.Errorf("expected LiveData to be map[string]any")
 		}
 		step, ok := liveDataMap[iterator.StepKey]
 		if !ok {
-			return nil, fmt.Errorf("expected liveData to contain step key")
+			return nil, fmt.Errorf("expected LiveData to contain step key")
 		}
 		stepValue, ok := step.(float64)
 		if !ok {
