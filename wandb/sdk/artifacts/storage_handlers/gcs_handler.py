@@ -17,6 +17,9 @@ from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHand
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 from wandb.util import logger
 
+from google.auth.exceptions import GoogleAuthError
+from google.api_core.exceptions import GoogleAPICallError
+
 if TYPE_CHECKING:
     from google.cloud import storage  # type: ignore[import-not-found]
 
@@ -167,13 +170,21 @@ class GCSHandler(StorageHandler):
 
         bucket = client.bucket(gcs_path.bucket)
 
-        # Try list_blobs first (requires storage.objects.list permission).
-        # Fall back to get_blob if list fails (for backward compatibility with
-        # anonymous credentials on public buckets that allow object access but
-        # not listing).
+        # Try list_blobs first. Fallback to get_blob for backward compatibility.
+        # Using get_blob is a valid use case for public buckets.
+        # anonymous credentials on public buckets only allows get_blob without list_blobs.
+        #
+        # For our system test, the error comes from anonymous credentials:
+        # google.auth.exceptions.InvalidOperation: Anonymous credentials cannot be refreshed
+        # For blob client, all the exceptions on operations as based from:
+        # google.api_core.exceptions.GoogleAPICallError
+        #
+        # The fallback can lead to unnessary retries when user does not
+        # have either get or list permission. The performance penalty is limited
+        # because _store_path_via_get only get at most one file.
         try:
             return self._store_path_via_list(bucket, gcs_path, path, name, max_objects)
-        except Exception as e:
+        except (GoogleAuthError, GoogleAPICallError) as e:
             logger.warning(f"list_blobs failed, falling back to get_blob: {e}")
             return self._store_path_via_get(bucket, gcs_path, path, name)
 
@@ -185,7 +196,6 @@ class GCSHandler(StorageHandler):
         name: StrPath | None,
         max_objects: int,
     ) -> list[ArtifactManifestEntry]:
-        """Store path using list_blobs (requires storage.objects.list permission)."""
         # Return different versions as blobs if user specified a version
         # https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.client.Client#google_cloud_storage_client_Client_list_blobs
         versions = gcs_path.version is not None
@@ -222,23 +232,15 @@ class GCSHandler(StorageHandler):
         path: str,
         name: StrPath | None,
     ) -> list[ArtifactManifestEntry]:
-        """Store path using get_blob (requires storage.objects.get permission).
-
-        This is the fallback path for when list_blobs fails due to permission
-        issues (e.g., anonymous credentials on public buckets).
-
-        Note: This fallback only works for single files, not directories.
-        Directory references require list permission.
-        """
         obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
 
         if obj is None and gcs_path.version is not None:
             raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
 
         if obj is None:
-            # Object doesn't exist at exact key.
-            # In fallback mode (no list permission), we can't enumerate directories.
-            # Return empty list - the object simply doesn't exist at this path.
+            # Object doesn't exist or it is a folder.
+            # We cannot list files because we already called list_blobs
+            # before get_blob in _store_path_via_list.
             return []
 
         # Single object found
