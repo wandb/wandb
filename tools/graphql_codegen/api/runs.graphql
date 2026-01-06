@@ -85,35 +85,6 @@ query GetRuns(
   }
 }
 
-# # Paginated query for fetching runs in a project (`lazy` mode).
-# query GetLightRuns(
-#   $project: String!
-#   $entity: String!
-#   $cursor: String
-#   $perPage: Int = 50
-#   $order: String
-#   $filters: JSONString
-# ) {
-#   project(name: $project, entityName: $entity) {
-#     # `internalId` may not be supported by older servers.
-#     # @include(if: true) makes the field optional w/default `None`.
-#     # Runtime code should use `gql_compat()` to omit if needed.
-#     internalId @include(if: true)
-#     readOnly
-#     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-#       totalCount
-#       pageInfo {
-#         ...PageInfoFragment
-#       }
-#       edges {
-#         node {
-#           ...LightRunFragment
-#         }
-#       }
-#     }
-#   }
-# }
-
 # Query for fetching a single run (full data).
 query GetRun($name: String!, $project: String!, $entity: String!, $lazy: Boolean!) {
   project(name: $project, entityName: $entity) {
@@ -128,19 +99,6 @@ query GetRun($name: String!, $project: String!, $entity: String!, $lazy: Boolean
     }
   }
 }
-
-# # Query for fetching a single run (`lazy` mode).
-# query GetLightRun($name: String!, $project: String!, $entity: String!) {
-#   project(name: $project, entityName: $entity) {
-#     run(name: $name) {
-#       # `projectId` may not be supported by older servers.
-#       # @include(if: true) makes the field optional w/default `None`.
-#       # Runtime code should use `gql_compat()` to omit if needed.
-#       projectId @include(if: true)
-#       ...LightRunFragment
-#     }
-#   }
-# }
 
 # Query for checking run state (used by wait_until_finished).
 query GetRunState($name: String!, $project: String!, $entity: String!) {
