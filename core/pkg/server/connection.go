@@ -456,8 +456,15 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 	})
 	logger := observability.NewNoOpLogger() // TODO: use a real logger
 	baseURL := stream.BaseURLFromSettings(logger, s)
-	backend := stream.NewBackend(baseURL, logger, s)
-	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{}, "" /*clientId*/)
+	credentialProvider := stream.CredentialsFromSettings(logger, s)
+	graphqlClient := stream.NewGraphQLClient(
+		baseURL,
+		"", /*clientId*/
+		credentialProvider,
+		logger,
+		&observability.Peeker{},
+		s,
+	)
 
 	data, err := gql.Viewer(context.Background(), graphqlClient)
 	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {

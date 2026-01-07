@@ -16,8 +16,8 @@ func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	if !client.isToWandb(req) {
-		if client.backend.logger != nil {
-			client.backend.logger.Warn(
+		if client.logger != nil {
+			client.logger.Warn(
 				fmt.Sprintf(
 					"api: unexpected request through W&B HTTP client: %v",
 					req.URL,
@@ -33,11 +33,11 @@ func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
 
 // Returns whether the request would go to the W&B backend.
 func (client *clientImpl) isToWandb(req *http.Request) bool {
-	if req.URL.Host != client.backend.baseURL.Host {
+	if req.URL.Host != client.baseURL.Host {
 		return false
 	}
 
-	return strings.HasPrefix(req.URL.Path, client.backend.baseURL.Path)
+	return strings.HasPrefix(req.URL.Path, client.baseURL.Path)
 }
 
 // Sends a request intended for the W&B backend.
@@ -45,7 +45,7 @@ func (client *clientImpl) sendToWandbBackend(
 	req *retryablehttp.Request,
 ) (*http.Response, error) {
 	client.setClientHeaders(req)
-	err := client.backend.credentialProvider.Apply(req.Request)
+	err := client.credentialProvider.Apply(req.Request)
 	if err != nil {
 		return nil, fmt.Errorf("api: failed provide credentials for "+
 			"request: %v", err)
@@ -76,7 +76,7 @@ func (client *clientImpl) send(
 		return nil, fmt.Errorf("api: no response")
 	}
 
-	client.backend.logFinalResponseOnError(req, resp)
+	client.logFinalResponseOnError(req, resp)
 	return resp, nil
 }
 

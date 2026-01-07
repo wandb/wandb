@@ -41,27 +41,19 @@ func BaseURLFromSettings(
 	return baseURL
 }
 
-// NewBackend returns a Backend or nil if we're offline.
-func NewBackend(
-	baseURL api.WBBaseURL,
+// CredentialsFromSettings creates a CredentialProvider based on settings.
+func CredentialsFromSettings(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
-) *api.Backend {
-	if baseURL == nil {
-		return nil
-	}
-
+) api.CredentialProvider {
 	credentialProvider, err := api.NewCredentialProvider(settings, logger.Logger)
+
 	if err != nil {
 		logger.CaptureFatalAndPanic(
 			fmt.Errorf("stream_init: NewCredentialProvider: %v", err))
 	}
 
-	return api.New(api.BackendOptions{
-		BaseURL:            baseURL,
-		Logger:             logger.Logger,
-		CredentialProvider: credentialProvider,
-	})
+	return credentialProvider
 }
 
 // ProxyFn returns a function that returns a proxy URL for a given hhtp.Request.
@@ -99,10 +91,12 @@ func ProxyFn(httpProxy string, httpsProxy string) func(req *http.Request) (*url.
 }
 
 func NewGraphQLClient(
-	backend *api.Backend,
-	settings *settings.Settings,
-	peeker *observability.Peeker,
+	baseURL api.WBBaseURL,
 	clientID sharedmode.ClientID,
+	credentialProvider api.CredentialProvider,
+	logger *observability.CoreLogger,
+	peeker *observability.Peeker,
+	settings *settings.Settings,
 ) graphql.Client {
 	if settings.IsOffline() {
 		return nil
@@ -138,6 +132,7 @@ func NewGraphQLClient(
 	}
 
 	opts := api.ClientOptions{
+		BaseURL:            baseURL,
 		RetryPolicy:        clients.CheckRetry,
 		RetryMax:           api.DefaultRetryMax,
 		RetryWaitMin:       api.DefaultRetryWaitMin,
@@ -147,6 +142,8 @@ func NewGraphQLClient(
 		NetworkPeeker:      peeker,
 		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
 		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
+		CredentialProvider: credentialProvider,
+		Logger:             logger.Logger,
 	}
 	if retryMax := settings.GetGraphQLMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
@@ -161,7 +158,7 @@ func NewGraphQLClient(
 		opts.NonRetryTimeout = timeout
 	}
 
-	httpClient := backend.NewClient(opts)
+	httpClient := api.NewClient(opts)
 	endpoint := fmt.Sprintf("%s/graphql", settings.GetBaseURL())
 
 	return graphql.NewClient(endpoint, httpClient)
@@ -169,10 +166,12 @@ func NewGraphQLClient(
 
 func NewFileStream(
 	factory *filestream.FileStreamFactory,
-	backend *api.Backend,
-	settings *settings.Settings,
-	peeker api.Peeker,
+	baseURL api.WBBaseURL,
 	clientID sharedmode.ClientID,
+	credentialProvider api.CredentialProvider,
+	logger *observability.CoreLogger,
+	peeker api.Peeker,
+	settings *settings.Settings,
 ) filestream.FileStream {
 	if settings.IsOffline() {
 		return nil
@@ -189,6 +188,7 @@ func NewFileStream(
 	}
 
 	opts := api.ClientOptions{
+		BaseURL:            baseURL,
 		RetryPolicy:        clients.RetryMostFailures,
 		RetryMax:           filestream.DefaultRetryMax,
 		RetryWaitMin:       filestream.DefaultRetryWaitMin,
@@ -198,6 +198,8 @@ func NewFileStream(
 		NetworkPeeker:      peeker,
 		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
 		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
+		CredentialProvider: credentialProvider,
+		Logger:             logger.Logger,
 	}
 	if retryMax := settings.GetFileStreamMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
@@ -212,7 +214,7 @@ func NewFileStream(
 		opts.NonRetryTimeout = timeout
 	}
 
-	fileStreamRetryClient := backend.NewClient(opts)
+	fileStreamRetryClient := api.NewClient(opts)
 
 	var transmitRateLimit *rate.Limiter
 	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {

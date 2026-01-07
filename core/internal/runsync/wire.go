@@ -43,7 +43,7 @@ var runSyncerFactoryBindings = wire.NewSet(
 	runSyncerProviders,
 	sharedmode.RandomClientID,
 	stream.BaseURLFromSettings,
-	stream.NewBackend,
+	stream.CredentialsFromSettings,
 	stream.NewFileTransferManager,
 	stream.NewGraphQLClient,
 	stream.RecordParserProviders,
