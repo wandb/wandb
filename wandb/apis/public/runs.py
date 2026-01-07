@@ -39,12 +39,13 @@ import os
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Collection, Literal, Mapping
+from typing import TYPE_CHECKING, Any, Collection, Iterator, Literal, Mapping
 
 from wandb_gql import gql
 
 import wandb
 from wandb import env, util
+from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
@@ -55,7 +56,13 @@ from wandb.sdk.lib import ipython, json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+    from typing_extensions import Self
+    from wandb_graphql.language.ast import Document
+
     from wandb.apis.public import RetryingClient
+    from wandb.old.summary import HTTPSummary
 
 WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 
@@ -148,7 +155,7 @@ def _create_runs_query(
 
 
 @normalize_exceptions
-def _server_provides_internal_id_for_project(client) -> bool:
+def _server_provides_internal_id_for_project(client: RetryingClient) -> bool:
     """Returns True if the server allows us to query the internalId field for a project."""
     query_string = """
        query ProbeProjectInput {
@@ -169,7 +176,7 @@ def _server_provides_internal_id_for_project(client) -> bool:
 
 
 @normalize_exceptions
-def _server_provides_project_id_for_run(client) -> bool:
+def _server_provides_project_id_for_run(client: RetryingClient) -> bool:
     """Returns True if the server allows us to query the projectId field for a run."""
     query_string = """
        query ProbeRunInput {
@@ -262,7 +269,7 @@ class Runs(SizedPaginator["Run"]):
         self._project_internal_id = None
         self.filters = filters or {}
         self.order = order
-        self._sweeps = {}
+        self._sweeps: dict[str, public.Sweep] = {}
         self._include_sweeps = include_sweeps
         self._lazy = lazy
         self._api = api
@@ -275,7 +282,7 @@ class Runs(SizedPaginator["Run"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def _length(self):
+    def _length(self) -> int:
         """Returns the total number of runs.
 
         <!-- lazydoc-ignore: internal -->
@@ -308,7 +315,7 @@ class Runs(SizedPaginator["Run"]):
         else:
             return None
 
-    def convert_objects(self):
+    def convert_objects(self) -> list[Run]:
         """Converts GraphQL edges to Runs objects.
 
         <!-- lazydoc-ignore: internal -->
@@ -356,7 +363,7 @@ class Runs(SizedPaginator["Run"]):
         x_axis: str = "_step",
         format: Literal["default", "pandas", "polars"] = "default",
         stream: Literal["default", "system"] = "default",
-    ):
+    ) -> list[dict[str, Any]] | pd.DataFrame | pl.DataFrame:
         """Return sampled history metrics for all runs that fit the filters conditions.
 
         Args:
@@ -449,10 +456,10 @@ class Runs(SizedPaginator["Run"]):
 
             return combined_df
 
-    def __repr__(self):
-        return f"<Runs {self.entity}/{self.project}>"
+    def __repr__(self) -> str:
+        return f"<{nameof(type(self))} {self.entity}/{self.project}>"
 
-    def upgrade_to_full(self):
+    def upgrade_to_full(self) -> None:
         """Upgrade this Runs collection from lazy to full mode.
 
         This switches to fetching full run data and
@@ -563,23 +570,23 @@ class Run(Attrs):
         self.load(force=not _attrs)
 
     @property
-    def state(self):
+    def state(self) -> str:
         """The state of the run. Can be one of: Finished, Failed, Crashed, or Running."""
         return self._state
 
     @property
-    def entity(self):
+    def entity(self) -> str:
         """The entity associated with the run."""
         return self._entity
 
     @property
-    def username(self):
+    def username(self) -> str:
         """This API is deprecated. Use `entity` instead."""
         wandb.termwarn("Run.username is deprecated. Please use Run.entity instead.")
         return self._entity
 
     @property
-    def storage_id(self):
+    def storage_id(self) -> str:
         """The unique storage identifier for the run."""
         # For compatibility with wandb.Run, which has storage IDs
         # in self.storage_id and names in self.id.
@@ -587,27 +594,24 @@ class Run(Attrs):
         return self._attrs.get("id")
 
     @property
-    def id(self):
+    def id(self) -> str:
         """The unique identifier for the run."""
         return self._attrs.get("name")
 
     @id.setter
-    def id(self, new_id):
+    def id(self, new_id: str) -> None:
         """Set the unique identifier for the run."""
-        attrs = self._attrs
-        attrs["name"] = new_id
-        return new_id
+        self._attrs["name"] = new_id
 
     @property
-    def name(self):
+    def name(self) -> str | None:
         """The name of the run."""
         return self._attrs.get("displayName")
 
     @name.setter
-    def name(self, new_name):
+    def name(self, new_name: str) -> None:
         """Set the name of the run."""
         self._attrs["displayName"] = new_name
-        return new_name
 
     @classmethod
     def create(
@@ -617,7 +621,7 @@ class Run(Attrs):
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
-    ):
+    ) -> Self:
         """Create a run for the given project."""
         api._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
@@ -647,7 +651,7 @@ class Run(Attrs):
         }
         res = api.client.execute(mutation, variable_values=variables)
         res = res["upsertBucket"]["bucket"]
-        return Run(
+        return cls(
             api.client,
             res["project"]["entity"]["name"],
             res["project"]["name"],
@@ -667,7 +671,7 @@ class Run(Attrs):
 
     def _load_with_fragment(
         self, fragment: str, fragment_name: str, force: bool = False
-    ):
+    ) -> dict[str, Any]:
         """Load run data using specified GraphQL fragment."""
         # Cache the server capability check to avoid repeated network calls
         if self._server_provides_project_id_field is None:
@@ -735,7 +739,7 @@ class Run(Attrs):
 
         return self._attrs
 
-    def _load_from_attrs(self):
+    def _load_from_attrs(self) -> dict[str, Any]:
         self._state = self._attrs.get("state", None)
 
         # Only convert fields if they exist in _attrs
@@ -781,7 +785,7 @@ class Run(Attrs):
 
         return self._attrs
 
-    def load(self, force=False):
+    def load(self, force: bool = False) -> dict[str, Any]:
         """Load run data using appropriate fragment based on lazy mode."""
         if self._lazy:
             return self._load_with_fragment(
@@ -791,7 +795,7 @@ class Run(Attrs):
             return self._load_with_fragment(RUN_FRAGMENT, RUN_FRAGMENT_NAME, force)
 
     @normalize_exceptions
-    def wait_until_finished(self):
+    def wait_until_finished(self) -> None:
         """Check the state of the run until it is finished."""
         query = gql(
             """
@@ -814,7 +818,7 @@ class Run(Attrs):
             time.sleep(5)
 
     @normalize_exceptions
-    def update(self):
+    def update(self) -> None:
         """Persist changes to the run object to the wandb backend."""
         mutation = gql(
             """
@@ -842,7 +846,7 @@ class Run(Attrs):
         self.summary.update()
 
     @normalize_exceptions
-    def delete(self, delete_artifacts=False):
+    def delete(self, delete_artifacts: bool = False) -> None:
         """Delete the given run from the wandb backend.
 
         Args:
@@ -876,12 +880,12 @@ class Run(Attrs):
             },
         )
 
-    def save(self):
+    def save(self) -> None:
         """Persist changes to the run object to the W&B backend."""
         self.update()
 
     @property
-    def json_config(self):
+    def json_config(self) -> str:
         """Return the run config as a JSON string.
 
         <!-- lazydoc-ignore: internal -->
@@ -893,13 +897,18 @@ class Run(Attrs):
             config[k] = {"value": v, "desc": None}
         return json.dumps(config)
 
-    def _exec(self, query, **kwargs):
+    def _exec(self, query: Document, **kwargs: Any) -> dict[str, Any]:
         """Execute a query against the cloud backend."""
         variables = {"entity": self.entity, "project": self.project, "name": self.id}
         variables.update(kwargs)
         return self.client.execute(query, variable_values=variables)
 
-    def _sampled_history(self, keys, x_axis="_step", samples=500):
+    def _sampled_history(
+        self,
+        keys: list[str],
+        x_axis: str = "_step",
+        samples: int = 500,
+    ) -> list[dict[str, Any]]:
         spec = {"keys": [x_axis] + keys, "samples": samples}
         query = gql(
             """
@@ -915,7 +924,11 @@ class Run(Attrs):
         # sampledHistory returns one list per spec, we only send one spec
         return response["project"]["run"]["sampledHistory"][0]
 
-    def _full_history(self, samples=500, stream="default"):
+    def _full_history(
+        self,
+        samples: int = 500,
+        stream: Literal["default", "system"] = "default",
+    ) -> list[dict[str, Any]]:
         node = "history" if stream == "default" else "events"
         query = gql(
             """
@@ -936,7 +949,7 @@ class Run(Attrs):
         names: list[str] | None = None,
         pattern: str | None = None,
         per_page: int = 50,
-    ):
+    ) -> public.Files:
         """Returns a `Files` object for all files in the run which match the given criteria.
 
         You can specify a list of exact file names to match, or a pattern to match against.
@@ -962,7 +975,7 @@ class Run(Attrs):
         )
 
     @normalize_exceptions
-    def file(self, name):
+    def file(self, name: str) -> public.File:
         """Return the path of a file with a given name in the artifact.
 
         Args:
@@ -974,7 +987,7 @@ class Run(Attrs):
         return public.Files(self.client, self, [name])[0]
 
     @normalize_exceptions
-    def upload_file(self, path, root="."):
+    def upload_file(self, path: str, root: str = ".") -> public.File:
         """Upload a local file to W&B, associating it with this run.
 
         Args:
@@ -1001,8 +1014,13 @@ class Run(Attrs):
 
     @normalize_exceptions
     def history(
-        self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"
-    ):
+        self,
+        samples: int = 500,
+        keys: list[str] | None = None,
+        x_axis: str = "_step",
+        pandas: bool = True,
+        stream: Literal["default", "system"] = "default",
+    ) -> list[dict[str, Any]] | pd.DataFrame:
         """Return sampled history metrics for a run.
 
         This is simpler and faster if you are ok with the history records being sampled.
@@ -1042,7 +1060,13 @@ class Run(Attrs):
         return lines
 
     @normalize_exceptions
-    def scan_history(self, keys=None, page_size=1000, min_step=None, max_step=None):
+    def scan_history(
+        self,
+        keys: list[str] | None = None,
+        page_size: int = 1_000,
+        min_step: int | None = None,
+        max_step: int | None = None,
+    ) -> Iterator[dict[str, Any]]:
         """Returns an iterable collection of all history records for a run.
 
         Args:
@@ -1167,7 +1191,11 @@ class Run(Attrs):
         return public.RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @normalize_exceptions
-    def use_artifact(self, artifact, use_as=None):
+    def use_artifact(
+        self,
+        artifact: wandb.Artifact,
+        use_as: str | None = None,
+    ) -> wandb.Artifact:
         """Declare an artifact as an input to a run.
 
         Args:
@@ -1210,7 +1238,7 @@ class Run(Attrs):
         artifact: wandb.Artifact,
         aliases: Collection[str] | None = None,
         tags: Collection[str] | None = None,
-    ):
+    ) -> wandb.Artifact:
         """Declare an artifact as output of a run.
 
         Args:
@@ -1275,7 +1303,7 @@ class Run(Attrs):
         return result
 
     @property
-    def config(self):
+    def config(self) -> dict[str, Any]:
         """Get run config. Auto-loads full data if in lazy mode."""
         if self._lazy and not self._full_data_loaded and "config" not in self._attrs:
             self.load_full_data()
@@ -1288,7 +1316,7 @@ class Run(Attrs):
         return config_value
 
     @property
-    def summary(self):
+    def summary(self) -> HTTPSummary:
         """Get run summary metrics. Auto-loads full data if in lazy mode."""
         if (
             self._lazy
@@ -1304,7 +1332,7 @@ class Run(Attrs):
         return self._summary
 
     @property
-    def system_metrics(self):
+    def system_metrics(self) -> dict[str, Any]:
         """Get run system metrics. Auto-loads full data if in lazy mode."""
         if (
             self._lazy
@@ -1321,7 +1349,7 @@ class Run(Attrs):
         return system_metrics_value
 
     @property
-    def summary_metrics(self):
+    def summary_metrics(self) -> dict[str, Any]:
         """Get run summary metrics. Auto-loads full data if in lazy mode."""
         if (
             self._lazy
@@ -1338,20 +1366,20 @@ class Run(Attrs):
         return summary_metrics_value
 
     @property
-    def rawconfig(self):
+    def rawconfig(self) -> dict[str, Any]:
         """Get raw run config including internal keys. Auto-loads full data if in lazy mode."""
         if self._lazy and not self._full_data_loaded and "rawconfig" not in self._attrs:
             self.load_full_data()
         return self._attrs.get("rawconfig", {})
 
     @property
-    def sweep_name(self):
+    def sweep_name(self) -> str | None:
         """Get sweep name. Always available since sweepName is in lightweight fragment."""
         # sweepName is included in lightweight fragment, so no need to load full data
         return self._attrs.get("sweepName")
 
     @property
-    def path(self):
+    def path(self) -> list[str]:
         """The path of the run. The path is a list containing the entity, project, and run_id."""
         return [
             urllib.parse.quote_plus(str(self.entity)),
@@ -1360,7 +1388,7 @@ class Run(Attrs):
         ]
 
     @property
-    def url(self):
+    def url(self) -> str:
         """The URL of the run.
 
         The run URL is generated from the entity, project, and run_id. For
@@ -1371,7 +1399,7 @@ class Run(Attrs):
         return self.client.app_url + "/".join(path)
 
     @property
-    def metadata(self):
+    def metadata(self) -> dict[str, Any] | None:
         """Metadata about the run from wandb-metadata.json.
 
         Metadata includes the run's description, tags, start time, memory
@@ -1391,7 +1419,7 @@ class Run(Attrs):
         return self._metadata
 
     @property
-    def lastHistoryStep(self):  # noqa: N802
+    def lastHistoryStep(self) -> int:  # noqa: N802
         """Returns the last step logged in the run's history."""
         query = gql(
             """
@@ -1413,7 +1441,7 @@ class Run(Attrs):
         history_keys = response["project"]["run"]["historyKeys"]
         return history_keys["lastStep"] if "lastStep" in history_keys else -1
 
-    def to_html(self, height=420, hidden=False):
+    def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this run."""
         url = self.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
@@ -1426,16 +1454,16 @@ class Run(Attrs):
     def _repr_html_(self) -> str:
         return self.to_html()
 
-    def __repr__(self):
-        return "<Run {} ({})>".format("/".join(self.path), self.state)
+    def __repr__(self) -> str:
+        return f"<{nameof(type(self))} {'/'.join(self.path)} ({self.state})>"
 
     def beta_scan_history(
         self,
         keys: list[str] | None = None,
-        page_size=1000,
-        min_step=0,
-        max_step=None,
-        use_cache=True,
+        page_size: int = 1_000,
+        min_step: int = 0,
+        max_step: int | None = None,
+        use_cache: bool = True,
     ) -> public.BetaHistoryScan:
         """Returns an iterable collection of all history records for a run.
 
