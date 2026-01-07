@@ -607,7 +607,7 @@ class Run(Attrs, DisplayableMixin):
             response = response_cls.model_validate(self._exec(query))
             if response.project is None or response.project.run is None:
                 raise ValueError("Could not find run {}".format(self))
-            self._attrs = response.project.run.model_dump(exclude_none=True)
+            self._attrs = response.project.run.model_dump()
 
             self._state = self._attrs["state"]
             if self._attrs.get("user"):
