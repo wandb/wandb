@@ -21,12 +21,7 @@ def patch_server_features(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prevent unit tests from attempting to contact the real server."""
     monkeypatch.setattr(
         runs,
-        "_server_provides_project_id_for_run",
-        lambda *args, **kwargs: False,
-    )
-    monkeypatch.setattr(
-        runs,
-        "_server_provides_internal_id_for_project",
+        "_server_has_field",
         lambda *args, **kwargs: False,
     )
 

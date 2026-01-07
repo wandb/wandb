@@ -25,7 +25,29 @@ fragment LightRunFragment on Run {
 
 # Full Run fragment that includes expensive fields
 fragment RunFragment on Run {
-  ...LightRunFragment
+  __typename
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  projectId
+  user {
+    name
+    username
+  }
+
+  # expensive extra fields that weren't included in LightRunFragment
   config
   systemMetrics
   summaryMetrics
@@ -43,9 +65,9 @@ query GetRuns(
 ) {
   project(name: $project, entityName: $entity) {
     # `internalId` may not be supported by older servers.
-    # @skip(if: true) makes the field optional w/default `None`.
+    # @include(if: true) makes the field optional w/default `None`.
     # Runtime code should use `gql_compat()` to omit if needed.
-    internalId @skip(if: true)
+    internalId @include(if: true)
     readOnly
     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
       totalCount
@@ -72,9 +94,9 @@ query GetLightRuns(
 ) {
   project(name: $project, entityName: $entity) {
     # `internalId` may not be supported by older servers.
-    # @skip(if: true) makes the field optional w/default `None`.
+    # @include(if: true) makes the field optional w/default `None`.
     # Runtime code should use `gql_compat()` to omit if needed.
-    internalId @skip(if: true)
+    internalId @include(if: true)
     readOnly
     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
       totalCount
@@ -95,9 +117,9 @@ query GetRun($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
       # `projectId` may not be supported by older servers.
-      # @skip(if: true) makes the field optional w/default `None`.
+      # @include(if: true) makes the field optional w/default `None`.
       # Runtime code should use `gql_compat()` to omit if needed.
-      projectId @skip(if: true)
+      projectId @include(if: true)
       ...RunFragment
     }
   }
@@ -108,9 +130,9 @@ query GetLightRun($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
       # `projectId` may not be supported by older servers.
-      # @skip(if: true) makes the field optional w/default `None`.
+      # @include(if: true) makes the field optional w/default `None`.
       # Runtime code should use `gql_compat()` to omit if needed.
-      projectId @skip(if: true)
+      projectId @include(if: true)
       ...LightRunFragment
     }
   }
