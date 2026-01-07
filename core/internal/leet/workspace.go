@@ -112,7 +112,10 @@ func NewWorkspace(
 func (w *Workspace) SetSize(width, height int) {
 	w.width, w.height = width, height
 
-	available := max(height-workspaceTopMarginLines-workspaceHeaderLines, 1)
+	// The runs list lives in the main content area (above the status bar).
+	contentHeight := max(height-StatusBarHeight, 0)
+	available := max(contentHeight-workspaceTopMarginLines-workspaceHeaderLines, 1)
+
 	w.runs.SetItemsPerPage(available)
 }
 
@@ -439,30 +442,38 @@ func (w *Workspace) togglePin(runKey string) {
 
 func (w *Workspace) renderRuns() string {
 	startIdx, endIdx := w.syncRunsPage()
-	header := w.renderRunsHeader(startIdx, endIdx) + "\n"
 
-	contentWidth := w.runsAnimState.Width() - leftSidebarContentPadding
+	sidebarW := w.runsAnimState.Width()
+	sidebarH := max(w.height-StatusBarHeight, 0)
+	if sidebarW <= 0 || sidebarH <= 0 {
+		return ""
+	}
+	contentWidth := max(sidebarW-leftSidebarContentPadding, 1)
+
 	lines := w.renderRunLines(contentWidth)
 
 	if len(lines) == 0 {
 		lines = []string{"(no runs found)"}
 	}
 
-	content := strings.Join(append([]string{header}, lines...), "\n") + "\n"
+	contentLines := make([]string, 0, 1+len(lines))
+	contentLines = append(contentLines, w.renderRunsHeader(startIdx, endIdx))
+	contentLines = append(contentLines, lines...)
+	content := strings.Join(contentLines, "\n")
+
+	// The runs sidebar border provides 1 blank line of padding at the top and bottom.
+	innerW := max(sidebarW-runsSidebarBorderCols, 0)
+	innerH := max(sidebarH-workspaceTopMarginLines, 0)
 
 	styledContent := leftSidebarStyle.
-		Width(w.runsAnimState.Width()).
-		Height(w.height - StatusBarHeight).
-		MaxWidth(w.runsAnimState.Width()).
-		MaxHeight(w.height - StatusBarHeight).
+		Width(innerW).
+		Height(innerH).
+		MaxWidth(innerW).
+		MaxHeight(innerH).
 		Render(content)
 
-	return leftSidebarBorderStyle.
-		Width(w.runsAnimState.Width() - 2).
-		Height(w.height - StatusBarHeight + 1).
-		MaxWidth(w.runsAnimState.Width()).
-		MaxHeight(w.height - StatusBarHeight + 1).
-		Render(styledContent)
+	boxed := leftSidebarBorderStyle.Render(styledContent)
+	return lipgloss.Place(sidebarW, sidebarH, lipgloss.Left, lipgloss.Top, boxed)
 }
 
 func (w *Workspace) renderMetrics() string {

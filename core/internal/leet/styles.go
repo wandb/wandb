@@ -426,7 +426,8 @@ var (
 		TopLeft:     string(unicodeSpace),
 		TopRight:    string(unicodeSpace),
 		BottomLeft:  string(unicodeSpace),
-		BottomRight: string(boxLightVertical),
+		BottomRight: string(unicodeSpace),
+		// BottomRight: string(boxLightVertical),
 	}
 )
 
@@ -474,6 +475,7 @@ var (
 var (
 	workspaceTopMarginLines = 2
 	workspaceHeaderLines    = 1
+	runsSidebarBorderCols   = 2
 
 	colorOddRunStyle = lipgloss.AdaptiveColor{
 		Light: "#d0d0d0",
