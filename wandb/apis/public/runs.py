@@ -71,28 +71,6 @@ if TYPE_CHECKING:
 WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 
 
-def _create_runs_query(
-    *, lazy: bool, with_internal_id: bool, with_project_id: bool
-) -> Document:
-    """Create GraphQL query for runs with appropriate fragment.
-
-    The values of `with_internal_id/with_project_id` control whether
-    to omit `internalId/projectId` from the query fields, as older
-    servers may not support these fields.
-    """
-    from wandb.apis._generated import GET_LIGHT_RUNS_GQL, GET_RUNS_GQL
-
-    # Omit fields not supported by the server
-    omit_fields = {
-        *(() if with_internal_id else {"internalId"}),
-        *(() if with_project_id else {"projectId"}),
-    }
-    return gql_compat(
-        GET_LIGHT_RUNS_GQL if lazy else GET_RUNS_GQL,
-        omit_fields=omit_fields,
-    )
-
-
 @normalize_exceptions
 def _convert_to_dict(value: Any) -> dict[str, Any]:
     """Converts a value to a dictionary.
@@ -375,6 +353,8 @@ class Runs(SizedPaginator["Run"]):
         upgrades any already-loaded Run objects to have full data.
         Uses parallel loading for better performance when upgrading multiple runs.
         """
+        from wandb.apis._generated import GET_RUNS_GQL
+
         if not self._lazy:
             return  # Already in full mode
 
@@ -382,11 +362,7 @@ class Runs(SizedPaginator["Run"]):
         self._lazy = False
 
         # Regenerate query with full fragment
-        self.QUERY = _create_runs_query(
-            lazy=False,
-            with_internal_id=_server_has_field(self.client, "Project", "internalId"),
-            with_project_id=_server_has_field(self.client, "Run", "projectId"),
-        )
+        self.QUERY = gql(GET_RUNS_GQL)
 
         # Upgrade any existing runs that have been loaded - use parallel loading for performance
         lazy_runs = [run for run in self.objects if run._lazy]
@@ -573,12 +549,6 @@ class Run(Attrs, DisplayableMixin):
             GetLightRuns,
             GetRuns,
         )
-
-        # Cache the server capability check to avoid repeated network calls
-        if self._server_provides_project_id_field is None:
-            self._server_provides_project_id_field = _server_has_field(
-                self.client, type="Run", field="projectId"
-            )
 
         query = gql(GET_LIGHT_RUNS_GQL if lazy else GET_RUN_GQL)
         response_cls = GetLightRuns if lazy else GetRuns

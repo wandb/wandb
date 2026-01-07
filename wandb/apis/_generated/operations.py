@@ -282,7 +282,6 @@ GET_RUN_GQL = """
 query GetRun($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
-      projectId @include(if: true)
       ...RunFragment
     }
   }
@@ -321,7 +320,6 @@ GET_LIGHT_RUN_GQL = """
 query GetLightRun($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
-      projectId @include(if: true)
       ...LightRunFragment
     }
   }

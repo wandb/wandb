@@ -99,7 +99,7 @@ query GetLightRuns(
       }
       edges {
         node {
-          ...RunFragment
+          ...LightRunFragment
         }
       }
     }
