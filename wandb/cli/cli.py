@@ -2542,10 +2542,16 @@ def ls(path, type):
                 "/".join([kind.entity, kind.project, collection.name]),
                 per_page=1,
             )
-            latest = next(versions)
-            wandb.termlog(
-                f"{kind.type:<15s}{latest.updated_at:<15s}{util.to_human_size(latest.size):>15s} {latest.name:<20s}"
-            )
+            latest = next(versions, None)
+            if latest is not None:
+                wandb.termlog(
+                    f"{kind.type:<15s}{latest.updated_at:<15s}{util.to_human_size(latest.size):>15s} {latest.name:<20s}"
+                )
+            else:
+                # Collection exists but has no versions
+                wandb.termlog(
+                    f"{kind.type:<15s}{'N/A':<15s}{'0 B':>15s} {collection.name:<20s} (no versions)"
+                )
 
 
 @artifact.group(help="Commands for interacting with the artifact cache")
