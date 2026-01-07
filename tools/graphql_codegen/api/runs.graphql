@@ -64,10 +64,7 @@ query GetRuns(
   $filters: JSONString
 ) {
   project(name: $project, entityName: $entity) {
-    # `internalId` may not be supported by older servers.
-    # @include(if: true) makes the field optional w/default `None`.
-    # Runtime code should use `gql_compat()` to omit if needed.
-    internalId @include(if: true)
+    internalId
     readOnly
     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
       totalCount
@@ -93,10 +90,7 @@ query GetLightRuns(
   $filters: JSONString
 ) {
   project(name: $project, entityName: $entity) {
-    # `internalId` may not be supported by older servers.
-    # @include(if: true) makes the field optional w/default `None`.
-    # Runtime code should use `gql_compat()` to omit if needed.
-    internalId @include(if: true)
+    internalId
     readOnly
     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
       totalCount
@@ -105,7 +99,7 @@ query GetLightRuns(
       }
       edges {
         node {
-          ...LightRunFragment
+          ...RunFragment
         }
       }
     }
@@ -116,10 +110,6 @@ query GetLightRuns(
 query GetRun($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
-      # `projectId` may not be supported by older servers.
-      # @include(if: true) makes the field optional w/default `None`.
-      # Runtime code should use `gql_compat()` to omit if needed.
-      projectId @include(if: true)
       ...RunFragment
     }
   }
@@ -129,10 +119,6 @@ query GetRun($name: String!, $project: String!, $entity: String!) {
 query GetLightRun($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
-      # `projectId` may not be supported by older servers.
-      # @include(if: true) makes the field optional w/default `None`.
-      # Runtime code should use `gql_compat()` to omit if needed.
-      projectId @include(if: true)
       ...LightRunFragment
     }
   }
