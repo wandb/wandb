@@ -177,7 +177,7 @@ fragment CreatedProjectFragment on Project {
 GET_RUNS_GQL = """
 query GetRuns($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
   project(name: $project, entityName: $entity) {
-    internalId @include(if: true)
+    internalId
     readOnly
     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
       totalCount
@@ -231,7 +231,7 @@ fragment RunFragment on Run {
 GET_LIGHT_RUNS_GQL = """
 query GetLightRuns($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
   project(name: $project, entityName: $entity) {
-    internalId @include(if: true)
+    internalId
     readOnly
     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
       totalCount
