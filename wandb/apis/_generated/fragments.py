@@ -76,11 +76,34 @@ class ProjectFragment(GQLResult):
     is_benchmark: bool = Field(alias="isBenchmark")
 
 
-class RunFragment(LightRunFragment):
+class RunFragment(GQLResult):
+    typename__: Typename[Literal["Run"]] = "Run"
+    id: GQLId
+    tags: Optional[List[str]]
+    name: str
+    display_name: Optional[str] = Field(alias="displayName")
+    sweep_name: Optional[str] = Field(alias="sweepName")
+    state: Optional[str]
+    group: Optional[str]
+    job_type: Optional[str] = Field(alias="jobType")
+    commit: Optional[str]
+    read_only: Optional[bool] = Field(alias="readOnly")
+    created_at: str = Field(alias="createdAt")
+    heartbeat_at: Optional[str] = Field(alias="heartbeatAt")
+    description: Optional[str]
+    notes: Optional[str]
+    history_line_count: Optional[int] = Field(alias="historyLineCount")
+    project_id: GQLId = Field(alias="projectId")
+    user: Optional[RunFragmentUser]
     config: Optional[str]
     system_metrics: Optional[str] = Field(alias="systemMetrics")
     summary_metrics: Optional[str] = Field(alias="summaryMetrics")
     history_keys: Optional[Any] = Field(alias="historyKeys")
+
+
+class RunFragmentUser(GQLResult):
+    name: str
+    username: Optional[str]
 
 
 class SweepFragment(GQLResult):
@@ -148,6 +171,7 @@ LightRunFragmentUser.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
 RunFragment.model_rebuild()
+RunFragmentUser.model_rebuild()
 SweepFragment.model_rebuild()
 UserFragment.model_rebuild()
 UserFragmentApiKeys.model_rebuild()

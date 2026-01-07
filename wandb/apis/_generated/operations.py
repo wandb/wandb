@@ -117,7 +117,7 @@ fragment CreatedProjectFragment on Project {
 GET_RUNS_GQL = """
 query GetRuns($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
   project(name: $project, entityName: $entity) {
-    internalId @skip(if: true)
+    internalId @include(if: true)
     readOnly
     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
       totalCount
@@ -133,7 +133,13 @@ query GetRuns($project: String!, $entity: String!, $cursor: String, $perPage: In
   }
 }
 
-fragment LightRunFragment on Run {
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
+fragment RunFragment on Run {
   __typename
   id
   tags
@@ -155,16 +161,6 @@ fragment LightRunFragment on Run {
     name
     username
   }
-}
-
-fragment PageInfoFragment on PageInfo {
-  __typename
-  endCursor
-  hasNextPage
-}
-
-fragment RunFragment on Run {
-  ...LightRunFragment
   config
   systemMetrics
   summaryMetrics
@@ -175,7 +171,7 @@ fragment RunFragment on Run {
 GET_LIGHT_RUNS_GQL = """
 query GetLightRuns($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
   project(name: $project, entityName: $entity) {
-    internalId @skip(if: true)
+    internalId @include(if: true)
     readOnly
     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
       totalCount
@@ -226,13 +222,13 @@ GET_RUN_GQL = """
 query GetRun($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
-      projectId @skip(if: true)
+      projectId @include(if: true)
       ...RunFragment
     }
   }
 }
 
-fragment LightRunFragment on Run {
+fragment RunFragment on Run {
   __typename
   id
   tags
@@ -254,10 +250,6 @@ fragment LightRunFragment on Run {
     name
     username
   }
-}
-
-fragment RunFragment on Run {
-  ...LightRunFragment
   config
   systemMetrics
   summaryMetrics
@@ -269,7 +261,7 @@ GET_LIGHT_RUN_GQL = """
 query GetLightRun($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
-      projectId @skip(if: true)
+      projectId @include(if: true)
       ...LightRunFragment
     }
   }
@@ -339,7 +331,7 @@ mutation UpdateRun($input: UpsertBucketInput!) {
   }
 }
 
-fragment LightRunFragment on Run {
+fragment RunFragment on Run {
   __typename
   id
   tags
@@ -361,10 +353,6 @@ fragment LightRunFragment on Run {
     name
     username
   }
-}
-
-fragment RunFragment on Run {
-  ...LightRunFragment
   config
   systemMetrics
   summaryMetrics
