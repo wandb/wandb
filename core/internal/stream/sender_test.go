@@ -45,7 +45,8 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Console: &wrapperspb.StringValue{Value: "off"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
 	})
-	backend := stream.NewBackend(logger, settings)
+	baseURL := stream.BaseURLFromSettings(logger, settings)
+	backend := stream.NewBackend(baseURL, logger, settings)
 	fileStreamFactory := &filestream.FileStreamFactory{
 		Logger:   logger,
 		Printer:  observability.NewPrinter(),

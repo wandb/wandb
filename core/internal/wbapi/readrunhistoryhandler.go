@@ -42,7 +42,9 @@ func NewRunHistoryAPIHandler(
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
 ) *RunHistoryAPIHandler {
-	backend := stream.NewBackend(observability.NewNoOpLogger(), settings)
+	logger := observability.NewNoOpLogger()
+	baseURL := stream.BaseURLFromSettings(logger, settings)
+	backend := stream.NewBackend(baseURL, logger, settings)
 	graphqlClient := stream.NewGraphQLClient(
 		backend,
 		settings,
