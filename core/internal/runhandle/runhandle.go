@@ -14,6 +14,9 @@ import (
 type RunHandle struct {
 	mu sync.Mutex
 
+	// ready is closed when Init is called for the first time.
+	ready chan struct{}
+
 	// upserter tracks and syncs some of the stream's run's metadata.
 	//
 	// It is nil before the run is initialized.
@@ -21,7 +24,12 @@ type RunHandle struct {
 }
 
 func New() *RunHandle {
-	return &RunHandle{}
+	return &RunHandle{ready: make(chan struct{})}
+}
+
+// Ready returns a channel that's closed after Init is called the first time.
+func (h *RunHandle) Ready() <-chan struct{} {
+	return h.ready
 }
 
 // Init sets the run upserter.
@@ -32,10 +40,15 @@ func (h *RunHandle) Init(upserter *runupserter.RunUpserter) error {
 	defer h.mu.Unlock()
 
 	if h.upserter != nil {
-		return errors.New("runupserter: run is already set")
+		return errors.New("runhandle: run is already set")
+	}
+	if upserter == nil {
+		return errors.New("runhandle: nil upserter")
 	}
 
 	h.upserter = upserter
+	close(h.ready)
+
 	return nil
 }
 
@@ -47,7 +60,7 @@ func (h *RunHandle) Upserter() (*runupserter.RunUpserter, error) {
 	defer h.mu.Unlock()
 
 	if h.upserter == nil {
-		return nil, errors.New("runupserter: run not yet initialized")
+		return nil, errors.New("runhandle: run not yet initialized")
 	}
 
 	return h.upserter, nil

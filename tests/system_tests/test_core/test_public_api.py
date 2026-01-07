@@ -10,6 +10,8 @@ import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
+from wandb.apis._generated import ProjectFragment, UserFragment
+from wandb.apis._generated.generate_api_key import GenerateApiKey
 from wandb.apis.public import File
 from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
@@ -472,19 +474,26 @@ def test_projects(user, wandb_backend_spy):
             "models": {
                 "edges": [
                     {
-                        "node": {"name": f"test_{i}", "entityName": user},
+                        "node": ProjectFragment(
+                            id="fake-project-id",
+                            name=f"test_{i}",
+                            entity_name=user,
+                            created_at="2021-01-01T00:00:00Z",
+                            is_benchmark=False,
+                        ).model_dump(),
                     }
                     for i in range(num_projects)
                 ],
                 "pageInfo": {
                     "hasNextPage": False,
+                    "endCursor": "cursor-1",
                 },
             },
         },
     }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Projects"),
+        gql.Matcher(operation="GetProjects"),
         gql.Constant(content=body),
     )
 
@@ -498,7 +507,7 @@ def test_projects(user, wandb_backend_spy):
 def test_project_get_id(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Project"),
+        gql.Matcher(operation="GetProject"),
         gql.once(
             content={
                 "data": {
@@ -522,7 +531,7 @@ def test_project_get_id(user, wandb_backend_spy):
 def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Project"),
+        gql.Matcher(operation="GetProject"),
         gql.once(
             content={
                 "data": {
@@ -552,13 +561,24 @@ def test_project_get_sweeps(user, wandb_backend_spy):
                     "edges": [
                         {
                             "node": {
-                                "name": "test",
+                                "__typename": "Sweep",
                                 "id": "test",
-                                "sweep_name": None,
+                                "name": "test",
+                                "displayName": None,
+                                "method": "bayes",
+                                "state": "FINISHED",
+                                "description": None,
+                                "bestLoss": None,
+                                "config": "{}",
+                                "createdAt": "2024-01-01T00:00:00",
+                                "updatedAt": None,
+                                "runCount": 0,
+                                "runCountExpected": None,
                             },
                         },
                     ],
                     "pageInfo": {
+                        "__typename": "PageInfo",
                         "endCursor": None,
                         "hasNextPage": False,
                     },
@@ -570,9 +590,19 @@ def test_project_get_sweeps(user, wandb_backend_spy):
         "data": {
             "project": {
                 "sweep": {
-                    "name": "test",
+                    "__typename": "Sweep",
                     "id": "test",
-                    "state": "finished",
+                    "name": "test",
+                    "displayName": None,
+                    "method": "bayes",
+                    "state": "FINISHED",
+                    "description": None,
+                    "bestLoss": None,
+                    "config": "{}",
+                    "createdAt": "2024-01-01T00:00:00",
+                    "updatedAt": None,
+                    "runCount": 0,
+                    "runCountExpected": None,
                 },
             },
         },
@@ -582,7 +612,7 @@ def test_project_get_sweeps(user, wandb_backend_spy):
         gql.Constant(content=body),
     )
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Sweep"),
+        gql.Matcher(operation="GetSweep"),
         gql.Constant(content=sweep_gql_body),
     )
 
@@ -596,6 +626,23 @@ def test_project_get_sweeps(user, wandb_backend_spy):
 def test_project_get_sweeps_paginated(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
 
+    def _make_sweep_node(sweep_id: str, name: str) -> dict:
+        return {
+            "__typename": "Sweep",
+            "id": sweep_id,
+            "name": name,
+            "displayName": None,
+            "method": "bayes",
+            "state": "FINISHED",
+            "description": None,
+            "bestLoss": None,
+            "config": "{}",
+            "createdAt": "2024-01-01T00:00:00",
+            "updatedAt": None,
+            "runCount": 0,
+            "runCountExpected": None,
+        }
+
     first_page_body = {
         "data": {
             "project": {
@@ -603,15 +650,12 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
                 "sweeps": {
                     "edges": [
                         {
-                            "node": {
-                                "name": "test-sweep-1",
-                                "id": "test-1",
-                                "sweep_name": None,
-                            },
+                            "node": _make_sweep_node("test-1", "test-sweep-1"),
                             "cursor": "cursor-1",
                         },
                     ],
                     "pageInfo": {
+                        "__typename": "PageInfo",
                         "hasNextPage": True,
                         "endCursor": "cursor-1",
                     },
@@ -627,15 +671,12 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
                 "sweeps": {
                     "edges": [
                         {
-                            "node": {
-                                "name": "test-sweep-2",
-                                "id": "test-2",
-                                "sweep_name": None,
-                            },
+                            "node": _make_sweep_node("test-2", "test-sweep-2"),
                             "cursor": None,
                         },
                     ],
                     "pageInfo": {
+                        "__typename": "PageInfo",
                         "hasNextPage": False,
                         "endCursor": None,
                     },
@@ -647,11 +688,7 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
     sweep_gql_body = {
         "data": {
             "project": {
-                "sweep": {
-                    "name": "test",
-                    "id": "test",
-                    "state": "finished",
-                },
+                "sweep": _make_sweep_node("test", "test"),
             },
         },
     }
@@ -667,7 +704,7 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
     )
 
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Sweep"),
+        gql.Matcher(operation="GetSweep"),
         gql.Constant(content=sweep_gql_body),
     )
 
@@ -692,6 +729,7 @@ def test_project_get_sweeps_empty(user, wandb_backend_spy):
                         "sweeps": {
                             "edges": [],
                             "pageInfo": {
+                                "__typename": "PageInfo",
                                 "hasNextPage": False,
                                 "endCursor": None,
                             },
@@ -941,13 +979,18 @@ def fake_search_users_response(
             "users": {
                 "edges": [
                     {
-                        "node": {
-                            "email": email,
-                            "apiKeys": {"edges": [{"node": key} for key in api_keys]},
-                            "teams": {
-                                "edges": [{"node": team} for team in teams],
-                            },
-                        },
+                        "node": UserFragment(
+                            id="VXNlcjoxMjM=",
+                            name="fake-name",
+                            username="fake-username",
+                            admin=False,
+                            flags=None,
+                            entity="fake-entity",
+                            deleted_at=None,
+                            email=email,
+                            api_keys={"edges": [{"node": key} for key in api_keys]},
+                            teams={"edges": [{"node": team} for team in teams]},
+                        ).model_dump(),
                     }
                 ]
                 * count,
@@ -988,14 +1031,14 @@ def stub_search_users(wandb_backend_spy):
 
 def test_query_user(stub_search_users):
     email = "test@test.com"
-    api_keys = [{"name": "Y" * 40}]
+    api_key = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
     teams = [{"name": "test"}]
-    stub_search_users(email=email, api_keys=api_keys, teams=teams)
+    stub_search_users(email=email, api_keys=[api_key], teams=teams)
 
     u = Api().user("test")
 
     assert u.email == email
-    assert u.api_keys == [api_keys[0]["name"]]
+    assert u.api_keys == [api_key["name"]]
     assert u.teams == [teams[0]["name"]]
     assert repr(u) == f"<User {email}>"
 
@@ -1040,7 +1083,7 @@ def test_delete_api_key_success(wandb_backend_spy, stub_search_users):
         gql.once(content={"data": {"deleteApiKey": {"success": True}}}),
     )
     email = "test@test.com"
-    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
+    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
     stub_search_users(email=email, api_keys=[api_key], teams=[])
 
     user = Api().user(email)
@@ -1058,7 +1101,7 @@ def test_delete_api_key_failure(wandb_backend_spy, stub_search_users):
         ),
     )
     email = "test@test.com"
-    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
+    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
     stub_search_users(email=email, api_keys=[api_key], teams=[])
 
     user = Api().user(email)
@@ -1074,13 +1117,17 @@ def test_generate_api_key_success(
 ):
     _ = skip_verify_login  # Don't verify user API keys.
     email = "test@test.com"
-    api_key_1 = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
-    api_key_2 = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzE="}
+    api_key_1 = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
+    api_key_2 = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzE=", "description": None}
     stub_search_users(email=email, api_keys=[api_key_1], teams=[])
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="GenerateApiKey"),
-        gql.once(content={"data": {"generateApiKey": {"apiKey": api_key_2}}}),
+        gql.once(
+            content={
+                "data": GenerateApiKey(result={"apiKey": api_key_2}).model_dump(),
+            },
+        ),
     )
 
     user = api.user(email)
@@ -1100,7 +1147,7 @@ def test_generate_api_key_failure(
 ):
     _ = skip_verify_login  # Don't verify user API keys.
     email = "test@test.com"
-    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
+    api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA=", "description": None}
     stub_search_users(email=email, api_keys=[api_key], teams=[])
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(

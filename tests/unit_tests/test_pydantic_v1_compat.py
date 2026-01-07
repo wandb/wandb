@@ -32,7 +32,7 @@ from wandb._pydantic import (
     field_validator,
     model_validator,
 )
-from wandb.sdk.artifacts._generated import GetArtifactFiles
+from wandb.sdk.artifacts._generated import GetArtifactFiles, TypeInfoFragment
 
 
 def test_field_validator_before():
@@ -380,6 +380,25 @@ def test_generated_pydantic_fragment_validates_response_data():
         validated.project.artifact_type.artifact.files.edges[0].node.name
         == "random_image.png"
     )
+
+
+def test_type_info_fragment_validates_response_data():
+    response_data = {
+        "name": "artifact",
+        "fields": [
+            {
+                "name": "files",
+                "args": [
+                    {"name": "names"},
+                    {"name": "after"},
+                    {"name": "first"},
+                ],
+            }
+        ],
+        "inputFields": [],
+    }
+    validated = TypeInfoFragment.model_validate(response_data)
+    assert validated.name == "artifact"
 
 
 # ------------------------------------------------------------------------------

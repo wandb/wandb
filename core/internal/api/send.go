@@ -29,12 +29,7 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 	for headerKey, headerValue := range req.Headers {
 		retryableReq.Header.Set(headerKey, headerValue)
 	}
-	client.setClientHeaders(retryableReq)
 
-	err = client.backend.credentialProvider.Apply(retryableReq.Request)
-	if err != nil {
-		return nil, fmt.Errorf("api: failed provide credentials for request: %v", err)
-	}
 	// Prevent the connection from being re-used in case of an error.
 	// TODO: There is an unlikely scenario when an attempt to reuse the connection
 	// will result in not retrying an otherwise retryable request.
@@ -51,14 +46,11 @@ func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
 		return nil, fmt.Errorf("api: failed to parse request: %v", err)
 	}
 
-	// Propagate the context, which retryableReq doesn't do for us.
-	retryableReq = retryableReq.WithContext(req.Context())
-
 	if !client.isToWandb(req) {
 		if client.backend.logger != nil {
 			client.backend.logger.Warn(
 				fmt.Sprintf(
-					"Unexpected request through HTTP client intended for W&B: %v",
+					"api: unexpected request through W&B HTTP client: %v",
 					req.URL,
 				),
 			)

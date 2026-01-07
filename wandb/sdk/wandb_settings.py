@@ -49,6 +49,7 @@ def _path_convert(*args: str) -> str:
 
 CLIENT_ONLY_SETTINGS = (
     "anonymous",
+    "app_url_override",
     "files_dir",
     "max_end_of_run_history_metrics",
     "max_end_of_run_summary_metrics",
@@ -108,6 +109,15 @@ class Settings(BaseModel, validate_assignment=True):
 
     azure_account_url_to_access_key: Optional[Dict[str, str]] = None
     """Mapping of Azure account URLs to their corresponding access keys for Azure integration."""
+
+    app_url_override: Optional[str] = None
+    """Override for the 'app' URL for the W&B UI.
+
+    The `app_url` is normally computed based on `base_url`, but this can be
+    used to set it explicitly.
+
+    WANDB_APP_URL is the corresponding environment variable.
+    """
 
     base_url: str = "https://api.wandb.ai"
     """The URL of the W&B backend for data synchronization."""
@@ -1594,6 +1604,16 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def app_url(self) -> str:
+        """The URL for the W&B UI, usually https://wandb.ai.
+
+        This is different from `base_url` (like https://api.wandb.ai) which
+        is used to access W&B APIs programmatically.
+        """
+        return self.app_url_override or util.api_to_app_url(self.base_url)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def colab_url(self) -> Optional[str]:
         """The URL to the Colab notebook, if running in Colab."""
         if not self._colab:
@@ -1820,17 +1840,18 @@ class Settings(BaseModel, validate_assignment=True):
         env_prefix: str = "WANDB_"
         private_env_prefix: str = env_prefix + "_"
         special_env_var_names = {
+            env.APP_URL: "app_url_override",
             "WANDB_SERVICE_TRANSPORT": "x_service_transport",
-            "WANDB_DIR": "root_dir",
-            "WANDB_NAME": "run_name",
-            "WANDB_NOTES": "run_notes",
-            "WANDB_TAGS": "run_tags",
-            "WANDB_JOB_TYPE": "run_job_type",
-            "WANDB_HTTP_TIMEOUT": "x_graphql_timeout_seconds",
-            "WANDB_FILE_PUSHER_TIMEOUT": "x_file_transfer_timeout_seconds",
-            "WANDB_USER_EMAIL": "email",
+            env.DIR: "root_dir",
+            env.NAME: "run_name",
+            env.NOTES: "run_notes",
+            env.TAGS: "run_tags",
+            env.JOB_TYPE: "run_job_type",
+            env.HTTP_TIMEOUT: "x_graphql_timeout_seconds",
+            env.FILE_PUSHER_TIMEOUT: "x_file_transfer_timeout_seconds",
+            env.USER_EMAIL: "email",
         }
-        env = dict()
+
         for setting, value in environ.items():
             if not setting.startswith(env_prefix):
                 continue
@@ -1843,14 +1864,16 @@ class Settings(BaseModel, validate_assignment=True):
                 # otherwise, strip the prefix and convert to lowercase
                 key = setting[len(env_prefix) :].lower()
 
-            if key in self.__dict__:
-                if key in ("ignore_globs", "run_tags"):
-                    value = value.split(",")
-                env[key] = value
+            if key not in self.__dict__:
+                continue
 
-        for key, value in env.items():
-            if value is not None:
-                setattr(self, key, value)
+            if key in ("ignore_globs", "run_tags"):
+                value = value.split(",")
+
+            if value is None:
+                continue
+
+            setattr(self, key, value)
 
     def update_from_system_environment(self):
         """Update settings from the system environment.
@@ -2076,8 +2099,7 @@ class Settings(BaseModel, validate_assignment=True):
         if not all([self.entity, self.project]):
             return ""
 
-        app_url = util.app_url(self.base_url)
-        return f"{app_url}/{quote(self.entity or '')}/{quote(self.project or '')}"
+        return f"{self.app_url}/{quote(self.entity or '')}/{quote(self.project or '')}"
 
     @staticmethod
     def _runmoment_preprocessor(

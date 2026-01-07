@@ -6,12 +6,14 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/transactionlog"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -21,38 +23,47 @@ var runReaderProviders = wire.NewSet(
 
 // RunReaderFactory constructs RunReader.
 type RunReaderFactory struct {
-	Logger *observability.CoreLogger
+	Logger     *observability.CoreLogger
+	Operations *wboperation.WandbOperations
 }
 
 // RunReader gets information out of .wandb files.
 type RunReader struct {
-	path    string          // transaction log path
-	updates *RunSyncUpdates // modifications to make to records
+	path        string          // transaction log path
+	displayPath DisplayPath     // printable form of 'path'
+	updates     *RunSyncUpdates // modifications to make to records
+	live        bool            // "live" mode retries EOFs
 
 	seenExit bool // whether we've processed an exit record yet
 
 	logger       *observability.CoreLogger
+	operations   *wboperation.WandbOperations
 	recordParser stream.RecordParser
 	runWork      runwork.RunWork
 }
 
 func (f *RunReaderFactory) New(
 	path string,
+	displayPath DisplayPath,
 	updates *RunSyncUpdates,
+	live bool,
 	recordParser stream.RecordParser,
 	runWork runwork.RunWork,
 ) *RunReader {
 	return &RunReader{
-		path:    path,
-		updates: updates,
+		path:        path,
+		displayPath: displayPath,
+		updates:     updates,
+		live:        live,
 
 		logger:       f.Logger,
+		operations:   f.Operations,
 		recordParser: recordParser,
 		runWork:      runWork,
 	}
 }
 
-// ExtractRunInfo quickly reads and returns basic run information.
+// ExtractRunInfo reads and returns basic run information.
 func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
 	r.logger.Info("runsync: getting info", "path", r.path)
 
@@ -63,12 +74,13 @@ func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
 	defer reader.Close()
 
 	for {
-		record, err := r.nextUpdatedRecord(reader)
+		record, err := r.nextUpdatedRecord(reader, true /*retryEOF*/)
+
 		if err != nil {
 			return nil, &SyncError{
 				Err:      err,
 				Message:  "didn't find run info",
-				UserText: fmt.Sprintf("Failed to read %q: %v", r.path, err),
+				UserText: fmt.Sprintf("Failed to read %q: %v", r.displayPath, err),
 			}
 		}
 
@@ -101,7 +113,8 @@ func (r *RunReader) ProcessTransactionLog() error {
 	defer reader.Close()
 
 	for {
-		record, err := r.nextUpdatedRecord(reader)
+		record, err := r.nextUpdatedRecord(reader, !r.seenExit /*retryEOF*/)
+
 		if errors.Is(err, io.EOF) {
 			r.logger.Info("runsync: done reading", "path", r.path)
 			return nil
@@ -168,12 +181,12 @@ func (r *RunReader) open() (*transactionlog.Reader, error) {
 
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		syncErr.UserText = fmt.Sprintf("File does not exist: %s", r.path)
+		syncErr.UserText = fmt.Sprintf("File does not exist: %s", r.displayPath)
 
 	case errors.Is(err, os.ErrPermission):
 		syncErr.UserText = fmt.Sprintf(
 			"Permission error opening file for reading: %s",
-			r.path,
+			r.displayPath,
 		)
 	}
 
@@ -182,10 +195,35 @@ func (r *RunReader) open() (*transactionlog.Reader, error) {
 
 // nextUpdatedRecord returns the next record in the reader,
 // with modifications applied.
+//
+// Retries ErrUnexpectedEOF in live mode, and also EOF if retryEOF is true.
 func (r *RunReader) nextUpdatedRecord(
 	reader *transactionlog.Reader,
+	retryEOF bool,
 ) (record *spb.Record, err error) {
 	record, err = reader.Read()
+
+	if r.live {
+		op := r.operations.New("waiting for more data")
+		defer op.Finish()
+
+		for errors.Is(err, io.ErrUnexpectedEOF) ||
+			(retryEOF && errors.Is(err, io.EOF)) {
+			r.logger.Info(
+				"runsync: retrying read error in live mode",
+				"path", r.path,
+				"error", err)
+
+			if err := reader.ResetLastRead(); err != nil {
+				return nil, fmt.Errorf("failed to seek: %v", err)
+			}
+
+			// TODO: Use FS event mechanisms when available instead of polling.
+			time.Sleep(time.Second)
+			record, err = reader.Read()
+		}
+	}
+
 	if err != nil {
 		return
 	}

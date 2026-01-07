@@ -490,7 +490,7 @@ def _maybe_update_credentials(settings: Settings) -> None:
     if settings.api_key:
         wbauth.use_explicit_auth(
             wbauth.AuthApiKey(
-                host=settings.base_url,
+                host=wbauth.HostUrl(settings.base_url, app_url=settings.app_url),
                 api_key=settings.api_key,
             ),
             source="wandb.setup()",
@@ -499,7 +499,7 @@ def _maybe_update_credentials(settings: Settings) -> None:
     elif settings.identity_token_file:
         wbauth.use_explicit_auth(
             wbauth.AuthIdentityTokenFile(
-                host=settings.base_url,
+                host=wbauth.HostUrl(settings.base_url, app_url=settings.app_url),
                 path=settings.identity_token_file,
             ),
             source="wandb.setup()",

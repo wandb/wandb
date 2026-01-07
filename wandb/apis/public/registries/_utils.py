@@ -9,7 +9,7 @@ from wandb_gql import gql
 from wandb._strutils import ensureprefix
 
 if TYPE_CHECKING:
-    from wandb_gql import Client
+    from wandb.apis.public.api import RetryingClient
 
 
 class Visibility(str, Enum):
@@ -93,7 +93,9 @@ def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
 
 
 @lru_cache(maxsize=10)
-def fetch_org_entity_from_organization(client: Client, organization: str) -> str:
+def fetch_org_entity_from_organization(
+    client: RetryingClient, organization: str
+) -> str:
     """Fetch the org entity from the organization.
 
     Args:

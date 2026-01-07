@@ -43,7 +43,7 @@ func (f *DebugSyncLogFile) Close() {
 func OpenDebugSyncLogFile(
 	settings *settings.Settings,
 ) (*DebugSyncLogFile, error) {
-	dir := settings.GetWandbDir()
+	dir := filepath.Join(settings.GetWandbDir(), "logs")
 
 	// 0o755: read-write-list for user; read-list for others.
 	err := os.MkdirAll(dir, 0o755)

@@ -87,11 +87,6 @@ func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
 }
 
-// Whether we are syncing a run from the transaction log.
-func (s *Settings) IsSync() bool {
-	return s.Proto.XSync.GetValue()
-}
-
 // Path to the transaction log file, that is being synced.
 func (s *Settings) GetTransactionLogPath() string {
 	return s.Proto.SyncFile.GetValue()
@@ -199,6 +194,13 @@ func (s *Settings) GetIgnoreGlobs() []string {
 // The directory for syncing the run from the transaction log.
 func (s *Settings) GetSyncDir() string {
 	return s.Proto.SyncDir.GetValue()
+}
+
+// GetAppURL returns the base URL for the W&B UI.
+//
+// Used for constructing printable URLs like the run URL.
+func (s *Settings) GetAppURL() string {
+	return s.Proto.AppUrl.GetValue()
 }
 
 // The URL for the W&B backend.

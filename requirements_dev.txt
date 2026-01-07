@@ -34,6 +34,7 @@ nbclient~=0.10.1
 tensorflow==2.9.2; python_version < '3.9' and sys_platform != 'darwin'
 tensorflow-macos==2.9.2; python_version < '3.9' and sys_platform == 'darwin'
 tensorflow~=2.20; python_version >= '3.9' and sys_platform != 'darwin'
+numpy<2.4.0  # tensorflow==2.20.0 uses deprecated args removed in numpy==2.4.0
 
 # This is a transitive dependency of `tensorflow` via `tensorboard`
 # which fails to specify an upper bound causing import errors.

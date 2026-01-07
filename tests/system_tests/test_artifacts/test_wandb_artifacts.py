@@ -1821,7 +1821,7 @@ def test_artifact_standard_url(user, api):
         artifact.wait()
 
         artifact = run.use_artifact("sequence_name:latest")
-        expected_url = f"{util.app_url(run.settings.base_url)}/{run.entity}/{run.project}/artifacts/data/sequence_name/{artifact.version}"
+        expected_url = f"{run.settings.app_url}/{run.entity}/{run.project}/artifacts/data/sequence_name/{artifact.version}"
 
         assert artifact.url == expected_url
 
@@ -1836,13 +1836,11 @@ def test_artifact_model_registry_url(user, api):
             f"{artifact.entity}/{artifact.project}/test_model_portfolio:latest"
         )
 
-        base_url = util.app_url(run.settings.base_url)
-
         encoded_path = f"{linked_model_art.entity}/{linked_model_art.project}/{linked_model_art.collection.name}"
         selection_path = quote(encoded_path, safe="")
 
         expected_url = (
-            f"{base_url}/{linked_model_art.entity}/registry/model?"
+            f"{run.settings.app_url}/{linked_model_art.entity}/registry/model?"
             f"selectionPath={selection_path}&view=membership&version={linked_model_art.version}"
         )
 

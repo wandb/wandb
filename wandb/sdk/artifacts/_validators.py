@@ -223,13 +223,13 @@ def _(metadata: dict[str, Any]) -> dict[str, Any]:
     return metadata
 
 
-def validate_ttl_duration_seconds(gql_ttl_duration_seconds: int | None) -> int | None:
-    """Validate the `ttlDurationSeconds` value (if any) from a GraphQL response."""
-    # A non-positive value indicates that TTL is DISABLED (-2).
-    # `None` only occurs when the server does not support artifact TTLs.
-    if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
-        return gql_ttl_duration_seconds
-    return None
+def validate_ttl_duration_seconds(ttl_duration_seconds: int) -> int | None:
+    """Validate the `ttlDurationSeconds` value from a GraphQL response.
+
+    A non-positive value indicates that TTL is DISABLED (-2), which we
+    convert to `None`.
+    """
+    return ttl_duration_seconds if ttl_duration_seconds > 0 else None
 
 
 # ----------------------------------------------------------------------------

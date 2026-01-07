@@ -7,6 +7,7 @@ Based on:
 
 import pathlib
 import platform
+import subprocess
 
 import pytest
 
@@ -15,10 +16,10 @@ import pytest
     platform.system() == "Windows",
     reason="As of 2025/10/08, ray wheels for python>=3.13 are not available for Windows",
 )
-def test_tune_with_callback(wandb_backend_spy, execute_script):
+def test_tune_with_callback(wandb_backend_spy):
     """Example for using a WandbLoggerCallback with the function API."""
     train_script_path = pathlib.Path(__file__).parent / "tune_with_callback.py"
-    execute_script(train_script_path)
+    subprocess.run(["python", str(train_script_path)], check=True)
 
     with wandb_backend_spy.freeze() as snapshot:
         run_ids = snapshot.run_ids()

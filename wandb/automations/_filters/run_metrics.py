@@ -462,6 +462,8 @@ class ZScoreMetricOperand(GQLBase, extra="forbid"):
 
 
 class MetricZScoreFilter(GQLBase, extra="forbid"):
+    """Filter that compares a metric's z-score against a user-defined threshold."""
+
     name: str
     """Name of the observed metric."""
 

@@ -355,9 +355,6 @@ ignore-decorators = [
 # TODO: Remove the landfill/ directory.
 "landfill/**" = ["F405", "N806", "D415"]
 
-# TODO: Remove once wandb.beta.workflows is removed.
-"wandb/beta/workflows.py" = ["W505"]
-
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 warn_redundant_casts = true

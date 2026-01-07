@@ -69,14 +69,7 @@ from wandb.util import (
 )
 
 from ._factories import make_storage_policy
-from ._gqlutils import (
-    omit_artifact_fields,
-    org_info_from_entity,
-    resolve_org_entity_name,
-    server_supports,
-    supports_enable_tracking_var,
-    type_info,
-)
+from ._gqlutils import org_info_from_entity, resolve_org_entity_name, server_supports
 from ._validators import ensure_logged, ensure_not_finalized
 from .artifact_download_logger import ArtifactDownloadLogger
 from .artifact_instance_cache import (
@@ -96,6 +89,7 @@ from .exceptions import (
 )
 from .staging import get_staging_dir
 from .storage_handlers.gcs_handler import _GCSIsADirectoryError
+from .storage_policies._factories import make_http_session
 from .storage_policies._multipart import should_multipart_download
 
 reset_path = vendor_setup()
@@ -268,9 +262,9 @@ class Artifact:
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
+        gql_op = gql(ARTIFACT_BY_ID_GQL)
 
-        data = client.execute(query, variable_values={"id": artifact_id})
+        data = client.execute(gql_op, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
         if (artifact := result.artifact) is None:
@@ -302,23 +296,20 @@ class Artifact:
                 "by this version of wandb server. Consider updating to the latest version."
             )
 
-        query = gql_compat(
-            ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
-            omit_fields=omit_artifact_fields(client),
-        )
+        gql_op = gql(ARTIFACT_MEMBERSHIP_BY_NAME_GQL)
         gql_vars = {"entity": path.prefix, "project": path.project, "name": path.name}
-        data = client.execute(query, variable_values=gql_vars)
+        data = client.execute(gql_op, variable_values=gql_vars)
         result = ArtifactMembershipByName.model_validate(data)
 
         if not (project := result.project):
-            raise ValueError(
-                f"project {path.project!r} not found under entity {path.prefix!r}"
-            )
+            msg = f"project {path.project!r} not found under entity {path.prefix!r}"
+            raise ValueError(msg)
+
         if not (membership := project.artifact_collection_membership):
             entity_project = f"{path.prefix}/{path.project}"
-            raise ValueError(
-                f"artifact membership {path.name!r} not found in {entity_project!r}"
-            )
+            msg = f"artifact membership {path.name!r} not found in {entity_project!r}"
+            raise ValueError(msg)
+
         return cls._from_membership(membership, target=path, client=client)
 
     @classmethod
@@ -334,28 +325,24 @@ class Artifact:
         if server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
             return cls._membership_from_name(path=path, client=client)
 
-        omit_vars = None if supports_enable_tracking_var(client) else {"enableTracking"}
         gql_vars = {
             "entity": path.prefix,
             "project": path.project,
             "name": path.name,
             "enableTracking": enable_tracking,
         }
-        query = gql_compat(
-            ARTIFACT_BY_NAME_GQL,
-            omit_variables=omit_vars,
-            omit_fields=omit_artifact_fields(client),
-        )
-        data = client.execute(query, variable_values=gql_vars)
+        gql_op = gql(ARTIFACT_BY_NAME_GQL)
+        data = client.execute(gql_op, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
 
         if not (project := result.project):
-            raise ValueError(
-                f"project {path.project!r} not found under entity {path.prefix!r}"
-            )
+            msg = f"project {path.project!r} not found in entity {path.prefix!r}"
+            raise ValueError(msg)
+
         if not (artifact := project.artifact):
             entity_project = f"{path.prefix}/{path.project}"
-            raise ValueError(f"artifact {path.name!r} not found in {entity_project!r}")
+            msg = f"artifact {path.name!r} not found in {entity_project!r}"
+            raise ValueError(msg)
 
         return cls._from_attrs(path, artifact, client)
 
@@ -383,23 +370,26 @@ class Artifact:
                 f"Your request was redirected to the corresponding artifact {name!r} in the new registry. "
                 f"Please update your paths to point to the migrated registry directly, '{proj.name}/{name}'."
             )
-            new_target = replace(target, prefix=proj.entity.name, project=proj.name)
-        else:
-            new_target = copy(target)
+
+        # Update the target path to use the actual project/entity names returned in the
+        # response, in case they differ from the original target path
+        # E.g. uppercase vs lowercase, migrated legacy model registry, etc.
+        new_target = replace(target, prefix=proj.entity.name, project=proj.name)
 
         if not (artifact := membership.artifact):
             raise ValueError(f"Artifact {target.to_str()!r} not found in response")
 
-        aliases = [a.alias for a in membership.aliases]
-        return cls._from_attrs(new_target, artifact, client, aliases=aliases)
+        return cls._from_attrs(new_target, artifact, client, membership=membership)
 
     @classmethod
     def _from_attrs(
         cls,
         path: FullArtifactPath,
-        attrs: ArtifactFragment,
+        src_art: ArtifactFragment,
         client: RetryingClient,
-        aliases: list[str] | None = None,
+        *,
+        # aliases/version_index are taken from the membership, if given
+        membership: ArtifactMembershipFragment | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -408,7 +398,7 @@ class Artifact:
         artifact._project = path.project
         artifact._name = path.name
 
-        artifact._assign_attrs(attrs, aliases)
+        artifact._assign_attrs(src_art, membership=membership)
 
         artifact.finalize()
 
@@ -421,22 +411,24 @@ class Artifact:
     # doesn't make it clear if the artifact is a link or not and have to manually set it.
     def _assign_attrs(
         self,
-        art: ArtifactFragment,
-        aliases: list[str] | None = None,
+        src_art: ArtifactFragment,
+        *,
+        # aliases/version_index are taken from the membership, if given
+        membership: ArtifactMembershipFragment | None = None,
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
         from ._validators import validate_metadata, validate_ttl_duration_seconds
 
-        self._id = art.id
+        self._id = src_art.id
 
-        src_collection = art.artifact_sequence
+        src_collection = src_art.artifact_sequence
         src_project = src_collection.project
 
         self._source_entity = src_project.entity.name if src_project else ""
         self._source_project = src_project.name if src_project else ""
-        self._source_name = f"{src_collection.name}:v{art.version_index}"
-        self._source_version = f"v{art.version_index}"
+        self._source_name = f"{src_collection.name}:v{src_art.version_index}"
+        self._source_version = f"v{src_art.version_index}"
 
         self._entity = self._entity or self._source_entity
         self._project = self._project or self._source_project
@@ -453,40 +445,45 @@ class Artifact:
         else:
             self._is_link = is_link
 
-        self._type = art.artifact_type.name
-        self._description = art.description
+        self._type = src_art.artifact_type.name
+        self._description = src_art.description
 
         # The future of aliases is to move all alias fetches to the membership level
         # so we don't have to do the collection fetches below
-        if aliases:
-            processed_aliases = aliases
-        elif art.aliases:
+        if membership:
+            aliases = [a.alias for a in membership.aliases]
+        elif src_art.aliases:
             entity = self._entity
             project = self._project
             collection = self._name.split(":")[0]
-            processed_aliases = [
-                art_alias.alias
-                for art_alias in art.aliases
+            aliases = [
+                a.alias
+                for a in src_art.aliases
                 if (
-                    (coll := art_alias.artifact_collection)
-                    and (proj := coll.project)
-                    and proj.entity.name == entity
-                    and proj.name == project
-                    and coll.name == collection
+                    (alias_coll := a.artifact_collection)
+                    and (alias_proj := alias_coll.project)
+                    and alias_proj.entity.name == entity
+                    and alias_proj.name == project
+                    and alias_coll.name == collection
                 )
             ]
         else:
-            processed_aliases = []
+            aliases = []
 
-        version_aliases = list(filter(alias_is_version_index, processed_aliases))
-        other_aliases = list(filterfalse(alias_is_version_index, processed_aliases))
+        version_aliases = list(filter(alias_is_version_index, aliases))
+        other_aliases = list(filterfalse(alias_is_version_index, aliases))
 
         try:
             version = one(
                 version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
             )
         except TooFewItemsError:
-            version = f"v{art.version_index}"  # default to the source version
+            # default to the membership version if passed to this method,
+            # otherwise fallback to the source version
+            if membership and (m_version_index := membership.version_index) is not None:
+                version = f"v{m_version_index}"
+            else:
+                version = f"v{src_art.version_index}"
         except TooManyItemsError:
             msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
             raise ValueError(msg) from None
@@ -494,32 +491,30 @@ class Artifact:
         self._version = version
         self._name = self._name if (":" in self._name) else f"{self._name}:{version}"
 
-        self._aliases = other_aliases
-        self._saved_aliases = copy(self._aliases)
+        self._aliases = copy(other_aliases)
+        self._saved_aliases = copy(other_aliases)
 
-        self._tags = [tag.name for tag in (art.tags or [])]
+        self._tags = [tag.name for tag in src_art.tags]
         self._saved_tags = copy(self._tags)
 
-        self._metadata = validate_metadata(art.metadata)
+        self._metadata = validate_metadata(src_art.metadata)
 
         self._ttl_duration_seconds = validate_ttl_duration_seconds(
-            art.ttl_duration_seconds
+            src_art.ttl_duration_seconds
         )
-        self._ttl_is_inherited = (
-            True if (art.ttl_is_inherited is None) else art.ttl_is_inherited
-        )
+        self._ttl_is_inherited = src_art.ttl_is_inherited
 
-        self._state = ArtifactState(art.state)
-        self._size = art.size
-        self._digest = art.digest
+        self._state = ArtifactState(src_art.state)
+        self._size = src_art.size
+        self._digest = src_art.digest
 
         self._manifest = None
 
-        self._commit_hash = art.commit_hash
-        self._file_count = art.file_count
-        self._created_at = art.created_at
-        self._updated_at = art.updated_at
-        self._history_step = art.history_step
+        self._commit_hash = src_art.commit_hash
+        self._file_count = src_art.file_count
+        self._created_at = src_art.created_at
+        self._updated_at = src_art.updated_at
+        self._history_step = src_art.history_step
 
     @ensure_logged
     def new_draft(self) -> Artifact:
@@ -629,9 +624,11 @@ class Artifact:
         The collection that an artifact originates from is known as
         the source sequence.
         """
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized")
         base_name = self.name.split(":")[0]
         return ArtifactCollection(
-            self._client, self.entity, self.project, base_name, self.type
+            client, self.entity, self.project, base_name, self.type
         )
 
     @property
@@ -679,9 +676,11 @@ class Artifact:
 
         The source collection is the collection that the artifact was logged from.
         """
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized")
         base_name = self.source_name.split(":")[0]
         return ArtifactCollection(
-            self._client, self.source_entity, self.source_project, base_name, self.type
+            client, self.source_entity, self.source_project, base_name, self.type
         )
 
     @property
@@ -1036,8 +1035,6 @@ class Artifact:
 
     def _fetch_manifest(self) -> ArtifactManifest:
         """Fetch, parse, and load the full ArtifactManifest."""
-        import requests
-
         from ._generated import FETCH_ARTIFACT_MANIFEST_GQL, FetchArtifactManifest
 
         if (client := self._client) is None:
@@ -1051,12 +1048,21 @@ class Artifact:
 
         # Now fetch the actual manifest contents from the directUrl.
         if (artifact := result.artifact) and (manifest := artifact.current_manifest):
-            # FIXME: For successive/repeated calls to `manifest`, figure out how to reuse a single
-            # `requests.Session` within the constraints of the current artifacts API.
-            # Right now, `requests.get()` creates a new session for _each_ fetch.
-            # This is wasteful and introduces a noticeable perf overhead when e.g.
-            # downloading many artifacts sequentially or concurrently.
-            response = requests.get(manifest.file.direct_url)
+            # Create a short lived session instead of using requests.get()
+            # because make_http_session() adds http headers from env vars.
+            # Artifact manifest json is also downloaded from object storage
+            # using presigned urls like artifact files, which requires adding
+            # extra http headers when user specifies them in env vars.
+            #
+            # FIXME: For successive/repeated calls to `manifest`, figure out
+            # how to reuse a single `requests.Session` within the constraints
+            # of the current API. Creating a new session for _each_ fetch is
+            # wasteful and introduces noticeable perf overhead when e.g.
+            # downloading many artifacts sequentially or concurrently. The
+            # storage policy's session is also not reused across different
+            # artifacts.
+            with make_http_session() as session:
+                response = session.get(manifest.file.direct_url)
             return ArtifactManifest.from_manifest_json(from_json(response.content))
 
         raise ValueError("Failed to fetch artifact manifest")
@@ -1250,8 +1256,8 @@ class Artifact:
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
-        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
-        data = client.execute(query, variable_values={"id": artifact_id})
+        gql_op = gql(ARTIFACT_BY_ID_GQL)
+        data = client.execute(gql_op, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
         if not (artifact := result.artifact):
@@ -1272,61 +1278,26 @@ class Artifact:
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        collection = self.name.split(":")[0]
+        entity, project, collection = self.entity, self.project, self.name.split(":")[0]
 
-        update_alias_inputs = None
-        if type_info(client, "AddAliasesInput") is not None:
-            # wandb backend version >= 0.13.0
-            old_aliases, new_aliases = set(self._saved_aliases), set(self.aliases)
-            target = FullArtifactPath(
-                prefix=self.entity, project=self.project, name=collection
-            )
-            if added_aliases := (new_aliases - old_aliases):
-                self._add_aliases(added_aliases, target=target)
-            if deleted_aliases := (old_aliases - new_aliases):
-                self._delete_aliases(deleted_aliases, target=target)
-            self._saved_aliases = copy(self.aliases)
-        else:
-            # wandb backend version < 0.13.0
-            update_alias_inputs = [
-                {"artifactCollectionName": collection, "alias": alias}
-                for alias in self.aliases
-            ]
+        old_aliases, new_aliases = set(self._saved_aliases), set(self.aliases)
+        target = FullArtifactPath(prefix=entity, project=project, name=collection)
+        self._add_aliases(new_aliases - old_aliases, target=target)
+        self._delete_aliases(old_aliases - new_aliases, target=target)
+        self._saved_aliases = copy(self.aliases)
 
-        omit_fields = omit_artifact_fields(client)
-        omit_variables = set()
+        old_tags, new_tags = set(self._saved_tags), set(self.tags)
 
-        if {"ttlIsInherited", "ttlDurationSeconds"} & omit_fields:
-            if self._ttl_changed:
-                termwarn(
-                    "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
-                )
-
-            omit_variables |= {"ttlDurationSeconds"}
-
-        added_tags = validate_tags(set(self.tags) - set(self._saved_tags))
-        deleted_tags = validate_tags(set(self._saved_tags) - set(self.tags))
-
-        if {"tags"} & omit_fields:
-            if added_tags or deleted_tags:
-                termwarn(
-                    "Server not compatible with Artifact tags. "
-                    "To use Artifact tags, please upgrade the server to v0.85 or higher."
-                )
-
-            omit_variables |= {"tagsToAdd", "tagsToDelete"}
-
-        gql_op = gql_compat(UPDATE_ARTIFACT_GQL, omit_fields=omit_fields)
+        gql_op = gql(UPDATE_ARTIFACT_GQL)
         gql_input = UpdateArtifactInput(
             artifact_id=self.id,
             description=self.description,
             metadata=json_dumps_safer(self.metadata),
             ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
-            aliases=update_alias_inputs,
-            tags_to_add=[{"tagName": t} for t in added_tags],
-            tags_to_delete=[{"tagName": t} for t in deleted_tags],
+            tags_to_add=[{"tagName": t} for t in validate_tags(new_tags - old_tags)],
+            tags_to_delete=[{"tagName": t} for t in validate_tags(old_tags - new_tags)],
         )
-        gql_vars = {"input": gql_input.model_dump(exclude=omit_variables)}
+        gql_vars = {"input": gql_input.model_dump()}
         data = client.execute(gql_op, variable_values=gql_vars)
 
         result = UpdateArtifact.model_validate(data).result
@@ -1342,23 +1313,26 @@ class Artifact:
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        target_props = {
-            "entityName": target.prefix,
-            "projectName": target.project,
-            "artifactCollectionName": target.name,
-        }
-        alias_inputs = [{**target_props, "alias": name} for name in alias_names]
-        gql_op = gql(ADD_ALIASES_GQL)
-        gql_input = AddAliasesInput(artifact_id=self.id, aliases=alias_inputs)
-        gql_vars = {"input": gql_input.model_dump()}
-        try:
-            client.execute(gql_op, variable_values=gql_vars)
-        except CommError as e:
-            raise CommError(
-                "You do not have permission to add"
-                f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
-                f" to this artifact: {alias_names!r}"
-            ) from e
+        # If there aren't any aliases to add, we can skip the GraphQL call.
+        if alias_names:
+            target_props = {
+                "entityName": target.prefix,
+                "projectName": target.project,
+                "artifactCollectionName": target.name,
+            }
+            alias_inputs = [{**target_props, "alias": name} for name in alias_names]
+            gql_op = gql(ADD_ALIASES_GQL)
+            gql_input = AddAliasesInput(artifact_id=self.id, aliases=alias_inputs)
+            gql_vars = {"input": gql_input.model_dump()}
+            try:
+                client.execute(gql_op, variable_values=gql_vars)
+            except CommError as e:
+                msg = (
+                    "You do not have permission to add"
+                    f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
+                    f" to this artifact: {alias_names!r}"
+                )
+                raise CommError(msg) from e
 
     def _delete_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
         from ._generated import DELETE_ALIASES_GQL, DeleteAliasesInput
@@ -1366,23 +1340,26 @@ class Artifact:
         if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        target_props = {
-            "entityName": target.prefix,
-            "projectName": target.project,
-            "artifactCollectionName": target.name,
-        }
-        alias_inputs = [{**target_props, "alias": name} for name in alias_names]
-        gql_op = gql(DELETE_ALIASES_GQL)
-        gql_input = DeleteAliasesInput(artifact_id=self.id, aliases=alias_inputs)
-        gql_vars = {"input": gql_input.model_dump()}
-        try:
-            client.execute(gql_op, variable_values=gql_vars)
-        except CommError as e:
-            raise CommError(
-                f"You do not have permission to delete"
-                f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
-                f" from this artifact: {alias_names!r}"
-            ) from e
+        # If there aren't any aliases to delete, we can skip the GraphQL call.
+        if alias_names:
+            target_props = {
+                "entityName": target.prefix,
+                "projectName": target.project,
+                "artifactCollectionName": target.name,
+            }
+            alias_inputs = [{**target_props, "alias": name} for name in alias_names]
+            gql_op = gql(DELETE_ALIASES_GQL)
+            gql_input = DeleteAliasesInput(artifact_id=self.id, aliases=alias_inputs)
+            gql_vars = {"input": gql_input.model_dump()}
+            try:
+                client.execute(gql_op, variable_values=gql_vars)
+            except CommError as e:
+                msg = (
+                    f"You do not have permission to delete"
+                    f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
+                    f" from this artifact: {alias_names!r}"
+                )
+                raise CommError(msg) from e
 
     # Adding, removing, getting entries.
 
@@ -2342,7 +2319,9 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        return ArtifactFiles(self._client, self, names, per_page)
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized")
+        return ArtifactFiles(client, self, names, per_page)
 
     def _default_root(self, include_version: bool = True) -> FilePathStr:
         name = self.source_name if include_version else self.source_name.split(":")[0]

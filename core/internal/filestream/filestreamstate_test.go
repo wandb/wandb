@@ -282,12 +282,13 @@ func TestState_Pop_SummaryLineTooLong(t *testing.T) {
 	assert.Contains(t,
 		logs.String(),
 		"filestream: run summary line too long, skipping")
+	messages := printer.Read()
+	assert.Len(t, messages, 1)
+	assert.Equal(t, observability.Warning, messages[0].Severity)
 	assert.Equal(t,
-		[]string{
-			"Skipped uploading summary data that exceeded size limit" +
-				" (8 > 1 bytes).",
-		},
-		printer.Read())
+		"Skipped uploading summary data that exceeded size limit"+
+			" (8 > 1 bytes).",
+		messages[0].Content)
 }
 
 func TestState_Pop_FullConsoleLines(t *testing.T) {

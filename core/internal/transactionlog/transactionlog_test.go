@@ -1,9 +1,11 @@
 package transactionlog_test
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,14 +33,14 @@ func Test_ReadAfterWrite(t *testing.T) {
 
 	writer, err := transactionlog.OpenWriter(path)
 	require.NoError(t, err)
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
-	require.NoError(t, err)
-	defer reader.Close()
-
 	require.NoError(t, writer.Write(&spb.Record{Num: 123}))
 	require.NoError(t, writer.Close())
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
 	record, err := reader.Read()
 	require.NoError(t, err)
+	reader.Close()
 
 	assert.EqualValues(t, 123, record.Num)
 }
@@ -75,11 +77,12 @@ func Test_OpenReader_NoFile(t *testing.T) {
 
 func Test_OpenReader_BadHeader(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
-	require.NoError(t, os.WriteFile(path, []byte{}, 0o666))
+	require.NoError(t, os.WriteFile(path, []byte{1, 2, 3, 4, 5, 6, 7}, 0o666))
 
 	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
 
-	assert.Nil(t, reader)
+	_, err = reader.Read()
 	assert.ErrorContains(t, err, "bad header")
 }
 
@@ -150,4 +153,87 @@ func Test_Read_SkipsCorruptData(t *testing.T) {
 	assert.NoError(t, err3)
 	assert.EqualValues(t, 13, record1.GetNum())
 	assert.EqualValues(t, 31, record3.GetNum())
+}
+
+func Test_ResetLastRead(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+
+	writer, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	require.NoError(t, writer.Write(&spb.Record{Num: 13}))
+	require.NoError(t, writer.Write(&spb.Record{Num: 14}))
+	require.NoError(t, writer.Write(&spb.Record{Num: 15}))
+	require.NoError(t, writer.Close())
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
+	defer reader.Close()
+
+	// Test reading, resetting, and reading again after each record.
+	for _, num := range []int{13, 14, 15} {
+		record, err := reader.Read()
+		require.NoError(t, err)
+		assert.EqualValues(t, num, record.GetNum())
+
+		require.NoError(t, reader.ResetLastRead())
+
+		record, err = reader.Read()
+		require.NoError(t, err)
+		assert.EqualValues(t, num, record.GetNum())
+	}
+}
+
+func Test_EOF(t *testing.T) {
+	// Test that EOF and ErrUnexpectedEOF errors are correctly wrapped.
+
+	path := filepath.Join(t.TempDir(), "run.wandb")
+	writer, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	require.NoError(t, writer.Write(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{
+					// Results in a 32 KiB record that requires 2 blocks
+					// to store, so that we can test errors from the reader
+					// returned by Next().
+					{Key: "data", ValueJson: strings.Repeat("a", 32*1024)},
+				},
+			},
+		},
+	}))
+	require.NoError(t, writer.Close())
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	dataEmpty := io.NewSectionReader(bytes.NewReader(data), 0, 0)
+	dataShortHeader := io.NewSectionReader(bytes.NewReader(data), 0, 5)
+	dataShortFirstChunk := io.NewSectionReader(bytes.NewReader(data), 0, 20)
+	dataNoLastChunk := io.NewSectionReader(bytes.NewReader(data), 0, 32*1024)
+
+	doTest := func(t *testing.T, data io.Reader, expectedErr error) {
+		logger := observabilitytest.NewTestLogger(t)
+		reader, err := transactionlog.NewReader(io.NopCloser(data), logger)
+		require.NoError(t, err)
+		defer reader.Close()
+
+		_, err = reader.Read()
+		assert.ErrorIs(t, err, expectedErr)
+	}
+
+	t.Run("empty is EOF", func(t *testing.T) {
+		doTest(t, dataEmpty, io.EOF)
+	})
+
+	t.Run("short header is ErrUnexpectedEOF", func(t *testing.T) {
+		doTest(t, dataShortHeader, io.ErrUnexpectedEOF)
+	})
+
+	t.Run("short first chunk is ErrUnexpectedEOF", func(t *testing.T) {
+		doTest(t, dataShortFirstChunk, io.ErrUnexpectedEOF)
+	})
+
+	t.Run("missing last chunk is ErrUnexpectedEOF", func(t *testing.T) {
+		doTest(t, dataNoLastChunk, io.ErrUnexpectedEOF)
+	})
 }

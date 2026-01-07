@@ -153,7 +153,7 @@ def _create_new_account(host: HostUrl, referrer: str) -> str:
     )
 
 
-def _authorize_url(host: str | HostUrl, *, signup: bool, referrer: str) -> str:
+def _authorize_url(host: HostUrl, *, signup: bool, referrer: str) -> str:
     """Returns the URL for the web page showing the user's API key.
 
     Args:
@@ -161,8 +161,7 @@ def _authorize_url(host: str | HostUrl, *, signup: bool, referrer: str) -> str:
         signup: If true, shows a signup page.
         referrer: The referrer to add to the URL, if any.
     """
-    app_url = util.app_url(str(host))
-    scheme, netloc, _, _, _ = urlsplit(app_url, scheme="https")
+    scheme, netloc, *_ = urlsplit(host.app_url, scheme="https")
 
     query_parts: list[str] = []
     if signup:

@@ -5,7 +5,7 @@ from urllib.parse import quote
 
 import wandb
 from pytest import fixture
-from wandb import Api, Artifact, util
+from wandb import Api, Artifact
 from wandb._strutils import nameof
 from wandb.apis.public.registries.registry import Registry
 from wandb.proto.wandb_internal_pb2 import ServerFeature
@@ -22,9 +22,9 @@ from wandb.sdk.artifacts._gqlutils import server_supports
 def mock_artifact_fragment_data() -> dict[str, Any]:
     fragment = ArtifactFragment(
         name="test-collection",  # NOTE: relevant
-        versionIndex=0,  # NOTE: relevant
-        artifactType={"name": "model"},
-        artifactSequence={
+        version_index=0,  # NOTE: relevant
+        artifact_type={"name": "model"},
+        artifact_sequence={
             "name": "test-collection",
             "project": {
                 "name": "orig-project",
@@ -33,14 +33,18 @@ def mock_artifact_fragment_data() -> dict[str, Any]:
         },
         id="PLACEHOLDER",
         description="PLACEHOLDER",
+        tags=[],
+        ttl_duration_seconds=-2,
+        ttl_is_inherited=False,
         metadata="{}",
         state="COMMITTED",
         size=0,
         digest="FAKE_DIGEST",
-        fileCount=0,
-        commitHash="PLACEHOLDER",
-        createdAt="PLACEHOLDER",
-        updatedAt=None,
+        file_count=0,
+        commit_hash="PLACEHOLDER",
+        created_at="PLACEHOLDER",
+        updated_at=None,
+        history_step=None,
     )
     return fragment.model_dump()
 
@@ -148,13 +152,17 @@ def test_registry_artifact_url(
     target_collection_name: str,
 ):
     with wandb.init() as run:
-        base_url = util.app_url(run.settings.base_url)
         linked_artifact = run.link_artifact(
             source_artifact, f"{registry.full_name}/{target_collection_name}"
         )
         collection_path = f"{org_entity}/{registry.full_name}/{target_collection_name}"
         encoded_selection_path = quote(collection_path, safe="")
 
-        expected_url = f"{base_url}/orgs/{org}/registry/{registry.name}?selectionPath={encoded_selection_path}&view=membership&version={linked_artifact.version}"
+        expected_url = (
+            f"{run.settings.app_url}/orgs/{org}/registry/{registry.name}"
+            f"?selectionPath={encoded_selection_path}"
+            "&view=membership"
+            f"&version={linked_artifact.version}"
+        )
 
         assert linked_artifact.url == expected_url

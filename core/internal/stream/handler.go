@@ -465,13 +465,6 @@ func (h *Handler) handleHeader(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStartRequest) {
-	// if sync is enabled, we don't need to do anything just forward the record
-	// to the sender so it can start the relevant components
-	if h.settings.IsSync() {
-		h.fwdRecord(record)
-		return
-	}
-
 	var ok bool
 	run := request.Run
 
@@ -689,7 +682,7 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	h.runTimer.Stop()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
-	if !h.settings.IsSync() && !h.settings.IsEnableServerSideDerivedSummary() {
+	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
 	}
 
@@ -764,11 +757,18 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 
 func (h *Handler) handleRequestInternalMessages(record *spb.Record) {
 	messages := h.terminalPrinter.Read()
+
+	// TODO: Respect message severity in the InternalMessages request.
+	messageContents := make([]string, 0, len(messages))
+	for _, message := range messages {
+		messageContents = append(messageContents, message.Content)
+	}
+
 	response := &spb.Response{
 		ResponseType: &spb.Response_InternalMessagesResponse{
 			InternalMessagesResponse: &spb.InternalMessagesResponse{
 				Messages: &spb.InternalMessages{
-					Warning: messages,
+					Warning: messageContents,
 				},
 			},
 		},
@@ -893,7 +893,7 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 				"current", current,
 			)
 
-			h.terminalPrinter.Writef(
+			h.terminalPrinter.Warnf(
 				"Tried to log to step %d that is less than the current step %d."+
 					" Steps must be monotonically increasing, so this data"+
 					" will be ignored. See https://wandb.me/define-metric"+
@@ -988,7 +988,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	if err != nil {
 		h.logger.CaptureError(
 			fmt.Errorf("handler: error flattening run history: %v", err))
-		h.terminalPrinter.Writef(
+		h.terminalPrinter.Warnf(
 			"There was an issue processing run metrics in step %d;"+
 				" some data may be missing.",
 			currentStep,

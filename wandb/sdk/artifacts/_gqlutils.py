@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from wandb_gql import gql
 
 from wandb._iterutils import one
-from wandb.errors import UnsupportedError
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 
@@ -18,16 +17,6 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts._generated.fetch_org_info_from_entity import (
         FetchOrgInfoFromEntityEntity,
     )
-
-OMITTABLE_ARTIFACT_FIELDS = frozenset(
-    {
-        "ttlDurationSeconds",
-        "ttlIsInherited",
-        "aliases",
-        "tags",
-        "historyStep",
-    }
-)
 
 
 @lru_cache(maxsize=16)
@@ -89,27 +78,10 @@ def server_supports(client: RetryingClient, feature: str | int) -> bool:
     return server_features(client).get(name) or False
 
 
-def supports_enable_tracking_var(client: RetryingClient) -> bool:
-    """Return True if `Project.artifact` accepts `enableTracking`."""
-    typ = type_info(client, "Project")
-    if (
-        typ
-        and typ.fields
-        and (art_field := next((f for f in typ.fields if f.name == "artifact"), None))
-    ):
-        return any("enableTracking" == arg.name for arg in art_field.args)
-    return False
-
-
 def allowed_fields(client: RetryingClient, typename: str) -> set[str]:
     """Returns the allowed field names for a given GraphQL type."""
     typ = type_info(client, typename)
     return {f.name for f in typ.fields} if (typ and typ.fields) else set()
-
-
-def omit_artifact_fields(client: RetryingClient) -> set[str]:
-    """Return Artifact fields to omit from GraphQL requests for compatibility."""
-    return set(OMITTABLE_ARTIFACT_FIELDS) - allowed_fields(client, "Artifact")
 
 
 @dataclass(frozen=True)
@@ -138,24 +110,10 @@ def resolve_org_entity_name(
     if not non_org_entity:
         raise ValueError("Entity name is required to resolve org entity name.")
 
-    if "orgEntity" not in allowed_fields(client, "Organization"):
-        if org_or_entity:
-            # Server doesn't support fetching orgEntity to match against,
-            # so assume orgEntity as provided is already correct.
-            return org_or_entity
-
-        raise UnsupportedError(
-            "Fetching Registry artifacts without inputting an organization "
-            "is unavailable for your server version. "
-            "Please upgrade your server to 0.50.0 or later."
-        )
-
-    # Otherwise, fetch candidate orgs to verify or identify the correct orgEntity
-    # name when possible.
+    # Fetch candidate orgs to verify or identify the correct orgEntity name.
     entity = org_info_from_entity(client, non_org_entity)
 
-    # Parse possible organization(s) from the response
-
+    # Parse possible organization(s) from the response...
     # ----------------------------------------------------------------------------
     # If a team entity was provided, a single organization should exist under
     # the team/org entity type.

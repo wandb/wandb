@@ -8,12 +8,13 @@ from typing import TYPE_CHECKING, Any, Iterator, Mapping
 from pydantic import ValidationError
 from typing_extensions import override
 
-from wandb.apis.paginator import RelayPaginator, _Client
+from wandb.apis.paginator import RelayPaginator
 
 if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
     from wandb._pydantic import Connection
+    from wandb.apis.public.api import RetryingClient
     from wandb.automations import Automation
     from wandb.automations._generated import ProjectTriggersFields
 
@@ -29,7 +30,7 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
 
     def __init__(
         self,
-        client: _Client,
+        client: RetryingClient,
         variables: Mapping[str, Any],
         per_page: int = 50,
         *,

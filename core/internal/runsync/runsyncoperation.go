@@ -2,6 +2,7 @@ package runsync
 
 import (
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"time"
 
@@ -28,7 +29,9 @@ type RunSyncOperation struct {
 
 func (f *RunSyncOperationFactory) New(
 	paths []string,
+	cwd string,
 	updates *RunSyncUpdates,
+	live bool,
 	globalSettings *spb.Settings,
 ) *RunSyncOperation {
 	op := &RunSyncOperation{
@@ -42,10 +45,22 @@ func (f *RunSyncOperationFactory) New(
 	op.logFile = logFile
 	op.logger = NewSyncLogger(logFile, slog.LevelInfo)
 
-	for _, path := range paths {
-		settings := MakeSyncSettings(globalSettings, path)
+	for _, userPath := range paths {
+		var path string
+		switch {
+		case filepath.IsAbs(userPath):
+			path = userPath
+		case filepath.IsAbs(cwd):
+			path = filepath.Join(cwd, userPath)
+		default:
+			op.printer.Errorf("Failed to resolve %q, skipping.", userPath)
+			continue
+		}
+
+		settings := MakeSyncSettings(globalSettings, userPath)
 		factory := InjectRunSyncerFactory(settings, op.logger)
-		op.syncers = append(op.syncers, factory.New(path, updates))
+		op.syncers = append(op.syncers,
+			factory.New(path, ToDisplayPath(userPath, cwd), updates, live))
 	}
 
 	return op
@@ -74,10 +89,7 @@ func (op *RunSyncOperation) Do(parallelism int) *spb.ServerSyncResponse {
 
 				if err != nil {
 					LogSyncFailure(op.logger, err)
-
-					// TODO: Print this at ERROR level, not INFO.
-					op.printer.Write(ToUserText(err))
-
+					op.printer.Errorf("%s", ToUserText(err))
 					break
 				}
 			}
@@ -138,9 +150,9 @@ func (op *RunSyncOperation) initAndPlan() (map[string][]*RunSyncer, error) {
 
 // Status returns the operation's status.
 func (op *RunSyncOperation) Status() *spb.ServerSyncStatusResponse {
-	stats := make(map[string]*spb.OperationStats, len(op.syncers))
+	stats := make([]*spb.OperationStats, 0, len(op.syncers))
 	for _, syncer := range op.syncers {
-		syncer.AddStats(stats)
+		stats = append(stats, syncer.Stats())
 	}
 
 	return &spb.ServerSyncStatusResponse{
@@ -154,8 +166,8 @@ func (op *RunSyncOperation) popMessages() []*spb.ServerSyncMessage {
 
 	for _, message := range op.printer.Read() {
 		messages = append(messages, &spb.ServerSyncMessage{
-			Severity: spb.ServerSyncMessage_SEVERITY_INFO,
-			Content:  message,
+			Severity: spb.ServerSyncMessage_Severity(message.Severity),
+			Content:  message.Content,
 		})
 	}
 

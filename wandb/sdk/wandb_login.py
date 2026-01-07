@@ -158,7 +158,10 @@ def _login(
     settings = wandb_setup.singleton().settings
 
     if host is None:
-        host = settings.base_url
+        host_url = wbauth.HostUrl(settings.base_url, app_url=settings.app_url)
+    else:
+        host_url = wbauth.HostUrl(host)
+
     if relogin is None:
         relogin = settings.relogin
     if force is None:
@@ -178,7 +181,7 @@ def _login(
     if key:
         auth = _use_explicit_key(
             key,
-            host=host,
+            host=host_url,
             settings=settings,
             update_api_key=update_api_key,
             silent=_silent,
@@ -186,7 +189,7 @@ def _login(
     else:
         auth = _find_or_prompt_for_key(
             settings,
-            host=host,
+            host=host_url,
             force=force,
             relogin=relogin,
             referrer=referrer,
@@ -198,7 +201,7 @@ def _login(
 
     wandb_setup.singleton().update_user_settings()
     if not _silent:
-        _print_logged_in_message(settings, host=host)
+        _print_logged_in_message(settings, host=str(host_url))
 
     if auth is None:
         return False, None
@@ -212,7 +215,7 @@ def _use_explicit_key(
     key: str,
     settings: wandb.Settings,
     *,
-    host: str,
+    host: wbauth.HostUrl,
     update_api_key: bool,
     silent: bool,
 ) -> wbauth.Auth:
@@ -246,7 +249,7 @@ def _use_explicit_key(
 def _find_or_prompt_for_key(
     settings: wandb.Settings,
     *,
-    host: str,
+    host: wbauth.HostUrl,
     force: bool,
     relogin: bool,
     referrer: str,

@@ -30,6 +30,8 @@ def make_http_session() -> Session:
     from requests.adapters import HTTPAdapter
     from urllib3.util.retry import Retry
 
+    from wandb.sdk import wandb_setup
+
     # Sleep length: 0, 2, 4, 8, 16, 32, 64, 120, 120, 120, 120, 120, 120, 120, 120, 120
     # seconds, i.e. a total of 20min 6s.
     HTTP_RETRY_STRATEGY: Final[Retry] = Retry(  # noqa: N806
@@ -39,6 +41,10 @@ def make_http_session() -> Session:
     )
 
     session = Session()
+    # Use the global settings singleton which already includes env var updates.
+    settings = wandb_setup.singleton().settings
+    headers = settings.x_extra_http_headers or {}
+    session.headers.update(headers)
 
     # Explicitly configure the retry strategy for http/https adapters.
     adapter = HTTPAdapter(

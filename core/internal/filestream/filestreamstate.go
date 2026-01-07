@@ -227,7 +227,7 @@ func (s *FileStreamState) popSummary(
 		)
 		printer.
 			AtMostEvery(time.Minute).
-			Writef(
+			Warnf(
 				"Skipped uploading summary data that exceeded"+
 					" size limit (%d > %d bytes).",
 				len(s.UnsentSummary),

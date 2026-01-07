@@ -589,7 +589,7 @@ workflows:
                 [
                   "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
                 ]
-              server_image_tag: ["0.48.0"]
+              server_image_tag: ["0.63.0"]
 
       - nox-tests-linux:
           name: notebook-tests-linux-<<matrix.python>>

@@ -87,9 +87,6 @@ func TestUploader(t *testing.T) {
 	// The _offline mode to set on Settings.
 	var isOffline bool
 
-	// The _sync mode to set on Settings.
-	var isSync bool
-
 	// Resets test objects and runs a given test.
 	runTest := func(
 		name string,
@@ -101,7 +98,6 @@ func TestUploader(t *testing.T) {
 		syncDir = t.TempDir()
 		ignoreGlobs = []string{}
 		isOffline = false
-		isSync = false
 		configure()
 
 		fakeFileStream = filestreamtest.NewFakeFileStream()
@@ -117,7 +113,6 @@ func TestUploader(t *testing.T) {
 			SyncDir:     &wrapperspb.StringValue{Value: syncDir},
 			IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
 			XOffline:    &wrapperspb.BoolValue{Value: isOffline},
-			XSync:       &wrapperspb.BoolValue{Value: isSync},
 		})
 		filesDir = settings.GetFilesDir()
 
@@ -171,22 +166,6 @@ func TestUploader(t *testing.T) {
 
 			assert.True(t,
 				fakeFileWatcher.IsWatching(filepath.Join(filesDir, "test.txt")))
-		})
-
-	runTest("Process with 'now' policy during sync is no-op",
-		func() { isSync = true },
-		func(t *testing.T) {
-			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
-			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
-
-			uploader.Process(&spb.FilesRecord{
-				Files: []*spb.FilesItem{
-					{Path: "test.txt", Policy: spb.FilesItem_NOW},
-				},
-			})
-			uploader.Finish()
-
-			assert.Len(t, fakeFileTransfer.Tasks(), 0)
 		})
 
 	runTest("Process sets file category",

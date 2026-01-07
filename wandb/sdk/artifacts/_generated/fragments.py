@@ -77,12 +77,10 @@ class ArtifactFragment(GQLResult):
     artifact_type: ArtifactFragmentArtifactType = Field(alias="artifactType")
     description: Optional[str]
     metadata: Optional[str]
-    ttl_duration_seconds: Optional[int] = Field(
-        alias="ttlDurationSeconds", default=None
-    )
-    ttl_is_inherited: Optional[bool] = Field(alias="ttlIsInherited", default=None)
-    tags: Optional[List[TagFragment]] = None
-    history_step: Optional[int] = Field(alias="historyStep", default=None)
+    ttl_duration_seconds: int = Field(alias="ttlDurationSeconds")
+    ttl_is_inherited: bool = Field(alias="ttlIsInherited")
+    tags: List[TagFragment]
+    history_step: Optional[int] = Field(alias="historyStep")
     state: ArtifactState
     size: int
     digest: str
@@ -150,7 +148,7 @@ class FileFragment(GQLResult):
     name: str
     url: Optional[str]
     size_bytes: int = Field(alias="sizeBytes")
-    storage_path: Optional[str] = Field(alias="storagePath", default=None)
+    storage_path: Optional[str] = Field(alias="storagePath")
     mimetype: Optional[str]
     updated_at: Optional[str] = Field(alias="updatedAt")
     digest: Optional[str]
@@ -166,9 +164,7 @@ class FileWithUrlFragment(GQLResult):
 
 class OrgInfoFragment(GQLResult):
     name: str
-    org_entity: Optional[OrgInfoFragmentOrgEntity] = Field(
-        alias="orgEntity", default=None
-    )
+    org_entity: Optional[OrgInfoFragmentOrgEntity] = Field(alias="orgEntity")
 
 
 class OrgInfoFragmentOrgEntity(GQLResult):
@@ -315,26 +311,62 @@ class UserRegistryMemberFragment(GQLResult):
 
 ArtifactAliasFragment.model_rebuild()
 ProjectInfoFragment.model_rebuild()
+ProjectInfoFragmentEntity.model_rebuild()
 TagFragment.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
+ProjectInfoFragment.model_rebuild()
+ArtifactCollectionFragmentType.model_rebuild()
+ArtifactCollectionFragmentTags.model_rebuild()
+ArtifactCollectionFragmentTagsEdges.model_rebuild()
+TagFragment.model_rebuild()
 CollectionInfoFragment.model_rebuild()
+ProjectInfoFragment.model_rebuild()
 SourceCollectionInfoFragment.model_rebuild()
+ProjectInfoFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
+SourceCollectionInfoFragment.model_rebuild()
+ArtifactFragmentArtifactType.model_rebuild()
+TagFragment.model_rebuild()
+ArtifactFragmentAliases.model_rebuild()
+CollectionInfoFragment.model_rebuild()
 ArtifactMembershipFragment.model_rebuild()
+ArtifactAliasFragment.model_rebuild()
+CollectionInfoFragment.model_rebuild()
+ArtifactFragment.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()
 ArtifactSequenceTypeFields.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
 DeferredManifestFragment.model_rebuild()
+DeferredManifestFragmentFile.model_rebuild()
 FileFragment.model_rebuild()
 FileWithUrlFragment.model_rebuild()
 OrgInfoFragment.model_rebuild()
+OrgInfoFragmentOrgEntity.model_rebuild()
 PageInfoFragment.model_rebuild()
 RegistryCollectionFragment.model_rebuild()
+ProjectInfoFragment.model_rebuild()
+RegistryCollectionFragmentType.model_rebuild()
+RegistryCollectionFragmentTags.model_rebuild()
+RegistryCollectionFragmentTagsEdges.model_rebuild()
+TagFragment.model_rebuild()
 RegistryFragment.model_rebuild()
+RegistryFragmentEntity.model_rebuild()
+RegistryFragmentEntityOrganization.model_rebuild()
+RegistryFragmentArtifactTypes.model_rebuild()
+RegistryFragmentArtifactTypesEdges.model_rebuild()
+RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
 RegistryRoleFragment.model_rebuild()
 RunInfoFragment.model_rebuild()
+ProjectInfoFragment.model_rebuild()
 TeamMemberFragment.model_rebuild()
 TeamFragment.model_rebuild()
+TeamMemberFragment.model_rebuild()
 TeamRegistryMemberFragment.model_rebuild()
+TeamFragment.model_rebuild()
+RegistryRoleFragment.model_rebuild()
 TypeInfoFragment.model_rebuild()
+TypeInfoFragmentFields.model_rebuild()
+TypeInfoFragmentFieldsArgs.model_rebuild()
+TypeInfoFragmentInputFields.model_rebuild()
 UserRegistryMemberFragment.model_rebuild()
+RegistryRoleFragment.model_rebuild()

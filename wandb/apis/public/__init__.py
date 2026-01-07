@@ -63,7 +63,7 @@ from wandb.apis.public.jobs import (
     RunQueuePrioritizationMode,
     RunQueueResourceType,
 )
-from wandb.apis.public.projects import PROJECT_FRAGMENT, Project, Projects, Sweeps
+from wandb.apis.public.projects import Project, Projects, Sweeps
 from wandb.apis.public.query_generator import QueryGenerator
 from wandb.apis.public.registries import Registries, Registry
 from wandb.apis.public.reports import (
@@ -73,6 +73,6 @@ from wandb.apis.public.reports import (
     Reports,
 )
 from wandb.apis.public.runs import RUN_FRAGMENT, Run, Runs
-from wandb.apis.public.sweeps import SWEEP_FRAGMENT, Sweep
+from wandb.apis.public.sweeps import Sweep
 from wandb.apis.public.teams import Member, Team
 from wandb.apis.public.users import User

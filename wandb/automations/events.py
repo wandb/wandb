@@ -157,6 +157,8 @@ class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
 
 
 class RunStateFilter(GQLBase):  # from: TriggeringRunStateEvent
+    """Represents a filter for triggering events based on changes in run states."""
+
     run: Annotated[
         JsonEncoded[MongoLikeFilter],
         AfterValidator(wrap_run_event_run_filter),
@@ -232,21 +234,21 @@ class OnLinkArtifact(_BaseMutationEventInput):
     """A new artifact is linked to a collection.
 
     Examples:
-        Define an event that triggers when an artifact is linked to the
-        collection "my-collection" with the alias "prod":
+    Define an event that triggers when an artifact is linked to the
+    collection "my-collection" with the alias "prod":
 
-        ```python
-        from wandb import Api
-        from wandb.automations import OnLinkArtifact, ArtifactEvent
+    ```python
+    from wandb import Api
+    from wandb.automations import OnLinkArtifact, ArtifactEvent
 
-        api = Api()
-        collection = api.artifact_collection(name="my-collection", type_name="model")
+    api = Api()
+    collection = api.artifact_collection(name="my-collection", type_name="model")
 
-        event = OnLinkArtifact(
-            scope=collection,
-            filter=ArtifactEvent.alias.eq("prod"),
-        )
-        ```
+    event = OnLinkArtifact(
+        scope=collection,
+        filter=ArtifactEvent.alias.eq("prod"),
+    )
+    ```
     """
 
     event_type: Literal[EventType.LINK_ARTIFACT] = EventType.LINK_ARTIFACT
@@ -256,22 +258,21 @@ class OnAddArtifactAlias(_BaseMutationEventInput):
     """A new alias is assigned to an artifact.
 
     Examples:
-        Define an event that triggers whenever the alias "prod" is assigned to
-        any artifact in the collection "my-collection":
+    Define an event that triggers whenever the alias "prod" is assigned to
+    any artifact in the collection "my-collection":
 
-        ```python
-        from wandb import Api
-        from wandb.automations import OnAddArtifactAlias, ArtifactEvent
+    ```python
+    from wandb import Api
+    from wandb.automations import OnAddArtifactAlias, ArtifactEvent
 
-        api = Api()
-        collection = api.artifact_collection(name="my-collection", type_name="model")
+    api = Api()
+    collection = api.artifact_collection(name="my-collection", type_name="model")
 
-        event = OnAddArtifactAlias(
-            scope=collection,
-            filter=ArtifactEvent.alias.eq("prod"),
-        )
-        ```
-
+    event = OnAddArtifactAlias(
+        scope=collection,
+        filter=ArtifactEvent.alias.eq("prod"),
+    )
+    ```
     """
 
     event_type: Literal[EventType.ADD_ARTIFACT_ALIAS] = EventType.ADD_ARTIFACT_ALIAS
@@ -281,18 +282,18 @@ class OnCreateArtifact(_BaseMutationEventInput):
     """A new artifact is created.
 
     Examples:
-        Define an event that triggers when a new artifact is created in the
-        collection "my-collection":
+    Define an event that triggers when a new artifact is created in the
+    collection "my-collection":
 
-        ```python
-        from wandb import Api
-        from wandb.automations import OnCreateArtifact
+    ```python
+    from wandb import Api
+    from wandb.automations import OnCreateArtifact
 
-        api = Api()
-        collection = api.artifact_collection(name="my-collection", type_name="model")
+    api = Api()
+    collection = api.artifact_collection(name="my-collection", type_name="model")
 
-        event = OnCreateArtifact(scope=collection)
-        ```
+    event = OnCreateArtifact(scope=collection)
+    ```
     """
 
     event_type: Literal[EventType.CREATE_ARTIFACT] = EventType.CREATE_ARTIFACT
@@ -312,21 +313,21 @@ class OnRunMetric(_BaseRunEventInput):
     """A run metric satisfies a user-defined condition.
 
     Examples:
-        Define an event that triggers for any run in project "my-project" when
-        the average of the last 5 values of metric "my-metric" exceeds 123.45:
+    Define an event that triggers for any run in project "my-project" when
+    the average of the last 5 values of metric "my-metric" exceeds 123.45:
 
-        ```python
-        from wandb import Api
-        from wandb.automations import OnRunMetric, RunEvent
+    ```python
+    from wandb import Api
+    from wandb.automations import OnRunMetric, RunEvent
 
-        api = Api()
-        project = api.project(name="my-project")
+    api = Api()
+    project = api.project(name="my-project")
 
-        event = OnRunMetric(
-            scope=project,
-            filter=RunEvent.metric("my-metric").avg(5).gt(123.45),
-        )
-        ```
+    event = OnRunMetric(
+        scope=project,
+        filter=RunEvent.metric("my-metric").avg(5).gt(123.45),
+    )
+    ```
     """
 
     event_type: Literal[
@@ -358,21 +359,21 @@ class OnRunState(_BaseRunEventInput):
     """A run state changes.
 
     Examples:
-        Define an event that triggers for any run in project "my-project" when
-        its state changes to "finished" (i.e. succeeded) or "failed":
+    Define an event that triggers for any run in project "my-project" when
+    its state changes to "finished" (i.e. succeeded) or "failed":
 
-        ```python
-        from wandb import Api
-        from wandb.automations import OnRunState
+    ```python
+    from wandb import Api
+    from wandb.automations import OnRunState
 
-        api = Api()
-        project = api.project(name="my-project")
+    api = Api()
+    project = api.project(name="my-project")
 
-        event = OnRunState(
-            scope=project,
-            filter=RunEvent.state.in_(["finished", "failed"]),
-        )
-        ```
+    event = OnRunState(
+        scope=project,
+        filter=RunEvent.state.in_(["finished", "failed"]),
+    )
+    ```
     """
 
     event_type: Literal[EventType.RUN_STATE] = EventType.RUN_STATE

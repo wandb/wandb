@@ -128,6 +128,10 @@ var (
 
 	// ErrNoLastRecord is returned if LastRecordOffset is called and there is no previous record.
 	ErrNoLastRecord = errors.New("leveldb/record: no last record exists")
+
+	// errZeroChunk is an internal-only error used to detect and skip zeroed
+	// blocks, which may occur for files created with mmap.
+	errZeroChunk = errors.New("leveldb/record: block appears to be zeroed")
 )
 
 type flusher interface {
@@ -138,138 +142,232 @@ type flusher interface {
 type Reader struct {
 	// r is the underlying reader.
 	r io.Reader
+
 	// seq is the sequence number of the current record.
 	seq int
+
+	// blockOffset is the start position of the current block in the reader.
+	//
+	// If the reader started at position zero in a file, then this is
+	// the file offset of the first byte of buf.
+	blockOffset int64
+
 	// buf[i:j] is the unread portion of the current chunk's payload.
 	// The low bound, i, excludes the chunk header.
+	//
+	// If j is zero, then i is zero and there is no current chunk.
 	i, j int
+
+	// nextChunkStart is the offset of the next chunk from the start of the
+	// current block.
+	//
+	// It may be greater than or equal to n, in which case the next chunk is in
+	// a future block. It is normally equal to j except when seeking or at the
+	// end of a padded block.
+	nextChunkStart int
+
 	// n is the number of bytes of buf that are valid. Once reading has started,
 	// only the final block can have n < blockSize.
 	n int
-	// processedFirstBlock is whether the first block has been read.
-	// The first block needs special handling because of the W&B header.
-	processedFirstBlock bool
-	// started is whether Next has been called at all.
-	started bool
+
 	// recovering is true when recovering from corruption.
 	recovering bool
+
 	// last is whether the current chunk is the last chunk of the record.
 	last bool
+
 	// err is any accumulated error.
 	err error
+
 	// buf is the buffer.
 	buf [blockSize]byte
+
 	// CRC function
 	crc func([]byte) uint32
 }
 
 // NewReader returns a new reader.
+//
+// The given reader must start with the W&B header.
 func NewReaderExt(r io.Reader, algo CRCAlgo) *Reader {
 	crc := CRCCustom
 	if algo == CRCAlgoIEEE {
 		crc = CRCStandard
 	}
 	return &Reader{
-		r:   r,
-		crc: crc,
+		r:              r,
+		crc:            crc,
+		nextChunkStart: wandbHeaderLength,
 	}
 }
 
+// NewReader returns a new reader.
+//
+// The given reader must start with the W&B header.
 func NewReader(r io.Reader) *Reader {
 	return NewReaderExt(r, CRCAlgoCustom)
-}
-
-// readFirstBlock reads the W&B header and first block into r.buf.
-//
-// The reader must be positioned at the start.
-//
-// Returns io.ErrUnexpectedEOF if the reader doesn't contain enough bytes
-// for the W&B header; otherwise, at least the first wandbHeaderLength bytes in
-// r.buf will be valid.
-func (r *Reader) readFirstBlock() error {
-	n, err := io.ReadFull(r.r, r.buf[:])
-	if err != nil && err != io.ErrUnexpectedEOF {
-		return err
-	}
-
-	if n < wandbHeaderLength {
-		return io.ErrUnexpectedEOF
-	}
-
-	r.i, r.j, r.n = wandbHeaderLength, wandbHeaderLength, n
-	r.processedFirstBlock = true
-	return nil
 }
 
 // nextChunk sets r.buf[r.i:r.j] to hold the next chunk's payload, reading the
 // next block into the buffer if necessary.
 func (r *Reader) nextChunk(wantFirst bool) error {
 	for {
-		if r.j+headerSize <= r.n {
-			checksum := binary.LittleEndian.Uint32(r.buf[r.j+0 : r.j+4])
-			length := binary.LittleEndian.Uint16(r.buf[r.j+4 : r.j+6])
-			chunkType := r.buf[r.j+6]
+		if r.nextChunkStart < 0 {
+			return errors.New("leveldb/record: next chunk is behind reader")
+		}
 
-			if checksum == 0 && length == 0 && chunkType == 0 {
-				if wantFirst || r.recovering {
-					// Skip the rest of the block, if it looks like it is all
-					// zeroes. This is common if the record file was created
-					// via mmap.
-					//
-					// Set r.err to be an error so r.Recover actually recovers.
-					r.err = errors.New("leveldb/record: block appears to be zeroed")
+		if r.nextChunkStart+headerSize <= r.n {
+			chunkType, err := r.readChunkInBlock(r.nextChunkStart)
+
+			if err != nil {
+				if r.recovering || (wantFirst && errors.Is(err, errZeroChunk)) {
+					r.err = err // Recover() requires err to be set
 					r.Recover()
 					continue
 				}
-				return errors.New("leveldb/record: invalid chunk")
+
+				return err
 			}
 
-			r.i = r.j + headerSize
-			r.j = r.j + headerSize + int(length)
-			if r.j > r.n {
-				if r.recovering {
-					r.Recover()
-					continue
-				}
-				return errors.New("leveldb/record: invalid chunk (length overflows block)")
+			if wantFirst &&
+				chunkType != fullChunkType &&
+				chunkType != firstChunkType {
+				continue
 			}
-			if checksum != r.crc(r.buf[r.i-1:r.j]) {
-				if r.recovering {
-					r.Recover()
-					continue
-				}
-				return errors.New("leveldb/record: invalid chunk (checksum mismatch)")
-			}
-			if wantFirst {
-				if chunkType != fullChunkType && chunkType != firstChunkType {
-					continue
-				}
-			}
-			r.last = chunkType == fullChunkType || chunkType == lastChunkType
-			r.recovering = false
+
 			return nil
 		}
-		if r.n < blockSize && r.started {
-			if r.j != r.n {
-				return io.ErrUnexpectedEOF
-			}
-			return io.EOF
+
+		// There must be no bytes after the final chunk.
+		//
+		// We can only partially detect this error: the final chunk is the
+		// last chunk in the final block, and we can detect a final block
+		// only if it is not the full size. If it's a full block, it could be
+		// a (potentially padded) middle block.
+		//
+		// If r.j is zero, then there is no current chunk.
+		// Otherwise, the end of the chunk must equal the end of the block.
+		if r.isShortBlock() && 0 < r.j && r.j != r.n {
+			return io.ErrUnexpectedEOF
 		}
-		n, err := io.ReadFull(r.r, r.buf[:])
-		if err != nil && err != io.ErrUnexpectedEOF {
+
+		// If the next chunk was expected to be in the current block,
+		// that's an unexpected EOF: it means this block contains some
+		// but not all of the next chunk's bytes.
+		//
+		// If this is the final block and the next chunk offset is after its
+		// end, that's a normal EOF.
+		if r.nextChunkStart < r.n {
+			return io.ErrUnexpectedEOF
+		}
+
+		// Read the next block.
+		if err := r.readBlock(); err != nil {
 			return err
 		}
-		r.i, r.j, r.n = 0, 0, n
 	}
+}
+
+// readChunkInBlock sets up the reader to read the chunk at the given offset
+// in the current block.
+//
+// Returns the chunk type on success.
+// Returns errZeroChunk if the chunk's header is zero.
+func (r *Reader) readChunkInBlock(start int) (byte, error) {
+	checksum := binary.LittleEndian.Uint32(r.buf[start+0 : start+4])
+	length := binary.LittleEndian.Uint16(r.buf[start+4 : start+6])
+	chunkType := r.buf[start+6]
+
+	if checksum == 0 && length == 0 && chunkType == 0 {
+		return 0, errZeroChunk
+	}
+
+	r.i = start + headerSize
+	r.j = start + headerSize + int(length)
+	r.nextChunkStart = startOfChunkAfter(r.j)
+
+	switch {
+	case r.j > blockSize:
+		return 0, fmt.Errorf("leveldb/record: chunk too long (%d)", length)
+	case r.j > r.n:
+		return 0, io.ErrUnexpectedEOF
+	case checksum != r.crc(r.buf[r.i-1:r.j]):
+		return 0, errors.New("leveldb/record: invalid chunk (checksum mismatch)")
+	}
+
+	r.last = chunkType == fullChunkType || chunkType == lastChunkType
+	r.recovering = false
+	return chunkType, nil
+}
+
+// startOfChunkAfter returns the starting offset of the next chunk after
+// the chunk ending at the given offset in a block.
+//
+// This requires a special case for padded blocks: if another chunk wouldn't fit
+// into the same block, then the next chunk starts in the next block.
+func startOfChunkAfter(chunkEnd int) int {
+	// Only full-size blocks can be padded because the only non-full block
+	// is the final block, so this logic only depends on the blockSize constant
+	// and not the current reader state.
+	if chunkEnd+headerSize <= blockSize {
+		return chunkEnd
+	} else {
+		return blockSize
+	}
+}
+
+// readBlock reads the next block into r.buf.
+//
+// Assumes that the current block consists of the bytes starting from
+// blockOffset and going up to blockOffset + n.
+//
+// Returns EOF if the current block is not full, in which case it must be final.
+func (r *Reader) readBlock() error {
+	if r.isShortBlock() {
+		return io.EOF
+	}
+
+	prevBlockSize := r.n
+	nextBlockOffset := r.blockOffset + int64(prevBlockSize)
+	n, err := io.ReadFull(r.r, r.buf[:])
+
+	// If n == 0, then err == io.EOF.
+	// It's OK if 0 < n < blockSize, in which case err == ErrUnexpectedEOF.
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return err
+	}
+
+	r.blockOffset = nextBlockOffset
+	r.i, r.j, r.n = 0, 0, n
+	r.nextChunkStart -= prevBlockSize
+	return nil
+}
+
+// isShortBlock returns true if there is a block in memory and it is
+// shorter than the blockSize, in which case it must be a final block.
+func (r *Reader) isShortBlock() bool {
+	return 0 < r.n && r.n < blockSize
 }
 
 // VerifyWandbHeader checks for a W&B header with the correct version.
 //
 // The reader must be positioned at the start.
+//
+// The error wraps EOF if there's no data at all and ErrUnexpectedEOF
+// if there's not enough data to hold a header.
 func (r *Reader) VerifyWandbHeader(expectedVersion byte) error {
-	r.err = r.readFirstBlock()
-	if r.err != nil && !errors.Is(r.err, io.EOF) {
-		return r.err
+	if r.blockOffset != 0 {
+		return errors.New("leveldb/record: reader not in first block")
+	}
+
+	if r.n == 0 {
+		if r.err = r.readBlock(); r.err != nil {
+			return r.err
+		}
+	}
+
+	if r.n < wandbHeaderLength {
+		return io.ErrUnexpectedEOF
 	}
 
 	identBytes, magicBytes, version := r.buf[0:4], r.buf[4:6], r.buf[6]
@@ -294,28 +392,42 @@ func (r *Reader) VerifyWandbHeader(expectedVersion byte) error {
 	return nil
 }
 
-// Next returns a reader for the next record. It returns io.EOF if there are no
-// more records. The reader returned becomes stale after the next Next call,
-// and should no longer be used.
+// NextOffset returns the offset from which Next() will start to read.
+//
+// This offset can be passed to SeekRecord to return to the same record in the
+// underlying file. If the underlying reader is not seekable or did not start
+// at position 0, then the offset is not usable.
+func (r *Reader) NextOffset() int64 {
+	return r.blockOffset + int64(r.nextChunkStart)
+}
+
+// Next returns a reader for the next record.
+//
+// The second return value is the offset of the record, which can be passed
+// to SeekRecord to return to this record in the underlying file. If the
+// underlying reader is not seekable or did not start at position 0, then
+// the offset is not usable.
+//
+// The error wraps io.EOF if there are no more records and ErrUnexpectedEOF
+// if there's less data than expected based on the first chunk's header.
+// The reader does the same. In general, EOF and ErrUnexpectedEOF are returned
+// if and only if the error may be resolved by appending more data to the file
+// and using SeekRecord to reread the block. Other errors indicate data
+// corruption.
+//
+// The reader becomes stale after the next call to Next() and should no longer
+// be used.
 func (r *Reader) Next() (io.Reader, error) {
 	r.seq++
 	if r.err != nil {
 		return nil, r.err
-	}
-	r.i = r.j
-
-	if !r.processedFirstBlock {
-		r.err = r.readFirstBlock()
-		if r.err != nil {
-			return nil, r.err
-		}
 	}
 
 	r.err = r.nextChunk(true)
 	if r.err != nil {
 		return nil, r.err
 	}
-	r.started = true
+
 	return singleReader{r, r.seq}, nil
 }
 
@@ -331,7 +443,8 @@ func (r *Reader) Recover() {
 	r.recovering = true
 	r.err = nil
 	// Discard the rest of the current block.
-	r.i, r.j, r.last = r.n, r.n, false
+	r.i, r.j, r.last = 0, 0, false
+	r.nextChunkStart = r.n
 	// Invalidate any outstanding singleReader.
 	r.seq++
 }
@@ -348,9 +461,11 @@ func (r *Reader) Recover() {
 // encountered an error, including io.EOF. Such errors can be cleared by
 // calling Recover. Calling SeekRecord after Recover will make calling Next
 // return the record at the given offset, instead of the record at the next
-// good 32KiB block as Recover normally would. Calling SeekRecord before
-// Recover has no effect on Recover's semantics other than changing the
-// starting point for determining the next good 32KiB block.
+// good 32KiB block as Recover normally would.
+//
+// The only other errors possible are those returned by the underlying Seek().
+// In particular, for files, Seek() never returns EOF even if seeking past
+// the end of a file. In this case, Next() will return EOF.
 //
 // The offset is always relative to the start of the underlying io.Reader, so
 // negative values will result in an error as per io.Seeker.
@@ -365,35 +480,16 @@ func (r *Reader) SeekRecord(offset int64) error {
 		return ErrNotAnIOSeeker
 	}
 
-	// Only seek to an exact block offset.
-	c := int(offset & blockSizeMask)
-	fileOffset := offset &^ blockSizeMask
-	if _, r.err = s.Seek(fileOffset, io.SeekStart); r.err != nil {
-		return r.err
-	}
-
 	// Clear the state of the internal reader.
 	r.i, r.j, r.n = 0, 0, 0
-	r.started, r.recovering, r.last = false, false, false
+	r.recovering, r.last = false, false
 
-	// The first block is short: its first few bytes are the W&B header.
-	if fileOffset == 0 {
-		r.err = r.readFirstBlock()
-		if r.err != nil {
-			return r.err
-		}
-	}
+	// Seek to an exact block offset.
+	r.nextChunkStart = int(offset & blockSizeMask)
+	r.blockOffset = offset &^ blockSizeMask
+	_, r.err = s.Seek(r.blockOffset, io.SeekStart)
 
-	r.err = r.nextChunk(false)
-	if r.err != nil {
-		return r.err
-	}
-
-	// Now skip to the offset requested within the block. A subsequent
-	// call to Next will return the block at the requested offset.
-	r.i, r.j = c, c
-
-	return nil
+	return r.err
 }
 
 type singleReader struct {
@@ -413,7 +509,16 @@ func (x singleReader) Read(p []byte) (int, error) {
 		if r.last {
 			return 0, io.EOF
 		}
-		if r.err = r.nextChunk(false); r.err != nil {
+
+		err := r.nextChunk(false)
+
+		if err != nil {
+			// Map EOF to ErrUnexpectedEOF since we expected more chunks.
+			if errors.Is(err, io.EOF) {
+				r.err = io.ErrUnexpectedEOF
+			} else {
+				r.err = err
+			}
 			return 0, r.err
 		}
 	}

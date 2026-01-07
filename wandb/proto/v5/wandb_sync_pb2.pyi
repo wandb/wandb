@@ -32,10 +32,19 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     PATH_FIELD_NUMBER: builtins.int
+    CWD_FIELD_NUMBER: builtins.int
+    LIVE_FIELD_NUMBER: builtins.int
     SETTINGS_FIELD_NUMBER: builtins.int
     NEW_ENTITY_FIELD_NUMBER: builtins.int
     NEW_PROJECT_FIELD_NUMBER: builtins.int
     NEW_RUN_ID_FIELD_NUMBER: builtins.int
+    cwd: builtins.str
+    """An absolute path to the user's current working directory.
+
+    Paths are displayed relative to this if the result is shorter.
+    """
+    live: builtins.bool
+    """Whether to perform a live sync."""
     new_entity: builtins.str
     """An updated entity to use for all paths being synced."""
     new_project: builtins.str
@@ -46,7 +55,8 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
     def path(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
         """Paths to the .wandb files to upload.
 
-        Paths should be absolute.
+        Paths should either be absolute or relative to the cwd, and all paths
+        should refer to different files.
         """
 
     @property
@@ -57,13 +67,15 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
         self,
         *,
         path: collections.abc.Iterable[builtins.str] | None = ...,
+        cwd: builtins.str = ...,
+        live: builtins.bool = ...,
         settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
         new_entity: builtins.str = ...,
         new_project: builtins.str = ...,
         new_run_id: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["new_entity", b"new_entity", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["cwd", b"cwd", "live", b"live", "new_entity", b"new_entity", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
 
 global___ServerInitSyncRequest = ServerInitSyncRequest
 
@@ -158,30 +170,12 @@ class ServerSyncStatusResponse(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    @typing.final
-    class StatsEntry(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-        KEY_FIELD_NUMBER: builtins.int
-        VALUE_FIELD_NUMBER: builtins.int
-        key: builtins.str
-        @property
-        def value(self) -> wandb.proto.wandb_internal_pb2.OperationStats: ...
-        def __init__(
-            self,
-            *,
-            key: builtins.str = ...,
-            value: wandb.proto.wandb_internal_pb2.OperationStats | None = ...,
-        ) -> None: ...
-        def HasField(self, field_name: typing.Literal["value", b"value"]) -> builtins.bool: ...
-        def ClearField(self, field_name: typing.Literal["key", b"key", "value", b"value"]) -> None: ...
-
     STATS_FIELD_NUMBER: builtins.int
     NEW_MESSAGES_FIELD_NUMBER: builtins.int
     @property
-    def stats(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, wandb.proto.wandb_internal_pb2.OperationStats]:
+    def stats(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[wandb.proto.wandb_internal_pb2.OperationStats]:
         """The status of any ongoing work (such as network requests),
-        keyed by the run path (entity/project/id).
+        labeled by the run it's for.
         """
 
     @property
@@ -191,7 +185,7 @@ class ServerSyncStatusResponse(google.protobuf.message.Message):
     def __init__(
         self,
         *,
-        stats: collections.abc.Mapping[builtins.str, wandb.proto.wandb_internal_pb2.OperationStats] | None = ...,
+        stats: collections.abc.Iterable[wandb.proto.wandb_internal_pb2.OperationStats] | None = ...,
         new_messages: collections.abc.Iterable[global___ServerSyncMessage] | None = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing.Literal["new_messages", b"new_messages", "stats", b"stats"]) -> None: ...
@@ -212,6 +206,7 @@ class ServerSyncMessage(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         SEVERITY_NOTSET: ServerSyncMessage._Severity.ValueType  # 0
         SEVERITY_INFO: ServerSyncMessage._Severity.ValueType  # 20
+        SEVERITY_WARNING: ServerSyncMessage._Severity.ValueType  # 30
         SEVERITY_ERROR: ServerSyncMessage._Severity.ValueType  # 40
 
     class Severity(_Severity, metaclass=_SeverityEnumTypeWrapper):
@@ -219,6 +214,7 @@ class ServerSyncMessage(google.protobuf.message.Message):
 
     SEVERITY_NOTSET: ServerSyncMessage.Severity.ValueType  # 0
     SEVERITY_INFO: ServerSyncMessage.Severity.ValueType  # 20
+    SEVERITY_WARNING: ServerSyncMessage.Severity.ValueType  # 30
     SEVERITY_ERROR: ServerSyncMessage.Severity.ValueType  # 40
 
     SEVERITY_FIELD_NUMBER: builtins.int

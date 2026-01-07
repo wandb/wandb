@@ -24,7 +24,7 @@ func TestDebouncesAndInvokesCallback(t *testing.T) {
 
 		writer.OnChanged(1, RunLogsLineForTest("content 1"))
 		writer.OnChanged(2, RunLogsLineForTest("content 2"))
-		time.Sleep(time.Second) // flushes after the debounce period expires
+		time.Sleep(2 * time.Second) // flushes after the debounce period expires
 		writer.OnChanged(3, RunLogsLineForTest("content 3"))
 		writer.Finish() // flushes immediately
 
