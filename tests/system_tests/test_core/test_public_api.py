@@ -85,6 +85,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
                 "project": {
                     "internalId": "testinternalid",
                     "run": {
+                        "__typename": "Run",
                         "id": id,
                         "projectId": project_id,
                         "tags": [],
@@ -93,7 +94,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
                         "state": "finished",
                         "config": json.dumps(config or {}),
                         "group": "test",
-                        "sweep_name": None,
+                        "sweepName": None,
                         "jobType": None,
                         "commit": None,
                         "readOnly": False,
@@ -103,6 +104,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
                         "notes": None,
                         "systemMetrics": "{}",
                         "summaryMetrics": json.dumps(summary_metrics or {}),
+                        "historyKeys": None,
                         "historyLineCount": 0,
                         "user": {
                             "name": "test",
@@ -503,6 +505,7 @@ def test_runs_from_path(user, wandb_backend_spy):
                                 "historyLineCount": 0,
                                 "projectId": "123",
                                 "summaryMetrics": json.dumps(summary_metrics),
+                                "historyKeys": None,
                                 "user": {"name": "test", "username": "test"},
                             },
                         }
@@ -545,6 +548,7 @@ def test_runs_from_path(user, wandb_backend_spy):
                     "config": "{}",
                     "summaryMetrics": json.dumps(summary_metrics),
                     "systemMetrics": "{}",
+                    "historyKeys": None,
                     "user": {"name": "test", "username": "test"},
                 },
             },
