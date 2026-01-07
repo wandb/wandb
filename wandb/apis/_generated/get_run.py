@@ -15,11 +15,7 @@ class GetRun(GQLResult):
 
 
 class GetRunProject(GQLResult):
-    run: Optional[GetRunProjectRun]
-
-
-class GetRunProjectRun(RunFragment):
-    pass
+    run: Optional[RunFragment]
 
 
 GetRun.model_rebuild()
