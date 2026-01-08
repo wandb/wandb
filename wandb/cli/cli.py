@@ -2542,13 +2542,14 @@ def ls(path, type):
                 "/".join([kind.entity, kind.project, collection.name]),
                 per_page=1,
             )
-            latest = next(versions, None)
-            if latest is not None:
+            if (latest := next(versions, None)) is not None:
                 wandb.termlog(
                     f"{kind.type:<15s}{latest.updated_at:<15s}{util.to_human_size(latest.size):>15s} {latest.name:<20s}"
                 )
             else:
-                # Collection exists but has no versions
+                # Artifact collection exists but has no versions. This can happen when:
+                # 1. A collection was just created but no artifacts have been logged yet.
+                # 2. All versions within an artifact collection were deleted.
                 wandb.termlog(
                     f"{kind.type:<15s}{'N/A':<15s}{'0 B':>15s} {collection.name:<20s} (no versions)"
                 )
