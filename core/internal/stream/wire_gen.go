@@ -33,7 +33,8 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	coreLogger := streamLogger(streamStreamLoggerFile, settings2, sentry, logLevel)
-	backend := NewBackend(coreLogger, settings2)
+	wbBaseURL := BaseURLFromSettings(coreLogger, settings2)
+	backend := NewBackend(wbBaseURL, coreLogger, settings2)
 	peeker := &observability.Peeker{}
 	client := NewGraphQLClient(backend, settings2, peeker, clientID)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(client, coreLogger)
@@ -73,6 +74,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Settings:           settings2,
 	}
 	fileStreamFactory := &filestream.FileStreamFactory{
+		BaseURL:    wbBaseURL,
 		Logger:     coreLogger,
 		Operations: wandbOperations,
 		Printer:    printer,
@@ -121,7 +123,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 // streaminject.go:
 
 var streamProviders = wire.NewSet(
-	NewStream, wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, flowControlProviders,
+	NewStream, wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), BaseURLFromSettings, featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, flowControlProviders,
 	handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewBackend,
 	NewFileTransferManager,
 	NewGraphQLClient, observability.NewPrinter, provideFileWatcher,

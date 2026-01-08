@@ -1,6 +1,7 @@
 package filestream
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
@@ -134,20 +134,21 @@ func (fs *fileStream) send(
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
-	req := &api.Request{
-		Method: http.MethodPost,
-		Path:   fs.path,
-		Body:   jsonData,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-	}
-
 	op := fs.trackUploadOperation(data)
 	defer op.Finish()
-	req.Context = op.Context(context.Background())
 
-	resp, err := fs.apiClient.Send(req)
+	req, err := http.NewRequestWithContext(
+		op.Context(context.Background()),
+		http.MethodPost,
+		fs.baseURL.JoinPath(fs.path).String(),
+		bytes.NewReader(jsonData),
+	)
+	if err != nil {
+		return fmt.Errorf("filestream: error constructing request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := fs.apiClient.Do(req)
 
 	switch {
 	case err != nil:
@@ -156,9 +157,6 @@ func (fs *fileStream) send(
 			err,
 			resp,
 		)
-	case resp == nil:
-		// Sometimes resp and err can both be nil in retryablehttp's Client.
-		return fmt.Errorf("filestream: nil response and nil error for request to %v", req.Path)
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
@@ -166,9 +164,9 @@ func (fs *fileStream) send(
 		_ = resp.Body.Close()
 
 		return fmt.Errorf(
-			"filestream: failed to upload: %v path=%v: %s",
+			"filestream: failed to upload: %v url=%v: %s",
 			resp.Status,
-			req.Path,
+			req.URL,
 			string(body),
 		)
 	}
