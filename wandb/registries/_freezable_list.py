@@ -71,7 +71,7 @@ class FreezableList(MutableSequence[T]):
     @overload
     def __setitem__(self, index: slice, value: Iterable[T]) -> Never: ...
 
-    def __setitem__(self, index: int | slice, value: Any) -> None | Never:
+    def __setitem__(self, index: int | slice, value: Any) -> None:
         if isinstance(index, slice):
             # Setting slices might affect saved items, disallow for simplicity
             raise TypeError(f"{nameof(type(self))!r} does not support slice assignment")
@@ -94,7 +94,7 @@ class FreezableList(MutableSequence[T]):
     @overload
     def __delitem__(self, index: slice) -> Never: ...
 
-    def __delitem__(self, index: int | slice) -> None | Never:
+    def __delitem__(self, index: int | slice) -> None:
         if isinstance(index, slice):
             raise TypeError(f"{nameof(type(self))!r} does not support slice deletion")
 
