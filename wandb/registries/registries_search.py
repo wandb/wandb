@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
     from wandb.apis.public import ArtifactCollection, RetryingClient
-    from wandb.apis.public.registries.registry import Registry
     from wandb.sdk.artifacts._generated import (
         ArtifactMembershipFragment,
         RegistryCollectionFragment,
@@ -30,6 +29,8 @@ if TYPE_CHECKING:
         RegistryConnection,
     )
     from wandb.sdk.artifacts.artifact import Artifact
+
+    from .registry import Registry
 
 
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
@@ -115,8 +116,9 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             raise ValueError("Unexpected response data") from e
 
     def _convert(self, node: RegistryFragment) -> Registry:
-        from wandb.apis.public.registries.registry import Registry
         from wandb.sdk.artifacts._validators import remove_registry_prefix
+
+        from .registry import Registry
 
         return Registry(
             client=self.client,

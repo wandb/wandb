@@ -14,7 +14,7 @@ from hypothesis.strategies import (
     text,
 )
 from pytest import raises
-from wandb.apis.public.registries._freezable_list import FreezableList
+from wandb.registries._freezable_list import FreezableList
 
 T = TypeVar("T")
 

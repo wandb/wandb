@@ -5,9 +5,8 @@ from urllib.parse import quote
 
 import wandb
 from pytest import fixture
-from wandb import Api, Artifact
+from wandb import Api, Artifact, Registry
 from wandb._strutils import nameof
-from wandb.apis.public.registries.registry import Registry
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._generated import (
     ArtifactByName,

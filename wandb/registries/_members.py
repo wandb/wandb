@@ -10,10 +10,9 @@ from typing import Iterable, Literal, Union
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from wandb._strutils import b64decode_ascii, b64encode_ascii, nameof
+from wandb.apis.public.teams import Team
+from wandb.apis.public.users import User
 from wandb.sdk.artifacts._models import ArtifactsBase
-
-from ..teams import Team
-from ..users import User
 
 
 class MemberKind(str, Enum):
