@@ -57,7 +57,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Settings:   settings2,
 	}
 	fileTransferStats := filetransfer.NewFileTransferStats()
-	fileTransferManager := stream.NewFileTransferManager(fileTransferStats, logger, settings2)
+	fileTransferManager := stream.NewFileTransferManager(wbBaseURL, fileTransferStats, logger, settings2)
 	watcher := provideFileWatcher(logger)
 	uploaderFactory := &runfiles.UploaderFactory{
 		FileTransfer: fileTransferManager,

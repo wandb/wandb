@@ -1,7 +1,7 @@
 package filetransfer
 
 import (
-	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -40,13 +40,12 @@ type FileTransfers struct {
 
 // NewFileTransfers creates a new fileTransfers
 func NewFileTransfers(
-	client *retryablehttp.Client,
+	client api.RetryableClient,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
-	extraHeaders map[string]string,
 ) *FileTransfers {
 	// Default transfer for presigned urls.
-	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats, extraHeaders)
+	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
 	// NOTE: Cloud specific handlers are for reference artifacts.
 	// We do NOT pass the extra headers through the vendor specific SDK for now.
 	// See https://docs.wandb.ai/models/artifacts/track-external-files
