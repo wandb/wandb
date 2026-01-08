@@ -26,7 +26,8 @@
   "rust-analyzer.linkedProjects": [
     "./gpu_stats/Cargo.toml",
     "./experimental/rust-sdk/Cargo.toml",
-    "./experimental/rust-sdk/examples/basic/Cargo.toml"
+    "./experimental/rust-sdk/examples/basic/Cargo.toml",
+    "./wandb/vendor/wandb-orjson/Cargo.toml"
   ],
   "python.analysis.autoImportCompletions": false,
   "python.analysis.typeCheckingMode": "off",
