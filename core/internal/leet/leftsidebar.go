@@ -33,7 +33,7 @@ type LeftSidebar struct {
 	activeSection int
 
 	// Filter state.
-	filter Filter
+	filter *Filter
 
 	// Dimensions.
 	height int
@@ -54,6 +54,7 @@ func NewLeftSidebar(config *ConfigManager) *LeftSidebar {
 		runOverview:   NewRunOverview(),
 		sections:      []PagedList{es, cs, ss},
 		activeSection: 0,
+		filter:        NewFilter(),
 	}
 }
 

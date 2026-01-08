@@ -1,4 +1,3 @@
-// model.go
 package leet
 
 import (
@@ -156,12 +155,10 @@ func (m *Model) ShouldRestart() bool {
 func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	switch m.mode {
 	case viewModeWorkspace:
-		// TODO: add logic once filtring is wired up.
 		if m.workspace.IsFiltering() {
 			return false, nil
 		}
 	case viewModeRun:
-		// TODO: add a public help to m.run
 		if m.run.IsFiltering() {
 			return false, nil
 		}

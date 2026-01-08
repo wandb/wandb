@@ -218,12 +218,6 @@ func (m *Run) handleKeyMsg(msg tea.KeyMsg) (*Run, tea.Cmd) {
 	return m, nil
 }
 
-// TODO: move to top model once its keybindings are wired.
-// func (m *RunModel) handleToggleHelp(msg tea.KeyMsg) (*RunModel, tea.Cmd) {
-// 	m.help.Toggle()
-// 	return m, nil
-// }
-
 func (m *Run) handleQuit(msg tea.KeyMsg) (*Run, tea.Cmd) {
 	m.logger.Debug("model: quit requested")
 	if m.reader != nil {

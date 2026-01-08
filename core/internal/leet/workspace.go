@@ -29,7 +29,7 @@ type Workspace struct {
 
 	// TODO: filter for the run selector.
 	// TODO: allow filtering by run properties, e.g. projects or tags.
-	filter Filter
+	filter *Filter
 
 	// Multi‑run metrics state.
 	focus       *Focus
@@ -86,6 +86,7 @@ func NewWorkspace(
 		runsByKey:     make(map[string]*workspaceRun),
 		liveChan:      ch,
 		heartbeatMgr:  NewHeartbeatManager(hbInterval, ch, logger),
+		filter:        NewFilter(),
 	}
 }
 
