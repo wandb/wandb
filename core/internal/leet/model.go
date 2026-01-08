@@ -18,7 +18,7 @@ const (
 type Model struct {
 	mode      viewMode
 	workspace *Workspace
-	run       *RunModel
+	run       *Run
 
 	width, height int
 
@@ -50,7 +50,7 @@ func NewModel(params ModelParams) *Model {
 
 	// If a run file is specified, start in single-run mode.
 	if params.RunFile != "" {
-		m.run = NewRunModel(params.RunFile, params.Config, params.Logger)
+		m.run = NewRun(params.RunFile, params.Config, params.Logger)
 		m.mode = viewModeRun
 	}
 
@@ -214,7 +214,7 @@ func (m *Model) enterRunView() tea.Cmd {
 		return nil
 	}
 
-	m.run = NewRunModel(wandbFile, m.config, m.logger)
+	m.run = NewRun(wandbFile, m.config, m.logger)
 	m.mode = viewModeRun
 
 	// Initialize with current dimensions and start loading.

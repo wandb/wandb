@@ -8,7 +8,7 @@ import (
 type KeyBinding struct {
 	Keys        []string
 	Description string
-	Handler     func(*RunModel, tea.KeyMsg) (*RunModel, tea.Cmd)
+	Handler     func(*Run, tea.KeyMsg) (*Run, tea.Cmd)
 }
 
 // BindingCategory groups related key bindings.
@@ -33,12 +33,12 @@ func KeyBindings() []BindingCategory {
 				{
 					Keys:        []string{"q", "ctrl+c"},
 					Description: "Quit",
-					Handler:     (*RunModel).handleQuit,
+					Handler:     (*Run).handleQuit,
 				},
 				{
 					Keys:        []string{"alt+r"},
 					Description: "Reload run data",
-					Handler:     (*RunModel).handleRestart,
+					Handler:     (*Run).handleRestart,
 				},
 			},
 		},
@@ -48,12 +48,12 @@ func KeyBindings() []BindingCategory {
 				{
 					Keys:        []string{"["},
 					Description: "Toggle left sidebar with run overview",
-					Handler:     (*RunModel).handleToggleLeftSidebar,
+					Handler:     (*Run).handleToggleLeftSidebar,
 				},
 				{
 					Keys:        []string{"]"},
 					Description: "Toggle right sidebar with system metrics",
-					Handler:     (*RunModel).handleToggleRightSidebar,
+					Handler:     (*Run).handleToggleRightSidebar,
 				},
 			},
 		},
@@ -63,22 +63,22 @@ func KeyBindings() []BindingCategory {
 				{
 					Keys:        []string{"N", "pgup"},
 					Description: "Navigate between chart pages",
-					Handler:     (*RunModel).handlePrevPage,
+					Handler:     (*Run).handlePrevPage,
 				},
 				{
 					Keys:        []string{"n", "pgdown"},
 					Description: "Navigate between chart pages",
-					Handler:     (*RunModel).handleNextPage,
+					Handler:     (*Run).handleNextPage,
 				},
 				{
 					Keys:        []string{"alt+N", "alt+pgup"},
 					Description: "Navigate between system metrics pages",
-					Handler:     (*RunModel).handlePrevSystemPage,
+					Handler:     (*Run).handlePrevSystemPage,
 				},
 				{
 					Keys:        []string{"alt+n", "alt+pgdown"},
 					Description: "Navigate between system metrics pages",
-					Handler:     (*RunModel).handleNextSystemPage,
+					Handler:     (*Run).handleNextSystemPage,
 				},
 			},
 		},
@@ -88,12 +88,12 @@ func KeyBindings() []BindingCategory {
 				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",
-					Handler:     (*RunModel).handleEnterMetricsFilter,
+					Handler:     (*Run).handleEnterMetricsFilter,
 				},
 				{
 					Keys:        []string{"ctrl+l"},
 					Description: "Clear active filter",
-					Handler:     (*RunModel).handleClearMetricsFilter,
+					Handler:     (*Run).handleClearMetricsFilter,
 				},
 			},
 		},
@@ -103,12 +103,12 @@ func KeyBindings() []BindingCategory {
 				{
 					Keys:        []string{"o"},
 					Description: "Filter overview items",
-					Handler:     (*RunModel).handleEnterOverviewFilter,
+					Handler:     (*Run).handleEnterOverviewFilter,
 				},
 				{
 					Keys:        []string{"ctrl+k"},
 					Description: "Clear overview filter",
-					Handler:     (*RunModel).handleClearOverviewFilter,
+					Handler:     (*Run).handleClearOverviewFilter,
 				},
 			},
 		},
@@ -118,22 +118,22 @@ func KeyBindings() []BindingCategory {
 				{
 					Keys:        []string{"c"},
 					Description: "Set metrics grid columns",
-					Handler:     (*RunModel).handleConfigMetricsCols,
+					Handler:     (*Run).handleConfigMetricsCols,
 				},
 				{
 					Keys:        []string{"r"},
 					Description: "Set metrics grid rows",
-					Handler:     (*RunModel).handleConfigMetricsRows,
+					Handler:     (*Run).handleConfigMetricsRows,
 				},
 				{
 					Keys:        []string{"C"},
 					Description: "Set system grid columns (Shift+c)",
-					Handler:     (*RunModel).handleConfigSystemCols,
+					Handler:     (*Run).handleConfigSystemCols,
 				},
 				{
 					Keys:        []string{"R"},
 					Description: "Set system grid rows (Shift+r)",
-					Handler:     (*RunModel).handleConfigSystemRows,
+					Handler:     (*Run).handleConfigSystemRows,
 				},
 			},
 		},
@@ -181,8 +181,8 @@ func KeyBindings() []BindingCategory {
 }
 
 // buildKeyMap builds a lookup map from key string to handler.
-func buildKeyMap() map[string]func(*RunModel, tea.KeyMsg) (*RunModel, tea.Cmd) {
-	keyMap := make(map[string]func(*RunModel, tea.KeyMsg) (*RunModel, tea.Cmd))
+func buildKeyMap() map[string]func(*Run, tea.KeyMsg) (*Run, tea.Cmd) {
+	keyMap := make(map[string]func(*Run, tea.KeyMsg) (*Run, tea.Cmd))
 	for _, category := range KeyBindings() {
 		for _, binding := range category.Bindings {
 			for _, key := range binding.Keys {

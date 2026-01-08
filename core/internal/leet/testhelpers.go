@@ -9,64 +9,64 @@ import (
 )
 
 // TestFocusState returns the current focus state
-func (m *RunModel) TestFocusState() *Focus {
+func (m *Run) TestFocusState() *Focus {
 	return m.focus
 }
 
-func (m *RunModel) TestRunID() string {
+func (m *Run) TestRunID() string {
 	return m.leftSidebar.runOverview.runID
 }
 
-func (m *RunModel) TestRunDisplayName() string {
+func (m *Run) TestRunDisplayName() string {
 	return m.leftSidebar.runOverview.displayName
 }
 
-func (m *RunModel) TestRunProject() string {
+func (m *Run) TestRunProject() string {
 	return m.leftSidebar.runOverview.project
 }
 
 // TestRunState returns the current run state
-func (m *RunModel) TestRunState() RunState {
+func (m *Run) TestRunState() RunState {
 	return m.runState
 }
 
 // TestLeftSidebarVisible returns true if the left sidebar is visible
-func (m *RunModel) TestLeftSidebarVisible() bool {
+func (m *Run) TestLeftSidebarVisible() bool {
 	return m.leftSidebar.IsVisible()
 }
 
 // TestSidebarIsFiltering returns true if the sidebar has an active filter
-func (m *RunModel) TestSidebarIsFiltering() bool {
+func (m *Run) TestSidebarIsFiltering() bool {
 	return m.leftSidebar.IsFiltering()
 }
 
 // TestSidebarFilterQuery returns the current sidebar filter query
-func (m *RunModel) TestSidebarFilterQuery() string {
+func (m *Run) TestSidebarFilterQuery() string {
 	return m.leftSidebar.FilterQuery()
 }
 
 // TestGetLeftSidebar returns the left sidebar for testing
-func (m *RunModel) TestGetLeftSidebar() *LeftSidebar {
+func (m *Run) TestGetLeftSidebar() *LeftSidebar {
 	return m.leftSidebar
 }
 
 // TestHandleRecordMsg processes a record message
-func (m *RunModel) TestHandleRecordMsg(msg tea.Msg) (*RunModel, tea.Cmd) {
+func (m *Run) TestHandleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) {
 	return m.handleRecordMsg(msg)
 }
 
 // TestHandleChartGridClick handles a click on the main chart grid
-func (m *RunModel) TestHandleChartGridClick(row, col int) {
+func (m *Run) TestHandleChartGridClick(row, col int) {
 	m.metricsGrid.HandleClick(row, col)
 }
 
 // TestSetMainChartFocus sets focus to a main chart
-func (m *RunModel) TestSetMainChartFocus(row, col int) {
+func (m *Run) TestSetMainChartFocus(row, col int) {
 	m.metricsGrid.setFocus(row, col)
 }
 
 // TestClearMainChartFocus clears focus from main charts
-func (m *RunModel) TestClearMainChartFocus() {
+func (m *Run) TestClearMainChartFocus() {
 	m.metricsGrid.clearFocus()
 }
 

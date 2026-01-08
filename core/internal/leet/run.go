@@ -12,17 +12,17 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-// RunModel holds data/state related to a single W&B run.
+// Run holds data/state related to a single W&B run.
 //
 // Implements tea.Model.
 // It coordinates the main metrics grid, sidebars, help screen, and data loading.
-type RunModel struct {
+type Run struct {
 	// Serialize access to Update / broad model state.
 	stateMu sync.RWMutex
 
 	// Configuration and key bindings.
 	config *ConfigManager
-	keyMap map[string]func(*RunModel, tea.KeyMsg) (*RunModel, tea.Cmd)
+	keyMap map[string]func(*Run, tea.KeyMsg) (*Run, tea.Cmd)
 
 	// Terminal dimensions.
 	width, height int
@@ -72,11 +72,11 @@ type RunModel struct {
 	logger *observability.CoreLogger
 }
 
-func NewRunModel(
+func NewRun(
 	runPath string,
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
-) *RunModel {
+) *Run {
 	logger.Info(fmt.Sprintf("model: creating new run model for runPath: %s", runPath))
 
 	if cfg == nil {
@@ -89,7 +89,7 @@ func NewRunModel(
 	focus := NewFocus()
 	ch := make(chan tea.Msg, 4096)
 
-	return &RunModel{
+	return &Run{
 		config:       cfg,
 		keyMap:       buildKeyMap(),
 		focus:        focus,
@@ -107,7 +107,7 @@ func NewRunModel(
 // Init initializes the model and returns the initial command.
 //
 // Implements tea.Model.Init.
-func (m *RunModel) Init() tea.Cmd {
+func (m *Run) Init() tea.Cmd {
 	m.logger.Debug("model: Init called")
 	return tea.Batch(
 		windowTitleCmd(),
@@ -119,7 +119,7 @@ func (m *RunModel) Init() tea.Cmd {
 // Update handles incoming events and updates the model accordingly.
 //
 // Implements tea.Model.Update.
-func (m *RunModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer m.logPanic("Update")
 	defer timeit(m.logger, "Model.Update")()
 	m.stateMu.Lock()
@@ -166,7 +166,7 @@ func (m *RunModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleWindowResize handles window resize messages.
-func (m *RunModel) handleWindowResize(msg tea.WindowSizeMsg) {
+func (m *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 	m.width, m.height = msg.Width, msg.Height
 
 	m.leftSidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
@@ -188,7 +188,7 @@ func isUIMsg(msg tea.Msg) bool {
 }
 
 // dispatch routes message types to appropriate handlers.
-func (m *RunModel) dispatch(msg tea.Msg) []tea.Cmd {
+func (m *Run) dispatch(msg tea.Msg) []tea.Cmd {
 	switch t := msg.(type) {
 	case InitMsg:
 		return m.handleInit(t)
@@ -214,7 +214,7 @@ func (m *RunModel) dispatch(msg tea.Msg) []tea.Cmd {
 }
 
 // FocusedTitle returns the title of the currently focused chart.
-func (m *RunModel) FocusedTitle() string {
+func (m *Run) FocusedTitle() string {
 	if m.focus.Type != FocusNone {
 		return m.focus.Title
 	}
@@ -224,7 +224,7 @@ func (m *RunModel) FocusedTitle() string {
 // View renders the UI based on the data in the model.
 //
 // Implements tea.Model.View.
-func (m *RunModel) View() string {
+func (m *Run) View() string {
 	defer m.logPanic("View")
 
 	m.stateMu.RLock()
@@ -242,7 +242,7 @@ func (m *RunModel) View() string {
 }
 
 // renderMainView renders the main application view.
-func (m *RunModel) renderMainView() string {
+func (m *Run) renderMainView() string {
 	layout := m.computeViewports()
 	dims := m.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
 	gridView := m.metricsGrid.View(dims)
@@ -273,7 +273,7 @@ func (m *RunModel) renderMainView() string {
 }
 
 // buildMainViewWithSidebars builds the main view with sidebars.
-func (m *RunModel) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth int) string {
+func (m *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth int) string {
 	if leftWidth == 0 && rightWidth == 0 {
 		return gridView
 	}
@@ -296,12 +296,12 @@ func (m *RunModel) buildMainViewWithSidebars(gridView string, leftWidth, rightWi
 }
 
 // ShouldRestart reports whether the user requested a full restart.
-func (m *RunModel) ShouldRestart() bool {
+func (m *Run) ShouldRestart() bool {
 	return m.shouldRestart
 }
 
 // logPanic logs panics to the logger before re-panicking.
-func (m *RunModel) logPanic(context string) {
+func (m *Run) logPanic(context string) {
 	if r := recover(); r != nil {
 		stackTrace := string(debug.Stack())
 		m.logger.CaptureError(
@@ -312,12 +312,12 @@ func (m *RunModel) logPanic(context string) {
 }
 
 // isRunning returns whether the run is currently active.
-func (m *RunModel) isRunning() bool {
+func (m *Run) isRunning() bool {
 	return m.runState == RunStateRunning
 }
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen.
-func (m *RunModel) renderLoadingScreen() string {
+func (m *Run) renderLoadingScreen() string {
 	artStyle := lipgloss.NewStyle().
 		Foreground(colorHeading).
 		Bold(true)
@@ -341,7 +341,7 @@ func (m *RunModel) renderLoadingScreen() string {
 }
 
 // renderStatusBar creates the status bar.
-func (m *RunModel) renderStatusBar() string {
+func (m *Run) renderStatusBar() string {
 	statusText := m.buildStatusText()
 	helpText := m.buildHelpText()
 
@@ -358,7 +358,7 @@ func (m *RunModel) renderStatusBar() string {
 }
 
 // buildStatusText builds the main status text.
-func (m *RunModel) buildStatusText() string {
+func (m *Run) buildStatusText() string {
 	if m.leftSidebar.IsFilterMode() {
 		return m.buildOverviewFilterStatus()
 	}
@@ -375,7 +375,7 @@ func (m *RunModel) buildStatusText() string {
 }
 
 // buildOverviewFilterStatus builds status for overview filter mode.
-func (m *RunModel) buildOverviewFilterStatus() string {
+func (m *Run) buildOverviewFilterStatus() string {
 	filterInfo := m.leftSidebar.FilterInfo()
 	if filterInfo == "" {
 		filterInfo = "no matches"
@@ -392,7 +392,7 @@ func (m *RunModel) buildOverviewFilterStatus() string {
 // buildMetricsFilterStatus builds status for metrics filter mode.
 //
 // Should be guarded by the caller's check that filter input is active.
-func (m *RunModel) buildMetricsFilterStatus() string {
+func (m *Run) buildMetricsFilterStatus() string {
 	return fmt.Sprintf(
 		"Filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
 		m.metricsGrid.FilterMode().String(),
@@ -402,7 +402,7 @@ func (m *RunModel) buildMetricsFilterStatus() string {
 }
 
 // buildLoadingStatus builds status for loading mode.
-func (m *RunModel) buildLoadingStatus() string {
+func (m *Run) buildLoadingStatus() string {
 	if m.recordsLoaded > 0 {
 		return fmt.Sprintf("Loading data... [%d records, %d metrics]",
 			m.recordsLoaded, m.metricsGrid.ChartCount())
@@ -411,7 +411,7 @@ func (m *RunModel) buildLoadingStatus() string {
 }
 
 // buildActiveStatus builds status for active (non-loading, non-filter) mode.
-func (m *RunModel) buildActiveStatus() string {
+func (m *Run) buildActiveStatus() string {
 	var parts []string
 
 	// Add filter info if active.
@@ -453,14 +453,14 @@ func (m *RunModel) buildActiveStatus() string {
 }
 
 // buildHelpText builds the help text for the status bar.
-func (m *RunModel) buildHelpText() string {
+func (m *Run) buildHelpText() string {
 	if m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode() {
 		return ""
 	}
 	return "h: help"
 }
 
-func (m *RunModel) IsFiltering() bool {
+func (m *Run) IsFiltering() bool {
 	return m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode()
 }
 
@@ -473,7 +473,7 @@ type Layout struct {
 }
 
 // computeViewports returns (leftW, contentW, rightW, contentH).
-func (m *RunModel) computeViewports() Layout {
+func (m *Run) computeViewports() Layout {
 	leftW := m.leftSidebar.Width()
 	rightW := m.rightSidebar.Width()
 
@@ -486,7 +486,7 @@ func (m *RunModel) computeViewports() Layout {
 // Cleanup releases resources held by the RunModel.
 //
 // Called when switching to workspace view.
-func (m *RunModel) Cleanup() {
+func (m *Run) Cleanup() {
 	m.stateMu.Lock()
 	defer m.stateMu.Unlock()
 
