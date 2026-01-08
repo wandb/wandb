@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+# Copyright ijl (2023-2025)
+
+import multiprocessing.pool
+import sys
+
+import orjson
+
+NUM_PROC = 16
+
+TEST_MESSAGE = "parallel import of orjson running..."
+
+
+class Custom:
+    pass
+
+
+def default(_):
+    return None
+
+
+def func(_):
+    orjson.dumps(Custom(), option=orjson.OPT_SERIALIZE_NUMPY, default=default)
+    orjson.loads(b'{"a":1,"b":2,"c":3}')
+
+
+def main():
+    sys.stdout.write(TEST_MESSAGE)
+    sys.stdout.flush()
+    with multiprocessing.pool.ThreadPool(processes=NUM_PROC) as pool:
+        pool.map(func, (i for i in range(NUM_PROC)))
+    sys.stdout.write(f"\r{TEST_MESSAGE} ok\n")
+    sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()

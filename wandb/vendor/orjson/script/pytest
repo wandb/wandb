@@ -1,0 +1,3 @@
+#!/bin/sh -e
+
+PYTHONMALLOC="debug" pytest -s test

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -eou pipefail
+
+export UNSAFE_PYO3_BUILD_FREE_THREADED=1
+export UNSAFE_PYO3_SKIP_VERSION_CHECK=1
+
+RUSTFLAGS="-Z unstable-options -C panic=immediate-abort -Z panic_abort_tests" cargo "$@" --target="${TARGET:-x86_64-unknown-linux-gnu}"

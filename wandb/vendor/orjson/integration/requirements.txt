@@ -1,0 +1,3 @@
+flask;sys_platform!="win"
+gunicorn;sys_platform!="win"
+httpx==0.28.1;sys_platform!="win"

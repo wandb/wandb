@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+# Copyright ijl (2020-2025), Nazar Kostetskyi (2022), Aarni Koskela (2021)
+
+import gc
+import io
+import json
+import os
+import sys
+import time
+from timeit import timeit
+
+import numpy as np
+import psutil
+from tabulate import tabulate
+
+import orjson
+
+if hasattr(os, "sched_setaffinity"):
+    os.sched_setaffinity(os.getpid(), {0, 1})
+
+
+kind = sys.argv[1] if len(sys.argv) >= 1 else ""
+
+
+if kind == "float16":
+    dtype = np.float16
+    array = np.random.random(size=(50000, 100)).astype(dtype)
+elif kind == "float32":
+    dtype = np.float32
+    array = np.random.random(size=(50000, 100)).astype(dtype)
+elif kind == "float64":
+    dtype = np.float64
+    array = np.random.random(size=(50000, 100))
+    assert array.dtype == np.float64
+elif kind == "bool":
+    dtype = np.bool_
+    array = np.random.choice((True, False), size=(100000, 200))
+elif kind == "int8":
+    dtype = np.int8
+    array = np.random.randint(((2**7) - 1), size=(100000, 100), dtype=dtype)
+elif kind == "int16":
+    dtype = np.int16
+    array = np.random.randint(((2**15) - 1), size=(100000, 100), dtype=dtype)
+elif kind == "int32":
+    dtype = np.int32
+    array = np.random.randint(((2**31) - 1), size=(100000, 100), dtype=dtype)
+elif kind == "uint8":
+    dtype = np.uint8
+    array = np.random.randint(((2**8) - 1), size=(100000, 100), dtype=dtype)
+elif kind == "uint16":
+    dtype = np.uint16
+    array = np.random.randint(((2**16) - 1), size=(100000, 100), dtype=dtype)
+elif kind == "uint32":
+    dtype = np.uint32
+    array = np.random.randint(((2**31) - 1), size=(100000, 100), dtype=dtype)
+else:
+    print(
+        "usage: pynumpy (bool|int16|int32|float16|float32|float64|int8|uint8|uint16|uint32)",
+    )
+    sys.exit(1)
+proc = psutil.Process()
+
+
+def default(__obj):
+    if isinstance(__obj, np.ndarray):
+        return __obj.tolist()
+    raise TypeError
+
+
+headers = ("Library", "Latency (ms)", "RSS diff (MiB)", "vs. orjson")
+
+LIBRARIES = ("orjson", "json")
+
+ITERATIONS = 10
+
+
+def orjson_dumps():
+    return orjson.dumps(array, option=orjson.OPT_SERIALIZE_NUMPY)
+
+
+def json_dumps():
+    return json.dumps(array, default=default).encode("utf-8")
+
+
+output_in_mib = len(orjson_dumps()) / 1024 / 1024
+
+print(f"{output_in_mib:,.1f}MiB {kind} output (orjson)")
+
+gc.collect()
+mem_before = proc.memory_full_info().rss / 1024 / 1024
+
+
+def per_iter_latency(val):
+    if val is None:
+        return None
+    return (val * 1000) / ITERATIONS
+
+
+def test_correctness(func):
+    return np.array_equal(array, np.array(orjson.loads(func()), dtype=dtype))
+
+
+table = []
+for lib_name in LIBRARIES:
+    gc.collect()
+
+    print(f"{lib_name}...")
+    func = locals()[f"{lib_name}_dumps"]
+    if func is None:
+        total_latency = None
+        latency = None
+        mem = None
+        correct = False
+    else:
+        total_latency = timeit(
+            func,
+            number=ITERATIONS,
+        )
+        latency = per_iter_latency(total_latency)
+        time.sleep(1)
+        mem = 0  # todo
+        correct = test_correctness(func)
+
+    if lib_name == "orjson":
+        compared_to_orjson = 1
+        orjson_latency = latency
+    elif latency:
+        compared_to_orjson = latency / orjson_latency
+    else:
+        compared_to_orjson = None
+
+    if not correct:
+        latency = None
+        mem = 0
+
+    mem_diff = mem - mem_before
+
+    table.append(
+        (
+            lib_name,
+            f"{latency:,.0f}" if latency else "",
+            f"{mem_diff:,.0f}" if mem else "",
+            f"{compared_to_orjson:,.1f}" if (latency and compared_to_orjson) else "",
+        ),
+    )
+
+buf = io.StringIO()
+buf.write(tabulate(table, headers, tablefmt="github"))
+buf.write("\n")
+
+print(buf.getvalue())

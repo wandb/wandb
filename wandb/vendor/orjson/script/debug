@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+set -eou pipefail
+
+rm -rf .cargo
+rm -f ${CARGO_TARGET_DIR}/wheels/*.whl
+
+export UNSAFE_PYO3_BUILD_FREE_THREADED=1
+export UNSAFE_PYO3_SKIP_VERSION_CHECK=1
+
+export CC="${CC:-clang}"
+export LD="${LD:-lld}"
+export TARGET="${TARGET:-x86_64-unknown-linux-gnu}"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}"
+
+export CFLAGS="-Os -fstrict-aliasing"
+
+export RUSTFLAGS="-C panic=unwind -C linker=${CC} -C link-arg=-fuse-ld=${LD}"
+
+maturin build --profile=dev --target="${TARGET}"
+
+uv pip install ${CARGO_TARGET_DIR}/wheels/*.whl
+
+pytest -v test
+
+mkdir .cargo
+cp ci/config.toml .cargo

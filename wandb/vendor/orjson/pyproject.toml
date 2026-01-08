@@ -1,0 +1,102 @@
+[project]
+name = "orjson"
+version = "3.11.5"
+repository = "https://github.com/ijl/orjson"
+description = "Fast, correct Python JSON library supporting dataclasses, datetimes, and numpy"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python",
+    "Programming Language :: Rust",
+    "Typing :: Typed",
+]
+readme = "README.md"
+license = "Apache-2.0 OR MIT"
+
+[project.urls]
+source = "https://github.com/ijl/orjson"
+documentation = "https://github.com/ijl/orjson"
+changelog = "https://github.com/ijl/orjson/blob/master/CHANGELOG.md"
+
+[build-system]
+build-backend = "maturin"
+requires = ["maturin>=1,<2"]
+
+[tool.maturin]
+python-source = "pysrc"
+include = [
+    { format = "sdist", path = ".cargo/*" },
+    { format = "sdist", path = "build.rs" },
+    { format = "sdist", path = "Cargo.lock" },
+    { format = "sdist", path = "include/cargo/**/*" },
+    { format = "sdist", path = "include/yyjson/**/*" },
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "A",
+    "ASYNC",
+    "B",
+    "COM",
+    "DTZ",
+    "E",
+    "EXE",
+    "F",
+    "FLY",
+    "I",
+    "ISC",
+    "PIE",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "RUF",
+    "TCH",
+    "TID",
+    "UP",
+    "W",
+]
+ignore = [
+    "B005", # Using `.strip()` with multi-character strings is misleading
+    "DTZ001", # `datetime.datetime()` called without a `tzinfo` argument
+    "DTZ005", # `datetime.datetime.now()` called without a `tz` argument
+    "E402", # Module level import not at top of file
+    "E501", # line too long
+    "F601", # Dictionary key literal ... repeated
+    "PIE810", # Call `startswith` once with a `tuple`
+    "PLR2004", # Magic value used in comparison
+    "UP012", # Unnecessary call to encode as UTF-8
+]
+
+[tool.pytest]
+minversion = "9.0"
+strict = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["orjson"]
+
+[tool.mypy]
+python_version = "3.9"
+
+[[tool.mypy.overrides]]
+module = ["dateutil", "pytz"]
+ignore_missing_imports = true
