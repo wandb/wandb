@@ -10,20 +10,11 @@ import (
 )
 
 func (client *clientImpl) Do(req *retryablehttp.Request) (*http.Response, error) {
-	if !client.isToWandb(req) {
-		if client.logger != nil {
-			client.logger.Warn(
-				fmt.Sprintf(
-					"api: unexpected request through W&B HTTP client: %v",
-					req.URL,
-				),
-			)
-		}
-
+	if client.isToWandb(req) {
+		return client.sendToWandbBackend(req)
+	} else {
 		return client.send(req)
 	}
-
-	return client.sendToWandbBackend(req)
 }
 
 // Returns whether the request would go to the W&B backend.
