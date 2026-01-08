@@ -33,3 +33,5 @@ This version removes the legacy, deprecated `wandb.beta.workflows` module, inclu
 - Fixed CLI error when listing empty artifacts (@ruhiparvatam in https://github.com/wandb/wandb/pull/11157)
 - Fixed regression for calling `api.run()` on a Sweeps run (@willtryagain in https://github.com/wandb/wandb/pull/11088 and @kelu-wandb in https://github.com/wandb/wandb/pull/11097)
 - Fixed the "View run at" message printed at the end of a run which sometimes did not include a URL (@timoffex in https://github.com/wandb/wandb/pull/11113)
+- Fixed `artifact.add_reference("gs://...")` to use `list_blobs` instead of `get_blob` when tracking external files on Google Cloud Storage, except when accessing public buckets with anonymous credentials.
+(@pingleiwandb in https://github.com/wandb/wandb/pull/11145)

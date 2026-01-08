@@ -121,10 +121,12 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
 
 def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True):
     class Blob:
-        def __init__(self, name=override_blob_name, metadata=None, generation=None):
+        def __init__(
+            self, name: str = override_blob_name, metadata=None, generation: int = 1
+        ):
             self.md5_hash = "1234567890abcde" if hash else None
             self.etag = "1234567890abcde"
-            self.generation = generation or "1"
+            self.generation = generation
             self.name = name
             self.size = 10
 
@@ -142,17 +144,34 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
                 else Blob(generation=kwargs.get("generation"))
             )
 
+        # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_list_blobs
         def list_blobs(self, *args, **kwargs):
+            versions: bool = kwargs.get("versions", False)
+            prefix: str = kwargs.get("prefix", "")
+            # For versioned lookups, return blobs with different generations
+            if versions and prefix == override_blob_name:
+                return [
+                    Blob(name=override_blob_name, generation=1),
+                    Blob(name=override_blob_name, generation=2),
+                    Blob(name=override_blob_name, generation=3),
+                ]
+            # For directory paths (ends with /)
             if override_blob_name.endswith("/"):
                 return [
                     Blob(name=override_blob_name),
                     Blob(name=os.path.join(override_blob_name, "my_other_object.pb")),
                 ]
-            else:
+            # For single file lookup (prefix matches exact filename)
+            if prefix == override_blob_name and not path:
+                return [Blob(name=override_blob_name)]
+            # For directory listing (path=True means treat as directory)
+            if path or prefix == "":
                 return [
-                    Blob(name=override_blob_name),
+                    Blob(name="my_object.pb"),
                     Blob(name="my_other_object.pb"),
                 ]
+            # Default: return just the matching blob
+            return [Blob(name=override_blob_name)]
 
     class GSClient:
         def bucket(self, bucket):
@@ -881,7 +900,7 @@ def test_add_gs_reference_object(artifact):
         "my_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
     }
@@ -911,7 +930,7 @@ def test_add_gs_reference_object_with_version(artifact):
         "my_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "2"},
+            "extra": {"versionID": 2},
             "size": 10,
         },
     }
@@ -927,7 +946,7 @@ def test_add_gs_reference_object_with_name(artifact):
         "renamed.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
     }
@@ -943,18 +962,18 @@ def test_add_gs_reference_path(capsys, artifact):
         "my_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
         "my_other_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_other_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
     }
     _, err = capsys.readouterr()
-    assert "Generating checksum" in err
+    assert "Added 2 objects" in err
 
 
 def test_add_gs_reference_object_no_md5(artifact):
@@ -967,7 +986,7 @@ def test_add_gs_reference_object_no_md5(artifact):
         "my_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
     }
@@ -985,7 +1004,7 @@ def test_add_gs_reference_with_dir_paths(artifact):
         "my_other_object.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_folder/my_other_object.pb",
-            "extra": {"versionID": "1"},
+            "extra": {"versionID": 1},
             "size": 10,
         },
     }

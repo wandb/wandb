@@ -149,11 +149,25 @@ class GCSHandler(StorageHandler):
         checksum: bool = True,
         max_objects: int | None = None,
     ) -> list[ArtifactManifestEntry]:
+        # google-cloud-storage is optional dependency that requires
+        # pip install wandb[gcp]. Importing these modules at top of file
+        # breaks users doing pip install wandb without [gcp].
+        from google.api_core.exceptions import (  # type: ignore[import-not-found]
+            GoogleAPICallError,
+        )
+        from google.auth.exceptions import (  # type: ignore[import-not-found]
+            GoogleAuthError,
+        )
+
         client = self.init_gcs()
 
         # After parsing any query params / fragments for additional context,
         # such as version identifiers, pare down the path to just the bucket
         # and key.
+        # For example: gs://my-bucket/my_object.pb#2
+        # - bucket: my-bucket
+        # - key: my_object.pb
+        # - version: 2
         gcs_path = _GCSPath.from_uri(path)
         path = f"{self._scheme}://{gcs_path.bucket}/{gcs_path.key}"
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
@@ -164,29 +178,66 @@ class GCSHandler(StorageHandler):
             ]
 
         bucket = client.bucket(gcs_path.bucket)
-        obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
-        if (obj is None) and (gcs_path.version is not None):
-            raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
 
-        # HNS buckets store directory markers as blobs, so check the blob name
-        # to see if it represents a directory.
-        with TimedIf(multi := ((obj is None) or obj.name.endswith("/"))):
-            if multi:
-                termlog(
-                    f"Generating checksum for up to {max_objects} objects with prefix {gcs_path.key!r}... ",
-                    newline=False,
-                )
-                objects = bucket.list_blobs(
-                    prefix=gcs_path.key, max_results=max_objects
-                )
-            else:
-                objects = [obj]
+        # Try list_blobs first. Fallback to get_blob for backward compatibility.
+        # Using get_blob is a valid use case for public buckets.
+        # anonymous credentials on public buckets only allows get_blob without list_blobs.
+        #
+        # For our system test, the error comes from anonymous credentials:
+        # google.auth.exceptions.InvalidOperation:
+        # Anonymous credentials cannot be refreshed
+        # For blob client, all the exceptions on operations are based on:
+        # google.api_core.exceptions.GoogleAPICallError
+        #
+        # The fallback can lead to unnessary retries when user does not
+        # have either get or list permission. The performance penalty is limited
+        # because _store_path_via_get only get at most one file.
+        try:
+            return self._store_path_via_list(bucket, gcs_path, path, name, max_objects)
+        except (GoogleAuthError, GoogleAPICallError) as e:
+            logger.warning(f"list_blobs failed, falling back to get_blob: {e}")
+            return self._store_path_via_get(bucket, gcs_path, path, name)
+
+    def _store_path_via_list(
+        self,
+        bucket: storage.Bucket,
+        gcs_path: _GCSPath,
+        path: str,
+        name: StrPath | None,
+        max_objects: int,
+    ) -> list[ArtifactManifestEntry]:
+        with TimedIf(enabled=True):
+            # Return different versions as blobs if user specified a version
+            # https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.client.Client#google_cloud_storage_client_Client_list_blobs
+            objects = bucket.list_blobs(
+                prefix=gcs_path.key,
+                max_results=max_objects,
+                versions=gcs_path.version is not None,
+            )
 
             entries = [
-                self._entry_from_obj(obj, path, name, prefix=gcs_path.key, multi=multi)
+                self._entry_from_obj(obj, path, name, prefix=gcs_path.key)
                 for obj in objects
-                if obj and not obj.name.endswith("/")
+                if obj
+                # Skip folder
+                and not obj.name.endswith("/")
+                # When version specified, require exact key match (old get_blob behavior)
+                # to avoid matching file that only matches the prefix.
+                and (
+                    gcs_path.version is not None
+                    or (
+                        str(obj.generation) == gcs_path.version
+                        and obj.name == gcs_path.key
+                    )
+                )
             ]
+
+        if len(entries) > 1:
+            termlog(f"Added {len(entries)} objects with prefix {gcs_path.key!r}")
+
+        # Error if versioned object doesn't exist
+        if gcs_path.version is not None and len(entries) == 0:
+            raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
 
         if len(entries) > max_objects:
             raise ValueError(
@@ -195,13 +246,37 @@ class GCSHandler(StorageHandler):
 
         return entries
 
+    def _store_path_via_get(
+        self,
+        bucket: storage.Bucket,
+        gcs_path: _GCSPath,
+        path: str,
+        name: StrPath | None,
+    ) -> list[ArtifactManifestEntry]:
+        obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
+
+        if obj is None and gcs_path.version is not None:
+            raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
+
+        if obj is None:
+            # Object doesn't exist or it is a folder.
+            # We cannot list files because we already called list_blobs
+            # before get_blob in _store_path_via_list.
+            return []
+
+        # Filter out directory markers with empty blob
+        if obj.name and obj.name.endswith("/"):
+            return []
+
+        # Single object found
+        return [self._entry_from_obj(obj, path, name, prefix=gcs_path.key)]
+
     def _entry_from_obj(
         self,
         obj: storage.Blob,
         path: str,
         name: StrPath | None = None,
         prefix: str = "",
-        multi: bool = False,
     ) -> ArtifactManifestEntry:
         """Create an ArtifactManifestEntry from a GCS object.
 
@@ -209,33 +284,39 @@ class GCSHandler(StorageHandler):
             obj: The GCS object
             path: The GCS-style path (e.g.: "gs://bucket/file.txt")
             name: The user assigned name, or None if not specified
-            prefix: The prefix to add (will be the same as `path` for directories)
-            multi: Whether or not this is a multi-object add.
+            prefix: The prefix used for listing (same as key for single files)
         """
         uri = _GCSPath.from_uri(path)
 
         # Always use posix paths, since that's what S3 uses.
         posix_key = PurePosixPath(obj.name)  # the bucket key
         posix_path = PurePosixPath(uri.bucket, uri.key)  # path without the scheme
-        posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
+        posix_prefix = PurePosixPath(prefix)  # the prefix used for listing
+
+        # Check if this object is under a directory prefix
+        is_under_prefix = posix_prefix in posix_key.parents
 
         if name is None:
-            # We're adding a directory (prefix), so calculate a relative path.
-            if posix_prefix in posix_key.parents:
+            if is_under_prefix:
+                # Object is under a directory prefix, use relative path
                 posix_name = posix_key.relative_to(posix_prefix)
                 posix_ref = posix_path / posix_name
             else:
+                # Single file, use just the filename
                 posix_name = PurePosixPath(posix_key.name)
                 posix_ref = posix_path
-
-        elif multi:
-            # We're adding a directory with a name override.
+        # FIXME: This breaks when the prefix is not a folder
+        # also same code is copy pased in s3_hander.py
+        # azure_handler.py actuall have different logic and has
+        # external contribution in https://github.com/wandb/wandb/pull/7876/changes
+        elif is_under_prefix:
+            # Directory with custom name override
             relpath = posix_key.relative_to(posix_prefix)
             posix_name = PurePosixPath(name) / relpath
             posix_ref = posix_path / relpath
-
         else:
-            posix_name = PurePosixPath(name or "")
+            # Single file with custom name
+            posix_name = PurePosixPath(name)
             posix_ref = posix_path
 
         return ArtifactManifestEntry(
@@ -243,6 +324,8 @@ class GCSHandler(StorageHandler):
             ref=f"{self._scheme}://{posix_ref}",
             digest=obj.etag,
             size=obj.size,
+            # NOTE: gcs returns int for generation
+            # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.blob.Blob#google_cloud_storage_blob_Blob_generation
             extra={"versionID": obj.generation},
         )
 
