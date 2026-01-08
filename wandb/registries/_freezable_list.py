@@ -1,23 +1,13 @@
 from __future__ import annotations
 
 from itertools import chain
-from typing import (
-    Any,
-    Iterable,
-    Iterator,
-    MutableSequence,
-    Sequence,
-    TypeVar,
-    final,
-    overload,
-)
+from typing import Any, Iterable, Iterator, MutableSequence, Sequence, TypeVar, overload
 
 from wandb._strutils import nameof
 
 T = TypeVar("T")
 
 
-@final
 class FreezableList(MutableSequence[T]):
     """A list-like container type that only allows adding new items.
 
@@ -67,20 +57,18 @@ class FreezableList(MutableSequence[T]):
 
     @overload
     def __getitem__(self, index: int) -> T: ...
-
     @overload
-    def __getitem__(self, index: slice) -> Sequence[T]: ...
+    def __getitem__(self, index: slice) -> MutableSequence[T]: ...
 
-    def __getitem__(self, index: int | slice) -> T | Sequence[T]:
-        return [*self._frozen, *self._draft][index]
+    def __getitem__(self, index: int | slice) -> T | MutableSequence[T]:
+        return [*self._frozen, *self._draft][index]  # type: ignore[return-value]
 
     @overload
     def __setitem__(self, index: int, value: T) -> None: ...
-
     @overload
     def __setitem__(self, index: slice, value: Iterable[T]) -> None: ...
 
-    def __setitem__(self, index: int | slice, value: T | Iterable[T]) -> None:
+    def __setitem__(self, index: int | slice, value: Any) -> None:
         if isinstance(index, slice):
             # Setting slices might affect saved items, disallow for simplicity
             raise TypeError(f"{nameof(type(self))!r} does not support slice assignment")

@@ -106,4 +106,4 @@ class MemberId:
     def _from_id(cls, id_: str, /) -> MemberId:
         # Parse the ID to figure out if it's a team or user ID
         kind, index = b64decode_ascii(id_).split(":", maxsplit=1)
-        return cls(kind=kind, index=index)
+        return cls(kind=kind, index=index)  # type: ignore[arg-type]  # Delegate to Pydantic for validation
