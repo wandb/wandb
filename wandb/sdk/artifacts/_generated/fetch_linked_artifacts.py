@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,7 +11,7 @@ from .fragments import ArtifactAliasFragment, CollectionInfoFragment
 
 
 class FetchLinkedArtifacts(GQLResult):
-    artifact: Optional[FetchLinkedArtifactsArtifact]
+    artifact: FetchLinkedArtifactsArtifact | None
 
 
 class FetchLinkedArtifactsArtifact(GQLResult):
@@ -23,17 +21,17 @@ class FetchLinkedArtifactsArtifact(GQLResult):
 
 
 class FetchLinkedArtifactsArtifactArtifactMemberships(GQLResult):
-    edges: List[FetchLinkedArtifactsArtifactArtifactMembershipsEdges]
+    edges: list[FetchLinkedArtifactsArtifactArtifactMembershipsEdges]
 
 
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdges(GQLResult):
-    node: Optional[FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode]
+    node: FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode | None
 
 
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLResult):
-    version_index: Optional[int] = Field(alias="versionIndex")
-    aliases: List[ArtifactAliasFragment]
-    artifact_collection: Optional[CollectionInfoFragment] = Field(
+    version_index: int | None = Field(alias="versionIndex")
+    aliases: list[ArtifactAliasFragment]
+    artifact_collection: CollectionInfoFragment | None = Field(
         alias="artifactCollection"
     )
 

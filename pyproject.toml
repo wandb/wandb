@@ -21,7 +21,7 @@ dependencies = [
     "PyYAML",
     "platformdirs",
     "typing_extensions>=4.8,<5",
-    "pydantic<3",
+    "pydantic>=2,<3",
     "eval_type_backport; python_version < '3.10'",
     "packaging",
 ]
@@ -231,10 +231,7 @@ split-on-trailing-comma = false
 
 [tool.ruff.lint.pep8-naming]
 classmethod-decorators = [
-    # Allow Pydantic's `@field_validator` to trigger classmethod treatment,
-    # as well as the internal compat implementation.
     "pydantic.field_validator",
-    "wandb._pydantic.field_validator",
 ]
 
 [tool.ruff.lint.pycodestyle]
@@ -282,10 +279,10 @@ ignore-decorators = [
 # TODO: Unignore this lint and add symbols to __all__ instead.
 "**/__init__.py" = ["F401"]
 
-# TODO: Fix UP006, UP007, UP045 in wandb_run.py, then remove ignores here.
+# TODO: Fix these rules, then remove ignores here.
 "wandb/__init__.py" = ["I001"]
-"wandb/__init__.pyi" = ["UP006", "UP007", "UP035", "UP045", "W505"]
-"wandb/__init__.template.pyi" = ["UP006", "UP007", "UP035", "UP045", "D415", "N999"]
+"wandb/__init__.pyi" = ["W505"]
+"wandb/__init__.template.pyi" = ["D415", "N999"]
 
 # TODO: Use f-strings in wandb/apis/public/ for GraphQL statements.
 #   To preserve GraphQL syntax highlighting, add #graphql at the start of
@@ -352,26 +349,8 @@ ignore-decorators = [
 "wandb/**/_generated/**/*.py" = [
     # Generated code names may not respect PEP8.
     "N8",
-
-    # Standard library generics (list[...]) can cause issues with older
-    # Pydantic versions.
-    "UP006",
-
-    # The `X | Y` syntax can cause issues with older python + pydantic versions:
-    # - if `eval_type_backport` is installed, with pydantic < 2.0
-    # - if `eval_type_backport` is not installed, with pydantic < 2.6
-    "UP007",
-    "UP035",
-    "UP045",
 ]
 
-# Pydantic code requires an older style for type annotations.
-"wandb/sdk/wandb_settings.py" = ["UP006", "UP007", "UP035", "UP045"]
-"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP035", "UP045"]
-"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP035", "UP045"]
-"wandb/automations/**" = ["UP006", "UP007", "UP035", "UP045"]
-"wandb/sdk/artifacts/_models/**" = ["UP006", "UP007", "UP035", "UP045"]
-"wandb/_pydantic/**" = ["UP006", "UP007", "UP035", "UP045"]
 
 # TODO: Remove the landfill/ directory.
 "landfill/**" = ["F405", "N806", "D415"]

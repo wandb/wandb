@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import Field
 
@@ -13,36 +13,37 @@ from .fragments import FileFragment, PageInfoFragment
 
 
 class GetArtifactMembershipFiles(GQLResult):
-    project: Optional[GetArtifactMembershipFilesProject]
+    project: GetArtifactMembershipFilesProject | None
 
 
 class GetArtifactMembershipFilesProject(GQLResult):
-    artifact_collection: Optional[
-        GetArtifactMembershipFilesProjectArtifactCollection
-    ] = Field(alias="artifactCollection")
+    artifact_collection: GetArtifactMembershipFilesProjectArtifactCollection | None = (
+        Field(alias="artifactCollection")
+    )
 
 
 class GetArtifactMembershipFilesProjectArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
-    artifact_membership: Optional[
-        GetArtifactMembershipFilesProjectArtifactCollectionArtifactMembership
-    ] = Field(alias="artifactMembership")
+    artifact_membership: (
+        GetArtifactMembershipFilesProjectArtifactCollectionArtifactMembership | None
+    ) = Field(alias="artifactMembership")
 
 
 class GetArtifactMembershipFilesProjectArtifactCollectionArtifactMembership(GQLResult):
-    files: Optional[
+    files: (
         GetArtifactMembershipFilesProjectArtifactCollectionArtifactMembershipFiles
-    ]
+        | None
+    )
 
 
 class GetArtifactMembershipFilesProjectArtifactCollectionArtifactMembershipFiles(
     GQLResult
 ):
-    total_count: Optional[int] = Field(alias="totalCount", default=None)
+    total_count: int | None = Field(alias="totalCount", default=None)
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[
+    edges: list[
         GetArtifactMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges
     ]
 
@@ -50,7 +51,7 @@ class GetArtifactMembershipFilesProjectArtifactCollectionArtifactMembershipFiles
 class GetArtifactMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges(
     GQLResult
 ):
-    node: Optional[FileFragment]
+    node: FileFragment | None
 
 
 GetArtifactMembershipFiles.model_rebuild()

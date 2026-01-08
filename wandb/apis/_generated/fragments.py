@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import Field
 
@@ -13,16 +13,16 @@ from wandb._pydantic import GQLId, GQLResult, Typename
 class ApiKeyFragment(GQLResult):
     id: GQLId
     name: str
-    description: Optional[str]
+    description: str | None
 
 
 class CreatedProjectFragment(GQLResult):
     id: GQLId
     name: str
     entity_name: str = Field(alias="entityName")
-    description: Optional[str]
-    access: Optional[str]
-    views: Optional[str]
+    description: str | None
+    access: str | None
+    views: str | None
 
 
 class LegacySweepFragment(GQLResult):
@@ -30,43 +30,43 @@ class LegacySweepFragment(GQLResult):
     id: GQLId
     name: str
     state: str
-    best_loss: Optional[float] = Field(alias="bestLoss")
+    best_loss: float | None = Field(alias="bestLoss")
     config: str
 
 
 class PageInfoFragment(GQLResult):
     typename__: Typename[Literal["PageInfo"]] = "PageInfo"
-    end_cursor: Optional[str] = Field(alias="endCursor")
+    end_cursor: str | None = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
 class UserFragment(GQLResult):
     id: GQLId
     name: str
-    username: Optional[str]
-    email: Optional[str]
-    admin: Optional[bool]
-    flags: Optional[str]
-    entity: Optional[str]
-    deleted_at: Optional[str] = Field(alias="deletedAt")
-    api_keys: Optional[UserFragmentApiKeys] = Field(alias="apiKeys")
-    teams: Optional[UserFragmentTeams]
+    username: str | None
+    email: str | None
+    admin: bool | None
+    flags: str | None
+    entity: str | None
+    deleted_at: str | None = Field(alias="deletedAt")
+    api_keys: UserFragmentApiKeys | None = Field(alias="apiKeys")
+    teams: UserFragmentTeams | None
 
 
 class UserFragmentApiKeys(GQLResult):
-    edges: List[UserFragmentApiKeysEdges]
+    edges: list[UserFragmentApiKeysEdges]
 
 
 class UserFragmentApiKeysEdges(GQLResult):
-    node: Optional[ApiKeyFragment]
+    node: ApiKeyFragment | None
 
 
 class UserFragmentTeams(GQLResult):
-    edges: List[UserFragmentTeamsEdges]
+    edges: list[UserFragmentTeamsEdges]
 
 
 class UserFragmentTeamsEdges(GQLResult):
-    node: Optional[UserFragmentTeamsEdgesNode]
+    node: UserFragmentTeamsEdgesNode | None
 
 
 class UserFragmentTeamsEdgesNode(GQLResult):
@@ -80,31 +80,31 @@ class ProjectFragment(GQLResult):
     entity_name: str = Field(alias="entityName")
     created_at: str = Field(alias="createdAt")
     is_benchmark: bool = Field(alias="isBenchmark")
-    user: Optional[UserFragment]
+    user: UserFragment | None
 
 
 class SweepFragment(GQLResult):
     typename__: Typename[Literal["Sweep"]] = "Sweep"
     id: GQLId
     name: str
-    display_name: Optional[str] = Field(alias="displayName")
+    display_name: str | None = Field(alias="displayName")
     method: str
     state: str
-    description: Optional[str]
-    best_loss: Optional[float] = Field(alias="bestLoss")
+    description: str | None
+    best_loss: float | None = Field(alias="bestLoss")
     config: str
     created_at: str = Field(alias="createdAt")
-    updated_at: Optional[str] = Field(alias="updatedAt")
+    updated_at: str | None = Field(alias="updatedAt")
     run_count: int = Field(alias="runCount")
-    run_count_expected: Optional[int] = Field(alias="runCountExpected")
+    run_count_expected: int | None = Field(alias="runCountExpected")
 
 
 class UserInfoFragment(GQLResult):
     id: GQLId
     name: str
-    username: Optional[str]
-    email: Optional[str]
-    admin: Optional[bool]
+    username: str | None
+    email: str | None
+    admin: bool | None
 
 
 ApiKeyFragment.model_rebuild()
@@ -112,13 +112,6 @@ CreatedProjectFragment.model_rebuild()
 LegacySweepFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 UserFragment.model_rebuild()
-UserFragmentApiKeys.model_rebuild()
-UserFragmentApiKeysEdges.model_rebuild()
-ApiKeyFragment.model_rebuild()
-UserFragmentTeams.model_rebuild()
-UserFragmentTeamsEdges.model_rebuild()
-UserFragmentTeamsEdgesNode.model_rebuild()
 ProjectFragment.model_rebuild()
-UserFragment.model_rebuild()
 SweepFragment.model_rebuild()
 UserInfoFragment.model_rebuild()

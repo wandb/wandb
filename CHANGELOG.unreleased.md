@@ -18,6 +18,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 This version drops support for Python 3.8.
 
+This version drops support for Pydantic V1.
+
 ### Added
 
 - `owner` property on `wandb.apis.public.Project` to access the project owner's user information. (@jacobromero in https://github.com/wandb/wandb/pull/11278)
@@ -25,6 +27,7 @@ This version drops support for Python 3.8.
 ### Changed
 
 - Python 3.8 is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11198, https://github.com/wandb/wandb/pull/11290, https://github.com/wandb/wandb/pull/11164)
+- Pydantic V1 is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11165)
 
 ### Fixed
 

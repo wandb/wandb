@@ -3,19 +3,17 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
 
 class ArtifactType(GQLResult):
-    project: Optional[ArtifactTypeProject]
+    project: ArtifactTypeProject | None
 
 
 class ArtifactTypeProject(GQLResult):
-    artifact: Optional[ArtifactTypeProjectArtifact]
+    artifact: ArtifactTypeProjectArtifact | None
 
 
 class ArtifactTypeProjectArtifact(GQLResult):

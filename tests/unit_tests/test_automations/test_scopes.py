@@ -1,11 +1,11 @@
-from wandb._pydantic import CompatBaseModel
+from pydantic import BaseModel
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import ArtifactCollectionScope, ProjectScope, ScopeType
 from wandb.automations._generated import TriggerScopeType
 from wandb.automations.scopes import ArtifactCollectionScopeTypes, AutomationScope
 
 
-class HasScope(CompatBaseModel):
+class HasScope(BaseModel):
     scope: AutomationScope
 
 

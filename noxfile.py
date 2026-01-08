@@ -206,31 +206,6 @@ def unit_tests(session: nox.Session) -> None:
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-def unit_tests_pydantic_v1(session: nox.Session) -> None:
-    """Runs a subset of Python unit tests with pydantic v1."""
-    install_wandb(session)
-    install_timed(
-        session,
-        "-r",
-        _requirements_file(session.python),
-    )
-    # force-downgrade pydantic to v1
-    install_timed(session, "pydantic<2")
-
-    run_pytest(
-        session,
-        paths=session.posargs
-        or [
-            "tests/unit_tests/test_wandb_settings.py",
-            "tests/unit_tests/test_wandb_run.py",
-            "tests/unit_tests/test_pydantic_v1_compat.py",
-            "tests/unit_tests/test_artifacts",
-        ],
-        opts={"n": "4"},
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
 def system_tests(session: nox.Session) -> None:
     install_wandb(session)
     install_timed(
@@ -755,8 +730,6 @@ def importer_tests(session: nox.Session, importer: str):
     session.install("-r", _requirements_file(session.python))
     if importer == "wandb":
         session.install(".[workspaces]", "pydantic>=2")
-    elif importer == "mlflow":
-        session.install("pydantic<2")
     session.install(
         "polyfactory",
         "polars<=1.2.1",

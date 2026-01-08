@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import Field
 
@@ -13,32 +13,32 @@ from .fragments import ArtifactFragment, PageInfoFragment
 
 
 class ProjectArtifacts(GQLResult):
-    project: Optional[ProjectArtifactsProject]
+    project: ProjectArtifactsProject | None
 
 
 class ProjectArtifactsProject(GQLResult):
-    artifact_type: Optional[ProjectArtifactsProjectArtifactType] = Field(
+    artifact_type: ProjectArtifactsProjectArtifactType | None = Field(
         alias="artifactType"
     )
 
 
 class ProjectArtifactsProjectArtifactType(GQLResult):
-    artifact_collection: Optional[
-        ProjectArtifactsProjectArtifactTypeArtifactCollection
-    ] = Field(alias="artifactCollection")
+    artifact_collection: (
+        ProjectArtifactsProjectArtifactTypeArtifactCollection | None
+    ) = Field(alias="artifactCollection")
 
 
 class ProjectArtifactsProjectArtifactTypeArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
-    artifacts: Optional[ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts]
+    artifacts: ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts | None
 
 
 class ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts(GQLResult):
     total_count: int = Field(alias="totalCount")
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges]
+    edges: list[ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges]
 
 
 class ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges(GQLResult):

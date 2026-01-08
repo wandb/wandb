@@ -3,13 +3,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 
 class UnlinkArtifact(GQLResult):
-    result: Optional[UnlinkArtifactResult]
+    result: UnlinkArtifactResult | None
 
 
 class UnlinkArtifactResult(GQLResult):

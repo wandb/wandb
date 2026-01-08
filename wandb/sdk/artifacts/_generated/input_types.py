@@ -3,35 +3,31 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLInput
 
 
 class UpsertModelInput(GQLInput):
-    name: Optional[str] = Field(default=None, max_length=128)
-    description: Optional[str] = None
-    id: Optional[str] = None
-    framework: Optional[str] = None
-    entity_name: Optional[str] = Field(alias="entityName", default=None)
-    docker_image: Optional[str] = Field(
-        alias="dockerImage", default=None, max_length=512
-    )
-    repo: Optional[str] = Field(default=None, max_length=256)
-    access: Optional[str] = None
-    views: Optional[str] = None
-    is_benchmark: Optional[bool] = Field(alias="isBenchmark", default=None)
-    linked_benchmark: Optional[GQLId] = Field(alias="linkedBenchmark", default=None)
-    is_published: Optional[bool] = Field(alias="isPublished", default=None)
-    owner: Optional[GQLId] = None
-    allow_all_artifact_types_in_registry: Optional[bool] = Field(
+    name: str | None = Field(default=None, max_length=128)
+    description: str | None = None
+    id: str | None = None
+    framework: str | None = None
+    entity_name: str | None = Field(alias="entityName", default=None)
+    docker_image: str | None = Field(alias="dockerImage", default=None, max_length=512)
+    repo: str | None = Field(default=None, max_length=256)
+    access: str | None = None
+    views: str | None = None
+    is_benchmark: bool | None = Field(alias="isBenchmark", default=None)
+    linked_benchmark: GQLId | None = Field(alias="linkedBenchmark", default=None)
+    is_published: bool | None = Field(alias="isPublished", default=None)
+    owner: GQLId | None = None
+    allow_all_artifact_types_in_registry: bool | None = Field(
         alias="allowAllArtifactTypesInRegistry", default=None
     )
-    rate_limits: Optional[RateLimitsInput] = Field(alias="rateLimits", default=None)
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
-    artifact_types: Optional[List[ArtifactTypeInput]] = Field(
+    rate_limits: RateLimitsInput | None = Field(alias="rateLimits", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
+    artifact_types: list[ArtifactTypeInput] | None = Field(
         alias="artifactTypes", default=None
     )
 
@@ -40,42 +36,42 @@ class RenameProjectInput(GQLInput):
     entity_name: str = Field(alias="entityName")
     old_project_name: str = Field(alias="oldProjectName")
     new_project_name: str = Field(alias="newProjectName")
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class RateLimitsInput(GQLInput):
-    graphql: Optional[int] = None
-    sdk_graphql: Optional[int] = Field(alias="sdkGraphql", default=None)
-    filestream_count: Optional[int] = Field(alias="filestreamCount", default=None)
-    filestream_size: Optional[int] = Field(alias="filestreamSize", default=None)
-    sdk_graphql_query_seconds: Optional[float] = Field(
+    graphql: int | None = None
+    sdk_graphql: int | None = Field(alias="sdkGraphql", default=None)
+    filestream_count: int | None = Field(alias="filestreamCount", default=None)
+    filestream_size: int | None = Field(alias="filestreamSize", default=None)
+    sdk_graphql_query_seconds: float | None = Field(
         alias="sdkGraphqlQuerySeconds", default=None
     )
 
 
 class ArtifactTypeInput(GQLInput):
     name: str = Field(max_length=128, pattern="^[-\\w]+([ ]*[-.\\w]+)*$")
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class UpdateArtifactSequenceInput(GQLInput):
     artifact_sequence_id: GQLId = Field(alias="artifactSequenceID")
-    name: Optional[str] = Field(default=None, max_length=128)
-    description: Optional[str] = None
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    name: str | None = Field(default=None, max_length=128)
+    description: str | None = None
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class MoveArtifactSequenceInput(GQLInput):
     artifact_sequence_id: GQLId = Field(alias="artifactSequenceID")
     destination_artifact_type_name: str = Field(alias="destinationArtifactTypeName")
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class UpdateArtifactPortfolioInput(GQLInput):
     artifact_portfolio_id: GQLId = Field(alias="artifactPortfolioID")
-    name: Optional[str] = Field(default=None, max_length=128)
-    description: Optional[str] = None
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    name: str | None = Field(default=None, max_length=128)
+    description: str | None = None
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class ArtifactAliasInput(GQLInput):
@@ -85,43 +81,41 @@ class ArtifactAliasInput(GQLInput):
 
 class UpdateArtifactInput(GQLInput):
     artifact_id: GQLId = Field(alias="artifactID")
-    description: Optional[str] = None
-    labels: Optional[str] = None
-    aliases: Optional[List[ArtifactAliasInput]] = None
-    tags_to_add: Optional[List[TagInput]] = Field(alias="tagsToAdd", default=None)
-    tags_to_delete: Optional[List[TagInput]] = Field(alias="tagsToDelete", default=None)
-    metadata: Optional[str] = None
-    ttl_duration_seconds: Optional[int] = Field(
-        alias="ttlDurationSeconds", default=None
-    )
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    description: str | None = None
+    labels: str | None = None
+    aliases: list[ArtifactAliasInput] | None = None
+    tags_to_add: list[TagInput] | None = Field(alias="tagsToAdd", default=None)
+    tags_to_delete: list[TagInput] | None = Field(alias="tagsToDelete", default=None)
+    metadata: str | None = None
+    ttl_duration_seconds: int | None = Field(alias="ttlDurationSeconds", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class DeleteArtifactInput(GQLInput):
     artifact_id: GQLId = Field(alias="artifactID")
-    delete_aliases: Optional[bool] = Field(alias="deleteAliases", default=False)
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    delete_aliases: bool | None = Field(alias="deleteAliases", default=False)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class LinkArtifactInput(GQLInput):
-    artifact_id: Optional[GQLId] = Field(alias="artifactID", default=None)
-    artifact_portfolio_id: Optional[GQLId] = Field(
+    artifact_id: GQLId | None = Field(alias="artifactID", default=None)
+    artifact_portfolio_id: GQLId | None = Field(
         alias="artifactPortfolioID", default=None
     )
-    artifact_portfolio_name: Optional[str] = Field(
+    artifact_portfolio_name: str | None = Field(
         alias="artifactPortfolioName", default=None
     )
-    entity_name: Optional[str] = Field(alias="entityName", default=None)
-    project_name: Optional[str] = Field(alias="projectName", default=None)
-    aliases: Optional[List[ArtifactAliasInput]] = None
-    client_id: Optional[GQLId] = Field(alias="clientID", default=None)
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    entity_name: str | None = Field(alias="entityName", default=None)
+    project_name: str | None = Field(alias="projectName", default=None)
+    aliases: list[ArtifactAliasInput] | None = None
+    client_id: GQLId | None = Field(alias="clientID", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class UnlinkArtifactInput(GQLInput):
     artifact_id: GQLId = Field(alias="artifactID")
     artifact_portfolio_id: GQLId = Field(alias="artifactPortfolioID")
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class ArtifactCollectionAliasInput(GQLInput):
@@ -132,19 +126,19 @@ class ArtifactCollectionAliasInput(GQLInput):
 
 
 class AddAliasesInput(GQLInput):
-    aliases: List[ArtifactCollectionAliasInput]
+    aliases: list[ArtifactCollectionAliasInput]
     artifact_id: GQLId = Field(alias="artifactID")
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class DeleteAliasesInput(GQLInput):
-    aliases: List[ArtifactCollectionAliasInput]
+    aliases: list[ArtifactCollectionAliasInput]
     artifact_id: GQLId = Field(alias="artifactID")
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class TagInput(GQLInput):
-    tag_category_name: Optional[str] = Field(
+    tag_category_name: str | None = Field(
         alias="tagCategoryName",
         default=None,
         max_length=128,
@@ -153,34 +147,34 @@ class TagInput(GQLInput):
     tag_name: str = Field(
         alias="tagName", max_length=128, pattern="^[-\\w]+([ ]+[-\\w]+)*$"
     )
-    attributes: Optional[str] = None
+    attributes: str | None = None
 
 
 class CreateArtifactCollectionTagAssignmentsInput(GQLInput):
     entity_name: str = Field(alias="entityName")
     project_name: str = Field(alias="projectName")
     artifact_collection_name: str = Field(alias="artifactCollectionName")
-    tags: List[TagInput] = Field(max_length=20)
-    client_mutation_id: Optional[str] = Field(alias="clientMutationID", default=None)
+    tags: list[TagInput] = Field(max_length=20)
+    client_mutation_id: str | None = Field(alias="clientMutationID", default=None)
 
 
 class DeleteArtifactCollectionTagAssignmentsInput(GQLInput):
     entity_name: str = Field(alias="entityName")
     project_name: str = Field(alias="projectName")
     artifact_collection_name: str = Field(alias="artifactCollectionName")
-    tags: List[TagInput] = Field(max_length=20)
-    client_mutation_id: Optional[str] = Field(alias="clientMutationID", default=None)
+    tags: list[TagInput] = Field(max_length=20)
+    client_mutation_id: str | None = Field(alias="clientMutationID", default=None)
 
 
 class CreateProjectMembersInput(GQLInput):
-    user_ids: Optional[List[GQLId]] = Field(alias="userIds", default=None)
-    team_ids: Optional[List[GQLId]] = Field(alias="teamIds", default=None)
+    user_ids: list[GQLId] | None = Field(alias="userIds", default=None)
+    team_ids: list[GQLId] | None = Field(alias="teamIds", default=None)
     project_id: GQLId = Field(alias="projectId")
 
 
 class DeleteProjectMembersInput(GQLInput):
-    user_ids: Optional[List[GQLId]] = Field(alias="userIds", default=None)
-    team_ids: Optional[List[GQLId]] = Field(alias="teamIds", default=None)
+    user_ids: list[GQLId] | None = Field(alias="userIds", default=None)
+    team_ids: list[GQLId] | None = Field(alias="teamIds", default=None)
     project_id: GQLId = Field(alias="projectId")
 
 
@@ -188,14 +182,14 @@ class UpdateProjectMemberInput(GQLInput):
     user_id: GQLId = Field(alias="userId")
     project_id: GQLId = Field(alias="projectId")
     user_project_role: str = Field(alias="userProjectRole")
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 class UpdateProjectTeamMemberInput(GQLInput):
     team_id: GQLId = Field(alias="teamId")
     project_id: GQLId = Field(alias="projectId")
     team_project_role: str = Field(alias="teamProjectRole")
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
 
 
 UpsertModelInput.model_rebuild()

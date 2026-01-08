@@ -2190,13 +2190,16 @@ class Artifact:
                 query = gql(GET_ARTIFACT_FILE_URLS_GQL)
                 gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
                 data = self._client.execute(query, variable_values=gql_vars, timeout=60)
-                result = GetArtifactFileUrls.model_validate(data)
+                legacy_result = GetArtifactFileUrls.model_validate(data)
 
-                if not ((artifact := result.artifact) and (files := artifact.files)):
+                if not (
+                    (artifact := legacy_result.artifact)
+                    and (legacy_files := artifact.files)
+                ):
                     raise ValueError(
                         f"Unable to fetch files for artifact: {self.name!r}"
                     )
-                return FileWithUrlConnection.model_validate(files)
+                return FileWithUrlConnection.model_validate(legacy_files)
 
         return _impl
 
@@ -2582,8 +2585,8 @@ class Artifact:
         if (
             (artifact := result.artifact)
             and (creator := artifact.created_by)
-            and (name := creator.name)
-            and (project := creator.project)
+            and (name := creator.name)  # type: ignore[union-attr]
+            and (project := creator.project)  # type: ignore[union-attr]
         ):
             return Run(client, project.entity.name, project.name, name)
         return None

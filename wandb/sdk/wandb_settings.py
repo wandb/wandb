@@ -13,36 +13,32 @@ import traceback
 from collections.abc import Sequence
 from datetime import datetime
 
-# Optional and Union are used for type hinting instead of | because
-# the latter is not supported in pydantic<2.6 and Python<3.10.
-# Dict, List, and Tuple are used for backwards compatibility
-# with pydantic v1 and Python<3.9.
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+# Optional/Union and Dict/List/Tuple are used for type hinting instead of
+# modern syntax (X | None, dict, list, tuple) due to Pydantic < 2.6 limitations.
+from typing import Any, Literal
 from urllib.parse import quote, unquote
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Self
-
-import wandb
-from wandb import env, util
-from wandb._pydantic import (
-    IS_PYDANTIC_V2,
+from pydantic import (
     AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
     ValidationError,
     computed_field,
     field_validator,
     model_validator,
 )
+from typing_extensions import Self
+
+import wandb
+from wandb import env, util
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.lib import deprecation, settings_file, urls
 
 from .lib import credentials, filesystem, ipython
 from .lib.run_moment import RunMoment
-
-if not IS_PYDANTIC_V2:
-    from pydantic import root_validator
 
 
 def _path_convert(*args: str) -> str:
@@ -107,13 +103,13 @@ class Settings(BaseModel, validate_assignment=True):
     )
     """Deprecated and will be removed."""
 
-    api_key: Optional[str] = None
+    api_key: str | None = None
     """The W&B API key."""
 
-    azure_account_url_to_access_key: Optional[Dict[str, str]] = None
+    azure_account_url_to_access_key: dict[str, str] | None = None
     """Mapping of Azure account URLs to their corresponding access keys for Azure integration."""
 
-    app_url_override: Optional[str] = None
+    app_url_override: str | None = None
     """Override for the 'app' URL for the W&B UI.
 
     The `app_url` is normally computed based on `base_url`, but this can be
@@ -125,10 +121,10 @@ class Settings(BaseModel, validate_assignment=True):
     base_url: str = "https://api.wandb.ai"
     """The URL of the W&B backend for data synchronization."""
 
-    code_dir: Optional[str] = None
+    code_dir: str | None = None
     """Directory containing the code to be tracked by W&B."""
 
-    config_paths: Optional[Sequence[str]] = None
+    config_paths: Sequence[str] | None = None
     """Paths to files to load configuration from into the `Config` object."""
 
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = Field(
@@ -200,38 +196,38 @@ class Settings(BaseModel, validate_assignment=True):
     disable_job_creation: bool = True
     """Whether to disable the creation of a job artifact for W&B Launch."""
 
-    docker: Optional[str] = None
+    docker: str | None = None
     """The Docker image used to execute the script."""
 
-    email: Optional[str] = None
+    email: str | None = None
     """The email address of the user."""
 
-    entity: Optional[str] = None
+    entity: str | None = None
     """The W&B entity, such as a user or a team."""
 
-    organization: Optional[str] = None
+    organization: str | None = None
     """The W&B organization."""
 
     force: bool = False
     """Whether to pass the `force` flag to `wandb.login()`."""
 
-    fork_from: Optional[RunMoment] = None
+    fork_from: RunMoment | None = None
     """Specifies a point in a previous execution of a run to fork from.
 
     The point is defined by the run ID, a metric, and its value.
     Currently, only the metric '_step' is supported.
     """
 
-    git_commit: Optional[str] = None
+    git_commit: str | None = None
     """The git commit hash to associate with the run."""
 
     git_remote: str = "origin"
     """The git remote to associate with the run."""
 
-    git_remote_url: Optional[str] = None
+    git_remote_url: str | None = None
     """The URL of the git remote repository."""
 
-    git_root: Optional[str] = None
+    git_root: str | None = None
     """Root directory of the git repository."""
 
     heartbeat_seconds: int = 30
@@ -240,16 +236,16 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    host: Optional[str] = None
+    host: str | None = None
     """Hostname of the machine running the script."""
 
-    http_proxy: Optional[str] = None
+    http_proxy: str | None = None
     """Custom proxy servers for http requests to W&B."""
 
-    https_proxy: Optional[str] = None
+    https_proxy: str | None = None
     """Custom proxy servers for https requests to W&B."""
 
-    identity_token_file: Optional[str] = None
+    identity_token_file: str | None = None
     """Path to file containing an identity token (JWT) for authentication."""
 
     ignore_globs: Sequence[str] = ()
@@ -261,10 +257,10 @@ class Settings(BaseModel, validate_assignment=True):
     insecure_disable_ssl: bool = False
     """Whether to insecurely disable SSL verification."""
 
-    job_name: Optional[str] = None
+    job_name: str | None = None
     """Name of the Launch job running the script."""
 
-    job_source: Optional[Literal["repo", "artifact", "image"]] = None
+    job_source: Literal["repo", "artifact", "image"] | None = None
     """Source type for Launch."""
 
     label_disable: bool = False
@@ -276,10 +272,10 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    launch_config_path: Optional[str] = None
+    launch_config_path: str | None = None
     """Path to the launch configuration file."""
 
-    login_timeout: Optional[float] = None
+    login_timeout: float | None = None
     """Time in seconds to wait for login operations before timing out."""
 
     mode: Literal["online", "offline", "shared", "disabled", "dryrun", "run"] = Field(
@@ -288,13 +284,13 @@ class Settings(BaseModel, validate_assignment=True):
     )
     """The operating mode for W&B logging and synchronization."""
 
-    notebook_name: Optional[str] = None
+    notebook_name: str | None = None
     """Name of the notebook if running in a Jupyter-like environment."""
 
-    program: Optional[str] = None
+    program: str | None = None
     """Path to the script that created the run, if available."""
 
-    program_abspath: Optional[str] = None
+    program_abspath: str | None = None
     """The absolute path from the root repository directory to the script that
     created the run.
 
@@ -302,24 +298,18 @@ class Settings(BaseModel, validate_assignment=True):
     .git directory, if it exists. Otherwise, it's the current working directory.
     """
 
-    program_relpath: Optional[str] = None
+    program_relpath: str | None = None
     """The relative path to the script that created the run."""
 
-    project: Optional[str] = None
+    project: str | None = None
     """The W&B project ID."""
 
     quiet: bool = False
     """Flag to suppress non-essential output."""
 
-    reinit: Union[
-        Literal[
-            "default",
-            "return_previous",
-            "finish_previous",
-            "create_new",
-        ],
-        bool,
-    ] = "default"
+    reinit: (
+        Literal["default", "return_previous", "finish_previous", "create_new"] | bool
+    ) = "default"
     """What to do when `wandb.init()` is called while a run is active.
 
     Options:
@@ -341,7 +331,7 @@ class Settings(BaseModel, validate_assignment=True):
     relogin: bool = False
     """Flag to force a new login attempt."""
 
-    resume: Optional[Literal["allow", "must", "never", "auto"]] = None
+    resume: Literal["allow", "must", "never", "auto"] | None = None
     """Specifies the resume behavior for the run.
 
     Options:
@@ -355,7 +345,7 @@ class Settings(BaseModel, validate_assignment=True):
        machine.
     """
 
-    resume_from: Optional[RunMoment] = None
+    resume_from: RunMoment | None = None
     """Specifies a point in a previous execution of a run to resume from.
 
     The point is defined by the run ID, a metric, and its value.
@@ -375,34 +365,34 @@ class Settings(BaseModel, validate_assignment=True):
     In particular, this is used to derive the wandb directory and the run directory.
     """
 
-    run_group: Optional[str] = None
+    run_group: str | None = None
     """Group identifier for related runs.
 
     Used for grouping runs in the UI.
     """
 
-    run_id: Optional[str] = None
+    run_id: str | None = None
     """The ID of the run."""
 
-    run_job_type: Optional[str] = None
+    run_job_type: str | None = None
     """Type of job being run (e.g., training, evaluation)."""
 
-    run_name: Optional[str] = None
+    run_name: str | None = None
     """Human-readable name for the run."""
 
-    run_notes: Optional[str] = None
+    run_notes: str | None = None
     """Additional notes or description for the run."""
 
-    run_tags: Optional[Tuple[str, ...]] = None
+    run_tags: tuple[str, ...] | None = None
     """Tags to associate with the run for organization and filtering."""
 
     sagemaker_disable: bool = False
     """Flag to disable SageMaker-specific functionality."""
 
-    save_code: Optional[bool] = None
+    save_code: bool | None = None
     """Whether to save the code associated with the run."""
 
-    settings_system: Optional[str] = None
+    settings_system: str | None = None
     """Path to the system-wide settings file."""
 
     max_end_of_run_history_metrics: int = 10
@@ -411,13 +401,13 @@ class Settings(BaseModel, validate_assignment=True):
     max_end_of_run_summary_metrics: int = 10
     """Maximum number of summary metrics to display at the end of a run."""
 
-    show_colors: Optional[bool] = None
+    show_colors: bool | None = None
     """Whether to use colored output in the console.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    show_emoji: Optional[bool] = None
+    show_emoji: bool | None = None
     """Whether to show emoji in the console output.
 
     <!-- lazydoc-ignore-class-attributes -->
@@ -435,14 +425,14 @@ class Settings(BaseModel, validate_assignment=True):
     silent: bool = False
     """Flag to suppress all output."""
 
-    start_method: Optional[str] = None
+    start_method: str | None = None
     """Method to use for starting subprocesses.
 
     This is deprecated and will be removed in a future release.
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    strict: Optional[bool] = None
+    strict: bool | None = None
     """Whether to enable strict mode for validation and error checking."""
 
     summary_timeout: int = 60
@@ -454,29 +444,29 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    sweep_id: Optional[str] = None
+    sweep_id: str | None = None
     """Identifier of the sweep this run belongs to."""
 
-    sweep_param_path: Optional[str] = None
+    sweep_param_path: str | None = None
     """Path to the sweep parameters configuration."""
 
     symlink: bool = Field(default_factory=lambda: platform.system() != "Windows")
     """Whether to use symlinks (True by default except on Windows)."""
 
-    sync_tensorboard: Optional[bool] = None
+    sync_tensorboard: bool | None = None
     """Whether to synchronize TensorBoard logs with W&B."""
 
     table_raise_on_max_row_limit_exceeded: bool = False
     """Whether to raise an exception when table row limits are exceeded."""
 
-    use_dot_wandb: Optional[bool] = None
+    use_dot_wandb: bool | None = None
     """Whether to use a hidden `.wandb` or visible `wandb` directory for run data.
 
     If True, the SDK uses `.wandb`. If False, `wandb`.
     If not set, defaults to `.wandb` if it already exists, otherwise `wandb`.
     """
 
-    username: Optional[str] = None
+    username: str | None = None
     """Username."""
 
     # Internal settings.
@@ -508,16 +498,16 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_executable: Optional[str] = None
+    x_executable: str | None = None
     """Path to the Python executable.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_extra_http_headers: Optional[Dict[str, str]] = None
+    x_extra_http_headers: dict[str, str] | None = None
     """Additional headers to add to all outgoing HTTP requests."""
 
-    x_file_stream_max_bytes: Optional[int] = None
+    x_file_stream_max_bytes: int | None = None
     """An approximate maximum request size for the filestream API.
 
     Its purpose is to prevent HTTP requests from failing due to
@@ -526,13 +516,13 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_file_stream_max_line_bytes: Optional[int] = None
+    x_file_stream_max_line_bytes: int | None = None
     """Maximum line length for filestream JSONL files.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_file_stream_transmit_interval: Optional[float] = None
+    x_file_stream_transmit_interval: float | None = None
     """Interval in seconds between filestream transmissions.
 
     <!-- lazydoc-ignore-class-attributes -->
@@ -540,25 +530,25 @@ class Settings(BaseModel, validate_assignment=True):
 
     # Filestream retry client configuration.
 
-    x_file_stream_retry_max: Optional[int] = None
+    x_file_stream_retry_max: int | None = None
     """Max number of retries for filestream operations.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_file_stream_retry_wait_min_seconds: Optional[float] = None
+    x_file_stream_retry_wait_min_seconds: float | None = None
     """Minimum wait time between retries for filestream operations.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_file_stream_retry_wait_max_seconds: Optional[float] = None
+    x_file_stream_retry_wait_max_seconds: float | None = None
     """Maximum wait time between retries for filestream operations.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_file_stream_timeout_seconds: Optional[float] = None
+    x_file_stream_timeout_seconds: float | None = None
     """Timeout in seconds for individual filestream HTTP requests.
 
     <!-- lazydoc-ignore-class-attributes -->
@@ -566,31 +556,31 @@ class Settings(BaseModel, validate_assignment=True):
 
     # file transfer retry client configuration
 
-    x_file_transfer_retry_max: Optional[int] = None
+    x_file_transfer_retry_max: int | None = None
     """Max number of retries for file transfer operations.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_file_transfer_retry_wait_min_seconds: Optional[float] = None
+    x_file_transfer_retry_wait_min_seconds: float | None = None
     """Minimum wait time between retries for file transfer operations.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_file_transfer_retry_wait_max_seconds: Optional[float] = None
+    x_file_transfer_retry_wait_max_seconds: float | None = None
     """Maximum wait time between retries for file transfer operations.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_file_transfer_timeout_seconds: Optional[float] = None
+    x_file_transfer_timeout_seconds: float | None = None
     """Timeout in seconds for individual file transfer HTTP requests.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_files_dir: Optional[str] = None
+    x_files_dir: str | None = None
     """Override setting for the computed files_dir.
 
     DEPRECATED, DO NOT USE. This private setting is not respected by wandb-core
@@ -599,14 +589,14 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_flow_control_custom: Optional[bool] = None
+    x_flow_control_custom: bool | None = None
     """Flag indicating custom flow control for filestream.
 
     TODO: Not implemented in wandb-core.
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_flow_control_disabled: Optional[bool] = None
+    x_flow_control_disabled: bool | None = None
     """Flag indicating flow control is disabled for filestream.
 
     TODO: Not implemented in wandb-core.
@@ -615,25 +605,25 @@ class Settings(BaseModel, validate_assignment=True):
 
     # graphql retry client configuration
 
-    x_graphql_retry_max: Optional[int] = None
+    x_graphql_retry_max: int | None = None
     """Max number of retries for GraphQL operations.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_graphql_retry_wait_min_seconds: Optional[float] = None
+    x_graphql_retry_wait_min_seconds: float | None = None
     """Minimum wait time between retries for GraphQL operations.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_graphql_retry_wait_max_seconds: Optional[float] = None
+    x_graphql_retry_wait_max_seconds: float | None = None
     """Maximum wait time between retries for GraphQL operations.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_graphql_timeout_seconds: Optional[float] = None
+    x_graphql_timeout_seconds: float | None = None
     """Timeout in seconds for individual GraphQL requests.
 
     <!-- lazydoc-ignore-class-attributes -->
@@ -645,38 +635,38 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_jupyter_name: Optional[str] = None
+    x_jupyter_name: str | None = None
     """Name of the Jupyter notebook.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_jupyter_path: Optional[str] = None
+    x_jupyter_path: str | None = None
     """Path to the Jupyter notebook.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_jupyter_root: Optional[str] = None
+    x_jupyter_root: str | None = None
     """Root directory of the Jupyter notebook.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_label: Optional[str] = None
+    x_label: str | None = None
     """Label to assign to system metrics and console logs collected for the run.
 
     This is used to group data by on the frontend and can be used to distinguish data
     from different processes in a distributed training job.
     """
 
-    x_live_policy_rate_limit: Optional[int] = None
+    x_live_policy_rate_limit: int | None = None
     """Rate limit for live policy updates in seconds.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_live_policy_wait_time: Optional[int] = None
+    x_live_policy_wait_time: int | None = None
     """Wait time between live policy updates in seconds.
 
     <!-- lazydoc-ignore-class-attributes -->
@@ -688,7 +678,7 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_network_buffer: Optional[int] = None
+    x_network_buffer: int | None = None
     """Size of the network buffer used in flow control.
 
     TODO: Not implemented in wandb-core.
@@ -705,7 +695,7 @@ class Settings(BaseModel, validate_assignment=True):
     as the primary process handles the main logging.
     """
 
-    x_proxies: Optional[Dict[str, str]] = None
+    x_proxies: dict[str, str] | None = None
     """Custom proxy servers for requests to W&B.
 
     This is deprecated and will be removed in a future release.
@@ -713,7 +703,7 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_runqueue_item_id: Optional[str] = None
+    x_runqueue_item_id: str | None = None
     """ID of the Launch run queue item being processed.
 
     <!-- lazydoc-ignore-class-attributes -->
@@ -735,7 +725,7 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_service_transport: Optional[str] = None
+    x_service_transport: str | None = None
     """Transport method for communication with the wandb service.
 
     <!-- lazydoc-ignore-class-attributes -->
@@ -754,7 +744,7 @@ class Settings(BaseModel, validate_assignment=True):
     recoverability.
     """
 
-    x_start_time: Optional[float] = None
+    x_start_time: float | None = None
     """The start time of the run in seconds since the Unix epoch.
 
     <!-- lazydoc-ignore-class-attributes -->
@@ -769,14 +759,14 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_sampling_interval: float = Field(default=15.0)
     """Sampling interval for the system monitor in seconds."""
 
-    x_stats_neuron_monitor_config_path: Optional[str] = None
+    x_stats_neuron_monitor_config_path: str | None = None
     """Path to the default config file for the neuron-monitor tool.
 
     This is used to monitor AWS Trainium devices.
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_stats_dcgm_exporter: Optional[str] = None
+    x_stats_dcgm_exporter: str | None = None
     """Endpoint to extract Nvidia DCGM metrics from.
 
     Options:
@@ -791,12 +781,12 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
-    x_stats_open_metrics_endpoints: Optional[Dict[str, str]] = None
+    x_stats_open_metrics_endpoints: dict[str, str] | None = None
     """OpenMetrics `/metrics` endpoints to monitor for system metrics."""
 
-    x_stats_open_metrics_filters: Union[
-        Dict[str, Dict[str, str]], Sequence[str], None
-    ] = None
+    x_stats_open_metrics_filters: dict[str, dict[str, str]] | Sequence[str] | None = (
+        None
+    )
     """Filter to apply to metrics collected from OpenMetrics `/metrics` endpoints.
 
     Supports two formats:
@@ -804,37 +794,37 @@ class Settings(BaseModel, validate_assignment=True):
      - `("metric regex pattern 1", "metric regex pattern 2", ...)`
     """
 
-    x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
+    x_stats_open_metrics_http_headers: dict[str, str] | None = None
     """HTTP headers to add to OpenMetrics requests."""
 
-    x_stats_disk_paths: Optional[Sequence[str]] = ("/",)
+    x_stats_disk_paths: Sequence[str] | None = ("/",)
     """System paths to monitor for disk usage."""
 
-    x_stats_cpu_count: Optional[int] = None
+    x_stats_cpu_count: int | None = None
     """System CPU count.
 
     If set, overrides the auto-detected value in the run metadata.
     """
 
-    x_stats_cpu_logical_count: Optional[int] = None
+    x_stats_cpu_logical_count: int | None = None
     """Logical CPU count.
 
     If set, overrides the auto-detected value in the run metadata.
     """
 
-    x_stats_gpu_count: Optional[int] = None
+    x_stats_gpu_count: int | None = None
     """GPU device count.
 
     If set, overrides the auto-detected value in the run metadata.
     """
 
-    x_stats_gpu_type: Optional[str] = None
+    x_stats_gpu_type: str | None = None
     """GPU device type.
 
     If set, overrides the auto-detected value in the run metadata.
     """
 
-    x_stats_gpu_device_ids: Optional[Sequence[int]] = None
+    x_stats_gpu_device_ids: Sequence[int] | None = None
     """GPU device indices to monitor.
 
     If not set, the system monitor captures metrics for all GPUs.
@@ -910,60 +900,31 @@ class Settings(BaseModel, validate_assignment=True):
                 new_values[key] = values[key]
         return new_values
 
-    if IS_PYDANTIC_V2:
+    @model_validator(mode="after")
+    def validate_mutual_exclusion_of_branching_args(self) -> Self:
+        """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
 
-        @model_validator(mode="after")
-        def validate_mutual_exclusion_of_branching_args(self) -> Self:
-            """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
+        <!-- lazydoc-ignore: internal -->
+        """
+        if (
+            sum(o is not None for o in [self.fork_from, self.resume, self.resume_from])
+            > 1
+        ):
+            raise ValueError(
+                "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
+                "Please specify only one of them."
+            )
+        return self
 
-            <!-- lazydoc-ignore: internal -->
-            """
-            if (
-                sum(
-                    o is not None
-                    for o in [self.fork_from, self.resume, self.resume_from]
-                )
-                > 1
-            ):
-                raise ValueError(
-                    "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
-                    "Please specify only one of them."
-                )
-            return self
+    @model_validator(mode="after")
+    def validate_skip_transaction_log(self):
+        """Validate x_skip_transaction_log.
 
-        @model_validator(mode="after")
-        def validate_skip_transaction_log(self):
-            """Validate x_skip_transaction_log.
-
-            <!-- lazydoc-ignore: internal -->
-            """
-            if self._offline and self.x_skip_transaction_log:
-                raise ValueError("Cannot skip transaction log in offline mode")
-            return self
-    else:
-
-        @root_validator(pre=False)  # type: ignore [call-overload]
-        @classmethod
-        def validate_mutual_exclusion_of_branching_args(cls, values):
-            if (
-                sum(
-                    values.get(o) is not None
-                    for o in ["fork_from", "resume", "resume_from"]
-                )
-                > 1
-            ):
-                raise ValueError(
-                    "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
-                    "Please specify only one of them."
-                )
-            return values
-
-        @root_validator(pre=False)  # type: ignore [call-overload]
-        @classmethod
-        def validate_skip_transaction_log(cls, values):
-            if values.get("_offline") and values.get("x_skip_transaction_log"):
-                raise ValueError("Cannot skip transaction log in offline mode")
-            return values
+        <!-- lazydoc-ignore: internal -->
+        """
+        if self._offline and self.x_skip_transaction_log:
+            raise ValueError("Cannot skip transaction log in offline mode")
+        return self
 
     # Field validators.
     @field_validator("anonymous", mode="after")
@@ -1099,7 +1060,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("fork_from", mode="before")
     @classmethod
-    def validate_fork_from(cls, value, values) -> Optional[RunMoment]:
+    def validate_fork_from(cls, value, values) -> RunMoment | None:
         """Validate the fork_from field.
 
         <!-- lazydoc-ignore-classmethod: internal -->
@@ -1230,7 +1191,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @field_validator("resume_from", mode="before")
     @classmethod
-    def validate_resume_from(cls, value, values) -> Optional[RunMoment]:
+    def validate_resume_from(cls, value, values) -> RunMoment | None:
         """Validate the resume_from field.
 
         <!-- lazydoc-ignore-classmethod: internal -->
@@ -1491,7 +1452,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def _args(self) -> List[str]:
+    def _args(self) -> list[str]:
         if not self._jupyter:
             return sys.argv[1:]
         return []
@@ -1512,7 +1473,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def _code_path_local(self) -> Optional[str]:
+    def _code_path_local(self) -> str | None:
         """The relative path from the current working directory to the code path.
 
         For example, if the code path is /home/user/project/example.py, and the
@@ -1614,7 +1575,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def colab_url(self) -> Optional[str]:
+    def colab_url(self) -> str | None:
         """The URL to the Colab notebook, if running in Colab."""
         if not self._colab:
             return None
@@ -1848,7 +1809,7 @@ class Settings(BaseModel, validate_assignment=True):
         # them to succeed.
         self.update_from_settings(parsed_settings)
 
-    def update_from_env_vars(self, environ: Dict[str, Any]):
+    def update_from_env_vars(self, environ: dict[str, Any]):
         """Update settings from environment variables.
 
         <!-- lazydoc-ignore: internal -->
@@ -1957,7 +1918,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         self.program = program
 
-    def update_from_dict(self, settings: Dict[str, Any]) -> None:
+    def update_from_dict(self, settings: dict[str, Any]) -> None:
         """Update settings from a dictionary.
 
         <!-- lazydoc-ignore: internal -->
@@ -2046,7 +2007,7 @@ class Settings(BaseModel, validate_assignment=True):
 
         return settings_proto
 
-    def _get_program(self) -> Optional[str]:
+    def _get_program(self) -> str | None:
         """Get the program that started the current process."""
         if self._jupyter:
             # If in a notebook, try to get the program from the notebook metadata.
@@ -2083,7 +2044,7 @@ class Settings(BaseModel, validate_assignment=True):
         return python_args
 
     @staticmethod
-    def _get_program_relpath(program: str, root: Optional[str] = None) -> Optional[str]:
+    def _get_program_relpath(program: str, root: str | None = None) -> str | None:
         """Get the relative path to the program from the root directory."""
         if not program:
             return None
@@ -2119,81 +2080,13 @@ class Settings(BaseModel, validate_assignment=True):
 
     @staticmethod
     def _runmoment_preprocessor(
-        val: Union[RunMoment, str, None],
-    ) -> Optional[RunMoment]:
+        val: RunMoment | str | None,
+    ) -> RunMoment | None:
         """Preprocess the setting for forking or resuming a run."""
         if isinstance(val, RunMoment) or val is None:
             return val
         elif isinstance(val, str):
             return RunMoment.from_uri(val)
-
-    if not IS_PYDANTIC_V2:
-
-        def model_copy(self, *args, **kwargs):
-            return self.copy(*args, **kwargs)
-
-        def model_dump(self, **kwargs):
-            """Compatibility method for Pydantic v1 to mimic v2's model_dump.
-
-            In v1, this is equivalent to dict() but also includes computed properties.
-
-            Args:
-                **kwargs: Options passed to the dict method
-                    - exclude_none: Whether to exclude fields with None values
-
-            Returns:
-                A dictionary of the model's fields and computed properties
-            """
-            # Handle exclude_none separately since it's named differently in v1
-            exclude_none = kwargs.pop("exclude_none", False)
-
-            # Start with regular fields from dict()
-            result = self.dict(**kwargs)
-
-            # Get all computed properties
-            for name in dir(self.__class__):
-                attr = getattr(self.__class__, name, None)
-                if isinstance(attr, property):
-                    try:
-                        # Only include properties that don't raise errors
-                        value = getattr(self, name)
-                        result[name] = value
-                    except (AttributeError, NotImplementedError, TypeError, ValueError):
-                        # Skip properties that can't be accessed or raise errors
-                        pass
-                elif isinstance(attr, RunMoment):
-                    value = getattr(self, name)
-                    result[name] = value
-
-            # Special Pydantic attributes that should always be excluded
-            exclude_fields = {
-                "model_config",
-                "model_fields",
-                "model_fields_set",
-                "__fields__",
-                "__model_fields_set",
-                "__pydantic_self__",
-                "__pydantic_initialised__",
-            }
-
-            # Remove special Pydantic attributes
-            for field in exclude_fields:
-                if field in result:
-                    del result[field]
-
-            if exclude_none:
-                # Remove None values from the result
-                return {k: v for k, v in result.items() if v is not None}
-
-            return result
-
-        @property
-        def model_fields_set(self) -> set:
-            """Return a set of fields that have been explicitly set.
-
-            This is a compatibility property for Pydantic v1 to mimic v2's model_fields_set.
-            """
-            return getattr(self, "__fields_set__", set())
 
     def _setup_code_paths(self, program: str):
         """Sets the program_abspath and program_relpath settings."""

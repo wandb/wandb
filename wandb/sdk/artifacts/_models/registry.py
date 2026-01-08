@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from typing_extensions import Self
 
-from wandb._pydantic import GQLId, field_validator
+from wandb._pydantic import GQLId
 from wandb._strutils import nameof
 from wandb.apis.public.registries._freezable_list import AddOnlyArtifactTypesList
 from wandb.apis.public.registries._utils import Visibility
@@ -29,7 +29,7 @@ class RegistryData(ArtifactsBase):
     created_at: str = Field(frozen=True)
     """When this registry was created."""
 
-    updated_at: Optional[str] = Field(frozen=True)
+    updated_at: str | None = Field(frozen=True)
     """When this registry was last updated."""
 
     organization: str = Field(frozen=True)
@@ -41,7 +41,7 @@ class RegistryData(ArtifactsBase):
     name: str = Field(min_length=1)  # Disallow empty strings
     """The name of the registry without the `wandb-registry-` project prefix."""
 
-    description: Optional[str] = None
+    description: str | None = None
     """The description, if any, of the registry."""
 
     allow_all_artifact_types: bool
