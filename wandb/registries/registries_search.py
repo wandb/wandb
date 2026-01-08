@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     """A lazy iterator of `Registry` objects."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[Document | None] = None  # type: ignore[misc]
     last_response: RegistryConnection | None
 
     def __init__(
@@ -134,7 +134,7 @@ class Collections(
 ):
     """An lazy iterator of `ArtifactCollection` objects in a Registry."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[Document | None] = None  # type: ignore[misc]
     last_response: RegistryCollectionConnection | None
 
     def __init__(

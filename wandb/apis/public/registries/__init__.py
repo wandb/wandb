@@ -17,9 +17,9 @@ __all__ = [
 ]
 
 _DEPRECATION_MESSAGE = (
-    "Importing from 'wandb.apis.public.registries' is deprecated. "
+    "Imports from 'wandb.apis.public.registries' are deprecated "
+    "and will be removed in a future release. "
     "Please use 'wandb.registries' instead. "
-    "This module will be removed in a future release."
 )
 
 

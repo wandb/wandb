@@ -19,7 +19,7 @@ class Visibility(str, Enum):
     restricted = "RESTRICTED"
 
     @classmethod
-    def _missing_(cls, value: object) -> Any:
+    def _missing_(cls, value: Any) -> Any:
         # Allow instantiation from enum names too (e.g. "organization" or "restricted")
         return cls.__members__.get(value)
 
