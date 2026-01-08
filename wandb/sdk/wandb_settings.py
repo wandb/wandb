@@ -13,36 +13,32 @@ import traceback
 from collections.abc import Sequence
 from datetime import datetime
 
-# Optional and Union are used for type hinting instead of | because
-# the latter is not supported in pydantic<2.6 and Python<3.10.
-# Dict, List, and Tuple are used for backwards compatibility
-# with pydantic v1 and Python<3.9.
+# Optional/Union and Dict/List/Tuple are used for type hinting instead of
+# modern syntax (X | None, dict, list, tuple) due to Pydantic < 2.6 limitations.
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from urllib.parse import quote, unquote
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Self
-
-import wandb
-from wandb import env, util
-from wandb._pydantic import (
-    IS_PYDANTIC_V2,
+from pydantic import (
     AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
     ValidationError,
     computed_field,
     field_validator,
     model_validator,
 )
+from typing_extensions import Self
+
+import wandb
+from wandb import env, util
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.lib import deprecation, settings_file, urls
 
 from .lib import credentials, filesystem, ipython
 from .lib.run_moment import RunMoment
-
-if not IS_PYDANTIC_V2:
-    from pydantic import root_validator
 
 
 def _path_convert(*args: str) -> str:
@@ -912,60 +908,31 @@ class Settings(BaseModel, validate_assignment=True):
                 new_values[key] = values[key]
         return new_values
 
-    if IS_PYDANTIC_V2:
+    @model_validator(mode="after")
+    def validate_mutual_exclusion_of_branching_args(self) -> Self:
+        """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
 
-        @model_validator(mode="after")
-        def validate_mutual_exclusion_of_branching_args(self) -> Self:
-            """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if (
+            sum(o is not None for o in [self.fork_from, self.resume, self.resume_from])
+            > 1
+        ):
+            raise ValueError(
+                "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
+                "Please specify only one of them."
+            )
+        return self
 
-            <!-- lazydoc-ignore-classmethod: internal -->
-            """
-            if (
-                sum(
-                    o is not None
-                    for o in [self.fork_from, self.resume, self.resume_from]
-                )
-                > 1
-            ):
-                raise ValueError(
-                    "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
-                    "Please specify only one of them."
-                )
-            return self
+    @model_validator(mode="after")
+    def validate_skip_transaction_log(self):
+        """Validate x_skip_transaction_log.
 
-        @model_validator(mode="after")
-        def validate_skip_transaction_log(self):
-            """Validate x_skip_transaction_log.
-
-            <!-- lazydoc-ignore: internal -->
-            """
-            if self._offline and self.x_skip_transaction_log:
-                raise ValueError("Cannot skip transaction log in offline mode")
-            return self
-    else:
-
-        @root_validator(pre=False)  # type: ignore [call-overload]
-        @classmethod
-        def validate_mutual_exclusion_of_branching_args(cls, values):
-            if (
-                sum(
-                    values.get(o) is not None
-                    for o in ["fork_from", "resume", "resume_from"]
-                )
-                > 1
-            ):
-                raise ValueError(
-                    "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
-                    "Please specify only one of them."
-                )
-            return values
-
-        @root_validator(pre=False)  # type: ignore [call-overload]
-        @classmethod
-        def validate_skip_transaction_log(cls, values):
-            if values.get("_offline") and values.get("x_skip_transaction_log"):
-                raise ValueError("Cannot skip transaction log in offline mode")
-            return values
+        <!-- lazydoc-ignore: internal -->
+        """
+        if self._offline and self.x_skip_transaction_log:
+            raise ValueError("Cannot skip transaction log in offline mode")
+        return self
 
     # Field validators.
     @field_validator("anonymous", mode="after")
@@ -2129,74 +2096,6 @@ class Settings(BaseModel, validate_assignment=True):
             return val
         elif isinstance(val, str):
             return RunMoment.from_uri(val)
-
-    if not IS_PYDANTIC_V2:
-
-        def model_copy(self, *args, **kwargs):
-            return self.copy(*args, **kwargs)
-
-        def model_dump(self, **kwargs):
-            """Compatibility method for Pydantic v1 to mimic v2's model_dump.
-
-            In v1, this is equivalent to dict() but also includes computed properties.
-
-            Args:
-                **kwargs: Options passed to the dict method
-                    - exclude_none: Whether to exclude fields with None values
-
-            Returns:
-                A dictionary of the model's fields and computed properties
-            """
-            # Handle exclude_none separately since it's named differently in v1
-            exclude_none = kwargs.pop("exclude_none", False)
-
-            # Start with regular fields from dict()
-            result = self.dict(**kwargs)
-
-            # Get all computed properties
-            for name in dir(self.__class__):
-                attr = getattr(self.__class__, name, None)
-                if isinstance(attr, property):
-                    try:
-                        # Only include properties that don't raise errors
-                        value = getattr(self, name)
-                        result[name] = value
-                    except (AttributeError, NotImplementedError, TypeError, ValueError):
-                        # Skip properties that can't be accessed or raise errors
-                        pass
-                elif isinstance(attr, RunMoment):
-                    value = getattr(self, name)
-                    result[name] = value
-
-            # Special Pydantic attributes that should always be excluded
-            exclude_fields = {
-                "model_config",
-                "model_fields",
-                "model_fields_set",
-                "__fields__",
-                "__model_fields_set",
-                "__pydantic_self__",
-                "__pydantic_initialised__",
-            }
-
-            # Remove special Pydantic attributes
-            for field in exclude_fields:
-                if field in result:
-                    del result[field]
-
-            if exclude_none:
-                # Remove None values from the result
-                return {k: v for k, v in result.items() if v is not None}
-
-            return result
-
-        @property
-        def model_fields_set(self) -> set:
-            """Return a set of fields that have been explicitly set.
-
-            This is a compatibility property for Pydantic v1 to mimic v2's model_fields_set.
-            """
-            return getattr(self, "__fields_set__", set())
 
     def _setup_code_paths(self, program: str):
         """Sets the program_abspath and program_relpath settings."""

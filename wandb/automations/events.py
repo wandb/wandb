@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Union
 
-from pydantic import AfterValidator, Field
+from pydantic import AfterValidator, Field, model_validator
 from typing_extensions import get_args
 
-from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
+from wandb._pydantic import GQLBase, pydantic_isinstance
 from wandb._strutils import nameof
 
 from ._filters import And, MongoLikeFilter
@@ -186,7 +186,7 @@ class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
 
     # We override the type of the `filter` field in order to enforce the expected
     # structure for the JSON data when validating and serializing.
-    filter: JsonEncoded[
+    filter: JsonEncoded[  # type: ignore[assignment]
         Union[_WrappedSavedEventFilter, RunMetricFilter, RunStateFilter]
     ]
     """The condition(s) under which this event triggers an automation."""

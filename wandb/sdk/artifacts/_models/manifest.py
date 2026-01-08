@@ -1,6 +1,8 @@
 from typing import Any, Dict, Literal, final
 
-from wandb._pydantic import field_validator, to_camel
+from pydantic import field_validator
+from pydantic.alias_generators import to_camel
+
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
 from .base_model import ArtifactsBase

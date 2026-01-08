@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Collection
 from typing import Annotated, Any, Final, Optional, Protocol, TypedDict
 
-from pydantic import Field
+from pydantic import Field, computed_field, model_validator
 from typing_extensions import Self, Unpack
 
-from wandb._pydantic import GQLId, GQLInput, computed_field, model_validator, to_json
+from wandb._pydantic import GQLId, GQLInput, to_json
 
 from ._filters import MongoLikeFilter
 from ._generated import (
@@ -25,7 +25,13 @@ from .actions import (
     SendWebhook,
 )
 from .automations import Automation, NewAutomation
-from .events import EventType, InputEvent, RunMetricFilter, _WrappedSavedEventFilter
+from .events import (
+    EventType,
+    InputEvent,
+    RunMetricFilter,
+    RunStateFilter,
+    _WrappedSavedEventFilter,
+)
 from .scopes import AutomationScope, ScopeType
 
 INVALID_INPUT_EVENTS: Final[Collection[EventType]] = (EventType.UPDATE_ARTIFACT_ALIAS,)
@@ -103,7 +109,7 @@ def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any
 
 
 def prepare_event_filter_input(
-    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter,
+    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter | RunStateFilter,
 ) -> str:
     """Unnests (if needed) and serializes an `EventFilter` input to JSON.
 

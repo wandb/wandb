@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import ConfigDict, StrictStr
+from pydantic.alias_generators import to_camel
 from typing_extensions import Self
 
-from wandb._pydantic import to_camel
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 
 from .base_model import ArtifactsBase

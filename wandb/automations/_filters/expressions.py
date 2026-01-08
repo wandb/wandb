@@ -5,10 +5,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, Dict, Union
 
-from pydantic import ConfigDict, model_serializer
+from pydantic import BaseModel, ConfigDict, model_serializer, model_validator
 from typing_extensions import Self, TypeAlias
 
-from wandb._pydantic import CompatBaseModel, model_validator
 from wandb._strutils import nameof
 
 from .operators import (
@@ -120,15 +119,15 @@ class FilterableField:
     def __ge__(self, other: Any) -> FilterExpr:
         return self.gte(other)
 
-    def __eq__(self, other: Any) -> FilterExpr:
+    def __eq__(self, other: Any) -> FilterExpr:  # type: ignore[override]
         return self.eq(other)
 
-    def __ne__(self, other: Any) -> FilterExpr:
+    def __ne__(self, other: Any) -> FilterExpr:  # type: ignore[override]
         return self.ne(other)
 
 
 # ------------------------------------------------------------------------------
-class FilterExpr(CompatBaseModel, SupportsBitwiseLogicalOps):
+class FilterExpr(BaseModel, SupportsBitwiseLogicalOps):
     """A MongoDB filter expression on a specific field."""
 
     model_config = ConfigDict(

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from typing_extensions import Self
 
-from wandb._pydantic import GQLId, field_validator
+from wandb._pydantic import GQLId
 from wandb._strutils import nameof
 from wandb.apis.public.registries._freezable_list import AddOnlyArtifactTypesList
 from wandb.apis.public.registries._utils import Visibility
