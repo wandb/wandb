@@ -5,17 +5,16 @@ import logging
 import os
 from typing import Any
 
+from wandb import env
+
 logger = logging.getLogger(__name__)
 
 
 try:
-    import orjson  # type: ignore
+    from wandb.vendor.wandb_orjson import orjson
 
-    # todo: orjson complies with the json standard and does not support
-    #  NaN, Infinity, and -Infinity. Should be fixed in the future.
-
-    # additional safeguard for now
-    if os.environ.get("_WANDB_ORJSON"):
+    # Allow disabling orjson for compatibility and safety.
+    if not os.environ.get(env.DISABLE_ORJSON):
 
         def dumps(obj: Any, **kwargs: Any) -> str:
             """Wrapper for <json|orjson>.dumps."""
