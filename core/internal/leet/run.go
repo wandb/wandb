@@ -77,14 +77,14 @@ func NewRun(
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
 ) *Run {
-	logger.Info(fmt.Sprintf("model: creating new run model for runPath: %s", runPath))
+	logger.Info(fmt.Sprintf("run: creating new run model for runPath: %s", runPath))
 
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
 	}
 
 	heartbeatInterval := cfg.HeartbeatInterval()
-	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
+	logger.Info(fmt.Sprintf("run: heartbeat interval set to %v", heartbeatInterval))
 
 	focus := NewFocus()
 	ch := make(chan tea.Msg, 4096)
@@ -108,7 +108,7 @@ func NewRun(
 //
 // Implements tea.Model.Init.
 func (m *Run) Init() tea.Cmd {
-	m.logger.Debug("model: Init called")
+	m.logger.Debug("run: Init called")
 	return tea.Batch(
 		windowTitleCmd(),
 		InitializeReader(m.runPath, m.logger),

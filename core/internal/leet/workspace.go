@@ -12,41 +12,23 @@ import (
 )
 
 // Workspace is the multi‑run view.
+//
+// Implements tea.Model.
 type Workspace struct {
 	wandbDir string
 
 	runsAnimState *AnimationState
 
-	runs PagedList
-
+	// runs is the run selector.
+	runs         PagedList
 	selectedRuns map[string]bool // runDirName -> selected
 	pinnedRun    string          // runDirName or ""
 
-	// runPicker *runPicker --> This is an unnecessary level of abstraction, just use Workspace.
-	// filesystem view of the wandb dir.
-	// each line is selectable with Space.
-	// selecting a run loads metric data of the run in the container
-	// and turns on watching if it's a live run.
-	// display a colored block next to run id; use that color for the run's plots
-	// option to "pin" a run. "queue" for the "order"?
-
-	// wandbDirWatcher *WandbDirWatcher. make it part of the runPicker!
-	// watch for new runs, or simply ls the wandb dir every N seconds.
-	// once a run is added, add it to the container.
-
-	// runs container. make it part of the runPicker!
-	// on load, populated with everything in the wandb dir and
-	// selects the latest run or the exact one provided in the command.
-	// preloads basic run metadata from the run record.
-	// marks finished runs? or only after one is selected?
-	// selected runs add data to a container in epochlinecharts.
-	// draw method pulls data to plot from there based on the current
-	// selected runs.
-	//
-	// when no run is selected, display the wandb leet ascii art.
+	// TODO: preload basic run metadata from the run record for each run.
+	// TODO: mark live runs upon selection.
 
 	// TODO: filter for the run selector.
-	// TODO: Allow filtering by run properties, e.g. projects or tags.
+	// TODO: allow filtering by run properties, e.g. projects or tags.
 	filter Filter
 
 	// Multi‑run metrics state.
@@ -71,7 +53,7 @@ func NewWorkspace(
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
 ) *Workspace {
-	logger.Info(fmt.Sprintf("model: creating new workspace for wandbDir: %s", wandbDir))
+	logger.Info(fmt.Sprintf("workspace: creating new workspace for wandbDir: %s", wandbDir))
 
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
@@ -82,7 +64,6 @@ func NewWorkspace(
 		Title:  "Runs",
 		Active: true,
 	}
-	// Avoid zero itemsPerPage; we'll refine on first resize.
 	runs.SetItemsPerPage(1)
 
 	focus := NewFocus()
@@ -350,18 +331,15 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 
 // View renders the runs section: header + paginated list with zebra rows.
 func (w *Workspace) View() string {
-	var parts []string
+	var v []string
 
-	// Render left sidebar with run picker.
-	// TODO: move to separate helper function.
 	if w.runsAnimState.IsVisible() {
-		parts = append(parts, w.renderRuns())
+		v = append(v, w.renderRunsList())
 	}
 
-	// TODO: Render main metrics area.
-	parts = append(parts, w.renderMetrics())
+	v = append(v, w.renderMetrics())
 
-	mainView := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+	mainView := lipgloss.JoinHorizontal(lipgloss.Top, v...)
 	statusBar := w.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
@@ -378,7 +356,6 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		return nil
 	}
 
-	// Newly selected.
 	w.selectedRuns[runKey] = true
 	if w.pinnedRun == "" {
 		w.pinnedRun = runKey
@@ -440,7 +417,7 @@ func (w *Workspace) togglePin(runKey string) {
 	}
 }
 
-func (w *Workspace) renderRuns() string {
+func (w *Workspace) renderRunsList() string {
 	startIdx, endIdx := w.syncRunsPage()
 
 	sidebarW := w.runsAnimState.Width()
@@ -457,7 +434,7 @@ func (w *Workspace) renderRuns() string {
 	}
 
 	contentLines := make([]string, 0, 1+len(lines))
-	contentLines = append(contentLines, w.renderRunsHeader(startIdx, endIdx))
+	contentLines = append(contentLines, w.renderRunsListHeader(startIdx, endIdx))
 	contentLines = append(contentLines, lines...)
 	content := strings.Join(contentLines, "\n")
 
@@ -669,8 +646,8 @@ func (w *Workspace) syncRunsPage() (startIdx, endIdx int) {
 	return startIdx, endIdx
 }
 
-// renderRunsHeader renders "Runs [X‑Y of N]" (or "[N items]" for single‑page).
-func (w *Workspace) renderRunsHeader(startIdx, endIdx int) string {
+// renderRunsListHeader renders "Runs [X‑Y of N]" (or "[N items]" for single‑page).
+func (w *Workspace) renderRunsListHeader(startIdx, endIdx int) string {
 	title := leftSidebarSectionHeaderStyle.Render("Runs")
 
 	total := len(w.runs.FilteredItems)

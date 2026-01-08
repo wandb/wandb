@@ -11,7 +11,7 @@ import (
 )
 
 // TODO: make this configurable and increase the default interval.
-const wandbDirPollInterval = 2 * time.Second
+const wandbDirPollInterval = 5 * time.Second
 
 func (w *Workspace) pollWandbDirCmd(delay time.Duration) tea.Cmd {
 	wandbDir := w.wandbDir
