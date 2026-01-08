@@ -10,7 +10,8 @@ import (
 
 func TestEpochLineChart_Range(t *testing.T) {
 	m := "loss"
-	c := leet.NewEpochLineChart(100, 10, m)
+	c := leet.NewEpochLineChart(m)
+	c.Resize(100, 10)
 
 	// Add a couple of points; Y padding should expand range.
 	c.AddData(m, leet.MetricData{X: []float64{0, 1}, Y: []float64{0.5, 1.0}})
@@ -34,7 +35,8 @@ func TestEpochLineChart_Range(t *testing.T) {
 
 func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
 	m := "acc"
-	c := leet.NewEpochLineChart(120, 12, m)
+	c := leet.NewEpochLineChart(m)
+	c.Resize(120, 12)
 	for i := range 40 {
 		c.AddData(m, leet.MetricData{
 			X: []float64{float64(i)},
@@ -72,7 +74,8 @@ func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
 // the view should NOT jump to the tail.
 func TestEpochLineChart_ZoomDoesNotSnapToTailAwayFromRight(t *testing.T) {
 	m := "loss"
-	c := leet.NewEpochLineChart(120, 12, m)
+	c := leet.NewEpochLineChart(m)
+	c.Resize(120, 12)
 	for i := range 40 {
 		c.AddData(m, leet.MetricData{
 			X: []float64{float64(i)},
@@ -91,7 +94,8 @@ func TestEpochLineChart_ZoomDoesNotSnapToTailAwayFromRight(t *testing.T) {
 // When zooming near the right edge, we still anchor to the tail.
 func TestEpochLineChart_ZoomNearRightAnchorsToTail(t *testing.T) {
 	m := "loss"
-	c := leet.NewEpochLineChart(120, 12, m)
+	c := leet.NewEpochLineChart(m)
+	c.Resize(120, 12)
 	for i := range 40 {
 		c.AddData(m, leet.MetricData{
 			X: []float64{float64(i)},

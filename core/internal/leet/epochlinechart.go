@@ -23,7 +23,12 @@ const (
 	tailAnchorMouseThreshold = 0.95
 	defaultMaxX              = 20
 	defaultMaxY              = 1
+
+	// Minimal canvas size for parked charts
+	parkedCanvasSize = 1
 )
+
+const initialSeriesCap = 256
 
 var cache, _ = lru.New(128)
 
@@ -53,8 +58,8 @@ type Series struct {
 
 func NewSeries(name string) *Series {
 	md := MetricData{
-		X: make([]float64, 0, 1000),
-		Y: make([]float64, 0, 1000),
+		X: make([]float64, 0, initialSeriesCap),
+		Y: make([]float64, 0, initialSeriesCap),
 	}
 
 	s := Series{MetricData: md}
@@ -114,9 +119,9 @@ type EpochLineChart struct {
 	inspection ChartInspection
 }
 
-func NewEpochLineChart(width, height int, title string) *EpochLineChart {
+func NewEpochLineChart(title string) *EpochLineChart {
 	chart := &EpochLineChart{
-		Model: linechart.New(width, height, 0, defaultMaxX, 0, defaultMaxY,
+		Model: linechart.New(parkedCanvasSize, parkedCanvasSize, 0, defaultMaxX, 0, defaultMaxY,
 			linechart.WithXYSteps(4, 5),
 			linechart.WithAutoXRange(),
 			linechart.WithYLabelFormatter(func(i int, v float64) string {
@@ -667,15 +672,14 @@ func (c *EpochLineChart) SetFocused(focused bool) {
 	c.focused = focused
 }
 
-// Resize updates the chart dimensions.
+// Resize updates the chart's canvas dimensions.
 func (c *EpochLineChart) Resize(width, height int) {
-	// Check if dimensions actually changed
-	if c.Width() != width || c.Height() != height {
-		c.Model.Resize(width, height)
-		c.dirty = true
-		// Force recalculation of ranges after resize
-		c.updateRanges()
+	if c.Width() == width && c.Height() == height {
+		return
 	}
+	c.Model.Resize(width, height)
+	c.dirty = true
+	c.updateRanges()
 }
 
 func isFinite(f float64) bool {
