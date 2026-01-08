@@ -4,6 +4,7 @@ import json
 import pathlib
 import shutil
 import subprocess
+from typing import List
 
 
 class OrjsonBuildError(Exception):
@@ -13,7 +14,7 @@ class OrjsonBuildError(Exception):
 def build_orjson(
     cargo_binary: pathlib.Path,
     output_path: pathlib.Path,
-) -> list[pathlib.Path]:
+) -> List[pathlib.Path]:
     """Builds the vendored `orjson` Rust library for fast JSON operations.
 
     NOTE: Cargo creates a cache under `./target/release` which speeds up subsequent builds,

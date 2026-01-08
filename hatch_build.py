@@ -16,6 +16,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from core import hatch as hatch_core
 from gpu_stats import hatch as hatch_gpu_stats
 
+sys.path.pop(0)
+
 sys.path.insert(
     0,
     str(pathlib.Path(__file__).parent / "wandb" / "vendor" / "orjson"),
@@ -89,6 +91,9 @@ class CustomBuildHook(BuildHookInterface):
 
     def _include_orjson(self) -> bool:
         """Returns whether we should produce a wheel with vendored orjson."""
+        # orjson requires Python 3.9+, skip on older versions
+        if sys.version_info < (3, 9):
+            return False
         return not _get_env_bool(_WANDB_BUILD_SKIP_ORJSON, default=False)
 
     def _get_and_require_cargo_binary(self) -> pathlib.Path:
