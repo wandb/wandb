@@ -74,7 +74,10 @@ def _resolve_path(path: str | None) -> LaunchConfig:
     _fatal(f"Path does not exist: {resolved}")
 
 
-def launch(path: str | None) -> Never:
+def launch(
+    path: str | None,
+    pprof: str,
+) -> Never:
     get_sentry().configure_scope(process_context="leet")
 
     config = _resolve_path(path)
@@ -92,6 +95,9 @@ def launch(path: str | None) -> Never:
 
         if config.run_file:
             args.extend(["--run-file", config.run_file])
+
+        if pprof:
+            args.extend(["--pprof", pprof])
 
         args.append(config.wandb_dir)
 
