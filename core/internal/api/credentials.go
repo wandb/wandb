@@ -37,7 +37,12 @@ func NewCredentialProvider(
 			logger,
 		)
 	}
-	return NewAPIKeyCredentialProvider(settings)
+
+	if apiKey := settings.GetAPIKey(); apiKey != "" {
+		return &apiKeyCredentialProvider{apiKey: apiKey}, nil
+	}
+
+	return NoopCredentialProvider{}, nil
 }
 
 var _ CredentialProvider = &apiKeyCredentialProvider{}
@@ -45,20 +50,6 @@ var _ CredentialProvider = &apiKeyCredentialProvider{}
 type apiKeyCredentialProvider struct {
 	// The W&B API key
 	apiKey string
-}
-
-// NewAPIKeyCredentialProvider validates the presence of an API key and
-// returns a new APIKeyCredentialProvider. Returns an error if the API key is unavailable.
-func NewAPIKeyCredentialProvider(
-	settings *settings.Settings,
-) (CredentialProvider, error) {
-	if err := settings.EnsureAPIKey(); err != nil {
-		return nil, fmt.Errorf("api: couldn't get API key: %v", err)
-	}
-
-	return &apiKeyCredentialProvider{
-		apiKey: settings.GetAPIKey(),
-	}, nil
 }
 
 // Apply sets the API key in the Authorization header of the request using
@@ -70,6 +61,12 @@ func (c *apiKeyCredentialProvider) Apply(req *http.Request) error {
 		"Basic "+base64.StdEncoding.EncodeToString(
 			[]byte("api:"+c.apiKey)),
 	)
+	return nil
+}
+
+type NoopCredentialProvider struct{}
+
+func (c NoopCredentialProvider) Apply(req *http.Request) error {
 	return nil
 }
 

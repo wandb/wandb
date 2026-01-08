@@ -2,13 +2,10 @@
 package settings
 
 import (
-	"fmt"
-	"net/url"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/auth"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -34,30 +31,6 @@ func New() *Settings {
 // Parses the Settings proto into a Settings object.
 func From(proto *spb.Settings) *Settings {
 	return &Settings{Proto: proto}
-}
-
-// Ensures the APIKey is set if it needs to be.
-//
-// Reads the API key from .netrc if it's not already set.
-func (s *Settings) EnsureAPIKey() error {
-	if s.GetAPIKey() != "" || s.IsOffline() {
-		return nil
-	}
-
-	baseUrl := s.Proto.GetBaseUrl().GetValue()
-	u, err := url.Parse(baseUrl)
-	if err != nil {
-		return fmt.Errorf("settings: failed to parse base URL: %v", err)
-	}
-
-	host := u.Hostname()
-	_, password, err := auth.GetNetrcLogin(host)
-	if err != nil {
-		return fmt.Errorf("settings: failed to get API key from netrc: %v", err)
-	}
-	s.Proto.ApiKey = &wrapperspb.StringValue{Value: password}
-
-	return nil
 }
 
 // The W&B API key.
