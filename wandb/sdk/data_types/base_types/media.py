@@ -3,7 +3,8 @@ import os
 import pathlib
 import re
 import shutil
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union, cast
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 
 import wandb
 from wandb import util
@@ -87,7 +88,7 @@ class Media(WBValue):
         self._size = os.path.getsize(self._path)
 
     @classmethod
-    def get_media_subdir(cls: Type["Media"]) -> str:
+    def get_media_subdir(cls: type["Media"]) -> str:
         raise NotImplementedError
 
     @staticmethod
@@ -175,7 +176,7 @@ class Media(WBValue):
         from wandb import Image
         from wandb.data_types import Audio
 
-        json_obj: Dict[str, Any] = {}
+        json_obj: dict[str, Any] = {}
 
         if self._caption is not None:
             json_obj["caption"] = self._caption
@@ -268,7 +269,7 @@ class Media(WBValue):
 
     @classmethod
     def from_json(
-        cls: Type["Media"], json_obj: dict, source_artifact: "Artifact"
+        cls: type["Media"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Media":
         """Likely will need to override for any more complicated media objects."""
         return cls(source_artifact.get_entry(json_obj["path"]).download())
@@ -305,7 +306,7 @@ class BatchableMedia(Media):
 
     @classmethod
     def seq_to_json(
-        cls: Type["BatchableMedia"],
+        cls: type["BatchableMedia"],
         seq: Sequence["BatchableMedia"],
         run: "wandb.Run",
         key: str,

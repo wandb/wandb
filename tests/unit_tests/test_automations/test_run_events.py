@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import operator
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 import pytest
 from hypothesis import given

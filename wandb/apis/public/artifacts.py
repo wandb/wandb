@@ -7,20 +7,10 @@ collections.
 from __future__ import annotations
 
 import json
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from copy import copy
 from functools import lru_cache
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    Collection,
-    Iterable,
-    List,
-    Literal,
-    Mapping,
-    Sequence,
-    TypeVar,
-)
+from typing import TYPE_CHECKING, Any, ClassVar, List, Literal, TypeVar  # noqa: UP035
 
 from typing_extensions import override
 from wandb_gql import gql

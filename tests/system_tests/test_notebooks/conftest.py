@@ -5,7 +5,6 @@ import re
 import shutil
 import sys
 from contextlib import contextmanager
-from typing import Dict, List
 from unittest.mock import MagicMock
 
 import filelock
@@ -95,7 +94,7 @@ class WandbNotebookClient(NotebookClient):
     def cells(self):
         return iter(self.nb.cells[1:])
 
-    def cell_output(self, cell_index: int) -> List[Dict[str, Any]]:
+    def cell_output(self, cell_index: int) -> list[dict[str, Any]]:
         """Return a cell's outputs."""
         idx = cell_index + 1
         outputs = self.nb.cells[idx]["outputs"]

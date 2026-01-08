@@ -5,18 +5,7 @@ import logging
 import os
 import re
 import sys
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    TypedDict,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TypedDict, Union
 
 import wandb
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
@@ -84,7 +73,7 @@ class GitInfo(TypedDict):
 
 class GitSourceDict(TypedDict):
     git: GitInfo
-    entrypoint: List[str]
+    entrypoint: list[str]
     notebook: bool
     build_context: Optional[str]
     dockerfile: Optional[str]
@@ -92,7 +81,7 @@ class GitSourceDict(TypedDict):
 
 class ArtifactSourceDict(TypedDict):
     artifact: str
-    entrypoint: List[str]
+    entrypoint: list[str]
     notebook: bool
     build_context: Optional[str]
     dockerfile: Optional[str]
@@ -106,10 +95,10 @@ class JobSourceDict(TypedDict, total=False):
     _version: str
     source_type: str
     source: Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict]
-    input_types: Dict[str, Any]
-    output_types: Dict[str, Any]
+    input_types: dict[str, Any]
+    output_types: dict[str, Any]
     runtime: Optional[str]
-    services: Dict[str, str]
+    services: dict[str, str]
 
 
 class ArtifactInfoForJob(TypedDict):
@@ -135,17 +124,17 @@ class JobBuilder:
     _files_dir: str
     _metadatafile_path: Optional[str]
     _requirements_path: Optional[str]
-    _config: Optional[Dict[str, Any]]
-    _summary: Optional[Dict[str, Any]]
+    _config: Optional[dict[str, Any]]
+    _summary: Optional[dict[str, Any]]
     _logged_code_artifact: Optional[ArtifactInfoForJob]
     _disable: bool
     _partial_source_id: Optional[str]  # Partial job source artifact id.
-    _aliases: List[str]
+    _aliases: list[str]
     _job_seq_id: Optional[str]
     _job_version_alias: Optional[str]
     _is_notebook_run: bool
     _verbose: bool
-    _services: Dict[str, str]
+    _services: dict[str, str]
 
     def __init__(
         self,
@@ -185,10 +174,10 @@ class JobBuilder:
         self._partial = False
         self._services = {}
 
-    def set_config(self, config: Dict[str, Any]) -> None:
+    def set_config(self, config: dict[str, Any]) -> None:
         self._config = config
 
-    def set_summary(self, summary: Dict[str, Any]) -> None:
+    def set_summary(self, summary: dict[str, Any]) -> None:
         self._summary = summary
 
     @property
@@ -200,18 +189,18 @@ class JobBuilder:
         self._disable = val
 
     @property
-    def input_types(self) -> Dict[str, Any]:
+    def input_types(self) -> dict[str, Any]:
         return TypeRegistry.type_of(self._config).to_json()
 
     @property
-    def output_types(self) -> Dict[str, Any]:
+    def output_types(self) -> dict[str, Any]:
         return TypeRegistry.type_of(self._summary).to_json()
 
     def set_partial_source_id(self, source_id: str) -> None:
         self._partial_source_id = source_id
 
     def _handle_server_artifact(
-        self, res: Optional[Dict], artifact: "ArtifactRecord"
+        self, res: Optional[dict], artifact: "ArtifactRecord"
     ) -> None:
         if artifact.type == "job" and res is not None:
             try:
@@ -237,9 +226,9 @@ class JobBuilder:
     def _build_repo_job_source(
         self,
         program_relpath: str,
-        metadata: Dict[str, Any],
-    ) -> Tuple[Optional[GitSourceDict], Optional[str]]:
-        git_info: Dict[str, str] = metadata.get("git", {})
+        metadata: dict[str, Any],
+    ) -> tuple[Optional[GitSourceDict], Optional[str]]:
+        git_info: dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
         root = metadata.get("root")
@@ -306,8 +295,8 @@ class JobBuilder:
     def _build_artifact_job_source(
         self,
         program_relpath: str,
-        metadata: Dict[str, Any],
-    ) -> Tuple[Optional[ArtifactSourceDict], Optional[str]]:
+        metadata: dict[str, Any],
+    ) -> tuple[Optional[ArtifactSourceDict], Optional[str]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
         if self._is_notebook_run and not self._is_colab_run():
@@ -342,8 +331,8 @@ class JobBuilder:
         return source, name
 
     def _build_image_job_source(
-        self, metadata: Dict[str, Any]
-    ) -> Tuple[ImageSourceDict, str]:
+        self, metadata: dict[str, Any]
+    ) -> tuple[ImageSourceDict, str]:
         image_name = metadata.get("docker")
         assert isinstance(image_name, str)
 
@@ -374,13 +363,13 @@ class JobBuilder:
     def _get_entrypoint(
         self,
         program_relpath: str,
-        metadata: Dict[str, Any],
-    ) -> List[str]:
+        metadata: dict[str, Any],
+    ) -> list[str]:
         # if building a partial job from CLI, overwrite entrypoint and notebook
         # should already be in metadata from create_job
         if self._partial:
             if metadata.get("entrypoint"):
-                entrypoint: List[str] = metadata["entrypoint"]
+                entrypoint: list[str] = metadata["entrypoint"]
                 return entrypoint
         # job is being built from a run
         entrypoint = [os.path.basename(sys.executable), program_relpath]
@@ -397,8 +386,8 @@ class JobBuilder:
         self,
         source_type: str,
         program_relpath: Optional[str],
-        metadata: Dict[str, Any],
-    ) -> Tuple[
+        metadata: dict[str, Any],
+    ) -> tuple[
         Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict, None],
         Optional[str],
     ]:
@@ -591,7 +580,7 @@ class JobBuilder:
 
         return artifact
 
-    def _get_source_type(self, metadata: Dict[str, Any]) -> Optional[str]:
+    def _get_source_type(self, metadata: dict[str, Any]) -> Optional[str]:
         if self._source_type:
             return self._source_type
 
@@ -611,7 +600,7 @@ class JobBuilder:
         return None
 
     def _get_program_relpath(
-        self, source_type: str, metadata: Dict[str, Any]
+        self, source_type: str, metadata: dict[str, Any]
     ) -> Optional[str]:
         if self._is_notebook_run:
             _logger.info("run is notebook based run")
@@ -635,16 +624,16 @@ class JobBuilder:
 
     def _handle_metadata_file(
         self,
-    ) -> Optional[Dict]:
+    ) -> Optional[dict]:
         if os.path.exists(os.path.join(self._files_dir, METADATA_FNAME)):
             with open(os.path.join(self._files_dir, METADATA_FNAME)) as f:
-                metadata: Dict = json.load(f)
+                metadata: dict = json.load(f)
             return metadata
 
         return None
 
-    def _has_git_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
-        git_info: Dict[str, str] = metadata.get("git", {})
+    def _has_git_job_ingredients(self, metadata: dict[str, Any]) -> bool:
+        git_info: dict[str, str] = metadata.get("git", {})
         if self._is_notebook_run and metadata.get("root") is None:
             return False
         return git_info.get("remote") is not None and git_info.get("commit") is not None
@@ -652,5 +641,5 @@ class JobBuilder:
     def _has_artifact_job_ingredients(self) -> bool:
         return self._logged_code_artifact is not None
 
-    def _has_image_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
+    def _has_image_job_ingredients(self, metadata: dict[str, Any]) -> bool:
         return metadata.get("docker") is not None

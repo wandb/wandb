@@ -7,7 +7,8 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from collections.abc import Iterator
+from typing import Any, Optional, Union
 
 import yaml
 
@@ -294,7 +295,7 @@ class CrdSubmittedRun(AbstractRun):
     async def get_logs(self) -> Optional[str]:
         """Get logs for custom object."""
         # TODO: test more carefully once we release multi-node support
-        logs: Dict[str, Optional[str]] = {}
+        logs: dict[str, Optional[str]] = {}
         try:
             pods = await self.core_api.list_namespaced_pod(
                 label_selector=f"wandb/run-id={self.name}", namespace=self.namespace
@@ -347,7 +348,7 @@ class KubernetesRunner(AbstractRunner):
     def __init__(
         self,
         api: Api,
-        backend_config: Dict[str, Any],
+        backend_config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
     ) -> None:
@@ -366,7 +367,7 @@ class KubernetesRunner(AbstractRunner):
         self.registry = registry
 
     def get_namespace(
-        self, resource_args: Dict[str, Any], context: Dict[str, Any]
+        self, resource_args: dict[str, Any], context: dict[str, Any]
     ) -> str:
         """Get the namespace to launch into.
 
@@ -391,12 +392,12 @@ class KubernetesRunner(AbstractRunner):
 
     async def _inject_defaults(
         self,
-        resource_args: Dict[str, Any],
+        resource_args: dict[str, Any],
         launch_project: LaunchProject,
         image_uri: str,
         namespace: str,
         core_api: "CoreV1Api",
-    ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
+    ) -> tuple[dict[str, Any], Optional["V1Secret"]]:
         """Apply our default values, return job dict and api key secret.
 
         Arguments:
@@ -409,19 +410,19 @@ class KubernetesRunner(AbstractRunner):
         Returns:
             Tuple[Dict[str, Any], Optional["V1Secret"]]: The resource args and api key secret.
         """
-        job: Dict[str, Any] = {
+        job: dict[str, Any] = {
             "apiVersion": "batch/v1",
             "kind": "Job",
         }
         job.update(resource_args)
 
-        job_metadata: Dict[str, Any] = job.get("metadata", {})
-        job_spec: Dict[str, Any] = {"backoffLimit": 0, "ttlSecondsAfterFinished": 60}
+        job_metadata: dict[str, Any] = job.get("metadata", {})
+        job_spec: dict[str, Any] = {"backoffLimit": 0, "ttlSecondsAfterFinished": 60}
         job_spec.update(job.get("spec", {}))
-        pod_template: Dict[str, Any] = job_spec.get("template", {})
-        pod_spec: Dict[str, Any] = {"restartPolicy": "Never"}
+        pod_template: dict[str, Any] = job_spec.get("template", {})
+        pod_spec: dict[str, Any] = {"restartPolicy": "Never"}
         pod_spec.update(pod_template.get("spec", {}))
-        containers: List[Dict[str, Any]] = pod_spec.get("containers", [{}])
+        containers: list[dict[str, Any]] = pod_spec.get("containers", [{}])
 
         # Add labels to job metadata
         job_metadata.setdefault("labels", {})
@@ -561,7 +562,7 @@ class KubernetesRunner(AbstractRunner):
     async def _wait_for_resource_ready(
         self,
         api_client: kubernetes_asyncio.client.ApiClient,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         namespace: str,
         timeout_seconds: int = 300,
     ) -> None:
@@ -706,7 +707,7 @@ class KubernetesRunner(AbstractRunner):
     async def _prepare_resource(
         self,
         api_client: kubernetes_asyncio.client.ApiClient,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         namespace: str,
         run_id: str,
         launch_project: LaunchProject,
@@ -940,7 +941,7 @@ class KubernetesRunner(AbstractRunner):
             "author": launch_project.author,
         }
         update_dict.update(os.environ)
-        additional_services: List[Dict[str, Any]] = recursive_macro_sub(
+        additional_services: list[dict[str, Any]] = recursive_macro_sub(
             launch_project.launch_spec.get("additional_services", []), update_dict
         )
         auxiliary_resource_label_value = make_k8s_label_safe(
@@ -1012,9 +1013,9 @@ class KubernetesRunner(AbstractRunner):
 
 
 def inject_entrypoint_and_args(
-    containers: List[dict],
+    containers: list[dict],
     entry_point: Optional[EntryPoint],
-    override_args: List[str],
+    override_args: list[str],
     should_override_entrypoint: bool,
 ) -> None:
     """Inject the entrypoint and args into the containers.
@@ -1154,7 +1155,7 @@ async def maybe_create_imagepull_secret(
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 
 
-def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
+def add_wandb_env(root: Union[dict, list], env_vars: dict[str, str]) -> None:
     """Injects wandb environment variables into specs.
 
     Recursively walks the spec and injects the environment variables into
@@ -1249,7 +1250,7 @@ def add_entrypoint_args_overrides(manifest: Union[dict, list], overrides: dict) 
 
 
 def apply_code_mount_configuration(
-    manifest: Union[Dict, list], project: LaunchProject
+    manifest: Union[dict, list], project: LaunchProject
 ) -> None:
     """Apply code mount configuration to all containers in a manifest.
 

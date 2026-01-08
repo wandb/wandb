@@ -18,7 +18,8 @@ import re
 import shutil
 import sys
 import threading
-from typing import TYPE_CHECKING, Iterator, Protocol
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Protocol
 
 import click
 

@@ -1,7 +1,7 @@
 """Implementation of AzureContainerRegistry class."""
 
 import re
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional
 
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.errors import LaunchError
@@ -87,7 +87,7 @@ class AzureContainerRegistry(AbstractRegistry):
             uri=uri,
         )
 
-    async def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> tuple[str, str]:
         """Get username and password for container registry."""
         raise NotImplementedError
 

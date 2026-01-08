@@ -2,7 +2,7 @@
 
 import dataclasses
 import datetime
-from typing import Iterator
+from collections.abc import Iterator
 from unittest import mock
 
 import pytest
@@ -26,12 +26,13 @@ def mock_time() -> Iterator[MockTime]:
             seconds=seconds
         )  # let the event loop shuffle stuff around
 
-    with mock.patch(
-        "wandb.sdk.lib.retry.NOW_FN",
-        wraps=lambda: now,
-    ) as mock_now, mock.patch(
-        "wandb.sdk.lib.retry.SLEEP_FN", side_effect=_sleep
-    ) as mock_sleep:
+    with (
+        mock.patch(
+            "wandb.sdk.lib.retry.NOW_FN",
+            wraps=lambda: now,
+        ) as mock_now,
+        mock.patch("wandb.sdk.lib.retry.SLEEP_FN", side_effect=_sleep) as mock_sleep,
+    ):
         yield MockTime(now=mock_now, sleep=mock_sleep)
 
 

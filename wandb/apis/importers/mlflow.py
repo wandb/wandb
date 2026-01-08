@@ -2,7 +2,8 @@ import itertools
 import logging
 import re
 from collections import defaultdict
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from collections.abc import Iterable
+from typing import Any, Optional
 
 import mlflow
 from packaging.version import Version  # type: ignore
@@ -32,7 +33,7 @@ class MlflowRun:
     def project(self) -> str:
         return "imported-from-mlflow"
 
-    def config(self) -> Dict[str, Any]:
+    def config(self) -> dict[str, Any]:
         conf = self.run.data.params
 
         # Add tags here since mlflow supports very long tag names but we only support up to 64 chars
@@ -41,11 +42,11 @@ class MlflowRun:
         }
         return {**conf, "imported_mlflow_tags": tags}
 
-    def summary(self) -> Dict[str, float]:
+    def summary(self) -> dict[str, float]:
         return self.run.data.metrics
 
-    def metrics(self) -> Iterable[Dict[str, float]]:
-        d: Dict[int, Dict[str, float]] = defaultdict(dict)
+    def metrics(self) -> Iterable[dict[str, float]]:
+        d: dict[int, dict[str, float]] = defaultdict(dict)
         for k in self.run.data.metrics.keys():
             metric = self.mlflow_client.get_metric_history(self.run.info.run_id, k)
             for item in metric:
@@ -70,7 +71,7 @@ class MlflowRun:
     def notes(self) -> Optional[str]:
         return self.run.data.tags.get("mlflow.note.content")
 
-    def tags(self) -> Optional[List[str]]:
+    def tags(self) -> Optional[list[str]]:
         ...
 
         # W&B tags are different than mlflow tags.
@@ -132,7 +133,7 @@ class MlflowRun:
 
     def cli_version(self) -> Optional[str]: ...  # pragma: no cover
 
-    def files(self) -> Optional[Iterable[Tuple[str, str]]]: ...  # pragma: no cover
+    def files(self) -> Optional[Iterable[tuple[str, str]]]: ...  # pragma: no cover
 
     def logs(self) -> Optional[Iterable[str]]: ...  # pragma: no cover
 
@@ -152,7 +153,7 @@ class MlflowImporter:
         mlflow_tracking_uri: str,
         mlflow_registry_uri: Optional[str] = None,
         *,
-        custom_api_kwargs: Optional[Dict[str, Any]] = None,
+        custom_api_kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
         self.dst_base_url = dst_base_url
         self.dst_api_key = dst_api_key

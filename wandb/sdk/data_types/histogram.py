@@ -1,5 +1,6 @@
 import sys
-from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Optional, Union
 
 from wandb import util
 
@@ -12,7 +13,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..wandb_run import Run as LocalRun
 
-    NumpyHistogram = Tuple[np.ndarray, np.ndarray]
+    NumpyHistogram = tuple[np.ndarray, np.ndarray]
 
 
 class Histogram(WBValue):

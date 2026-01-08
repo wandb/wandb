@@ -1,6 +1,6 @@
 """NoOp builder implementation."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -18,7 +18,7 @@ class NoOpBuilder(AbstractBuilder):
 
     def __init__(
         self,
-        builder_config: Dict[str, Any],
+        builder_config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
     ) -> None:

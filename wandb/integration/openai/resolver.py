@@ -1,8 +1,9 @@
 import datetime
 import io
 import logging
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Optional
 
 import wandb
 from wandb.sdk.data_types import trace_tree
@@ -36,11 +37,11 @@ class OpenAIRequestResponseResolver:
     def __call__(
         self,
         args: Sequence[Any],
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
         response: Response,
         start_time: float,  # pass to comply with the protocol, but use response["created"] instead
         time_elapsed: float,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         request = kwargs
 
         if not self.define_metrics_called:
@@ -67,9 +68,9 @@ class OpenAIRequestResponseResolver:
 
     @staticmethod
     def results_to_trace_tree(
-        request: Dict[str, Any],
+        request: dict[str, Any],
         response: Response,
-        results: List[trace_tree.Result],
+        results: list[trace_tree.Result],
         time_elapsed: float,
     ) -> trace_tree.WBTraceTree:
         """Converts the request, response, and results into a trace tree.
@@ -97,10 +98,10 @@ class OpenAIRequestResponseResolver:
 
     def _resolve_edit(
         self,
-        request: Dict[str, Any],
+        request: dict[str, Any],
         response: Response,
         time_elapsed: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Resolves the request and response objects for `openai.Edit`."""
         request_str = (
             f"\n\n**Instruction**: {request['instruction']}\n\n"
@@ -120,10 +121,10 @@ class OpenAIRequestResponseResolver:
 
     def _resolve_completion(
         self,
-        request: Dict[str, Any],
+        request: dict[str, Any],
         response: Response,
         time_elapsed: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Resolves the request and response objects for `openai.Completion`."""
         request_str = f"\n\n**Prompt**: {request['prompt']}\n"
         choices = [
@@ -140,10 +141,10 @@ class OpenAIRequestResponseResolver:
 
     def _resolve_chat_completion(
         self,
-        request: Dict[str, Any],
+        request: dict[str, Any],
         response: Response,
         time_elapsed: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Resolves the request and response objects for `openai.Completion`."""
         prompt = io.StringIO()
         for message in request["messages"]:
@@ -165,12 +166,12 @@ class OpenAIRequestResponseResolver:
 
     def _resolve_metrics(
         self,
-        request: Dict[str, Any],
+        request: dict[str, Any],
         response: Response,
         request_str: str,
-        choices: List[str],
+        choices: list[str],
         time_elapsed: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Resolves the request and response objects for `openai.Completion`."""
         results = [
             trace_tree.Result(
@@ -194,9 +195,9 @@ class OpenAIRequestResponseResolver:
 
     def _get_metrics_to_log(
         self,
-        request: Dict[str, Any],
+        request: dict[str, Any],
         response: Response,
-        results: List[Any],
+        results: list[Any],
         time_elapsed: float,
     ) -> Metrics:
         model = response.get("model") or request.get("model")
@@ -229,7 +230,7 @@ class OpenAIRequestResponseResolver:
         return metrics
 
     @staticmethod
-    def _convert_metrics_to_dict(metrics: Metrics) -> Dict[str, Any]:
+    def _convert_metrics_to_dict(metrics: Metrics) -> dict[str, Any]:
         """Converts metrics to a dict."""
         metrics_dict = {
             "stats": metrics.stats,

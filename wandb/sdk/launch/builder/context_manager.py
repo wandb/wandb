@@ -2,7 +2,6 @@ import logging
 import os
 import shutil
 import tempfile
-from typing import Tuple
 
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.builder.build import image_tag_from_dockerfile_and_source
@@ -101,7 +100,7 @@ class BuildContextManager:
         )
         return dockerfile_contents
 
-    def create_build_context(self, builder_type: str) -> Tuple[str, str]:
+    def create_build_context(self, builder_type: str) -> tuple[str, str]:
         """Create the build context for the container image.
 
         Returns:

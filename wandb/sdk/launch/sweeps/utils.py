@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import wandb
 from wandb import util
@@ -10,7 +10,7 @@ from wandb.sdk.launch.errors import LaunchError
 if TYPE_CHECKING:
     from wandb.apis.public import Api as PublicApi
 
-DEFAULT_SWEEP_COMMAND: List[str] = [
+DEFAULT_SWEEP_COMMAND: list[str] = [
     "${env}",
     "${interpreter}",
     "${program}",
@@ -52,7 +52,7 @@ def parse_sweep_id(parts_dict: dict) -> Optional[str]:
     return None
 
 
-def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
+def sweep_config_err_text_from_jsonschema_violations(violations: list[str]) -> str:
     """Consolidate schema violation strings from wandb/sweeps into a single string.
 
     Parameters
@@ -78,7 +78,7 @@ def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> s
     return violation
 
 
-def handle_sweep_config_violations(warnings: List[str]) -> None:
+def handle_sweep_config_violations(warnings: list[str]) -> None:
     """Echo sweep config schema violation warnings from Gorilla to the terminal.
 
     Parameters
@@ -91,7 +91,7 @@ def handle_sweep_config_violations(warnings: List[str]) -> None:
         wandb.termwarn(warning)
 
 
-def load_sweep_config(sweep_config_path: str) -> Optional[Dict[str, Any]]:
+def load_sweep_config(sweep_config_path: str) -> Optional[dict[str, Any]]:
     """Load a sweep yaml from path."""
     import yaml
 
@@ -101,7 +101,7 @@ def load_sweep_config(sweep_config_path: str) -> Optional[Dict[str, Any]]:
         wandb.termerror(f"Couldn't open sweep file: {sweep_config_path}")
         return None
     try:
-        config: Optional[Dict[str, Any]] = yaml.safe_load(yaml_file)
+        config: Optional[dict[str, Any]] = yaml.safe_load(yaml_file)
     except yaml.YAMLError as err:
         wandb.termerror(f"Error in configuration file: {err}")
         return None
@@ -122,12 +122,12 @@ def load_launch_sweep_config(config: Optional[str]) -> Any:
 
 
 def construct_scheduler_args(
-    sweep_config: Dict[str, Any],
+    sweep_config: dict[str, Any],
     queue: str,
     project: str,
     author: Optional[str] = None,
     return_job: bool = False,
-) -> Union[List[str], Dict[str, str], None]:
+) -> Union[list[str], dict[str, str], None]:
     """Construct sweep scheduler args.
 
     logs error and returns None if misconfigured,
@@ -148,7 +148,7 @@ def construct_scheduler_args(
 
     # if scheduler is a job, return args as dict
     if return_job:
-        args_dict: Dict[str, str] = {
+        args_dict: dict[str, str] = {
             "sweep_id": "WANDB_SWEEP_ID",
             "queue": queue,
             "project": project,
@@ -186,7 +186,7 @@ def construct_scheduler_args(
     return args
 
 
-def create_sweep_command(command: Optional[List] = None) -> List:
+def create_sweep_command(command: Optional[list] = None) -> list:
     """Return sweep command, filling in environment variable macros."""
     # Start from default sweep command
     command = command or DEFAULT_SWEEP_COMMAND
@@ -203,7 +203,7 @@ def create_sweep_command(command: Optional[List] = None) -> List:
     return command
 
 
-def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
+def create_sweep_command_args(command: dict) -> dict[str, Any]:
     """Create various formats of command arguments for the agent.
 
     Raises:
@@ -214,19 +214,19 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
         raise ValueError(f'No "args" found in command: {command}')
     # four different formats of command args
     # (1) standard command line flags (e.g. --foo=bar)
-    flags: List[str] = []
+    flags: list[str] = []
     # (2) flags without hyphens (e.g. foo=bar)
-    flags_no_hyphens: List[str] = []
+    flags_no_hyphens: list[str] = []
     # (3) flags with false booleans omitted  (e.g. --foo)
-    flags_no_booleans: List[str] = []
+    flags_no_booleans: list[str] = []
     # (4) flags as a dictionary (used for constructing a json)
-    flags_dict: Dict[str, Any] = {}
+    flags_dict: dict[str, Any] = {}
     # (5) flags without equals (e.g. --foo bar)
-    args_no_equals: List[str] = []
+    args_no_equals: list[str] = []
     # (6) flags for hydra append config value (e.g. +foo=bar)
-    flags_append_hydra: List[str] = []
+    flags_append_hydra: list[str] = []
     # (7) flags for hydra override config value (e.g. ++foo=bar)
-    flags_override_hydra: List[str] = []
+    flags_override_hydra: list[str] = []
     for param, config in command["args"].items():
         # allow 'None' as a valid value, but error if no value is found
         try:
@@ -260,8 +260,8 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
 
 
 def make_launch_sweep_entrypoint(
-    args: Dict[str, Any], command: Optional[List[str]]
-) -> Tuple[Optional[List[str]], Any]:
+    args: dict[str, Any], command: Optional[list[str]]
+) -> tuple[Optional[list[str]], Any]:
     """Use args dict from create_sweep_command_args to construct entrypoint.
 
     If replace is True, remove macros from entrypoint, fill them in with args
@@ -304,8 +304,8 @@ def check_job_exists(public_api: "PublicApi", job: Optional[str]) -> bool:
 
 
 def get_previous_args(
-    run_spec: Dict[str, Any],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    run_spec: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Parse through previous scheduler run_spec.
 
     returns scheduler_args and settings.

@@ -7,17 +7,8 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    Tuple,
-    Union,
-    cast,
-)
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 
 import click
 
@@ -94,7 +85,7 @@ LAUNCH_DEFAULT_PROJECT = "model-registry"
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
-MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
+MAX_ENV_LENGTHS: dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
 CODE_MOUNT_DIR = "/mnt/wandb"
@@ -200,8 +191,8 @@ def set_project_entity_defaults(
     api: Api,
     project: Optional[str],
     entity: Optional[str],
-    launch_config: Optional[Dict[str, Any]],
-) -> Tuple[Optional[str], str]:
+    launch_config: Optional[dict[str, Any]],
+) -> tuple[Optional[str], str]:
     # set the target project and entity if not provided
     source_uri = None
     if uri is not None:
@@ -227,14 +218,14 @@ def set_project_entity_defaults(
     return project, entity
 
 
-def get_default_entity(api: Api, launch_config: Optional[Dict[str, Any]]):
+def get_default_entity(api: Api, launch_config: Optional[dict[str, Any]]):
     config_entity = None
     if launch_config:
         config_entity = launch_config.get("entity")
     return config_entity or api.default_entity
 
 
-def strip_resource_args_and_template_vars(launch_spec: Dict[str, Any]) -> None:
+def strip_resource_args_and_template_vars(launch_spec: dict[str, Any]) -> None:
     if launch_spec.get("resource_args", None) and launch_spec.get(
         "template_variables", None
     ):
@@ -254,15 +245,15 @@ def construct_launch_spec(
     entity: Optional[str],
     docker_image: Optional[str],
     resource: Optional[str],
-    entry_point: Optional[List[str]],
+    entry_point: Optional[list[str]],
     version: Optional[str],
-    resource_args: Optional[Dict[str, Any]],
-    launch_config: Optional[Dict[str, Any]],
+    resource_args: Optional[dict[str, Any]],
+    launch_config: Optional[dict[str, Any]],
     run_id: Optional[str],
     repository: Optional[str],
     author: Optional[str],
     sweep_id: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
@@ -328,7 +319,7 @@ def construct_launch_spec(
     return launch_spec
 
 
-def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
+def validate_launch_spec_source(launch_spec: dict[str, Any]) -> None:
     job = launch_spec.get("job")
     docker_image = launch_spec.get("docker", {}).get("docker_image")
     if bool(job) == bool(docker_image):
@@ -337,7 +328,7 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
         )
 
 
-def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
+def parse_wandb_uri(uri: str) -> tuple[str, str, str]:
     """Parse wandb uri to retrieve entity, project and run name."""
     ref = WandbReference.parse(uri)
     if not ref or not ref.entity or not ref.project or not ref.run_id:
@@ -358,13 +349,13 @@ def get_local_python_deps(
         return None
 
 
-def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
+def diff_pip_requirements(req_1: list[str], req_2: list[str]) -> dict[str, str]:
     """Return a list of pip requirements that are not in req_1 but are in req_2."""
 
-    def _parse_req(req: List[str]) -> Dict[str, str]:
+    def _parse_req(req: list[str]) -> dict[str, str]:
         # TODO: This can be made more exhaustive, but for 99% of cases this is fine
         # see https://pip.pypa.io/en/stable/reference/requirements-file-format/#example
-        d: Dict[str, str] = dict()
+        d: dict[str, str] = dict()
         for line in req:
             _name: str = None  # type: ignore
             _version: str = None  # type: ignore
@@ -398,15 +389,15 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
 
     # Use symmetric difference between dict representation to print errors
     try:
-        req_1_dict: Dict[str, str] = _parse_req(req_1)
-        req_2_dict: Dict[str, str] = _parse_req(req_2)
+        req_1_dict: dict[str, str] = _parse_req(req_1)
+        req_2_dict: dict[str, str] = _parse_req(req_2)
     except (AssertionError, ValueError, IndexError, KeyError) as e:
         raise LaunchError(f"Failed to parse pip requirements: {e}")
-    diff: List[Tuple[str, str]] = []
+    diff: list[tuple[str, str]] = []
     for item in set(req_1_dict.items()) ^ set(req_2_dict.items()):
         diff.append(item)
     # Parse through the diff to make it pretty
-    pretty_diff: Dict[str, str] = {}
+    pretty_diff: dict[str, str] = {}
     for name, version in diff:
         if pretty_diff.get(name) is None:
             pretty_diff[name] = version
@@ -423,13 +414,13 @@ def validate_wandb_python_deps(
     if requirements_file is not None:
         requirements_path = os.path.join(dir, requirements_file)
         with open(requirements_path) as f:
-            wandb_python_deps: List[str] = f.read().splitlines()
+            wandb_python_deps: list[str] = f.read().splitlines()
 
         local_python_file = get_local_python_deps(dir)
         if local_python_file is not None:
             local_python_deps_path = os.path.join(dir, local_python_file)
             with open(local_python_deps_path) as f:
-                local_python_deps: List[str] = f.read().splitlines()
+                local_python_deps: list[str] = f.read().splitlines()
 
             diff_pip_requirements(wandb_python_deps, local_python_deps)
             return
@@ -512,7 +503,7 @@ def to_camel_case(maybe_snake_str: str) -> str:
 
 
 def validate_build_and_registry_configs(
-    build_config: Dict[str, Any], registry_config: Dict[str, Any]
+    build_config: dict[str, Any], registry_config: dict[str, Any]
 ) -> None:
     build_config_credentials = build_config.get("credentials", {})
     registry_config_credentials = registry_config.get("credentials", {})
@@ -526,8 +517,8 @@ def validate_build_and_registry_configs(
 
 async def get_kube_context_and_api_client(
     kubernetes: Any,
-    resource_args: Dict[str, Any],
-) -> Tuple[Any, Any]:
+    resource_args: dict[str, Any],
+) -> tuple[Any, Any]:
     config_file = resource_args.get("configFile", None)
     context = None
     if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
@@ -566,16 +557,16 @@ async def get_kube_context_and_api_client(
 
 
 def resolve_build_and_registry_config(
-    default_launch_config: Optional[Dict[str, Any]],
-    build_config: Optional[Dict[str, Any]],
-    registry_config: Optional[Dict[str, Any]],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    resolved_build_config: Dict[str, Any] = {}
+    default_launch_config: Optional[dict[str, Any]],
+    build_config: Optional[dict[str, Any]],
+    registry_config: Optional[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    resolved_build_config: dict[str, Any] = {}
     if build_config is None and default_launch_config is not None:
         resolved_build_config = default_launch_config.get("builder", {})
     elif build_config is not None:
         resolved_build_config = build_config
-    resolved_registry_config: Dict[str, Any] = {}
+    resolved_registry_config: dict[str, Any] = {}
     if registry_config is None and default_launch_config is not None:
         resolved_registry_config = default_launch_config.get("registry", {})
     elif registry_config is not None:
@@ -678,7 +669,7 @@ def pull_docker_image(docker_image: str) -> None:
         raise LaunchError(f"Docker server returned error: {e}")
 
 
-def macro_sub(original: str, sub_dict: Dict[str, Optional[str]]) -> str:
+def macro_sub(original: str, sub_dict: dict[str, Optional[str]]) -> str:
     """Substitute macros in a string.
 
     Macros occur in the string in the ${macro} format. The macro names are
@@ -697,7 +688,7 @@ def macro_sub(original: str, sub_dict: Dict[str, Optional[str]]) -> str:
     )
 
 
-def recursive_macro_sub(source: Any, sub_dict: Dict[str, Optional[str]]) -> Any:
+def recursive_macro_sub(source: Any, sub_dict: dict[str, Optional[str]]) -> Any:
     """Recursively substitute macros in a parsed JSON or YAML blob.
 
     Macros occur in strings at leaves of the blob in the ${macro} format.
@@ -725,7 +716,7 @@ def recursive_macro_sub(source: Any, sub_dict: Dict[str, Optional[str]]) -> Any:
 
 def fetch_and_validate_template_variables(
     runqueue: Any, fields: dict
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     template_variables = {}
 
     variable_schemas = {}
@@ -757,7 +748,7 @@ def fetch_and_validate_template_variables(
     return template_variables
 
 
-def get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
+def get_entrypoint_file(entrypoint: list[str]) -> Optional[str]:
     """Get the entrypoint file from the given command.
 
     Args:
@@ -775,7 +766,7 @@ def get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
     return entrypoint[1]
 
 
-def get_current_python_version() -> Tuple[str, str]:
+def get_current_python_version() -> tuple[str, str]:
     full_version = sys.version.split()[0].split(".")
     major = full_version[0]
     version = ".".join(full_version[:2]) if len(full_version) >= 2 else major + ".0"

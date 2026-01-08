@@ -2,7 +2,8 @@
 
 """Tests for the `wandb.GitRepo` module."""
 
-from typing import Generator, Optional
+from collections.abc import Generator
+from typing import Optional
 
 import git
 import pytest

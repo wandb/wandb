@@ -1,5 +1,5 @@
 import importlib
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 import pytest
 
@@ -26,10 +26,10 @@ def run_and_snapshot(wandb_backend_spy):
     def _runner(
         module: Any,
         *,
-        setup: Optional[Callable[[Any], Dict[str, Any]]] = None,
+        setup: Optional[Callable[[Any], dict[str, Any]]] = None,
         cleanup: Optional[Callable[[], None]] = None,
-    ) -> Dict[str, Any]:
-        extras: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        extras: dict[str, Any] = {}
         if setup is not None:
             extras = setup(wandb_backend_spy) or {}
 

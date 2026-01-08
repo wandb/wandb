@@ -11,20 +11,10 @@ import threading
 import time
 import traceback
 from collections import defaultdict
+from collections.abc import Generator
 from datetime import datetime
 from queue import Queue
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Generator,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 import requests
 
@@ -83,7 +73,7 @@ logger = logging.getLogger(__name__)
 _OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
-def _framework_priority() -> Generator[Tuple[str, str], None, None]:
+def _framework_priority() -> Generator[tuple[str, str], None, None]:
     yield from [
         ("lightgbm", "lightgbm"),
         ("catboost", "catboost"),
@@ -101,7 +91,7 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
     ]
 
 
-def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
+def _manifest_json_from_proto(manifest: "ArtifactManifest") -> dict:
     if manifest.version == 1:
         if manifest.manifest_file_path:
             contents = {}
@@ -129,7 +119,7 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
     }
 
 
-def _manifest_entry_from_proto(entry: "ArtifactManifestEntry") -> Dict:
+def _manifest_entry_from_proto(entry: "ArtifactManifestEntry") -> dict:
     birth_artifact_id = entry.birth_artifact_id if entry.birth_artifact_id else None
     return {
         "digest": entry.digest,
@@ -150,9 +140,9 @@ class ResumeState:
     output: int
     runtime: float
     wandb_runtime: Optional[int]
-    summary: Optional[Dict[str, Any]]
-    config: Optional[Dict[str, Any]]
-    tags: Optional[List[str]]
+    summary: Optional[dict[str, Any]]
+    config: Optional[dict[str, Any]]
+    tags: Optional[list[str]]
 
     def __init__(self) -> None:
         self.resumed = False
@@ -209,8 +199,8 @@ class SendManager:
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
     _interface: InterfaceQueue
-    _api_settings: Dict[str, str]
-    _partial_output: Dict[str, str]
+    _api_settings: dict[str, str]
+    _partial_output: dict[str, str]
     _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
@@ -224,12 +214,12 @@ class SendManager:
     _record_exit: Optional["Record"]
     _exit_result: Optional["RunExitResult"]
     _resume_state: ResumeState
-    _rewind_response: Optional[Dict[str, Any]]
-    _cached_server_info: Dict[str, Any]
-    _cached_viewer: Dict[str, Any]
-    _server_messages: List[Dict[str, Any]]
+    _rewind_response: Optional[dict[str, Any]]
+    _cached_server_info: dict[str, Any]
+    _cached_viewer: dict[str, Any]
+    _server_messages: list[dict[str, Any]]
     _ds: Optional[datastore.DataStore]
-    _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
+    _output_raw_streams: dict["StreamLiterals", _OutputRawStream]
     _output_raw_file: Optional[filesystem.CRDedupedFile]
     _send_record_num: int
     _send_end_offset: int
@@ -272,12 +262,12 @@ class SendManager:
         self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._environment_obj = wandb_internal_pb2.EnvironmentRecord()
-        self._config_metric_pbdict_list: List[Dict[int, Any]] = []
-        self._metadata_summary: Dict[str, Any] = defaultdict()
-        self._cached_summary: Dict[str, Any] = dict()
-        self._config_metric_index_dict: Dict[str, int] = {}
-        self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
-        self._consolidated_summary: Dict[str, Any] = dict()
+        self._config_metric_pbdict_list: list[dict[int, Any]] = []
+        self._metadata_summary: dict[str, Any] = defaultdict()
+        self._cached_summary: dict[str, Any] = dict()
+        self._config_metric_index_dict: dict[str, int] = {}
+        self._config_metric_dict: dict[str, wandb_internal_pb2.MetricRecord] = {}
+        self._consolidated_summary: dict[str, Any] = dict()
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
@@ -362,7 +352,7 @@ class SendManager:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
+        exc_type: Optional[type[BaseException]],
         exc_value: Optional[BaseException],
         exc_traceback: Optional[traceback.TracebackException],
     ) -> Literal[False]:
@@ -424,7 +414,7 @@ class SendManager:
         self._context_keeper.release(context_id)
         self._result_q.put(result)
 
-    def _flatten(self, dictionary: Dict) -> None:
+    def _flatten(self, dictionary: dict) -> None:
         if isinstance(dictionary, dict):
             for k, v in list(dictionary.items()):
                 if isinstance(v, dict):
@@ -1138,7 +1128,7 @@ class SendManager:
             self._run.start_time.ToMicroseconds() / 1e6,
         )
 
-    def _save_history(self, history_dict: Dict[str, Any]) -> None:
+    def _save_history(self, history_dict: dict[str, Any]) -> None:
         if self._fs:
             self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
 
@@ -1190,7 +1180,7 @@ class SendManager:
                 d[item.key] = json.loads(item.value_json)
             except json.JSONDecodeError:
                 logger.exception("error decoding stats json: %s", item.value_json)
-        row: Dict[str, Any] = dict(system=d)
+        row: dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
         row["_timestamp"] = now_us / 1e6
@@ -1378,7 +1368,7 @@ class SendManager:
                 metric.ClearField("step_metric")
                 metric.step_metric_index = find_step_idx + 1
 
-        md: Dict[int, Any] = proto_util.proto_encode_to_dict(metric)
+        md: dict[int, Any] = proto_util.proto_encode_to_dict(metric)
         find_idx = self._config_metric_index_dict.get(metric.name)
         if find_idx is not None:
             self._config_metric_pbdict_list[find_idx] = md
@@ -1525,7 +1515,7 @@ class SendManager:
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
-    ) -> Optional[Dict]:
+    ) -> Optional[dict]:
         from packaging.version import parse
 
         assert self._pusher
@@ -1626,12 +1616,12 @@ class SendManager:
             return
         self._cached_viewer, self._cached_server_info = self._api.viewer_server_info()
 
-    def get_viewer_info(self) -> Dict[str, Any]:
+    def get_viewer_info(self) -> dict[str, Any]:
         if not self._cached_viewer:
             self.get_viewer_server_info()
         return self._cached_viewer
 
-    def get_server_info(self) -> Dict[str, Any]:
+    def get_server_info(self) -> dict[str, Any]:
         if not self._cached_server_info:
             self.get_viewer_server_info()
         return self._cached_server_info

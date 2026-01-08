@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Iterator
 from functools import lru_cache
 from string import ascii_lowercase, digits
-from typing import Callable, Iterator, Union
+from typing import Callable, Union
 
 import wandb
 from pytest import FixtureRequest, MonkeyPatch, fixture, skip

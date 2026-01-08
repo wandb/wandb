@@ -5,7 +5,7 @@ import contextlib
 import socket
 import threading
 import time
-from typing import Iterator
+from collections.abc import Iterator
 
 import fastapi
 import httpx

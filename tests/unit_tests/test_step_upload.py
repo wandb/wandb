@@ -3,8 +3,9 @@ import queue
 import random
 import threading
 import time
+from collections.abc import Iterable, MutableSequence
 from pathlib import Path
-from typing import Any, Callable, Iterable, MutableSequence, Optional
+from typing import Any, Callable, Optional
 from unittest.mock import DEFAULT, Mock
 
 import pytest

@@ -29,21 +29,13 @@ import threading
 import time
 import types
 import urllib
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from importlib import import_module
 from sys import getsizeof
 from types import ModuleType
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Callable,
-    Iterable,
-    Mapping,
-    Sequence,
-    TextIO,
-    Union,
-)
+from typing import IO, TYPE_CHECKING, Callable, TextIO, Union
 
 from typing_extensions import Any, Generator, TypeGuard, TypeVar, deprecated
 
@@ -412,9 +404,12 @@ def make_tarfile(
             tar.add(source_dir, arcname=archive_name, filter=_filter_timestamps)
         # When gzipping the tar, don't include the tar's filename or modification time in the
         # zipped archive (see https://docs.python.org/3/library/gzip.html#gzip.GzipFile)
-        with gzip.GzipFile(
-            filename="", fileobj=open(output_filename, "wb"), mode="wb", mtime=0
-        ) as gzipped_tar, open(unzipped_filename, "rb") as tar_file:
+        with (
+            gzip.GzipFile(
+                filename="", fileobj=open(output_filename, "wb"), mode="wb", mtime=0
+            ) as gzipped_tar,
+            open(unzipped_filename, "rb") as tar_file,
+        ):
             gzipped_tar.write(tar_file.read())
     finally:
         os.close(descriptor)

@@ -2,7 +2,8 @@ import concurrent.futures
 import dataclasses
 import queue
 import threading
-from typing import TYPE_CHECKING, Iterable, Mapping, Tuple
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING
 from unittest.mock import Mock, call
 
 import pytest
@@ -69,7 +70,7 @@ class MockRequestQueue(Mock):
     def __init__(
         self,
         clock: MockClock,
-        schedule: Iterable[Tuple[float, Request]],
+        schedule: Iterable[tuple[float, Request]],
     ):
         super().__init__(
             get=Mock(wraps=self._get),

@@ -62,7 +62,7 @@ class SummaryDict(metaclass=abc.ABCMeta):
 
     __delitem__ = __delattr__
 
-    def update(self, d: t.Dict):
+    def update(self, d: dict):
         record = SummaryRecord()
         for key, value in d.items():
             item = SummaryItem()
@@ -133,7 +133,7 @@ class SummarySubDict(SummaryDict):
     Contains a path to itself from the root.
     """
 
-    _items: t.Dict
+    _items: dict
     _parent: SummaryDict
     _parent_key: str
 

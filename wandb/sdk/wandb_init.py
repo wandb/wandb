@@ -21,7 +21,8 @@ import platform
 import sys
 import tempfile
 import time
-from typing import TYPE_CHECKING, Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
+from typing import TYPE_CHECKING
 
 from typing_extensions import Any, Literal, Protocol, Self
 

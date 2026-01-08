@@ -14,7 +14,7 @@ np = get_module("numpy")  # intentionally not required
 if t.TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
-ConvertibleToType = t.Union["Type", t.Type["Type"], type, t.Any]
+ConvertibleToType = t.Union["Type", type["Type"], type, t.Any]
 
 
 class TypeRegistry:
@@ -39,7 +39,7 @@ class TypeRegistry:
         return TypeRegistry._types_by_class
 
     @staticmethod
-    def add(wb_type: t.Type["Type"]) -> None:
+    def add(wb_type: type["Type"]) -> None:
         assert issubclass(wb_type, Type)
         TypeRegistry.types_by_name().update({wb_type.name: wb_type})
         for name in wb_type.legacy_names:
@@ -73,7 +73,7 @@ class TypeRegistry:
 
     @staticmethod
     def type_from_dict(
-        json_dict: t.Dict[str, t.Any], artifact: t.Optional["Artifact"] = None
+        json_dict: dict[str, t.Any], artifact: t.Optional["Artifact"] = None
     ) -> "Type":
         wb_type = json_dict.get("wb_type")
         if wb_type is None:
@@ -177,16 +177,16 @@ class Type:
     name: t.ClassVar[str] = ""
 
     # List of names by which this class can deserialize
-    legacy_names: t.ClassVar[t.List[str]] = []
+    legacy_names: t.ClassVar[list[str]] = []
 
     # Subclasses may override with a list of `types` which this Type is capable
     # of being initialized. This is used by the Type Registry when calling `TypeRegistry.type_of`.
     # Some types will have an empty list - for example `Union`. There is no raw python type which
     # inherently maps to a Union and therefore the list should be empty.
-    types: t.ClassVar[t.List[type]] = []
+    types: t.ClassVar[list[type]] = []
 
     # Contains the further specification of the Type
-    _params: t.Dict[str, t.Any]
+    _params: dict[str, t.Any]
 
     def __init__(*args, **kwargs):
         pass
@@ -218,7 +218,7 @@ class Type:
         else:
             return InvalidType()
 
-    def to_json(self, artifact: t.Optional["Artifact"] = None) -> t.Dict[str, t.Any]:
+    def to_json(self, artifact: t.Optional["Artifact"] = None) -> dict[str, t.Any]:
         """Generate a jsonable dictionary serialization the type.
 
         If overridden by subclass, ensure that `from_json` is equivalently overridden.
@@ -242,7 +242,7 @@ class Type:
     @classmethod
     def from_json(
         cls,
-        json_dict: t.Dict[str, t.Any],
+        json_dict: dict[str, t.Any],
         artifact: t.Optional["Artifact"] = None,
     ) -> "Type":
         """Construct a new instance of the type using a JSON dictionary.
@@ -307,7 +307,7 @@ class InvalidType(Type):
     """
 
     name = "invalid"
-    types: t.ClassVar[t.List[type]] = []
+    types: t.ClassVar[list[type]] = []
 
     def assign_type(self, wb_type: "Type") -> "InvalidType":
         return self
@@ -321,7 +321,7 @@ class AnyType(Type):
     """
 
     name = "any"
-    types: t.ClassVar[t.List[type]] = []
+    types: t.ClassVar[list[type]] = []
 
     def assign_type(self, wb_type: "Type") -> t.Union["AnyType", InvalidType]:
         return (
@@ -339,7 +339,7 @@ class UnknownType(Type):
     """
 
     name = "unknown"
-    types: t.ClassVar[t.List[type]] = []
+    types: t.ClassVar[list[type]] = []
 
     def assign_type(self, wb_type: "Type") -> "Type":
         return wb_type if not isinstance(wb_type, NoneType) else InvalidType()
@@ -347,17 +347,17 @@ class UnknownType(Type):
 
 class NoneType(Type):
     name = "none"
-    types: t.ClassVar[t.List[type]] = [None.__class__]
+    types: t.ClassVar[list[type]] = [None.__class__]
 
 
 class StringType(Type):
     name = "string"
-    types: t.ClassVar[t.List[type]] = [str]
+    types: t.ClassVar[list[type]] = [str]
 
 
 class NumberType(Type):
     name = "number"
-    types: t.ClassVar[t.List[type]] = [int, float]
+    types: t.ClassVar[list[type]] = [int, float]
 
 
 if np:
@@ -401,7 +401,7 @@ if np:
 
 class TimestampType(Type):
     name = "timestamp"
-    types: t.ClassVar[t.List[type]] = [datetime.datetime, datetime.date]
+    types: t.ClassVar[list[type]] = [datetime.datetime, datetime.date]
 
 
 if np:
@@ -410,7 +410,7 @@ if np:
 
 class BooleanType(Type):
     name = "boolean"
-    types: t.ClassVar[t.List[type]] = [bool]
+    types: t.ClassVar[list[type]] = [bool]
 
 
 if np:
@@ -422,7 +422,7 @@ class PythonObjectType(Type):
 
     name = "pythonObject"
     legacy_names = ["object"]
-    types: t.ClassVar[t.List[type]] = []
+    types: t.ClassVar[list[type]] = []
 
     def __init__(self, class_name: str):
         self.params.update({"class_name": class_name})
@@ -436,7 +436,7 @@ class ConstType(Type):
     """A constant value (currently only primitives supported)."""
 
     name = "const"
-    types: t.ClassVar[t.List[type]] = []
+    types: t.ClassVar[list[type]] = []
 
     def __init__(self, val: t.Optional[t.Any] = None, is_set: t.Optional[bool] = False):
         if val.__class__ not in [str, int, float, bool, set, list, None.__class__]:
@@ -461,7 +461,7 @@ class ConstType(Type):
         return str(self.params["val"])
 
 
-def _flatten_union_types(wb_types: t.List[Type]) -> t.List[Type]:
+def _flatten_union_types(wb_types: list[Type]) -> list[Type]:
     final_types = []
     for allowed_type in wb_types:
         if isinstance(allowed_type, UnionType):
@@ -474,10 +474,10 @@ def _flatten_union_types(wb_types: t.List[Type]) -> t.List[Type]:
 
 
 def _union_assigner(
-    allowed_types: t.List[Type],
+    allowed_types: list[Type],
     obj_or_type: t.Union[Type, t.Optional[t.Any]],
     type_mode=False,
-) -> t.Union[t.List[Type], InvalidType]:
+) -> t.Union[list[Type], InvalidType]:
     resolved_types = []
     valid = False
     unknown_count = 0
@@ -527,7 +527,7 @@ class UnionType(Type):
     """An "or" of types."""
 
     name = "union"
-    types: t.ClassVar[t.List[type]] = []
+    types: t.ClassVar[list[type]] = []
 
     def __init__(
         self,
@@ -597,7 +597,7 @@ class ListType(Type):
     """A list of homogeneous types."""
 
     name = "list"
-    types: t.ClassVar[t.List[type]] = [list, tuple, set, frozenset]
+    types: t.ClassVar[list[type]] = [list, tuple, set, frozenset]
 
     def __init__(
         self,
@@ -699,13 +699,13 @@ class NDArrayType(Type):
     """Represents a list of homogeneous types."""
 
     name = "ndarray"
-    types: t.ClassVar[t.List[type]] = []  # will manually add type if np is available
-    _serialization_path: t.Optional[t.Dict[str, str]]
+    types: t.ClassVar[list[type]] = []  # will manually add type if np is available
+    _serialization_path: t.Optional[dict[str, str]]
 
     def __init__(
         self,
         shape: t.Sequence[int],
-        serialization_path: t.Optional[t.Dict[str, str]] = None,
+        serialization_path: t.Optional[dict[str, str]] = None,
     ):
         self.params.update({"shape": list(shape)})
         self._serialization_path = serialization_path
@@ -749,7 +749,7 @@ class NDArrayType(Type):
 
         return InvalidType()
 
-    def to_json(self, artifact: t.Optional["Artifact"] = None) -> t.Dict[str, t.Any]:
+    def to_json(self, artifact: t.Optional["Artifact"] = None) -> dict[str, t.Any]:
         # custom override to support serialization path outside of params internal dict
         res = {
             "wb_type": self.name,
@@ -761,7 +761,7 @@ class NDArrayType(Type):
 
         return res
 
-    def _get_serialization_path(self) -> t.Optional[t.Dict[str, str]]:
+    def _get_serialization_path(self) -> t.Optional[dict[str, str]]:
         return self._serialization_path
 
     def _set_serialization_path(self, path: str, key: str) -> None:
@@ -785,11 +785,11 @@ class TypedDictType(Type):
 
     name = "typedDict"
     legacy_names = ["dictionary"]
-    types: t.ClassVar[t.List[type]] = [dict]
+    types: t.ClassVar[list[type]] = [dict]
 
     def __init__(
         self,
-        type_map: t.Optional[t.Dict[str, ConvertibleToType]] = None,
+        type_map: t.Optional[dict[str, ConvertibleToType]] = None,
     ):
         if type_map is None:
             type_map = {}
