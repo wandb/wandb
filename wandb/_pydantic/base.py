@@ -1,7 +1,5 @@
 """Base classes and other customizations for generated pydantic types."""
 
-# Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
-
 from __future__ import annotations
 
 from abc import ABC
@@ -10,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Literal, overlo
 from pydantic import BaseModel, ConfigDict
 from typing_extensions import TypedDict, Unpack, override
 
-from .v1_compat import PydanticCompatMixin, to_camel
+from .v1_compat import to_camel
 
 if TYPE_CHECKING:
     from pydantic.main import IncEx
@@ -38,36 +36,29 @@ class ModelDumpKwargs(TypedDict, total=False):
 
 
 # ---------------------------------------------------------------------------
-# Base models and mixin classes.
-#
-# Extra info is provided for devs in inline comments, NOT docstrings.  This
-# prevents it from showing up in generated docs for subclasses.
+# Base models and mixin classes
+# ---------------------------------------------------------------------------
 
 
-# FOR INTERNAL USE ONLY: v1-compatible drop-in replacement for `pydantic.BaseModel`.
-# If pydantic v2 is detected, this is just `pydantic.BaseModel`.
-#
-# Deliberately inherits ALL default configuration from `pydantic.BaseModel`.
-class CompatBaseModel(PydanticCompatMixin, BaseModel):
-    __doc__ = None  # Prevent subclasses from inheriting the BaseModel docstring
+class JsonableModel(BaseModel, ABC):
+    """Base class with sensible defaults for converting to and from JSON.
 
+    Automatically parse or serialize "raw" API data (e.g. convert to and from
+    camelCase keys):
+    - `.model_{dump,dump_json}()` should return JSON-ready dicts or JSON
+      strings.
+    - `.model_{validate,validate_json}()` should accept JSON-ready dicts or
+      JSON strings.
 
-class JsonableModel(CompatBaseModel, ABC):
-    # Base class with sensible defaults for converting to and from JSON.
-    #
-    # Automatically parse or serialize "raw" API data (e.g. convert to and from
-    # camelCase keys):
-    # - `.model_{dump,dump_json}()` should return JSON-ready dicts or JSON
-    #   strings.
-    # - `.model_{validate,validate_json}()` should accept JSON-ready dicts or
-    #   JSON strings.
-    #
-    # Ensure round-trip serialization <-> deserialization between:
-    # - `model_dump()` <-> `model_validate()`
-    # - `model_dump_json()` <-> `model_validate_json()`
-    #
-    # These behaviors help models predictably handle GraphQL request or response
-    # data.
+    Ensure round-trip serialization <-> deserialization between:
+    - `model_dump()` <-> `model_validate()`
+    - `model_dump_json()` <-> `model_validate_json()`
+
+    These behaviors help models predictably handle GraphQL request or response
+    data.
+
+    <!-- lazydoc-ignore: internal -->
+    """
 
     model_config = ConfigDict(
         # ---------------------------------------------------------------------------

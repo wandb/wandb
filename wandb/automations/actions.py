@@ -82,7 +82,7 @@ class _WebhookIntegrationStub(GQLBase):
 
 class SavedNotificationAction(NotificationActionFields, frozen=False):
     action_type: Literal[ActionType.NOTIFICATION] = ActionType.NOTIFICATION
-    integration: _SlackIntegrationStub
+    integration: _SlackIntegrationStub  # type: ignore[assignment]
 
     title: Optional[str]
     message: Optional[str]
@@ -91,7 +91,7 @@ class SavedNotificationAction(NotificationActionFields, frozen=False):
 
 class SavedWebhookAction(GenericWebhookActionFields, frozen=False):
     action_type: Literal[ActionType.GENERIC_WEBHOOK] = ActionType.GENERIC_WEBHOOK
-    integration: _WebhookIntegrationStub
+    integration: _WebhookIntegrationStub  # type: ignore[assignment]
 
     # We override the type of the `requestPayload` field since the original GraphQL
     # schema (and generated class) effectively defines it as a string, when we know
