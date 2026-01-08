@@ -44,12 +44,14 @@ func NewRunHistoryAPIHandler(
 ) *RunHistoryAPIHandler {
 	logger := observability.NewNoOpLogger()
 	baseURL := stream.BaseURLFromSettings(logger, settings)
-	backend := stream.NewBackend(baseURL, logger, settings)
+	credentialProvider := stream.CredentialsFromSettings(logger, settings)
 	graphqlClient := stream.NewGraphQLClient(
-		backend,
-		settings,
+		baseURL,
+		"", /*clientID*/
+		credentialProvider,
+		logger,
 		&observability.Peeker{},
-		"",
+		settings,
 	)
 
 	httpClient := retryablehttp.NewClient()

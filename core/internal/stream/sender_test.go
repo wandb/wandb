@@ -46,7 +46,7 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
 	})
 	baseURL := stream.BaseURLFromSettings(logger, settings)
-	backend := stream.NewBackend(baseURL, logger, settings)
+	credentialProvider := stream.CredentialsFromSettings(logger, settings)
 	fileStreamFactory := &filestream.FileStreamFactory{
 		Logger:   logger,
 		Printer:  observability.NewPrinter(),
@@ -67,9 +67,10 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 	runHandle := runhandle.New()
 
 	senderFactory := stream.SenderFactory{
+		BaseURL:                 baseURL,
+		CredentialProvider:      credentialProvider,
 		Logger:                  logger,
 		Settings:                settings,
-		Backend:                 backend,
 		FileStreamFactory:       fileStreamFactory,
 		FileTransferManager:     fileTransferManager,
 		RunfilesUploaderFactory: runfilesUploaderFactory,

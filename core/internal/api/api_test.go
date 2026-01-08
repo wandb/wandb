@@ -117,18 +117,16 @@ func newClient(
 ) api.Client {
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	require.NoError(t, err)
+	opts.BaseURL = baseURL
 
 	credentialProvider, err := api.NewCredentialProvider(
 		settings,
 		observabilitytest.NewTestLogger(t).Logger,
 	)
 	require.NoError(t, err)
+	opts.CredentialProvider = credentialProvider
 
-	backend := api.New(api.BackendOptions{
-		BaseURL:            baseURL,
-		CredentialProvider: credentialProvider,
-	})
-	return backend.NewClient(opts)
+	return api.NewClient(opts)
 }
 
 func TestNewClientWithProxy(t *testing.T) {
@@ -152,13 +150,8 @@ func TestNewClientWithProxy(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	backend := api.New(api.BackendOptions{
-		BaseURL:            &url.URL{Scheme: "http", Host: "api.example.com"},
-		Logger:             observabilitytest.NewTestLogger(t).Logger,
-		CredentialProvider: credentialProvider,
-	})
-
 	clientOptions := api.ClientOptions{
+		BaseURL:         &url.URL{Scheme: "http", Host: "api.example.com"},
 		RetryMax:        5,
 		RetryWaitMin:    1 * time.Second,
 		RetryWaitMax:    5 * time.Second,
@@ -169,9 +162,12 @@ func TestNewClientWithProxy(t *testing.T) {
 		Proxy: func(req *http.Request) (*url.URL, error) {
 			return proxyParsedURL, nil
 		},
+
+		CredentialProvider: credentialProvider,
+		Logger:             observabilitytest.NewTestLogger(t).Logger,
 	}
 
-	client := backend.NewClient(clientOptions)
+	client := api.NewClient(clientOptions)
 
 	// Create a test request
 	testReq, err := http.NewRequest("GET", "http://api.example.com/test", nil)
