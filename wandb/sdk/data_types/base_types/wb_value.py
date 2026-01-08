@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, Union
 
 from wandb import util
 from wandb.sdk import wandb_setup
@@ -8,7 +8,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ...wandb_run import Run as LocalRun
 
-    TypeMappingType = Dict[str, Type["WBValue"]]
+    TypeMappingType = dict[str, type["WBValue"]]
 
 
 def _is_maybe_offline() -> bool:
@@ -135,7 +135,7 @@ class WBValue:
         raise NotImplementedError
 
     @classmethod
-    def with_suffix(cls: Type["WBValue"], name: str, filetype: str = "json") -> str:
+    def with_suffix(cls: type["WBValue"], name: str, filetype: str = "json") -> str:
         """Get the name with the appropriate suffix.
 
         Args:
@@ -211,7 +211,7 @@ class WBValue:
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    def to_data_array(self) -> List[Any]:
+    def to_data_array(self) -> list[Any]:
         """Convert the object to a list of primitives representing the underlying data."""
         raise NotImplementedError
 

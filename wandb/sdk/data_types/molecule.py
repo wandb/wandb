@@ -1,7 +1,8 @@
 import io
 import os
 import pathlib
-from typing import TYPE_CHECKING, Optional, Sequence, Type, Union
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Optional, Union
 
 from wandb import util
 from wandb.sdk.lib import runid
@@ -201,7 +202,7 @@ class Molecule(BatchableMedia):
         )
 
     @classmethod
-    def get_media_subdir(cls: Type["Molecule"]) -> str:
+    def get_media_subdir(cls: type["Molecule"]) -> str:
         """Get media subdirectory.
 
         <!-- lazydoc-ignore-classmethod: internal -->
@@ -219,7 +220,7 @@ class Molecule(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls: Type["Molecule"],
+        cls: type["Molecule"],
         seq: Sequence["BatchableMedia"],
         run: "LocalRun",
         key: str,

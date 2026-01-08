@@ -1,7 +1,8 @@
 """metric."""
 
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Callable, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -57,7 +58,7 @@ class Metric:
         return self._step_sync
 
     @property
-    def summary(self) -> Optional[Tuple[str, ...]]:
+    def summary(self) -> Optional[tuple[str, ...]]:
         if self._summary is None:
             return None
         return tuple(self._summary)

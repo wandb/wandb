@@ -11,7 +11,7 @@ import json
 import typing
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import wandb
 from wandb.sdk.data_types import _dtypes
@@ -44,8 +44,8 @@ class SpanKind(str, Enum):
 
 @dataclass()
 class Result:
-    inputs: Optional[Dict[str, Any]] = field(default=None)
-    outputs: Optional[Dict[str, Any]] = field(default=None)
+    inputs: Optional[dict[str, Any]] = field(default=None)
+    outputs: Optional[dict[str, Any]] = field(default=None)
 
 
 @dataclass()
@@ -56,9 +56,9 @@ class Span:
     end_time_ms: Optional[int] = field(default=None)
     status_code: Optional[StatusCode] = field(default=None)
     status_message: Optional[str] = field(default=None)
-    attributes: Optional[Dict[str, Any]] = field(default=None)
-    results: Optional[List[Result]] = field(default=None)
-    child_spans: Optional[List["Span"]] = field(default=None)
+    attributes: Optional[dict[str, Any]] = field(default=None)
+    results: Optional[list[Result]] = field(default=None)
+    child_spans: Optional[list["Span"]] = field(default=None)
     span_kind: Optional[SpanKind] = field(default=None)
 
     def add_attribute(self, key: str, value: Any) -> None:
@@ -66,7 +66,7 @@ class Span:
             self.attributes = {}
         self.attributes[key] = value
 
-    def add_named_result(self, inputs: Dict[str, Any], outputs: Dict[str, Any]) -> None:
+    def add_named_result(self, inputs: dict[str, Any], outputs: dict[str, Any]) -> None:
         if self.results is None:
             self.results = []
         self.results.append(Result(inputs, outputs))
@@ -337,7 +337,7 @@ class Trace:
         return self
 
     @property
-    def metadata(self) -> Optional[Dict[str, str]]:
+    def metadata(self) -> Optional[dict[str, str]]:
         """Get the metadata of the trace.
 
         Returns:
@@ -346,7 +346,7 @@ class Trace:
         return self._span.attributes
 
     @metadata.setter
-    def metadata(self, value: Dict[str, str]) -> None:
+    def metadata(self, value: dict[str, str]) -> None:
         """Set the metadata of the trace.
 
         Args:
@@ -358,7 +358,7 @@ class Trace:
             self._span.attributes.update(value)
 
     @property
-    def inputs(self) -> Optional[Dict[str, str]]:
+    def inputs(self) -> Optional[dict[str, str]]:
         """Get the inputs of the trace.
 
         Returns:
@@ -367,7 +367,7 @@ class Trace:
         return self._span.results[-1].inputs if self._span.results else None
 
     @inputs.setter
-    def inputs(self, value: Dict[str, str]) -> None:
+    def inputs(self, value: dict[str, str]) -> None:
         """Set the inputs of the trace.
 
         Args:
@@ -381,7 +381,7 @@ class Trace:
             self._span.results.append(result)
 
     @property
-    def outputs(self) -> Optional[Dict[str, str]]:
+    def outputs(self) -> Optional[dict[str, str]]:
         """Get the outputs of the trace.
 
         Returns:
@@ -390,7 +390,7 @@ class Trace:
         return self._span.results[-1].outputs if self._span.results else None
 
     @outputs.setter
-    def outputs(self, value: Dict[str, str]) -> None:
+    def outputs(self, value: dict[str, str]) -> None:
         """Set the outputs of the trace.
 
         Args:

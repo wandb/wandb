@@ -1,5 +1,6 @@
 import os
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from .. import _dtypes
 from ..base_types.media import Media
@@ -28,7 +29,7 @@ class Classes(Media):
 
     @classmethod
     def from_json(
-        cls: Type["Classes"],
+        cls: type["Classes"],
         json_obj: dict,
         source_artifact: Optional["Artifact"],
     ) -> "Classes":
@@ -113,7 +114,7 @@ class _ClassesIdType(_dtypes.Type):
     def from_obj(cls, py_obj: Optional[Any] = None) -> "_dtypes.Type":
         return cls(py_obj)
 
-    def to_json(self, artifact: Optional["Artifact"] = None) -> Dict[str, Any]:
+    def to_json(self, artifact: Optional["Artifact"] = None) -> dict[str, Any]:
         cl_dict = super().to_json(artifact)
         # TODO (tss): Refactor this block with the similar one in wandb.Image.
         # This is a bit of a smell that the classes object does not follow
@@ -133,7 +134,7 @@ class _ClassesIdType(_dtypes.Type):
     @classmethod
     def from_json(
         cls,
-        json_dict: Dict[str, Any],
+        json_dict: dict[str, Any],
         artifact: Optional["Artifact"] = None,
     ) -> "_dtypes.Type":
         classes_obj = None

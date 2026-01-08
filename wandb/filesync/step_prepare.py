@@ -3,18 +3,8 @@
 import queue
 import threading
 import time
-from typing import (
-    TYPE_CHECKING,
-    Callable,
-    Dict,
-    List,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Callable, NamedTuple, Optional, Union
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import (
@@ -40,7 +30,7 @@ class ResponsePrepare(NamedTuple):
     upload_headers: Sequence[str]
     upload_id: Optional[str]
     storage_path: Optional[str]
-    multipart_upload_urls: Optional[Dict[int, str]]
+    multipart_upload_urls: Optional[dict[int, str]]
 
 
 Request = Union[RequestPrepare, RequestFinish]
@@ -56,7 +46,7 @@ def gather_batch(
     inter_event_time: float,
     max_batch_size: int,
     clock: Callable[[], float] = time.monotonic,
-) -> Tuple[bool, Sequence[RequestPrepare]]:
+) -> tuple[bool, Sequence[RequestPrepare]]:
     batch_start_time = clock()
     remaining_time = batch_time
 
@@ -64,7 +54,7 @@ def gather_batch(
     if isinstance(first_request, RequestFinish):
         return True, []
 
-    batch: List[RequestPrepare] = [first_request]
+    batch: list[RequestPrepare] = [first_request]
 
     while remaining_time > 0 and len(batch) < max_batch_size:
         try:

@@ -6,7 +6,7 @@ import os
 import re
 import tempfile
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 from packaging.version import parse
 
@@ -68,7 +68,7 @@ class WandbLogger:
         log_datasets: bool = True,
         model_artifact_name: str = "model-metadata",
         model_artifact_type: str = "model",
-        **kwargs_wandb_init: Dict[str, Any],
+        **kwargs_wandb_init: dict[str, Any],
     ) -> str:
         """Sync fine-tunes to Weights & Biases.
 
@@ -210,7 +210,7 @@ class WandbLogger:
         log_datasets: bool,
         model_artifact_name: str,
         model_artifact_type: str,
-        **kwargs_wandb_init: Dict[str, Any],
+        **kwargs_wandb_init: dict[str, Any],
     ):
         fine_tune_id = fine_tune.id
         status = fine_tune.status
@@ -309,7 +309,7 @@ class WandbLogger:
             return None
 
     @classmethod
-    def _get_config(cls, fine_tune: FineTuningJob) -> Dict[str, Any]:
+    def _get_config(cls, fine_tune: FineTuningJob) -> dict[str, Any]:
         config = dict(fine_tune)
         config["result_files"] = config["result_files"][0]
         if config.get("created_at"):
@@ -344,7 +344,7 @@ class WandbLogger:
         return hyperparams
 
     @staticmethod
-    def sanitize(input: Any) -> Union[Dict, List, str]:
+    def sanitize(input: Any) -> Union[dict, list, str]:
         valid_types = [bool, int, float, str]
         if isinstance(input, (Hyperparameters, Error)):
             return dict(input)
@@ -464,7 +464,7 @@ class WandbLogger:
         cls._run.use_artifact(artifact, aliases=["latest", artifact_alias])
 
     @classmethod
-    def _make_table(cls, file_content: str) -> Tuple[Table, int]:
+    def _make_table(cls, file_content: str) -> tuple[Table, int]:
         table = wandb.Table(columns=["role: system", "role: user", "role: assistant"])
 
         df = pd.read_json(io.StringIO(file_content), orient="records", lines=True)

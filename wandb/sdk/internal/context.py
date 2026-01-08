@@ -2,7 +2,7 @@
 
 import logging
 import threading
-from typing import Dict, Optional
+from typing import Optional
 
 from wandb.proto.wandb_internal_pb2 import Record, Result
 
@@ -38,7 +38,7 @@ def context_id_from_result(result: Result) -> str:
 
 
 class ContextKeeper:
-    _active_items: Dict[str, Context]
+    _active_items: dict[str, Context]
 
     def __init__(self) -> None:
         self._active_items = {}

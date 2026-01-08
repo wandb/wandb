@@ -4,7 +4,7 @@ import os
 import re
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import wandb
 from wandb.apis.internal import Api
@@ -34,7 +34,7 @@ def create_job(
     project: Optional[str] = None,
     name: Optional[str] = None,
     description: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
+    aliases: Optional[list[str]] = None,
     runtime: Optional[str] = None,
     entrypoint: Optional[str] = None,
     git_hash: Optional[str] = None,
@@ -109,16 +109,16 @@ def _create_job(
     project: Optional[str] = None,
     name: Optional[str] = None,
     description: Optional[str] = None,
-    aliases: Optional[List[str]] = None,
+    aliases: Optional[list[str]] = None,
     runtime: Optional[str] = None,
     entrypoint: Optional[str] = None,
     git_hash: Optional[str] = None,
     build_context: Optional[str] = None,
     dockerfile: Optional[str] = None,
     base_image: Optional[str] = None,
-    services: Optional[Dict[str, str]] = None,
-    schema: Optional[Dict[str, Any]] = None,
-) -> Tuple[Optional[Artifact], str, List[str]]:
+    services: Optional[dict[str, str]] = None,
+    schema: Optional[dict[str, Any]] = None,
+) -> tuple[Optional[Artifact], str, list[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 
     if name and name != make_artifact_name_safe(name):
@@ -259,7 +259,7 @@ def _make_metadata_for_partial_job(
     runtime: Optional[str],
     path: str,
     entrypoint: Optional[str],
-) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
+) -> tuple[Optional[dict[str, Any]], Optional[list[str]]]:
     """Create metadata for partial jobs, return metadata and requirements."""
     metadata = {}
     if job_type == "git":
@@ -318,7 +318,7 @@ def _create_repo_metadata(
     entrypoint: str,
     git_hash: Optional[str] = None,
     runtime: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     # Make sure the entrypoint doesn't contain any backward path traversal
     if entrypoint and ".." in entrypoint:
         wandb.termerror("Entrypoint cannot contain backward path traversal")
@@ -373,7 +373,7 @@ def _create_repo_metadata(
 
 def _create_artifact_metadata(
     path: str, entrypoint: str, runtime: Optional[str] = None
-) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
+) -> tuple[Optional[dict[str, Any]], Optional[list[str]]]:
     if not os.path.isdir(path):
         wandb.termerror("Path must be a valid file or directory")
         return {}, []
@@ -519,7 +519,7 @@ def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
 
 
 def _dump_metadata_and_requirements(
-    tmp_path: str, metadata: Dict[str, Any], requirements: Optional[List[str]]
+    tmp_path: str, metadata: dict[str, Any], requirements: Optional[list[str]]
 ) -> None:
     """Dump manufactured metadata and requirements.txt.
 

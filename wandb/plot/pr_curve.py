@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import numbers
-from typing import TYPE_CHECKING, Iterable, TypeVar
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, TypeVar
 
 import wandb
 from wandb import util

@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import wandb
 from wandb.errors import Error
@@ -63,7 +63,7 @@ def save_config_file_from_dict(config_filename, config_dict):
 
 def dict_from_config_file(
     filename: str, must_exist: bool = False
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     import yaml
 
     if not os.path.exists(filename):

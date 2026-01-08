@@ -5,7 +5,7 @@ import datetime
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import wandb
 from wandb import util
@@ -1359,8 +1359,8 @@ _dtypes.TypeRegistry.add(_ForeignIndexType)
 
 
 def _get_data_from_increments(
-    json_obj: Dict[str, Any], source_artifact: "artifact.Artifact"
-) -> List[Any]:
+    json_obj: dict[str, Any], source_artifact: "artifact.Artifact"
+) -> list[Any]:
     """Get data from incremental table artifacts.
 
     Args:
@@ -1378,14 +1378,14 @@ def _get_data_from_increments(
             ),
             repeat=False,
         )
-    data: List[Any] = []
+    data: list[Any] = []
     increment_num = json_obj.get("increment_num", None)
     if increment_num is None:
         return data
 
     # Sort by increment number first, then by timestamp if present
     # Format of name is: "{incr_num}-{timestamp_ms}.{key}.table.json"
-    def get_sort_key(key: str) -> Tuple[int, int]:
+    def get_sort_key(key: str) -> tuple[int, int]:
         try:
             parts = key.split(".")
             increment_parts = parts[0].split("-")
@@ -1424,12 +1424,12 @@ def _get_data_from_increments(
 
 
 def _process_table_row(
-    row: List[Any],
-    timestamp_column_indices: Set[_dtypes.TimestampType],
-    np_deserialized_columns: Dict[int, Any],
+    row: list[Any],
+    timestamp_column_indices: set[_dtypes.TimestampType],
+    np_deserialized_columns: dict[int, Any],
     source_artifact: "artifact.Artifact",
     row_idx: int,
-) -> List[Any]:
+) -> list[Any]:
     """Convert special columns in a table row to Python types.
 
     Processes a single row of table data by converting timestamp values to

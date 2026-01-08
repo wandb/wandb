@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Dict, Optional
+from typing import Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
@@ -94,7 +94,7 @@ class AwsEnvironment(AbstractEnvironment):
     @classmethod
     def from_config(
         cls,
-        config: Dict[str, str],
+        config: dict[str, str],
     ) -> "AwsEnvironment":
         """Create an AWS environment from the default AWS environment.
 

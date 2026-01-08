@@ -1,7 +1,7 @@
 """Definition of the config object used by the Launch agent."""
 
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
 # ValidationError is imported for exception type checking purposes only.
 from pydantic import (  # type: ignore
@@ -188,7 +188,7 @@ class BuilderConfig(BaseModel):
 class AgentConfig(BaseModel):
     """Configuration for the Launch agent."""
 
-    queues: List[str] = Field(
+    queues: list[str] = Field(
         default=[],
         description="The queues to use for this agent.",
     )

@@ -5,7 +5,7 @@ import queue
 import tempfile
 import threading
 import time
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional
 
 import wandb
 import wandb.util
@@ -85,7 +85,7 @@ class FilePusher:
             logger.info(f"FilePusher stats: {self._stats._stats}")
             time.sleep(1)
 
-    def get_status(self) -> Tuple[bool, stats.Summary]:
+    def get_status(self) -> tuple[bool, stats.Summary]:
         running = self.is_alive()
         summary = self._stats.summary()
         return running, summary

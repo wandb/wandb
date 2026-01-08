@@ -1,6 +1,6 @@
 import numbers
 import os
-from typing import TYPE_CHECKING, Optional, Type, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import wandb
 from wandb import util
@@ -196,12 +196,12 @@ class ImageMask(Media):
             )
 
     @classmethod
-    def get_media_subdir(cls: Type["ImageMask"]) -> str:
+    def get_media_subdir(cls: type["ImageMask"]) -> str:
         return os.path.join("media", "images", cls.type_name())
 
     @classmethod
     def from_json(
-        cls: Type["ImageMask"], json_obj: dict, source_artifact: "Artifact"
+        cls: type["ImageMask"], json_obj: dict, source_artifact: "Artifact"
     ) -> "ImageMask":
         return cls(
             {"path": source_artifact.get_entry(json_obj["path"]).download()},
@@ -221,7 +221,7 @@ class ImageMask(Media):
             raise TypeError("to_json accepts wandb_run.Run or wandb.Artifact")
 
     @classmethod
-    def type_name(cls: Type["ImageMask"]) -> str:
+    def type_name(cls: type["ImageMask"]) -> str:
         return cls._log_type
 
     def validate(self, val: dict) -> bool:

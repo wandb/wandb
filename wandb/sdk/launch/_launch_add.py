@@ -1,6 +1,6 @@
 import asyncio
 import pprint
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import wandb
 import wandb.apis.public as public
@@ -21,7 +21,7 @@ from ._project_spec import LaunchProject
 def push_to_queue(
     api: Api,
     queue_name: str,
-    launch_spec: Dict[str, Any],
+    launch_spec: dict[str, Any],
     template_variables: Optional[dict],
     project_queue: str,
     priority: Optional[int] = None,
@@ -34,18 +34,18 @@ def push_to_queue(
 def launch_add(
     uri: Optional[str] = None,
     job: Optional[str] = None,
-    config: Optional[Dict[str, Any]] = None,
-    template_variables: Optional[Dict[str, Union[float, int, str]]] = None,
+    config: Optional[dict[str, Any]] = None,
+    template_variables: Optional[dict[str, Union[float, int, str]]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     queue_name: Optional[str] = None,
     resource: Optional[str] = None,
-    entry_point: Optional[List[str]] = None,
+    entry_point: Optional[list[str]] = None,
     name: Optional[str] = None,
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     project_queue: Optional[str] = None,
-    resource_args: Optional[Dict[str, Any]] = None,
+    resource_args: Optional[dict[str, Any]] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,
@@ -134,18 +134,18 @@ def launch_add(
 def _launch_add(
     api: Api,
     job: Optional[str],
-    config: Optional[Dict[str, Any]],
+    config: Optional[dict[str, Any]],
     template_variables: Optional[dict],
     project: Optional[str],
     entity: Optional[str],
     queue_name: Optional[str],
     resource: Optional[str],
-    entry_point: Optional[List[str]],
+    entry_point: Optional[list[str]],
     name: Optional[str],
     version: Optional[str],
     docker_image: Optional[str],
     project_queue: Optional[str],
-    resource_args: Optional[Dict[str, Any]] = None,
+    resource_args: Optional[dict[str, Any]] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
     repository: Optional[str] = None,

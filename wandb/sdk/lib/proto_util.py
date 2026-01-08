@@ -1,6 +1,6 @@
 #
 import json
-from typing import TYPE_CHECKING, Any, Dict, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -11,8 +11,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from wandb.proto import wandb_telemetry_pb2 as tpb
 
 
-def dict_from_proto_list(obj_list: "RepeatedCompositeFieldContainer") -> Dict[str, Any]:
-    result: Dict[str, Any] = {}
+def dict_from_proto_list(obj_list: "RepeatedCompositeFieldContainer") -> dict[str, Any]:
+    result: dict[str, Any] = {}
 
     for item in obj_list:
         # Start from the root of the result dict
@@ -51,8 +51,8 @@ def _assign_end_offset(record: "pb.Record", end_offset: int) -> None:
 
 def proto_encode_to_dict(
     pb_obj: Union["tpb.TelemetryRecord", "pb.MetricRecord"],
-) -> Dict[int, Any]:
-    data: Dict[int, Any] = dict()
+) -> dict[int, Any]:
+    data: dict[int, Any] = dict()
     fields = pb_obj.ListFields()
     for desc, value in fields:
         if desc.name.startswith("_"):
@@ -83,7 +83,7 @@ def proto_encode_to_dict(
 
 def message_to_dict(
     message: "Message",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Convert a protobuf message into a dictionary."""
     from google.protobuf.json_format import MessageToDict
 

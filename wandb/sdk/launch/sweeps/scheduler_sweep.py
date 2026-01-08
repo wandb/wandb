@@ -2,7 +2,7 @@
 
 import logging
 from pprint import pformat as pf
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import wandb
 from wandb.sdk.launch.sweeps import SweepNotFoundError
@@ -30,7 +30,7 @@ class SweepScheduler(Scheduler):
         FAILED: self.fail_sweep()
         STOPPED: self.stop_sweep()
         """
-        commands: List[Dict[str, Any]] = self._get_sweep_commands(worker_id)
+        commands: list[dict[str, Any]] = self._get_sweep_commands(worker_id)
         for command in commands:
             # The command "type" can be one of "run", "resume", "stop", "exit"
             _type = command.get("type")
@@ -59,10 +59,10 @@ class SweepScheduler(Scheduler):
             )
         return None
 
-    def _get_sweep_commands(self, worker_id: int) -> List[Dict[str, Any]]:
+    def _get_sweep_commands(self, worker_id: int) -> list[dict[str, Any]]:
         """Helper to receive sweep command from backend."""
         # AgentHeartbeat wants a Dict of runs which are running or queued
-        _run_states: Dict[str, bool] = {}
+        _run_states: dict[str, bool] = {}
         for run_id, run in self._yield_runs():
             # Filter out runs that are from a different worker thread
             if run.worker_id == worker_id and run.state.is_alive:
@@ -70,7 +70,7 @@ class SweepScheduler(Scheduler):
 
         _logger.debug(f"Sending states: \n{pf(_run_states)}\n")
         try:
-            commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
+            commands: list[dict[str, Any]] = self._api.agent_heartbeat(
                 agent_id=self._workers[worker_id].agent_id,
                 metrics={},
                 run_states=_run_states,

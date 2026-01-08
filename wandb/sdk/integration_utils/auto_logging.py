@@ -2,7 +2,8 @@ import asyncio
 import functools
 import inspect
 import logging
-from typing import Any, Dict, Optional, Protocol, Sequence, TypeVar
+from collections.abc import Sequence
+from typing import Any, Optional, Protocol, TypeVar
 
 import wandb.sdk
 import wandb.util
@@ -12,7 +13,7 @@ from wandb.sdk.lib.timer import Timer
 logger = logging.getLogger(__name__)
 
 
-AutologInitArgs = Optional[Dict[str, Any]]
+AutologInitArgs = Optional[dict[str, Any]]
 
 
 K = TypeVar("K", bound=str)
@@ -31,11 +32,11 @@ class ArgumentResponseResolver(Protocol):
     def __call__(
         self,
         args: Sequence[Any],
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
         response: Response,
         start_time: float,
         time_elapsed: float,
-    ) -> Optional[Dict[str, Any]]: ...  # pragma: no cover
+    ) -> Optional[dict[str, Any]]: ...  # pragma: no cover
 
 
 class PatchAPI:
@@ -51,7 +52,7 @@ class PatchAPI:
         # api library name, e.g. "cohere" or "openai" or "transformers"
         self._api = None
         # dictionary of original methods
-        self.original_methods: Dict[str, Any] = {}
+        self.original_methods: dict[str, Any] = {}
         # list of symbols to patch, e.g. ["Client.generate", "Edit.create"] or ["Pipeline.__call__"]
         self.symbols = symbols
         # resolver callable to convert args/response into a dictionary of wandb media objects or metrics

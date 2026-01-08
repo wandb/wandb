@@ -1,10 +1,11 @@
 import json
-from typing import Any, Dict, NewType, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any, NewType, Optional
 
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import proto_util, telemetry
 
-BackendConfigDict = NewType("BackendConfigDict", Dict[str, Any])
+BackendConfigDict = NewType("BackendConfigDict", dict[str, Any])
 """Run config dictionary in the format used by the backend."""
 
 _WANDB_INTERNAL_KEY = "_wandb"
@@ -13,8 +14,8 @@ _WANDB_INTERNAL_KEY = "_wandb"
 class ConfigState:
     """The configuration of a run."""
 
-    def __init__(self, tree: Optional[Dict[str, Any]] = None) -> None:
-        self._tree: Dict[str, Any] = tree or {}
+    def __init__(self, tree: Optional[dict[str, Any]] = None) -> None:
+        self._tree: dict[str, Any] = tree or {}
         """A tree with string-valued nodes and JSON leaves.
 
         Leaves are Python objects that are valid JSON values:
@@ -24,7 +25,7 @@ class ConfigState:
         * Lists of JSON objects
         """
 
-    def non_internal_config(self) -> Dict[str, Any]:
+    def non_internal_config(self) -> dict[str, Any]:
         """Returns the config settings minus "_wandb"."""
         return {k: v for k, v in self._tree.items() if k != _WANDB_INTERNAL_KEY}
 
@@ -42,7 +43,7 @@ class ConfigState:
         for config_item in config_record.remove:
             self._delete_at_path(_key_path(config_item))
 
-    def merge_resumed_config(self, old_config_tree: Dict[str, Any]) -> None:
+    def merge_resumed_config(self, old_config_tree: dict[str, Any]) -> None:
         """Merges the config from a run that's being resumed."""
         # Add any top-level keys that aren't already set.
         self._add_unset_keys_from_subtree(old_config_tree, [])
@@ -58,7 +59,7 @@ class ConfigState:
 
     def _add_unset_keys_from_subtree(
         self,
-        old_config_tree: Dict[str, Any],
+        old_config_tree: dict[str, Any],
         path: Sequence[str],
     ) -> None:
         """Uses the given subtree for keys that aren't already set."""
@@ -78,7 +79,7 @@ class ConfigState:
         telemetry_record: telemetry.TelemetryRecord,
         framework: Optional[str],
         start_time_millis: int,
-        metric_pbdicts: Sequence[Dict[int, Any]],
+        metric_pbdicts: Sequence[dict[int, Any]],
         environment_record: wandb_internal_pb2.EnvironmentRecord,
     ) -> BackendConfigDict:
         """Returns a dictionary representation expected by the backend.
@@ -182,11 +183,11 @@ def _key_path(config_item: wandb_internal_pb2.ConfigItem) -> Sequence[str]:
 
 
 def _subtree(
-    tree: Dict[str, Any],
+    tree: dict[str, Any],
     key_path: Sequence[str],
     *,
     create: bool = False,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """Returns a subtree at the given path."""
     for key in key_path:
         subtree = tree.get(key)

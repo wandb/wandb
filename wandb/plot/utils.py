@@ -1,4 +1,4 @@
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 import wandb
 from wandb import util

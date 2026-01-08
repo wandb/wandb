@@ -1,7 +1,7 @@
 import io
 import re
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import wandb
 import wandb.util
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 # We have at least the default namestep and a global step to track
 # TODO: reset this structure on wandb.finish
-STEPS: Dict[str, Dict[str, Any]] = {
+STEPS: dict[str, dict[str, Any]] = {
     "": {"step": 0},
     "global": {"step": 0, "last_log": None},
 }
@@ -70,7 +70,7 @@ def history_image_key(key: str, namespace: str = "") -> str:
 
 def tf_summary_to_dict(  # noqa: C901
     tf_summary_str_or_pb: Any, namespace: str = ""
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """Convert a Tensorboard Summary to a dictionary.
 
     Accepts a tensorflow.summary.Summary, one encoded as a string,
@@ -98,7 +98,7 @@ def tf_summary_to_dict(  # noqa: C901
         # Ignore these, caller is responsible for handling None
         return None
 
-    def encode_images(_img_strs: List[bytes], _value: Any) -> None:
+    def encode_images(_img_strs: list[bytes], _value: Any) -> None:
         try:
             from PIL import Image
         except ImportError:
@@ -112,7 +112,7 @@ def tf_summary_to_dict(  # noqa: C901
         if len(_img_strs) == 0:
             return None
 
-        images: List[Union[wandb.Video, wandb.Image]] = []
+        images: list[Union[wandb.Video, wandb.Image]] = []
         for _img_str in _img_strs:
             # Supports gifs from TensorboardX
             if _img_str.startswith(b"GIF"):

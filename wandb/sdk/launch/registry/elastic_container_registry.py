@@ -2,7 +2,7 @@
 
 import base64
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -92,7 +92,7 @@ class ElasticContainerRegistry(AbstractRegistry):
     @classmethod
     def from_config(
         cls,
-        config: Dict[str, str],
+        config: dict[str, str],
     ) -> "ElasticContainerRegistry":
         """Create an Elastic Container Registry from a config.
 
@@ -124,7 +124,7 @@ class ElasticContainerRegistry(AbstractRegistry):
             repo_name=config.get("repository"),
         )
 
-    async def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> tuple[str, str]:
         """Get the username and password for the registry.
 
         Returns:

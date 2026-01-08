@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 from ultralytics.yolo.engine.model import YOLO
 from ultralytics.yolo.engine.trainer import BaseTrainer
@@ -36,7 +36,7 @@ class WandbCallback:
         yolo: YOLO,
         run_name: Optional[str] = None,
         project: Optional[str] = None,
-        tags: Optional[List[str]] = None,
+        tags: Optional[list[str]] = None,
         resume: Optional[str] = None,
         **kwargs: Optional[Any],
     ) -> None:
@@ -205,7 +205,7 @@ class WandbCallback:
     @property
     def callbacks(
         self,
-    ) -> Dict[str, Callable]:
+    ) -> dict[str, Callable]:
         """Property contains all the relevant callbacks to add to the YOLO model for the Weights & Biases logging."""
         return {
             "on_pretrain_routine_start": self.on_pretrain_routine_start,
@@ -223,7 +223,7 @@ def add_callbacks(
     yolo: YOLO,
     run_name: Optional[str] = None,
     project: Optional[str] = None,
-    tags: Optional[List[str]] = None,
+    tags: Optional[list[str]] = None,
     resume: Optional[str] = None,
     **kwargs: Optional[Any],
 ) -> YOLO:

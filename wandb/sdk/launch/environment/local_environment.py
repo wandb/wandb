@@ -1,6 +1,6 @@
 """Dummy local environment implementation. This is the default environment."""
 
-from typing import Any, Dict, Union
+from typing import Any, Union
 
 from wandb.sdk.launch.errors import LaunchError
 
@@ -15,7 +15,7 @@ class LocalEnvironment(AbstractEnvironment):
 
     @classmethod
     def from_config(
-        cls, config: Dict[str, Union[Dict[str, Any], str]]
+        cls, config: dict[str, Union[dict[str, Any], str]]
     ) -> "LocalEnvironment":
         """Create a local environment from a config.
 

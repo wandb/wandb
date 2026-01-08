@@ -2,8 +2,9 @@ import hashlib
 import logging
 import os
 import pathlib
+from collections.abc import Sequence
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 from urllib import parse
 
 from packaging.version import parse as parse_version
@@ -143,8 +144,8 @@ class Image(BatchableMedia):
     _height: Optional[int]
     _image: Optional["PILImage"]
     _classes: Optional["Classes"]
-    _boxes: Optional[Dict[str, "BoundingBoxes2D"]]
-    _masks: Optional[Dict[str, "ImageMask"]]
+    _boxes: Optional[dict[str, "BoundingBoxes2D"]]
+    _masks: Optional[dict[str, "ImageMask"]]
     _file_type: Optional[str]
 
     def __init__(
@@ -154,8 +155,8 @@ class Image(BatchableMedia):
         caption: Optional[str] = None,
         grouping: Optional[int] = None,
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
-        boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
-        masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
+        boxes: Optional[Union[dict[str, "BoundingBoxes2D"], dict[str, dict]]] = None,
+        masks: Optional[Union[dict[str, "ImageMask"], dict[str, dict]]] = None,
         file_type: Optional[str] = None,
         normalize: bool = True,
     ) -> None:
@@ -284,8 +285,8 @@ class Image(BatchableMedia):
         grouping: Optional[int] = None,
         caption: Optional[str] = None,
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
-        boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
-        masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
+        boxes: Optional[Union[dict[str, "BoundingBoxes2D"], dict[str, dict]]] = None,
+        masks: Optional[Union[dict[str, "ImageMask"], dict[str, dict]]] = None,
         file_type: Optional[str] = None,
     ) -> None:
         if grouping is not None:
@@ -296,7 +297,7 @@ class Image(BatchableMedia):
         if boxes:
             if not isinstance(boxes, dict):
                 raise ValueError('Images "boxes" argument must be a dictionary')
-            boxes_final: Dict[str, BoundingBoxes2D] = {}
+            boxes_final: dict[str, BoundingBoxes2D] = {}
             for key in boxes:
                 box_item = boxes[key]
                 if isinstance(box_item, BoundingBoxes2D):
@@ -310,7 +311,7 @@ class Image(BatchableMedia):
         if masks:
             if not isinstance(masks, dict):
                 raise ValueError('Images "masks" argument must be a dictionary')
-            masks_final: Dict[str, ImageMask] = {}
+            masks_final: dict[str, ImageMask] = {}
             for key in masks:
                 mask_item = masks[key]
                 if isinstance(mask_item, ImageMask):
@@ -445,7 +446,7 @@ class Image(BatchableMedia):
 
     @classmethod
     def from_json(
-        cls: Type["Image"], json_obj: dict, source_artifact: "Artifact"
+        cls: type["Image"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Image":
         """Factory method to create an Audio object from a JSON object.
 
@@ -458,7 +459,7 @@ class Image(BatchableMedia):
             classes = value
 
         masks = json_obj.get("masks")
-        _masks: Optional[Dict[str, ImageMask]] = None
+        _masks: Optional[dict[str, ImageMask]] = None
         if masks:
             _masks = {}
             for key in masks:
@@ -467,7 +468,7 @@ class Image(BatchableMedia):
                 _masks[key]._key = key
 
         boxes = json_obj.get("boxes")
-        _boxes: Optional[Dict[str, BoundingBoxes2D]] = None
+        _boxes: Optional[dict[str, BoundingBoxes2D]] = None
         if boxes:
             _boxes = {}
             for key in boxes:
@@ -484,7 +485,7 @@ class Image(BatchableMedia):
         )
 
     @classmethod
-    def get_media_subdir(cls: Type["Image"]) -> str:
+    def get_media_subdir(cls: type["Image"]) -> str:
         """Get media subdirectory.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
@@ -628,7 +629,7 @@ class Image(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls: Type["Image"],
+        cls: type["Image"],
         seq: Sequence["BatchableMedia"],
         run: "wandb.Run",
         key: str,
@@ -705,17 +706,17 @@ class Image(BatchableMedia):
 
     @classmethod
     def all_masks(
-        cls: Type["Image"],
+        cls: type["Image"],
         images: Sequence["Image"],
         run: "wandb.Run",
         run_key: str,
         step: Union[int, str],
-    ) -> Union[List[Optional[dict]], bool]:
+    ) -> Union[list[Optional[dict]], bool]:
         """Collect all masks from a list of images.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
         """
-        all_mask_groups: List[Optional[dict]] = []
+        all_mask_groups: list[Optional[dict]] = []
         for image in images:
             if image._masks:
                 mask_group = {}
@@ -732,17 +733,17 @@ class Image(BatchableMedia):
 
     @classmethod
     def all_boxes(
-        cls: Type["Image"],
+        cls: type["Image"],
         images: Sequence["Image"],
         run: "wandb.Run",
         run_key: str,
         step: Union[int, str],
-    ) -> Union[List[Optional[dict]], bool]:
+    ) -> Union[list[Optional[dict]], bool]:
         """Collect all boxes from a list of images.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
         """
-        all_box_groups: List[Optional[dict]] = []
+        all_box_groups: list[Optional[dict]] = []
         for image in images:
             if image._boxes:
                 box_group = {}
@@ -759,7 +760,7 @@ class Image(BatchableMedia):
 
     @classmethod
     def all_captions(
-        cls: Type["Image"], images: Sequence["Media"]
+        cls: type["Image"], images: Sequence["Media"]
     ) -> Union[bool, Sequence[Optional[str]]]:
         """Get captions from a list of images.
 
@@ -794,7 +795,7 @@ class Image(BatchableMedia):
                 and self._classes == other._classes
             )
 
-    def to_data_array(self) -> List[Any]:
+    def to_data_array(self) -> list[Any]:
         """Convert to data array.
 
         <!-- lazydoc-ignore: internal -->

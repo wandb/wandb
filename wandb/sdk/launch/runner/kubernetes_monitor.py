@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import traceback
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import kubernetes_asyncio  # type: ignore
 import urllib3
@@ -54,7 +54,7 @@ class CustomResource:
 
 
 # Maps phases and conditions of custom objects to agent's internal run states.
-CRD_STATE_DICT: Dict[str, State] = {
+CRD_STATE_DICT: dict[str, State] = {
     "created": "starting",
     "pending": "starting",
     "running": "running",
@@ -118,7 +118,7 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
     return False
 
 
-def _is_pod_unschedulable(status: "V1PodStatus") -> Tuple[bool, str]:
+def _is_pod_unschedulable(status: "V1PodStatus") -> tuple[bool, str]:
     """Return whether the pod is unschedulable along with the reason message."""
     if not status.conditions:
         return False, ""
@@ -139,7 +139,7 @@ def _get_crd_job_name(object: "V1Pod") -> Optional[str]:
     return None
 
 
-def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[State]:
+def _state_from_conditions(conditions: list[dict[str, Any]]) -> Optional[State]:
     """Get the status from the pod conditions."""
     true_conditions = [
         c.get("type", "").lower() for c in conditions if c.get("status") == "True"
@@ -149,7 +149,7 @@ def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[State]:
     }
     # The list below is ordered so that returning the first state detected
     # will accurately reflect the state of the job.
-    states_in_order: List[State] = [
+    states_in_order: list[State] = [
         "finished",
         "failed",
         "stopping",
@@ -162,7 +162,7 @@ def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[State]:
     return None
 
 
-def _state_from_replicated_status(status_dict: Dict[str, int]) -> Optional[State]:
+def _state_from_replicated_status(status_dict: dict[str, int]) -> Optional[State]:
     """Infer overall job status from replicated job status for jobsets.
 
     More info on jobset:
@@ -215,12 +215,12 @@ class LaunchKubernetesMonitor:
 
         # Dict mapping a tuple of (namespace, resource_type) to an
         # asyncio.Task that is monitoring that resource type in that namespace.
-        self._monitor_tasks: Dict[
-            Tuple[str, Union[str, CustomResource]], asyncio.Task
+        self._monitor_tasks: dict[
+            tuple[str, Union[str, CustomResource]], asyncio.Task
         ] = dict()
 
         # Map from job name to job state.
-        self._job_states: Dict[str, Status] = dict()
+        self._job_states: dict[str, Status] = dict()
 
     @classmethod
     async def ensure_initialized(
@@ -265,7 +265,7 @@ class LaunchKubernetesMonitor:
         return cls._instance.__get_status(job_name)
 
     @classmethod
-    def status_count(cls) -> Dict[State, int]:
+    def status_count(cls) -> dict[State, int]:
         """Get a dictionary mapping statuses to the # monitored jobs with each status."""
         if cls._instance is None:
             raise ValueError(
@@ -308,7 +308,7 @@ class LaunchKubernetesMonitor:
         state = self._job_states[job_name]
         return state
 
-    def __status_count(self) -> Dict[State, int]:
+    def __status_count(self) -> dict[State, int]:
         """Get a dictionary mapping statuses to the # monitored jobs with each status."""
         counts = dict()
         for _, status in self._job_states.items():

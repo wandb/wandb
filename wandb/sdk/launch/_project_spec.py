@@ -11,7 +11,7 @@ import shlex
 import shutil
 import tempfile
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import wandb
 from wandb.apis.internal import Api
@@ -80,15 +80,15 @@ class LaunchProject:
         uri: Optional[str],
         job: Optional[str],
         api: Api,
-        launch_spec: Dict[str, Any],
+        launch_spec: dict[str, Any],
         target_entity: str,
         target_project: str,
         name: Optional[str],
-        docker_config: Dict[str, Any],
-        git_info: Dict[str, str],
-        overrides: Dict[str, Any],
+        docker_config: dict[str, Any],
+        git_info: dict[str, str],
+        overrides: dict[str, Any],
         resource: str,
-        resource_args: Dict[str, Any],
+        resource_args: dict[str, Any],
         run_id: Optional[str],
         sweep_id: Optional[str] = None,
     ):
@@ -162,17 +162,17 @@ class LaunchProject:
             shutil.rmtree(old_dir)
         self.project_dir = new_dir
 
-    def init_git(self, git_info: Dict[str, str]) -> None:
+    def init_git(self, git_info: dict[str, str]) -> None:
         self.git_version = git_info.get("version")
         self.git_repo = git_info.get("repo")
 
-    def init_overrides(self, overrides: Dict[str, Any]) -> None:
+    def init_overrides(self, overrides: dict[str, Any]) -> None:
         """Initialize override attributes for a launch project."""
         self.overrides = overrides
-        self.override_args: List[str] = overrides.get("args", [])
-        self.override_config: Dict[str, Any] = overrides.get("run_config", {})
-        self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
-        self.override_files: Dict[str, Any] = overrides.get("files", {})
+        self.override_args: list[str] = overrides.get("args", [])
+        self.override_config: dict[str, Any] = overrides.get("run_config", {})
+        self.override_artifacts: dict[str, Any] = overrides.get("artifacts", {})
+        self.override_files: dict[str, Any] = overrides.get("files", {})
         self.override_entrypoint: Optional[EntryPoint] = None
         self.override_dockerfile: Optional[str] = overrides.get("dockerfile")
         override_entrypoint = overrides.get("entry_point")
@@ -190,7 +190,7 @@ class LaunchProject:
         return f"{self.uri}"
 
     @classmethod
-    def from_spec(cls, launch_spec: Dict[str, Any], api: Api) -> "LaunchProject":
+    def from_spec(cls, launch_spec: dict[str, Any], api: Api) -> "LaunchProject":
         """Constructs a LaunchProject instance using a launch spec.
 
         Arguments:
@@ -281,7 +281,7 @@ class LaunchProject:
     def run_queue_item_id(self, value: str) -> None:
         self._run_queue_item_id = value
 
-    def fill_macros(self, image: str) -> Dict[str, Any]:
+    def fill_macros(self, image: str) -> dict[str, Any]:
         """Substitute values for macros in resource arguments.
 
         Certain macros can be used in resource args. These macros allow the
@@ -320,7 +320,7 @@ class LaunchProject:
         result = recursive_macro_sub(self.resource_args, update_dict)
         # recursive_macro_sub given a dict returns a dict with the same keys
         # but with other input types behaves differently. The cast is for mypy.
-        return cast(Dict[str, Any], result)
+        return cast(dict[str, Any], result)
 
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
@@ -368,7 +368,7 @@ class LaunchProject:
             return None
         return self._entry_point
 
-    def set_job_entry_point(self, command: List[str]) -> "EntryPoint":
+    def set_job_entry_point(self, command: list[str]) -> "EntryPoint":
         """Set job entrypoint for the project."""
         assert self._entry_point is None, (
             "Cannot set entry point twice. Use LaunchProject.override_entrypoint"
@@ -437,7 +437,7 @@ class LaunchProject:
         job.configure_launch_project(self)  # Why is this a method of the job?
         self._job_artifact = job._job_artifact
 
-    def get_env_vars_dict(self, api: Api, max_env_length: int) -> Dict[str, str]:
+    def get_env_vars_dict(self, api: Api, max_env_length: int) -> dict[str, str]:
         """Generate environment variables for the project.
 
         Arguments:
@@ -519,7 +519,7 @@ class LaunchProject:
 class EntryPoint:
     """An entry point into a wandb launch specification."""
 
-    def __init__(self, name: Optional[str], command: List[str]):
+    def __init__(self, name: Optional[str], command: list[str]):
         self.name = name
         self.command = command
 
@@ -532,7 +532,7 @@ class EntryPoint:
 
 
 def _inject_wandb_config_env_vars(
-    config: Dict[str, Any], env_dict: Dict[str, Any], maximum_env_length: int
+    config: dict[str, Any], env_dict: dict[str, Any], maximum_env_length: int
 ) -> None:
     str_config = json.dumps(config)
     if len(str_config) <= maximum_env_length:
@@ -548,7 +548,7 @@ def _inject_wandb_config_env_vars(
 
 
 def _inject_file_overrides_env_vars(
-    overrides: Dict[str, Any], env_dict: Dict[str, Any], maximum_env_length: int
+    overrides: dict[str, Any], env_dict: dict[str, Any], maximum_env_length: int
 ) -> None:
     str_overrides = json.dumps(overrides)
     if len(str_overrides) <= maximum_env_length:

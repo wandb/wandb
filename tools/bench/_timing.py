@@ -3,7 +3,7 @@
 import csv
 import dataclasses
 import time
-from typing import List, Optional
+from typing import Optional
 
 
 @dataclasses.dataclass(frozen=True)
@@ -13,7 +13,7 @@ class FunctionTiming:
 
 
 def timeit(
-    timings: List[FunctionTiming],
+    timings: list[FunctionTiming],
 ):
     """Timing decorator.
 
@@ -36,8 +36,8 @@ def timeit(
 
 def write(
     fname: str,
-    timings: List[FunctionTiming],
-    prefix_list: Optional[List] = None,
+    timings: list[FunctionTiming],
+    prefix_list: Optional[list] = None,
 ):
     """Appends timing data to the file.
 

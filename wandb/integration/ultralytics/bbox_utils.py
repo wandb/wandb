@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import torch
 from tqdm.auto import tqdm
@@ -11,10 +11,10 @@ import wandb
 
 def scale_bounding_box_to_original_image_shape(
     box: torch.Tensor,
-    resized_image_shape: Tuple,
-    original_image_shape: Tuple,
+    resized_image_shape: tuple,
+    original_image_shape: tuple,
     ratio_pad: bool,
-) -> List[int]:
+) -> list[int]:
     """YOLOv8 resizes images during training and the label values are normalized based on this resized shape.
 
     This function rescales the bounding box labels to the original
@@ -33,8 +33,8 @@ def scale_bounding_box_to_original_image_shape(
 
 
 def get_ground_truth_bbox_annotations(
-    img_idx: int, image_path: str, batch: Dict, class_name_map: Dict = None
-) -> List[Dict[str, Any]]:
+    img_idx: int, image_path: str, batch: dict, class_name_map: dict = None
+) -> list[dict[str, Any]]:
     """Get ground truth bounding box annotation data in the form required for `wandb.Image` overlay system."""
     indices = batch["batch_idx"] == img_idx
     bboxes = batch["bboxes"][indices]
@@ -85,8 +85,8 @@ def get_ground_truth_bbox_annotations(
 
 
 def get_mean_confidence_map(
-    classes: List, confidence: List, class_id_to_label: Dict
-) -> Dict[str, float]:
+    classes: list, confidence: list, class_id_to_label: dict
+) -> dict[str, float]:
     """Get Mean-confidence map from the predictions to be logged into a `wandb.Table`."""
     confidence_map = {v: [] for _, v in class_id_to_label.items()}
     for class_idx, confidence_value in zip(classes, confidence):
@@ -100,7 +100,7 @@ def get_mean_confidence_map(
     return updated_confidence_map
 
 
-def get_boxes(result: Results) -> Tuple[Dict, Dict]:
+def get_boxes(result: Results) -> tuple[dict, dict]:
     """Convert an ultralytics prediction result into metadata for the `wandb.Image` overlay system."""
     boxes = result.boxes.xywh.long().numpy()
     classes = result.boxes.cls.long().numpy()
@@ -135,7 +135,7 @@ def get_boxes(result: Results) -> Tuple[Dict, Dict]:
 
 def plot_bbox_predictions(
     result: Results, model_name: str, table: Optional[wandb.Table] = None
-) -> Union[wandb.Table, Tuple[wandb.Image, Dict, Dict]]:
+) -> Union[wandb.Table, tuple[wandb.Image, dict, dict]]:
     """Plot the images with the W&B overlay system.
 
     The `wandb.Image` is either added to a `wandb.Table` or returned.
@@ -157,7 +157,7 @@ def plot_bbox_predictions(
 
 def plot_detection_validation_results(
     dataloader: Any,
-    class_label_map: Dict,
+    class_label_map: dict,
     model_name: str,
     predictor: DetectionPredictor,
     table: wandb.Table,

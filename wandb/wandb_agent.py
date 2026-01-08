@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 import wandb
 from wandb import util
@@ -203,7 +203,7 @@ class Agent:
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
     MAX_INITIAL_FAILURES = 5
-    DEFAULT_SWEEP_COMMAND: List[str] = [
+    DEFAULT_SWEEP_COMMAND: list[str] = [
         "${env}",
         "${interpreter}",
         "${program}",
@@ -447,7 +447,7 @@ class Agent:
             )
 
         # Setup sweep command
-        sweep_command: List[str] = sweep_utils.create_sweep_command(self._sweep_command)
+        sweep_command: list[str] = sweep_utils.create_sweep_command(self._sweep_command)
 
         run_id = command.get("run_id")
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
@@ -468,7 +468,7 @@ class Agent:
 
         env = dict(os.environ)
 
-        sweep_vars: Dict[str, Any] = sweep_utils.create_sweep_command_args(command)
+        sweep_vars: dict[str, Any] = sweep_utils.create_sweep_command_args(command)
 
         if "${args_json_file}" in sweep_command:
             with open(json_file, "w") as fp:

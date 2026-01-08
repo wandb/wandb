@@ -1,6 +1,6 @@
 import copy
 from datetime import datetime
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Optional, Union
 
 from packaging import version
 
@@ -421,7 +421,7 @@ class WandBUltralyticsCallback:
             wandb.log({"Prediction-Table": self.prediction_table}, commit=False)
 
     @property
-    def callbacks(self) -> Dict[str, Callable]:
+    def callbacks(self) -> dict[str, Callable]:
         """Property contains all the relevant callbacks to add to the YOLO model for the Weights & Biases logging."""
         return {
             "on_train_start": self.on_train_start,

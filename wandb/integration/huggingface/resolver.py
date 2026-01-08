@@ -1,7 +1,8 @@
 import logging
 import os
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Union
 
 import pytz
 
@@ -40,11 +41,11 @@ class HuggingFacePipelineRequestResponseResolver:
     def __call__(
         self,
         args: Sequence[Any],
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
         response: Response,
         start_time: float,
         time_elapsed: float,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Main call method for this class.
 
         :param args: list of arguments
@@ -110,8 +111,8 @@ class HuggingFacePipelineRequestResponseResolver:
 
     @staticmethod
     def _transform_task_specific_data(
-        task: str, input_data: Union[List[Any], Any], response: Union[List[Any], Any]
-    ) -> Tuple[Union[List[Any], Any], Union[List[Any], Any]]:
+        task: str, input_data: Union[list[Any], Any], response: Union[list[Any], Any]
+    ) -> tuple[Union[list[Any], Any], Union[list[Any], Any]]:
         """Transform input and response data based on specific tasks.
 
         :param task: the task name
@@ -135,10 +136,10 @@ class HuggingFacePipelineRequestResponseResolver:
     def _format_data(
         self,
         task: str,
-        input_data: Union[List[Any], Any],
-        response: Union[List[Any], Any],
-        kwargs: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        input_data: Union[list[Any], Any],
+        response: Union[list[Any], Any],
+        kwargs: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """Formats input data, response, and kwargs into a list of dictionaries.
 
         :param task: the task name
@@ -168,11 +169,11 @@ class HuggingFacePipelineRequestResponseResolver:
 
     def _create_table(
         self,
-        formatted_data: List[Dict[str, Any]],
+        formatted_data: list[dict[str, Any]],
         model_alias: str,
         timestamp: float,
         time_elapsed: float,
-    ) -> List[List[Any]]:
+    ) -> list[list[Any]]:
         """Creates a table from formatted data, model alias, timestamp, and elapsed time.
 
         :param formatted_data: list of dictionaries containing formatted data

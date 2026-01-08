@@ -1,6 +1,7 @@
 import os
 import pathlib
-from typing import TYPE_CHECKING, Sequence, Type, Union
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Union
 
 from wandb.sdk.lib import filesystem, runid
 
@@ -108,7 +109,7 @@ class Html(BatchableMedia):
         self.html = join.join(parts).strip()
 
     @classmethod
-    def get_media_subdir(cls: Type["Html"]) -> str:
+    def get_media_subdir(cls: type["Html"]) -> str:
         """Get media subdirectory.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
@@ -126,7 +127,7 @@ class Html(BatchableMedia):
 
     @classmethod
     def from_json(
-        cls: Type["Html"], json_obj: dict, source_artifact: "Artifact"
+        cls: type["Html"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Html":
         """Deserialize a JSON object into it's class representation.
 
@@ -136,7 +137,7 @@ class Html(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls: Type["Html"],
+        cls: type["Html"],
         seq: Sequence["BatchableMedia"],
         run: "LocalRun",
         key: str,

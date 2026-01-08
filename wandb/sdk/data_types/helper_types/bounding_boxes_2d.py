@@ -1,5 +1,5 @@
 import numbers
-from typing import TYPE_CHECKING, Optional, Type, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import wandb
 from wandb import util
@@ -322,6 +322,6 @@ class BoundingBoxes2D(JSONMetadata):
 
     @classmethod
     def from_json(
-        cls: Type["BoundingBoxes2D"], json_obj: dict, source_artifact: "Artifact"
+        cls: type["BoundingBoxes2D"], json_obj: dict, source_artifact: "Artifact"
     ) -> "BoundingBoxes2D":
         return cls({"box_data": json_obj}, "")

@@ -1,6 +1,6 @@
 """Utilities for the agent."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import wandb
 from wandb.apis.internal import Api
@@ -21,7 +21,7 @@ WANDB_RUNNERS = {
 }
 
 
-def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnvironment:
+def environment_from_config(config: Optional[dict[str, Any]]) -> AbstractEnvironment:
     """Create an environment from a config.
 
     This helper function is used to create an environment from a config. The
@@ -66,7 +66,7 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
 
 
 def registry_from_config(
-    config: Optional[Dict[str, Any]], environment: AbstractEnvironment
+    config: Optional[dict[str, Any]], environment: AbstractEnvironment
 ) -> AbstractRegistry:
     """Create a registry from a config.
 
@@ -121,7 +121,7 @@ def registry_from_config(
 
 
 def builder_from_config(
-    config: Optional[Dict[str, Any]],
+    config: Optional[dict[str, Any]],
     environment: AbstractEnvironment,
     registry: AbstractRegistry,
 ) -> AbstractBuilder:
@@ -182,7 +182,7 @@ def builder_from_config(
 def runner_from_config(
     runner_name: str,
     api: Api,
-    runner_config: Dict[str, Any],
+    runner_config: dict[str, Any],
     environment: AbstractEnvironment,
     registry: AbstractRegistry,
 ) -> AbstractRunner:

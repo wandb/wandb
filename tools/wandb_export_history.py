@@ -18,7 +18,7 @@ or:
 
 import argparse
 import sqlite3
-from typing import Dict, Iterator, List
+from collections.abc import Iterator
 
 import pandas as pd  # type: ignore
 import wandb
@@ -26,7 +26,7 @@ import wandb
 DB_FILE = "run.db"
 
 
-def chunk(n: int, iterable) -> Iterator[List[Dict]]:
+def chunk(n: int, iterable) -> Iterator[list[dict]]:
     done = False
     while not done:
         data = []

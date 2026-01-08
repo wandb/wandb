@@ -62,19 +62,8 @@ __all__ = (
 )
 
 import os
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    List,
-    Literal,
-    Optional,
-    Sequence,
-    TextIO,
-    Union,
-)
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TextIO, Union
 
 import wandb.plot as plot
 from wandb.apis import InternalApi
@@ -116,7 +105,7 @@ summary: wandb_summary.Summary
 
 # private attributes
 api: InternalApi
-patched: Dict[str, List[Callable]]
+patched: dict[str, list[Callable]]
 
 def require(
     requirement: str | Iterable[str] | None = None,
@@ -809,7 +798,7 @@ def sweep(
     sweep: Union[dict, Callable],
     entity: Optional[str] = None,
     project: Optional[str] = None,
-    prior_runs: Optional[List[str]] = None,
+    prior_runs: Optional[list[str]] = None,
 ) -> str:
     """Initialize a hyperparameter sweep.
 
@@ -844,7 +833,7 @@ def sweep(
     ...
 
 def controller(
-    sweep_id_or_config: Optional[Union[str, Dict]] = None,
+    sweep_id_or_config: Optional[Union[str, dict]] = None,
     entity: Optional[str] = None,
     project: Optional[str] = None,
 ) -> _WandbController:

@@ -1,7 +1,7 @@
 """Implementation of Google Artifact Registry for wandb launch."""
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 import google.auth  # type: ignore
 import google.cloud.artifactregistry  # type: ignore
@@ -160,7 +160,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
             region=config.get("region"),
         )
 
-    async def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> tuple[str, str]:
         """Get the username and password for the registry.
 
         Returns:

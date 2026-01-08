@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import List, Union
+from typing import Union
 
 from catboost import CatBoostClassifier, CatBoostRegressor  # type: ignore
 
@@ -63,7 +63,7 @@ class WandbCallback:
 
 
 def _checkpoint_artifact(
-    model: Union[CatBoostClassifier, CatBoostRegressor], aliases: List[str]
+    model: Union[CatBoostClassifier, CatBoostRegressor], aliases: list[str]
 ) -> None:
     """Upload model checkpoint as W&B artifact."""
     if wandb.run is None:

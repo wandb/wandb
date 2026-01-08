@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Collection
 from enum import Enum
 from functools import lru_cache, partial
-from typing import TYPE_CHECKING, Any, Collection
+from typing import TYPE_CHECKING, Any
 
 from wandb_gql import gql
 

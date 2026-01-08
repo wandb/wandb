@@ -1,6 +1,6 @@
 import logging
 import shlex
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import wandb
 
@@ -46,7 +46,7 @@ class LocalProcessRunner(AbstractRunner):
             launch_project.override_entrypoint or launch_project.get_job_entry_point()
         )
 
-        cmd: List[Any] = []
+        cmd: list[Any] = []
 
         if launch_project.project_dir is None:
             raise LaunchError("Launch LocalProcessRunner received empty project dir")

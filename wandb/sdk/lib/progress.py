@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from typing import Iterator, NoReturn
+from collections.abc import Iterator
+from typing import NoReturn
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface import interface

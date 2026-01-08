@@ -1,9 +1,10 @@
 import logging
 import sys
 import traceback
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Optional
 
 
 @dataclass(frozen=True)

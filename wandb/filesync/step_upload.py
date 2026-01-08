@@ -5,16 +5,8 @@ import logging
 import queue
 import sys
 import threading
-from typing import (
-    TYPE_CHECKING,
-    Callable,
-    MutableMapping,
-    MutableSequence,
-    MutableSet,
-    NamedTuple,
-    Optional,
-    Union,
-)
+from collections.abc import MutableMapping, MutableSequence, MutableSet
+from typing import TYPE_CHECKING, Callable, NamedTuple, Optional, Union
 
 from wandb.errors.term import termerror
 from wandb.filesync import upload_job

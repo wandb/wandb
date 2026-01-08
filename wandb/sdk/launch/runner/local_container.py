@@ -5,7 +5,7 @@ import shlex
 import subprocess
 import sys
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import wandb
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -101,7 +101,7 @@ class LocalContainerRunner(AbstractRunner):
     def __init__(
         self,
         api: "Api",
-        backend_config: Dict[str, Any],
+        backend_config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
     ) -> None:
@@ -111,8 +111,8 @@ class LocalContainerRunner(AbstractRunner):
 
     def _populate_docker_args(
         self, launch_project: LaunchProject, image_uri: str
-    ) -> Dict[str, Any]:
-        docker_args: Dict[str, Any] = launch_project.fill_macros(image_uri).get(
+    ) -> dict[str, Any]:
+        docker_args: dict[str, Any] = launch_project.fill_macros(image_uri).get(
             "local-container", {}
         )
         if _is_wandb_local_uri(self._api.settings("base_url")):
@@ -209,7 +209,7 @@ def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
 
 
 def _thread_process_runner(
-    run: LocalSubmittedRun, args: List[str], work_dir: str, env: Dict[str, str]
+    run: LocalSubmittedRun, args: list[str], work_dir: str, env: dict[str, str]
 ) -> None:
     # cancel was called before we started the subprocess
     if run._terminate_flag:
@@ -252,11 +252,11 @@ def _thread_process_runner(
 
 def get_docker_command(
     image: str,
-    env_vars: Dict[str, str],
-    entry_cmd: Optional[List[str]] = None,
-    docker_args: Optional[Dict[str, Any]] = None,
-    additional_args: Optional[List[str]] = None,
-) -> List[str]:
+    env_vars: dict[str, str],
+    entry_cmd: Optional[list[str]] = None,
+    docker_args: Optional[dict[str, Any]] = None,
+    additional_args: Optional[list[str]] = None,
+) -> list[str]:
     """Construct the docker command using the image and docker args.
 
     Arguments:
@@ -266,7 +266,7 @@ def get_docker_command(
     docker_args: a dictionary of additional docker args for the command
     """
     docker_path = "docker"
-    cmd: List[Any] = [docker_path, "run", "--rm"]
+    cmd: list[Any] = [docker_path, "run", "--rm"]
 
     # hacky handling of env vars, needs to be improved
     for env_key, env_value in env_vars.items():
@@ -296,6 +296,6 @@ def get_docker_command(
     return cmd
 
 
-def join(split_command: List[str]) -> str:
+def join(split_command: list[str]) -> str:
     """Return a shell-escaped string from *split_command*."""
     return " ".join(shlex.quote(arg) for arg in split_command)

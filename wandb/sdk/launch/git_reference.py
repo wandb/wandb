@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 from wandb.sdk.launch.errors import LaunchError
 
@@ -20,7 +20,7 @@ class ReferenceType(IntEnum):
     COMMIT = 2
 
 
-def _parse_netloc(netloc: str) -> Tuple[Optional[str], Optional[str], str]:
+def _parse_netloc(netloc: str) -> tuple[Optional[str], Optional[str], str]:
     """Parse netloc into username, password, and host.
 
     github.com => None, None, "@github.com"

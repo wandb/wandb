@@ -7,10 +7,11 @@ import numbers
 import os
 import re
 import shutil
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Optional
 from unittest.mock import patch
 
 import filelock
@@ -120,7 +121,7 @@ class WandbRun:
         )
 
         # For caching
-        self._files: Optional[Iterable[Tuple[str, str]]] = None
+        self._files: Optional[Iterable[tuple[str, str]]] = None
         self._artifacts: Optional[Iterable[Artifact]] = None
         self._used_artifacts: Optional[Iterable[Artifact]] = None
         self._parquet_history_paths: Optional[Iterable[str]] = None
@@ -138,14 +139,14 @@ class WandbRun:
     def project(self) -> str:
         return self.run.project
 
-    def config(self) -> Dict[str, Any]:
+    def config(self) -> dict[str, Any]:
         return self.run.config
 
-    def summary(self) -> Dict[str, float]:
+    def summary(self) -> dict[str, float]:
         s = self.run.summary
         return s
 
-    def metrics(self) -> Iterable[Dict[str, float]]:
+    def metrics(self) -> Iterable[dict[str, float]]:
         if self._parquet_history_paths is None:
             self._parquet_history_paths = list(self._get_parquet_history_paths())
 
@@ -180,7 +181,7 @@ class WandbRun:
 
         return "\n".join(header) + "\n---\n" + previous_notes
 
-    def tags(self) -> Optional[List[str]]:
+    def tags(self) -> Optional[list[str]]:
         return self.run.tags
 
     def artifacts(self) -> Optional[Iterable[Artifact]]:
@@ -245,7 +246,7 @@ class WandbRun:
     def cli_version(self) -> Optional[str]:
         return self._config_file().get("_wandb", {}).get("value", {}).get("cli_version")
 
-    def files(self) -> Optional[Iterable[Tuple[PathStr, Policy]]]:
+    def files(self) -> Optional[Iterable[tuple[PathStr, Policy]]]:
         if self._files is None:
             files_dir = f"{internal.ROOT_DIR}/{self.run_id()}/files"
             _files = []
@@ -272,21 +273,21 @@ class WandbRun:
             with open(path) as f:
                 yield from f.readlines()
 
-    def _metadata_file(self) -> Dict[str, Any]:
+    def _metadata_file(self) -> dict[str, Any]:
         if (fname := self._find_in_files("wandb-metadata.json")) is None:
             return {}
 
         with open(fname) as f:
             return json.loads(f.read())
 
-    def _config_file(self) -> Dict[str, Any]:
+    def _config_file(self) -> dict[str, Any]:
         if (fname := self._find_in_files("config.yaml")) is None:
             return {}
 
         with open(fname) as f:
             return yaml.safe_load(f) or {}
 
-    def _get_rows_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
+    def _get_rows_from_parquet_history_paths(self) -> Iterable[dict[str, Any]]:
         # Unfortunately, it's not feasible to validate non-parquet history
         if not (paths := self._get_parquet_history_paths()):
             yield {}
@@ -340,7 +341,7 @@ class WandbImporter:
         dst_base_url: str,
         dst_api_key: str,
         *,
-        custom_api_kwargs: Optional[Dict[str, Any]] = None,
+        custom_api_kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
         self.src_base_url = src_base_url
         self.src_api_key = src_api_key
@@ -582,7 +583,7 @@ class WandbImporter:
 
     def _get_run_problems(
         self, src_run: Run, dst_run: Run, force_retry: bool = False
-    ) -> List[dict]:
+    ) -> list[dict]:
         problems = []
 
         if force_retry:
@@ -690,7 +691,7 @@ class WandbImporter:
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
         api: Optional[Api] = None,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
+        remapping: Optional[dict[Namespace, Namespace]] = None,
     ) -> None:
         api = coalesce(api, self.dst_api)
         namespaces = coalesce(namespaces, self._all_namespaces())
@@ -791,7 +792,7 @@ class WandbImporter:
         self,
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
+        remapping: Optional[dict[Namespace, Namespace]] = None,
         parallel: bool = True,
         incremental: bool = True,
         max_workers: Optional[int] = None,
@@ -852,7 +853,7 @@ class WandbImporter:
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
         limit: Optional[int] = None,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
+        remapping: Optional[dict[Namespace, Namespace]] = None,
     ):
         logger.info("START: Importing reports")
 
@@ -880,7 +881,7 @@ class WandbImporter:
         namespaces: Optional[Iterable[Namespace]] = None,
         incremental: bool = True,
         max_workers: Optional[int] = None,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
+        remapping: Optional[dict[Namespace, Namespace]] = None,
     ):
         """Import all artifact sequences from `namespaces`.
 
@@ -949,7 +950,7 @@ class WandbImporter:
         reports: bool = True,
         namespaces: Optional[Iterable[Namespace]] = None,
         incremental: bool = True,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
+        remapping: Optional[dict[Namespace, Namespace]] = None,
     ):
         logger.info(f"START: Importing all, {runs=}, {artifacts=}, {reports=}")
         if runs:
@@ -978,7 +979,7 @@ class WandbImporter:
         self,
         src_run: Run,
         *,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
+        remapping: Optional[dict[Namespace, Namespace]] = None,
     ) -> None:
         namespace = Namespace(src_run.entity, src_run.project)
         if remapping is not None and namespace in remapping:
@@ -1016,7 +1017,7 @@ class WandbImporter:
         self,
         runs: Iterable[Run],
         *,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
+        remapping: Optional[dict[Namespace, Namespace]] = None,
     ) -> Iterable[Run]:
         if (df := _read_ndjson(RUN_SUCCESSES_FNAME)) is None:
             logger.debug(f"{RUN_SUCCESSES_FNAME=} is empty, yielding all runs")
@@ -1124,7 +1125,7 @@ class WandbImporter:
         runs: Iterable[WandbRun],
         *,
         skip_previously_validated: bool = True,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
+        remapping: Optional[dict[Namespace, Namespace]] = None,
     ):
         base_runs = [r.run for r in runs]
         if skip_previously_validated:
@@ -1207,7 +1208,7 @@ class WandbImporter:
         incremental: bool = True,
         download_files_and_compare: bool = False,
         check_entries_are_downloadable: bool = True,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
+        remapping: Optional[dict[Namespace, Namespace]] = None,
     ):
         if incremental:
             logger.info("Validating in incremental mode")
@@ -1287,14 +1288,14 @@ class WandbImporter:
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
         limit: Optional[int] = None,
-        skip_ids: Optional[List[str]] = None,
+        skip_ids: Optional[list[str]] = None,
         start_date: Optional[str] = None,
         api: Optional[Api] = None,
     ) -> Iterable[WandbRun]:
         api = coalesce(api, self.src_api)
         namespaces = coalesce(namespaces, self._all_namespaces())
 
-        filters: Dict[str, Any] = {}
+        filters: dict[str, Any] = {}
         if skip_ids is not None:
             filters["name"] = {"$nin": skip_ids}
         if start_date is not None:
@@ -1377,7 +1378,7 @@ class WandbImporter:
         yield from unique_sequences.values()
 
 
-def _get_art_name_ver(art: Artifact) -> Tuple[str, int]:
+def _get_art_name_ver(art: Artifact) -> tuple[str, int]:
     name, ver = art.name.split(":v")
     return name, int(ver)
 
@@ -1586,7 +1587,7 @@ def _create_files_if_not_exists() -> None:
             pass
 
 
-def _merge_dfs(dfs: List[pl.DataFrame]) -> pl.DataFrame:
+def _merge_dfs(dfs: list[pl.DataFrame]) -> pl.DataFrame:
     # Ensure there are DataFrames in the list
     if len(dfs) == 0:
         return pl.DataFrame()
