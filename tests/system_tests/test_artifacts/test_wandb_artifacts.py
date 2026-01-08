@@ -121,11 +121,12 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
 
 def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True):
     class Blob:
-        def __init__(self, name=override_blob_name, metadata=None, generation=None):
+        def __init__(
+            self, name: str = override_blob_name, metadata=None, generation: int = 1
+        ):
             self.md5_hash = "1234567890abcde" if hash else None
             self.etag = "1234567890abcde"
-            # NOTE: Real GCS API returns generation as int
-            self.generation = generation if generation is not None else 1
+            self.generation = generation
             self.name = name
             self.size = 10
 
@@ -143,9 +144,10 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
                 else Blob(generation=kwargs.get("generation"))
             )
 
-        def list_blobs(
-            self, prefix="", versions=False, max_results=None, *args, **kwargs
-        ):
+        # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_list_blobs
+        def list_blobs(self, *args, **kwargs):
+            versions: bool = kwargs.get("versions", False)
+            prefix: str = kwargs.get("prefix", "")
             # For versioned lookups, return blobs with different generations
             if versions and prefix == override_blob_name:
                 return [

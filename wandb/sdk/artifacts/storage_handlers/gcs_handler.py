@@ -17,6 +17,8 @@ from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHand
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 from wandb.util import logger
 
+from ._timing import TimedIf
+
 if TYPE_CHECKING:
     from google.cloud import storage  # type: ignore[import-not-found]
 
@@ -204,23 +206,31 @@ class GCSHandler(StorageHandler):
         name: StrPath | None,
         max_objects: int,
     ) -> list[ArtifactManifestEntry]:
-        # Return different versions as blobs if user specified a version
-        # https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.client.Client#google_cloud_storage_client_Client_list_blobs
-        versions = gcs_path.version is not None
-        objects = bucket.list_blobs(
-            prefix=gcs_path.key, max_results=max_objects, versions=versions
-        )
+        with TimedIf(enabled=True):
+            # Return different versions as blobs if user specified a version
+            # https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.client.Client#google_cloud_storage_client_Client_list_blobs
+            objects = bucket.list_blobs(
+                prefix=gcs_path.key,
+                max_results=max_objects,
+                versions=gcs_path.version is not None,
+            )
 
-        entries = [
-            self._entry_from_obj(obj, path, name, prefix=gcs_path.key)
-            for obj in objects
-            if obj
-            and not obj.name.endswith("/")
-            # When version specified, require exact key match (old get_blob behavior)
-            # to avoid matching file that only matches the prefix.
-            and (gcs_path.version is None or obj.name == gcs_path.key)
-            and (gcs_path.version is None or str(obj.generation) == gcs_path.version)
-        ]
+            entries = [
+                self._entry_from_obj(obj, path, name, prefix=gcs_path.key)
+                for obj in objects
+                if obj
+                # Skip folder
+                and not obj.name.endswith("/")
+                # When version specified, require exact key match (old get_blob behavior)
+                # to avoid matching file that only matches the prefix.
+                and (
+                    gcs_path.version is not None
+                    or (
+                        str(obj.generation) == gcs_path.version
+                        and obj.name == gcs_path.key
+                    )
+                )
+            ]
 
         if len(entries) > 1:
             termlog(f"Added {len(entries)} objects with prefix {gcs_path.key!r}")
@@ -252,6 +262,10 @@ class GCSHandler(StorageHandler):
             # Object doesn't exist or it is a folder.
             # We cannot list files because we already called list_blobs
             # before get_blob in _store_path_via_list.
+            return []
+
+        # Filter out directory markers with empty blob
+        if obj.name and obj.name.endswith("/"):
             return []
 
         # Single object found
@@ -291,6 +305,10 @@ class GCSHandler(StorageHandler):
                 # Single file, use just the filename
                 posix_name = PurePosixPath(posix_key.name)
                 posix_ref = posix_path
+        # FIXME: This breaks when the prefix is not a folder
+        # also same code is copy pased in s3_hander.py
+        # azure_handler.py actuall have different logic and has
+        # external contribution in https://github.com/wandb/wandb/pull/7876/changes
         elif is_under_prefix:
             # Directory with custom name override
             relpath = posix_key.relative_to(posix_prefix)
