@@ -25,7 +25,13 @@ from .actions import (
     SendWebhook,
 )
 from .automations import Automation, NewAutomation
-from .events import EventType, InputEvent, RunMetricFilter, _WrappedSavedEventFilter
+from .events import (
+    EventType,
+    InputEvent,
+    RunMetricFilter,
+    RunStateFilter,
+    _WrappedSavedEventFilter,
+)
 from .scopes import AutomationScope, ScopeType
 
 INVALID_INPUT_EVENTS: Final[Collection[EventType]] = (EventType.UPDATE_ARTIFACT_ALIAS,)
@@ -103,7 +109,7 @@ def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any
 
 
 def prepare_event_filter_input(
-    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter,
+    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter | RunStateFilter,
 ) -> str:
     """Unnests (if needed) and serializes an `EventFilter` input to JSON.
 

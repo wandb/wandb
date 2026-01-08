@@ -78,7 +78,7 @@ class StateOperand(GQLBase):
         """Returns a filter that watches for `run_state in states`."""
         return StateFilter(states=states)
 
-    def __eq__(self, other: Any) -> StateFilter:
+    def __eq__(self, other: Any) -> StateFilter:  # type: ignore[override]
         if isinstance(other, (str, ReportedRunState)):
             return self.eq(other)
         raise TypeError(f"Invalid operand type in run state filter: {type(other)!r}")
