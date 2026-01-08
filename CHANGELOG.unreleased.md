@@ -21,6 +21,11 @@ This version removes the legacy, deprecated `wandb.beta.workflows` module, inclu
 
 - `wandb agent` and `wandb.agent()` now accept a `forward_signals` flag (CLI: `--forward-signals/-f`) to relay SIGINT/SIGTERM and other catchable signals from the agent to its sweep child runs, enabling cleaner shutdowns when you interrupt an agent process (@kylegoyette, @domphan-wandb in https://github.com/wandb/wandb/pull/9651)
 - `wandb beta sync` now supports a `--live` option for syncing a run while it's being logged (@timoffex in https://github.com/wandb/wandb/pull/11079)
+- The Registry API can now be imported from the `wandb.registries` namespace. For conveninence, `Registry` is now also a top-level package import, e.g. `from wandb import Registry`. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11161)
+
+### Deprecated
+
+- Importing from `wandb.apis.public.registries` is deprecated; use `wandb.registries` instead (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11161)
 
 ### Removed
 
