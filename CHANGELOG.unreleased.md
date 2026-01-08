@@ -30,5 +30,6 @@ This version removes the legacy, deprecated `wandb.beta.workflows` module, inclu
 
 - Fixed `Run.__exit__` type annotations to accept `None` values, which are passed when no exception is raised (@moldhouse in https://github.com/wandb/wandb/pull/11100)
 - Fixed `Invalid Client ID digest` error when creating artifacts after calling `random.seed()`. Client IDs could collide when random state was seeded deterministically. (@pingleiwandb in https://github.com/wandb/wandb/pull/11039)
+- Fixed CLI error when listing empty artifacts (@ruhiparvatam in https://github.com/wandb/wandb/pull/11157)
 - Fixed regression for calling `api.run()` on a Sweeps run (@willtryagain in https://github.com/wandb/wandb/pull/11088 and @kelu-wandb in https://github.com/wandb/wandb/pull/11097)
 - Fixed the "View run at" message printed at the end of a run which sometimes did not include a URL (@timoffex in https://github.com/wandb/wandb/pull/11113)
