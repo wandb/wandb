@@ -9,11 +9,10 @@ from __future__ import annotations
 import warnings
 
 # Re-export from the new location
-from wandb.registries import Registries, Registry
+from wandb.registries import Registry
 
 __all__ = [
     "Registry",
-    "Registries",
 ]
 
 _DEPRECATION_MESSAGE = (
