@@ -161,7 +161,7 @@ func NewGraphQLClient(
 	httpClient := api.NewClient(opts)
 	endpoint := fmt.Sprintf("%s/graphql", settings.GetBaseURL())
 
-	return graphql.NewClient(endpoint, httpClient)
+	return graphql.NewClient(endpoint, api.AsStandardClient(httpClient))
 }
 
 func NewFileStream(
