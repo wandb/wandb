@@ -59,7 +59,7 @@ def test_init_with_iterable(init_items: Iterable[str]) -> None:
         assert a == b
 
     # Check the frozen and draft items under the hood, even though they're not publicly exposed
-    assert tuple(addonly_list._frozen) == tuple(normal_list)
+    assert tuple(addonly_list._saved) == tuple(normal_list)
     assert tuple(addonly_list._draft) == ()
 
 
@@ -120,7 +120,7 @@ def test_freeze(init_items: list[str], draft_objs: list[str]) -> None:
         if obj not in expected_frozen_seq:
             expected_frozen_seq.append(obj)
 
-    assert tuple(addonly_list._frozen) == tuple(expected_frozen_seq)
+    assert tuple(addonly_list._saved) == tuple(expected_frozen_seq)
     assert tuple(addonly_list._draft) == ()
 
 

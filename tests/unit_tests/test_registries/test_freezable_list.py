@@ -32,7 +32,7 @@ def test_init_empty():
     fl = FreezableList[str]()
     assert list(fl) == []
     assert len(fl) == 0
-    assert fl._frozen == ()
+    assert fl._saved == ()
     assert fl._draft == []
 
 
@@ -41,7 +41,7 @@ def test_init_with_iterable():
     fl = FreezableList[str](initial_items)
     assert list(fl) == initial_items
     assert len(fl) == len(initial_items)
-    assert fl._frozen == tuple(initial_items)
+    assert fl._saved == tuple(initial_items)
     assert fl._draft == []
 
 
@@ -49,13 +49,13 @@ def test_append(empty_list: FreezableList[str]):
     empty_list.append("new_item1")
     assert list(empty_list) == ["new_item1"]
     assert len(empty_list) == 1
-    assert empty_list._frozen == ()
+    assert empty_list._saved == ()
     assert empty_list._draft == ["new_item1"]
 
     empty_list.append("new_item2")
     assert list(empty_list) == ["new_item1", "new_item2"]
     assert len(empty_list) == 2
-    assert empty_list._frozen == ()
+    assert empty_list._saved == ()
     assert empty_list._draft == ["new_item1", "new_item2"]
 
 
@@ -94,8 +94,8 @@ def test_freeze_with_duplicates_between_draft_and_frozen(
     ]
     list_3_frozen_and_2_drafts.freeze()
     # Only non-duplicate ("new_item") should be added to frozen
-    assert list_3_frozen_and_2_drafts._frozen == tuple(
-        list_3_frozen_and_2_drafts._frozen
+    assert list_3_frozen_and_2_drafts._saved == tuple(
+        list_3_frozen_and_2_drafts._saved
     ) + tuple(list_3_frozen_and_2_drafts._draft)
     assert list_3_frozen_and_2_drafts._draft == []
 
@@ -356,7 +356,7 @@ def test_insert_into_frozen_raises(
     if index_type == "start_frozen":
         invalid_index = 0
     elif index_type == "end_frozen":
-        invalid_index = len(list_3_frozen_and_2_drafts._frozen) - 1
+        invalid_index = len(list_3_frozen_and_2_drafts._saved) - 1
     elif index_type == "negative_frozen":
         invalid_index = -len(list_3_frozen_and_2_drafts)  # Index for "frozen_one"
 
