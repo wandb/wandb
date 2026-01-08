@@ -5,8 +5,7 @@ from typing import Literal
 import wandb
 from pytest import FixtureRequest, fixture, mark
 from typing_extensions import assert_never
-from wandb import Api, Artifact
-from wandb.apis.public.registries.registry import Registry
+from wandb import Api, Artifact, Registry
 
 
 @fixture(

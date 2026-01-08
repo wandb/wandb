@@ -5,9 +5,8 @@ from unittest.mock import patch
 
 import wandb
 from pytest import fixture, mark, param, raises
-from wandb import Api, Artifact
+from wandb import Api, Artifact, Registry
 from wandb._strutils import b64decode_ascii
-from wandb.apis.public.registries.registry import Registry
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 

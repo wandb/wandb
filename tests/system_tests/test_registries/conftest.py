@@ -6,10 +6,9 @@ from typing import TYPE_CHECKING, Callable
 import wandb
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
-from wandb import Api, Artifact
-from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
-from wandb.apis.public.registries.registry import Registry
+from wandb import Api, Artifact, Registry
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.registries._utils import fetch_org_entity_from_organization
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.util import random_string
 from wandb_gql import gql

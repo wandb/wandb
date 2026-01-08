@@ -1,7 +1,34 @@
+"""Deprecated: Use `wandb.registries` instead.
+
+This module is deprecated and will be removed in a future release.
+Please update your imports to use `wandb.registries` directly.
+"""
+
+from __future__ import annotations
+
+import warnings
+
+# Re-export from the new location
+from wandb.registries import Registries, Registry
+
 __all__ = [
-    "Registry",  # doc:exclude
-    "Registries",  # doc:exclude
+    "Registry",
+    "Registries",
 ]
 
-from .registries_search import Registries
-from .registry import Registry
+_DEPRECATION_MESSAGE = (
+    "Importing from 'wandb.apis.public.registries' is deprecated. "
+    "Please use 'wandb.registries' instead. "
+    "This module will be removed in a future release."
+)
+
+
+def _emit_deprecation_warning() -> None:
+    """Emit deprecation warning with proper stack level."""
+    # stacklevel=3 typically points to the actual import statement:
+    # 1 = this function, 2 = module-level code, 3 = the import statement
+    warnings.warn(_DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=3)
+
+
+# Emit warning when the module is imported
+_emit_deprecation_warning()

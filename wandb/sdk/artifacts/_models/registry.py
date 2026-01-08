@@ -7,8 +7,8 @@ from typing_extensions import Self
 
 from wandb._pydantic import GQLId, field_validator
 from wandb._strutils import nameof
-from wandb.apis.public.registries._freezable_list import AddOnlyArtifactTypesList
-from wandb.apis.public.registries._utils import Visibility
+from wandb.registries._freezable_list import AddOnlyArtifactTypesList
+from wandb.registries._utils import Visibility
 
 from .base_model import ArtifactsBase
 
