@@ -19,31 +19,31 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func TestSend(t *testing.T) {
+func TestDo(t *testing.T) {
 	server := apitest.NewRecordingServer()
+	defer server.Close()
+
 	settings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
 	})
+	client := newClient(t, settings, api.ClientOptions{
+		ExtraHeaders: map[string]string{
+			"ClientHeader": "xyz",
+		},
+	})
 
-	{
-		defer server.Close()
-		_, err := newClient(t, settings, api.ClientOptions{
-			ExtraHeaders: map[string]string{
-				"ClientHeader": "xyz",
-			},
-		}).
-			Send(&api.Request{
-				Method: http.MethodGet,
-				Path:   "some/test/path",
-				Body:   []byte("my test request"),
-				Headers: map[string]string{
-					"Header1": "one",
-					"Header2": "two",
-				},
-			})
-		assert.NoError(t, err)
-	}
+	testRequest, err := http.NewRequest(
+		http.MethodGet,
+		server.URL+"/wandb/some/test/path",
+		bytes.NewReader([]byte("my test request")),
+	)
+	require.NoError(t, err)
+	testRequest.Header.Set("Header1", "one")
+	testRequest.Header.Set("Header2", "two")
+
+	_, err = client.Do(testRequest)
+	require.NoError(t, err)
 
 	allRequests := server.Requests()
 	assert.Len(t, allRequests, 1)

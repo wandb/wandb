@@ -21,11 +21,13 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// NewBackend returns a Backend or nil if we're offline.
-func NewBackend(
+// BaseURLFromSettings extracts the W&B server URL from W&B settings.
+//
+// It returns nil if offline.
+func BaseURLFromSettings(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
-) *api.Backend {
+) api.WBBaseURL {
 	if settings.IsOffline() {
 		return nil
 	}
@@ -33,13 +35,26 @@ func NewBackend(
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	if err != nil {
 		logger.CaptureFatalAndPanic(
-			fmt.Errorf("stream_init: failed to parse base URL: %v", err))
+			fmt.Errorf("stream_init: BaseURLFromSettings: %v", err))
+	}
+
+	return baseURL
+}
+
+// NewBackend returns a Backend or nil if we're offline.
+func NewBackend(
+	baseURL api.WBBaseURL,
+	logger *observability.CoreLogger,
+	settings *settings.Settings,
+) *api.Backend {
+	if baseURL == nil {
+		return nil
 	}
 
 	credentialProvider, err := api.NewCredentialProvider(settings, logger.Logger)
 	if err != nil {
 		logger.CaptureFatalAndPanic(
-			fmt.Errorf("stream_init: failed to fetch credentials: %v", err))
+			fmt.Errorf("stream_init: NewCredentialProvider: %v", err))
 	}
 
 	return api.New(api.BackendOptions{

@@ -40,6 +40,7 @@ var streamProviders = wire.NewSet(
 	NewStream,
 	wire.Bind(new(api.Peeker), new(*observability.Peeker)),
 	wire.Struct(new(observability.Peeker)),
+	BaseURLFromSettings,
 	featurechecker.NewServerFeaturesCache,
 	filestream.FileStreamProviders,
 	filetransfer.NewFileTransferStats,

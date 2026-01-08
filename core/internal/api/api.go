@@ -2,9 +2,7 @@
 package api
 
 import (
-	"context"
 	"crypto/tls"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -33,6 +31,9 @@ const (
 	DefaultNonRetryTimeout = 30 * time.Second
 )
 
+// WBBaseURL is the address of the W&B backend, like https://api.wandb.ai.
+type WBBaseURL *url.URL
+
 // The W&B backend server.
 //
 // There is generally exactly one Backend and a small number of Clients in a
@@ -51,7 +52,7 @@ type Backend struct {
 	credentialProvider CredentialProvider
 }
 
-// An HTTP client for interacting with the W&B backend.
+// A retrying HTTP client with special handling for the W&B backend.
 //
 // There is one Client per API provided by the backend, where "API" is a
 // collection of related HTTP endpoints. It's expected that different APIs
@@ -60,17 +61,9 @@ type Backend struct {
 // The client is responsible for setting auth headers, retrying
 // gracefully, and respecting rate-limit response headers.
 type Client interface {
-	// Sends an HTTP request to the W&B backend.
+	// Sends an HTTP request with retries.
 	//
-	// It is guaranteed that the response is non-nil unless there is an error.
-	Send(*Request) (*http.Response, error)
-
-	// Sends an arbitrary HTTP request.
-	//
-	// This is used for libraries that accept a custom HTTP client that they
-	// then use to make requests to the backend, like GraphQL. If the request
-	// URL matches the backend's base URL, there's special handling as in
-	// Send().
+	// There is special handling if the request is for the W&B backend.
 	//
 	// It is guaranteed that the response is non-nil unless there is an error.
 	Do(*http.Request) (*http.Response, error)
@@ -95,48 +88,10 @@ type clientImpl struct {
 	credentialProvider CredentialProvider
 }
 
-// An HTTP request to the W&B backend.
-type Request struct {
-	// The standard HTTP method.
-	Method string
-
-	// The request path, not including the scheme or hostname.
-	//
-	// Example: "/files/a/b/c/file_stream".
-	Path string
-
-	// The request body or nil.
-	//
-	// Since requests may be retried, this is always a byte slice rather than
-	// an [io.ReadCloser] as in Go's standard HTTP package.
-	Body []byte
-
-	// Additional HTTP headers to include in request.
-	//
-	// These are sent in addition to any headers set automatically by the
-	// client, such as for auth. The client headers take precedence.
-	Headers map[string]string
-
-	// Context is the request context.
-	//
-	// If it's nil, a background context is used.
-	Context context.Context
-}
-
-func (req *Request) String() string {
-	return fmt.Sprintf(
-		"Request{Method: %s, Path: %s, Body: %s, Headers: %v}",
-		req.Method,
-		req.Path,
-		string(req.Body),
-		req.Headers,
-	)
-}
-
 type BackendOptions struct {
 	// The scheme and hostname for contacting the server, not including a final
 	// slash. For example, "http://localhost:8080".
-	BaseURL *url.URL
+	BaseURL WBBaseURL
 
 	// Logger for HTTP operations.
 	Logger *slog.Logger

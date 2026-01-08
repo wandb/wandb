@@ -29,7 +29,8 @@ import (
 func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.CoreLogger) *RunSyncerFactory {
 	wandbOperations := wboperation.NewOperations()
 	printer := observability.NewPrinter()
-	backend := stream.NewBackend(logger, settings2)
+	wbBaseURL := stream.BaseURLFromSettings(logger, settings2)
+	backend := stream.NewBackend(wbBaseURL, logger, settings2)
 	peeker := &observability.Peeker{}
 	clientID := sharedmode.RandomClientID()
 	client := stream.NewGraphQLClient(backend, settings2, peeker, clientID)
@@ -49,6 +50,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Operations: wandbOperations,
 	}
 	fileStreamFactory := &filestream.FileStreamFactory{
+		BaseURL:    wbBaseURL,
 		Logger:     logger,
 		Operations: wandbOperations,
 		Printer:    printer,
@@ -105,7 +107,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 // wire.go:
 
 var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, observability.NewPrinter, provideFileWatcher, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
-	runSyncerProviders, sharedmode.RandomClientID, stream.NewBackend, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations,
+	runSyncerProviders, sharedmode.RandomClientID, stream.BaseURLFromSettings, stream.NewBackend, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations,
 )
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {

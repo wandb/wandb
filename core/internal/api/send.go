@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,36 +8,6 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
-
-func (client *clientImpl) Send(req *Request) (*http.Response, error) {
-	ctx := req.Context
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	retryableReq, err := retryablehttp.NewRequestWithContext(
-		ctx,
-		req.Method,
-		client.backend.baseURL.JoinPath(req.Path).String(),
-		req.Body,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("api: failed to create request: %v", err)
-	}
-
-	for headerKey, headerValue := range req.Headers {
-		retryableReq.Header.Set(headerKey, headerValue)
-	}
-
-	// Prevent the connection from being re-used in case of an error.
-	// TODO: There is an unlikely scenario when an attempt to reuse the connection
-	// will result in not retrying an otherwise retryable request.
-	// This is safe, however leads to a small performance hit and resource waste.
-	// We are being extra cautious here, but this should be revisited.
-	retryableReq.Close = true
-
-	return client.sendToWandbBackend(retryableReq)
-}
 
 func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
 	retryableReq, err := retryablehttp.FromRequest(req)
