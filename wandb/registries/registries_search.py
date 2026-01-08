@@ -51,7 +51,6 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
             type(self).QUERY = gql(FETCH_REGISTRIES_GQL)
 
-        self.client = client
         self.organization = organization
         self.filter = ensure_registry_prefix_on_names(filter or {})
 
