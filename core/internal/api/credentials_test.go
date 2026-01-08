@@ -38,11 +38,14 @@ func TestNewAPIKeyCredentialProvider(t *testing.T) {
 
 func TestNewAPIKeyCredentialProvider_NoAPIKey(t *testing.T) {
 	settings := wbsettings.From(&spb.Settings{})
-	_, err := api.NewCredentialProvider(
+
+	credentialProvider, err := api.NewCredentialProvider(
 		settings,
 		observabilitytest.NewTestLogger(t).Logger,
 	)
-	assert.Error(t, err)
+
+	require.NoError(t, err)
+	assert.Equal(t, credentialProvider, api.NoopCredentialProvider{})
 }
 
 func authServer(token string, expiresIn time.Duration) *apitest.RecordingServer {
