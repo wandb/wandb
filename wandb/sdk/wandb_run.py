@@ -13,12 +13,12 @@ import sys
 import threading
 import time
 import traceback
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
-from typing import TYPE_CHECKING, Callable, Sequence, TextIO, TypeVar
+from typing import TYPE_CHECKING, Callable, TextIO, TypeVar
 
 from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec
 

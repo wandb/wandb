@@ -10,13 +10,14 @@ import shutil
 import socket
 import sys
 import traceback
+from collections.abc import Sequence
 from datetime import datetime
 
 # Optional and Union are used for type hinting instead of | because
 # the latter is not supported in pydantic<2.6 and Python<3.10.
 # Dict, List, and Tuple are used for backwards compatibility
 # with pydantic v1 and Python<3.9.
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from urllib.parse import quote, unquote
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue

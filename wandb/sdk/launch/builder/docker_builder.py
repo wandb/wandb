@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import wandb
 import wandb.docker as docker
@@ -41,7 +41,7 @@ class DockerBuilder(AbstractBuilder):
         self,
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ):
         """Initialize a DockerBuilder.
 
@@ -59,7 +59,7 @@ class DockerBuilder(AbstractBuilder):
     @classmethod
     def from_config(
         cls,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
     ) -> "DockerBuilder":

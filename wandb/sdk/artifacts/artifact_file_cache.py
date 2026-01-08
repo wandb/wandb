@@ -9,10 +9,12 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from functools import lru_cache
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import IO, ContextManager, Iterator, Protocol
+from typing import IO, Protocol
 
 import wandb
 from wandb import env, util
@@ -22,7 +24,7 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 
 class Opener(Protocol):
-    def __call__(self, mode: str = ...) -> ContextManager[IO]: ...
+    def __call__(self, mode: str = ...) -> AbstractContextManager[IO]: ...
 
 
 def artifacts_cache_dir() -> Path:

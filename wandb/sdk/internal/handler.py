@@ -6,20 +6,10 @@ import math
 import numbers
 import time
 from collections import defaultdict
+from collections.abc import Iterable, Sequence
 from queue import Queue
 from threading import Event
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    cast,
-)
+from typing import TYPE_CHECKING, Any, Callable, Optional, cast
 
 from wandb.errors.links import url_registry
 from wandb.proto.wandb_internal_pb2 import (
@@ -44,7 +34,7 @@ if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import MetricSummary
 
 
-SummaryDict = Dict[str, Any]
+SummaryDict = dict[str, Any]
 
 logger = logging.getLogger(__name__)
 
@@ -61,14 +51,14 @@ logger = logging.getLogger(__name__)
 REPLACE_SUMMARY_ART_PATH_WITH_LATEST = False
 
 
-def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) -> None:
+def _dict_nested_set(target: dict[str, Any], key_list: Sequence[str], v: Any) -> None:
     # recurse down the dictionary structure:
 
     for k in key_list[:-1]:
         target.setdefault(k, {})
         new_target = target.get(k)
         if TYPE_CHECKING:
-            new_target = cast(Dict[str, Any], new_target)
+            new_target = cast(dict[str, Any], new_target)
         target = new_target
     # use the last element of the key to write the leaf:
     target[key_list[-1]] = v
@@ -76,8 +66,8 @@ def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) ->
 
 class HandleManager:
     _consolidated_summary: SummaryDict
-    _sampled_history: Dict[str, sample.UniformSampleAccumulator]
-    _partial_history: Dict[str, Any]
+    _sampled_history: dict[str, sample.UniformSampleAccumulator]
+    _partial_history: dict[str, Any]
     _run_proto: Optional[RunRecord]
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
@@ -86,10 +76,10 @@ class HandleManager:
     _writer_q: "Queue[Record]"
     _interface: InterfaceQueue
     _tb_watcher: Optional[tb_watcher.TBWatcher]
-    _metric_defines: Dict[str, MetricRecord]
-    _metric_globs: Dict[str, MetricRecord]
-    _metric_track: Dict[Tuple[str, ...], float]
-    _metric_copy: Dict[Tuple[str, ...], Any]
+    _metric_defines: dict[str, MetricRecord]
+    _metric_globs: dict[str, MetricRecord]
+    _metric_track: dict[tuple[str, ...], float]
+    _metric_copy: dict[tuple[str, ...], Any]
     _track_time: Optional[float]
     _accumulate_time: float
     _run_start_time: Optional[float]
@@ -258,13 +248,13 @@ class HandleManager:
     def _update_summary_metrics(
         self,
         s: "MetricSummary",
-        kl: List[str],
+        kl: list[str],
         v: "numbers.Real",
         float_v: float,
         goal_max: Optional[bool],
     ) -> bool:
         updated = False
-        best_key: Optional[Tuple[str, ...]] = None
+        best_key: Optional[tuple[str, ...]] = None
         if s.none:
             return False
         if s.copy:
@@ -320,7 +310,7 @@ class HandleManager:
 
     def _update_summary_leaf(
         self,
-        kl: List[str],
+        kl: list[str],
         v: Any,
         d: Optional[MetricRecord] = None,
     ) -> bool:
@@ -354,7 +344,7 @@ class HandleManager:
 
     def _update_summary_list(
         self,
-        kl: List[str],
+        kl: list[str],
         v: Any,
         d: Optional[MetricRecord] = None,
     ) -> bool:
@@ -379,7 +369,7 @@ class HandleManager:
         updated = self._update_summary_leaf(kl=kl, v=v, d=d)
         return updated
 
-    def _update_summary_media_objects(self, v: Dict[str, Any]) -> Dict[str, Any]:
+    def _update_summary_media_objects(self, v: dict[str, Any]) -> dict[str, Any]:
         # For now, non-recursive - just top level
         for nk, nv in v.items():
             if REPLACE_SUMMARY_ART_PATH_WITH_LATEST and (
@@ -393,7 +383,7 @@ class HandleManager:
                 v[nk] = nv
         return v
 
-    def _update_summary(self, history_dict: Dict[str, Any]) -> List[str]:
+    def _update_summary(self, history_dict: dict[str, Any]) -> list[str]:
         # keep old behavior fast path if no define metrics have been used
         if not self._metric_defines:
             history_dict = self._update_summary_media_objects(history_dict)
@@ -408,7 +398,7 @@ class HandleManager:
     def _history_assign_step(
         self,
         history: HistoryRecord,
-        history_dict: Dict[str, Any],
+        history_dict: dict[str, Any],
     ) -> None:
         has_step = history.HasField("step")
         item = history.item.add()
@@ -441,10 +431,10 @@ class HandleManager:
 
     def _history_update_leaf(
         self,
-        kl: List[str],
+        kl: list[str],
         v: Any,
-        history_dict: Dict[str, Any],
-        update_history: Dict[str, Any],
+        history_dict: dict[str, Any],
+        update_history: dict[str, Any],
     ) -> None:
         hkey = ".".join([k.replace(".", "\\.") for k in kl])
         m = self._metric_defines.get(hkey)
@@ -466,10 +456,10 @@ class HandleManager:
 
     def _history_update_list(
         self,
-        kl: List[str],
+        kl: list[str],
         v: Any,
-        history_dict: Dict[str, Any],
-        update_history: Dict[str, Any],
+        history_dict: dict[str, Any],
+        update_history: dict[str, Any],
     ) -> None:
         if isinstance(v, dict):
             for nk, nv in v.items():
@@ -487,13 +477,13 @@ class HandleManager:
     def _history_update(
         self,
         history: HistoryRecord,
-        history_dict: Dict[str, Any],
+        history_dict: dict[str, Any],
     ) -> None:
         #  if syncing an old run, we can skip this logic
         if history_dict.get("_step") is None:
             self._history_assign_step(history, history_dict)
 
-        update_history: Dict[str, Any] = {}
+        update_history: dict[str, Any] = {}
         # Look for metric matches
         if self._metric_defines or self._metric_globs:
             for hkey, hval in history_dict.items():
@@ -839,7 +829,7 @@ class HandleManager:
     def _history_assign_runtime(
         self,
         history: HistoryRecord,
-        history_dict: Dict[str, Any],
+        history_dict: dict[str, Any],
     ) -> None:
         # _runtime calculation is meaningless if there is no _timestamp
         if "_timestamp" not in history_dict:

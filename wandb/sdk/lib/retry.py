@@ -7,7 +7,8 @@ import os
 import random
 import threading
 import time
-from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
+from collections.abc import Awaitable
+from typing import Any, Callable, Generic, Optional, TypeVar
 
 import wandb
 import wandb.errors
@@ -60,7 +61,7 @@ class Retry(Generic[_R]):
         retry_cancel_event: Optional[threading.Event] = None,
         num_retries: Optional[int] = None,
         check_retry_fn: CheckRetryFnType = lambda e: True,
-        retryable_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
+        retryable_exceptions: Optional[tuple[type[Exception], ...]] = None,
         error_prefix: str = "Network error",
         retry_callback: Optional[Callable[[int, str], Any]] = None,
     ) -> None:

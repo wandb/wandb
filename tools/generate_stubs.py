@@ -39,7 +39,7 @@ import ast
 import re
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 
 def extract_docstring(file_path: Path, location: str) -> Optional[str]:
@@ -74,7 +74,7 @@ def extract_docstring(file_path: Path, location: str) -> Optional[str]:
     return None
 
 
-def extract_functions_from_template(template_content: str) -> Dict[str, str]:
+def extract_functions_from_template(template_content: str) -> dict[str, str]:
     """Extracts function names and their source information from the template.
 
     Args:

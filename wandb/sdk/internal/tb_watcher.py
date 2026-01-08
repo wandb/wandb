@@ -8,7 +8,7 @@ import socket
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import wandb
 from wandb import util
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from ..interface.interface_queue import InterfaceQueue
     from .settings_static import SettingsStatic
 
-    HistoryDict = Dict[str, Any]
+    HistoryDict = dict[str, Any]
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -106,7 +106,7 @@ def is_tfevents_file_created_by(
 
 
 class TBWatcher:
-    _logdirs: "Dict[str, TBDirWatcher]"
+    _logdirs: "dict[str, TBDirWatcher]"
     _watcher_queue: "PriorityQueue"
 
     def __init__(
@@ -463,7 +463,7 @@ class TBEventConsumer:
 
 class TBHistory:
     _data: "HistoryDict"
-    _added: "List[HistoryDict]"
+    _added: "list[HistoryDict]"
 
     def __init__(self) -> None:
         self._step = 0
@@ -514,7 +514,7 @@ class TBHistory:
     def _row_update(self, d: "HistoryDict") -> None:
         self._data.update(self._track_history_dict(d))
 
-    def _get_and_reset(self) -> "List[HistoryDict]":
+    def _get_and_reset(self) -> "list[HistoryDict]":
         added = self._added[:]
         self._added = []
         return added

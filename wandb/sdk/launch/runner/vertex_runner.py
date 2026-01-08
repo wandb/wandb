@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
@@ -78,7 +78,7 @@ class VertexRunner(AbstractRunner):
     def __init__(
         self,
         api: Api,
-        backend_config: Dict[str, Any],
+        backend_config: dict[str, Any],
         environment: GcpEnvironment,
         registry: AbstractRegistry,
     ) -> None:
@@ -165,8 +165,8 @@ class VertexRunner(AbstractRunner):
 
 async def launch_vertex_job(
     launch_project: LaunchProject,
-    spec_args: Dict[str, Any],
-    run_args: Dict[str, Any],
+    spec_args: dict[str, Any],
+    run_args: dict[str, Any],
     environment: GcpEnvironment,
     synchronous: bool = False,
 ) -> VertexSubmittedRun:

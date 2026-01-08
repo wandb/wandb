@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Mapping
 from enum import Enum
-from typing import Any, Iterable, Mapping
+from typing import Any
 from urllib.parse import urlparse
 
 from wandb_gql import gql

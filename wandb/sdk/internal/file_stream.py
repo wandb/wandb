@@ -9,26 +9,14 @@ import sys
 import threading
 import time
 from types import TracebackType
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    NamedTuple,
-    Optional,
-    Set,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Union
 
 if TYPE_CHECKING:
     from typing import TypedDict
 
     class ProcessedChunk(TypedDict):
         offset: int
-        content: List[str]
+        content: list[str]
 
     class ProcessedBinaryChunk(TypedDict):
         offset: int
@@ -59,8 +47,8 @@ class DefaultFilePolicy:
         self.has_debug_log = False
 
     def process_chunks(
-        self, chunks: List[Chunk]
-    ) -> Union[bool, "ProcessedChunk", "ProcessedBinaryChunk", List["ProcessedChunk"]]:
+        self, chunks: list[Chunk]
+    ) -> Union[bool, "ProcessedChunk", "ProcessedBinaryChunk", list["ProcessedChunk"]]:
         chunk_id = self._chunk_id
         self._chunk_id += len(chunks)
         return {"offset": chunk_id, "content": [c.data for c in chunks]}
@@ -82,7 +70,7 @@ class DefaultFilePolicy:
 
 
 class JsonlFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedChunk":
+    def process_chunks(self, chunks: list[Chunk]) -> "ProcessedChunk":
         chunk_id = self._chunk_id
         # TODO: chunk_id is getting reset on each request...
         self._chunk_id += len(chunks)
@@ -103,7 +91,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
 
 
 class SummaryFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks: List[Chunk]) -> Union[bool, "ProcessedChunk"]:
+    def process_chunks(self, chunks: list[Chunk]) -> Union[bool, "ProcessedChunk"]:
         data = chunks[-1].data
         if len(data) > util.MAX_LINE_BYTES:
             msg = f"Summary data exceeds maximum size of {util.to_human_size(util.MAX_LINE_BYTES)}. Dropping it."
@@ -159,7 +147,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         self.stdout = StreamCRState()
 
     @staticmethod
-    def get_consecutive_offsets(console: Dict[int, str]) -> List[List[int]]:
+    def get_consecutive_offsets(console: dict[int, str]) -> list[list[int]]:
         """Compress consecutive line numbers into an interval.
 
         Args:
@@ -175,7 +163,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
             [(2, 5), (10, 11), (20, 20)]
         """
         offsets = sorted(list(console.keys()))
-        intervals: List = []
+        intervals: list = []
         for i, num in enumerate(offsets):
             if i == 0:
                 intervals.append([num, num])
@@ -188,7 +176,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         return intervals
 
     @staticmethod
-    def split_chunk(chunk: Chunk) -> Tuple[str, str]:
+    def split_chunk(chunk: Chunk) -> tuple[str, str]:
         r"""Split chunks.
 
         Args:
@@ -222,7 +210,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest
 
-    def process_chunks(self, chunks: List[Chunk]) -> List["ProcessedChunk"]:
+    def process_chunks(self, chunks: list[Chunk]) -> list["ProcessedChunk"]:
         r"""Process chunks.
 
         Args:
@@ -328,8 +316,8 @@ class FileStreamApi:
         # NOTE: exc_info is set in thread_except_body context and readable by calling threads
         self._exc_info: Optional[
             Union[
-                Tuple[Type[BaseException], BaseException, TracebackType],
-                Tuple[None, None, None],
+                tuple[type[BaseException], BaseException, TracebackType],
+                tuple[None, None, None],
             ]
         ] = None
         self._settings = settings
@@ -344,7 +332,7 @@ class FileStreamApi:
         self._client.headers.update(api.client.transport.headers or {})
         self._client.cookies.update(api.client.transport.cookies or {})  # type: ignore[no-untyped-call]
         self._client.proxies.update(api.client.transport.session.proxies or {})
-        self._file_policies: Dict[str, DefaultFilePolicy] = {}
+        self._file_policies: dict[str, DefaultFilePolicy] = {}
         self._dropped_chunks: int = 0
         self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
@@ -395,7 +383,7 @@ class FileStreamApi:
         else:
             return max(5.0, self.heartbeat_seconds)
 
-    def _read_queue(self) -> List:
+    def _read_queue(self) -> list:
         # called from the push thread (_thread_body), this does an initial read
         # that'll block for up to rate_limit_seconds. Then it tries to read
         # as much out of the queue as it can. We do this because the http post
@@ -413,7 +401,7 @@ class FileStreamApi:
         posted_data_time = time.time()
         posted_anything_time = time.time()
         ready_chunks = []
-        uploaded: Set[str] = set()
+        uploaded: set[str] = set()
         finished: Optional[FileStreamApi.Finish] = None
         while finished is None:
             items = self._read_queue()
@@ -516,7 +504,7 @@ class FileStreamApi:
                 if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
 
-    def _send(self, chunks: List[Chunk], uploaded: Optional[Set[str]] = None) -> bool:
+    def _send(self, chunks: list[Chunk], uploaded: Optional[set[str]] = None) -> bool:
         uploaded_list = list(uploaded or [])
         # create files dict. dict of <filename: chunks> pairs where chunks are a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).

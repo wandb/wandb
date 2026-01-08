@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import wandb
 from wandb.apis.internal import Api
@@ -56,10 +56,10 @@ def set_launch_logfile(logfile: str) -> None:
 def resolve_agent_config(
     entity: Optional[str],
     max_jobs: Optional[int],
-    queues: Optional[Tuple[str]],
+    queues: Optional[tuple[str]],
     config: Optional[str],
     verbosity: Optional[int],
-) -> Tuple[Dict[str, Any], Api]:
+) -> tuple[dict[str, Any], Api]:
     """Resolve the agent config.
 
     Arguments:
@@ -83,7 +83,7 @@ def resolve_agent_config(
         "builder": {},
         "verbosity": 0,
     }
-    resolved_config: Dict[str, Any] = defaults
+    resolved_config: dict[str, Any] = defaults
     config_path = config or os.path.expanduser(LAUNCH_CONFIG_FILE)
     if os.path.isfile(config_path):
         launch_config = {}
@@ -141,7 +141,7 @@ def resolve_agent_config(
 
 def create_and_run_agent(
     api: Api,
-    config: Dict[str, Any],
+    config: dict[str, Any],
 ) -> None:
     try:
         from wandb.sdk.launch.agent import config as agent_config
@@ -177,11 +177,11 @@ async def _launch(
     project: Optional[str] = None,
     entity: Optional[str] = None,
     docker_image: Optional[str] = None,
-    entry_point: Optional[List[str]] = None,
+    entry_point: Optional[list[str]] = None,
     version: Optional[str] = None,
     resource: Optional[str] = None,
-    resource_args: Optional[Dict[str, Any]] = None,
-    launch_config: Optional[Dict[str, Any]] = None,
+    resource_args: Optional[dict[str, Any]] = None,
+    launch_config: Optional[dict[str, Any]] = None,
     synchronous: Optional[bool] = None,
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
@@ -217,7 +217,7 @@ async def _launch(
     )  # Either set by user or None.
 
     # construct runner config.
-    runner_config: Dict[str, Any] = {}
+    runner_config: dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
 
     config = launch_config or {}
@@ -249,15 +249,15 @@ async def _launch(
 def launch(
     api: Api,
     job: Optional[str] = None,
-    entry_point: Optional[List[str]] = None,
+    entry_point: Optional[list[str]] = None,
     version: Optional[str] = None,
     name: Optional[str] = None,
     resource: Optional[str] = None,
-    resource_args: Optional[Dict[str, Any]] = None,
+    resource_args: Optional[dict[str, Any]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     docker_image: Optional[str] = None,
-    config: Optional[Dict[str, Any]] = None,
+    config: Optional[dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
     run_id: Optional[str] = None,
     repository: Optional[str] = None,

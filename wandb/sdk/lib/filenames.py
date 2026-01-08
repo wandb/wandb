@@ -1,5 +1,6 @@
 import os
-from typing import Callable, Generator, Union
+from collections.abc import Generator
+from typing import Callable, Union
 
 WANDB_DIRS = ("wandb", ".wandb")
 

@@ -3,19 +3,8 @@ import itertools
 import json
 import os
 import pathlib
-from typing import (
-    TYPE_CHECKING,
-    ClassVar,
-    Literal,
-    Optional,
-    Sequence,
-    Set,
-    TextIO,
-    Tuple,
-    Type,
-    TypedDict,
-    Union,
-)
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, ClassVar, Literal, Optional, TextIO, TypedDict, Union
 
 import wandb
 from wandb import util
@@ -43,17 +32,17 @@ if TYPE_CHECKING:  # pragma: no cover
         "stl",
         "pts.json",
     ]
-    Point3D = Tuple[numeric, numeric, numeric]
-    Point3DWithCategory = Tuple[numeric, numeric, numeric, numeric]
-    Point3DWithColors = Tuple[numeric, numeric, numeric, numeric, numeric, numeric]
+    Point3D = tuple[numeric, numeric, numeric]
+    Point3DWithCategory = tuple[numeric, numeric, numeric, numeric]
+    Point3DWithColors = tuple[numeric, numeric, numeric, numeric, numeric, numeric]
     Point = Union[Point3D, Point3DWithCategory, Point3DWithColors]
     PointCloudType = Literal["lidar/beta"]
-    RGBColor = Tuple[numeric, numeric, numeric]
+    RGBColor = tuple[numeric, numeric, numeric]
 
-    Quaternion = Tuple[numeric, numeric, numeric, numeric]
+    Quaternion = tuple[numeric, numeric, numeric, numeric]
 
     class Box3D(TypedDict):
-        corners: Tuple[
+        corners: tuple[
             Point3D,
             Point3D,
             Point3D,
@@ -252,7 +241,7 @@ def box3d(
 class Object3D(BatchableMedia):
     """W&B class for 3D point clouds."""
 
-    SUPPORTED_TYPES: ClassVar[Set[str]] = {
+    SUPPORTED_TYPES: ClassVar[set[str]] = {
         "obj",
         "gltf",
         "glb",
@@ -260,7 +249,7 @@ class Object3D(BatchableMedia):
         "stl",
         "pts.json",
     }
-    SUPPORTED_POINT_CLOUD_TYPES: ClassVar[Set[str]] = {"lidar/beta"}
+    SUPPORTED_POINT_CLOUD_TYPES: ClassVar[set[str]] = {"lidar/beta"}
     _log_type: ClassVar[str] = "object3D-file"
 
     def __init__(
@@ -494,7 +483,7 @@ class Object3D(BatchableMedia):
         return cls(data)
 
     @classmethod
-    def get_media_subdir(cls: Type["Object3D"]) -> str:
+    def get_media_subdir(cls: type["Object3D"]) -> str:
         """Get media subdirectory.
 
         <!-- lazydoc-ignore-classmethod: internal -->
@@ -519,7 +508,7 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls: Type["Object3D"],
+        cls: type["Object3D"],
         seq: Sequence["BatchableMedia"],
         run: "LocalRun",
         key: str,

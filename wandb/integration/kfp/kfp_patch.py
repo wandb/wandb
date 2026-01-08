@@ -1,7 +1,8 @@
 import inspect
 import itertools
 import textwrap
-from typing import Callable, List, Mapping, Optional
+from collections.abc import Mapping
+from typing import Callable, Optional
 
 import wandb
 
@@ -179,7 +180,7 @@ def create_component_from_func(
     func: Callable,
     output_component_file: Optional[str] = None,
     base_image: Optional[str] = None,
-    packages_to_install: Optional[List[str]] = None,
+    packages_to_install: Optional[list[str]] = None,
     annotations: Optional[Mapping[str, str]] = None,
 ):
     '''Convert a Python function to a component and returns a task factory.

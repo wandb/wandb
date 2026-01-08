@@ -11,6 +11,7 @@ import re
 import socket
 import sys
 import threading
+from collections.abc import Iterable, Mapping, MutableMapping, Sequence
 from copy import deepcopy
 from pathlib import Path
 from typing import (
@@ -18,12 +19,8 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Iterable,
     Literal,
-    Mapping,
-    MutableMapping,
     NamedTuple,
-    Sequence,
     TextIO,
     Union,
     overload,

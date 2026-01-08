@@ -11,7 +11,7 @@ import os
 import pathlib
 import shutil
 import tempfile
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import wandb
 import wandb.data_types
@@ -61,8 +61,8 @@ class JobInputArguments:
 
     def __init__(
         self,
-        include: Optional[List[str]] = None,
-        exclude: Optional[List[str]] = None,
+        include: Optional[list[str]] = None,
+        exclude: Optional[list[str]] = None,
         schema: Optional[dict] = None,
         file_path: Optional[str] = None,
         run_config: Optional[bool] = None,
@@ -84,7 +84,7 @@ class StagedLaunchInputs:
 
     def __init__(self) -> None:
         if not hasattr(self, "_staged_inputs"):
-            self._staged_inputs: List[JobInputArguments] = []
+            self._staged_inputs: list[JobInputArguments] = []
 
     def add_staged_input(
         self,
@@ -137,7 +137,7 @@ def _replace_refs_and_allofs(schema: dict, defs: Optional[dict]) -> dict:
     2. Removes any "allOf" lists that only have one item, "lifting" the item up
     See test_internal.py for examples
     """
-    ret: Dict[str, Any] = {}
+    ret: dict[str, Any] = {}
     if "$ref" in schema and defs:
         # Reference found, replace it with its definition
         def_key = schema.pop("$ref").split("#/$defs/")[1]
@@ -208,8 +208,8 @@ def _validate_schema(schema: dict) -> None:
 
 def handle_config_file_input(
     path: str,
-    include: Optional[List[str]] = None,
-    exclude: Optional[List[str]] = None,
+    include: Optional[list[str]] = None,
+    exclude: Optional[list[str]] = None,
     schema: Optional[Any] = None,
 ):
     """Declare an overridable configuration file for a launch job.
@@ -250,8 +250,8 @@ def handle_config_file_input(
 
 
 def handle_run_config_input(
-    include: Optional[List[str]] = None,
-    exclude: Optional[List[str]] = None,
+    include: Optional[list[str]] = None,
+    exclude: Optional[list[str]] = None,
     schema: Optional[Any] = None,
 ):
     """Declare wandb.config as an overridable configuration for a launch job.
@@ -279,7 +279,7 @@ def handle_run_config_input(
         stage_inputs.add_staged_input(arguments)
 
 
-def _split_on_unesc_dot(path: str) -> List[str]:
+def _split_on_unesc_dot(path: str) -> list[str]:
     r"""Split a string on unescaped dots.
 
     Arguments:

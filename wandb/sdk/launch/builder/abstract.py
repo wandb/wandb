@@ -1,7 +1,7 @@
 """Abstract plugin class defining the interface needed to build container images for W&B Launch."""
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -24,7 +24,7 @@ class AbstractBuilder(ABC):
     builder_type: str
     environment: AbstractEnvironment
     registry: AbstractRegistry
-    builder_config: Dict[str, Any]
+    builder_config: dict[str, Any]
 
     @abstractmethod
     def __init__(

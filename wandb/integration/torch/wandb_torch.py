@@ -3,7 +3,7 @@
 import itertools
 from functools import reduce
 from operator import mul
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 import wandb
 from wandb import util
@@ -51,7 +51,7 @@ def nested_shape(array_or_tuple, seen=None):
 LOG_TRACK_COUNT, LOG_TRACK_THRESHOLD = range(2)
 
 
-def log_track_init(log_freq: int) -> List[int]:
+def log_track_init(log_freq: int) -> list[int]:
     """Create tracking structure used by log_track_update."""
     log_track = [0, 0]
     log_track[LOG_TRACK_THRESHOLD] = log_freq

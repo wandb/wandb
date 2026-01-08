@@ -10,7 +10,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from multiprocessing import Event
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import wandb
 from wandb.analytics import get_sentry
@@ -69,7 +69,7 @@ _logger = logging.getLogger(__name__)
 
 @dataclass
 class JobSpecAndQueue:
-    job: Dict[str, Any]
+    job: dict[str, Any]
     queue: str
 
 
@@ -83,7 +83,7 @@ def _convert_access(access: str) -> str:
 
 
 def _max_from_config(
-    config: Dict[str, Any], key: str, default: int = 1
+    config: dict[str, Any], key: str, default: int = 1
 ) -> Union[int, float]:
     """Get an integer from the config, or float.inf if -1.
 
@@ -137,9 +137,9 @@ class InternalAgentLogger:
 
 
 def construct_agent_configs(
-    launch_config: Optional[Dict] = None,
-    build_config: Optional[Dict] = None,
-) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
+    launch_config: Optional[dict] = None,
+    build_config: Optional[dict] = None,
+) -> tuple[Optional[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     import yaml
 
     registry_config = None
@@ -194,7 +194,7 @@ class LaunchAgent:
         """Return whether the agent is initialized."""
         return cls._instance is not None
 
-    def __init__(self, api: Api, config: Dict[str, Any]):
+    def __init__(self, api: Api, config: dict[str, Any]):
         """Initialize a launch agent.
 
         Arguments:
@@ -206,7 +206,7 @@ class LaunchAgent:
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
-        self._jobs: Dict[int, JobAndRunStatusTracker] = {}
+        self._jobs: dict[int, JobAndRunStatusTracker] = {}
         self._jobs_lock = threading.Lock()
         self._jobs_event = Event()
         self._jobs_event.set()
@@ -219,11 +219,11 @@ class LaunchAgent:
         self._verbosity = config.get("verbosity", 0)
         self._internal_logger = InternalAgentLogger(verbosity=self._verbosity)
         self._last_status_print_time = 0.0
-        self.default_config: Dict[str, Any] = config
+        self.default_config: dict[str, Any] = config
         self._stopped_run_timeout = config.get(
             "stopped_run_timeout", DEFAULT_STOPPED_RUN_TIMEOUT
         )
-        self._known_warnings: List[str] = []
+        self._known_warnings: list[str] = []
 
         # Get agent version from env var if present, otherwise wandb version
         self.version: str = "wandb@" + wandb.__version__
@@ -239,7 +239,7 @@ class LaunchAgent:
             self._api.fail_run_queue_item_introspection()
         )
 
-        self._queues: List[str] = config.get("queues", ["default"])
+        self._queues: list[str] = config.get("queues", ["default"])
 
         # remove project field from agent config before sending to back end
         # because otherwise it shows up in the config in the UI and confuses users
@@ -267,7 +267,7 @@ class LaunchAgent:
         self._name = agent_response["name"]
         self._init_agent_run()
 
-    def _is_scheduler_job(self, run_spec: Dict[str, Any]) -> bool:
+    def _is_scheduler_job(self, run_spec: dict[str, Any]) -> bool:
         """Determine whether a job/runSpec is a sweep scheduler."""
         if not run_spec:
             self._internal_logger.debug(
@@ -299,7 +299,7 @@ class LaunchAgent:
         run_queue_item_id: str,
         message: str,
         phase: str,
-        files: Optional[List[str]] = None,
+        files: Optional[list[str]] = None,
     ) -> None:
         if self._gorilla_supports_fail_run_queue_items:
             fail_rqi = event_loop_thread_exec(self._api.fail_run_queue_item)
@@ -322,7 +322,7 @@ class LaunchAgent:
             )
 
     @property
-    def thread_ids(self) -> List[int]:
+    def thread_ids(self) -> list[int]:
         """Returns a list of keys running thread ids for the agent."""
         with self._jobs_lock:
             return list(self._jobs.keys())
@@ -512,7 +512,7 @@ class LaunchAgent:
             await self.update_status(AGENT_POLLING)
 
     async def run_job(
-        self, job: Dict[str, Any], queue: str, file_saver: RunQueueItemFileSaver
+        self, job: dict[str, Any], queue: str, file_saver: RunQueueItemFileSaver
     ) -> None:
         """Set up project and run the job.
 
@@ -547,7 +547,7 @@ class LaunchAgent:
             )
         )
 
-    def _assert_secure(self, launch_spec: Dict[str, Any]) -> None:
+    def _assert_secure(self, launch_spec: dict[str, Any]) -> None:
         """If secure mode is set, make sure no vulnerable keys are overridden."""
         if not self._secure_mode:
             return
@@ -662,9 +662,9 @@ class LaunchAgent:
     # Threaded functions
     async def task_run_job(
         self,
-        launch_spec: Dict[str, Any],
-        job: Dict[str, Any],
-        default_config: Dict[str, Any],
+        launch_spec: dict[str, Any],
+        job: dict[str, Any],
+        default_config: dict[str, Any],
         api: Api,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
@@ -696,9 +696,9 @@ class LaunchAgent:
 
     async def _task_run_job(
         self,
-        launch_spec: Dict[str, Any],
-        job: Dict[str, Any],
-        default_config: Dict[str, Any],
+        launch_spec: dict[str, Any],
+        job: dict[str, Any],
+        default_config: dict[str, Any],
         api: Api,
         thread_id: int,
         job_tracker: JobAndRunStatusTracker,
@@ -715,7 +715,7 @@ class LaunchAgent:
         project.fetch_and_validate_project()
         self._internal_logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
-        backend_config: Dict[str, Any] = {
+        backend_config: dict[str, Any] = {
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
         self._internal_logger.info("Loading backend")
@@ -791,7 +791,7 @@ class LaunchAgent:
         if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
             run._command_proc.kill()
 
-    async def check_sweep_state(self, launch_spec: Dict[str, Any], api: Api) -> None:
+    async def check_sweep_state(self, launch_spec: dict[str, Any], api: Api) -> None:
         """Check the state of a sweep before launching a run for the sweep."""
         if launch_spec.get("sweep_id"):
             try:
@@ -811,7 +811,7 @@ class LaunchAgent:
                 )
 
     async def _check_run_finished(
-        self, job_tracker: JobAndRunStatusTracker, launch_spec: Dict[str, Any]
+        self, job_tracker: JobAndRunStatusTracker, launch_spec: dict[str, Any]
     ) -> bool:
         if job_tracker.completed_status:
             return True
@@ -923,7 +923,7 @@ class LaunchAgent:
         return None
 
     def _set_queue_and_rqi_in_project(
-        self, project: LaunchProject, job: Dict[str, Any], queue: str
+        self, project: LaunchProject, job: dict[str, Any], queue: str
     ) -> None:
         project.queue_name = queue
 

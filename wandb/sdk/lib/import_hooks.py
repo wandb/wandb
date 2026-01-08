@@ -11,7 +11,7 @@ and manual backports of later patches up to 1.15.0 in the wrapt repository
 import sys
 import threading
 from importlib.util import find_spec
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 # The dictionary registering any post import hooks to be triggered once
 # the target module has been imported. Once a module has been imported
@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, Optional, Union
 # module will be truncated but the list left in the dictionary. This
 # acts as a flag to indicate that the module had already been imported.
 
-_post_import_hooks: Dict = {}
+_post_import_hooks: dict = {}
 _post_import_hooks_init: bool = False
 _post_import_hooks_lock = threading.RLock()
 
@@ -185,7 +185,7 @@ class _ImportHookChainedLoader:
 
 class ImportHookFinder:
     def __init__(self) -> None:
-        self.in_progress: Dict = {}
+        self.in_progress: dict = {}
 
     def find_module(  # type: ignore
         self,

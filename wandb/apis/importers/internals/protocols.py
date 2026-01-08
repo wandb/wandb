@@ -1,15 +1,6 @@
 import logging
-from typing import (
-    Any,
-    Dict,
-    Iterable,
-    List,
-    Literal,
-    Optional,
-    Protocol,
-    Tuple,
-    runtime_checkable,
-)
+from collections.abc import Iterable
+from typing import Any, Literal, Optional, Protocol, runtime_checkable
 
 from wandb.sdk.artifacts.artifact import Artifact
 
@@ -27,11 +18,11 @@ class ImporterRun(Protocol):
 
     def project(self) -> str: ...  # pragma: no cover
 
-    def config(self) -> Dict[str, Any]: ...  # pragma: no cover
+    def config(self) -> dict[str, Any]: ...  # pragma: no cover
 
-    def summary(self) -> Dict[str, float]: ...  # pragma: no cover
+    def summary(self) -> dict[str, float]: ...  # pragma: no cover
 
-    def metrics(self) -> Iterable[Dict[str, float]]:
+    def metrics(self) -> Iterable[dict[str, float]]:
         """Metrics for the run.
 
         We expect metrics in this shape:
@@ -62,7 +53,7 @@ class ImporterRun(Protocol):
 
     def notes(self) -> Optional[str]: ...  # pragma: no cover
 
-    def tags(self) -> Optional[List[str]]: ...  # pragma: no cover
+    def tags(self) -> Optional[list[str]]: ...  # pragma: no cover
 
     def artifacts(self) -> Optional[Iterable[Artifact]]: ...  # pragma: no cover
 
@@ -98,6 +89,6 @@ class ImporterRun(Protocol):
 
     def files(
         self,
-    ) -> Optional[Iterable[Tuple[PathStr, Policy]]]: ...  # pragma: no cover
+    ) -> Optional[Iterable[tuple[PathStr, Policy]]]: ...  # pragma: no cover
 
     def logs(self) -> Optional[Iterable[str]]: ...  # pragma: no cover

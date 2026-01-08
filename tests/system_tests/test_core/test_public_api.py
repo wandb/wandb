@@ -1,7 +1,7 @@
 """Tests for the `wandb.apis.PublicApi` module."""
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from unittest import mock
 
 import pytest
@@ -76,8 +76,8 @@ def stub_run_gql_once(user, wandb_backend_spy):
 
     def helper(
         id: str = user,
-        config: Optional[Dict] = None,
-        summary_metrics: Optional[Dict] = None,
+        config: Optional[dict] = None,
+        summary_metrics: Optional[dict] = None,
         project_id: str = "123",
     ):
         body = {
@@ -129,7 +129,7 @@ def stub_run_full_history(wandb_backend_spy):
 
     gql = wandb_backend_spy.gql
 
-    def helper(history: Optional[List] = None, events: Optional[List] = None):
+    def helper(history: Optional[list] = None, events: Optional[list] = None):
         history = [json.dumps(h) for h in history or []]
         events = [json.dumps(e) for e in events or []]
         body = {
@@ -973,10 +973,10 @@ def test_create_team_exists(wandb_backend_spy):
 
 def fake_search_users_response(
     email: str,
-    api_keys: Dict[str, str],
-    teams: List[str],
+    api_keys: dict[str, str],
+    teams: list[str],
     count: int = 1,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Returns a fake response to a SearchUsers GraphQL query."""
     return {
         "data": {
@@ -1010,8 +1010,8 @@ def stub_search_users(wandb_backend_spy):
 
     def helper(
         email: str,
-        api_keys: Dict[str, str],
-        teams: List[str],
+        api_keys: dict[str, str],
+        teams: list[str],
         count: int = 1,
     ):
         search_users_spy = gql.Constant(

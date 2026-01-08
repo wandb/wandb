@@ -20,7 +20,7 @@ import logging
 import os
 import struct
 import zlib
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from typing import IO, Any
@@ -258,7 +258,7 @@ class DataStore:
     def ensure_flushed(self, off: int) -> None:
         self._fp.flush()  # type: ignore
 
-    def write(self, obj: "Record") -> Tuple[int, int, int]:
+    def write(self, obj: "Record") -> tuple[int, int, int]:
         """Write a protocol buffer.
 
         Args:

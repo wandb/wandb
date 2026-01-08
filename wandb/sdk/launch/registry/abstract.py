@@ -1,7 +1,6 @@
 """Abstract base class for registries."""
 
 from abc import ABC, abstractmethod
-from typing import Tuple
 
 
 class AbstractRegistry(ABC):
@@ -9,7 +8,7 @@ class AbstractRegistry(ABC):
 
     uri: str
 
-    async def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> tuple[str, str]:
         """Get the username and password for the registry.
 
         Returns:

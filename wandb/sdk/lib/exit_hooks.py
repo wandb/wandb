@@ -1,7 +1,7 @@
 import sys
 import traceback
 from types import TracebackType
-from typing import TYPE_CHECKING, Optional, Type
+from typing import TYPE_CHECKING, Optional
 
 import wandb
 from wandb.errors import Error
@@ -39,7 +39,7 @@ class ExitHooks:
         return isinstance(self.exception, KeyboardInterrupt)
 
     def exc_handler(
-        self, exc_type: Type[BaseException], exc: BaseException, tb: TracebackType
+        self, exc_type: type[BaseException], exc: BaseException, tb: TracebackType
     ) -> None:
         self.exit_code = 1
         self.exception = exc

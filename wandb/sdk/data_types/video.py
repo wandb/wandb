@@ -2,8 +2,9 @@ import functools
 import logging
 import os
 import pathlib
+from collections.abc import Sequence
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Type, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 import wandb
 from wandb import env, util
@@ -213,7 +214,7 @@ class Video(BatchableMedia):
         self._set_file(filename, is_tmp=True)
 
     @classmethod
-    def get_media_subdir(cls: Type["Video"]) -> str:
+    def get_media_subdir(cls: type["Video"]) -> str:
         """Get media subdirectory for video files.
 
         <!-- lazydoc-ignore-classmethod: internal -->
@@ -273,7 +274,7 @@ class Video(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls: Type["Video"],
+        cls: type["Video"],
         seq: Sequence["BatchableMedia"],
         run: "LocalRun",
         key: str,

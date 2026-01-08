@@ -3,7 +3,7 @@ import os
 import re
 import subprocess
 import sys
-from typing import List, Optional, Set
+from typing import Optional
 
 FAILED_PACKAGES_PREFIX = "ERROR: Failed to install: "
 FAILED_PACKAGES_POSTFIX = ". During automated build process."
@@ -24,11 +24,11 @@ TORCH_DEP_REGEX = r"torch(vision|audio)?==\d+\.\d+\.\d+(\+(?:cu[\d]{2,3})|(?:\+c
 
 
 def install_deps(
-    deps: List[str],
-    failed: Optional[Set[str]] = None,
+    deps: list[str],
+    failed: Optional[set[str]] = None,
     extra_index: Optional[str] = None,
-    opts: Optional[List[str]] = None,
-) -> Optional[Set[str]]:
+    opts: Optional[list[str]] = None,
+) -> Optional[set[str]]:
     """Install pip dependencies.
 
     Arguments:
@@ -130,7 +130,7 @@ def main() -> None:
         print("No frozen requirements found")
 
 
-def add_version_to_package_name(deps: List[str], package: str) -> Optional[str]:
+def add_version_to_package_name(deps: list[str], package: str) -> Optional[str]:
     """Add the associated version to a package name.
 
     For example: `my-package` -> `my-package==1.0.0`
@@ -142,7 +142,7 @@ def add_version_to_package_name(deps: List[str], package: str) -> Optional[str]:
 
 
 def get_current_package(
-    line: str, deps: List[str], current_pkg: Optional[str]
+    line: str, deps: list[str], current_pkg: Optional[str]
 ) -> Optional[str]:
     """Tries to pull a package name from the line.
 
@@ -168,7 +168,7 @@ def get_current_package(
 # hacky way to get the name of the requirement that failed
 # attempt last word which is the name of the package often
 # fall back to checking all words in the line for the package name
-def find_package_in_error_string(deps: List[str], line: str) -> Optional[str]:
+def find_package_in_error_string(deps: list[str], line: str) -> Optional[str]:
     # if the last word in the error string is in the list of deps, return it
     last_word = line.split(" ")[-1]
     if last_word in deps:
