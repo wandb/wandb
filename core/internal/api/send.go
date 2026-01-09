@@ -9,12 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
-func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
-	retryableReq, err := retryablehttp.FromRequest(req)
-	if err != nil {
-		return nil, fmt.Errorf("api: failed to parse request: %v", err)
-	}
-
+func (client *clientImpl) Do(req *retryablehttp.Request) (*http.Response, error) {
 	if !client.isToWandb(req) {
 		if client.logger != nil {
 			client.logger.Warn(
@@ -25,14 +20,14 @@ func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
 			)
 		}
 
-		return client.send(retryableReq)
+		return client.send(req)
 	}
 
-	return client.sendToWandbBackend(retryableReq)
+	return client.sendToWandbBackend(req)
 }
 
 // Returns whether the request would go to the W&B backend.
-func (client *clientImpl) isToWandb(req *http.Request) bool {
+func (client *clientImpl) isToWandb(req *retryablehttp.Request) bool {
 	if req.URL.Host != client.baseURL.Host {
 		return false
 	}

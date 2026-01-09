@@ -114,7 +114,7 @@ type fileStream struct {
 	printer *observability.Printer
 
 	// The client for making API requests.
-	apiClient api.Client
+	apiClient api.RetryableClient
 	baseURL   *url.URL
 
 	// The rate limit for sending data to the backend.
@@ -149,7 +149,7 @@ type FileStreamFactory struct {
 
 // New returns a new FileStream.
 func (f *FileStreamFactory) New(
-	apiClient api.Client,
+	apiClient api.RetryableClient,
 	heartbeatStopwatch waiting.Stopwatch,
 	transmitRateLimit *rate.Limiter,
 ) FileStream {

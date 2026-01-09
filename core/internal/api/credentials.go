@@ -45,6 +45,12 @@ func NewCredentialProvider(
 	return NoopCredentialProvider{}, nil
 }
 
+// NewAPIKeyCredentialProvider returns a credential provider that uses the given
+// API key.
+func NewAPIKeyCredentialProvider(apiKey string) CredentialProvider {
+	return &apiKeyCredentialProvider{apiKey}
+}
+
 var _ CredentialProvider = &apiKeyCredentialProvider{}
 
 type apiKeyCredentialProvider struct {
