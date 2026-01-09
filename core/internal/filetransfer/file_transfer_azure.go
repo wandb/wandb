@@ -549,7 +549,10 @@ func (ft *AzureFileTransfer) downloadFiles(
 	for _, blobName := range blobNames {
 		g.Go(func() error {
 			objectRelativePath, _ := strings.CutPrefix(blobName, blobInfo.BlobPrefix)
-			localPath := filepath.Join(task.PathOrPrefix, filepath.FromSlash(objectRelativePath))
+			localPath, err := SafeJoinPath(task.PathOrPrefix, objectRelativePath)
+			if err != nil {
+				return fmt.Errorf("invalid blob name %q: %w", blobName, err)
+			}
 			return ft.downloadBlobToFile(blobInfo, blobName, task, localPath)
 		})
 	}
