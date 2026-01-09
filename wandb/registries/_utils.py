@@ -19,7 +19,7 @@ class Visibility(str, Enum):
     restricted = "RESTRICTED"
 
     @classmethod
-    def _missing_(cls, value: object) -> Any:
+    def _missing_(cls, value: Any) -> Any:
         # Allow instantiation from enum names too (e.g. "organization" or "restricted")
         return cls.__members__.get(value)
 
@@ -64,7 +64,7 @@ def prepare_artifact_types_input(
     return None
 
 
-def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
+def ensure_registry_prefix_on_names(obj: Any, /, in_name: bool = False) -> Any:
     """Recursively the registry prefix to values under "name" keys, excluding regex ops.
 
     - in_name: True if we are under a "name" key (or propagating from one).
@@ -73,23 +73,25 @@ def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
     """
     from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
-    if isinstance((txt := query), str):
-        return ensureprefix(txt, REGISTRY_PREFIX) if in_name else txt
-    if isinstance((dct := query), dict):
-        new_dict = {}
-        for key, obj in dct.items():
-            if key == "$regex":
+    if isinstance(obj, str):
+        return ensureprefix(obj, REGISTRY_PREFIX) if in_name else obj
+    if isinstance(obj, dict):
+        return {
+            k: (
                 # For regex operator, we skip transformation of its value.
-                new_dict[key] = obj
-            elif key == "name":
-                new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=True)
-            else:
+                v
+                if k == "$regex"
+                # For "name", set `in_name=True` to ensure the prefix is applied.
                 # For any other key, propagate flags as-is.
-                new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=in_name)
-        return new_dict
-    if isinstance((seq := query), (list, tuple)):
-        return list(map(partial(ensure_registry_prefix_on_names, in_name=in_name), seq))
-    return query
+                else ensure_registry_prefix_on_names(
+                    v, in_name=(k == "name" or in_name)
+                )
+            )
+            for k, v in obj.items()
+        }
+    if isinstance(obj, (list, tuple)):
+        return list(map(partial(ensure_registry_prefix_on_names, in_name=in_name), obj))
+    return obj
 
 
 @lru_cache(maxsize=10)

@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
     from wandb.apis.public import ArtifactCollection, RetryingClient
-    from wandb.apis.public.registries.registry import Registry
     from wandb.sdk.artifacts._generated import (
         ArtifactMembershipFragment,
         RegistryCollectionFragment,
@@ -31,11 +30,13 @@ if TYPE_CHECKING:
     )
     from wandb.sdk.artifacts.artifact import Artifact
 
+    from .registry import Registry
+
 
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     """A lazy iterator of `Registry` objects."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[Document | None] = None  # type: ignore[misc]
     last_response: RegistryConnection | None
 
     def __init__(
@@ -50,7 +51,6 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
             type(self).QUERY = gql(FETCH_REGISTRIES_GQL)
 
-        self.client = client
         self.organization = organization
         self.filter = ensure_registry_prefix_on_names(filter or {})
 
@@ -115,8 +115,9 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             raise ValueError("Unexpected response data") from e
 
     def _convert(self, node: RegistryFragment) -> Registry:
-        from wandb.apis.public.registries.registry import Registry
         from wandb.sdk.artifacts._validators import remove_registry_prefix
+
+        from .registry import Registry
 
         return Registry(
             client=self.client,
@@ -132,7 +133,7 @@ class Collections(
 ):
     """An lazy iterator of `ArtifactCollection` objects in a Registry."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[Document | None] = None  # type: ignore[misc]
     last_response: RegistryCollectionConnection | None
 
     def __init__(

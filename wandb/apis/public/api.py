@@ -33,8 +33,6 @@ from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.registries import Registries, Registry
-from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
@@ -45,6 +43,8 @@ from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.registries import Registries, Registry
+from wandb.registries._utils import fetch_org_entity_from_organization
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
 from wandb.sdk.internal.internal_api import Api as InternalApi
