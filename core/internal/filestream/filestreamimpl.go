@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
@@ -137,7 +138,7 @@ func (fs *fileStream) send(
 	op := fs.trackUploadOperation(data)
 	defer op.Finish()
 
-	req, err := http.NewRequestWithContext(
+	req, err := retryablehttp.NewRequestWithContext(
 		op.Context(context.Background()),
 		http.MethodPost,
 		fs.baseURL.JoinPath(fs.path).String(),

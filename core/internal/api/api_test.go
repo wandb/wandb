@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/api"
@@ -33,7 +34,7 @@ func TestDo(t *testing.T) {
 		},
 	})
 
-	testRequest, err := http.NewRequest(
+	testRequest, err := retryablehttp.NewRequest(
 		http.MethodGet,
 		server.URL+"/wandb/some/test/path",
 		bytes.NewReader([]byte("my test request")),
@@ -69,7 +70,7 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 
 	{
 		defer server.Close()
-		req, _ := http.NewRequest(
+		req, _ := retryablehttp.NewRequest(
 			http.MethodGet,
 			server.URL+"/wandb/xyz",
 			bytes.NewBufferString("test body"),
@@ -94,7 +95,7 @@ func TestDo_NotToWandb_NoAuth(t *testing.T) {
 
 	{
 		defer server.Close()
-		req, _ := http.NewRequest(
+		req, _ := retryablehttp.NewRequest(
 			http.MethodGet,
 			server.URL+"/notwandb/xyz",
 			bytes.NewBufferString("test body"),
@@ -114,7 +115,7 @@ func newClient(
 	t *testing.T,
 	settings *wbsettings.Settings,
 	opts api.ClientOptions,
-) api.Client {
+) api.RetryableClient {
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	require.NoError(t, err)
 	opts.BaseURL = baseURL
@@ -170,7 +171,7 @@ func TestNewClientWithProxy(t *testing.T) {
 	client := api.NewClient(clientOptions)
 
 	// Create a test request
-	testReq, err := http.NewRequest("GET", "http://api.example.com/test", nil)
+	testReq, err := retryablehttp.NewRequest("GET", "http://api.example.com/test", nil)
 	if err != nil {
 		t.Fatalf("failed to create test request: %v", err)
 	}
@@ -225,7 +226,7 @@ func TestNewClientWithRetry(t *testing.T) {
 	})
 
 	// Create a test request
-	testReq, err := http.NewRequest("GET", serverURL, nil)
+	testReq, err := retryablehttp.NewRequest("GET", serverURL, nil)
 	require.NoError(t, err)
 	resp, err := client.Do(testReq)
 	require.NoError(t, err)

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/api"
 )
 
@@ -110,9 +111,9 @@ func (c *FakeClient) WaitUntilRequestCount(
 	}
 }
 
-var _ api.Client = &FakeClient{}
+var _ api.RetryableClient = &FakeClient{}
 
-func (c *FakeClient) Do(req *http.Request) (*http.Response, error) {
+func (c *FakeClient) Do(req *retryablehttp.Request) (*http.Response, error) {
 	c.Lock()
 	defer c.Unlock()
 

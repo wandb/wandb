@@ -491,7 +491,7 @@ func (nc *Connection) handleAuthenticateImpl(
 
 	graphqlClient := graphql.NewClient(
 		baseURL.JoinPath("graphql").String(),
-		apiClient,
+		api.AsStandardClient(apiClient),
 	)
 
 	data, err := gql.Viewer(context.Background(), graphqlClient)
