@@ -31,7 +31,7 @@ class WandbApiFailedError(Exception):
         response: wandb_api_pb2.ApiErrorResponse | None = None,
     ):
         super().__init__(message)
-        self.response: wandb_api_pb2.ApiErrorResponse | None = response
+        self.response = response
 
 
 def connect_to_service(
