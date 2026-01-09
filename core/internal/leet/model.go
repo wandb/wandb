@@ -83,13 +83,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Snapshot filter/config state *before* sub-models see this key.
-	var awaitingUserInput bool
-	if (m.workspace != nil && m.workspace.IsFiltering()) ||
-		(m.run != nil && m.run.IsFiltering()) ||
-		(m.config != nil && m.config.IsAwaitingGridConfig()) {
-		awaitingUserInput = true
-	}
+	// Snapshot input state before sub-models see this key.
+	awaitingUserInput := m.isAwaitingUserInput()
 
 	var cmds []tea.Cmd
 
@@ -101,11 +96,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case viewModeRun:
 		// Keep the workspace's background tasks (watchers/heartbeats) alive
-		// even while we're in the single-run view.
-		if cmd := m.workspace.Update(msg); cmd != nil {
-			cmds = append(cmds, cmd)
+		// while we're in the single-run view while omitting user input.
+		if !isUserInputMsg(msg) {
+			if cmd := m.workspace.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
-
 		if _, cmd := m.run.Update(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -149,6 +145,29 @@ func (m *Model) View() string {
 func (m *Model) ShouldRestart() bool {
 	// TODO: wire this up.
 	return false
+}
+
+func (m *Model) isAwaitingUserInput() bool {
+	if m.config != nil && m.config.IsAwaitingGridConfig() {
+		return true
+	}
+	switch m.mode {
+	case viewModeWorkspace:
+		return m.workspace != nil && m.workspace.IsFiltering()
+	case viewModeRun:
+		return m.run != nil && m.run.IsFiltering()
+	default:
+		return false
+	}
+}
+
+func isUserInputMsg(msg tea.Msg) bool {
+	switch msg.(type) {
+	case tea.KeyMsg, tea.MouseMsg:
+		return true
+	default:
+		return false
+	}
 }
 
 // handleHelp centralizes help toggle and routing while active.
