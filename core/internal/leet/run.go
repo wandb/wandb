@@ -22,7 +22,7 @@ type Run struct {
 
 	// Configuration and key bindings.
 	config *ConfigManager
-	keyMap map[string]func(*Run, tea.KeyMsg) (*Run, tea.Cmd)
+	keyMap map[string]func(*Run, tea.KeyMsg) tea.Cmd
 
 	// Terminal dimensions.
 	width, height int
@@ -91,7 +91,7 @@ func NewRun(
 
 	return &Run{
 		config:       cfg,
-		keyMap:       buildKeyMap(),
+		keyMap:       buildKeyMap(RunKeyBindings()),
 		focus:        focus,
 		isLoading:    true,
 		runPath:      runPath,
@@ -107,34 +107,34 @@ func NewRun(
 // Init initializes the model and returns the initial command.
 //
 // Implements tea.Model.Init.
-func (m *Run) Init() tea.Cmd {
-	m.logger.Debug("run: Init called")
+func (r *Run) Init() tea.Cmd {
+	r.logger.Debug("run: Init called")
 	return tea.Batch(
 		windowTitleCmd(),
-		InitializeReader(m.runPath, m.logger),
-		m.watcherMgr.WaitForMsg,
+		InitializeReader(r.runPath, r.logger),
+		r.watcherMgr.WaitForMsg,
 	)
 }
 
 // Update handles incoming events and updates the model accordingly.
 //
 // Implements tea.Model.Update.
-func (m *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	defer m.logPanic("Update")
-	defer timeit(m.logger, "Model.Update")()
-	m.stateMu.Lock()
-	defer m.stateMu.Unlock()
+func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	defer r.logPanic("Update")
+	defer timeit(r.logger, "Model.Update")()
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
 
 	var cmds []tea.Cmd
 
 	// Forward UI messages to children if not in filter mode.
-	if isUIMsg(msg) && !m.metricsGrid.IsFilterMode() && !m.leftSidebar.IsFilterMode() {
-		if s, c := m.leftSidebar.Update(msg); c != nil {
-			m.leftSidebar = s
+	if isUIMsg(msg) && !r.metricsGrid.IsFilterMode() && !r.leftSidebar.IsFilterMode() {
+		if s, c := r.leftSidebar.Update(msg); c != nil {
+			r.leftSidebar = s
 			cmds = append(cmds, c)
 		}
-		if rs, c := m.rightSidebar.Update(msg); c != nil {
-			m.rightSidebar = rs
+		if rs, c := r.rightSidebar.Update(msg); c != nil {
+			r.rightSidebar = rs
 			cmds = append(cmds, c)
 		}
 	}
@@ -142,38 +142,37 @@ func (m *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Route message to appropriate handler.
 	switch t := msg.(type) {
 	case tea.KeyMsg:
-		newM, c := m.handleKeyMsg(t)
-		if c != nil {
+		if c := r.handleKeyMsg(t); c != nil {
 			cmds = append(cmds, c)
 		}
-		return newM, tea.Batch(cmds...)
+		return r, tea.Batch(cmds...)
 
 	case tea.MouseMsg:
-		newM, c := m.handleMouseMsg(t)
+		newM, c := r.handleMouseMsg(t)
 		if c != nil {
 			cmds = append(cmds, c)
 		}
 		return newM, tea.Batch(cmds...)
 
 	case tea.WindowSizeMsg:
-		m.handleWindowResize(t)
-		return m, tea.Batch(cmds...)
+		r.handleWindowResize(t)
+		return r, tea.Batch(cmds...)
 
 	default:
-		cmds = append(cmds, m.dispatch(msg)...)
-		return m, tea.Batch(cmds...)
+		cmds = append(cmds, r.dispatch(msg)...)
+		return r, tea.Batch(cmds...)
 	}
 }
 
 // handleWindowResize handles window resize messages.
-func (m *Run) handleWindowResize(msg tea.WindowSizeMsg) {
-	m.width, m.height = msg.Width, msg.Height
+func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
+	r.width, r.height = msg.Width, msg.Height
 
-	m.leftSidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
-	m.rightSidebar.UpdateDimensions(msg.Width, m.leftSidebar.IsVisible())
+	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.IsVisible())
+	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.IsVisible())
 
-	layout := m.computeViewports()
-	m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 }
 
 // isUIMsg returns true for messages that should flow to child view models.
@@ -188,25 +187,25 @@ func isUIMsg(msg tea.Msg) bool {
 }
 
 // dispatch routes message types to appropriate handlers.
-func (m *Run) dispatch(msg tea.Msg) []tea.Cmd {
+func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 	switch t := msg.(type) {
 	case InitMsg:
-		return m.handleInit(t)
+		return r.handleInit(t)
 	case ChunkedBatchMsg:
-		return m.handleChunkedBatch(t)
+		return r.handleChunkedBatch(t)
 	case BatchedRecordsMsg:
-		return m.handleBatched(t)
+		return r.handleBatched(t)
 	case HeartbeatMsg:
-		return m.handleHeartbeat()
+		return r.handleHeartbeat()
 	case FileChangedMsg:
-		return m.handleFileChange()
+		return r.handleFileChange()
 	case tea.WindowSizeMsg:
-		m.handleWindowResize(t)
+		r.handleWindowResize(t)
 	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
-		return m.handleSidebarAnimation(msg)
+		return r.handleSidebarAnimation(msg)
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
-		if _, cmd := m.handleRecordMsg(msg); cmd != nil {
+		if _, cmd := r.handleRecordMsg(msg); cmd != nil {
 			return []tea.Cmd{cmd}
 		}
 	}
@@ -214,9 +213,9 @@ func (m *Run) dispatch(msg tea.Msg) []tea.Cmd {
 }
 
 // FocusedTitle returns the title of the currently focused chart.
-func (m *Run) FocusedTitle() string {
-	if m.focus.Type != FocusNone {
-		return m.focus.Title
+func (r *Run) FocusedTitle() string {
+	if r.focus.Type != FocusNone {
+		return r.focus.Title
 	}
 	return ""
 }
@@ -224,56 +223,56 @@ func (m *Run) FocusedTitle() string {
 // View renders the UI based on the data in the model.
 //
 // Implements tea.Model.View.
-func (m *Run) View() string {
-	defer m.logPanic("View")
+func (r *Run) View() string {
+	defer r.logPanic("View")
 
-	m.stateMu.RLock()
-	defer m.stateMu.RUnlock()
+	r.stateMu.RLock()
+	defer r.stateMu.RUnlock()
 
-	if m.width == 0 || m.height == 0 {
+	if r.width == 0 || r.height == 0 {
 		return "Loading..."
 	}
 
-	if m.isLoading {
-		return m.renderLoadingScreen()
+	if r.isLoading {
+		return r.renderLoadingScreen()
 	}
 
-	return m.renderMainView()
+	return r.renderMainView()
 }
 
 // renderMainView renders the main application view.
-func (m *Run) renderMainView() string {
-	layout := m.computeViewports()
-	dims := m.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
-	gridView := m.metricsGrid.View(dims)
+func (r *Run) renderMainView() string {
+	layout := r.computeViewports()
+	dims := r.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
+	gridView := r.metricsGrid.View(dims)
 
-	leftWidth := m.leftSidebar.Width()
-	rightWidth := m.rightSidebar.Width()
+	leftWidth := r.leftSidebar.Width()
+	rightWidth := r.rightSidebar.Width()
 
 	const minMainContentWidth = 10
 
 	// Ensure sidebars don't take up too much space.
 	totalSidebarWidth := leftWidth + rightWidth
-	if totalSidebarWidth >= m.width-minMainContentWidth {
+	if totalSidebarWidth >= r.width-minMainContentWidth {
 		if rightWidth > 0 {
-			m.rightSidebar.animState.currentWidth = 0
+			r.rightSidebar.animState.currentWidth = 0
 			rightWidth = 0
 		}
-		if leftWidth+minMainContentWidth >= m.width {
-			m.leftSidebar.animState.currentWidth = 0
+		if leftWidth+minMainContentWidth >= r.width {
+			r.leftSidebar.animState.currentWidth = 0
 			leftWidth = 0
 		}
 	}
 
-	mainView := m.buildMainViewWithSidebars(gridView, leftWidth, rightWidth)
-	statusBar := m.renderStatusBar()
+	mainView := r.buildMainViewWithSidebars(gridView, leftWidth, rightWidth)
+	statusBar := r.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
-	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, fullView)
+	return lipgloss.Place(r.width, r.height, lipgloss.Left, lipgloss.Top, fullView)
 }
 
 // buildMainViewWithSidebars builds the main view with sidebars.
-func (m *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth int) string {
+func (r *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth int) string {
 	if leftWidth == 0 && rightWidth == 0 {
 		return gridView
 	}
@@ -281,14 +280,14 @@ func (m *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth i
 	var parts []string
 
 	if leftWidth > 0 {
-		leftView := m.leftSidebar.View(m.height - StatusBarHeight - 2)
+		leftView := r.leftSidebar.View(r.height - StatusBarHeight - 2)
 		parts = append(parts, leftView)
 	}
 
 	parts = append(parts, gridView)
 
 	if rightWidth > 0 {
-		rightView := m.rightSidebar.View(m.height - StatusBarHeight)
+		rightView := r.rightSidebar.View(r.height - StatusBarHeight)
 		parts = append(parts, rightView)
 	}
 
@@ -296,8 +295,8 @@ func (m *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth i
 }
 
 // ShouldRestart reports whether the user requested a full restart.
-func (m *Run) ShouldRestart() bool {
-	return m.shouldRestart
+func (r *Run) ShouldRestart() bool {
+	return r.shouldRestart
 }
 
 // logPanic logs panics to the logger before re-panicking.
@@ -312,12 +311,12 @@ func (m *Run) logPanic(context string) {
 }
 
 // isRunning returns whether the run is currently active.
-func (m *Run) isRunning() bool {
-	return m.runState == RunStateRunning
+func (r *Run) isRunning() bool {
+	return r.runState == RunStateRunning
 }
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen.
-func (m *Run) renderLoadingScreen() string {
+func (r *Run) renderLoadingScreen() string {
 	artStyle := lipgloss.NewStyle().
 		Foreground(colorHeading).
 		Bold(true)
@@ -329,61 +328,61 @@ func (m *Run) renderLoadingScreen() string {
 	)
 
 	centeredLogo := lipgloss.Place(
-		m.width,
-		m.height-StatusBarHeight,
+		r.width,
+		r.height-StatusBarHeight,
 		lipgloss.Center,
 		lipgloss.Center,
 		logoContent,
 	)
 
-	statusBar := m.renderStatusBar()
+	statusBar := r.renderStatusBar()
 	return lipgloss.JoinVertical(lipgloss.Left, centeredLogo, statusBar)
 }
 
 // renderStatusBar creates the status bar.
-func (m *Run) renderStatusBar() string {
-	statusText := m.buildStatusText()
-	helpText := m.buildHelpText()
+func (r *Run) renderStatusBar() string {
+	statusText := r.buildStatusText()
+	helpText := r.buildHelpText()
 
-	innerWidth := max(m.width-2*StatusBarPadding, 0)
+	innerWidth := max(r.width-2*StatusBarPadding, 0)
 	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
 	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
 
 	fullStatus := statusText + rightAligned
 
 	return statusBarStyle.
-		Width(m.width).
-		MaxWidth(m.width).
+		Width(r.width).
+		MaxWidth(r.width).
 		Render(fullStatus)
 }
 
 // buildStatusText builds the main status text.
-func (m *Run) buildStatusText() string {
-	if m.leftSidebar.IsFilterMode() {
-		return m.buildOverviewFilterStatus()
+func (r *Run) buildStatusText() string {
+	if r.leftSidebar.IsFilterMode() {
+		return r.buildOverviewFilterStatus()
 	}
-	if m.metricsGrid.IsFilterMode() {
-		return m.buildMetricsFilterStatus()
+	if r.metricsGrid.IsFilterMode() {
+		return r.buildMetricsFilterStatus()
 	}
-	if m.config.IsAwaitingGridConfig() {
-		return m.config.GridConfigStatus()
+	if r.config.IsAwaitingGridConfig() {
+		return r.config.GridConfigStatus()
 	}
-	if m.isLoading {
-		return m.buildLoadingStatus()
+	if r.isLoading {
+		return r.buildLoadingStatus()
 	}
-	return m.buildActiveStatus()
+	return r.buildActiveStatus()
 }
 
 // buildOverviewFilterStatus builds status for overview filter mode.
-func (m *Run) buildOverviewFilterStatus() string {
-	filterInfo := m.leftSidebar.FilterInfo()
+func (r *Run) buildOverviewFilterStatus() string {
+	filterInfo := r.leftSidebar.FilterInfo()
 	if filterInfo == "" {
 		filterInfo = "no matches"
 	}
 	return fmt.Sprintf(
 		"Overview filter (%s): %s%s [%s] (Enter to apply • Tab to toggle mode)",
-		m.leftSidebar.FilterMode().String(),
-		m.leftSidebar.FilterQuery(),
+		r.leftSidebar.FilterMode().String(),
+		r.leftSidebar.FilterQuery(),
 		string(mediumShadeBlock),
 		filterInfo,
 	)
@@ -392,55 +391,55 @@ func (m *Run) buildOverviewFilterStatus() string {
 // buildMetricsFilterStatus builds status for metrics filter mode.
 //
 // Should be guarded by the caller's check that filter input is active.
-func (m *Run) buildMetricsFilterStatus() string {
+func (r *Run) buildMetricsFilterStatus() string {
 	return fmt.Sprintf(
 		"Filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
-		m.metricsGrid.FilterMode().String(),
-		m.metricsGrid.FilterQuery(),
+		r.metricsGrid.FilterMode().String(),
+		r.metricsGrid.FilterQuery(),
 		string(mediumShadeBlock),
-		m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount())
+		r.metricsGrid.FilteredChartCount(), r.metricsGrid.ChartCount())
 }
 
 // buildLoadingStatus builds status for loading mode.
-func (m *Run) buildLoadingStatus() string {
-	if m.recordsLoaded > 0 {
+func (r *Run) buildLoadingStatus() string {
+	if r.recordsLoaded > 0 {
 		return fmt.Sprintf("Loading data... [%d records, %d metrics]",
-			m.recordsLoaded, m.metricsGrid.ChartCount())
+			r.recordsLoaded, r.metricsGrid.ChartCount())
 	}
 	return "Loading data..."
 }
 
 // buildActiveStatus builds status for active (non-loading, non-filter) mode.
-func (m *Run) buildActiveStatus() string {
+func (r *Run) buildActiveStatus() string {
 	var parts []string
 
 	// Add filter info if active.
-	if m.metricsGrid.IsFiltering() {
+	if r.metricsGrid.IsFiltering() {
 		parts = append(parts, fmt.Sprintf(
 			"Filter (%s): \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
-			m.metricsGrid.FilterMode().String(),
-			m.metricsGrid.FilterQuery(),
-			m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount()))
+			r.metricsGrid.FilterMode().String(),
+			r.metricsGrid.FilterQuery(),
+			r.metricsGrid.FilteredChartCount(), r.metricsGrid.ChartCount()))
 	}
 
 	// Add overview filter info if active.
-	if m.leftSidebar.IsFiltering() {
+	if r.leftSidebar.IsFiltering() {
 		parts = append(parts, fmt.Sprintf("Overview: \"%s\" [%s] (o to change, Ctrl+K to clear)",
-			m.leftSidebar.FilterQuery(),
-			m.leftSidebar.FilterInfo(),
+			r.leftSidebar.FilterQuery(),
+			r.leftSidebar.FilterInfo(),
 		))
 	}
 
 	// Add selected overview item if sidebar is visible.
-	if m.leftSidebar.IsVisible() {
-		key, value := m.leftSidebar.SelectedItem()
+	if r.leftSidebar.IsVisible() {
+		key, value := r.leftSidebar.SelectedItem()
 		if key != "" {
 			parts = append(parts, fmt.Sprintf("%s: %s", key, value))
 		}
 	}
 
 	// Add focused metric name if a chart is focused.
-	focusedTitle := m.FocusedTitle()
+	focusedTitle := r.FocusedTitle()
 	if focusedTitle != "" {
 		parts = append(parts, focusedTitle)
 	}
@@ -453,15 +452,15 @@ func (m *Run) buildActiveStatus() string {
 }
 
 // buildHelpText builds the help text for the status bar.
-func (m *Run) buildHelpText() string {
-	if m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode() {
+func (r *Run) buildHelpText() string {
+	if r.metricsGrid.IsFilterMode() || r.leftSidebar.IsFilterMode() {
 		return ""
 	}
 	return "h: help"
 }
 
-func (m *Run) IsFiltering() bool {
-	return m.metricsGrid.IsFilterMode() || m.leftSidebar.IsFilterMode()
+func (r *Run) IsFiltering() bool {
+	return r.metricsGrid.IsFilterMode() || r.leftSidebar.IsFilterMode()
 }
 
 // Layout represents the computed layout dimensions for the main UI.
@@ -473,12 +472,12 @@ type Layout struct {
 }
 
 // computeViewports returns (leftW, contentW, rightW, contentH).
-func (m *Run) computeViewports() Layout {
-	leftW := m.leftSidebar.Width()
-	rightW := m.rightSidebar.Width()
+func (r *Run) computeViewports() Layout {
+	leftW := r.leftSidebar.Width()
+	rightW := r.rightSidebar.Width()
 
-	contentW := max(m.width-leftW-rightW-2, 1)
-	contentH := max(m.height-StatusBarHeight, 1)
+	contentW := max(r.width-leftW-rightW-2, 1)
+	contentH := max(r.height-StatusBarHeight, 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
 }
@@ -486,18 +485,18 @@ func (m *Run) computeViewports() Layout {
 // Cleanup releases resources held by the RunModel.
 //
 // Called when switching to workspace view.
-func (m *Run) Cleanup() {
-	m.stateMu.Lock()
-	defer m.stateMu.Unlock()
+func (r *Run) Cleanup() {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
 
-	if m.heartbeatMgr != nil {
-		m.heartbeatMgr.Stop()
+	if r.heartbeatMgr != nil {
+		r.heartbeatMgr.Stop()
 	}
-	if m.watcherMgr != nil {
-		m.watcherMgr.Finish()
+	if r.watcherMgr != nil {
+		r.watcherMgr.Finish()
 	}
-	if m.reader != nil {
-		m.reader.Close()
+	if r.reader != nil {
+		r.reader.Close()
 	}
 }
 

@@ -187,6 +187,7 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	if km, ok := msg.(tea.KeyMsg); ok {
 		switch km.String() {
 		case "h", "?":
+			m.help.SetMode(m.mode)
 			m.help.Toggle()
 			return true, nil
 		}

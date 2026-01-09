@@ -8,141 +8,141 @@ import (
 )
 
 // handleRecordMsg handles messages that carry data from the .wandb file.
-func (m *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) {
-	defer m.logPanic("processRecordMsg")
+func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return just tea.Cmd
+	defer r.logPanic("processRecordMsg")
 
 	start := time.Now()
 	defer func() {
-		m.logger.Debug(fmt.Sprintf("perf: processRecordMsg(%T) took %s", msg, time.Since(start)))
+		r.logger.Debug(fmt.Sprintf("perf: processRecordMsg(%T) took %s", msg, time.Since(start)))
 	}()
 
 	switch msg := msg.(type) {
 	case RunMsg:
-		m.logger.Debug("model: processing RunMsg")
-		m.leftSidebar.ProcessRunMsg(msg)
-		m.runState = RunStateRunning
-		m.isLoading = false
-		return m, nil
+		r.logger.Debug("model: processing RunMsg")
+		r.leftSidebar.ProcessRunMsg(msg)
+		r.runState = RunStateRunning
+		r.isLoading = false
+		return r, nil
 
 	case HistoryMsg:
-		m.logger.Debug("model: processing HistoryMsg")
-		if m.runState == RunStateRunning {
-			m.heartbeatMgr.Reset(m.isRunning)
+		r.logger.Debug("model: processing HistoryMsg")
+		if r.runState == RunStateRunning {
+			r.heartbeatMgr.Reset(r.isRunning)
 		}
-		return m.handleHistoryMsg(msg)
+		return r.handleHistoryMsg(msg)
 
 	case StatsMsg:
-		m.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
-		if m.runState == RunStateRunning {
-			m.heartbeatMgr.Reset(m.isRunning)
+		r.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
+		if r.runState == RunStateRunning {
+			r.heartbeatMgr.Reset(r.isRunning)
 		}
-		m.rightSidebar.ProcessStatsMsg(msg)
-		return m, nil
+		r.rightSidebar.ProcessStatsMsg(msg)
+		return r, nil
 
 	case SystemInfoMsg:
-		m.logger.Debug("model: processing SystemInfoMsg")
-		m.leftSidebar.ProcessSystemInfoMsg(msg.Record)
-		return m, nil
+		r.logger.Debug("model: processing SystemInfoMsg")
+		r.leftSidebar.ProcessSystemInfoMsg(msg.Record)
+		return r, nil
 
 	case SummaryMsg:
-		m.logger.Debug("model: processing SummaryMsg")
-		m.leftSidebar.ProcessSummaryMsg(msg.Summary)
-		return m, nil
+		r.logger.Debug("model: processing SummaryMsg")
+		r.leftSidebar.ProcessSummaryMsg(msg.Summary)
+		return r, nil
 
 	case FileCompleteMsg:
-		m.logger.Debug("model: processing FileCompleteMsg - file is complete!")
+		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
 		switch msg.ExitCode {
 		case 0:
-			m.runState = RunStateFinished
+			r.runState = RunStateFinished
 		default:
-			m.runState = RunStateFailed
+			r.runState = RunStateFailed
 		}
-		m.leftSidebar.SetRunState(m.runState)
+		r.leftSidebar.SetRunState(r.runState)
 
-		m.logger.Debug("model: stopping heartbeats and finishing watcher")
-		m.heartbeatMgr.Stop()
-		m.watcherMgr.Finish()
+		r.logger.Debug("model: stopping heartbeats and finishing watcher")
+		r.heartbeatMgr.Stop()
+		r.watcherMgr.Finish()
 
-		return m, nil
+		return r, nil
 
 	case ErrorMsg:
-		m.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
-		m.runState = RunStateFailed
-		m.leftSidebar.SetRunState(m.runState)
-		m.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
-		m.heartbeatMgr.Stop()
-		m.watcherMgr.Finish()
-		return m, nil
+		r.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
+		r.runState = RunStateFailed
+		r.leftSidebar.SetRunState(r.runState)
+		r.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
+		r.heartbeatMgr.Stop()
+		r.watcherMgr.Finish()
+		return r, nil
 	}
 
-	return m, nil
+	return r, nil
 }
 
 // handleHistoryMsg processes new history data.
-func (m *Run) handleHistoryMsg(msg HistoryMsg) (*Run, tea.Cmd) {
-	defer timeit(m.logger, "Model.handleHistoryMsg")()
+func (r *Run) handleHistoryMsg(msg HistoryMsg) (*Run, tea.Cmd) {
+	defer timeit(r.logger, "Model.handleHistoryMsg")()
 	// Route to the grid; it handles sorting/filtering/pagination/focus itself.
-	shouldDraw := m.metricsGrid.ProcessHistory(msg)
-	if shouldDraw && !m.suppressDraw {
-		m.metricsGrid.drawVisible()
+	shouldDraw := r.metricsGrid.ProcessHistory(msg)
+	if shouldDraw && !r.suppressDraw {
+		r.metricsGrid.drawVisible()
 	}
-	return m, nil
+	return r, nil
 }
 
 // handleMouseMsg processes mouse events, routing by region.
-func (m *Run) handleMouseMsg(msg tea.MouseMsg) (*Run, tea.Cmd) {
-	defer timeit(m.logger, "Model.handleMouseMsg")()
+func (r *Run) handleMouseMsg(msg tea.MouseMsg) (*Run, tea.Cmd) {
+	defer timeit(r.logger, "Model.handleMouseMsg")()
 
-	layout := m.computeViewports()
+	layout := r.computeViewports()
 
-	if m.isInLeftSidebar(msg, layout) {
-		return m.handleLeftSidebarMouse()
+	if r.isInLeftSidebar(msg, layout) {
+		return r.handleLeftSidebarMouse()
 	}
 
-	if m.isInRightSidebar(msg, layout) {
-		return m.handleRightSidebarMouse(msg, layout)
+	if r.isInRightSidebar(msg, layout) {
+		return r.handleRightSidebarMouse(msg, layout)
 	}
 
-	return m.handleMainContentMouse(msg, layout)
+	return r.handleMainContentMouse(msg, layout)
 }
 
 // isInLeftSidebar checks if mouse position is in the left sidebar region.
-func (m *Run) isInLeftSidebar(msg tea.MouseMsg, layout Layout) bool {
+func (r *Run) isInLeftSidebar(msg tea.MouseMsg, layout Layout) bool {
 	return msg.X < layout.leftSidebarWidth
 }
 
 // isInRightSidebar checks if mouse position is in the right sidebar region.
-func (m *Run) isInRightSidebar(msg tea.MouseMsg, layout Layout) bool {
-	rightStart := m.width - layout.rightSidebarWidth
+func (r *Run) isInRightSidebar(msg tea.MouseMsg, layout Layout) bool {
+	rightStart := r.width - layout.rightSidebarWidth
 	return msg.X >= rightStart && layout.rightSidebarWidth > 0
 }
 
 // handleLeftSidebarMouse handles mouse events in the left sidebar.
-func (m *Run) handleLeftSidebarMouse() (*Run, tea.Cmd) {
-	m.metricsGrid.clearFocus()
-	m.rightSidebar.ClearFocus()
-	return m, nil
+func (r *Run) handleLeftSidebarMouse() (*Run, tea.Cmd) {
+	r.metricsGrid.clearFocus()
+	r.rightSidebar.ClearFocus()
+	return r, nil
 }
 
 // handleRightSidebarMouse handles mouse events in the right sidebar.
-func (m *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
-	rightStart := m.width - layout.rightSidebarWidth
+func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+	rightStart := r.width - layout.rightSidebarWidth
 	adjustedX := msg.X - rightStart
 
 	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
 		tea.MouseEvent(msg).Action == tea.MouseActionPress {
 
-		focusSet := m.rightSidebar.HandleMouseClick(adjustedX, msg.Y)
+		focusSet := r.rightSidebar.HandleMouseClick(adjustedX, msg.Y)
 
 		if focusSet {
-			m.metricsGrid.clearFocus()
+			r.metricsGrid.clearFocus()
 		}
 	}
-	return m, nil
+	return r, nil
 }
 
 // handleMainContentMouse handles mouse events in the main content area.
-func (m *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
+func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
 	const gridPaddingX = 1
 	const gridPaddingY = 1
 	const headerOffset = 1
@@ -150,7 +150,7 @@ func (m *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 	adjustedX := msg.X - layout.leftSidebarWidth - gridPaddingX
 	adjustedY := msg.Y - gridPaddingY - headerOffset
 
-	dims := m.metricsGrid.CalculateChartDimensions(
+	dims := r.metricsGrid.CalculateChartDimensions(
 		layout.mainContentAreaWidth,
 		layout.height,
 	)
@@ -162,9 +162,9 @@ func (m *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 	// Handle left click for chart focus.
 	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
 		tea.MouseEvent(msg).Action == tea.MouseActionPress {
-		m.rightSidebar.ClearFocus()
-		m.metricsGrid.HandleClick(row, col)
-		return m, nil
+		r.rightSidebar.ClearFocus()
+		r.metricsGrid.HandleClick(row, col)
+		return r, nil
 	}
 
 	// Handle right click/hold+move/release for chart data inspection.
@@ -175,17 +175,17 @@ func (m *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 
 		switch tea.MouseEvent(msg).Action {
 		case tea.MouseActionPress:
-			m.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
+			r.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
 		case tea.MouseActionMotion:
-			m.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+			r.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
 		case tea.MouseActionRelease:
-			m.metricsGrid.EndInspection()
+			r.metricsGrid.EndInspection()
 		}
 	}
 
 	// Handle wheel events for zoom.
 	if tea.MouseEvent(msg).IsWheel() {
-		m.metricsGrid.HandleWheel(
+		r.metricsGrid.HandleWheel(
 			adjustedX,
 			row,
 			col,
@@ -194,332 +194,333 @@ func (m *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 		)
 	}
 
-	return m, nil
+	return r, nil
 }
 
 // handleKeyMsg processes keyboard events using the centralized key bindings.
-func (m *Run) handleKeyMsg(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	if m.leftSidebar.IsFilterMode() {
-		return m.handleOverviewFilter(msg)
+func (r *Run) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
+	// Filter modes take priority.
+	if r.leftSidebar.IsFilterMode() {
+		return r.handleOverviewFilter(msg)
+	}
+	if r.metricsGrid.IsFilterMode() {
+		return r.handleMetricsFilter(msg)
 	}
 
-	if m.metricsGrid.IsFilterMode() {
-		return m.handleMetricsFilter(msg)
+	// Grid config capture takes priority.
+	if r.config.IsAwaitingGridConfig() {
+		return r.handleConfigNumberKey(msg)
 	}
 
-	if m.config.IsAwaitingGridConfig() {
-		return m.handleConfigNumberKey(msg)
+	// Dispatch to key map.
+	if handler, ok := r.keyMap[normalizeKey(msg.String())]; ok {
+		return handler(r, msg)
 	}
-
-	if handler, ok := m.keyMap[msg.String()]; ok && handler != nil {
-		return handler(m, msg)
-	}
-
-	return m, nil
+	return nil
 }
 
-func (m *Run) handleQuit(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.logger.Debug("model: quit requested")
-	if m.reader != nil {
-		m.reader.Close()
+func (r *Run) cleanup() {
+	if r.reader != nil {
+		r.reader.Close()
 	}
-	m.heartbeatMgr.Stop()
-	if m.watcherMgr.IsStarted() {
-		m.logger.Debug("model: finishing watcher on quit")
-		m.watcherMgr.Finish()
+	if r.heartbeatMgr != nil {
+		r.heartbeatMgr.Stop()
 	}
-	return m, tea.Quit
+	if r.watcherMgr != nil {
+		r.watcherMgr.Finish()
+	}
 }
 
-func (m *Run) handleRestart(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.shouldRestart = true
-	m.logger.Debug("model: restart requested")
-	if m.reader != nil {
-		m.reader.Close()
-	}
-	m.heartbeatMgr.Stop()
-	if m.watcherMgr.IsStarted() {
-		m.logger.Debug("model: finishing watcher on restart")
-		m.watcherMgr.Finish()
-	}
-	return m, tea.Quit
+func (r *Run) handleQuit(msg tea.KeyMsg) tea.Cmd {
+	r.logger.Debug("run: quit requested")
+	r.cleanup()
+
+	return tea.Quit
+}
+
+func (r *Run) handleRestart(msg tea.KeyMsg) tea.Cmd {
+	r.logger.Debug("model: restart requested")
+	r.shouldRestart = true
+
+	r.cleanup()
+	return tea.Quit
 }
 
 // beginAnimating tries to acquire the one-shot animation token.
 //
 // Returns true if the caller owns the token and may initiate an animation.
-func (m *Run) beginAnimating() bool {
-	m.animationMu.Lock()
-	if m.animating {
-		m.animationMu.Unlock()
+func (r *Run) beginAnimating() bool {
+	r.animationMu.Lock()
+	if r.animating {
+		r.animationMu.Unlock()
 		return false
 	}
-	m.animating = true
-	m.animationMu.Unlock()
+	r.animating = true
+	r.animationMu.Unlock()
 	return true
 }
 
 // endAnimating releases the animation token after an animation completes.
-func (m *Run) endAnimating() {
-	m.animationMu.Lock()
-	m.animating = false
-	m.animationMu.Unlock()
+func (r *Run) endAnimating() {
+	r.animationMu.Lock()
+	r.animating = false
+	r.animationMu.Unlock()
 }
 
-func (m *Run) handleToggleLeftSidebar(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	if !m.beginAnimating() {
-		return m, nil
+func (r *Run) handleToggleLeftSidebar(msg tea.KeyMsg) tea.Cmd {
+	if !r.beginAnimating() {
+		return nil
 	}
 
-	leftWillBeVisible := !m.leftSidebar.IsVisible()
+	leftWillBeVisible := !r.leftSidebar.IsVisible()
 
-	if err := m.config.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
-		m.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
+	if err := r.config.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
+		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
 	}
 
-	m.leftSidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
-	m.rightSidebar.UpdateDimensions(m.width, leftWillBeVisible)
-	m.leftSidebar.Toggle()
+	r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.IsVisible())
+	r.rightSidebar.UpdateDimensions(r.width, leftWillBeVisible)
+	r.leftSidebar.Toggle()
 
-	layout := m.computeViewports()
-	m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
-	return m, m.leftSidebar.animationCmd()
+	return r.leftSidebar.animationCmd()
 }
 
-func (m *Run) handleToggleRightSidebar(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	if !m.beginAnimating() {
-		return m, nil
+func (r *Run) handleToggleRightSidebar(msg tea.KeyMsg) tea.Cmd {
+	if !r.beginAnimating() {
+		return nil
 	}
 
-	rightWillBeVisible := !m.rightSidebar.IsVisible()
+	rightWillBeVisible := !r.rightSidebar.IsVisible()
 
-	if err := m.config.SetRightSidebarVisible(rightWillBeVisible); err != nil {
-		m.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
+	if err := r.config.SetRightSidebarVisible(rightWillBeVisible); err != nil {
+		r.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
 	}
 
-	m.rightSidebar.UpdateDimensions(m.width, m.leftSidebar.IsVisible())
-	m.leftSidebar.UpdateDimensions(m.width, rightWillBeVisible)
-	m.rightSidebar.Toggle()
+	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.IsVisible())
+	r.leftSidebar.UpdateDimensions(r.width, rightWillBeVisible)
+	r.rightSidebar.Toggle()
 
-	layout := m.computeViewports()
-	m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
-	return m, m.rightSidebar.animationCmd()
+	return r.rightSidebar.animationCmd()
 }
 
-func (m *Run) handlePrevPage(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.metricsGrid.Navigate(-1)
-	return m, nil
+func (r *Run) handlePrevPage(msg tea.KeyMsg) tea.Cmd {
+	r.metricsGrid.Navigate(-1)
+	return nil
 }
 
-func (m *Run) handleNextPage(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.metricsGrid.Navigate(1)
-	return m, nil
+func (r *Run) handleNextPage(msg tea.KeyMsg) tea.Cmd {
+	r.metricsGrid.Navigate(1)
+	return nil
 }
 
-func (m *Run) handlePrevSystemPage(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	if m.rightSidebar.IsVisible() && m.rightSidebar.metricsGrid != nil {
-		m.rightSidebar.metricsGrid.Navigate(-1)
+func (r *Run) handlePrevSystemPage(msg tea.KeyMsg) tea.Cmd {
+	if r.rightSidebar.IsVisible() && r.rightSidebar.metricsGrid != nil {
+		r.rightSidebar.metricsGrid.Navigate(-1)
 	}
-	return m, nil
+	return nil
 }
 
-func (m *Run) handleNextSystemPage(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	if m.rightSidebar.IsVisible() && m.rightSidebar.metricsGrid != nil {
-		m.rightSidebar.metricsGrid.Navigate(1)
+func (r *Run) handleNextSystemPage(msg tea.KeyMsg) tea.Cmd {
+	if r.rightSidebar.IsVisible() && r.rightSidebar.metricsGrid != nil {
+		r.rightSidebar.metricsGrid.Navigate(1)
 	}
-	return m, nil
+	return nil
 }
 
-func (m *Run) handleEnterMetricsFilter(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.metricsGrid.EnterFilterMode()
-	return m, nil
+func (r *Run) handleEnterMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	r.metricsGrid.EnterFilterMode()
+	return nil
 }
 
-func (m *Run) handleClearMetricsFilter(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	if m.metricsGrid.FilterQuery() != "" {
-		m.metricsGrid.ClearFilter()
+func (r *Run) handleClearMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	if r.metricsGrid.FilterQuery() != "" {
+		r.metricsGrid.ClearFilter()
 	}
-	m.focus.Reset()
-	return m, nil
+	r.focus.Reset()
+	return nil
 }
 
-func (m *Run) handleEnterOverviewFilter(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.leftSidebar.EnterFilterMode()
-	return m, nil
+func (r *Run) handleEnterOverviewFilter(msg tea.KeyMsg) tea.Cmd {
+	r.leftSidebar.EnterFilterMode()
+	return nil
 }
 
-func (m *Run) handleClearOverviewFilter(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	if m.leftSidebar.IsFiltering() {
-		m.leftSidebar.ClearFilter()
+func (r *Run) handleClearOverviewFilter(msg tea.KeyMsg) tea.Cmd {
+	if r.leftSidebar.IsFiltering() {
+		r.leftSidebar.ClearFilter()
 	}
-	return m, nil
+	return nil
 }
 
-func (m *Run) handleConfigMetricsCols(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.config.SetPendingGridConfig(gridConfigMetricsCols)
-	return m, nil
+func (r *Run) handleConfigMetricsCols(msg tea.KeyMsg) tea.Cmd {
+	r.config.SetPendingGridConfig(gridConfigMetricsCols)
+	return nil
 }
 
-func (m *Run) handleConfigMetricsRows(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.config.SetPendingGridConfig(gridConfigMetricsRows)
-	return m, nil
+func (r *Run) handleConfigMetricsRows(msg tea.KeyMsg) tea.Cmd {
+	r.config.SetPendingGridConfig(gridConfigMetricsRows)
+	return nil
 }
 
-func (m *Run) handleConfigSystemCols(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.config.SetPendingGridConfig(gridConfigSystemCols)
-	return m, nil
+func (r *Run) handleConfigSystemCols(msg tea.KeyMsg) tea.Cmd {
+	r.config.SetPendingGridConfig(gridConfigSystemCols)
+	return nil
 }
 
-func (m *Run) handleConfigSystemRows(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.config.SetPendingGridConfig(gridConfigSystemRows)
-	return m, nil
+func (r *Run) handleConfigSystemRows(msg tea.KeyMsg) tea.Cmd {
+	r.config.SetPendingGridConfig(gridConfigSystemRows)
+	return nil
 }
 
 // handleMetricsFilter handles filter mode input for metrics
-func (m *Run) handleMetricsFilter(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.metricsGrid.handleMetricsFilterKey(msg)
-	return m, nil
+func (r *Run) handleMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	r.metricsGrid.handleMetricsFilterKey(msg)
+	return nil
 }
 
 // handleOverviewFilter handles overview filter keyboard input.
-func (m *Run) handleOverviewFilter(msg tea.KeyMsg) (*Run, tea.Cmd) {
+func (r *Run) handleOverviewFilter(msg tea.KeyMsg) tea.Cmd {
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.leftSidebar.ExitFilterMode(false)
+		r.leftSidebar.ExitFilterMode(false)
 	case tea.KeyEnter:
-		m.leftSidebar.ExitFilterMode(true)
+		r.leftSidebar.ExitFilterMode(true)
 	case tea.KeyTab:
-		m.leftSidebar.ToggleFilterMatchMode()
+		r.leftSidebar.ToggleFilterMatchMode()
 	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
-		m.leftSidebar.UpdateFilterDraft(msg)
-		m.leftSidebar.ApplyFilter()
-		m.leftSidebar.updateSectionHeights()
+		r.leftSidebar.UpdateFilterDraft(msg)
+		r.leftSidebar.ApplyFilter()
+		r.leftSidebar.updateSectionHeights()
 	}
-	return m, nil
+	return nil
 }
 
 // handleConfigNumberKey handles number input for configuration.
-func (m *Run) handleConfigNumberKey(msg tea.KeyMsg) (*Run, tea.Cmd) {
-	m.metricsGrid.handleGridConfigNumberKey(msg, m.computeViewports())
+func (r *Run) handleConfigNumberKey(msg tea.KeyMsg) tea.Cmd {
+	r.metricsGrid.handleGridConfigNumberKey(msg, r.computeViewports())
 
-	return m, nil
+	return nil
 }
 
 // handleSidebarAnimation handles sidebar animation.
-func (m *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
+func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 	switch msg.(type) {
 	case LeftSidebarAnimationMsg:
-		layout := m.computeViewports()
-		m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+		layout := r.computeViewports()
+		r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
-		if m.leftSidebar.IsAnimating() {
-			return []tea.Cmd{m.leftSidebar.animationCmd()}
+		if r.leftSidebar.IsAnimating() {
+			return []tea.Cmd{r.leftSidebar.animationCmd()}
 		}
 
-		m.endAnimating()
-		m.rightSidebar.UpdateDimensions(m.width, m.leftSidebar.IsVisible())
+		r.endAnimating()
+		r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.IsVisible())
 
 	case RightSidebarAnimationMsg:
-		layout := m.computeViewports()
-		m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+		layout := r.computeViewports()
+		r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
-		if m.rightSidebar.IsAnimating() {
-			return []tea.Cmd{m.rightSidebar.animationCmd()}
+		if r.rightSidebar.IsAnimating() {
+			return []tea.Cmd{r.rightSidebar.animationCmd()}
 		}
 
-		m.endAnimating()
-		m.leftSidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
+		r.endAnimating()
+		r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.IsVisible())
 	}
 
 	return nil
 }
 
 // handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
-func (m *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
-	defer timeit(m.logger, "Model.handleRecordsBatch")()
+func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
+	defer timeit(r.logger, "Model.handleRecordsBatch")()
 
 	var cmds []tea.Cmd
 
-	prev := m.suppressDraw
-	m.suppressDraw = suppressRedraw
+	prev := r.suppressDraw
+	r.suppressDraw = suppressRedraw
 	for _, subMsg := range subMsgs {
 		var cmd tea.Cmd
-		m, cmd = m.handleRecordMsg(subMsg)
+		r, cmd = r.handleRecordMsg(subMsg)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
-	m.suppressDraw = prev
-	if !m.suppressDraw {
-		m.metricsGrid.drawVisible()
+	r.suppressDraw = prev
+	if !r.suppressDraw {
+		r.metricsGrid.drawVisible()
 	}
 
 	return cmds
 }
 
 // handleInit handles InitMsg (reader ready).
-func (m *Run) handleInit(msg InitMsg) []tea.Cmd {
-	m.logger.Debug("model: InitMsg received, reader initialized")
-	m.reader = msg.Reader
-	m.loadStartTime = time.Now()
+func (r *Run) handleInit(msg InitMsg) []tea.Cmd {
+	r.logger.Debug("model: InitMsg received, reader initialized")
+	r.reader = msg.Reader
+	r.loadStartTime = time.Now()
 
-	return []tea.Cmd{ReadAllRecordsChunked(m.reader)}
+	return []tea.Cmd{ReadAllRecordsChunked(r.reader)}
 }
 
 // handleChunkedBatch handles boot-load chunked batches.
-func (m *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
-	defer timeit(m.logger, "Model.onChunkedBatch")()
+func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
+	defer timeit(r.logger, "Model.onChunkedBatch")()
 
-	m.logger.Debug(
+	r.logger.Debug(
 		fmt.Sprintf("model: ChunkedBatchMsg received with %d messages, hasMore=%v",
 			len(msg.Msgs), msg.HasMore))
 
-	m.recordsLoaded += msg.Progress
+	r.recordsLoaded += msg.Progress
 
-	cmds := m.handleRecordsBatch(msg.Msgs, false)
+	cmds := r.handleRecordsBatch(msg.Msgs, false)
 
 	if msg.HasMore {
-		cmds = append(cmds, ReadAllRecordsChunked(m.reader))
+		cmds = append(cmds, ReadAllRecordsChunked(r.reader))
 		return cmds
 	}
 
 	// Boot load complete -> begin live mode once.
-	if m.runState == RunStateRunning && !m.watcherMgr.IsStarted() {
-		if err := m.watcherMgr.Start(m.runPath); err != nil {
-			m.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
+	if r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
+		if err := r.watcherMgr.Start(r.runPath); err != nil {
+			r.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
 		} else {
-			m.logger.Info("model: watcher started successfully")
-			m.heartbeatMgr.Start(m.isRunning)
+			r.logger.Info("model: watcher started successfully")
+			r.heartbeatMgr.Start(r.isRunning)
 		}
 	}
 	return cmds
 }
 
 // handleBatched handles live drain batches.
-func (m *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
-	m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
-	cmds := m.handleRecordsBatch(msg.Msgs, true)
-	cmds = append(cmds, ReadAvailableRecords(m.reader))
+func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
+	r.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
+	cmds := r.handleRecordsBatch(msg.Msgs, true)
+	cmds = append(cmds, ReadAvailableRecords(r.reader))
 	return cmds
 }
 
 // handleHeartbeat triggers a live read and re-arms the heartbeat.
-func (m *Run) handleHeartbeat() []tea.Cmd {
-	m.logger.Debug("model: processing HeartbeatMsg")
-	m.heartbeatMgr.Reset(m.isRunning)
+func (r *Run) handleHeartbeat() []tea.Cmd {
+	r.logger.Debug("model: processing HeartbeatMsg")
+	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadAvailableRecords(m.reader),
-		m.watcherMgr.WaitForMsg,
+		ReadAvailableRecords(r.reader),
+		r.watcherMgr.WaitForMsg,
 	}
 }
 
 // handleFileChange coalesces change notifications into a read.
-func (m *Run) handleFileChange() []tea.Cmd {
-	m.heartbeatMgr.Reset(m.isRunning)
+func (r *Run) handleFileChange() []tea.Cmd {
+	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadAvailableRecords(m.reader),
-		m.watcherMgr.WaitForMsg,
+		ReadAvailableRecords(r.reader),
+		r.watcherMgr.WaitForMsg,
 	}
 }

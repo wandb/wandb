@@ -20,39 +20,27 @@ var blankLine = HelpEntry{}
 // HelpModel represents the help screen.
 type HelpModel struct {
 	viewport viewport.Model
-	entries  []HelpEntry
 	active   bool
 	width    int
 	height   int
+
+	mode viewMode
 }
 
 func NewHelp() *HelpModel {
-	entries := []HelpEntry{
-		{Key: "── W&B LEET: Lightweight Experiment Exploration Tool ──", Description: ""},
-		{Key: "version", Description: version.Version},
-		blankLine,
-	}
-
-	for _, category := range KeyBindings() {
-		entries = append(entries, HelpEntry{Key: category.Name, Description: ""})
-		for _, binding := range category.Bindings {
-			entries = append(entries, HelpEntry{
-				Key:         strings.Join(binding.Keys, ", "),
-				Description: binding.Description,
-			})
-		}
-		entries = append(entries, blankLine)
-	}
-
 	vp := viewport.New(80, 20)
-
-	h := &HelpModel{
+	return &HelpModel{
 		viewport: vp,
-		entries:  entries,
 		active:   false,
+		mode:     viewModeWorkspace,
 	}
+}
 
-	return h
+func (h *HelpModel) SetMode(mode viewMode) {
+	h.mode = mode
+	if h.active {
+		h.viewport.SetContent(h.generateHelpContent())
+	}
 }
 
 // generateHelpContent generates the help screen content.
@@ -61,22 +49,20 @@ func (h *HelpModel) generateHelpContent() string {
 		Foreground(colorHeading).
 		Bold(true)
 
-	// Build the ASCII art section separately
 	artSection := artStyle.Render(
-		lipgloss.JoinHorizontal(lipgloss.Top, wandbArt, "    ", leetArt)) + "\n\n"
+		lipgloss.JoinHorizontal(lipgloss.Top, wandbArt, "    ", leetArt),
+	) + "\n\n"
 
-	// Build the help entries section
+	entries := h.entriesForMode()
+
 	helpSection := ""
-	for _, entry := range h.entries {
+	for _, entry := range entries {
 		switch {
 		case entry.Key == "":
-			// Empty line for spacing
 			helpSection += "\n"
 		case entry.Description == "":
-			// Section header
 			helpSection += helpSectionStyle.Render(entry.Key) + "\n"
 		default:
-			// Regular entry
 			key := helpKeyStyle.Render(entry.Key)
 			desc := helpDescStyle.Render(entry.Description)
 			helpSection += lipgloss.JoinHorizontal(lipgloss.Top, key, desc) + "\n"
@@ -86,13 +72,62 @@ func (h *HelpModel) generateHelpContent() string {
 	return artSection + helpSection
 }
 
+func (h *HelpModel) entriesForMode() []HelpEntry {
+	entries := []HelpEntry{
+		{Key: "── W&B LEET: Lightweight Experiment Exploration Tool ──", Description: ""},
+		{Key: "version", Description: version.Version},
+		{Key: "view", Description: h.modeLabel()},
+		blankLine,
+	}
+
+	switch h.mode {
+	case viewModeWorkspace:
+		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
+	case viewModeRun:
+		entries = append(entries, helpEntriesFromCategories(RunKeyBindings())...)
+	default:
+		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
+	}
+
+	return entries
+}
+
+func (h *HelpModel) modeLabel() string {
+	switch h.mode {
+	case viewModeWorkspace:
+		return "workspace"
+	case viewModeRun:
+		return "single run"
+	default:
+		return "unknown"
+	}
+}
+
+func helpEntriesFromCategories[T any](categories []BindingCategory[T]) []HelpEntry {
+	var entries []HelpEntry
+	for _, category := range categories {
+		entries = append(entries, HelpEntry{Key: category.Name, Description: ""})
+		for _, binding := range category.Bindings {
+			entries = append(entries, HelpEntry{
+				Key:         strings.Join(binding.Keys, ", "),
+				Description: binding.Description,
+			})
+		}
+		entries = append(entries, blankLine)
+	}
+	return entries
+}
+
 // SetSize updates the size of the help screen.
 func (h *HelpModel) SetSize(width, height int) {
 	h.width = width
 	h.height = height - StatusBarHeight
 	h.viewport.Width = width
 	h.viewport.Height = h.height
-	h.viewport.SetContent(h.generateHelpContent())
+
+	if h.active {
+		h.viewport.SetContent(h.generateHelpContent())
+	}
 }
 
 // Toggle toggles the help screen visibility.
@@ -144,10 +179,8 @@ func (h *HelpModel) View() string {
 		return ""
 	}
 
-	// Apply margins to the content
 	content := helpContentStyle.Render(h.viewport.View())
 
-	// Place with top alignment to respect top margin
 	return lipgloss.Place(
 		h.width,
 		h.height,

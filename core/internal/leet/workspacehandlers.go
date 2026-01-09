@@ -333,3 +333,147 @@ func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.
 	}
 	return tea.Batch(cmds...)
 }
+
+func (w *Workspace) handleQuit(msg tea.KeyMsg) tea.Cmd {
+	w.logger.Debug("workspace: quit requested")
+
+	// Best-effort cleanup. Process is exiting anyway, but this keeps things tidy.
+	if w.heartbeatMgr != nil {
+		w.heartbeatMgr.Stop()
+	}
+	for _, run := range w.runsByKey {
+		if run == nil {
+			continue
+		}
+		w.stopWatcher(run)
+		if run.reader != nil {
+			run.reader.Close()
+		}
+	}
+
+	return tea.Quit
+}
+
+func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
+	w.runsAnimState.Toggle()
+	return w.runsAnimationCmd()
+}
+
+func (w *Workspace) handlePrevPage(msg tea.KeyMsg) tea.Cmd {
+	if w.metricsGrid != nil {
+		w.metricsGrid.Navigate(-1)
+	}
+	return nil
+}
+
+func (w *Workspace) handleNextPage(msg tea.KeyMsg) tea.Cmd {
+	if w.metricsGrid != nil {
+		w.metricsGrid.Navigate(1)
+	}
+	return nil
+}
+
+func (w *Workspace) handleEnterMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	if w.metricsGrid != nil {
+		w.metricsGrid.EnterFilterMode()
+	}
+	return nil
+}
+
+func (w *Workspace) handleClearMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	if w.metricsGrid != nil && w.metricsGrid.FilterQuery() != "" {
+		w.metricsGrid.ClearFilter()
+	}
+	if w.focus != nil {
+		w.focus.Reset()
+	}
+	return nil
+}
+
+func (w *Workspace) handleConfigMetricsCols(msg tea.KeyMsg) tea.Cmd {
+	w.config.SetPendingGridConfig(gridConfigMetricsCols)
+	return nil
+}
+
+func (w *Workspace) handleConfigMetricsRows(msg tea.KeyMsg) tea.Cmd {
+	w.config.SetPendingGridConfig(gridConfigMetricsRows)
+	return nil
+}
+
+func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return nil
+	}
+	return w.toggleRunSelected(cur.Key)
+}
+
+func (w *Workspace) handlePinRunKey(msg tea.KeyMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return nil
+	}
+
+	runKey := cur.Key
+
+	// Preserve existing behavior: pinning should select the run if it's not selected,
+	// so its series exists and can be promoted/drawn.
+	if !w.selectedRuns[runKey] {
+		if cmd := w.toggleRunSelected(runKey); cmd != nil {
+			w.togglePin(runKey)
+			return cmd
+		}
+	}
+
+	w.togglePin(runKey)
+	return nil
+}
+
+func (w *Workspace) handleRunsVerticalNav(msg tea.KeyMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+
+	switch msg.String() {
+	case "up":
+		w.runs.Up()
+	case "down":
+		w.runs.Down()
+	}
+	return nil
+}
+
+func (w *Workspace) handleRunsPageNav(msg tea.KeyMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+
+	switch msg.String() {
+	case "left":
+		w.runs.PageUp()
+	case "right":
+		w.runs.PageDown()
+	}
+	return nil
+}
+
+func (w *Workspace) handleRunsHome(msg tea.KeyMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	w.runs.Home()
+	return nil
+}
+
+func (w *Workspace) runSelectorActive() bool {
+	if w.runsAnimState == nil || !w.runsAnimState.IsExpanded() {
+		return false
+	}
+	return len(w.runs.FilteredItems) > 0
+}

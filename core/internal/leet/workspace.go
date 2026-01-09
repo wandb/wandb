@@ -17,6 +17,11 @@ import (
 type Workspace struct {
 	wandbDir string
 
+	// Configuration and key bindings.
+	config *ConfigManager
+	keyMap map[string]func(*Workspace, tea.KeyMsg) tea.Cmd
+
+	// Sidebar animation state
 	runsAnimState *AnimationState
 
 	// runs is the run selector.
@@ -42,7 +47,6 @@ type Workspace struct {
 	liveChan     chan tea.Msg
 	heartbeatMgr *HeartbeatManager
 
-	config *ConfigManager
 	logger *observability.CoreLogger
 
 	width, height int
@@ -78,6 +82,7 @@ func NewWorkspace(
 		runsAnimState: NewAnimationState(true, SidebarMinWidth),
 		wandbDir:      wandbDir,
 		config:        cfg,
+		keyMap:        buildKeyMap(WorkspaceKeyBindings()),
 		logger:        logger,
 		runs:          runs,
 		selectedRuns:  make(map[string]bool),
@@ -121,7 +126,6 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case tea.WindowSizeMsg:
 		w.updateDimensions(t.Width, t.Height)
 
-	// TODO: wire key bindings
 	case tea.KeyMsg:
 		return w.handleKeyMsg(t)
 
@@ -163,101 +167,25 @@ func (w *Workspace) handleRunsAnimation() tea.Cmd {
 	return nil
 }
 
-// TODO: wire up key bindings.
 func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
-	switch msg.String() {
-	case "q", "ctrl+c":
-		return tea.Quit
-	case "[":
-		w.runsAnimState.Toggle()
-		return w.runsAnimationCmd()
-	}
-
-	// 1) Metrics filter mode has highest priority.
+	// Filter mode takes priority.
 	if w.metricsGrid != nil && w.metricsGrid.IsFilterMode() {
 		w.metricsGrid.handleMetricsFilterKey(msg)
 		return nil
 	}
 
-	// 2) Grid layout config: reuse the same mechanism as the run view.
-	if w.config.IsAwaitingGridConfig() {
-		w.metricsGrid.handleGridConfigNumberKey(msg, w.computeViewports())
-		return nil
-	}
-
-	// 3) Metrics navigation / filter / layout (mirror single‑run key bindings).
-	switch msg.String() {
-	case "N", "pgup":
+	// Grid config capture takes priority.
+	if w.config != nil && w.config.IsAwaitingGridConfig() {
 		if w.metricsGrid != nil {
-			w.metricsGrid.Navigate(-1)
-		}
-		return nil
-	case "n", "pgdown":
-		if w.metricsGrid != nil {
-			w.metricsGrid.Navigate(1)
-		}
-		return nil
-	case "/":
-		if w.metricsGrid != nil {
-			w.metricsGrid.EnterFilterMode()
-		}
-		return nil
-	case "ctrl+l":
-		if w.metricsGrid != nil && w.metricsGrid.FilterQuery() != "" {
-			w.metricsGrid.ClearFilter()
-		}
-		w.focus.Reset()
-		return nil
-	case "c":
-		w.config.SetPendingGridConfig(gridConfigMetricsCols)
-		return nil
-	case "r":
-		w.config.SetPendingGridConfig(gridConfigMetricsRows)
-		return nil
-	}
-
-	// 4) Run selector navigation & selection (only when sidebar is open).
-	if !w.runsAnimState.IsExpanded() {
-		return nil
-	}
-	if len(w.runs.FilteredItems) == 0 {
-		return nil
-	}
-
-	// Run pinning
-	if msg.String() == "p" {
-		if cur, ok := w.runs.CurrentItem(); ok {
-			// Ensure the run is selected so its metrics are visible.
-			if !w.selectedRuns[cur.Key] {
-				if cmd := w.toggleRunSelected(cur.Key); cmd != nil {
-					// Start loading data for this run, then pin it.
-					w.togglePin(cur.Key)
-					return cmd
-				}
-			}
-			w.togglePin(cur.Key)
+			w.metricsGrid.handleGridConfigNumberKey(msg, w.computeViewports())
 		}
 		return nil
 	}
 
-	switch msg.Type {
-	case tea.KeySpace:
-		if cur, ok := w.runs.CurrentItem(); ok {
-			return w.toggleRunSelected(cur.Key)
-		}
-	case tea.KeyUp:
-		w.runs.Up()
-	case tea.KeyDown:
-		w.runs.Down()
-	case tea.KeyRight:
-		// consistent with “Run overview navigation” in single‑run view
-		w.runs.PageUp()
-	case tea.KeyLeft:
-		w.runs.PageDown()
-	case tea.KeyHome:
-		w.runs.Home()
+	// Dispatch via key map.
+	if handler, ok := w.keyMap[normalizeKey(msg.String())]; ok {
+		return handler(w, msg)
 	}
-
 	return nil
 }
 
