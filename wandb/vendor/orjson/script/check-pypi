@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+# Copyright ijl (2025)
+
+import sys
+from pathlib import Path
+
+import tomllib
+
+dist = sys.argv[1]
+
+pyproject_doc = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+pyproject_version = pyproject_doc["project"]["version"]
+
+prefix = f"orjson-{pyproject_version}"
+
+abis = (
+    "cp39-cp39",
+    "cp310-cp310",
+    "cp311-cp311",
+    "cp312-cp312",
+    "cp313-cp313",
+    "cp314-cp314",
+)
+
+per_abi_tags = (
+    "macosx_10_15_x86_64.macosx_11_0_arm64.macosx_10_15_universal2",
+    "manylinux_2_17_aarch64.manylinux2014_aarch64",
+    "manylinux_2_17_armv7l.manylinux2014_armv7l",
+    "manylinux_2_17_ppc64le.manylinux2014_ppc64le",
+    "manylinux_2_17_s390x.manylinux2014_s390x",
+    "manylinux_2_17_x86_64.manylinux2014_x86_64",
+    "manylinux_2_17_i686.manylinux2014_i686",
+    "musllinux_1_2_aarch64",
+    "musllinux_1_2_armv7l",
+    "musllinux_1_2_i686",
+    "musllinux_1_2_x86_64",
+    "win32",
+    "win_amd64",
+)
+
+wheels_matrix = set()
+
+# orjson-3.10.15-cp310-cp310-macosx_10_15_x86_64.macosx_11_0_arm64.macosx_10_15_universal2.whl
+for abi in abis:
+    for tag in per_abi_tags:
+        wheels_matrix.add(f"{prefix}-{abi}-{tag}.whl")
+
+wheels_prerelease = set()
+
+wheels_unique = {
+    f"{prefix}-cp311-cp311-macosx_15_0_arm64.whl",
+    f"{prefix}-cp311-cp311-win_arm64.whl",
+    f"{prefix}-cp312-cp312-macosx_15_0_arm64.whl",
+    f"{prefix}-cp312-cp312-win_arm64.whl",
+    f"{prefix}-cp313-cp313-macosx_15_0_arm64.whl",
+    f"{prefix}-cp313-cp313-win_arm64.whl",
+    f"{prefix}-cp314-cp314-macosx_15_0_arm64.whl",
+    f"{prefix}-cp314-cp314-win_arm64.whl",
+}
+
+wheels_expected = wheels_matrix | wheels_unique | wheels_prerelease
+
+wheels_queued = set(
+    str(each).replace(f"{dist}/", "") for each in Path(dist).glob("*.whl")
+)
+
+exit_code = 0
+
+# sdist
+sdist_path = Path(f"{dist}/{prefix}.tar.gz")
+if sdist_path.exists():
+    print("sdist present\n")
+else:
+    exit_code = 1
+    print(f"Missing sdist:\n{sdist_path}\n")
+
+# whl
+if wheels_expected == wheels_queued:
+    print(f"Wheels as expected, {len(wheels_queued)} total\n")
+else:
+    exit_code = 1
+
+    missing = "\n".join(sorted(wheels_expected - wheels_queued))
+    if missing:
+        print(f"Missing wheels:\n{missing}\n")
+
+    additional = "\n".join(sorted(wheels_queued - wheels_expected))
+    if additional:
+        print(f"Unexpected wheels:\n{additional}\n")
+
+sys.exit(exit_code)
