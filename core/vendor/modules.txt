@@ -200,8 +200,8 @@ github.com/alexflint/go-scalar
 ## explicit; go 1.22
 github.com/andybalholm/brotli
 github.com/andybalholm/brotli/matchfinder
-# github.com/apache/arrow-go/v18 v18.4.1
-## explicit; go 1.23.0
+# github.com/apache/arrow-go/v18 v18.5.0
+## explicit; go 1.24.0
 github.com/apache/arrow-go/v18/arrow
 github.com/apache/arrow-go/v18/arrow/array
 github.com/apache/arrow-go/v18/arrow/arrio

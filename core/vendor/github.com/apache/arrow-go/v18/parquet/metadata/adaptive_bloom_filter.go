@@ -18,7 +18,6 @@ package metadata
 
 import (
 	"io"
-	"runtime"
 	"slices"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -30,7 +29,7 @@ import (
 )
 
 type bloomFilterCandidate struct {
-	bloomFilter blockSplitBloomFilter
+	bloomFilter *blockSplitBloomFilter
 	expectedNDV uint32
 }
 
@@ -58,10 +57,8 @@ func newBloomFilterCandidate(expectedNDV, numBytes, minBytes, maxBytes uint32, h
 		hashStrategy: defaultHashStrategy,
 		compression:  defaultCompression,
 	}
-	runtime.SetFinalizer(&bf, func(f *blockSplitBloomFilter) {
-		f.data.Release()
-	})
-	return &bloomFilterCandidate{bloomFilter: bf, expectedNDV: expectedNDV}
+	addCleanup(&bf, nil)
+	return &bloomFilterCandidate{bloomFilter: &bf, expectedNDV: expectedNDV}
 }
 
 type adaptiveBlockSplitBloomFilter struct {
@@ -112,7 +109,7 @@ func (b *adaptiveBlockSplitBloomFilter) getCompression() *format.BloomFilterComp
 
 func (b *adaptiveBlockSplitBloomFilter) optimalCandidate() *bloomFilterCandidate {
 	return slices.MinFunc(b.candidates, func(a, b *bloomFilterCandidate) int {
-		return int(b.bloomFilter.Size() - a.bloomFilter.Size())
+		return int(a.bloomFilter.Size() - b.bloomFilter.Size())
 	})
 }
 
@@ -141,11 +138,16 @@ func (b *adaptiveBlockSplitBloomFilter) InsertBulk(hashes []uint64) {
 		panic("adaptive bloom filter has been marked finalized, no more data allowed")
 	}
 
+	// Use a set to track unique hashes that are not already in the largest candidate
+	uniqueNewHashes := make(map[uint64]struct{})
 	for _, h := range hashes {
 		if !b.largestCandidate.bloomFilter.CheckHash(h) {
-			b.numDistinct++
+			uniqueNewHashes[h] = struct{}{}
 		}
 	}
+
+	// Only increment numDistinct by the number of unique new hashes
+	b.numDistinct += int64(len(uniqueNewHashes))
 
 	b.candidates = slices.DeleteFunc(b.candidates, func(c *bloomFilterCandidate) bool {
 		return c.expectedNDV < uint32(b.numDistinct) && c != b.largestCandidate
@@ -191,7 +193,7 @@ func (b *adaptiveBlockSplitBloomFilter) initCandidates(maxBytes uint32, numCandi
 	}
 
 	b.largestCandidate = slices.MaxFunc(b.candidates, func(a, b *bloomFilterCandidate) int {
-		return int(b.bloomFilter.Size() - a.bloomFilter.Size())
+		return int(a.bloomFilter.Size() - b.bloomFilter.Size())
 	})
 }
 

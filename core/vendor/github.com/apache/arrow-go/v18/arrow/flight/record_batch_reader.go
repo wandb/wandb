@@ -140,7 +140,7 @@ func (r *Reader) LatestFlightDescriptor() *FlightDescriptor {
 // this is just a convenience to retrieve all three with one function call.
 func (r *Reader) Chunk() StreamChunk {
 	return StreamChunk{
-		Data:        r.Record(),
+		Data:        r.RecordBatch(),
 		Desc:        r.dmr.descr,
 		AppMetadata: r.dmr.lastAppMetadata,
 	}
@@ -227,7 +227,7 @@ func StreamChunksFromReader(rdr array.RecordReader, ch chan<- StreamChunk) {
 
 	defer rdr.Release()
 	for rdr.Next() {
-		rec := rdr.Record()
+		rec := rdr.RecordBatch()
 		rec.Retain()
 		ch <- StreamChunk{Data: rec}
 	}
@@ -253,7 +253,7 @@ func ConcatenateReaders(rdrs []array.RecordReader, ch chan<- StreamChunk) {
 
 	for _, r := range rdrs {
 		for r.Next() {
-			rec := r.Record()
+			rec := r.RecordBatch()
 			rec.Retain()
 			ch <- StreamChunk{Data: rec}
 		}

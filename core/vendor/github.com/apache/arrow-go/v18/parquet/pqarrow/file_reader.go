@@ -527,6 +527,7 @@ func (fr *FileReader) GetRecordReader(ctx context.Context, colIndices, rowGroups
 		parallel:     fr.Props.Parallel,
 		sc:           sc,
 		fieldReaders: readers,
+		mem:          fr.mem,
 	}
 	rr.refCount.Add(1)
 	return rr, nil
@@ -719,8 +720,9 @@ type recordReader struct {
 	parallel     bool
 	sc           *arrow.Schema
 	fieldReaders []*ColumnReader
-	cur          arrow.Record
+	cur          arrow.RecordBatch
 	err          error
+	mem          memory.Allocator
 
 	refCount atomic.Int64
 }
@@ -789,7 +791,7 @@ func (r *recordReader) next() bool {
 			return io.EOF
 		}
 
-		arrdata, err := chunksToSingle(data)
+		arrdata, err := chunksToSingle(data, r.mem)
 		if err != nil {
 			return err
 		}
@@ -807,7 +809,7 @@ func (r *recordReader) next() bool {
 			}
 		}
 
-		r.cur = array.NewRecord(r.sc, cols, -1)
+		r.cur = array.NewRecordBatch(r.sc, cols, -1)
 		return true
 	}
 
@@ -862,7 +864,7 @@ func (r *recordReader) next() bool {
 		return false
 	}
 
-	r.cur = array.NewRecord(r.sc, cols, -1)
+	r.cur = array.NewRecordBatch(r.sc, cols, -1)
 	return true
 }
 
@@ -891,7 +893,7 @@ func (r *recordReader) Err() error {
 	return r.err
 }
 
-func (r *recordReader) Read() (arrow.Record, error) {
+func (r *recordReader) Read() (arrow.RecordBatch, error) {
 	if r.cur != nil {
 		r.cur.Release()
 		r.cur = nil
