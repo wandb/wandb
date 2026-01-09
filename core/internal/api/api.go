@@ -34,24 +34,16 @@ const (
 // WBBaseURL is the address of the W&B backend, like https://api.wandb.ai.
 type WBBaseURL *url.URL
 
-// A retrying HTTP client with special handling for the W&B backend.
-//
-// There is one Client per API provided by the backend, where "API" is a
-// collection of related HTTP endpoints. It's expected that different APIs
-// have different properties such as rate-limits and ideal retry behaviors.
+// RetryableClient is an HTTP client with retries and special handling for W&B.
 //
 // The client is responsible for setting auth headers, retrying
 // gracefully, and respecting rate-limit response headers.
-type Client interface {
+type RetryableClient interface {
 	// Sends an HTTP request with retries.
 	//
 	// There is special handling if the request is for the W&B backend.
 	//
 	// It is guaranteed that the response is non-nil unless there is an error.
-	Do(*http.Request) (*http.Response, error)
-}
-
-type RetryableClient interface {
 	Do(*retryablehttp.Request) (*http.Response, error)
 }
 
@@ -133,8 +125,8 @@ type ClientOptions struct {
 	Logger *slog.Logger
 }
 
-// NewClient returns a new [Client] for making HTTP requests.
-func NewClient(opts ClientOptions) Client {
+// NewClient returns a new [RetryableClient] for making HTTP requests.
+func NewClient(opts ClientOptions) RetryableClient {
 	if opts.BaseURL == nil {
 		panic("api: nil BaseURL")
 	}
