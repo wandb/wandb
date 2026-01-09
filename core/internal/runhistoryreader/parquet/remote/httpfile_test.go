@@ -398,6 +398,8 @@ func TestHttpFileReader_ServerErrors(t *testing.T) {
 	client := retryablehttp.NewClient()
 	client.HTTPClient.Timeout = 5 * time.Second
 	client.RetryMax = 2
+	client.RetryWaitMin = 1 * time.Millisecond
+	client.RetryWaitMax = 10 * time.Millisecond
 
 	t.Run("server returns error on range request", func(t *testing.T) {
 		// Create a server that returns errors for GET requests
