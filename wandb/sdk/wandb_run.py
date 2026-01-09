@@ -1353,7 +1353,7 @@ class Run:
         if self._settings.silent:
             return False
 
-        if not ipython.in_jupyter():
+        if not ipython.in_jupyter() or ipython.in_vscode_notebook():
             return False
 
         try:
@@ -1370,8 +1370,16 @@ class Run:
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying the current run.
 
+        If the run is being displayed in a VSCode notebook,
+        the string representation of the run is returned instead.
+
         <!-- lazydoc-ignore: internal -->
         """
+        if ipython.in_vscode_notebook():
+            import html
+
+            return html.escape(str(self))
+
         url = self._settings.run_url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
