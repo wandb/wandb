@@ -502,7 +502,7 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 		}
 
 		yVal := s.Y[idx]
-		label := fmt.Sprintf("%v: %v", anchorX, formatSigFigs(yVal, 4))
+		label := fmt.Sprintf("%v: %v", s.X[idx], formatSigFigs(yVal, 4))
 		labelRunes := []rune(label)
 		if lw := len(labelRunes); lw > maxLabelWidth {
 			maxLabelWidth = lw
