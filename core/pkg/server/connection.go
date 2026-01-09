@@ -8,9 +8,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"sync"
 	"sync/atomic"
 
+	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -22,7 +26,6 @@ import (
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -450,43 +453,57 @@ func (nc *Connection) handleInformAttach(
 func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 	slog.Debug("handleAuthenticate: received", "id", nc.id)
 
-	s := settings.From(&spb.Settings{
-		ApiKey:  &wrapperspb.StringValue{Value: msg.ApiKey},
-		BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
+	response := nc.handleAuthenticateImpl(msg)
+	response.XInfo = msg.XInfo
+
+	nc.Respond(&spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
+			AuthenticateResponse: response,
+		},
 	})
+}
+
+func (nc *Connection) handleAuthenticateImpl(
+	msg *spb.ServerAuthenticateRequest,
+) *spb.ServerAuthenticateResponse {
+	baseURL, err := url.Parse(msg.BaseUrl)
+	if err != nil {
+		return &spb.ServerAuthenticateResponse{
+			ErrorStatus: fmt.Sprintf("Invalid URL: %v", err),
+		}
+	}
+
 	logger := observability.NewNoOpLogger() // TODO: use a real logger
-	baseURL := stream.BaseURLFromSettings(logger, s)
-	credentialProvider := stream.CredentialsFromSettings(logger, s)
-	graphqlClient := stream.NewGraphQLClient(
-		baseURL,
-		"", /*clientId*/
-		credentialProvider,
-		logger,
-		&observability.Peeker{},
-		s,
+	credentialProvider := api.NewAPIKeyCredentialProvider(msg.ApiKey)
+
+	apiClient := api.NewClient(api.ClientOptions{
+		BaseURL:     baseURL,
+		RetryPolicy: clients.CheckRetry,
+
+		RetryMax:        api.DefaultRetryMax,
+		RetryWaitMin:    api.DefaultRetryWaitMin,
+		RetryWaitMax:    api.DefaultRetryWaitMax,
+		NonRetryTimeout: api.DefaultNonRetryTimeout,
+
+		CredentialProvider: credentialProvider,
+		Logger:             logger.Logger,
+	})
+
+	graphqlClient := graphql.NewClient(
+		baseURL.JoinPath("graphql").String(),
+		apiClient,
 	)
 
 	data, err := gql.Viewer(context.Background(), graphqlClient)
 	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
-		nc.Respond(&spb.ServerResponse{
-			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
-				AuthenticateResponse: &spb.ServerAuthenticateResponse{
-					ErrorStatus: "Invalid credentials",
-					XInfo:       msg.XInfo,
-				},
-			},
-		})
-		return
+		return &spb.ServerAuthenticateResponse{
+			ErrorStatus: "Invalid credentials",
+		}
 	}
 
-	nc.Respond(&spb.ServerResponse{
-		ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
-			AuthenticateResponse: &spb.ServerAuthenticateResponse{
-				DefaultEntity: *data.GetViewer().GetEntity(),
-				XInfo:         msg.XInfo,
-			},
-		},
-	})
+	return &spb.ServerAuthenticateResponse{
+		DefaultEntity: *data.GetViewer().GetEntity(),
+	}
 }
 
 // handleInformRecord processes a regular record message from the client.
