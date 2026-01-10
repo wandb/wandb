@@ -178,11 +178,11 @@ func NewClient(opts ClientOptions) RetryableClient {
 		}
 	}
 
-	retryableHTTP.HTTPClient.Transport =
-		NewPeekingTransport(
-			opts.NetworkPeeker,
-			NewRateLimitedTransport(transport),
-		)
+	retryableHTTP.HTTPClient.Transport = WrapRoundTripper(
+		transport,
+		ResponseBasedRateLimiter(),
+		NetworkPeeker(opts.NetworkPeeker),
+	)
 
 	return &clientImpl{
 		baseURL:            opts.BaseURL,
