@@ -25,7 +25,7 @@ func GetSignedUrlsWithLiveSteps(
 	entity string,
 	project string,
 	runId string,
-) (signedUrls []string, liveSteps []float64, err error) {
+) (signedUrls []string, liveSteps []int64, err error) {
 	response, err := gql.RunParquetHistory(
 		ctx,
 		graphqlClient,
@@ -87,8 +87,8 @@ func DownloadRunHistoryFile(
 	return nil
 }
 
-func extractStepValuesFromLiveData(liveData []any) ([]float64, error) {
-	stepValues := make([]float64, 0, len(liveData))
+func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {
+	stepValues := make([]int64, 0, len(liveData))
 	if liveData == nil {
 		return stepValues, nil
 	}
@@ -102,12 +102,14 @@ func extractStepValuesFromLiveData(liveData []any) ([]float64, error) {
 		if !ok {
 			return nil, fmt.Errorf("expected LiveData to contain step key")
 		}
+
+		// Step values are returned as float64 values from the backend.
+		// So we convert them to int64 values before returning.
 		stepValue, ok := step.(float64)
 		if !ok {
 			return nil, fmt.Errorf("expected step to be float64")
 		}
-
-		stepValues = append(stepValues, stepValue)
+		stepValues = append(stepValues, int64(stepValue))
 	}
 	return stepValues, nil
 }
