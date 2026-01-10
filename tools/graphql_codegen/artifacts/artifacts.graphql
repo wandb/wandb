@@ -86,22 +86,23 @@ query ProjectArtifacts(
   $collection: String!
   $cursor: String
   $perPage: Int = 50
-  $order: String
-  $filters: JSONString
+  # $order: String
+  # $filters: JSONString
   $includeAliases: Boolean = true
 ) {
   project(entityName: $entity, name: $project) {
     artifactType(name: $type) {
       artifactCollection(name: $collection) {
-        artifacts(after: $cursor, first: $perPage, order: $order, filters: $filters) {
-          totalCount
+        artifactMemberships(after: $cursor, first: $perPage) {
+          # totalCount  # TODO: reimplement this
           pageInfo {
             ...PageInfoFragment
           }
           edges {
-            version
+            # version
             node {
-              ...ArtifactFragment
+              # ...ArtifactFragment
+              ...ArtifactMembershipFragment
             }
           }
         }
