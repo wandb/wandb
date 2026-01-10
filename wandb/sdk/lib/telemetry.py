@@ -1,7 +1,8 @@
 import re
 import sys
+from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import TYPE_CHECKING, ContextManager, Dict, List, Optional, Set, Type
+from typing import TYPE_CHECKING, Optional
 
 import wandb
 from wandb.proto.wandb_telemetry_pb2 import Imports as TelemetryImports
@@ -33,7 +34,7 @@ class _TelemetryObject:
 
     def __exit__(
         self,
-        exctype: Optional[Type[BaseException]],
+        exctype: Optional[type[BaseException]],
         excinst: Optional[BaseException],
         exctb: Optional[TracebackType],
     ) -> None:
@@ -44,14 +45,14 @@ class _TelemetryObject:
 
 def context(
     run: Optional["wandb_run.Run"] = None, obj: Optional[TelemetryRecord] = None
-) -> ContextManager[TelemetryRecord]:
+) -> AbstractContextManager[TelemetryRecord]:
     return _TelemetryObject(run=run, obj=obj)
 
 
 MATCH_RE = re.compile(r"(?P<code>[a-zA-Z0-9_-]+)[,}](?P<rest>.*)")
 
 
-def _parse_label_lines(lines: List[str]) -> Dict[str, str]:
+def _parse_label_lines(lines: list[str]) -> dict[str, str]:
     seen = False
     ret = {}
     for line in lines:
@@ -80,7 +81,7 @@ def _parse_label_lines(lines: List[str]) -> Dict[str, str]:
     return ret
 
 
-def list_telemetry_imports(only_imported: bool = False) -> Set[str]:
+def list_telemetry_imports(only_imported: bool = False) -> set[str]:
     import_telemetry_set = {
         desc.name
         for desc in TelemetryImports.DESCRIPTOR.fields

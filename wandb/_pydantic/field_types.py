@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Annotated, TypeVar
 
 from pydantic import Field, StrictStr
-from typing_extensions import Annotated
 
 from .utils import IS_PYDANTIC_V2
 

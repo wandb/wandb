@@ -13,6 +13,7 @@ Consider removing tests once Pydantic v1 support is dropped.
 
 # Ignored linter rules to ensure compatibility with older pydantic and/or python versions.
 # ruff: noqa: UP006  # allow e.g. `List[X]` instead of `list[x]`
+# ruff: noqa: UP035  # allow deprecated typing module imports
 # ruff: noqa: UP045  # allow e.g. `Optional[X]` instead of `X | None` (pydantic<2.6)
 
 from __future__ import annotations

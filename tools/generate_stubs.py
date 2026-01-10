@@ -38,16 +38,10 @@ Note:
 import ast
 import re
 import subprocess
-import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
-if sys.version_info >= (3, 9):
-    unparse = ast.unparse
-else:
-    import astunparse
-
-    unparse = astunparse.unparse
+unparse = ast.unparse
 
 
 def extract_docstring(file_path: Path, location: str) -> Optional[str]:
@@ -82,7 +76,7 @@ def extract_docstring(file_path: Path, location: str) -> Optional[str]:
     return None
 
 
-def extract_functions_from_template(template_content: str) -> Dict[str, str]:
+def extract_functions_from_template(template_content: str) -> dict[str, str]:
     """Extracts function names and their source information from the template.
 
     Args:

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, TypeVar
+from typing import Annotated, Any, TypeVar
 
 from pydantic import BeforeValidator, Json, PlainSerializer
 from pydantic_core import PydanticUseDefault
-from typing_extensions import Annotated
 
 from wandb._pydantic import to_json
 

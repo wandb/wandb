@@ -21,8 +21,9 @@ def empty_netrc(monkeypatch):
 
 @pytest.mark.xfail(reason="This test is flakey on CI")
 def test_init_reinit(runner, empty_netrc, user):
-    with runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.lib.apikey.len", return_value=40
+    with (
+        runner.isolated_filesystem(),
+        mock.patch("wandb.sdk.lib.apikey.len", return_value=40),
     ):
         result = runner.invoke(cli.login, [user])
         result = runner.invoke(cli.init, input="y\n\n\n")
@@ -37,8 +38,9 @@ def test_init_reinit(runner, empty_netrc, user):
 
 @pytest.mark.xfail(reason="This test is flakey on CI")
 def test_init_add_login(runner, empty_netrc, user):
-    with runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.lib.apikey.len", return_value=40
+    with (
+        runner.isolated_filesystem(),
+        mock.patch("wandb.sdk.lib.apikey.len", return_value=40),
     ):
         with open("netrc", "w") as f:
             f.write("previous config")
@@ -139,8 +141,11 @@ def test_sync_wandb_run(runner, wandb_backend_spy, user, copy_asset):
     # this a problem for a real backend that we use now
     # (as we used to use a mock backend)
     # todo: create a new test asset that will contain an artifact
-    with runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
+    with (
+        runner.isolated_filesystem(),
+        mock.patch(
+            "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
+        ),
     ):
         copy_asset("wandb")
 
@@ -158,8 +163,11 @@ def test_sync_wandb_run(runner, wandb_backend_spy, user, copy_asset):
 
 
 def test_sync_wandb_run_and_tensorboard(runner, wandb_backend_spy, user, copy_asset):
-    with runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
+    with (
+        runner.isolated_filesystem(),
+        mock.patch(
+            "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
+        ),
     ):
         run_dir = os.path.join("wandb", "offline-run-20210216_154407-g9dvvkua")
         copy_asset("wandb")

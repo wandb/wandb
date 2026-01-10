@@ -1,7 +1,8 @@
 import os
 from argparse import Namespace
+from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 from packaging import version
 from typing_extensions import override
@@ -312,7 +313,7 @@ class WandbLogger(Logger):
         self._log_model = log_model
         self._prefix = prefix
         self._experiment = experiment
-        self._logged_model_time: Dict[str, float] = {}
+        self._logged_model_time: dict[str, float] = {}
         self._checkpoint_callback: Optional[ModelCheckpoint] = None
 
         # paths are processed as strings
@@ -324,7 +325,7 @@ class WandbLogger(Logger):
         project = project or os.environ.get("WANDB_PROJECT", "lightning_fabric_logs")
 
         # set wandb init arguments
-        self._wandb_init: Dict[str, Any] = {
+        self._wandb_init: dict[str, Any] = {
             "name": name,
             "project": project,
             "dir": save_dir or dir,
@@ -341,7 +342,7 @@ class WandbLogger(Logger):
         self._checkpoint_name = checkpoint_name
         self._log_checkpoint_on = log_checkpoint_on
 
-    def __getstate__(self) -> Dict[str, Any]:
+    def __getstate__(self) -> dict[str, Any]:
         # Hack: If the 'spawn' launch method is used, the logger will get pickled and this `__getstate__` gets called.
         # We create an experiment here in the main process, and attach to it in the worker process.
         # Using wandb-service, we persist the same experiment even if multiple `Trainer.fit/test/validate` calls
@@ -418,7 +419,7 @@ class WandbLogger(Logger):
 
     @override
     @rank_zero_only
-    def log_hyperparams(self, params: Union[Dict[str, Any], Namespace]) -> None:  # type: ignore[override]
+    def log_hyperparams(self, params: Union[dict[str, Any], Namespace]) -> None:  # type: ignore[override]
         params = _convert_params(params)
         params = _sanitize_callable_params(params)
         self.experiment.config.update(params, allow_val_change=True)
@@ -440,8 +441,8 @@ class WandbLogger(Logger):
     def log_table(
         self,
         key: str,
-        columns: Optional[List[str]] = None,
-        data: Optional[List[List[Any]]] = None,
+        columns: Optional[list[str]] = None,
+        data: Optional[list[list[Any]]] = None,
         dataframe: Any = None,
         step: Optional[int] = None,
     ) -> None:
@@ -457,8 +458,8 @@ class WandbLogger(Logger):
     def log_text(
         self,
         key: str,
-        columns: Optional[List[str]] = None,
-        data: Optional[List[List[str]]] = None,
+        columns: Optional[list[str]] = None,
+        data: Optional[list[list[str]]] = None,
         dataframe: Any = None,
         step: Optional[int] = None,
     ) -> None:
@@ -471,7 +472,7 @@ class WandbLogger(Logger):
 
     @rank_zero_only
     def log_html(
-        self, key: str, htmls: List[Any], step: Optional[int] = None, **kwargs: Any
+        self, key: str, htmls: list[Any], step: Optional[int] = None, **kwargs: Any
     ) -> None:
         """Log html files.
 
@@ -493,7 +494,7 @@ class WandbLogger(Logger):
 
     @rank_zero_only
     def log_image(
-        self, key: str, images: List[Any], step: Optional[int] = None, **kwargs: Any
+        self, key: str, images: list[Any], step: Optional[int] = None, **kwargs: Any
     ) -> None:
         """Log images (tensors, numpy arrays, PIL Images or file paths).
 
@@ -515,7 +516,7 @@ class WandbLogger(Logger):
 
     @rank_zero_only
     def log_audio(
-        self, key: str, audios: List[Any], step: Optional[int] = None, **kwargs: Any
+        self, key: str, audios: list[Any], step: Optional[int] = None, **kwargs: Any
     ) -> None:
         r"""Log audios (numpy arrays, or file paths).
 
@@ -545,7 +546,7 @@ class WandbLogger(Logger):
 
     @rank_zero_only
     def log_video(
-        self, key: str, videos: List[Any], step: Optional[int] = None, **kwargs: Any
+        self, key: str, videos: list[Any], step: Optional[int] = None, **kwargs: Any
     ) -> None:
         """Log videos (numpy arrays, or file paths).
 

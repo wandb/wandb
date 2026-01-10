@@ -3,7 +3,8 @@
 import os
 import pathlib
 import subprocess
-from typing import Mapping, Optional
+from collections.abc import Mapping
+from typing import Optional
 
 
 def build_wandb_core(

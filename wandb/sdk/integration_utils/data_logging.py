@@ -4,7 +4,7 @@
 # logging datasets and predictions to wandb.
 import sys
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import wandb
 
@@ -23,25 +23,25 @@ class ValidationDataLogger:
     practices.
     """
 
-    validation_inputs: Union[Sequence, Dict[str, Sequence]]
-    validation_targets: Optional[Union[Sequence, Dict[str, Sequence]]]
-    validation_indexes: List["_TableIndex"]
+    validation_inputs: Union[Sequence, dict[str, Sequence]]
+    validation_targets: Optional[Union[Sequence, dict[str, Sequence]]]
+    validation_indexes: list["_TableIndex"]
     prediction_row_processor: Optional[Callable]
     class_labels_table: Optional["wandb.Table"]
     infer_missing_processors: bool
 
     def __init__(
         self,
-        inputs: Union[Sequence, Dict[str, Sequence]],
-        targets: Optional[Union[Sequence, Dict[str, Sequence]]] = None,
-        indexes: Optional[List["_TableIndex"]] = None,
+        inputs: Union[Sequence, dict[str, Sequence]],
+        targets: Optional[Union[Sequence, dict[str, Sequence]]] = None,
+        indexes: Optional[list["_TableIndex"]] = None,
         validation_row_processor: Optional[Callable] = None,
         prediction_row_processor: Optional[Callable] = None,
         input_col_name: str = "input",
         target_col_name: str = "target",
         table_name: str = "wb_validation_data",
         artifact_type: str = "validation_dataset",
-        class_labels: Optional[List[str]] = None,
+        class_labels: Optional[list[str]] = None,
         infer_missing_processors: bool = True,
     ) -> None:
         """Initialize a new ValidationDataLogger.
@@ -142,7 +142,7 @@ class ValidationDataLogger:
 
     def make_predictions(
         self, predict_fn: Callable
-    ) -> Union[Sequence, Dict[str, Sequence]]:
+    ) -> Union[Sequence, dict[str, Sequence]]:
         """Produce predictions by passing `validation_inputs` to `predict_fn`.
 
         Args:
@@ -156,7 +156,7 @@ class ValidationDataLogger:
 
     def log_predictions(
         self,
-        predictions: Union[Sequence, Dict[str, Sequence]],
+        predictions: Union[Sequence, dict[str, Sequence]],
         prediction_col_name: str = "output",
         val_ndx_col_name: str = "val_row",
         table_name: str = "validation_predictions",
@@ -204,9 +204,9 @@ class ValidationDataLogger:
         return pred_table
 
 
-def _make_example(data: Any) -> Optional[Union[Dict, Sequence, Any]]:
+def _make_example(data: Any) -> Optional[Union[dict, Sequence, Any]]:
     """Used to make an example input, target, or output."""
-    example: Optional[Union[Dict, Sequence, Any]]
+    example: Optional[Union[dict, Sequence, Any]]
 
     if isinstance(data, dict):
         example = {}
@@ -247,14 +247,14 @@ def _infer_single_example_keyed_processor(
     example: Union[Sequence, Any],
     class_labels_table: Optional["wandb.Table"] = None,
     possible_base_example: Optional[Union[Sequence, Any]] = None,
-) -> Dict[str, Callable]:
+) -> dict[str, Callable]:
     """Infers a processor from a single example.
 
     Infers a processor from a single example with optional class_labels_table
     and base_example. Base example is useful for cases such as segmentation masks
     """
     shape = _get_example_shape(example)
-    processors: Dict[str, Callable] = {}
+    processors: dict[str, Callable] = {}
     if (
         class_labels_table is not None
         and len(shape) == 1
@@ -348,8 +348,8 @@ def _infer_single_example_keyed_processor(
 
 
 def _infer_validation_row_processor(
-    example_input: Union[Dict, Sequence],
-    example_target: Union[Dict, Sequence, Any],
+    example_input: Union[dict, Sequence],
+    example_target: Union[dict, Sequence, Any],
     class_labels_table: Optional["wandb.Table"] = None,
     input_col_name: str = "input",
     target_col_name: str = "target",
@@ -425,8 +425,8 @@ def _infer_validation_row_processor(
 
 
 def _infer_prediction_row_processor(
-    example_prediction: Union[Dict, Sequence],
-    example_input: Union[Dict, Sequence],
+    example_prediction: Union[dict, Sequence],
+    example_input: Union[dict, Sequence],
     class_labels_table: Optional["wandb.Table"] = None,
     input_col_name: str = "input",
     output_col_name: str = "output",

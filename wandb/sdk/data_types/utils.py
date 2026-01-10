@@ -1,8 +1,9 @@
 import datetime
 import logging
 import os
+from collections.abc import Sequence
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
+from typing import TYPE_CHECKING, Optional, Union, cast
 
 import wandb
 from wandb import util

@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Optional, cast
 
 if False:
     import boto3  # type: ignore
@@ -124,7 +124,7 @@ class SageMakerRunner(AbstractRunner):
     def __init__(
         self,
         api: Api,
-        backend_config: Dict[str, Any],
+        backend_config: dict[str, Any],
         environment: AwsEnvironment,
         registry: AbstractRegistry,
     ) -> None:
@@ -258,11 +258,11 @@ class SageMakerRunner(AbstractRunner):
 
 
 def merge_image_uri_with_algorithm_specification(
-    algorithm_specification: Optional[Dict[str, Any]],
+    algorithm_specification: Optional[dict[str, Any]],
     image_uri: Optional[str],
-    entrypoint_command: List[str],
-    args: Optional[List[str]],
-) -> Dict[str, Any]:
+    entrypoint_command: list[str],
+    args: Optional[list[str]],
+) -> dict[str, Any]:
     """Create an AWS AlgorithmSpecification.
 
     AWS Sagemaker algorithms require a training image and an input mode. If the user
@@ -293,14 +293,14 @@ def build_sagemaker_args(
     api: Api,
     role_arn: str,
     entry_point: Optional[EntryPoint],
-    args: Optional[List[str]],
+    args: Optional[list[str]],
     max_env_length: int,
     image_uri: str,
     default_output_path: Optional[str] = None,
-) -> Dict[str, Any]:
-    sagemaker_args: Dict[str, Any] = {}
+) -> dict[str, Any]:
+    sagemaker_args: dict[str, Any] = {}
     resource_args = launch_project.fill_macros(image_uri)
-    given_sagemaker_args: Optional[Dict[str, Any]] = resource_args.get("sagemaker")
+    given_sagemaker_args: Optional[dict[str, Any]] = resource_args.get("sagemaker")
 
     if given_sagemaker_args is None:
         raise LaunchError(
@@ -383,7 +383,7 @@ def build_sagemaker_args(
 
 async def launch_sagemaker_job(
     launch_project: LaunchProject,
-    sagemaker_args: Dict[str, Any],
+    sagemaker_args: dict[str, Any],
     sagemaker_client: "boto3.Client",
     log_client: Optional["boto3.Client"] = None,
 ) -> SagemakerSubmittedRun:
@@ -404,8 +404,8 @@ async def launch_sagemaker_job(
 
 
 def get_role_arn(
-    sagemaker_args: Dict[str, Any],
-    backend_config: Dict[str, Any],
+    sagemaker_args: dict[str, Any],
+    backend_config: dict[str, Any],
     account_id: str,
     partition: str,
 ) -> str:

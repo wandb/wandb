@@ -1,4 +1,5 @@
-from typing import AbstractSet
+from __future__ import annotations
+
 from unittest import mock
 
 import wandb
@@ -7,7 +8,7 @@ from wandb.proto.v3.wandb_telemetry_pb2 import Feature
 # TODO: implement the telemetry context resolver
 
 
-def get_features(telemetry) -> AbstractSet[str]:
+def get_features(telemetry) -> set[str]:
     features = telemetry.get("3", [])
     return {
         Feature.DESCRIPTOR.fields_by_number[feature_number].name

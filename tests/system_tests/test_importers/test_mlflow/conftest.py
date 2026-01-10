@@ -5,8 +5,9 @@ import time
 import urllib.parse
 import uuid
 import warnings
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, List, Optional
+from typing import Optional
 
 import hypothesis.strategies as st
 import mlflow
@@ -91,7 +92,7 @@ class MlflowLoggingConfig:
 #             make_run(batch_size=50)
 
 
-def batch_metrics(metrics, bs: int) -> Iterable[List[Metric]]:
+def batch_metrics(metrics, bs: int) -> Iterable[list[Metric]]:
     step = 0
     for i, batch in enumerate(batched(bs, metrics)):
         batched_metrics = []

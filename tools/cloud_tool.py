@@ -3,7 +3,7 @@ import logging
 import subprocess
 import sys
 from dataclasses import dataclass, fields
-from typing import Any, List, Literal
+from typing import Any, Literal
 
 Command = Literal["gke", "gce"]
 
@@ -278,7 +278,7 @@ class GCE:
 
 
 if __name__ == "__main__":
-    commands: List[Command] = ["gke", "gce"]
+    commands: list[Command] = ["gke", "gce"]
 
     parser = argparse.ArgumentParser()
 

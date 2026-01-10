@@ -15,7 +15,7 @@ import nox
 
 nox.options.default_venv_backend = "uv"
 
-_SUPPORTED_PYTHONS = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+_SUPPORTED_PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 # Directories in which to create temporary per-session directories
 # containing test results and pytest/Go coverage.
@@ -179,10 +179,6 @@ def unit_tests(session: nox.Session) -> None:
 
     paths = session.posargs or ["tests/unit_tests"]
 
-    # Launch is not supported on 3.8
-    if session.python == "3.8":
-        paths.append("--ignore=tests/unit_tests/test_launch")
-
     run_pytest(
         session,
         paths=paths,
@@ -233,10 +229,6 @@ def system_tests(session: nox.Session) -> None:
         "--ignore=tests/system_tests/test_functional",
         "--ignore=tests/system_tests/test_experimental",
     ]
-
-    # Launch is not supported on 3.8
-    if session.python == "3.8":
-        paths.append("--ignore=tests/system_tests/test_launch")
 
     run_pytest(
         session,

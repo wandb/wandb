@@ -1,5 +1,5 @@
 import urllib.parse
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import wandb
 from wandb import env
@@ -33,7 +33,7 @@ def sweep(
     sweep: Union[dict, Callable],
     entity: Optional[str] = None,
     project: Optional[str] = None,
-    prior_runs: Optional[List[str]] = None,
+    prior_runs: Optional[list[str]] = None,
 ) -> str:
     """Initialize a hyperparameter sweep.
 
@@ -95,7 +95,7 @@ def sweep(
 
 
 def controller(
-    sweep_id_or_config: Optional[Union[str, Dict]] = None,
+    sweep_id_or_config: Optional[Union[str, dict]] = None,
     entity: Optional[str] = None,
     project: Optional[str] = None,
 ) -> "_WandbController":

@@ -1,15 +1,13 @@
 """Artifact manifest v1."""
 
 # Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
-# ruff: noqa: UP006
 
 from __future__ import annotations
 
 from operator import itemgetter
-from typing import Any, ClassVar, Dict, Literal, final
+from typing import Annotated, Any, ClassVar, Dict, Literal, final
 
 from pydantic import Field
-from typing_extensions import Annotated
 
 from wandb.sdk.lib.hashutil import HexMD5, _md5
 

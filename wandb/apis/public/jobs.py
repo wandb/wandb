@@ -10,7 +10,8 @@ import json
 import os
 import shutil
 import time
-from typing import TYPE_CHECKING, Any, Literal, Mapping
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, Literal
 
 from wandb_gql import gql
 

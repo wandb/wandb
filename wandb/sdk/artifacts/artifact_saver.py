@@ -6,7 +6,8 @@ import concurrent.futures
 import json
 import os
 import tempfile
-from typing import TYPE_CHECKING, Awaitable, Sequence
+from collections.abc import Awaitable, Sequence
+from typing import TYPE_CHECKING
 
 import wandb
 import wandb.filesync.step_prepare

@@ -28,9 +28,9 @@ class _HttpEntryInfo:
     """Partial ArtifactManifestEntry fields parsed from an HTTP response."""
 
     ref: str  # The reference URL for the manifest entry, i.e. original URL of the request
-    extra: Dict[str, Any]  # noqa: UP006
-    digest: Optional[str]  # noqa: UP045
-    size: Optional[int]  # noqa: UP045
+    extra: Dict[str, Any]
+    digest: Optional[str]
+    size: Optional[int]
 
     @classmethod
     def from_response(cls, rsp: requests.Response) -> Self:

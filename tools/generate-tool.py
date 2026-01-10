@@ -14,8 +14,8 @@ import filecmp
 import os
 import subprocess
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path, PurePath
-from typing import Iterator, List
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--generate", action="store_true", help="generate files")
@@ -37,8 +37,8 @@ GENERATE_SUFFIX = "_generate.py"
 GENERATED_SUFFIX = "_generated.py"
 
 
-def get_paths() -> List[PurePath]:
-    paths: List[PurePath] = []
+def get_paths() -> list[PurePath]:
+    paths: list[PurePath] = []
     if not args.files:
         exclude_dirs = {"vendor", "__pycache__"}
         root_dir = Path(__file__).resolve().parent.parent / "wandb"
@@ -61,7 +61,7 @@ def generate_file(generate_path: Path, output_path: Path) -> None:
         f.write(output)
 
 
-def generate_files(paths: List[PurePath]) -> None:
+def generate_files(paths: list[PurePath]) -> None:
     for p in paths:
         output_path = p.parent / str(p).replace(GENERATE_SUFFIX, GENERATED_SUFFIX)
         print(f"INFO: Generating {output_path}...")
@@ -73,7 +73,7 @@ def format_file(filename: Path) -> None:
     assert status == 0, f"Error: {output}"
 
 
-def format_files(paths: List[PurePath]) -> None:
+def format_files(paths: list[PurePath]) -> None:
     for p in paths:
         output_path = p.parent / str(p).replace(GENERATE_SUFFIX, GENERATED_SUFFIX)
         print(f"INFO: Formatting {output_path}...")
@@ -91,7 +91,7 @@ def temp_fname() -> Iterator[PurePath]:
         os.unlink(tmp_name)
 
 
-def check_files(paths: List[PurePath]) -> None:
+def check_files(paths: list[PurePath]) -> None:
     for p in paths:
         generated_path = p.parent / str(p).replace(GENERATE_SUFFIX, GENERATED_SUFFIX)
         print(f"INFO: Checking {generated_path}...")

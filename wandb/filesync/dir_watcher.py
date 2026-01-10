@@ -5,7 +5,8 @@ import logging
 import os
 import queue
 import time
-from typing import TYPE_CHECKING, Any, Mapping, MutableMapping, MutableSet, Optional
+from collections.abc import Mapping, MutableMapping, MutableSet
+from typing import TYPE_CHECKING, Any, Optional
 
 from wandb import util
 from wandb.sdk.lib.filesystem import GlobStr

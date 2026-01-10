@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -34,7 +34,7 @@ State = Literal[
 
 
 class Status:
-    def __init__(self, state: "State" = "unknown", messages: List[str] = None):  # type: ignore
+    def __init__(self, state: "State" = "unknown", messages: list[str] = None):  # type: ignore
         self.state = state
         self.messages = messages or []
 
@@ -78,7 +78,7 @@ class AbstractRun(ABC):
         """Return the logs associated with the run."""
 
     def _run_cmd(
-        self, cmd: List[str], output_only: Optional[bool] = False
+        self, cmd: list[str], output_only: Optional[bool] = False
     ) -> Optional[Union["subprocess.Popen[bytes]", bytes]]:
         """Run the command and returns a popen object or the stdout of the command.
 
@@ -136,7 +136,7 @@ class AbstractRunner(ABC):
     def __init__(
         self,
         api: Api,
-        backend_config: Dict[str, Any],
+        backend_config: dict[str, Any],
     ) -> None:
         self._api = api
         self.backend_config = backend_config
