@@ -40,41 +40,6 @@ class Reports(SizedPaginator["BetaReport"]):
         per_page (int): Number of reports to fetch per page (default is 50).
     """
 
-    QUERY = gql(
-        """
-        query ProjectViews($project: String!, $entity: String!, $reportCursor: String,
-            $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
-            project(name: $project, entityName: $entity) {
-                allViews(viewType: $viewType, viewName: $viewName, first:
-                    $reportLimit, after: $reportCursor) {
-                    edges {
-                        node {
-                            id
-                            name
-                            displayName
-                            description
-                            user {
-                                username
-                                photoUrl
-                                email
-                            }
-                            spec
-                            updatedAt
-                            createdAt
-                        }
-                        cursor
-                    }
-                    pageInfo {
-                        endCursor
-                        hasNextPage
-                    }
-
-                }
-            }
-        }
-        """
-    )
-
     def __init__(
         self,
         client: RetryingClient,
@@ -91,6 +56,15 @@ class Reports(SizedPaginator["BetaReport"]):
             "viewName": self.name,
         }
         super().__init__(client, variables, per_page)
+
+    def _update_response(self) -> None:
+        """Fetch and validate the response data for the current page."""
+        from wandb.apis._generated import PROJECT_VIEWS_GQL, ProjectViews
+
+        data = self.client.execute(
+            gql(PROJECT_VIEWS_GQL), variable_values=self.variables
+        )
+        self.last_response = ProjectViews.model_validate(data)
 
     @property
     def _length(self) -> int | None:
@@ -110,9 +84,7 @@ class Reports(SizedPaginator["BetaReport"]):
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return bool(
-                self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
-            )
+            return self.last_response.project.all_views.page_info.has_next_page
         return True
 
     @property
@@ -122,7 +94,7 @@ class Reports(SizedPaginator["BetaReport"]):
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return self.last_response["project"]["allViews"]["edges"][-1]["cursor"]
+            return self.last_response.project.all_views.page_info.end_cursor
         return None
 
     def update_variables(self) -> None:
@@ -132,19 +104,20 @@ class Reports(SizedPaginator["BetaReport"]):
         )
 
     def convert_objects(self) -> list[BetaReport]:
-        """Converts GraphQL edges to File objects."""
-        if self.last_response["project"] is None:
+        """Converts GraphQL edges to BetaReport objects."""
+        if self.last_response.project is None:
             raise ValueError(
                 f"Project {self.variables['project']} does not exist under entity {self.variables['entity']}"
             )
         return [
             BetaReport(
                 self.client,
-                r["node"],
+                edge.node.model_dump(),
                 entity=self.project.entity,
                 project=self.project.name,
             )
-            for r in self.last_response["project"]["allViews"]["edges"]
+            for edge in self.last_response.project.all_views.edges
+            if edge.node is not None
         ]
 
     def __repr__(self) -> str:

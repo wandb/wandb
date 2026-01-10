@@ -1,0 +1,32 @@
+query ProjectViews(
+  $project: String!
+  $entity: String!
+  $reportCursor: String
+  $reportLimit: Int!
+  $viewType: String = "runs"
+  $viewName: String
+) {
+  project(name: $project, entityName: $entity) {
+    allViews(viewType: $viewType, viewName: $viewName, first: $reportLimit, after: $reportCursor) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          id
+          name
+          displayName
+          description
+          user {
+            username
+            photoUrl
+            email
+          }
+          spec
+          updatedAt
+          createdAt
+        }
+      }
+    }
+  }
+}
