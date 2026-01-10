@@ -26,6 +26,18 @@ class CreatedProjectFragment(GQLResult):
     views: Optional[str]
 
 
+class FileFragment(GQLResult):
+    typename__: Typename[Literal["File"]] = "File"
+    id: GQLId
+    name: str
+    url: Optional[str]
+    direct_url: str = Field(alias="directUrl")
+    size_bytes: int = Field(alias="sizeBytes")
+    mimetype: Optional[str]
+    updated_at: Optional[str] = Field(alias="updatedAt")
+    md_5: Optional[str] = Field(alias="md5")
+
+
 class LegacySweepFragment(GQLResult):
     typename__: Typename[Literal["Sweep"]] = "Sweep"
     id: GQLId
@@ -165,6 +177,7 @@ class UserInfoFragment(GQLResult):
 
 ApiKeyFragment.model_rebuild()
 CreatedProjectFragment.model_rebuild()
+FileFragment.model_rebuild()
 LegacySweepFragment.model_rebuild()
 LightRunFragment.model_rebuild()
 LightRunFragmentUser.model_rebuild()
