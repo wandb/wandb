@@ -53,6 +53,7 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Settings: settings,
 	}
 	fileTransferManager := stream.NewFileTransferManager(
+		baseURL,
 		filetransfer.NewFileTransferStats(),
 		logger,
 		settings,

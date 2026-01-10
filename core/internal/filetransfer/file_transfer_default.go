@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
@@ -17,31 +18,25 @@ import (
 // DefaultFileTransfer uploads or downloads files to/from the server
 type DefaultFileTransfer struct {
 	// client is the HTTP client for the file transfer
-	client *retryablehttp.Client
+	client api.RetryableClient
 
 	// logger is the logger for the file transfer
 	logger *observability.CoreLogger
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
-
-	// extraHeaders attached to presigned urls, using same set of
-	// headers from graphql requests.
-	extraHeaders map[string]string
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
 func NewDefaultFileTransfer(
-	client *retryablehttp.Client,
+	client api.RetryableClient,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
-	extraHeaders map[string]string,
 ) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
 		logger:            logger,
 		client:            client,
 		fileTransferStats: fileTransferStats,
-		extraHeaders:      extraHeaders,
 	}
 	return fileTransfer
 }
@@ -76,7 +71,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		return err
 	}
 
-	req, err := ft.newRequest(http.MethodPut, task.Url, requestBody)
+	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, requestBody)
 	if err != nil {
 		return err
 	}
@@ -145,7 +140,7 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	}
 
 	// TODO: redo it to use the progress writer, to track the download progress
-	req, err := ft.newRequest(http.MethodGet, task.Url, nil)
+	req, err := retryablehttp.NewRequest(http.MethodGet, task.Url, nil)
 	if err != nil {
 		return err
 	}
@@ -186,21 +181,6 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 	return nil
-}
-
-func (ft *DefaultFileTransfer) newRequest(
-	method string,
-	url string,
-	body io.Reader,
-) (*retryablehttp.Request, error) {
-	req, err := retryablehttp.NewRequest(method, url, body)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range ft.extraHeaders {
-		req.Header.Set(k, v)
-	}
-	return req, nil
 }
 
 func getUploadRequestBody(
