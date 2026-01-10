@@ -2,6 +2,7 @@
 # Source: tools/graphql_codegen/api/
 
 __all__ = [
+    "ARTIFACT_OF_TYPE_GQL",
     "CREATE_INVITE_GQL",
     "CREATE_PROJECT_GQL",
     "CREATE_RUN_GQL",
@@ -10,10 +11,14 @@ __all__ = [
     "CREATE_USER_FROM_ADMIN_GQL",
     "DELETE_API_KEY_GQL",
     "DELETE_FILES_GQL",
+    "DELETE_FROM_RUN_QUEUE_GQL",
     "DELETE_INVITE_GQL",
     "DELETE_RUN_GQL",
+    "DELETE_RUN_QUEUE_GQL",
+    "FETCH_RUN_QUEUE_FROM_PROJECT_GQL",
     "GENERATE_API_KEY_GQL",
     "GET_DEFAULT_ENTITY_GQL",
+    "GET_DEFAULT_RESOURCE_CONFIG_GQL",
     "GET_LIGHT_RUNS_GQL",
     "GET_LIGHT_RUN_GQL",
     "GET_PROJECTS_GQL",
@@ -24,6 +29,10 @@ __all__ = [
     "GET_RUN_GQL",
     "GET_RUN_HISTORY_GQL",
     "GET_RUN_HISTORY_KEYS_GQL",
+    "GET_RUN_QUEUE_ITEMS_GQL",
+    "GET_RUN_QUEUE_ITEMS_LEGACY_GQL",
+    "GET_RUN_QUEUE_ITEM_GQL",
+    "GET_RUN_QUEUE_METADATA_GQL",
     "GET_RUN_SAMPLED_HISTORY_GQL",
     "GET_RUN_STATE_GQL",
     "GET_SWEEPS_GQL",
@@ -122,6 +131,141 @@ query ProbeInputFields($type: String!) {
   typeInfo: __type(name: $type) {
     inputFields {
       name
+    }
+  }
+}
+"""
+
+GET_RUN_QUEUE_ITEMS_LEGACY_GQL = """
+query GetRunQueueItemsLegacy($projectName: String!, $entityName: String!, $runQueue: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    runQueue(name: $runQueue) {
+      runQueueItems {
+        edges {
+          node {
+            id
+            state
+            associatedRunId
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+GET_RUN_QUEUE_ITEM_GQL = """
+query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!, $itemId: ID!) {
+  project(name: $projectName, entityName: $entityName) {
+    runQueue(name: $runQueue) {
+      runQueueItem(id: $itemId) {
+        id
+        state
+        associatedRunId
+      }
+    }
+  }
+}
+"""
+
+FETCH_RUN_QUEUE_FROM_PROJECT_GQL = """
+query FetchRunQueueFromProject($entityName: String!, $projectName: String!, $runQueueName: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    runQueue(name: $runQueueName) {
+      id
+    }
+  }
+}
+"""
+
+DELETE_FROM_RUN_QUEUE_GQL = """
+mutation DeleteFromRunQueue($queueID: ID!, $runQueueItemId: ID!) {
+  deleteFromRunQueue(input: {queueID: $queueID, runQueueItemId: $runQueueItemId}) {
+    success
+    clientMutationId
+  }
+}
+"""
+
+DELETE_RUN_QUEUE_GQL = """
+mutation DeleteRunQueue($id: ID!) {
+  deleteRunQueues(input: {queueIDs: [$id]}) {
+    success
+    clientMutationId
+  }
+}
+"""
+
+GET_RUN_QUEUE_METADATA_GQL = """
+query GetRunQueueMetadata($projectName: String!, $entityName: String!, $runQueue: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    runQueue(name: $runQueue) {
+      id
+      access
+      defaultResourceConfigID
+      prioritizationMode
+      externalLinks
+    }
+  }
+}
+"""
+
+GET_DEFAULT_RESOURCE_CONFIG_GQL = """
+query GetDefaultResourceConfig($entityName: String!, $id: ID!) {
+  entity(name: $entityName) {
+    defaultResourceConfig(id: $id) {
+      config
+      resource
+      templateVariables {
+        name
+        schema
+      }
+    }
+  }
+}
+"""
+
+GET_RUN_QUEUE_ITEMS_GQL = """
+query GetRunQueueItems($projectName: String!, $entityName: String!, $runQueue: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    runQueue(name: $runQueue) {
+      runQueueItems(first: 100) {
+        edges {
+          node {
+            id
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+ARTIFACT_OF_TYPE_GQL = """
+query ArtifactOfType($entityName: String!, $projectName: String!, $artifactTypeName: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactType(name: $artifactTypeName) {
+      artifactCollections {
+        edges {
+          node {
+            __typename
+            artifacts {
+              edges {
+                node {
+                  id
+                  state
+                  aliases {
+                    alias
+                  }
+                  artifactSequence {
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
