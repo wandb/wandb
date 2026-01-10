@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/httplayers"
 )
 
 const (
@@ -52,7 +53,6 @@ type clientImpl struct {
 	baseURL *url.URL
 
 	retryableHTTP      RetryableClient    // underlying HTTP client
-	extraHeaders       map[string]string  // headers to add to each request
 	credentialProvider CredentialProvider // credentials for W&B requests only
 
 	logger *slog.Logger
@@ -178,16 +178,27 @@ func NewClient(opts ClientOptions) RetryableClient {
 		}
 	}
 
+	extraHeaders := make(http.Header, len(opts.ExtraHeaders)+1)
+	extraHeaders.Set("User-Agent", "wandb-core")
+	for header, value := range opts.ExtraHeaders {
+		extraHeaders.Set(header, value)
+	}
+
+	wandbOnlyLayers := httplayers.LimitTo(opts.BaseURL, httplayers.Concat(
+		httplayers.ExtraHeaders(extraHeaders),
+		ResponseBasedRateLimiter(),
+	))
+
 	retryableHTTP.HTTPClient.Transport =
-		NewPeekingTransport(
-			opts.NetworkPeeker,
-			NewRateLimitedTransport(transport),
-		)
+		httplayers.WrapRoundTripper(transport,
+			httplayers.Concat(
+				NetworkPeeker(opts.NetworkPeeker),
+				wandbOnlyLayers,
+			))
 
 	return &clientImpl{
 		baseURL:            opts.BaseURL,
 		retryableHTTP:      retryableHTTP,
-		extraHeaders:       opts.ExtraHeaders,
 		credentialProvider: opts.CredentialProvider,
 		logger:             opts.Logger,
 	}
