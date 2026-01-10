@@ -237,8 +237,9 @@ def test_run_download_history_exports(
     )
 
     download_dir = tempfile.mkdtemp()
-    file_names, contains_live_data = run.download_history_exports(
-        download_dir=download_dir
+    download_result = run.download_history_exports(
+        download_dir=download_dir,
+        require_complete_history=False,
     )
 
     expected_file_names = [
@@ -248,9 +249,11 @@ def test_run_download_history_exports(
         )
         for i in range(len(parquet_files))
     ]
-    assert file_names == expected_file_names
+    assert download_result.file_names == expected_file_names
 
-    for file_name in file_names:
+    for file_name in download_result.file_names:
         assert file_name.exists()
 
-    assert contains_live_data == (live_data is not None and len(live_data) > 0)
+    assert download_result.contains_live_data == (
+        live_data is not None and len(live_data) > 0
+    )
