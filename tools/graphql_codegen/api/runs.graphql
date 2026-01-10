@@ -1,0 +1,212 @@
+# Run fragment that excludes expensive fields (e.g. config, systemMetrics, summaryMetrics, historyKeys).
+fragment LightRunFragment on Run {
+  __typename
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  projectId
+  user {
+    name
+    username
+  }
+}
+
+# Full Run fragment that includes expensive fields
+fragment RunFragment on Run {
+  __typename
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  projectId
+  user {
+    name
+    username
+  }
+
+  # expensive extra fields that weren't included in LightRunFragment
+  config
+  systemMetrics
+  summaryMetrics
+  historyKeys
+}
+
+# Paginated query for fetching runs in a project (full data).
+query GetRuns(
+  $project: String!
+  $entity: String!
+  $cursor: String
+  $perPage: Int = 50
+  $order: String
+  $filters: JSONString
+) {
+  project(name: $project, entityName: $entity) {
+    # `internalId` may not be supported by older servers.
+    # @include(if: true) makes the field optional w/default `None`.
+    # Runtime code should use `gql_compat()` to omit if needed.
+    internalId @include(if: true)
+    readOnly
+    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+      totalCount
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...RunFragment
+        }
+      }
+    }
+  }
+}
+
+# Paginated query for fetching runs in a project (`lazy` mode).
+query GetLightRuns(
+  $project: String!
+  $entity: String!
+  $cursor: String
+  $perPage: Int = 50
+  $order: String
+  $filters: JSONString
+) {
+  project(name: $project, entityName: $entity) {
+    # `internalId` may not be supported by older servers.
+    # @include(if: true) makes the field optional w/default `None`.
+    # Runtime code should use `gql_compat()` to omit if needed.
+    internalId @include(if: true)
+    readOnly
+    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+      totalCount
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...LightRunFragment
+        }
+      }
+    }
+  }
+}
+
+# Query for fetching a single run (full data).
+query GetRun($name: String!, $project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      # `projectId` may not be supported by older servers.
+      # @include(if: true) makes the field optional w/default `None`.
+      # Runtime code should use `gql_compat()` to omit if needed.
+      projectId @include(if: true)
+      ...RunFragment
+    }
+  }
+}
+
+# Query for fetching a single run (`lazy` mode).
+query GetLightRun($name: String!, $project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      # `projectId` may not be supported by older servers.
+      # @include(if: true) makes the field optional w/default `None`.
+      # Runtime code should use `gql_compat()` to omit if needed.
+      projectId @include(if: true)
+      ...LightRunFragment
+    }
+  }
+}
+
+# Query for checking run state (used by wait_until_finished).
+query GetRunState($name: String!, $project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      state
+    }
+  }
+}
+
+# Mutation to create a new run.
+mutation CreateRun($name: String!, $project: String, $entity: String, $state: String) {
+  upsertBucket(input: { modelName: $project, entityName: $entity, name: $name, state: $state }) {
+    bucket {
+      project {
+        name
+        entity {
+          name
+        }
+      }
+      id
+      name
+    }
+    inserted
+  }
+}
+
+# Mutation to update an existing run.
+mutation UpdateRun($input: UpsertBucketInput!) {
+  upsertBucket(input: $input) {
+    bucket {
+      ...RunFragment
+    }
+  }
+}
+
+mutation DeleteRun($id: ID!, $deleteArtifacts: Boolean) {
+  deleteRun(input: { id: $id, deleteArtifacts: $deleteArtifacts }) {
+    clientMutationId
+  }
+}
+
+query GetRunSampledHistory($name: String!, $project: String!, $entity: String!, $specs: [JSONString!]!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      sampledHistory(specs: $specs)
+    }
+  }
+}
+
+query GetRunHistory($name: String!, $project: String!, $entity: String!, $samples: Int) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      history(samples: $samples)
+    }
+  }
+}
+
+query GetRunEvents($name: String!, $project: String!, $entity: String!, $samples: Int) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      events(samples: $samples)
+    }
+  }
+}
+
+query GetRunHistoryKeys($name: String!, $project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      historyKeys
+    }
+  }
+}

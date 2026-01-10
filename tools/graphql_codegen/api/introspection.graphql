@@ -1,0 +1,7 @@
+query ProbeFields($type: String!) {
+  typeInfo: __type(name: $type) {
+    fields {
+      name
+    }
+  }
+}
