@@ -176,13 +176,13 @@ func convertHistoryRowToKeyValueList(
 }
 
 // getMinLiveStep gets the minimum step present from the live data.
-func getMinLiveStep(liveSteps []float64) (int64, error) {
-	minLiveStep := math.MaxFloat64
+func getMinLiveStep(liveSteps []int64) (int64, error) {
+	minLiveStep := int64(math.MaxInt64)
 	for _, stepValue := range liveSteps {
 		if stepValue < minLiveStep {
 			minLiveStep = stepValue
 		}
 	}
 
-	return int64(minLiveStep), nil
+	return minLiveStep, nil
 }
