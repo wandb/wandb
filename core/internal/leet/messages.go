@@ -12,6 +12,7 @@ type MetricData struct {
 
 // HistoryMsg contains metrics data from a wandb history record.
 type HistoryMsg struct {
+	RunPath string
 	Metrics map[string]MetricData
 }
 
@@ -79,3 +80,43 @@ type LeftSidebarAnimationMsg struct{}
 
 // RightSidebarAnimationMsg is sent during right sidebar animations.
 type RightSidebarAnimationMsg struct{}
+
+// WorkspaceRunsAnimationMsg
+type WorkspaceRunsAnimationMsg struct{}
+
+// WorkspaceInitMsg is emitted when a workspace run reader has been initialized.
+type WorkspaceInitMsg struct {
+	RunKey  string
+	RunPath string
+	Reader  *WandbReader
+}
+
+// WorkspaceChunkedBatchMsg wraps a ChunkedBatchMsg with the originating run key.
+type WorkspaceChunkedBatchMsg struct {
+	RunKey string
+	Batch  ChunkedBatchMsg
+}
+
+// WorkspaceBatchedRecordsMsg wraps a BatchedRecordsMsg with the originating run key.
+type WorkspaceBatchedRecordsMsg struct {
+	RunKey string
+	Batch  BatchedRecordsMsg
+}
+
+// WorkspaceFileChangedMsg is emitted when a watched workspace run's .wandb
+// file changes on disk.
+//
+// It carries the run key so the workspace can refresh just that run.
+type WorkspaceFileChangedMsg struct {
+	RunKey string
+}
+
+// WorkspaceRunDirsMsg is emitted after polling the wandb directory.
+//
+// RunKeys contains the set of run directory names (e.g. "run-..." / "offline-run-...").
+// If Err is non-nil, RunKeys may be nil and callers should treat the snapshot
+// as unusable.
+type WorkspaceRunDirsMsg struct {
+	RunKeys []string
+	Err     error
+}

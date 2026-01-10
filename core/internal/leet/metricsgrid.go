@@ -3,8 +3,10 @@ package leet
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -37,11 +39,14 @@ type MetricsGrid struct {
 	// Charts visible on the current page grid.
 	currentPage [][]*EpochLineChart
 
+	// previousPage holds charts from the last visible page for parking.
+	previousPage []*EpochLineChart
+
 	// Chart focus management.
 	focus *Focus // focus.Row/Col only meaningful relative to currentPage
 
 	// Filter state.
-	filter Filter
+	filter *Filter
 
 	// Stable color assignment.
 	colorOfTitle map[string]lipgloss.AdaptiveColor
@@ -65,6 +70,7 @@ func NewMetricsGrid(
 		filtered:     make([]*EpochLineChart, 0),
 		currentPage:  make([][]*EpochLineChart, gridRows),
 		focus:        focus,
+		filter:       NewFilter(),
 		logger:       logger,
 		colorOfTitle: make(map[string]lipgloss.AdaptiveColor),
 	}
@@ -98,7 +104,8 @@ func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) G
 // creating charts as needed, resorting, reapplying filters, and reloading the page.
 // It preserves focus on the previously focused chart when possible.
 // Returns true if there was anything to draw.
-func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
+func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
+	metrics := msg.Metrics
 	if len(metrics) == 0 {
 		return false
 	}
@@ -107,15 +114,14 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 	prevTitle := mg.saveFocusTitle()
 
 	needsSort := false
-	dims := mg.CalculateChartDimensions(mg.width, mg.height)
 
 	mg.mu.Lock()
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 
 	for name, data := range metrics {
 		chart, exists := mg.byTitle[name]
 		if !exists {
-			chart = NewEpochLineChart(dims.CellW, dims.CellH, name)
+			chart = NewEpochLineChart(name)
 			mg.all = append(mg.all, chart)
 			mg.byTitle[name] = chart
 			needsSort = true
@@ -124,12 +130,13 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 				mg.logger.Debug(fmt.Sprintf("metricsgrid: created %d charts", len(mg.all)))
 			}
 		}
-		wg.Go(func() {
-			chart.AddData(data)
-		})
+		// wg.Go(func() {
+		// 	chart.AddData(msg.RunPath, data)
+		// })
+		chart.AddData(msg.RunPath, data)
 	}
 
-	wg.Wait()
+	// wg.Wait()
 
 	// Keep ordering, colors, maps and filtered set in sync.
 	if needsSort {
@@ -202,9 +209,11 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 	for _, chart := range mg.all {
 		mg.byTitle[chart.Title()] = chart
 
+		// TODO? In single-run view, use different colors?
 		// Stable color per title (no reshuffling when new charts arrive).
-		col := mg.colorForNoLock(chart.Title())
-		chart.SetGraphStyle(lipgloss.NewStyle().Foreground(col))
+		mg.colorForNoLock(chart.Title())
+		// col := mg.colorForNoLock(chart.Title())
+		// chart.SetGraphStyle(lipgloss.NewStyle().Foreground(col))
 	}
 
 	// Ensure filtered mirrors all when filter is empty.
@@ -386,37 +395,50 @@ func (mg *MetricsGrid) Navigate(direction int) {
 //
 // Snapshot page first; do not hold mg.mu while drawing.
 func (mg *MetricsGrid) drawVisible() {
-	page := mg.snapshotCurrentPage()
 	dims := mg.CalculateChartDimensions(mg.width, mg.height)
 
-	for row := range len(page) {
-		for col := range len(page[row]) {
-			if ch := page[row][col]; ch != nil {
-				// Ensure visible charts always match current cell dims.
-				if ch.Width() != dims.CellW || ch.Height() != dims.CellH {
-					ch.Resize(dims.CellW, dims.CellH)
-				}
-				ch.dirty = true
-				ch.Draw()
-				ch.dirty = false
+	mg.mu.Lock()
+	currentCharts := mg.currentPageChartsNoLock()
+	previousCharts := mg.previousPage
+	mg.previousPage = currentCharts
+	mg.mu.Unlock()
+
+	// Build set for O(1) visibility check.
+	visible := make(map[*EpochLineChart]struct{}, len(currentCharts))
+	for _, ch := range currentCharts {
+		if ch != nil {
+			visible[ch] = struct{}{}
+		}
+	}
+
+	// Park charts no longer visible.
+	for _, ch := range previousCharts {
+		if ch != nil {
+			if _, stillVisible := visible[ch]; !stillVisible {
+				ch.Resize(parkedCanvasSize, parkedCanvasSize)
 			}
+		}
+	}
+
+	// Resize and draw visible charts.
+	for _, ch := range currentCharts {
+		if ch != nil {
+			ch.Resize(dims.CellW, dims.CellH)
+			ch.Draw()
 		}
 	}
 }
 
-// snapshotCurrentPage copies the 2D slice headers.
-func (mg *MetricsGrid) snapshotCurrentPage() [][]*EpochLineChart {
-	mg.mu.RLock()
-	defer mg.mu.RUnlock()
-
-	cp := make([][]*EpochLineChart, len(mg.currentPage))
-	for i := range mg.currentPage {
-		if mg.currentPage[i] == nil {
-			continue
+func (mg *MetricsGrid) currentPageChartsNoLock() []*EpochLineChart {
+	var charts []*EpochLineChart
+	for row := range mg.currentPage {
+		for col := range mg.currentPage[row] {
+			if ch := mg.currentPage[row][col]; ch != nil {
+				charts = append(charts, ch)
+			}
 		}
-		cp[i] = append([]*EpochLineChart(nil), mg.currentPage[i]...)
 	}
-	return cp
+	return charts
 }
 
 // saveFocusTitle returns the title of the currently focused main-grid chart,
@@ -707,5 +729,98 @@ func (mg *MetricsGrid) broadcastEndInspection() {
 				ch.DrawIfNeeded()
 			}
 		}
+	}
+}
+
+func (mg *MetricsGrid) handleMetricsFilterKey(msg tea.KeyMsg) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		mg.ExitFilterMode(false)
+	case tea.KeyEnter:
+		mg.ExitFilterMode(true)
+	case tea.KeyTab:
+		mg.ToggleFilterMatchMode()
+	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
+		mg.UpdateFilterDraft(msg)
+		mg.ApplyFilter()
+		mg.drawVisible()
+	}
+}
+
+// Grid-layout config handler.
+func (mg *MetricsGrid) handleGridConfigNumberKey(msg tea.KeyMsg, layout Layout) {
+	defer mg.config.SetPendingGridConfig(gridConfigNone)
+
+	if msg.String() == "esc" {
+		return
+	}
+
+	num, err := strconv.Atoi(msg.String())
+	if err != nil {
+		return
+	}
+
+	statusMsg, err := mg.config.SetGridConfig(num)
+	if err != nil {
+		mg.logger.Error(fmt.Sprintf("model: failed to update config: %v", err))
+		return
+	}
+
+	mg.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+	mg.logger.Info(statusMsg)
+}
+
+func (mg *MetricsGrid) RemoveSeries(key string) {
+	if mg == nil || key == "" {
+		return
+	}
+
+	mg.mu.Lock()
+	if len(mg.all) == 0 {
+		mg.mu.Unlock()
+		return
+	}
+
+	filtered := mg.all[:0]
+	for _, ch := range mg.all {
+		ch.RemoveSeries(key)
+		if ch.SeriesCount() > 0 {
+			filtered = append(filtered, ch)
+		}
+	}
+	mg.all = filtered
+
+	// Rebuild index by title to stay consistent.
+	mg.byTitle = make(map[string]*EpochLineChart, len(mg.all))
+	for _, ch := range mg.all {
+		mg.byTitle[ch.Title()] = ch
+	}
+
+	// Reapply filter + nav on the pruned chart set.
+	mg.applyFilterNoLock()
+	mg.mu.Unlock()
+
+	mg.drawVisible()
+}
+
+// PromoteSeriesToTop ensures the given series key is drawn last in all charts.
+// Used by the workspace to keep a pinned run visually on top.
+func (mg *MetricsGrid) PromoteSeriesToTop(seriesKey string) {
+	if mg == nil || seriesKey == "" {
+		return
+	}
+
+	mg.mu.Lock()
+	defer mg.mu.Unlock()
+
+	if len(mg.all) == 0 {
+		return
+	}
+
+	for _, ch := range mg.all {
+		if ch == nil {
+			continue
+		}
+		ch.PromoteSeriesToTop(seriesKey)
 	}
 }

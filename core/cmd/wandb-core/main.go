@@ -5,20 +5,28 @@
 // Usage:
 //
 //	wandb-core [service flags]
-//	wandb-core leet [<run-directory>] [leet flags]
+//	wandb-core leet [<wandb-directory>] [leet flags]
 //
 // Service flags: see `wandb-core -h`.
 // Leet flags:    see `wandb-core leet -h`.
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
+	"time"
+
+	"net/http/pprof"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wandb/wandb/core/internal/leet"
@@ -169,17 +177,22 @@ func leetMain(args []string) int {
 		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
 	disableAnalytics := fs.Bool("no-observability", false,
 		"Disables observability features such as metrics and logging analytics.")
+	runFile := fs.String("run-file", "",
+		"Path to a .wandb file to open directly in single-run view.")
+
+	pprofAddr := fs.String("pprof", "", "If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
+	pprofBlockRate := fs.Int("pprof-block-rate", 0, "If >0, sets runtime.SetBlockProfileRate(n).")
+	pprofMutexFraction := fs.Int("pprof-mutex-fraction", 0, "If >0, sets runtime.SetMutexProfileFraction(n).")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
 A terminal UI for viewing your W&B runs locally.
 
 Usage:
-  wandb-core leet [flags] <wandb-file>
+  wandb-core leet [flags] <wandb-directory>
+
 Arguments:
-  <wandb-file>       Path to the .wandb file of a W&B run.
-                     Example:
-                       /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb
+  <wandb-directory>  Path to the wandb directory containing run folders.
 
 Options:
   -h, --help         Show this help message
@@ -189,12 +202,26 @@ Flags:
 		fs.PrintDefaults()
 	}
 
-	err := fs.Parse(args)
-	if err == flag.ErrHelp {
-		return exitCodeSuccess
-	}
-	if err != nil {
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return exitCodeSuccess
+		}
 		return exitCodeErrorArgs
+	}
+
+	pprofStop, pprofURL, err := startPprofServer(*pprofAddr, *pprofBlockRate, *pprofMutexFraction)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "pprof:", err)
+		return exitCodeErrorArgs
+	}
+	if pprofStop != nil {
+		// Print to stderr so you see it even if normal logging is discarded.
+		fmt.Fprintln(os.Stderr, "pprof:", pprofURL)
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_ = pprofStop(ctx)
+		}()
 	}
 
 	// Configure Sentry reporting.
@@ -236,24 +263,82 @@ Flags:
 		},
 	)
 
-	wandbFile := fs.Arg(0)
+	wandbDir := fs.Arg(0)
+	if wandbDir == "" {
+		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
+		fs.Usage()
+		return exitCodeErrorArgs
+	}
 
-	// Run the TUI; allow in-process restarts (Alt+R) without re-parsing flags.
 	for {
-		model := leet.NewModel(wandbFile, nil, logger)
-		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+		m := leet.NewModel(leet.ModelParams{
+			WandbDir: wandbDir,
+			RunFile:  *runFile,
+			Logger:   logger,
+		})
+		program := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
-		finalModel, err := p.Run()
+		finalModel, err := program.Run()
 		if err != nil {
 			logger.CaptureError(fmt.Errorf("wandb-leet: %v", err))
 			return exitCodeErrorInternal
 		}
 
 		// If the model requests a restart, loop again.
-		if m, ok := finalModel.(*leet.Model); ok && m.ShouldRestart() {
+		if fm, ok := finalModel.(*leet.Model); ok && fm.ShouldRestart() {
 			continue
 		}
 
 		return exitCodeSuccess
 	}
+}
+
+// startPprofServer starts an HTTP server exposing the standard /debug/pprof/* endpoints.
+//
+// For safety, prefer binding explicitly to loopback (e.g. 127.0.0.1:6060) instead of ":6060".
+func startPprofServer(
+	addr string,
+	blockRate, mutexFraction int,
+) (shutdown func(context.Context) error, url string, err error) {
+	if addr == "" {
+		return nil, "", nil
+	}
+	if blockRate > 0 {
+		runtime.SetBlockProfileRate(blockRate)
+	}
+	if mutexFraction > 0 {
+		runtime.SetMutexProfileFraction(mutexFraction)
+	}
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, "", fmt.Errorf("listen %q: %w", addr, err)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	// Explicit handlers so the common endpoints show up even if index routing changes.
+	mux.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
+	mux.Handle("/debug/pprof/block", pprof.Handler("block"))
+	mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+
+	srv := &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	go func() {
+		serveErr := srv.Serve(ln)
+		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			fmt.Fprintln(os.Stderr, "pprof: server error:", serveErr)
+		}
+	}()
+
+	return srv.Shutdown, "http://" + ln.Addr().String() + "/debug/pprof/", nil
 }

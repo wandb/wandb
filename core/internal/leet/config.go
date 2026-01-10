@@ -33,7 +33,8 @@ const (
 	ColorModePerPlot   = "per_plot"   // Each chart gets next color
 	ColorModePerSeries = "per_series" // All charts use base color, multi-series differentiate
 
-	DefaultColorScheme = "sunset-glow"
+	// DefaultColorScheme = "sunset-glow"
+	DefaultColorScheme = "wandb-vibe-10"
 
 	DefaultSystemColorScheme = "wandb-vibe-10"
 	DefaultSystemColorMode   = ColorModePerSeries
