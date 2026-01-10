@@ -14,17 +14,24 @@ from __future__ import annotations
 import contextlib
 import json
 import weakref
+from typing import TYPE_CHECKING, Any, Dict, Iterator
 
+from typing_extensions import Self, TypeAlias
 from wandb_gql import gql
 
-from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import api, runs
-from wandb.proto import wandb_api_pb2 as apb
+from wandb.proto import wandb_api_pb2 as pb
 from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
+if TYPE_CHECKING:
+    from . import runs
+    from .api import Api, RetryingClient
 
-class BetaHistoryScan:
+_RowDict: TypeAlias = Dict[str, Any]
+"""Type alias for a single history row as a dict."""
+
+
+class BetaHistoryScan(Iterator[_RowDict]):
     """Iterator for scanning complete run history.
 
     <!-- lazydoc-ignore-class: internal -->
@@ -32,12 +39,12 @@ class BetaHistoryScan:
 
     def __init__(
         self,
-        api: public.Api,
+        api: Api,
         run: runs.Run,
         min_step: int,
         max_step: int,
         keys: list[str] | None = None,
-        page_size: int = 1000,
+        page_size: int = 1_000,
         use_cache: bool = True,
     ):
         self.run = run
@@ -48,27 +55,27 @@ class BetaHistoryScan:
         self._api = api
 
         # Tell wandb-core to initialize resources to scan the run's history.
-        scan_run_history_init = apb.ScanRunHistoryInit(
+        scan_run_history_init = pb.ScanRunHistoryInit(
             entity=self.run.entity,
             project=self.run.project,
             run_id=self.run.id,
             keys=self.keys,
             use_cache=use_cache,
         )
-        scan_run_history_init_request = apb.ReadRunHistoryRequest(
+        scan_run_history_init_request = pb.ReadRunHistoryRequest(
             scan_run_history_init=scan_run_history_init
         )
-        api_request = apb.ApiRequest(
+        api_request = pb.ApiRequest(
             read_run_history_request=scan_run_history_init_request
         )
-        response: apb.ApiResponse = self._api._send_api_request(api_request)
+        response: pb.ApiResponse = self._api._send_api_request(api_request)
 
         self._scan_request_id = (
             response.read_run_history_response.scan_run_history_init.request_id
         )
 
         self.scan_offset = 0
-        self.rows = []
+        self.rows: list[_RowDict] = []
         self.keys = keys
 
         # Add cleanup hook to clean up resources in wandb-core
@@ -84,13 +91,13 @@ class BetaHistoryScan:
             self._scan_request_id,
         )
 
-    def __iter__(self):
+    def __iter__(self) -> Self:
         self.scan_offset = 0
         self.page_offset = self.min_step
         self.rows = []
         return self
 
-    def __next__(self):
+    def __next__(self) -> _RowDict:
         while True:
             if self.scan_offset < len(self.rows):
                 row = self.rows[self.scan_offset]
@@ -100,22 +107,22 @@ class BetaHistoryScan:
                 raise StopIteration()
             self._load_next()
 
-    def _load_next(self):
-        from wandb.proto import wandb_api_pb2 as apb
+    def _load_next(self) -> None:
+        from wandb.proto import wandb_api_pb2 as pb
 
         max_step = min(self.page_offset + self.page_size, self.max_step)
 
-        read_run_history_request = apb.ReadRunHistoryRequest(
-            scan_run_history=apb.ScanRunHistory(
+        read_run_history_request = pb.ReadRunHistoryRequest(
+            scan_run_history=pb.ScanRunHistory(
                 min_step=self.page_offset,
                 max_step=max_step,
                 request_id=self._scan_request_id,
             ),
         )
-        api_request = apb.ApiRequest(read_run_history_request=read_run_history_request)
+        api_request = pb.ApiRequest(read_run_history_request=read_run_history_request)
 
-        response: apb.ApiResponse = self._api._send_api_request(api_request)
-        run_history: apb.RunHistoryResponse = (
+        response: pb.ApiResponse = self._api._send_api_request(api_request)
+        run_history: pb.RunHistoryResponse = (
             response.read_run_history_response.run_history
         )
         self.rows = [
@@ -124,32 +131,28 @@ class BetaHistoryScan:
         self.page_offset += self.page_size
         self.scan_offset = 0
 
-    def _convert_history_row_to_dict(self, history_row):
+    @staticmethod
+    def _convert_history_row_to_dict(history_row: pb.HistoryRow) -> _RowDict:
         return {
             item.key: json.loads(item.value_json) for item in history_row.history_items
         }
 
     @staticmethod
-    def cleanup(
-        api: public.Api,
-        request_id: int,
-    ):
-        scan_run_history_cleanup = apb.ScanRunHistoryCleanup(
+    def cleanup(api: Api, request_id: int) -> None:
+        scan_run_history_cleanup = pb.ScanRunHistoryCleanup(
             request_id=request_id,
         )
-        scan_run_history_cleanup_request = apb.ReadRunHistoryRequest(
+        scan_run_history_cleanup_request = pb.ReadRunHistoryRequest(
             scan_run_history_cleanup=scan_run_history_cleanup
         )
 
         with contextlib.suppress(ConnectionResetError, MailboxClosedError):
             api._send_api_request(
-                apb.ApiRequest(
-                    read_run_history_request=scan_run_history_cleanup_request
-                )
+                pb.ApiRequest(read_run_history_request=scan_run_history_cleanup_request)
             )
 
 
-class HistoryScan:
+class HistoryScan(Iterator[_RowDict]):
     """Iterator for scanning complete run history.
 
     <!-- lazydoc-ignore-class: internal -->
@@ -169,11 +172,11 @@ class HistoryScan:
 
     def __init__(
         self,
-        client: api.RetryingClient,
+        client: RetryingClient,
         run: runs.Run,
         min_step: int,
         max_step: int,
-        page_size: int = 1000,
+        page_size: int = 1_000,
     ):
         """Initialize a HistoryScan instance.
 
@@ -192,15 +195,15 @@ class HistoryScan:
         self.max_step = max_step
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
-        self.rows = []  # current page of rows
+        self.rows: list[_RowDict] = []  # current page of rows
 
-    def __iter__(self):
+    def __iter__(self) -> Self:
         self.page_offset = self.min_step
         self.scan_offset = 0
         self.rows = []
         return self
 
-    def __next__(self):
+    def __next__(self) -> _RowDict:
         """Return the next row of history data with automatic pagination.
 
         <!-- lazydoc-ignore: internal -->
@@ -217,7 +220,7 @@ class HistoryScan:
     next = __next__
 
     @normalize_exceptions
-    def _load_next(self):
+    def _load_next(self) -> None:
         max_step = self.page_offset + self.page_size
         if max_step > self.max_step:
             max_step = self.max_step
@@ -237,7 +240,7 @@ class HistoryScan:
         self.scan_offset = 0
 
 
-class SampledHistoryScan:
+class SampledHistoryScan(Iterator[_RowDict]):
     """Iterator for sampling run history data.
 
     <!-- lazydoc-ignore-class: internal -->
@@ -257,12 +260,12 @@ class SampledHistoryScan:
 
     def __init__(
         self,
-        client: api.RetryingClient,
+        client: RetryingClient,
         run: runs.Run,
-        keys: list,
+        keys: list[str],
         min_step: int,
         max_step: int,
-        page_size: int = 1000,
+        page_size: int = 1_000,
     ):
         """Initialize a SampledHistoryScan instance.
 
@@ -283,15 +286,15 @@ class SampledHistoryScan:
         self.max_step = max_step
         self.page_offset = min_step  # minStep for next page
         self.scan_offset = 0  # index within current page of rows
-        self.rows = []  # current page of rows
+        self.rows: list[_RowDict] = []  # current page of rows
 
-    def __iter__(self):
+    def __iter__(self) -> Self:
         self.page_offset = self.min_step
         self.scan_offset = 0
         self.rows = []
         return self
 
-    def __next__(self):
+    def __next__(self) -> _RowDict:
         """Return the next row of sampled history data with automatic pagination.
 
         <!-- lazydoc-ignore: internal -->
@@ -308,7 +311,7 @@ class SampledHistoryScan:
     next = __next__
 
     @normalize_exceptions
-    def _load_next(self):
+    def _load_next(self) -> None:
         max_step = self.page_offset + self.page_size
         if max_step > self.max_step:
             max_step = self.max_step
