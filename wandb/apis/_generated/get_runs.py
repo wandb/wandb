@@ -17,7 +17,7 @@ class GetRuns(GQLResult):
 
 
 class GetRunsProject(GQLResult):
-    internal_id: Optional[GQLId] = Field(alias="internalId", default=None)
+    internal_id: GQLId = Field(alias="internalId")
     read_only: Optional[bool] = Field(alias="readOnly")
     runs: Optional[GetRunsProjectRuns]
 
