@@ -21,6 +21,7 @@ __all__ = [
     "DELETE_REGISTRY_MEMBERS_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
+    "FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL",
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "FETCH_REGISTRY_GQL",
@@ -1475,6 +1476,16 @@ fragment OrgInfoFragment on Organization {
   name
   orgEntity {
     name
+  }
+}
+"""
+
+FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL = """
+query FetchOrgEntityFromOrganization($organization: String!) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+    }
   }
 }
 """
