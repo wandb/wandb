@@ -181,6 +181,7 @@ func runTest(
 		logger,
 		func() time.Time { return ctx.Now },
 	)
+	defer ctx.Reader.Close()
 
 	for _, step := range testSteps {
 		step.Do(t, ctx)
