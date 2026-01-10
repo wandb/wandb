@@ -11,7 +11,7 @@ use tracing;
 pub enum LauncherError {
     Io(io::Error),
     ForkFailed(String),
-    PortParseFailed,
+    SocketPathNotFound,
     Timeout,
 }
 
@@ -22,8 +22,8 @@ impl fmt::Display for LauncherError {
         match self {
             LauncherError::Io(err) => write!(f, "IO error: {}", err),
             LauncherError::ForkFailed(msg) => write!(f, "Fork failed: {}", msg),
-            LauncherError::PortParseFailed => write!(f, "Failed to parse port number"),
-            LauncherError::Timeout => write!(f, "Timeout waiting for port"),
+            LauncherError::SocketPathNotFound => write!(f, "Unix socket path not found in port file"),
+            LauncherError::Timeout => write!(f, "Timeout waiting for socket"),
         }
     }
 }
@@ -39,7 +39,7 @@ pub struct Launcher {
     pub child_process: Option<Child>,
 }
 
-fn wait_for_port(port_filename: &str, timeout: time::Duration) -> Result<i32, LauncherError> {
+fn wait_for_socket(port_filename: &str, timeout: time::Duration) -> Result<String, LauncherError> {
     let start_time = time::Instant::now();
     let delay_time = time::Duration::from_millis(20);
 
@@ -51,11 +51,13 @@ fn wait_for_port(port_filename: &str, timeout: time::Duration) -> Result<i32, La
         if lines.last().copied() == Some("EOF") {
             for item in lines.iter() {
                 if let Some((param, val)) = item.split_once('=') {
-                    if param == "sock" {
-                        return val.parse().map_err(|_| LauncherError::PortParseFailed);
+                    if param == "unix" {
+                        return Ok(val.to_string());
                     }
                 }
             }
+            // If we found EOF but no unix socket, return error
+            return Err(LauncherError::SocketPathNotFound);
         }
     }
 
@@ -63,7 +65,7 @@ fn wait_for_port(port_filename: &str, timeout: time::Duration) -> Result<i32, La
 }
 
 impl Launcher {
-    pub fn start(&mut self) -> Result<i32, LauncherError> {
+    pub fn start(&mut self) -> Result<String, LauncherError> {
         let port_file = NamedTempFile::new()?;
         let port_filename = port_file.path().to_str().ok_or_else(|| {
             LauncherError::Io(io::Error::new(
@@ -76,7 +78,7 @@ impl Launcher {
         let debug = std::env::var("WANDB_CORE_DEBUG").unwrap_or_default();
 
         match fork() {
-            Ok(Fork::Parent(_child)) => wait_for_port(port_filename, time::Duration::from_secs(30)),
+            Ok(Fork::Parent(_child)) => wait_for_socket(port_filename, time::Duration::from_secs(30)),
             Ok(Fork::Child) => {
                 let mut command = Command::new(&self.command);
                 command.arg("--port-filename").arg(port_filename);

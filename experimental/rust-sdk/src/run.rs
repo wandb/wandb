@@ -96,7 +96,6 @@ impl Run {
         self.settings.proto.sync_dir = Some(sync_dir.clone());
 
         self.settings.proto.sync_file = Some(format!("{}/run-{}.wandb", sync_dir, run_id));
-        self.settings.proto.files_dir = Some(format!("{}/files", sync_dir));
         self.settings.proto.log_dir = Some(format!("{}/logs", sync_dir));
         std::fs::create_dir_all(&format!("{}/logs", sync_dir)).unwrap();
 
@@ -112,6 +111,7 @@ impl Run {
                     },
                 ),
             ),
+            request_id: String::new(),
         };
 
         self.interface
@@ -124,7 +124,7 @@ impl Run {
                 wandb_internal::RunRecord {
                     run_id: self.id(),
                     project: self.project(),
-                    // display_name: "gooba-gaba".to_string(),
+                    display_name: self.settings.proto.run_name.clone().unwrap_or_default(),
                     info: Some(wandb_internal::RecordInfo {
                         stream_id: self.id(),
                         ..Default::default()
@@ -213,10 +213,11 @@ impl Run {
         }
     }
 
-    pub fn log(&self, data: HashMap<String, Value>) {
+    pub fn log(&self, data: HashMap<String, Value>, step: Option<i64>) {
         tracing::debug!("Logging to run {}", self.id());
 
         let mut partial_history_request = wandb_internal::PartialHistoryRequest {
+            step: step.map(|num| wandb_internal::HistoryStep { num }),
             ..Default::default()
         };
 
@@ -252,6 +253,7 @@ impl Run {
             server_request_type: Some(
                 wandb_internal::server_request::ServerRequestType::RecordPublish(record),
             ),
+            request_id: String::new(),
         };
 
         self.interface.conn.send_message(&message).unwrap();
@@ -429,6 +431,7 @@ impl Run {
                     },
                 ),
             ),
+            request_id: String::new(),
         };
         tracing::debug!("Sending inform finish request {:?}", inform_finish_request);
         self.interface
