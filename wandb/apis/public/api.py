@@ -85,21 +85,6 @@ class RetryingClient:
     <!-- lazydoc-ignore-class: internal -->
     """
 
-    INFO_QUERY = gql(
-        """
-        query ServerInfo{
-            serverInfo {
-                cliVersionInfo
-                latestLocalVersionInfo {
-                    outOfDate
-                    latestVersionString
-                    versionOnThisInstanceString
-                }
-            }
-        }
-        """
-    )
-
     def __init__(self, client: Client):
         self._server_info = None
         self._client = client
@@ -140,7 +125,11 @@ class RetryingClient:
     @property
     def server_info(self):
         if self._server_info is None:
-            self._server_info = self.execute(self.INFO_QUERY).get("serverInfo")
+            from wandb.apis._generated import SERVER_INFO_GQL, ServerInfo
+
+            data = self.execute(gql(SERVER_INFO_GQL))
+            result = ServerInfo.model_validate(data)
+            self._server_info = result.server_info
         return self._server_info
 
     def version_supported(

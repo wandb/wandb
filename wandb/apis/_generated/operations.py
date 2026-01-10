@@ -46,6 +46,7 @@ __all__ = [
     "PROJECT_VIEWS_GQL",
     "SAMPLED_HISTORY_PAGE_GQL",
     "SEARCH_USERS_GQL",
+    "SERVER_INFO_GQL",
     "UPDATE_RUN_GQL",
 ]
 
@@ -667,6 +668,19 @@ query GetRunHistoryKeys($name: String!, $project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     run(name: $name) {
       historyKeys
+    }
+  }
+}
+"""
+
+SERVER_INFO_GQL = """
+query ServerInfo {
+  serverInfo {
+    cliVersionInfo
+    latestLocalVersionInfo {
+      outOfDate
+      latestVersionString
+      versionOnThisInstanceString
     }
   }
 }

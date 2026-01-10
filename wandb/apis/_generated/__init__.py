@@ -45,6 +45,7 @@ __all__ = [
     "PROJECT_VIEWS_GQL",
     "SAMPLED_HISTORY_PAGE_GQL",
     "SEARCH_USERS_GQL",
+    "SERVER_INFO_GQL",
     "UPDATE_RUN_GQL",
     "GetRunFiles",
     "DeleteFiles",
@@ -77,6 +78,7 @@ __all__ = [
     "GetRunHistory",
     "GetRunEvents",
     "GetRunHistoryKeys",
+    "ServerInfo",
     "GetSweeps",
     "GetSweep",
     "GetSweepLegacy",
@@ -220,6 +222,7 @@ from .operations import (
     PROJECT_VIEWS_GQL,
     SAMPLED_HISTORY_PAGE_GQL,
     SEARCH_USERS_GQL,
+    SERVER_INFO_GQL,
     UPDATE_RUN_GQL,
 )
 from .probe_fields import ProbeFields
@@ -227,4 +230,5 @@ from .probe_input_fields import ProbeInputFields
 from .project_views import ProjectViews
 from .sampled_history_page import SampledHistoryPage
 from .search_users import SearchUsers
+from .server_info import ServerInfo
 from .update_run import UpdateRun
