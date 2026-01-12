@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+from dataclasses import dataclass
 
 from pytest import fixture, raises
 from wandb import Artifact
@@ -12,64 +12,59 @@ from wandb.sdk.artifacts.storage_handlers.gcs_handler import (
 )
 
 
+@dataclass
+class Blob:
+    """Mock GCS Blob for testing."""
+
+    name: str
+    md5_hash: str | None = "1234567890abcde"
+    etag: str = "1234567890abcde"
+    generation: int = 1
+    size: int = 10
+
+
 @fixture
 def artifact() -> Artifact:
     return Artifact(type="dataset", name="data-artifact")
 
 
-def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True):
-    class Blob:
-        def __init__(
-            self, name: str = override_blob_name, metadata=None, generation: int = 1
-        ):
-            self.md5_hash = "1234567890abcde" if hash else None
-            self.etag = "1234567890abcde"
-            self.generation = generation
-            self.name = name
-            self.size = 10
+def mock_gcs(
+    artifact,
+    blobs: list[str | Blob],
+    versioning_enabled: bool = True,
+):
+    """Mock GCS client with explicit blob declarations.
+
+    Args:
+        artifact: The artifact to mock GCS for.
+        blobs: List of blob names (str) or Blob objects with full customization.
+        versioning_enabled: Whether bucket versioning is enabled.
+    """
+    # Normalize blobs: convert strings to Blob objects
+    normalized_blobs = [Blob(name=b) if isinstance(b, str) else b for b in blobs]
 
     class GSBucket:
         def __init__(self):
-            self.versioning_enabled = True
+            self.versioning_enabled = versioning_enabled
 
         def reload(self, *args, **kwargs):
             return
 
-        def get_blob(self, key=override_blob_name, *args, **kwargs):
-            return (
-                None
-                if path or key != override_blob_name
-                else Blob(generation=kwargs.get("generation"))
-            )
+        def get_blob(self, key, *args, **kwargs):
+            generation = kwargs.get("generation")
+            for blob in normalized_blobs:
+                if blob.name == key:
+                    if generation is None or blob.generation == generation:
+                        return blob
+            return None
 
-        # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_list_blobs
         def list_blobs(self, *args, **kwargs):
-            versions: bool = kwargs.get("versions", False)
             prefix: str = kwargs.get("prefix", "")
-            # For versioned lookups, return blobs with different generations
-            if versions and prefix == override_blob_name:
-                return [
-                    Blob(name=override_blob_name, generation=1),
-                    Blob(name=override_blob_name, generation=2),
-                    Blob(name=override_blob_name, generation=3),
-                ]
-            # For directory paths (ends with /)
-            if override_blob_name.endswith("/"):
-                return [
-                    Blob(name=override_blob_name),
-                    Blob(name=os.path.join(override_blob_name, "my_other_object.pb")),
-                ]
-            # For single file lookup (prefix matches exact filename)
-            if prefix == override_blob_name and not path:
-                return [Blob(name=override_blob_name)]
-            # For directory listing (path=True means treat as directory)
-            if path or prefix == "":
-                return [
-                    Blob(name="my_object.pb"),
-                    Blob(name="my_other_object.pb"),
-                ]
-            # Default: return just the matching blob
-            return [Blob(name=override_blob_name)]
+            max_results: int | None = kwargs.get("max_results")
+            results = [b for b in normalized_blobs if b.name.startswith(prefix)]
+            if max_results is not None:
+                results = results[:max_results]
+            return results
 
     class GSClient:
         def bucket(self, bucket):
@@ -83,7 +78,7 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
 
 
 def test_add_gs_reference_object(artifact):
-    mock_gcs(artifact)
+    mock_gcs(artifact, blobs=["my_object.pb"])
     artifact.add_reference("gs://my-bucket/my_object.pb")
 
     assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
@@ -101,7 +96,7 @@ def test_add_gs_reference_object(artifact):
 def test_load_gs_reference_object_without_generation_and_mismatched_etag(
     artifact,
 ):
-    mock_gcs(artifact)
+    mock_gcs(artifact, blobs=["my_object.pb"])
     artifact.add_reference("gs://my-bucket/my_object.pb")
     artifact._state = ArtifactState.COMMITTED
     entry = artifact.get_entry("my_object.pb")
@@ -113,7 +108,14 @@ def test_load_gs_reference_object_without_generation_and_mismatched_etag(
 
 
 def test_add_gs_reference_object_with_version(artifact):
-    mock_gcs(artifact)
+    mock_gcs(
+        artifact,
+        blobs=[
+            Blob("my_object.pb", generation=1),
+            Blob("my_object.pb", generation=2),
+            Blob("my_object.pb", generation=3),
+        ],
+    )
     artifact.add_reference("gs://my-bucket/my_object.pb#2")
 
     assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
@@ -129,7 +131,7 @@ def test_add_gs_reference_object_with_version(artifact):
 
 
 def test_add_gs_reference_object_with_name(artifact):
-    mock_gcs(artifact)
+    mock_gcs(artifact, blobs=["my_object.pb"])
     artifact.add_reference("gs://my-bucket/my_object.pb", name="renamed.pb")
 
     assert artifact.digest == "bd85fe009dc9e408a5ed9b55c95f47b2"
@@ -145,7 +147,7 @@ def test_add_gs_reference_object_with_name(artifact):
 
 
 def test_add_gs_reference_path(capsys, artifact):
-    mock_gcs(artifact, path=True)
+    mock_gcs(artifact, blobs=["my_object.pb", "my_other_object.pb"])
     artifact.add_reference("gs://my-bucket/")
 
     assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
@@ -169,7 +171,7 @@ def test_add_gs_reference_path(capsys, artifact):
 
 
 def test_add_gs_reference_object_no_md5(artifact):
-    mock_gcs(artifact, hash=False)
+    mock_gcs(artifact, blobs=[Blob("my_object.pb", md5_hash=None)])
     artifact.add_reference("gs://my-bucket/my_object.pb")
 
     assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
@@ -185,7 +187,7 @@ def test_add_gs_reference_object_no_md5(artifact):
 
 
 def test_add_gs_reference_with_dir_paths(artifact):
-    mock_gcs(artifact, override_blob_name="my_folder/")
+    mock_gcs(artifact, blobs=["my_folder/", "my_folder/my_other_object.pb"])
     artifact.add_reference("gs://my-bucket/my_folder/")
 
     # uploading a reference to a folder path should add entries for
@@ -203,7 +205,7 @@ def test_add_gs_reference_with_dir_paths(artifact):
 
 
 def test_load_gs_reference_with_dir_paths(artifact):
-    mock = mock_gcs(artifact, override_blob_name="my_folder/")
+    mock = mock_gcs(artifact, blobs=["my_folder/", "my_folder/my_other_object.pb"])
     artifact.add_reference("gs://my-bucket/my_folder/")
 
     gcs_handler = GCSHandler()
