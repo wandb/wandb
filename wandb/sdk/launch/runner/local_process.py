@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import logging
 import shlex
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 
@@ -33,7 +35,7 @@ class LocalProcessRunner(AbstractRunner):
         launch_project: LaunchProject,
         *args,
         **kwargs,
-    ) -> Optional[AbstractRun]:
+    ) -> AbstractRun | None:
         if args is not None:
             _msg = f"{LOG_PREFIX}LocalProcessRunner.run received unused args {args}"
             _logger.warning(_msg)

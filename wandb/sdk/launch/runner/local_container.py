@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
@@ -5,7 +7,7 @@ import shlex
 import subprocess
 import sys
 import threading
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -38,10 +40,10 @@ class LocalSubmittedRun(AbstractRun):
 
     def __init__(self) -> None:
         super().__init__()
-        self._command_proc: Optional[subprocess.Popen] = None
-        self._stdout: Optional[str] = None
+        self._command_proc: subprocess.Popen | None = None
+        self._stdout: str | None = None
         self._terminate_flag: bool = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def set_command_proc(self, command_proc: subprocess.Popen) -> None:
         self._command_proc = command_proc
@@ -50,7 +52,7 @@ class LocalSubmittedRun(AbstractRun):
         self._thread = thread
 
     @property
-    def id(self) -> Optional[str]:
+    def id(self) -> str | None:
         if self._command_proc is None:
             return None
         return str(self._command_proc.pid)
@@ -70,7 +72,7 @@ class LocalSubmittedRun(AbstractRun):
         wait = event_loop_thread_exec(self._command_proc.wait)
         return int(await wait()) == 0
 
-    async def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> str | None:
         return self._stdout
 
     async def cancel(self) -> None:
@@ -100,7 +102,7 @@ class LocalContainerRunner(AbstractRunner):
 
     def __init__(
         self,
-        api: "Api",
+        api: Api,
         backend_config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
@@ -137,7 +139,7 @@ class LocalContainerRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         image_uri: str,
-    ) -> Optional[AbstractRun]:
+    ) -> AbstractRun | None:
         docker_args = self._populate_docker_args(launch_project, image_uri)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
@@ -185,7 +187,7 @@ class LocalContainerRunner(AbstractRunner):
         return run
 
 
-def _run_entry_point(command: str, work_dir: Optional[str]) -> AbstractRun:
+def _run_entry_point(command: str, work_dir: str | None) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
@@ -253,9 +255,9 @@ def _thread_process_runner(
 def get_docker_command(
     image: str,
     env_vars: dict[str, str],
-    entry_cmd: Optional[list[str]] = None,
-    docker_args: Optional[dict[str, Any]] = None,
-    additional_args: Optional[list[str]] = None,
+    entry_cmd: list[str] | None = None,
+    docker_args: dict[str, Any] | None = None,
+    additional_args: list[str] | None = None,
 ) -> list[str]:
     """Construct the docker command using the image and docker args.
 

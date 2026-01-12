@@ -1,8 +1,10 @@
 """Scheduler for classic wandb Sweeps."""
 
+from __future__ import annotations
+
 import logging
 from pprint import pformat as pf
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 from wandb.sdk.launch.sweeps import SweepNotFoundError
@@ -21,7 +23,7 @@ class SweepScheduler(Scheduler):
     ):
         super().__init__(*args, **kwargs)
 
-    def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
+    def _get_next_sweep_run(self, worker_id: int) -> SweepRun | None:
         """Called by the main scheduler execution loop.
 
         Expected to return a properly formatted SweepRun if the scheduler
@@ -41,7 +43,7 @@ class SweepScheduler(Scheduler):
             if _type not in ["run", "resume"]:
                 self.fail_sweep(f"AgentHeartbeat unknown command: {_type}")
 
-            _run_id: Optional[str] = command.get("run_id")
+            _run_id: str | None = command.get("run_id")
             if not _run_id:
                 self.fail_sweep(f"No run id in agent heartbeat: {command}")
                 return None

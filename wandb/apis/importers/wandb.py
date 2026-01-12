@@ -1,5 +1,7 @@
 """Tooling for the W&B Importer."""
 
+from __future__ import annotations
+
 import itertools
 import json
 import logging
@@ -11,7 +13,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import patch
 
 import filelock
@@ -121,10 +123,10 @@ class WandbRun:
         )
 
         # For caching
-        self._files: Optional[Iterable[tuple[str, str]]] = None
-        self._artifacts: Optional[Iterable[Artifact]] = None
-        self._used_artifacts: Optional[Iterable[Artifact]] = None
-        self._parquet_history_paths: Optional[Iterable[str]] = None
+        self._files: Iterable[tuple[str, str]] | None = None
+        self._artifacts: Iterable[Artifact] | None = None
+        self._used_artifacts: Iterable[Artifact] | None = None
+        self._parquet_history_paths: Iterable[str] | None = None
 
     def __repr__(self) -> str:
         s = os.path.join(self.entity(), self.project(), self.run_id())
@@ -162,16 +164,16 @@ class WandbRun:
             row = remove_keys_with_none_values(row)
             yield row
 
-    def run_group(self) -> Optional[str]:
+    def run_group(self) -> str | None:
         return self.run.group
 
-    def job_type(self) -> Optional[str]:
+    def job_type(self) -> str | None:
         return self.run.job_type
 
     def display_name(self) -> str:
         return self.run.display_name
 
-    def notes(self) -> Optional[str]:
+    def notes(self) -> str | None:
         # Notes includes the previous notes and serves as a catch-all for things we missed or can't add back
         previous_link = f"Imported from: {self.run.url}"
         previous_author = f"Author: {self.run.user.username}"
@@ -181,10 +183,10 @@ class WandbRun:
 
         return "\n".join(header) + "\n---\n" + previous_notes
 
-    def tags(self) -> Optional[list[str]]:
+    def tags(self) -> list[str] | None:
         return self.run.tags
 
-    def artifacts(self) -> Optional[Iterable[Artifact]]:
+    def artifacts(self) -> Iterable[Artifact] | None:
         if self._artifacts is None:
             _artifacts = []
             for art in self.run.logged_artifacts():
@@ -194,7 +196,7 @@ class WandbRun:
 
         yield from self._artifacts
 
-    def used_artifacts(self) -> Optional[Iterable[Artifact]]:
+    def used_artifacts(self) -> Iterable[Artifact] | None:
         if self._used_artifacts is None:
             _used_artifacts = []
             for art in self.run.used_artifacts():
@@ -204,30 +206,30 @@ class WandbRun:
 
         yield from self._used_artifacts
 
-    def os_version(self) -> Optional[str]: ...  # pragma: no cover
+    def os_version(self) -> str | None: ...  # pragma: no cover
 
-    def python_version(self) -> Optional[str]:
+    def python_version(self) -> str | None:
         return self._metadata_file().get("python")
 
-    def cuda_version(self) -> Optional[str]: ...  # pragma: no cover
+    def cuda_version(self) -> str | None: ...  # pragma: no cover
 
-    def program(self) -> Optional[str]: ...  # pragma: no cover
+    def program(self) -> str | None: ...  # pragma: no cover
 
-    def host(self) -> Optional[str]:
+    def host(self) -> str | None:
         return self._metadata_file().get("host")
 
-    def username(self) -> Optional[str]: ...  # pragma: no cover
+    def username(self) -> str | None: ...  # pragma: no cover
 
-    def executable(self) -> Optional[str]: ...  # pragma: no cover
+    def executable(self) -> str | None: ...  # pragma: no cover
 
-    def gpus_used(self) -> Optional[str]: ...  # pragma: no cover
+    def gpus_used(self) -> str | None: ...  # pragma: no cover
 
-    def cpus_used(self) -> Optional[int]:  # can we get the model?
+    def cpus_used(self) -> int | None:  # can we get the model?
         ...  # pragma: no cover
 
-    def memory_used(self) -> Optional[int]: ...  # pragma: no cover
+    def memory_used(self) -> int | None: ...  # pragma: no cover
 
-    def runtime(self) -> Optional[int]:
+    def runtime(self) -> int | None:
         wandb_runtime = self.run.summary.get("_wandb", {}).get("runtime")
         base_runtime = self.run.summary.get("_runtime")
 
@@ -235,18 +237,18 @@ class WandbRun:
             return t
         return int(t)
 
-    def start_time(self) -> Optional[int]:
+    def start_time(self) -> int | None:
         t = dt.fromisoformat(self.run.created_at).timestamp() * 1000
         return int(t)
 
-    def code_path(self) -> Optional[str]:
+    def code_path(self) -> str | None:
         path = self._metadata_file().get("codePath", "")
         return f"code/{path}"
 
-    def cli_version(self) -> Optional[str]:
+    def cli_version(self) -> str | None:
         return self._config_file().get("_wandb", {}).get("value", {}).get("cli_version")
 
-    def files(self) -> Optional[Iterable[tuple[PathStr, Policy]]]:
+    def files(self) -> Iterable[tuple[PathStr, Policy]] | None:
         if self._files is None:
             files_dir = f"{internal.ROOT_DIR}/{self.run_id()}/files"
             _files = []
@@ -267,7 +269,7 @@ class WandbRun:
 
         yield from self._files
 
-    def logs(self) -> Optional[Iterable[str]]:
+    def logs(self) -> Iterable[str] | None:
         log_files = self._find_all_in_files_regex(r"^.*output\.log$")
         for path in log_files:
             with open(path) as f:
@@ -317,7 +319,7 @@ class WandbRun:
 
         yield from self._parquet_history_paths
 
-    def _find_in_files(self, name: str) -> Optional[str]:
+    def _find_in_files(self, name: str) -> str | None:
         if files := self.files():
             for path, _ in files:
                 if name in path:
@@ -341,7 +343,7 @@ class WandbImporter:
         dst_base_url: str,
         dst_api_key: str,
         *,
-        custom_api_kwargs: Optional[dict[str, Any]] = None,
+        custom_api_kwargs: dict[str, Any] | None = None,
     ) -> None:
         self.src_base_url = src_base_url
         self.src_api_key = src_api_key
@@ -376,8 +378,8 @@ class WandbImporter:
         self,
         run: WandbRun,
         *,
-        namespace: Optional[Namespace] = None,
-        config: Optional[internal.SendManagerConfig] = None,
+        namespace: Namespace | None = None,
+        config: internal.SendManagerConfig | None = None,
     ) -> None:
         """Import one WandbRun.
 
@@ -438,7 +440,7 @@ class WandbImporter:
     def _delete_collection_in_dst(
         self,
         seq: ArtifactSequence,
-        namespace: Optional[Namespace] = None,
+        namespace: Namespace | None = None,
     ):
         """Deletes the equivalent artifact collection in destination.
 
@@ -470,7 +472,7 @@ class WandbImporter:
         self,
         seq: ArtifactSequence,
         *,
-        namespace: Optional[Namespace] = None,
+        namespace: Namespace | None = None,
     ) -> None:
         """Import one artifact sequence.
 
@@ -500,7 +502,7 @@ class WandbImporter:
 
         # Get a placeholder run for dummy artifacts we'll upload later
         art = seq.artifacts[0]
-        run_or_dummy: Optional[Run] = _get_run_or_dummy_from_art(art, self.src_api)
+        run_or_dummy: Run | None = _get_run_or_dummy_from_art(art, self.src_api)
 
         # Each `group_of_artifacts` is either:
         # 1. A single "real" artifact in a list; or
@@ -573,7 +575,7 @@ class WandbImporter:
                     raise
 
     def _get_dst_art(
-        self, src_art: Run, entity: Optional[str] = None, project: Optional[str] = None
+        self, src_art: Run, entity: str | None = None, project: str | None = None
     ) -> Artifact:
         entity = coalesce(entity, src_art.entity)
         project = coalesce(project, src_art.project)
@@ -689,9 +691,9 @@ class WandbImporter:
     def _cleanup_dummy_runs(
         self,
         *,
-        namespaces: Optional[Iterable[Namespace]] = None,
-        api: Optional[Api] = None,
-        remapping: Optional[dict[Namespace, Namespace]] = None,
+        namespaces: Iterable[Namespace] | None = None,
+        api: Api | None = None,
+        remapping: dict[Namespace, Namespace] | None = None,
     ) -> None:
         api = coalesce(api, self.dst_api)
         namespaces = coalesce(namespaces, self._all_namespaces())
@@ -715,7 +717,7 @@ class WandbImporter:
                 run.delete(delete_artifacts=False)
 
     def _import_report(
-        self, report: Report, *, namespace: Optional[Namespace] = None
+        self, report: Report, *, namespace: Namespace | None = None
     ) -> None:
         """Import one wandb.Report.
 
@@ -759,7 +761,7 @@ class WandbImporter:
         self,
         sequence: ArtifactSequence,
         *,
-        namespace: Optional[Namespace] = None,
+        namespace: Namespace | None = None,
     ):
         if namespace is None:
             namespace = Namespace(sequence.entity, sequence.project)
@@ -791,12 +793,12 @@ class WandbImporter:
     def import_runs(
         self,
         *,
-        namespaces: Optional[Iterable[Namespace]] = None,
-        remapping: Optional[dict[Namespace, Namespace]] = None,
+        namespaces: Iterable[Namespace] | None = None,
+        remapping: dict[Namespace, Namespace] | None = None,
         parallel: bool = True,
         incremental: bool = True,
-        max_workers: Optional[int] = None,
-        limit: Optional[int] = None,
+        max_workers: int | None = None,
+        limit: int | None = None,
         metadata: bool = True,
         files: bool = True,
         media: bool = True,
@@ -851,9 +853,9 @@ class WandbImporter:
     def import_reports(
         self,
         *,
-        namespaces: Optional[Iterable[Namespace]] = None,
-        limit: Optional[int] = None,
-        remapping: Optional[dict[Namespace, Namespace]] = None,
+        namespaces: Iterable[Namespace] | None = None,
+        limit: int | None = None,
+        remapping: dict[Namespace, Namespace] | None = None,
     ):
         logger.info("START: Importing reports")
 
@@ -878,10 +880,10 @@ class WandbImporter:
     def import_artifact_sequences(
         self,
         *,
-        namespaces: Optional[Iterable[Namespace]] = None,
+        namespaces: Iterable[Namespace] | None = None,
         incremental: bool = True,
-        max_workers: Optional[int] = None,
-        remapping: Optional[dict[Namespace, Namespace]] = None,
+        max_workers: int | None = None,
+        remapping: dict[Namespace, Namespace] | None = None,
     ):
         """Import all artifact sequences from `namespaces`.
 
@@ -948,9 +950,9 @@ class WandbImporter:
         runs: bool = True,
         artifacts: bool = True,
         reports: bool = True,
-        namespaces: Optional[Iterable[Namespace]] = None,
+        namespaces: Iterable[Namespace] | None = None,
         incremental: bool = True,
-        remapping: Optional[dict[Namespace, Namespace]] = None,
+        remapping: dict[Namespace, Namespace] | None = None,
     ):
         logger.info(f"START: Importing all, {runs=}, {artifacts=}, {reports=}")
         if runs:
@@ -979,7 +981,7 @@ class WandbImporter:
         self,
         src_run: Run,
         *,
-        remapping: Optional[dict[Namespace, Namespace]] = None,
+        remapping: dict[Namespace, Namespace] | None = None,
     ) -> None:
         namespace = Namespace(src_run.entity, src_run.project)
         if remapping is not None and namespace in remapping:
@@ -1017,7 +1019,7 @@ class WandbImporter:
         self,
         runs: Iterable[Run],
         *,
-        remapping: Optional[dict[Namespace, Namespace]] = None,
+        remapping: dict[Namespace, Namespace] | None = None,
     ) -> Iterable[Run]:
         if (df := _read_ndjson(RUN_SUCCESSES_FNAME)) is None:
             logger.debug(f"{RUN_SUCCESSES_FNAME=} is empty, yielding all runs")
@@ -1125,7 +1127,7 @@ class WandbImporter:
         runs: Iterable[WandbRun],
         *,
         skip_previously_validated: bool = True,
-        remapping: Optional[dict[Namespace, Namespace]] = None,
+        remapping: dict[Namespace, Namespace] | None = None,
     ):
         base_runs = [r.run for r in runs]
         if skip_previously_validated:
@@ -1208,7 +1210,7 @@ class WandbImporter:
         incremental: bool = True,
         download_files_and_compare: bool = False,
         check_entries_are_downloadable: bool = True,
-        remapping: Optional[dict[Namespace, Namespace]] = None,
+        remapping: dict[Namespace, Namespace] | None = None,
     ):
         if incremental:
             logger.info("Validating in incremental mode")
@@ -1286,11 +1288,11 @@ class WandbImporter:
     def _collect_runs(
         self,
         *,
-        namespaces: Optional[Iterable[Namespace]] = None,
-        limit: Optional[int] = None,
-        skip_ids: Optional[list[str]] = None,
-        start_date: Optional[str] = None,
-        api: Optional[Api] = None,
+        namespaces: Iterable[Namespace] | None = None,
+        limit: int | None = None,
+        skip_ids: list[str] | None = None,
+        start_date: str | None = None,
+        api: Api | None = None,
     ) -> Iterable[WandbRun]:
         api = coalesce(api, self.src_api)
         namespaces = coalesce(namespaces, self._all_namespaces())
@@ -1310,9 +1312,7 @@ class WandbImporter:
         runs = itertools.islice(_runs(), limit)
         yield from runs
 
-    def _all_namespaces(
-        self, *, entity: Optional[str] = None, api: Optional[Api] = None
-    ):
+    def _all_namespaces(self, *, entity: str | None = None, api: Api | None = None):
         api = coalesce(api, self.src_api)
         entity = coalesce(entity, api.default_entity)
         projects = api.projects(entity)
@@ -1322,9 +1322,9 @@ class WandbImporter:
     def _collect_reports(
         self,
         *,
-        namespaces: Optional[Iterable[Namespace]] = None,
-        limit: Optional[int] = None,
-        api: Optional[Api] = None,
+        namespaces: Iterable[Namespace] | None = None,
+        limit: int | None = None,
+        api: Api | None = None,
     ):
         api = coalesce(api, self.src_api)
         namespaces = coalesce(namespaces, self._all_namespaces())
@@ -1341,9 +1341,9 @@ class WandbImporter:
     def _collect_artifact_sequences(
         self,
         *,
-        namespaces: Optional[Iterable[Namespace]] = None,
-        limit: Optional[int] = None,
-        api: Optional[Api] = None,
+        namespaces: Iterable[Namespace] | None = None,
+        limit: int | None = None,
+        api: Api | None = None,
     ):
         api = coalesce(api, self.src_api)
         namespaces = coalesce(namespaces, self._all_namespaces())
@@ -1467,7 +1467,7 @@ class _DummyRun:
         return []
 
 
-def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
+def _read_ndjson(fname: str) -> pl.DataFrame | None:
     try:
         df = pl.read_ndjson(fname)
     except FileNotFoundError:
@@ -1541,7 +1541,7 @@ def _clear_fname(fname: str) -> None:
         pass
 
 
-def _download_art(art: Artifact, root: str) -> Optional[str]:
+def _download_art(art: Artifact, root: str) -> str | None:
     try:
         with patch("click.echo"):
             return art.download(root=root, skip_cache=True)
@@ -1549,7 +1549,7 @@ def _download_art(art: Artifact, root: str) -> Optional[str]:
         logger.exception(f"Error downloading artifact {art=}")
 
 
-def _clone_art(art: Artifact, root: Optional[str] = None):
+def _clone_art(art: Artifact, root: str | None = None):
     if root is None:
         # Currently, we would only ever clone a src artifact to move it to dst.
         root = f"{SRC_ART_PATH}/{art.name}"

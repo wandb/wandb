@@ -1,4 +1,6 @@
-from typing import Any, Optional, Union
+from __future__ import annotations
+
+from typing import Any
 
 import torch
 from tqdm.auto import tqdm
@@ -134,8 +136,8 @@ def get_boxes(result: Results) -> tuple[dict, dict]:
 
 
 def plot_bbox_predictions(
-    result: Results, model_name: str, table: Optional[wandb.Table] = None
-) -> Union[wandb.Table, tuple[wandb.Image, dict, dict]]:
+    result: Results, model_name: str, table: wandb.Table | None = None
+) -> wandb.Table | tuple[wandb.Image, dict, dict]:
     """Plot the images with the W&B overlay system.
 
     The `wandb.Image` is either added to a `wandb.Table` or returned.
@@ -162,7 +164,7 @@ def plot_detection_validation_results(
     predictor: DetectionPredictor,
     table: wandb.Table,
     max_validation_batches: int,
-    epoch: Optional[int] = None,
+    epoch: int | None = None,
 ) -> wandb.Table:
     """Plot validation results in a table."""
     data_idx = 0

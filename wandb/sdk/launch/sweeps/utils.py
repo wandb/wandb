@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import json
 import os
 import re
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb import util
@@ -19,7 +21,7 @@ DEFAULT_SWEEP_COMMAND: list[str] = [
 SWEEP_COMMAND_ENV_VAR_REGEX = re.compile(r"\$\{envvar\:([A-Z0-9_]*)\}")
 
 
-def parse_sweep_id(parts_dict: dict) -> Optional[str]:
+def parse_sweep_id(parts_dict: dict) -> str | None:
     """In place parse sweep path from parts dict.
 
     Arguments:
@@ -91,7 +93,7 @@ def handle_sweep_config_violations(warnings: list[str]) -> None:
         wandb.termwarn(warning)
 
 
-def load_sweep_config(sweep_config_path: str) -> Optional[dict[str, Any]]:
+def load_sweep_config(sweep_config_path: str) -> dict[str, Any] | None:
     """Load a sweep yaml from path."""
     import yaml
 
@@ -101,7 +103,7 @@ def load_sweep_config(sweep_config_path: str) -> Optional[dict[str, Any]]:
         wandb.termerror(f"Couldn't open sweep file: {sweep_config_path}")
         return None
     try:
-        config: Optional[dict[str, Any]] = yaml.safe_load(yaml_file)
+        config: dict[str, Any] | None = yaml.safe_load(yaml_file)
     except yaml.YAMLError as err:
         wandb.termerror(f"Error in configuration file: {err}")
         return None
@@ -111,7 +113,7 @@ def load_sweep_config(sweep_config_path: str) -> Optional[dict[str, Any]]:
     return config
 
 
-def load_launch_sweep_config(config: Optional[str]) -> Any:
+def load_launch_sweep_config(config: str | None) -> Any:
     if not config:
         return {}
 
@@ -125,9 +127,9 @@ def construct_scheduler_args(
     sweep_config: dict[str, Any],
     queue: str,
     project: str,
-    author: Optional[str] = None,
+    author: str | None = None,
     return_job: bool = False,
-) -> Union[list[str], dict[str, str], None]:
+) -> list[str] | dict[str, str] | None:
     """Construct sweep scheduler args.
 
     logs error and returns None if misconfigured,
@@ -186,7 +188,7 @@ def construct_scheduler_args(
     return args
 
 
-def create_sweep_command(command: Optional[list] = None) -> list:
+def create_sweep_command(command: list | None = None) -> list:
     """Return sweep command, filling in environment variable macros."""
     # Start from default sweep command
     command = command or DEFAULT_SWEEP_COMMAND
@@ -260,8 +262,8 @@ def create_sweep_command_args(command: dict) -> dict[str, Any]:
 
 
 def make_launch_sweep_entrypoint(
-    args: dict[str, Any], command: Optional[list[str]]
-) -> tuple[Optional[list[str]], Any]:
+    args: dict[str, Any], command: list[str] | None
+) -> tuple[list[str] | None, Any]:
     """Use args dict from create_sweep_command_args to construct entrypoint.
 
     If replace is True, remove macros from entrypoint, fill them in with args
@@ -286,7 +288,7 @@ def make_launch_sweep_entrypoint(
     return entry_point, macro_args
 
 
-def check_job_exists(public_api: "PublicApi", job: Optional[str]) -> bool:
+def check_job_exists(public_api: PublicApi, job: str | None) -> bool:
     """Check if the job exists using the public api.
 
     Returns: True if no job is passed, or if the job exists.

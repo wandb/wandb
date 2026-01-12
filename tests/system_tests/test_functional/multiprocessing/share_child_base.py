@@ -1,5 +1,7 @@
 """Example of sharing a run object with a child process."""
 
+from __future__ import annotations
+
 import argparse
 import multiprocessing as mp
 

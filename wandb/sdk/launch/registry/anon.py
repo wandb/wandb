@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from wandb.docker import is_docker_installed
 from wandb.sdk.launch.utils import docker_image_exists
 
@@ -23,5 +25,5 @@ class AnonynmousRegistry(AbstractRegistry):
         return docker_image_exists(image_uri)
 
     @classmethod
-    def from_config(cls, config: dict) -> "AbstractRegistry":
+    def from_config(cls, config: dict) -> AbstractRegistry:
         return cls(uri=config["uri"])

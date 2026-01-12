@@ -1,5 +1,7 @@
 """runid util."""
 
+from __future__ import annotations
+
 import random
 import secrets
 from string import ascii_lowercase, digits

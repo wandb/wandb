@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 def wandb_log(  # noqa: C901
     func=None,
     # /,  # py38 only

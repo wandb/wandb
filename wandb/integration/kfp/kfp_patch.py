@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import inspect
 import itertools
 import textwrap
 from collections.abc import Mapping
-from typing import Callable, Optional
+from typing import Callable
 
 import wandb
 
@@ -178,10 +180,10 @@ def _get_function_source_definition(func: Callable) -> str:
 
 def create_component_from_func(
     func: Callable,
-    output_component_file: Optional[str] = None,
-    base_image: Optional[str] = None,
-    packages_to_install: Optional[list[str]] = None,
-    annotations: Optional[Mapping[str, str]] = None,
+    output_component_file: str | None = None,
+    base_image: str | None = None,
+    packages_to_install: list[str] | None = None,
+    annotations: Mapping[str, str] | None = None,
 ):
     '''Convert a Python function to a component and returns a task factory.
 

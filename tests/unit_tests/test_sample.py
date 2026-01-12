@@ -1,5 +1,7 @@
 """sample tests."""
 
+from __future__ import annotations
+
 from wandb.sdk.internal import sample
 
 

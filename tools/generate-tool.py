@@ -8,6 +8,8 @@ Usage:
     ./tools/generate-tool.py --generate --check wandb/sdk/lib/_wburls_generated.py
 """
 
+from __future__ import annotations
+
 import argparse
 import contextlib
 import filecmp

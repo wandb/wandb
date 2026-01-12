@@ -172,6 +172,7 @@ docstring-code-format = true
 [tool.ruff.lint]
 select = [
     "F",      # Pyflakes
+    "FA",     # flake8-future-annotations
     "E",      # pycodestyle Error
     "W",      # pycodestyle Warning
     "B",      # flake8-bugbear

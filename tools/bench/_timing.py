@@ -1,9 +1,9 @@
 #!/usr/bin/env python
+from __future__ import annotations
 
 import csv
 import dataclasses
 import time
-from typing import Optional
 
 
 @dataclasses.dataclass(frozen=True)
@@ -37,7 +37,7 @@ def timeit(
 def write(
     fname: str,
     timings: list[FunctionTiming],
-    prefix_list: Optional[list] = None,
+    prefix_list: list | None = None,
 ):
     """Appends timing data to the file.
 

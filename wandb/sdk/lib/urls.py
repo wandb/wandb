@@ -1,5 +1,7 @@
 """Validation for URLs."""
 
+from __future__ import annotations
+
 import re
 
 from wandb._pydantic import IS_PYDANTIC_V2

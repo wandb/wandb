@@ -13,6 +13,8 @@ serialize to JSON, since that is what wandb uses to save the objects locally
 and upload them to the W&B server.
 """
 
+from __future__ import annotations
+
 from .sdk.data_types.audio import Audio
 from .sdk.data_types.base_types.media import BatchableMedia, Media
 from .sdk.data_types.base_types.wb_value import WBValue

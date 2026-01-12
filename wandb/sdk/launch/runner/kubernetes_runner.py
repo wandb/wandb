@@ -1,5 +1,7 @@
 """Implementation of KubernetesRunner class for wandb launch."""
 
+from __future__ import annotations
+
 import asyncio
 import base64
 import datetime
@@ -8,7 +10,7 @@ import logging
 import os
 import time
 from collections.abc import Iterator
-from typing import Any, Optional, Union
+from typing import Any
 
 import yaml
 
@@ -91,14 +93,14 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def __init__(
         self,
-        batch_api: "BatchV1Api",
-        core_api: "CoreV1Api",
-        apps_api: "AppsV1Api",
-        network_api: "NetworkingV1Api",
+        batch_api: BatchV1Api,
+        core_api: CoreV1Api,
+        apps_api: AppsV1Api,
+        network_api: NetworkingV1Api,
         name: str,
-        namespace: Optional[str] = "default",
-        secret: Optional["V1Secret"] = None,
-        auxiliary_resource_label_key: Optional[str] = None,
+        namespace: str | None = "default",
+        secret: V1Secret | None = None,
+        auxiliary_resource_label_key: str | None = None,
     ) -> None:
         """Initialize a KubernetesSubmittedRun.
 
@@ -136,7 +138,7 @@ class KubernetesSubmittedRun(AbstractRun):
         """Return the run id."""
         return self.name
 
-    async def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> str | None:
         try:
             pods = await self.core_api.list_namespaced_pod(
                 label_selector=f"job-name={self.name}", namespace=self.namespace
@@ -292,10 +294,10 @@ class CrdSubmittedRun(AbstractRun):
         """Get the name of the custom object."""
         return self.name
 
-    async def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> str | None:
         """Get logs for custom object."""
         # TODO: test more carefully once we release multi-node support
-        logs: dict[str, Optional[str]] = {}
+        logs: dict[str, str | None] = {}
         try:
             pods = await self.core_api.list_namespaced_pod(
                 label_selector=f"wandb/run-id={self.name}", namespace=self.namespace
@@ -396,8 +398,8 @@ class KubernetesRunner(AbstractRunner):
         launch_project: LaunchProject,
         image_uri: str,
         namespace: str,
-        core_api: "CoreV1Api",
-    ) -> tuple[dict[str, Any], Optional["V1Secret"]]:
+        core_api: CoreV1Api,
+    ) -> tuple[dict[str, Any], V1Secret | None]:
         """Apply our default values, return job dict and api key secret.
 
         Arguments:
@@ -711,10 +713,10 @@ class KubernetesRunner(AbstractRunner):
         namespace: str,
         run_id: str,
         launch_project: LaunchProject,
-        api_key_secret: Optional["V1Secret"] = None,
+        api_key_secret: V1Secret | None = None,
         wait_for_ready: bool = True,
         wait_timeout: int = 300,
-        auxiliary_resource_label_value: Optional[str] = None,
+        auxiliary_resource_label_value: str | None = None,
     ) -> None:
         """Prepare a service for launch.
 
@@ -785,7 +787,7 @@ class KubernetesRunner(AbstractRunner):
 
     async def run(
         self, launch_project: LaunchProject, image_uri: str
-    ) -> Optional[AbstractRun]:
+    ) -> AbstractRun | None:
         """Execute a launch project on Kubernetes.
 
         Arguments:
@@ -1014,7 +1016,7 @@ class KubernetesRunner(AbstractRunner):
 
 def inject_entrypoint_and_args(
     containers: list[dict],
-    entry_point: Optional[EntryPoint],
+    entry_point: EntryPoint | None,
     override_args: list[str],
     should_override_entrypoint: bool,
 ) -> None:
@@ -1039,11 +1041,11 @@ def inject_entrypoint_and_args(
 
 
 async def ensure_api_key_secret(
-    core_api: "CoreV1Api",
+    core_api: CoreV1Api,
     secret_name: str,
     namespace: str,
     api_key: str,
-) -> "V1Secret":
+) -> V1Secret:
     """Create a secret containing a user's wandb API key.
 
     Arguments:
@@ -1100,11 +1102,11 @@ async def ensure_api_key_secret(
 
 
 async def maybe_create_imagepull_secret(
-    core_api: "CoreV1Api",
+    core_api: CoreV1Api,
     registry: AbstractRegistry,
     run_id: str,
     namespace: str,
-) -> Optional["V1Secret"]:
+) -> V1Secret | None:
     """Create a secret for pulling images from a private registry.
 
     Arguments:
@@ -1155,7 +1157,7 @@ async def maybe_create_imagepull_secret(
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 
 
-def add_wandb_env(root: Union[dict, list], env_vars: dict[str, str]) -> None:
+def add_wandb_env(root: dict | list, env_vars: dict[str, str]) -> None:
     """Injects wandb environment variables into specs.
 
     Recursively walks the spec and injects the environment variables into
@@ -1199,9 +1201,7 @@ def yield_pods(manifest: Any) -> Iterator[dict]:
                 yield from yield_pods(value)
 
 
-def add_label_to_pods(
-    manifest: Union[dict, list], label_key: str, label_value: str
-) -> None:
+def add_label_to_pods(manifest: dict | list, label_key: str, label_value: str) -> None:
     """Add a label to all pod specs in a manifest.
 
     Recursively traverses the manifest and adds the label to all pod specs.
@@ -1221,7 +1221,7 @@ def add_label_to_pods(
         labels[label_key] = label_value
 
 
-def add_entrypoint_args_overrides(manifest: Union[dict, list], overrides: dict) -> None:
+def add_entrypoint_args_overrides(manifest: dict | list, overrides: dict) -> None:
     """Add entrypoint and args overrides to all containers in a manifest.
 
     Recursively traverses the manifest and adds the entrypoint and args overrides
@@ -1250,7 +1250,7 @@ def add_entrypoint_args_overrides(manifest: Union[dict, list], overrides: dict) 
 
 
 def apply_code_mount_configuration(
-    manifest: Union[dict, list], project: LaunchProject
+    manifest: dict | list, project: LaunchProject
 ) -> None:
     """Apply code mount configuration to all containers in a manifest.
 

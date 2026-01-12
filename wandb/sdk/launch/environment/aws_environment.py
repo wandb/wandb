@@ -1,8 +1,9 @@
 """Implements the AWS environment."""
 
+from __future__ import annotations
+
 import logging
 import os
-from typing import Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
@@ -52,7 +53,7 @@ class AwsEnvironment(AbstractEnvironment):
         self._partition = None
 
     @classmethod
-    def from_default(cls, region: Optional[str] = None) -> "AwsEnvironment":
+    def from_default(cls, region: str | None = None) -> AwsEnvironment:
         """Create an AWS environment from the default AWS environment.
 
         Arguments:
@@ -95,7 +96,7 @@ class AwsEnvironment(AbstractEnvironment):
     def from_config(
         cls,
         config: dict[str, str],
-    ) -> "AwsEnvironment":
+    ) -> AwsEnvironment:
         """Create an AWS environment from the default AWS environment.
 
         Arguments:
@@ -165,7 +166,7 @@ class AwsEnvironment(AbstractEnvironment):
                 f"Could not verify AWS environment. Please verify that your AWS credentials are configured correctly. {e}"
             ) from e
 
-    async def get_session(self) -> "boto3.Session":  # type: ignore
+    async def get_session(self) -> boto3.Session:  # type: ignore
         """Get an AWS session.
 
         Returns:

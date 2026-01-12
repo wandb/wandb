@@ -1,8 +1,9 @@
 """catboost init."""
 
+from __future__ import annotations
+
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Union
 
 from catboost import CatBoostClassifier, CatBoostRegressor  # type: ignore
 
@@ -63,7 +64,7 @@ class WandbCallback:
 
 
 def _checkpoint_artifact(
-    model: Union[CatBoostClassifier, CatBoostRegressor], aliases: list[str]
+    model: CatBoostClassifier | CatBoostRegressor, aliases: list[str]
 ) -> None:
     """Upload model checkpoint as W&B artifact."""
     if wandb.run is None:
@@ -83,7 +84,7 @@ def _checkpoint_artifact(
 
 
 def _log_feature_importance(
-    model: Union[CatBoostClassifier, CatBoostRegressor],
+    model: CatBoostClassifier | CatBoostRegressor,
 ) -> None:
     """Log feature importance with default settings."""
     if wandb.run is None:
@@ -110,7 +111,7 @@ def _log_feature_importance(
 
 
 def log_summary(
-    model: Union[CatBoostClassifier, CatBoostRegressor],
+    model: CatBoostClassifier | CatBoostRegressor,
     log_all_params: bool = True,
     save_model_checkpoint: bool = False,
     log_feature_importance: bool = True,

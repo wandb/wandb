@@ -1,10 +1,11 @@
 """Builds wandb-core."""
 
+from __future__ import annotations
+
 import os
 import pathlib
 import subprocess
 from collections.abc import Mapping
-from typing import Optional
 
 
 def build_wandb_core(
@@ -13,7 +14,7 @@ def build_wandb_core(
     with_code_coverage: bool,
     with_race_detection: bool,
     with_cgo: bool,
-    wandb_commit_sha: Optional[str],
+    wandb_commit_sha: str | None,
     target_system,
     target_arch,
 ) -> None:
@@ -79,7 +80,7 @@ def build_wandb_core(
     )
 
 
-def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
+def _go_linker_flags(wandb_commit_sha: str | None) -> str:
     """Returns linker flags for the Go binary as a string."""
     flags = [
         "-s",  # Omit the symbol table and debug info.

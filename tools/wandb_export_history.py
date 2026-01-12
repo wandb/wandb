@@ -16,6 +16,8 @@ or:
 
 """
 
+from __future__ import annotations
+
 import argparse
 import sqlite3
 from collections.abc import Iterator

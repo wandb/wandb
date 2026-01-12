@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import itertools
 import json
@@ -9,7 +11,7 @@ import sys
 import threading
 import time
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple
 
 if TYPE_CHECKING:
     from typing import TypedDict
@@ -48,7 +50,7 @@ class DefaultFilePolicy:
 
     def process_chunks(
         self, chunks: list[Chunk]
-    ) -> Union[bool, "ProcessedChunk", "ProcessedBinaryChunk", list["ProcessedChunk"]]:
+    ) -> bool | ProcessedChunk | ProcessedBinaryChunk | list[ProcessedChunk]:
         chunk_id = self._chunk_id
         self._chunk_id += len(chunks)
         return {"offset": chunk_id, "content": [c.data for c in chunks]}
@@ -70,7 +72,7 @@ class DefaultFilePolicy:
 
 
 class JsonlFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks: list[Chunk]) -> "ProcessedChunk":
+    def process_chunks(self, chunks: list[Chunk]) -> ProcessedChunk:
         chunk_id = self._chunk_id
         # TODO: chunk_id is getting reset on each request...
         self._chunk_id += len(chunks)
@@ -91,7 +93,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
 
 
 class SummaryFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks: list[Chunk]) -> Union[bool, "ProcessedChunk"]:
+    def process_chunks(self, chunks: list[Chunk]) -> bool | ProcessedChunk:
         data = chunks[-1].data
         if len(data) > util.MAX_LINE_BYTES:
             msg = f"Summary data exceeds maximum size of {util.to_human_size(util.MAX_LINE_BYTES)}. Dropping it."
@@ -115,8 +117,8 @@ class StreamCRState:
     """
 
     found_cr: bool
-    cr: Optional[int]
-    last_normal: Optional[int]
+    cr: int | None
+    last_normal: int | None
 
     def __init__(self) -> None:
         self.found_cr = False
@@ -210,7 +212,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest
 
-    def process_chunks(self, chunks: list[Chunk]) -> list["ProcessedChunk"]:
+    def process_chunks(self, chunks: list[Chunk]) -> list[ProcessedChunk]:
         r"""Process chunks.
 
         Args:
@@ -306,20 +308,19 @@ class FileStreamApi:
 
     def __init__(
         self,
-        api: "internal_api.Api",
+        api: internal_api.Api,
         run_id: str,
         start_time: float,
         timeout: float = 0,
-        settings: Optional[dict] = None,
+        settings: dict | None = None,
     ) -> None:
         settings = settings or dict()
         # NOTE: exc_info is set in thread_except_body context and readable by calling threads
-        self._exc_info: Optional[
-            Union[
-                tuple[type[BaseException], BaseException, TracebackType],
-                tuple[None, None, None],
-            ]
-        ] = None
+        self._exc_info: (
+            tuple[type[BaseException], BaseException, TracebackType]
+            | tuple[None, None, None]
+            | None
+        ) = None
         self._settings = settings
         self._api = api
         self._run_id = run_id
@@ -357,24 +358,22 @@ class FileStreamApi:
         self._thread.start()
 
     def set_default_file_policy(
-        self, filename: str, file_policy: "DefaultFilePolicy"
+        self, filename: str, file_policy: DefaultFilePolicy
     ) -> None:
         """Set an upload policy for a file unless one has already been set."""
         if filename not in self._file_policies:
             self._file_policies[filename] = file_policy
 
-    def set_file_policy(self, filename: str, file_policy: "DefaultFilePolicy") -> None:
+    def set_file_policy(self, filename: str, file_policy: DefaultFilePolicy) -> None:
         self._file_policies[filename] = file_policy
 
     @property
-    def heartbeat_seconds(self) -> Union[int, float]:
+    def heartbeat_seconds(self) -> int | float:
         # Defaults to 30
-        heartbeat_seconds: Union[int, float] = self._api.dynamic_settings[
-            "heartbeat_seconds"
-        ]
+        heartbeat_seconds: int | float = self._api.dynamic_settings["heartbeat_seconds"]
         return heartbeat_seconds
 
-    def rate_limit_seconds(self) -> Union[int, float]:
+    def rate_limit_seconds(self) -> int | float:
         run_time = time.time() - self._start_time
         if run_time < 60:
             return max(1.0, self.heartbeat_seconds / 15)
@@ -402,7 +401,7 @@ class FileStreamApi:
         posted_anything_time = time.time()
         ready_chunks = []
         uploaded: set[str] = set()
-        finished: Optional[FileStreamApi.Finish] = None
+        finished: FileStreamApi.Finish | None = None
         while finished is None:
             items = self._read_queue()
             for item in items:
@@ -485,7 +484,7 @@ class FileStreamApi:
             get_sentry().exception(exc_info)
             raise
 
-    def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
+    def _handle_response(self, response: Exception | requests.Response) -> None:
         """Log dropped chunks and updates dynamic settings."""
         if isinstance(response, Exception):
             wandb.termerror(
@@ -494,7 +493,7 @@ class FileStreamApi:
             logger.exception(f"dropped chunk {response}")
             self._dropped_chunks += 1
         else:
-            parsed: Optional[dict] = None
+            parsed: dict | None = None
             try:
                 parsed = response.json()
             except Exception:
@@ -504,7 +503,7 @@ class FileStreamApi:
                 if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
 
-    def _send(self, chunks: list[Chunk], uploaded: Optional[set[str]] = None) -> bool:
+    def _send(self, chunks: list[Chunk], uploaded: set[str] | None = None) -> bool:
         uploaded_list = list(uploaded or [])
         # create files dict. dict of <filename: chunks> pairs where chunks are a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
@@ -601,7 +600,7 @@ def request_with_retry(
     func: Callable,
     *args: Any,
     **kwargs: Any,
-) -> Union["requests.Response", "requests.RequestException"]:
+) -> requests.Response | requests.RequestException:
     """Perform a requests http call, retrying with exponential backoff.
 
     Args:
@@ -612,7 +611,7 @@ def request_with_retry(
         **kwargs:    passed through to func
     """
     max_retries: int = kwargs.pop("max_retries", 30)
-    retry_callback: Optional[Callable] = kwargs.pop("retry_callback", None)
+    retry_callback: Callable | None = kwargs.pop("retry_callback", None)
     sleep = 2
     retry_count = 0
     while True:

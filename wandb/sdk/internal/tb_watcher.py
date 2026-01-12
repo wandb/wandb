@@ -1,5 +1,7 @@
 """tensorboard watcher."""
 
+from __future__ import annotations
+
 import glob
 import logging
 import os
@@ -8,7 +10,7 @@ import socket
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb import util
@@ -39,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 def _link_and_save_file(
-    path: str, base_path: str, interface: "InterfaceQueue", settings: "SettingsStatic"
+    path: str, base_path: str, interface: InterfaceQueue, settings: SettingsStatic
 ) -> None:
     # TODO(jhr): should this logic be merged with Run.save()
     files_dir = settings.files_dir
@@ -60,7 +62,7 @@ def _link_and_save_file(
 
 
 def is_tfevents_file_created_by(
-    path: str, hostname: Optional[str], start_time: Optional[float]
+    path: str, hostname: str | None, start_time: float | None
 ) -> bool:
     """Check if a path is a tfevents file.
 
@@ -106,18 +108,18 @@ def is_tfevents_file_created_by(
 
 
 class TBWatcher:
-    _logdirs: "dict[str, TBDirWatcher]"
-    _watcher_queue: "PriorityQueue"
+    _logdirs: dict[str, TBDirWatcher]
+    _watcher_queue: PriorityQueue
 
     def __init__(
         self,
-        settings: "SettingsStatic",
-        run_proto: "RunRecord",
-        interface: "InterfaceQueue",
+        settings: SettingsStatic,
+        run_proto: RunRecord,
+        interface: InterfaceQueue,
         force: bool = False,
     ) -> None:
         self._logdirs = {}
-        self._consumer: Optional[TBEventConsumer] = None
+        self._consumer: TBEventConsumer | None = None
         self._settings = settings
         self._interface = interface
         self._run_proto = run_proto
@@ -126,8 +128,8 @@ class TBWatcher:
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()  # type: ignore
 
-    def _calculate_namespace(self, logdir: str, rootdir: str) -> Optional[str]:
-        namespace: Optional[str]
+    def _calculate_namespace(self, logdir: str, rootdir: str) -> str | None:
+        namespace: str | None
         dirs = list(self._logdirs) + [logdir]
 
         if os.path.isfile(logdir):
@@ -187,11 +189,11 @@ class TBWatcher:
 class TBDirWatcher:
     def __init__(
         self,
-        tbwatcher: "TBWatcher",
+        tbwatcher: TBWatcher,
         logdir: str,
         save: bool,
-        namespace: Optional[str],
-        queue: "PriorityQueue",
+        namespace: str | None,
+        queue: PriorityQueue,
         force: bool = False,
     ) -> None:
         self.directory_watcher = util.get_module(
@@ -236,8 +238,8 @@ class TBDirWatcher:
             )
 
     def _loader(
-        self, save: bool = True, namespace: Optional[str] = None
-    ) -> "EventFileLoader":
+        self, save: bool = True, namespace: str | None = None
+    ) -> EventFileLoader:
         """Incredibly hacky class generator to optionally save / prefix tfevent files."""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
@@ -295,7 +297,7 @@ class TBDirWatcher:
 
     def _thread_body(self) -> None:
         """Check for new events every second."""
-        shutdown_time: Optional[float] = None
+        shutdown_time: float | None = None
         while True:
             self._process_events()
             if self._shutdown.is_set():
@@ -306,7 +308,7 @@ class TBDirWatcher:
                     break
             time.sleep(1)
 
-    def process_event(self, event: "ProtoEvent") -> None:
+    def process_event(self, event: ProtoEvent) -> None:
         # print("\nEVENT:::", self._logdir, self._namespace, event, "\n")
         if self._first_event_timestamp is None:
             self._first_event_timestamp = event.wall_time
@@ -329,12 +331,12 @@ class TBDirWatcher:
 class Event:
     """An event wrapper to enable priority queueing."""
 
-    def __init__(self, event: "ProtoEvent", namespace: Optional[str]):
+    def __init__(self, event: ProtoEvent, namespace: str | None):
         self.event = event
         self.namespace = namespace
         self.created_at = time.time()
 
-    def __lt__(self, other: "Event") -> bool:
+    def __lt__(self, other: Event) -> bool:
         if self.event.wall_time < other.event.wall_time:
             return True
         return False
@@ -351,9 +353,9 @@ class TBEventConsumer:
     def __init__(
         self,
         tbwatcher: TBWatcher,
-        queue: "PriorityQueue",
-        run_proto: "RunRecord",
-        settings: "SettingsStatic",
+        queue: PriorityQueue,
+        run_proto: RunRecord,
+        settings: SettingsStatic,
         delay: int = 10,
     ) -> None:
         self._tbwatcher = tbwatcher
@@ -429,7 +431,7 @@ class TBEventConsumer:
             self._save_row(item)
 
     def _handle_event(
-        self, event: "ProtoEvent", history: Optional["TBHistory"] = None
+        self, event: ProtoEvent, history: TBHistory | None = None
     ) -> None:
         wandb.tensorboard._log(  # type: ignore
             event.event,
@@ -438,7 +440,7 @@ class TBEventConsumer:
             history=history,
         )
 
-    def _save_row(self, row: "HistoryDict") -> None:
+    def _save_row(self, row: HistoryDict) -> None:
         chart_keys = set()
         for k, v in row.items():
             if isinstance(v, CustomChart):
@@ -462,8 +464,8 @@ class TBEventConsumer:
 
 
 class TBHistory:
-    _data: "HistoryDict"
-    _added: "list[HistoryDict]"
+    _data: HistoryDict
+    _added: list[HistoryDict]
 
     def __init__(self) -> None:
         self._step = 0
@@ -499,22 +501,22 @@ class TBHistory:
         self._step += 1
         self._step_size = 0
 
-    def add(self, d: "HistoryDict") -> None:
+    def add(self, d: HistoryDict) -> None:
         self._flush()
         self._data = dict()
         self._data.update(self._track_history_dict(d))
 
-    def _track_history_dict(self, d: "HistoryDict") -> "HistoryDict":
+    def _track_history_dict(self, d: HistoryDict) -> HistoryDict:
         e = {}
         for k in d.keys():
             e[k] = d[k]
             self._step_size += sys.getsizeof(e[k])
         return e
 
-    def _row_update(self, d: "HistoryDict") -> None:
+    def _row_update(self, d: HistoryDict) -> None:
         self._data.update(self._track_history_dict(d))
 
-    def _get_and_reset(self) -> "list[HistoryDict]":
+    def _get_and_reset(self) -> list[HistoryDict]:
         added = self._added[:]
         self._added = []
         return added

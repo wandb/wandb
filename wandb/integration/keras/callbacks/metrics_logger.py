@@ -1,4 +1,6 @@
-from typing import Any, Literal, Optional, Union
+from __future__ import annotations
+
+from typing import Any, Literal
 
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks
@@ -44,7 +46,7 @@ class WandbMetricsLogger(callbacks.Callback):
 
     def __init__(
         self,
-        log_freq: Union[LogStrategy, int] = "epoch",
+        log_freq: LogStrategy | int = "epoch",
         initial_global_step: int = 0,
         *args: Any,
         **kwargs: Any,
@@ -78,7 +80,7 @@ class WandbMetricsLogger(callbacks.Callback):
             # set all epoch-wise metrics to be logged against epoch.
             wandb.define_metric("epoch/*", step_metric="epoch/epoch")
 
-    def _get_lr(self) -> Union[float, None]:
+    def _get_lr(self) -> float | None:
         if isinstance(
             self.model.optimizer.learning_rate,
             (tf.Variable, tf.Tensor),
@@ -95,7 +97,7 @@ class WandbMetricsLogger(callbacks.Callback):
             wandb.termerror(f"Unable to log learning rate: {e}", repeat=False)
             return None
 
-    def on_epoch_end(self, epoch: int, logs: Optional[dict[str, Any]] = None) -> None:
+    def on_epoch_end(self, epoch: int, logs: dict[str, Any] | None = None) -> None:
         """Called at the end of an epoch."""
         logs = dict() if logs is None else {f"epoch/{k}": v for k, v in logs.items()}
 
@@ -107,7 +109,7 @@ class WandbMetricsLogger(callbacks.Callback):
 
         wandb.log(logs)
 
-    def on_batch_end(self, batch: int, logs: Optional[dict[str, Any]] = None) -> None:
+    def on_batch_end(self, batch: int, logs: dict[str, Any] | None = None) -> None:
         self.global_step += 1
         """An alias for `on_train_batch_end` for backwards compatibility."""
         if self.logging_batch_wise and batch % self.log_freq == 0:
@@ -123,7 +125,7 @@ class WandbMetricsLogger(callbacks.Callback):
             self.global_batch += self.log_freq
 
     def on_train_batch_end(
-        self, batch: int, logs: Optional[dict[str, Any]] = None
+        self, batch: int, logs: dict[str, Any] | None = None
     ) -> None:
         """Called at the end of a training batch in `fit` methods."""
         self.on_batch_end(batch, logs if logs else {})

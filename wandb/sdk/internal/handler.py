@@ -1,5 +1,7 @@
 """Handle Manager."""
 
+from __future__ import annotations
+
 import json
 import logging
 import math
@@ -9,7 +11,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from queue import Queue
 from threading import Event
-from typing import TYPE_CHECKING, Any, Callable, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 from wandb.errors.links import url_registry
 from wandb.proto.wandb_internal_pb2 import (
@@ -68,30 +70,30 @@ class HandleManager:
     _consolidated_summary: SummaryDict
     _sampled_history: dict[str, sample.UniformSampleAccumulator]
     _partial_history: dict[str, Any]
-    _run_proto: Optional[RunRecord]
+    _run_proto: RunRecord | None
     _settings: SettingsStatic
-    _record_q: "Queue[Record]"
-    _result_q: "Queue[Result]"
+    _record_q: Queue[Record]
+    _result_q: Queue[Result]
     _stopped: Event
-    _writer_q: "Queue[Record]"
+    _writer_q: Queue[Record]
     _interface: InterfaceQueue
-    _tb_watcher: Optional[tb_watcher.TBWatcher]
+    _tb_watcher: tb_watcher.TBWatcher | None
     _metric_defines: dict[str, MetricRecord]
     _metric_globs: dict[str, MetricRecord]
     _metric_track: dict[tuple[str, ...], float]
     _metric_copy: dict[tuple[str, ...], Any]
-    _track_time: Optional[float]
+    _track_time: float | None
     _accumulate_time: float
-    _run_start_time: Optional[float]
+    _run_start_time: float | None
     _context_keeper: context.ContextKeeper
 
     def __init__(
         self,
         settings: SettingsStatic,
-        record_q: "Queue[Record]",
-        result_q: "Queue[Result]",
+        record_q: Queue[Record],
+        result_q: Queue[Result],
         stopped: Event,
-        writer_q: "Queue[Record]",
+        writer_q: Queue[Record],
         interface: InterfaceQueue,
         context_keeper: context.ContextKeeper,
     ) -> None:
@@ -247,14 +249,14 @@ class HandleManager:
 
     def _update_summary_metrics(
         self,
-        s: "MetricSummary",
+        s: MetricSummary,
         kl: list[str],
-        v: "numbers.Real",
+        v: numbers.Real,
         float_v: float,
-        goal_max: Optional[bool],
+        goal_max: bool | None,
     ) -> bool:
         updated = False
-        best_key: Optional[tuple[str, ...]] = None
+        best_key: tuple[str, ...] | None = None
         if s.none:
             return False
         if s.copy:
@@ -312,7 +314,7 @@ class HandleManager:
         self,
         kl: list[str],
         v: Any,
-        d: Optional[MetricRecord] = None,
+        d: MetricRecord | None = None,
     ) -> bool:
         has_summary = d and d.HasField("summary")
         if len(kl) == 1:
@@ -346,7 +348,7 @@ class HandleManager:
         self,
         kl: list[str],
         v: Any,
-        d: Optional[MetricRecord] = None,
+        d: MetricRecord | None = None,
     ) -> bool:
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
@@ -413,7 +415,7 @@ class HandleManager:
             item.value_json = json.dumps(self._step)
             self._step += 1
 
-    def _history_define_metric(self, hkey: str) -> Optional[MetricRecord]:
+    def _history_define_metric(self, hkey: str) -> MetricRecord | None:
         """Check for hkey match in glob metrics and return the defined metric."""
         # Dont define metric for internal metrics
         if hkey.startswith("_"):
@@ -515,7 +517,7 @@ class HandleManager:
 
     def _flush_partial_history(
         self,
-        step: Optional[int] = None,
+        step: int | None = None,
     ) -> None:
         if not self._partial_history:
             return

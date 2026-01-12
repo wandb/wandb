@@ -1,5 +1,7 @@
 """Implementation of AzureEnvironment class."""
 
+from __future__ import annotations
+
 from azure.core.exceptions import HttpResponseError  # type: ignore
 from azure.identity import DefaultAzureCredential  # type: ignore
 from azure.storage.blob import BlobClient, BlobServiceClient  # type: ignore
@@ -18,7 +20,7 @@ class AzureEnvironment(AbstractEnvironment):
         """Initialize an AzureEnvironment."""
 
     @classmethod
-    def from_config(cls, config: dict, verify: bool = True) -> "AzureEnvironment":
+    def from_config(cls, config: dict, verify: bool = True) -> AzureEnvironment:
         """Create an AzureEnvironment from a config dict."""
         return cls()
 

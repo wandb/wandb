@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import logging
 import multiprocessing
@@ -11,7 +13,7 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import wandb
 from wandb import util
@@ -628,10 +630,10 @@ def run_agent(
 
 def agent(
     sweep_id: str,
-    function: Optional[Callable] = None,
-    entity: Optional[str] = None,
-    project: Optional[str] = None,
-    count: Optional[int] = None,
+    function: Callable | None = None,
+    entity: str | None = None,
+    project: str | None = None,
+    count: int | None = None,
     forward_signals: bool = False,
 ) -> None:
     """Start one or more sweep agents.

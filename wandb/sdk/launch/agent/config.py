@@ -1,7 +1,8 @@
 """Definition of the config object used by the Launch agent."""
 
+from __future__ import annotations
+
 from enum import Enum
-from typing import Optional
 
 # ValidationError is imported for exception type checking purposes only.
 from pydantic import (  # type: ignore
@@ -68,11 +69,11 @@ class RegistryConfig(BaseModel):
     - Registry block is being deprecated in favor of destination field in builder
     """
 
-    type: Optional[RegistryType] = Field(
+    type: RegistryType | None = Field(
         None,
         description="The type of registry to use.",
     )
-    uri: Optional[str] = Field(
+    uri: str | None = Field(
         None,
         description="The URI of the registry.",
     )
@@ -86,11 +87,11 @@ class RegistryConfig(BaseModel):
 class EnvironmentConfig(BaseModel):
     """Configuration for the environment block."""
 
-    type: Optional[EnvironmentType] = Field(
+    type: EnvironmentType | None = Field(
         None,
         description="The type of environment to use.",
     )
-    region: Optional[str] = Field(..., description="The region to use.")
+    region: str | None = Field(..., description="The region to use.")
 
     class Config:
         extra = "allow"
@@ -108,43 +109,43 @@ class EnvironmentConfig(BaseModel):
 
 
 class BuilderConfig(BaseModel):
-    type: Optional[BuilderType] = Field(
+    type: BuilderType | None = Field(
         None,
         description="The type of builder to use.",
     )
-    destination: Optional[str] = Field(
+    destination: str | None = Field(
         None,
         description="The destination to use for the built image. If not provided, "
         "the image will be pushed to the registry.",
     )
 
-    platform: Optional[TargetPlatform] = Field(
+    platform: TargetPlatform | None = Field(
         None,
         description="The platform to use for the built image. If not provided, "
         "the platform will be detected automatically.",
     )
 
-    build_context_store: Optional[str] = Field(
+    build_context_store: str | None = Field(
         None,
         description="The build context store to use. Required for kaniko builds.",
         alias="build-context-store",
     )
-    build_job_name: Optional[str] = Field(
+    build_job_name: str | None = Field(
         "wandb-launch-container-build",
         description="Name prefix of the build job.",
         alias="build-job-name",
     )
-    secret_name: Optional[str] = Field(
+    secret_name: str | None = Field(
         None,
         description="The name of the secret to use for the build job.",
         alias="secret-name",
     )
-    secret_key: Optional[str] = Field(
+    secret_key: str | None = Field(
         None,
         description="The key of the secret to use for the build job.",
         alias="secret-key",
     )
-    kaniko_image: Optional[str] = Field(
+    kaniko_image: str | None = Field(
         "gcr.io/kaniko-project/executor:latest",
         description="The image to use for the kaniko executor.",
         alias="kaniko-image",
@@ -153,8 +154,8 @@ class BuilderConfig(BaseModel):
     @validator("build_context_store")  # type: ignore
     @classmethod
     def validate_build_context_store(
-        cls, build_context_store: Optional[str]
-    ) -> Optional[str]:
+        cls, build_context_store: str | None
+    ) -> str | None:
         """Validate that the build context store is a valid container registry URI."""
         if build_context_store is None:
             return None
@@ -178,7 +179,7 @@ class BuilderConfig(BaseModel):
 
     @validator("destination")  # type: ignore
     @classmethod
-    def validate_destination(cls, destination: Optional[str]) -> Optional[str]:
+    def validate_destination(cls, destination: str | None) -> str | None:
         """Validate that the destination is a valid container registry URI."""
         if destination is None:
             return None
@@ -192,39 +193,39 @@ class AgentConfig(BaseModel):
         default=[],
         description="The queues to use for this agent.",
     )
-    entity: Optional[str] = Field(
+    entity: str | None = Field(
         description="The W&B entity to use for this agent.",
     )
-    max_jobs: Optional[int] = Field(
+    max_jobs: int | None = Field(
         1,
         description="The maximum number of jobs to run concurrently.",
     )
-    max_schedulers: Optional[int] = Field(
+    max_schedulers: int | None = Field(
         1,
         description="The maximum number of sweep schedulers to run concurrently.",
     )
-    secure_mode: Optional[bool] = Field(
+    secure_mode: bool | None = Field(
         False,
         description="Whether to use secure mode for this agent. If True, the "
         "agent will reject runs that attempt to override the entrypoint or image.",
     )
-    registry: Optional[RegistryConfig] = Field(
+    registry: RegistryConfig | None = Field(
         None,
         description="The registry to use.",
     )
-    environment: Optional[EnvironmentConfig] = Field(
+    environment: EnvironmentConfig | None = Field(
         None,
         description="The environment to use.",
     )
-    builder: Optional[BuilderConfig] = Field(
+    builder: BuilderConfig | None = Field(
         None,
         description="The builder to use.",
     )
-    verbosity: Optional[int] = Field(
+    verbosity: int | None = Field(
         0,
         description="How verbose to print, 0 = default, 1 = verbose, 2 = very verbose",
     )
-    stopped_run_timeout: Optional[int] = Field(
+    stopped_run_timeout: int | None = Field(
         60,
         description="How many seconds to wait after receiving the stop command before forcibly cancelling a run.",
     )

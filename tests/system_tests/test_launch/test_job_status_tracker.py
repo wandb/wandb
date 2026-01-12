@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 from unittest import mock
 from unittest.mock import MagicMock

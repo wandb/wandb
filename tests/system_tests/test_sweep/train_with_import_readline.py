@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import wandb
 
 # For use with test_wandb_agent_full.py::test_agent_subprocess_with_import_readline

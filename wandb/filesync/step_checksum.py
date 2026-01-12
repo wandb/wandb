@@ -1,12 +1,14 @@
 """Batching file prepare requests to our API."""
 
+from __future__ import annotations
+
 import concurrent.futures
 import functools
 import os
 import queue
 import shutil
 import threading
-from typing import TYPE_CHECKING, NamedTuple, Optional, Union, cast
+from typing import TYPE_CHECKING, NamedTuple, Union, cast
 
 from wandb.filesync import step_upload
 from wandb.sdk.lib import filesystem, runid
@@ -28,20 +30,20 @@ class RequestUpload(NamedTuple):
 
 
 class RequestStoreManifestFiles(NamedTuple):
-    manifest: "ArtifactManifest"
+    manifest: ArtifactManifest
     artifact_id: str
-    save_fn: "SaveFn"
+    save_fn: SaveFn
 
 
 class RequestCommitArtifact(NamedTuple):
     artifact_id: str
     finalize: bool
     before_commit: step_upload.PreCommitFn
-    result_future: "concurrent.futures.Future[None]"
+    result_future: concurrent.futures.Future[None]
 
 
 class RequestFinish(NamedTuple):
-    callback: Optional[step_upload.OnRequestFinishFn]
+    callback: step_upload.OnRequestFinishFn | None
 
 
 Event = Union[
@@ -52,11 +54,11 @@ Event = Union[
 class StepChecksum:
     def __init__(
         self,
-        api: "internal_api.Api",
-        tempdir: "tempfile.TemporaryDirectory",
-        request_queue: "queue.Queue[Event]",
-        output_queue: "queue.Queue[step_upload.Event]",
-        stats: "stats.Stats",
+        api: internal_api.Api,
+        tempdir: tempfile.TemporaryDirectory,
+        request_queue: queue.Queue[Event],
+        output_queue: queue.Queue[step_upload.Event],
+        stats: stats.Stats,
     ) -> None:
         self._api = api
         self._tempdir = tempdir

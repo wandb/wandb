@@ -1,8 +1,10 @@
 """Implementation of the docker builder."""
 
+from __future__ import annotations
+
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 import wandb.docker as docker
@@ -62,7 +64,7 @@ class DockerBuilder(AbstractBuilder):
         config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
-    ) -> "DockerBuilder":
+    ) -> DockerBuilder:
         """Create a DockerBuilder from a config.
 
         Arguments:
@@ -106,7 +108,7 @@ class DockerBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
+        job_tracker: JobAndRunStatusTracker | None = None,
     ) -> str:
         """Build the image for the given project.
 

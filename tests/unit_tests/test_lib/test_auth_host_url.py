@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 from wandb.sdk.lib.wbauth.host_url import HostUrl
 

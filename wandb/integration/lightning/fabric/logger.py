@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import os
 from argparse import Namespace
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal
 
 from packaging import version
 from typing_extensions import override
@@ -286,19 +288,19 @@ class WandbLogger(Logger):
 
     def __init__(
         self,
-        name: Optional[str] = None,
+        name: str | None = None,
         save_dir: _PATH = ".",
-        version: Optional[str] = None,
+        version: str | None = None,
         offline: bool = False,
-        dir: Optional[_PATH] = None,
-        id: Optional[str] = None,
-        anonymous: Optional[bool] = None,
-        project: Optional[str] = None,
-        log_model: Union[Literal["all"], bool] = False,
-        experiment: Optional["wandb.Run"] = None,
+        dir: _PATH | None = None,
+        id: str | None = None,
+        anonymous: bool | None = None,
+        project: str | None = None,
+        log_model: Literal["all"] | bool = False,
+        experiment: wandb.Run | None = None,
         prefix: str = "",
-        checkpoint_name: Optional[str] = None,
-        log_checkpoint_on: Union[Literal["success"], Literal["all"]] = "success",
+        checkpoint_name: str | None = None,
+        log_checkpoint_on: Literal["success"] | Literal["all"] = "success",
         **kwargs: Any,
     ) -> None:
         if offline and log_model:
@@ -314,7 +316,7 @@ class WandbLogger(Logger):
         self._prefix = prefix
         self._experiment = experiment
         self._logged_model_time: dict[str, float] = {}
-        self._checkpoint_callback: Optional[ModelCheckpoint] = None
+        self._checkpoint_callback: ModelCheckpoint | None = None
 
         # paths are processed as strings
         if save_dir is not None:
@@ -362,7 +364,7 @@ class WandbLogger(Logger):
 
     @property
     @rank_zero_experiment
-    def experiment(self) -> "wandb.Run":
+    def experiment(self) -> wandb.Run:
         r"""Actual wandb object.
 
         To use wandb features in your :class:`~lightning.pytorch.core.LightningModule`, do the
@@ -419,7 +421,7 @@ class WandbLogger(Logger):
 
     @override
     @rank_zero_only
-    def log_hyperparams(self, params: Union[dict[str, Any], Namespace]) -> None:  # type: ignore[override]
+    def log_hyperparams(self, params: dict[str, Any] | Namespace) -> None:  # type: ignore[override]
         params = _convert_params(params)
         params = _sanitize_callable_params(params)
         self.experiment.config.update(params, allow_val_change=True)
@@ -427,7 +429,7 @@ class WandbLogger(Logger):
     @override
     @rank_zero_only
     def log_metrics(
-        self, metrics: Mapping[str, float], step: Optional[int] = None
+        self, metrics: Mapping[str, float], step: int | None = None
     ) -> None:
         assert rank_zero_only.rank == 0, "experiment tried to log from global_rank != 0"
 
@@ -441,10 +443,10 @@ class WandbLogger(Logger):
     def log_table(
         self,
         key: str,
-        columns: Optional[list[str]] = None,
-        data: Optional[list[list[Any]]] = None,
+        columns: list[str] | None = None,
+        data: list[list[Any]] | None = None,
         dataframe: Any = None,
-        step: Optional[int] = None,
+        step: int | None = None,
     ) -> None:
         """Log a Table containing any object type (text, image, audio, video, molecule, html, etc).
 
@@ -458,10 +460,10 @@ class WandbLogger(Logger):
     def log_text(
         self,
         key: str,
-        columns: Optional[list[str]] = None,
-        data: Optional[list[list[str]]] = None,
+        columns: list[str] | None = None,
+        data: list[list[str]] | None = None,
         dataframe: Any = None,
-        step: Optional[int] = None,
+        step: int | None = None,
     ) -> None:
         """Log text as a Table.
 
@@ -472,7 +474,7 @@ class WandbLogger(Logger):
 
     @rank_zero_only
     def log_html(
-        self, key: str, htmls: list[Any], step: Optional[int] = None, **kwargs: Any
+        self, key: str, htmls: list[Any], step: int | None = None, **kwargs: Any
     ) -> None:
         """Log html files.
 
@@ -494,7 +496,7 @@ class WandbLogger(Logger):
 
     @rank_zero_only
     def log_image(
-        self, key: str, images: list[Any], step: Optional[int] = None, **kwargs: Any
+        self, key: str, images: list[Any], step: int | None = None, **kwargs: Any
     ) -> None:
         """Log images (tensors, numpy arrays, PIL Images or file paths).
 
@@ -516,7 +518,7 @@ class WandbLogger(Logger):
 
     @rank_zero_only
     def log_audio(
-        self, key: str, audios: list[Any], step: Optional[int] = None, **kwargs: Any
+        self, key: str, audios: list[Any], step: int | None = None, **kwargs: Any
     ) -> None:
         r"""Log audios (numpy arrays, or file paths).
 
@@ -546,7 +548,7 @@ class WandbLogger(Logger):
 
     @rank_zero_only
     def log_video(
-        self, key: str, videos: list[Any], step: Optional[int] = None, **kwargs: Any
+        self, key: str, videos: list[Any], step: int | None = None, **kwargs: Any
     ) -> None:
         """Log videos (numpy arrays, or file paths).
 
@@ -576,7 +578,7 @@ class WandbLogger(Logger):
 
     @property
     @override
-    def save_dir(self) -> Optional[str]:
+    def save_dir(self) -> str | None:
         """Gets the save directory.
 
         Returns:
@@ -587,7 +589,7 @@ class WandbLogger(Logger):
 
     @property
     @override
-    def name(self) -> Optional[str]:
+    def name(self) -> str | None:
         """The project name of this experiment.
 
         Returns:
@@ -599,7 +601,7 @@ class WandbLogger(Logger):
 
     @property
     @override
-    def version(self) -> Optional[str]:
+    def version(self) -> str | None:
         """Gets the id of the experiment.
 
         Returns:
@@ -610,7 +612,7 @@ class WandbLogger(Logger):
         return self._experiment.id if self._experiment else self._id
 
     @property
-    def log_dir(self) -> Optional[str]:
+    def log_dir(self) -> str | None:
         """Gets the save directory.
 
         Returns:
@@ -625,7 +627,7 @@ class WandbLogger(Logger):
         return self.LOGGER_JOIN_CHAR
 
     @property
-    def root_dir(self) -> Optional[str]:
+    def root_dir(self) -> str | None:
         """Return the root directory.
 
         Return the root directory where all versions of an experiment get saved, or `None` if the logger does not
@@ -633,7 +635,7 @@ class WandbLogger(Logger):
         """
         return self.save_dir.parent if self.save_dir else None
 
-    def log_graph(self, model: Module, input_array: Optional[Tensor] = None) -> None:
+    def log_graph(self, model: Module, input_array: Tensor | None = None) -> None:
         """Record model graph.
 
         Args:
@@ -645,7 +647,7 @@ class WandbLogger(Logger):
         return
 
     @override
-    def after_save_checkpoint(self, checkpoint_callback: "ModelCheckpoint") -> None:
+    def after_save_checkpoint(self, checkpoint_callback: ModelCheckpoint) -> None:
         # log checkpoints as artifacts
         if (
             self._log_model == "all"
@@ -661,9 +663,9 @@ class WandbLogger(Logger):
     @rank_zero_only
     def download_artifact(
         artifact: str,
-        save_dir: Optional[_PATH] = None,
-        artifact_type: Optional[str] = None,
-        use_artifact: Optional[bool] = True,
+        save_dir: _PATH | None = None,
+        artifact_type: str | None = None,
+        use_artifact: bool | None = True,
     ) -> str:
         """Downloads an artifact from the wandb server.
 
@@ -686,9 +688,7 @@ class WandbLogger(Logger):
         save_dir = None if save_dir is None else os.fspath(save_dir)
         return artifact.download(root=save_dir)
 
-    def use_artifact(
-        self, artifact: str, artifact_type: Optional[str] = None
-    ) -> "Artifact":
+    def use_artifact(self, artifact: str, artifact_type: str | None = None) -> Artifact:
         """Logs to the wandb dashboard that the mentioned artifact is used by the run.
 
         Args:
@@ -722,7 +722,7 @@ class WandbLogger(Logger):
             self._scan_and_log_pytorch_checkpoints(self._checkpoint_callback)
 
     def _scan_and_log_pytorch_checkpoints(
-        self, checkpoint_callback: "ModelCheckpoint"
+        self, checkpoint_callback: ModelCheckpoint
     ) -> None:
         from lightning.pytorch.loggers.utilities import _scan_checkpoints
 

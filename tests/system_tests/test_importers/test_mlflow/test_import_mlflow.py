@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 import wandb
 from wandb.apis.importers.internals.util import Namespace

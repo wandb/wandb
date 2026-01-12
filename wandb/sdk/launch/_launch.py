@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
 import sys
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 from wandb.apis.internal import Api
@@ -54,11 +56,11 @@ def set_launch_logfile(logfile: str) -> None:
 
 
 def resolve_agent_config(
-    entity: Optional[str],
-    max_jobs: Optional[int],
-    queues: Optional[tuple[str]],
-    config: Optional[str],
-    verbosity: Optional[int],
+    entity: str | None,
+    max_jobs: int | None,
+    queues: tuple[str] | None,
+    config: str | None,
+    verbosity: int | None,
 ) -> tuple[dict[str, Any], Api]:
     """Resolve the agent config.
 
@@ -172,19 +174,19 @@ def create_and_run_agent(
 
 async def _launch(
     api: Api,
-    job: Optional[str] = None,
-    name: Optional[str] = None,
-    project: Optional[str] = None,
-    entity: Optional[str] = None,
-    docker_image: Optional[str] = None,
-    entry_point: Optional[list[str]] = None,
-    version: Optional[str] = None,
-    resource: Optional[str] = None,
-    resource_args: Optional[dict[str, Any]] = None,
-    launch_config: Optional[dict[str, Any]] = None,
-    synchronous: Optional[bool] = None,
-    run_id: Optional[str] = None,
-    repository: Optional[str] = None,
+    job: str | None = None,
+    name: str | None = None,
+    project: str | None = None,
+    entity: str | None = None,
+    docker_image: str | None = None,
+    entry_point: list[str] | None = None,
+    version: str | None = None,
+    resource: str | None = None,
+    resource_args: dict[str, Any] | None = None,
+    launch_config: dict[str, Any] | None = None,
+    synchronous: bool | None = None,
+    run_id: str | None = None,
+    repository: str | None = None,
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
     if launch_config is None:
@@ -248,19 +250,19 @@ async def _launch(
 
 def launch(
     api: Api,
-    job: Optional[str] = None,
-    entry_point: Optional[list[str]] = None,
-    version: Optional[str] = None,
-    name: Optional[str] = None,
-    resource: Optional[str] = None,
-    resource_args: Optional[dict[str, Any]] = None,
-    project: Optional[str] = None,
-    entity: Optional[str] = None,
-    docker_image: Optional[str] = None,
-    config: Optional[dict[str, Any]] = None,
-    synchronous: Optional[bool] = True,
-    run_id: Optional[str] = None,
-    repository: Optional[str] = None,
+    job: str | None = None,
+    entry_point: list[str] | None = None,
+    version: str | None = None,
+    name: str | None = None,
+    resource: str | None = None,
+    resource_args: dict[str, Any] | None = None,
+    project: str | None = None,
+    entity: str | None = None,
+    docker_image: str | None = None,
+    config: dict[str, Any] | None = None,
+    synchronous: bool | None = True,
+    run_id: str | None = None,
+    repository: str | None = None,
 ) -> AbstractRun:
     """Launch a W&B launch experiment.
 

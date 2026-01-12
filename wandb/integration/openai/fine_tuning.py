@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import datetime
 import io
@@ -6,7 +8,7 @@ import os
 import re
 import tempfile
 import time
-from typing import Any, Optional, Union
+from typing import Any
 
 from packaging.version import parse
 
@@ -50,19 +52,19 @@ pd = util.get_module(
 class WandbLogger:
     """Log OpenAI fine-tunes to [Weights & Biases](https://wandb.me/openai-docs)."""
 
-    _wandb_api: Optional[wandb.Api] = None
+    _wandb_api: wandb.Api | None = None
     _logged_in: bool = False
-    openai_client: Optional[OpenAI] = None
-    _run: Optional[wandb.Run] = None
+    openai_client: OpenAI | None = None
+    _run: wandb.Run | None = None
 
     @classmethod
     def sync(
         cls,
-        fine_tune_job_id: Optional[str] = None,
-        openai_client: Optional[OpenAI] = None,
-        num_fine_tunes: Optional[int] = None,
+        fine_tune_job_id: str | None = None,
+        openai_client: OpenAI | None = None,
+        num_fine_tunes: int | None = None,
         project: str = "OpenAI-Fine-Tune",
-        entity: Optional[str] = None,
+        entity: str | None = None,
         overwrite: bool = False,
         wait_for_job_success: bool = True,
         log_datasets: bool = True,
@@ -204,7 +206,7 @@ class WandbLogger:
         cls,
         fine_tune: FineTuningJob,
         project: str,
-        entity: Optional[str],
+        entity: str | None,
         overwrite: bool,
         show_individual_warnings: bool,
         log_datasets: bool,
@@ -344,7 +346,7 @@ class WandbLogger:
         return hyperparams
 
     @staticmethod
-    def sanitize(input: Any) -> Union[dict, list, str]:
+    def sanitize(input: Any) -> dict | list | str:
         valid_types = [bool, int, float, str]
         if isinstance(input, (Hyperparameters, Error)):
             return dict(input)
@@ -362,7 +364,7 @@ class WandbLogger:
         cls,
         fine_tune: FineTuningJob,
         project: str,
-        entity: Optional[str],
+        entity: str | None,
         log_datasets: bool,
         overwrite: bool,
         model_artifact_name: str,
@@ -408,11 +410,11 @@ class WandbLogger:
     @classmethod
     def _log_artifact_inputs(
         cls,
-        file_id: Optional[str],
+        file_id: str | None,
         prefix: str,
         artifact_type: str,
         project: str,
-        entity: Optional[str],
+        entity: str | None,
         overwrite: bool,
     ) -> None:
         # get input artifact

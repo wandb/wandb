@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import logging
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
@@ -102,7 +104,7 @@ class CohereRequestResponseResolver:
         response: Response,
         start_time: float,
         time_elapsed: float,
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Process the response from the Cohere API and convert it to a dictionary that can be logged.
 
         :param args: The arguments of the original function.

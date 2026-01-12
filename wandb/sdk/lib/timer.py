@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from typing import Any
 
@@ -8,7 +10,7 @@ class Timer:
         self.start: float = time.perf_counter()
         self.stop: float = self.start
 
-    def __enter__(self) -> "Timer":
+    def __enter__(self) -> Timer:
         return self
 
     def __exit__(self, *args: Any) -> None:

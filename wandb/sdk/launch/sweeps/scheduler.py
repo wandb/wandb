@@ -1,5 +1,7 @@
 """Abstract Scheduler class."""
 
+from __future__ import annotations
+
 import asyncio
 import base64
 import copy
@@ -13,7 +15,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import click
 
@@ -68,7 +70,7 @@ class RunState(Enum):
     # assumed alive, unless we get unknown 2x then move to failed (dead)
     UNKNOWN = "unknown", "alive"
 
-    def __new__(cls: Any, *args: list, **kwds: Any) -> "RunState":
+    def __new__(cls: Any, *args: list, **kwds: Any) -> RunState:
         obj: RunState = object.__new__(cls)
         obj._value_ = args[0]
         return obj
@@ -92,9 +94,9 @@ class SweepRun:
     id: str
     worker_id: int
     state: RunState = RunState.RUNNING
-    queued_run: Optional["public.QueuedRun"] = None
-    args: Optional[dict[str, Any]] = None
-    logs: Optional[list[str]] = None
+    queued_run: public.QueuedRun | None = None
+    args: dict[str, Any] | None = None
+    logs: list[str] | None = None
 
 
 class Scheduler(ABC):
@@ -106,15 +108,15 @@ class Scheduler(ABC):
 
     def __init__(
         self,
-        api: "Api",
-        *args: Optional[Any],
-        polling_sleep: Optional[float] = None,
-        sweep_id: Optional[str] = None,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        project_queue: Optional[str] = None,
-        num_workers: Optional[Union[int, str]] = None,
-        **kwargs: Optional[Any],
+        api: Api,
+        *args: Any | None,
+        polling_sleep: float | None = None,
+        sweep_id: str | None = None,
+        entity: str | None = None,
+        project: str | None = None,
+        project_queue: str | None = None,
+        num_workers: int | str | None = None,
+        **kwargs: Any | None,
     ):
         import yaml
 
@@ -182,7 +184,7 @@ class Scheduler(ABC):
         )
 
     @abstractmethod
-    def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
+    def _get_next_sweep_run(self, worker_id: int) -> SweepRun | None:
         """Called when worker available."""
 
     @abstractmethod
@@ -256,7 +258,7 @@ class Scheduler(ABC):
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
 
-    def _init_wandb_run(self) -> "wandb.Run":
+    def _init_wandb_run(self) -> wandb.Run:
         """Controls resume or init logic for a scheduler wandb run."""
         settings = wandb.Settings(disable_job_creation=True)
         run: wandb.Run = wandb.init(  # type: ignore
@@ -271,7 +273,7 @@ class Scheduler(ABC):
         """Stop the sweep."""
         self._state = SchedulerState.STOPPED
 
-    def fail_sweep(self, err: Optional[str]) -> None:
+    def fail_sweep(self, err: str | None) -> None:
         """Fail the sweep w/ optional exception."""
         self._state = SchedulerState.FAILED
         if err:
@@ -330,7 +332,7 @@ class Scheduler(ABC):
                         break
 
                     try:
-                        run: Optional[SweepRun] = self._get_next_sweep_run(worker_id)
+                        run: SweepRun | None = self._get_next_sweep_run(worker_id)
                         if not run:
                             break
                     except SchedulerError as e:
@@ -568,7 +570,7 @@ class Scheduler(ABC):
         misspellings will result in an empty list.
         """
         try:
-            queued_run: Optional[QueuedRun] = self._runs[run_id].queued_run
+            queued_run: QueuedRun | None = self._runs[run_id].queued_run
             if not queued_run:
                 return []
 
@@ -652,7 +654,7 @@ class Scheduler(ABC):
 
     def _make_entry_and_launch_config(
         self, run: SweepRun
-    ) -> tuple[Optional[list[str]], dict[str, dict[str, Any]]]:
+    ) -> tuple[list[str] | None, dict[str, dict[str, Any]]]:
         args = create_sweep_command_args({"args": run.args})
         entry_point, macro_args = make_launch_sweep_entrypoint(
             args, self._sweep_config.get("command")

@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import sys
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 from wandb import util
 
@@ -32,8 +34,8 @@ class Histogram(WBValue):
 
     def __init__(
         self,
-        sequence: Optional[Sequence] = None,
-        np_histogram: Optional["NumpyHistogram"] = None,
+        sequence: Sequence | None = None,
+        np_histogram: NumpyHistogram | None = None,
         num_bins: int = 64,
     ) -> None:
         """Initialize a Histogram object.
@@ -92,7 +94,7 @@ class Histogram(WBValue):
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
-    def to_json(self, run: Optional[Union["LocalRun", "Artifact"]] = None) -> dict:
+    def to_json(self, run: LocalRun | Artifact | None = None) -> dict:
         """Returns the JSON representation expected by the backend.
 
         <!-- lazydoc-ignore: internal -->

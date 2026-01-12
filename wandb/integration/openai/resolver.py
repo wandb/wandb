@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import datetime
 import io
 import logging
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 from wandb.sdk.data_types import trace_tree
@@ -41,7 +43,7 @@ class OpenAIRequestResponseResolver:
         response: Response,
         start_time: float,  # pass to comply with the protocol, but use response["created"] instead
         time_elapsed: float,
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         request = kwargs
 
         if not self.define_metrics_called:

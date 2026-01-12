@@ -1,8 +1,10 @@
 """Implementation of the SageMakerRunner class."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 if False:
     import boto3  # type: ignore
@@ -32,8 +34,8 @@ class SagemakerSubmittedRun(AbstractRun):
     def __init__(
         self,
         training_job_name: str,
-        client: "boto3.Client",
-        log_client: Optional["boto3.Client"] = None,
+        client: boto3.Client,
+        log_client: boto3.Client | None = None,
     ) -> None:
         super().__init__()
         self.client = client
@@ -45,7 +47,7 @@ class SagemakerSubmittedRun(AbstractRun):
     def id(self) -> str:
         return f"sagemaker-{self.training_job_name}"
 
-    async def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> str | None:
         if self.log_client is None:
             return None
         try:
@@ -146,7 +148,7 @@ class SageMakerRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         image_uri: str,
-    ) -> Optional[AbstractRun]:
+    ) -> AbstractRun | None:
         """Run a project on Amazon Sagemaker.
 
         Arguments:
@@ -258,10 +260,10 @@ class SageMakerRunner(AbstractRunner):
 
 
 def merge_image_uri_with_algorithm_specification(
-    algorithm_specification: Optional[dict[str, Any]],
-    image_uri: Optional[str],
+    algorithm_specification: dict[str, Any] | None,
+    image_uri: str | None,
     entrypoint_command: list[str],
-    args: Optional[list[str]],
+    args: list[str] | None,
 ) -> dict[str, Any]:
     """Create an AWS AlgorithmSpecification.
 
@@ -292,15 +294,15 @@ def build_sagemaker_args(
     launch_project: LaunchProject,
     api: Api,
     role_arn: str,
-    entry_point: Optional[EntryPoint],
-    args: Optional[list[str]],
+    entry_point: EntryPoint | None,
+    args: list[str] | None,
     max_env_length: int,
     image_uri: str,
-    default_output_path: Optional[str] = None,
+    default_output_path: str | None = None,
 ) -> dict[str, Any]:
     sagemaker_args: dict[str, Any] = {}
     resource_args = launch_project.fill_macros(image_uri)
-    given_sagemaker_args: Optional[dict[str, Any]] = resource_args.get("sagemaker")
+    given_sagemaker_args: dict[str, Any] | None = resource_args.get("sagemaker")
 
     if given_sagemaker_args is None:
         raise LaunchError(
@@ -384,8 +386,8 @@ def build_sagemaker_args(
 async def launch_sagemaker_job(
     launch_project: LaunchProject,
     sagemaker_args: dict[str, Any],
-    sagemaker_client: "boto3.Client",
-    log_client: Optional["boto3.Client"] = None,
+    sagemaker_client: boto3.Client,
+    log_client: boto3.Client | None = None,
 ) -> SagemakerSubmittedRun:
     training_job_name = sagemaker_args.get("TrainingJobName") or launch_project.run_id
     create_training_job = event_loop_thread_exec(sagemaker_client.create_training_job)

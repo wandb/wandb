@@ -1,5 +1,7 @@
 """Exits with code 0 if callbacks are removed after raising an exception."""
 
+from __future__ import annotations
+
 import sys
 
 from wandb.sdk.lib import console_capture

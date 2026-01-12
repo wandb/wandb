@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
 import re
 import sys
 import tempfile
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 from wandb.apis.internal import Api
@@ -30,17 +32,17 @@ CODE_ARTIFACT_EXCLUDE_PATHS = ["wandb", ".git"]
 def create_job(
     path: str,
     job_type: str,
-    entity: Optional[str] = None,
-    project: Optional[str] = None,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    aliases: Optional[list[str]] = None,
-    runtime: Optional[str] = None,
-    entrypoint: Optional[str] = None,
-    git_hash: Optional[str] = None,
-    build_context: Optional[str] = None,
-    dockerfile: Optional[str] = None,
-) -> Optional[Artifact]:
+    entity: str | None = None,
+    project: str | None = None,
+    name: str | None = None,
+    description: str | None = None,
+    aliases: list[str] | None = None,
+    runtime: str | None = None,
+    entrypoint: str | None = None,
+    git_hash: str | None = None,
+    build_context: str | None = None,
+    dockerfile: str | None = None,
+) -> Artifact | None:
     """Create a job from a path, not as the output of a run.
 
     Arguments:
@@ -105,20 +107,20 @@ def _create_job(
     api: Api,
     job_type: str,
     path: str,
-    entity: Optional[str] = None,
-    project: Optional[str] = None,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    aliases: Optional[list[str]] = None,
-    runtime: Optional[str] = None,
-    entrypoint: Optional[str] = None,
-    git_hash: Optional[str] = None,
-    build_context: Optional[str] = None,
-    dockerfile: Optional[str] = None,
-    base_image: Optional[str] = None,
-    services: Optional[dict[str, str]] = None,
-    schema: Optional[dict[str, Any]] = None,
-) -> tuple[Optional[Artifact], str, list[str]]:
+    entity: str | None = None,
+    project: str | None = None,
+    name: str | None = None,
+    description: str | None = None,
+    aliases: list[str] | None = None,
+    runtime: str | None = None,
+    entrypoint: str | None = None,
+    git_hash: str | None = None,
+    build_context: str | None = None,
+    dockerfile: str | None = None,
+    base_image: str | None = None,
+    services: dict[str, str] | None = None,
+    schema: dict[str, Any] | None = None,
+) -> tuple[Artifact | None, str, list[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 
     if name and name != make_artifact_name_safe(name):
@@ -255,11 +257,11 @@ def _create_job(
 def _make_metadata_for_partial_job(
     job_type: str,
     tempdir: tempfile.TemporaryDirectory,
-    git_hash: Optional[str],
-    runtime: Optional[str],
+    git_hash: str | None,
+    runtime: str | None,
     path: str,
-    entrypoint: Optional[str],
-) -> tuple[Optional[dict[str, Any]], Optional[list[str]]]:
+    entrypoint: str | None,
+) -> tuple[dict[str, Any] | None, list[str] | None]:
     """Create metadata for partial jobs, return metadata and requirements."""
     metadata = {}
     if job_type == "git":
@@ -316,9 +318,9 @@ def _create_repo_metadata(
     path: str,
     tempdir: str,
     entrypoint: str,
-    git_hash: Optional[str] = None,
-    runtime: Optional[str] = None,
-) -> Optional[dict[str, Any]]:
+    git_hash: str | None = None,
+    runtime: str | None = None,
+) -> dict[str, Any] | None:
     # Make sure the entrypoint doesn't contain any backward path traversal
     if entrypoint and ".." in entrypoint:
         wandb.termerror("Entrypoint cannot contain backward path traversal")
@@ -372,8 +374,8 @@ def _create_repo_metadata(
 
 
 def _create_artifact_metadata(
-    path: str, entrypoint: str, runtime: Optional[str] = None
-) -> tuple[Optional[dict[str, Any]], Optional[list[str]]]:
+    path: str, entrypoint: str, runtime: str | None = None
+) -> tuple[dict[str, Any] | None, list[str] | None]:
     if not os.path.isdir(path):
         wandb.termerror("Path must be a valid file or directory")
         return {}, []
@@ -435,13 +437,13 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
 def _make_code_artifact(
     api: Api,
     job_builder: JobBuilder,
-    run: "wandb.Run",
+    run: wandb.Run,
     path: str,
     entrypoint: str,
-    entity: Optional[str],
-    project: Optional[str],
-    name: Optional[str],
-) -> Optional[str]:
+    entity: str | None,
+    project: str | None,
+    name: str | None,
+) -> str | None:
     """Helper for creating and logging code artifacts.
 
     Returns the name of the eventual job.
@@ -503,7 +505,7 @@ def _make_code_artifact(
     return name
 
 
-def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
+def _make_code_artifact_name(path: str, name: str | None) -> str:
     """Make a code artifact name from a path and user provided name."""
     if name:
         return f"code-{name}"
@@ -519,7 +521,7 @@ def _make_code_artifact_name(path: str, name: Optional[str]) -> str:
 
 
 def _dump_metadata_and_requirements(
-    tmp_path: str, metadata: dict[str, Any], requirements: Optional[list[str]]
+    tmp_path: str, metadata: dict[str, Any], requirements: list[str] | None
 ) -> None:
     """Dump manufactured metadata and requirements.txt.
 

@@ -1,9 +1,10 @@
 """Implementation of the GCP environment for wandb launch."""
 
+from __future__ import annotations
+
 import logging
 import os
 import subprocess
-from typing import Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
@@ -77,7 +78,7 @@ class GcpEnvironment(AbstractEnvironment):
         self._project = ""
 
     @classmethod
-    def from_config(cls, config: dict) -> "GcpEnvironment":
+    def from_config(cls, config: dict) -> GcpEnvironment:
         """Create a GcpEnvironment from a config dictionary.
 
         Arguments:
@@ -101,7 +102,7 @@ class GcpEnvironment(AbstractEnvironment):
     @classmethod
     def from_default(
         cls,
-    ) -> "GcpEnvironment":
+    ) -> GcpEnvironment:
         """Create a GcpEnvironment from the default configuration.
 
         Returns:
@@ -301,7 +302,7 @@ class GcpEnvironment(AbstractEnvironment):
             raise LaunchError(f"{_err_prefix}: GCS upload failed: {e}") from e
 
 
-def get_gcloud_config_value(config_name: str) -> Optional[str]:
+def get_gcloud_config_value(config_name: str) -> str | None:
     """Get a value from gcloud config.
 
     Arguments:
@@ -322,7 +323,7 @@ def get_gcloud_config_value(config_name: str) -> Optional[str]:
         return None
 
 
-def get_default_region() -> Optional[str]:
+def get_default_region() -> str | None:
     """Get the default region from gcloud config or environment variables.
 
     Returns:

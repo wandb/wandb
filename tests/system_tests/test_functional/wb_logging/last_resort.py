@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 
 if __name__ == "__main__":

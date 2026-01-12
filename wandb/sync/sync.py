@@ -1,5 +1,7 @@
 """sync."""
 
+from __future__ import annotations
+
 import atexit
 import datetime
 import fnmatch
@@ -9,7 +11,6 @@ import sys
 import tempfile
 import threading
 import time
-from typing import Optional
 from urllib.parse import quote as url_quote
 
 import wandb
@@ -405,8 +406,8 @@ def get_runs(
     include_online: bool = True,
     include_synced: bool = False,
     include_unsynced: bool = True,
-    exclude_globs: Optional[list[str]] = None,
-    include_globs: Optional[list[str]] = None,
+    exclude_globs: list[str] | None = None,
+    include_globs: list[str] | None = None,
 ):
     # TODO(jhr): grab dir info from settings
     base = ".wandb" if os.path.exists(".wandb") else "wandb"

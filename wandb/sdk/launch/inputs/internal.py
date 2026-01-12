@@ -7,11 +7,13 @@ If there is no active run, the messages are staged on the StagedLaunchInputs
 singleton and sent when a run is created.
 """
 
+from __future__ import annotations
+
 import os
 import pathlib
 import shutil
 import tempfile
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 import wandb.data_types
@@ -61,11 +63,11 @@ class JobInputArguments:
 
     def __init__(
         self,
-        include: Optional[list[str]] = None,
-        exclude: Optional[list[str]] = None,
-        schema: Optional[dict] = None,
-        file_path: Optional[str] = None,
-        run_config: Optional[bool] = None,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
+        schema: dict | None = None,
+        file_path: str | None = None,
+        run_config: bool | None = None,
     ):
         self.include = include
         self.exclude = exclude
@@ -130,7 +132,7 @@ def _publish_job_input(
     )
 
 
-def _replace_refs_and_allofs(schema: dict, defs: Optional[dict]) -> dict:
+def _replace_refs_and_allofs(schema: dict, defs: dict | None) -> dict:
     """Recursively fix JSON schemas with common issues.
 
     1. Replaces any instances of $ref with their associated definition in defs
@@ -208,9 +210,9 @@ def _validate_schema(schema: dict) -> None:
 
 def handle_config_file_input(
     path: str,
-    include: Optional[list[str]] = None,
-    exclude: Optional[list[str]] = None,
-    schema: Optional[Any] = None,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+    schema: Any | None = None,
 ):
     """Declare an overridable configuration file for a launch job.
 
@@ -250,9 +252,9 @@ def handle_config_file_input(
 
 
 def handle_run_config_input(
-    include: Optional[list[str]] = None,
-    exclude: Optional[list[str]] = None,
-    schema: Optional[Any] = None,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+    schema: Any | None = None,
 ):
     """Declare wandb.config as an overridable configuration for a launch job.
 

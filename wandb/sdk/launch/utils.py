@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -8,7 +10,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import click
 
@@ -178,7 +180,7 @@ def sanitize_wandb_api_key(s: str) -> str:
     return str(re.sub(API_KEY_REGEX, "WANDB_API_KEY", s))
 
 
-def get_project_from_job(job: str) -> Optional[str]:
+def get_project_from_job(job: str) -> str | None:
     job_parts = job.split("/")
     if len(job_parts) == 3:
         return job_parts[1]
@@ -186,13 +188,13 @@ def get_project_from_job(job: str) -> Optional[str]:
 
 
 def set_project_entity_defaults(
-    uri: Optional[str],
-    job: Optional[str],
+    uri: str | None,
+    job: str | None,
     api: Api,
-    project: Optional[str],
-    entity: Optional[str],
-    launch_config: Optional[dict[str, Any]],
-) -> tuple[Optional[str], str]:
+    project: str | None,
+    entity: str | None,
+    launch_config: dict[str, Any] | None,
+) -> tuple[str | None, str]:
     # set the target project and entity if not provided
     source_uri = None
     if uri is not None:
@@ -218,7 +220,7 @@ def set_project_entity_defaults(
     return project, entity
 
 
-def get_default_entity(api: Api, launch_config: Optional[dict[str, Any]]):
+def get_default_entity(api: Api, launch_config: dict[str, Any] | None):
     config_entity = None
     if launch_config:
         config_entity = launch_config.get("entity")
@@ -237,22 +239,22 @@ def strip_resource_args_and_template_vars(launch_spec: dict[str, Any]) -> None:
 
 
 def construct_launch_spec(
-    uri: Optional[str],
-    job: Optional[str],
+    uri: str | None,
+    job: str | None,
     api: Api,
-    name: Optional[str],
-    project: Optional[str],
-    entity: Optional[str],
-    docker_image: Optional[str],
-    resource: Optional[str],
-    entry_point: Optional[list[str]],
-    version: Optional[str],
-    resource_args: Optional[dict[str, Any]],
-    launch_config: Optional[dict[str, Any]],
-    run_id: Optional[str],
-    repository: Optional[str],
-    author: Optional[str],
-    sweep_id: Optional[str] = None,
+    name: str | None,
+    project: str | None,
+    entity: str | None,
+    docker_image: str | None,
+    resource: str | None,
+    entry_point: list[str] | None,
+    version: str | None,
+    resource_args: dict[str, Any] | None,
+    launch_config: dict[str, Any] | None,
+    run_id: str | None,
+    repository: str | None,
+    author: str | None,
+    sweep_id: str | None = None,
 ) -> dict[str, Any]:
     """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -338,7 +340,7 @@ def parse_wandb_uri(uri: str) -> tuple[str, str, str]:
 
 def get_local_python_deps(
     dir: str, filename: str = "requirements.local.txt"
-) -> Optional[str]:
+) -> str | None:
     try:
         env = os.environ
         with open(os.path.join(dir, filename), "w") as f:
@@ -407,7 +409,7 @@ def diff_pip_requirements(req_1: list[str], req_2: list[str]) -> dict[str, str]:
 
 
 def validate_wandb_python_deps(
-    requirements_file: Optional[str],
+    requirements_file: str | None,
     dir: str,
 ) -> None:
     """Warn if local python dependencies differ from wandb requirements.txt."""
@@ -447,7 +449,7 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
         raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
-def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> Optional[str]:
+def _fetch_git_repo(dst_dir: str, uri: str, version: str | None) -> str | None:
     """Clones the git repo at ``uri`` into ``dst_dir``.
 
     checks out commit ``version``. Assumes authentication parameters are
@@ -557,9 +559,9 @@ async def get_kube_context_and_api_client(
 
 
 def resolve_build_and_registry_config(
-    default_launch_config: Optional[dict[str, Any]],
-    build_config: Optional[dict[str, Any]],
-    registry_config: Optional[dict[str, Any]],
+    default_launch_config: dict[str, Any] | None,
+    build_config: dict[str, Any] | None,
+    registry_config: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     resolved_build_config: dict[str, Any] = {}
     if build_config is None and default_launch_config is not None:
@@ -627,7 +629,7 @@ def make_k8s_label_safe(value: str) -> str:
 
 
 def warn_failed_packages_from_build_logs(
-    log: str, image_uri: str, api: Api, job_tracker: Optional["JobAndRunStatusTracker"]
+    log: str, image_uri: str, api: Api, job_tracker: JobAndRunStatusTracker | None
 ) -> None:
     match = FAILED_PACKAGES_REGEX.search(log)
     if match:
@@ -669,7 +671,7 @@ def pull_docker_image(docker_image: str) -> None:
         raise LaunchError(f"Docker server returned error: {e}")
 
 
-def macro_sub(original: str, sub_dict: dict[str, Optional[str]]) -> str:
+def macro_sub(original: str, sub_dict: dict[str, str | None]) -> str:
     """Substitute macros in a string.
 
     Macros occur in the string in the ${macro} format. The macro names are
@@ -688,7 +690,7 @@ def macro_sub(original: str, sub_dict: dict[str, Optional[str]]) -> str:
     )
 
 
-def recursive_macro_sub(source: Any, sub_dict: dict[str, Optional[str]]) -> Any:
+def recursive_macro_sub(source: Any, sub_dict: dict[str, str | None]) -> Any:
     """Recursively substitute macros in a parsed JSON or YAML blob.
 
     Macros occur in strings at leaves of the blob in the ${macro} format.
@@ -748,7 +750,7 @@ def fetch_and_validate_template_variables(
     return template_variables
 
 
-def get_entrypoint_file(entrypoint: list[str]) -> Optional[str]:
+def get_entrypoint_file(entrypoint: list[str]) -> str | None:
     """Get the entrypoint file from the given command.
 
     Args:
@@ -773,7 +775,7 @@ def get_current_python_version() -> tuple[str, str]:
     return version, major
 
 
-def yield_containers(root: Union[dict, list]) -> Iterator[dict]:
+def yield_containers(root: dict | list) -> Iterator[dict]:
     """Yield all container specs in a manifest.
 
     Recursively traverses the manifest and yields all container specs. Container

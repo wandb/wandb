@@ -8,6 +8,8 @@ Usage:
     ./wandb/tools/telemetry-tool.py --output-dir analytics/dbt/seeds/
 """
 
+from __future__ import annotations
+
 import argparse
 import csv
 import os

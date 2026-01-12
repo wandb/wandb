@@ -1,4 +1,4 @@
-from typing import Optional
+from __future__ import annotations
 
 import cv2
 import numpy as np
@@ -76,7 +76,7 @@ def get_boxes_and_masks(result: Results) -> tuple[dict, dict, dict]:
 
 
 def plot_mask_predictions(
-    result: Results, model_name: str, table: Optional[wandb.Table] = None
+    result: Results, model_name: str, table: wandb.Table | None = None
 ) -> tuple[wandb.Image, dict, dict, dict]:
     result = result.to("cpu")
     boxes, masks, mean_confidence_map = get_boxes_and_masks(result)
@@ -149,7 +149,7 @@ def plot_segmentation_validation_results(
     predictor: SegmentationPredictor,
     table: wandb.Table,
     max_validation_batches: int,
-    epoch: Optional[int] = None,
+    epoch: int | None = None,
 ):
     data_idx = 0
     num_dataloader_batches = len(dataloader.dataset) // dataloader.batch_size

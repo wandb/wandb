@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import os
 import pathlib
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from wandb.sdk.lib import filesystem, runid
 
@@ -24,7 +26,7 @@ class Html(BatchableMedia):
 
     def __init__(
         self,
-        data: Union[str, pathlib.Path, "TextIO"],
+        data: str | pathlib.Path | TextIO,
         inject: bool = True,
         data_is_not_path: bool = False,
     ) -> None:
@@ -109,14 +111,14 @@ class Html(BatchableMedia):
         self.html = join.join(parts).strip()
 
     @classmethod
-    def get_media_subdir(cls: type["Html"]) -> str:
+    def get_media_subdir(cls: type[Html]) -> str:
         """Get media subdirectory.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "html")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
         <!-- lazydoc-ignore: internal -->
@@ -126,9 +128,7 @@ class Html(BatchableMedia):
         return json_dict
 
     @classmethod
-    def from_json(
-        cls: type["Html"], json_obj: dict, source_artifact: "Artifact"
-    ) -> "Html":
+    def from_json(cls: type[Html], json_obj: dict, source_artifact: Artifact) -> Html:
         """Deserialize a JSON object into it's class representation.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
@@ -137,11 +137,11 @@ class Html(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls: type["Html"],
-        seq: Sequence["BatchableMedia"],
-        run: "LocalRun",
+        cls: type[Html],
+        seq: Sequence[BatchableMedia],
+        run: LocalRun,
         key: str,
-        step: Union[int, str],
+        step: int | str,
     ) -> dict:
         """Convert a sequence of HTML objects to a JSON representation.
 

@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import abc
-from typing import Any, Optional
+from typing import Any
 
 from tensorflow.keras.callbacks import Callback  # type: ignore
 
@@ -98,7 +100,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         self.data_table_columns = data_table_columns
         self.pred_table_columns = pred_table_columns
 
-    def on_train_begin(self, logs: Optional[dict[str, float]] = None) -> None:
+    def on_train_begin(self, logs: dict[str, float] | None = None) -> None:
         # Initialize the data_table
         self.init_data_table(column_names=self.data_table_columns)
         # Log the ground truth data
@@ -106,7 +108,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         # Log the data_table as W&B Artifacts
         self.log_data_table()
 
-    def on_epoch_end(self, epoch: int, logs: Optional[dict[str, float]] = None) -> None:
+    def on_epoch_end(self, epoch: int, logs: dict[str, float] | None = None) -> None:
         # Initialize the pred_table
         self.init_pred_table(column_names=self.pred_table_columns)
         # Log the model prediction
@@ -115,7 +117,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         self.log_pred_table()
 
     @abc.abstractmethod
-    def add_ground_truth(self, logs: Optional[dict[str, float]] = None) -> None:
+    def add_ground_truth(self, logs: dict[str, float] | None = None) -> None:
         """Add ground truth data to `data_table`.
 
         Use this method to write the logic for adding validation/training data to
@@ -132,7 +134,7 @@ class WandbEvalCallback(Callback, abc.ABC):
 
     @abc.abstractmethod
     def add_model_predictions(
-        self, epoch: int, logs: Optional[dict[str, float]] = None
+        self, epoch: int, logs: dict[str, float] | None = None
     ) -> None:
         """Add a prediction from a model to `pred_table`.
 
@@ -208,7 +210,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         self,
         type: str = "evaluation",
         table_name: str = "eval_data",
-        aliases: Optional[list[str]] = None,
+        aliases: list[str] | None = None,
     ) -> None:
         """Log the W&B Tables for model evaluation.
 

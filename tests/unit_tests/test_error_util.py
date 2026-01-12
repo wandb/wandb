@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 from wandb.errors import Error
 from wandb.errors.util import ProtobufErrorHandler
