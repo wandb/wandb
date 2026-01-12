@@ -355,11 +355,17 @@ func (w *Workspace) handleQuit(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
+	leftWillBeVisible := !w.runsAnimState.IsVisible()
+	w.updateSidebarWidths(leftWillBeVisible, w.runOverviewAnimState.IsVisible())
+
 	w.runsAnimState.Toggle()
 	return w.runsAnimationCmd()
 }
 
 func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
+	rightWillBeVisible := !w.runOverviewAnimState.IsVisible()
+	w.updateSidebarWidths(w.runsAnimState.IsVisible(), rightWillBeVisible)
+
 	w.runOverviewAnimState.Toggle()
 	return w.runOverviewAnimationCmd()
 }

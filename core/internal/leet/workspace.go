@@ -561,26 +561,33 @@ func (w *Workspace) IsFiltering() bool {
 	return false
 }
 
-func (w *Workspace) updateDimensions(width, height int) {
-	w.SetSize(width, height)
+// updateSidebarWidths updates both sidebars' expanded widths based on their
+// visibility states.
+func (w *Workspace) updateSidebarWidths(leftVisible, rightVisible bool) {
+	bothVisible := leftVisible && rightVisible
 
 	// Left (runs) sidebar.
-	ratio := SidebarWidthRatio
-	if w.runOverviewAnimState.IsVisible() {
-		ratio = SidebarWidthRatioBoth
+	leftRatio := SidebarWidthRatio
+	if bothVisible {
+		leftRatio = SidebarWidthRatioBoth
 	}
 	w.runsAnimState.SetExpandedWidth(
-		clamp(int(float64(w.width)*ratio), SidebarMinWidth, SidebarMaxWidth),
+		clamp(int(float64(w.width)*leftRatio), SidebarMinWidth, SidebarMaxWidth),
 	)
 
 	// Right (overview) sidebar.
-	ratio = SidebarWidthRatio
-	if w.runsAnimState.IsVisible() {
-		ratio = SidebarWidthRatioBoth
+	rightRatio := SidebarWidthRatio
+	if bothVisible {
+		rightRatio = SidebarWidthRatioBoth
 	}
 	w.runOverviewAnimState.SetExpandedWidth(
-		clamp(int(float64(w.width)*ratio), SidebarMinWidth, SidebarMaxWidth),
+		clamp(int(float64(w.width)*rightRatio), SidebarMinWidth, SidebarMaxWidth),
 	)
+}
+
+func (w *Workspace) updateDimensions(width, height int) {
+	w.SetSize(width, height)
+	w.updateSidebarWidths(w.runsAnimState.IsVisible(), w.runOverviewAnimState.IsVisible())
 
 	l := w.computeViewports()
 	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
