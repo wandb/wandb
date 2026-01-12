@@ -128,9 +128,10 @@ def _use_existing_account(host: HostUrl, referrer: str) -> str:
         )
 
     auth_url = _authorize_url(host, signup=False, referrer=referrer)
-    term.termlog(f"Find your API key here: {auth_url}")
+    term.termlog(f"Create a new API key at: {auth_url}")
+    term.termlog("Store your API key securely and do not share it.")
     return term.terminput(
-        "Paste an API key from your profile and hit enter: ",
+        "Paste your API key and hit enter: ",
         hide=True,
     )
 
@@ -147,8 +148,9 @@ def _create_new_account(host: HostUrl, referrer: str) -> str:
     """
     url = _authorize_url(host, signup=True, referrer=referrer)
     term.termlog(f"Create an account here: {url}")
+    term.termlog("After creating your account, create a new API key and store it securely.")
     return term.terminput(
-        "Paste an API key from your profile and hit enter: ",
+        "Paste your API key and hit enter: ",
         hide=True,
     )
 
