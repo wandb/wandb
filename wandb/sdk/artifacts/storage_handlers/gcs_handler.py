@@ -224,7 +224,7 @@ class GCSHandler(StorageHandler):
                 # When version specified, require exact key match (old get_blob behavior)
                 # to avoid matching file that only matches the prefix.
                 and (
-                    gcs_path.version is not None
+                    gcs_path.version is None
                     or (
                         str(obj.generation) == gcs_path.version
                         and obj.name == gcs_path.key
