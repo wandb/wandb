@@ -6,9 +6,10 @@ import kubernetes_asyncio
 import pytest
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
+from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch.agent.agent import LaunchAgent
-from wandb.sdk.launch.runner import kubernetes_monitor, kubernetes_runner
-from wandb.sdk.launch.utils import make_name_dns_safe
+from wandb.sdk.launch.runner import kubernetes_runner
+from wandb.sdk.launch.utils import get_kube_context_and_api_client, make_name_dns_safe
 
 
 async def _mock_maybe_create_imagepull_secret(*args, **kwargs):
@@ -369,8 +370,8 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         return None, None
 
     monkeypatch.setattr(
-        kubernetes_monitor,
-        "get_kube_context_and_api_client",
+        launch_utils,
+        get_kube_context_and_api_client.__name__,
         _mock_get_context_and_client,
     )
     monkeypatch.setattr(
