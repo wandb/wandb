@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Generator
 from datetime import timedelta
 from queue import Queue
@@ -20,7 +22,7 @@ settings.load_profile("ci")
 
 
 class RecordsUtil:
-    def __init__(self, queue: "Queue") -> None:
+    def __init__(self, queue: Queue) -> None:
         self.records = []
         while not queue.empty():
             self.records.append(queue.get())
@@ -75,7 +77,7 @@ class RecordsUtil:
 
 @pytest.fixture
 def parse_records() -> Generator[Callable, None, None]:
-    def records_parser_fn(q: "Queue") -> RecordsUtil:
+    def records_parser_fn(q: Queue) -> RecordsUtil:
         return RecordsUtil(q)
 
     yield records_parser_fn

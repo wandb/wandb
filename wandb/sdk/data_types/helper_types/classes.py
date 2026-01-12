@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import os
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from .. import _dtypes
 from ..base_types.media import Media
@@ -29,13 +31,13 @@ class Classes(Media):
 
     @classmethod
     def from_json(
-        cls: type["Classes"],
+        cls: type[Classes],
         json_obj: dict,
-        source_artifact: Optional["Artifact"],
-    ) -> "Classes":
+        source_artifact: Artifact | None,
+    ) -> Classes:
         return cls(json_obj.get("class_set"))  # type: ignore
 
-    def to_json(self, run_or_artifact: Optional[Union["LocalRun", "Artifact"]]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact | None) -> dict:
         json_obj = {}
         # This is a bit of a hack to allow _ClassesIdType to
         # be able to operate fully without an artifact in play.
@@ -46,7 +48,7 @@ class Classes(Media):
         json_obj["class_set"] = self._class_set
         return json_obj
 
-    def get_type(self) -> "_ClassesIdType":
+    def get_type(self) -> _ClassesIdType:
         return _ClassesIdType(self)
 
     def __ne__(self, other: object) -> bool:
@@ -66,8 +68,8 @@ class _ClassesIdType(_dtypes.Type):
 
     def __init__(
         self,
-        classes_obj: Optional[Classes] = None,
-        valid_ids: Optional["_dtypes.UnionType"] = None,
+        classes_obj: Classes | None = None,
+        valid_ids: _dtypes.UnionType | None = None,
     ):
         if valid_ids is None:
             valid_ids = _dtypes.UnionType()
@@ -100,10 +102,10 @@ class _ClassesIdType(_dtypes.Type):
         self.wb_classes_obj_ref = classes_obj
         self.params.update({"valid_ids": valid_ids})
 
-    def assign(self, py_obj: Optional[Any] = None) -> "_dtypes.Type":
+    def assign(self, py_obj: Any | None = None) -> _dtypes.Type:
         return self.assign_type(_dtypes.ConstType(py_obj))
 
-    def assign_type(self, wb_type: "_dtypes.Type") -> "_dtypes.Type":
+    def assign_type(self, wb_type: _dtypes.Type) -> _dtypes.Type:
         valid_ids = self.params["valid_ids"].assign_type(wb_type)
         if not isinstance(valid_ids, _dtypes.InvalidType):
             return self
@@ -111,10 +113,10 @@ class _ClassesIdType(_dtypes.Type):
         return _dtypes.InvalidType()
 
     @classmethod
-    def from_obj(cls, py_obj: Optional[Any] = None) -> "_dtypes.Type":
+    def from_obj(cls, py_obj: Any | None = None) -> _dtypes.Type:
         return cls(py_obj)
 
-    def to_json(self, artifact: Optional["Artifact"] = None) -> dict[str, Any]:
+    def to_json(self, artifact: Artifact | None = None) -> dict[str, Any]:
         cl_dict = super().to_json(artifact)
         # TODO (tss): Refactor this block with the similar one in wandb.Image.
         # This is a bit of a smell that the classes object does not follow
@@ -135,8 +137,8 @@ class _ClassesIdType(_dtypes.Type):
     def from_json(
         cls,
         json_dict: dict[str, Any],
-        artifact: Optional["Artifact"] = None,
-    ) -> "_dtypes.Type":
+        artifact: Artifact | None = None,
+    ) -> _dtypes.Type:
         classes_obj = None
         if (
             json_dict.get("params", {}).get("classes_obj", {}).get("type")

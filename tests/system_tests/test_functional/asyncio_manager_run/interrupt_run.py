@@ -1,5 +1,7 @@
 """Tests that interrupting run() cancels its task, but not others."""
 
+from __future__ import annotations
+
 import asyncio
 import sys
 

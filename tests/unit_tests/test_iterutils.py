@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from itertools import repeat, tee
 
 from hypothesis import example, given

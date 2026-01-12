@@ -1,5 +1,7 @@
 """retry tests."""
 
+from __future__ import annotations
+
 import dataclasses
 import datetime
 from collections.abc import Iterator

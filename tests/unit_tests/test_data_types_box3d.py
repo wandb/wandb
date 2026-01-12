@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 import pytest
 from hypothesis import assume, given
@@ -19,9 +21,9 @@ quaternions = tuples(
     orientation=quaternions,
 )
 def test_box3d_always_box(
-    center: "tuple[float, float, float]",
-    size: "tuple[float, float, float]",
-    orientation: "tuple[float, float, float, float]",
+    center: tuple[float, float, float],
+    size: tuple[float, float, float],
+    orientation: tuple[float, float, float, float],
 ):
     # Require a nonzero quaternion.
     assume(any(q != pytest.approx(0) for q in orientation))

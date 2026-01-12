@@ -28,10 +28,12 @@ Usage:
     ```
 """
 
+from __future__ import annotations
+
 from abc import abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Callable, Generic, Optional, Union
+from typing import Callable, Generic, Union
 
 from typing_extensions import Protocol, TypeAlias, TypeVar, runtime_checkable
 
@@ -97,7 +99,7 @@ FsmState: TypeAlias = Union[
 class FsmEntry(Generic[T_FsmInputs, T_FsmContext]):
     condition: Callable[[T_FsmInputs], bool]
     target_state: type[FsmState[T_FsmInputs, T_FsmContext]]
-    action: Optional[Callable[[T_FsmInputs], None]] = None
+    action: Callable[[T_FsmInputs], None] | None = None
 
 
 FsmTableWithContext: TypeAlias = dict[
@@ -129,7 +131,7 @@ class FsmWithContext(Generic[T_FsmInputs, T_FsmContext]):
         self,
         inputs: T_FsmInputs,
         new_state: type[FsmState[T_FsmInputs, T_FsmContext]],
-        action: Optional[Callable[[T_FsmInputs], None]],
+        action: Callable[[T_FsmInputs], None] | None,
     ) -> None:
         if action:
             action(inputs)

@@ -1,4 +1,6 @@
 #
+from __future__ import annotations
+
 import wandb
 
 from . import preinit

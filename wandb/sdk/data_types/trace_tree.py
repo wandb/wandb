@@ -5,13 +5,14 @@ arbitrary model dump as a serializable dictionary. Logging such media type will
 result in a W&B Trace Debugger panel being created in the workspace UI.
 """
 
+from __future__ import annotations
+
 import dataclasses
 import hashlib
 import json
-import typing
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb.sdk.data_types import _dtypes
@@ -44,22 +45,22 @@ class SpanKind(str, Enum):
 
 @dataclass()
 class Result:
-    inputs: Optional[dict[str, Any]] = field(default=None)
-    outputs: Optional[dict[str, Any]] = field(default=None)
+    inputs: dict[str, Any] | None = field(default=None)
+    outputs: dict[str, Any] | None = field(default=None)
 
 
 @dataclass()
 class Span:
-    span_id: Optional[str] = field(default=None)
-    name: Optional[str] = field(default=None)
-    start_time_ms: Optional[int] = field(default=None)
-    end_time_ms: Optional[int] = field(default=None)
-    status_code: Optional[StatusCode] = field(default=None)
-    status_message: Optional[str] = field(default=None)
-    attributes: Optional[dict[str, Any]] = field(default=None)
-    results: Optional[list[Result]] = field(default=None)
-    child_spans: Optional[list["Span"]] = field(default=None)
-    span_kind: Optional[SpanKind] = field(default=None)
+    span_id: str | None = field(default=None)
+    name: str | None = field(default=None)
+    start_time_ms: int | None = field(default=None)
+    end_time_ms: int | None = field(default=None)
+    status_code: StatusCode | None = field(default=None)
+    status_message: str | None = field(default=None)
+    attributes: dict[str, Any] | None = field(default=None)
+    results: list[Result] | None = field(default=None)
+    child_spans: list[Span] | None = field(default=None)
+    span_kind: SpanKind | None = field(default=None)
 
     def add_attribute(self, key: str, value: Any) -> None:
         if self.attributes is None:
@@ -71,7 +72,7 @@ class Span:
             self.results = []
         self.results.append(Result(inputs, outputs))
 
-    def add_child_span(self, span: "Span") -> None:
+    def add_child_span(self, span: Span) -> None:
         if self.child_spans is None:
             self.child_spans = []
         self.child_spans.append(span)
@@ -94,7 +95,7 @@ class WBTraceTree(Media):
     def __init__(
         self,
         root_span: Span,
-        model_dict: typing.Optional[dict] = None,
+        model_dict: dict | None = None,
     ):
         super().__init__()
         self._root_span = root_span
@@ -104,7 +105,7 @@ class WBTraceTree(Media):
     def get_media_subdir(cls) -> str:
         return "media/wb_trace_tree"
 
-    def to_json(self, run: Optional[Union["LocalRun", "Artifact"]]) -> dict:
+    def to_json(self, run: LocalRun | Artifact | None) -> dict:
         res = {"_type": self._log_type}
         # Here we use `dumps` to put things into string format. This is because
         # the complex data structures create problems for gorilla history to parquet.
@@ -156,10 +157,10 @@ class TraceAttribute:
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
 
-    def __get__(self, instance: "Trace", owner: type) -> Any:
+    def __get__(self, instance: Trace, owner: type) -> Any:
         return getattr(instance._span, self.name)
 
-    def __set__(self, instance: "Trace", value: Any) -> None:
+    def __set__(self, instance: Trace, value: Any) -> None:
         setattr(instance._span, self.name, value)
 
 
@@ -207,15 +208,15 @@ class Trace:
     def __init__(
         self,
         name: str,
-        kind: Optional[str] = None,
-        status_code: Optional[str] = None,
-        status_message: Optional[str] = None,
-        metadata: Optional[dict] = None,
-        start_time_ms: Optional[int] = None,
-        end_time_ms: Optional[int] = None,
-        inputs: Optional[dict] = None,
-        outputs: Optional[dict] = None,
-        model_dict: Optional[dict] = None,
+        kind: str | None = None,
+        status_code: str | None = None,
+        status_message: str | None = None,
+        metadata: dict | None = None,
+        start_time_ms: int | None = None,
+        end_time_ms: int | None = None,
+        inputs: dict | None = None,
+        outputs: dict | None = None,
+        model_dict: dict | None = None,
     ):
         self._span = self._assert_and_create_span(
             name=name,
@@ -235,14 +236,14 @@ class Trace:
     def _assert_and_create_span(
         self,
         name: str,
-        kind: Optional[str] = None,
-        status_code: Optional[str] = None,
-        status_message: Optional[str] = None,
-        metadata: Optional[dict] = None,
-        start_time_ms: Optional[int] = None,
-        end_time_ms: Optional[int] = None,
-        inputs: Optional[dict] = None,
-        outputs: Optional[dict] = None,
+        kind: str | None = None,
+        status_code: str | None = None,
+        status_message: str | None = None,
+        metadata: dict | None = None,
+        start_time_ms: int | None = None,
+        end_time_ms: int | None = None,
+        inputs: dict | None = None,
+        outputs: dict | None = None,
     ) -> Span:
         """Utility to assert the validity of the span parameters and create a span object.
 
@@ -295,8 +296,8 @@ class Trace:
 
     def add_child(
         self,
-        child: "Trace",
-    ) -> "Trace":
+        child: Trace,
+    ) -> Trace:
         """Utility to add a child span to the current span of the trace.
 
         Args:
@@ -310,7 +311,7 @@ class Trace:
             self._model_dict.update({child._span.name: child._model_dict})
         return self
 
-    def add_inputs_and_outputs(self, inputs: dict, outputs: dict) -> "Trace":
+    def add_inputs_and_outputs(self, inputs: dict, outputs: dict) -> Trace:
         """Add a result to the span of the current trace.
 
         Args:
@@ -328,7 +329,7 @@ class Trace:
             self._span.results.append(result)
         return self
 
-    def add_metadata(self, metadata: dict) -> "Trace":
+    def add_metadata(self, metadata: dict) -> Trace:
         """Add metadata to the span of the current trace."""
         if self._span.attributes is None:
             self._span.attributes = metadata
@@ -337,7 +338,7 @@ class Trace:
         return self
 
     @property
-    def metadata(self) -> Optional[dict[str, str]]:
+    def metadata(self) -> dict[str, str] | None:
         """Get the metadata of the trace.
 
         Returns:
@@ -358,7 +359,7 @@ class Trace:
             self._span.attributes.update(value)
 
     @property
-    def inputs(self) -> Optional[dict[str, str]]:
+    def inputs(self) -> dict[str, str] | None:
         """Get the inputs of the trace.
 
         Returns:
@@ -381,7 +382,7 @@ class Trace:
             self._span.results.append(result)
 
     @property
-    def outputs(self) -> Optional[dict[str, str]]:
+    def outputs(self) -> dict[str, str] | None:
         """Get the outputs of the trace.
 
         Returns:
@@ -404,7 +405,7 @@ class Trace:
             self._span.results.append(result)
 
     @property
-    def kind(self) -> Optional[str]:
+    def kind(self) -> str | None:
         """Get the kind of the trace.
 
         Returns:

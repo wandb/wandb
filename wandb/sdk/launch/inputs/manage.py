@@ -1,13 +1,15 @@
 """Functions for declaring overridable configuration for launch jobs."""
 
-from typing import Any, Optional
+from __future__ import annotations
+
+from typing import Any
 
 
 def manage_config_file(
     path: str,
-    include: Optional[list[str]] = None,
-    exclude: Optional[list[str]] = None,
-    schema: Optional[Any] = None,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+    schema: Any | None = None,
 ):
     r"""Declare an overridable configuration file for a launch job.
 
@@ -62,9 +64,9 @@ def manage_config_file(
 
 
 def manage_wandb_config(
-    include: Optional[list[str]] = None,
-    exclude: Optional[list[str]] = None,
-    schema: Optional[Any] = None,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+    schema: Any | None = None,
 ):
     r"""Declare wandb.config as an overridable configuration for a launch job.
 

@@ -1,9 +1,11 @@
 """Monitors kubernetes resources managed by the launch agent."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import traceback
-from typing import Any, Optional, Union
+from typing import Any
 
 import kubernetes_asyncio  # type: ignore
 import urllib3
@@ -93,7 +95,7 @@ def _log_err_task_callback(task: asyncio.Task) -> None:
         wandb.termerror(tb_str)
 
 
-def _is_preempted(status: "V1PodStatus") -> bool:
+def _is_preempted(status: V1PodStatus) -> bool:
     """Check if this pod has been preempted."""
     if hasattr(status, "conditions") and status.conditions is not None:
         for condition in status.conditions:
@@ -106,7 +108,7 @@ def _is_preempted(status: "V1PodStatus") -> bool:
     return False
 
 
-def _is_container_creating(status: "V1PodStatus") -> bool:
+def _is_container_creating(status: V1PodStatus) -> bool:
     """Check if this pod has started creating containers."""
     for container_status in status.container_statuses or []:
         if (
@@ -118,7 +120,7 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
     return False
 
 
-def _is_pod_unschedulable(status: "V1PodStatus") -> tuple[bool, str]:
+def _is_pod_unschedulable(status: V1PodStatus) -> tuple[bool, str]:
     """Return whether the pod is unschedulable along with the reason message."""
     if not status.conditions:
         return False, ""
@@ -132,14 +134,14 @@ def _is_pod_unschedulable(status: "V1PodStatus") -> tuple[bool, str]:
     return False, ""
 
 
-def _get_crd_job_name(object: "V1Pod") -> Optional[str]:
+def _get_crd_job_name(object: V1Pod) -> str | None:
     refs = object.metadata.owner_references
     if refs:
         return refs[0].name
     return None
 
 
-def _state_from_conditions(conditions: list[dict[str, Any]]) -> Optional[State]:
+def _state_from_conditions(conditions: list[dict[str, Any]]) -> State | None:
     """Get the status from the pod conditions."""
     true_conditions = [
         c.get("type", "").lower() for c in conditions if c.get("status") == "True"
@@ -162,7 +164,7 @@ def _state_from_conditions(conditions: list[dict[str, Any]]) -> Optional[State]:
     return None
 
 
-def _state_from_replicated_status(status_dict: dict[str, int]) -> Optional[State]:
+def _state_from_replicated_status(status_dict: dict[str, int]) -> State | None:
     """Infer overall job status from replicated job status for jobsets.
 
     More info on jobset:
@@ -188,7 +190,7 @@ class LaunchKubernetesMonitor:
 
     _instance = None  # This is used to ensure only one instance is created.
 
-    def __new__(cls, *args: Any, **kwargs: Any) -> "LaunchKubernetesMonitor":
+    def __new__(cls, *args: Any, **kwargs: Any) -> LaunchKubernetesMonitor:
         """Create a new instance of the LaunchKubernetesMonitor.
 
         This method ensures that only one instance of the LaunchKubernetesMonitor
@@ -215,9 +217,9 @@ class LaunchKubernetesMonitor:
 
         # Dict mapping a tuple of (namespace, resource_type) to an
         # asyncio.Task that is monitoring that resource type in that namespace.
-        self._monitor_tasks: dict[
-            tuple[str, Union[str, CustomResource]], asyncio.Task
-        ] = dict()
+        self._monitor_tasks: dict[tuple[str, str | CustomResource], asyncio.Task] = (
+            dict()
+        )
 
         # Map from job name to job state.
         self._job_states: dict[str, Status] = dict()
@@ -246,7 +248,7 @@ class LaunchKubernetesMonitor:
 
     @classmethod
     def monitor_namespace(
-        cls, namespace: str, custom_resource: Optional[CustomResource] = None
+        cls, namespace: str, custom_resource: CustomResource | None = None
     ) -> None:
         """Start monitoring a namespaces for resources."""
         if cls._instance is None:
@@ -274,7 +276,7 @@ class LaunchKubernetesMonitor:
         return cls._instance.__status_count()
 
     def __monitor_namespace(
-        self, namespace: str, custom_resource: Optional[CustomResource] = None
+        self, namespace: str, custom_resource: CustomResource | None = None
     ) -> None:
         """Start monitoring a namespaces for resources."""
         if (namespace, Resources.PODS) not in self._monitor_tasks:
@@ -425,7 +427,7 @@ class SafeWatch:
     def __init__(self, watcher: watch.Watch) -> None:
         """Initialize the SafeWatch."""
         self._watcher = watcher
-        self._last_seen_resource_version: Optional[str] = None
+        self._last_seen_resource_version: str | None = None
         self._stopped = False
 
     async def stream(self, func: Any, *args: Any, **kwargs: Any) -> Any:

@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import io
 import re
 import time
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import wandb
 import wandb.util
@@ -21,7 +23,7 @@ STEPS: dict[str, dict[str, Any]] = {
 # TODO(cling): Set these when tensorboard behavior is configured.
 # We support rate limited logging by setting this to number of seconds,
 # can be a floating point.
-RATE_LIMIT_SECONDS: Optional[Union[float, int]] = None
+RATE_LIMIT_SECONDS: float | int | None = None
 IGNORE_KINDS = ["graphs"]
 tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 
@@ -34,7 +36,7 @@ pb = wandb.util.get_module(
 Summary = pb.Summary if pb else None
 
 
-def make_ndarray(tensor: Any) -> Optional["np.ndarray"]:
+def make_ndarray(tensor: Any) -> np.ndarray | None:
     if tensor_util:
         res = tensor_util.make_ndarray(tensor)
         # Tensorboard can log generic objects, and we don't want to save them
@@ -70,7 +72,7 @@ def history_image_key(key: str, namespace: str = "") -> str:
 
 def tf_summary_to_dict(  # noqa: C901
     tf_summary_str_or_pb: Any, namespace: str = ""
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Convert a Tensorboard Summary to a dictionary.
 
     Accepts a tensorflow.summary.Summary, one encoded as a string,
@@ -112,7 +114,7 @@ def tf_summary_to_dict(  # noqa: C901
         if len(_img_strs) == 0:
             return None
 
-        images: list[Union[wandb.Video, wandb.Image]] = []
+        images: list[wandb.Video | wandb.Image] = []
         for _img_str in _img_strs:
             # Supports gifs from TensorboardX
             if _img_str.startswith(b"GIF"):
@@ -272,7 +274,7 @@ def reset_state() -> None:
 
 def _log(
     tf_summary_str_or_pb: Any,
-    history: Optional["TBHistory"] = None,
+    history: TBHistory | None = None,
     step: int = 0,
     namespace: str = "",
     **kwargs: Any,

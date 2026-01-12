@@ -1,5 +1,7 @@
 """Abstract base class for registries."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 
 
@@ -42,6 +44,6 @@ class AbstractRegistry(ABC):
     def from_config(
         cls,
         config: dict,
-    ) -> "AbstractRegistry":
+    ) -> AbstractRegistry:
         """Create a registry from a config."""
         raise NotImplementedError

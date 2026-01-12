@@ -1,5 +1,7 @@
 """PyTorch-specific functionality."""
 
+from __future__ import annotations
+
 import itertools
 from functools import reduce
 from operator import mul
@@ -80,7 +82,7 @@ class TorchHistory:
 
     def add_log_parameters_hook(
         self,
-        module: "Module",
+        module: Module,
         name: str = "",
         prefix: str = "",
         log_freq: int = 0,
@@ -123,7 +125,7 @@ class TorchHistory:
 
     def add_log_gradients_hook(
         self,
-        module: "Module",
+        module: Module,
         name: str = "",
         prefix: str = "",
         log_freq: int = 0,
@@ -293,10 +295,10 @@ class TorchHistory:
         else:
             return handle.id in d
 
-    def _no_finite_values(self, tensor: "Tensor") -> bool:
+    def _no_finite_values(self, tensor: Tensor) -> bool:
         return tensor.shape == torch.Size([0]) or (~torch.isfinite(tensor)).all().item()
 
-    def _remove_infs_nans(self, tensor: "Tensor") -> "Tensor":
+    def _remove_infs_nans(self, tensor: Tensor) -> Tensor:
         if not torch.isfinite(tensor).all():
             tensor = tensor[torch.isfinite(tensor)]
 

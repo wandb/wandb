@@ -1,5 +1,7 @@
 """config tests."""
 
+from __future__ import annotations
+
 import pytest
 import yaml
 from wandb import sdk as wandb_sdk

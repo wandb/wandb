@@ -1,5 +1,7 @@
 """Test internal methods of the job input management sdk."""
 
+from __future__ import annotations
+
 import platform
 import sys
 from enum import Enum

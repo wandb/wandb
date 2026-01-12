@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import logging
 from collections.abc import Iterable
-from typing import Any, Literal, Optional, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from wandb.sdk.artifacts.artifact import Artifact
 
@@ -45,50 +47,50 @@ class ImporterRun(Protocol):
         """
         ...  # pragma: no cover
 
-    def run_group(self) -> Optional[str]: ...  # pragma: no cover
+    def run_group(self) -> str | None: ...  # pragma: no cover
 
-    def job_type(self) -> Optional[str]: ...  # pragma: no cover
+    def job_type(self) -> str | None: ...  # pragma: no cover
 
     def display_name(self) -> str: ...  # pragma: no cover
 
-    def notes(self) -> Optional[str]: ...  # pragma: no cover
+    def notes(self) -> str | None: ...  # pragma: no cover
 
-    def tags(self) -> Optional[list[str]]: ...  # pragma: no cover
+    def tags(self) -> list[str] | None: ...  # pragma: no cover
 
-    def artifacts(self) -> Optional[Iterable[Artifact]]: ...  # pragma: no cover
+    def artifacts(self) -> Iterable[Artifact] | None: ...  # pragma: no cover
 
-    def used_artifacts(self) -> Optional[Iterable[Artifact]]: ...  # pragma: no cover
+    def used_artifacts(self) -> Iterable[Artifact] | None: ...  # pragma: no cover
 
-    def os_version(self) -> Optional[str]: ...  # pragma: no cover
+    def os_version(self) -> str | None: ...  # pragma: no cover
 
-    def python_version(self) -> Optional[str]: ...  # pragma: no cover
+    def python_version(self) -> str | None: ...  # pragma: no cover
 
-    def cuda_version(self) -> Optional[str]: ...  # pragma: no cover
+    def cuda_version(self) -> str | None: ...  # pragma: no cover
 
-    def program(self) -> Optional[str]: ...  # pragma: no cover
+    def program(self) -> str | None: ...  # pragma: no cover
 
-    def host(self) -> Optional[str]: ...  # pragma: no cover
+    def host(self) -> str | None: ...  # pragma: no cover
 
-    def username(self) -> Optional[str]: ...  # pragma: no cover
+    def username(self) -> str | None: ...  # pragma: no cover
 
-    def executable(self) -> Optional[str]: ...  # pragma: no cover
+    def executable(self) -> str | None: ...  # pragma: no cover
 
-    def gpus_used(self) -> Optional[str]: ...  # pragma: no cover
+    def gpus_used(self) -> str | None: ...  # pragma: no cover
 
-    def cpus_used(self) -> Optional[int]: ...  # pragma: no cover
+    def cpus_used(self) -> int | None: ...  # pragma: no cover
 
-    def memory_used(self) -> Optional[int]: ...  # pragma: no cover
+    def memory_used(self) -> int | None: ...  # pragma: no cover
 
-    def runtime(self) -> Optional[int]: ...  # pragma: no cover
+    def runtime(self) -> int | None: ...  # pragma: no cover
 
-    def start_time(self) -> Optional[int]: ...  # pragma: no cover
+    def start_time(self) -> int | None: ...  # pragma: no cover
 
-    def code_path(self) -> Optional[str]: ...  # pragma: no cover
+    def code_path(self) -> str | None: ...  # pragma: no cover
 
-    def cli_version(self) -> Optional[str]: ...  # pragma: no cover
+    def cli_version(self) -> str | None: ...  # pragma: no cover
 
     def files(
         self,
-    ) -> Optional[Iterable[tuple[PathStr, Policy]]]: ...  # pragma: no cover
+    ) -> Iterable[tuple[PathStr, Policy]] | None: ...  # pragma: no cover
 
-    def logs(self) -> Optional[Iterable[str]]: ...  # pragma: no cover
+    def logs(self) -> Iterable[str] | None: ...  # pragma: no cover

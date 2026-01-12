@@ -1,5 +1,7 @@
 """Integration with pytorch profiler."""
 
+from __future__ import annotations
+
 import os
 
 import wandb

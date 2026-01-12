@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 DOCKERFILE_TEMPLATE = """
 # ----- stage 1: build -----
 FROM {py_build_image} as build

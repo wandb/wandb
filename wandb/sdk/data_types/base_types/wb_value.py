@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, Any, ClassVar, Optional, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from wandb import util
 from wandb.sdk import wandb_setup
@@ -68,19 +70,19 @@ def _server_accepts_client_ids() -> bool:
 
 
 class _WBValueArtifactSource:
-    artifact: "Artifact"
-    name: Optional[str]
+    artifact: Artifact
+    name: str | None
 
-    def __init__(self, artifact: "Artifact", name: Optional[str] = None) -> None:
+    def __init__(self, artifact: Artifact, name: str | None = None) -> None:
         self.artifact = artifact
         self.name = name
 
 
 class _WBValueArtifactTarget:
-    artifact: "Artifact"
-    name: Optional[str]
+    artifact: Artifact
+    name: str | None
 
-    def __init__(self, artifact: "Artifact", name: Optional[str] = None) -> None:
+    def __init__(self, artifact: Artifact, name: str | None = None) -> None:
         self.artifact = artifact
         self.name = name
 
@@ -93,19 +95,19 @@ class WBValue:
     """
 
     # Class Attributes
-    _type_mapping: ClassVar[Optional["TypeMappingType"]] = None
+    _type_mapping: ClassVar[TypeMappingType | None] = None
     # override _log_type to indicate the type which the subclass deserializes
-    _log_type: ClassVar[Optional[str]] = None
+    _log_type: ClassVar[str | None] = None
 
     # Instance Attributes
-    _artifact_source: Optional[_WBValueArtifactSource]
-    _artifact_target: Optional[_WBValueArtifactTarget]
+    _artifact_source: _WBValueArtifactSource | None
+    _artifact_target: _WBValueArtifactTarget | None
 
     def __init__(self) -> None:
         self._artifact_source = None
         self._artifact_target = None
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Serialize the object into a JSON blob.
 
         Uses current run or artifact to store additional data.
@@ -121,7 +123,7 @@ class WBValue:
         raise NotImplementedError
 
     @classmethod
-    def from_json(cls, json_obj: dict, source_artifact: "Artifact") -> "WBValue":
+    def from_json(cls, json_obj: dict, source_artifact: Artifact) -> WBValue:
         """Deserialize a `json_obj` into it's class representation.
 
         If additional resources were stored in the `run_or_artifact` artifact during the
@@ -135,7 +137,7 @@ class WBValue:
         raise NotImplementedError
 
     @classmethod
-    def with_suffix(cls: type["WBValue"], name: str, filetype: str = "json") -> str:
+    def with_suffix(cls: type[WBValue], name: str, filetype: str = "json") -> str:
         """Get the name with the appropriate suffix.
 
         Args:
@@ -155,9 +157,7 @@ class WBValue:
         return name
 
     @staticmethod
-    def init_from_json(
-        json_obj: dict, source_artifact: "Artifact"
-    ) -> Optional["WBValue"]:
+    def init_from_json(json_obj: dict, source_artifact: Artifact) -> WBValue | None:
         """Initialize a `WBValue` from a JSON blob based on the class that created it.
 
         Looks through all subclasses and tries to match the json obj with the class
@@ -185,7 +185,7 @@ class WBValue:
         return None
 
     @staticmethod
-    def type_mapping() -> "TypeMappingType":
+    def type_mapping() -> TypeMappingType:
         """Return a map from `_log_type` to subclass. Used to lookup correct types for deserialization.
 
         Returns:
@@ -215,23 +215,19 @@ class WBValue:
         """Convert the object to a list of primitives representing the underlying data."""
         raise NotImplementedError
 
-    def _set_artifact_source(
-        self, artifact: "Artifact", name: Optional[str] = None
-    ) -> None:
+    def _set_artifact_source(self, artifact: Artifact, name: str | None = None) -> None:
         assert self._artifact_source is None, (
             f"Cannot update artifact_source. Existing source: {self._artifact_source.artifact}/{self._artifact_source.name}"
         )
         self._artifact_source = _WBValueArtifactSource(artifact, name)
 
-    def _set_artifact_target(
-        self, artifact: "Artifact", name: Optional[str] = None
-    ) -> None:
+    def _set_artifact_target(self, artifact: Artifact, name: str | None = None) -> None:
         assert self._artifact_target is None, (
             f"Cannot update artifact_target. Existing target: {self._artifact_target.artifact}/{self._artifact_target.name}"
         )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
-    def _get_artifact_entry_ref_url(self) -> Optional[str]:
+    def _get_artifact_entry_ref_url(self) -> str | None:
         # If the object is coming from another artifact
         if (source := self._artifact_source) and (source_name := source.name):
             ref_entry = source.artifact.get_entry(self.with_suffix(source_name))
@@ -267,7 +263,7 @@ class WBValue:
 
         return None
 
-    def _get_artifact_entry_latest_ref_url(self) -> Optional[str]:
+    def _get_artifact_entry_latest_ref_url(self) -> str | None:
         if (
             (target := self._artifact_target)
             and target.name

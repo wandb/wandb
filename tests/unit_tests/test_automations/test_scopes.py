@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from wandb._pydantic import CompatBaseModel
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import ArtifactCollectionScope, ProjectScope, ScopeType

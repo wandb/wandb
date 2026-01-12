@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import abc
 import logging
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from typing_extensions import override
 
@@ -44,7 +46,7 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         """
 
     @abc.abstractmethod
-    def _deliver(self, record: pb.Record) -> "MailboxHandle[pb.Result]":
+    def _deliver(self, record: pb.Record) -> MailboxHandle[pb.Result]:
         """Send a record to the internal service and return a response handle.
 
         Args:
@@ -124,38 +126,38 @@ class InterfaceShared(InterfaceBase, abc.ABC):
 
     def _make_request(  # noqa: C901
         self,
-        get_summary: Optional[pb.GetSummaryRequest] = None,
-        pause: Optional[pb.PauseRequest] = None,
-        resume: Optional[pb.ResumeRequest] = None,
-        status: Optional[pb.StatusRequest] = None,
-        stop_status: Optional[pb.StopStatusRequest] = None,
-        internal_messages: Optional[pb.InternalMessagesRequest] = None,
-        network_status: Optional[pb.NetworkStatusRequest] = None,
-        poll_exit: Optional[pb.PollExitRequest] = None,
-        partial_history: Optional[pb.PartialHistoryRequest] = None,
-        sampled_history: Optional[pb.SampledHistoryRequest] = None,
-        run_start: Optional[pb.RunStartRequest] = None,
-        check_version: Optional[pb.CheckVersionRequest] = None,
-        log_artifact: Optional[pb.LogArtifactRequest] = None,
-        download_artifact: Optional[pb.DownloadArtifactRequest] = None,
-        link_artifact: Optional[pb.LinkArtifactRequest] = None,
-        defer: Optional[pb.DeferRequest] = None,
-        attach: Optional[pb.AttachRequest] = None,
-        server_info: Optional[pb.ServerInfoRequest] = None,
-        keepalive: Optional[pb.KeepaliveRequest] = None,
-        run_status: Optional[pb.RunStatusRequest] = None,
-        sender_mark: Optional[pb.SenderMarkRequest] = None,
-        sender_read: Optional[pb.SenderReadRequest] = None,
-        sync_finish: Optional[pb.SyncFinishRequest] = None,
-        status_report: Optional[pb.StatusReportRequest] = None,
-        cancel: Optional[pb.CancelRequest] = None,
-        summary_record: Optional[pb.SummaryRecordRequest] = None,
-        telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
-        get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
-        python_packages: Optional[pb.PythonPackagesRequest] = None,
-        job_input: Optional[pb.JobInputRequest] = None,
-        run_finish_without_exit: Optional[pb.RunFinishWithoutExitRequest] = None,
-        probe_system_info: Optional[pb.ProbeSystemInfoRequest] = None,
+        get_summary: pb.GetSummaryRequest | None = None,
+        pause: pb.PauseRequest | None = None,
+        resume: pb.ResumeRequest | None = None,
+        status: pb.StatusRequest | None = None,
+        stop_status: pb.StopStatusRequest | None = None,
+        internal_messages: pb.InternalMessagesRequest | None = None,
+        network_status: pb.NetworkStatusRequest | None = None,
+        poll_exit: pb.PollExitRequest | None = None,
+        partial_history: pb.PartialHistoryRequest | None = None,
+        sampled_history: pb.SampledHistoryRequest | None = None,
+        run_start: pb.RunStartRequest | None = None,
+        check_version: pb.CheckVersionRequest | None = None,
+        log_artifact: pb.LogArtifactRequest | None = None,
+        download_artifact: pb.DownloadArtifactRequest | None = None,
+        link_artifact: pb.LinkArtifactRequest | None = None,
+        defer: pb.DeferRequest | None = None,
+        attach: pb.AttachRequest | None = None,
+        server_info: pb.ServerInfoRequest | None = None,
+        keepalive: pb.KeepaliveRequest | None = None,
+        run_status: pb.RunStatusRequest | None = None,
+        sender_mark: pb.SenderMarkRequest | None = None,
+        sender_read: pb.SenderReadRequest | None = None,
+        sync_finish: pb.SyncFinishRequest | None = None,
+        status_report: pb.StatusReportRequest | None = None,
+        cancel: pb.CancelRequest | None = None,
+        summary_record: pb.SummaryRecordRequest | None = None,
+        telemetry_record: pb.TelemetryRecordRequest | None = None,
+        get_system_metrics: pb.GetSystemMetricsRequest | None = None,
+        python_packages: pb.PythonPackagesRequest | None = None,
+        job_input: pb.JobInputRequest | None = None,
+        run_finish_without_exit: pb.RunFinishWithoutExitRequest | None = None,
+        probe_system_info: pb.ProbeSystemInfoRequest | None = None,
     ) -> pb.Record:
         request = pb.Request()
         if get_summary:
@@ -233,27 +235,27 @@ class InterfaceShared(InterfaceBase, abc.ABC):
 
     def _make_record(  # noqa: C901
         self,
-        run: Optional[pb.RunRecord] = None,
-        config: Optional[pb.ConfigRecord] = None,
-        files: Optional[pb.FilesRecord] = None,
-        summary: Optional[pb.SummaryRecord] = None,
-        history: Optional[pb.HistoryRecord] = None,
-        stats: Optional[pb.StatsRecord] = None,
-        exit: Optional[pb.RunExitRecord] = None,
-        artifact: Optional[pb.ArtifactRecord] = None,
-        tbrecord: Optional[pb.TBRecord] = None,
-        alert: Optional[pb.AlertRecord] = None,
-        final: Optional[pb.FinalRecord] = None,
-        metric: Optional[pb.MetricRecord] = None,
-        header: Optional[pb.HeaderRecord] = None,
-        footer: Optional[pb.FooterRecord] = None,
-        request: Optional[pb.Request] = None,
-        telemetry: Optional[tpb.TelemetryRecord] = None,
-        preempting: Optional[pb.RunPreemptingRecord] = None,
-        use_artifact: Optional[pb.UseArtifactRecord] = None,
-        output: Optional[pb.OutputRecord] = None,
-        output_raw: Optional[pb.OutputRawRecord] = None,
-        environment: Optional[pb.EnvironmentRecord] = None,
+        run: pb.RunRecord | None = None,
+        config: pb.ConfigRecord | None = None,
+        files: pb.FilesRecord | None = None,
+        summary: pb.SummaryRecord | None = None,
+        history: pb.HistoryRecord | None = None,
+        stats: pb.StatsRecord | None = None,
+        exit: pb.RunExitRecord | None = None,
+        artifact: pb.ArtifactRecord | None = None,
+        tbrecord: pb.TBRecord | None = None,
+        alert: pb.AlertRecord | None = None,
+        final: pb.FinalRecord | None = None,
+        metric: pb.MetricRecord | None = None,
+        header: pb.HeaderRecord | None = None,
+        footer: pb.FooterRecord | None = None,
+        request: pb.Request | None = None,
+        telemetry: tpb.TelemetryRecord | None = None,
+        preempting: pb.RunPreemptingRecord | None = None,
+        use_artifact: pb.UseArtifactRecord | None = None,
+        output: pb.OutputRecord | None = None,
+        output_raw: pb.OutputRawRecord | None = None,
+        environment: pb.EnvironmentRecord | None = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -302,7 +304,7 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             raise Exception("Invalid record")
         return record
 
-    def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
+    def _publish_defer(self, state: pb.DeferRequest.DeferState.V) -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
         rec.control.local = True

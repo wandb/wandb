@@ -1,5 +1,7 @@
 """Tests for tensorboardX integration."""
 
+from __future__ import annotations
+
 import torch
 import wandb
 from tensorboardX import SummaryWriter

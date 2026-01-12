@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import fnmatch
 import glob
@@ -6,7 +8,7 @@ import os
 import queue
 import time
 from collections.abc import Mapping, MutableMapping, MutableSet
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from wandb import util
 from wandb.sdk.lib.filesystem import GlobStr
@@ -34,7 +36,7 @@ class FileEventHandler(abc.ABC):
         self,
         file_path: PathStr,
         save_name: LogicalPath,
-        file_pusher: "FilePusher",
+        file_pusher: FilePusher,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -42,11 +44,11 @@ class FileEventHandler(abc.ABC):
         # Convert windows paths to unix paths
         self.save_name = LogicalPath(save_name)
         self._file_pusher = file_pusher
-        self._last_sync: Optional[float] = None
+        self._last_sync: float | None = None
 
     @property
     @abc.abstractmethod
-    def policy(self) -> "PolicyName":
+    def policy(self) -> PolicyName:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -76,7 +78,7 @@ class PolicyNow(FileEventHandler):
         pass
 
     @property
-    def policy(self) -> "PolicyName":
+    def policy(self) -> PolicyName:
         return "now"
 
 
@@ -94,7 +96,7 @@ class PolicyEnd(FileEventHandler):
         self._file_pusher.file_changed(self.save_name, self.file_path, copy=False)
 
     @property
-    def policy(self) -> "PolicyName":
+    def policy(self) -> PolicyName:
         return "end"
 
 
@@ -114,18 +116,18 @@ class PolicyLive(FileEventHandler):
         self,
         file_path: PathStr,
         save_name: LogicalPath,
-        file_pusher: "FilePusher",
-        settings: Optional["SettingsStatic"] = None,
+        file_pusher: FilePusher,
+        settings: SettingsStatic | None = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
-        self._last_uploaded_time: Optional[float] = None
+        self._last_uploaded_time: float | None = None
         self._last_uploaded_size: int = 0
         if settings is not None:
             if settings.x_live_policy_rate_limit is not None:
                 self.RATE_LIMIT_SECONDS = settings.x_live_policy_rate_limit
-            self._min_wait_time: Optional[float] = settings.x_live_policy_wait_time
+            self._min_wait_time: float | None = settings.x_live_policy_wait_time
         else:
             self._min_wait_time = None
 
@@ -182,16 +184,16 @@ class PolicyLive(FileEventHandler):
         self.on_modified(force=True)
 
     @property
-    def policy(self) -> "PolicyName":
+    def policy(self) -> PolicyName:
         return "live"
 
 
 class DirWatcher:
     def __init__(
         self,
-        settings: "SettingsStatic",
-        file_pusher: "FilePusher",
-        file_dir: Optional[PathStr] = None,
+        settings: SettingsStatic,
+        file_pusher: FilePusher,
+        file_dir: PathStr | None = None,
     ) -> None:
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
@@ -212,13 +214,13 @@ class DirWatcher:
         logger.info("watching files in: %s", settings.files_dir)
 
     @property
-    def emitter(self) -> Optional["wd_api.EventEmitter"]:
+    def emitter(self) -> wd_api.EventEmitter | None:
         try:
             return next(iter(self._file_observer.emitters))
         except StopIteration:
             return None
 
-    def update_policy(self, path: GlobStr, policy: "PolicyName") -> None:
+    def update_policy(self, path: GlobStr, policy: PolicyName) -> None:
         # When we're dealing with one of our own media files, there's no need
         # to store the policy in memory.  _get_file_event_handler will always
         # return PolicyNow.  Using the path makes syncing historic runs much
@@ -248,7 +250,7 @@ class DirWatcher:
                 feh = self._get_file_event_handler(src_path, save_name)
             feh.on_modified(force=True)
 
-    def _per_file_event_handler(self) -> "wd_events.FileSystemEventHandler":
+    def _per_file_event_handler(self) -> wd_events.FileSystemEventHandler:
         """Create a Watchdog file event handler that does different things for every file."""
         file_event_handler = wd_events.PatternMatchingEventHandler()
         file_event_handler.on_created = self._on_file_created
@@ -269,7 +271,7 @@ class DirWatcher:
 
         return file_event_handler
 
-    def _on_file_created(self, event: "wd_events.FileCreatedEvent") -> None:
+    def _on_file_created(self, event: wd_events.FileCreatedEvent) -> None:
         logger.info("file/dir created: %s", event.src_path)
         if os.path.isdir(event.src_path):
             return None
@@ -286,14 +288,14 @@ class DirWatcher:
     # def _save_name(self, path: PathStr) -> LogicalPath:
     #     return LogicalPath(os.path.relpath(path, self._dir))
 
-    def _on_file_modified(self, event: "wd_events.FileModifiedEvent") -> None:
+    def _on_file_modified(self, event: wd_events.FileModifiedEvent) -> None:
         logger.info(f"file/dir modified: {event.src_path}")
         if os.path.isdir(event.src_path):
             return None
         save_name = LogicalPath(os.path.relpath(event.src_path, self._dir))
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
-    def _on_file_moved(self, event: "wd_events.FileMovedEvent") -> None:
+    def _on_file_moved(self, event: wd_events.FileMovedEvent) -> None:
         # TODO: test me...
         logger.info(f"file/dir moved: {event.src_path} -> {event.dest_path}")
         if os.path.isdir(event.dest_path):

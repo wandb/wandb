@@ -1,5 +1,7 @@
 """metric user tests."""
 
+from __future__ import annotations
+
 import pytest
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb

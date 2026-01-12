@@ -1,8 +1,9 @@
 """Implementation of Elastic Container Registry class for wandb launch."""
 
+from __future__ import annotations
+
 import base64
 import logging
-from typing import Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -29,10 +30,10 @@ class ElasticContainerRegistry(AbstractRegistry):
 
     def __init__(
         self,
-        uri: Optional[str] = None,
-        account_id: Optional[str] = None,
-        region: Optional[str] = None,
-        repo_name: Optional[str] = None,
+        uri: str | None = None,
+        account_id: str | None = None,
+        region: str | None = None,
+        repo_name: str | None = None,
     ) -> None:
         """Initialize the Elastic Container Registry.
 
@@ -93,7 +94,7 @@ class ElasticContainerRegistry(AbstractRegistry):
     def from_config(
         cls,
         config: dict[str, str],
-    ) -> "ElasticContainerRegistry":
+    ) -> ElasticContainerRegistry:
         """Create an Elastic Container Registry from a config.
 
         Arguments:

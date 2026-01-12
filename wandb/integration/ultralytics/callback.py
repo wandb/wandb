@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import copy
 from datetime import datetime
-from typing import Callable, Optional, Union
+from typing import Callable, Union
 
 from packaging import version
 
@@ -442,8 +444,8 @@ def add_wandb_callback(
     enable_train_validation_logging: bool = True,
     enable_validation_logging: bool = True,
     enable_prediction_logging: bool = True,
-    max_validation_batches: Optional[int] = 1,
-    visualize_skeleton: Optional[bool] = True,
+    max_validation_batches: int | None = 1,
+    visualize_skeleton: bool | None = True,
 ):
     """Function to add the `WandBUltralyticsCallback` callback to the `YOLO` model.
 

@@ -1,7 +1,9 @@
 """progress."""
 
+from __future__ import annotations
+
 import os
-from typing import IO, TYPE_CHECKING, Optional
+from typing import IO, TYPE_CHECKING
 
 from wandb.errors import CommError
 
@@ -18,9 +20,7 @@ class Progress:
 
     ITER_BYTES = 1024 * 1024
 
-    def __init__(
-        self, file: IO[bytes], callback: Optional["ProgressFn"] = None
-    ) -> None:
+    def __init__(self, file: IO[bytes], callback: ProgressFn | None = None) -> None:
         self.file = file
         if callback is None:
 

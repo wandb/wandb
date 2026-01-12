@@ -1,5 +1,7 @@
 # This file is separated from the main test file in
 # order to simulate models defined in external modules.
+from __future__ import annotations
+
 import pytest
 
 torch = pytest.importorskip("torch")

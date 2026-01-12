@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import re
 import sys
 from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import wandb
 from wandb.proto.wandb_telemetry_pb2 import Imports as TelemetryImports
@@ -18,13 +20,13 @@ _LABEL_TOKEN: str = "@wandbcode{"
 
 
 class _TelemetryObject:
-    _run: Optional["wandb_run.Run"]
+    _run: wandb_run.Run | None
     _obj: TelemetryRecord
 
     def __init__(
         self,
-        run: Optional["wandb_run.Run"] = None,
-        obj: Optional[TelemetryRecord] = None,
+        run: wandb_run.Run | None = None,
+        obj: TelemetryRecord | None = None,
     ) -> None:
         self._run = run or wandb.run
         self._obj = obj or TelemetryRecord()
@@ -34,9 +36,9 @@ class _TelemetryObject:
 
     def __exit__(
         self,
-        exctype: Optional[type[BaseException]],
-        excinst: Optional[BaseException],
-        exctb: Optional[TracebackType],
+        exctype: type[BaseException] | None,
+        excinst: BaseException | None,
+        exctb: TracebackType | None,
     ) -> None:
         if not self._run:
             return
@@ -44,7 +46,7 @@ class _TelemetryObject:
 
 
 def context(
-    run: Optional["wandb_run.Run"] = None, obj: Optional[TelemetryRecord] = None
+    run: wandb_run.Run | None = None, obj: TelemetryRecord | None = None
 ) -> AbstractContextManager[TelemetryRecord]:
     return _TelemetryObject(run=run, obj=obj)
 

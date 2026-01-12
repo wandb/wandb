@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 from wandb.sdk.lib.run_moment import RunMoment
 

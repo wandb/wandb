@@ -1,5 +1,7 @@
 """summary test."""
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 
 from wandb import sdk as wandb_sdk
@@ -19,13 +21,13 @@ class MockCallback:
         self.summary_record = None
         self.current_dict = current_dict
 
-    def update_callback(self, summary_record: "SummaryRecord") -> None:
+    def update_callback(self, summary_record: SummaryRecord) -> None:
         self.summary_record = summary_record
 
     def get_current_summary_callback(self) -> dict:
         return self.current_dict
 
-    def check_updates(self, key: tuple[str], value: Any) -> "MockCallback":
+    def check_updates(self, key: tuple[str], value: Any) -> MockCallback:
         assert self.summary_record is not None
 
         for item in self.summary_record.update:
@@ -34,7 +36,7 @@ class MockCallback:
 
         raise AssertionError
 
-    def check_removes(self, key: tuple[str]) -> "MockCallback":
+    def check_removes(self, key: tuple[str]) -> MockCallback:
         assert self.summary_record is not None
 
         for item in self.summary_record.remove:
@@ -46,7 +48,7 @@ class MockCallback:
 
 def create_summary_and_mock(
     current_dict: dict,
-) -> tuple["wandb_sdk.Summary", "MockCallback"]:
+) -> tuple[wandb_sdk.Summary, MockCallback]:
     m = MockCallback(current_dict)
     s = wandb_sdk.Summary(
         m.get_current_summary_callback,

@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import codecs
 import json
 import os
 import pathlib
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from wandb import util
 from wandb._strutils import nameof
@@ -27,12 +29,7 @@ class Bokeh(Media):
 
     def __init__(
         self,
-        data_or_path: Union[
-            str,
-            pathlib.Path,
-            "document.Document",
-            "model.Model",
-        ],
+        data_or_path: str | pathlib.Path | document.Document | model.Model,
     ):
         super().__init__()
         bokeh = util.get_module(

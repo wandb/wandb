@@ -2,6 +2,8 @@
 Test that the Keras TensorBoard callback works with W&B.
 """
 
+from __future__ import annotations
+
 import keras
 import numpy as np
 import tensorflow as tf

@@ -8,6 +8,8 @@ Todo:
 
 """
 
+from __future__ import annotations
+
 import inspect
 
 import wandb

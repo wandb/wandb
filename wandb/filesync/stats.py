@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import threading
 from collections.abc import MutableMapping
 from typing import NamedTuple

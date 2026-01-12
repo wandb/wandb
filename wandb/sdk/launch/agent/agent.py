@@ -1,5 +1,7 @@
 """Implementation of launch agent."""
 
+from __future__ import annotations
+
 import asyncio
 import copy
 import logging
@@ -10,7 +12,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from multiprocessing import Event
-from typing import Any, Optional, Union
+from typing import Any
 
 import wandb
 from wandb.analytics import get_sentry
@@ -82,9 +84,7 @@ def _convert_access(access: str) -> str:
     return access
 
 
-def _max_from_config(
-    config: dict[str, Any], key: str, default: int = 1
-) -> Union[int, float]:
+def _max_from_config(config: dict[str, Any], key: str, default: int = 1) -> int | float:
     """Get an integer from the config, or float.inf if -1.
 
     Utility for parsing integers from the agent config with a default, infinity
@@ -137,9 +137,9 @@ class InternalAgentLogger:
 
 
 def construct_agent_configs(
-    launch_config: Optional[dict] = None,
-    build_config: Optional[dict] = None,
-) -> tuple[Optional[dict[str, Any]], dict[str, Any], dict[str, Any]]:
+    launch_config: dict | None = None,
+    build_config: dict | None = None,
+) -> tuple[dict[str, Any] | None, dict[str, Any], dict[str, Any]]:
     import yaml
 
     registry_config = None
@@ -168,7 +168,7 @@ class LaunchAgent:
 
     _instance = None
 
-    def __new__(cls, *args: Any, **kwargs: Any) -> "LaunchAgent":
+    def __new__(cls, *args: Any, **kwargs: Any) -> LaunchAgent:
         """Create a new instance of the LaunchAgent.
 
         This method ensures that only one instance of the LaunchAgent is created.
@@ -299,7 +299,7 @@ class LaunchAgent:
         run_queue_item_id: str,
         message: str,
         phase: str,
-        files: Optional[list[str]] = None,
+        files: list[str] | None = None,
     ) -> None:
         if self._gorilla_supports_fail_run_queue_items:
             fail_rqi = event_loop_thread_exec(self._api.fail_run_queue_item)
@@ -418,7 +418,7 @@ class LaunchAgent:
     async def finish_thread_id(
         self,
         thread_id: int,
-        exception: Optional[Union[Exception, LaunchDockerError]] = None,
+        exception: Exception | LaunchDockerError | None = None,
     ) -> None:
         """Removes the job from our list for now."""
         with self._jobs_lock:
@@ -670,7 +670,7 @@ class LaunchAgent:
     ) -> None:
         rqi_id = job["runQueueItemId"]
         assert rqi_id
-        exception: Optional[Union[LaunchDockerError, Exception]] = None
+        exception: LaunchDockerError | Exception | None = None
         try:
             with self._jobs_lock:
                 self._jobs[rqi_id] = job_tracker
@@ -764,7 +764,7 @@ class LaunchAgent:
         with self._jobs_lock:
             job_tracker.run = run
         start_time = time.time()
-        stopped_time: Optional[float] = None
+        stopped_time: float | None = None
         while self._jobs_event.is_set():
             # If run has failed to start before timeout, kill it
             state = (await run.get_status()).state
@@ -913,7 +913,7 @@ class LaunchAgent:
             get_sentry().exception(e)
         return known_error
 
-    async def get_job_and_queue(self) -> Optional[JobSpecAndQueue]:
+    async def get_job_and_queue(self) -> JobSpecAndQueue | None:
         for queue in self._queues:
             job = await self.pop_from_queue(queue)
             if job is not None:

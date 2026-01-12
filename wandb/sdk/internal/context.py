@@ -1,8 +1,9 @@
 """Context Keeper."""
 
+from __future__ import annotations
+
 import logging
 import threading
-from typing import Optional
 
 from wandb.proto.wandb_internal_pb2 import Record, Result
 
@@ -43,7 +44,7 @@ class ContextKeeper:
     def __init__(self) -> None:
         self._active_items = {}
 
-    def add_from_record(self, record: Record) -> Optional[Context]:
+    def add_from_record(self, record: Record) -> Context | None:
         context_id = context_id_from_record(record)
         if not context_id:
             return None
@@ -60,7 +61,7 @@ class ContextKeeper:
         self._active_items[context_id] = context_obj
         return context_obj
 
-    def get(self, context_id: str) -> Optional[Context]:
+    def get(self, context_id: str) -> Context | None:
         item = self._active_items.get(context_id)
         return item
 

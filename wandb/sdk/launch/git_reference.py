@@ -1,9 +1,10 @@
 """Support for parsing GitHub URLs (which might be user provided) into constituent parts."""
 
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional, Union
 
 from wandb.sdk.launch.errors import LaunchError
 
@@ -20,7 +21,7 @@ class ReferenceType(IntEnum):
     COMMIT = 2
 
 
-def _parse_netloc(netloc: str) -> tuple[Optional[str], Optional[str], str]:
+def _parse_netloc(netloc: str) -> tuple[str | None, str | None, str]:
     """Parse netloc into username, password, and host.
 
     github.com => None, None, "@github.com"
@@ -39,7 +40,7 @@ def _parse_netloc(netloc: str) -> tuple[Optional[str], Optional[str], str]:
 
 @dataclass
 class GitReference:
-    def __init__(self, remote: str, ref: Optional[str] = None) -> None:
+    def __init__(self, remote: str, ref: str | None = None) -> None:
         """Initialize a reference from a remote and ref.
 
         Arguments:
@@ -50,7 +51,7 @@ class GitReference:
         self.ref = ref
 
     @property
-    def url(self) -> Optional[str]:
+    def url(self) -> str | None:
         return self.uri
 
     def fetch(self, dst_dir: str) -> None:
@@ -71,7 +72,7 @@ class GitReference:
                 f"Unable to fetch from git remote repository {self.url}:\n{e}"
             )
 
-        ref: Union[git.RemoteReference, str]
+        ref: git.RemoteReference | str
         if self.ref:
             if self.ref in origin.refs:
                 ref = origin.refs[self.ref]

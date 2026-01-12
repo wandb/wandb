@@ -1,5 +1,7 @@
 """require user tests."""
 
+from __future__ import annotations
+
 import pytest
 import wandb
 from wandb.sdk import wandb_require

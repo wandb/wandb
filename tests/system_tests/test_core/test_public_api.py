@@ -1,7 +1,9 @@
 """Tests for the `wandb.apis.PublicApi` module."""
 
+from __future__ import annotations
+
 import json
-from typing import Any, Optional
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -76,8 +78,8 @@ def stub_run_gql_once(user, wandb_backend_spy):
 
     def helper(
         id: str = user,
-        config: Optional[dict] = None,
-        summary_metrics: Optional[dict] = None,
+        config: dict | None = None,
+        summary_metrics: dict | None = None,
         project_id: str = "123",
     ):
         body = {
@@ -129,7 +131,7 @@ def stub_run_full_history(wandb_backend_spy):
 
     gql = wandb_backend_spy.gql
 
-    def helper(history: Optional[list] = None, events: Optional[list] = None):
+    def helper(history: list | None = None, events: list | None = None):
         history = [json.dumps(h) for h in history or []]
         events = [json.dumps(e) for e in events or []]
         body = {

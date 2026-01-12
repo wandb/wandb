@@ -1,5 +1,7 @@
 """Utilities for wandb verify."""
 
+from __future__ import annotations
+
 import contextlib
 import getpass
 import io
@@ -7,7 +9,7 @@ import os
 import time
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 
 import click
 import requests
@@ -31,9 +33,7 @@ def nice_id(name):
     return ID_PREFIX + "-" + name
 
 
-def print_results(
-    failed_test_or_tests: Optional[Union[str, list[str]]], warning: bool
-) -> None:
+def print_results(failed_test_or_tests: str | list[str] | None, warning: bool) -> None:
     if warning:
         color = "yellow"
     else:
@@ -228,7 +228,7 @@ def verify_manifest(
 
 
 def verify_digest(
-    downloaded: "Artifact", computed: "Artifact", fails_list: list[str]
+    downloaded: Artifact, computed: Artifact, fails_list: list[str]
 ) -> None:
     if downloaded.digest != computed.digest:
         fails_list.append(
@@ -237,8 +237,8 @@ def verify_digest(
 
 
 def artifact_with_path_or_paths(
-    name: str, verify_dir: Optional[str] = None, singular: bool = False
-) -> "Artifact":
+    name: str, verify_dir: str | None = None, singular: bool = False
+) -> Artifact:
     art = wandb.Artifact(type="artsy", name=name)
     # internal file
     with open("verify_int_test.txt", "w") as f:
@@ -266,13 +266,13 @@ def artifact_with_path_or_paths(
 
 
 def log_use_download_artifact(
-    artifact: "Artifact",
+    artifact: Artifact,
     alias: str,
     name: str,
     download_dir: str,
     failed_test_strings: list[str],
     add_extra_file: bool,
-) -> tuple[bool, Optional["Artifact"], list[str]]:
+) -> tuple[bool, Artifact | None, list[str]]:
     with wandb.init(
         id=nice_id("log_artifact"),
         reinit=True,
@@ -368,7 +368,7 @@ def check_artifacts() -> bool:
     return len(failed_test_strings) == 0
 
 
-def check_graphql_put(api: Api, host: str) -> tuple[bool, Optional[str]]:
+def check_graphql_put(api: Api, host: str) -> tuple[bool, str | None]:
     # check graphql endpoint using an upload
     print("Checking signed URL upload".ljust(72, "."), end="")  # noqa: T201
     failed_test_strings = []

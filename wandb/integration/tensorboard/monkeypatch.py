@@ -1,9 +1,11 @@
 """monkeypatch: patch code to add tensorboard hooks."""
 
+from __future__ import annotations
+
 import os
 import re
 import socket
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 import wandb.util
@@ -24,8 +26,8 @@ def unpatch() -> None:
 
 def patch(
     save: bool = True,
-    tensorboard_x: Optional[bool] = None,
-    pytorch: Optional[bool] = None,
+    tensorboard_x: bool | None = None,
+    pytorch: bool | None = None,
     root_logdir: str = "",
 ) -> None:
     if len(wandb.patched["tensorboard"]) > 0:

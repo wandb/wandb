@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import hashlib
 import os
@@ -6,7 +8,7 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from itertools import chain
 from pathlib import Path
-from typing import Callable, Optional, TypeVar, Union
+from typing import Callable, TypeVar, Union
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -65,7 +67,7 @@ def test_get_run_state_invalid_kwargs():
 )
 def test_download_write_file_fetches_iff_file_checksum_mismatched(
     mock_responses: RequestsMock,
-    existing_contents: Optional[str],
+    existing_contents: str | None,
     expect_download: bool,
 ):
     url = "https://example.com/path/to/file.txt"

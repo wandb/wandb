@@ -3,6 +3,8 @@
 For formal specs and definitions, see https://relay.dev/graphql/connections.htm.
 """
 
+from __future__ import annotations
+
 from collections.abc import Iterator
 from typing import Generic, Literal, Optional, TypeVar
 

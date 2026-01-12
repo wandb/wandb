@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.internal import sender_config
 from wandb.sdk.lib import telemetry

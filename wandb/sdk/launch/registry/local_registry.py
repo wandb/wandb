@@ -1,5 +1,7 @@
 """Local registry implementation."""
 
+from __future__ import annotations
+
 import logging
 
 from wandb.docker import is_docker_installed
@@ -24,7 +26,7 @@ class LocalRegistry(AbstractRegistry):
     def from_config(
         cls,
         config: dict,
-    ) -> "LocalRegistry":
+    ) -> LocalRegistry:
         """Create a local registry from a config.
 
         Arguments:

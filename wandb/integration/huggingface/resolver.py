@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import logging
 import os
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any
 
 import pytz
 
@@ -45,7 +47,7 @@ class HuggingFacePipelineRequestResponseResolver:
         response: Response,
         start_time: float,
         time_elapsed: float,
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Main call method for this class.
 
         :param args: list of arguments
@@ -94,7 +96,7 @@ class HuggingFacePipelineRequestResponseResolver:
     # from transformers.modeling_utils import PreTrainedModel
     # We do not want this dependency explicitly in our codebase so we make a very general
     # assumption about the structure of the pipeline which may have unintended consequences
-    def _get_model(self, pipe) -> Optional[Any]:
+    def _get_model(self, pipe) -> Any | None:
         """Extracts model from the pipeline.
 
         :param pipe: the HuggingFace pipeline
@@ -111,8 +113,8 @@ class HuggingFacePipelineRequestResponseResolver:
 
     @staticmethod
     def _transform_task_specific_data(
-        task: str, input_data: Union[list[Any], Any], response: Union[list[Any], Any]
-    ) -> tuple[Union[list[Any], Any], Union[list[Any], Any]]:
+        task: str, input_data: list[Any] | Any, response: list[Any] | Any
+    ) -> tuple[list[Any] | Any, list[Any] | Any]:
         """Transform input and response data based on specific tasks.
 
         :param task: the task name
@@ -136,8 +138,8 @@ class HuggingFacePipelineRequestResponseResolver:
     def _format_data(
         self,
         task: str,
-        input_data: Union[list[Any], Any],
-        response: Union[list[Any], Any],
+        input_data: list[Any] | Any,
+        response: list[Any] | Any,
         kwargs: dict[str, Any],
     ) -> list[dict[str, Any]]:
         """Formats input data, response, and kwargs into a list of dictionaries.

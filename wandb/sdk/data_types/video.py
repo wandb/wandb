@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import functools
 import logging
 import os
 import pathlib
 from collections.abc import Sequence
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
 from wandb import env, util
@@ -42,9 +44,7 @@ def _should_print_spinner() -> bool:
 # See https://github.com/Zulko/moviepy/blob/7e3e8bb1b739eb6d1c0784b0cb2594b587b93b39/moviepy/video/io/gif_writers.py#L428
 #
 # Except, we close the writer!
-def write_gif_with_image_io(
-    clip: Any, filename: str, fps: Optional[int] = None
-) -> None:
+def write_gif_with_image_io(clip: Any, filename: str, fps: int | None = None) -> None:
     from packaging.version import parse
 
     imageio = util.get_module(
@@ -77,15 +77,15 @@ class Video(BatchableMedia):
 
     _log_type = "video-file"
     EXTS = ("gif", "mp4", "webm", "ogg")
-    _width: Optional[int]
-    _height: Optional[int]
+    _width: int | None
+    _height: int | None
 
     def __init__(
         self,
-        data_or_path: Union[str, pathlib.Path, "np.ndarray", "TextIO", "BytesIO"],
-        caption: Optional[str] = None,
-        fps: Optional[int] = None,
-        format: Optional[Literal["gif", "mp4", "webm", "ogg"]] = None,
+        data_or_path: str | pathlib.Path | np.ndarray | TextIO | BytesIO,
+        caption: str | None = None,
+        fps: int | None = None,
+        format: Literal["gif", "mp4", "webm", "ogg"] | None = None,
     ):
         """Initialize a W&B Video object.
 
@@ -214,14 +214,14 @@ class Video(BatchableMedia):
         self._set_file(filename, is_tmp=True)
 
     @classmethod
-    def get_media_subdir(cls: type["Video"]) -> str:
+    def get_media_subdir(cls: type[Video]) -> str:
         """Get media subdirectory for video files.
 
         <!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "videos")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
         <!-- lazydoc-ignore: internal -->
@@ -236,7 +236,7 @@ class Video(BatchableMedia):
 
         return json_dict
 
-    def _prepare_video(self, video: "np.ndarray") -> "np.ndarray":
+    def _prepare_video(self, video: np.ndarray) -> np.ndarray:
         """This logic was mostly taken from tensorboardX."""
         np = util.get_module(
             "numpy",
@@ -274,11 +274,11 @@ class Video(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls: type["Video"],
-        seq: Sequence["BatchableMedia"],
-        run: "LocalRun",
+        cls: type[Video],
+        seq: Sequence[BatchableMedia],
+        run: LocalRun,
         key: str,
-        step: Union[int, str],
+        step: int | str,
     ) -> dict:
         """Convert a sequence of Video objects to a JSON representation.
 

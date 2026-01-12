@@ -2,8 +2,9 @@
 
 """Tests for the `wandb.GitRepo` module."""
 
+from __future__ import annotations
+
 from collections.abc import Generator
-from typing import Optional
 
 import git
 import pytest
@@ -15,8 +16,8 @@ def git_repo_fn() -> Generator:
     def git_repo_fn_helper(
         path: str = ".",
         remote_name: str = "origin",
-        remote_url: Optional[str] = "https://foo:bar@github.com/FooTest/Foo.git",
-        commit_msg: Optional[str] = None,
+        remote_url: str | None = "https://foo:bar@github.com/FooTest/Foo.git",
+        commit_msg: str | None = None,
     ):
         with git.Repo.init(path) as repo:
             if remote_url is not None:

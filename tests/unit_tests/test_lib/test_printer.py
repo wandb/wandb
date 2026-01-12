@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 import wandb
 from wandb.sdk.lib import printer as p

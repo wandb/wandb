@@ -1,5 +1,7 @@
 """multiproc full tests."""
 
+from __future__ import annotations
+
 import importlib
 import sys
 import time

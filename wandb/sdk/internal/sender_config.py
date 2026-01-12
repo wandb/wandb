@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import json
 from collections.abc import Sequence
-from typing import Any, NewType, Optional
+from typing import Any, NewType
 
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import proto_util, telemetry
@@ -14,7 +16,7 @@ _WANDB_INTERNAL_KEY = "_wandb"
 class ConfigState:
     """The configuration of a run."""
 
-    def __init__(self, tree: Optional[dict[str, Any]] = None) -> None:
+    def __init__(self, tree: dict[str, Any] | None = None) -> None:
         self._tree: dict[str, Any] = tree or {}
         """A tree with string-valued nodes and JSON leaves.
 
@@ -77,7 +79,7 @@ class ConfigState:
     def to_backend_dict(
         self,
         telemetry_record: telemetry.TelemetryRecord,
-        framework: Optional[str],
+        framework: str | None,
         start_time_millis: int,
         metric_pbdicts: Sequence[dict[int, Any]],
         environment_record: wandb_internal_pb2.EnvironmentRecord,
@@ -187,7 +189,7 @@ def _subtree(
     key_path: Sequence[str],
     *,
     create: bool = False,
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Returns a subtree at the given path."""
     for key in key_path:
         subtree = tree.get(key)

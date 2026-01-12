@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import numbers
 import os
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import wandb
 from wandb import util
@@ -177,11 +179,11 @@ class ImageMask(Media):
 
     def bind_to_run(
         self,
-        run: "LocalRun",
-        key: Union[int, str],
-        step: Union[int, str],
-        id_: Optional[Union[int, str]] = None,
-        ignore_copy_err: Optional[bool] = None,
+        run: LocalRun,
+        key: int | str,
+        step: int | str,
+        id_: int | str | None = None,
+        ignore_copy_err: bool | None = None,
     ) -> None:
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
@@ -196,19 +198,19 @@ class ImageMask(Media):
             )
 
     @classmethod
-    def get_media_subdir(cls: type["ImageMask"]) -> str:
+    def get_media_subdir(cls: type[ImageMask]) -> str:
         return os.path.join("media", "images", cls.type_name())
 
     @classmethod
     def from_json(
-        cls: type["ImageMask"], json_obj: dict, source_artifact: "Artifact"
-    ) -> "ImageMask":
+        cls: type[ImageMask], json_obj: dict, source_artifact: Artifact
+    ) -> ImageMask:
         return cls(
             {"path": source_artifact.get_entry(json_obj["path"]).download()},
             key="",
         )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         json_dict = super().to_json(run_or_artifact)
 
         if isinstance(run_or_artifact, wandb.Run):
@@ -221,7 +223,7 @@ class ImageMask(Media):
             raise TypeError("to_json accepts wandb_run.Run or wandb.Artifact")
 
     @classmethod
-    def type_name(cls: type["ImageMask"]) -> str:
+    def type_name(cls: type[ImageMask]) -> str:
         return cls._log_type
 
     def validate(self, val: dict) -> bool:

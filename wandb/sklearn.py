@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from wandb.integration.sklearn import (
     plot_calibration_curve,
     plot_class_proportions,

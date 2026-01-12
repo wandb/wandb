@@ -47,12 +47,14 @@ Example:
             tuner.stop_runs(runs)
 """
 
+from __future__ import annotations
+
 import json
 import os
 import random
 import string
 import time
-from typing import Callable, Optional, Union
+from typing import Callable
 
 import yaml
 
@@ -126,25 +128,27 @@ class _WandbController:
 
     def __init__(self, sweep_id_or_config=None, entity=None, project=None):
         # sweep id configured in constructor
-        self._sweep_id: Optional[str] = None
+        self._sweep_id: str | None = None
 
         # configured parameters
         # Configuration to be created
         self._create: dict = {}
         # Custom search
-        self._custom_search: Optional[
+        self._custom_search: (
             Callable[
-                [Union[dict, sweeps.SweepConfig], list[sweeps.SweepRun]],
-                Optional[sweeps.SweepRun],
+                [dict | sweeps.SweepConfig, list[sweeps.SweepRun]],
+                sweeps.SweepRun | None,
             ]
-        ] = None
+            | None
+        ) = None
         # Custom stopping
-        self._custom_stopping: Optional[
+        self._custom_stopping: (
             Callable[
-                [Union[dict, sweeps.SweepConfig], list[sweeps.SweepRun]],
+                [dict | sweeps.SweepConfig, list[sweeps.SweepRun]],
                 list[sweeps.SweepRun],
             ]
-        ] = None
+            | None
+        ) = None
         # Program function (used for future jupyter support)
         self._program_function = None
 
@@ -152,19 +156,19 @@ class _WandbController:
         # raw sweep object (dict of strings)
         self._sweep_obj = None
         # parsed sweep config (dict)
-        self._sweep_config: Optional[Union[dict, sweeps.SweepConfig]] = None
+        self._sweep_config: dict | sweeps.SweepConfig | None = None
         # sweep metric used to optimize (str or None)
-        self._sweep_metric: Optional[str] = None
+        self._sweep_metric: str | None = None
         # list of _Run objects
-        self._sweep_runs: Optional[list[sweeps.SweepRun]] = None
+        self._sweep_runs: list[sweeps.SweepRun] | None = None
         # dictionary mapping name of run to run object
-        self._sweep_runs_map: Optional[dict[str, sweeps.SweepRun]] = None
+        self._sweep_runs_map: dict[str, sweeps.SweepRun] | None = None
         # scheduler dict (read only from controller) - used as feedback from the server
-        self._scheduler: Optional[dict] = None
+        self._scheduler: dict | None = None
         # controller dict (write only from controller) - used to send commands to server
-        self._controller: Optional[dict] = None
+        self._controller: dict | None = None
         # keep track of controller dict from previous step
-        self._controller_prev_step: Optional[dict] = None
+        self._controller_prev_step: dict | None = None
 
         # Internal
         # Keep track of whether the sweep has been started
@@ -218,12 +222,9 @@ class _WandbController:
 
     def configure_search(
         self,
-        search: Union[
-            str,
-            Callable[
-                [Union[dict, sweeps.SweepConfig], list[sweeps.SweepRun]],
-                Optional[sweeps.SweepRun],
-            ],
+        search: str
+        | Callable[
+            [dict | sweeps.SweepConfig, list[sweeps.SweepRun]], sweeps.SweepRun | None
         ],
     ):
         self._configure_check()
@@ -237,12 +238,9 @@ class _WandbController:
 
     def configure_stopping(
         self,
-        stopping: Union[
-            str,
-            Callable[
-                [Union[dict, sweeps.SweepConfig], list[sweeps.SweepRun]],
-                list[sweeps.SweepRun],
-            ],
+        stopping: str
+        | Callable[
+            [dict | sweeps.SweepConfig, list[sweeps.SweepRun]], list[sweeps.SweepRun]
         ],
         **kwargs,
     ):
@@ -342,7 +340,7 @@ class _WandbController:
             raise ControllerError("Unhandled sweep controller type")
 
     @property
-    def sweep_config(self) -> Union[dict, sweeps.SweepConfig]:
+    def sweep_config(self) -> dict | sweeps.SweepConfig:
         return self._sweep_config
 
     @property
@@ -426,7 +424,7 @@ class _WandbController:
                 self.print_debug()
             time.sleep(5)
 
-    def _sweep_object_read_from_backend(self) -> Optional[dict]:
+    def _sweep_object_read_from_backend(self) -> dict | None:
         specs_json = {}
         if self._sweep_metric:
             k = ["_step"]
@@ -572,14 +570,14 @@ class _WandbController:
             return False
         return True
 
-    def _search(self) -> Optional[sweeps.SweepRun]:
+    def _search(self) -> sweeps.SweepRun | None:
         search = self._custom_search or sweeps.next_run
         next_run = search(self._sweep_config, self._sweep_runs or [])
         if next_run is None:
             self._done_scheduling = True
         return next_run
 
-    def search(self) -> Optional[sweeps.SweepRun]:
+    def search(self) -> sweeps.SweepRun | None:
         self._start_if_not_started()
         suggestion = self._search()
         return suggestion
@@ -604,7 +602,7 @@ class _WandbController:
         self._start_if_not_started()
         return self._stopping()
 
-    def schedule(self, run: Optional[sweeps.SweepRun]) -> None:
+    def schedule(self, run: sweeps.SweepRun | None) -> None:
         self._start_if_not_started()
 
         # only schedule one run at a time (for now)
@@ -685,7 +683,7 @@ def _get_runs_status(metrics):
 
 def _sweep_status(
     sweep_obj: dict,
-    sweep_conf: Union[dict, sweeps.SweepConfig],
+    sweep_conf: dict | sweeps.SweepConfig,
     sweep_runs: list[sweeps.SweepRun],
 ) -> str:
     sweep = sweep_obj["name"]

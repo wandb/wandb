@@ -16,11 +16,13 @@ header :=
   version: uint8
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import struct
 import zlib
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import IO, Any
@@ -61,7 +63,7 @@ class DataStore:
 
     def __init__(self) -> None:
         self._opened_for_scan = False
-        self._fp: Optional[IO[Any]] = None
+        self._fp: IO[Any] | None = None
         self._index = 0
         self._flush_offset = 0
         self._size_bytes = 0
@@ -258,7 +260,7 @@ class DataStore:
     def ensure_flushed(self, off: int) -> None:
         self._fp.flush()  # type: ignore
 
-    def write(self, obj: "Record") -> tuple[int, int, int]:
+    def write(self, obj: Record) -> tuple[int, int, int]:
         """Write a protocol buffer.
 
         Args:

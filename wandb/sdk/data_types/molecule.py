@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import io
 import os
 import pathlib
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Union
 
 from wandb import util
 from wandb.sdk.lib import runid
@@ -43,8 +45,8 @@ class Molecule(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union[str, pathlib.Path, "TextIO"],
-        caption: Optional[str] = None,
+        data_or_path: str | pathlib.Path | TextIO,
+        caption: str | None = None,
         **kwargs: str,
     ) -> None:
         """Initialize a Molecule object.
@@ -99,11 +101,11 @@ class Molecule(BatchableMedia):
     @classmethod
     def from_rdkit(
         cls,
-        data_or_path: "RDKitDataType",
-        caption: Optional[str] = None,
+        data_or_path: RDKitDataType,
+        caption: str | None = None,
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
-    ) -> "Molecule":
+    ) -> Molecule:
         """Convert RDKit-supported file/object types to wandb.Molecule.
 
         Args:
@@ -166,11 +168,11 @@ class Molecule(BatchableMedia):
     def from_smiles(
         cls,
         data: str,
-        caption: Optional[str] = None,
+        caption: str | None = None,
         sanitize: bool = True,
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
-    ) -> "Molecule":
+    ) -> Molecule:
         """Convert SMILES string to wandb.Molecule.
 
         Args:
@@ -202,14 +204,14 @@ class Molecule(BatchableMedia):
         )
 
     @classmethod
-    def get_media_subdir(cls: type["Molecule"]) -> str:
+    def get_media_subdir(cls: type[Molecule]) -> str:
         """Get media subdirectory.
 
         <!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "molecule")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
         <!-- lazydoc-ignore: internal -->
@@ -220,11 +222,11 @@ class Molecule(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls: type["Molecule"],
-        seq: Sequence["BatchableMedia"],
-        run: "LocalRun",
+        cls: type[Molecule],
+        seq: Sequence[BatchableMedia],
+        run: LocalRun,
         key: str,
-        step: Union[int, str],
+        step: int | str,
     ) -> dict:
         """Convert a sequence of Molecule objects to a JSON representation.
 

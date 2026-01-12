@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import netrc
 import os
 from unittest import mock

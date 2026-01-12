@@ -1,4 +1,6 @@
-from typing import Any, Callable, Optional
+from __future__ import annotations
+
+from typing import Any, Callable
 
 from ultralytics.yolo.engine.model import YOLO
 from ultralytics.yolo.engine.trainer import BaseTrainer
@@ -34,11 +36,11 @@ class WandbCallback:
     def __init__(
         self,
         yolo: YOLO,
-        run_name: Optional[str] = None,
-        project: Optional[str] = None,
-        tags: Optional[list[str]] = None,
-        resume: Optional[str] = None,
-        **kwargs: Optional[Any],
+        run_name: str | None = None,
+        project: str | None = None,
+        tags: list[str] | None = None,
+        resume: str | None = None,
+        **kwargs: Any | None,
     ) -> None:
         """A utility class to manage wandb run and various callbacks for the ultralytics YOLOv8 framework.
 
@@ -221,11 +223,11 @@ class WandbCallback:
 
 def add_callbacks(
     yolo: YOLO,
-    run_name: Optional[str] = None,
-    project: Optional[str] = None,
-    tags: Optional[list[str]] = None,
-    resume: Optional[str] = None,
-    **kwargs: Optional[Any],
+    run_name: str | None = None,
+    project: str | None = None,
+    tags: list[str] | None = None,
+    resume: str | None = None,
+    **kwargs: Any | None,
 ) -> YOLO:
     """A YOLO model wrapper that tracks metrics, and logs models to Weights & Biases.
 

@@ -1,5 +1,7 @@
 """Define plots for clustering models built with scikit-learn."""
 
+from __future__ import annotations
+
 from warnings import simplefilter
 
 import pandas as pd

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import subprocess
 import tempfile
@@ -7,7 +9,6 @@ import uuid
 import warnings
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Optional
 
 import hypothesis.strategies as st
 import mlflow
@@ -44,7 +45,7 @@ class MlflowServerSettings:
     health_endpoint: str = "health"
 
     # helper if port is blocked
-    new_port: Optional[str] = None
+    new_port: str | None = None
 
     def __post_init__(self):
         self.new_port = self._get_free_port()
