@@ -148,7 +148,9 @@ def _create_new_account(host: HostUrl, referrer: str) -> str:
     """
     url = _authorize_url(host, signup=True, referrer=referrer)
     term.termlog(f"Create an account here: {url}")
-    term.termlog("After creating your account, create a new API key and store it securely.")
+    term.termlog(
+        "After creating your account, create a new API key and store it securely."
+    )
     return term.terminput(
         "Paste your API key and hit enter: ",
         hide=True,
