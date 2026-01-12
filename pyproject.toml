@@ -215,10 +215,7 @@ split-on-trailing-comma = false
 
 [tool.ruff.lint.pep8-naming]
 classmethod-decorators = [
-    # Allow Pydantic's `@field_validator` to trigger classmethod treatment,
-    # as well as the internal compat implementation.
     "pydantic.field_validator",
-    "wandb._pydantic.field_validator",
 ]
 
 [tool.ruff.lint.pycodestyle]

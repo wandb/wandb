@@ -16,4 +16,5 @@ T = TypeVar("T")
 Typename = Annotated[T, Field(alias="__typename")]
 """Annotates GraphQL `__typename` fields."""
 
+# GQLId = Annotated[StrictStr, Field(repr=False, frozen=True)]
 GQLId = StrictStr

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 import pydantic_core
 
+from wandb._strutils import nameof
+
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
@@ -16,7 +18,7 @@ def gql_typename(cls: type[BaseModel]) -> str:
     """Get the GraphQL typename for a Pydantic model."""
     if (field := cls.model_fields.get("typename__")) and (typename := field.default):
         return typename
-    raise TypeError(f"Cannot extract GraphQL typename from: {cls.__qualname__!r}.")
+    raise TypeError(f"Cannot extract GraphQL typename from: {nameof(cls)!r}.")
 
 
 def from_json(s: str | bytes) -> Any:

@@ -18,11 +18,15 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 This version drops support for Python 3.8.
 
+This version drops support for Pydantic V1.
+
 ### Changed
 
 - Python 3.8 is no longer supported (@tonyyli-wandb in
   https://github.com/wandb/wandb/pull/11198,
   https://github.com/wandb/wandb/pull/11164)
+- Pydantic V1 is no longer supported (@tonyyli-wandb in
+  https://github.com/wandb/wandb/pull/11165)
 - When a settings file (such as `./wandb/settings` or
   `~/.config/wandb/settings`) contains an invalid setting, all settings files
   are ignored and an error is printed (@timoffex in
