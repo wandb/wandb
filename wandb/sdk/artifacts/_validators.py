@@ -13,7 +13,7 @@ from typing_extensions import Concatenate, ParamSpec, Self
 
 from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json
-from wandb._strutils import nameof, removeprefix
+from wandb._strutils import nameof
 from wandb.util import json_friendly_val
 
 from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
@@ -96,7 +96,7 @@ def validate_project_name(name: str) -> str:
     """
     if not name:
         raise ValueError("Project name cannot be empty")
-    if not (registry_name := removeprefix(name, REGISTRY_PREFIX)):
+    if not (registry_name := name.removeprefix(REGISTRY_PREFIX)):
         raise ValueError("Registry name cannot be empty")
 
     if len(name) > NAME_MAXLEN:
@@ -283,7 +283,7 @@ def remove_registry_prefix(project: str) -> str:
         raise ValueError(
             f"Project {project!r} is not a registry project. Must start with: {REGISTRY_PREFIX!r}"
         )
-    return removeprefix(project, REGISTRY_PREFIX)
+    return project.removeprefix(REGISTRY_PREFIX)
 
 
 @pydantic_dataclass
