@@ -80,3 +80,7 @@ awscli~=1.42; sys_platform == 'win32'
 .[launch]
 .[sweeps] ; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 .[azure]
+
+# Added indirectly via [launch].
+# Breaks 3.8 CI due to https://github.com/tomplus/kubernetes_asyncio/issues/391
+kubernetes-asyncio<34.3; python_version <= '3.8'
