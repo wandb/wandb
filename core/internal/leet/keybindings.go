@@ -195,6 +195,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Toggle runs sidebar",
 					Handler:     (*Workspace).handleToggleRunsSidebar,
 				},
+				{
+					Keys:        []string{"]"},
+					Description: "Toggle run overview sidebar",
+					Handler:     (*Workspace).handleToggleOverviewSidebar,
+				},
 			},
 		},
 		{

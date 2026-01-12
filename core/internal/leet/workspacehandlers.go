@@ -359,6 +359,11 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
 	return w.runsAnimationCmd()
 }
 
+func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
+	w.runOverviewAnimState.Toggle()
+	return w.runOverviewAnimationCmd()
+}
+
 func (w *Workspace) handlePrevPage(msg tea.KeyMsg) tea.Cmd {
 	if w.metricsGrid != nil {
 		w.metricsGrid.Navigate(-1)

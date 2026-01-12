@@ -81,8 +81,11 @@ type LeftSidebarAnimationMsg struct{}
 // RightSidebarAnimationMsg is sent during right sidebar animations.
 type RightSidebarAnimationMsg struct{}
 
-// WorkspaceRunsAnimationMsg
+// WorkspaceRunsAnimationMsg drives animation for the workspace left sidebar.
 type WorkspaceRunsAnimationMsg struct{}
+
+// WorkspaceOverviewAnimationMsg drives animation for the workspace right sidebar.
+type WorkspaceRunOverviewAnimationMsg struct{}
 
 // WorkspaceInitMsg is emitted when a workspace run reader has been initialized.
 type WorkspaceInitMsg struct {

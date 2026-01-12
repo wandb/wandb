@@ -21,8 +21,9 @@ type Workspace struct {
 	config *ConfigManager
 	keyMap map[string]func(*Workspace, tea.KeyMsg) tea.Cmd
 
-	// Sidebar animation state
-	runsAnimState *AnimationState
+	// Sidebar animation state.
+	runsAnimState        *AnimationState
+	runOverviewAnimState *AnimationState
 
 	// runs is the run selector.
 	runs         PagedList
@@ -77,21 +78,22 @@ func NewWorkspace(
 	hbInterval := cfg.HeartbeatInterval()
 	logger.Info(fmt.Sprintf("workspace: heartbeat interval set to %v", hbInterval))
 
-	// TODO: make visibility configurable
+	// TODO: make sidebar visibility configurable.
 	return &Workspace{
-		runsAnimState: NewAnimationState(true, SidebarMinWidth),
-		wandbDir:      wandbDir,
-		config:        cfg,
-		keyMap:        buildKeyMap(WorkspaceKeyBindings()),
-		logger:        logger,
-		runs:          runs,
-		selectedRuns:  make(map[string]bool),
-		focus:         focus,
-		metricsGrid:   NewMetricsGrid(cfg, focus, logger),
-		runsByKey:     make(map[string]*workspaceRun),
-		liveChan:      ch,
-		heartbeatMgr:  NewHeartbeatManager(hbInterval, ch, logger),
-		filter:        NewFilter(),
+		runsAnimState:        NewAnimationState(true, SidebarMinWidth),
+		runOverviewAnimState: NewAnimationState(false, SidebarMinWidth),
+		wandbDir:             wandbDir,
+		config:               cfg,
+		keyMap:               buildKeyMap(WorkspaceKeyBindings()),
+		logger:               logger,
+		runs:                 runs,
+		selectedRuns:         make(map[string]bool),
+		focus:                focus,
+		metricsGrid:          NewMetricsGrid(cfg, focus, logger),
+		runsByKey:            make(map[string]*workspaceRun),
+		liveChan:             ch,
+		heartbeatMgr:         NewHeartbeatManager(hbInterval, ch, logger),
+		filter:               NewFilter(),
 	}
 }
 
@@ -135,6 +137,9 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceRunsAnimationMsg:
 		return w.handleRunsAnimation()
 
+	case WorkspaceRunOverviewAnimationMsg:
+		return w.handleRunOverviewAnimation()
+
 	case WorkspaceInitMsg:
 		return w.handleWorkspaceInit(t)
 
@@ -163,6 +168,16 @@ func (w *Workspace) handleRunsAnimation() tea.Cmd {
 	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
 	if !done {
 		return w.runsAnimationCmd()
+	}
+	return nil
+}
+
+func (w *Workspace) handleRunOverviewAnimation() tea.Cmd {
+	done := w.runOverviewAnimState.Update(time.Now())
+	l := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
+	if !done {
+		return w.runOverviewAnimationCmd()
 	}
 	return nil
 }
@@ -260,15 +275,19 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 
 // View renders the runs section: header + paginated list with zebra rows.
 func (w *Workspace) View() string {
-	var v []string
+	var cols []string
 
 	if w.runsAnimState.IsVisible() {
-		v = append(v, w.renderRunsList())
+		cols = append(cols, w.renderRunsList())
 	}
 
-	v = append(v, w.renderMetrics())
+	cols = append(cols, w.renderMetrics())
 
-	mainView := lipgloss.JoinHorizontal(lipgloss.Top, v...)
+	if w.runOverviewAnimState.IsVisible() {
+		cols = append(cols, w.renderRunOverview())
+	}
+
+	mainView := lipgloss.JoinHorizontal(lipgloss.Top, cols...)
 	statusBar := w.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
@@ -382,8 +401,33 @@ func (w *Workspace) renderRunsList() string {
 	return lipgloss.Place(sidebarW, sidebarH, lipgloss.Left, lipgloss.Top, boxed)
 }
 
+func (w *Workspace) renderRunOverview() string {
+	sidebarW := w.runOverviewAnimState.Width()
+	sidebarH := max(w.height-StatusBarHeight, 0)
+	if sidebarW <= 0 || sidebarH <= 0 {
+		return ""
+	}
+	// contentWidth := max(sidebarW-rightSidebarContentPadding, 1)
+
+	title := rightSidebarHeaderStyle.Render("Run overview")
+
+	// The runs sidebar border provides 1 blank line of padding at the top and bottom.
+	innerW := max(sidebarW-runsSidebarBorderCols, 0)
+	innerH := max(sidebarH-workspaceTopMarginLines, 0)
+
+	styledContent := rightSidebarStyle.
+		Width(innerW).
+		Height(innerH).
+		MaxWidth(innerW).
+		MaxHeight(innerH).
+		Render(title)
+
+	boxed := rightSidebarBorderStyle.Render(styledContent)
+	return lipgloss.Place(sidebarW, sidebarH, lipgloss.Left, lipgloss.Top, boxed)
+}
+
 func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Width(), 0)
+	contentWidth := max(w.width-w.runsAnimState.Width()-w.runOverviewAnimState.Width(), 0)
 	contentHeight := max(w.height-StatusBarHeight, 0)
 
 	if contentWidth <= 0 || contentHeight <= 0 {
@@ -519,10 +563,24 @@ func (w *Workspace) IsFiltering() bool {
 
 func (w *Workspace) updateDimensions(width, height int) {
 	w.SetSize(width, height)
-	// TODO: take right sidebar visibility into account once wired.
-	calculatedWidth := int(float64(width) * SidebarWidthRatio)
-	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
-	w.runsAnimState.SetExpandedWidth(expandedWidth)
+
+	// Left (runs) sidebar.
+	ratio := SidebarWidthRatio
+	if w.runOverviewAnimState.IsVisible() {
+		ratio = SidebarWidthRatioBoth
+	}
+	w.runsAnimState.SetExpandedWidth(
+		clamp(int(float64(w.width)*ratio), SidebarMinWidth, SidebarMaxWidth),
+	)
+
+	// Right (overview) sidebar.
+	ratio = SidebarWidthRatio
+	if w.runsAnimState.IsVisible() {
+		ratio = SidebarWidthRatioBoth
+	}
+	w.runOverviewAnimState.SetExpandedWidth(
+		clamp(int(float64(w.width)*ratio), SidebarMinWidth, SidebarMaxWidth),
+	)
 
 	l := w.computeViewports()
 	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
@@ -530,7 +588,7 @@ func (w *Workspace) updateDimensions(width, height int) {
 
 // computeViewports returns (leftW, contentW, rightW, contentH).
 func (w *Workspace) computeViewports() Layout {
-	leftW, rightW := w.runsAnimState.Width(), 0
+	leftW, rightW := w.runsAnimState.Width(), w.runOverviewAnimState.Width()
 
 	contentW := max(w.width-leftW-rightW, 1)
 	contentH := max(w.height-StatusBarHeight, 1)
@@ -542,6 +600,13 @@ func (w *Workspace) computeViewports() Layout {
 func (w *Workspace) runsAnimationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
 		return WorkspaceRunsAnimationMsg{}
+	})
+}
+
+// runOverviewAnimationCmd returns a command to continue the animation on section toggle.
+func (w *Workspace) runOverviewAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
+		return WorkspaceRunOverviewAnimationMsg{}
 	})
 }
 
