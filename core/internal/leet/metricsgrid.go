@@ -386,7 +386,7 @@ func (mg *MetricsGrid) Navigate(direction int) {
 
 // drawVisible draws charts that are currently visible.
 //
-// Chart no longer visible are parked to reduce memory usage.
+// Charts no longer visible are parked to reduce memory usage.
 // Do not hold mg.mu while drawing.
 func (mg *MetricsGrid) drawVisible() {
 	dims := mg.CalculateChartDimensions(mg.width, mg.height)
