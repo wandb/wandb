@@ -306,7 +306,8 @@ class GCSHandler(StorageHandler):
         #   my_folder/my_obj       | no    | partial filename
         posix_prefix = PurePosixPath(gcs_path.key)
         is_exact_match = gcs_path.key == obj.name
-        is_within_folder = not is_exact_match and posix_key.is_relative_to(posix_prefix)
+        # not using is_relative_to because of python 3.8
+        is_within_folder = posix_prefix in posix_key.parents
         valid_prefix = is_exact_match or is_within_folder
         if not valid_prefix:
             raise ValueError(
