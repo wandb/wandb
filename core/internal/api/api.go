@@ -52,8 +52,7 @@ type RetryableClient interface {
 type clientImpl struct {
 	baseURL *url.URL
 
-	retryableHTTP      RetryableClient    // underlying HTTP client
-	credentialProvider CredentialProvider // credentials for W&B requests only
+	retryableHTTP RetryableClient // underlying HTTP client
 
 	logger *slog.Logger
 }
@@ -185,6 +184,7 @@ func NewClient(opts ClientOptions) RetryableClient {
 	}
 
 	wandbOnlyLayers := httplayers.LimitTo(opts.BaseURL, httplayers.Concat(
+		opts.CredentialProvider,
 		httplayers.ExtraHeaders(extraHeaders),
 		ResponseBasedRateLimiter(),
 	))
@@ -197,9 +197,8 @@ func NewClient(opts ClientOptions) RetryableClient {
 			))
 
 	return &clientImpl{
-		baseURL:            opts.BaseURL,
-		retryableHTTP:      retryableHTTP,
-		credentialProvider: opts.CredentialProvider,
-		logger:             opts.Logger,
+		baseURL:       opts.BaseURL,
+		retryableHTTP: retryableHTTP,
+		logger:        opts.Logger,
 	}
 }

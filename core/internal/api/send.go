@@ -30,12 +30,6 @@ func (client *clientImpl) isToWandb(req *retryablehttp.Request) bool {
 func (client *clientImpl) sendToWandbBackend(
 	req *retryablehttp.Request,
 ) (*http.Response, error) {
-	err := client.credentialProvider.Apply(req.Request)
-	if err != nil {
-		return nil, fmt.Errorf("api: failed provide credentials for "+
-			"request: %v", err)
-	}
-
 	resp, err := client.send(req)
 
 	// This is a bug that happens with retryablehttp sometimes.
