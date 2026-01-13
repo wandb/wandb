@@ -30,7 +30,6 @@ func (client *clientImpl) isToWandb(req *retryablehttp.Request) bool {
 func (client *clientImpl) sendToWandbBackend(
 	req *retryablehttp.Request,
 ) (*http.Response, error) {
-	client.setClientHeaders(req)
 	err := client.credentialProvider.Apply(req.Request)
 	if err != nil {
 		return nil, fmt.Errorf("api: failed provide credentials for "+
@@ -64,11 +63,4 @@ func (client *clientImpl) send(
 
 	client.logFinalResponseOnError(req, resp)
 	return resp, nil
-}
-
-func (client *clientImpl) setClientHeaders(req *retryablehttp.Request) {
-	req.Header.Set("User-Agent", "wandb-core")
-	for headerKey, headerValue := range client.extraHeaders {
-		req.Header.Set(headerKey, headerValue)
-	}
 }
