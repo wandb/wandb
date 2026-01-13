@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
 from pytest import fixture, raises
 from wandb import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -32,6 +33,7 @@ def mock_gcs(
     artifact,
     blobs: list[str | Blob],
     versioning_enabled: bool = True,
+    no_list_blobs_permission: bool = False,
 ):
     """Mock GCS client with explicit blob declarations.
 
@@ -39,6 +41,7 @@ def mock_gcs(
         artifact: The artifact to mock GCS for.
         blobs: List of blob names (str) or Blob objects with full customization.
         versioning_enabled: Whether bucket versioning is enabled.
+        no_list_blobs_permission: Simulate public bucket with only get_blob permission.
     """
     # Normalize blobs: convert strings to Blob objects
     normalized_blobs = [Blob(name=b) if isinstance(b, str) else b for b in blobs]
@@ -50,6 +53,7 @@ def mock_gcs(
         def reload(self, *args, **kwargs):
             return
 
+        # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_get_blob
         def get_blob(self, key, *args, **kwargs):
             generation = kwargs.get("generation")
             for blob in normalized_blobs:
@@ -58,10 +62,31 @@ def mock_gcs(
                         return blob
             return None
 
+        # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_list_blobs
         def list_blobs(self, *args, **kwargs):
+            if no_list_blobs_permission:
+                from google.api_core.exceptions import (  # type: ignore[import-not-found]
+                    GoogleAPICallError,
+                )
+
+                raise GoogleAPICallError("Permission denied")
             prefix: str = kwargs.get("prefix", "")
             max_results: int | None = kwargs.get("max_results")
+            # When versions is True, all versions of a blob is returned, otherwise only
+            # return the latest version (highest generation).
+            versions: bool = kwargs.get("versions", False)
             results = [b for b in normalized_blobs if b.name.startswith(prefix)]
+            if not versions:
+                # Group by name and keep only the blob with the highest generation
+                blob_dict = {}
+                for blob in results:
+                    if (
+                        blob.name not in blob_dict
+                        or blob.generation > blob_dict[blob.name].generation
+                    ):
+                        blob_dict[blob.name] = blob
+                results = list(blob_dict.values())
+
             if max_results is not None:
                 results = results[:max_results]
             return results
@@ -77,8 +102,13 @@ def mock_gcs(
     return mock
 
 
-def test_add_gs_reference_object(artifact):
-    mock_gcs(artifact, blobs=["my_object.pb"])
+@pytest.mark.parametrize("no_list_blobs_permission", [False, True])
+def test_add_gs_reference_object(artifact, no_list_blobs_permission):
+    mock_gcs(
+        artifact,
+        blobs=["my_object.pb"],
+        no_list_blobs_permission=no_list_blobs_permission,
+    )
     artifact.add_reference("gs://my-bucket/my_object.pb")
 
     assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
@@ -107,7 +137,8 @@ def test_load_gs_reference_object_without_generation_and_mismatched_etag(
         entry.download()
 
 
-def test_add_gs_reference_object_with_version(artifact):
+@pytest.mark.parametrize("no_list_blobs_permission", [False, True])
+def test_add_gs_reference_object_with_version(artifact, no_list_blobs_permission):
     mock_gcs(
         artifact,
         blobs=[
@@ -115,6 +146,7 @@ def test_add_gs_reference_object_with_version(artifact):
             Blob("my_object.pb", generation=2),
             Blob("my_object.pb", generation=3),
         ],
+        no_list_blobs_permission=no_list_blobs_permission,
     )
     artifact.add_reference("gs://my-bucket/my_object.pb#2")
 
