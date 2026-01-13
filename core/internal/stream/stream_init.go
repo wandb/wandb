@@ -3,14 +3,12 @@ package stream
 // This file contains functions to construct the objects used by a Stream.
 
 import (
-	"crypto/tls"
 	"fmt"
 	"maps"
 	"net/http"
 	"net/url"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -229,6 +227,7 @@ func NewFileStream(
 }
 
 func NewFileTransferManager(
+	baseURL api.WBBaseURL,
 	fileTransferStats filetransfer.FileTransferStats,
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
@@ -237,55 +236,45 @@ func NewFileTransferManager(
 		return nil
 	}
 
-	fileTransferRetryClient := retryablehttp.NewClient()
-	fileTransferRetryClient.Logger = logger
-	fileTransferRetryClient.CheckRetry = filetransfer.FileTransferRetryPolicy
-	fileTransferRetryClient.RetryMax = filetransfer.DefaultRetryMax
-	fileTransferRetryClient.RetryWaitMin = filetransfer.DefaultRetryWaitMin
-	fileTransferRetryClient.RetryWaitMax = filetransfer.DefaultRetryWaitMax
-	fileTransferRetryClient.HTTPClient.Timeout = filetransfer.DefaultNonRetryTimeout
-	fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
-	fileTransfers := filetransfer.NewFileTransfers(
-		fileTransferRetryClient,
-		logger,
-		fileTransferStats,
-		settings.GetExtraHTTPHeaders(),
-	)
+	httpOpts := api.ClientOptions{
+		BaseURL:     baseURL,
+		RetryPolicy: filetransfer.FileTransferRetryPolicy,
+		Logger:      logger.Logger,
 
-	// Set the Proxy function on the HTTP client.
-	transport := &http.Transport{
+		RetryMax:        filetransfer.DefaultRetryMax,
+		RetryWaitMin:    filetransfer.DefaultRetryWaitMin,
+		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
+		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
+
 		Proxy: ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
-	}
 
-	// Set the TLS client config to skip SSL verification if the setting is enabled.
-	if settings.IsInsecureDisableSSL() {
-		transport.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
-	}
+		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
 
-	// Set the "Proxy-Authorization" header for the CONNECT requests
-	// to the proxy server if the header is present in the extra headers.
-	// NOTE: [NewGraphQLClient] and [NewFileStream] does this in backend.NewClient
-	if header, ok := settings.GetExtraHTTPHeaders()["Proxy-Authorization"]; ok {
-		transport.ProxyConnectHeader = http.Header{
-			"Proxy-Authorization": []string{header},
-		}
+		ExtraHeaders: settings.GetExtraHTTPHeaders(),
+
+		CredentialProvider: api.NoopCredentialProvider{},
 	}
-	fileTransferRetryClient.HTTPClient.Transport = transport
 
 	if retryMax := settings.GetFileTransferMaxRetries(); retryMax > 0 {
-		fileTransferRetryClient.RetryMax = int(retryMax)
+		httpOpts.RetryMax = int(retryMax)
 	}
 	if retryWaitMin := settings.GetFileTransferRetryWaitMin(); retryWaitMin > 0 {
-		fileTransferRetryClient.RetryWaitMin = retryWaitMin
+		httpOpts.RetryWaitMin = retryWaitMin
 	}
 	if retryWaitMax := settings.GetFileTransferRetryWaitMax(); retryWaitMax > 0 {
-		fileTransferRetryClient.RetryWaitMax = retryWaitMax
+		httpOpts.RetryWaitMax = retryWaitMax
 	}
 	if timeout := settings.GetFileTransferTimeout(); timeout > 0 {
-		fileTransferRetryClient.HTTPClient.Timeout = timeout
+		httpOpts.NonRetryTimeout = timeout
 	}
+
+	httpClient := api.NewClient(httpOpts)
+
+	fileTransfers := filetransfer.NewFileTransfers(
+		httpClient,
+		logger,
+		fileTransferStats,
+	)
 
 	return filetransfer.NewFileTransferManager(
 		filetransfer.FileTransferManagerOptions{
