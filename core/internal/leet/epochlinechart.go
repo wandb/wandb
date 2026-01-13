@@ -484,7 +484,11 @@ func (c *EpochLineChart) Resize(width, height int) {
 	c.updateRanges()
 }
 
-// Park minimizes the chart's canvas dimensions.
+// Park minimizes the chart's canvas to reduce memory usage when the chart
+// is not visible on screen (e.g., scrolled out of view in a grid).
+//
+// A parked chart retains its data and can be restored by calling Resize
+// with the desired dimensions before the next Draw.
 func (c *EpochLineChart) Park() {
 	c.Resize(parkedCanvasSize, parkedCanvasSize)
 }
