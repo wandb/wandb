@@ -208,7 +208,7 @@ class GCSHandler(StorageHandler):
     ) -> list[ArtifactManifestEntry]:
         with TimedIf(enabled=True):
             # Return different versions as blobs if user specified a version
-            # https://cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.client.Client#google_cloud_storage_client_Client_list_blobs
+            # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_list_blobs
             objects = bucket.list_blobs(
                 prefix=gcs_path.key,
                 max_results=max_objects,
@@ -253,7 +253,9 @@ class GCSHandler(StorageHandler):
         path: str,
         name: StrPath | None,
     ) -> list[ArtifactManifestEntry]:
-        obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
+        # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_get_blob
+        generation = int(gcs_path.version) if gcs_path.version is not None else None
+        obj = bucket.get_blob(gcs_path.key, generation=generation)
 
         if obj is None and gcs_path.version is not None:
             raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
