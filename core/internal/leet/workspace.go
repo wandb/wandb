@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,7 +31,10 @@ type Workspace struct {
 	selectedRuns map[string]bool // runDirName -> selected
 	pinnedRun    string          // runDirName or ""
 
-	// TODO: preload basic run metadata from the run record for each run.
+	// Preload basic run metadata from the run record for each run.
+	runOverview map[string]*RunOverview
+	roMu        sync.RWMutex
+
 	// TODO: mark live runs upon selection.
 
 	// TODO: filter for the run selector.
@@ -87,6 +91,7 @@ func NewWorkspace(
 		keyMap:               buildKeyMap(WorkspaceKeyBindings()),
 		logger:               logger,
 		runs:                 runs,
+		runOverview:          make(map[string]*RunOverview),
 		selectedRuns:         make(map[string]bool),
 		focus:                focus,
 		metricsGrid:          NewMetricsGrid(cfg, focus, logger),
@@ -212,6 +217,15 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 
+	// Clicks in the right sidebar area clear focus and are ignored for now.
+	if w.runOverviewAnimState.IsVisible() {
+		rightStart := w.width - w.runOverviewAnimState.Width()
+		if msg.X >= rightStart {
+			w.metricsGrid.clearFocus()
+			return nil
+		}
+	}
+
 	return w.handleMetricsMouse(msg)
 }
 
@@ -231,13 +245,18 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 		leftOffset = w.runsAnimState.Width()
 	}
 
+	rightOffset := 0
+	if w.runOverviewAnimState.IsVisible() {
+		rightOffset = w.runOverviewAnimState.Width()
+	}
+
 	adjustedX := msg.X - leftOffset - gridPaddingX
 	adjustedY := msg.Y - gridPaddingY - headerOffset
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
 	}
 
-	contentWidth := max(w.width-leftOffset, 0)
+	contentWidth := max(w.width-leftOffset-rightOffset, 0)
 	contentHeight := max(w.height-StatusBarHeight, 0)
 	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
 
@@ -407,12 +426,39 @@ func (w *Workspace) renderRunOverview() string {
 	if sidebarW <= 0 || sidebarH <= 0 {
 		return ""
 	}
-	// contentWidth := max(sidebarW-rightSidebarContentPadding, 1)
 
-	title := rightSidebarHeaderStyle.Render("Run overview")
+	lines := make([]string, 0)
 
-	// The runs sidebar border provides 1 blank line of padding at the top and bottom.
-	innerW := max(sidebarW-runsSidebarBorderCols, 0)
+	// Title.
+	lines = append(lines, rightSidebarHeaderStyle.Render(runOverviewHeader))
+	lines = append(lines, "")
+
+	curKey := ""
+	if cur, ok := w.runs.CurrentItem(); ok {
+		curKey = cur.Key
+	}
+
+	if ro, ok := w.runOverview[curKey]; ok {
+		if ro.State() != RunStateUnknown {
+			lines = append(lines,
+				leftSidebarKeyStyle.Render("State: ")+
+					leftSidebarValueStyle.Render(ro.StateString()))
+		}
+		if id := ro.ID(); id != "" {
+			lines = append(lines,
+				leftSidebarKeyStyle.Render("ID: ")+leftSidebarValueStyle.Render(id))
+		}
+		if name := ro.DisplayName(); name != "" {
+			lines = append(lines,
+				leftSidebarKeyStyle.Render("Name: ")+leftSidebarValueStyle.Render(name))
+		}
+		if project := ro.Project(); project != "" {
+			lines = append(lines,
+				leftSidebarKeyStyle.Render("Project: ")+leftSidebarValueStyle.Render(project))
+		}
+	}
+
+	innerW := max(sidebarW-rightSidebarContentPadding, 0)
 	innerH := max(sidebarH-workspaceTopMarginLines, 0)
 
 	styledContent := rightSidebarStyle.
@@ -420,7 +466,7 @@ func (w *Workspace) renderRunOverview() string {
 		Height(innerH).
 		MaxWidth(innerW).
 		MaxHeight(innerH).
-		Render(title)
+		Render(strings.Join(lines, "\n"))
 
 	boxed := rightSidebarBorderStyle.Render(styledContent)
 	return lipgloss.Place(sidebarW, sidebarH, lipgloss.Left, lipgloss.Top, boxed)

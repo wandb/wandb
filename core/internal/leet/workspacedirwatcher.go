@@ -8,10 +8,22 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"golang.org/x/sync/errgroup"
 )
 
-// TODO: make this configurable and increase the default interval.
-const wandbDirPollInterval = 5 * time.Second
+const (
+	// TODO: make this configurable.
+	wandbDirPollInterval = 5 * time.Second
+
+	// maxRecordsToScan is the maximum number of records to read when searching
+	// for the Run record. The Run record is typically one of the first records
+	// in a .wandb file.
+	maxRecordsToScan = 10
+
+	// maxConcurrentPreloads limits the number of concurrent run record preloads.
+	maxConcurrentPreloads = 4
+)
 
 func (w *Workspace) pollWandbDirCmd(delay time.Duration) tea.Cmd {
 	wandbDir := w.wandbDir
@@ -87,12 +99,59 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 		return w.pollWandbDirCmd(wandbDirPollInterval)
 	}
 
-	if w.runKeysEqual(msg.RunKeys) {
-		return w.pollWandbDirCmd(wandbDirPollInterval)
+	if !w.runKeysEqual(msg.RunKeys) {
+		w.applyRunKeys(msg.RunKeys)
+		// preload run overview data in the background.
+		go w.preloadRunOverview(msg.RunKeys)
 	}
 
-	w.applyRunKeys(msg.RunKeys)
 	return w.pollWandbDirCmd(wandbDirPollInterval)
+}
+
+func (w *Workspace) preloadRunOverview(runKeys []string) {
+	group := &errgroup.Group{}
+	group.SetLimit(maxConcurrentPreloads)
+
+	for _, runKey := range runKeys {
+		w.roMu.RLock()
+		if _, ok := w.runOverview[runKey]; ok {
+			continue
+		}
+		w.roMu.RUnlock()
+
+		group.Go(func() error {
+			wandbFile := w.runWandbFile(runKey)
+			if wandbFile == "" {
+				return nil
+			}
+			reader, err := NewWandbReader(wandbFile, w.logger)
+			if err != nil {
+				return nil
+			}
+			for range maxRecordsToScan {
+				record, err := reader.store.Read()
+				if err != nil {
+					break
+				}
+				if record == nil {
+					continue
+				}
+				if runRecord, ok := record.RecordType.(*spb.Record_Run); ok && runRecord.Run != nil {
+					rm := RunMsg{
+						ID:          runRecord.Run.RunId,
+						DisplayName: runRecord.Run.DisplayName,
+						Project:     runRecord.Run.Project,
+						Config:      runRecord.Run.Config,
+					}
+					w.roMu.Lock()
+					w.runOverview[runKey] = NewRunOverview()
+					w.runOverview[runKey].ProcessRunMsg(rm)
+					w.roMu.Unlock()
+				}
+			}
+			return nil
+		})
+	}
 }
 
 func (w *Workspace) runKeysEqual(runKeys []string) bool {

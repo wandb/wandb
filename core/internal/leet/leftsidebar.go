@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	leftSidebarHeader = "Run Overview"
+	runOverviewHeader = "Run Overview"
 
 	// Sidebar header lines (title + state + ID + name + project + blank line).
 	// TODO: replace with len(LeftSidebar.buildHeaderLines())
@@ -259,15 +259,13 @@ func (s *LeftSidebar) buildHeaderLines() []string {
 	lines := make([]string, 0, sidebarHeaderLines)
 
 	// Title.
-	lines = append(lines, leftSidebarHeaderStyle.Render(leftSidebarHeader))
+	lines = append(lines, leftSidebarHeaderStyle.Render(runOverviewHeader))
 
-	// Run state from data model.
-	stateLabel := "State: "
-	stateValue := s.runStateString()
-	lines = append(lines,
-		leftSidebarKeyStyle.Render(stateLabel)+leftSidebarValueStyle.Render(stateValue))
-
-	// Optional metadata from data model (only if present).
+	if s.runOverview.State() != RunStateUnknown {
+		lines = append(lines,
+			leftSidebarKeyStyle.Render("State: ")+
+				leftSidebarValueStyle.Render(s.runOverview.StateString()))
+	}
 	if id := s.runOverview.ID(); id != "" {
 		lines = append(lines,
 			leftSidebarKeyStyle.Render("ID: ")+leftSidebarValueStyle.Render(id))
@@ -422,22 +420,6 @@ func (s *LeftSidebar) renderItem(
 	return fmt.Sprintf("%s %s",
 		keyStyle.Width(maxKeyWidth).Render(key),
 		valueStyle.Render(value))
-}
-
-// runStateString returns a string representation from the data model.
-func (s *LeftSidebar) runStateString() string {
-	switch s.runOverview.State() {
-	case RunStateRunning:
-		return "Running"
-	case RunStateFinished:
-		return "Finished"
-	case RunStateFailed:
-		return "Failed"
-	case RunStateCrashed:
-		return "Error"
-	default:
-		return "Unknown"
-	}
 }
 
 // hasNextVisibleSection returns true if there's another visible section after idx.

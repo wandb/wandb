@@ -14,9 +14,9 @@ import (
 // RunState indicates the current state of the run.
 type RunState int32
 
-// TODO: refactor: zeroth option should be RunStateUnknown
 const (
-	RunStateRunning RunState = iota
+	RunStateUnknown RunState = iota
+	RunStateRunning
 	RunStateFinished
 	RunStateFailed
 	RunStateCrashed
@@ -45,7 +45,23 @@ func NewRunOverview() *RunOverview {
 	return &RunOverview{
 		runConfig:  runconfig.New(),
 		runSummary: runsummary.New(),
-		runState:   RunStateRunning,
+		runState:   RunStateUnknown,
+	}
+}
+
+// StateString returns a string representation from the data model.
+func (ro *RunOverview) StateString() string {
+	switch ro.State() {
+	case RunStateRunning:
+		return "Running"
+	case RunStateFinished:
+		return "Finished"
+	case RunStateFailed:
+		return "Failed"
+	case RunStateCrashed:
+		return "Error"
+	default:
+		return "Unknown"
 	}
 }
 
