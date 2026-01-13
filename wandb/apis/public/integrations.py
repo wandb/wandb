@@ -5,199 +5,86 @@ This module provides classes for interacting with W&B integrations.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any, ClassVar, Union
 
-from pydantic import ValidationError
 from typing_extensions import override
 from wandb_gql import gql
-from wandb_graphql.language.ast import Document
 
-from wandb.apis.paginator import Paginator
+from wandb.apis.paginator import RelayPaginator
 
 if TYPE_CHECKING:
-    from wandb.apis.paginator import _Client
+    from wandb_graphql.language.ast import Document
+
+    from wandb._pydantic import Connection
+    from wandb.apis.public.api import RetryingClient
     from wandb.automations import Integration, SlackIntegration, WebhookIntegration
     from wandb.automations._generated import (
-        GenericWebhookIntegrationConnectionFields,
-        IntegrationConnectionFields,
-        SlackIntegrationConnectionFields,
+        SlackIntegrationFields,
+        WebhookIntegrationFields,
     )
 
-
-class Integrations(Paginator["Integration"]):
-    """An lazy iterator of `Integration` objects."""
-
-    last_response: IntegrationConnectionFields | None
-    _query: Document
-
-    def __init__(self, client: _Client, variables: dict[str, Any], per_page: int = 50):
-        from wandb.automations._generated import INTEGRATIONS_BY_ENTITY_GQL
-
-        super().__init__(client, variables, per_page=per_page)
-        # All integrations for entity
-        self._query = gql(INTEGRATIONS_BY_ENTITY_GQL)
-
-    @property
-    def more(self) -> bool:
-        """Whether there are more Integrations to fetch.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
-
-    @property
-    def cursor(self) -> str | None:
-        """The start cursor to use for the next page.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response is None:
-            return None
-        return self.last_response.page_info.end_cursor
-
-    @override
-    def _update_response(self) -> None:
-        """Fetch and parse the response data for the current page."""
-        from wandb.automations._generated import IntegrationConnectionFields
-
-        data: dict[str, Any] = self.client.execute(
-            self._query, variable_values=self.variables
-        )
-        try:
-            page_data = data["entity"]["integrations"]
-            self.last_response = IntegrationConnectionFields.model_validate(page_data)
-        except (LookupError, AttributeError, ValidationError) as e:
-            raise ValueError("Unexpected response data") from e
-
-    def convert_objects(self) -> Iterable[Integration]:
-        """Parse the page data into a list of integrations."""
-        from wandb.automations.integrations import _IntegrationEdge
-
-        page = self.last_response
-        return [_IntegrationEdge.model_validate(edge).node for edge in page.edges]
+    IntegrationFields = Union[SlackIntegrationFields, WebhookIntegrationFields]
 
 
-class WebhookIntegrations(Paginator["WebhookIntegration"]):
-    """An lazy iterator of `WebhookIntegration` objects.
+class Integrations(RelayPaginator["IntegrationFields", "Integration"]):
+    """A lazy iterator of `Integration` objects.
 
     <!-- lazydoc-ignore-class: internal -->
     """
 
-    last_response: GenericWebhookIntegrationConnectionFields | None
-    _query: Document
+    QUERY: ClassVar[Document | None] = None
+    last_response: Connection[IntegrationFields] | None
 
-    def __init__(self, client: _Client, variables: dict[str, Any], per_page: int = 50):
-        from wandb.automations._generated import (
-            GENERIC_WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL,
-        )
+    def __init__(
+        self,
+        client: RetryingClient,
+        variables: dict[str, Any],
+        per_page: int = 50,
+    ):
+        if self.QUERY is None:
+            from wandb.automations._generated import INTEGRATIONS_BY_ENTITY_GQL
 
-        super().__init__(client, variables, per_page=per_page)
-        # Webhook integrations for entity
-        self._query = gql(GENERIC_WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL)
+            type(self).QUERY = gql(INTEGRATIONS_BY_ENTITY_GQL)
 
-    @property
-    def more(self) -> bool:
-        """Whether there are more webhook integrations to fetch."""
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
-
-    @property
-    def cursor(self) -> str | None:
-        """The start cursor to use for the next page."""
-        if self.last_response is None:
-            return None
-        return self.last_response.page_info.end_cursor
+        super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
         """Fetch and parse the response data for the current page."""
-        from wandb.automations._generated import (
-            GenericWebhookIntegrationConnectionFields,
-        )
+        from wandb._pydantic import Connection
+        from wandb.automations._generated import IntegrationsByEntity
 
-        data: dict[str, Any] = self.client.execute(
-            self._query, variable_values=self.variables
-        )
-        try:
-            page_data = data["entity"]["integrations"]
-            self.last_response = (
-                GenericWebhookIntegrationConnectionFields.model_validate(page_data)
-            )
-        except (LookupError, AttributeError, ValidationError) as e:
-            raise ValueError("Unexpected response data") from e
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        result = IntegrationsByEntity.model_validate(data)
+        if not ((entity := result.entity) and (conn := entity.integrations)):
+            raise ValueError("Unexpected response data")
+        self.last_response = Connection.model_validate(conn)
 
-    def convert_objects(self) -> Iterable[WebhookIntegration]:
-        """Parse the page data into a list of webhook integrations."""
-        from wandb.automations import WebhookIntegration
+    def _convert(self, node: IntegrationFields) -> Integration:
+        from wandb.automations.integrations import IntegrationAdapter
 
-        typename = "GenericWebhookIntegration"
-        return [
-            # Filter on typename__ needed because the GQL response still
-            # includes all integration types
-            WebhookIntegration.model_validate(node)
-            for edge in self.last_response.edges
-            if (node := edge.node) and (node.typename__ == typename)
-        ]
+        return IntegrationAdapter.validate_python(node)
 
 
-class SlackIntegrations(Paginator["SlackIntegration"]):
-    """An lazy iterator of `SlackIntegration` objects.
+# The paginators below filter on `typename__` since the GQL response still
+# includes all `Integration` types. Applying a `@skip/@include` directive
+# does not change this. Restricting results to a single type requires
+# a client-side filter.
+class WebhookIntegrations(Integrations):
+    """A lazy iterator of `WebhookIntegration` objects.
 
     <!-- lazydoc-ignore-class: internal -->
     """
 
-    last_response: SlackIntegrationConnectionFields | None
-    _query: Document
+    def _convert(self, node: IntegrationFields) -> WebhookIntegration:
+        return node if (node.typename__ == "GenericWebhookIntegration") else None
 
-    def __init__(self, client: _Client, variables: dict[str, Any], per_page: int = 50):
-        from wandb.automations._generated import SLACK_INTEGRATIONS_BY_ENTITY_GQL
 
-        super().__init__(client, variables, per_page=per_page)
-        # Slack integrations for entity
-        self._query = gql(SLACK_INTEGRATIONS_BY_ENTITY_GQL)
+class SlackIntegrations(Integrations):
+    """A lazy iterator of `SlackIntegration` objects.
 
-    @property
-    def more(self) -> bool:
-        """Whether there are more Slack integrations to fetch."""
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
+    <!-- lazydoc-ignore-class: internal -->
+    """
 
-    @property
-    def cursor(self) -> str | None:
-        """The start cursor to use for the next page."""
-        if self.last_response is None:
-            return None
-        return self.last_response.page_info.end_cursor
-
-    @override
-    def _update_response(self) -> None:
-        """Fetch and parse the response data for the current page."""
-        from wandb.automations._generated import SlackIntegrationConnectionFields
-
-        data: dict[str, Any] = self.client.execute(
-            self._query, variable_values=self.variables
-        )
-        try:
-            page_data = data["entity"]["integrations"]
-            self.last_response = SlackIntegrationConnectionFields.model_validate(
-                page_data
-            )
-        except (LookupError, AttributeError, ValidationError) as e:
-            raise ValueError("Unexpected response data") from e
-
-    def convert_objects(self) -> Iterable[SlackIntegration]:
-        """Parse the page data into a list of Slack integrations."""
-        from wandb.automations import SlackIntegration
-
-        typename = "SlackIntegration"
-        return [
-            # Filter on typename__ needed because the GQL response still
-            # includes all integration types
-            SlackIntegration.model_validate(node)
-            for edge in self.last_response.edges
-            if (node := edge.node) and (node.typename__ == typename)
-        ]
+    def _convert(self, node: IntegrationFields) -> SlackIntegration:
+        return node if (node.typename__ == "SlackIntegration") else None

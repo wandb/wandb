@@ -4,11 +4,12 @@ import (
 	"fmt"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // SyncError is a failure that prevents syncing a run.
 type SyncError struct {
-	Err     error  // wrapped error
+	Err     error  // wrapped error, which may be nil
 	Message string // Go-style error message (not including Err)
 
 	// UserText is text to show to the user to explain the problem.
@@ -20,21 +21,16 @@ type SyncError struct {
 
 // Error implements error.Error.
 func (e *SyncError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Message, e.Err.Error())
-}
-
-// LogOrCapture logs the error, capturing it if UserText is unset.
-func (e *SyncError) LogOrCapture(logger *observability.CoreLogger) {
-	if e.UserText == "" {
-		logger.CaptureError(e)
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %s", e.Message, e.Err.Error())
 	} else {
-		logger.Error(e.Error())
+		return e.Message
 	}
 }
 
-// logSyncFailure logs and possibly captures an error that prevents sync
+// LogSyncFailure logs and possibly captures an error that prevents sync
 // from succeeding.
-func logSyncFailure(logger *observability.CoreLogger, err error) {
+func LogSyncFailure(logger *observability.CoreLogger, err error) {
 	if syncErr, ok := err.(*SyncError); ok && syncErr.UserText != "" {
 		logger.Error(syncErr.Error())
 	} else {
@@ -45,5 +41,24 @@ func logSyncFailure(logger *observability.CoreLogger, err error) {
 		// the error happens and wrap it in a SyncError with
 		// proper UserText. Or fix it so it can't happen.
 		logger.CaptureError(err)
+	}
+}
+
+// ToUserText returns user-facing text for the error, which may be a SyncError.
+func ToUserText(err error) string {
+	syncErr, ok := err.(*SyncError)
+	if !ok || syncErr.UserText == "" {
+		return fmt.Sprintf("Internal error: %v", err)
+	} else {
+		return syncErr.UserText
+	}
+}
+
+// ToSyncErrorMessage converts the error, which may be a SyncError,
+// into a ServerSyncMessage to display to the user.
+func ToSyncErrorMessage(err error) *spb.ServerSyncMessage {
+	return &spb.ServerSyncMessage{
+		Severity: spb.ServerSyncMessage_SEVERITY_ERROR,
+		Content:  ToUserText(err),
 	}
 }

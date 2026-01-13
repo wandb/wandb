@@ -260,7 +260,7 @@ def test_tb_sync_with_explicit_step_and_log(
         run.log({"y_scalar": 1337}, step=42)
 
     with wandb_backend_spy.freeze() as snapshot:
-        assert mock_wandb_log.warned(
+        mock_wandb_log.assert_warned(
             "Step cannot be set when using tensorboard syncing"
         )
         history = snapshot.history(run_id=run.id)

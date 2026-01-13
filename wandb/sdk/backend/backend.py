@@ -4,31 +4,33 @@ Manage backend.
 
 """
 
+from __future__ import annotations
+
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from wandb.sdk.interface.interface import InterfaceBase
-from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     from wandb.sdk.lib.service import service_connection
+    from wandb.sdk.wandb_settings import Settings
 
 logger = logging.getLogger("wandb")
 
 
 class Backend:
-    interface: Optional[InterfaceBase]
+    interface: InterfaceBase | None
 
     _settings: Settings
 
     _done: bool
 
-    _service: Optional["service_connection.ServiceConnection"]
+    _service: service_connection.ServiceConnection | None
 
     def __init__(
         self,
         settings: Settings,
-        service: Optional["service_connection.ServiceConnection"] = None,
+        service: service_connection.ServiceConnection | None = None,
     ) -> None:
         self._done = False
 

@@ -3,8 +3,6 @@
 package runsync
 
 import (
-	"log/slog"
-
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -23,8 +21,8 @@ import (
 )
 
 func InjectRunSyncerFactory(
-	operations *wboperation.WandbOperations,
 	settings *settings.Settings,
+	logger *observability.CoreLogger,
 ) *RunSyncerFactory {
 	wire.Build(runSyncerFactoryBindings)
 	return &RunSyncerFactory{}
@@ -44,19 +42,15 @@ var runSyncerFactoryBindings = wire.NewSet(
 	runReaderProviders,
 	runSyncerProviders,
 	sharedmode.RandomClientID,
-	stream.NewBackend,
+	stream.BaseURLFromSettings,
+	stream.CredentialsFromSettings,
 	stream.NewFileTransferManager,
 	stream.NewGraphQLClient,
 	stream.RecordParserProviders,
 	stream.SenderProviders,
 	tensorboard.TBHandlerProviders,
-	todoLogger,
+	wboperation.NewOperations,
 )
-
-func todoLogger() *observability.CoreLogger {
-	// TODO: Wire this to the proper place.
-	return observability.NewCoreLogger(slog.Default(), nil)
-}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})

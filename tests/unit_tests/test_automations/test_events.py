@@ -10,6 +10,7 @@ from wandb.automations import (
     EventType,
     MetricChangeFilter,
     MetricThresholdFilter,
+    MetricZScoreFilter,
     OnAddArtifactAlias,
     OnCreateArtifact,
     OnLinkArtifact,
@@ -19,7 +20,11 @@ from wandb.automations import (
 )
 from wandb.automations._generated import EventTriggeringConditionType
 
-from ._strategies import metric_change_filters, metric_threshold_filters
+from ._strategies import (
+    metric_change_filters,
+    metric_threshold_filters,
+    metric_zscore_filters,
+)
 
 
 def test_public_event_type_enum_is_subset_of_generated():
@@ -189,6 +194,65 @@ def test_run_metric_change_events_without_run_filter(
 
     # - the metric filter is parsed/validated correctly by pydantic
     inner_metric_filter = event.filter.metric.change_filter
+    assert expected_metric_filter_dict == inner_metric_filter.model_dump()
+
+    # - the accompanying run filter here is as expected
+    assert expected_run_filter_dict == event.filter.run.model_dump()
+
+
+@given(metric_filter=metric_zscore_filters())
+def test_run_metric_zscore_events(project: Project, metric_filter: MetricZScoreFilter):
+    """Check that we can fully instantiate an `OnRunMetric` event with a metric ZSCORE filter, and that the event's filter is validated/serialized correctly."""
+    run_filter = RunEvent.name.contains("my-run")
+    event = OnRunMetric(scope=project, filter=run_filter & metric_filter)
+
+    expected_metric_filter_dict = {
+        "name": metric_filter.name,
+        "window_size": metric_filter.window,
+        "threshold": metric_filter.threshold,
+        "change_dir": metric_filter.change_dir.value,
+    }
+    expected_run_filter_dict = {"$and": [{"display_name": {"$contains": "my-run"}}]}
+
+    # Check that...
+    # - the event has the expected event_type
+    assert event.event_type is EventType.RUN_METRIC_ZSCORE
+
+    # - the metric filter has the expected JSON-serializable contents
+    assert expected_metric_filter_dict == metric_filter.model_dump()
+
+    # - the metric filter is parsed/validated correctly by pydantic
+    inner_metric_filter = event.filter.metric.zscore_filter
+    assert expected_metric_filter_dict == inner_metric_filter.model_dump()
+
+    # - the accompanying run filter here is as expected
+    assert expected_run_filter_dict == event.filter.run.model_dump()
+
+
+@given(metric_filter=metric_zscore_filters())
+def test_run_metric_zscore_events_without_run_filter(
+    project: Project, metric_filter: MetricZScoreFilter
+):
+    """Check that we can fully instantiate an `OnRunMetric` event with a metric ZSCORE filter, even if we don't provide an explicit run filter."""
+    event = OnRunMetric(scope=project, filter=metric_filter)
+
+    expected_metric_filter_dict = {
+        "name": metric_filter.name,
+        "window_size": metric_filter.window,
+        "threshold": metric_filter.threshold,
+        "change_dir": metric_filter.change_dir.value,
+    }
+    expected_run_filter_dict = {"$and": []}
+
+    # Check that...
+    # - the event has the expected event_type
+    assert event.event_type is EventType.RUN_METRIC_ZSCORE
+
+    # - the metric filter has the expected JSON-serializable contents
+    assert expected_metric_filter_dict == metric_filter.model_dump()
+
+    # - the metric filter is parsed/validated correctly by pydantic
+    inner_metric_filter = event.filter.metric.zscore_filter
     assert expected_metric_filter_dict == inner_metric_filter.model_dump()
 
     # - the accompanying run filter here is as expected

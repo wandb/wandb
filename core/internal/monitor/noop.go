@@ -30,7 +30,7 @@ func (t *Trainium) Probe(_ context.Context) *spb.EnvironmentRecord {
 // TPU is a dummy implementation of the Resource interface for TPUs.
 type TPU struct{}
 
-func NewTPU() *TPU {
+func NewTPU(logger *observability.CoreLogger) *TPU {
 	return nil
 }
 

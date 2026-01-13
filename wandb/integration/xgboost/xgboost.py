@@ -1,12 +1,15 @@
 """xgboost init!"""
 
+from __future__ import annotations
+
 import json
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Callable, Dict, List, NamedTuple, Tuple, Union, cast
 
-import xgboost as xgb  # type: ignore
-from xgboost import Booster
+import xgboost as xgb
+import xgboost.callback
+from typing_extensions import TypeAlias, override
 
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
@@ -27,13 +30,16 @@ MAXIMIZE_METRICS = ["auc", "aucpr", "ndcg", "map", "ndcg@n", "map@n"]
 
 
 if TYPE_CHECKING:
-    from typing import Callable, List, NamedTuple
 
     class CallbackEnv(NamedTuple):
-        evaluation_result_list: List
+        evaluation_result_list: list
+
+    # Copied from xgboost's source code. These types are not exported.
+    _ScoreList = Union[List[float], List[Tuple[float, float]]]
+    _EvalsLog: TypeAlias = Dict[str, Dict[str, _ScoreList]]
 
 
-def wandb_callback() -> "Callable":
+def wandb_callback() -> Callable:
     """Old style callback that will be deprecated in favor of WandbCallback. Please try the new logger for more features."""
     warnings.warn(
         "wandb_callback will be deprecated in favor of WandbCallback. Please use WandbCallback for more features.",
@@ -44,7 +50,7 @@ def wandb_callback() -> "Callable":
     with wb_telemetry.context() as tel:
         tel.feature.xgboost_old_wandb_callback = True
 
-    def callback(env: "CallbackEnv") -> None:
+    def callback(env: CallbackEnv) -> None:
         for k, v in env.evaluation_result_list:
             wandb.log({k: v}, commit=False)
         wandb.log({})
@@ -52,7 +58,7 @@ def wandb_callback() -> "Callable":
     return callback
 
 
-class WandbCallback(xgb.callback.TrainingCallback):
+class WandbCallback(xgboost.callback.TrainingCallback):
     """`WandbCallback` automatically integrates XGBoost with wandb.
 
     Args:
@@ -100,6 +106,8 @@ class WandbCallback(xgb.callback.TrainingCallback):
         importance_type: str = "gain",
         define_metric: bool = True,
     ):
+        super().__init__()
+
         self.log_model: bool = log_model
         self.log_feature_importance: bool = log_feature_importance
         self.importance_type: str = importance_type
@@ -111,7 +119,8 @@ class WandbCallback(xgb.callback.TrainingCallback):
         with wb_telemetry.context() as tel:
             tel.feature.xgboost_wandb_callback = True
 
-    def before_training(self, model: Booster) -> Booster:
+    @override
+    def before_training(self, model: xgb.Booster) -> xgb.Booster:
         """Run before training is finished."""
         # Update W&B config
         config = model.save_config()
@@ -119,7 +128,8 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
         return model
 
-    def after_training(self, model: Booster) -> Booster:
+    @override
+    def after_training(self, model: xgb.Booster) -> xgb.Booster:
         """Run after training is finished."""
         # Log the booster model as artifacts
         if self.log_model:
@@ -140,7 +150,13 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
         return model
 
-    def after_iteration(self, model: Booster, epoch: int, evals_log: dict) -> bool:
+    @override
+    def after_iteration(
+        self,
+        model: xgb.Booster,
+        epoch: int,
+        evals_log: _EvalsLog,
+    ) -> bool:
         """Run after each iteration. Return True when training should stop."""
         # Log metrics
         for data, metric in evals_log.items():
@@ -157,7 +173,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
         return False
 
-    def _log_model_as_artifact(self, model: Booster) -> None:
+    def _log_model_as_artifact(self, model: xgb.Booster) -> None:
         model_name = f"{wandb.run.id}_model.json"  # type: ignore
         model_path = Path(wandb.run.dir) / model_name  # type: ignore
         model.save_model(str(model_path))
@@ -166,7 +182,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
         model_artifact.add_file(str(model_path))
         wandb.log_artifact(model_artifact)
 
-    def _log_feature_importance(self, model: Booster) -> None:
+    def _log_feature_importance(self, model: xgb.Booster) -> None:
         fi = model.get_score(importance_type=self.importance_type)
         fi_data = [[k, fi[k]] for k in fi]
         table = wandb.Table(data=fi_data, columns=["Feature", "Importance"])

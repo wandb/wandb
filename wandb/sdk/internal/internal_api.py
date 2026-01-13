@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import datetime
 import functools
@@ -16,43 +18,37 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Dict,
     Iterable,
-    List,
     Literal,
     Mapping,
     MutableMapping,
     NamedTuple,
-    Optional,
     Sequence,
     TextIO,
-    Tuple,
     Union,
+    overload,
 )
 
 import click
-import requests
-import yaml
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import env, util
+from wandb.analytics import get_sentry
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
-from wandb.old.settings import Settings
 from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk import wandb_setup
+from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import credentials, retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
-from ..lib.gitlib import GitRepo
 from . import context
 from .progress import Progress
 
@@ -63,6 +59,8 @@ LAUNCH_DEFAULT_PROJECT = "model-registry"
 if TYPE_CHECKING:
     from typing import Literal, TypedDict
 
+    import requests
+
     from .progress import ProgressFn
 
     class CreateArtifactFileSpecInput(TypedDict, total=False):
@@ -71,25 +69,25 @@ if TYPE_CHECKING:
         artifactID: str
         name: str
         md5: str
-        mimetype: Optional[str]
-        artifactManifestID: Optional[str]
-        uploadPartsInput: Optional[List[Dict[str, object]]]
+        mimetype: str | None
+        artifactManifestID: str | None
+        uploadPartsInput: list[dict[str, object]] | None
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
         name: str
         displayName: str
-        uploadUrl: Optional[str]
+        uploadUrl: str | None
         uploadHeaders: Sequence[str]
-        uploadMultipartUrls: "UploadPartsResponse"
+        uploadMultipartUrls: UploadPartsResponse
         storagePath: str
-        artifact: "CreateArtifactFilesResponseFileNode"
+        artifact: CreateArtifactFilesResponseFileNode
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
         id: str
 
     class UploadPartsResponse(TypedDict):
-        uploadUrlParts: List["UploadUrlParts"]
+        uploadUrlParts: list[UploadUrlParts]
         uploadID: str
 
     class UploadUrlParts(TypedDict):
@@ -100,7 +98,7 @@ if TYPE_CHECKING:
         """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
 
         completeMultipartAction: str
-        completedParts: Dict[int, str]
+        completedParts: dict[int, str]
         artifactID: str
         storagePath: str
         uploadID: str
@@ -109,27 +107,22 @@ if TYPE_CHECKING:
     class CompleteMultipartUploadArtifactResponse(TypedDict):
         digest: str
 
-    class DefaultSettings(TypedDict):
+    class DefaultSettings(TypedDict, total=False):
         section: str
         git_remote: str
-        ignore_globs: Optional[List[str]]
-        base_url: Optional[str]
-        root_dir: Optional[str]
-        api_key: Optional[str]
-        entity: Optional[str]
-        organization: Optional[str]
-        project: Optional[str]
-        _extra_http_headers: Optional[Mapping[str, str]]
-        _proxies: Optional[Mapping[str, str]]
+        ignore_globs: list[str]
+        base_url: str
+        root_dir: str | None
+        api_key: str | None
+        entity: str | None
+        organization: str | None
+        project: str | None
+        _extra_http_headers: Mapping[str, str] | None
+        _proxies: Mapping[str, str] | None
 
     _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
-
-# class _MappingSupportsCopy(Protocol):
-#     def copy(self) -> "_MappingSupportsCopy": ...
-#     def keys(self) -> Iterable: ...
-#     def __getitem__(self, name: str) -> Any: ...
 
 httpclient_logger = logging.getLogger("http.client")
 if os.environ.get("WANDB_DEBUG"):
@@ -160,7 +153,7 @@ def check_httpclient_logger_handler() -> None:
 
 
 class _ThreadLocalData(threading.local):
-    context: Optional[context.Context]
+    context: context.Context | None
 
     def __init__(self) -> None:
         self.context = None
@@ -178,7 +171,7 @@ def _match_org_with_fetched_org_entities(
 
     Args:
         organization: The organization name to match
-        orgs: List of tuples containing (org_entity_name, org_display_name)
+        orgs: list of tuples containing (org_entity_name, org_display_name)
 
     Returns:
         str: The matched org entity name
@@ -227,48 +220,51 @@ class Api:
 
     def __init__(
         self,
-        default_settings: Optional[
-            Union[
-                "wandb.sdk.wandb_settings.Settings",
-                "wandb.sdk.internal.settings_static.SettingsStatic",
-                Settings,
-                dict,
-            ]
-        ] = None,
+        default_settings: (
+            wandb.Settings  #
+            | settings_static.SettingsStatic
+            | DefaultSettings
+            | None
+        ) = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(  # okay because it's immutable
-            days=7
-        ),
-        environ: MutableMapping = os.environ,
-        retry_callback: Optional[Callable[[int, str], Any]] = None,
-        api_key: Optional[str] = None,
+        retry_timedelta: datetime.timedelta | None = None,
+        environ: MutableMapping[str, str] = os.environ,
+        retry_callback: Callable[[int, str], Any] | None = None,
+        api_key: str | None = None,
     ) -> None:
+        import requests
+
         self._environ = environ
         self._global_context = context.Context()
         self._local_data = _ThreadLocalData()
-        self.default_settings: DefaultSettings = {
-            "section": "default",
-            "git_remote": "origin",
-            "ignore_globs": [],
-            "base_url": "https://api.wandb.ai",
-            "root_dir": None,
-            "api_key": None,
-            "entity": None,
-            "organization": None,
-            "project": None,
-            "_extra_http_headers": None,
-            "_proxies": None,
-        }
-        self.retry_timedelta = retry_timedelta
-        # todo: Old Settings do not follow the SupportsKeysAndGetItem Protocol
-        default_settings = default_settings or {}
-        self.default_settings.update(default_settings)  # type: ignore
-        self.retry_uploads = 10
-        self._settings = Settings(
-            load_settings=load_settings,
-            root_dir=self.default_settings.get("root_dir"),
+
+        default_overrides: dict[str, Any] = (
+            dict(default_settings) if default_settings else {}
         )
-        self.git = GitRepo(remote=self.settings("git_remote"))
+        self.default_settings: DefaultSettings = {
+            "section": default_overrides.get("section", "default"),
+            "git_remote": default_overrides.get("git_remote", "origin"),
+            "ignore_globs": default_overrides.get("ignore_globs", []),
+            "base_url": default_overrides.get("base_url", "https://api.wandb.ai"),
+            "root_dir": default_overrides.get("root_dir", None),
+            "api_key": default_overrides.get("api_key", None),
+            "entity": default_overrides.get("entity", None),
+            "organization": default_overrides.get("organization", None),
+            "project": default_overrides.get("project", None),
+            "_extra_http_headers": default_overrides.get("_extra_http_headers", None),
+            "_proxies": default_overrides.get("_proxies", None),
+        }
+
+        if load_settings:
+            global_settings = wandb_setup.singleton().settings
+            if root_dir := self.default_settings["root_dir"]:
+                global_settings = global_settings.model_copy()
+                global_settings.root_dir = root_dir
+
+            self._settings = global_settings.read_system_settings().all()
+        else:
+            self._settings = {}
+
         # Mutable settings set by the _file_stream_api
         self.dynamic_settings = {
             "system_sample_seconds": 2,
@@ -276,12 +272,14 @@ class Api:
             "heartbeat_seconds": 30,
         }
 
+        self.retry_timedelta = retry_timedelta or datetime.timedelta(days=7)
+        self.retry_uploads = 10
+
         # todo: remove these hacky hacks after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
         self._extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
-        self._extra_http_headers.update(_thread_local_api_settings.headers or {})
 
         auth = None
         api_key = api_key or self.default_settings.get("api_key")
@@ -289,7 +287,7 @@ class Api:
             auth = ("api", api_key)
         elif self.access_token is not None:
             self._extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
-        elif _thread_local_api_settings.cookies is None:
+        else:
             auth = ("api", self.api_key or "")
 
         proxies = self.settings("_proxies") or json.loads(
@@ -310,7 +308,6 @@ class Api:
                 timeout=self.HTTP_TIMEOUT,
                 auth=auth,
                 url=f"{self.settings('base_url')}/graphql",
-                cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
             )
         )
@@ -323,7 +320,7 @@ class Api:
             retryable_exceptions=(RetryError, requests.RequestException),
             retry_callback=retry_callback,
         )
-        self._current_run_id: Optional[str] = None
+        self._current_run_id: str | None = None
         self._file_stream_api = None
         self._upload_file_session = requests.Session()
         if self.FILE_PUSHER_TIMEOUT:
@@ -343,28 +340,28 @@ class Api:
                 self.upload_multipart_file_chunk
             )
         )
-        self._client_id_mapping: Dict[str, str] = {}
+        self._client_id_mapping: dict[str, str] = {}
         # Large file uploads to azure can optionally use their SDK
         self._azure_blob_module = util.get_module("azure.storage.blob")
 
-        self.query_types: Optional[List[str]] = None
-        self.mutation_types: Optional[List[str]] = None
-        self.server_info_types: Optional[List[str]] = None
-        self.server_use_artifact_input_info: Optional[List[str]] = None
-        self.server_create_artifact_input_info: Optional[List[str]] = None
-        self.server_artifact_fields_info: Optional[List[str]] = None
-        self.server_organization_type_fields_info: Optional[List[str]] = None
-        self.server_supports_enabling_artifact_usage_tracking: Optional[bool] = None
-        self._max_cli_version: Optional[str] = None
-        self._server_settings_type: Optional[List[str]] = None
-        self.fail_run_queue_item_input_info: Optional[List[str]] = None
-        self.create_launch_agent_input_info: Optional[List[str]] = None
-        self.server_create_run_queue_supports_drc: Optional[bool] = None
-        self.server_create_run_queue_supports_priority: Optional[bool] = None
-        self.server_supports_template_variables: Optional[bool] = None
-        self.server_push_to_run_queue_supports_priority: Optional[bool] = None
+        self.query_types: list[str] | None = None
+        self.mutation_types: list[str] | None = None
+        self.server_info_types: list[str] | None = None
+        self.server_use_artifact_input_info: list[str] | None = None
+        self.server_create_artifact_input_info: list[str] | None = None
+        self.server_artifact_fields_info: list[str] | None = None
+        self.server_organization_type_fields_info: list[str] | None = None
+        self.server_supports_enabling_artifact_usage_tracking: bool | None = None
+        self._max_cli_version: str | None = None
+        self._server_settings_type: list[str] | None = None
+        self.fail_run_queue_item_input_info: list[str] | None = None
+        self.create_launch_agent_input_info: list[str] | None = None
+        self.server_create_run_queue_supports_drc: bool | None = None
+        self.server_create_run_queue_supports_priority: bool | None = None
+        self.server_supports_template_variables: bool | None = None
+        self.server_push_to_run_queue_supports_priority: bool | None = None
 
-        self._server_features_cache: Optional[Dict[str, bool]] = None
+        self._server_features_cache: dict[str, bool] | None = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -374,7 +371,7 @@ class Api:
         )
         return ret
 
-    def set_local_context(self, api_context: Optional[context.Context]) -> None:
+    def set_local_context(self, api_context: context.Context | None) -> None:
         self._local_data.context = api_context
 
     def clear_local_context(self) -> None:
@@ -392,8 +389,10 @@ class Api:
         """Ensure the current api points to the right server."""
         self.client.transport.url = "{}/graphql".format(self.settings("base_url"))
 
-    def execute(self, *args: Any, **kwargs: Any) -> "_Response":
+    def execute(self, *args: Any, **kwargs: Any) -> _Response:
         """Wrapper around execute that logs in cases of failure."""
+        import requests
+
         try:
             return self.client.execute(*args, **kwargs)  # type: ignore
         except requests.exceptions.HTTPError as err:
@@ -413,7 +412,7 @@ class Api:
         self._current_run_id = run_id
 
     @property
-    def current_run_id(self) -> Optional[str]:
+    def current_run_id(self) -> str | None:
         return self._current_run_id
 
     @property
@@ -421,22 +420,24 @@ class Api:
         return f"W&B Internal Client {wandb.__version__}"
 
     @property
-    def api_key(self) -> Optional[str]:
-        if _thread_local_api_settings.api_key:
-            return _thread_local_api_settings.api_key
-        auth = requests.utils.get_netrc_auth(self.api_url)
-        key = None
-        if auth:
-            key = auth[-1]
+    def api_key(self) -> str | None:
+        from wandb.sdk.lib import wbauth
 
-        # Environment should take precedence
-        env_key: Optional[str] = self._environ.get(env.API_KEY)
-        sagemaker_key: Optional[str] = parse_sm_secrets().get(env.API_KEY)
-        default_key: Optional[str] = self.default_settings.get("api_key")
-        return env_key or key or sagemaker_key or default_key
+        if (  #
+            (auth := wbauth.session_credentials(host=self.api_url))
+            and isinstance(auth, wbauth.AuthApiKey)
+        ):
+            return auth.api_key
+
+        return (
+            os.getenv(env.API_KEY)
+            or wbauth.read_netrc_auth(host=self.api_url)
+            or parse_sm_secrets().get(env.API_KEY)
+            or self.default_settings.get("api_key")
+        )
 
     @property
-    def access_token(self) -> Optional[str]:
+    def access_token(self) -> str | None:
         """Retrieves an access token for authentication.
 
         This function attempts to exchange an identity token for a temporary
@@ -445,7 +446,7 @@ class Api:
         variables. If the environment variable is not set, it returns None.
 
         Returns:
-            Optional[str]: The access token if available, otherwise None if
+            str | None: The access token if available, otherwise None if
             no identity token is supplied.
         Raises:
             AuthenticationError: If the path to the identity token is not found.
@@ -476,7 +477,13 @@ class Api:
     def default_entity(self) -> str:
         return self.viewer().get("entity")  # type: ignore
 
-    def settings(self, key: Optional[str] = None, section: Optional[str] = None) -> Any:
+    @overload
+    def settings(self, key: None = None) -> dict[str, Any]: ...
+
+    @overload
+    def settings(self, key: str) -> Any: ...
+
+    def settings(self, key: str | None = None) -> Any:
         """The settings overridden from the wandb/settings file.
 
         Args:
@@ -494,68 +501,49 @@ class Api:
                     "organization": "my-org",
                 }
         """
-        result = self.default_settings.copy()
-        result.update(self._settings.items(section=section))  # type: ignore
+        result: dict[str, Any] = dict(self.default_settings)
+        result.update(self._settings)
         result.update(
             {
                 "entity": env.get_entity(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "entity",
-                        fallback=result.get("entity"),
+                        result.get("entity"),
                     ),
                     env=self._environ,
                 ),
                 "organization": env.get_organization(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "organization",
-                        fallback=result.get("organization"),
+                        result.get("organization"),
                     ),
                     env=self._environ,
                 ),
                 "project": env.get_project(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "project",
-                        fallback=result.get("project"),
+                        result.get("project"),
                     ),
                     env=self._environ,
                 ),
                 "base_url": env.get_base_url(
                     self._settings.get(
-                        Settings.DEFAULT_SECTION,
                         "base_url",
-                        fallback=result.get("base_url"),
-                    ),
-                    env=self._environ,
-                ),
-                "ignore_globs": env.get_ignore(
-                    self._settings.get(
-                        Settings.DEFAULT_SECTION,
-                        "ignore_globs",
-                        fallback=result.get("ignore_globs"),
+                        result.get("base_url"),
                     ),
                     env=self._environ,
                 ),
             }
         )
 
-        return result if key is None else result[key]  # type: ignore
+        return result if key is None else result[key]
 
-    def clear_setting(
-        self, key: str, globally: bool = False, persist: bool = False
-    ) -> None:
-        self._settings.clear(
-            Settings.DEFAULT_SECTION, key, globally=globally, persist=persist
-        )
+    def clear_setting(self, key: str) -> None:
+        self._settings.pop(key, None)
 
-    def set_setting(
-        self, key: str, value: Any, globally: bool = False, persist: bool = False
-    ) -> None:
-        self._settings.set(
-            Settings.DEFAULT_SECTION, key, value, globally=globally, persist=persist
-        )
+    def set_setting(self, key: str, value: Any) -> None:
+        self._settings[key] = value
+
         if key == "entity":
             env.set_entity(value, env=self._environ)
         elif key == "project":
@@ -564,8 +552,8 @@ class Api:
             self.relocate()
 
     def parse_slug(
-        self, slug: str, project: Optional[str] = None, run: Optional[str] = None
-    ) -> Tuple[str, str]:
+        self, slug: str, project: str | None = None, run: str | None = None
+    ) -> tuple[str, str]:
         """Parse a slug into a project and run.
 
         Args:
@@ -591,7 +579,7 @@ class Api:
         return project, run
 
     @normalize_exceptions
-    def server_info_introspection(self) -> Tuple[List[str], List[str], List[str]]:
+    def server_info_introspection(self) -> tuple[list[str], list[str], list[str]]:
         query_string = """
            query ProbeServerCapabilities {
                QueryType: __type(name: "Query") {
@@ -660,7 +648,7 @@ class Api:
                 else []
             )
 
-    def server_use_artifact_input_introspection(self) -> List:
+    def server_use_artifact_input_introspection(self) -> list:
         query_string = """
            query ProbeServerUseArtifactInput {
                UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
@@ -684,7 +672,7 @@ class Api:
         return self.server_use_artifact_input_info
 
     @normalize_exceptions
-    def launch_agent_introspection(self) -> Optional[str]:
+    def launch_agent_introspection(self) -> str | None:
         query = gql(
             """
             query LaunchAgentIntrospection {
@@ -699,7 +687,7 @@ class Api:
         return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
-    def create_run_queue_introspection(self) -> Tuple[bool, bool, bool]:
+    def create_run_queue_introspection(self) -> tuple[bool, bool, bool]:
         _, _, mutations = self.server_info_introspection()
         query_string = """
            query ProbeCreateRunQueueInput {
@@ -743,7 +731,7 @@ class Api:
         return "upsertRunQueue" in mutations
 
     @normalize_exceptions
-    def push_to_run_queue_introspection(self) -> Tuple[bool, bool]:
+    def push_to_run_queue_introspection(self) -> tuple[bool, bool]:
         query_string = """
             query ProbePushToRunQueueInput {
                 PushToRunQueueInputType: __type(name: "PushToRunQueueInput") {
@@ -790,7 +778,7 @@ class Api:
         return "failRunQueueItem" in mutations
 
     @normalize_exceptions
-    def fail_run_queue_item_fields_introspection(self) -> List:
+    def fail_run_queue_item_fields_introspection(self) -> list:
         if self.fail_run_queue_item_input_info:
             return self.fail_run_queue_item_input_info
         query_string = """
@@ -820,11 +808,11 @@ class Api:
         run_queue_item_id: str,
         message: str,
         stage: str,
-        file_paths: Optional[List[str]] = None,
+        file_paths: list[str] | None = None,
     ) -> bool:
         if not self.fail_run_queue_item_introspection():
             return False
-        variable_values: Dict[str, Union[str, Optional[List[str]]]] = {
+        variable_values: dict[str, str | (list[str] | None)] = {
             "runQueueItemId": run_queue_item_id,
         }
         if "message" in self.fail_run_queue_item_fields_introspection():
@@ -868,7 +856,7 @@ class Api:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
 
-    def _server_features(self) -> Dict[str, bool]:
+    def _server_features(self) -> dict[str, bool]:
         # NOTE: Avoid caching via `@cached_property`, due to undocumented
         # locking behavior before Python 3.12.
         # See: https://github.com/python/cpython/issues/87634
@@ -890,7 +878,7 @@ class Api:
                 self._server_features_cache = {}
         return self._server_features_cache
 
-    def _server_supports(self, feature: Union[int, str]) -> bool:
+    def _server_supports(self, feature: int | str) -> bool:
         """Return whether the current server supports the given feature.
 
         This also caches the underlying lookup of server feature flags,
@@ -912,7 +900,7 @@ class Api:
         run_queue_item_id: str,
         message: str,
         stage: str,
-        file_paths: Optional[List[str]] = None,
+        file_paths: list[str] | None = None,
     ) -> bool:
         if not self.update_run_queue_item_warning_introspection():
             return False
@@ -945,7 +933,7 @@ class Api:
         return result
 
     @normalize_exceptions
-    def viewer(self) -> Dict[str, Any]:
+    def viewer(self) -> dict[str, Any]:
         query = gql(
             """
         query Viewer{
@@ -969,7 +957,7 @@ class Api:
         return res.get("viewer") or {}
 
     @normalize_exceptions
-    def max_cli_version(self) -> Optional[str]:
+    def max_cli_version(self) -> str | None:
         if self._max_cli_version is not None:
             return self._max_cli_version
 
@@ -987,7 +975,7 @@ class Api:
         return self._max_cli_version
 
     @normalize_exceptions
-    def viewer_server_info(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def viewer_server_info(self) -> tuple[dict[str, Any], dict[str, Any]]:
         local_query = """
             latestLocalVersionInfo {
                 outOfDate
@@ -1042,7 +1030,7 @@ class Api:
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 
     @normalize_exceptions
-    def list_projects(self, entity: Optional[str] = None) -> List[Dict[str, str]]:
+    def list_projects(self, entity: str | None = None) -> list[dict[str, str]]:
         """List projects in W&B scoped by entity.
 
         Args:
@@ -1066,7 +1054,7 @@ class Api:
         }
         """
         )
-        project_list: List[Dict[str, str]] = self._flatten_edges(
+        project_list: list[dict[str, str]] = self._flatten_edges(
             self.gql(
                 query, variable_values={"entity": entity or self.settings("entity")}
             )["models"]
@@ -1074,7 +1062,7 @@ class Api:
         return project_list
 
     @normalize_exceptions
-    def project(self, project: str, entity: Optional[str] = None) -> "_Response":
+    def project(self, project: str, entity: str | None = None) -> _Response:
         """Retrieve project.
 
         Args:
@@ -1107,9 +1095,9 @@ class Api:
         self,
         sweep: str,
         specs: str,
-        project: Optional[str] = None,
-        entity: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        project: str | None = None,
+        entity: str | None = None,
+    ) -> dict[str, Any]:
         """Retrieve sweep.
 
         Args:
@@ -1174,15 +1162,15 @@ class Api:
         )
         if response["project"] is None or response["project"]["sweep"] is None:
             raise ValueError(f"Sweep {entity}/{project}/{sweep} not found")
-        data: Dict[str, Any] = response["project"]["sweep"]
+        data: dict[str, Any] = response["project"]["sweep"]
         if data:
             data["runs"] = self._flatten_edges(data["runs"])
         return data
 
     @normalize_exceptions
     def list_runs(
-        self, project: str, entity: Optional[str] = None
-    ) -> List[Dict[str, str]]:
+        self, project: str, entity: str | None = None
+    ) -> list[dict[str, str]]:
         """List runs in W&B scoped by project.
 
         Args:
@@ -1222,8 +1210,8 @@ class Api:
 
     @normalize_exceptions
     def run_config(
-        self, project: str, run: Optional[str] = None, entity: Optional[str] = None
-    ) -> Tuple[str, Dict[str, Any], Optional[str], Dict[str, Any]]:
+        self, project: str, run: str | None = None, entity: str | None = None
+    ) -> tuple[str, dict[str, Any], str | None, dict[str, Any]]:
         """Get the relevant configs for a run.
 
         Args:
@@ -1231,6 +1219,8 @@ class Api:
             run (str, optional): The run to download
             entity (str, optional): The entity to scope this project to.
         """
+        import requests
+
         check_httpclient_logger_handler()
 
         query = gql(
@@ -1272,9 +1262,9 @@ class Api:
         }
 
         commit: str = ""
-        config: Dict[str, Any] = {}
-        patch: Optional[str] = None
-        metadata: Dict[str, Any] = {}
+        config: dict[str, Any] = {}
+        patch: str | None = None
+        metadata: dict[str, Any] = {}
 
         # If we use the `names` parameter on the `files` node, then the server
         # will helpfully give us and 'open' file handle to the files that don't
@@ -1290,7 +1280,7 @@ class Api:
             response = self.gql(query, variable_values=variable_values)
             if response["model"] is None:
                 raise CommError(f"Run {entity}/{project}/{run} not found")
-            run_obj: Dict = response["model"]["bucket"]
+            run_obj: dict = response["model"]["bucket"]
             # we only need to fetch this config once
             if variable_values["includeConfig"]:
                 commit = run_obj["commit"]
@@ -1312,7 +1302,7 @@ class Api:
     @normalize_exceptions
     def run_resume_status(
         self, entity: str, project_name: str, name: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Check if a run exists and get resume information.
 
         Args:
@@ -1368,7 +1358,7 @@ class Api:
         if "entity" in project:
             self.set_setting("entity", project["entity"]["name"])
 
-        result: Dict[str, Any] = project["bucket"]
+        result: dict[str, Any] = project["bucket"]
 
         return result
 
@@ -1414,10 +1404,10 @@ class Api:
     def upsert_project(
         self,
         project: str,
-        id: Optional[str] = None,
-        description: Optional[str] = None,
-        entity: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        id: str | None = None,
+        description: str | None = None,
+        entity: str | None = None,
+    ) -> dict[str, Any]:
         """Create a new project.
 
         Args:
@@ -1446,9 +1436,7 @@ class Api:
                 "id": id,
             },
         )
-        # TODO(jhr): Commenting out 'repo' field for cling, add back
-        #   'description': description, 'repo': self.git.remote_url, 'id': id})
-        result: Dict[str, Any] = response["upsertModel"]["model"]
+        result: dict[str, Any] = response["upsertModel"]["model"]
         return result
 
     @normalize_exceptions
@@ -1478,7 +1466,7 @@ class Api:
         return is_team
 
     @normalize_exceptions
-    def get_project_run_queues(self, entity: str, project: str) -> List[Dict[str, str]]:
+    def get_project_run_queues(self, entity: str, project: str) -> list[dict[str, str]]:
         query = gql(
             """
         query ProjectRunQueues($entity: String!, $projectName: String!){
@@ -1514,7 +1502,7 @@ class Api:
 
             raise Exception(msg)
 
-        project_run_queues: List[Dict[str, str]] = res["project"]["runQueues"]
+        project_run_queues: list[dict[str, str]] = res["project"]["runQueues"]
         return project_run_queues
 
     @normalize_exceptions
@@ -1523,8 +1511,8 @@ class Api:
         entity: str,
         resource: str,
         config: str,
-        template_variables: Optional[Dict[str, Union[float, int, str]]],
-    ) -> Optional[Dict[str, Any]]:
+        template_variables: dict[str, float | int | str] | None,
+    ) -> dict[str, Any] | None:
         if not self.create_default_resource_config_introspection():
             raise Exception()
         supports_template_vars, _ = self.push_to_run_queue_introspection()
@@ -1577,7 +1565,7 @@ class Api:
         """
         )
 
-        result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
+        result: dict[str, Any] | None = self.gql(query, variable_values)[
             "createDefaultResourceConfig"
         ]
         return result
@@ -1589,9 +1577,9 @@ class Api:
         project: str,
         queue_name: str,
         access: str,
-        prioritization_mode: Optional[str] = None,
-        config_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        prioritization_mode: str | None = None,
+        config_id: str | None = None,
+    ) -> dict[str, Any] | None:
         (
             create_run_queue,
             supports_drc,
@@ -1681,7 +1669,7 @@ class Api:
                 "defaultResourceConfigID": config_id,
             }
 
-        result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
+        result: dict[str, Any] | None = self.gql(query, variable_values)[
             "createRunQueue"
         ]
         return result
@@ -1694,10 +1682,10 @@ class Api:
         resource_type: str,
         resource_config: dict,
         project: str = LAUNCH_DEFAULT_PROJECT,
-        prioritization_mode: Optional[str] = None,
-        template_variables: Optional[dict] = None,
-        external_links: Optional[dict] = None,
-    ) -> Optional[Dict[str, Any]]:
+        prioritization_mode: str | None = None,
+        template_variables: dict | None = None,
+        external_links: dict | None = None,
+    ) -> dict[str, Any] | None:
         if not self.upsert_run_queue_introspection():
             raise UnsupportedError(
                 "upserting run queues is not supported by this version of "
@@ -1747,7 +1735,7 @@ class Api:
             "prioritizationMode": prioritization_mode,
             "externalLinks": json.dumps(external_links) if external_links else None,
         }
-        result: Dict[str, Any] = self.gql(query, variable_values)
+        result: dict[str, Any] = self.gql(query, variable_values)
         return result["upsertRunQueue"]
 
     @normalize_exceptions
@@ -1757,9 +1745,9 @@ class Api:
         project: str,
         queue_name: str,
         run_spec: str,
-        template_variables: Optional[Dict[str, Union[int, float, str]]],
-        priority: Optional[int] = None,
-    ) -> Optional[Dict[str, Any]]:
+        template_variables: dict[str, int | float | str] | None,
+        priority: int | None = None,
+    ) -> dict[str, Any] | None:
         self.push_to_run_queue_introspection()
         """Queryless mutation, should be used before legacy fallback method."""
 
@@ -1777,7 +1765,7 @@ class Api:
             runSpec: $runSpec
         """
 
-        variables: Dict[str, Any] = {
+        variables: dict[str, Any] = {
             "entityName": entity,
             "projectName": project,
             "queueName": queue_name,
@@ -1825,7 +1813,7 @@ class Api:
         )
 
         try:
-            result: Optional[Dict[str, Any]] = self.gql(
+            result: dict[str, Any] | None = self.gql(
                 mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
             if not result:
@@ -1878,11 +1866,11 @@ class Api:
     def push_to_run_queue(
         self,
         queue_name: str,
-        launch_spec: Dict[str, str],
-        template_variables: Optional[dict],
+        launch_spec: dict[str, str],
+        template_variables: dict | None,
         project_queue: str,
-        priority: Optional[int] = None,
-    ) -> Optional[Dict[str, Any]]:
+        priority: int | None = None,
+    ) -> dict[str, Any] | None:
         self.push_to_run_queue_introspection()
         entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
@@ -1987,17 +1975,17 @@ class Api:
         if not response.get("pushToRunQueue"):
             raise CommError(f"Error pushing run queue item to queue {queue_name}.")
 
-        result: Optional[Dict[str, Any]] = response["pushToRunQueue"]
+        result: dict[str, Any] | None = response["pushToRunQueue"]
         return result
 
     @normalize_exceptions
     def pop_from_run_queue(
         self,
         queue_name: str,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        agent_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        entity: str | None = None,
+        project: str | None = None,
+        agent_id: str | None = None,
+    ) -> dict[str, Any] | None:
         mutation = gql(
             """
         mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $launchAgentId: ID)  {
@@ -2022,11 +2010,11 @@ class Api:
                 "launchAgentId": agent_id,
             },
         )
-        result: Optional[Dict[str, Any]] = response["popFromRunQueue"]
+        result: dict[str, Any] | None = response["popFromRunQueue"]
         return result
 
     @normalize_exceptions
-    def ack_run_queue_item(self, item_id: str, run_id: Optional[str] = None) -> bool:
+    def ack_run_queue_item(self, item_id: str, run_id: str | None = None) -> bool:
         mutation = gql(
             """
         mutation ackRunQueueItem($itemId: ID!, $runId: String!)  {
@@ -2047,7 +2035,7 @@ class Api:
         return result
 
     @normalize_exceptions
-    def create_launch_agent_fields_introspection(self) -> List:
+    def create_launch_agent_fields_introspection(self) -> list:
         if self.create_launch_agent_input_info:
             return self.create_launch_agent_input_info
         query_string = """
@@ -2076,8 +2064,8 @@ class Api:
         self,
         entity: str,
         project: str,
-        queues: List[str],
-        agent_config: Dict[str, Any],
+        queues: list[str],
+        agent_config: dict[str, Any],
         version: str,
         gorilla_agent_support: bool,
     ) -> dict:
@@ -2224,26 +2212,26 @@ class Api:
     @normalize_exceptions
     def upsert_run(
         self,
-        id: Optional[str] = None,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        host: Optional[str] = None,
-        group: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-        config: Optional[dict] = None,
-        description: Optional[str] = None,
-        entity: Optional[str] = None,
-        state: Optional[str] = None,
-        display_name: Optional[str] = None,
-        notes: Optional[str] = None,
-        repo: Optional[str] = None,
-        job_type: Optional[str] = None,
-        program_path: Optional[str] = None,
-        commit: Optional[str] = None,
-        sweep_name: Optional[str] = None,
-        summary_metrics: Optional[str] = None,
-        num_retries: Optional[int] = None,
-    ) -> Tuple[dict, bool, Optional[List]]:
+        id: str | None = None,
+        name: str | None = None,
+        project: str | None = None,
+        host: str | None = None,
+        group: str | None = None,
+        tags: list[str] | None = None,
+        config: dict | None = None,
+        description: str | None = None,
+        entity: str | None = None,
+        state: str | None = None,
+        display_name: str | None = None,
+        notes: str | None = None,
+        repo: str | None = None,
+        job_type: str | None = None,
+        program_path: str | None = None,
+        commit: str | None = None,
+        sweep_name: str | None = None,
+        summary_metrics: str | None = None,
+        num_retries: int | None = None,
+    ) -> tuple[dict, bool, list | None]:
         """Update a run.
 
         Args:
@@ -2398,10 +2386,10 @@ class Api:
             **kwargs,
         )
 
-        run_obj: Dict[str, Dict[str, Dict[str, str]]] = response["upsertBucket"][
+        run_obj: dict[str, dict[str, dict[str, str]]] = response["upsertBucket"][
             "bucket"
         ]
-        project_obj: Dict[str, Dict[str, str]] = run_obj.get("project", {})
+        project_obj: dict[str, dict[str, str]] = run_obj.get("project", {})
         if project_obj:
             self.set_setting("project", project_obj["name"])
             entity_obj = project_obj.get("entity", {})
@@ -2428,10 +2416,10 @@ class Api:
         run_name: str,
         metric_name: str,
         metric_value: float,
-        program_path: Optional[str] = None,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        num_retries: Optional[int] = None,
+        program_path: str | None = None,
+        entity: str | None = None,
+        project: str | None = None,
+        num_retries: int | None = None,
     ) -> dict:
         """Rewinds a run to a previous state.
 
@@ -2517,10 +2505,10 @@ class Api:
             **kwargs,
         )
 
-        run_obj: Dict[str, Dict[str, Dict[str, str]]] = response.get(
+        run_obj: dict[str, dict[str, dict[str, str]]] = response.get(
             "rewindRun", {}
         ).get("rewoundRun", {})
-        project_obj: Dict[str, Dict[str, str]] = run_obj.get("project", {})
+        project_obj: dict[str, dict[str, str]] = run_obj.get("project", {})
         if project_obj:
             self.set_setting("project", project_obj["name"])
             entity_obj = project_obj.get("entity", {})
@@ -2611,11 +2599,11 @@ class Api:
     def upload_urls(
         self,
         project: str,
-        files: Union[List[str], Dict[str, IO]],
-        run: Optional[str] = None,
-        entity: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
+        files: list[str] | dict[str, IO],
+        run: str | None = None,
+        entity: str | None = None,
+        description: str | None = None,
+    ) -> tuple[str, list[str], dict[str, dict[str, Any]]]:
         """Generate temporary resumable upload urls.
 
         Args:
@@ -2685,11 +2673,11 @@ class Api:
     def legacy_upload_urls(
         self,
         project: str,
-        files: Union[List[str], Dict[str, IO]],
-        run: Optional[str] = None,
-        entity: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> Tuple[str, List[str], Dict[str, Dict[str, Any]]]:
+        files: list[str] | dict[str, IO],
+        run: str | None = None,
+        entity: str | None = None,
+        description: str | None = None,
+    ) -> tuple[str, list[str], dict[str, dict[str, Any]]]:
         """Generate temporary resumable upload urls.
 
         A new mutation createRunFiles was introduced after 0.15.4.
@@ -2750,9 +2738,9 @@ class Api:
     def download_urls(
         self,
         project: str,
-        run: Optional[str] = None,
-        entity: Optional[str] = None,
-    ) -> Dict[str, Dict[str, str]]:
+        run: str | None = None,
+        entity: str | None = None,
+    ) -> dict[str, dict[str, str]]:
         """Generate download urls.
 
         Args:
@@ -2809,9 +2797,9 @@ class Api:
         self,
         project: str,
         file_name: str,
-        run: Optional[str] = None,
-        entity: Optional[str] = None,
-    ) -> Optional[Dict[str, str]]:
+        run: str | None = None,
+        entity: str | None = None,
+    ) -> dict[str, str] | None:
         """Generate download urls.
 
         Args:
@@ -2864,7 +2852,7 @@ class Api:
             return None
 
     @normalize_exceptions
-    def download_file(self, url: str) -> Tuple[int, requests.Response]:
+    def download_file(self, url: str) -> tuple[int, requests.Response]:
         """Initiate a streaming download.
 
         Args:
@@ -2873,20 +2861,21 @@ class Api:
         Returns:
             A tuple of the content length and the streaming response
         """
+        import requests
+
         check_httpclient_logger_handler()
 
-        http_headers = _thread_local_api_settings.headers or {}
+        http_headers = {}
 
         auth = None
         if self.access_token is not None:
             http_headers["Authorization"] = f"Bearer {self.access_token}"
-        elif _thread_local_api_settings.cookies is None:
+        else:
             auth = ("api", self.api_key or "")
 
         response = requests.get(
             url,
             auth=auth,
-            cookies=_thread_local_api_settings.cookies or {},
             headers=http_headers,
             stream=True,
         )
@@ -2896,9 +2885,9 @@ class Api:
     @normalize_exceptions
     def download_write_file(
         self,
-        metadata: Dict[str, str],
-        out_dir: Optional[str] = None,
-    ) -> Tuple[str, Optional[requests.Response]]:
+        metadata: dict[str, str],
+        out_dir: str | None = None,
+    ) -> tuple[str, requests.Response | None]:
         """Download a file from a run and write it to wandb/.
 
         Args:
@@ -2923,9 +2912,10 @@ class Api:
         return path, response
 
     def upload_file_azure(
-        self, url: str, file: Any, extra_headers: Dict[str, str]
+        self, url: str, file: Any, extra_headers: dict[str, str]
     ) -> None:
         """Upload a file to azure."""
+        import requests
         from azure.core.exceptions import AzureError  # type: ignore
 
         # Configure the client without retries so our existing logic can handle them
@@ -2934,7 +2924,7 @@ class Api:
         )
         try:
             if extra_headers.get("Content-MD5") is not None:
-                md5: Optional[bytes] = base64.b64decode(extra_headers["Content-MD5"])
+                md5: bytes | None = base64.b64decode(extra_headers["Content-MD5"])
             else:
                 md5 = None
             content_settings = self._azure_blob_module.ContentSettings(
@@ -2961,8 +2951,8 @@ class Api:
         self,
         url: str,
         upload_chunk: bytes,
-        extra_headers: Optional[Dict[str, str]] = None,
-    ) -> Optional[requests.Response]:
+        extra_headers: dict[str, str] | None = None,
+    ) -> requests.Response | None:
         """Upload a file chunk to S3 with failure resumption.
 
         Args:
@@ -2973,6 +2963,8 @@ class Api:
         Returns:
             The `requests` library response object
         """
+        import requests
+
         check_httpclient_logger_handler()
         try:
             if env.is_debug(env=self._environ):
@@ -3003,16 +2995,16 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                wandb._sentry.reraise(e)
+                get_sentry().reraise(e)
         return response
 
     def upload_file(
         self,
         url: str,
         file: IO[bytes],
-        callback: Optional["ProgressFn"] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-    ) -> Optional[requests.Response]:
+        callback: ProgressFn | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> requests.Response | None:
         """Upload a file to W&B with failure resumption.
 
         Args:
@@ -3025,9 +3017,11 @@ class Api:
         Returns:
             The `requests` library response object
         """
+        import requests
+
         check_httpclient_logger_handler()
         extra_headers = extra_headers.copy() if extra_headers else {}
-        response: Optional[requests.Response] = None
+        response: requests.Response | None = None
         progress = Progress(file, callback=callback)
         try:
             if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
@@ -3070,7 +3064,7 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                wandb._sentry.reraise(e)
+                get_sentry().reraise(e)
 
         return response
 
@@ -3078,9 +3072,9 @@ class Api:
     def register_agent(
         self,
         host: str,
-        sweep_id: Optional[str] = None,
-        project_name: Optional[str] = None,
-        entity: Optional[str] = None,
+        sweep_id: str | None = None,
+        project_name: str | None = None,
+        entity: str | None = None,
     ) -> dict:
         """Register a new agent.
 
@@ -3131,7 +3125,7 @@ class Api:
 
     def agent_heartbeat(
         self, agent_id: str, metrics: dict, run_states: dict
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Notify server about agent state, receive commands.
 
         Args:
@@ -3139,7 +3133,7 @@ class Api:
             metrics (dict): system metrics
             run_states (dict): run_id: state mapping
         Returns:
-            List of commands to execute.
+            list of commands to execute.
         """
         mutation = gql(
             """
@@ -3179,7 +3173,7 @@ class Api:
             logger.exception("Error communicating with W&B.")
             return []
         else:
-            result: List[Dict[str, Any]] = json.loads(
+            result: list[dict[str, Any]] = json.loads(
                 response["agentHeartbeat"]["commands"]
             )
             return result
@@ -3227,17 +3221,17 @@ class Api:
     def upsert_sweep(
         self,
         config: dict,
-        controller: Optional[str] = None,
-        launch_scheduler: Optional[str] = None,
-        scheduler: Optional[str] = None,
-        obj_id: Optional[str] = None,
-        project: Optional[str] = None,
-        entity: Optional[str] = None,
-        state: Optional[str] = None,
-        prior_runs: Optional[List[str]] = None,
-        display_name: Optional[str] = None,
-        template_variable_values: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[str, List[str]]:
+        controller: str | None = None,
+        launch_scheduler: str | None = None,
+        scheduler: str | None = None,
+        obj_id: str | None = None,
+        project: str | None = None,
+        entity: str | None = None,
+        state: str | None = None,
+        prior_runs: list[str] | None = None,
+        display_name: str | None = None,
+        template_variable_values: dict[str, Any] | None = None,
+    ) -> tuple[str, list[str]]:
         """Upsert a sweep object.
 
         Args:
@@ -3253,6 +3247,8 @@ class Api:
             display_name (str): display name for the sweep
             template_variable_values (dict): template variable values
         """
+        import yaml
+
         project_query = """
             project {
                 id
@@ -3340,16 +3336,28 @@ class Api:
 
         config = self._validate_config_and_fill_distribution(config)
 
-        # Silly, but attr-dicts like EasyDicts don't serialize correctly to yaml.
+        # Silly, but attr-dicts like Easydicts don't serialize correctly to yaml.
         # This sanitizes them with a round trip pass through json to get a regular dict.
+        class NonOctalStringDumper(yaml.Dumper):
+            """Prevents strings containing non-octal values like "008" and "009" from being converted to numbers in in the yaml string saved as the sweep config."""
+
+            def represent_scalar(self, tag, value, style=None):
+                if (
+                    tag == "tag:yaml.org,2002:str"
+                    and value.startswith("0")
+                    and len(value) > 1
+                ):
+                    return super().represent_scalar(tag, value, style="'")
+                return super().represent_scalar(tag, value, style)
+
         config_str = yaml.dump(
-            json.loads(json.dumps(config)), Dumper=util.NonOctalStringDumper
+            json.loads(json.dumps(config)), Dumper=NonOctalStringDumper
         )
         filters = None
         if prior_runs:
             filters = json.dumps({"$or": [{"name": r} for r in prior_runs]})
 
-        err: Optional[Exception] = None
+        err: Exception | None = None
         for mutation in mutations:
             try:
                 variables = {
@@ -3384,8 +3392,8 @@ class Api:
         if err:
             raise err
 
-        sweep: Dict[str, Dict[str, Dict]] = response["upsertSweep"]["sweep"]
-        project_obj: Dict[str, Dict] = sweep.get("project", {})
+        sweep: dict[str, dict[str, dict]] = response["upsertSweep"]["sweep"]
+        project_obj: dict[str, dict] = sweep.get("project", {})
         if project_obj:
             self.set_setting("project", project_obj["name"])
             entity_obj: dict = project_obj.get("entity", {})
@@ -3395,25 +3403,6 @@ class Api:
         warnings = response["upsertSweep"].get("configValidationWarnings", [])
         return response["upsertSweep"]["sweep"]["name"], warnings
 
-    @normalize_exceptions
-    def create_anonymous_api_key(self) -> str:
-        """Create a new API key belonging to a new anonymous user."""
-        mutation = gql(
-            """
-        mutation CreateAnonymousApiKey {
-            createAnonymousEntity(input: {}) {
-                apiKey {
-                    name
-                }
-            }
-        }
-        """
-        )
-
-        response = self.gql(mutation, variable_values={})
-        key: str = str(response["createAnonymousEntity"]["apiKey"]["name"])
-        return key
-
     @staticmethod
     def file_current(fname: str, md5: B64MD5) -> bool:
         """Checksum a file and compare the md5 with the known md5."""
@@ -3421,8 +3410,8 @@ class Api:
 
     @normalize_exceptions
     def pull(
-        self, project: str, run: Optional[str] = None, entity: Optional[str] = None
-    ) -> "List[requests.Response]":
+        self, project: str, run: str | None = None, entity: str | None = None
+    ) -> list[requests.Response]:
         """Download files from W&B.
 
         Args:
@@ -3450,14 +3439,14 @@ class Api:
     @normalize_exceptions
     def push(
         self,
-        files: Union[List[str], Dict[str, IO]],
-        run: Optional[str] = None,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        description: Optional[str] = None,
+        files: list[str] | dict[str, IO],
+        run: str | None = None,
+        entity: str | None = None,
+        project: str | None = None,
+        description: str | None = None,
         force: bool = True,
-        progress: Union[TextIO, Literal[False]] = False,
-    ) -> "List[Optional[requests.Response]]":
+        progress: TextIO | Literal[False] = False,
+    ) -> list[requests.Response | None]:
         """Uploads multiple files to W&B.
 
         Args:
@@ -3555,7 +3544,9 @@ class Api:
         project: str,
         aliases: Sequence[str],
         organization: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         template = """
                 mutation LinkArtifact(
                     $artifactPortfolioName: String!,
@@ -3611,7 +3602,7 @@ class Api:
 
         mutation = gql(template)
         response = self.gql(mutation, variable_values=variable_values)
-        link_artifact: Dict[str, Any] = response["linkArtifact"]
+        link_artifact: dict[str, Any] = response["linkArtifact"]
         return link_artifact
 
     def _resolve_org_entity_name(self, entity: str, organization: str = "") -> str:
@@ -3654,14 +3645,14 @@ class Api:
             )
         return orgs_from_entity[0].entity_name
 
-    def _fetch_orgs_and_org_entities_from_entity(self, entity: str) -> List[_OrgNames]:
+    def _fetch_orgs_and_org_entities_from_entity(self, entity: str) -> list[_OrgNames]:
         """Fetches organization entity names and display names for a given entity.
 
         Args:
             entity (str): Entity name to lookup. Can be either a personal or team entity.
 
         Returns:
-            List[_OrgNames]: List of _OrgNames tuples. (_OrgNames(entity_name, display_name))
+            list[_OrgNames]: list of _OrgNames tuples. (_OrgNames(entity_name, display_name))
 
         Raises:
         ValueError: If entity is not found, has no organizations, or other validation errors.
@@ -3732,13 +3723,13 @@ class Api:
     def _construct_use_artifact_query(
         self,
         artifact_id: str,
-        entity_name: Optional[str] = None,
-        project_name: Optional[str] = None,
-        run_name: Optional[str] = None,
-        use_as: Optional[str] = None,
-        artifact_entity_name: Optional[str] = None,
-        artifact_project_name: Optional[str] = None,
-    ) -> Tuple[Document, Dict[str, Any]]:
+        entity_name: str | None = None,
+        project_name: str | None = None,
+        run_name: str | None = None,
+        use_as: str | None = None,
+        artifact_entity_name: str | None = None,
+        artifact_project_name: str | None = None,
+    ) -> tuple[Document, dict[str, Any]]:
         query_vars = [
             "$entityName: String!",
             "$projectName: String!",
@@ -3761,7 +3752,7 @@ class Api:
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
 
-        variable_values: Dict[str, Any] = {
+        variable_values: dict[str, Any] = {
             "entityName": entity_name,
             "projectName": project_name,
             "runName": run_name,
@@ -3812,13 +3803,13 @@ class Api:
     def use_artifact(
         self,
         artifact_id: str,
-        entity_name: Optional[str] = None,
-        project_name: Optional[str] = None,
-        run_name: Optional[str] = None,
-        artifact_entity_name: Optional[str] = None,
-        artifact_project_name: Optional[str] = None,
-        use_as: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        entity_name: str | None = None,
+        project_name: str | None = None,
+        run_name: str | None = None,
+        artifact_entity_name: str | None = None,
+        artifact_project_name: str | None = None,
+        use_as: str | None = None,
+    ) -> dict[str, Any] | None:
         query, variable_values = self._construct_use_artifact_query(
             artifact_id,
             entity_name,
@@ -3831,12 +3822,12 @@ class Api:
         response = self.gql(query, variable_values)
 
         if response["useArtifact"]["artifact"]:
-            artifact: Dict[str, Any] = response["useArtifact"]["artifact"]
+            artifact: dict[str, Any] = response["useArtifact"]["artifact"]
             return artifact
         return None
 
     # Fetch fields available in backend of Organization type
-    def server_organization_type_introspection(self) -> List[str]:
+    def server_organization_type_introspection(self) -> list[str]:
         query_string = """
             query ProbeServerOrganization {
                 OrganizationInfoType: __type(name:"Organization") {
@@ -3878,7 +3869,7 @@ class Api:
         query = gql(query_string)
         res = self.gql(query)
         input_fields = res.get("ProjectInfoType", {}).get("fields", [{}])
-        artifact_args: List[Dict[str, str]] = next(
+        artifact_args: list[dict[str, str]] = next(
             (
                 field.get("args", [])
                 for field in input_fields
@@ -3895,10 +3886,10 @@ class Api:
     def create_artifact_type(
         self,
         artifact_type_name: str,
-        entity_name: Optional[str] = None,
-        project_name: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> Optional[str]:
+        entity_name: str | None = None,
+        project_name: str | None = None,
+        description: str | None = None,
+    ) -> str | None:
         mutation = gql(
             """
         mutation CreateArtifactType(
@@ -3931,10 +3922,10 @@ class Api:
                 "description": description,
             },
         )
-        _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
+        _id: str | None = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
-    def server_artifact_introspection(self) -> List[str]:
+    def server_artifact_introspection(self) -> list[str]:
         query_string = """
             query ProbeServerArtifact {
                 ArtifactInfoType: __type(name:"Artifact") {
@@ -3955,7 +3946,7 @@ class Api:
 
         return self.server_artifact_fields_info
 
-    def server_create_artifact_introspection(self) -> List[str]:
+    def server_create_artifact_introspection(self) -> list[str]:
         query_string = """
             query ProbeServerCreateArtifactInput {
                 CreateArtifactInputInfoType: __type(name:"CreateArtifactInput") {
@@ -3980,9 +3971,9 @@ class Api:
 
     def _get_create_artifact_mutation(
         self,
-        fields: List,
-        history_step: Optional[int],
-        distributed_id: Optional[str],
+        fields: list,
+        history_step: int | None,
+        distributed_id: str | None,
     ) -> str:
         types = ""
         values = ""
@@ -4064,20 +4055,20 @@ class Api:
         artifact_type_name: str,
         artifact_collection_name: str,
         digest: str,
-        client_id: Optional[str] = None,
-        sequence_client_id: Optional[str] = None,
-        entity_name: Optional[str] = None,
-        project_name: Optional[str] = None,
-        run_name: Optional[str] = None,
-        description: Optional[str] = None,
-        metadata: Optional[Dict] = None,
-        ttl_duration_seconds: Optional[int] = None,
-        aliases: Optional[List[Dict[str, str]]] = None,
-        tags: Optional[List[Dict[str, str]]] = None,
-        distributed_id: Optional[str] = None,
-        is_user_created: Optional[bool] = False,
-        history_step: Optional[int] = None,
-    ) -> Tuple[Dict, Dict]:
+        client_id: str | None = None,
+        sequence_client_id: str | None = None,
+        entity_name: str | None = None,
+        project_name: str | None = None,
+        run_name: str | None = None,
+        description: str | None = None,
+        metadata: dict | None = None,
+        ttl_duration_seconds: int | None = None,
+        aliases: list[dict[str, str]] | None = None,
+        tags: list[dict[str, str]] | None = None,
+        distributed_id: str | None = None,
+        is_user_created: bool | None = False,
+        history_step: int | None = None,
+    ) -> tuple[dict, dict]:
         fields = self.server_create_artifact_introspection()
         artifact_fields = self.server_artifact_introspection()
         if ("ttlIsInherited" not in artifact_fields) and ttl_duration_seconds:
@@ -4130,7 +4121,7 @@ class Api:
         )
         return av, latest
 
-    def commit_artifact(self, artifact_id: str) -> "_Response":
+    def commit_artifact(self, artifact_id: str) -> _Response:
         mutation = gql(
             """
         mutation CommitArtifact(
@@ -4159,10 +4150,10 @@ class Api:
         self,
         artifact_id: str,
         storage_path: str,
-        completed_parts: List[Dict[str, Any]],
-        upload_id: Optional[str],
+        completed_parts: list[dict[str, Any]],
+        upload_id: str | None,
         complete_multipart_action: str = "Complete",
-    ) -> Optional[str]:
+    ) -> str | None:
         mutation = gql(
             """
         mutation CompleteMultipartUploadArtifact(
@@ -4196,21 +4187,21 @@ class Api:
                 "uploadID": upload_id,
             },
         )
-        digest: Optional[str] = response["completeMultipartUploadArtifact"]["digest"]
+        digest: str | None = response["completeMultipartUploadArtifact"]["digest"]
         return digest
 
     def create_artifact_manifest(
         self,
         name: str,
         digest: str,
-        artifact_id: Optional[str],
-        base_artifact_id: Optional[str] = None,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        run: Optional[str] = None,
+        artifact_id: str | None,
+        base_artifact_id: str | None = None,
+        entity: str | None = None,
+        project: str | None = None,
+        run: str | None = None,
         include_upload: bool = True,
         type: str = "FULL",
-    ) -> Tuple[str, Dict[str, Any]]:
+    ) -> tuple[str, dict[str, Any]]:
         mutation = gql(
             """
         mutation CreateArtifactManifest(
@@ -4278,10 +4269,10 @@ class Api:
     def update_artifact_manifest(
         self,
         artifact_manifest_id: str,
-        base_artifact_id: Optional[str] = None,
-        digest: Optional[str] = None,
-        include_upload: Optional[bool] = True,
-    ) -> Tuple[str, Dict[str, Any]]:
+        base_artifact_id: str | None = None,
+        digest: str | None = None,
+        include_upload: bool | None = True,
+    ) -> tuple[str, dict[str, Any]]:
         mutation = gql(
             """
         mutation UpdateArtifactManifest(
@@ -4326,8 +4317,8 @@ class Api:
         )
 
     def update_artifact_metadata(
-        self, artifact_id: str, metadata: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, artifact_id: str, metadata: dict[str, Any]
+    ) -> dict[str, Any]:
         """Set the metadata of the given artifact version."""
         mutation = gql(
             """
@@ -4358,7 +4349,7 @@ class Api:
     def _resolve_client_id(
         self,
         client_id: str,
-    ) -> Optional[str]:
+    ) -> str | None:
         if client_id in self._client_id_mapping:
             return self._client_id_mapping[client_id]
 
@@ -4386,7 +4377,7 @@ class Api:
                     self._client_id_mapping[client_id] = server_id
         return server_id
 
-    def server_create_artifact_file_spec_input_introspection(self) -> List:
+    def server_create_artifact_file_spec_input_introspection(self) -> list:
         query_string = """
            query ProbeServerCreateArtifactFileSpecInput {
                 CreateArtifactFileSpecInputInfoType: __type(name:"CreateArtifactFileSpecInput") {
@@ -4409,8 +4400,8 @@ class Api:
 
     @normalize_exceptions
     def create_artifact_files(
-        self, artifact_files: Iterable["CreateArtifactFileSpecInput"]
-    ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
+        self, artifact_files: Iterable[CreateArtifactFileSpecInput]
+    ) -> Mapping[str, CreateArtifactFilesResponseFile]:
         query_template = """
         mutation CreateArtifactFiles(
             $storageLayout: ArtifactStorageLayout!
@@ -4486,8 +4477,8 @@ class Api:
         self,
         title: str,
         text: str,
-        level: Optional[str] = None,
-        wait_duration: Optional["Number"] = None,
+        level: str | None = None,
+        wait_duration: Number | None = None,
     ) -> bool:
         mutation = gql(
             """
@@ -4531,8 +4522,8 @@ class Api:
         return success
 
     def get_sweep_state(
-        self, sweep: str, entity: Optional[str] = None, project: Optional[str] = None
-    ) -> "SweepState":
+        self, sweep: str, entity: str | None = None, project: str | None = None
+    ) -> SweepState:
         state: SweepState = self.sweep(
             sweep=sweep, entity=entity, project=project, specs="{}"
         )["state"]
@@ -4541,9 +4532,9 @@ class Api:
     def set_sweep_state(
         self,
         sweep: str,
-        state: "SweepState",
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
+        state: SweepState,
+        entity: str | None = None,
+        project: str | None = None,
     ) -> None:
         assert state in ("RUNNING", "PAUSED", "CANCELED", "FINISHED")
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
@@ -4587,8 +4578,8 @@ class Api:
     def stop_sweep(
         self,
         sweep: str,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
+        entity: str | None = None,
+        project: str | None = None,
     ) -> None:
         """Finish the sweep to stop running new runs and let currently running runs finish."""
         self.set_sweep_state(
@@ -4598,8 +4589,8 @@ class Api:
     def cancel_sweep(
         self,
         sweep: str,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
+        entity: str | None = None,
+        project: str | None = None,
     ) -> None:
         """Cancel the sweep to kill all running runs and stop running new runs."""
         self.set_sweep_state(
@@ -4609,8 +4600,8 @@ class Api:
     def pause_sweep(
         self,
         sweep: str,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
+        entity: str | None = None,
+        project: str | None = None,
     ) -> None:
         """Pause the sweep to temporarily stop running new runs."""
         self.set_sweep_state(
@@ -4620,8 +4611,8 @@ class Api:
     def resume_sweep(
         self,
         sweep: str,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
+        entity: str | None = None,
+        project: str | None = None,
     ) -> None:
         """Resume the sweep to continue running new runs."""
         self.set_sweep_state(
@@ -4630,13 +4621,15 @@ class Api:
 
     def _status_request(self, url: str, length: int) -> requests.Response:
         """Ask google how much we've uploaded."""
+        import requests
+
         check_httpclient_logger_handler()
         return requests.put(
             url=url,
             headers={"Content-Length": "0", "Content-Range": f"bytes */{length}"},
         )
 
-    def _flatten_edges(self, response: "_Response") -> List[Dict]:
+    def _flatten_edges(self, response: _Response) -> list[dict]:
         """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]
 
@@ -4677,8 +4670,8 @@ class Api:
         display_name: str,
         spec_type: str,
         access: str,
-        spec: Union[str, Mapping[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
+        spec: str | Mapping[str, Any],
+    ) -> dict[str, Any] | None:
         if not isinstance(spec, str):
             spec = json.dumps(spec)
 
@@ -4717,7 +4710,7 @@ class Api:
             "spec": spec,
         }
 
-        result: Optional[Dict[str, Any]] = self.gql(mutation, variable_values)[
+        result: dict[str, Any] | None = self.gql(mutation, variable_values)[
             "createCustomChart"
         ]
         return result

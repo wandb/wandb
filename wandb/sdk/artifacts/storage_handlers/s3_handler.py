@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qsl, urlparse
@@ -18,6 +17,8 @@ from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+
+from ._timing import TimedIf
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -184,14 +185,14 @@ class S3Handler(StorageHandler):
             if version
             else [self._s3.Object(bucket, key)]
         )
-        start_time = None
         multi = False
         if key != "":
             try:
                 objs[0].load()
-                # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
-                # trigger a recursive upload.
-                # we should check the object's metadata says it is a directory and do a multi file upload if it is
+                # S3 lacks true folders, but a folder key can reference a valid
+                # file, which prevents recursive uploads. Check whether the
+                # object's metadata marks it as a directory and perform a
+                # multi-file upload if so.
                 if "x-directory" in objs[0].content_type:
                     multi = True
             except self._botocore.exceptions.ClientError as e:
@@ -207,29 +208,28 @@ class S3Handler(StorageHandler):
         else:
             multi = True
 
-        if multi:
-            start_time = time.monotonic()
-            termlog(
-                f'Generating checksum for up to {max_objects} objects in "{bucket}/{key}"... ',
-                newline=False,
-            )
-            if key != "":
-                objs = (
-                    self._s3.Bucket(bucket)
-                    .objects.filter(Prefix=key)
-                    .limit(max_objects)
+        with TimedIf(multi):
+            if multi:
+                termlog(
+                    f'Generating checksum for up to {max_objects} objects in "{bucket}/{key}"... ',
+                    newline=False,
                 )
-            else:
-                objs = self._s3.Bucket(bucket).objects.limit(max_objects)
-        # Weird iterator scoping makes us assign this to a local function
-        size = self._size_from_obj
-        entries = [
-            self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
-            for obj in objs
-            if size(obj) > 0
-        ]
-        if start_time is not None:
-            termlog("Done. %.1fs" % (time.monotonic() - start_time), prefix=False)
+                if key != "":
+                    objs = (
+                        self._s3.Bucket(bucket)
+                        .objects.filter(Prefix=key)
+                        .limit(max_objects)
+                    )
+                else:
+                    objs = self._s3.Bucket(bucket).objects.limit(max_objects)
+            # Weird iterator scoping makes us assign this to a local function
+            size = self._size_from_obj
+            entries = [
+                self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
+                for obj in objs
+                if size(obj) > 0
+            ]
+
         if len(entries) > max_objects:
             raise ValueError(
                 f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"

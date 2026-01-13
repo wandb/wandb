@@ -26,7 +26,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -36,11 +36,11 @@ jobs:
 
       - id: set-up-gcloud-sdk
         name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
 
       - id: set-up-gcp-credentials
         name: Set up GCP credentials
-        uses: "google-github-actions/auth@v2"
+        uses: "google-github-actions/auth@v3"
         with:
           project_id: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}

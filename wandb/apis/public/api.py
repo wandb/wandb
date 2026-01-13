@@ -18,11 +18,10 @@ import logging
 import os
 import urllib
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any, Iterator, Literal
+from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
 
-import requests
 from pydantic import ValidationError
-from typing_extensions import Unpack
+from typing_extensions import Unpack, overload
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -42,19 +41,16 @@ from wandb.apis.public.utils import (
     gql_compat,
     parse_org_from_registry_path,
 )
-from wandb.proto.wandb_deprecated import Deprecated
-from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk import wandb_login
-from wandb.sdk.artifacts._validators import (
-    ArtifactPath,
-    FullArtifactPath,
-    is_artifact_registry_project,
-)
+from wandb.errors import UsageError
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk import wandb_login, wandb_setup
+from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
-from wandb.sdk.lib import retry, runid
-from wandb.sdk.lib.deprecate import deprecate
+from wandb.sdk.lib import retry, runid, wbauth
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.gql_request import GraphQLSession
 
 if TYPE_CHECKING:
@@ -107,30 +103,39 @@ class RetryingClient:
     def __init__(self, client: Client):
         self._server_info = None
         self._client = client
+        self._execute_decorated: Callable[..., Any] | None = None
+
+    def execute(self, *args, **kwargs):
+        if self._execute_decorated is None:
+            self._execute_decorated = self._build_execute_wrapper()
+        return self._execute_decorated(*args, **kwargs)
+
+    def _build_execute_wrapper(self) -> Callable[..., Any]:
+        import requests
+
+        @retry.retriable(
+            retry_timedelta=RETRY_TIMEDELTA,
+            check_retry_fn=util.no_retry_auth,
+            retryable_exceptions=(RetryError, requests.RequestException),
+        )
+        def _wrapped(*args, **kwargs):
+            try:
+                return self._client.execute(*args, **kwargs)
+            except requests.exceptions.ReadTimeout:
+                if "timeout" not in kwargs:
+                    timeout = self._client.transport.default_timeout
+                    wandb.termwarn(
+                        f"A graphql request initiated by the public wandb API timed out (timeout={timeout} sec). "
+                        f"Create a new API with an integer timeout larger than {timeout}, e.g., "
+                        f"`api = wandb.Api(timeout={timeout + 10})` to increase the graphql timeout."
+                    )
+                raise
+
+        return _wrapped
 
     @property
     def app_url(self):
         return util.app_url(self._client.transport.url.replace("/graphql", "")) + "/"
-
-    @retry.retriable(
-        retry_timedelta=RETRY_TIMEDELTA,
-        check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
-    )
-    def execute(
-        self, *args, **kwargs
-    ):  # User not encouraged to use this class directly
-        try:
-            return self._client.execute(*args, **kwargs)
-        except requests.exceptions.ReadTimeout:
-            if "timeout" not in kwargs:
-                timeout = self._client.transport.default_timeout
-                wandb.termwarn(
-                    f"A graphql request initiated by the public wandb API timed out (timeout={timeout} sec). "
-                    f"Create a new API with an integer timeout larger than {timeout}, e.g., `api = wandb.Api(timeout={timeout + 10})` "
-                    f"to increase the graphql timeout."
-                )
-            raise
 
     @property
     def server_info(self):
@@ -160,126 +165,6 @@ class Api:
     """
 
     _HTTP_TIMEOUT = env.get_http_timeout(19)
-    DEFAULT_ENTITY_QUERY = gql(
-        """
-        query Viewer{
-            viewer {
-                id
-                entity
-            }
-        }
-        """
-    )
-
-    VIEWER_QUERY = gql(
-        """
-        query Viewer{
-            viewer {
-                id
-                flags
-                entity
-                username
-                email
-                admin
-                apiKeys {
-                    edges {
-                        node {
-                            id
-                            name
-                            description
-                        }
-                    }
-                }
-                teams {
-                    edges {
-                        node {
-                            name
-                        }
-                    }
-                }
-            }
-        }
-        """
-    )
-    USERS_QUERY = gql(
-        """
-        query SearchUsers($query: String) {
-            users(query: $query) {
-                edges {
-                    node {
-                        id
-                        flags
-                        entity
-                        admin
-                        email
-                        deletedAt
-                        username
-                        apiKeys {
-                            edges {
-                                node {
-                                    id
-                                    name
-                                    description
-                                }
-                            }
-                        }
-                        teams {
-                            edges {
-                                node {
-                                    name
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-    )
-
-    CREATE_PROJECT = gql(
-        """
-        mutation upsertModel(
-            $description: String
-            $entityName: String
-            $id: String
-            $name: String
-            $framework: String
-            $access: String
-            $views: JSONString
-        ) {
-            upsertModel(
-            input: {
-                description: $description
-                entityName: $entityName
-                id: $id
-                name: $name
-                framework: $framework
-                access: $access
-                views: $views
-            }
-            ) {
-            project {
-                id
-                name
-                entityName
-                description
-                access
-                views
-            }
-            model {
-                id
-                name
-                entityName
-                description
-                access
-                views
-            }
-            inserted
-            }
-        }
-    """
-    )
 
     def __init__(
         self,
@@ -301,29 +186,20 @@ class Api:
                 or configured in the environment.
         """
         self.settings = InternalApi().settings()
-
-        _overrides = overrides or {}
-        self.settings.update(_overrides)
+        self.settings.update(overrides or {})
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
-        if "organization" in _overrides:
-            self.settings["organization"] = _overrides["organization"]
-        if "username" in _overrides and "entity" not in _overrides:
-            wandb.termwarn(
-                'Passing "username" to Api is deprecated. please use "entity" instead.'
-            )
-            self.settings["entity"] = _overrides["username"]
 
-        use_api_key = api_key is not None or _thread_local_api_settings.cookies is None
-
-        if use_api_key:
+        if api_key:
+            self.api_key = api_key
+        else:
             self.api_key = self._load_api_key(
                 base_url=self.settings["base_url"],
-                init_api_key=api_key,
             )
-            wandb_login._verify_login(
-                key=self.api_key,
-                base_url=self.settings["base_url"],
-            )
+
+        wandb_login._verify_login(
+            key=self.api_key,
+            base_url=self.settings["base_url"],
+        )
 
         self._viewer = None
         self._projects = {}
@@ -332,9 +208,6 @@ class Api:
         self._reports = {}
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
-        auth = None
-        if use_api_key:
-            auth = ("api", self.api_key)
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
         )
@@ -343,63 +216,64 @@ class Api:
                 headers={
                     "User-Agent": self.user_agent,
                     "Use-Admin-Privileges": "true",
-                    **(_thread_local_api_settings.headers or {}),
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
-                auth=auth,
+                auth=("api", self.api_key),
                 url="{}/graphql".format(self.settings["base_url"]),
-                cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
             )
         )
         self._client = RetryingClient(self._base_client)
-        self._sentry = wandb.analytics.sentry.Sentry()
+        self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
 
-    def _load_api_key(
-        self,
-        base_url: str,
-        init_api_key: str | None = None,
-    ) -> str:
-        """Attempts to load a configured API key or prompt if one is not found.
+        self._backend: wandb.sdk.backend.backend.Backend | None = None
+        self._service = None
 
-        The API key is loaded in the following order:
-            1. User explicitly provided api key
-            2. Thread local api key
-            3. Environment variable
-            4. Netrc file
-            5. Prompt for api key using wandb.login
-        """
-        # Use explicit key before thread local.
-        # This allow user switching keys without picking up the wrong key from thread local.
-        if init_api_key is not None:
-            return init_api_key
-        if _thread_local_api_settings.api_key:
-            return _thread_local_api_settings.api_key
-        if os.getenv("WANDB_API_KEY"):
-            return os.environ["WANDB_API_KEY"]
+    def _start_backend_service(self):
+        """Starts the backend service and initializes resources to enable handling API requests."""
+        from wandb.sdk import wandb_setup
 
-        auth = requests.utils.get_netrc_auth(base_url)
-        if auth:
-            return auth[-1]
+        self._stream_id = str(runid.generate_id())
+        singleton = wandb_setup.singleton()
+        self._settings = singleton.settings.model_copy()
+        self._settings.base_url = self.settings["base_url"]
+        self._settings.silent = True
 
-        _, prompted_key = wandb_login._login(
+        self._service = singleton.ensure_service()
+        self._service.api_init_request(self._settings.to_proto())
+
+    def _load_api_key(self, base_url: str) -> str:
+        """Load or prompt for an API key."""
+        auth = wbauth.authenticate_session(
             host=base_url,
-            key=None,
-            # We will explicitly verify the key later
-            verify=False,
-            _silent=(
-                self.settings.get("silent", False) or self.settings.get("quiet", False)
-            ),
-            update_api_key=False,
-            _disable_warning=True,
+            source="wandb.Api()",
+            no_offline=True,
+            input_timeout=wandb_setup.singleton().settings.login_timeout,
         )
-        return prompted_key
+
+        if not auth:
+            raise UsageError("No API key configured. Use `wandb login` to log in.")
+        if not isinstance(auth, wbauth.AuthApiKey):
+            message = (
+                "wandb.Api() can only use API key authentication, but you have"
+                " another form of credentials configured."
+                " Check if you have set WANDB_IDENTITY_TOKEN_FILE."
+                f" Current credentials: {auth}"
+            )
+            raise UsageError(message)
+
+        return auth.api_key
 
     def _configure_sentry(self) -> None:
+        if not env.error_reporting_enabled():
+            return
+
+        import requests
+
         try:
             viewer = self.viewer
         except (ValueError, requests.RequestException):
@@ -416,6 +290,25 @@ class Api:
             },
         )
 
+    def _send_api_request(
+        self,
+        request: ApiRequest,
+        timeout: float | None = None,
+    ) -> ApiResponse:
+        """Sends an API request to the backend service.
+
+        Creates the backend service attribute if it has not been created yet.
+
+        TODO: remove this helper function once all requests are routed through wandb-core.
+        The backend service should be created and initalized
+        during the instantiation of the Api object.
+        """
+        if self._service is None:
+            self._start_backend_service()
+
+        assert self._service is not None
+        return self._service.api_request(request, timeout=timeout)
+
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
 
@@ -423,7 +316,10 @@ class Api:
             name: The name of the new project.
             entity: The entity of the new project.
         """
-        self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
+        from wandb.apis._generated import CREATE_PROJECT_GQL, UpsertModelInput
+
+        gql_input = UpsertModelInput(name=name, entity_name=entity)
+        self.client.execute(gql(CREATE_PROJECT_GQL), {"input": gql_input.model_dump()})
 
     def create_run(
         self,
@@ -795,9 +691,13 @@ class Api:
     @property
     def default_entity(self) -> str | None:
         """Returns the default W&B entity."""
+        from wandb.apis._generated import GET_DEFAULT_ENTITY_GQL, GetDefaultEntity
+
         if self._default_entity is None:
-            res = self._client.execute(self.DEFAULT_ENTITY_QUERY)
-            self._default_entity = (res.get("viewer") or {}).get("entity")
+            data = self._client.execute(gql(GET_DEFAULT_ENTITY_GQL))
+            result = GetDefaultEntity.model_validate(data)
+            if (viewer := result.viewer) and (entity := viewer.entity):
+                self._default_entity = entity
         return self._default_entity
 
     @property
@@ -808,18 +708,17 @@ class Api:
             ValueError: If viewer data is not able to be fetched from W&B.
             requests.RequestException: If an error occurs while making the graphql request.
         """
+        from wandb.apis._generated import GET_VIEWER_GQL, GetViewer
+
         from .users import User
 
         if self._viewer is None:
-            viewer = self._client.execute(self.VIEWER_QUERY).get("viewer")
-
-            if viewer is None:
-                raise ValueError(
-                    "Unable to fetch user data from W&B,"
-                    " please verify your API key is valid."
-                )
-
-            self._viewer = User(self._client, viewer)
+            data = self._client.execute(gql(GET_VIEWER_GQL))
+            result = GetViewer.model_validate(data)
+            if (viewer := result.viewer) is None:
+                msg = "Unable to fetch user data from W&B, please verify your API key is valid."
+                raise ValueError(msg)
+            self._viewer = User(self._client, viewer.model_dump())
             self._default_entity = self._viewer.entity
         return self._viewer
 
@@ -941,8 +840,15 @@ class Api:
             project = parts[0]
         return entity, project, id
 
-    def _parse_artifact_path(self, path):
+    @overload
+    def _parse_artifact_path(self, path: None) -> tuple[str | None, str]: ...
+    @overload
+    def _parse_artifact_path(self, path: str) -> tuple[str | None, str, str]: ...
+
+    def _parse_artifact_path(self, path: str | None) -> tuple[str | None, ...]:
         """Return project, entity and artifact name for project specified by path."""
+        from wandb.sdk.artifacts._validators import ArtifactPath
+
         project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
@@ -961,8 +867,8 @@ class Api:
             entity: Name of the entity requested.  If None, will fall back to
                 the default entity passed to `Api`.  If no default entity,
                 will raise a `ValueError`.
-            per_page: Sets the page size for query pagination. If set to `None`,
-                use the default size. Usually there is no reason to change this.
+            per_page: Sets the page size for query pagination.
+                Usually there is no reason to change this.
 
         Returns:
             A `Projects` object which is an iterable collection of `Project`objects.
@@ -991,6 +897,8 @@ class Api:
         Returns:
             A `Project` object.
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         # For registry artifacts, capture potential org user inputted before resolving entity
         org = entity if is_artifact_registry_project(name) else ""
 
@@ -1000,8 +908,8 @@ class Api:
         # For registry artifacts, resolve org-based entity
         if is_artifact_registry_project(name):
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return public.Project(self.client, entity, name, {})
 
@@ -1018,9 +926,8 @@ class Api:
                 entity that created the project as a prefix followed by a
                 forward slash.
             name: Name of the report requested.
-            per_page: Sets the page size for query pagination. If set to
-                `None`, use the default size. Usually there is no reason to
-                change this.
+            per_page: Sets the page size for query pagination.
+                Usually there is no reason to change this.
 
         Returns:
             A `Reports` object which is an iterable collection of
@@ -1090,18 +997,18 @@ class Api:
         Returns:
             A `User` object or None if a user is not found.
         """
+        from wandb.apis._generated import SEARCH_USERS_GQL, SearchUsers
+
         from .users import User
 
-        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
-        if len(res["users"]["edges"]) == 0:
+        data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
+        result = SearchUsers.model_validate(data)
+        if not (conn := result.users) or not (edges := conn.edges):
             return None
-        elif len(res["users"]["edges"]) > 1:
-            wandb.termwarn(
-                "Found multiple users, returning the first user matching {}".format(
-                    username_or_email
-                )
-            )
-        return User(self._client, res["users"]["edges"][0]["node"])
+        if len(edges) > 1:
+            msg = f"Found multiple users, returning the first user matching {username_or_email!r}"
+            wandb.termwarn(msg)
+        return User(self._client, edges[0].node.model_dump())
 
     def users(self, username_or_email: str) -> list[User]:
         """Return all users from a partial username or email address query.
@@ -1115,10 +1022,15 @@ class Api:
         Returns:
             An array of `User` objects.
         """
+        from wandb.apis._generated import SEARCH_USERS_GQL, SearchUsers
+
         from .users import User
 
-        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
-        return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
+        data = self._client.execute(gql(SEARCH_USERS_GQL), {"query": username_or_email})
+        result = SearchUsers.model_validate(data)
+        if not ((conn := result.users) and (edges := conn.edges)):
+            return []
+        return [User(self._client, edge.node.model_dump()) for edge in edges]
 
     def runs(
         self,
@@ -1187,13 +1099,16 @@ class Api:
 
         Examples:
         ```python
+        import wandb
+        from wandb.apis.public import Api
+
         # Find runs in project where config.experiment_name has been set to "foo"
-        api.runs(path="my_entity/project", filters={"config.experiment_name": "foo"})
+        Api.runs(path="my_entity/project", filters={"config.experiment_name": "foo"})
         ```
 
         ```python
         # Find runs in project where config.experiment_name has been set to "foo" or "bar"
-        api.runs(
+        Api.runs(
             path="my_entity/project",
             filters={
                 "$or": [
@@ -1207,7 +1122,7 @@ class Api:
         ```python
         # Find runs in project where config.experiment_name matches a regex
         # (anchors are not supported)
-        api.runs(
+        Api.runs(
             path="my_entity/project",
             filters={"config.experiment_name": {"$regex": "b.*"}},
         )
@@ -1216,14 +1131,14 @@ class Api:
         ```python
         # Find runs in project where the run name matches a regex
         # (anchors are not supported)
-        api.runs(
+        Api.runs(
             path="my_entity/project", filters={"display_name": {"$regex": "^foo.*"}}
         )
         ```
 
         ```python
         # Find runs in project sorted by ascending loss
-        api.runs(path="my_entity/project", order="+summary_metrics.loss")
+        Api.runs(path="my_entity/project", order="+summary_metrics.loss")
         ```
         """
         entity, project = self._parse_project_path(path)
@@ -1243,6 +1158,7 @@ class Api:
             self.client,
             entity,
             project,
+            api=self,
             filters=filters,
             order=order,
             per_page=per_page,
@@ -1267,7 +1183,12 @@ class Api:
         if not self._runs.get(path):
             # Individual runs should load full data by default
             self._runs[path] = public.Run(
-                self.client, entity, project, run_id, lazy=False
+                self.client,
+                entity,
+                project,
+                run_id,
+                api=self,
+                lazy=False,
             )
         return self._runs[path]
 
@@ -1337,6 +1258,8 @@ class Api:
         Returns:
             An iterable `ArtifactTypes` object.
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         from .artifacts import ArtifactTypes
 
         project_path = project
@@ -1345,8 +1268,8 @@ class Api:
         if is_artifact_registry_project(project):
             settings_entity = self.settings["entity"] or self.default_entity
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactTypes(self.client, entity, project)
 
@@ -1361,6 +1284,8 @@ class Api:
         Returns:
             An `ArtifactType` object.
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         from .artifacts import ArtifactType
 
         project_path = project
@@ -1369,8 +1294,8 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactType(self.client, entity, project, type_name)
 
@@ -1383,12 +1308,14 @@ class Api:
         Args:
             project_name: The name of the project to filter on.
             type_name: The name of the artifact type to filter on.
-            per_page: Sets the page size for query pagination.  None will use the default size.
+            per_page: Sets the page size for query pagination.
                 Usually there is no reason to change this.
 
         Returns:
             An iterable `ArtifactCollections` object.
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         from .artifacts import ArtifactCollections
 
         entity, project = self._parse_project_path(project_name)
@@ -1396,8 +1323,8 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_name, PathType.PROJECT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
@@ -1439,6 +1366,8 @@ class Api:
         artifact_example.download()
         ```
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         from .artifacts import ArtifactCollection
 
         entity, project, collection_name = self._parse_artifact_path(name)
@@ -1446,8 +1375,8 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
 
         if entity is None:
@@ -1462,9 +1391,9 @@ class Api:
     @normalize_exceptions
     def artifact_versions(self, type_name, name, per_page=50):
         """Deprecated. Use `Api.artifacts(type_name, name)` method instead."""
-        deprecate(
-            field_name=Deprecated.api__artifact_versions,
-            warning_message=(
+        warn_and_record_deprecation(
+            feature=Deprecated(api__artifact_versions=True),
+            message=(
                 "Api.artifact_versions(type_name, name) is deprecated, "
                 "use Api.artifacts(type_name, name) instead."
             ),
@@ -1486,9 +1415,8 @@ class Api:
         name: The artifact's collection name. Optionally append the
             entity that logged the artifact as a prefix followed by
             a forward slash.
-        per_page: Sets the page size for query pagination. If set to
-            `None`, use the default size. Usually there is no reason
-            to change this.
+        per_page: Sets the page size for query pagination. Usually
+            there is no reason to change this.
         tags: Only return artifacts with all of these tags.
 
         Returns:
@@ -1506,6 +1434,8 @@ class Api:
         wandb.Api().artifacts(type_name="type", name="entity/project/artifact_name")
         ```
         """
+        from wandb.sdk.artifacts._validators import is_artifact_registry_project
+
         from .artifacts import Artifacts
 
         entity, project, collection_name = self._parse_artifact_path(name)
@@ -1513,8 +1443,8 @@ class Api:
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(name, PathType.ARTIFACT)
             settings_entity = self.settings["entity"] or self.default_entity
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=org
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=org
             )
         return Artifacts(
             self.client,
@@ -1530,6 +1460,10 @@ class Api:
     def _artifact(
         self, name: str, type: str | None = None, enable_tracking: bool = False
     ) -> Artifact:
+        from wandb.sdk.artifacts._validators import (
+            FullArtifactPath,
+            is_artifact_registry_project,
+        )
         from wandb.sdk.artifacts.artifact import Artifact
 
         if name is None:
@@ -1547,8 +1481,8 @@ class Api:
             settings_entity = self.settings["entity"] or self.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
             # we need to fetch the org entity to for the user behind the scenes.
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=organization
+            entity = resolve_org_entity_name(
+                self.client, non_org_entity=settings_entity, org_or_entity=organization
             )
 
         if entity is None:
@@ -1647,6 +1581,8 @@ class Api:
         Returns:
             A list of matching jobs.
         """
+        import requests
+
         if entity is None:
             raise ValueError("Specify an entity when listing jobs")
         if project is None:
@@ -1744,6 +1680,8 @@ class Api:
         ```
 
         """
+        import requests
+
         try:
             self._artifact(name, type)
         except wandb.errors.CommError as e:
@@ -1778,6 +1716,8 @@ class Api:
         wandb.Api.artifact_collection_exists(type="type", name="collection_name")
         ```
         """
+        import requests
+
         try:
             self.artifact_collection(type, name)
         except wandb.errors.CommError as e:
@@ -1791,6 +1731,7 @@ class Api:
         self,
         organization: str | None = None,
         filter: dict[str, Any] | None = None,
+        per_page: int = 100,
     ) -> Registries:
         """Returns a lazy iterator of `Registry` objects.
 
@@ -1807,6 +1748,7 @@ class Api:
                     `name`, `tag`, `description`, `created_at`, `updated_at`
                 Fields available to filter for versions are
                     `tag`, `alias`, `created_at`, `updated_at`, `metadata`
+            per_page: Sets the page size for query pagination.
 
         Returns:
             A lazy iterator of `Registry` objects.
@@ -1843,7 +1785,7 @@ class Api:
         )
         ```
         """
-        if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
+        if not server_supports(self.client, pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "Registry search API is not enabled on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
@@ -1852,7 +1794,9 @@ class Api:
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
-        return Registries(self.client, organization, filter)
+        return Registries(
+            self.client, organization=organization, filter=filter, per_page=per_page
+        )
 
     @tracked
     def registry(self, name: str, organization: str | None = None) -> Registry:
@@ -1881,7 +1825,7 @@ class Api:
         registry.save()
         ```
         """
-        if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
+        if not server_supports(self.client, pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "api.registry() is not enabled on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
@@ -1938,8 +1882,8 @@ class Api:
         )
         ```
         """
-        if not InternalApi()._server_supports(
-            ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
+        if not server_supports(
+            self.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
             raise RuntimeError(
                 "create_registry api is not enabled on this wandb server version. "
@@ -1990,8 +1934,8 @@ class Api:
         """
         from wandb.apis.public.integrations import Integrations
 
-        params = {"entityName": entity or self.default_entity}
-        return Integrations(client=self.client, variables=params, per_page=per_page)
+        variables = {"entity": entity or self.default_entity}
+        return Integrations(self.client, variables=variables, per_page=per_page)
 
     @tracked
     def webhook_integrations(
@@ -2032,10 +1976,8 @@ class Api:
         """
         from wandb.apis.public.integrations import WebhookIntegrations
 
-        params = {"entityName": entity or self.default_entity}
-        return WebhookIntegrations(
-            client=self.client, variables=params, per_page=per_page
-        )
+        variables = {"entity": entity or self.default_entity}
+        return WebhookIntegrations(self.client, variables=variables, per_page=per_page)
 
     @tracked
     def slack_integrations(
@@ -2076,10 +2018,8 @@ class Api:
         """
         from wandb.apis.public.integrations import SlackIntegrations
 
-        params = {"entityName": entity or self.default_entity}
-        return SlackIntegrations(
-            client=self.client, variables=params, per_page=per_page
-        )
+        variables = {"entity": entity or self.default_entity}
+        return SlackIntegrations(self.client, variables=variables, per_page=per_page)
 
     def _supports_automation(
         self,
@@ -2093,16 +2033,15 @@ class Api:
             ALWAYS_SUPPORTED_EVENTS,
         )
 
-        api = InternalApi()
         supports_event = (
             (event is None)
             or (event in ALWAYS_SUPPORTED_EVENTS)
-            or api._server_supports(f"AUTOMATION_EVENT_{event.value}")
+            or server_supports(self.client, f"AUTOMATION_EVENT_{event.value}")
         )
         supports_action = (
             (action is None)
             or (action in ALWAYS_SUPPORTED_ACTIONS)
-            or api._server_supports(f"AUTOMATION_ACTION_{action.value}")
+            or server_supports(self.client, f"AUTOMATION_ACTION_{action.value}")
         )
         return supports_event and supports_action
 
@@ -2231,7 +2170,7 @@ class Api:
         )
 
         # For now, we need to use different queries depending on whether entity is given
-        variables = {"entityName": entity}
+        variables = {"entity": entity}
         if entity is None:
             gql_str = GET_AUTOMATIONS_GQL  # Automations for viewer
         else:
@@ -2241,7 +2180,7 @@ class Api:
         omit_fragments = self._omitted_automation_fragments()
         query = gql_compat(gql_str, omit_fragments=omit_fragments)
         iterator = Automations(
-            client=self.client, variables=variables, per_page=per_page, _query=query
+            self.client, variables=variables, per_page=per_page, _query=query
         )
 
         # FIXME: this is crude, move this client-side filtering logic into backend
@@ -2308,6 +2247,8 @@ class Api:
         )
         ```
         """
+        import requests
+
         from wandb.automations import Automation
         from wandb.automations._generated import CREATE_AUTOMATION_GQL, CreateAutomation
         from wandb.automations._utils import prepare_to_create
@@ -2328,7 +2269,7 @@ class Api:
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
         mutation = gql_compat(CREATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
-        variables = {"params": gql_input.model_dump(exclude_none=True)}
+        variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
         try:
@@ -2417,6 +2358,8 @@ class Api:
         )
         ```
         """
+        import requests
+
         from wandb.automations import ActionType, Automation
         from wandb.automations._generated import UPDATE_AUTOMATION_GQL, UpdateAutomation
         from wandb.automations._utils import prepare_to_update
@@ -2448,7 +2391,7 @@ class Api:
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
         mutation = gql_compat(UPDATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
-        variables = {"params": gql_input.model_dump(exclude_none=True)}
+        variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
         try:

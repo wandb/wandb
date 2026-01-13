@@ -125,7 +125,8 @@ func (l *BatchLogger) run(ctx context.Context) {
 func (l *BatchLogger) processEvent(logs []Log) {
 	event := NewEvent()
 	event.Timestamp = time.Now()
+	event.EventID = EventID(uuid())
 	event.Type = logEvent.Type
 	event.Logs = logs
-	l.client.CaptureEvent(event, nil, nil)
+	l.client.Transport.SendEvent(event)
 }

@@ -6,12 +6,11 @@
 from __future__ import annotations
 
 from operator import itemgetter
-from typing import Any, Dict, Literal, final
+from typing import Any, ClassVar, Dict, Literal, final
 
 from pydantic import Field
 from typing_extensions import Annotated
 
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import HexMD5, _md5
 
 from .._factories import make_storage_policy
@@ -31,14 +30,12 @@ class ArtifactManifestV1(ArtifactManifest):
     )
 
     @classmethod
-    def from_manifest_json(
-        cls, manifest_json: dict[str, Any], api: InternalApi | None = None
-    ) -> ArtifactManifestV1:
+    def from_manifest_json(cls, manifest_json: dict[str, Any]) -> ArtifactManifestV1:
         data = ArtifactManifestV1Data(**manifest_json)
 
         policy_name = data.storage_policy
         policy_cfg = data.storage_policy_config
-        policy = StoragePolicy.lookup_by_name(policy_name).from_config(policy_cfg, api)
+        policy = StoragePolicy.lookup_by_name(policy_name).from_config(policy_cfg)
         return cls(
             manifest_version=data.version, entries=data.contents, storage_policy=policy
         )
@@ -62,10 +59,15 @@ class ArtifactManifestV1(ArtifactManifest):
             },
         }
 
+    _DIGEST_HEADER: ClassVar[bytes] = b"wandb-artifact-manifest-v1\n"
+    """Encoded prefix/header for the ArtifactManifest digest."""
+
     def digest(self) -> HexMD5:
-        hasher = _md5()
-        hasher.update(b"wandb-artifact-manifest-v1\n")
+        hasher = _md5(self._DIGEST_HEADER)
         # sort by key (path)
-        for name, entry in sorted(self.entries.items(), key=itemgetter(0)):
-            hasher.update(f"{name}:{entry.digest}\n".encode())
-        return HexMD5(hasher.hexdigest())
+        for path, entry in sorted(self.entries.items(), key=itemgetter(0)):
+            hasher.update(f"{path}:{entry.digest}\n".encode())
+        return hasher.hexdigest()
+
+    def size(self) -> int:
+        return sum(entry.size for entry in self.entries.values() if entry.size)

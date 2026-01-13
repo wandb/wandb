@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import pathlib
@@ -6,21 +7,14 @@ import subprocess
 import sys
 from unittest import mock
 
+import nbformat
 import pytest
 import wandb
-import wandb.sdk.lib.apikey
+import wandb.sdk.lib.ipython as wb_ipython
 import wandb.util
 
 
-def test_login_timeout(notebook, monkeypatch):
-    monkeypatch.setattr(
-        wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=True: x[0]
-    )
-    monkeypatch.setattr(
-        wandb.wandb_lib.apikey,
-        "prompt_choices",
-        lambda x, input_timeout=None, jupyter=True: x[0],
-    )
+def test_login_timeout(notebook):
     with notebook("login_timeout.ipynb", skip_api_key_env=True) as nb:
         nb.execute_all()
         output = nb.cell_output_text(1)
@@ -160,18 +154,6 @@ def test_notebook_not_exists(mocked_ipython, user, capsys):
         run.finish()
 
 
-def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
-    # test for WB-5264
-    # when we try to call wandb.login(), should fail with no-tty
-    with mock.patch.object(
-        wandb.sdk.lib.apikey,
-        "_is_databricks",
-        return_value=True,
-    ):
-        with pytest.raises(wandb.UsageError, match="tty"):
-            wandb.login()
-
-
 def test_mocked_notebook_html_default(user, run_id, mocked_ipython):
     wandb.load_ipython_extension(mocked_ipython)
     mocked_ipython.register_magics.assert_called_with(wandb.jupyter.WandBMagics)
@@ -196,13 +178,66 @@ def test_mocked_notebook_html_quiet(user, run_id, mocked_ipython):
     assert not any("Run history:" in html for html in displayed_html)
 
 
-def test_mocked_notebook_run_display(user, mocked_ipython):
+@pytest.mark.parametrize(
+    "vsc_ipynb_value, expected_result",
+    [
+        ("/path/to/notebook.ipynb", True),
+        (None, False),
+    ],
+    ids=["returns_true", "returns_false"],
+)
+def test_ipython_in_vscode_notebook(
+    mocked_ipython,
+    vsc_ipynb_value,
+    expected_result,
+):
+    mocked_ipython.kernel.shell.user_ns["__vsc_ipynb_file__"] = vsc_ipynb_value
+    assert wb_ipython.in_vscode_notebook() == expected_result
+
+
+def test_mocked_notebook_run_display_vscode(user, mocked_ipython):
+    import html
+
+    _ = user
+    mocked_ipython.kernel.shell.user_ns["__vsc_ipynb_file__"] = (
+        "/path/to/notebook.ipynb"
+    )
+
     with wandb.init() as run:
         run.display()
-    displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
-    for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")
-    assert any("<iframe" in html for html in displayed_html)
+
+    api = wandb.Api()
+    api_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+    assert api_run._repr_html_() == html.escape(api_run._string_representation())
+
+
+def test_mocked_notebook_run_display(user, mocked_ipython):
+    _ = user
+    mocked_ipython.kernel.shell.user_ns["__vsc_ipynb_file__"] = None
+
+    with wandb.init() as run:
+        run.display()
+
+    api = wandb.Api()
+    api_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+    assert api_run._repr_html_() == api_run.to_html()
+
+
+def test_api_run_in_in_vscode_does_not_show_iframe(notebook):
+    with notebook("api_run_display.ipynb") as nb:
+        setup_cell = io.StringIO()
+        setup_cell.write(
+            "from IPython import get_ipython\n"
+            'get_ipython().kernel.shell.user_ns["__vsc_ipynb_file__"] = "api_run_display.ipynb"',
+        )
+        nb.nb.cells.insert(0, nbformat.v4.new_code_cell(setup_cell.getvalue()))
+
+        nb.execute_all()
+
+        cell = nb.nb.cells[-1]
+        cell_output = cell["outputs"][0]
+        html = cell_output["data"]["text/html"]
+        assert "<iframe" not in html
 
 
 def test_code_saving(notebook):

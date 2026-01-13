@@ -2,13 +2,10 @@
 package settings
 
 import (
-	"fmt"
-	"net/url"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/auth"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -36,30 +33,6 @@ func From(proto *spb.Settings) *Settings {
 	return &Settings{Proto: proto}
 }
 
-// Ensures the APIKey is set if it needs to be.
-//
-// Reads the API key from .netrc if it's not already set.
-func (s *Settings) EnsureAPIKey() error {
-	if s.GetAPIKey() != "" || s.IsOffline() {
-		return nil
-	}
-
-	baseUrl := s.Proto.GetBaseUrl().GetValue()
-	u, err := url.Parse(baseUrl)
-	if err != nil {
-		return fmt.Errorf("settings: failed to parse base URL: %v", err)
-	}
-
-	host := u.Hostname()
-	_, password, err := auth.GetNetrcLogin(host)
-	if err != nil {
-		return fmt.Errorf("settings: failed to get API key from netrc: %v", err)
-	}
-	s.Proto.ApiKey = &wrapperspb.StringValue{Value: password}
-
-	return nil
-}
-
 // The W&B API key.
 //
 // This can be empty if we're in offline mode.
@@ -85,11 +58,6 @@ func (s *Settings) IsSilent() bool {
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
-}
-
-// Whether we are syncing a run from the transaction log.
-func (s *Settings) IsSync() bool {
-	return s.Proto.XSync.GetValue()
 }
 
 // Path to the transaction log file, that is being synced.
@@ -168,6 +136,13 @@ func (s *Settings) GetRootDir() string {
 	return s.Proto.RootDir.GetValue()
 }
 
+// The path to the "wandb" workspace directory.
+//
+// Often a path like `./wandb/`.
+func (s *Settings) GetWandbDir() string {
+	return s.Proto.WandbDir.GetValue()
+}
+
 // The directory for storing log files.
 func (s *Settings) GetLogDir() string {
 	return s.Proto.LogDir.GetValue()
@@ -192,6 +167,13 @@ func (s *Settings) GetIgnoreGlobs() []string {
 // The directory for syncing the run from the transaction log.
 func (s *Settings) GetSyncDir() string {
 	return s.Proto.SyncDir.GetValue()
+}
+
+// GetAppURL returns the base URL for the W&B UI.
+//
+// Used for constructing printable URLs like the run URL.
+func (s *Settings) GetAppURL() string {
+	return s.Proto.AppUrl.GetValue()
 }
 
 // The URL for the W&B backend.
@@ -426,6 +408,16 @@ func (s *Settings) GetSweepURL() string {
 // will be captured and sent to W&B.
 func (s *Settings) IsConsoleCaptureEnabled() bool {
 	return s.Proto.Console.GetValue() != "off"
+}
+
+// Size-based rollover threshold for multipart console logs, in bytes.
+func (s *Settings) GetConsoleChunkMaxBytes() int32 {
+	return s.Proto.ConsoleChunkMaxBytes.GetValue()
+}
+
+// Time-based rollover threshold for multipart console logs, in seconds.
+func (s *Settings) GetConsoleChunkMaxSeconds() int32 {
+	return s.Proto.ConsoleChunkMaxSeconds.GetValue()
 }
 
 // Whether to capture console logs in multipart format.

@@ -169,6 +169,27 @@ class WandBMagics(Magics):
 
 
 def notebook_metadata_from_jupyter_servers_and_kernel_id():
+    # When running in VS Code's notebook extension,
+    # the extension creates a temporary file to start the kernel.
+    # This file is not actually the same as the notebook file.
+    #
+    # The real notebook path is stored in the user namespace
+    # under the key "__vsc_ipynb_file__"
+    try:
+        from IPython import get_ipython
+
+        ipython = get_ipython()
+        if ipython is not None:
+            notebook_path = ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__")
+            if notebook_path:
+                return {
+                    "root": os.path.dirname(notebook_path),
+                    "path": notebook_path,
+                    "name": os.path.basename(notebook_path),
+                }
+    except ModuleNotFoundError:
+        return None
+
     servers, kernel_id = jupyter_servers_and_kernel_id()
     for s in servers:
         if s.get("password"):
@@ -186,21 +207,6 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
                     }
 
     if not kernel_id:
-        return None
-
-    # Built-in notebook server in VS Code
-    try:
-        from IPython import get_ipython
-
-        ipython = get_ipython()
-        notebook_path = ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__")
-        if notebook_path:
-            return {
-                "root": os.path.dirname(notebook_path),
-                "path": notebook_path,
-                "name": os.path.basename(notebook_path),
-            }
-    except Exception:
         return None
 
 

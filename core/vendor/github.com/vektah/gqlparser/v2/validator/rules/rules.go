@@ -77,6 +77,7 @@ func (r *Rules) AddRule(name string, ruleFunc core.RuleFunc) {
 
 // GetInner returns the internal rule map.
 // If the map is not initialized, it returns an empty map.
+// This returns a copy of the rules map, not the original map.
 func (r *Rules) GetInner() map[string]core.RuleFunc {
 	if r == nil {
 		return nil // impossible nonsense, hopefully
@@ -84,7 +85,13 @@ func (r *Rules) GetInner() map[string]core.RuleFunc {
 	if r.rules == nil {
 		return make(map[string]core.RuleFunc)
 	}
-	return r.rules
+
+	rules := make(map[string]core.RuleFunc)
+	for k, v := range r.rules {
+		rules[k] = v
+	}
+
+	return rules
 }
 
 // RemoveRule removes a rule with the specified name from the rule set.

@@ -26,6 +26,7 @@ class EventTriggeringConditionType(str, Enum):
     RUN_METRIC = "RUN_METRIC"
     RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
     RUN_STATE = "RUN_STATE"
+    RUN_METRIC_ZSCORE = "RUN_METRIC_ZSCORE"
 
 
 class TriggeredActionType(str, Enum):

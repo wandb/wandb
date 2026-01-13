@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import asyncio
+import contextlib
 import functools
 import glob
 import json
@@ -20,31 +20,34 @@ from enum import IntEnum
 from types import TracebackType
 from typing import TYPE_CHECKING, Callable, Sequence, TextIO, TypeVar
 
-import requests
 from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec
 
 import wandb
 import wandb.env
 import wandb.util
 from wandb import trigger
-from wandb.apis import internal, public
-from wandb.apis.public import Api as PublicApi
+from wandb.analytics import get_sentry
 from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
-from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
     Result,
     RunRecord,
 )
-from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.internal import job_builder
-from wandb.sdk.lib import asyncio_compat, wb_logging
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk.lib import wb_logging
+from wandb.sdk.lib.filesystem import (
+    FilesDict,
+    GlobStr,
+    LinkStats,
+    PolicyName,
+    link_or_copy_with_policy,
+    unlink_path,
+    validate_glob_path,
+)
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -61,18 +64,12 @@ from wandb.util import (
 )
 
 from . import wandb_config, wandb_metric, wandb_summary
-from .artifacts._validators import (
-    MAX_ARTIFACT_METADATA_KEYS,
-    ArtifactPath,
-    validate_aliases,
-    validate_tags,
-)
 from .data_types._dtypes import TypeRegistry
-from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
+from .interface.interface import InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     config_util,
-    deprecate,
+    deprecation,
     filenames,
     filesystem,
     interrupt,
@@ -92,7 +89,6 @@ from .mailbox import (
     wait_with_progress,
 )
 from .wandb_alerts import AlertLevel
-from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
@@ -100,14 +96,17 @@ if TYPE_CHECKING:
 
     import torch  # type: ignore [import-not-found]
 
-    import wandb.apis.public
     import wandb.sdk.backend.backend
     import wandb.sdk.interface.interface_queue
+    from wandb.apis.public import Api as PublicApi
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
         InternalMessagesResponse,
         SampledHistoryResponse,
     )
+    from wandb.sdk.artifacts.artifact import Artifact
+
+    from .wandb_settings import Settings
 
     class GitSourceDict(TypedDict):
         remote: str
@@ -295,11 +294,13 @@ class RunStatusChecker:
 
     def check_stop_status(self) -> None:
         def _process_stop_status(result: Result) -> None:
+            from wandb.agents import pyagent
+
             stop_status = result.response.stop_status_response
             if stop_status.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
-                if not wandb.agents.pyagent.is_running():  # type: ignore
+                if not pyagent.is_running():  # type: ignore
                     interrupt.interrupt_main()
                     return
 
@@ -387,7 +388,7 @@ def _log_to_run(
     """
 
     @functools.wraps(func)
-    def wrapper(self: Run, *args, **kwargs) -> _T:
+    def wrapper(self: Run, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         # In "attach" usage, many properties of the Run are not initially
         # populated.
         if hasattr(self, "_settings"):
@@ -414,7 +415,7 @@ def _attach(
     """
 
     @functools.wraps(func)
-    def wrapper(self: Run, *args, **kwargs) -> _T:
+    def wrapper(self: Run, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         global _is_attaching
 
         # The _attach_id attribute is only None when running in the "disable
@@ -432,7 +433,7 @@ def _attach(
             if _is_attaching:
                 raise RuntimeError(
                     f"Trying to attach `{func.__name__}`"
-                    f" while in the middle of attaching `{_is_attaching}`"
+                    + f" while in the middle of attaching `{_is_attaching}`"
                 )
 
             _is_attaching = func.__name__
@@ -452,7 +453,7 @@ def _raise_if_finished(
     """Decorate a Run method to raise an error after the run is finished."""
 
     @functools.wraps(func)
-    def wrapper_fn(self: Run, *args, **kwargs) -> _T:
+    def wrapper_fn(self: Run, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         if not getattr(self, "_is_finished", False):
             return func(self, *args, **kwargs)
 
@@ -489,7 +490,7 @@ class Run:
 
     You can log data to a run with `wandb.Run.log()`. Anything you log using
     `wandb.Run.log()` is sent to that run. See
-    [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
+    [Create an experiment](https://docs.wandb.ai/guides/track/create-an-experiment/) or
     [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
     or more information.
 
@@ -628,7 +629,8 @@ class Run:
         self._backend = None
         self._internal_run_interface = None
         self._wl = None
-
+        # Avoid calling wandb.Api() repeatedly in _public_api()
+        self._cached_public_api: PublicApi | None = None
         self._hooks = None
         self._teardown_hooks = []
 
@@ -662,7 +664,7 @@ class Run:
 
         # Initial scope setup for sentry.
         # This might get updated when the actual run comes back.
-        wandb._sentry.configure_scope(
+        get_sentry().configure_scope(
             tags=dict(self._settings),
             process_context="user",
         )
@@ -1035,9 +1037,9 @@ class Run:
 
         <!-- lazydoc-ignore: internal -->
         """
-        deprecate.deprecate(
-            field_name=Deprecated.run__project_name,
-            warning_message=(
+        deprecation.warn_and_record_deprecation(
+            feature=Deprecated(run__project_name=True),
+            message=(
                 "The project_name method is deprecated and will be removed in a"
                 " future release. Please use `run.project` instead."
             ),
@@ -1061,9 +1063,9 @@ class Run:
 
         <!-- lazydoc-ignore: internal -->
         """
-        deprecate.deprecate(
-            field_name=Deprecated.run__get_project_url,
-            warning_message=(
+        deprecation.warn_and_record_deprecation(
+            feature=Deprecated(run__get_project_url=True),
+            message=(
                 "The get_project_url method is deprecated and will be removed in a"
                 " future release. Please use `run.project_url` instead."
             ),
@@ -1140,6 +1142,8 @@ class Run:
         Returns:
             An `Artifact` object if code was logged
         """
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
         if name is None:
             if self.settings._jupyter:
                 notebook_name = None
@@ -1195,9 +1199,9 @@ class Run:
 
         <!-- lazydoc-ignore: internal -->
         """
-        deprecate.deprecate(
-            field_name=Deprecated.run__get_sweep_url,
-            warning_message=(
+        deprecation.warn_and_record_deprecation(
+            feature=Deprecated(run__get_sweep_url=True),
+            message=(
                 "The get_sweep_url method is deprecated and will be removed in a"
                 " future release. Please use `run.sweep_url` instead."
             ),
@@ -1224,9 +1228,9 @@ class Run:
 
         <!-- lazydoc-ignore: internal -->
         """
-        deprecate.deprecate(
-            field_name=Deprecated.run__get_url,
-            warning_message=(
+        deprecation.warn_and_record_deprecation(
+            feature=Deprecated(run__get_url=True),
+            message=(
                 "The get_url method is deprecated and will be removed in a"
                 " future release. Please use `run.url` instead."
             ),
@@ -1349,7 +1353,7 @@ class Run:
         if self._settings.silent:
             return False
 
-        if not ipython.in_jupyter():
+        if not ipython.in_jupyter() or ipython.in_vscode_notebook():
             return False
 
         try:
@@ -1366,8 +1370,16 @@ class Run:
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying the current run.
 
+        If the run is being displayed in a VSCode notebook,
+        the string representation of the run is returned instead.
+
         <!-- lazydoc-ignore: internal -->
         """
+        if ipython.in_vscode_notebook():
+            import html
+
+            return html.escape(str(self))
+
         url = self._settings.run_url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
@@ -1397,6 +1409,9 @@ class Run:
     def _config_artifact_callback(
         self, key: str, val: str | Artifact | dict
     ) -> Artifact:
+        from wandb.apis import public
+        from wandb.sdk.artifacts.artifact import Artifact
+
         # artifacts can look like dicts as they are passed into the run config
         # since the run config stores them on the backend as a dict with fields shown
         # in wandb.util.artifact_to_json
@@ -1574,15 +1589,13 @@ class Run:
 
     @_log_to_run
     def _console_callback(self, name: str, data: str) -> None:
-        # logger.info("console callback: %s, %s", name, data)
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_output(name, data)
+            # nowait=True so that this can be called from an asyncio context.
+            self._backend.interface.publish_output(name, data, nowait=True)
 
     @_log_to_run
     @_raise_if_finished
     def _console_raw_callback(self, name: str, data: str) -> None:
-        # logger.info("console callback: %s, %s", name, data)
-
         # NOTE: console output is only allowed on the process which installed the callback
         # this will prevent potential corruption in the socket to the service.  Other methods
         # are protected by the _attach run decorator, but this callback was installed on the
@@ -1592,7 +1605,8 @@ class Run:
             return
 
         if self._backend and self._backend.interface:
-            self._backend.interface.publish_output_raw(name, data)
+            # nowait=True so that this can be called from an asyncio context.
+            self._backend.interface.publish_output_raw(name, data, nowait=True)
 
     @_log_to_run
     def _tensorboard_callback(
@@ -1673,7 +1687,7 @@ class Run:
         if run_obj.forked:
             self._forked = run_obj.forked
 
-        wandb._sentry.configure_scope(
+        get_sentry().configure_scope(
             process_context="user",
             tags=dict(self._settings),
         )
@@ -1819,7 +1833,7 @@ class Run:
         ```
 
         Only one level of nesting is supported; `run.log({"a/b/c": 1})`
-        produces a section named "a/b".
+        produces a section named "a".
 
         `run.log()` is not intended to be called more than a few times per second.
         For optimal performance, limit your logging to once every N iterations,
@@ -1861,7 +1875,7 @@ class Run:
             run.log({"accuracy": 0.8}, step=current_step)
             current_step += 1
             run.log({"train-loss": 0.4}, step=current_step)
-            run.log({"accuracy": 0.9}, step=current_step)
+            run.log({"accuracy": 0.9}, step=current_step, commit=True)
         ```
 
         Args:
@@ -2138,78 +2152,84 @@ class Run:
         base_path: pathlib.PurePath,
         policy: PolicyName,
     ) -> list[str]:
-        # Can't use is_relative_to() because that's added in Python 3.9,
-        # but we support down to Python 3.8.
-        if not str(glob_path).startswith(str(base_path)):
-            raise ValueError("Glob may not walk above the base path")
+        """Materialize matched files into the run's files/ dir for syncing.
 
-        if glob_path == base_path:
-            raise ValueError("Glob cannot be the same as the base path")
+        Strategy:
+        1) If settings.symlink is True, try symlink.
+        2) Else (or if symlink fails), try hardlink (same-volume files).
+        3) Else copy and, if requested policy == "live", downgrade those files to "now".
+
+        Args:
+            glob_path: Absolute path glob pattern for files to save.
+            base_path: Base path to determine relative directory structure.
+            policy: Upload policy - "live", "now", or "end".
+
+        Returns:
+            List of absolute paths to files in the wandb run directory.
+
+        Raises:
+            ValueError: If glob_path is invalid relative to base_path.
+        """
+        validate_glob_path(glob_path, base_path)
 
         relative_glob = glob_path.relative_to(base_path)
-        if relative_glob.parts[0] == "*":
-            raise ValueError("Glob may not start with '*' relative to the base path")
         relative_glob_str = GlobStr(str(relative_glob))
 
         with telemetry.context(run=self) as tel:
             tel.feature.save = True
 
-        # Files in the files directory matched by the glob, including old and
-        # new ones.
-        globbed_files = set(
-            pathlib.Path(
-                self._settings.files_dir,
-            ).glob(relative_glob_str)
-        )
+        files_root = pathlib.Path(self._settings.files_dir)
+        preexisting = set(files_root.glob(relative_glob_str))
 
-        had_symlinked_files = len(globbed_files) > 0
-        is_star_glob = "*" in relative_glob_str
+        # Expand sources deterministically.
+        src_paths = [
+            pathlib.Path(p).absolute()
+            for p in sorted(glob.glob(GlobStr(str(base_path / relative_glob_str))))
+        ]
 
-        # The base_path may itself be a glob, so we can't do
-        #     base_path.glob(relative_glob_str)
-        for path_str in glob.glob(str(base_path / relative_glob_str)):
-            source_path = pathlib.Path(path_str).absolute()
+        stats = LinkStats()
+        publish_entries = []
+        created_targets = set()
 
-            # We can't use relative_to() because base_path may be a glob.
-            relative_path = pathlib.Path(*source_path.parts[len(base_path.parts) :])
+        for src in src_paths:
+            # Preserve directory structure under base_path.
+            rel = pathlib.Path(*src.parts[len(base_path.parts) :])
+            dst = files_root / rel
+            created_targets.add(dst)
 
-            target_path = pathlib.Path(self._settings.files_dir, relative_path)
-            globbed_files.add(target_path)
+            # If already the same file, just publish with requested policy.
+            with contextlib.suppress(OSError):
+                if dst.exists() and src.samefile(dst):
+                    publish_entries.append(
+                        (GlobStr(str(dst.relative_to(files_root))), policy)
+                    )
+                    continue
 
-            # If the file is already where it needs to be, don't create a symlink.
-            if source_path.resolve() == target_path.resolve():
-                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            unlink_path(dst)
 
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Delete the symlink if it exists.
-            target_path.unlink(missing_ok=True)
-
-            target_path.symlink_to(source_path)
-
-        # Inform users that new files aren't detected automatically.
-        if not had_symlinked_files and is_star_glob:
-            file_str = f"{len(globbed_files)} file"
-            if len(globbed_files) > 1:
-                file_str += "s"
-            wandb.termwarn(
-                f"Symlinked {file_str} into the W&B run directory, "
-                "call wandb.save again to sync new files."
+            effective_policy = link_or_copy_with_policy(
+                self._settings, src, dst, policy, stats
+            )
+            publish_entries.append(
+                (GlobStr(str(dst.relative_to(files_root))), effective_policy)
             )
 
-        files_dict: FilesDict = {
-            "files": [
-                (
-                    GlobStr(str(f.relative_to(self._settings.files_dir))),
-                    policy,
+        # Include pre-existing matches we didn't touch.
+        for p in sorted(preexisting):
+            if p not in created_targets:
+                publish_entries.append(
+                    (GlobStr(str(p.relative_to(files_root))), policy)
                 )
-                for f in globbed_files
-            ]
-        }
+
+        stats.emit_warnings()
+
+        files_dict: FilesDict = {"files": publish_entries}
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
 
-        return [str(f) for f in globbed_files]
+        abs_targets = {files_root / pathlib.Path(g) for (g, _pol) in publish_entries}
+        return [str(p) for p in sorted(abs_targets)]
 
     @_log_to_run
     @_attach
@@ -2252,9 +2272,9 @@ class Run:
             quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
         """
         if quiet is not None:
-            deprecate.deprecate(
-                field_name=Deprecated.run__finish_quiet,
-                warning_message=(
+            deprecation.warn_and_record_deprecation(
+                feature=Deprecated(run__finish_quiet=True),
+                message=(
                     "The `quiet` argument to `wandb.run.finish()` is deprecated, "
                     "use `wandb.Settings(quiet=...)` to set this instead."
                 ),
@@ -2307,7 +2327,7 @@ class Run:
         finally:
             if wandb.run is self:
                 module.unset_globals()
-            wandb._sentry.end_session()
+            get_sentry().end_session()
 
     @_log_to_run
     @_raise_if_finished
@@ -2623,6 +2643,9 @@ class Run:
         installed_packages_list: list[str],
         patch_path: os.PathLike | None = None,
     ) -> Artifact:
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+        from wandb.sdk.internal import job_builder
+
         job_artifact = InternalArtifact(name, job_builder.JOB_ARTIFACT_TYPE)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(patch_path), "diff.patch")
@@ -2682,41 +2705,6 @@ class Run:
         else:
             return artifact
 
-    async def _display_finish_stats(
-        self,
-        progress_printer: progress.ProgressPrinter,
-    ) -> None:
-        last_result: Result | None = None
-
-        async def loop_update_printer() -> None:
-            while True:
-                if last_result:
-                    progress_printer.update(
-                        [last_result.response.poll_exit_response],
-                    )
-                await asyncio.sleep(0.1)
-
-        async def loop_poll_exit() -> None:
-            nonlocal last_result
-            assert self._backend and self._backend.interface
-
-            while True:
-                handle = await self._backend.interface.deliver_async(
-                    pb.Record(request=pb.Request(poll_exit=pb.PollExitRequest()))
-                )
-
-                time_start = time.monotonic()
-                last_result = await handle.wait_async(timeout=None)
-
-                # Update at most once a second.
-                time_elapsed = time.monotonic() - time_start
-                if time_elapsed < 1:
-                    await asyncio.sleep(1 - time_elapsed)
-
-        async with asyncio_compat.open_task_group() as task_group:
-            task_group.start_soon(loop_update_printer())
-            task_group.start_soon(loop_poll_exit())
-
     def _on_finish(self) -> None:
         trigger.call("on_finished")
 
@@ -2741,8 +2729,9 @@ class Run:
                 exit_handle,
                 timeout=None,
                 display_progress=functools.partial(
-                    self._display_finish_stats,
+                    progress.loop_printing_operation_stats,
                     progress_printer,
+                    self._backend.interface,
                 ),
             )
 
@@ -2825,18 +2814,18 @@ class Run:
             An object that represents this call but can otherwise be discarded.
         """
         if summary and "copy" in summary:
-            deprecate.deprecate(
-                Deprecated.run__define_metric_copy,
-                "define_metric(summary='copy') is deprecated and will be removed.",
-                self,
+            deprecation.warn_and_record_deprecation(
+                feature=Deprecated(run__define_metric_copy=True),
+                message="define_metric(summary='copy') is deprecated and will be removed.",
+                run=self,
             )
 
         if (summary and "best" in summary) or goal is not None:
-            deprecate.deprecate(
-                Deprecated.run__define_metric_best_goal,
-                "define_metric(summary='best', goal=...) is deprecated and will be removed. "
+            deprecation.warn_and_record_deprecation(
+                feature=Deprecated(run__define_metric_best_goal=True),
+                message="define_metric(summary='best', goal=...) is deprecated and will be removed. "
                 "Use define_metric(summary='min') or define_metric(summary='max') instead.",
-                self,
+                run=self,
             )
 
         return self._define_metric(
@@ -2979,22 +2968,29 @@ class Run:
         target_path: str,
         aliases: list[str] | None = None,
     ) -> Artifact:
-        """Link the given artifact to a portfolio (a promoted collection of artifacts).
+        """Link the artifact to a collection.
 
-        Linked artifacts are visible in the UI for the specified portfolio.
+        The term “link” refers to pointers that connect where W&B stores the
+        artifact and where the artifact is accessible in the registry. W&B
+        does not duplicate artifacts when you link an artifact to a collection.
+
+        View linked artifacts in the Registry UI for the specified collection.
 
         Args:
-            artifact: the (public or local) artifact which will be linked
-            target_path: `str` - takes the following forms: `{portfolio}`, `{project}/{portfolio}`,
-                or `{entity}/{project}/{portfolio}`
-            aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
-                                   inside the portfolio.
-            The alias "latest" will always be applied to the latest version of an artifact that is linked.
+            artifact: The artifact object to link to the collection.
+            target_path: The path of the collection. Path consists of the prefix
+                "wandb-registry-" along with the registry name and the
+                collection name `wandb-registry-{REGISTRY_NAME}/{COLLECTION_NAME}`.
+            aliases: Add one or more aliases to the linked artifact. The
+                "latest" alias is automatically applied to the most recent artifact
+                you link.
 
         Returns:
             The linked artifact.
 
         """
+        from .artifacts._validators import ArtifactPath
+
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
 
@@ -3031,7 +3027,7 @@ class Run:
         Args:
             artifact_or_name: The name of the artifact to use. May be prefixed
                 with the name of the project the artifact was logged to
-                ("<entity>" or "<entity>/<project>"). If no
+                ("entity" or "entity/project"). If no
                 entity is specified in the name, the Run or API setting's entity is used.
                 Valid names can be in the following forms
             - name:version
@@ -3070,6 +3066,9 @@ class Run:
         ```
 
         """
+        from wandb.apis import internal
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if self._settings._offline:
             raise TypeError("Cannot use artifact when in offline mode.")
 
@@ -3082,9 +3081,9 @@ class Run:
         api.set_current_run_id(self._settings.run_id)
 
         if use_as is not None:
-            deprecate.deprecate(
-                field_name=Deprecated.run__use_artifact_use_as,
-                warning_message=(
+            deprecation.warn_and_record_deprecation(
+                feature=Deprecated(run__use_artifact_use_as=True),
+                message=(
                     "`use_as` argument is deprecated and does not affect the behaviour of `run.use_artifact`"
                 ),
             )
@@ -3298,10 +3297,7 @@ class Run:
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> Artifact:
-        if self._settings.anonymous in ["allow", "must"]:
-            wandb.termwarn(
-                "Artifacts logged anonymously cannot be claimed and expire after 7 days."
-            )
+        from .artifacts._validators import validate_aliases, validate_tags
 
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
@@ -3317,10 +3313,7 @@ class Run:
             artifact_or_path, name, type, aliases
         )
 
-        if len(artifact.metadata) > MAX_ARTIFACT_METADATA_KEYS:
-            raise ValueError(
-                f"Artifact must not have more than {MAX_ARTIFACT_METADATA_KEYS} metadata keys."
-            )
+        artifact.metadata = {**artifact.metadata}  # triggers validation
 
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
@@ -3360,14 +3353,26 @@ class Run:
         return artifact
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:
+        if self._cached_public_api is not None:
+            return self._cached_public_api
+
+        # NOTE: PublicApi is only for type checking, still need to import
+        from wandb.apis import public
+
         overrides = {"run": self._settings.run_id}  # type: ignore
         if not self._settings._offline:
             overrides["entity"] = self._settings.entity or ""
             overrides["project"] = self._settings.project or ""
-        return public.Api(overrides)
+
+        self._cached_public_api = public.Api(overrides, api_key=self._settings.api_key)
+        return self._cached_public_api
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
+        import requests
+
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if self._settings._offline:
             return
         try:
@@ -3405,6 +3410,8 @@ class Run:
         type: str | None = None,
         aliases: list[str] | None = None,
     ) -> tuple[Artifact, list[str]]:
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if isinstance(artifact_or_path, (str, os.PathLike)):
             name = (
                 name
@@ -3632,9 +3639,9 @@ class Run:
 
     def __exit__(
         self,
-        exc_type: type[BaseException],
-        exc_val: BaseException,
-        exc_tb: TracebackType,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> bool:
         exception_raised = exc_type is not None
         if exception_raised:
@@ -3795,15 +3802,6 @@ class Run:
         printer.display(
             f"{printer.emoji('rocket')} View run at {printer.link(run_url)}",
         )
-
-        if run_name and settings.anonymous in ["allow", "must"]:
-            printer.display(
-                (
-                    "Do NOT share these links with anyone."
-                    " They can be used to claim your runs."
-                ),
-                level="warn",
-            )
 
     # ------------------------------------------------------------------------------
     # FOOTER
@@ -4044,6 +4042,8 @@ def restore(
         CommError: If W&B can't connect to the W&B backend.
         ValueError: If the file is not found or can't find run_path.
     """
+    from wandb.apis import public
+
     is_disabled = wandb.run is not None and wandb.run.disabled
     run = None if is_disabled else wandb.run
     if run_path is None:

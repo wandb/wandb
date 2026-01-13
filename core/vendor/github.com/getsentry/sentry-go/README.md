@@ -13,6 +13,7 @@
 [![Build Status](https://github.com/getsentry/sentry-go/actions/workflows/test.yml/badge.svg)](https://github.com/getsentry/sentry-go/actions/workflows/test.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/getsentry/sentry-go)](https://goreportcard.com/report/github.com/getsentry/sentry-go)
 [![Discord](https://img.shields.io/discord/621778831602221064)](https://discord.gg/Ww9hbqr)
+[![X Follow](https://img.shields.io/twitter/follow/sentry?label=sentry&style=social)](https://x.com/intent/follow?screen_name=sentry)
 [![go.dev](https://img.shields.io/badge/go.dev-pkg-007d9c.svg?style=flat)](https://pkg.go.dev/github.com/getsentry/sentry-go)
 
 `sentry-go` provides a Sentry client implementation for the Go programming

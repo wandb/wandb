@@ -15,7 +15,6 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import click
-import yaml
 
 import wandb
 from wandb.errors import CommError
@@ -116,6 +115,8 @@ class Scheduler(ABC):
         num_workers: Optional[Union[int, str]] = None,
         **kwargs: Optional[Any],
     ):
+        import yaml
+
         from wandb.apis.public import Api as PublicApi
 
         self._api = api

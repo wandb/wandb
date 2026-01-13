@@ -9,9 +9,32 @@ import google.protobuf.descriptor
 import google.protobuf.internal.containers
 import google.protobuf.message
 import typing
-import wandb.proto.wandb_base_pb2
+import wandb.proto.wandb_settings_pb2
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
+
+@typing.final
+class ServerApiInitRequest(google.protobuf.message.Message):
+    """ServerApiInitRequest instructs the backend process
+    to initialize resources to handle ApiRequests.
+
+    This should be sent once prior to sending any ApiRequests.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    SETTINGS_FIELD_NUMBER: builtins.int
+    @property
+    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
+    def __init__(
+        self,
+        *,
+        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing.Literal["settings", b"settings"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["settings", b"settings"]) -> None: ...
+
+global___ServerApiInitRequest = ServerApiInitRequest
 
 @typing.final
 class ApiRequest(google.protobuf.message.Message):
@@ -21,19 +44,34 @@ class ApiRequest(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    READ_RUN_HISTORY_FIELD_NUMBER: builtins.int
+    READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: builtins.int
     @property
-    def read_run_history(self) -> global___ReadRunHistoryApiRequest: ...
+    def read_run_history_request(self) -> global___ReadRunHistoryRequest: ...
     def __init__(
         self,
         *,
-        read_run_history: global___ReadRunHistoryApiRequest | None = ...,
+        read_run_history_request: global___ReadRunHistoryRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["read_run_history", b"read_run_history", "request", b"request"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["read_run_history", b"read_run_history", "request", b"request"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["request", b"request"]) -> typing.Literal["read_run_history"] | None: ...
+    def HasField(self, field_name: typing.Literal["read_run_history_request", b"read_run_history_request", "request", b"request"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["read_run_history_request", b"read_run_history_request", "request", b"request"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["request", b"request"]) -> typing.Literal["read_run_history_request"] | None: ...
 
 global___ApiRequest = ApiRequest
+
+@typing.final
+class ServerApiInitResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    ERROR_MESSAGE_FIELD_NUMBER: builtins.int
+    error_message: builtins.str
+    def __init__(
+        self,
+        *,
+        error_message: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["error_message", b"error_message"]) -> None: ...
+
+global___ServerApiInitResponse = ServerApiInitResponse
 
 @typing.final
 class ApiResponse(google.protobuf.message.Message):
@@ -41,24 +79,101 @@ class ApiResponse(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    READ_RUN_HISTORY_FIELD_NUMBER: builtins.int
+    READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: builtins.int
+    API_ERROR_RESPONSE_FIELD_NUMBER: builtins.int
     @property
-    def read_run_history(self) -> global___ReadRunHistoryApiResponse: ...
+    def read_run_history_response(self) -> global___ReadRunHistoryResponse: ...
+    @property
+    def api_error_response(self) -> global___ApiErrorResponse: ...
     def __init__(
         self,
         *,
-        read_run_history: global___ReadRunHistoryApiResponse | None = ...,
+        read_run_history_response: global___ReadRunHistoryResponse | None = ...,
+        api_error_response: global___ApiErrorResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["read_run_history", b"read_run_history", "response", b"response"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["read_run_history", b"read_run_history", "response", b"response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["read_run_history"] | None: ...
+    def HasField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["api_error_response", b"api_error_response", "read_run_history_response", b"read_run_history_response", "response", b"response"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["read_run_history_response", "api_error_response"] | None: ...
 
 global___ApiResponse = ApiResponse
 
 @typing.final
-class ReadRunHistoryApiRequest(google.protobuf.message.Message):
-    """Start of Read run history
-    ReadRunHistoryApiRequest is a request to get a slice of a run's history.
+class ApiErrorResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    MESSAGE_FIELD_NUMBER: builtins.int
+    message: builtins.str
+    def __init__(
+        self,
+        *,
+        message: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["message", b"message"]) -> None: ...
+
+global___ApiErrorResponse = ApiErrorResponse
+
+@typing.final
+class ReadRunHistoryRequest(google.protobuf.message.Message):
+    """Start of Scan run history"""
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    SCAN_RUN_HISTORY_INIT_FIELD_NUMBER: builtins.int
+    SCAN_RUN_HISTORY_FIELD_NUMBER: builtins.int
+    SCAN_RUN_HISTORY_CLEANUP_FIELD_NUMBER: builtins.int
+    @property
+    def scan_run_history_init(self) -> global___ScanRunHistoryInit: ...
+    @property
+    def scan_run_history(self) -> global___ScanRunHistory: ...
+    @property
+    def scan_run_history_cleanup(self) -> global___ScanRunHistoryCleanup: ...
+    def __init__(
+        self,
+        *,
+        scan_run_history_init: global___ScanRunHistoryInit | None = ...,
+        scan_run_history: global___ScanRunHistory | None = ...,
+        scan_run_history_cleanup: global___ScanRunHistoryCleanup | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing.Literal["request", b"request", "scan_run_history", b"scan_run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["request", b"request", "scan_run_history", b"scan_run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["request", b"request"]) -> typing.Literal["scan_run_history_init", "scan_run_history", "scan_run_history_cleanup"] | None: ...
+
+global___ReadRunHistoryRequest = ReadRunHistoryRequest
+
+@typing.final
+class ReadRunHistoryResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    SCAN_RUN_HISTORY_INIT_FIELD_NUMBER: builtins.int
+    RUN_HISTORY_FIELD_NUMBER: builtins.int
+    SCAN_RUN_HISTORY_CLEANUP_FIELD_NUMBER: builtins.int
+    @property
+    def scan_run_history_init(self) -> global___ScanRunHistoryInitResponse: ...
+    @property
+    def run_history(self) -> global___RunHistoryResponse: ...
+    @property
+    def scan_run_history_cleanup(self) -> global___ScanRunHistoryCleanupResponse: ...
+    def __init__(
+        self,
+        *,
+        scan_run_history_init: global___ScanRunHistoryInitResponse | None = ...,
+        run_history: global___RunHistoryResponse | None = ...,
+        scan_run_history_cleanup: global___ScanRunHistoryCleanupResponse | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing.Literal["response", b"response", "run_history", b"run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["response", b"response", "run_history", b"run_history", "scan_run_history_cleanup", b"scan_run_history_cleanup", "scan_run_history_init", b"scan_run_history_init"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["response", b"response"]) -> typing.Literal["scan_run_history_init", "run_history", "scan_run_history_cleanup"] | None: ...
+
+global___ReadRunHistoryResponse = ReadRunHistoryResponse
+
+@typing.final
+class ScanRunHistoryInit(google.protobuf.message.Message):
+    """ScanRunHistoryInit is a request to initialize
+    a scan over a run's history.
+
+    Because scan history request will be made over a series of requests,
+    We want to keep initialize and keep track of the resources
+    associated with the scan request.
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -67,18 +182,13 @@ class ReadRunHistoryApiRequest(google.protobuf.message.Message):
     PROJECT_FIELD_NUMBER: builtins.int
     RUN_ID_FIELD_NUMBER: builtins.int
     KEYS_FIELD_NUMBER: builtins.int
-    MIN_STEP_FIELD_NUMBER: builtins.int
-    MAX_STEP_FIELD_NUMBER: builtins.int
-    _INFO_FIELD_NUMBER: builtins.int
+    USE_CACHE_FIELD_NUMBER: builtins.int
     entity: builtins.str
     project: builtins.str
     run_id: builtins.str
-    min_step: builtins.int
-    max_step: builtins.int
+    use_cache: builtins.bool
     @property
     def keys(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
@@ -86,33 +196,67 @@ class ReadRunHistoryApiRequest(google.protobuf.message.Message):
         project: builtins.str = ...,
         run_id: builtins.str = ...,
         keys: collections.abc.Iterable[builtins.str] | None = ...,
-        min_step: builtins.int = ...,
-        max_step: builtins.int = ...,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        use_cache: builtins.bool = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "entity", b"entity", "keys", b"keys", "max_step", b"max_step", "min_step", b"min_step", "project", b"project", "run_id", b"run_id"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["entity", b"entity", "keys", b"keys", "project", b"project", "run_id", b"run_id", "use_cache", b"use_cache"]) -> None: ...
 
-global___ReadRunHistoryApiRequest = ReadRunHistoryApiRequest
+global___ScanRunHistoryInit = ScanRunHistoryInit
 
 @typing.final
-class ReadRunHistoryApiResponse(google.protobuf.message.Message):
+class ScanRunHistoryInitResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    REQUEST_ID_FIELD_NUMBER: builtins.int
+    request_id: builtins.int
+    def __init__(
+        self,
+        *,
+        request_id: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["request_id", b"request_id"]) -> None: ...
+
+global___ScanRunHistoryInitResponse = ScanRunHistoryInitResponse
+
+@typing.final
+class ScanRunHistory(google.protobuf.message.Message):
+    """ScanRunHistory is a request to scan
+    over a portion of a run's history.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    MIN_STEP_FIELD_NUMBER: builtins.int
+    MAX_STEP_FIELD_NUMBER: builtins.int
+    REQUEST_ID_FIELD_NUMBER: builtins.int
+    min_step: builtins.int
+    max_step: builtins.int
+    request_id: builtins.int
+    def __init__(
+        self,
+        *,
+        min_step: builtins.int = ...,
+        max_step: builtins.int = ...,
+        request_id: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["max_step", b"max_step", "min_step", b"min_step", "request_id", b"request_id"]) -> None: ...
+
+global___ScanRunHistory = ScanRunHistory
+
+@typing.final
+class RunHistoryResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     HISTORY_ROWS_FIELD_NUMBER: builtins.int
-    ERROR_MESSAGE_FIELD_NUMBER: builtins.int
-    error_message: builtins.str
     @property
     def history_rows(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___HistoryRow]: ...
     def __init__(
         self,
         *,
         history_rows: collections.abc.Iterable[global___HistoryRow] | None = ...,
-        error_message: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["error_message", b"error_message", "history_rows", b"history_rows"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["history_rows", b"history_rows"]) -> None: ...
 
-global___ReadRunHistoryApiResponse = ReadRunHistoryApiResponse
+global___RunHistoryResponse = RunHistoryResponse
 
 @typing.final
 class HistoryRow(google.protobuf.message.Message):
@@ -147,3 +291,32 @@ class ParquetHistoryItem(google.protobuf.message.Message):
     def ClearField(self, field_name: typing.Literal["key", b"key", "value_json", b"value_json"]) -> None: ...
 
 global___ParquetHistoryItem = ParquetHistoryItem
+
+@typing.final
+class ScanRunHistoryCleanup(google.protobuf.message.Message):
+    """ScanRunHistoryCleanup is a request to cleanup
+    any resources associated with a scan request.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    REQUEST_ID_FIELD_NUMBER: builtins.int
+    request_id: builtins.int
+    def __init__(
+        self,
+        *,
+        request_id: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["request_id", b"request_id"]) -> None: ...
+
+global___ScanRunHistoryCleanup = ScanRunHistoryCleanup
+
+@typing.final
+class ScanRunHistoryCleanupResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    def __init__(
+        self,
+    ) -> None: ...
+
+global___ScanRunHistoryCleanupResponse = ScanRunHistoryCleanupResponse

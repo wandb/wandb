@@ -22,12 +22,12 @@ class ArtifactStatusError(AttributeError):
         name: str | None = None,
         obj: ArtifactT | None = None,
     ):
-        # Follow the same pattern as AttributeError in python 3.10+ by `name/obj` attributes
+        # Follow AttributeError (Python 3.10+) by exposing `name` and `obj`.
         # See: https://docs.python.org/3/library/exceptions.html#AttributeError
         try:
             super().__init__(msg, name=name, obj=obj)
         except TypeError:
-            # The `name`/`obj` keyword args and attributes were only added in python >= 3.10
+            # The `name`/`obj` keywords were only added in Python >= 3.10.
             super().__init__(msg)
             self.name = name or ""
             self.obj = obj

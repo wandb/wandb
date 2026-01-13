@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import colorsys
 import contextlib
 import dataclasses
 import enum
-import functools
 import gzip
 import importlib
 import importlib.util
@@ -37,20 +38,14 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Callable,
-    Dict,
     Iterable,
-    List,
     Mapping,
-    Optional,
     Sequence,
     TextIO,
-    Tuple,
     Union,
 )
 
-import requests
-import yaml
-from typing_extensions import Any, Generator, TypeGuard, TypeVar
+from typing_extensions import Any, Generator, TypeGuard, TypeVar, deprecated
 
 import wandb
 import wandb.env
@@ -59,16 +54,15 @@ from wandb.errors import (
     CommError,
     UsageError,
     WandbCoreNotAvailableError,
-    term,
 )
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
+from wandb.errors.term import terminput
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
-    import wandb.sdk.internal.settings_static
-    import wandb.sdk.wandb_settings
+    from requests import Response
+
     from wandb.sdk.artifacts.artifact import Artifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
@@ -92,12 +86,6 @@ RE_DOCKER_IMAGE_NAME_SEPARATOR_START = re.compile("^" + DOCKER_IMAGE_NAME_SEPARA
 RE_DOCKER_IMAGE_NAME_SEPARATOR_END = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "$")
 RE_DOCKER_IMAGE_NAME_SEPARATOR_REPEAT = re.compile(DOCKER_IMAGE_NAME_SEPARATOR + "{2,}")
 RE_DOCKER_IMAGE_NAME_CHARS = re.compile(r"[^a-z0-9._\-]")
-
-# these match the environments for gorilla
-if IS_GIT:
-    SENTRY_ENV = "development"
-else:
-    SENTRY_ENV = "production"
 
 
 POW_10_BYTES = [
@@ -229,7 +217,7 @@ def import_module_lazy(name: str) -> types.ModuleType:
 
 def get_module(
     name: str,
-    required: Optional[str] = None,
+    required: str | None = None,
     lazy: bool = True,
 ) -> Any:
     """Return module or None. Absolute import is required.
@@ -254,7 +242,7 @@ def get_module(
         raise wandb.Error(required)
 
 
-def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:  # type: ignore
+def get_optional_module(name) -> importlib.ModuleInterface | None:  # type: ignore
     return get_module(name)
 
 
@@ -269,12 +257,21 @@ if pandas_spec is not None:
 VALUE_BYTES_LIMIT = 100000
 
 
+@deprecated("Read the `app_url` setting from the appropriate Settings object.")
 def app_url(api_url: str) -> str:
-    """Return the frontend app url without a trailing slash."""
-    # TODO: move me to settings
-    app_url = wandb.env.get_app_url()
-    if app_url is not None:
+    """Returns the URL for the W&B UI without a trailing slash."""
+    if app_url := wandb.env.get_app_url():
         return str(app_url.strip("/"))
+
+    return api_to_app_url(api_url)
+
+
+def api_to_app_url(api_url: str) -> str:
+    """Convert the API URL to an app (UI) URL.
+
+    Unlike the deprecated `app_url()`, this is a pure function: it does
+    not consult environment variables.
+    """
     if "://api.wandb.test" in api_url:
         # dev mode
         return api_url.replace("://api.", "://app.").strip("/")
@@ -324,7 +321,7 @@ def local_file_uri_to_path(uri: str) -> str:
     return urllib.request.url2pathname(path)
 
 
-def get_local_path_or_none(path_or_uri: str) -> Optional[str]:
+def get_local_path_or_none(path_or_uri: str) -> str | None:
     """Return path if local, None otherwise.
 
     Return None if the argument is a local path (not a scheme or file:///). Otherwise
@@ -341,7 +338,7 @@ def get_local_path_or_none(path_or_uri: str) -> Optional[str]:
         return None
 
 
-def check_windows_valid_filename(path: Union[int, str]) -> bool:
+def check_windows_valid_filename(path: int | str) -> bool:
     r"""Verify that the given path does not contain any invalid characters for a Windows filename.
 
     Windows filenames cannot contain the following characters:
@@ -402,10 +399,10 @@ def make_tarfile(
     output_filename: str,
     source_dir: str,
     archive_name: str,
-    custom_filter: Optional[Callable] = None,
+    custom_filter: Callable | None = None,
 ) -> None:
     # Helper for filtering out modification timestamps
-    def _filter_timestamps(tar_info: "tarfile.TarInfo") -> Optional["tarfile.TarInfo"]:
+    def _filter_timestamps(tar_info: tarfile.TarInfo) -> tarfile.TarInfo | None:
         tar_info.mtime = 0
         return tar_info if custom_filter is None else custom_filter(tar_info)
 
@@ -456,7 +453,7 @@ def is_jax_tensor_typename(typename: str) -> bool:
     return typename.startswith("jaxlib.") and "Array" in typename
 
 
-def get_jax_tensor(obj: Any) -> Optional[Any]:
+def get_jax_tensor(obj: Any) -> Any:
     import jax  # type: ignore
 
     return jax.device_get(obj)
@@ -577,9 +574,9 @@ def _numpy_generic_convert(obj: Any) -> Any:
 
 
 def _sanitize_numpy_keys(
-    d: Dict,
-    visited: Optional[Dict[int, Dict]] = None,
-) -> Tuple[Dict, bool]:
+    d: dict,
+    visited: dict[int, dict] | None = None,
+) -> tuple[dict, bool]:
     """Returns a dictionary where all NumPy keys are converted.
 
     Args:
@@ -589,7 +586,7 @@ def _sanitize_numpy_keys(
         A sanitized dictionary, and a boolean indicating whether anything was
         changed.
     """
-    out: Dict[Any, Any] = dict()
+    out: dict[Any, Any] = dict()
     converted = False
 
     # Work with recursive dictionaries: if a dictionary has already been
@@ -615,7 +612,7 @@ def _sanitize_numpy_keys(
 
 def json_friendly(  # noqa: C901
     obj: Any,
-) -> Union[Tuple[Any, bool], Tuple[Union[None, str, float], bool]]:
+) -> tuple[Any, bool] | tuple[None | str | float, bool]:
     """Convert an object into something that's more becoming of JSON."""
     converted = True
     typename = get_full_typename(obj)
@@ -683,7 +680,7 @@ def json_friendly(  # noqa: C901
 
 def json_friendly_val(val: Any) -> Any:
     """Make any value (including dict, slice, sequence, dataclass) JSON friendly."""
-    converted: Union[dict, list]
+    converted: dict | list
     if isinstance(val, dict):
         converted = {}
         for key, value in val.items():
@@ -730,14 +727,14 @@ def convert_plots(obj: Any) -> Any:
         return obj
 
 
-def maybe_compress_history(obj: Any) -> Tuple[Any, bool]:
+def maybe_compress_history(obj: Any) -> tuple[Any, bool]:
     if np and isinstance(obj, np.ndarray) and obj.size > 32:
         return wandb.Histogram(obj, num_bins=32).to_json(), True
     else:
         return obj, False
 
 
-def maybe_compress_summary(obj: Any, h5_typename: str) -> Tuple[Any, bool]:
+def maybe_compress_summary(obj: Any, h5_typename: str) -> tuple[Any, bool]:
     if np and isinstance(obj, np.ndarray) and obj.size > 32:
         return (
             {
@@ -875,8 +872,8 @@ def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
 
 
 def make_json_if_not_number(
-    v: Union[int, float, str, Mapping, Sequence],
-) -> Union[int, float, str]:
+    v: int | float | str | Mapping | Sequence,
+) -> int | float | str:
     """If v is not a basic type convert it to json."""
     if isinstance(v, (float, int)):
         return v
@@ -904,7 +901,9 @@ def make_safe_for_json(obj: Any) -> Any:
 
 
 def no_retry_4xx(e: Exception) -> bool:
-    if not isinstance(e, requests.HTTPError):
+    from requests import HTTPError
+
+    if not isinstance(e, HTTPError):
         return True
     assert e.response is not None
     if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
@@ -913,7 +912,7 @@ def no_retry_4xx(e: Exception) -> bool:
     raise UsageError(body["errors"][0]["message"])
 
 
-def parse_backend_error_messages(response: requests.Response) -> List[str]:
+def parse_backend_error_messages(response: Response) -> list[str]:
     """Returns error messages stored in a backend response.
 
     If the response is not in an expected format, an empty list is returned.
@@ -921,9 +920,11 @@ def parse_backend_error_messages(response: requests.Response) -> List[str]:
     Args:
         response: A response to an HTTP request to the W&B server.
     """
+    from requests import JSONDecodeError
+
     try:
         data = response.json()
-    except requests.JSONDecodeError:
+    except JSONDecodeError:
         return []
 
     if not isinstance(data, dict):
@@ -932,7 +933,7 @@ def parse_backend_error_messages(response: requests.Response) -> List[str]:
     # Backend error values are returned in one of two ways:
     # - A string containing the error message
     # - A JSON object with a "message" field that is a string
-    def get_message(error: Any) -> Optional[str]:
+    def get_message(error: Any) -> str | None:
         if isinstance(error, str):
             return error
         elif (
@@ -951,7 +952,7 @@ def parse_backend_error_messages(response: requests.Response) -> List[str]:
         return [message] if message else []
 
     elif (errors := data.get("errors")) and isinstance(errors, list):
-        messages: List[str] = []
+        messages: list[str] = []
         for error in errors:
             message = get_message(error)
             if message:
@@ -963,9 +964,11 @@ def parse_backend_error_messages(response: requests.Response) -> List[str]:
 
 
 def no_retry_auth(e: Any) -> bool:
+    from requests import HTTPError
+
     if hasattr(e, "exception"):
         e = e.exception
-    if not isinstance(e, requests.HTTPError):
+    if not isinstance(e, HTTPError):
         return True
     if e.response is None:
         return True
@@ -1012,7 +1015,7 @@ def no_retry_auth(e: Any) -> bool:
     return False
 
 
-def check_retry_conflict(e: Any) -> Optional[bool]:
+def check_retry_conflict(e: Any) -> bool | None:
     """Check if the exception is a conflict type so it can be retried.
 
     Returns:
@@ -1020,15 +1023,17 @@ def check_retry_conflict(e: Any) -> Optional[bool]:
         False - Should not retry this operation
         None - No decision, let someone else decide
     """
+    from requests import HTTPError
+
     if hasattr(e, "exception"):
         e = e.exception
-    if isinstance(e, requests.HTTPError) and e.response is not None:
+    if isinstance(e, HTTPError) and e.response is not None:
         if e.response.status_code == 409:
             return True
     return None
 
 
-def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
+def check_retry_conflict_or_gone(e: Any) -> bool | None:
     """Check if the exception is a conflict or gone type, so it can be retried or not.
 
     Returns:
@@ -1036,9 +1041,11 @@ def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
         False - Should not retry this operation
         None - No decision, let someone else decide
     """
+    from requests import HTTPError
+
     if hasattr(e, "exception"):
         e = e.exception
-    if isinstance(e, requests.HTTPError) and e.response is not None:
+    if isinstance(e, HTTPError) and e.response is not None:
         if e.response.status_code == 409:
             return True
         if e.response.status_code == 410:
@@ -1048,8 +1055,8 @@ def check_retry_conflict_or_gone(e: Any) -> Optional[bool]:
 
 def make_check_retry_fn(
     fallback_retry_fn: CheckRetryFnType,
-    check_fn: Callable[[Exception], Optional[bool]],
-    check_timedelta: Optional[timedelta] = None,
+    check_fn: Callable[[Exception], bool | None],
+    check_timedelta: timedelta | None = None,
 ) -> CheckRetryFnType:
     """Return a check_retry_fn which can be used by lib.Retry().
 
@@ -1059,7 +1066,7 @@ def make_check_retry_fn(
         check_timedelta: Optional retry timeout if we check_fn matches the exception
     """
 
-    def check_retry_fn(e: Exception) -> Union[bool, timedelta]:
+    def check_retry_fn(e: Exception) -> bool | timedelta:
         check = check_fn(e)
         if check is None:
             return fallback_retry_fn(e)
@@ -1072,7 +1079,7 @@ def make_check_retry_fn(
     return check_retry_fn
 
 
-def find_runner(program: str) -> Union[None, list, List[str]]:
+def find_runner(program: str) -> None | list | list[str]:
     """Return a command that will run program.
 
     Args:
@@ -1128,7 +1135,7 @@ def docker_image_regex(image: str) -> Any:
     return None
 
 
-def image_from_docker_args(args: List[str]) -> Optional[str]:
+def image_from_docker_args(args: list[str]) -> str | None:
     """Scan docker run args and attempt to find the most likely docker image argument.
 
     It excludes any arguments that start with a dash, and the argument after it if it
@@ -1182,10 +1189,12 @@ def image_from_docker_args(args: List[str]) -> Optional[str]:
 
 
 def load_yaml(file: Any) -> Any:
+    import yaml
+
     return yaml.safe_load(file)
 
 
-def image_id_from_k8s() -> Optional[str]:
+def image_id_from_k8s() -> str | None:
     """Ping the k8s metadata service for the image id.
 
     Specify the KUBERNETES_NAMESPACE environment variable if your pods are not in the
@@ -1220,6 +1229,8 @@ def image_id_from_k8s() -> Optional[str]:
     if not token:
         return None
 
+    import requests
+
     k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
         os.getenv("KUBERNETES_SERVICE_HOST"),
         os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
@@ -1245,9 +1256,7 @@ def image_id_from_k8s() -> Optional[str]:
         return None
 
 
-def async_call(
-    target: Callable, timeout: Optional[Union[int, float]] = None
-) -> Callable:
+def async_call(target: Callable, timeout: int | float | None = None) -> Callable:
     """Wrap a method to run in the background with an optional timeout.
 
     Returns a new method that will call the original with any args, waiting for upto
@@ -1258,7 +1267,7 @@ def async_call(
     """
     q: queue.Queue = queue.Queue()
 
-    def wrapped_target(q: "queue.Queue", *args: Any, **kwargs: Any) -> Any:
+    def wrapped_target(q: queue.Queue, *args: Any, **kwargs: Any) -> Any:
         try:
             q.put(target(*args, **kwargs))
         except Exception as e:
@@ -1266,7 +1275,7 @@ def async_call(
 
     def wrapper(
         *args: Any, **kwargs: Any
-    ) -> Union[Tuple[Exception, "threading.Thread"], Tuple[None, "threading.Thread"]]:
+    ) -> tuple[Exception, threading.Thread] | tuple[None, threading.Thread]:
         thread = threading.Thread(
             target=wrapped_target, args=(q,) + args, kwargs=kwargs
         )
@@ -1286,7 +1295,7 @@ def async_call(
 
 
 def read_many_from_queue(
-    q: "queue.Queue", max_items: int, queue_timeout: Union[int, float]
+    q: queue.Queue, max_items: int, queue_timeout: int | float
 ) -> list:
     try:
         item = q.get(True, queue_timeout)
@@ -1310,7 +1319,7 @@ def stopwatch_now() -> float:
     return time.monotonic()
 
 
-def class_colors(class_count: int) -> List[List[int]]:
+def class_colors(class_count: int) -> list[list[int]]:
     # make class 0 black, and the rest equally spaced fully saturated hues
     return [[0, 0, 0]] + [
         colorsys.hsv_to_rgb(i / (class_count - 1.0), 1.0, 1.0)  # type: ignore
@@ -1318,56 +1327,46 @@ def class_colors(class_count: int) -> List[List[int]]:
     ]
 
 
-def _prompt_choice(
-    input_timeout: Union[int, float, None] = None,
-    jupyter: bool = False,
-) -> str:
-    input_fn: Callable = input
-    prompt = term.LOG_STRING
-    if input_timeout is not None:
-        # delayed import to mitigate risk of timed_input complexity
-        from wandb.sdk.lib import timed_input
-
-        input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
-        # timed_input doesn't handle enhanced prompts
-        if platform.system() == "Windows":
-            prompt = "wandb"
-
-    text = f"{prompt}: Enter your choice: "
-    if input_fn == input:
-        choice = input_fn(text)
-    else:
-        choice = input_fn(text, jupyter=jupyter)
-    return choice  # type: ignore
-
-
 def prompt_choices(
     choices: Sequence[str],
-    input_timeout: Union[int, float, None] = None,
-    jupyter: bool = False,
+    input_timeout: float | None = None,
 ) -> str:
-    """Allow a user to choose from a list of options."""
-    for i, choice in enumerate(choices):
-        wandb.termlog(f"({i + 1}) {choice}")
+    """Prompt the user to choose from a list of options.
 
-    idx = -1
-    while idx < 0 or idx > len(choices) - 1:
-        choice = _prompt_choice(input_timeout=input_timeout, jupyter=jupyter)
+    If exactly one choice is given, it is returned immediately.
+
+    Raises:
+        TimeoutError: if input_timeout is specified and expires.
+        NotATerminalError: if the output device is not capable.
+        KeyboardInterrupt: if the user aborts by pressing Ctrl+C.
+    """
+    if len(choices) == 1:
+        return choices[0]
+
+    for i, choice_str in enumerate(choices):
+        wandb.termlog(f"({i + 1}) {choice_str}")
+
+    while True:
+        choice = terminput("Enter your choice: ", timeout=input_timeout)
+
+        # If the user presses enter without typing anything, try again.
         if not choice:
             continue
+
         idx = -1
-        try:
+        with contextlib.suppress(ValueError):
             idx = int(choice) - 1
-        except ValueError:
-            pass
+
         if idx < 0 or idx > len(choices) - 1:
             wandb.termwarn("Invalid choice")
-    result = choices[idx]
-    wandb.termlog(f"You chose {result!r}")
-    return result
+            continue
+
+        result = choices[idx]
+        wandb.termlog(f"You chose {result!r}")
+        return result
 
 
-def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
+def guess_data_type(shape: Sequence[int], risky: bool = False) -> str | None:
     """Infer the type of data based on the shape of the tensors.
 
     Args:
@@ -1392,16 +1391,14 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 
 
 def download_file_from_url(
-    dest_path: str, source_url: str, api_key: Optional[str] = None
+    dest_path: str, source_url: str, api_key: str | None = None
 ) -> None:
-    auth = None
-    if not _thread_local_api_settings.cookies:
-        auth = ("api", api_key or "")
+    import requests
+
+    auth = ("api", api_key or "")
     response = requests.get(
         source_url,
         auth=auth,
-        headers=_thread_local_api_settings.headers,
-        cookies=_thread_local_api_settings.cookies,
         stream=True,
         timeout=5,
     )
@@ -1414,15 +1411,13 @@ def download_file_from_url(
             file.write(data)
 
 
-def download_file_into_memory(source_url: str, api_key: Optional[str] = None) -> bytes:
-    auth = None
-    if not _thread_local_api_settings.cookies:
-        auth = ("api", api_key or "")
+def download_file_into_memory(source_url: str, api_key: str | None = None) -> bytes:
+    import requests
+
+    auth = ("api", api_key or "")
     response = requests.get(
         source_url,
         auth=auth,
-        headers=_thread_local_api_settings.headers,
-        cookies=_thread_local_api_settings.cookies,
         stream=True,
         timeout=5,
     )
@@ -1434,7 +1429,7 @@ def isatty(ob: IO) -> bool:
     return hasattr(ob, "isatty") and ob.isatty()
 
 
-def to_human_size(size: int, units: Optional[List[Tuple[str, Any]]] = None) -> str:
+def to_human_size(size: int, units: list[tuple[str, Any]] | None = None) -> str:
     units = units or POW_10_BYTES
     unit, value = units[0]
     factor = round(float(size) / value, 1)
@@ -1445,7 +1440,7 @@ def to_human_size(size: int, units: Optional[List[Tuple[str, Any]]] = None) -> s
     )
 
 
-def from_human_size(size: str, units: Optional[List[Tuple[str, Any]]] = None) -> int:
+def from_human_size(size: str, units: list[tuple[str, Any]] | None = None) -> int:
     units = units or POW_10_BYTES
     units_dict = {unit.upper(): value for (unit, value) in units}
     regex = re.compile(
@@ -1461,7 +1456,7 @@ def from_human_size(size: str, units: Optional[List[Tuple[str, Any]]] = None) ->
     return int(factor * unit)
 
 
-def auto_project_name(program: Optional[str]) -> str:
+def auto_project_name(program: str | None) -> str:
     # if we're in git, set project name to git repo name + relative path within repo
     from wandb.sdk.lib.gitlib import GitRepo
 
@@ -1486,25 +1481,6 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
-def are_paths_on_same_drive(path1: str, path2: str) -> bool:
-    """Check if two paths are on the same drive.
-
-    This check is only relevant on Windows,
-    since the concept of drives only exists on Windows.
-    """
-    if platform.system() != "Windows":
-        return True
-
-    try:
-        path1_drive = pathlib.Path(path1).resolve().drive
-        path2_drive = pathlib.Path(path2).resolve().drive
-    except OSError:
-        # If either path is not a valid Windows path, an OSError is raised.
-        return False
-
-    return path1_drive == path2_drive
-
-
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
 def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":
@@ -1517,7 +1493,7 @@ def to_native_slash_path(path: str) -> FilePathStr:
     return FilePathStr(path.replace("/", os.sep))
 
 
-def check_and_warn_old(files: List[str]) -> bool:
+def check_and_warn_old(files: list[str]) -> bool:
     if "wandb-metadata.json" in files:
         wandb.termwarn("These runs were logged with a previous version of wandb.")
         wandb.termwarn(
@@ -1529,8 +1505,8 @@ def check_and_warn_old(files: List[str]) -> bool:
 
 class ImportMetaHook:
     def __init__(self) -> None:
-        self.modules: Dict[str, ModuleType] = dict()
-        self.on_import: Dict[str, list] = dict()
+        self.modules: dict[str, ModuleType] = dict()
+        self.on_import: dict[str, list] = dict()
 
     def add(self, fullname: str, on_import: Callable) -> None:
         self.on_import.setdefault(fullname, []).append(on_import)
@@ -1542,8 +1518,8 @@ class ImportMetaHook:
         sys.meta_path.remove(self)  # type: ignore
 
     def find_module(
-        self, fullname: str, path: Optional[str] = None
-    ) -> Optional["ImportMetaHook"]:
+        self, fullname: str, path: str | None = None
+    ) -> ImportMetaHook | None:
         if fullname in self.on_import:
             return self
         return None
@@ -1559,14 +1535,14 @@ class ImportMetaHook:
                 f()
         return mod
 
-    def get_modules(self) -> Tuple[str, ...]:
+    def get_modules(self) -> tuple[str, ...]:
         return tuple(self.modules)
 
     def get_module(self, module: str) -> ModuleType:
         return self.modules[module]
 
 
-_import_hook: Optional[ImportMetaHook] = None
+_import_hook: ImportMetaHook | None = None
 
 
 def add_import_hook(fullname: str, on_import: Callable) -> None:
@@ -1577,13 +1553,13 @@ def add_import_hook(fullname: str, on_import: Callable) -> None:
     _import_hook.add(fullname, on_import)
 
 
-def host_from_path(path: Optional[str]) -> str:
+def host_from_path(path: str | None) -> str:
     """Return the host of the path."""
     url = urllib.parse.urlparse(path)
     return str(url.netloc)
 
 
-def uri_from_path(path: Optional[str]) -> str:
+def uri_from_path(path: str | None) -> str:
     """Return the URI of the path."""
     url = urllib.parse.urlparse(path)
     uri = url.path if url.path[0] != "/" else url.path[1:]
@@ -1594,6 +1570,33 @@ def is_unicode_safe(stream: TextIO) -> bool:
     """Return True if the stream supports UTF-8."""
     encoding = getattr(stream, "encoding", None)
     return encoding.lower() in {"utf-8", "utf_8"} if encoding else False
+
+
+def rand_alphanumeric(
+    length: int = 8, rand: ModuleType | random.Random | None = None
+) -> str:
+    wandb.termerror("rand_alphanumeric is deprecated, use 'secrets.token_hex'")
+    rand = rand or random
+    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
+
+
+@contextlib.contextmanager
+def fsync_open(
+    path: StrPath, mode: str = "w", encoding: str | None = None
+) -> Generator[IO[Any], None, None]:
+    """Open a path for I/O and guarantee that the file is flushed and synced."""
+    with open(path, mode, encoding=encoding) as f:
+        yield f
+
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _is_kaggle() -> bool:
+    return (
+        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
+        or "kaggle_environments" in sys.modules
+    )
 
 
 def _has_internet() -> bool:
@@ -1609,33 +1612,6 @@ def _has_internet() -> bool:
         return False
 
     return True
-
-
-def rand_alphanumeric(
-    length: int = 8, rand: Optional[Union[ModuleType, random.Random]] = None
-) -> str:
-    wandb.termerror("rand_alphanumeric is deprecated, use 'secrets.token_hex'")
-    rand = rand or random
-    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
-
-
-@contextlib.contextmanager
-def fsync_open(
-    path: StrPath, mode: str = "w", encoding: Optional[str] = None
-) -> Generator[IO[Any], None, None]:
-    """Open a path for I/O and guarantee that the file is flushed and synced."""
-    with open(path, mode, encoding=encoding) as f:
-        yield f
-
-        f.flush()
-        os.fsync(f.fileno())
-
-
-def _is_kaggle() -> bool:
-    return (
-        os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
-        or "kaggle_environments" in sys.modules
-    )
 
 
 def _is_likely_kaggle() -> bool:
@@ -1674,7 +1650,7 @@ def _is_py_requirements_or_dockerfile(path: str) -> bool:
     )
 
 
-def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
+def artifact_to_json(artifact: Artifact) -> dict[str, Any]:
     return {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -1697,6 +1673,8 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
 
 
 def load_json_yaml_dict(config: str) -> Any:
+    import yaml
+
     ext = os.path.splitext(config)[-1]
     if ext == ".json":
         with open(config) as f:
@@ -1737,17 +1715,17 @@ def _parse_entity_project_item(path: str) -> tuple:
     return tuple(reversed(padded_words))
 
 
-def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
+def _resolve_aliases(aliases: str | Iterable[str] | None) -> list[str]:
     """Add the 'latest' alias and ensure that all aliases are unique.
 
-    Takes in `aliases` which can be None, str, or List[str] and returns List[str].
+    Takes in `aliases` which can be None, str, or List[str] and returns list[str].
     Ensures that "latest" is always present in the returned list.
 
     Args:
-        aliases: `Optional[Union[str, List[str]]]`
+        aliases: `aliases: str | Iterable[str] | None`
 
     Returns:
-        List[str], with "latest" always present.
+        list[str], with "latest" always present.
 
     Usage:
 
@@ -1770,15 +1748,15 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
         raise ValueError("`aliases` must be Iterable or None") from exc
 
 
-def _is_artifact_object(v: Any) -> "TypeGuard[wandb.Artifact]":
+def _is_artifact_object(v: Any) -> TypeGuard[wandb.Artifact]:
     return isinstance(v, wandb.Artifact)
 
 
-def _is_artifact_string(v: Any) -> "TypeGuard[str]":
+def _is_artifact_string(v: Any) -> TypeGuard[str]:
     return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
-def _is_artifact_version_weave_dict(v: Any) -> "TypeGuard[dict]":
+def _is_artifact_version_weave_dict(v: Any) -> TypeGuard[dict]:
     return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
 
@@ -1790,7 +1768,7 @@ def _is_artifact_representation(v: Any) -> bool:
     )
 
 
-def parse_artifact_string(v: str) -> Tuple[str, Optional[str], bool]:
+def parse_artifact_string(v: str) -> tuple[str, str | None, bool]:
     if not v.startswith("wandb-artifact://"):
         raise ValueError(f"Invalid artifact string: {v}")
     parsed_v = v[len("wandb-artifact://") :]
@@ -1817,13 +1795,13 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str], bool]:
     return f"{entity}/{project}/{name_and_alias_or_version}", base_uri, False
 
 
-def _get_max_cli_version() -> Union[str, None]:
+def _get_max_cli_version() -> str | None:
     max_cli_version = wandb.api.max_cli_version()
     return str(max_cli_version) if max_cli_version is not None else None
 
 
 def ensure_text(
-    string: Union[str, bytes], encoding: str = "utf-8", errors: str = "strict"
+    string: str | bytes, encoding: str = "utf-8", errors: str = "strict"
 ) -> str:
     """Coerce s to str."""
     if isinstance(string, bytes):
@@ -1854,9 +1832,9 @@ def make_docker_image_name_safe(name: str) -> str:
 
 
 def merge_dicts(
-    source: Dict[str, Any],
-    destination: Dict[str, Any],
-) -> Dict[str, Any]:
+    source: dict[str, Any],
+    destination: dict[str, Any],
+) -> dict[str, Any]:
     """Recursively merge two dictionaries.
 
     This mutates the destination and its nested dictionaries and lists.
@@ -1897,7 +1875,7 @@ def coalesce(*arg: Any) -> Any:
     return next((a for a in arg if a is not None), None)
 
 
-def recursive_cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+def recursive_cast_dictlike_to_dict(d: dict[str, Any]) -> dict[str, Any]:
     for k, v in d.items():
         if isinstance(v, dict):
             recursive_cast_dictlike_to_dict(v)
@@ -1907,9 +1885,7 @@ def recursive_cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
-def remove_keys_with_none_values(
-    d: Union[Dict[str, Any], Any],
-) -> Union[Dict[str, Any], Any]:
+def remove_keys_with_none_values(d: dict[str, Any] | Any) -> dict[str, Any] | Any:
     # otherwise iterrows will create a bunch of ugly charts
     if not isinstance(d, dict):
         return d
@@ -1923,7 +1899,7 @@ def remove_keys_with_none_values(
         return new_dict if new_dict else None
 
 
-def batched(n: int, iterable: Iterable[T]) -> Generator[List[T], None, None]:
+def batched(n: int, iterable: Iterable[T]) -> Generator[list[T], None, None]:
     i = iter(iterable)
     batch = list(itertools.islice(i, n))
     while batch:
@@ -1943,11 +1919,11 @@ def random_string(length: int = 12) -> str:
 
 
 def sample_with_exponential_decay_weights(
-    xs: Union[Iterable, Iterable[Iterable]],
+    xs: Iterable | Iterable[Iterable],
     ys: Iterable[Iterable],
-    keys: Optional[Iterable] = None,
+    keys: Iterable | None = None,
     sample_size: int = 1500,
-) -> Tuple[List, List, Optional[List]]:
+) -> tuple[list, list, list | None]:
     """Sample from a list of lists with weights that decay exponentially.
 
     May be used with the wandb.plot.line_series function.
@@ -1983,18 +1959,12 @@ def working_set() -> Iterable[InstalledDistribution]:
     from importlib.metadata import distributions
 
     for d in distributions():
-        try:
+        with contextlib.suppress(KeyError, UnicodeDecodeError, TypeError):
             # In some distributions, the "Name" attribute may not be present,
-            # which can raise a KeyError. To handle this, we catch the exception
-            # and skip those distributions.
+            # or the metadata itself may be None or malformed, which can raise
+            # KeyError, UnicodeDecodeError, or TypeError.
             # For additional context, see: https://github.com/python/importlib_metadata/issues/371.
-
-            # From Sentry events we observed that UnicodeDecodeError can occur when
-            # trying to decode the metadata of a distribution. To handle this, we catch
-            # the exception and skip those distributions.
             yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
-        except (KeyError, UnicodeDecodeError):
-            pass
 
 
 def get_core_path() -> str:
@@ -2029,12 +1999,3 @@ def get_core_path() -> str:
         )
 
     return str(bin_path)
-
-
-class NonOctalStringDumper(yaml.Dumper):
-    """Prevents strings containing non-octal values like "008" and "009" from being converted to numbers in in the yaml string saved as the sweep config."""
-
-    def represent_scalar(self, tag, value, style=None):
-        if tag == "tag:yaml.org,2002:str" and value.startswith("0") and len(value) > 1:
-            return super().represent_scalar(tag, value, style="'")
-        return super().represent_scalar(tag, value, style)

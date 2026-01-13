@@ -114,9 +114,21 @@ func TestJobBuilderRepo(t *testing.T) {
 				err = json.NewDecoder(jobFile).Decode(&data)
 				assert.Nil(t, err)
 				assert.Equal(t, "3.11.2", data["runtime"])
-				assert.Equal(t, "1234567890", data["source"].(map[string]interface{})["git"].(map[string]interface{})["commit"])
-				assert.Equal(t, "example.com", data["source"].(map[string]interface{})["git"].(map[string]interface{})["remote"])
-				assert.Equal(t, []interface{}([]interface{}{"python3.11", "/path/to/train.py"}), data["source"].(map[string]interface{})["entrypoint"])
+				assert.Equal(
+					t,
+					"1234567890",
+					data["source"].(map[string]interface{})["git"].(map[string]interface{})["commit"],
+				)
+				assert.Equal(
+					t,
+					"example.com",
+					data["source"].(map[string]interface{})["git"].(map[string]interface{})["remote"],
+				)
+				assert.Equal(
+					t,
+					[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
+					data["source"].(map[string]interface{})["entrypoint"],
+				)
 			}
 		}
 	})
@@ -186,9 +198,21 @@ func TestJobBuilderRepo(t *testing.T) {
 				err = json.NewDecoder(jobFile).Decode(&data)
 				assert.Nil(t, err)
 				assert.Equal(t, "3.11.2", data["runtime"])
-				assert.Equal(t, "1234567890", data["source"].(map[string]interface{})["git"].(map[string]interface{})["commit"])
-				assert.Equal(t, "example.com", data["source"].(map[string]interface{})["git"].(map[string]interface{})["remote"])
-				assert.Equal(t, []interface{}([]interface{}{"python3.11", "Untitled.ipynb"}), data["source"].(map[string]interface{})["entrypoint"])
+				assert.Equal(
+					t,
+					"1234567890",
+					data["source"].(map[string]interface{})["git"].(map[string]interface{})["commit"],
+				)
+				assert.Equal(
+					t,
+					"example.com",
+					data["source"].(map[string]interface{})["git"].(map[string]interface{})["remote"],
+				)
+				assert.Equal(
+					t,
+					[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
+					data["source"].(map[string]interface{})["entrypoint"],
+				)
 			}
 		}
 	})
@@ -249,9 +273,17 @@ func TestJobBuilderArtifact(t *testing.T) {
 				err = json.NewDecoder(jobFile).Decode(&data)
 				assert.Nil(t, err)
 				assert.Equal(t, "3.11.2", data["runtime"])
-				assert.Equal(t, "wandb-artifact://_id/testArtifactId", data["source"].(map[string]interface{})["artifact"])
+				assert.Equal(
+					t,
+					"wandb-artifact://_id/testArtifactId",
+					data["source"].(map[string]interface{})["artifact"],
+				)
 				assert.Equal(t, "artifact", data["source_type"])
-				assert.Equal(t, []interface{}([]interface{}{"python3.11", "/path/to/train.py"}), data["source"].(map[string]interface{})["entrypoint"])
+				assert.Equal(
+					t,
+					[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
+					data["source"].(map[string]interface{})["entrypoint"],
+				)
 			}
 		}
 	})
@@ -321,9 +353,17 @@ func TestJobBuilderArtifact(t *testing.T) {
 				err = json.NewDecoder(jobFile).Decode(&data)
 				assert.Nil(t, err)
 				assert.Equal(t, "3.11.2", data["runtime"])
-				assert.Equal(t, "wandb-artifact://_id/testArtifactId", data["source"].(map[string]interface{})["artifact"])
+				assert.Equal(
+					t,
+					"wandb-artifact://_id/testArtifactId",
+					data["source"].(map[string]interface{})["artifact"],
+				)
 				assert.Equal(t, "artifact", data["source_type"])
-				assert.Equal(t, []interface{}([]interface{}{"python3.11", "Untitled.ipynb"}), data["source"].(map[string]interface{})["entrypoint"])
+				assert.Equal(
+					t,
+					[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
+					data["source"].(map[string]interface{})["entrypoint"],
+				)
 			}
 		}
 	})
@@ -381,7 +421,11 @@ func TestJobBuilderImage(t *testing.T) {
 				assert.Nil(t, err)
 				assert.Equal(t, "3.11.2", data["runtime"])
 				assert.Equal(t, "image", data["source_type"])
-				assert.Equal(t, "testImage:testTag", data["source"].(map[string]interface{})["image"])
+				assert.Equal(
+					t,
+					"testImage:testTag",
+					data["source"].(map[string]interface{})["image"],
+				)
 			}
 		}
 	})
@@ -543,37 +587,40 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 
 	})
 
-	t.Run("HandleUseArtifactRecord disables job builder when handling partial job with no name", func(t *testing.T) {
-		settingsProto := &spb.Settings{}
-		artifactRecord := &spb.Record{
-			RecordType: &spb.Record_UseArtifact{
-				UseArtifact: &spb.UseArtifactRecord{
-					Id:   "testID",
-					Type: "job",
-					Name: "partialArtifact",
-					Partial: &spb.PartialJobArtifact{
-						JobName: "",
-						SourceInfo: &spb.JobSource{
-							SourceType: "image",
-							Runtime:    "3.11.2",
-							Source: &spb.Source{
-								Image: &spb.ImageSource{
-									Image: "testImage:v0",
+	t.Run(
+		"HandleUseArtifactRecord disables job builder when handling partial job with no name",
+		func(t *testing.T) {
+			settingsProto := &spb.Settings{}
+			artifactRecord := &spb.Record{
+				RecordType: &spb.Record_UseArtifact{
+					UseArtifact: &spb.UseArtifactRecord{
+						Id:   "testID",
+						Type: "job",
+						Name: "partialArtifact",
+						Partial: &spb.PartialJobArtifact{
+							JobName: "",
+							SourceInfo: &spb.JobSource{
+								SourceType: "image",
+								Runtime:    "3.11.2",
+								Source: &spb.Source{
+									Image: &spb.ImageSource{
+										Image: "testImage:v0",
+									},
 								},
 							},
 						},
 					},
 				},
-			},
-		}
-		jobBuilder := NewJobBuilder(
-			settings.From(settingsProto),
-			observabilitytest.NewTestLogger(t),
-			true,
-		)
-		jobBuilder.HandleUseArtifactRecord(artifactRecord)
-		assert.True(t, jobBuilder.Disable)
-	})
+			}
+			jobBuilder := NewJobBuilder(
+				settings.From(settingsProto),
+				observabilitytest.NewTestLogger(t),
+				true,
+			)
+			jobBuilder.HandleUseArtifactRecord(artifactRecord)
+			assert.True(t, jobBuilder.Disable)
+		},
+	)
 
 }
 func TestJobBuilderGetSourceType(t *testing.T) {
@@ -734,8 +781,14 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 func TestUtilFunctions(t *testing.T) {
 
 	t.Run("makeArtifactNameSafe truncates to 128 characters", func(t *testing.T) {
-		name := MakeArtifactNameSafe("this is a very long name that is longer than 128 characters and should be truncated down to one hundred and twenty eight characters with the first 63 chars, and the last 63 chars separated by ..")
-		assert.Equal(t, "this_is_a_very_long_name_that_is_longer_than_128_characters_and.._with_the_first_63_chars__and_the_last_63_chars_separated_by_..", name)
+		name := MakeArtifactNameSafe(
+			"this is a very long name that is longer than 128 characters and should be truncated down to one hundred and twenty eight characters with the first 63 chars, and the last 63 chars separated by ..",
+		)
+		assert.Equal(
+			t,
+			"this_is_a_very_long_name_that_is_longer_than_128_characters_and.._with_the_first_63_chars__and_the_last_63_chars_separated_by_..",
+			name,
+		)
 
 	})
 	t.Run("handlePathsAboveRoot works when notebook started above git root", func(t *testing.T) {
@@ -747,7 +800,10 @@ func TestUtilFunctions(t *testing.T) {
 			observabilitytest.NewTestLogger(t),
 			true,
 		)
-		path, err := jobBuilder.HandlePathsAboveRoot("gitRoot/a/notebook.ipynb", "/path/to/jupyterRoot/gitRoot")
+		path, err := jobBuilder.HandlePathsAboveRoot(
+			"gitRoot/a/notebook.ipynb",
+			"/path/to/jupyterRoot/gitRoot",
+		)
 		assert.Nil(t, err)
 		assert.Equal(t, "a/notebook.ipynb", path)
 	})
@@ -833,7 +889,10 @@ func TestWandbConfigParameters(t *testing.T) {
 		InputSource: &spb.JobInputSource{
 			Source: &spb.JobInputSource_RunConfig{},
 		},
-		IncludePaths: []*spb.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
+		IncludePaths: []*spb.JobInputPath{
+			{Path: []string{"key1"}},
+			{Path: []string{"key3", "key4"}},
+		},
 		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 	})
 	artifact, err := jobBuilder.Build(ctx, gql, runConfig, nil)
@@ -941,7 +1000,10 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 		InputSource: &spb.JobInputSource{
 			Source: &spb.JobInputSource_RunConfig{},
 		},
-		IncludePaths: []*spb.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
+		IncludePaths: []*spb.JobInputPath{
+			{Path: []string{"key1"}},
+			{Path: []string{"key3", "key4"}},
+		},
 		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 		InputSchema:  string(inputSchema),
 	})

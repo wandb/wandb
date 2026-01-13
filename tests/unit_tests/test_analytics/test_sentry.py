@@ -5,7 +5,6 @@ import pytest
 import wandb
 import wandb.analytics
 import wandb.env
-import wandb.util
 from sentry_sdk.utils import sentry_sdk
 
 from .sentry_relay import MetricRelayServer, SentryResponse
@@ -48,8 +47,8 @@ def test_wandb_sentry_does_not_interfer_with_global_sentry_sdk(
             ),
             default_integrations=False,
         )
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
+        wandb_sentry.start_session()
 
         # Assert wandb Sentry scope and dsn are different from the other Sentry client
         assert sentry_sdk.get_current_scope() != wandb_sentry.scope
@@ -75,8 +74,7 @@ def test_wandb_error_reporting_disabled(relay: MetricRelayServer):
             ),
         },
     ):
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         wandb_sentry.configure_scope(tags={"entity": "tag"})
         wandb_sentry_event_id = wandb_sentry.message("wandb sentry message")
 
@@ -127,8 +125,7 @@ def test_wandb_sentry_init_after_client_init(relay: MetricRelayServer):
             ),
             default_integrations=False,
         )
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
 
         sentry_sdk.set_tag("test", "tag")
         wandb_sentry.configure_scope(tags={"entity": "tag"})
@@ -204,8 +201,7 @@ def test_wandb_sentry_init_after_client_write(relay: MetricRelayServer):
         )
 
         # Init wandb sentry and send events
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         wandb_sentry.configure_scope(tags={"entity": "tag"})
         wandb_sentry_event_id = wandb_sentry.message(
             expected_wandb_sentry_response.message
@@ -258,8 +254,7 @@ def test_wandb_sentry_initialized_first(relay: MetricRelayServer):
             ),
         },
     ):
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         wandb_sentry.configure_scope(tags={"entity": "tag"})
 
         sentry_sdk.init(
@@ -339,8 +334,7 @@ def test_wandb_sentry_write_first(relay: MetricRelayServer):
         },
     ):
         # Configure and send wandb sentry event before initializing client sentry
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         wandb_sentry.configure_scope(tags={"entity": "tag"})
 
         wandb_sentry_event_id = wandb_sentry.message(
@@ -428,8 +422,7 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
             ),
             default_integrations=False,
         )
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
 
         # Send sentry events
         sentry_sdk.set_tag("test", "tag")
@@ -494,8 +487,7 @@ def test_repeated_messages_does_not_call_sentry(relay: MetricRelayServer):
             ),
         },
     ):
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         wandb_sentry.configure_scope(tags={"entity": "tag"})
 
         # Send sentry events
@@ -534,8 +526,7 @@ def test_wandb_configure_without_tags_does_not_create_session(relay: MetricRelay
             ),
         },
     ):
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         wandb_sentry.configure_scope()
 
         # Assert session is not created when no tags are provided
@@ -559,8 +550,7 @@ def test_wandb_configure_with_tags_creates_session(relay: MetricRelayServer):
             ),
         },
     ):
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         wandb_sentry.configure_scope(tags={"entity": "tag"})
 
         # Assert session is created
@@ -590,8 +580,7 @@ def test_wandb_sentry_event_with_runtime_tags(relay: MetricRelayServer):
             ),
         },
     ):
-        wandb_sentry = wandb.analytics.Sentry()
-        wandb_sentry.setup()
+        wandb_sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
 
         for runtime in python_runtime:
             wandb_sentry.configure_scope(

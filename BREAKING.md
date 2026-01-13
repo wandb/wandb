@@ -72,7 +72,7 @@ When preparing a release that can include breaking changes, consider applying ch
 
 - Require `format` argument when initializing `wandb.Video`
     - Owner: @jacobromero
-    - can do in >=0.20
+    - Can do in >=0.20
 
 - Remove the `start_method` setting:
     - Owner: @kptkin
@@ -86,7 +86,7 @@ When preparing a release that can include breaking changes, consider applying ch
 
 - Remove normalization of image data on `wandb.Image`
     - Owner: @jacobromero
-    - can do in >=0.21
+    - Can do in >=0.21
 
 - Disallow calling `wandb.save` without args:
     - Owner: @dmitryduev
@@ -116,13 +116,17 @@ When preparing a release that can include breaking changes, consider applying ch
 - Remove `wandb.apis.paginator.SizedPaginator::length`:
     - Owner: @jacobromero
     - Deprecated in 0.21.0
-    - can do in >= 0.22
+    - Can do in >=0.22
 
 - Make `wandb.apis.public.runs.Run::load()` private:
     - Owner: @jacobromero
-    - Can do in >= 0.22
+    - Can do in >=0.22
 
-- Remove `wandb.beta.workflows`, `wandb.beta.workflows::log_model()`, `wandb.beta.workflows::link_model()`, `wandb.beta.workflows::use_model()`:
-    - Owner: @tonyyli-wandb
-    - Deprecated in 0.21.1 (https://github.com/wandb/wandb/pull/10205)
-    - can do in >= 0.23
+- Remove the `anonymous` setting and corresponding parameter from `wandb.init()` and `wandb.login()`:
+    - Owner: @timoffex
+    - Deprecated after 0.23.0
+    - Can do after May 2026. It depends on when the PyTorch Lightning W&B integration (and possibly others) can be updated to not pass `anonymous` (even set to `None`)
+
+- Use `.wandb` staging directory unconditionally in `wandb.Settings.wandb_dir` and deprecate + remove `wandb.Settings.use_dot_wandb`.
+    - Owner: @dmitryduev
+    - Can do in >= 0.24

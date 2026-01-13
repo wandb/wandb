@@ -38,7 +38,7 @@ def test_explicit_id_overrides_autoresume(mock_wandb_log):
         pass
 
     assert run2.id == "explicit"
-    assert mock_wandb_log.warned(
+    mock_wandb_log.assert_warned(
         "Ignoring ID auto-id loaded due to resume='auto'"
         " because the run ID is set to explicit."
     )

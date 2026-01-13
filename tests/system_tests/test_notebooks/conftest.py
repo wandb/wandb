@@ -57,6 +57,7 @@ def mocked_ipython(monkeypatch):
     mock_get_ipython_result = MagicMock()
     mock_get_ipython_result.run_cell = run_cell
     mock_get_ipython_result.html = MagicMock()
+    mock_get_ipython_result.kernel.shell.user_ns = {}
 
     monkeypatch.setattr(IPython, "get_ipython", lambda: mock_get_ipython_result)
     monkeypatch.setattr(

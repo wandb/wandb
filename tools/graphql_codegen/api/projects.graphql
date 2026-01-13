@@ -1,0 +1,50 @@
+fragment ProjectFragment on Project {
+  __typename
+  id
+  name
+  entityName
+  createdAt
+  isBenchmark
+}
+
+query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
+  models(entityName: $entity, after: $cursor, first: $perPage) {
+    pageInfo {
+      ...PageInfoFragment
+    }
+    edges {
+      node {
+        ...ProjectFragment
+      }
+    }
+  }
+}
+
+query GetProject($name: String!, $entity: String!) {
+  project(name: $name, entityName: $entity) {
+    ...ProjectFragment
+  }
+}
+
+# For some reason, this fragment was originally defined with different fields than ProjectFragment.
+# For now (https://github.com/wandb/wandb/pull/10690), we keep it as-is but only for continuity.
+fragment CreatedProjectFragment on Project {
+  id
+  name
+  entityName
+  description
+  access
+  views
+}
+
+mutation CreateProject($input: UpsertModelInput!) {
+  result: upsertModel(input: $input) {
+    project {
+      ...CreatedProjectFragment
+    }
+    model {
+      ...CreatedProjectFragment
+    }
+    inserted
+  }
+}

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/getsentry/sentry-go/internal/debuglog"
 )
 
 type contextKey int
@@ -17,14 +19,6 @@ const (
 	// RequestContextKey is the key used to store the current http.Request.
 	RequestContextKey = contextKey(2)
 )
-
-// defaultMaxBreadcrumbs is the default maximum number of breadcrumbs added to
-// an event. Can be overwritten with the maxBreadcrumbs option.
-const defaultMaxBreadcrumbs = 30
-
-// maxBreadcrumbs is the absolute maximum number of breadcrumbs added to an
-// event. The maxBreadcrumbs option cannot be set higher than this value.
-const maxBreadcrumbs = 100
 
 // currentHub is the initial Hub with no Client bound and an empty Scope.
 var currentHub = NewHub(nil, NewScope())
@@ -289,7 +283,7 @@ func (hub *Hub) AddBreadcrumb(breadcrumb *Breadcrumb, hint *BreadcrumbHint) {
 
 	// If there's no client, just store it on the scope straight away
 	if client == nil {
-		hub.Scope().AddBreadcrumb(breadcrumb, maxBreadcrumbs)
+		hub.Scope().AddBreadcrumb(breadcrumb, defaultMaxBreadcrumbs)
 		return
 	}
 
@@ -299,8 +293,6 @@ func (hub *Hub) AddBreadcrumb(breadcrumb *Breadcrumb, hint *BreadcrumbHint) {
 		return
 	case limit == 0:
 		limit = defaultMaxBreadcrumbs
-	case limit > maxBreadcrumbs:
-		limit = maxBreadcrumbs
 	}
 
 	if client.options.BeforeBreadcrumb != nil {
@@ -308,7 +300,7 @@ func (hub *Hub) AddBreadcrumb(breadcrumb *Breadcrumb, hint *BreadcrumbHint) {
 			hint = &BreadcrumbHint{}
 		}
 		if breadcrumb = client.options.BeforeBreadcrumb(breadcrumb, hint); breadcrumb == nil {
-			DebugLogger.Println("breadcrumb dropped due to BeforeBreadcrumb callback.")
+			debuglog.Println("breadcrumb dropped due to BeforeBreadcrumb callback.")
 			return
 		}
 	}

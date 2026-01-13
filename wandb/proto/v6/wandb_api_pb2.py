@@ -22,10 +22,10 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-from wandb.proto import wandb_base_pb2 as wandb_dot_proto_dot_wandb__base__pb2
+from wandb.proto import wandb_settings_pb2 as wandb_dot_proto_dot_wandb__settings__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1bwandb/proto/wandb_api.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\"]\n\nApiRequest\x12\x44\n\x10read_run_history\x18\x01 \x01(\x0b\x32(.wandb_internal.ReadRunHistoryApiRequestH\x00\x42\t\n\x07request\"`\n\x0b\x41piResponse\x12\x45\n\x10read_run_history\x18\x01 \x01(\x0b\x32).wandb_internal.ReadRunHistoryApiResponseH\x00\x42\n\n\x08response\"\xaa\x01\n\x18ReadRunHistoryApiRequest\x12\x0e\n\x06\x65ntity\x18\x01 \x01(\t\x12\x0f\n\x07project\x18\x02 \x01(\t\x12\x0e\n\x06run_id\x18\x03 \x01(\t\x12\x0c\n\x04keys\x18\x04 \x03(\t\x12\x10\n\x08min_step\x18\x05 \x01(\x03\x12\x10\n\x08max_step\x18\x06 \x01(\x03\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"d\n\x19ReadRunHistoryApiResponse\x12\x30\n\x0chistory_rows\x18\x01 \x03(\x0b\x32\x1a.wandb_internal.HistoryRow\x12\x15\n\rerror_message\x18\x02 \x01(\t\"G\n\nHistoryRow\x12\x39\n\rhistory_items\x18\x01 \x03(\x0b\x32\".wandb_internal.ParquetHistoryItem\"5\n\x12ParquetHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\tB\x1bZ\x19\x63ore/pkg/service_go_protob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1bwandb/proto/wandb_api.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_settings.proto\"B\n\x14ServerApiInitRequest\x12*\n\x08settings\x18\x01 \x01(\x0b\x32\x18.wandb_internal.Settings\"b\n\nApiRequest\x12I\n\x18read_run_history_request\x18\x01 \x01(\x0b\x32%.wandb_internal.ReadRunHistoryRequestH\x00\x42\t\n\x07request\".\n\x15ServerApiInitResponse\x12\x15\n\rerror_message\x18\x01 \x01(\t\"\xa6\x01\n\x0b\x41piResponse\x12K\n\x19read_run_history_response\x18\x01 \x01(\x0b\x32&.wandb_internal.ReadRunHistoryResponseH\x00\x12>\n\x12\x61pi_error_response\x18\x02 \x01(\x0b\x32 .wandb_internal.ApiErrorResponseH\x00\x42\n\n\x08response\"#\n\x10\x41piErrorResponse\x12\x0f\n\x07message\x18\x01 \x01(\t\"\xee\x01\n\x15ReadRunHistoryRequest\x12\x43\n\x15scan_run_history_init\x18\x01 \x01(\x0b\x32\".wandb_internal.ScanRunHistoryInitH\x00\x12:\n\x10scan_run_history\x18\x02 \x01(\x0b\x32\x1e.wandb_internal.ScanRunHistoryH\x00\x12I\n\x18scan_run_history_cleanup\x18\x03 \x01(\x0b\x32%.wandb_internal.ScanRunHistoryCleanupH\x00\x42\t\n\x07request\"\xff\x01\n\x16ReadRunHistoryResponse\x12K\n\x15scan_run_history_init\x18\x01 \x01(\x0b\x32*.wandb_internal.ScanRunHistoryInitResponseH\x00\x12\x39\n\x0brun_history\x18\x02 \x01(\x0b\x32\".wandb_internal.RunHistoryResponseH\x00\x12Q\n\x18scan_run_history_cleanup\x18\x03 \x01(\x0b\x32-.wandb_internal.ScanRunHistoryCleanupResponseH\x00\x42\n\n\x08response\"f\n\x12ScanRunHistoryInit\x12\x0e\n\x06\x65ntity\x18\x01 \x01(\t\x12\x0f\n\x07project\x18\x02 \x01(\t\x12\x0e\n\x06run_id\x18\x03 \x01(\t\x12\x0c\n\x04keys\x18\x04 \x03(\t\x12\x11\n\tuse_cache\x18\x05 \x01(\x08\"0\n\x1aScanRunHistoryInitResponse\x12\x12\n\nrequest_id\x18\x01 \x01(\x05\"H\n\x0eScanRunHistory\x12\x10\n\x08min_step\x18\x01 \x01(\x03\x12\x10\n\x08max_step\x18\x02 \x01(\x03\x12\x12\n\nrequest_id\x18\x03 \x01(\x05\"F\n\x12RunHistoryResponse\x12\x30\n\x0chistory_rows\x18\x01 \x03(\x0b\x32\x1a.wandb_internal.HistoryRow\"G\n\nHistoryRow\x12\x39\n\rhistory_items\x18\x01 \x03(\x0b\x32\".wandb_internal.ParquetHistoryItem\"5\n\x12ParquetHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"+\n\x15ScanRunHistoryCleanup\x12\x12\n\nrequest_id\x18\x01 \x01(\x05\"\x1f\n\x1dScanRunHistoryCleanupResponseB\x1bZ\x19\x63ore/pkg/service_go_protob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,16 +33,34 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'wandb.proto.wandb_api_pb2',
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z\031core/pkg/service_go_proto'
-  _globals['_APIREQUEST']._serialized_start=77
-  _globals['_APIREQUEST']._serialized_end=170
-  _globals['_APIRESPONSE']._serialized_start=172
-  _globals['_APIRESPONSE']._serialized_end=268
-  _globals['_READRUNHISTORYAPIREQUEST']._serialized_start=271
-  _globals['_READRUNHISTORYAPIREQUEST']._serialized_end=441
-  _globals['_READRUNHISTORYAPIRESPONSE']._serialized_start=443
-  _globals['_READRUNHISTORYAPIRESPONSE']._serialized_end=543
-  _globals['_HISTORYROW']._serialized_start=545
-  _globals['_HISTORYROW']._serialized_end=616
-  _globals['_PARQUETHISTORYITEM']._serialized_start=618
-  _globals['_PARQUETHISTORYITEM']._serialized_end=671
+  _globals['_SERVERAPIINITREQUEST']._serialized_start=81
+  _globals['_SERVERAPIINITREQUEST']._serialized_end=147
+  _globals['_APIREQUEST']._serialized_start=149
+  _globals['_APIREQUEST']._serialized_end=247
+  _globals['_SERVERAPIINITRESPONSE']._serialized_start=249
+  _globals['_SERVERAPIINITRESPONSE']._serialized_end=295
+  _globals['_APIRESPONSE']._serialized_start=298
+  _globals['_APIRESPONSE']._serialized_end=464
+  _globals['_APIERRORRESPONSE']._serialized_start=466
+  _globals['_APIERRORRESPONSE']._serialized_end=501
+  _globals['_READRUNHISTORYREQUEST']._serialized_start=504
+  _globals['_READRUNHISTORYREQUEST']._serialized_end=742
+  _globals['_READRUNHISTORYRESPONSE']._serialized_start=745
+  _globals['_READRUNHISTORYRESPONSE']._serialized_end=1000
+  _globals['_SCANRUNHISTORYINIT']._serialized_start=1002
+  _globals['_SCANRUNHISTORYINIT']._serialized_end=1104
+  _globals['_SCANRUNHISTORYINITRESPONSE']._serialized_start=1106
+  _globals['_SCANRUNHISTORYINITRESPONSE']._serialized_end=1154
+  _globals['_SCANRUNHISTORY']._serialized_start=1156
+  _globals['_SCANRUNHISTORY']._serialized_end=1228
+  _globals['_RUNHISTORYRESPONSE']._serialized_start=1230
+  _globals['_RUNHISTORYRESPONSE']._serialized_end=1300
+  _globals['_HISTORYROW']._serialized_start=1302
+  _globals['_HISTORYROW']._serialized_end=1373
+  _globals['_PARQUETHISTORYITEM']._serialized_start=1375
+  _globals['_PARQUETHISTORYITEM']._serialized_end=1428
+  _globals['_SCANRUNHISTORYCLEANUP']._serialized_start=1430
+  _globals['_SCANRUNHISTORYCLEANUP']._serialized_end=1473
+  _globals['_SCANRUNHISTORYCLEANUPRESPONSE']._serialized_start=1475
+  _globals['_SCANRUNHISTORYCLEANUPRESPONSE']._serialized_end=1506
 # @@protoc_insertion_point(module_scope)

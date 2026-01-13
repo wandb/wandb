@@ -273,7 +273,11 @@ func TestProbe(t *testing.T) {
 
 		metadata := exporter.Probe(context.Background())
 		require.NotNil(t, metadata)
-		assert.Equal(t, uint32(1), metadata.GpuCount, "Should only detect GPU with complete information")
+		assert.Equal(t,
+			uint32(1),
+			metadata.GpuCount,
+			"Should only detect GPU with complete information",
+		)
 	})
 
 	t.Run("missing uuid", func(t *testing.T) {
@@ -296,7 +300,11 @@ func TestProbe(t *testing.T) {
 
 		metadata := exporter.Probe(context.Background())
 		require.NotNil(t, metadata)
-		assert.Equal(t, uint32(1), metadata.GpuCount, "Should only detect GPU with complete information")
+		assert.Equal(t,
+			uint32(1),
+			metadata.GpuCount,
+			"Should only detect GPU with complete information",
+		)
 	})
 }
 
@@ -344,5 +352,9 @@ func TestDCGMExporterAuth(t *testing.T) {
 	result, err := exporter.Sample()
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, "Bearer test-token-123", receivedToken, "Expected Authorization header to be sent with request")
+	assert.Equal(t,
+		"Bearer test-token-123",
+		receivedToken,
+		"Expected Authorization header to be sent with request",
+	)
 }

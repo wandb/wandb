@@ -50,7 +50,6 @@ linters:
     - durationcheck # checks for two durations multiplied together
     - errcheck # checking for unchecked errors, these unchecked errors can be critical bugs in some cases
     - errorlint # finds code that will cause problems with the error wrapping scheme introduced in Go 1.13
-    - exportloopref # checks for pointers to enclosing loop variables
     - fatcontext # detects nested contexts in loops
     - forbidigo # forbids identifiers
     - funlen # tool for detection of long functions
@@ -92,7 +91,6 @@ linters:
     - staticcheck # is a go vet on steroids, applying a ton of static analysis checks
     - stylecheck # is a replacement for golint
     # - tagalign # aligns struct tags -- disable for now (https://github.com/4meepo/tagalign/issues/13)
-    - tenv # detects using os.Setenv instead of t.Setenv since Go1.17
     - testableexamples # checks if examples are testable (have an expected output)
     - testifylint # checks usage of github.com/stretchr/testify
     - tparallel # detects inappropriate usage of t.Parallel() method in your Go test codes

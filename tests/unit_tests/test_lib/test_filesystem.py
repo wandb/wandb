@@ -15,6 +15,7 @@ import pytest
 # from pyfakefs.fake_filesystem import OSType
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.filesystem import (
+    are_paths_on_same_drive,
     check_exists,
     copy_or_overwrite_changed,
     mkdir_allow_fallback,
@@ -592,3 +593,18 @@ def test_mkdir_allow_fallback_with_warning(wandb_caplog, tmp_path):
     new_name = tmp_path / "direct-ry"
     assert mkdir_allow_fallback(dir_name) == new_name
     assert f"Creating '{new_name}' instead of '{dir_name}'" in wandb_caplog.text
+
+
+@pytest.mark.skipif(
+    platform.system() != "Windows",
+    reason="Drive letters are only relevant on Windows",
+)
+@pytest.mark.parametrize(
+    "path1,path2,expected",
+    [
+        (Path("C:\\foo"), Path("C:\\bar"), True),
+        (Path("C:\\foo"), Path("D:\\bar"), False),
+    ],
+)
+def test_are_windows_paths_on_same_drive(path1, path2, expected):
+    assert are_paths_on_same_drive(path1, path2) == expected

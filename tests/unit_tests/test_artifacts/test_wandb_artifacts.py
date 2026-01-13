@@ -14,7 +14,7 @@ import requests
 from hypothesis import given
 from hypothesis.strategies import from_regex, text
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
-from wandb.sdk.artifacts._validators import ARTIFACT_NAME_MAXLEN
+from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
@@ -381,17 +381,17 @@ class TestStoreFile:
                 assert etag["hexMD5"] == hex_digests[etag["partNumber"]]
 
 
-@pytest.mark.parametrize("type", ["job", "wandb-history", "wandb-foo"])
-def test_invalid_artifact_type(type):
+@pytest.mark.parametrize("invalid_type", ["job", "wandb-history", "wandb-foo"])
+def test_invalid_artifact_type(invalid_type):
     with pytest.raises(ValueError, match="reserved for internal use"):
-        Artifact("foo", type=type)
+        Artifact("foo", type=invalid_type)
 
 
 @given(
     invalid_name=(
         text(  # Too many characters
             alphabet={*ascii_letters, *digits, "_", "-", " "},
-            min_size=ARTIFACT_NAME_MAXLEN + 1,
+            min_size=NAME_MAXLEN + 1,
         )
         | from_regex(  # Contains invalid characters
             r"(\w|\d|\s)*(/)(\w|\d|\s)*",
@@ -509,10 +509,17 @@ def test_download_with_pathlib_root(monkeypatch):
 
 def test_artifact_multipart_download_threshold():
     mb = 1024 * 1024
+    assert should_multipart_download(100 * mb) is False
     assert should_multipart_download(100 * mb, override=True) is True
-    assert should_multipart_download(100 * mb, override=None) is False
+    assert should_multipart_download(100 * mb, override=False) is False
+
+    assert should_multipart_download(2080 * mb) is True
+    assert should_multipart_download(2080 * mb, override=True) is True
     assert should_multipart_download(2080 * mb, override=False) is False
-    assert should_multipart_download(5070 * mb, override=None) is True
+
+    assert should_multipart_download(5070 * mb) is True
+    assert should_multipart_download(5070 * mb, override=True) is True
+    assert should_multipart_download(5070 * mb, override=False) is False
 
 
 class MockOpener:

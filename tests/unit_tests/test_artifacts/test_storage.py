@@ -4,10 +4,12 @@ import random
 import tempfile
 from multiprocessing import Pool
 from pathlib import Path
+from typing import Any
 
-import pytest
 import wandb
+from pydantic import ValidationError
 from pyfakefs.fake_filesystem import FakeFilesystem
+from pytest import mark, raises
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -26,7 +28,7 @@ example_digest = md5_string("example")
 def test_opener_rejects_append_mode(artifact_file_cache):
     _, _, opener = artifact_file_cache.check_md5_obj_path(example_digest, 7)
 
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         with opener("a"):
             pass
 
@@ -77,7 +79,7 @@ def test_opener_works_across_filesystem_boundaries(
 
     # Sanity check: `os.rename` should fail across the (fake) filesystem boundary
     # This is extra assurance that we're still testing what we expect to test
-    with pytest.raises(OSError) as excinfo:
+    with raises(OSError) as excinfo:
         os.rename(cache_path, dest_path)
     assert excinfo.value.args[0] == errno.EXDEV
 
@@ -183,7 +185,7 @@ def test_check_etag_obj_path_does_not_include_etag(artifact_file_cache):
     assert "abcdef" not in path
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     ["url1", "url2", "etag1", "etag2", "path_equal"],
     [
         ("http://url/1", "http://url/1", "abc", "abc", True),
@@ -214,8 +216,8 @@ def _cache_writer(artifact_file_cache):
         f.write("".join(random.choice("0123456") for _ in range(10)))
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky")
+@mark.flaky
+@mark.xfail(reason="flaky")
 def test_check_write_parallel(artifact_file_cache):
     num_parallel = 5
 
@@ -240,8 +242,8 @@ def test_artifact_file_cache_is_writeable(tmp_path, monkeypatch):
         raise PermissionError
 
     monkeypatch.setattr(tempfile, "_mkstemp_inner", not_allowed)
-    with pytest.raises(PermissionError, match="Unable to write to"):
-        _ = ArtifactFileCache(tmp_path)
+    with raises(PermissionError, match="Unable to write to"):
+        ArtifactFileCache(tmp_path)
 
 
 def test_artifact_file_cache_cleanup_empty(artifact_file_cache):
@@ -316,7 +318,6 @@ def test_local_file_handler_load_path_uses_cache(artifact_file_cache, tmp_path):
         f.write("hello")
 
     handler = LocalFileHandler()
-    handler._cache = artifact_file_cache
 
     local_path = handler.load_path(
         ArtifactManifestEntry(
@@ -339,7 +340,6 @@ def test_s3_storage_handler_load_path_uses_cache(artifact_file_cache):
         f.write(123 * "a")
 
     handler = S3Handler()
-    handler._cache = artifact_file_cache
 
     local_path = handler.load_path(
         ArtifactManifestEntry(
@@ -379,7 +379,6 @@ def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
         f.write(123 * "a")
 
     handler = GCSHandler()
-    handler._cache = artifact_file_cache
 
     local_path = handler.load_path(
         ArtifactManifestEntry(
@@ -400,11 +399,11 @@ def test_cache_add_gives_useful_error_when_out_of_space(
     # Ask to create a 1 quettabyte file to ensure the cache won't find room.
     _, _, opener = artifact_file_cache.check_md5_obj_path(example_digest, size=10**30)
 
-    with pytest.raises(OSError, match="Insufficient free space"):
+    with raises(OSError, match="Insufficient free space"):
         with opener():
             pass
 
-    assert mock_wandb_log.warned("Cache size exceeded. Attempting to reclaim space...")
+    mock_wandb_log.assert_warned("Cache size exceeded. Attempting to reclaim space...")
 
 
 # todo: fix this test
@@ -452,7 +451,7 @@ def test_cache_add_cleans_up_tmp_when_write_fails(artifact_file_cache, monkeypat
         b64_md5=example_digest, size=7
     )
 
-    with pytest.raises(OSError):
+    with raises(OSError):
         with opener() as f:
             f.write("example")
             f.flush()
@@ -524,7 +523,7 @@ def test_storage_policy_incomplete():
     policy = StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
     assert policy is UnfinishedStoragePolicy
 
-    with pytest.raises(ValueError, match="Failed to find storage policy"):
+    with raises(ValueError, match="Failed to find storage policy"):
         StoragePolicy.lookup_by_name("NotAStoragePolicy")
 
 
@@ -533,13 +532,13 @@ def test_storage_handler_incomplete():
         pass
 
     # Instantiation should fail if the StorageHandler impl doesn't fully implement all abstract methods.
-    with pytest.raises(TypeError):
+    with raises(TypeError):
         UnfinishedStorageHandler()
 
     class UnfinishedSingleStorageHandler(StorageHandler):
         pass
 
-    with pytest.raises(TypeError):
+    with raises(TypeError):
         UnfinishedSingleStorageHandler()
 
 
@@ -551,26 +550,39 @@ def test_unwritable_staging_dir(monkeypatch):
 
     monkeypatch.setattr(os, "makedirs", nope)
 
-    with pytest.raises(PermissionError, match="WANDB_DATA_DIR"):
-        _ = get_staging_dir()
+    with raises(PermissionError, match="WANDB_DATA_DIR"):
+        get_staging_dir()
 
 
 def test_invalid_upload_policy():
     path = "foo/bar"
     artifact = wandb.Artifact("test", type="dataset")
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         artifact.add_file(local_path=path, name="file.json", policy="tmp")
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         artifact.add_dir(local_path=path, policy="tmp")
 
 
-def test_storage_policy_storage_region():
-    wandb.Artifact("test", type="dataset", storage_region="coreweave-us")
-    # local verification does not query from server to know the actual supported regions
-    wandb.Artifact("test", type="dataset", storage_region="coreweave-404")
-    with pytest.raises(TypeError):
-        wandb.Artifact("test", type="dataset", storage_region=123)
-    with pytest.raises(ValueError):
-        wandb.Artifact("test", type="dataset", storage_region="")
-    with pytest.raises(ValueError):
-        wandb.Artifact("test", type="dataset", storage_region=" ")
+@mark.parametrize(
+    "storage_region",
+    [
+        None,
+        "coreweave-us",
+        "coreweave-404",  # local validation won't check against server for actual supported regions
+    ],
+)
+def test_artifact_with_valid_storage_region(storage_region: str):
+    wandb.Artifact("test", type="dataset", storage_region=storage_region)
+
+
+@mark.parametrize(
+    "storage_region",
+    [
+        "",
+        " ",
+        123,
+    ],
+)
+def test_artifact_with_invalid_storage_region(storage_region: Any):
+    with raises(ValidationError):
+        wandb.Artifact("test", type="dataset", storage_region=storage_region)

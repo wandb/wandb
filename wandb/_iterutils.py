@@ -14,9 +14,9 @@ def always_list(obj: Iterable[T], base_type: ClassInfo = ...) -> list[T]: ...
 @overload
 def always_list(obj: T, base_type: ClassInfo = ...) -> list[T]: ...
 def always_list(obj: Any, base_type: Any = (str, bytes)) -> list[T]:
-    """Return a guaranteed list of objects from a single instance OR iterable of such objects.
+    """Return a guaranteed list of objects from one instance OR an iterable of such items.
 
-    By default, assume the returned list should have string-like elements (i.e. `str`/`bytes`).
+    By default, assume the returned list should have string-like elements (`str`/`bytes`).
 
     Adapted from `more_itertools.always_iterable`, but simplified for internal use.  See:
     https://more-itertools.readthedocs.io/en/stable/api.html#more_itertools.always_iterable

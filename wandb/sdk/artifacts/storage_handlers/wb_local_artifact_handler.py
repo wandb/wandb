@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import os
 from typing import TYPE_CHECKING, Literal
+from urllib.parse import urlparse
 
 import wandb
-from wandb import util
-from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
+from wandb.sdk.artifacts.artifact_instance_cache import (
+    artifact_instance_cache_by_client_id,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -54,11 +56,15 @@ class WBLocalArtifactHandler(StorageHandler):
             name (str): If specified, the logical name that should map to `path`
 
         Returns:
-            (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
+            list[ArtifactManifestEntry]: Manifest entries to store in the
+                artifact.
         """
-        client_id = util.host_from_path(path)
-        target_path = util.uri_from_path(path)
-        target_artifact = artifact_instance_cache.get(client_id)
+        parsed = urlparse(path)
+
+        client_id = parsed.netloc
+        target_path = parsed.path.lstrip("/")
+
+        target_artifact = artifact_instance_cache_by_client_id.get(client_id)
         if not isinstance(target_artifact, wandb.Artifact):
             raise TypeError("Artifact passed to store_path() must be a wandb.Artifact.")
         target_entry = target_artifact.manifest.entries[target_path]  # type: ignore

@@ -70,6 +70,6 @@ func (fs *FakeFileStream) StreamUpdate(update filestream.Update) {
 	fs.updates = append(fs.updates, update)
 }
 
-func (fs *FakeFileStream) StopState() filestream.StopState {
-	return filestream.StopUnknown
+func (fs *FakeFileStream) IsStopped() bool {
+	return false
 }

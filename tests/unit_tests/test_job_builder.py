@@ -13,6 +13,7 @@ def str_of_length(n):
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=n))
 
 
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_repo_job(runner, api):
     remote_name = str_of_length(129)
     metadata = {
@@ -56,6 +57,7 @@ def test_build_repo_job(runner, api):
             assert source_json["build_context"] == "blah/"
 
 
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
     remote_name = str_of_length(129)
     metadata = {
@@ -101,6 +103,7 @@ def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
         assert job_builder._is_notebook_run is True
 
 
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_artifact_job(runner, api):
     metadata = {
         "codePath": "blah/test.py",
@@ -133,6 +136,7 @@ def test_build_artifact_job(runner, api):
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
 
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
     metadata = {
         "program": "blah/test.ipynb",
@@ -177,6 +181,7 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
 
 
 @pytest.mark.parametrize("verbose", [True, False])
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_artifact_notebook_job_no_program(
     mocker,
     runner,
@@ -224,6 +229,7 @@ def test_build_artifact_notebook_job_no_program(
 
 
 @pytest.mark.parametrize("verbose", [True, False])
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_artifact_notebook_job_no_metadata(
     mocker,
     runner,
@@ -264,6 +270,7 @@ def test_build_artifact_notebook_job_no_metadata(
 
 
 @pytest.mark.parametrize("verbose", [True, False])
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_artifact_notebook_job_no_program_metadata(
     mocker,
     runner,
@@ -308,6 +315,7 @@ def test_build_artifact_notebook_job_no_program_metadata(
             assert _msg not in out
 
 
+@pytest.mark.usefixtures("patch_apikey")
 def test_build_image_job(runner, api):
     image_name = str_of_length(129)
     metadata = {
@@ -348,7 +356,8 @@ def test_set_disabled():
     assert job_builder.disable == "testtest"
 
 
-def test_no_metadata_file(runner, api):
+@pytest.mark.usefixtures("patch_apikey")
+def test_no_metadata_file(api):
     settings = SettingsStatic(
         {
             "disable_job_creation": False,

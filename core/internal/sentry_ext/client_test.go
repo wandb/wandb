@@ -207,5 +207,10 @@ func TestRemoveBottomFrames(t *testing.T) {
 	}
 
 	actualFrames := modifiedEvent.Exception[0].Stacktrace.Frames
-	assert.Equal(t, expectedFrames, actualFrames, "The bottom-most sentry.go and logging.go frames should be removed")
+	assert.Equal(
+		t,
+		expectedFrames,
+		actualFrames,
+		"The bottom-most sentry.go and logging.go frames should be removed",
+	)
 }

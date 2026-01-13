@@ -8,13 +8,13 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.25.2"
+    default: "1.25.5"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
   server_image_tag:
     type: string
-    default: "96f3ecb397dbeff1a36909f19039d913b30e791c"
+    default: "master"
 
 executors:
   macos:
@@ -250,7 +250,7 @@ commands:
                 command: |
                   wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
                   chmod +x dotnet-install.sh
-                  ./dotnet-install.sh --version latest
+                  ./dotnet-install.sh --channel 9.0
                   echo 'export PATH="$HOME/.dotnet:$PATH"' >> "$BASH_ENV"
                 no_output_timeout: 5m
 
@@ -424,15 +424,23 @@ jobs:
             uv pip install .
             python -c 'import wandb'
       - run:
-          name: Check wandb-core binary size vs latest release on PyPI
+          name: Check wandb-core binary size vs main branch
           command: nox -s wandb-core-size-check
+      - run:
+          name: Check wandb library import time vs main branch
+          command: nox -s wandb-import-time-check
       - save-test-results
 
   unit-tests-go:
     docker:
-      - image: cimg/go:<<pipeline.parameters.go_version>>
+      - image: cimg/base:current
     steps:
       - checkout
+      - run:
+          name: Install system deps
+          command: |
+            sudo apt-get update
+      - install_go
       - run:
           name: Run wandb core's Go tests and collect coverage
           command: |
@@ -581,7 +589,7 @@ workflows:
                 [
                   "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
                 ]
-              server_image_tag: ["0.48.0"]
+              server_image_tag: ["0.63.0"]
 
       - nox-tests-linux:
           name: notebook-tests-linux-<<matrix.python>>

@@ -3,99 +3,31 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId, Typename
+from wandb._pydantic import GQLResult
+
+from .fragments import ArtifactCollectionFragment
 
 
-class ProjectArtifactCollection(GQLBase):
+class ProjectArtifactCollection(GQLResult):
     project: Optional[ProjectArtifactCollectionProject]
 
 
-class ProjectArtifactCollectionProject(GQLBase):
+class ProjectArtifactCollectionProject(GQLResult):
     artifact_type: Optional[ProjectArtifactCollectionProjectArtifactType] = Field(
         alias="artifactType"
     )
 
 
-class ProjectArtifactCollectionProjectArtifactType(GQLBase):
-    artifact_collection: Optional[
-        ProjectArtifactCollectionProjectArtifactTypeArtifactCollection
-    ] = Field(alias="artifactCollection")
-    artifact_sequence: Optional[
-        ProjectArtifactCollectionProjectArtifactTypeArtifactSequence
-    ] = Field(alias="artifactSequence")
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollection(GQLBase):
-    typename__: Typename[
-        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
-    ]
-    id: GQLId
-    name: str
-    description: Optional[str]
-    created_at: str = Field(alias="createdAt")
-    tags: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTags
-    aliases: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTags(GQLBase):
-    edges: List[ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdges]
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdges(GQLBase):
-    node: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdgesNode
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdgesNode(
-    GQLBase
-):
-    id: GQLId
-    name: str
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases(GQLBase):
-    edges: List[
-        ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges
-    ]
-    page_info: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesPageInfo = Field(
-        alias="pageInfo"
+class ProjectArtifactCollectionProjectArtifactType(GQLResult):
+    artifact_collection: Optional[ArtifactCollectionFragment] = Field(
+        alias="artifactCollection"
     )
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges(
-    GQLBase
-):
-    node: Optional[
-        ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdgesNode
-    ]
-    cursor: str
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdgesNode(
-    GQLBase
-):
-    alias: str
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesPageInfo(
-    GQLBase
-):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactSequence(GQLBase):
-    typename__: Typename[Literal["ArtifactSequence"]]
 
 
 ProjectArtifactCollection.model_rebuild()
 ProjectArtifactCollectionProject.model_rebuild()
 ProjectArtifactCollectionProjectArtifactType.model_rebuild()
-ProjectArtifactCollectionProjectArtifactTypeArtifactCollection.model_rebuild()
-ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTags.model_rebuild()
-ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdges.model_rebuild()
-ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases.model_rebuild()
-ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges.model_rebuild()

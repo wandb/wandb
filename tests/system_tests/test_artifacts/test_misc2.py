@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from typing import Callable
 
 import numpy as np
-import pytest
 import wandb
+from pytest import mark, raises
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 
 
@@ -38,7 +40,7 @@ def test_lazy_artifact_passthrough(user):
 
         t1 = wandb.Table(columns=[], data=[])
         e = art.add(t1, "t1")
-        with pytest.raises(ValueError):
+        with raises(ValueError):
             e.ref_target()
 
         # These getters should be valid both before and after logging
@@ -103,13 +105,13 @@ def test_lazy_artifact_passthrough(user):
         for valid_getter in testable_getters_valid:
             _ = getattr(art, valid_getter)
         for invalid_getter in testable_getters_invalid:
-            with pytest.raises(ArtifactNotLoggedError):
+            with raises(ArtifactNotLoggedError):
                 _ = getattr(art, invalid_getter)
 
         for valid_setter in testable_setters_valid:
             setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
         for invalid_setter in testable_setters_invalid:
-            with pytest.raises(ArtifactNotLoggedError):
+            with raises(ArtifactNotLoggedError):
                 setattr(
                     art, invalid_setter, setter_data.get(invalid_setter, invalid_setter)
                 )
@@ -119,7 +121,7 @@ def test_lazy_artifact_passthrough(user):
             _ = attr_method(*params.get(valid_method, []))
         for invalid_method in testable_methods_invalid:
             attr_method = getattr(art, invalid_method)
-            with pytest.raises(ArtifactNotLoggedError):
+            with raises(ArtifactNotLoggedError):
                 _ = attr_method(*params.get(invalid_method, []))
 
         # THE LOG
@@ -128,13 +130,13 @@ def test_lazy_artifact_passthrough(user):
         for valid_getter in testable_getters_valid:
             _ = getattr(art, valid_getter)
         for invalid_getter in testable_getters_invalid:
-            with pytest.raises(ArtifactNotLoggedError):
+            with raises(ArtifactNotLoggedError):
                 _ = getattr(art, invalid_getter)
 
         for valid_setter in testable_setters_valid:
             setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
         for invalid_setter in testable_setters_invalid:
-            with pytest.raises(ArtifactNotLoggedError):
+            with raises(ArtifactNotLoggedError):
                 setattr(
                     art, invalid_setter, setter_data.get(invalid_setter, invalid_setter)
                 )
@@ -144,7 +146,7 @@ def test_lazy_artifact_passthrough(user):
             _ = attr_method(*params.get(valid_method, []))
         for invalid_method in testable_methods_invalid:
             attr_method = getattr(art, invalid_method)
-            with pytest.raises(ArtifactNotLoggedError):
+            with raises(ArtifactNotLoggedError):
                 _ = attr_method(*params.get(invalid_method, []))
 
         # THE ALL IMPORTANT WAIT
@@ -182,7 +184,7 @@ def test_reference_download(user):
 
         entry = artifact.get_entry("file1.txt")
         entry.download()
-        with pytest.raises(ValueError):
+        with raises(ValueError):
             assert entry.ref_target()
 
 
@@ -196,7 +198,7 @@ def _create_artifact_and_set_metadata(metadata):
 # regardless of whether we set the metadata by passing it into the constructor
 # or by setting the attribute after creation; so, parametrize how we build the
 # artifact, and run tests both ways.
-@pytest.mark.parametrize(
+@mark.parametrize(
     "create_artifact",
     [
         lambda metadata: wandb.Artifact("foo", "dataset", metadata=metadata),
@@ -222,13 +224,13 @@ class TestArtifactChecksMetadata:
     def test_validates_metadata_err(
         self, create_artifact: Callable[..., wandb.Artifact]
     ):
-        with pytest.raises(TypeError):
+        with raises(TypeError):
             create_artifact(metadata=123)
 
-        with pytest.raises(TypeError):
+        with raises(TypeError):
             create_artifact(metadata=[])
 
-        with pytest.raises(TypeError):
+        with raises(TypeError):
             create_artifact(metadata={"unserializable": object()})
 
     def test_deepcopies_metadata(self, create_artifact: Callable[..., wandb.Artifact]):

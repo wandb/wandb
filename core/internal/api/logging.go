@@ -13,18 +13,18 @@ import (
 )
 
 // Logs the final response (after retries) if it's an error.
-func (backend *Backend) logFinalResponseOnError(
+func (client *clientImpl) logFinalResponseOnError(
 	req *retryablehttp.Request,
 	resp *http.Response,
 ) {
-	if resp.StatusCode < 400 || backend.logger == nil {
+	if resp.StatusCode < 400 || client.logger == nil {
 		return
 	}
 
 	// We don't consume the response body so that the code making the request
 	// can read and close it.
-	backend.logger.Error(
-		"HTTP error",
+	client.logger.Error(
+		"api: HTTP error",
 		"status", resp.StatusCode,
 		"method", req.Method,
 		"url", req.URL.String(),

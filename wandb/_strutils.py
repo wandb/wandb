@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from base64 import b64decode, b64encode
 from typing import Any
 
 
@@ -38,3 +39,19 @@ def nameof(obj: Any, full: bool = True) -> str:
     falling back on the `__name__` attribute.
     """
     return getattr(obj, "__qualname__", obj.__name__) if full else obj.__name__
+
+
+def b64decode_ascii(s: str) -> str:
+    """Returns the decoded base64 string interpreted as ASCII.
+
+    Convenience function for directly converting `str -> str`.
+    """
+    return b64decode(s).decode("ascii")
+
+
+def b64encode_ascii(s: str) -> str:
+    """Returns the base64 encoding of the string's ASCII bytes.
+
+    Convenience function for directly converting `str -> str`.
+    """
+    return b64encode(s.encode("ascii")).decode("ascii")

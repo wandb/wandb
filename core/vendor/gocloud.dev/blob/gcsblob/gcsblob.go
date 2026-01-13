@@ -295,7 +295,14 @@ type Options struct {
 	// If your implementation of 'SignBytes' needs a request context, set this instead.
 	MakeSignBytes func(requestCtx context.Context) SignBytesFunc
 
+	// Client provides a *storage.Client to use, instead of constructing one based on
+	// the HTTPClient. When set, you must pass nil as the gcp.HTTPClient to OpenBucket.
+	//
+	// For example, this can be used to create a Bucket backed by a gRPC client.
+	Client *storage.Client
+
 	// ClientOptions are passed when constructing the storage.Client.
+	// Ignored if Client is set.
 	ClientOptions []option.ClientOption
 }
 
@@ -312,11 +319,20 @@ type SignBytesFunc func([]byte) ([]byte, error)
 
 // openBucket returns a GCS Bucket that communicates using the given HTTP client.
 func openBucket(ctx context.Context, client *gcp.HTTPClient, bucketName string, opts *Options) (*bucket, error) {
-	if client == nil {
-		return nil, errors.New("gcsblob.OpenBucket: client is required")
+	if opts == nil {
+		opts = &Options{}
 	}
 	if bucketName == "" {
 		return nil, errors.New("gcsblob.OpenBucket: bucketName is required")
+	}
+	if opts.Client != nil {
+		if client != nil {
+			return nil, errors.New("gcsblob.OpenBucket: client must be nil when providing Options.Client")
+		}
+		return &bucket{name: bucketName, client: opts.Client, opts: opts}, nil
+	}
+	if client == nil {
+		return nil, errors.New("gcsblob.OpenBucket: client is required")
 	}
 
 	// We wrap the provided http.Client to add a Go CDK User-Agent.
@@ -327,9 +343,6 @@ func openBucket(ctx context.Context, client *gcp.HTTPClient, bucketName string, 
 			option.WithEndpoint("http://" + host + "/storage/v1/"),
 			option.WithHTTPClient(http.DefaultClient),
 		}
-	}
-	if opts == nil {
-		opts = &Options{}
 	}
 	clientOpts = append(clientOpts, opts.ClientOptions...)
 	c, err := storage.NewClient(ctx, clientOpts...)

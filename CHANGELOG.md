@@ -11,6 +11,76 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.23.1] - 2025-12-03
+
+### Added
+
+- Regex support in metrics and run overview filters in W&B LEET TUI (@dmitryduev in https://github.com/wandb/wandb/pull/10919)
+- Chart inspection in W&B LEET TUI: right-click and drag to show (x, y) at the nearest data point; hold Alt for synchronized inspection across all visible charts (@dmitryduev in https://github.com/wandb/wandb/pull/10989)
+- The automations API now supports creating and editing automations that trigger on run states (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10848)
+- The automations API now support basic zscore automation events (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10931)
+- Simplified the syntax for creating z-score metric automation triggers in the automations API (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10953)
+- `beta_history_scan` method to `Run` objects for faster history scanning performance with `wandb.Api` (@jacobromero in https://github.com/wandb/wandb/pull/10779)
+
+### Changed
+
+- `wandb.Api()` now raises a `UsageError` if `WANDB_IDENTITY_TOKEN_FILE` is set and an explicit API key is not provided (@timoffex in https://github.com/wandb/wandb/pull/10970)
+  - `wandb.Api()` has only ever worked using an API key
+
+### Deprecated
+
+- Anonymous mode, including the `anonymous` setting, the `WANDB_ANONYMOUS` environment variable, `wandb.init(anonymous=...)`, `wandb login --anonymously` and `wandb.login(anonymous=...)` is deprecated and will emit warnings (@timoffex in https://github.com/wandb/wandb/pull/10909)
+
+### Fixed
+
+- `wandb.Image()` no longer prints a deprecation warning (@jacobromero in https://github.com/wandb/wandb/pull/10880)
+- `Registry.description` and `ArtifactCollection.description` no longer reject empty strings (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10891)
+- Instantiating `Artifact` objects is now significantly faster (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10819)
+- `wandb.Run.save()` now falls back to hardlinks and, if needed, copying (downgrading the 'live' file policy to 'now', if applicable) when symlinks are disabled or unavailable (e.g., cross‑volume or no Developer Mode on Windows) (@dmitryduev in https://github.com/wandb/wandb/pull/10894)
+- Artifact collection aliases are now fetched lazily on accessing `ArtifactCollection.aliases` instead of on instantiating `ArtifactCollection`, improving performance of `Api.artifact_collections()`, `Api.registries().collections()`, etc. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10731)
+- Use explicitly provided API key in `wandb.init(settings=wandb.Settings(api_key="..."))` for login. Use the key from run when logging artifacts via `run.log_artifact` (@pingleiwandb in https://github.com/wandb/wandb/pull/10914)
+- W&B LEET TUI correctly displays negative Y axis tick values and base/display units of certain system metrics (@dmitryduev in https://github.com/wandb/wandb/pull/10905)
+- Fixed a rare infinite loop in `console_capture.py` (@timoffex in https://github.com/wandb/wandb/pull/10955)
+- File upload/download now respects `WANDB_X_EXTRA_HTTP_HEADERS` except for [reference artifacts](https://docs.wandb.ai/models/artifacts/track-external-files) (@pingleiwandb in https://github.com/wandb/wandb/pull/10761)
+
+## [0.23.0] - 2025-11-11
+
+### Added
+
+- Experimental `wandb beta leet` command - Lightweight Experiment Exploration Tool - a terminal UI for viewing W&B runs locally with real-time metrics visualization and system monitoring (@dmitryduev in https://github.com/wandb/wandb/pull/10764)
+- The registry API now supports programmatic management of user and team members of individual registries. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10542)
+- `Registry.id` has been added as a (read-only) property of `Registry` objects (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10785).
+
+### Fixed
+
+- `Artifact.files()` now has a correct `len()` when filtering by the `names` parameter (@matthoare117-wandb in https://github.com/wandb/wandb/pull/10796)
+- The numerator for file upload progress no longer occasionally exceeds the total file size (@timoffex in https://github.com/wandb/wandb/pull/10812)
+- `Artifact.link()` now logs unsaved artifacts instead of raising an error, consistent with the behavior of `Run.link_artifact()` (@tonyyli-wandb in https://github.com/wandb/wandb/10822)
+- Automatic code saving now works when running ipython notebooks in VSCode's Jupyter notebook extension (@jacobromero in https://github.com/wandb/wandb/pull/10746)
+- Logging an artifact with infinite floats in `Artifact.metadata` now raises a `ValueError` early, instead of waiting on request retries to time out (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10845).
+
+## [0.22.3] - 2025-10-28
+
+### Added
+
+- Settings `console_chunk_max_seconds` and `console_chunk_max_bytes` for size- and time-based multipart console logs file chunking (@dmitryduev in https://github.com/wandb/wandb/pull/10162)
+- Registry API query methods (`Api.registries()`, `Registry.{collections,versions}()`, `Api.registries().{collections,versions}()`) now accept a `per_page` keyword arg to override the default batch size for paginated results (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10713).
+
+### Changed
+
+- API keys longer than 40 characters are now supported. (@jennwandb in https://github.com/wandb/wandb/pull/10688)
+
+### Fixed
+
+- `run.config` now properly returns a dict when calling `artifact.logged_by()` in v0.22.1 (@thanos-wandb in #10682)
+- `wandb.Api(api_key=...)` now prioritizes the explicitly provided API key over thread-local cached credentials (@pingleiwandb in https://github.com/wandb/wandb/pull/10657)
+- Fixed a rare deadlock in `console_capture.py` (@timoffex in https://github.com/wandb/wandb/pull/10683)
+  - If you dump thread tracebacks during the deadlock and see the `wandb-AsyncioManager-main` thread stuck on a line in `console_capture.py`: this is now fixed.
+- Fixed an issue where TensorBoard sync would sometimes stop working if the tfevents files were being written live (@timoffex in https://github.com/wandb/wandb/pull/10625)
+- `Artifact.manifest` delays downloading **and** generating the download URL for the artifact manifest until it's first used. If the manifest has not been locally modified, `Artifact.size` and `Artifact.digest` can return without waiting to fetch the full manifest (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10680)
+- Fixed uploading GCS folder references via `artifact.add_reference` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/10679)
+- The SDK now correctly infers notebooks paths in Jupyter sessions, using th server's root directory, so code saving works in subdirectories (e.g. code/nested/<notebook>.ipynb) (@jacobromero in https://github.com/wandb/wandb/pull/10709)
+
 ## [0.22.2] - 2025-10-07
 
 ### Fixed
@@ -26,10 +96,9 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 - Lazy loading support for `Api().runs()` to improve performance when listing runs. The new `lazy=True` parameter (default) loads only essential metadata initially, with automatic on-demand loading of heavy fields like config and summary when accessed (@thanos-wandb in https://github.com/wandb/wandb/pull/10034)
 - Add `storage_region` option when creating artifacts. Users can use [CoreWeave AI Object Storage](https://docs.coreweave.com/docs/products/storage/object-storage) by specifying `wandb.Artifact(storage_region="coreweave-us")` when using wandb.ai for faster artifact upload/download on CoreWeave's infrastructure. (@pingleiwandb in https://github.com/wandb/wandb/pull/10533)
 
-
 ### Fixed
 
-- `Api.artifact_exists()` and `Api.artifact_collection_exists()` now raise on encountering timeout errors, rather than (potentially erroneously) returning `False`.  (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10591)
+- `Api.artifact_exists()` and `Api.artifact_collection_exists()` now raise on encountering timeout errors, rather than (potentially erroneously) returning `False`. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10591)
 
 ## [0.22.0] - 2025-09-18
 
@@ -228,7 +297,6 @@ This version removes the ability to disable the `service` process. This is a bre
 - Create and edit automations triggered on `RUN_METRIC_CHANGE` events, i.e. on changes in run metric values (absolute or relative deltas). (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9775)
 - Ability to collect profiling metrics for Nvidia GPUs using DCGM. To enable, set the `WANDB_ENABLE_DCGM_PROFILING` environment variable to `true`. Requires the `nvidia-dcgm` service to be running on the machine. Enabling this feature can lead to increased resource usage. (@dmitryduev in https://github.com/wandb/wandb/pull/9780)
 
-
 ### Fixed
 
 - `run.log_code` correctly sets the run configs `code_path` value. (@jacobromero in https://github.com/wandb/wandb/pull/9753)
@@ -237,7 +305,7 @@ This version removes the ability to disable the `service` process. This is a bre
 - Prevent pydantic `ConfigError` in Pydantic v1 environments from not calling `.model_rebuild()/.update_forward_refs()` on generated types with ForwardRef fields (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9795)
 - `wandb.init()` no longer raises `Permission denied` error when the wandb directory is not writable or readable (@jacobromero in https://github.com/wandb/wandb/pull/9751)
 - Calling `file.delete()` on files queried via `api.Runs(...)` no longer raises `CommError` (@jacobromero in https://github.com/wandb/wandb/pull/9748)
-    - Bug introduced in 0.19.1
+  - Bug introduced in 0.19.1
 
 ## [0.19.10] - 2025-04-22
 
@@ -258,11 +326,10 @@ This version removes the ability to disable the `service` process. This is a bre
 ### Deprecated
 
 - The following `wandb.Run` methods are deprecated in favor of properties and will be removed in a future release (@kptkin in https://github.com/wandb/wandb/pull/8925):
-    - `run.project_name()` is deprecated in favor of `run.project`
-    - `run.get_url()` method is deprecated in favor of `run.url`
-    - `run.get_project_url()` method is deprecated in favor of `run.project_url`
-    - `run.get_sweep_url()` method is deprecated in favor of `run.sweep_url`
-
+  - `run.project_name()` is deprecated in favor of `run.project`
+  - `run.get_url()` method is deprecated in favor of `run.url`
+  - `run.get_project_url()` method is deprecated in favor of `run.project_url`
+  - `run.get_sweep_url()` method is deprecated in favor of `run.sweep_url`
 
 ### Fixed
 
@@ -286,23 +353,23 @@ This version removes the ability to disable the `service` process. This is a bre
 - Existing `pydantic` types have been adapted to be compatible with Pydantic v1 (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9623)
 - `wandb.init(dir=...)` now creates any nonexistent directories in `dir` if it has a parent directory that is writeable (@ringohoffman in https://github.com/wandb/wandb/pull/9545)
 - The server now supports fetching artifact files by providing additional collection information; updated the artifacts api to use the new endpoints instead (@ibindlish in https://github.com/wandb/wandb/pull/9551)
-- Paginated methods (and underlying paginators) that accept a `per_page` argument now only accept `int` values.  Default `per_page` values are set directly in method signatures, and explicitly passing `None` is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9201)
+- Paginated methods (and underlying paginators) that accept a `per_page` argument now only accept `int` values. Default `per_page` values are set directly in method signatures, and explicitly passing `None` is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9201)
 
 ### Fixed
 
 - Calling `wandb.init()` in a notebook finishes previous runs as previously documented (@timoffex in https://github.com/wandb/wandb/pull/9569)
-    - Bug introduced in 0.19.0
+  - Bug introduced in 0.19.0
 - Fixed an error being thrown when logging `jpg`/`jpeg` images containing transparency data (@jacobromero in https://github.com/wandb/wandb/pull/9527)
 - `wandb.init(resume_from=...)` now works without explicitly specifying the run's `id` (@kptkin in https://github.com/wandb/wandb/pull/9572)
 - Deleting files with the Public API works again (@jacobromero in https://github.com/wandb/wandb/pull/9604)
-    - Bug introduced in 0.19.1
+  - Bug introduced in 0.19.1
 - Fixed media files not displaying in the UI when logging to a run with a custom storage bucket (@jacobromero in https://github.com/wandb/wandb/pull/9661)
 
 ## [0.19.8] - 2025-03-04
 
 ### Fixed
 
-- Media file paths containing special characters (?, *, ], [ or \\) no longer cause file uploads to fail in `wandb-core` (@jacobromero in https://github.com/wandb/wandb/pull/9475)
+- Media file paths containing special characters (?, \*, ], [ or \\) no longer cause file uploads to fail in `wandb-core` (@jacobromero in https://github.com/wandb/wandb/pull/9475)
 
 ### Changed
 
@@ -353,6 +420,7 @@ This version removes the ability to disable the `service` process. This is a bre
 - Added `wandb login --base-url {host_url}` to login as an alias of `wandb login --host {host_url}`. (@jacobromero in https://github.com/wandb/wandb/pull/9323)
 
 ### Changed
+
 - Temporarily disabled collecting per-core CPU utilization stats (@dmitryduev in https://github.com/wandb/wandb/pull/9350)
 
 ### Fixed
@@ -406,12 +474,11 @@ This version removes the ability to disable the `service` process. This is a bre
 - Bump `github.com/go-git/go-git` version to 5.13.0 to address CVE-2025-21613. (@kptkin in https://github.com/wandb/wandb/pull/9192)
 - Bump `golang.org/x/net` version to 0.33.0 to address CVE-2024-45338. (@kptkin in https://github.com/wandb/wandb/pull/9115)
 
-
 ## [0.19.1] - 2024-12-13
 
 ### Fixed
 
-- Fixed bug where setting WANDB__SERVICE_WAIT led to an exception during wandb.init (@TimSchneider42 in https://github.com/wandb/wandb/pull/9050)
+- Fixed bug where setting WANDB\_\_SERVICE_WAIT led to an exception during wandb.init (@TimSchneider42 in https://github.com/wandb/wandb/pull/9050)
 
 ### Changed
 
@@ -434,7 +501,7 @@ This version adds pydantic>=2.6,<3 as a dependency.
 
 - Set default behavior to not create a W&B Job (@KyleGoyette in https://github.com/wandb/wandb/pull/8907)
 - Add pydantic>=2.6,<3 as a dependency (@dmitryduev in https://github.com/wandb/wandb/pull/8649 & estellazx
- in https://github.com/wandb/wandb/pull/8905)
+  in https://github.com/wandb/wandb/pull/8905)
 
 ### Removed
 

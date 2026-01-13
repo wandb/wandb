@@ -47,7 +47,7 @@ repos:
         name: check-toml
       - id: debug-statements
         name: debug-statements
-        exclude: ^wandb/__init__.py
+        exclude: ^(wandb/__init__.py|tools/graphql_codegen/plugin\.py)$
       - id: forbid-submodules
         name: forbid-submodules
   - repo: local

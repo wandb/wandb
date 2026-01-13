@@ -11,5 +11,9 @@ coverage:
       default:
         # Do not fail the commit status if the coverage was reduced up to this value
         threshold: 0.5%
+    patch:
+      default:
+        informational: true
 ignore:
   - "log_fallback.go"
+  - "internal/testutils"

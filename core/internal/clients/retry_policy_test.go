@@ -18,12 +18,42 @@ func TestDefaultRetryPolicy(t *testing.T) {
 		shouldRetry bool
 		errMsg      string
 	}{
-		{"BadRequest", http.StatusBadRequest, false, "the server responded with an error. (Error 400: Bad Request)"},
-		{"Conflict", http.StatusConflict, false, "the server responded with an error. (Error 409: Conflict)"},
-		{"Unauthorized", http.StatusUnauthorized, false, "the API key you provided is either invalid or missing. (Error 401: Unauthorized)"},
-		{"Forbidden", http.StatusForbidden, false, "you don't have permission to access this resource. (Error 403: Forbidden)"},
-		{"NotFound", http.StatusNotFound, false, "the resource you requested could not be found. (Error 404: Not Found)"},
-		{"Other4xxError", http.StatusTeapot, true, "the server responded with an error. (Error 418: I'm a teapot)"},
+		{
+			"BadRequest",
+			http.StatusBadRequest,
+			false,
+			"the server responded with an error. (Error 400: Bad Request)",
+		},
+		{
+			"Conflict",
+			http.StatusConflict,
+			false,
+			"the server responded with an error. (Error 409: Conflict)",
+		},
+		{
+			"Unauthorized",
+			http.StatusUnauthorized,
+			false,
+			"the API key you provided is either invalid or missing. (Error 401: Unauthorized)",
+		},
+		{
+			"Forbidden",
+			http.StatusForbidden,
+			false,
+			"you don't have permission to access this resource. (Error 403: Forbidden)",
+		},
+		{
+			"NotFound",
+			http.StatusNotFound,
+			false,
+			"the resource you requested could not be found. (Error 404: Not Found)",
+		},
+		{
+			"Other4xxError",
+			http.StatusTeapot,
+			true,
+			"the server responded with an error. (Error 418: I'm a teapot)",
+		},
 	}
 
 	for _, tc := range testCases {

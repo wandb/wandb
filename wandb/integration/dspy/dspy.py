@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 import wandb
 import wandb.util
+from wandb.sdk.lib import telemetry
 from wandb.sdk.wandb_run import Run
 
 dspy = wandb.util.get_module(
@@ -96,7 +97,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
 
         self.log_results = log_results
 
-        with wandb.wandb_lib.telemetry.context(run=run) as tel:
+        with telemetry.context(run=run) as tel:
             tel.feature.dspy_callback = True
 
         self._run = run

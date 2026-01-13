@@ -129,13 +129,10 @@ def test_import_reports(
             dst_api_key=user2,
         )
 
-        with unittest.mock.patch("wandb.sdk.lib.apikey.write_key"):
-            importer.import_reports(
-                namespaces=[Namespace(user, project_name)],
-                remapping={
-                    Namespace(user, project_name): Namespace(user2, project_name)
-                },
-            )
+        importer.import_reports(
+            namespaces=[Namespace(user, project_name)],
+            remapping={Namespace(user, project_name): Namespace(user2, project_name)},
+        )
 
         src_reports = [p for p in importer.src_api.reports(f"{user}/{project_name}")]
         dst_reports = [p for p in importer.dst_api.reports(f"{user2}/{project_name}")]

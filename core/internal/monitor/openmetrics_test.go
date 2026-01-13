@@ -64,16 +64,25 @@ func TestDCGMNotAvailable(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tc.statusCode)
-				_, err := w.Write([]byte(tc.body))
-				assert.NoError(t, err)
-			}))
+			server := httptest.NewServer(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(tc.statusCode)
+					_, err := w.Write([]byte(tc.body))
+					assert.NoError(t, err)
+				}),
+			)
 			defer server.Close()
 
 			logger := observabilitytest.NewTestLogger(t)
 			retryClient := newRetryableHTTPClient()
-			_ = monitor.NewOpenMetrics(logger, "test", server.URL, nil /* filters */, nil /* headers */, retryClient)
+			_ = monitor.NewOpenMetrics(
+				logger,
+				"test",
+				server.URL,
+				nil, /* filters */
+				nil, /* headers */
+				retryClient,
+			)
 		})
 	}
 }
@@ -87,7 +96,14 @@ func TestDCGM(t *testing.T) {
 	defer server.Close()
 
 	logger := observabilitytest.NewTestLogger(t)
-	om := monitor.NewOpenMetrics(logger, "dcgm", server.URL, nil /* filters */, nil /* headers */, nil /* client */)
+	om := monitor.NewOpenMetrics(
+		logger,
+		"dcgm",
+		server.URL,
+		nil, /* filters */
+		nil, /* headers */
+		nil, /* client */
+	)
 
 	result, err := om.Sample()
 	assert.NoError(t, err)
@@ -95,7 +111,11 @@ func TestDCGM(t *testing.T) {
 
 	// Check if the keys in the result match the expected format
 	for _, item := range result.Item {
-		assert.Regexp(t, `^openmetrics\.dcgm\.(DCGM_FI_DEV_MEM_COPY_UTIL|DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_POWER_USAGE)\.\d+$`, item.Key)
+		assert.Regexp(
+			t,
+			`^openmetrics\.dcgm\.(DCGM_FI_DEV_MEM_COPY_UTIL|DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_POWER_USAGE)\.\d+$`,
+			item.Key,
+		)
 	}
 }
 
@@ -206,7 +226,14 @@ func TestMetricFilters(t *testing.T) {
 	logger := observabilitytest.NewTestLogger(t)
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("Case %d", i), func(t *testing.T) {
-			om := monitor.NewOpenMetrics(logger, tc.endpointName, "http://localhost:9400", nil /* filters */, nil /* headers */, nil /* client */)
+			om := monitor.NewOpenMetrics(
+				logger,
+				tc.endpointName,
+				"http://localhost:9400",
+				nil, /* filters */
+				nil, /* headers */
+				nil, /* client */
+			)
 			om.SetFilters(tc.filters)
 			result := om.ShouldCaptureMetric(tc.metricName, tc.metricLabels)
 			assert.Equal(t, tc.shouldCapture, result)
@@ -233,7 +260,14 @@ func TestIntermittentFailure(t *testing.T) {
 	logger := observabilitytest.NewTestLogger(t)
 	retryClient := newRetryableHTTPClient()
 	retryClient.RetryMax = 1
-	om := monitor.NewOpenMetrics(logger, "intermittent", server.URL, nil /* filters */, nil /* headers */, retryClient)
+	om := monitor.NewOpenMetrics(
+		logger,
+		"intermittent",
+		server.URL,
+		nil, /* filters */
+		nil, /* headers */
+		retryClient,
+	)
 
 	// Run multiple samples to test intermittent behavior
 	for i := range 2 {
@@ -247,12 +281,24 @@ func TestIntermittentFailure(t *testing.T) {
 	}
 
 	// Verify that we made more requests than samples due to retries
-	assert.Greater(t, requestCount.Load(), int32(2), "Expected more requests than samples due to retries")
+	assert.Greater(
+		t,
+		requestCount.Load(),
+		int32(2),
+		"Expected more requests than samples due to retries",
+	)
 }
 
 func TestCache(t *testing.T) {
 	logger := observabilitytest.NewTestLogger(t)
-	om := monitor.NewOpenMetrics(logger, "dcgm", "http://localhost:9400", nil /* filters */, nil /* headers */, nil /* client */)
+	om := monitor.NewOpenMetrics(
+		logger,
+		"dcgm",
+		"http://localhost:9400",
+		nil, /* filters */
+		nil, /* headers */
+		nil, /* client */
+	)
 
 	filters := []monitor.Filter{
 		{
@@ -296,10 +342,22 @@ func TestOpenMetricsHeaders(t *testing.T) {
 		"Authorization": "Bearer test-token-123",
 	}
 
-	om := monitor.NewOpenMetrics(logger, "test", server.URL, nil /* filters */, headers, nil /* client */)
+	om := monitor.NewOpenMetrics(
+		logger,
+		"test",
+		server.URL,
+		nil, /* filters */
+		headers,
+		nil, /* client */
+	)
 
 	result, err := om.Sample()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, result)
-	assert.Equal(t, "Bearer test-token-123", receivedToken, "Expected Authorization header to be sent with request")
+	assert.Equal(
+		t,
+		"Bearer test-token-123",
+		receivedToken,
+		"Expected Authorization header to be sent with request",
+	)
 }

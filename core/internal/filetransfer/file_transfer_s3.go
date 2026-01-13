@@ -17,10 +17,26 @@ import (
 )
 
 type S3Client interface {
-	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
-	GetObjectAttributes(ctx context.Context, params *s3.GetObjectAttributesInput, optFns ...func(*s3.Options)) (*s3.GetObjectAttributesOutput, error)
-	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
-	ListObjectVersions(ctx context.Context, params *s3.ListObjectVersionsInput, optFns ...func(*s3.Options)) (*s3.ListObjectVersionsOutput, error)
+	GetObject(
+		ctx context.Context,
+		params *s3.GetObjectInput,
+		optFns ...func(*s3.Options),
+	) (*s3.GetObjectOutput, error)
+	GetObjectAttributes(
+		ctx context.Context,
+		params *s3.GetObjectAttributesInput,
+		optFns ...func(*s3.Options),
+	) (*s3.GetObjectAttributesOutput, error)
+	ListObjectsV2(
+		ctx context.Context,
+		params *s3.ListObjectsV2Input,
+		optFns ...func(*s3.Options),
+	) (*s3.ListObjectsV2Output, error)
+	ListObjectVersions(
+		ctx context.Context,
+		params *s3.ListObjectVersionsInput,
+		optFns ...func(*s3.Options),
+	) (*s3.ListObjectVersionsOutput, error)
 }
 
 const maxS3Workers int = 500
@@ -76,14 +92,14 @@ func (ft *S3FileTransfer) SetupClient() {
 	})
 }
 
-// Upload uploads a file to the server.
+// Upload implements ArtifactFileTransfer.Upload
 func (ft *S3FileTransfer) Upload(task *DefaultUploadTask) error {
 	ft.logger.Debug("S3 file transfer: uploading file", "path", task.Path)
 
 	return nil
 }
 
-// Download downloads a file from the server.
+// Download implements ArtifactFileTransfer.Download
 func (ft *S3FileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	ft.logger.Debug(
 		"s3 file transfer: downloading file",

@@ -1,128 +1,76 @@
 import json
-import os
-import platform
-import queue
-import sys
-import tempfile
-import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
 import pytest
 import wandb
+from wandb.errors import UsageError
+from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib.credentials import _expires_at_fmt
 
 
-@pytest.fixture
-def mock_tty(monkeypatch):
-    class WriteThread(threading.Thread):
-        def __init__(self, fname):
-            threading.Thread.__init__(self)
-            self._fname = fname
-            self._q = queue.Queue()
+def test_login_timeout(emulated_terminal):
+    emulated_terminal.queue_input("junk")
+    emulated_terminal.queue_input("more")
 
-        def run(self):
-            with open(self._fname, "w") as fp:
-                while True:
-                    data = self._q.get()
-                    if data == "_DONE_":
-                        break
-                    fp.write(data)
-                    fp.flush()
-
-        def add(self, input_str):
-            self._q.put(input_str)
-
-        def stop(self):
-            self.add("_DONE_")
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        fds = dict()
-
-        def setup_fn(input_str):
-            fname = os.path.join(tmpdir, "file.txt")
-            if platform.system() != "Windows":
-                os.mkfifo(fname, 0o600)
-                writer = WriteThread(fname)
-                writer.start()
-                writer.add(input_str)
-                fds["writer"] = writer
-                monkeypatch.setattr("termios.tcflush", lambda x, y: None)
-            else:
-                # windows doesn't support named pipes, just write it
-                # TODO: emulate msvcrt to support input on windows
-                with open(fname, "w") as fp:
-                    fp.write(input_str)
-            fds["stdin"] = open(fname)
-            monkeypatch.setattr("sys.stdin", fds["stdin"])
-            sys.stdin.isatty = lambda: True
-            sys.stdout.isatty = lambda: True
-
-        yield setup_fn
-
-        writer = fds.get("writer")
-        if writer:
-            writer.stop()
-            writer.join()
-        stdin = fds.get("stdin")
-        if stdin:
-            stdin.close()
-
-    del sys.stdin.isatty
-    del sys.stdout.isatty
-
-
-def test_login_timeout(mock_tty):
-    mock_tty("junk\nmore\n")
     logged_in = wandb.login(timeout=4)
+
     assert logged_in is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "disabled"
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason="mock_tty does not support windows input yet",
-)
-def test_login_timeout_choose(mock_tty):
-    mock_tty("3\n")
+def test_login_no_terminput():
+    """Raise if key not configured and interactive prompt unavailable."""
+    with pytest.raises(UsageError, match="No API key configured"):
+        wandb.login()
+
+
+def test_login_timeout_choose(emulated_terminal):
+    emulated_terminal.queue_input("3")
+
     logged_in = wandb.login(timeout=8)
+
     assert logged_in is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "offline"
 
 
-def test_login_timeout_env_blank(mock_tty):
-    mock_tty("\n\n\n")
-    with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "4"}):
-        logged_in = wandb.login()
-        assert logged_in is False
-        assert wandb.api.api_key is None
-        assert wandb.setup().settings.mode == "disabled"
+def test_login_timeout_env_blank(emulated_terminal, monkeypatch):
+    _ = emulated_terminal
+    monkeypatch.setenv("WANDB_LOGIN_TIMEOUT", "4")
 
-
-def test_login_timeout_env_invalid(mock_tty):
-    mock_tty("")
-    with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "junk"}):
-        with pytest.raises(ValueError):
-            wandb.login()
-
-
-def test_relogin_timeout(dummy_api_key):
-    logged_in = wandb.login(relogin=True, key=dummy_api_key)
-    assert logged_in is True
     logged_in = wandb.login()
-    assert logged_in is True
+
+    assert logged_in is False
+    assert wandb.api.api_key is None
+    assert wandb.setup().settings.mode == "disabled"
 
 
-def test_login_key(capsys):
+def test_login_timeout_env_invalid(emulated_terminal, monkeypatch):
+    _ = emulated_terminal
+    monkeypatch.setenv("WANDB_LOGIN_TIMEOUT", "junk")
+
+    with pytest.raises(ValueError):
+        wandb.login()
+
+
+def test_relogin_timeout(emulated_terminal, dummy_api_key):
+    assert wandb.login(relogin=True, key=dummy_api_key)
+    terminal_state1 = emulated_terminal.read_stderr()
+
+    assert wandb.login()
+    terminal_state2 = emulated_terminal.read_stderr()
+
+    # The second login should succeed immediately without printing.
+    assert terminal_state1 == terminal_state2
+
+
+def test_login_key(emulated_terminal):
     wandb.login(key="A" * 40)
-    # TODO: this was a bug when tests were leaking out to the global config
-    # wandb.api.set_setting("base_url", "http://localhost:8080")
-    _, err = capsys.readouterr()
-    assert "Appending key" in err
-    #  WTF is happening?
+
+    assert "Appending key" in "\n".join(emulated_terminal.read_stderr())
     assert wandb.api.api_key == "A" * 40
 
 
@@ -133,37 +81,41 @@ def test_login(test_settings):
     wandb.finish()
 
 
-def test_login_anonymous():
-    with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
-        wandb.login(anonymous="must")
-        assert wandb.api.api_key == "ANONYMOOSE" * 4
-        assert wandb.setup().settings.anonymous == "must"
+@pytest.mark.usefixtures(
+    "emulated_terminal",
+    "local_settings",
+    "skip_verify_login",
+)
+def test_login_sets_api_base_url(monkeypatch: pytest.MonkeyPatch):
+    # HACK: Prevent the test from attempting to connect to the fake URLs.
+    monkeypatch.setattr(
+        wandb_login,
+        "_print_logged_in_message",
+        lambda *args, **kwargs: None,
+    )
+
+    base_url = "https://api.test.host.ai"
+    wandb.login(key="test" * 10, host=base_url)
+    assert wandb_setup.singleton().settings.base_url == base_url
+
+    base_url = "https://api.wandb.ai"
+    wandb.login(key="test" * 10, host=base_url)
+    assert wandb_setup.singleton().settings.base_url == base_url
 
 
-def test_login_sets_api_base_url(local_settings, skip_verify_login):
-    with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
-        base_url = "https://api.test.host.ai"
-        wandb.login(anonymous="must", host=base_url)
-        api = wandb.Api()
-        assert api.settings["base_url"] == base_url
-        base_url = "https://api.wandb.ai"
-        wandb.login(anonymous="must", host=base_url)
-        api = wandb.Api()
-        assert api.settings["base_url"] == base_url
-
-
-def test_login_invalid_key():
-    with mock.patch(
+def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
         "wandb.apis.internal.Api.validate_api_key",
-        return_value=False,
-    ):
-        wandb.ensure_configured()
-        with pytest.raises(wandb.errors.AuthenticationError):
-            wandb.login(key="X" * 40, verify=True)
+        lambda self: False,
+    )
+    wandb.ensure_configured()
 
-        assert wandb.api.api_key is None
+    with pytest.raises(wandb.errors.AuthenticationError):
+        wandb.login(key="X" * 40, verify=True)
 
 
+# TODO: Make this a system test that runs agains the local-testcontainer?
+@pytest.mark.skip(reason="Test has network calls")
 def test_login_with_token_file(tmp_path: Path):
     token_file = str(tmp_path / "jwt.txt")
     credentials_file = str(tmp_path / "credentials.json")

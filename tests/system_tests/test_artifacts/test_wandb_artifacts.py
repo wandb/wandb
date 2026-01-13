@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import filecmp
 import os
 import shutil
@@ -6,23 +8,23 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Iterator, Mapping, Optional
+from typing import Callable, Iterator, Mapping
 from urllib.parse import quote
 
 import numpy as np
-import pytest
 import requests
 import responses
 import wandb
-import wandb.data_types as data_types
-import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 import wandb.sdk.internal.sender
-from wandb import Artifact, util
+from pytest import fixture, mark, param, raises
+from wandb import Api, Artifact, util
+from wandb.data_types import ImageMask, PartitionedTable
 from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts._validators import (
-    ARTIFACT_NAME_MAXLEN,
-    RESERVED_ARTIFACT_TYPE_PREFIX,
+from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
 )
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
@@ -141,7 +143,16 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
             )
 
         def list_blobs(self, *args, **kwargs):
-            return [Blob(), Blob(name="my_other_object.pb")]
+            if override_blob_name.endswith("/"):
+                return [
+                    Blob(name=override_blob_name),
+                    Blob(name=os.path.join(override_blob_name, "my_other_object.pb")),
+                ]
+            else:
+                return [
+                    Blob(name=override_blob_name),
+                    Blob(name="my_other_object.pb"),
+                ]
 
     class GSClient:
         def bucket(self, bucket):
@@ -154,7 +165,7 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
     return mock
 
 
-@pytest.fixture
+@fixture
 def mock_azure_handler():  # noqa: C901
     class BlobServiceClient:
         def __init__(self, account_url, credential):
@@ -263,37 +274,7 @@ def mock_azure_handler():  # noqa: C901
         yield
 
 
-def mock_http(artifact, path=False, headers=None):
-    headers = headers or {}
-
-    class Response:
-        def __init__(self, headers):
-            self.headers = headers
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            pass
-
-        def raise_for_status(self):
-            pass
-
-    class Session:
-        def __init__(self, name="file1.txt", headers=headers):
-            self.headers = headers
-
-        def get(self, path, *args, **kwargs):
-            return Response(self.headers)
-
-    mock = Session()
-    for handler in artifact.manifest.storage_policy._handler._handlers:
-        if isinstance(handler, HTTPHandler):
-            handler._session = mock
-    return mock
-
-
-@pytest.fixture
+@fixture
 def artifact() -> Artifact:
     return Artifact(type="dataset", name="data-artifact")
 
@@ -307,7 +288,7 @@ def test_unsized_manifest_entry_real_file():
 
 
 def test_unsized_manifest_entry():
-    with pytest.raises(FileNotFoundError) as e:
+    with raises(FileNotFoundError) as e:
         ArtifactManifestEntry(path="foo", digest="123", local_path="some/file.txt")
     assert "No such file" in str(e.value)
 
@@ -317,10 +298,9 @@ def test_add_one_file(artifact):
     artifact.add_file("file1.txt")
 
     assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["file1.txt"] == {
-        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "size": 5,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "file1.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
     }
 
 
@@ -329,10 +309,9 @@ def test_add_named_file(artifact):
     artifact.add_file("file1.txt", name="great-file.txt")
 
     assert artifact.digest == "585b9ada17797e37c9cbab391e69b8c5"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["great-file.txt"] == {
-        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "size": 5,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "great-file.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
     }
 
 
@@ -341,28 +320,26 @@ def test_add_new_file(artifact):
         f.write("hello")
 
     assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["file1.txt"] == {
-        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "size": 5,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "file1.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
     }
 
 
 def test_add_after_finalize(artifact):
     artifact.finalize()
-    with pytest.raises(ArtifactFinalizedError) as e:
+    with raises(ArtifactFinalizedError, match="Can't modify finalized artifact"):
         artifact.add_file("file1.txt")
-    assert "Can't modify finalized artifact" in str(e.value)
 
 
 def test_add_new_file_encode_error(capsys, artifact):
-    with pytest.raises(UnicodeEncodeError):
+    with raises(UnicodeEncodeError):
         with artifact.new_file("wave.txt", mode="w", encoding="ascii") as f:
             f.write("∂²u/∂t²=c²·∂²u/∂x²")
     assert "ERROR Failed to open the provided file" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("overwrite", [True, False])
+@mark.parametrize("overwrite", [True, False])
 def test_add_file_again_after_edit(overwrite, artifact):
     filepath = Path("file1.txt")
 
@@ -371,7 +348,7 @@ def test_add_file_again_after_edit(overwrite, artifact):
 
     # If we explicitly pass overwrite=True, allow rewriting an existing file
     filepath.write_text("Potato")
-    expectation = nullcontext() if overwrite else pytest.raises(ValueError)
+    expectation = nullcontext() if overwrite else raises(ValueError)
     with expectation:
         artifact.add_file(str(filepath), overwrite=overwrite)
 
@@ -382,10 +359,9 @@ def test_add_dir(artifact):
     artifact.add_dir(".")
 
     assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["file1.txt"] == {
-        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "size": 5,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "file1.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
     }
 
 
@@ -395,14 +371,16 @@ def test_add_named_dir(artifact):
 
     assert artifact.digest == "a757208d042e8627b2970d72a71bed5b"
 
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["subdir/file1.txt"] == {
-        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "size": 5,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "subdir/file1.txt": {
+            "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+            "size": 5,
+        },
     }
 
 
-@pytest.mark.parametrize("merge", [True, False])
+@mark.parametrize("merge", [True, False])
 def test_add_dir_again_after_edit(merge, artifact, tmp_path_factory):
     rootdir = tmp_path_factory.mktemp("test-dir", numbered=True)
 
@@ -416,7 +394,8 @@ def test_add_dir_again_after_edit(merge, artifact, tmp_path_factory):
 
     # If we explicitly pass overwrite=True, allow rewriting an existing file in dir
     file_changed.write_text("this is the update")
-    expectation = nullcontext() if merge else pytest.raises(ValueError)
+
+    expectation = nullcontext() if merge else raises(ValueError)
     with expectation:
         artifact.add_dir(rootdir, merge=merge)
         # make sure we have two files
@@ -438,12 +417,12 @@ def test_multi_add(artifact):
     # Add 8 copies simultaneously.
     with ThreadPoolExecutor(max_workers=8) as e:
         for _ in range(8):
-            e.submit(lambda: artifact.add_file(filename))
+            e.submit(artifact.add_file, filename)
 
     # There should be only one file in the artifact.
-    manifest = artifact.manifest.to_manifest_json()
-    assert len(manifest["contents"]) == 1
-    assert manifest["contents"][filename]["size"] == size
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert len(manifest_contents) == 1
+    assert manifest_contents[filename]["size"] == size
 
 
 def test_add_reference_local_file(tmp_path, artifact):
@@ -455,23 +434,25 @@ def test_add_reference_local_file(tmp_path, artifact):
     assert e.ref_target() == uri
 
     assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["file1.txt"] == {
-        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "ref": uri,
-        "size": 5,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "file1.txt": {
+            "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+            "ref": uri,
+            "size": 5,
+        },
     }
 
 
 def test_add_reference_local_file_no_checksum(tmp_path, artifact):
-    file = tmp_path / "file1.txt"
-    file.write_text("hello")
-    uri = file.as_uri()
+    fpath = tmp_path / "file1.txt"
+    fpath.write_text("hello")
 
-    size = os.path.getsize(file)
-    artifact.add_reference(uri, checksum=False)
-
+    uri = fpath.as_uri()
+    expected_size = fpath.stat().st_size
     expected_entry_digest = md5_string(uri)
+
+    artifact.add_reference(uri, checksum=False)
 
     # With checksum=False, the artifact digest will depend on its files'
     # absolute paths.  The working test directory isn't fixed from run
@@ -483,32 +464,34 @@ def test_add_reference_local_file_no_checksum(tmp_path, artifact):
 
     assert artifact.digest != expected_entry_digest
 
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["file1.txt"] == {
-        "digest": expected_entry_digest,
-        "ref": uri,
-        "size": size,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "file1.txt": {
+            "digest": expected_entry_digest,
+            "ref": uri,
+            "size": expected_size,
+        }
     }
 
 
 class TestAddReferenceLocalFileNoChecksumTwice:
-    @pytest.fixture
+    @fixture
     def run(self, user) -> Iterator[wandb.Run]:
         with wandb.init() as run:
             yield run
 
-    @pytest.fixture
+    @fixture
     def orig_data(self) -> str:
         """The contents of the original file."""
         return "hello"
 
-    @pytest.fixture
+    @fixture
     def orig_fpath(self, tmp_path_factory) -> Path:
         """The path to the original file."""
         # Use a factory to generate unique filepaths per test
         return tmp_path_factory.mktemp("orig_path") / "file1.txt"
 
-    @pytest.fixture
+    @fixture
     def orig_artifact(self, orig_fpath, orig_data, artifact, run) -> Artifact:
         """The original, logged artifact in the sequence collection."""
         file_path = orig_fpath
@@ -524,20 +507,20 @@ class TestAddReferenceLocalFileNoChecksumTwice:
 
         return logged_artifact
 
-    @pytest.fixture
+    @fixture
     def new_data(self) -> str:
         """The contents of the new file."""
         return "goodbye"
 
-    @pytest.fixture
+    @fixture
     def new_fpath(self, tmp_path_factory) -> Path:
         """The path to the new file."""
         return tmp_path_factory.mktemp("new_path") / "file2.txt"
 
-    @pytest.fixture
+    @fixture
     def new_artifact(self, orig_artifact) -> Artifact:
         """A new artifact with the same name and type, but not yet logged."""
-        return wandb.Artifact(orig_artifact.name.split(":")[0], type=orig_artifact.type)
+        return Artifact(orig_artifact.name.split(":")[0], type=orig_artifact.type)
 
     def test_adding_ref_with_same_uri_and_same_data_creates_no_new_version(
         self, run, orig_fpath, orig_data, orig_artifact, new_artifact
@@ -601,24 +584,27 @@ def test_add_reference_local_dir(artifact):
     os.mkdir("nest/nest")
     Path("nest/nest/file3.txt").write_text("dude")
 
-    artifact.add_reference(f"file://{os.getcwd()}")
+    here = Path.cwd()
+    artifact.add_reference(f"file://{here}")
 
     assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["file1.txt"] == {
-        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "ref": "file://" + os.path.join(os.getcwd(), "file1.txt"),
-        "size": 5,
-    }
-    assert manifest["contents"]["nest/file2.txt"] == {
-        "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
-        "ref": "file://" + os.path.join(os.getcwd(), "nest", "file2.txt"),
-        "size": 2,
-    }
-    assert manifest["contents"]["nest/nest/file3.txt"] == {
-        "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
-        "ref": "file://" + os.path.join(os.getcwd(), "nest", "nest", "file3.txt"),
-        "size": 4,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "file1.txt": {
+            "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+            "ref": f"file://{here}/file1.txt",
+            "size": 5,
+        },
+        "nest/file2.txt": {
+            "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
+            "ref": f"file://{here}/nest/file2.txt",
+            "size": 2,
+        },
+        "nest/nest/file3.txt": {
+            "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
+            "ref": f"file://{here}/nest/nest/file3.txt",
+            "size": 4,
+        },
     }
 
 
@@ -635,7 +621,7 @@ def test_add_reference_local_dir_no_checksum(artifact):
     size_2 = path_2.stat().st_size
     uri_2 = path_2.resolve().as_uri()
 
-    path_3 = Path("nest", "nest", "file3.txt")
+    path_3 = Path("nest/nest/file3.txt")
     path_3.parent.mkdir(parents=True, exist_ok=True)
     path_3.write_text("dude")
     size_3 = path_3.stat().st_size
@@ -661,21 +647,23 @@ def test_add_reference_local_dir_no_checksum(artifact):
     assert artifact.digest != expected_entry_digest_2
     assert artifact.digest != expected_entry_digest_3
 
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["file1.txt"] == {
-        "digest": expected_entry_digest_1,
-        "ref": uri_1,
-        "size": size_1,
-    }
-    assert manifest["contents"]["nest/file2.txt"] == {
-        "digest": expected_entry_digest_2,
-        "ref": uri_2,
-        "size": size_2,
-    }
-    assert manifest["contents"]["nest/nest/file3.txt"] == {
-        "digest": expected_entry_digest_3,
-        "ref": uri_3,
-        "size": size_3,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "file1.txt": {
+            "digest": expected_entry_digest_1,
+            "ref": uri_1,
+            "size": size_1,
+        },
+        "nest/file2.txt": {
+            "digest": expected_entry_digest_2,
+            "ref": uri_2,
+            "size": size_2,
+        },
+        "nest/nest/file3.txt": {
+            "digest": expected_entry_digest_3,
+            "ref": uri_3,
+            "size": size_3,
+        },
     }
 
 
@@ -690,21 +678,23 @@ def test_add_reference_local_dir_with_name(artifact):
     artifact.add_reference(f"file://{here!s}", name="top")
 
     assert artifact.digest == "f718baf2d4c910dc6ccd0d9c586fa00f"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["top/file1.txt"] == {
-        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "ref": f"file://{here!s}/file1.txt",
-        "size": 5,
-    }
-    assert manifest["contents"]["top/nest/file2.txt"] == {
-        "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
-        "ref": f"file://{here!s}/nest/file2.txt",
-        "size": 2,
-    }
-    assert manifest["contents"]["top/nest/nest/file3.txt"] == {
-        "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
-        "ref": f"file://{here!s}/nest/nest/file3.txt",
-        "size": 4,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "top/file1.txt": {
+            "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+            "ref": f"file://{here}/file1.txt",
+            "size": 5,
+        },
+        "top/nest/file2.txt": {
+            "digest": "aGTzidmHZDa8h3j/Bx0bbA==",
+            "ref": f"file://{here}/nest/file2.txt",
+            "size": 2,
+        },
+        "top/nest/nest/file3.txt": {
+            "digest": "E7c+2uhEOZC+GqjxpIO8Jw==",
+            "ref": f"file://{here}/nest/nest/file3.txt",
+            "size": 4,
+        },
     }
 
 
@@ -715,11 +705,13 @@ def test_add_reference_local_dir_by_uri(tmp_path, artifact):
     file.write_text("sorry")
 
     artifact.add_reference(ugly_path.as_uri())
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["file.txt"] == {
-        "digest": "c88OOIlx7k7DTo2u3Q02zA==",
-        "ref": file.as_uri(),
-        "size": 5,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "file.txt": {
+            "digest": "c88OOIlx7k7DTo2u3Q02zA==",
+            "ref": file.as_uri(),
+            "size": 5,
+        }
     }
 
 
@@ -728,12 +720,14 @@ def test_add_s3_reference_object(artifact):
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
     assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "s3://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
-        "size": 10,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        }
     }
 
 
@@ -742,12 +736,20 @@ def test_add_s3_reference_object_directory(artifact):
     artifact.add_reference("s3://my-bucket/my_dir/")
 
     assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "s3://my-bucket/my_dir",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
-        "size": 10,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_dir",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        },
+        "my_other_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_dir",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        },
     }
 
 
@@ -756,12 +758,14 @@ def test_add_s3_reference_object_no_version(artifact):
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
     assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "s3://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde"},
-        "size": 10,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde"},
+            "size": 10,
+        },
     }
 
 
@@ -770,12 +774,14 @@ def test_add_s3_reference_object_with_version(artifact):
     artifact.add_reference("s3://my-bucket/my_object.pb?versionId=2")
 
     assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "s3://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "2"},
-        "size": 10,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "2"},
+            "size": 10,
+        },
     }
 
 
@@ -784,12 +790,14 @@ def test_add_s3_reference_object_with_name(artifact):
     artifact.add_reference("s3://my-bucket/my_object.pb", name="renamed.pb")
 
     assert artifact.digest == "bd85fe009dc9e408a5ed9b55c95f47b2"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["renamed.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "s3://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
-        "size": 10,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "renamed.pb": {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        },
     }
 
 
@@ -798,37 +806,52 @@ def test_add_s3_reference_path(runner, capsys, artifact):
     artifact.add_reference("s3://my-bucket/")
 
     assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "s3://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
-        "size": 10,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_object.pb",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        },
+        "my_other_object.pb": {
+            "digest": "1234567890abcde",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "ref": "s3://my-bucket/my_other_object.pb",
+            "size": 10,
+        },
     }
     _, err = capsys.readouterr()
     assert "Generating checksum" in err
 
 
-def test_add_s3_reference_path_with_content_type(runner, capsys, artifact):
-    with runner.isolated_filesystem():
-        mock_boto(artifact, path=False, content_type="application/x-directory")
-        artifact.add_reference("s3://my-bucket/my_dir")
+def test_add_s3_reference_path_with_content_type(capsys, artifact):
+    mock_boto(artifact, path=False, content_type="application/x-directory")
+    artifact.add_reference("s3://my-bucket/my_dir")
 
-        assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-        manifest = artifact.manifest.to_manifest_json()
-        assert manifest["contents"]["my_object.pb"] == {
+    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_object.pb": {
             "digest": "1234567890abcde",
             "ref": "s3://my-bucket/my_dir",
             "extra": {"etag": "1234567890abcde", "versionID": "1"},
             "size": 10,
-        }
-        _, err = capsys.readouterr()
-        assert "Generating checksum" in err
+        },
+        "my_other_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "s3://my-bucket/my_dir",
+            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "size": 10,
+        },
+    }
+    _, err = capsys.readouterr()
+    assert "Generating checksum" in err
 
 
 def test_add_s3_max_objects(artifact):
     mock_boto(artifact, path=True)
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         artifact.add_reference("s3://my-bucket/", max_objects=1)
 
 
@@ -839,10 +862,12 @@ def test_add_reference_s3_no_checksum(artifact):
     artifact.add_reference("s3://my_bucket/file1.txt", checksum=False)
 
     assert artifact.digest == "52631787ed3579325f985dc0f2374040"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["file1.txt"] == {
-        "digest": "s3://my_bucket/file1.txt",
-        "ref": "s3://my_bucket/file1.txt",
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "file1.txt": {
+            "digest": "s3://my_bucket/file1.txt",
+            "ref": "s3://my_bucket/file1.txt",
+        }
     }
 
 
@@ -851,12 +876,14 @@ def test_add_gs_reference_object(artifact):
     artifact.add_reference("gs://my-bucket/my_object.pb")
 
     assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"versionID": "1"},
-        "size": 10,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "gs://my-bucket/my_object.pb",
+            "extra": {"versionID": "1"},
+            "size": 10,
+        },
     }
 
 
@@ -870,7 +897,7 @@ def test_load_gs_reference_object_without_generation_and_mismatched_etag(
     entry.extra = {}
     entry.digest = "abad0"
 
-    with pytest.raises(ValueError, match="Digest mismatch"):
+    with raises(ValueError, match="Digest mismatch"):
         entry.download()
 
 
@@ -879,12 +906,14 @@ def test_add_gs_reference_object_with_version(artifact):
     artifact.add_reference("gs://my-bucket/my_object.pb#2")
 
     assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"versionID": "2"},
-        "size": 10,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "gs://my-bucket/my_object.pb",
+            "extra": {"versionID": "2"},
+            "size": 10,
+        },
     }
 
 
@@ -893,30 +922,39 @@ def test_add_gs_reference_object_with_name(artifact):
     artifact.add_reference("gs://my-bucket/my_object.pb", name="renamed.pb")
 
     assert artifact.digest == "bd85fe009dc9e408a5ed9b55c95f47b2"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["renamed.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"versionID": "1"},
-        "size": 10,
-    }
-
-
-def test_add_gs_reference_path(runner, capsys, artifact):
-    with runner.isolated_filesystem():
-        mock_gcs(artifact, path=True)
-        artifact.add_reference("gs://my-bucket/")
-
-        assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-        manifest = artifact.manifest.to_manifest_json()
-        assert manifest["contents"]["my_object.pb"] == {
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "renamed.pb": {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
             "extra": {"versionID": "1"},
             "size": 10,
-        }
-        _, err = capsys.readouterr()
-        assert "Generating checksum" in err
+        },
+    }
+
+
+def test_add_gs_reference_path(capsys, artifact):
+    mock_gcs(artifact, path=True)
+    artifact.add_reference("gs://my-bucket/")
+
+    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "gs://my-bucket/my_object.pb",
+            "extra": {"versionID": "1"},
+            "size": 10,
+        },
+        "my_other_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "gs://my-bucket/my_other_object.pb",
+            "extra": {"versionID": "1"},
+            "size": 10,
+        },
+    }
+    _, err = capsys.readouterr()
+    assert "Generating checksum" in err
 
 
 def test_add_gs_reference_object_no_md5(artifact):
@@ -924,12 +962,14 @@ def test_add_gs_reference_object_no_md5(artifact):
     artifact.add_reference("gs://my-bucket/my_object.pb")
 
     assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["my_object.pb"] == {
-        "digest": "1234567890abcde",
-        "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"versionID": "1"},
-        "size": 10,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "gs://my-bucket/my_object.pb",
+            "extra": {"versionID": "1"},
+            "size": 10,
+        },
     }
 
 
@@ -937,7 +977,18 @@ def test_add_gs_reference_with_dir_paths(artifact):
     mock_gcs(artifact, override_blob_name="my_folder/")
     artifact.add_reference("gs://my-bucket/my_folder/")
 
-    assert len(artifact.manifest.entries) == 0
+    # uploading a reference to a folder path should add entries for
+    # everything returned by the list_blobs call
+    assert len(artifact.manifest.entries) == 1
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "my_other_object.pb": {
+            "digest": "1234567890abcde",
+            "ref": "gs://my-bucket/my_folder/my_other_object.pb",
+            "extra": {"versionID": "1"},
+            "size": 10,
+        },
+    }
 
 
 def test_load_gs_reference_with_dir_paths(artifact):
@@ -955,7 +1006,7 @@ def test_load_gs_reference_with_dir_paths(artifact):
         size=0,
         extra={"versionID": 1},
     )
-    with pytest.raises(_GCSIsADirectoryError):
+    with raises(_GCSIsADirectoryError):
         gcs_handler.load_path(simple_entry, local=True)
 
     # case where we didn't store "/" and have to use get_blob
@@ -966,18 +1017,18 @@ def test_load_gs_reference_with_dir_paths(artifact):
         size=0,
         extra={"versionID": 1},
     )
-    with pytest.raises(_GCSIsADirectoryError):
+    with raises(_GCSIsADirectoryError):
         gcs_handler.load_path(entry, local=True)
 
 
-@pytest.fixture
+@fixture
 def my_artifact() -> Artifact:
     """A test artifact with a custom type."""
     return Artifact("my_artifact", type="my_type")
 
 
-@pytest.mark.parametrize("name", [None, "my-name"])
-@pytest.mark.parametrize("version_id", [None, "v2"])
+@mark.parametrize("name", [None, "my-name"])
+@mark.parametrize("version_id", [None, "v2"])
 def test_add_azure_reference_no_checksum(
     mock_azure_handler, my_artifact, name, version_id
 ):
@@ -1005,8 +1056,8 @@ def test_add_azure_reference_no_checksum(
     assert entry.extra == {}
 
 
-@pytest.mark.parametrize("name", [None, "my-name"])
-@pytest.mark.parametrize("version_id", [None, "v2"])
+@mark.parametrize("name", [None, "my-name"])
+@mark.parametrize("version_id", [None, "v2"])
 def test_add_azure_reference(mock_azure_handler, my_artifact, name, version_id):
     uri = "https://myaccount.blob.core.windows.net/my-container/my-blob"
 
@@ -1089,7 +1140,7 @@ def test_add_azure_reference_directory(mock_azure_handler):
 
 
 def test_add_azure_reference_max_objects(mock_azure_handler):
-    artifact = wandb.Artifact("my_artifact", type="my_type")
+    artifact = Artifact("my_artifact", type="my_type")
     entries = artifact.add_reference(
         "https://myaccount.blob.core.windows.net/my-container/my-dir",
         max_objects=1,
@@ -1114,24 +1165,28 @@ def test_add_azure_reference_max_objects(mock_azure_handler):
         assert entries[1].extra == {"etag": "my-dir/b version None"}
 
 
+@responses.activate
 def test_add_http_reference_path(artifact):
-    mock_http(
-        artifact,
+    # Mock the HTTP response. NOTE: Using `responses` here assumes
+    # that the `requests` library is responsible for sending the HTTP request(s).
+    responses.get(
+        url="http://example.com/file1.txt",
         headers={
-            "ETag": '"abc"',
+            "ETag": '"abc"',  # quoting is intentional
             "Content-Length": "256",
         },
     )
+
     artifact.add_reference("http://example.com/file1.txt")
 
     assert artifact.digest == "48237ccc050a88af9dcd869dd5a7e9f4"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["file1.txt"] == {
-        "digest": "abc",
-        "ref": "http://example.com/file1.txt",
-        "size": 256,
-        "extra": {
-            "etag": '"abc"',
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "file1.txt": {
+            "digest": "abc",
+            "ref": "http://example.com/file1.txt",
+            "size": 256,
+            "extra": {"etag": '"abc"'},
         },
     }
 
@@ -1144,11 +1199,13 @@ def test_add_reference_named_local_file(tmp_path, artifact):
     artifact.add_reference(uri, name="great-file.txt")
 
     assert artifact.digest == "585b9ada17797e37c9cbab391e69b8c5"
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["great-file.txt"] == {
-        "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-        "ref": uri,
-        "size": 5,
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "great-file.txt": {
+            "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+            "ref": uri,
+            "size": 5,
+        },
     }
 
 
@@ -1157,14 +1214,16 @@ def test_add_reference_unknown_handler(artifact):
 
     assert artifact.digest == "410ade94865e89ebe1f593f4379ac228"
 
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"]["ref"] == {
-        "digest": "ref://example.com/somefile.txt",
-        "ref": "ref://example.com/somefile.txt",
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
+        "ref": {
+            "digest": "ref://example.com/somefile.txt",
+            "ref": "ref://example.com/somefile.txt",
+        },
     }
 
 
-@pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
+@mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
 def test_remove_file(name_type, artifact):
     file1 = Path("file1.txt")
     file1.parent.mkdir(parents=True, exist_ok=True)
@@ -1181,7 +1240,7 @@ def test_remove_file(name_type, artifact):
     assert artifact.manifest.entries == {}
 
 
-@pytest.mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
+@mark.parametrize("name_type", [str, Path, PurePosixPath, PureWindowsPath])
 def test_remove_directory(name_type, artifact):
     file1 = Path("bar/foo/file1.txt")
     file1.parent.mkdir(parents=True, exist_ok=True)
@@ -1205,9 +1264,9 @@ def test_remove_non_existent(artifact):
 
     artifact.add_dir("baz")
 
-    with pytest.raises(FileNotFoundError):
+    with raises(FileNotFoundError):
         artifact.remove("file1.txt")
-    with pytest.raises(FileNotFoundError):
+    with raises(FileNotFoundError):
         artifact.remove("bar/")
 
     assert len(artifact.manifest.entries) == 1
@@ -1288,30 +1347,31 @@ def test_artifact_table_deserialize_timestamp_column():
         ]
 
 
-def test_add_obj_wbimage_no_classes(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
+@fixture
+def im_path(assets_path: Callable[[str], Path]) -> str:
+    return str(assets_path("2x2.png"))
 
+
+def test_add_obj_wbimage_no_classes(im_path: str, artifact: Artifact):
     wb_image = wandb.Image(
         im_path,
-        masks={
-            "ground_truth": {
-                "path": im_path,
-            },
-        },
+        masks={"ground_truth": {"path": im_path}},
     )
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         artifact.add(wb_image, "my-image")
 
 
-def test_add_obj_wbimage(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
-    wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+def test_add_obj_wbimage(im_path: str, artifact: Artifact):
+    wb_image = wandb.Image(
+        im_path,
+        classes=[{"id": 0, "name": "person"}],
+    )
     artifact.add(wb_image, "my-image")
 
-    manifest = artifact.manifest.to_manifest_json()
     assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
-    assert manifest["contents"] == {
+
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
         "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
             "digest": "eG00DqdCcCBqphilriLNfw==",
             "size": 64,
@@ -1327,7 +1387,7 @@ def test_add_obj_wbimage(assets_path, artifact):
     }
 
 
-@pytest.mark.parametrize("overwrite", [True, False])
+@mark.parametrize("overwrite", [True, False])
 def test_add_obj_wbimage_again_after_edit(
     tmp_path, assets_path, copy_asset, overwrite, artifact
 ):
@@ -1346,9 +1406,9 @@ def test_add_obj_wbimage_again_after_edit(
     wb_image = wandb.Image(str(im_path))
     artifact.add(wb_image, image_name, overwrite=overwrite)
 
-    manifest1 = artifact.manifest.to_manifest_json()
+    manifest_contents1 = artifact.manifest.to_manifest_json()["contents"]
     digest1 = artifact.digest
-    manifest_contents1 = manifest1["contents"]
+
     assert digest1 == "2a7a8a7f29c929fe05b57983a2944fca"
     assert len(manifest_contents1) == 2
 
@@ -1360,9 +1420,8 @@ def test_add_obj_wbimage_again_after_edit(
     wb_image = wandb.Image(str(im_path))
     artifact.add(wb_image, image_name, overwrite=overwrite)
 
-    manifest2 = artifact.manifest.to_manifest_json()
+    manifest_contents2 = artifact.manifest.to_manifest_json()["contents"]
     digest2 = artifact.digest
-    manifest_contents2 = manifest2["contents"]
 
     assert overwrite is (digest2 != digest1)
     assert overwrite is (manifest_contents2 != manifest_contents1)
@@ -1371,15 +1430,16 @@ def test_add_obj_wbimage_again_after_edit(
     assert manifest_contents1.keys() == manifest_contents2.keys()
 
 
-def test_add_obj_using_brackets(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
-    wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
+def test_add_obj_using_brackets(im_path: str, artifact: Artifact):
+    wb_image = wandb.Image(
+        im_path,
+        classes=[{"id": 0, "name": "person"}],
+    )
     artifact["my-image"] = wb_image
 
-    manifest = artifact.manifest.to_manifest_json()
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
-    assert manifest["contents"] == {
+    assert manifest_contents == {
         "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
             "digest": "eG00DqdCcCBqphilriLNfw==",
             "size": 64,
@@ -1394,11 +1454,11 @@ def test_add_obj_using_brackets(assets_path, artifact):
         },
     }
 
-    with pytest.raises(ArtifactNotLoggedError):
+    with raises(ArtifactNotLoggedError):
         _ = artifact["my-image"]
 
 
-@pytest.mark.parametrize("add_duplicate", [True, False], ids=["duplicate", "unique"])
+@mark.parametrize("add_duplicate", [True, False], ids=["duplicate", "unique"])
 def test_duplicate_wbimage_from_file(assets_path, artifact, add_duplicate):
     im_path_1 = str(assets_path("test.png"))
     im_path_2 = str(assets_path("test2.png"))
@@ -1436,13 +1496,13 @@ def test_deduplicate_wbimage_from_array():
     assert len(artifact.manifest.entries) == 5
 
 
-@pytest.mark.parametrize("add_duplicate", [True, False], ids=["duplicate", "unique"])
+@mark.parametrize("add_duplicate", [True, False], ids=["duplicate", "unique"])
 def test_deduplicate_wbimagemask_from_array(artifact, add_duplicate):
     im_data_1 = np.random.randint(0, 10, (300, 300))
     im_data_2 = np.random.randint(0, 10, (300, 300))
 
-    wb_imagemask_1 = data_types.ImageMask({"mask_data": im_data_1}, key="test")
-    wb_imagemask_2 = data_types.ImageMask(
+    wb_imagemask_1 = ImageMask({"mask_data": im_data_1}, key="test")
+    wb_imagemask_2 = ImageMask(
         {"mask_data": im_data_1 if add_duplicate else im_data_2}, key="test2"
     )
 
@@ -1455,15 +1515,13 @@ def test_deduplicate_wbimagemask_from_array(artifact, add_duplicate):
         assert len(artifact.manifest.entries) == 4
 
 
-def test_add_obj_wbimage_classes_obj(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbimage_classes_obj(im_path: str, artifact: Artifact):
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
 
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"] == {
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
         "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
             "digest": "eG00DqdCcCBqphilriLNfw==",
             "size": 64,
@@ -1479,16 +1537,14 @@ def test_add_obj_wbimage_classes_obj(assets_path, artifact):
     }
 
 
-def test_add_obj_wbimage_classes_obj_already_added(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbimage_classes_obj_already_added(im_path: str, artifact: Artifact):
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     artifact.add(classes, "my-classes")
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
 
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"] == {
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
         "my-classes.classes.json": {
             "digest": "eG00DqdCcCBqphilriLNfw==",
             "size": 64,
@@ -1508,15 +1564,13 @@ def test_add_obj_wbimage_classes_obj_already_added(assets_path, artifact):
     }
 
 
-def test_add_obj_wbimage_image_already_added(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbimage_image_already_added(im_path: str, artifact: Artifact):
     artifact.add_file(im_path)
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
 
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"] == {
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
         "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
         "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
             "digest": "eG00DqdCcCBqphilriLNfw==",
@@ -1529,18 +1583,15 @@ def test_add_obj_wbimage_image_already_added(assets_path, artifact):
     }
 
 
-def test_add_obj_wbtable_images(assets_path, artifact):
-    im_path = str(assets_path("2x2.png"))
-
+def test_add_obj_wbtable_images(im_path: str, artifact: Artifact):
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     wb_table = wandb.Table(["examples"])
     wb_table.add_data(wb_image)
     wb_table.add_data(wb_image)
     artifact.add(wb_table, "my-table")
 
-    manifest = artifact.manifest.to_manifest_json()
-
-    assert manifest["contents"] == {
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
         "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
             "digest": "eG00DqdCcCBqphilriLNfw==",
             "size": 64,
@@ -1569,8 +1620,8 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path, artifact):
     wb_table.add_data(wb_image_2)
     artifact.add(wb_table, "my-table")
 
-    manifest = artifact.manifest.to_manifest_json()
-    assert manifest["contents"] == {
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents == {
         "media/images/641e917f31888a48f546/img.png": {
             "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
             "size": 71,
@@ -1587,17 +1638,19 @@ def test_add_partition_folder(artifact):
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
 
-    partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
+    partition_table = PartitionedTable(parts_path=table_parts_dir)
     artifact.add(partition_table, table_name)
-    manifest = artifact.manifest.to_manifest_json()
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert artifact.digest == "c6a4d80ed84fd68df380425ded894b19"
-    assert manifest["contents"]["dataset.partitioned-table.json"] == {
-        "digest": "uo/SjoAO+O7pcSfg+yhlDg==",
-        "size": 61,
+    assert manifest_contents == {
+        "dataset.partitioned-table.json": {
+            "digest": "uo/SjoAO+O7pcSfg+yhlDg==",
+            "size": 61,
+        },
     }
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "headers,expected_digest",
     [
         ({"ETag": "my-etag"}, "my-etag"),
@@ -1607,8 +1660,8 @@ def test_add_partition_folder(artifact):
     ],
 )
 def test_http_storage_handler_uses_etag_for_digest(
-    headers: Optional[Mapping[str, str]],
-    expected_digest: Optional[str],
+    headers: Mapping[str, str] | None,
+    expected_digest: str | None,
     artifact,
 ):
     with responses.RequestsMock() as rsps, requests.Session() as session:
@@ -1647,7 +1700,7 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, user, artif
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
     with wandb.init(project="test") as run:
-        with pytest.raises(FileNotFoundError, match="Unable to find"):
+        with raises(FileNotFoundError, match="Unable to find"):
             artifact.download()
 
 
@@ -1674,11 +1727,11 @@ def test_change_artifact_collection_type_to_internal_type(user):
     collection = artifact.collection
     with wandb.init() as run:
         # test deprecated change_type errors for changing to internal type
-        with pytest.raises(CommError, match="is reserved for internal use"):
+        with raises(CommError, match="is reserved for internal use"):
             collection.change_type(internal_type)
 
         # test .save()
-        with pytest.raises(CommError, match="is reserved for internal use"):
+        with raises(CommError, match="is reserved for internal use"):
             collection.type = internal_type
             collection.save()
 
@@ -1692,23 +1745,19 @@ def test_change_type_of_internal_artifact_collection(user):
     collection = artifact.collection
     with wandb.init() as run:
         # test deprecated change_type
-        with pytest.raises(
-            CommError, match="is an internal type and cannot be changed"
-        ):
+        with raises(CommError, match="is an internal type and cannot be changed"):
             collection.change_type("model")
 
         # test .save()
-        with pytest.raises(
-            CommError, match="is an internal type and cannot be changed"
-        ):
+        with raises(CommError, match="is an internal type and cannot be changed"):
             collection.type = "model"
             collection.save()
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "invalid_name",
     [
-        "a" * (ARTIFACT_NAME_MAXLEN + 1),  # Name too long
+        "a" * (NAME_MAXLEN + 1),  # Name too long
         "my/artifact",  # Invalid character(s)
     ],
 )
@@ -1722,13 +1771,20 @@ def test_setting_invalid_artifact_collection_name(user, api, invalid_name):
 
     collection = api.artifact_collection(type_name="data", name=orig_name)
 
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         collection.name = invalid_name
 
     assert collection.name == orig_name
 
 
-def test_save_artifact_sequence(monkeypatch, user, api):
+@mark.parametrize(
+    "new_description",
+    [
+        param("", id="empty string"),
+        param("New description.", id="non-empty string"),
+    ],
+)
+def test_save_artifact_sequence(user: str, api: Api, new_description: str | None):
     with wandb.init() as run:
         artifact = Artifact("sequence_name", "data")
         run.log_artifact(artifact)
@@ -1736,7 +1792,7 @@ def test_save_artifact_sequence(monkeypatch, user, api):
 
         artifact = run.use_artifact("sequence_name:latest")
         collection = api.artifact_collection("data", "sequence_name")
-        collection.description = "new description"
+        collection.description = new_description
         collection.name = "new_name"
         collection.type = "new_type"
         collection.tags = ["tag"]
@@ -1747,7 +1803,7 @@ def test_save_artifact_sequence(monkeypatch, user, api):
         collection = artifact.collection
         assert collection.type == "new_type"
         assert collection.name == "new_name"
-        assert collection.description == "new description"
+        assert collection.description == new_description
         assert len(collection.tags) == 1 and collection.tags[0] == "tag"
 
         collection.tags = ["new_tag"]
@@ -1765,14 +1821,14 @@ def test_artifact_standard_url(user, api):
         artifact.wait()
 
         artifact = run.use_artifact("sequence_name:latest")
-        expected_url = f"{util.app_url(run.settings.base_url)}/{run.entity}/{run.project}/artifacts/data/sequence_name/{artifact.version}"
+        expected_url = f"{run.settings.app_url}/{run.entity}/{run.project}/artifacts/data/sequence_name/{artifact.version}"
 
         assert artifact.url == expected_url
 
 
 def test_artifact_model_registry_url(user, api):
     with wandb.init() as run:
-        artifact = wandb.Artifact("sequence_name", "model")
+        artifact = Artifact("sequence_name", "model")
         run.log_artifact(artifact)
         artifact.wait()
         run.link_artifact(artifact=artifact, target_path="test_model_portfolio")
@@ -1780,20 +1836,26 @@ def test_artifact_model_registry_url(user, api):
             f"{artifact.entity}/{artifact.project}/test_model_portfolio:latest"
         )
 
-        base_url = util.app_url(run.settings.base_url)
-
         encoded_path = f"{linked_model_art.entity}/{linked_model_art.project}/{linked_model_art.collection.name}"
         selection_path = quote(encoded_path, safe="")
 
         expected_url = (
-            f"{base_url}/{linked_model_art.entity}/registry/model?"
+            f"{run.settings.app_url}/{linked_model_art.entity}/registry/model?"
             f"selectionPath={selection_path}&view=membership&version={linked_model_art.version}"
         )
 
         assert linked_model_art.url == expected_url
 
 
-def test_save_artifact_portfolio(user, api):
+@mark.parametrize(
+    "new_description",
+    [
+        param(None, id="null"),
+        param("", id="empty string"),
+        param("New description.", id="non-empty string"),
+    ],
+)
+def test_save_artifact_portfolio(user: str, api: Api, new_description: str | None):
     with wandb.init() as run:
         artifact = Artifact("image_data", "data")
         run.log_artifact(artifact)
@@ -1801,9 +1863,9 @@ def test_save_artifact_portfolio(user, api):
         artifact.wait()
 
         portfolio = api.artifact_collection("data", "portfolio_name")
-        portfolio.description = "new description"
+        portfolio.description = new_description
         portfolio.name = "new_name"
-        with pytest.raises(ValueError):
+        with raises(ValueError):
             portfolio.type = "new_type"
         portfolio.tags = ["tag"]
         portfolio.save()
@@ -1811,7 +1873,7 @@ def test_save_artifact_portfolio(user, api):
         port_artifact = run.use_artifact("new_name:v0")
         portfolio = port_artifact.collection
         assert portfolio.name == "new_name"
-        assert portfolio.description == "new description"
+        assert portfolio.description == new_description
         assert len(portfolio.tags) == 1 and portfolio.tags[0] == "tag"
 
         portfolio.tags = ["new_tag"]
@@ -1820,6 +1882,62 @@ def test_save_artifact_portfolio(user, api):
         artifact = run.use_artifact("new_name:latest")
         portfolio = artifact.collection
         assert len(portfolio.tags) == 1 and portfolio.tags[0] == "new_tag"
+
+
+def test_artifact_collection_aliases(user: str, api: Api, logged_artifact: Artifact):
+    artifact1 = Artifact("test-artifact-1", "data")
+    artifact2 = Artifact("test-artifact-2", "data")
+
+    latest = "latest"
+    alias1, alias2 = "test-alias-1", "test-alias-2"
+    link_alias1, link_alias2 = "link-alias-1", "link-alias-2"
+    extra = "extra"
+
+    # Log the source artifacts
+    with wandb.init() as run:
+        run.log_artifact(artifact1, aliases=[alias1])
+        run.log_artifact(artifact2, aliases=[alias2])
+        artifact1.wait()
+        artifact2.wait()
+
+    # Link both source artifacts to a different collection
+    linked1 = artifact1.link("test-collection", aliases=[link_alias1])
+    linked2 = artifact2.link("test-collection", aliases=[link_alias2])
+
+    expected_src_aliases1 = [latest, alias1]
+    expected_src_aliases2 = [latest, alias2]
+    expected_link_aliases = [latest, link_alias1, link_alias2]
+
+    # Check the aliases on the source collections
+    src_collection1 = api.artifact_collection(name="test-artifact-1", type_name="data")
+    assert sorted(src_collection1.aliases) == sorted(expected_src_aliases1)
+    src_collection2 = api.artifact_collection(name="test-artifact-2", type_name="data")
+    assert sorted(src_collection2.aliases) == sorted(expected_src_aliases2)
+
+    # Check the aliases on the target collection
+    link_collection = api.artifact_collection(name="test-collection", type_name="data")
+    assert sorted(link_collection.aliases) == sorted(expected_link_aliases)
+
+    # Collection aliases are updated when an alias is added to a *member* version
+    linked1.aliases += [extra]
+    linked1.save()
+
+    link_collection = api.artifact_collection(name="test-collection", type_name="data")
+    assert sorted(link_collection.aliases) == sorted([*expected_link_aliases, extra])
+
+    # Collection aliases should be deduplicated, so adding the same alias
+    # within a collection should not change the the collection aliases
+    linked2.aliases += [extra]
+    linked2.save()
+
+    link_collection = api.artifact_collection(name="test-collection", type_name="data")
+    assert sorted(link_collection.aliases) == sorted([*expected_link_aliases, extra])
+
+    # The original source collection aliases should not have changed
+    src_collection1 = api.artifact_collection(name="test-artifact-1", type_name="data")
+    assert sorted(src_collection1.aliases) == sorted(expected_src_aliases1)
+    src_collection2 = api.artifact_collection(name="test-artifact-2", type_name="data")
+    assert sorted(src_collection2.aliases) == sorted(expected_src_aliases2)
 
 
 def test_s3_storage_handler_load_path_missing_reference_allowed(
@@ -1853,7 +1971,7 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    cache = artifact_file_cache.ArtifactFileCache(tmp_path)
+    cache = ArtifactFileCache(tmp_path)
     path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
     with opener() as f:
         f.write(123 * "a")
@@ -1899,27 +2017,27 @@ def test_manifest_json_version():
     assert manifest["version"] == 1
 
 
-@pytest.mark.parametrize("version", ["1", 1.0])
+@mark.parametrize("version", ["1", 1.0])
 def test_manifest_version_is_integer(version):
     pd_manifest = wandb.proto.wandb_internal_pb2.ArtifactManifest()
-    with pytest.raises(TypeError):
+    with raises(TypeError):
         pd_manifest.version = version
 
 
-@pytest.mark.parametrize("version", [0, 2])
+@mark.parametrize("version", [0, 2])
 def test_manifest_json_invalid_version(version):
     pd_manifest = wandb.proto.wandb_internal_pb2.ArtifactManifest()
     pd_manifest.version = version
-    with pytest.raises(Exception) as e:
+    with raises(Exception) as e:
         wandb.sdk.internal.sender._manifest_json_from_proto(pd_manifest)
     assert "manifest version" in str(e.value)
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky")
-def test_cache_cleanup_allows_upload(user, tmp_path, monkeypatch, artifact):
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
-    cache = artifact_file_cache.get_artifact_file_cache()
+@mark.usefixtures("override_env_dirs")
+@mark.flaky
+@mark.xfail(reason="flaky")
+def test_cache_cleanup_allows_upload(user, artifact):
+    cache = get_artifact_file_cache()
 
     with open("test-file", "wb") as f:
         f.truncate(2**20)
@@ -1948,7 +2066,7 @@ def test_cache_cleanup_allows_upload(user, tmp_path, monkeypatch, artifact):
 
 def test_artifact_ttl_setter_getter():
     art = Artifact("test", type="test")
-    with pytest.raises(ArtifactNotLoggedError):
+    with raises(ArtifactNotLoggedError):
         _ = art.ttl
     assert art._ttl_duration_seconds is None
     assert art._ttl_changed is False
@@ -1963,7 +2081,7 @@ def test_artifact_ttl_setter_getter():
 
     art = Artifact("test", type="test")
     art.ttl = ArtifactTTL.INHERIT
-    with pytest.raises(ArtifactNotLoggedError):
+    with raises(ArtifactNotLoggedError):
         _ = art.ttl
     assert art._ttl_duration_seconds is None
     assert art._ttl_changed
@@ -1978,5 +2096,5 @@ def test_artifact_ttl_setter_getter():
     assert art._ttl_is_inherited is False
 
     art = Artifact("test", type="test")
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         art.ttl = timedelta(days=-1)

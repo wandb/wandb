@@ -16,7 +16,6 @@ fn main() -> Result<()> {
         "wandb_telemetry.proto",
         "wandb_internal.proto",
         "wandb_system_monitor.proto",
-        "wandb_api.proto",
     ];
 
     let protos: Vec<_> = proto_files

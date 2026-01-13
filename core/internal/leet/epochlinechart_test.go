@@ -12,15 +12,17 @@ func TestEpochLineChart_Range(t *testing.T) {
 	c := leet.NewEpochLineChart(100, 10, "loss")
 
 	// Add a couple of points; Y padding should expand range.
-	c.AddPoint(0, 0.5)
-	c.AddPoint(1, 1.0)
+	c.AddData(leet.MetricData{X: []float64{0, 1}, Y: []float64{0.5, 1.0}})
 
 	require.Less(t, c.ViewMinY(), 0.5)
 	require.Greater(t, c.ViewMaxY(), 1.0)
 
 	// Force X-range to expand in rounded tens (0..30) once we exceed 20 steps.
 	for i := range 21 {
-		c.AddPoint(float64(i+2), float64(i))
+		c.AddData(leet.MetricData{
+			X: []float64{float64(i + 2)},
+			Y: []float64{float64(i)},
+		})
 	}
 	// Expecting MaxX≈30 after 21 steps.
 	require.LessOrEqual(t, math.Abs(c.MaxX()-30), 1e-9)
@@ -32,7 +34,10 @@ func TestEpochLineChart_Range(t *testing.T) {
 func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
 	c := leet.NewEpochLineChart(120, 12, "acc")
 	for i := range 40 {
-		c.AddPoint(float64(i), 0.1+0.02*float64(i))
+		c.AddData(leet.MetricData{
+			X: []float64{float64(i)},
+			Y: []float64{0.1 + 0.02*float64(i)},
+		})
 	}
 	oldMin, oldMax := c.ViewMinX(), c.ViewMaxX()
 	oldRange := oldMax - oldMin
@@ -66,7 +71,10 @@ func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
 func TestEpochLineChart_ZoomDoesNotSnapToTailAwayFromRight(t *testing.T) {
 	c := leet.NewEpochLineChart(120, 12, "loss")
 	for i := range 40 {
-		c.AddPoint(float64(i), float64(i))
+		c.AddData(leet.MetricData{
+			X: []float64{float64(i)},
+			Y: []float64{float64(i)},
+		})
 	}
 	// Sanity: initial view is [0, 40] with data tail at x≈39.
 
@@ -81,7 +89,10 @@ func TestEpochLineChart_ZoomDoesNotSnapToTailAwayFromRight(t *testing.T) {
 func TestEpochLineChart_ZoomNearRightAnchorsToTail(t *testing.T) {
 	c := leet.NewEpochLineChart(120, 12, "loss")
 	for i := range 40 {
-		c.AddPoint(float64(i), 0.5)
+		c.AddData(leet.MetricData{
+			X: []float64{float64(i)},
+			Y: []float64{0.5},
+		})
 	}
 
 	mouseX := int(float64(c.GraphWidth()) * 0.95) // near right edge

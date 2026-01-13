@@ -21,7 +21,11 @@ import (
 // A random jitter is added to the calculated duration, unless the calculated
 // duration is >= max.
 // The jitter is at most 25% of the calculated duration.
-func ExponentialBackoffWithJitter(min, max time.Duration, attemptNum int, resp *http.Response) time.Duration {
+func ExponentialBackoffWithJitter(
+	min, max time.Duration,
+	attemptNum int,
+	resp *http.Response,
+) time.Duration {
 	// based on go-retryablehttp's DefaultBackoff
 	addJitter := func(duration time.Duration) time.Duration {
 		jitter := SecondsToDuration(rand.Float64() * 0.25 * DurationToSeconds(duration))

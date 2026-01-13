@@ -5,22 +5,18 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import ArtifactFragment
 
 
-class UpdateArtifact(GQLBase):
-    update_artifact: Optional[UpdateArtifactUpdateArtifact] = Field(
-        alias="updateArtifact"
-    )
+class UpdateArtifact(GQLResult):
+    result: Optional[UpdateArtifactResult]
 
 
-class UpdateArtifactUpdateArtifact(GQLBase):
+class UpdateArtifactResult(GQLResult):
     artifact: ArtifactFragment
 
 
 UpdateArtifact.model_rebuild()
-UpdateArtifactUpdateArtifact.model_rebuild()
+UpdateArtifactResult.model_rebuild()

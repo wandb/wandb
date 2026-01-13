@@ -3,6 +3,7 @@ package filestream
 
 import (
 	"fmt"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,6 +30,10 @@ const (
 	//
 	// See https://github.com/wandb/core/pull/7339 for history.
 	defaultMaxFileLineBytes = (10 << 20) - (100 << 10)
+
+	// defaultMaxRequestSizeBytes is a default approximate maximum size in bytes
+	// for a FileStream request.
+	defaultMaxRequestSizeBytes = 10 << 20
 
 	// Retry filestream requests for 7 days before dropping chunk
 	// retry_count = seconds_in_7_days / max_retry_time + num_retries_until_max_60_sec
@@ -77,17 +82,11 @@ type FileStream interface {
 	// StreamUpdate uploads information through the filestream API.
 	StreamUpdate(update Update)
 
-	// StopState returns the last-known stop decision (unknown/false/true).
-	StopState() StopState
+	// IsStopped returns whether the run has been requested to stop.
+	//
+	// This happens if the user pressed the Stop button in the UI.
+	IsStopped() bool
 }
-
-type StopState uint32
-
-const (
-	StopUnknown StopState = iota
-	StopFalse
-	StopTrue
-)
 
 // fileStream is a stream of data to the server
 type fileStream struct {
@@ -115,7 +114,8 @@ type fileStream struct {
 	printer *observability.Printer
 
 	// The client for making API requests.
-	apiClient api.Client
+	apiClient api.RetryableClient
+	baseURL   *url.URL
 
 	// The rate limit for sending data to the backend.
 	transmitRateLimit *rate.Limiter
@@ -128,8 +128,10 @@ type fileStream struct {
 	deadChan     chan struct{}
 	deadChanOnce *sync.Once
 
-	// state is the last-known stopped status as reported by the backend.
-	state atomic.Uint32
+	// stopState is the last-known stopped status as reported by the backend.
+	//
+	// Once it becomes true, it does not switch back to false.
+	stopState atomic.Bool
 }
 
 // FileStreamProviders binds FileStreamFactory.
@@ -138,6 +140,7 @@ var FileStreamProviders = wire.NewSet(
 )
 
 type FileStreamFactory struct {
+	BaseURL    api.WBBaseURL
 	Logger     *observability.CoreLogger
 	Operations *wboperation.WandbOperations
 	Printer    *observability.Printer
@@ -146,7 +149,7 @@ type FileStreamFactory struct {
 
 // New returns a new FileStream.
 func (f *FileStreamFactory) New(
-	apiClient api.Client,
+	apiClient api.RetryableClient,
 	heartbeatStopwatch waiting.Stopwatch,
 	transmitRateLimit *rate.Limiter,
 ) FileStream {
@@ -164,6 +167,7 @@ func (f *FileStreamFactory) New(
 		operations:   f.Operations,
 		printer:      f.Printer,
 		apiClient:    apiClient,
+		baseURL:      f.BaseURL,
 		processChan:  make(chan Update, BufferSize),
 		feedbackWait: &sync.WaitGroup{},
 		deadChanOnce: &sync.Once{},
@@ -239,8 +243,8 @@ func (fs *fileStream) FinishWithoutExit() {
 	fs.logger.Debug("filestream: closed")
 }
 
-// StopState returns the last-known stop decision (unknown/false/true).
-func (fs *fileStream) StopState() StopState { return StopState(fs.state.Load()) }
+// IsStopped implements FileStream.IsStopped.
+func (fs *fileStream) IsStopped() bool { return fs.stopState.Load() }
 
 // logFatalAndStopWorking logs a fatal error and kills the filestream.
 //
@@ -251,7 +255,7 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 	fs.logger.CaptureFatal(fmt.Errorf("filestream: fatal error: %v", err))
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
-		fs.printer.Write(
+		fs.printer.Errorf(
 			"Fatal error while uploading data. Some run data will" +
 				" not be synced, but it will still be written to disk. Use" +
 				" `wandb sync` at the end of the run to try uploading.",

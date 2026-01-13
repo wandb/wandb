@@ -2,6 +2,22 @@ from unittest import mock
 
 import pytest
 import wandb
+from wandb.apis.public import runs
+
+
+@pytest.fixture(autouse=True)
+def patch_server_features(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent unit tests from attempting to contact the real server."""
+    monkeypatch.setattr(
+        runs,
+        "_server_provides_project_id_for_run",
+        lambda *args, **kwargs: False,
+    )
+    monkeypatch.setattr(
+        runs,
+        "_server_provides_internal_id_for_project",
+        lambda *args, **kwargs: False,
+    )
 
 
 @pytest.mark.parametrize(
@@ -13,7 +29,7 @@ import wandb
     ],
     ids=["config", "summaryMetrics", "systemMetrics"],
 )
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_string_attrs(field, value, expected):
     run = wandb.apis.public.Run(
         client=wandb.Api().client,
@@ -34,7 +50,7 @@ def test_create_run_with_string_attrs(field, value, expected):
     ],
     ids=["config", "summaryMetrics", "systemMetrics"],
 )
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary_attrs_already_parsed(field, value):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         run = wandb.apis.public.Run(
@@ -56,7 +72,7 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
     ],
     ids=["config", "summaryMetrics", "systemMetrics"],
 )
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_dictionary__throws_type_error(field, value):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         with pytest.raises(wandb.errors.CommError):
@@ -80,7 +96,7 @@ def test_create_run_with_dictionary__throws_type_error(field, value):
     ],
     ids=["config", "summaryMetrics", "systemMetrics"],
 )
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_create_run_with_control_characters(field, value, expected):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         run = wandb.apis.public.Run(

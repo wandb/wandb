@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Tuple, TypeVar, Union
+from abc import ABC
+from typing import TYPE_CHECKING, Any, Iterable, Tuple, TypeVar, Union
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
-from typing_extensions import TypeAlias, get_args
+from typing_extensions import Self, TypeAlias, get_args, override
 
 from wandb._pydantic import GQLBase
 from wandb._strutils import nameof
+
+if TYPE_CHECKING:
+    from .expressions import FilterExpr
 
 # for type annotations
 Scalar = Union[StrictStr, StrictInt, StrictFloat, StrictBool]
@@ -33,42 +37,61 @@ TupleOf: TypeAlias = Tuple[T, ...]
 # This is done to ensure the descriptions are omitted from generated API docs.
 
 
-# Mixin to support syntactic sugar for MongoDB expressions with (bitwise) logical operators,
-# e.g. `a | b` -> `{"$or": [a, b]}` or `~a` -> `{"$not": a}`.
-class SupportsLogicalOpSyntax:
+# Mixin class to support building MongoDB expressions idiomatically
+# with bitwise logical operators, e.g.:
+#   `a | b` -> `{"$or": [a, b]}`
+#   `~a` -> `{"$not": a}`
+class SupportsBitwiseLogicalOps:
     def __or__(self, other: Any) -> Or:
-        """Syntactic sugar for: `a | b` -> `Or(a, b)`."""
-        return Or(or_=[self, other])
+        """Implements default `|` behavior: `a | b -> Or(a, b)`."""
+        return Or(exprs=(self, other))
 
     def __and__(self, other: Any) -> And:
-        """Syntactic sugar for: `a & b` -> `And(a, b)`."""
+        """Implements default `&` behavior: `a & b -> And(a, b)`."""
         from .expressions import FilterExpr
 
         if isinstance(other, (BaseOp, FilterExpr)):
-            return And(and_=[self, other])
+            return And(exprs=(self, other))
         return NotImplemented
 
     def __invert__(self) -> Not:
-        """Syntactic sugar for: `~a` -> `Not(a)`."""
-        return Not(not_=self)
+        """Implements default `~` behavior: `~a -> Not(a)`."""
+        return Not(expr=self)
 
 
-# Base class for parsed MongoDB filter/query operators, e.g. `{"$and": [...]}`.
-class BaseOp(GQLBase, SupportsLogicalOpSyntax):
+# Base type for parsing MongoDB filter operators, e.g. from dicts like
+# `{"$and": [...]}`, `{"$or": [...]}`, `{"$gt": 1.0}`, etc.
+# Instances are frozen for easier comparison and more predictable behavior.
+class BaseOp(GQLBase, SupportsBitwiseLogicalOps, ABC):
     model_config = ConfigDict(
         extra="forbid",
-        frozen=True,  # Make pseudo-immutable for easier comparison and hashing
+        frozen=True,
     )
 
     def __repr__(self) -> str:
-        # Display operand as a positional arg
-        values_repr = ", ".join(map(repr, self.model_dump().values()))
-        return f"{nameof(type(self))}({values_repr})"
+        """Returns the operator's repr string, with operand(s) as positional args.
+
+        Note that BaseModels implement `__iter__()`:
+          https://docs.pydantic.dev/latest/concepts/serialization/#iterating-over-models
+        """
+        return f"{nameof(type(self))}({', '.join(repr(v) for _, v in self)})"
 
     def __rich_repr__(self) -> RichReprResult:
+        """Returns the operator's rich repr, if pretty-printing via `rich`.
+
+        See: https://rich.readthedocs.io/en/stable/pretty.html
+        """
         # Display field values as positional args:
-        # https://rich.readthedocs.io/en/stable/pretty.html
-        yield from ((None, v) for v in self.model_dump().values())
+        yield from ((None, v) for _, v in self)
+
+
+# Base type for logical operators that take a variable number of expressions.
+class BaseVariadicLogicalOp(BaseOp, ABC):
+    exprs: TupleOf[Union[FilterExpr, Op]]
+
+    @classmethod
+    def wrap(cls, expr: Any) -> Self:
+        return expr if isinstance(expr, cls) else cls(exprs=(expr,))
 
 
 # Logical operator(s)
@@ -76,32 +99,35 @@ class BaseOp(GQLBase, SupportsLogicalOpSyntax):
 # https://www.mongodb.com/docs/manual/reference/operator/query/or/
 # https://www.mongodb.com/docs/manual/reference/operator/query/nor/
 # https://www.mongodb.com/docs/manual/reference/operator/query/not/
-class And(BaseOp):
-    and_: TupleOf[Any] = Field(default=(), alias="$and")
+class And(BaseVariadicLogicalOp):
+    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$and")
 
 
-class Or(BaseOp):
-    or_: TupleOf[Any] = Field(default=(), alias="$or")
+class Or(BaseVariadicLogicalOp):
+    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$or")
 
+    @override
     def __invert__(self) -> Nor:
-        """Syntactic sugar for: `~Or(a, b)` -> `Nor(a, b)`."""
-        return Nor(nor_=self.or_)
+        """Implements `~Or(a, b) -> Nor(a, b)`."""
+        return Nor(exprs=self.exprs)
 
 
-class Nor(BaseOp):
-    nor_: TupleOf[Any] = Field(default=(), alias="$nor")
+class Nor(BaseVariadicLogicalOp):
+    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$nor")
 
+    @override
     def __invert__(self) -> Or:
-        """Syntactic sugar for: `~Nor(a, b)` -> `Or(a, b)`."""
-        return Or(or_=self.nor_)
+        """Implements `~Nor(a, b) -> Or(a, b)`."""
+        return Or(exprs=self.exprs)
 
 
 class Not(BaseOp):
-    not_: Any = Field(alias="$not")
+    expr: Union[FilterExpr, Op] = Field(alias="$not")
 
-    def __invert__(self) -> Any:
-        """Syntactic sugar for: `~Not(a)` -> `a`."""
-        return self.not_
+    @override
+    def __invert__(self) -> Union[FilterExpr, Op]:
+        """Implements `~Not(a) -> a`."""
+        return self.expr
 
 
 # Comparison operator(s)
@@ -114,102 +140,99 @@ class Not(BaseOp):
 # https://www.mongodb.com/docs/manual/reference/operator/query/in/
 # https://www.mongodb.com/docs/manual/reference/operator/query/nin/
 class Lt(BaseOp):
-    lt_: Scalar = Field(alias="$lt")
+    val: Scalar = Field(alias="$lt")
 
+    @override
     def __invert__(self) -> Gte:
-        """Syntactic sugar for: `~Lt(a)` -> `Gte(a)`."""
-        return Gte(gte_=self.lt_)
+        """Implements `~Lt(a) -> Gte(a)`."""
+        return Gte(val=self.val)
 
 
 class Gt(BaseOp):
-    gt_: Scalar = Field(alias="$gt")
+    val: Scalar = Field(alias="$gt")
 
+    @override
     def __invert__(self) -> Lte:
-        """Syntactic sugar for: `~Gt(a)` -> `Lte(a)`."""
-        return Lte(lte_=self.gt_)
+        """Implements `~Gt(a) -> Lte(a)`."""
+        return Lte(val=self.val)
 
 
 class Lte(BaseOp):
-    lte_: Scalar = Field(alias="$lte")
+    val: Scalar = Field(alias="$lte")
 
+    @override
     def __invert__(self) -> Gt:
-        """Syntactic sugar for: `~Lte(a)` -> `Gt(a)`."""
-        return Gt(gt_=self.lte_)
+        """Implements `~Lte(a) -> Gt(a)`."""
+        return Gt(val=self.val)
 
 
 class Gte(BaseOp):
-    gte_: Scalar = Field(alias="$gte")
+    val: Scalar = Field(alias="$gte")
 
+    @override
     def __invert__(self) -> Lt:
-        """Syntactic sugar for: `~Gte(a)` -> `Lt(a)`."""
-        return Lt(lt_=self.gte_)
+        """Implements `~Gte(a) -> Lt(a)`."""
+        return Lt(val=self.val)
 
 
 class Eq(BaseOp):
-    eq_: Scalar = Field(alias="$eq")
+    val: Scalar = Field(alias="$eq")
 
+    @override
     def __invert__(self) -> Ne:
-        """Syntactic sugar for: `~Eq(a)` -> `Ne(a)`."""
-        return Ne(ne_=self.eq_)
+        """Implements `~Eq(a) -> Ne(a)`."""
+        return Ne(val=self.val)
 
 
 class Ne(BaseOp):
-    ne_: Scalar = Field(alias="$ne")
+    val: Scalar = Field(alias="$ne")
 
+    @override
     def __invert__(self) -> Eq:
-        """Syntactic sugar for: `~Ne(a)` -> `Eq(a)`."""
-        return Eq(eq_=self.ne_)
+        """Implements `~Ne(a) -> Eq(a)`."""
+        return Eq(val=self.val)
 
 
 class In(BaseOp):
-    in_: TupleOf[Scalar] = Field(default=(), alias="$in")
+    val: TupleOf[Scalar] = Field(default=(), alias="$in")
 
+    @override
     def __invert__(self) -> NotIn:
-        """Syntactic sugar for: `~In(a)` -> `NotIn(a)`."""
-        return NotIn(nin_=self.in_)
+        """Implements `~In(a) -> NotIn(a)`."""
+        return NotIn(val=self.val)
 
 
 class NotIn(BaseOp):
-    nin_: TupleOf[Scalar] = Field(default=(), alias="$nin")
+    val: TupleOf[Scalar] = Field(default=(), alias="$nin")
 
+    @override
     def __invert__(self) -> In:
-        """Syntactic sugar for: `~NotIn(a)` -> `In(a)`."""
-        return In(in_=self.nin_)
+        """Implements `~NotIn(a) -> In(a)`."""
+        return In(val=self.val)
 
 
 # Element operator(s)
 # https://www.mongodb.com/docs/manual/reference/operator/query/exists/
 class Exists(BaseOp):
-    exists_: bool = Field(alias="$exists")
+    val: bool = Field(alias="$exists")
+
+    @override
+    def __invert__(self) -> Exists:
+        """Implements `~Exists(True) -> Exists(False)` and vice versa."""
+        return Exists(val=not self.val)
 
 
 # Evaluation operator(s)
 # https://www.mongodb.com/docs/manual/reference/operator/query/regex/
 #
-# Note: "$contains" is NOT a formal MongoDB operator, but the backend recognizes and
-# executes it as a substring-match filter.
+# Note: `$contains` is NOT a formal MongoDB operator, but the W&B backend
+# recognizes and executes it as a substring-match filter.
 class Regex(BaseOp):
-    regex_: str = Field(alias="$regex")  #: The regex expression to match against.
+    val: str = Field(alias="$regex")  #: The regex expression to match against.
 
 
 class Contains(BaseOp):
-    contains_: str = Field(alias="$contains")  #: The substring to match against.
-
-
-And.model_rebuild()
-Or.model_rebuild()
-Not.model_rebuild()
-Lt.model_rebuild()
-Gt.model_rebuild()
-Lte.model_rebuild()
-Gte.model_rebuild()
-Eq.model_rebuild()
-Ne.model_rebuild()
-In.model_rebuild()
-NotIn.model_rebuild()
-Exists.model_rebuild()
-Regex.model_rebuild()
-Contains.model_rebuild()
+    val: str = Field(alias="$contains")  #: The substring to match against.
 
 
 # ------------------------------------------------------------------------------
@@ -234,7 +257,8 @@ KEY_TO_OP: dict[str, type[BaseOp]] = {
 }
 
 
-KnownOp = Union[
+# Known, implemented MongoDB operators for type annotations.
+Op = Union[
     And,
     Or,
     Nor,
@@ -251,9 +275,3 @@ KnownOp = Union[
     Regex,
     Contains,
 ]
-UnknownOp = Dict[str, Any]
-
-# for type annotations
-Op = Union[KnownOp, UnknownOp]
-# for runtime type checks
-OpTypes: tuple[type, ...] = (*get_args(KnownOp), dict)

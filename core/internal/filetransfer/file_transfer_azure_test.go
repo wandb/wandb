@@ -70,11 +70,18 @@ type mockAzureBlobClient struct {
 	blob mockAzureBlob
 }
 
-func (m mockAzureBlobClient) DownloadFile(ctx context.Context, destination *os.File, options *blob.DownloadFileOptions) (int64, error) {
+func (m mockAzureBlobClient) DownloadFile(
+	ctx context.Context,
+	destination *os.File,
+	options *blob.DownloadFileOptions,
+) (int64, error) {
 	return io.Copy(destination, bytes.NewReader(m.blob.Content))
 }
 
-func (m mockAzureBlobClient) GetProperties(ctx context.Context, options *blob.GetPropertiesOptions) (blob.GetPropertiesResponse, error) {
+func (m mockAzureBlobClient) GetProperties(
+	ctx context.Context,
+	options *blob.GetPropertiesOptions,
+) (blob.GetPropertiesResponse, error) {
 	etag := azcore.ETag(fmt.Sprintf("%q", m.blob.ETag))
 	return blob.GetPropertiesResponse{
 		ETag: &etag,
@@ -90,7 +97,10 @@ func mockMore(r container.ListBlobsFlatResponse) bool {
 	return false
 }
 
-func mockAzureAccountFetcher(_ context.Context, _ *azblob.ListBlobsFlatResponse) (azblob.ListBlobsFlatResponse, error) {
+func mockAzureAccountFetcher(
+	_ context.Context,
+	_ *azblob.ListBlobsFlatResponse,
+) (azblob.ListBlobsFlatResponse, error) {
 	response := azblob.ListBlobsFlatResponse{
 		ListBlobsFlatSegmentResponse: azblob.ListBlobsFlatSegmentResponse{
 			Segment: &container.BlobFlatListSegment{
@@ -112,7 +122,13 @@ func mockAzureAccountFetcher(_ context.Context, _ *azblob.ListBlobsFlatResponse)
 
 type mockAzureAccountClient struct{}
 
-func (m mockAzureAccountClient) DownloadFile(ctx context.Context, containerName string, blobName string, destination *os.File, options *azblob.DownloadFileOptions) (int64, error) {
+func (m mockAzureAccountClient) DownloadFile(
+	ctx context.Context,
+	containerName string,
+	blobName string,
+	destination *os.File,
+	options *azblob.DownloadFileOptions,
+) (int64, error) {
 	for _, b := range mockAzureBlobs {
 		if b.Name == blobName && b.Container == containerName && b.VersionId == "latest" {
 			return io.Copy(destination, bytes.NewReader(b.Content))
@@ -121,7 +137,10 @@ func (m mockAzureAccountClient) DownloadFile(ctx context.Context, containerName 
 	return 0, fmt.Errorf("blob %s not found", blobName)
 }
 
-func (m mockAzureAccountClient) NewListBlobsFlatPager(containerName string, options *azblob.ListBlobsFlatOptions) *runtime.Pager[azblob.ListBlobsFlatResponse] {
+func (m mockAzureAccountClient) NewListBlobsFlatPager(
+	containerName string,
+	options *azblob.ListBlobsFlatOptions,
+) *runtime.Pager[azblob.ListBlobsFlatResponse] {
 	pager := runtime.NewPager(runtime.PagingHandler[azblob.ListBlobsFlatResponse]{
 		More:    mockMore,
 		Fetcher: mockAzureAccountFetcher,
@@ -129,13 +148,19 @@ func (m mockAzureAccountClient) NewListBlobsFlatPager(containerName string, opti
 	return pager
 }
 
-func mockSetupAccountClient(_ string, _ *azidentity.DefaultAzureCredential) (filetransfer.AzureAccountClient, error) {
+func mockSetupAccountClient(
+	_ string,
+	_ *azidentity.DefaultAzureCredential,
+) (filetransfer.AzureAccountClient, error) {
 	return mockAzureAccountClient{}, nil
 }
 
 func TestAzureFileTransfer_Download(t *testing.T) {
 	accountClients := filetransfer.NewAzureClientsMap[filetransfer.AzureAccountClient]()
-	_, err := accountClients.LoadOrStore("https://account.blob.core.windows.net", mockSetupAccountClient)
+	_, err := accountClients.LoadOrStore(
+		"https://account.blob.core.windows.net",
+		mockSetupAccountClient,
+	)
 	assert.NoError(t, err)
 
 	ftFile1 := filetransfer.NewAzureFileTransfer(
@@ -273,7 +298,11 @@ type mockAzureBlockBlobClient struct {
 	shouldFail      bool
 }
 
-func (m mockAzureBlockBlobClient) UploadStream(ctx context.Context, body io.Reader, options *blockblob.UploadStreamOptions) (blockblob.UploadStreamResponse, error) {
+func (m mockAzureBlockBlobClient) UploadStream(
+	ctx context.Context,
+	body io.Reader,
+	options *blockblob.UploadStreamOptions,
+) (blockblob.UploadStreamResponse, error) {
 	if m.shouldFail {
 		return blockblob.UploadStreamResponse{}, fmt.Errorf("upload failed")
 	}

@@ -25,6 +25,11 @@ var VariablesInAllowedPositionRule = Rule{
 				}
 			}
 
+			// If the expected type has a default, the given variable can be null
+			if value.ExpectedTypeHasDefault {
+				tmp.NonNull = false
+			}
+
 			if !value.VariableDefinition.Type.IsCompatible(&tmp) {
 				addError(
 					Message(

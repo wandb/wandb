@@ -389,14 +389,18 @@ class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
     @staticmethod
     def _validate_obj(obj: Any) -> bool:
         dynamic_sklearn = _get_sklearn()
-        return cast(
-            bool,
-            (
-                dynamic_sklearn.base.is_classifier(obj)
-                or dynamic_sklearn.base.is_outlier_detector(obj)
-                or dynamic_sklearn.base.is_regressor(obj)
-            ),
-        )
+        try:
+            return cast(
+                bool,
+                (
+                    dynamic_sklearn.base.is_classifier(obj)
+                    or dynamic_sklearn.base.is_outlier_detector(obj)
+                    or dynamic_sklearn.base.is_regressor(obj)
+                ),
+            )
+        except AttributeError:
+            # sklearn >= 1.6 raises AttributeError from `is_classifier()` for non-sklearn objects
+            return False
 
     @staticmethod
     def _serialize(

@@ -3,13 +3,15 @@
 
 from __future__ import annotations
 
-from wandb._pydantic import GQLBase
-
-from .fragments import DeleteAutomationResult
+from wandb._pydantic import GQLResult
 
 
-class DeleteAutomation(GQLBase):
+class DeleteAutomation(GQLResult):
     result: DeleteAutomationResult
+
+
+class DeleteAutomationResult(GQLResult):
+    success: bool
 
 
 DeleteAutomation.model_rebuild()

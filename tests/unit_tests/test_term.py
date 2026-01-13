@@ -1,4 +1,8 @@
+from __future__ import annotations
+
+import pytest
 import wandb
+from wandb import util
 from wandb.errors import term
 
 
@@ -106,3 +110,58 @@ def test_truncates_dynamic_text(emulated_terminal, monkeypatch):
         assert emulated_terminal.read_stderr() == ["wandb: this should fit"]
         text.set_text("but not this line")
         assert emulated_terminal.read_stderr() == ["wandb: but not this..."]
+
+
+@pytest.fixture
+def terminput_valid_env(monkeypatch: pytest.MonkeyPatch):
+    """Patch attributes that can_use_terminput checks to make it return True."""
+    monkeypatch.setattr(term, "_silent", False)
+    monkeypatch.setattr(term, "_show_info", True)
+    monkeypatch.setenv("TERM", "xterm")
+    monkeypatch.setattr(util, "_is_databricks", lambda: False)
+    monkeypatch.setattr(term, "_in_jupyter", lambda: False)
+    monkeypatch.setattr(term, "_sys_stderr_isatty", lambda: True)
+    monkeypatch.setattr(term, "_sys_stdin_isatty", lambda: True)
+
+
+@pytest.mark.usefixtures("terminput_valid_env")
+def test_can_use_terminput():
+    assert term.can_use_terminput()
+
+
+@pytest.mark.usefixtures("terminput_valid_env")
+def test_can_use_terminput_databricks(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # Test for the check added for WB-5264.
+    monkeypatch.setattr(util, "_is_databricks", lambda: True)
+
+    assert not term.can_use_terminput()
+
+
+@pytest.mark.parametrize(
+    "inputs, expected_result",
+    (
+        ([" y "], True),
+        (["Y "], True),
+        (["yes"], True),
+        ([" n"], False),
+        (["No "], False),
+        ([" N"], False),
+        (["", "yellow", "no"], False),
+        (["no yes", "yes"], True),
+    ),
+)
+def test_confirm(
+    inputs: list[str],
+    expected_result: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remaining_inputs = list(inputs)
+
+    def mock_terminput(*args, **kwargs) -> str:
+        return remaining_inputs.pop()
+
+    monkeypatch.setattr(term, "_terminput", mock_terminput)
+
+    assert term.confirm("What?") == expected_result

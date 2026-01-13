@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type testFixtures struct {
@@ -45,6 +47,9 @@ func setup(t *testing.T) testFixtures {
 	return testFixtures{
 		RunReader: factory.New(
 			transactionLog,
+			runsync.ToDisplayPath(transactionLog, ""),
+			nil,
+			false,
 			mockRecordParser,
 			fakeRunWork,
 		),
@@ -132,18 +137,27 @@ func isExitRecord(code int32) gomock.Matcher {
 
 func Test_Extract_FindsRunRecord(t *testing.T) {
 	x := setup(t)
+	startTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	wandbFileWithRecords(t,
 		x.TransactionLog,
 		&spb.Record{RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
-				RunId: "test run ID",
+				Entity:    "test entity",
+				Project:   "test project",
+				RunId:     "test run ID",
+				StartTime: timestamppb.New(startTime),
 			},
 		}})
 
 	runInfo, err := x.RunReader.ExtractRunInfo()
 	require.NoError(t, err)
 
-	assert.Equal(t, &runsync.RunInfo{RunID: "test run ID"}, runInfo)
+	assert.Equal(t, &runsync.RunInfo{
+		Entity:    "test entity",
+		Project:   "test project",
+		RunID:     "test run ID",
+		StartTime: startTime,
+	}, runInfo)
 }
 
 func Test_Extract_ErrorIfNoRunRecord(t *testing.T) {
@@ -162,7 +176,7 @@ func Test_Extract_ErrorIfNoFile(t *testing.T) {
 	runInfo, err := x.RunReader.ExtractRunInfo()
 
 	assert.Nil(t, runInfo)
-	assert.ErrorContains(t, err, "failed to open store")
+	assert.ErrorContains(t, err, "failed to open reader")
 }
 
 func Test_TurnsAllRecordsIntoWork(t *testing.T) {

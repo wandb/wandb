@@ -30,6 +30,7 @@ import requests
 
 import wandb
 from wandb import util
+from wandb.analytics import get_sentry
 from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
@@ -1126,7 +1127,7 @@ class SendManager:
         run_settings = message_to_dict(self._run)
         _settings = dict(self._settings)
         _settings.update(run_settings)
-        wandb._sentry.configure_scope(tags=_settings, process_context="internal")
+        get_sentry().configure_scope(tags=_settings, process_context="internal")
 
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
@@ -1171,7 +1172,7 @@ class SendManager:
         summary_path = os.path.join(self._settings.files_dir, filenames.SUMMARY_FNAME)
         with open(summary_path, "w") as f:
             f.write(json_summary)
-        self._save_file(interface.GlobStr(filenames.SUMMARY_FNAME))
+        self._save_file(filesystem.GlobStr(filenames.SUMMARY_FNAME))
 
     def send_stats(self, record: "Record") -> None:
         stats = record.stats
@@ -1398,7 +1399,7 @@ class SendManager:
         self._update_telemetry_record(record.request.telemetry_record.telemetry)
 
     def _save_file(
-        self, fname: interface.GlobStr, policy: "interface.PolicyName" = "end"
+        self, fname: filesystem.GlobStr, policy: "filesystem.PolicyName" = "end"
     ) -> None:
         logger.info("saving file %s with policy %s", fname, policy)
         if self._dir_watcher:
@@ -1409,7 +1410,7 @@ class SendManager:
         for k in files.files:
             # TODO(jhr): fix paths with directories
             self._save_file(
-                interface.GlobStr(glob.escape(k.path)),
+                filesystem.GlobStr(glob.escape(k.path)),
                 interface.file_enum_to_policy(k.policy),
             )
 
@@ -1438,7 +1439,7 @@ class SendManager:
         ) as f:
             f.write(environment_json)
 
-        self._save_file(interface.GlobStr(filenames.METADATA_FNAME), policy="now")
+        self._save_file(filesystem.GlobStr(filenames.METADATA_FNAME), policy="now")
 
     def send_request_link_artifact(self, record: "Record") -> None:
         if not (record.control.req_resp or record.control.mailbox_slot):
@@ -1609,7 +1610,7 @@ class SendManager:
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
-        wandb._sentry.end_session()
+        get_sentry().end_session()
 
     def _max_cli_version(self) -> Optional[str]:
         server_info = self.get_server_info()

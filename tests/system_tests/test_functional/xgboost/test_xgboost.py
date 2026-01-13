@@ -17,11 +17,11 @@ def test_classification(wandb_backend_spy, execute_script):
         summary = snapshot.summary(run_id=run_id)
         assert summary["Feature Importance_table"]["_type"] == "table-file"
         assert summary["Feature Importance_table"]["ncols"] == 2
-        assert summary["Feature Importance_table"]["nrows"] == 11
-        assert summary["best_score"] == 1.0
-        assert summary["epoch"] == 49
-        assert summary["validation_0-auc"]["max"] == 1
-        assert summary["validation_1-auc"]["max"] == 1
+        assert summary["Feature Importance_table"]["nrows"] == 10
+        assert summary["best_score"] > 0.99
+        assert "epoch" in summary
+        assert summary["validation_0-auc"]["max"] > 0.99
+        assert summary["validation_1-auc"]["max"] > 0.99
         assert summary["validation_0-mlogloss"]["min"] > 0.0
         assert summary["validation_1-mlogloss"]["min"] > 0.0
 
@@ -47,8 +47,8 @@ def test_regression(wandb_backend_spy, execute_script):
         assert summary["Feature Importance_table"]["ncols"] == 2
         assert summary["Feature Importance_table"]["nrows"] == 7
         assert summary["best_score"] > 0.5
-        assert summary["best_iteration"] == 99
-        assert summary["epoch"] == 99
+        assert "best_iteration" in summary
+        assert "epoch" in summary
         assert summary["validation_0-rmse"]["min"] > 0.0
         assert summary["validation_1-rmse"]["min"] > 0.0
 

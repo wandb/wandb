@@ -7,37 +7,28 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
+
+from .fragments import RunInfoFragment
 
 
-class ArtifactUsedBy(GQLBase):
+class ArtifactUsedBy(GQLResult):
     artifact: Optional[ArtifactUsedByArtifact]
 
 
-class ArtifactUsedByArtifact(GQLBase):
+class ArtifactUsedByArtifact(GQLResult):
     used_by: ArtifactUsedByArtifactUsedBy = Field(alias="usedBy")
 
 
-class ArtifactUsedByArtifactUsedBy(GQLBase):
+class ArtifactUsedByArtifactUsedBy(GQLResult):
     edges: List[ArtifactUsedByArtifactUsedByEdges]
 
 
-class ArtifactUsedByArtifactUsedByEdges(GQLBase):
-    node: ArtifactUsedByArtifactUsedByEdgesNode
-
-
-class ArtifactUsedByArtifactUsedByEdgesNode(GQLBase):
-    name: str
-    project: Optional[ArtifactUsedByArtifactUsedByEdgesNodeProject]
-
-
-class ArtifactUsedByArtifactUsedByEdgesNodeProject(GQLBase):
-    name: str
-    entity_name: str = Field(alias="entityName")
+class ArtifactUsedByArtifactUsedByEdges(GQLResult):
+    node: RunInfoFragment
 
 
 ArtifactUsedBy.model_rebuild()
 ArtifactUsedByArtifact.model_rebuild()
 ArtifactUsedByArtifactUsedBy.model_rebuild()
 ArtifactUsedByArtifactUsedByEdges.model_rebuild()
-ArtifactUsedByArtifactUsedByEdgesNode.model_rebuild()

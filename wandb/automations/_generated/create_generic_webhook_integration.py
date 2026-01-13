@@ -3,30 +3,31 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional, Union
+from typing import Optional, Union
 
 from pydantic import Field
+from typing_extensions import Literal
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
 
-from .fragments import GenericWebhookIntegrationFields
+from .fragments import WebhookIntegrationFields
 
 
-class CreateGenericWebhookIntegration(GQLBase):
+class CreateGenericWebhookIntegration(GQLResult):
     create_generic_webhook_integration: Optional[
         CreateGenericWebhookIntegrationCreateGenericWebhookIntegration
     ] = Field(alias="createGenericWebhookIntegration")
 
 
-class CreateGenericWebhookIntegrationCreateGenericWebhookIntegration(GQLBase):
+class CreateGenericWebhookIntegrationCreateGenericWebhookIntegration(GQLResult):
     integration: Union[
         CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationIntegration,
-        GenericWebhookIntegrationFields,
+        WebhookIntegrationFields,
     ] = Field(discriminator="typename__")
 
 
 class CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationIntegration(
-    GQLBase
+    GQLResult
 ):
     typename__: Typename[
         Literal["GitHubOAuthIntegration", "Integration", "SlackIntegration"]

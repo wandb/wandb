@@ -2,9 +2,7 @@ package runsummary
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -20,30 +18,9 @@ func New() *RunSummary {
 	return &RunSummary{summaries: pathtree.New[*metricSummary]()}
 }
 
-// SetFromRecord explicitly sets the summary value of a metric.
-//
-// Returns an error if the item is not valid.
-func (rs *RunSummary) SetFromRecord(record *spb.SummaryItem) error {
-	value, err := simplejsonext.UnmarshalString(record.ValueJson)
-	if err != nil {
-		return fmt.Errorf("runsummary: invalid summary JSON: %v", err)
-	}
-
-	rs.getOrMakeSummary(keyPath(record)).SetExplicit(value)
-
-	return nil
-}
-
-func (rs *RunSummary) RemoveFromRecord(record *spb.SummaryItem) {
-	if len(record.NestedKey) > 0 {
-		rs.Remove(
-			pathtree.PathOf(
-				record.NestedKey[0],
-				record.NestedKey[1:]...,
-			))
-	} else {
-		rs.Remove(pathtree.PathOf(record.Key))
-	}
+// Set sets the explicit summary value for a metric.
+func (rs *RunSummary) Set(path pathtree.TreePath, value any) {
+	rs.getOrMakeSummary(path).SetExplicit(value)
 }
 
 // Remove deletes the summary for a metric.
@@ -216,20 +193,4 @@ func (rs *RunSummary) getOrMakeSummary(path pathtree.TreePath) *metricSummary {
 		path,
 		func() *metricSummary { return &metricSummary{} },
 	)
-}
-
-type summaryOrHistoryItem interface {
-	GetNestedKey() []string
-	GetKey() string
-}
-
-// keyPath returns the key on the summary or history proto as a path.
-func keyPath[T summaryOrHistoryItem](item T) pathtree.TreePath {
-	if len(item.GetNestedKey()) > 0 {
-		return pathtree.PathOf(
-			item.GetNestedKey()[0],
-			item.GetNestedKey()[1:]...,
-		)
-	}
-	return pathtree.PathOf(item.GetKey())
 }

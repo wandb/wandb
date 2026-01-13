@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import platform
 import shutil
@@ -6,22 +8,24 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
-import pytest
 import wandb
+from pytest import MonkeyPatch, mark, raises
+from pytest_mock import MockerFixture
 from wandb import Api, Artifact
 from wandb.errors import CommError
-from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts._validators import (
-    ARTIFACT_NAME_MAXLEN,
-    RESERVED_ARTIFACT_TYPE_PREFIX,
-)
+from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
-from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import md5_string
 
+pytestmark = [
+    # requesting the `user` fixture sets API env var for ALL tests in this module
+    mark.usefixtures("user"),
+]
 
-def test_add_table_from_dataframe(user):
+
+def test_add_table_from_dataframe():
     import pandas as pd
 
     df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float64)
@@ -39,84 +43,79 @@ def test_add_table_from_dataframe(user):
     wb_table_bool = wandb.Table(dataframe=df_bool)
     wb_table_timestamp = wandb.Table(dataframe=df_timestamp)
 
-    run = wandb.init()
-    artifact = wandb.Artifact("table-example", "dataset")
-    artifact.add(wb_table_float, "wb_table_float")
-    artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
-    artifact.add(wb_table_float32, "wb_table_float32")
-    artifact.add(wb_table_bool, "wb_table_bool")
+    with wandb.init() as run:
+        artifact = Artifact("table-example", "dataset")
+        artifact.add(wb_table_float, "wb_table_float")
+        artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
+        artifact.add(wb_table_float32, "wb_table_float32")
+        artifact.add(wb_table_bool, "wb_table_bool")
 
-    # check that timestamp is correctly converted to ms and not ns
-    json_repr = wb_table_timestamp.to_json(artifact)
-    assert "data" in json_repr and np.isclose(
-        json_repr["data"][0][0],
-        current_time.replace(tzinfo=timezone.utc).timestamp() * 1000,
-    )
-    artifact.add(wb_table_timestamp, "wb_table_timestamp")
+        # check that timestamp is correctly converted to ms and not ns
+        json_repr = wb_table_timestamp.to_json(artifact)
+        assert "data" in json_repr and np.isclose(
+            json_repr["data"][0][0],
+            current_time.replace(tzinfo=timezone.utc).timestamp() * 1000,
+        )
+        artifact.add(wb_table_timestamp, "wb_table_timestamp")
 
-    run.log_artifact(artifact)
-
-    run.finish()
+        run.log_artifact(artifact)
 
 
-def test_artifact_error_for_invalid_aliases(user):
-    run = wandb.init()
-    artifact = wandb.Artifact("test-artifact", "dataset")
-    error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
-    for aliases in error_aliases:
-        with pytest.raises(ValueError) as e_info:
-            run.log_artifact(artifact, aliases=aliases)
+def test_artifact_error_for_invalid_aliases():
+    with wandb.init() as run:
+        artifact = Artifact("test-artifact", "dataset")
+        error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
+        for aliases in error_aliases:
+            with raises(ValueError) as e_info:
+                run.log_artifact(artifact, aliases=aliases)
             assert (
                 str(e_info.value)
-                == "Aliases must not contain any of the following characters: /, :"
+                == "Aliases must not contain any of the following characters: '/', ':'"
             )
 
-    for aliases in [["latest", "boom_test-q"]]:
-        run.log_artifact(artifact, aliases=aliases)
-
-    run.finish()
+        for aliases in [["latest", "boom_test-q"]]:
+            run.log_artifact(artifact, aliases=aliases)
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "invalid_name",
-    [
-        "a" * (ARTIFACT_NAME_MAXLEN + 1),  # Name too long
+    (
+        "a" * (NAME_MAXLEN + 1),  # Name too long
         "my/artifact",  # Invalid character(s)
-    ],
+    ),
 )
-def test_artifact_error_for_invalid_name(tmp_path, user, api, invalid_name):
+def test_artifact_error_for_invalid_name(tmp_path: Path, api: Api, invalid_name: str):
     """When logging a *file*, passing an invalid artifact name to `Run.log_artifact()` should raise an error."""
     file_path = tmp_path / "test.txt"
     file_path.write_text("test data")
 
     # It should not be possible to log the artifact
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         with wandb.init() as run:
             logged = run.log_artifact(file_path, name=invalid_name)
             logged.wait()
 
     # It should not be possible to retrieve the artifact either
-    with pytest.raises(CommError):
-        _ = api.artifact(f"{invalid_name}:latest")
+    with raises(CommError):
+        api.artifact(f"{invalid_name}:latest")
 
 
-def test_artifact_upsert_no_id(user):
+def test_artifact_upsert_no_id():
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
     artifact_type = "dataset"
 
     # Upsert without a group or id should fail
-    run = wandb.init()
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    artifact.add(image, "image_1")
-    with pytest.raises(TypeError):
-        run.upsert_artifact(artifact)
-    run.finish()
+    with wandb.init() as run:
+        artifact = Artifact(name=artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        artifact.add(image, "image_1")
+        with raises(TypeError):
+            run.upsert_artifact(artifact)
 
 
-def test_artifact_upsert_group_id(user):
+def test_artifact_upsert_group_id():
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -124,15 +123,14 @@ def test_artifact_upsert_group_id(user):
     artifact_type = "dataset"
 
     # Upsert with a group should succeed
-    run = wandb.init(group=group_name)
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    artifact.add(image, "image_1")
-    run.upsert_artifact(artifact)
-    run.finish()
+    with wandb.init(group=group_name) as run:
+        artifact = Artifact(name=artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        artifact.add(image, "image_1")
+        run.upsert_artifact(artifact)
 
 
-def test_artifact_upsert_distributed_id(user):
+def test_artifact_upsert_distributed_id():
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -140,29 +138,40 @@ def test_artifact_upsert_distributed_id(user):
     artifact_type = "dataset"
 
     # Upsert with a distributed_id should succeed
-    run = wandb.init()
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    artifact.add(image, "image_2")
-    run.upsert_artifact(artifact, distributed_id=group_name)
-    run.finish()
+    with wandb.init() as run:
+        artifact = Artifact(name=artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        artifact.add(image, "image_2")
+        run.upsert_artifact(artifact, distributed_id=group_name)
 
 
-def test_artifact_finish_no_id(user):
+def test_artifact_finish_no_id():
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
     artifact_type = "dataset"
 
     # Finish without a distributed_id should fail
-    run = wandb.init()
-    artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    with pytest.raises(TypeError):
+    with wandb.init() as run:
+        artifact = Artifact(artifact_name, type=artifact_type)
+        with raises(TypeError):
+            run.finish_artifact(artifact)
+
+
+def test_artifact_finish_group_id():
+    # NOTE: these tests are against a mock server so they are testing the internal flows, but
+    # not the actual data transfer.
+    artifact_name = f"distributed_artifact_{round(time.time())}"
+    group_name = f"test_group_{round(np.random.rand())}"
+    artifact_type = "dataset"
+
+    # Finish with a distributed_id should succeed
+    with wandb.init(group=group_name) as run:
+        artifact = Artifact(artifact_name, type=artifact_type)
         run.finish_artifact(artifact)
-    run.finish()
 
 
-def test_artifact_finish_group_id(user):
+def test_artifact_finish_distributed_id():
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -170,28 +179,13 @@ def test_artifact_finish_group_id(user):
     artifact_type = "dataset"
 
     # Finish with a distributed_id should succeed
-    run = wandb.init(group=group_name)
-    artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    run.finish_artifact(artifact)
-    run.finish()
+    with wandb.init() as run:
+        artifact = Artifact(artifact_name, type=artifact_type)
+        run.finish_artifact(artifact, distributed_id=group_name)
 
 
-def test_artifact_finish_distributed_id(user):
-    # NOTE: these tests are against a mock server so they are testing the internal flows, but
-    # not the actual data transfer.
-    artifact_name = f"distributed_artifact_{round(time.time())}"
-    group_name = f"test_group_{round(np.random.rand())}"
-    artifact_type = "dataset"
-
-    # Finish with a distributed_id should succeed
-    run = wandb.init()
-    artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    run.finish_artifact(artifact, distributed_id=group_name)
-    run.finish()
-
-
-@pytest.mark.parametrize("incremental", [False, True])
-def test_add_file_respects_incremental(tmp_path, user, api, incremental):
+@mark.parametrize("incremental", [False, True])
+def test_add_file_respects_incremental(tmp_path: Path, api: Api, incremental: bool):
     art_name = "incremental-test"
     art_type = "dataset"
 
@@ -222,10 +216,10 @@ def test_add_file_respects_incremental(tmp_path, user, api, incremental):
         assert final_manifest_entry_keys == {new_filepath.name}
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky on CI")
-def test_edit_after_add(user):
-    artifact = wandb.Artifact(name="hi-art", type="dataset")
+@mark.flaky
+@mark.xfail(reason="flaky on CI")
+def test_edit_after_add():
+    artifact = Artifact(name="hi-art", type="dataset")
     filename = "file1.txt"
     open(filename, "w").write("hello!")
     artifact.add_file(filename)
@@ -242,9 +236,9 @@ def test_edit_after_add(user):
     assert open(filename).read() == "goodbye."
 
 
-def test_remove_after_log(user):
+def test_remove_after_log():
     with wandb.init() as run:
-        artifact = wandb.Artifact(name="hi-art", type="dataset")
+        artifact = Artifact(name="hi-art", type="dataset")
         artifact.add_reference(Path(__file__).as_uri())
         run.log_artifact(artifact)
         artifact.wait()
@@ -252,21 +246,20 @@ def test_remove_after_log(user):
     with wandb.init() as run:
         retrieved = run.use_artifact("hi-art:latest")
 
-        with pytest.raises(ArtifactFinalizedError):
+        with raises(ArtifactFinalizedError):
             retrieved.remove("file1.txt")
 
 
-@pytest.mark.parametrize(
+@mark.usefixtures("override_env_dirs")
+@mark.parametrize(
     # Valid values for `skip_cache` in `Artifact.download()`
     "skip_download_cache",
     [None, False, True],
 )
-def test_download_respects_skip_cache(user, tmp_path, monkeypatch, skip_download_cache):
-    # Setup cache dir
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
-    cache = artifact_file_cache.get_artifact_file_cache()
+def test_download_respects_skip_cache(tmp_path: Path, skip_download_cache: bool):
+    cache = get_artifact_file_cache()
 
-    artifact = wandb.Artifact(name="cache-test", type="dataset")
+    artifact = Artifact(name="cache-test", type="dataset")
     orig_content = "test123"
     file_path = Path(tmp_path / "text.txt")
     file_path.write_text(orig_content)
@@ -304,30 +297,31 @@ def test_download_respects_skip_cache(user, tmp_path, monkeypatch, skip_download
         assert downloaded_content == orig_content
 
 
-def test_uploaded_artifacts_are_unstaged(user, tmp_path, monkeypatch):
-    # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
-    staging_dir = Path(get_staging_dir())
+# Use a separate staging directory for the duration of this test.
+@mark.usefixtures("override_env_dirs")
+def test_uploaded_artifacts_are_unstaged(temp_staging_dir: Path):
+    def dir_size(root: Path):
+        return sum(f.stat().st_size for f in root.rglob("*") if f.is_file())
 
-    def dir_size():
-        return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
+    data_path = Path("random.bin")
+    data_path.write_bytes(np.random.bytes(4096))
 
-    artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open("random.bin", "wb") as f:
-        f.write(np.random.bytes(4096))
-    artifact.add_file("random.bin")
+    artifact = Artifact(name="stage-test", type="dataset")
+    artifact.add_file(str(data_path))
 
     # The file is staged until it's finalized.
-    assert dir_size() == 4096
+    assert dir_size(temp_staging_dir) == 4096
 
     with wandb.init() as run:
         run.log_artifact(artifact)
 
     # The staging directory should be empty again.
-    assert dir_size() == 0
+    assert dir_size(temp_staging_dir) == 0
 
 
-def test_large_manifests_passed_by_file(user, monkeypatch, mocker):
+def test_large_manifests_passed_by_file(
+    monkeypatch: MonkeyPatch, mocker: MockerFixture
+):
     writer_spy = mocker.spy(
         wandb.sdk.interface.interface.InterfaceBase,
         "_write_artifact_manifest_file",
@@ -340,7 +334,7 @@ def test_large_manifests_passed_by_file(user, monkeypatch, mocker):
 
     content = "test content\n"
     with wandb.init() as run:
-        artifact = wandb.Artifact(name="large-manifest", type="dataset")
+        artifact = Artifact(name="large-manifest", type="dataset")
         with artifact.new_file("test_file.txt") as f:
             f.write(content)
         artifact.manifest.entries["test_file.txt"].extra["test_key"] = {"x": 1}
@@ -364,22 +358,18 @@ def test_large_manifests_passed_by_file(user, monkeypatch, mocker):
         assert entry.extra["test_key"] == {"x": 1}
 
 
-def test_mutable_uploads_with_cache_enabled(user, tmp_path, monkeypatch, api):
-    # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
-    staging_dir = Path(get_staging_dir())
-
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
-    cache = artifact_file_cache.get_artifact_file_cache()
+# Use a separate staging directory for the duration of this test.
+@mark.usefixtures("override_env_dirs")
+def test_mutable_uploads_with_cache_enabled(tmp_path: Path, temp_staging_dir: Path):
+    cache = get_artifact_file_cache()
 
     data_path = Path(tmp_path / "random.txt")
-    artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open(data_path, "w") as f:
-        f.write("test 123")
+    data_path.write_text("test 123")
+    artifact = Artifact(name="stage-test", type="dataset")
     manifest_entry = artifact.add_file(data_path)
 
     # The file is staged
-    staging_files = list(staging_dir.iterdir())
+    staging_files = list(temp_staging_dir.iterdir())
     assert len(staging_files) == 1
     assert staging_files[0].read_text() == "test 123"
 
@@ -391,26 +381,22 @@ def test_mutable_uploads_with_cache_enabled(user, tmp_path, monkeypatch, api):
     assert found
 
     # The staged files are deleted after caching
-    staging_files = list(staging_dir.iterdir())
+    staging_files = list(temp_staging_dir.iterdir())
     assert len(staging_files) == 0
 
 
-def test_mutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
-    # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
-    staging_dir = Path(get_staging_dir())
-
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
-    cache = artifact_file_cache.get_artifact_file_cache()
+# Use a separate staging directory for the duration of this test.
+@mark.usefixtures("override_env_dirs")
+def test_mutable_uploads_with_cache_disabled(tmp_path: Path, temp_staging_dir: Path):
+    cache = get_artifact_file_cache()
 
     data_path = Path(tmp_path / "random.txt")
-    artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open(data_path, "w") as f:
-        f.write("test 123")
+    data_path.write_text("test 123")
+    artifact = Artifact(name="stage-test", type="dataset")
     manifest_entry = artifact.add_file(data_path, skip_cache=True)
 
     # The file is staged
-    staging_files = list(staging_dir.iterdir())
+    staging_files = list(temp_staging_dir.iterdir())
     assert len(staging_files) == 1
     assert staging_files[0].read_text() == "test 123"
 
@@ -422,26 +408,21 @@ def test_mutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
     assert not found
 
     # The staged files are deleted even if caching is disabled
-    staging_files = list(staging_dir.iterdir())
+    staging_files = list(temp_staging_dir.iterdir())
     assert len(staging_files) == 0
 
 
-def test_immutable_uploads_with_cache_enabled(user, tmp_path, monkeypatch):
-    # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
-    staging_dir = Path(get_staging_dir())
-
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
-    cache = artifact_file_cache.get_artifact_file_cache()
+@mark.usefixtures("override_env_dirs")
+def test_immutable_uploads_with_cache_enabled(tmp_path: Path, temp_staging_dir: Path):
+    cache = get_artifact_file_cache()
 
     data_path = Path(tmp_path / "random.txt")
-    artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open(data_path, "w") as f:
-        f.write("test 123")
+    data_path.write_text("test 123")
+    artifact = Artifact(name="stage-test", type="dataset")
     manifest_entry = artifact.add_file(data_path, policy="immutable")
 
     # The file is not staged
-    staging_files = list(staging_dir.iterdir())
+    staging_files = list(temp_staging_dir.iterdir())
     assert len(staging_files) == 0
 
     with wandb.init() as run:
@@ -452,22 +433,17 @@ def test_immutable_uploads_with_cache_enabled(user, tmp_path, monkeypatch):
     assert found
 
 
-def test_immutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
-    # Use a separate staging directory for the duration of this test.
-    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
-    staging_dir = Path(get_staging_dir())
-
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
-    cache = artifact_file_cache.get_artifact_file_cache()
+@mark.usefixtures("override_env_dirs")
+def test_immutable_uploads_with_cache_disabled(tmp_path: Path, temp_staging_dir: Path):
+    cache = get_artifact_file_cache()
 
     data_path = Path(tmp_path / "random.txt")
-    artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open(data_path, "w") as f:
-        f.write("test 123")
+    data_path.write_text("test 123")
+    artifact = Artifact(name="stage-test", type="dataset")
     manifest_entry = artifact.add_file(data_path, skip_cache=True, policy="immutable")
 
     # The file is not staged
-    staging_files = list(staging_dir.iterdir())
+    staging_files = list(temp_staging_dir.iterdir())
     assert len(staging_files) == 0
 
     with wandb.init() as run:
@@ -478,58 +454,53 @@ def test_immutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
     assert not found
 
 
-def test_local_references(user):
-    run = wandb.init()
-
-    def make_table():
-        return wandb.Table(columns=[], data=[])
-
-    t1 = make_table()
-    artifact1 = wandb.Artifact("test_local_references", "dataset")
-    artifact1.add(t1, "t1")
-    assert artifact1.manifest.entries["t1.table.json"].ref is None
-    run.log_artifact(artifact1)
-    artifact2 = wandb.Artifact("test_local_references_2", "dataset")
-    artifact2.add(t1, "t2")
-    assert artifact2.manifest.entries["t2.table.json"].ref is not None
-    run.finish()
+def test_local_references():
+    with wandb.init() as run:
+        t1 = wandb.Table(columns=[], data=[])
+        artifact1 = Artifact("test_local_references", "dataset")
+        artifact1.add(t1, "t1")
+        assert artifact1.manifest.entries["t1.table.json"].ref is None
+        run.log_artifact(artifact1)
+        artifact2 = Artifact("test_local_references_2", "dataset")
+        artifact2.add(t1, "t2")
+        assert artifact2.manifest.entries["t2.table.json"].ref is not None
 
 
-def test_artifact_wait_success(user):
+def test_artifact_wait_success():
     # Test artifact wait() timeout parameter
     timeout = 60
     leeway = 0.50
-    run = wandb.init()
-    artifact = wandb.Artifact("art", type="dataset")
-    start_timestamp = time.time()
-    run.log_artifact(artifact).wait(timeout=timeout)
-    elapsed_time = time.time() - start_timestamp
-    assert elapsed_time < timeout * (1 + leeway)
-    run.finish()
+    with wandb.init() as run:
+        artifact = Artifact("art", type="dataset")
+        start_timestamp = time.time()
+        run.log_artifact(artifact).wait(timeout=timeout)
+        elapsed_time = time.time() - start_timestamp
+        assert elapsed_time < timeout * (1 + leeway)
 
 
-@pytest.mark.parametrize("timeout", [0, 1e-6])
-def test_artifact_wait_failure(user, timeout):
+@mark.parametrize("timeout", [0, 1e-6])
+def test_artifact_wait_failure(timeout: float):
     # Test to expect WaitTimeoutError when wait timeout is reached and large image
     # wasn't uploaded yet
     image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    run = wandb.init()
-    with pytest.raises(WaitTimeoutError):
-        artifact = wandb.Artifact("art", type="image")
-        artifact.add(image, "image")
-        run.log_artifact(artifact).wait(timeout=timeout)
-    run.finish()
+    with wandb.init() as run:
+        with raises(WaitTimeoutError):
+            artifact = Artifact("art", type="image")
+            artifact.add(image, "image")
+            run.log_artifact(artifact).wait(timeout=timeout)
 
 
-def test_check_existing_artifact_before_download(user, tmp_path, monkeypatch):
+@mark.usefixtures("override_env_dirs")
+def test_check_existing_artifact_before_download(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    temp_cache_dir: Path,
+):
     """Don't re-download an artifact if it's already in the desired location."""
-    cache_dir = tmp_path / "cache"
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-
     original_file = tmp_path / "test.txt"
     original_file.write_text("hello")
     with wandb.init() as run:
-        artifact = wandb.Artifact("art", type="dataset")
+        artifact = Artifact("art", type="dataset")
         artifact.add_file(original_file)
         run.log_artifact(artifact)
 
@@ -539,7 +510,7 @@ def test_check_existing_artifact_before_download(user, tmp_path, monkeypatch):
         assert os.path.exists(artifact_path)
 
     # Delete the entire cache
-    shutil.rmtree(cache_dir)
+    shutil.rmtree(temp_cache_dir)
 
     def fail_copy(src, dst):
         raise RuntimeError(f"Should not be called, attempt to copy from {src} to {dst}")
@@ -555,12 +526,12 @@ def test_check_existing_artifact_before_download(user, tmp_path, monkeypatch):
         assert file1.read_text() == "hello"
 
 
-def test_check_changed_artifact_then_download(user, tmp_path):
+def test_check_changed_artifact_then_download(tmp_path: Path):
     """*Do* re-download an artifact if it's been modified in place."""
     original_file = tmp_path / "test.txt"
     original_file.write_text("hello")
     with wandb.init() as run:
-        artifact = wandb.Artifact("art", type="dataset")
+        artifact = Artifact("art", type="dataset")
         artifact.add_file(original_file)
         run.log_artifact(artifact)
 
@@ -583,8 +554,8 @@ def test_check_changed_artifact_then_download(user, tmp_path):
         assert file2.read_text() == "hello"
 
 
-@pytest.mark.parametrize("path_type", [str, Path])
-def test_log_dir_directly(example_files, user, path_type):
+@mark.parametrize("path_type", [str, Path])
+def test_log_dir_directly(example_files: Path, path_type: type[str | Path]):
     with wandb.init() as run:
         run_id = run.id
         artifact = run.log_artifact(path_type(example_files))
@@ -595,8 +566,8 @@ def test_log_dir_directly(example_files, user, path_type):
     assert artifact.name == f"run-{run_id}-{Path(example_files).name}:v0"
 
 
-@pytest.mark.parametrize("path_type", [str, Path])
-def test_log_file_directly(example_file, user, path_type):
+@mark.parametrize("path_type", [str, Path])
+def test_log_file_directly(example_file: Path, path_type: type[str | Path]):
     with wandb.init() as run:
         run_id = run.id
         artifact = run.log_artifact(path_type(example_file))
@@ -607,7 +578,7 @@ def test_log_file_directly(example_file, user, path_type):
     assert artifact.name == f"run-{run_id}-{Path(example_file).name}:v0"
 
 
-def test_log_reference_directly(example_files, user):
+def test_log_reference_directly(example_files: Path):
     with wandb.init() as run:
         run_id = run.id
         artifact = run.log_artifact(example_files.resolve().as_uri())
@@ -618,19 +589,18 @@ def test_log_reference_directly(example_files, user):
     assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
 
 
-def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
-    art_dir = tmp_path / "an-unusual-path"
-    monkeypatch.setenv("WANDB_ARTIFACT_DIR", str(art_dir))
+@mark.usefixtures("override_env_dirs")
+def test_artifact_download_root(logged_artifact: Artifact, temp_artifact_dir: Path):
     name_path = logged_artifact.name
     if platform.system() == "Windows":
         name_path = name_path.replace(":", "-")
 
     downloaded = Path(logged_artifact.download())
-    assert downloaded == art_dir / name_path
+    assert downloaded == temp_artifact_dir / name_path
 
 
-def test_log_and_download_with_path_prefix(user, tmp_path):
-    artifact = wandb.Artifact(name="test-artifact", type="dataset")
+def test_log_and_download_with_path_prefix(tmp_path: Path):
+    artifact = Artifact(name="test-artifact", type="dataset")
     file_paths = [
         tmp_path / "some-prefix" / "one.txt",
         tmp_path / "some-prefix-two.txt",
@@ -679,22 +649,22 @@ def test_log_and_download_with_path_prefix(user, tmp_path):
     assert (download_dir / "other-thing.txt").is_file()
 
 
-def test_retrieve_missing_artifact(logged_artifact):
-    with pytest.raises(CommError, match="project 'bar' not found"):
-        Api().artifact(f"foo/bar/{logged_artifact.name}")
+def test_retrieve_missing_artifact(logged_artifact: Artifact, api: Api):
+    with raises(CommError, match="project 'bar' not found"):
+        api.artifact(f"foo/bar/{logged_artifact.name}")
 
-    with pytest.raises(CommError, match="project 'bar' not found"):
-        Api().artifact(f"{logged_artifact.entity}/bar/{logged_artifact.name}")
+    with raises(CommError, match="project 'bar' not found"):
+        api.artifact(f"{logged_artifact.entity}/bar/{logged_artifact.name}")
 
-    with pytest.raises(CommError):
-        Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
+    with raises(CommError):
+        api.artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
 
-    with pytest.raises(CommError):
-        Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
+    with raises(CommError):
+        api.artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
 
 
-def test_new_draft(user):
-    art = wandb.Artifact("test-artifact", "test-type")
+def test_new_draft(api: Api):
+    art = Artifact("test-artifact", "test-type")
     with art.new_file("boom.txt", "w") as f:
         f.write("detonation")
 
@@ -706,7 +676,7 @@ def test_new_draft(user):
         run.log_artifact(art, aliases=["a"])
         run.link_artifact(art, f"{project}/my-sample-portfolio")
 
-    parent = Api().artifact(f"{project}/my-sample-portfolio:latest")
+    parent = api.artifact(f"{project}/my-sample-portfolio:latest")
     draft = parent.new_draft()
 
     # entity/project/name should all match the *source* artifact.
@@ -741,7 +711,7 @@ def test_new_draft(user):
     with wandb.init(project=project) as run:
         run.log_artifact(draft)
 
-    child = Api().artifact(f"{project}/test-artifact:latest")
+    child = api.artifact(f"{project}/test-artifact:latest")
     assert child.version == "v1"
 
     assert len(child.manifest.entries) == 2
@@ -750,7 +720,7 @@ def test_new_draft(user):
     assert os.path.exists(os.path.join(file_path, "bang.txt"))
 
 
-def test_get_artifact_collection(logged_artifact):
+def test_get_artifact_collection(logged_artifact: Artifact):
     collection = logged_artifact.collection
     assert logged_artifact.entity == collection.entity
     assert logged_artifact.project == collection.project
@@ -758,7 +728,11 @@ def test_get_artifact_collection(logged_artifact):
     assert logged_artifact.type == collection.type
 
 
-def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
+def test_used_artifacts_preserve_original_project(
+    user: str,
+    api: Api,
+    logged_artifact: Artifact,
+):
     """Run artifacts from the API should preserve the original project they were created in."""
     orig_project = logged_artifact.project  # Original project that created the artifact
     new_project = "new-project"  # New project using the same artifact
@@ -781,23 +755,23 @@ def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
     assert art_from_run.project == orig_project
 
 
-def test_internal_artifacts(user):
+def test_internal_artifacts():
     internal_type = f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid"
     with wandb.init() as run:
-        with pytest.raises(ValueError, match="is reserved for internal use"):
-            artifact = wandb.Artifact(name="test-artifact", type=internal_type)
+        with raises(ValueError, match="is reserved for internal use"):
+            artifact = Artifact(name="test-artifact", type=internal_type)
 
         artifact = InternalArtifact(name="test-artifact", type=internal_type)
         run.log_artifact(artifact)
 
 
-def test_storage_policy_storage_region(user, tmp_path):
+def test_storage_policy_storage_region(user: str, api: Api, tmp_path: Path):
     file_path = tmp_path / "test.txt"
     file_path.write_text("test data")
     project = "test"
     with wandb.init(entity=user, project=project) as run:
         # Set in onprem/local/scripts/env.txt when building the test container from gorilla.
-        art = wandb.Artifact(
+        art = Artifact(
             "test-storage-region", type="dataset", storage_region="minio-local"
         )
         art.add_file(file_path)
@@ -805,7 +779,6 @@ def test_storage_policy_storage_region(user, tmp_path):
         art.wait()
 
     # Able to download the file
-    api = Api()
     art = api.artifact(f"{user}/{project}/test-storage-region:latest")
     art.download()
     assert os.path.exists(file_path)
@@ -816,12 +789,12 @@ def test_storage_policy_storage_region(user, tmp_path):
     assert manifest["storagePolicyConfig"]["storageRegion"] == "minio-local"
 
 
-def test_storage_policy_storage_region_not_available(user):
+def test_storage_policy_storage_region_not_available():
     with wandb.init() as run:
         # NOTE: We match on the region name instead of exact API error because different versions of server fails at different APIs.
         # In latest version, storageRegion is passed in `CreateArtifact` and it would return soemthing like `CreateArtifact invalid storageRegion: coreweave-us`
         # In previous version, storageRegion is ignored in graphql APIs but used in `CommitArtifact` from manifest json and ther error is `malformed region: coreweave-us`
-        with pytest.raises(ValueError, match="coreweave-us"):
-            art = wandb.Artifact("test", type="dataset", storage_region="coreweave-us")
+        with raises(ValueError, match="coreweave-us"):
+            art = Artifact("test", type="dataset", storage_region="coreweave-us")
             run.log_artifact(art)
             art.wait()

@@ -12,47 +12,58 @@ import (
 // This batches all incoming requests while waiting for transmissions
 // to go through.
 type CollectLoop struct {
-	Logger              *observability.CoreLogger
-	TransmitRateLimit   *rate.Limiter
-	MaxRequestSizeBytes int
+	Logger            *observability.CoreLogger
+	Printer           *observability.Printer
+	TransmitRateLimit *rate.Limiter
 }
 
 // Start ingests requests and outputs rate-limited, batched requests.
 func (cl CollectLoop) Start(
+	state *FileStreamState,
 	requests <-chan *FileStreamRequest,
-) <-chan *FileStreamRequestReader {
-	transmissions := make(chan *FileStreamRequestReader)
+) *TransmitChan {
+	switch {
+	case cl.Logger == nil:
+		panic("filestream: CollectLoop.Logger is nil")
+	case cl.Printer == nil:
+		panic("filestream: CollectLoop.Printer is nil")
+	case cl.TransmitRateLimit == nil:
+		panic("filestream: CollectLoop.TransmitRateLimit is nil")
+	}
+
+	output := NewTransmitChan()
 
 	go func() {
 		buffer := &FileStreamRequest{}
-		isDone := false
+		hasMore := true
 
 		for request := range requests {
 			buffer.Merge(request)
 
-			cl.waitForRateLimit(buffer, requests)
-			buffer, isDone = cl.transmit(buffer, requests, transmissions)
+			cl.waitForRateLimit(state, buffer, requests)
+			hasMore = cl.transmit(state, buffer, requests, output)
 		}
 
-		for !isDone {
-			reader, _ := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
-			transmissions <- reader
-			buffer, isDone = reader.Next()
+		for hasMore {
+			var json *FileStreamRequestJSON
+			json, hasMore = cl.pop(state, buffer)
+			output.Push(json)
 		}
 
-		close(transmissions)
+		output.Close()
 	}()
 
-	return transmissions
+	return output
 }
 
 // waitForRateLimit merges requests until the rate limit allows us
 // to transmit data.
 func (cl CollectLoop) waitForRateLimit(
+	state *FileStreamState,
 	buffer *FileStreamRequest,
 	requests <-chan *FileStreamRequest,
 ) {
-	if cl.shouldSendASAP(buffer) {
+	if cl.shouldSendASAP(state, buffer) {
 		return
 	}
 
@@ -78,7 +89,7 @@ func (cl CollectLoop) waitForRateLimit(
 
 			buffer.Merge(request)
 
-			if cl.shouldSendASAP(buffer) {
+			if cl.shouldSendASAP(state, buffer) {
 				return
 			}
 		}
@@ -86,30 +97,35 @@ func (cl CollectLoop) waitForRateLimit(
 }
 
 // transmit accumulates incoming requests until a transmission goes through.
+//
+// Returns whether there remains unsent data in the buffer.
 func (cl CollectLoop) transmit(
+	state *FileStreamState,
 	buffer *FileStreamRequest,
 	requests <-chan *FileStreamRequest,
-	transmissions chan<- *FileStreamRequestReader,
-) (*FileStreamRequest, bool) {
+	output *TransmitChan,
+) bool {
 	for {
-		reader, isTruncated := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
-
 		// If we're at max size, stop adding to the buffer.
-		if isTruncated {
+		if state.IsAtSizeLimit(buffer) {
 			cl.Logger.Info("filestream: waiting to send request of max size")
-			transmissions <- reader
-			return reader.Next()
+			json, hasMore := cl.pop(state, buffer)
+			output.Push(json)
+			return hasMore
 		}
 
 		// Otherwise, either send the buffer or add to it.
 		select {
-		case transmissions <- reader:
-			return reader.Next()
+		case pushChan := <-output.PreparePush():
+			json, hasMore := cl.pop(state, buffer)
+			pushChan <- json
+			return hasMore
 
 		case request, ok := <-requests:
 			if !ok {
-				transmissions <- reader
-				return reader.Next()
+				json, hasMore := cl.pop(state, buffer)
+				output.Push(json)
+				return hasMore
 			}
 
 			buffer.Merge(request)
@@ -117,21 +133,35 @@ func (cl CollectLoop) transmit(
 	}
 }
 
+// pop calls [FileStreamState.Pop], extracting a JSON value to send from the
+// request and returning whether the request contains more data.
+func (cl CollectLoop) pop(
+	state *FileStreamState,
+	request *FileStreamRequest,
+) (*FileStreamRequestJSON, bool) {
+	return state.Pop(
+		request,
+		cl.Logger,
+		cl.Printer,
+	)
+}
+
 // shouldSendASAP returns a request should be made regardless of rate limits.
-func (cl CollectLoop) shouldSendASAP(request *FileStreamRequest) bool {
-	_, isTruncated := NewRequestReader(request, cl.MaxRequestSizeBytes)
-
+func (cl CollectLoop) shouldSendASAP(
+	state *FileStreamState,
+	request *FileStreamRequest,
+) bool {
 	switch {
-	// If we've accumulated a request of the maximum size, send it immediately.
-	case isTruncated:
-		return true
-
 	// Send the "pre-empting" state immediately.
 	//
 	// This state indicates that the process may be about to yield the
 	// CPU for an unknown amount of time, and we want to let the backend
 	// know ASAP.
 	case request.Preempting:
+		return true
+
+	// If we've accumulated a request of the maximum size, send it immediately.
+	case state.IsAtSizeLimit(request):
 		return true
 
 	default:

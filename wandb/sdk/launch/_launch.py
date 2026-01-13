@@ -4,8 +4,6 @@ import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
-
 import wandb
 from wandb.apis.internal import Api
 
@@ -75,6 +73,8 @@ def resolve_agent_config(
     Returns:
         Tuple[Dict[str, Any], Api]: The resolved config and api.
     """
+    import yaml
+
     defaults = {
         "max_jobs": 1,
         "max_schedulers": 1,

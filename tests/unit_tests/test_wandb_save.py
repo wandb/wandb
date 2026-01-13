@@ -1,4 +1,6 @@
+import os
 import pathlib
+import platform
 
 import pytest
 
@@ -66,7 +68,10 @@ def test_save_relative_path_glob_files(
     run.save("*.rad", policy="now")
 
     _, err = capsys.readouterr()
-    assert "Symlinked 2 files" in err
+    if platform.system() == "Windows":
+        assert "Linked 2 files" in err
+    else:
+        assert "Symlinked 2 files" in err
     assert pathlib.Path(run.dir, "test.rad").exists()
     assert pathlib.Path(run.dir, "foo.rad").exists()
     parsed = parse_records(record_q)
@@ -201,3 +206,73 @@ def test_save_s3_path_warns(mock_run, capsys):
     mock_run().save("s3://file.txt")
 
     assert "cloud storage url, can't save" in capsys.readouterr().err
+
+
+def test_save_hardlink_fallback_when_symlink_fails(
+    monkeypatch,
+    mock_run,
+    parse_records,
+    record_q,
+    capsys,
+):
+    run = mock_run()
+
+    base_dir = pathlib.Path(run.dir).parent / "hl_src"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    (base_dir / "a.hl").write_text("a")
+    (base_dir / "b.hl").write_text("b")
+
+    # Force symlink creation to fail so the code falls back to hardlinks.
+    def _raise_symlink(*_args, **_kwargs):
+        raise OSError("symlink not permitted")
+
+    monkeypatch.setattr(pathlib.Path, "symlink_to", _raise_symlink)
+
+    run.save(str(base_dir / "*.hl"), base_path=str(base_dir), policy="now")
+
+    _, err = capsys.readouterr()
+    assert "Linked 2 files into the W&B run directory (hardlinks)" in err
+    assert (pathlib.Path(run.dir) / "a.hl").exists()
+    assert (pathlib.Path(run.dir) / "b.hl").exists()
+
+    parsed = parse_records(record_q)
+    paths = {f.path for f in parsed.files[0].files}
+    assert paths == {"a.hl", "b.hl"}
+
+
+def test_save_copy_fallback_when_links_unavailable(
+    monkeypatch,
+    mock_run,
+    parse_records,
+    record_q,
+    capsys,
+):
+    run = mock_run()
+
+    base_dir = pathlib.Path(run.dir).parent / "cp_src"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    (base_dir / "a.cpy").write_text("a")
+    (base_dir / "b.cpy").write_text("b")
+
+    # Force both symlink *and* hardlink creation to fail to trigger copy.
+    def _raise_symlink(*_args, **_kwargs):
+        raise OSError("symlink not permitted")
+
+    monkeypatch.setattr(pathlib.Path, "symlink_to", _raise_symlink)
+
+    def _raise_link(*_args, **_kwargs):
+        raise OSError("hardlink not permitted")
+
+    monkeypatch.setattr(os, "link", _raise_link)
+
+    # Exercise internal downgrade logic when copying.
+    run.save(str(base_dir / "*.cpy"), base_path=str(base_dir), policy="live")
+
+    _, err = capsys.readouterr()
+    assert "Copied 2 files" in err
+    assert (pathlib.Path(run.dir) / "a.cpy").exists()
+    assert (pathlib.Path(run.dir) / "b.cpy").exists()
+
+    parsed = parse_records(record_q)
+    paths = {f.path for f in parsed.files[0].files}
+    assert paths == {"a.cpy", "b.cpy"}

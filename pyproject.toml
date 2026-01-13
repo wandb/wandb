@@ -220,6 +220,10 @@ classmethod-decorators = [
     "wandb._pydantic.field_validator",
 ]
 
+[tool.ruff.lint.pycodestyle]
+ignore-overlong-task-comments = true
+max-doc-length = 90  # Consider this an 80-character limit with buffer
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
@@ -252,10 +256,10 @@ ignore-decorators = [
 ] # Automations submodules
 
 # Relax docstring and print() statement requirements in tests.
-"tests/**" = ["D", "T20"]
+"tests/**" = ["D", "T20", "W505"]
 
-# Allow internal tools to use print().
-"tools/**" = ["T20"]
+# Allow internal tools to use print() and relax docstring width constraints.
+"tools/**" = ["T20", "W505"]
 
 # Ignore unused imports in all __init__.py files.
 # TODO: Unignore this lint and add symbols to __all__ instead.
@@ -263,7 +267,7 @@ ignore-decorators = [
 
 # TODO: Fix UP006, UP007, UP045 in wandb_run.py, then remove ignores here.
 "wandb/__init__.py" = ["I001"]
-"wandb/__init__.pyi" = ["UP006", "UP007", "UP045"]
+"wandb/__init__.pyi" = ["UP006", "UP007", "UP045", "W505"]
 "wandb/__init__.template.pyi" = ["UP006", "UP007", "UP045", "D415", "N999"]
 
 # TODO: Use f-strings in wandb/apis/public/ for GraphQL statements.
@@ -273,13 +277,15 @@ ignore-decorators = [
 "wandb/apis/public/**" = ["UP032"]
 
 # TODO: Fix these lints and remove the ignores.
-"wandb/cli/cli.py" = ["C901"]
+"gpu_stats/hatch.py" = ["W505"]
+"noxfile.py" = ["W505"]
+"wandb/cli/cli.py" = ["C901", "W505"]
 "wandb/integration/metaflow/metaflow.py" = ["F811"]
-"wandb/old/**" = ["B006", "B020", "D", "F822"]
-"wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
+"wandb/old/**" = ["B006", "B020", "D", "F822", "W505"]
+"wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031", "W505"]
 "wandb/sdk/internal/file_stream.py" = ["TRY300"]
 "wandb/sdk/internal/internal_api.py" = ["TRY300"]
-"wandb/sdk/launch/**" = ["T20"]
+"wandb/sdk/launch/**" = ["T20", "W505"]
 "wandb/sdk/launch/agent/agent.py" = ["TRY300"]
 "wandb/sdk/launch/builder/templates/_wandb_bootstrap.py" = ["TRY300"]
 "wandb/sdk/launch/environment/aws_environment.py" = ["TRY300"]
@@ -292,6 +298,31 @@ ignore-decorators = [
 "wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
 "wandb/wandb_controller.py" = ["N806"]
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
+"wandb/agents/**" = ["W505"]
+"wandb/analytics/**" = ["W505"]
+"wandb/apis/importers/**" = ["W505"]
+"wandb/apis/paginator.py" = ["W505"]
+"wandb/apis/public/api.py" = ["W505"]
+"wandb/apis/public/files.py" = ["W505"]
+"wandb/apis/public/jobs.py" = ["W505"]
+"wandb/apis/public/reports.py" = ["W505"]
+"wandb/apis/public/runs.py" = ["W505"]
+"wandb/apis/public/sweeps.py" = ["W505"]
+"wandb/apis/public/teams.py" = ["W505"]
+"wandb/apis/public/utils.py" = ["W505"]
+"wandb/filesync/**" = ["W505"]
+"wandb/data_types.py" = ["W505"]
+"wandb/env.py" = ["W505"]
+"wandb/jupyter.py" = ["W505"]
+"wandb/integration/**" = ["W505"]
+"wandb/sdk/data_types/**" = ["W505"]
+"wandb/sdk/integration_utils/**" = ["W505"]
+"wandb/sdk/internal/**" = ["W505"]
+"wandb/sdk/interface/**" = ["W505"]
+"wandb/sdk/lib/**" = ["W505"]
+"wandb/sdk/wandb_*.py" = ["W505"]
+"wandb/wandb_*.py" = ["W505"]
+"wandb/util.py" = ["W505"]
 
 # Ignore specific naming rules on codegen scripts or plugins.
 # Codegen logic relies on Python's `ast` module, in which implementing a custom
@@ -319,6 +350,7 @@ ignore-decorators = [
 "wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP045"]
 "wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP045"]
 "wandb/automations/**" = ["UP006", "UP007", "UP045"]
+"wandb/sdk/artifacts/_models/**" = ["UP006", "UP007", "UP045"]
 
 # TODO: Remove the landfill/ directory.
 "landfill/**" = ["F405", "N806", "D415"]

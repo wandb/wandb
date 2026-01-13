@@ -57,8 +57,6 @@ class SyncThread(threading.Thread):
         replace_tags=None,
     ):
         threading.Thread.__init__(self)
-        # mark this process as internal
-        wandb._set_internal_process(disable=True)
         self._sync_list = sync_list
         self._project = project
         self._entity = entity

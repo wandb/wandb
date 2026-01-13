@@ -13,11 +13,14 @@ type debouncedWriter struct {
 	mu sync.Mutex
 	wg sync.WaitGroup
 
+	rateLimitCtx    context.Context // context for debouncing
+	cancelRateLimit func()          // cancels rateLimitCtx to flush changes
+
 	isFlushing bool
-	flush      func(sparselist.SparseList[*RunLogsLine])
+	flush      func(*sparselist.SparseList[*RunLogsLine])
 	rateLimit  *rate.Limiter
 
-	buffer sparselist.SparseList[*RunLogsLine]
+	buffer *sparselist.SparseList[*RunLogsLine]
 }
 
 // NewDebouncedWriter creates a writer that buffers changes and invokes flush
@@ -26,11 +29,17 @@ type debouncedWriter struct {
 // Stops invoking `flush` after the context is cancelled.
 func NewDebouncedWriter(
 	rateLimit *rate.Limiter,
-	flush func(sparselist.SparseList[*RunLogsLine]),
+	flush func(*sparselist.SparseList[*RunLogsLine]),
 ) *debouncedWriter {
+	rateLimitCtx, cancelRateLimit := context.WithCancel(context.Background())
+
 	return &debouncedWriter{
+		rateLimitCtx:    rateLimitCtx,
+		cancelRateLimit: cancelRateLimit,
+
 		flush:     flush,
 		rateLimit: rateLimit,
+		buffer:    &sparselist.SparseList[*RunLogsLine]{},
 	}
 }
 
@@ -53,11 +62,9 @@ func (b *debouncedWriter) OnChanged(lineNum int, line *RunLogsLine) {
 
 func (b *debouncedWriter) loopFlushBuffer() {
 	for {
-		err := b.rateLimit.Wait(context.Background())
-		if err != nil {
-			// Not possible: canceled or deadline exceeded.
-			return
-		}
+		// An error happens only if the context is canceled, in which case
+		// we stop rate limiting.
+		_ = b.rateLimit.Wait(b.rateLimitCtx)
 
 		b.mu.Lock()
 
@@ -68,7 +75,7 @@ func (b *debouncedWriter) loopFlushBuffer() {
 		}
 
 		lines := b.buffer
-		b.buffer = sparselist.SparseList[*RunLogsLine]{}
+		b.buffer = &sparselist.SparseList[*RunLogsLine]{}
 		b.mu.Unlock()
 
 		b.flush(lines)
@@ -76,5 +83,6 @@ func (b *debouncedWriter) loopFlushBuffer() {
 }
 
 func (b *debouncedWriter) Finish() {
+	b.cancelRateLimit()
 	b.wg.Wait()
 }

@@ -209,10 +209,15 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 	}
 	client := s3.NewFromConfig(cfg, opts...)
 
+	// The S3 upload manager doesn't use the config or options to set the
+	// request checksum calculation. We need to set it explicitly:
+	// https://github.com/aws/aws-sdk-go-v2/pull/3151
+	o.Options.RequestChecksumCalculation = cfg.RequestChecksumCalculation
+
 	return OpenBucket(ctx, client, u.Host, &o.Options)
 }
 
-// Options sets options for constructing a *blob.Bucket backed by fileblob.
+// Options sets options for constructing a *blob.Bucket backed by S3.
 type Options struct {
 	// UseLegacyList forces the use of ListObjects instead of ListObjectsV2.
 	// Some S3-compatible services (like CEPH) do not currently support
@@ -228,6 +233,11 @@ type Options struct {
 	// This is required when a bucket policy enforces the use of a specific
 	// KMS key for uploads
 	KMSEncryptionID string
+
+	// RequestChecksumCalculation configures the default integrity protection for
+	// requests. This may need to be set to when_required to preserve compatibility for
+	// third-party S3 providers: https://github.com/aws/aws-sdk-go-v2/discussions/2960.
+	RequestChecksumCalculation aws.RequestChecksumCalculation
 }
 
 // openBucket returns an S3 Bucket.
@@ -242,11 +252,12 @@ func openBucket(ctx context.Context, client *s3.Client, bucketName string, opts 
 		return nil, errors.New("s3blob.OpenBucket: client is required")
 	}
 	return &bucket{
-		name:           bucketName,
-		client:         client,
-		useLegacyList:  opts.UseLegacyList,
-		kmsKeyId:       opts.KMSEncryptionID,
-		encryptionType: opts.EncryptionType,
+		name:                       bucketName,
+		client:                     client,
+		useLegacyList:              opts.UseLegacyList,
+		kmsKeyId:                   opts.KMSEncryptionID,
+		encryptionType:             opts.EncryptionType,
+		requestChecksumCalculation: opts.RequestChecksumCalculation,
 	}, nil
 }
 
@@ -382,8 +393,9 @@ type bucket struct {
 	client        *s3.Client
 	useLegacyList bool
 
-	encryptionType types.ServerSideEncryption
-	kmsKeyId       string
+	encryptionType             types.ServerSideEncryption
+	kmsKeyId                   string
+	requestChecksumCalculation aws.RequestChecksumCalculation
 }
 
 func (b *bucket) Close() error {
@@ -733,6 +745,8 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 		if opts.MaxConcurrency != 0 {
 			u.Concurrency = opts.MaxConcurrency
 		}
+
+		u.RequestChecksumCalculation = b.requestChecksumCalculation
 	})
 	md := make(map[string]string, len(opts.Metadata))
 	for k, v := range opts.Metadata {

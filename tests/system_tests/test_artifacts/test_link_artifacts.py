@@ -1,5 +1,7 @@
-import pytest
+from __future__ import annotations
+
 import wandb
+from pytest import raises
 
 
 def test_get_artifact_collection_from_linked_artifact(linked_artifact):
@@ -36,7 +38,7 @@ def test_unlink_artifact(logged_artifact, linked_artifact, api):
     assert api.artifact_exists(linked_artifact_path) is False
 
     # Unlinking the source artifact should not be possible
-    with pytest.raises(ValueError, match=r"use 'Artifact.delete' instead"):
+    with raises(ValueError, match=r"use 'Artifact.delete' instead"):
         source_artifact.unlink()
 
     # ... and the source artifact should *still* exist
@@ -50,10 +52,34 @@ def test_link_artifact_from_run_logs_draft_artifacts_first(user):
         assert artifact.is_draft() is True
 
         linked_artifact = run.link_artifact(artifact, "test-collection")
+
+        # Check that neither the artifact nor the linked artifact are drafts
         assert artifact.is_draft() is False
+        assert linked_artifact.is_draft() is False
+        assert linked_artifact.source_artifact.is_draft() is False
 
         assert linked_artifact.id == artifact.id
-        assert linked_artifact.source_artifact.is_draft() is False
+        assert linked_artifact.is_link is True
+        assert linked_artifact.qualified_name != artifact.qualified_name
+        assert linked_artifact.source_qualified_name == artifact.qualified_name
+
+
+def test_link_artifact_without_run_logs_draft_artifacts_first(user):
+    artifact = wandb.Artifact("test-artifact", "test-type")
+
+    assert artifact.is_draft() is True
+
+    linked_artifact = artifact.link("test-collection")
+
+    # Check that neither the artifact nor the linked artifact are drafts
+    assert artifact.is_draft() is False
+    assert linked_artifact.is_draft() is False
+    assert linked_artifact.source_artifact.is_draft() is False
+
+    assert linked_artifact.id == artifact.id
+    assert linked_artifact.is_link is True
+    assert linked_artifact.qualified_name != artifact.qualified_name
+    assert linked_artifact.source_qualified_name == artifact.qualified_name
 
 
 def test_link_artifact_from_run_infers_target_path_from_run(user):
@@ -75,77 +101,77 @@ def test_link_artifact_from_run_infers_target_path_from_run(user):
 
 
 def test_artifact_is_link(user, api):
-    run = wandb.init()
-    artifact_type = "model"
-    collection_name = "sequence_name"
+    with wandb.init() as run:
+        artifact_type = "model"
+        collection_name = "sequence_name"
 
-    # test is_link upon logging/linking
-    artifact = wandb.Artifact(collection_name, artifact_type)
-    run.log_artifact(artifact)
-    artifact.wait()
-    assert not artifact.is_link
+        # test is_link upon logging/linking
+        artifact = wandb.Artifact(collection_name, artifact_type)
+        run.log_artifact(artifact)
+        artifact.wait()
+        assert artifact.is_link is False
 
-    link_collection = "test_link_collection"
-    run.link_artifact(artifact=artifact, target_path=link_collection)
+        link_collection = "test_link_collection"
+        run.link_artifact(artifact=artifact, target_path=link_collection)
 
-    link_name = f"{artifact.entity}/{artifact.project}/{link_collection}:latest"
-    artifact = run.use_artifact(artifact.qualified_name)
-    assert not artifact.is_link
+        link_name = f"{artifact.entity}/{artifact.project}/{link_collection}:latest"
+        artifact = run.use_artifact(artifact.qualified_name)
+        assert artifact.is_link is False
 
-    linked_model_art = run.use_artifact(link_name)
-    assert linked_model_art.is_link
+        linked_model_art = run.use_artifact(link_name)
+        assert linked_model_art.is_link is True
 
-    # test api
-    api_artifact = api.artifact(artifact.qualified_name)
-    assert not api_artifact.is_link
+        # test api
+        api_artifact = api.artifact(artifact.qualified_name)
+        assert api_artifact.is_link is False
 
-    api_artifact = api.artifact(link_name)
-    assert api_artifact.is_link
+        api_artifact = api.artifact(link_name)
+        assert api_artifact.is_link is True
 
-    # test collection api
-    source_col = api.artifact_collection(
-        artifact_type,
-        f"{artifact.entity}/{artifact.project}/{artifact.collection.name}",
-    )
-    versions = source_col.artifacts()
-    assert len(versions) == 1
-    assert not versions[0].is_link
+        # test collection api
+        source_col = api.artifact_collection(
+            artifact_type,
+            f"{artifact.entity}/{artifact.project}/{artifact.collection.name}",
+        )
+        versions = source_col.artifacts()
+        assert len(versions) == 1
+        assert versions[0].is_link is False
 
-    link_col = api.artifact_collection(
-        artifact_type, f"{artifact.entity}/{artifact.project}/{link_collection}"
-    )
-    versions = link_col.artifacts()
-    assert len(versions) == 1
-    assert versions[0].is_link
+        link_col = api.artifact_collection(
+            artifact_type, f"{artifact.entity}/{artifact.project}/{link_collection}"
+        )
+        versions = link_col.artifacts()
+        assert len(versions) == 1
+        assert versions[0].is_link is True
 
 
 def test_linked_artifacts_field(user, api):
-    run = wandb.init()
-    artifact_type = "model"
-    collection_name = "sequence_name"
+    with wandb.init() as run:
+        artifact_type = "model"
+        collection_name = "sequence_name"
 
-    artifact = wandb.Artifact(collection_name, artifact_type)
-    run.log_artifact(artifact)
-    artifact.wait()
-    assert not artifact.is_link
+        artifact = wandb.Artifact(collection_name, artifact_type)
+        run.log_artifact(artifact)
+        artifact.wait()
+        assert artifact.is_link is False
 
-    link_collections = [
-        "test_link_collection_1",
-        "test_link_collection_2",
-        "test_link_collection_3",
-    ]
-    for link_collection in link_collections:
-        run.link_artifact(artifact=artifact, target_path=link_collection)
+        link_collections = [
+            "test_link_collection_1",
+            "test_link_collection_2",
+            "test_link_collection_3",
+        ]
+        for link_collection in link_collections:
+            run.link_artifact(artifact=artifact, target_path=link_collection)
 
-    linked_artifacts = artifact.linked_artifacts
-    assert len(linked_artifacts) == len(link_collections)
-    for linked_artifact in linked_artifacts:
-        assert linked_artifact.is_link
-        assert linked_artifact.linked_artifacts == []
-        assert linked_artifact.source_artifact.qualified_name == artifact.qualified_name
-        assert linked_artifact.collection.name in link_collections
+        linked_artifacts = artifact.linked_artifacts
+        assert len(linked_artifacts) == len(link_collections)
+        for linked in linked_artifacts:
+            assert linked.is_link is True
+            assert linked.linked_artifacts == []
+            assert linked.source_artifact.qualified_name == artifact.qualified_name
+            assert linked.collection.name in link_collections
 
-    # test unlink
-    linked_artifacts[0].unlink()
-    linked_artifacts = artifact.linked_artifacts
-    assert len(linked_artifacts) == len(link_collections) - 1
+        # test unlink
+        linked_artifacts[0].unlink()
+        linked_artifacts = artifact.linked_artifacts
+        assert len(linked_artifacts) == len(link_collections) - 1

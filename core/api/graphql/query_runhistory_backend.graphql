@@ -1,0 +1,18 @@
+query HistoryPage(
+    $entity: String!,
+    $project: String!,
+    $run: String!,
+    $minStep: Int64!,
+    $maxStep: Int64!,
+    $pageSize: Int!,
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $run) {
+            history(
+                minStep: $minStep,
+                maxStep: $maxStep,
+                samples: $pageSize,
+            )
+        }
+    }
+}

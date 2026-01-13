@@ -1,9 +1,11 @@
 package leet
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +25,6 @@ type WandbReader struct {
 	exitCode int32
 }
 
-// NewWandbReader creates a new wandb file reader.
 func NewWandbReader(runPath string, logger *observability.CoreLogger) (*WandbReader, error) {
 	_, err := os.Stat(runPath)
 	if os.IsNotExist(err) {
@@ -45,20 +46,24 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 		// No reader available; no-op to keep Bubble Tea flow consistent.
 		return func() tea.Msg { return nil }
 	}
-	const chunkSize = 100                          // Process records in chunks
-	const maxTimePerChunk = 100 * time.Millisecond // Increased time limit
+	const chunkSize = 1000
+	const maxTimePerChunk = 100 * time.Millisecond
 
 	if r.store == nil {
 		return ChunkedBatchMsg{Msgs: []tea.Msg{}, HasMore: false}
 	}
 
 	var msgs []tea.Msg
+	var histories []HistoryMsg
+	var summaries []SummaryMsg
 	recordCount := 0
 	startTime := time.Now()
 	hitEOF := false
 
 	for recordCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
+		start := time.Now()
 		record, err := r.store.Read()
+		r.store.logger.Debug(fmt.Sprintf("perf: r.store.Read() took %s", time.Since(start)))
 		if err != nil {
 			break
 		}
@@ -66,19 +71,38 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 		if record == nil {
 			continue
 		}
-		// Handle exit record first to avoid double FileComplete
+
+		// Handle exit record first to avoid double FileComplete.
 		if exit, ok := record.RecordType.(*spb.Record_Exit); ok && exit.Exit != nil {
 			r.exitSeen = true
 			r.exitCode = exit.Exit.ExitCode
-			msgs = append(msgs, FileCompleteMsg{ExitCode: r.exitCode})
 			hitEOF = true // Treat as EOF
 			break
 		}
-		// Non-exit record: convert and append
+
 		if msg := r.recordToMsg(record); msg != nil {
-			msgs = append(msgs, msg)
+			switch m := msg.(type) {
+			case HistoryMsg:
+				histories = append(histories, m)
+			case SummaryMsg:
+				summaries = append(summaries, m)
+			default:
+				msgs = append(msgs, msg)
+			}
 			recordCount++
 		}
+	}
+
+	// Consolidate history and summary.
+	if len(histories) > 0 {
+		msgs = append(msgs, ConcatenateHistory(histories))
+	}
+	if len(summaries) > 0 {
+		msgs = append(msgs, ConcatenateSummary(summaries))
+	}
+
+	if r.exitSeen {
+		msgs = append(msgs, FileCompleteMsg{ExitCode: r.exitCode})
 	}
 
 	// Determine if there's more to read,
@@ -90,6 +114,42 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 		HasMore:  hasMore,
 		Progress: recordCount,
 	}
+}
+
+// ConcatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
+//
+// Assumes that the history messages are ordered.
+func ConcatenateHistory(messages []HistoryMsg) HistoryMsg {
+	h := HistoryMsg{
+		Metrics: make(map[string]MetricData),
+	}
+
+	for _, msg := range messages {
+		for metricName, data := range msg.Metrics {
+			existing := h.Metrics[metricName]
+			h.Metrics[metricName] = MetricData{
+				X: slices.Concat(existing.X, data.X),
+				Y: slices.Concat(existing.Y, data.Y),
+			}
+		}
+	}
+
+	return h
+}
+
+// ConcatenateHistory merges a slice of SummaryMsg into a single SummaryMsg.
+//
+// Assumes that the summary messages are ordered.
+func ConcatenateSummary(messages []SummaryMsg) SummaryMsg {
+	s := SummaryMsg{
+		Summary: make([]*spb.SummaryRecord, 0),
+	}
+
+	for _, msg := range messages {
+		s.Summary = append(s.Summary, msg.Summary...)
+	}
+
+	return s
 }
 
 func (reader *WandbReader) ReadAvailableRecords() tea.Msg {
@@ -137,16 +197,16 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 
 	record, err := r.store.Read()
 
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		if r.exitSeen {
-			return FileCompleteMsg{ExitCode: r.exitCode}, io.EOF
+			return FileCompleteMsg{ExitCode: r.exitCode}, err
 		}
 		// We hit EOF, but the run isn't finished yet.
-		return nil, io.EOF
+		return nil, err
 	}
 
 	return r.recordToMsg(record), nil
@@ -172,7 +232,7 @@ func (r *WandbReader) recordToMsg(record *spb.Record) tea.Msg {
 	case *spb.Record_Stats:
 		return ParseStats(rec.Stats)
 	case *spb.Record_Summary:
-		return SummaryMsg{Summary: rec.Summary}
+		return SummaryMsg{Summary: []*spb.SummaryRecord{rec.Summary}}
 	case *spb.Record_Environment:
 		return SystemInfoMsg{Record: rec.Environment}
 	default:
@@ -182,8 +242,11 @@ func (r *WandbReader) recordToMsg(record *spb.Record) tea.Msg {
 
 // ParseHistory extracts metrics from a history record.
 func ParseHistory(history *spb.HistoryRecord) tea.Msg {
-	metrics := make(map[string]float64)
+	if history == nil {
+		return nil
+	}
 	var step int
+	values := make(map[string]float64, len(history.GetItem()))
 
 	for _, item := range history.GetItem() {
 		key := strings.Join(item.GetNestedKey(), ".")
@@ -194,26 +257,35 @@ func ParseHistory(history *spb.HistoryRecord) tea.Msg {
 			continue
 		}
 
+		v := item.ValueJson
+		if n := len(v); n >= 2 && v[0] == '"' && v[n-1] == '"' {
+			v = v[1 : n-1]
+		}
+
 		if key == "_step" {
-			if val, err := strconv.Atoi(strings.Trim(item.ValueJson, `"`)); err == nil {
-				step = val
+			if s, err := strconv.Atoi(v); err == nil {
+				step = s
 			}
 			continue
 		}
-
 		if strings.HasPrefix(key, "_") {
 			continue
 		}
-
-		if value, err := strconv.ParseFloat(strings.Trim(item.ValueJson, `"`), 64); err == nil {
-			metrics[key] = value
+		if val, err := strconv.ParseFloat(v, 64); err == nil {
+			values[key] = val
 		}
 	}
 
-	if len(metrics) > 0 {
-		return HistoryMsg{Metrics: metrics, Step: step}
+	if len(values) == 0 {
+		return nil
 	}
-	return nil
+
+	x := float64(step)
+	metrics := make(map[string]MetricData, len(values))
+	for k, y := range values {
+		metrics[k] = MetricData{X: []float64{x}, Y: []float64{y}}
+	}
+	return HistoryMsg{Metrics: metrics}
 }
 
 // ParseStats extracts metrics from a stats record.
@@ -222,7 +294,7 @@ func ParseStats(stats *spb.StatsRecord) tea.Msg {
 		return nil
 	}
 
-	metrics := make(map[string]float64)
+	metrics := make(map[string]float64, len(stats.Item))
 	var timestamp int64
 
 	if stats.Timestamp != nil {
@@ -234,7 +306,11 @@ func ParseStats(stats *spb.StatsRecord) tea.Msg {
 			continue
 		}
 
-		if value, err := strconv.ParseFloat(strings.Trim(item.ValueJson, `"`), 64); err == nil {
+		v := item.ValueJson
+		if n := len(v); n >= 2 && v[0] == '"' && v[n-1] == '"' {
+			v = v[1 : n-1]
+		}
+		if value, err := strconv.ParseFloat(v, 64); err == nil {
 			metrics[item.Key] = value
 		}
 	}

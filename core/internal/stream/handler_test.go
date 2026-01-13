@@ -868,7 +868,12 @@ func TestHandleHeader(t *testing.T) {
 	record = (<-handler.OutChan()).(runwork.WorkRecord).Record
 
 	versionInfo := fmt.Sprintf("%s+%s", version.Version, sha)
-	assert.Equal(t, versionInfo, record.GetHeader().GetVersionInfo().GetProducer(), "wrong version info")
+	assert.Equal(
+		t,
+		versionInfo,
+		record.GetHeader().GetVersionInfo().GetProducer(),
+		"wrong version info",
+	)
 }
 
 func TestHandleDerivedSummary(t *testing.T) {
@@ -972,7 +977,12 @@ func TestHandleDerivedSummary(t *testing.T) {
 				}
 			}
 
-			assert.Equal(t, tc.expectedSummaryRecords, seenSummaryRecords, "wrong number of summary records")
+			assert.Equal(
+				t,
+				tc.expectedSummaryRecords,
+				seenSummaryRecords,
+				"wrong number of summary records",
+			)
 		})
 	}
 }

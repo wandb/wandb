@@ -11,6 +11,8 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 
 from __future__ import annotations
 
+from wandb.sdk.lib.deprecation import UNSET, DoNotSet
+
 __all__ = (
     "__version__",  # doc:exclude
     "init",
@@ -75,7 +77,6 @@ from typing import (
 )
 
 import wandb.plot as plot
-from wandb.analytics import Sentry
 from wandb.apis import InternalApi
 from wandb.apis import PublicApi as Api
 from wandb.data_types import (
@@ -95,7 +96,7 @@ from wandb.errors import Error
 from wandb.errors.term import termerror, termlog, termsetup, termwarn
 from wandb.sdk import Artifact, Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
-from wandb.sdk.interface.interface import PolicyName
+from wandb.sdk.lib.filesystem import PolicyName
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
@@ -107,14 +108,13 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.22.3.dev1"
+__version__: str = "0.23.2.dev1"
 
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
 
 # private attributes
-_sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
 
@@ -222,7 +222,6 @@ def init(
     job_type: str | None = None,
     mode: Literal["online", "offline", "disabled", "shared"] | None = None,
     force: bool | None = None,
-    anonymous: Literal["never", "allow", "must"] | None = None,
     reinit: (
         bool
         | Literal[
@@ -241,6 +240,7 @@ def init(
     sync_tensorboard: bool | None = None,
     monitor_gym: bool | None = None,
     settings: Settings | dict[str, Any] | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> Run:
     r"""Start a new run to track and log to W&B.
 
@@ -337,16 +337,6 @@ def init(
             the user must be logged in to W&B; otherwise, the script will not
             proceed. If `False` (default), the script can proceed without a login,
             switching to offline mode if the user is not logged in.
-        anonymous: Specifies the level of control over anonymous data logging.
-            Available options are:
-        - `"never"` (default): Requires you to link your W&B account before
-            tracking the run. This prevents unintentional creation of anonymous
-            runs by ensuring each run is associated with an account.
-        - `"allow"`: Enables a logged-in user to track runs with their account,
-            but also allows someone running the script without a W&B account
-            to view the charts and data in the UI.
-        - `"must"`: Forces the run to be logged to an anonymous account, even
-            if the user is logged in.
         reinit: Shorthand for the "reinit" setting. Determines the behavior of
             `wandb.init()` when a run is active.
         resume: Controls the behavior when resuming a run with the specified `id`.
@@ -446,35 +436,53 @@ def finish(
     ...
 
 def login(
-    anonymous: Optional[Literal["must", "allow", "never"]] = None,
-    key: Optional[str] = None,
-    relogin: Optional[bool] = None,
-    host: Optional[str] = None,
-    force: Optional[bool] = None,
-    timeout: Optional[int] = None,
+    key: str | None = None,
+    relogin: bool | None = None,
+    host: str | None = None,
+    force: bool | None = None,
+    timeout: int | None = None,
     verify: bool = False,
-    referrer: Optional[str] = None,
+    referrer: str | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> bool:
-    """Set up W&B login credentials.
+    """Log into W&B.
 
-    By default, this will only store credentials locally without
-    verifying them with the W&B server. To verify credentials, pass
-    `verify=True`.
+    You generally don't have to use this because most W&B methods that need
+    authentication can log in implicitly. This is the programmatic counterpart
+    to the `wandb login` CLI.
+
+    This updates global credentials for the session (affecting all wandb usage
+    in the current Python process after this call) and possibly the .netrc file.
+
+    If the identity_token_file setting is set, like through the
+    WANDB_IDENTITY_TOKEN_FILE environment variable, then this is a no-op.
+
+    Otherwise, if an explicit API key is provided, it is used and written to
+    the system .netrc file. If no key is provided, but the session is already
+    authenticated, then the session key is used for verification (if verify
+    is True) and the .netrc file is not updated.
+
+    If none of the above is true, then this gets the API key from the first of:
+
+    - The WANDB_API_KEY environment variable
+    - The api_key setting in a system or workspace settings file
+    - The .netrc file (either ~/.netrc, ~/_netrc or the path specified by the
+      NETRC environment variable)
+    - An interactive prompt (if available)
 
     Args:
-        anonymous: Set to "must", "allow", or "never".
-            If set to "must", always log a user in anonymously. If set to
-            "allow", only create an anonymous user if the user
-            isn't already logged in. If set to "never", never log a
-            user anonymously. Default set to "never". Defaults to `None`.
         key: The API key to use.
-        relogin: If true, will re-prompt for API key.
-        host: The host to connect to.
-        force: If true, will force a relogin.
-        timeout: Number of seconds to wait for user input.
-        verify: Verify the credentials with the W&B server.
-        referrer: The referrer to use in the URL login request.
-
+        relogin: If true, get the API key from an interactive prompt, skipping
+            reading .netrc, environment variables, etc.
+        host: The W&B server URL to connect to.
+        force: If true, disallows selecting offline mode in the interactive
+            prompt.
+        timeout: Number of seconds to wait for user input in the interactive
+            prompt. This can be used as a failsafe if an interactive prompt
+            is incorrectly shown in a non-interactive environment.
+        verify: Verify the credentials with the W&B server and raise an
+            AuthenticationError on failure.
+        referrer: The referrer to use in the URL login request for analytics.
 
     Returns:
         bool: If `key` is configured.
@@ -538,7 +546,7 @@ def log(
     ```
 
     Only one level of nesting is supported; `run.log({"a/b/c": 1})`
-    produces a section named "a/b".
+    produces a section named "a".
 
     `run.log()` is not intended to be called more than a few times per second.
     For optimal performance, limit your logging to once every N iterations,
@@ -580,7 +588,7 @@ def log(
         run.log({"accuracy": 0.8}, step=current_step)
         current_step += 1
         run.log({"train-loss": 0.4}, step=current_step)
-        run.log({"accuracy": 0.9}, step=current_step)
+        run.log({"accuracy": 0.9}, step=current_step, commit=True)
     ```
 
     Args:
@@ -861,6 +869,7 @@ def agent(
     entity: Optional[str] = None,
     project: Optional[str] = None,
     count: Optional[int] = None,
+    forward_signals: bool = False,
 ) -> None:
     """Start one or more sweep agents.
 
@@ -882,6 +891,8 @@ def agent(
             the sweep are sent to. If the project is not specified, the
             run is sent to a project labeled "Uncategorized".
         count: The number of sweep config trials to try.
+        forward_signals: Whether to forward signals the agent receives
+            to the child processes. Only supported by CLI agent.
     """
     ...
 
@@ -971,7 +982,7 @@ def use_artifact(
     Args:
         artifact_or_name: The name of the artifact to use. May be prefixed
             with the name of the project the artifact was logged to
-            ("<entity>" or "<entity>/<project>"). If no
+            ("entity" or "entity/project"). If no
             entity is specified in the name, the Run or API setting's entity is used.
             Valid names can be in the following forms
         - name:version

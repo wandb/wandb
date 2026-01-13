@@ -79,14 +79,14 @@ func (ft *GCSFileTransfer) SetupClient() {
 	})
 }
 
-// Upload uploads a file to the server.
+// Upload implements ArtifactFileTransfer.Upload
 func (ft *GCSFileTransfer) Upload(task *DefaultUploadTask) error {
 	ft.logger.Debug("GCSFileTransfer: Upload: uploading file", "path", task.Path)
 
 	return fmt.Errorf("not implemented yet")
 }
 
-// Download downloads a file from the server.
+// Download implements ArtifactFileTransfer.Download
 func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	ft.logger.Debug(
 		"GCSFileTransfer: Download: downloading file",
@@ -163,7 +163,8 @@ func (ft *GCSFileTransfer) downloadFiles(
 			if err != nil {
 				if errors.Is(err, ErrObjectIsDirectory) {
 					ft.logger.Debug(
-						"GCSFileTransfer: Download: skipping reference because it seems to be a folder",
+						"GCSFileTransfer: Download: skipping reference because"+
+							" it seems to be a folder",
 						"bucket", bucket.BucketName(),
 						"object", objectName,
 					)

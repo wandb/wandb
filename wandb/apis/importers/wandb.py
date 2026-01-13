@@ -25,6 +25,7 @@ from wandb_workspaces.reports.v1 import Report
 import wandb
 from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.files import File
+from wandb.sdk.lib import json_util
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from . import validation
@@ -618,7 +619,7 @@ class WandbImporter:
                 return {"Bad upload": f"File not found: {fname}"}
             return {"http problem": f"{fname}: ({e})"}
 
-        dst_meta = wandb.wandb_sdk.lib.json_util.loads(contents)
+        dst_meta = json_util.loads(contents)
 
         non_matching = {}
         if src_run.metadata:

@@ -1,6 +1,7 @@
 package filestream
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wandb/wandb/core/internal/api"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
@@ -64,22 +65,35 @@ func (fs *fileStream) startTransmitting(
 	requests <-chan *FileStreamRequest,
 	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
-	maxRequestSizeBytes := fs.settings.GetFileStreamMaxBytes()
-	if maxRequestSizeBytes <= 0 {
-		maxRequestSizeBytes = 10 << 20 // 10 MB
+	state := &FileStreamState{
+		MaxRequestSizeBytes: max(
+			int(fs.settings.GetFileStreamMaxBytes()),
+			defaultMaxRequestSizeBytes,
+		),
+		MaxFileLineSize: max(
+			int(fs.settings.GetFileStreamMaxLineBytes()),
+			defaultMaxFileLineBytes,
+		),
+	}
+
+	if initialOffsets != nil {
+		state.HistoryLineNum = initialOffsets[HistoryChunk]
+		state.EventsLineNum = initialOffsets[EventsChunk]
+		state.SummaryLineNum = initialOffsets[SummaryChunk]
+		state.ConsoleLineOffset = initialOffsets[OutputChunk]
 	}
 
 	transmissions := CollectLoop{
-		Logger:              fs.logger,
-		TransmitRateLimit:   fs.transmitRateLimit,
-		MaxRequestSizeBytes: int(maxRequestSizeBytes),
-	}.Start(requests)
+		Logger:            fs.logger,
+		Printer:           fs.printer,
+		TransmitRateLimit: fs.transmitRateLimit,
+	}.Start(state, requests)
 
 	feedback := TransmitLoop{
 		HeartbeatStopwatch:     fs.heartbeatStopwatch,
 		Send:                   fs.send,
 		LogFatalAndStopWorking: fs.logFatalAndStopWorking,
-	}.Start(transmissions, initialOffsets)
+	}.Start(transmissions)
 
 	return feedback
 }
@@ -99,12 +113,7 @@ func (fs *fileStream) startProcessingFeedback(
 		for res := range feedback {
 			if v, ok := res["stopped"]; ok {
 				if b, ok := v.(bool); ok {
-					if b {
-						fs.state.Store(uint32(StopTrue))
-					} else if StopState(fs.state.Load()) == StopUnknown {
-						// Only set false if we haven't observed any value yet.
-						fs.state.Store(uint32(StopFalse))
-					}
+					fs.stopState.CompareAndSwap(false, b)
 				}
 			}
 		}
@@ -126,20 +135,21 @@ func (fs *fileStream) send(
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
-	req := &api.Request{
-		Method: http.MethodPost,
-		Path:   fs.path,
-		Body:   jsonData,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-	}
-
 	op := fs.trackUploadOperation(data)
 	defer op.Finish()
-	req.Context = op.Context(context.Background())
 
-	resp, err := fs.apiClient.Send(req)
+	req, err := retryablehttp.NewRequestWithContext(
+		op.Context(context.Background()),
+		http.MethodPost,
+		fs.baseURL.JoinPath(fs.path).String(),
+		bytes.NewReader(jsonData),
+	)
+	if err != nil {
+		return fmt.Errorf("filestream: error constructing request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := fs.apiClient.Do(req)
 
 	switch {
 	case err != nil:
@@ -148,9 +158,6 @@ func (fs *fileStream) send(
 			err,
 			resp,
 		)
-	case resp == nil:
-		// Sometimes resp and err can both be nil in retryablehttp's Client.
-		return fmt.Errorf("filestream: nil response and nil error for request to %v", req.Path)
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
@@ -158,9 +165,9 @@ func (fs *fileStream) send(
 		_ = resp.Body.Close()
 
 		return fmt.Errorf(
-			"filestream: failed to upload: %v path=%v: %s",
+			"filestream: failed to upload: %v url=%v: %s",
 			resp.Status,
-			req.Path,
+			req.URL,
 			string(body),
 		)
 	}

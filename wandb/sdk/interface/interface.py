@@ -1,38 +1,18 @@
-"""Interface base class - Used to send messages to the internal process.
+from __future__ import annotations
 
-InterfaceBase: The abstract class
-InterfaceShared: Common routines for socket and queue based implementations
-InterfaceQueue: Use multiprocessing queues to send and receive messages
-InterfaceSock: Use socket to send and receive messages
-"""
-
+import abc
 import gzip
 import logging
 import time
-from abc import abstractmethod
 from pathlib import Path
 from secrets import token_hex
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Iterable,
-    List,
-    Literal,
-    NewType,
-    Optional,
-    Tuple,
-    TypedDict,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Iterable
 
 from wandb import termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
-from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
+from wandb.sdk.lib.filesystem import FilesDict, PolicyName
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
 from wandb.util import (
     WandBJSONEncoderOld,
@@ -49,24 +29,17 @@ from . import summary_record as sr
 
 MANIFEST_FILE_SIZE_THRESHOLD = 100_000
 
-GlobStr = NewType("GlobStr", str)
-
-
-PolicyName = Literal["now", "live", "end"]
-
-
-class FilesDict(TypedDict):
-    files: Iterable[Tuple[GlobStr, PolicyName]]
-
-
 if TYPE_CHECKING:
+    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+
     from ..wandb_run import Run
 
 
 logger = logging.getLogger("wandb")
 
 
-def file_policy_to_enum(policy: "PolicyName") -> "pb.FilesItem.PolicyType.V":
+def file_policy_to_enum(policy: PolicyName) -> pb.FilesItem.PolicyType.V:
     if policy == "now":
         enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
@@ -76,7 +49,7 @@ def file_policy_to_enum(policy: "PolicyName") -> "pb.FilesItem.PolicyType.V":
     return enum
 
 
-def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
+def file_enum_to_policy(enum: pb.FilesItem.PolicyType.V) -> PolicyName:
     if enum == pb.FilesItem.PolicyType.NOW:
         policy: PolicyName = "now"
     elif enum == pb.FilesItem.PolicyType.END:
@@ -86,11 +59,11 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
     return policy
 
 
-class InterfaceBase:
-    """Methods for sending different types of Records to the service.
+class InterfaceBase(abc.ABC):
+    """Methods for sending run messages (Records) to the service.
 
     None of the methods may be called from an asyncio context other than
-    deliver_async().
+    deliver_async() or those with a `nowait=True` argument.
     """
 
     _drop: bool
@@ -98,7 +71,7 @@ class InterfaceBase:
     def __init__(self) -> None:
         self._drop = False
 
-    @abstractmethod
+    @abc.abstractmethod
     async def deliver_async(
         self,
         record: pb.Record,
@@ -117,20 +90,19 @@ class InterfaceBase:
         Returns:
             A handle to wait for a response to the record.
         """
-        raise NotImplementedError
 
     def publish_header(self) -> None:
         header = pb.HeaderRecord()
         self._publish_header(header)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         raise NotImplementedError
 
     def deliver_status(self) -> MailboxHandle[pb.Result]:
         return self._deliver_status(pb.StatusRequest())
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_status(
         self,
         status: pb.StatusRequest,
@@ -139,10 +111,10 @@ class InterfaceBase:
 
     def _make_config(
         self,
-        data: Optional[dict] = None,
-        key: Optional[Union[Tuple[str, ...], str]] = None,
-        val: Optional[Any] = None,
-        obj: Optional[pb.ConfigRecord] = None,
+        data: dict | None = None,
+        key: tuple[str, ...] | str | None = None,
+        val: Any | None = None,
+        obj: pb.ConfigRecord | None = None,
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
         if data:
@@ -160,7 +132,7 @@ class InterfaceBase:
             update.value_json = json_dumps_safer(json_friendly(val)[0])
         return config
 
-    def _make_run(self, run: "Run") -> pb.RunRecord:  # noqa: C901
+    def _make_run(self, run: Run) -> pb.RunRecord:  # noqa: C901
         proto_run = pb.RunRecord()
         if run._settings.entity is not None:
             proto_run.entity = run._settings.entity
@@ -213,11 +185,11 @@ class InterfaceBase:
             proto_run.runtime = run._start_runtime
         return proto_run
 
-    def publish_run(self, run: "Run") -> None:
+    def publish_run(self, run: Run) -> None:
         run_record = self._make_run(run)
         self._publish_run(run_record)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_run(self, run: pb.RunRecord) -> None:
         raise NotImplementedError
 
@@ -225,25 +197,25 @@ class InterfaceBase:
         cancel = pb.CancelRequest(cancel_slot=cancel_slot)
         self._publish_cancel(cancel)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
         raise NotImplementedError
 
     def publish_config(
         self,
-        data: Optional[dict] = None,
-        key: Optional[Union[Tuple[str, ...], str]] = None,
-        val: Optional[Any] = None,
+        data: dict | None = None,
+        key: tuple[str, ...] | str | None = None,
+        val: Any | None = None,
     ) -> None:
         cfg = self._make_config(data=data, key=key, val=val)
 
         self._publish_config(cfg)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         raise NotImplementedError
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
         raise NotImplementedError
 
@@ -259,7 +231,7 @@ class InterfaceBase:
         self,
         value: Any,
         path_from_root: str,
-        run: "Run",
+        run: Run,
     ) -> dict:
         """Normalize, compress, and encode sub-objects for backend storage.
 
@@ -300,7 +272,7 @@ class InterfaceBase:
     def _make_summary(
         self,
         summary_record: sr.SummaryRecord,
-        run: "Run",
+        run: Run,
     ) -> pb.SummaryRecord:
         pb_summary_record = pb.SummaryRecord()
 
@@ -343,17 +315,17 @@ class InterfaceBase:
 
     def publish_summary(
         self,
-        run: "Run",
+        run: Run,
         summary_record: sr.SummaryRecord,
     ) -> None:
         pb_summary_record = self._make_summary(summary_record, run=run)
         self._publish_summary(pb_summary_record)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:
         raise NotImplementedError
 
-    def _make_files(self, files_dict: "FilesDict") -> pb.FilesRecord:
+    def _make_files(self, files_dict: FilesDict) -> pb.FilesRecord:
         files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
@@ -361,11 +333,11 @@ class InterfaceBase:
             f.policy = file_policy_to_enum(policy)
         return files
 
-    def publish_files(self, files_dict: "FilesDict") -> None:
+    def publish_files(self, files_dict: FilesDict) -> None:
         files = self._make_files(files_dict)
         self._publish_files(files)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_files(self, files: pb.FilesRecord) -> None:
         raise NotImplementedError
 
@@ -375,13 +347,13 @@ class InterfaceBase:
             python_packages.package.add(name=pkg.key, version=pkg.version)
         self._publish_python_packages(python_packages)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_python_packages(
         self, python_packages: pb.PythonPackagesRequest
     ) -> None:
         raise NotImplementedError
 
-    def _make_artifact(self, artifact: "Artifact") -> pb.ArtifactRecord:
+    def _make_artifact(self, artifact: Artifact) -> pb.ArtifactRecord:
         proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
@@ -407,7 +379,7 @@ class InterfaceBase:
     def _make_artifact_manifest(
         self,
         artifact_manifest: ArtifactManifest,
-        obj: Optional[pb.ArtifactManifest] = None,
+        obj: pb.ArtifactManifest | None = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
         proto_manifest.version = artifact_manifest.version()
@@ -448,6 +420,8 @@ class InterfaceBase:
         return proto_manifest
 
     def _write_artifact_manifest_file(self, manifest: ArtifactManifest) -> str:
+        from wandb.sdk.artifacts.staging import get_staging_dir
+
         manifest_dir = Path(get_staging_dir()) / "artifact_manifests"
         manifest_dir.mkdir(parents=True, exist_ok=True)
         # It would be simpler to use `manifest.to_json()`, but that gets very slow for
@@ -461,12 +435,12 @@ class InterfaceBase:
 
     def deliver_link_artifact(
         self,
-        artifact: "Artifact",
+        artifact: Artifact,
         portfolio_name: str,
         aliases: Iterable[str],
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        organization: Optional[str] = None,
+        entity: str | None = None,
+        project: str | None = None,
+        organization: str | None = None,
     ) -> MailboxHandle[pb.Result]:
         link_artifact = pb.LinkArtifactRequest()
         if artifact.is_draft():
@@ -481,7 +455,7 @@ class InterfaceBase:
 
         return self._deliver_link_artifact(link_artifact)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_link_artifact(
         self, link_artifact: pb.LinkArtifactRequest
     ) -> MailboxHandle[pb.Result]:
@@ -489,7 +463,7 @@ class InterfaceBase:
 
     @staticmethod
     def _make_partial_source_str(
-        source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
+        source: Any, job_info: dict[str, Any], metadata: dict[str, Any]
     ) -> str:
         """Construct use_artifact.partial.source_info.source as str."""
         source_type = job_info.get("source_type", "").strip()
@@ -527,8 +501,8 @@ class InterfaceBase:
         self,
         use_artifact: pb.UseArtifactRecord,
         job_name: str,
-        job_info: Dict[str, Any],
-        metadata: Dict[str, Any],
+        job_info: dict[str, Any],
+        metadata: dict[str, Any],
     ) -> pb.UseArtifactRecord:
         use_artifact.partial.job_name = job_name
         use_artifact.partial.source_info._version = job_info.get("_version", "")
@@ -546,7 +520,7 @@ class InterfaceBase:
 
     def publish_use_artifact(
         self,
-        artifact: "Artifact",
+        artifact: Artifact,
     ) -> None:
         assert artifact.id is not None, "Artifact must have an id"
 
@@ -588,21 +562,23 @@ class InterfaceBase:
 
         self._publish_use_artifact(use_artifact)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
         raise NotImplementedError
 
     def deliver_artifact(
         self,
-        run: "Run",
-        artifact: "Artifact",
+        run: Run,
+        artifact: Artifact,
         aliases: Iterable[str],
-        tags: Optional[Iterable[str]] = None,
-        history_step: Optional[int] = None,
+        tags: Iterable[str] | None = None,
+        history_step: int | None = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
     ) -> MailboxHandle[pb.Result]:
+        from wandb.sdk.artifacts.staging import get_staging_dir
+
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -623,7 +599,7 @@ class InterfaceBase:
         resp = self._deliver_artifact(log_artifact)
         return resp
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_artifact(
         self,
         log_artifact: pb.LogArtifactRequest,
@@ -636,7 +612,7 @@ class InterfaceBase:
         download_root: str,
         allow_missing_references: bool,
         skip_cache: bool,
-        path_prefix: Optional[str],
+        path_prefix: str | None,
     ) -> MailboxHandle[pb.Result]:
         download_artifact = pb.DownloadArtifactRequest()
         download_artifact.artifact_id = artifact_id
@@ -647,7 +623,7 @@ class InterfaceBase:
         resp = self._deliver_download_artifact(download_artifact)
         return resp
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest
     ) -> MailboxHandle[pb.Result]:
@@ -655,10 +631,10 @@ class InterfaceBase:
 
     def publish_artifact(
         self,
-        run: "Run",
-        artifact: "Artifact",
+        run: Run,
+        artifact: Artifact,
         aliases: Iterable[str],
-        tags: Optional[Iterable[str]] = None,
+        tags: Iterable[str] | None = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
@@ -675,7 +651,7 @@ class InterfaceBase:
         proto_artifact.tags.extend(tags or [])
         self._publish_artifact(proto_artifact)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         raise NotImplementedError
 
@@ -686,28 +662,28 @@ class InterfaceBase:
         tbrecord.root_dir = root_logdir
         self._publish_tbdata(tbrecord)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         raise NotImplementedError
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         raise NotImplementedError
 
     def publish_environment(self, environment: pb.EnvironmentRecord) -> None:
         self._publish_environment(environment)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
         raise NotImplementedError
 
     def publish_partial_history(
         self,
-        run: "Run",
+        run: Run,
         data: dict,
         user_step: int,
-        step: Optional[int] = None,
-        flush: Optional[bool] = None,
+        step: int | None = None,
+        flush: bool | None = None,
         publish_step: bool = True,
     ) -> None:
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
@@ -730,15 +706,15 @@ class InterfaceBase:
             partial_history.action.flush = flush
         self._publish_partial_history(partial_history)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_partial_history(self, history: pb.PartialHistoryRequest) -> None:
         raise NotImplementedError
 
     def publish_history(
         self,
-        run: "Run",
+        run: Run,
         data: dict,
-        step: Optional[int] = None,
+        step: int | None = None,
         publish_step: bool = True,
     ) -> None:
         data = history_dict_to_json(run, data, step=step)
@@ -753,7 +729,7 @@ class InterfaceBase:
             item.value_json = json_dumps_safer_history(v)
         self._publish_history(history)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_history(self, history: pb.HistoryRecord) -> None:
         raise NotImplementedError
 
@@ -761,11 +737,17 @@ class InterfaceBase:
         preempt_rec = pb.RunPreemptingRecord()
         self._publish_preempting(preempt_rec)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_preempting(self, preempt_rec: pb.RunPreemptingRecord) -> None:
         raise NotImplementedError
 
-    def publish_output(self, name: str, data: str) -> None:
+    def publish_output(
+        self,
+        name: str,
+        data: str,
+        *,
+        nowait: bool = False,
+    ) -> None:
         # from vendor.protobuf import google3.protobuf.timestamp
         # ts = timestamp.Timestamp()
         # ts.GetCurrentTime()
@@ -779,13 +761,19 @@ class InterfaceBase:
             termwarn("unknown type")
         o = pb.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
-        self._publish_output(o)
+        self._publish_output(o, nowait=nowait)
 
-    @abstractmethod
-    def _publish_output(self, outdata: pb.OutputRecord) -> None:
+    @abc.abstractmethod
+    def _publish_output(self, outdata: pb.OutputRecord, *, nowait: bool) -> None:
         raise NotImplementedError
 
-    def publish_output_raw(self, name: str, data: str) -> None:
+    def publish_output_raw(
+        self,
+        name: str,
+        data: str,
+        *,
+        nowait: bool = False,
+    ) -> None:
         # from vendor.protobuf import google3.protobuf.timestamp
         # ts = timestamp.Timestamp()
         # ts.GetCurrentTime()
@@ -799,17 +787,22 @@ class InterfaceBase:
             termwarn("unknown type")
         o = pb.OutputRawRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
-        self._publish_output_raw(o)
+        self._publish_output_raw(o, nowait=nowait)
 
-    @abstractmethod
-    def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
+    @abc.abstractmethod
+    def _publish_output_raw(
+        self,
+        outdata: pb.OutputRawRecord,
+        *,
+        nowait: bool,
+    ) -> None:
         raise NotImplementedError
 
     def publish_pause(self) -> None:
         pause = pb.PauseRequest()
         self._publish_pause(pause)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_pause(self, pause: pb.PauseRequest) -> None:
         raise NotImplementedError
 
@@ -817,7 +810,7 @@ class InterfaceBase:
         resume = pb.ResumeRequest()
         self._publish_resume(resume)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_resume(self, resume: pb.ResumeRequest) -> None:
         raise NotImplementedError
 
@@ -831,21 +824,21 @@ class InterfaceBase:
         proto_alert.wait_duration = wait_duration
         self._publish_alert(proto_alert)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_alert(self, alert: pb.AlertRecord) -> None:
         raise NotImplementedError
 
-    def _make_exit(self, exit_code: Optional[int]) -> pb.RunExitRecord:
+    def _make_exit(self, exit_code: int | None) -> pb.RunExitRecord:
         exit = pb.RunExitRecord()
         if exit_code is not None:
             exit.exit_code = exit_code
         return exit
 
-    def publish_exit(self, exit_code: Optional[int]) -> None:
+    def publish_exit(self, exit_code: int | None) -> None:
         exit_data = self._make_exit(exit_code)
         self._publish_exit(exit_data)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         raise NotImplementedError
 
@@ -853,15 +846,15 @@ class InterfaceBase:
         keepalive = pb.KeepaliveRequest()
         self._publish_keepalive(keepalive)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
         raise NotImplementedError
 
     def publish_job_input(
         self,
-        include_paths: List[List[str]],
-        exclude_paths: List[List[str]],
-        input_schema: Optional[dict],
+        include_paths: list[list[str]],
+        exclude_paths: list[list[str]],
+        input_schema: dict | None,
         run_config: bool = False,
         file_path: str = "",
     ):
@@ -908,7 +901,7 @@ class InterfaceBase:
 
         return self._publish_job_input(request)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_job_input(
         self, request: pb.JobInputRequest
     ) -> MailboxHandle[pb.Result]:
@@ -918,7 +911,7 @@ class InterfaceBase:
         probe_system_info = pb.ProbeSystemInfoRequest()
         return self._publish_probe_system_info(probe_system_info)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _publish_probe_system_info(
         self, probe_system_info: pb.ProbeSystemInfoRequest
     ) -> None:
@@ -942,11 +935,11 @@ class InterfaceBase:
             # before a response is read.
             logger.warning("handle abandoned while communicating shutdown")
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_shutdown(self) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_run(self, run: "Run") -> MailboxHandle[pb.Result]:
+    def deliver_run(self, run: Run) -> MailboxHandle[pb.Result]:
         run_record = self._make_run(run)
         return self._deliver_run(run_record)
 
@@ -956,21 +949,21 @@ class InterfaceBase:
         sync = pb.SyncFinishRequest()
         return self._deliver_finish_sync(sync)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_finish_sync(
         self, sync: pb.SyncFinishRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_run_start(self, run: "Run") -> MailboxHandle[pb.Result]:
+    def deliver_run_start(self, run: Run) -> MailboxHandle[pb.Result]:
         run_start = pb.RunStartRequest(run=self._make_run(run))
         return self._deliver_run_start(run_start)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_run_start(
         self, run_start: pb.RunStartRequest
     ) -> MailboxHandle[pb.Result]:
@@ -980,7 +973,7 @@ class InterfaceBase:
         attach = pb.AttachRequest(attach_id=attach_id)
         return self._deliver_attach(attach)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_attach(
         self,
         status: pb.AttachRequest,
@@ -991,7 +984,7 @@ class InterfaceBase:
         status = pb.StopStatusRequest()
         return self._deliver_stop_status(status)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_stop_status(
         self,
         status: pb.StopStatusRequest,
@@ -1002,7 +995,7 @@ class InterfaceBase:
         status = pb.NetworkStatusRequest()
         return self._deliver_network_status(status)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_network_status(
         self,
         status: pb.NetworkStatusRequest,
@@ -1013,7 +1006,7 @@ class InterfaceBase:
         internal_message = pb.InternalMessagesRequest()
         return self._deliver_internal_messages(internal_message)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_internal_messages(
         self, internal_message: pb.InternalMessagesRequest
     ) -> MailboxHandle[pb.Result]:
@@ -1023,7 +1016,7 @@ class InterfaceBase:
         get_summary = pb.GetSummaryRequest()
         return self._deliver_get_summary(get_summary)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_get_summary(
         self,
         get_summary: pb.GetSummaryRequest,
@@ -1034,17 +1027,17 @@ class InterfaceBase:
         get_system_metrics = pb.GetSystemMetricsRequest()
         return self._deliver_get_system_metrics(get_system_metrics)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_get_system_metrics(
         self, get_summary: pb.GetSystemMetricsRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle[pb.Result]:
+    def deliver_exit(self, exit_code: int | None) -> MailboxHandle[pb.Result]:
         exit_data = self._make_exit(exit_code)
         return self._deliver_exit(exit_data)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_exit(
         self,
         exit_data: pb.RunExitRecord,
@@ -1055,7 +1048,7 @@ class InterfaceBase:
         poll_exit = pb.PollExitRequest()
         return self._deliver_poll_exit(poll_exit)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_poll_exit(
         self,
         poll_exit: pb.PollExitRequest,
@@ -1066,7 +1059,7 @@ class InterfaceBase:
         run_finish_without_exit = pb.RunFinishWithoutExitRequest()
         return self._deliver_finish_without_exit(run_finish_without_exit)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_finish_without_exit(
         self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
     ) -> MailboxHandle[pb.Result]:
@@ -1076,7 +1069,7 @@ class InterfaceBase:
         sampled_history = pb.SampledHistoryRequest()
         return self._deliver_request_sampled_history(sampled_history)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle[pb.Result]:
@@ -1086,7 +1079,7 @@ class InterfaceBase:
         run_status = pb.RunStatusRequest()
         return self._deliver_request_run_status(run_status)
 
-    @abstractmethod
+    @abc.abstractmethod
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle[pb.Result]:

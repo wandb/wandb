@@ -7,7 +7,7 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLId, GQLInput
 
 from .enums import (
     AlertSeverity,
@@ -17,37 +17,37 @@ from .enums import (
 )
 
 
-class CreateGenericWebhookIntegrationInput(GQLBase):
+class CreateGenericWebhookIntegrationInput(GQLInput):
     entity_name: str = Field(alias="entityName")
     url_endpoint: str = Field(alias="urlEndpoint")
-    name: str
+    name: str = Field(max_length=64, pattern="^[-\\w]+([ ]+[-\\w]+)*$")
     secret_ref: Optional[str] = Field(alias="secretRef", default=None)
     access_token_ref: Optional[str] = Field(alias="accessTokenRef", default=None)
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
 
 
-class QueueJobActionInput(GQLBase):
+class QueueJobActionInput(GQLInput):
     queue_id: GQLId = Field(alias="queueID")
     template: str
 
 
-class NotificationActionInput(GQLBase):
+class NotificationActionInput(GQLInput):
     integration_id: GQLId = Field(alias="integrationID")
     title: Optional[str] = None
     message: Optional[str] = None
     severity: Optional[AlertSeverity] = None
 
 
-class GenericWebhookActionInput(GQLBase):
+class GenericWebhookActionInput(GQLInput):
     integration_id: GQLId = Field(alias="integrationID")
     request_payload: Optional[str] = Field(alias="requestPayload", default=None)
 
 
-class NoOpTriggeredActionInput(GQLBase):
+class NoOpTriggeredActionInput(GQLInput):
     no_op: Optional[bool] = Field(alias="noOp", default=None)
 
 
-class TriggeredActionConfig(GQLBase):
+class TriggeredActionConfig(GQLInput):
     queue_job_action_input: Optional[QueueJobActionInput] = Field(
         alias="queueJobActionInput", default=None
     )
@@ -62,8 +62,8 @@ class TriggeredActionConfig(GQLBase):
     )
 
 
-class CreateFilterTriggerInput(GQLBase):
-    name: str
+class CreateFilterTriggerInput(GQLInput):
+    name: str = Field(max_length=255)
     description: Optional[str] = None
     triggering_event_type: EventTriggeringConditionType = Field(
         alias="triggeringEventType"
@@ -79,9 +79,9 @@ class CreateFilterTriggerInput(GQLBase):
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
 
 
-class UpdateFilterTriggerInput(GQLBase):
+class UpdateFilterTriggerInput(GQLInput):
     id: GQLId
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
     triggering_event_type: Optional[EventTriggeringConditionType] = Field(
         alias="triggeringEventType", default=None

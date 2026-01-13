@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-import requests
 from wandb_gql.transport.http import HTTPTransport
 from wandb_graphql.execution import ExecutionResult
 from wandb_graphql.language import ast
@@ -35,6 +34,8 @@ class GraphQLSession(HTTPTransport):
             use_json (bool): Send request body as JSON instead of form-urlencoded
             timeout (int, float): Specifies a default timeout for requests (Default: None)
         """
+        import requests
+
         super().__init__(url, **kwargs)
         self.session = requests.Session()
         if proxies:

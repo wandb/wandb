@@ -5,24 +5,20 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLId, GQLResult
 
 
-class DeleteArtifact(GQLBase):
-    delete_artifact: Optional[DeleteArtifactDeleteArtifact] = Field(
-        alias="deleteArtifact"
-    )
+class DeleteArtifact(GQLResult):
+    result: Optional[DeleteArtifactResult]
 
 
-class DeleteArtifactDeleteArtifact(GQLBase):
-    artifact: DeleteArtifactDeleteArtifactArtifact
+class DeleteArtifactResult(GQLResult):
+    artifact: DeleteArtifactResultArtifact
 
 
-class DeleteArtifactDeleteArtifactArtifact(GQLBase):
+class DeleteArtifactResultArtifact(GQLResult):
     id: GQLId
 
 
 DeleteArtifact.model_rebuild()
-DeleteArtifactDeleteArtifact.model_rebuild()
+DeleteArtifactResult.model_rebuild()

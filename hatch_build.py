@@ -61,11 +61,13 @@ class CustomBuildHook(BuildHookInterface):
         # We do this remapping here because otherwise, it's possible for `pip wheel`
         # to successfully produce a wheel that you then cannot `pip install` on the
         # same machine.
-        macos_match = re.fullmatch(r"macosx_(\d+_\d+)_(\w+)", platform_tag)
+        #
+        # Accept both macosx_<major>_<minor>_<arch> and macosx_<major>_<arch>.
+        macos_match = re.fullmatch(r"macosx_(\d+)(?:_(\d+))?_(\w+)", platform_tag)
         if macos_match:
-            major, _ = macos_match.group(1).split("_")
-            if int(major) >= 11:
-                arch = macos_match.group(2)
+            major = int(macos_match.group(1))
+            arch = macos_match.group(3)
+            if major >= 11:
                 platform_tag = f"macosx_{major}_0_{arch}"
 
         return platform_tag

@@ -612,71 +612,6 @@ pub struct Issues {
     #[prost(bool, tag = "3")]
     pub settings_preprocessing_warnings: bool,
 }
-/// ApiRequest is a request to the backend process
-/// to perform an action related to an API call.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ApiRequest {
-    #[prost(oneof = "api_request::Request", tags = "1")]
-    pub request: ::core::option::Option<api_request::Request>,
-}
-/// Nested message and enum types in `ApiRequest`.
-pub mod api_request {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Request {
-        #[prost(message, tag = "1")]
-        ReadRunHistory(super::ReadRunHistoryApiRequest),
-    }
-}
-/// ApiResponse is a response from the backend process for an ApiRequest.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ApiResponse {
-    #[prost(oneof = "api_response::Response", tags = "1")]
-    pub response: ::core::option::Option<api_response::Response>,
-}
-/// Nested message and enum types in `ApiResponse`.
-pub mod api_response {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Response {
-        #[prost(message, tag = "1")]
-        ReadRunHistory(super::ReadRunHistoryApiResponse),
-    }
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ReadRunHistoryApiRequest {
-    #[prost(string, tag = "1")]
-    pub entity: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub project: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub run_id: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag = "4")]
-    pub keys: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(int64, tag = "5")]
-    pub min_step: i64,
-    #[prost(int64, tag = "6")]
-    pub max_step: i64,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RecordInfo>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ReadRunHistoryApiResponse {
-    #[prost(message, repeated, tag = "1")]
-    pub history_rows: ::prost::alloc::vec::Vec<HistoryRow>,
-    #[prost(string, tag = "2")]
-    pub error_message: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct HistoryRow {
-    #[prost(message, repeated, tag = "1")]
-    pub history_items: ::prost::alloc::vec::Vec<ParquetHistoryItem>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ParquetHistoryItem {
-    #[prost(string, tag = "1")]
-    pub key: ::prost::alloc::string::String,
-    #[prost(string, tag = "16")]
-    pub value_json: ::prost::alloc::string::String,
-}
 ///
 /// Record: joined record for message passing and persistence
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -691,7 +626,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100, 101"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -747,8 +682,6 @@ pub mod record {
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
-        #[prost(message, tag = "101")]
-        ApiRequest(super::ApiRequest),
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1775,7 +1708,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 84, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1833,8 +1766,6 @@ pub mod response {
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
         #[prost(message, tag = "74")]
         OperationsResponse(super::OperationStatsResponse),
-        #[prost(message, tag = "84")]
-        ApiResponse(super::ApiResponse),
         #[prost(message, tag = "1000")]
         TestInjectResponse(super::TestInjectResponse),
     }
@@ -2096,6 +2027,17 @@ pub struct OperationStatsResponse {
 /// wandb: + 7 more tasks
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OperationStats {
+    /// An optional short label for this set of operations.
+    ///
+    /// This is used when multiple OperationStats are presented simultaneously,
+    /// such as when syncing multiple runs in parallel.
+    ///
+    /// The difference between an Operation with subtasks and a labeled
+    /// OperationStats is that the latter does not represent an ongoing task.
+    /// For that reason, the label is optional and there is no duration,
+    /// progress information or error status.
+    #[prost(string, tag = "3")]
+    pub label: ::prost::alloc::string::String,
     /// The ongoing operations sorted by usefulness for the user to see.
     ///
     /// This may not contain all operations, but it may also contain more than can
@@ -3003,6 +2945,8 @@ pub enum ServerFeature {
     /// Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
     /// mutation.
     ArtifactMembershipInLinkArtifactResponse = 14,
+    /// Indicates that the server supports returning the total file count in a file connection.
+    TotalCountInFileConnection = 15,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3038,6 +2982,7 @@ impl ServerFeature {
             Self::ArtifactMembershipInLinkArtifactResponse => {
                 "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE"
             }
+            Self::TotalCountInFileConnection => "TOTAL_COUNT_IN_FILE_CONNECTION",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3072,6 +3017,7 @@ impl ServerFeature {
             "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE" => {
                 Some(Self::ArtifactMembershipInLinkArtifactResponse)
             }
+            "TOTAL_COUNT_IN_FILE_CONNECTION" => Some(Self::TotalCountInFileConnection),
             _ => None,
         }
     }

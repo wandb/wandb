@@ -5,10 +5,14 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+type MetricData struct {
+	X []float64
+	Y []float64
+}
+
 // HistoryMsg contains metrics data from a wandb history record.
 type HistoryMsg struct {
-	Metrics map[string]float64
-	Step    int
+	Metrics map[string]MetricData
 }
 
 // RunMsg contains data from the wandb run record.
@@ -21,7 +25,7 @@ type RunMsg struct {
 
 // SummaryMsg contains summary data from the wandb run.
 type SummaryMsg struct {
-	Summary *spb.SummaryRecord
+	Summary []*spb.SummaryRecord
 }
 
 // SystemInfoMsg contains system/environment information.
@@ -69,3 +73,9 @@ type ChunkedBatchMsg struct {
 
 // HeartbeatMsg is sent periodically for live runs to ensure we don't miss data.
 type HeartbeatMsg struct{}
+
+// LeftSidebarAnimationMsg is sent during left sidebar animations.
+type LeftSidebarAnimationMsg struct{}
+
+// RightSidebarAnimationMsg is sent during right sidebar animations.
+type RightSidebarAnimationMsg struct{}

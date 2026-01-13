@@ -1,5 +1,5 @@
 name: Build and Release W&B SDK
-run-name: SDK ${{ inputs.version }} release${{ inputs.dry-run && ' (dry-run)' || '' }}
+run-name: "SDK ${{ inputs.version }} — ${{ inputs.mode }}"
 
 on:
   workflow_dispatch:
@@ -8,25 +8,29 @@ on:
         type: string
         description: "Version to assign to the release"
         required: true
-      dry-run:
-        type: boolean
-        description: "Dry run (avoid uploading to PyPI)"
-        default: true
-      update-changelog:
-        type: boolean
-        description: "Update changelog and release notes"
-        required: false
-        default: false
+      mode:
+        type: choice
+        description: >-
+          Release mode:
+          1) test-release — TestPyPI only.
+          2) pre-release — PyPI + TestPyPI, no notes.
+          3) release — PyPI + TestPyPI, notes + PR + Slack.
+        required: true
+        default: test-release
+        options:
+          - test-release
+          - pre-release
+          - release
 
 jobs:
   prepare-release:
     name: Prepare release (${{ inputs.version }})
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -49,7 +53,7 @@ jobs:
           bump2version patch --no-tag --no-commit --config-file .bumpversion.cfg --new-version ${{ github.event.inputs.version }}
 
       - name: Update CHANGELOG.md
-        if: ${{ inputs.update-changelog }}
+        if: ${{ inputs.mode == 'release' }}
         run: |
           python tools/changelog.py \
             --version ${{ github.event.inputs.version }}
@@ -73,27 +77,22 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v3.3.1
         with:
           package-dir: .
           output-dir: dist
         env:
-          # In cp36-*, the wheel name sometimes includes additional dashes that
-          # make it invalid, breaking the job.
-          #
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-* cp37-*
           CIBW_ARCHS_LINUX: aarch64
           CIBW_BEFORE_ALL_LINUX: >
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
@@ -102,7 +101,7 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: wandb-sdk-distribution-linux-arm64
           path: ./dist
@@ -111,7 +110,7 @@ jobs:
     name: Build wheels on ${{ matrix.os }}
     needs: prepare-release
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -122,17 +121,15 @@ jobs:
           - macos-14
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
       ##################################################
       # Install Go
-      #
-      # See comment above CIBW_BEFORE_ALL_LINUX.
       ##################################################
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
@@ -141,17 +138,12 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v3.3.1
         with:
           package-dir: .
           output-dir: dist
         env:
-          # In cp36-*, the wheel name sometimes includes additional dashes that
-          # make it invalid, breaking the job.
-          #
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-* cp37-*
-          CIBW_ARCHS_LINUX: x86_64 #aarch64 is handled by build-linux-arm64-wheels
+          CIBW_ARCHS_LINUX: x86_64 # aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
@@ -175,7 +167,7 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_ENVIRONMENT_LINUX: PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: wandb-sdk-distribution-${{ matrix.os }}
           path: ./dist
@@ -185,12 +177,12 @@ jobs:
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -200,7 +192,7 @@ jobs:
       - name: Create sdist
         run: hatch build -t sdist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: wandb-sdk-distribution-sdist
           path: ./dist
@@ -217,12 +209,12 @@ jobs:
       id-token: write # trusted publishing
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
       - name: Download distribution
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts/
           pattern: wandb-sdk-distribution-*
@@ -270,7 +262,7 @@ jobs:
 
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -296,12 +288,12 @@ jobs:
 
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
       - name: Set up latest Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
 
       - name: Install wandb from TestPyPI with --no-binary
         run: |
@@ -317,7 +309,7 @@ jobs:
           python -c "import wandb; run = wandb.init(); run.finish()"
 
   pypi-publish:
-    if: ${{ !inputs.dry-run }}
+    if: ${{ inputs.mode != 'test-release' }}
     name: Publish to PyPI
     needs: [verify-test-pypi, verify-test-pypi-sdist]
     runs-on: ubuntu-latest
@@ -326,7 +318,7 @@ jobs:
       url: https://pypi.org/p/wandb
     steps:
       - name: Download distribution
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts/
           pattern: wandb-sdk-distribution-*
@@ -348,15 +340,15 @@ jobs:
     name: Create dev branch and PR
     needs: pypi-publish
     runs-on: ubuntu-latest
-    if: ${{ inputs.update-changelog && !inputs.dry-run }}
+    if: ${{ inputs.mode == 'release' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
 
@@ -389,10 +381,10 @@ jobs:
     name: Publish Release Notes
     needs: pypi-publish
     runs-on: ubuntu-latest
-    if: ${{ inputs.update-changelog && !inputs.dry-run }}
+    if: ${{ inputs.mode == 'release' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: release-${{ github.event.inputs.version }}
       - name: Create Source Archives
@@ -418,7 +410,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:
-    if: ${{ !inputs.dry-run }}
+    if: ${{ inputs.mode == 'release' }}
     name: Post to Slack
     needs: publish-release-notes
     runs-on: ubuntu-latest
@@ -431,19 +423,16 @@ jobs:
           python -m pip install wandb==${{ github.event.inputs.version }}
       - name: Post to Slack
         id: slack
-        uses: slackapi/slack-github-action@v1.27.0
+        uses: slackapi/slack-github-action@v2.1.1
         with:
-          # Slack channel id, channel name, or user id to post message.
-          # See also: https://api.slack.com/methods/chat.postMessage#channels
-          # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
-          channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
-          # For posting a simple plain text message
-          slack-message: |
-            W&B SDK ${{ github.event.inputs.version }} released :tada::
-            - PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/
-            - Release notes: https://github.com/${{ github.repository }}/releases/tag/v${{ github.event.inputs.version }}
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
+            text: |
+              W&B SDK ${{ github.event.inputs.version }} released :tada::
+              - PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/
+              - Release notes: https://github.com/${{ github.repository }}/releases/tag/v${{ github.event.inputs.version }}
 
   # This job exists so that there's some traceability between SDK releases and
   # potential issues in wandb/core. core contains references to this released
@@ -451,6 +440,7 @@ jobs:
   # In the event of a failure building wandb/core, the actor that ran this
   # release will be notified.
   notify-core:
+    if: ${{ inputs.mode != 'test-release' }}
     name: notify wandb/core of release
     runs-on: ubuntu-latest
     needs: [pypi-publish]
@@ -462,9 +452,12 @@ jobs:
         with:
           app-id: ${{ vars.WANDBOT_3000_APP_ID }}
           private-key: ${{ secrets.WANDBOT_3000_PRIVATE_KEY }}
+          owner: wandb
+          repositories: |
+            core
 
       - name: Repository dispatch
-        uses: peter-evans/repository-dispatch@v2
+        uses: peter-evans/repository-dispatch@v4
         with:
           token: "${{ steps.app-token.outputs.token }}"
           repository: wandb/core
@@ -473,5 +466,9 @@ jobs:
             {
               "version": "${{ inputs.version }}",
               "actor": "${{ github.actor }}",
-              "actor_id": "${{ github.actor_id }}"
+              "actor_id": "${{ github.actor_id }}",
+              "repository": "${{ github.repository }}",
+              "workflow_ref": "${{ github.workflow_ref }}",
+              "run_id": "${{ github.run_id }}",
+              "mode": "${{ inputs.mode }}"
             }

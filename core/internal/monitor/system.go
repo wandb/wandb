@@ -343,7 +343,9 @@ func (s *System) collectNetworkMetrics(metrics map[string]any) error {
 }
 
 // collectSystemMemoryMetrics gathers system-wide memory statistics.
-func (s *System) collectSystemMemoryMetrics(metrics map[string]any) (*mem.VirtualMemoryStat, error) {
+func (s *System) collectSystemMemoryMetrics(
+	metrics map[string]any,
+) (*mem.VirtualMemoryStat, error) {
 	virtualMem, err := mem.VirtualMemory()
 	if err != nil {
 		return nil, err

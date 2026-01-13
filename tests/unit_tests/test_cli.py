@@ -10,9 +10,7 @@ from unittest import mock
 import pytest
 import wandb
 import wandb.docker
-from wandb.apis.internal import InternalApi
 from wandb.cli import cli
-from wandb.sdk.lib.apikey import get_netrc_file_path
 
 DOCKER_SHA = (
     "wandb/deepo@sha256:"
@@ -87,36 +85,6 @@ def test_no_project_bad_command(runner):
         assert result.exit_code == 2
 
 
-def test_login_key_arg(runner, dummy_api_key):
-    with runner.isolated_filesystem():
-        # If the test was run from a directory containing .wandb, then __stage_dir__
-        # was '.wandb' when imported by api.py, reload to fix. UGH!
-        # reload(wandb)
-        result = runner.invoke(cli.login, [dummy_api_key])
-        print("Output: ", result.output)
-        print("Exception: ", result.exception)
-        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
-        assert result.exit_code == 0
-        with open(get_netrc_file_path()) as f:
-            generated_netrc = f.read()
-        assert dummy_api_key in generated_netrc
-
-
-def test_login_host_trailing_slash_fix_invalid(runner, dummy_api_key, local_settings):
-    with runner.isolated_filesystem():
-        with open(get_netrc_file_path(), "w") as f:
-            f.write(f"machine \n  login user\npassword {dummy_api_key}")
-        result = runner.invoke(
-            cli.login, ["--host", "https://google.com/", dummy_api_key]
-        )
-        assert result.exit_code == 0
-        with open(get_netrc_file_path()) as f:
-            generated_netrc = f.read()
-        assert generated_netrc == (
-            f"machine google.com\n  login user\n  password {dummy_api_key}\n"
-        )
-
-
 @pytest.mark.parametrize(
     "host, error",
     [
@@ -131,48 +99,14 @@ def test_login_bad_host(runner, host, error, local_settings):
         assert result.exit_code != 0
 
 
-def test_login_onprem_key_arg(runner, dummy_api_key):
-    with runner.isolated_filesystem():
-        onprem_key = "test-" + dummy_api_key
-        # with runner.isolated_filesystem():
-        result = runner.invoke(cli.login, [onprem_key])
-        print("Output: ", result.output)
-        print("Exception: ", result.exception)
-        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
-        assert result.exit_code == 0
-        with open(get_netrc_file_path()) as f:
-            generated_netrc = f.read()
-        assert onprem_key in generated_netrc
-
-
 def test_login_invalid_key_arg(runner, dummy_api_key):
     with runner.isolated_filesystem():
-        invalid_key = "test--" + dummy_api_key
+        invalid_key = "test-" + dummy_api_key[:-5]
         result = runner.invoke(cli.login, [invalid_key])
-        assert "API key must be 40 characters long, yours was" in str(result)
-        assert result.exit_code == 1
+        assert "API key must have 40+ characters, has 35." in result.output
 
 
-@pytest.mark.skip(reason="Just need to make the mocking work correctly")
-def test_login_anonymously(runner, dummy_api_key, monkeypatch, empty_netrc):
-    with runner.isolated_filesystem():
-        api = InternalApi()
-        monkeypatch.setattr(cli, "api", api)
-        monkeypatch.setattr(
-            wandb.sdk.internal.internal_api.Api,
-            "create_anonymous_api_key",
-            lambda *args, **kwargs: dummy_api_key,
-        )
-        result = runner.invoke(cli.login, ["--anonymously"])
-        print("Output: ", result.output)
-        print("Exception: ", result.exception)
-        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
-        assert result.exit_code == 0
-        with open(get_netrc_file_path()) as f:
-            generated_netrc = f.read()
-        assert dummy_api_key in generated_netrc
-
-
+@pytest.mark.usefixtures("patch_apikey")
 def test_sync_gc(runner):
     with runner.isolated_filesystem():
         if not os.path.isdir("wandb"):
@@ -208,22 +142,6 @@ def test_sync_gc(runner):
             == 0
         )
         assert not os.path.exists(run1_dir)
-
-
-def test_cli_login_reprompts_when_no_key_specified(runner, mocker, dummy_api_key):
-    with runner.isolated_filesystem():
-        mocker.patch("wandb.wandb_lib.apikey.getpass", input)
-        # this first gives login an empty API key, which should cause
-        # it to re-prompt.  this is what we are testing.  we then give
-        # it a valid API key (the dummy API key with a different final
-        # letter to check that our monkeypatch input is working as
-        # expected) to terminate the prompt finally we grep for the
-        # Error: No API key specified to assert that the re-prompt
-        # happened
-        result = runner.invoke(cli.login, input=f"\n{dummy_api_key[:-1]}q\n")
-        with open(get_netrc_file_path()) as f:
-            print(f.read())
-        assert "ERROR No API key specified." in result.output
 
 
 def test_docker_run_digest(runner, docker, monkeypatch):

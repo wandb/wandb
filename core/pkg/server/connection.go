@@ -8,9 +8,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"sync"
 	"sync/atomic"
 
+	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -18,10 +22,10 @@ import (
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/wbapi"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -95,6 +99,9 @@ type Connection struct {
 
 	// logLevel is the log level
 	logLevel slog.Level
+
+	// apiRequestHandler handles processing API related requests from clients.
+	wbapi *wbapi.WandbAPI
 }
 
 func NewConnection(
@@ -327,6 +334,10 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleSync(wg, msg.RequestId, x.Sync)
 		case *spb.ServerRequest_SyncStatus:
 			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
+		case *spb.ServerRequest_ApiInitRequest:
+			nc.handleApiInit(msg.RequestId, x.ApiInitRequest)
+		case *spb.ServerRequest_ApiRequest:
+			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
 			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
@@ -382,7 +393,12 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	sentryClient.CaptureMessage("wandb-core", nil)
 
 	if err := nc.streamMux.AddStream(streamId, strm); err != nil {
-		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
+		slog.Error(
+			"handleInformInit: error adding stream",
+			"err", err,
+			"streamId", streamId,
+			"id", nc.id,
+		)
 		// TODO: should we Close the stream?
 		return
 	}
@@ -437,34 +453,57 @@ func (nc *Connection) handleInformAttach(
 func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 	slog.Debug("handleAuthenticate: received", "id", nc.id)
 
-	s := settings.From(&spb.Settings{
-		ApiKey:  &wrapperspb.StringValue{Value: msg.ApiKey},
-		BaseUrl: &wrapperspb.StringValue{Value: msg.BaseUrl},
-	})
-	backend := stream.NewBackend(observability.NewNoOpLogger(), s) // TODO: use a real logger
-	graphqlClient := stream.NewGraphQLClient(backend, s, &observability.Peeker{}, "" /*clientId*/)
-
-	data, err := gql.Viewer(context.Background(), graphqlClient)
-	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
-		nc.Respond(&spb.ServerResponse{
-			ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
-				AuthenticateResponse: &spb.ServerAuthenticateResponse{
-					ErrorStatus: "Invalid credentials",
-					XInfo:       msg.XInfo,
-				},
-			},
-		})
-		return
-	}
+	response := nc.handleAuthenticateImpl(msg)
+	response.XInfo = msg.XInfo
 
 	nc.Respond(&spb.ServerResponse{
 		ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
-			AuthenticateResponse: &spb.ServerAuthenticateResponse{
-				DefaultEntity: *data.GetViewer().GetEntity(),
-				XInfo:         msg.XInfo,
-			},
+			AuthenticateResponse: response,
 		},
 	})
+}
+
+func (nc *Connection) handleAuthenticateImpl(
+	msg *spb.ServerAuthenticateRequest,
+) *spb.ServerAuthenticateResponse {
+	baseURL, err := url.Parse(msg.BaseUrl)
+	if err != nil {
+		return &spb.ServerAuthenticateResponse{
+			ErrorStatus: fmt.Sprintf("Invalid URL: %v", err),
+		}
+	}
+
+	logger := observability.NewNoOpLogger() // TODO: use a real logger
+	credentialProvider := api.NewAPIKeyCredentialProvider(msg.ApiKey)
+
+	apiClient := api.NewClient(api.ClientOptions{
+		BaseURL:     baseURL,
+		RetryPolicy: clients.CheckRetry,
+
+		RetryMax:        api.DefaultRetryMax,
+		RetryWaitMin:    api.DefaultRetryWaitMin,
+		RetryWaitMax:    api.DefaultRetryWaitMax,
+		NonRetryTimeout: api.DefaultNonRetryTimeout,
+
+		CredentialProvider: credentialProvider,
+		Logger:             logger.Logger,
+	})
+
+	graphqlClient := graphql.NewClient(
+		baseURL.JoinPath("graphql").String(),
+		api.AsStandardClient(apiClient),
+	)
+
+	data, err := gql.Viewer(context.Background(), graphqlClient)
+	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
+		return &spb.ServerAuthenticateResponse{
+			ErrorStatus: "Invalid credentials",
+		}
+	}
+
+	return &spb.ServerAuthenticateResponse{
+		DefaultEntity: *data.GetViewer().GetEntity(),
+	}
 }
 
 // handleInformRecord processes a regular record message from the client.
@@ -514,7 +553,12 @@ func (nc *Connection) handleInformFinish(msg *spb.ServerInformFinishRequest) {
 	// Attempt to remove the stream from the stream multiplexer
 	strm, err := nc.streamMux.RemoveStream(streamId)
 	if err != nil {
-		slog.Error("handleInformFinish: error removing stream", "err", err, "streamId", streamId, "id", nc.id)
+		slog.Error(
+			"handleInformFinish: error removing stream",
+			"err", err,
+			"streamId", streamId,
+			"id", nc.id,
+		)
 		return
 	}
 
@@ -584,6 +628,52 @@ func (nc *Connection) handleSyncStatus(
 		ServerResponseType: &spb.ServerResponse_SyncStatusResponse{
 			SyncStatusResponse: response,
 		},
+	})
+}
+
+func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
+	settings := settings.From(request.GetSettings())
+	nc.wbapi = wbapi.NewWandbAPI(settings, nc.sentryClient)
+	nc.Respond(&spb.ServerResponse{
+		RequestId: id,
+		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
+			ApiInitResponse: &spb.ServerApiInitResponse{},
+		},
+	})
+}
+
+func (nc *Connection) handleApi(
+	wg *sync.WaitGroup,
+	id string,
+	request *spb.ApiRequest,
+) {
+	if nc.wbapi == nil {
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_ApiResponse{
+				ApiResponse: &spb.ApiResponse{
+					Response: &spb.ApiResponse_ApiErrorResponse{
+						ApiErrorResponse: &spb.ApiErrorResponse{
+							Message: "WandbAPI is not initialized",
+						},
+					},
+				},
+			},
+		})
+		return
+	}
+
+	wg.Go(func() {
+		response := nc.wbapi.HandleRequest(id, request)
+
+		if response != nil {
+			nc.Respond(&spb.ServerResponse{
+				RequestId: id,
+				ServerResponseType: &spb.ServerResponse_ApiResponse{
+					ApiResponse: response,
+				},
+			})
+		}
 	})
 }
 

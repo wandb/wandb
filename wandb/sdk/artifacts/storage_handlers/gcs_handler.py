@@ -2,21 +2,25 @@
 
 from __future__ import annotations
 
-import time
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from urllib.parse import ParseResult, urlparse
 
-from wandb import util
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import Never, Self
+
+import wandb
 from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
-from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+from wandb.util import logger
+
+from ._timing import TimedIf
 
 if TYPE_CHECKING:
-    import google.cloud.storage as gcs_module  # type: ignore
+    from google.cloud import storage  # type: ignore[import-not-found]
 
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
@@ -26,9 +30,37 @@ class _GCSIsADirectoryError(Exception):
     """Raised when we try to download a GCS folder."""
 
 
+def _handle_import_error(exc: ImportError) -> Never:
+    # We handle the ImportError this way for continuity/backward compatibility, but
+    # consider a future, albeit breaking, change that just raises a proper `ImportError`.
+    logger.exception(f"Error importing optional module {exc.name!r}")
+    raise wandb.Error(
+        "gs:// references require the google-cloud-storage library, run pip install wandb[gcp]"
+    )
+
+
+@pydantic_dataclass
+class _GCSPath:
+    """A parsed GCS path."""
+
+    bucket: str
+    key: str
+    version: Optional[str]  # noqa: UP045
+
+    @classmethod
+    def from_uri(cls, uri: str) -> Self:
+        """Parse a GCS URI into a bucket, key, and optional version."""
+        parsed = urlparse(uri)
+        return cls(
+            bucket=parsed.netloc,
+            key=parsed.path.lstrip("/"),
+            version=parsed.fragment or None,
+        )
+
+
 class GCSHandler(StorageHandler):
     _scheme: str
-    _client: gcs_module.client.Client | None
+    _client: storage.Client | None
     _cache: ArtifactFileCache
 
     def __init__(self, scheme: str = "gs") -> None:
@@ -39,69 +71,71 @@ class GCSHandler(StorageHandler):
     def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
 
-    def init_gcs(self) -> gcs_module.client.Client:
+    def init_gcs(self) -> storage.Client:
         if self._client is not None:
             return self._client
-        storage = util.get_module(
-            "google.cloud.storage",
-            required="gs:// references requires the google-cloud-storage library, run pip install wandb[gcp]",
-        )
+
+        try:
+            from google.cloud import storage
+        except ImportError as e:
+            _handle_import_error(e)
+
         self._client = storage.Client()
         return self._client
-
-    def _parse_uri(self, uri: str) -> tuple[str, str, str | None]:
-        url = urlparse(uri)
-        bucket = url.netloc
-        key = url.path[1:]
-        version = url.fragment if url.fragment else None
-        return bucket, key, version
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> URIStr | FilePathStr:
-        assert manifest_entry.ref is not None
+        if (ref_uri := manifest_entry.ref) is None:
+            raise ValueError("Missing reference path/URI on artifact manifest entry")
         if not local:
-            return manifest_entry.ref
+            return ref_uri
+
+        expected_digest = manifest_entry.digest
+        expected_size = manifest_entry.size
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            url=URIStr(manifest_entry.ref),
-            etag=ETag(manifest_entry.digest),
-            size=manifest_entry.size or 0,
+            url=ref_uri, etag=expected_digest, size=expected_size or 0
         )
         if hit:
             return path
 
-        self.init_gcs()
-        assert self._client is not None  # mypy: unwraps optionality
-        assert manifest_entry.ref is not None
-        bucket, key, _ = self._parse_uri(manifest_entry.ref)
-        version = manifest_entry.extra.get("versionID")
+        client = self.init_gcs()
 
-        if self._is_dir(manifest_entry):
+        gcs_path = _GCSPath.from_uri(ref_uri)
+        bucket = client.bucket(gcs_path.bucket)
+
+        # Skip downloading an entry that corresponds to a folder
+        if _is_dir(bucket, gcs_path.key, expected_size):
             raise _GCSIsADirectoryError(
-                f"Unable to download GCS folder {manifest_entry.ref!r}, skipping"
+                f"Unable to download GCS folder {ref_uri!r}, skipping"
             )
 
-        obj = None
-        # First attempt to get the generation specified, this will return None if versioning is not enabled
-        if version is not None:
-            obj = self._client.bucket(bucket).get_blob(key, generation=version)
+        # Try, in order:
+        obj = (
+            # First attempt to get the generation (specific version), if specified.
+            # Will return None if versioning is disabled.
+            (
+                (version_id := manifest_entry.extra.get("versionID")) is not None
+                and bucket.get_blob(gcs_path.key, generation=version_id)
+            )
+            or
+            # Object versioning is disabled on the bucket, or versionID isn't available,
+            # so just get the latest version and make sure the MD5 matches.
+            bucket.get_blob(gcs_path.key)
+        )
 
         if obj is None:
-            # Object versioning is disabled on the bucket, so just get
-            # the latest version and make sure the MD5 matches.
-            obj = self._client.bucket(bucket).get_blob(key)
-            if obj is None:
-                raise ValueError(
-                    f"Unable to download object {manifest_entry.ref} with generation {version}"
-                )
-            if obj.etag != manifest_entry.digest:
-                raise ValueError(
-                    f"Digest mismatch for object {manifest_entry.ref}: "
-                    f"expected {manifest_entry.digest} but found {obj.etag}"
-                )
+            raise ValueError(
+                f"Unable to download object {ref_uri!r} with generation {version_id!r}"
+            )
+
+        if (digest := obj.etag) != expected_digest:
+            raise ValueError(
+                f"Digest mismatch for object {ref_uri!r}: expected {expected_digest!r} but found {digest!r}"
+            )
 
         with cache_open(mode="wb") as f:
             obj.download_to_file(f)
@@ -115,52 +149,55 @@ class GCSHandler(StorageHandler):
         checksum: bool = True,
         max_objects: int | None = None,
     ) -> list[ArtifactManifestEntry]:
-        self.init_gcs()
-        assert self._client is not None  # mypy: unwraps optionality
+        client = self.init_gcs()
 
         # After parsing any query params / fragments for additional context,
         # such as version identifiers, pare down the path to just the bucket
         # and key.
-        bucket, key, version = self._parse_uri(path)
-        path = URIStr(f"{self._scheme}://{bucket}/{key}")
+        gcs_path = _GCSPath.from_uri(path)
+        path = f"{self._scheme}://{gcs_path.bucket}/{gcs_path.key}"
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
 
         if not checksum:
-            return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
+            return [
+                ArtifactManifestEntry(path=name or gcs_path.key, ref=path, digest=path)
+            ]
 
-        start_time = None
-        obj = self._client.bucket(bucket).get_blob(key, generation=version)
-        if obj is None and version is not None:
-            raise ValueError(f"Object does not exist: {path}#{version}")
-        multi = obj is None
-        if multi:
-            start_time = time.monotonic()
-            termlog(
-                f'Generating checksum for up to {max_objects} objects with prefix "{key}"... ',
-                newline=False,
-            )
-            objects = self._client.bucket(bucket).list_blobs(
-                prefix=key, max_results=max_objects
-            )
-        else:
-            objects = [obj]
+        bucket = client.bucket(gcs_path.bucket)
+        obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
+        if (obj is None) and (gcs_path.version is not None):
+            raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
 
-        entries = [
-            self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
-            for obj in objects
-            if not obj.name.endswith("/")
-        ]
-        if start_time is not None:
-            termlog("Done. %.1fs" % (time.monotonic() - start_time), prefix=False)
+        # HNS buckets store directory markers as blobs, so check the blob name
+        # to see if it represents a directory.
+        with TimedIf(multi := ((obj is None) or obj.name.endswith("/"))):
+            if multi:
+                termlog(
+                    f"Generating checksum for up to {max_objects} objects with prefix {gcs_path.key!r}... ",
+                    newline=False,
+                )
+                objects = bucket.list_blobs(
+                    prefix=gcs_path.key, max_results=max_objects
+                )
+            else:
+                objects = [obj]
+
+            entries = [
+                self._entry_from_obj(obj, path, name, prefix=gcs_path.key, multi=multi)
+                for obj in objects
+                if obj and not obj.name.endswith("/")
+            ]
+
         if len(entries) > max_objects:
             raise ValueError(
-                f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
+                f"Exceeded {max_objects!r} objects tracked, pass max_objects to add_reference"
             )
+
         return entries
 
     def _entry_from_obj(
         self,
-        obj: gcs_module.blob.Blob,
+        obj: storage.Blob,
         path: str,
         name: StrPath | None = None,
         prefix: str = "",
@@ -175,53 +212,48 @@ class GCSHandler(StorageHandler):
             prefix: The prefix to add (will be the same as `path` for directories)
             multi: Whether or not this is a multi-object add.
         """
-        bucket, key, _ = self._parse_uri(path)
+        uri = _GCSPath.from_uri(path)
 
         # Always use posix paths, since that's what S3 uses.
         posix_key = PurePosixPath(obj.name)  # the bucket key
-        posix_path = PurePosixPath(bucket) / PurePosixPath(
-            key
-        )  # the path, with the scheme stripped
+        posix_path = PurePosixPath(uri.bucket, uri.key)  # path without the scheme
         posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
-        posix_name = PurePosixPath(name or "")
-        posix_ref = posix_path
 
         if name is None:
             # We're adding a directory (prefix), so calculate a relative path.
-            if str(posix_prefix) in str(posix_key) and posix_prefix != posix_key:
+            if posix_prefix in posix_key.parents:
                 posix_name = posix_key.relative_to(posix_prefix)
                 posix_ref = posix_path / posix_name
             else:
                 posix_name = PurePosixPath(posix_key.name)
                 posix_ref = posix_path
+
         elif multi:
             # We're adding a directory with a name override.
             relpath = posix_key.relative_to(posix_prefix)
-            posix_name = posix_name / relpath
+            posix_name = PurePosixPath(name) / relpath
             posix_ref = posix_path / relpath
+
+        else:
+            posix_name = PurePosixPath(name or "")
+            posix_ref = posix_path
+
         return ArtifactManifestEntry(
             path=posix_name,
-            ref=URIStr(f"{self._scheme}://{posix_ref}"),
+            ref=f"{self._scheme}://{posix_ref}",
             digest=obj.etag,
             size=obj.size,
             extra={"versionID": obj.generation},
         )
 
-    def _is_dir(
-        self,
-        manifest_entry: ArtifactManifestEntry,
-    ) -> bool:
-        assert self._client is not None
-        assert manifest_entry.ref is not None
-        bucket, key, _ = self._parse_uri(manifest_entry.ref)
-        bucket_obj = self._client.bucket(bucket)
-        # A gcs bucket key should end with a forward slash on gcloud, but
-        # we save these refs without the forward slash in the manifest entry
-        # so we check the size and extension, make sure its not referring to
-        # an actual file with this reference, and that the ref with the slash
-        # exists on gcloud
-        return key.endswith("/") or (
-            not (manifest_entry.size or PurePosixPath(key).suffix)
-            and bucket_obj.get_blob(key) is None
-            and bucket_obj.get_blob(f"{key}/") is not None
-        )
+
+def _is_dir(bucket: storage.Bucket, key: str, entry_size: int | None) -> bool:
+    # A GCS folder key should end with a forward slash, but older manifest
+    # entries may omit it. To detect folders, check the size and extension,
+    # ensure there is no file with this reference, and confirm that the
+    # slash-suffixed reference exists as a folder in GCS.
+    return key.endswith("/") or (
+        not (entry_size or PurePosixPath(key).suffix)
+        and bucket.get_blob(key) is None
+        and bucket.get_blob(f"{key}/") is not None
+    )

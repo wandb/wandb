@@ -60,10 +60,16 @@ func serviceMain() int {
 		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
 	disableAnalytics := flag.Bool("no-observability", false,
 		"Disables observability features such as metrics and logging analytics.")
-	enableOsPidShutdown := flag.Bool("os-pid-shutdown", false,
-		"Enables automatic server shutdown when the external process identified by the PID terminates.")
-	enableDCGMProfiling := flag.Bool("enable-dcgm-profiling", false,
-		"Enables collection of profiling metrics for Nvidia GPUs using DCGM. Requires a running `nvidia-dcgm` service.")
+	enableOsPidShutdown := flag.Bool(
+		"os-pid-shutdown",
+		false,
+		"Enables automatic server shutdown when the external process identified by the PID terminates.",
+	)
+	enableDCGMProfiling := flag.Bool(
+		"enable-dcgm-profiling",
+		false,
+		"Enables collection of profiling metrics for Nvidia GPUs using DCGM. Requires a running `nvidia-dcgm` service.",
+	)
 	listenOnLocalhost := flag.Bool("listen-on-localhost", false,
 		"Whether to listen on a localhost socket. This is less secure than"+
 			" Unix sockets, but some clients do not support them"+
@@ -165,17 +171,21 @@ func leetMain(args []string) int {
 		"Disables observability features such as metrics and logging analytics.")
 
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "wandb-core leet - Lightweight Experiment Exploration Tool\n\n")
-		fmt.Fprintf(os.Stderr, "A terminal UI for viewing your W&B runs locally.\n\n")
-		fmt.Fprintf(os.Stderr, "Usage:\n")
-		fmt.Fprintf(os.Stderr, "  wandb-core leet <wandb-file> [flags]\n")
-		fmt.Fprintf(os.Stderr, "Arguments:\n")
-		fmt.Fprintf(os.Stderr, "  <wandb-file>       Path to the .wandb file of a W&B run.\n")
-		fmt.Fprintf(os.Stderr, "                     Example: \n")
-		fmt.Fprintf(os.Stderr, "                       /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb\n\n")
-		fmt.Fprintf(os.Stderr, "Options:\n")
-		fmt.Fprintf(os.Stderr, "  -h, --help         Show this help message\n\n")
-		fmt.Fprintf(os.Stderr, "Flags:\n")
+		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
+A terminal UI for viewing your W&B runs locally.
+
+Usage:
+  wandb-core leet [flags] <wandb-file>
+Arguments:
+  <wandb-file>       Path to the .wandb file of a W&B run.
+                     Example:
+                       /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb
+
+Options:
+  -h, --help         Show this help message
+
+Flags:
+`)
 		fs.PrintDefaults()
 	}
 
@@ -202,7 +212,11 @@ func leetMain(args []string) int {
 	logWriter := io.Discard
 	// TODO: Create a log file not only if debug logging is requested.
 	if *logLevel == -4 {
-		loggerFile, err := os.OpenFile("wandb-leet.debug.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		loggerFile, err := os.OpenFile(
+			"wandb-leet.debug.log",
+			os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
+			0644,
+		)
 		if err != nil {
 			fmt.Println("fatal:", err)
 			return exitCodeErrorInternal

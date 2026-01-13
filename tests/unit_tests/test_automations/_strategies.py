@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from base64 import b64encode
 from enum import Enum
 from secrets import choice
 from string import ascii_letters, digits, punctuation
@@ -28,8 +27,14 @@ from hypothesis.strategies import (
     sampled_from,
     text,
 )
-from wandb.automations import MetricChangeFilter, MetricThresholdFilter
+from wandb._strutils import b64encode_ascii
+from wandb.automations import (
+    MetricChangeFilter,
+    MetricThresholdFilter,
+    MetricZScoreFilter,
+)
 from wandb.automations._filters.run_metrics import Agg, ChangeDir, ChangeType
+from wandb.automations._filters.run_states import ReportedRunState
 
 
 @composite
@@ -44,7 +49,7 @@ def gql_ids(
     name = draw(prefix) if isinstance(prefix, SearchStrategy) else prefix
 
     index = draw(integers(min_value=0, max_value=1_000_000))
-    return b64encode(f"{name}:{index:d}".encode()).decode()
+    return b64encode_ascii(f"{name}:{index:d}")
 
 
 def jsonables() -> SearchStrategy[Any]:
@@ -231,6 +236,9 @@ window_sizes: SearchStrategy[int] = integers(min_value=1, max_value=100)
 aggs: SearchStrategy[Agg | str | None] = none() | sample_with_randomcase(Agg)
 change_types: SearchStrategy[ChangeType | str] = sample_with_randomcase(ChangeType)
 change_dirs: SearchStrategy[ChangeDir | str] = sample_with_randomcase(ChangeDir)
+run_states: SearchStrategy[ReportedRunState | str] = sample_with_randomcase(
+    ReportedRunState
+)
 
 
 pos_numbers: SearchStrategy[int | float] = one_of(
@@ -257,6 +265,19 @@ nonpos_numbers: SearchStrategy[int | float] = one_of(
     ),
 )
 """Invalid "change_amount" values (i.e. `frac` or `diff`)."""
+
+neg_numbers: SearchStrategy[int | float] = one_of(
+    integers(max_value=-1),
+    floats(
+        max_value=0,
+        exclude_max=True,
+        width=32,
+        allow_nan=False,
+        allow_infinity=False,
+        allow_subnormal=False,
+    ),
+)
+"""Valid negative threshold values for zscore < operator."""
 
 
 @composite
@@ -305,3 +326,23 @@ def metric_change_filters(
     # Any arg strategies `None` excluded from instantiation
     kwargs = {k: draw(st) for k, st in kw_strategies.items() if (st is not None)}
     return MetricChangeFilter(**kwargs)
+
+
+@composite
+def metric_zscore_filters(
+    draw: DrawFn,
+    name: SearchStrategy[str] | None = metric_names,
+    window_size: SearchStrategy[int] | None = window_sizes,
+    threshold: SearchStrategy[float] | None = pos_numbers,
+    change_dir: SearchStrategy[ChangeDir | str] | None = change_dirs,
+) -> SearchStrategy[MetricZScoreFilter]:
+    """Generates a `MetricZScoreFilter` instance."""
+    kw_strategies = dict(
+        name=name,
+        window=window_size,
+        threshold=threshold,
+        change_dir=change_dir,
+    )
+    # Any arg strategies `None` excluded from instantiation
+    kwargs = {k: draw(st) for k, st in kw_strategies.items() if (st is not None)}
+    return MetricZScoreFilter(**kwargs)

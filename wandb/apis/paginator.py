@@ -1,53 +1,57 @@
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
     Any,
     ClassVar,
+    Generic,
+    Iterable,
     Iterator,
     Mapping,
-    Protocol,
     Sized,
     TypeVar,
     overload,
 )
 
 import wandb
+from wandb._strutils import nameof
 
 if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
-T = TypeVar("T")
+    from wandb._pydantic import Connection
+    from wandb.apis.public.api import RetryingClient
+
+_WandbT = TypeVar("_WandbT")
+"""Generic type variable for a W&B object."""
+
+_NodeT = TypeVar("_NodeT")
+"""Generic type variable for a parsed GraphQL relay node."""
 
 
-# Structural type hint for the client instance
-class _Client(Protocol):
-    def execute(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
-
-
-class Paginator(Iterator[T]):
+class Paginator(Iterator[_WandbT], ABC):
     """An iterator for paginated objects from GraphQL requests."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: Document | ClassVar[Document | None]
 
     def __init__(
         self,
-        client: _Client,
+        client: RetryingClient,
         variables: Mapping[str, Any],
         per_page: int = 50,  # We don't allow unbounded paging
     ):
-        self.client: _Client = client
+        self.client = client
 
         # shallow copy partly guards against mutating the original input
         self.variables: dict[str, Any] = dict(variables)
 
         self.per_page: int = per_page
-        self.objects: list[T] = []
+        self.objects: list[_WandbT] = []
         self.index: int = -1
         self.last_response: object | None = None
 
-    def __iter__(self) -> Iterator[T]:
+    def __iter__(self) -> Iterator[_WandbT]:
         self.index = -1
         return self
 
@@ -64,7 +68,7 @@ class Paginator(Iterator[T]):
         raise NotImplementedError
 
     @abstractmethod
-    def convert_objects(self) -> list[T]:
+    def convert_objects(self) -> Iterable[_WandbT]:
         """Convert the last fetched response data into the iterated objects."""
         raise NotImplementedError
 
@@ -88,18 +92,18 @@ class Paginator(Iterator[T]):
         return True
 
     @overload
-    def __getitem__(self, index: int) -> T: ...
+    def __getitem__(self, index: int) -> _WandbT: ...
     @overload
-    def __getitem__(self, index: slice) -> list[T]: ...
+    def __getitem__(self, index: slice) -> list[_WandbT]: ...
 
-    def __getitem__(self, index: int | slice) -> T | list[T]:
+    def __getitem__(self, index: int | slice) -> _WandbT | list[_WandbT]:
         loaded = True
         stop = index.stop if isinstance(index, slice) else index
         while loaded and stop > len(self.objects) - 1:
             loaded = self._load_page()
         return self.objects[index]
 
-    def __next__(self) -> T:
+    def __next__(self) -> _WandbT:
         self.index += 1
         if len(self.objects) <= self.index:
             if not self._load_page():
@@ -111,7 +115,7 @@ class Paginator(Iterator[T]):
     next = __next__
 
 
-class SizedPaginator(Paginator[T], Sized):
+class SizedPaginator(Paginator[_WandbT], Sized, ABC):
     """A Paginator for objects with a known total count."""
 
     @property
@@ -136,3 +140,52 @@ class SizedPaginator(Paginator[T], Sized):
     @abstractmethod
     def _length(self) -> int | None:
         raise NotImplementedError
+
+
+class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
+    """A Paginator for GQL relay-style nodes parsed via Pydantic.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
+    last_response: Connection[_NodeT] | None
+
+    @property
+    def more(self) -> bool:
+        return (conn := self.last_response) is None or conn.has_next
+
+    @property
+    def cursor(self) -> str | None:
+        return conn.next_cursor if (conn := self.last_response) else None
+
+    @abstractmethod
+    def _convert(self, node: _NodeT) -> _WandbT | Any:
+        """Convert a parsed GraphQL node into the iterated object.
+
+        If a falsey value is returned, it will be skipped during iteration.
+        """
+        raise NotImplementedError
+
+    def convert_objects(self) -> Iterable[_WandbT]:
+        # Default implementation. Subclasses can override this if if more complex
+        # logic is needed, but ideally most shouldn't need to.
+        if conn := self.last_response:
+            yield from filter(None, map(self._convert, conn.nodes()))
+
+
+class SizedRelayPaginator(RelayPaginator[_NodeT, _WandbT], Sized, ABC):
+    """A Paginator for GQL nodes parsed via Pydantic, with a known total count.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
+    last_response: Connection[_NodeT] | None
+
+    def __len__(self) -> int:
+        """Returns the total number of objects to expect."""
+        # If the first page hasn't been fetched yet, do that first
+        if self.last_response is None:
+            self._load_page()
+        if (conn := self.last_response) and (total := conn.total_count) is not None:
+            return total
+        raise NotImplementedError(f"{nameof(type(self))!r} doesn't provide length")

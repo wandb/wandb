@@ -7,12 +7,18 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"gocloud.dev/blob"
 	"google.golang.org/protobuf/proto"
 )
+
+// maxChecksumErrorDuration is the timeframe within which we expect transient
+// checksum mismatches to resolve themselves. Mismatches within this time
+// emit warnings, and after this time cause reading to fail.
+const maxChecksumErrorDuration = 30 * time.Second
 
 // TFEventReader reads TFEvent protos out of tfevents files.
 type TFEventReader struct {
@@ -22,25 +28,29 @@ type TFEventReader struct {
 	tfeventsPath   *LocalOrCloudPath
 	tfeventsBucket *blob.Bucket
 
+	getNow func() time.Time // allows stubbing time.Now for testing
 	logger *observability.CoreLogger
 
-	buffer        []byte
-	currentFile   string
-	currentOffset int64
+	buffer            []byte
+	bufferStartOffset int64  // offset in currentFile where buffer starts
+	currentFile       string // file from which to read more data
+	currentOffset     int64  // offset in currentFile from which to read more
+
+	lastUnexpectedChecksumTime time.Time
 }
 
 func NewTFEventReader(
 	logDir *LocalOrCloudPath,
 	fileFilter TFEventsFileFilter,
 	logger *observability.CoreLogger,
+	getNow func() time.Time,
 ) *TFEventReader {
 	return &TFEventReader{
 		fileFilter:   fileFilter,
 		tfeventsPath: logDir,
 
+		getNow: getNow,
 		logger: logger,
-
-		buffer: make([]byte, 0),
 	}
 }
 
@@ -62,6 +72,14 @@ func (s *TFEventReader) NextEvent(
 	//   byte        data[length]
 	//   uint32      "masked CRC" of data
 
+	// Clear the checksum error timer if we don't see a checksum error.
+	hitUnexpectedChecksum := false
+	defer func() {
+		if !hitUnexpectedChecksum {
+			s.lastUnexpectedChecksumTime = time.Time{}
+		}
+	}()
+
 	bytesRead := uint64(0)
 
 	// Read the header, which specifies the size of the event proto.
@@ -80,12 +98,13 @@ func (s *TFEventReader) NextEvent(
 	bytesRead += 4
 
 	// Check the CRC32 checksum of the header.
-	actualHeaderCRC32C := MaskedCRC32C(headerBytes)
-	if actualHeaderCRC32C != expectedHeaderCRC32C {
-		return nil, fmt.Errorf(
-			"tensorboard: unexpected CRC-32C checksum for event header. Expected: %d, got: %d",
+	computedHeaderCRC32C := MaskedCRC32C(headerBytes)
+	if computedHeaderCRC32C != expectedHeaderCRC32C {
+		hitUnexpectedChecksum = true
+		return nil, s.logOrFailUnexpectedChecksum(
+			"header",
 			expectedHeaderCRC32C,
-			actualHeaderCRC32C,
+			computedHeaderCRC32C,
 		)
 	}
 
@@ -104,16 +123,18 @@ func (s *TFEventReader) NextEvent(
 	bytesRead += 4
 
 	// Check the CRC32 checksum of the event.
-	actualEventCRC32C := MaskedCRC32C(eventBytes)
-	if actualEventCRC32C != expectedEventCRC32C {
-		return nil, fmt.Errorf(
-			"tensorboard: unexpected CRC-32C checksum for event. Expected: %d, got: %d",
+	computedEventCRC32C := MaskedCRC32C(eventBytes)
+	if computedEventCRC32C != expectedEventCRC32C {
+		hitUnexpectedChecksum = true
+		return nil, s.logOrFailUnexpectedChecksum(
+			"payload",
 			expectedEventCRC32C,
-			actualEventCRC32C,
+			computedEventCRC32C,
 		)
 	}
 
 	s.buffer = slices.Clone(s.buffer[bytesRead:])
+	s.bufferStartOffset += int64(bytesRead)
 
 	var ret tbproto.TFEvent
 	err := proto.Unmarshal(eventBytes, &ret)
@@ -123,6 +144,52 @@ func (s *TFEventReader) NextEvent(
 	}
 
 	return &ret, nil
+}
+
+// logOrFailUnexpectedChecksum either logs a warning or returns an error
+// for NextEvent to return when a checksum mismatch occurs.
+//
+// Transient checksum errors are possible if a tfevents file is being written
+// using mmap(). These should resolve quickly; if not, then there's probably
+// real data corruption.
+func (s *TFEventReader) logOrFailUnexpectedChecksum(
+	where string,
+	expectedCRC32C, computedCRC32C uint32,
+) error {
+	now := s.getNow()
+
+	if s.lastUnexpectedChecksumTime.IsZero() {
+		s.lastUnexpectedChecksumTime = now
+	}
+
+	if now.Sub(s.lastUnexpectedChecksumTime) > maxChecksumErrorDuration {
+		return fmt.Errorf(
+			"tensorboard: unexpected %s checksum for record at byte offset %d,"+
+				" expected %d but calculated %d: %s",
+			where,
+			s.bufferStartOffset,
+			expectedCRC32C,
+			computedCRC32C,
+			s.currentFile,
+		)
+	}
+
+	s.rewindBuffer()
+	s.logger.Warn(
+		fmt.Sprintf("tensorboard: unexpected %s checksum, will retry", where),
+		"expected", expectedCRC32C,
+		"computed", computedCRC32C,
+		"file", s.currentFile,
+		"offset", s.bufferStartOffset,
+	)
+	return nil
+}
+
+// rewindBuffer clears the buffer and causes the next read to reread
+// the same section of the file.
+func (s *TFEventReader) rewindBuffer() {
+	s.buffer = nil
+	s.currentOffset = s.bufferStartOffset
 }
 
 // ensureBuffer tries to read enough data into the buffer so that it
@@ -143,12 +210,19 @@ func (s *TFEventReader) ensureBuffer(
 	// If we haven't found the first file, try to find it.
 	if s.currentFile == "" {
 		s.currentFile = s.nextTFEventsFile(ctx)
+		s.currentOffset = 0
+		s.buffer = nil
+		s.bufferStartOffset = 0
 
 		if s.currentFile == "" {
 			return false
 		}
 
 		s.emitCurrentFile(onNewFile)
+	}
+
+	if len(s.buffer) == 0 {
+		s.bufferStartOffset = s.currentOffset
 	}
 
 	for {
@@ -179,8 +253,20 @@ func (s *TFEventReader) ensureBuffer(
 			return false
 		}
 
+		// If there's still unconsumed data in the current file,
+		// we can't move on to the next file. Events don't get split
+		// between files.
+		if len(s.buffer) > 0 {
+			s.logger.Warn(
+				"tensorboard: maybe incomplete event",
+				"file", s.currentFile,
+				"offset", s.bufferStartOffset)
+			return false
+		}
+
 		s.currentFile = nextFile
 		s.currentOffset = 0
+		s.bufferStartOffset = 0
 		s.emitCurrentFile(onNewFile)
 	}
 }
@@ -247,13 +333,16 @@ func (s *TFEventReader) readFromCurrent(
 	ctx context.Context,
 	count uint64,
 ) (bool, error) {
-	// Read at least 16KB from the file each time to minimize the number of
+	// Read at least 1 MiB from the file each time to minimize the number of
 	// times we have to reopen it, without using too much memory.
 	//
 	// Note that the file may exist in the cloud, in which case this is the
 	// number of bytes we will try to download. It's best to download as much
 	// as we can to avoid frequently re-establishing a connection.
-	const readBufferMinSize = 1 << 14
+	//
+	// Similarly, on distributed filesystems (like NFS, not directly a cloud)
+	// open() and close() are relatively expensive and should be minimized.
+	const readBufferMinSize = 1 * 1024 * 1024
 	readBufferSize := max(int64(count)-int64(len(s.buffer)), readBufferMinSize)
 
 	file, err := s.tfeventsBucket.NewRangeReader(

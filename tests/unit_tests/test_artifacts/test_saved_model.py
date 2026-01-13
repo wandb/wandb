@@ -4,6 +4,8 @@ import cloudpickle
 import pytest
 import torch
 import wandb
+from pytest_mock import MockerFixture
+from wandb.apis.public.api import RetryingClient
 from wandb.sdk.artifacts._generated import ArtifactFragment
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -29,11 +31,6 @@ def test_saved_model_pytorch(mocker):
     )
 
 
-# TODO: uncomment this once the test is fixed
-# @pytest.mark.skipif(
-#     platform.system() == "Windows",
-#     reason="TODO: Windows is legitimately busted",
-# )
 @pytest.mark.skip(reason="New keras release broke this test")
 def test_saved_model_keras(mocker):
     saved_model_test(mocker, keras_model())
@@ -61,11 +58,6 @@ def test_pytorch_saved_model():
     )
 
 
-# TODO: uncomment this once the test is fixed
-# @pytest.mark.skipif(
-#     platform.system() == "Windows",
-#     reason="TODO: Windows is legitimately busted",
-# )
 @pytest.mark.skip(reason="New keras release broke this test")
 def test_tensorflow_keras_saved_model():
     subclass_test(
@@ -83,13 +75,6 @@ def test_tensorflow_keras_saved_model():
         "save_fn",
     ),
     [
-        # TODO: Uncomment once _TensorflowKerasSavedModel._serialize is fixed.
-        # (
-        #     keras_model,
-        #     saved_model._TensorflowKerasSavedModel,
-        #     "keras",
-        #     lambda model, path: model.save(path),
-        # ),
         (
             sklearn_model,
             saved_model._SklearnSavedModel,
@@ -123,25 +108,12 @@ def test_saved_model_path(
     model_cls(model_path)
 
 
-# These classes are used to patch the API
-# so we can simulate downloading an artifact without
-# actually making a network round trip (using the local filesystem)
-class ArtifactManifestEntryPatch(ArtifactManifestEntry):
-    def download(self, root=None):
-        root = root or self._parent_artifact._default_root()
-        dest = os.path.join(root, self.path)
-        return copy_or_overwrite_changed(self.local_path, dest)
-
-    def _referenced_artifact_id(self):
+class ArtifactPatch(Artifact):
+    def _fetch_manifest(self) -> None:  # type: ignore
         return None
 
 
-class ArtifactPatch(Artifact):
-    def _load_manifest(self, url: str) -> None:
-        assert url == "FAKE_URL"
-
-
-def make_local_artifact_public(art: Artifact):
+def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
     from wandb.sdk.artifacts._validators import FullArtifactPath
 
     path = FullArtifactPath(
@@ -154,29 +126,45 @@ def make_local_artifact_public(art: Artifact):
         artifactType={"name": "FAKE_TYPE_NAME"},
         aliases=[
             {
+                "id": "FAKE_ALIAS_ID",
+                "alias": "v0",
                 "artifactCollection": {
                     "__typename": "ArtifactSequence",
-                    "project": {"entityName": path.prefix, "name": path.project},
                     "name": path.name,
+                    "project": {
+                        "name": path.project,
+                        "entity": {"name": path.prefix},
+                    },
                 },
-                "alias": "v0",
             }
         ],
         artifactSequence={
             "name": "FAKE_SEQUENCE_NAME",
-            "project": {"entityName": path.prefix, "name": path.project},
+            "project": {
+                "name": path.project,
+                "entity": {"name": path.prefix},
+            },
         },
         versionIndex=0,
         description=None,
+        tags=[],
+        ttlDurationSeconds=-2,
+        ttlIsInherited=False,
         metadata=None,
         state="COMMITTED",
-        currentManifest={"file": {"directUrl": "FAKE_URL"}},
+        size=0,
+        digest="FAKE_DIGEST",
         commitHash="FAKE_HASH",
         fileCount=0,
         createdAt="FAKE_CREATED_AT",
         updatedAt=None,
+        historyStep=None,
     )
-    pub = ArtifactPatch._from_attrs(path, fragment, client=None)
+    pub = ArtifactPatch._from_attrs(
+        path,
+        fragment,
+        client=mocker.Mock(spec=RetryingClient),
+    )
     pub._manifest = art._manifest
     return pub
 
@@ -190,14 +178,31 @@ def saved_model_test(mocker, model, py_deps=None):
         kwargs["dep_py_files"] = py_deps
     sm = saved_model._SavedModel.init(model, **kwargs)
 
-    mocker.patch(
-        "wandb.sdk.artifacts.artifact.ArtifactManifestEntry",
-        ArtifactManifestEntryPatch,
+    # Patch the download method of the ArtifactManifestEntry
+    # so we can simulate downloading an artifact without
+    # actually making a network round trip (using the local filesystem)
+    def _mock_download(self, root=None, skip_cache=None, executor=None):
+        root = root or self._parent_artifact._default_root()
+        dest = os.path.join(root, self.path)
+        return copy_or_overwrite_changed(self.local_path, dest)
+
+    mocker.patch.object(
+        ArtifactManifestEntry,
+        "download",
+        autospec=True,
+        side_effect=_mock_download,
     )
+    mocker.patch.object(
+        ArtifactManifestEntry,
+        "_referenced_artifact_id",
+        autospec=True,
+        return_value=None,
+    )
+
     art = wandb.Artifact("name", "type")
     art.add(sm, "model")
     assert art.manifest.entries[f"model.{sm._log_type}.json"] is not None
-    pub_art = make_local_artifact_public(art)
+    pub_art = make_local_artifact_public(art, mocker)
     sm2 = pub_art.get("model")
     assert sm2 is not None
 

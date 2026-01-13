@@ -182,8 +182,8 @@ class Image(BatchableMedia):
                 unless `normalize` is set to `False`.
             - pytorch tensor should be in the format (channel, height, width)
             - NumPy array should be in the format (height, width, channel)
-            mode: The PIL mode for an image. Most common are "L", "RGB",
-                "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
+            mode: The PIL mode for an image. Most common are "L", "RGB", "RGBA".
+                Full Pillow docs for more information https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
             caption: Label for display of image.
             grouping: The grouping number for the image.
             classes: A list of class information for the image,
@@ -424,10 +424,7 @@ class Image(BatchableMedia):
             if data.ndim > 2:
                 data = data.squeeze()
 
-            self._image = pil_image.fromarray(
-                data,
-                mode=mode,
-            )
+            self._image = pil_image.fromarray(data).convert(mode)
         else:
             if hasattr(data, "numpy"):  # TF data eager tensors
                 data = data.numpy()
@@ -440,10 +437,7 @@ class Image(BatchableMedia):
             mode = mode or self.guess_mode(data, file_type)
             data = _guess_and_rescale_to_0_255(data) if normalize else data  # type: ignore [arg-type]
             data = _convert_to_uint8(data)  # type: ignore [arg-type]
-            self._image = pil_image.fromarray(
-                data,
-                mode=mode,
-            )
+            self._image = pil_image.fromarray(data).convert(mode)
 
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)

@@ -4,7 +4,8 @@ import platform
 import numpy as np
 import pytest
 import wandb
-from wandb import wandb_sdk
+from wandb.apis import public
+from wandb.sdk import wandb_run
 
 REFERENCE_ATTRIBUTES = set(
     [
@@ -237,7 +238,7 @@ def test_run_basic():
             a=list(range(10)), b=tuple(range(10, 20)), c=set(range(20, 30))
         ),
     )
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c)
+    run = wandb_run.Run(settings=s, config=c)
     assert dict(run.config) == dict(
         param1=2,
         param2=4,
@@ -254,7 +255,7 @@ def test_run_sweep():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
     sw = dict(param3=9)
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
+    run = wandb_run.Run(settings=s, config=c, sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=4, param3=9)
 
 
@@ -262,14 +263,14 @@ def test_run_sweep_overlap():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
     sw = dict(param2=8, param3=9)
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c, sweep_config=sw)
+    run = wandb_run.Run(settings=s, config=c, sweep_config=sw)
     assert dict(run.config) == dict(param1=2, param2=8, param3=9)
 
 
 def test_run_deepcopy():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
-    run = wandb_sdk.wandb_run.Run(settings=s, config=c)
+    run = wandb_run.Run(settings=s, config=c)
     run2 = copy.deepcopy(run)
     assert id(run) == id(run2)
 
@@ -305,3 +306,39 @@ def test_new_attributes(mock_run):
     removed_attributes = REFERENCE_ATTRIBUTES - current_attributes
     assert not added_attributes, f"New attributes: {added_attributes}"
     assert not removed_attributes, f"Removed attributes: {removed_attributes}"
+
+
+def test_public_api_uses_api_key(mock_run, mocker):
+    api_key = "anything"
+
+    mock_api_class = mocker.patch.object(public, "Api")
+    mock_api_instance = mocker.MagicMock()
+    mock_api_class.return_value = mock_api_instance
+    run = mock_run(settings=wandb.Settings(api_key=api_key))
+
+    api = run._public_api()
+
+    mock_api_class.assert_called_once_with(
+        # overrides from mock_run
+        {
+            "run": None,
+            "entity": "",
+            "project": "",
+        },
+        api_key=api_key,
+    )
+    assert api is mock_api_instance
+
+
+def test_public_api_is_cached(mock_run, mocker):
+    mock_api_class = mocker.patch.object(public, "Api")
+    mock_api_instance = mocker.MagicMock()
+    mock_api_class.return_value = mock_api_instance
+    run = mock_run()
+
+    api1 = run._public_api()
+    api2 = run._public_api()
+
+    assert api1 is api2
+    assert api1 is run._cached_public_api
+    mock_api_class.assert_called_once()

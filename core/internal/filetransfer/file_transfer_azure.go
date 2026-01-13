@@ -32,18 +32,38 @@ const (
 )
 
 type AzureBlobClient interface {
-	DownloadFile(ctx context.Context, destination *os.File, options *blob.DownloadFileOptions) (int64, error)
-	GetProperties(ctx context.Context, options *blob.GetPropertiesOptions) (blob.GetPropertiesResponse, error)
+	DownloadFile(
+		ctx context.Context,
+		destination *os.File,
+		options *blob.DownloadFileOptions,
+	) (int64, error)
+	GetProperties(
+		ctx context.Context,
+		options *blob.GetPropertiesOptions,
+	) (blob.GetPropertiesResponse, error)
 	WithVersionID(versionId string) (*blob.Client, error)
 }
 
 type AzureAccountClient interface {
-	DownloadFile(ctx context.Context, containerName string, blobName string, destination *os.File, options *azblob.DownloadFileOptions) (int64, error)
-	NewListBlobsFlatPager(containerName string, options *azblob.ListBlobsFlatOptions) *runtime.Pager[azblob.ListBlobsFlatResponse]
+	DownloadFile(
+		ctx context.Context,
+		containerName string,
+		blobName string,
+		destination *os.File,
+		options *azblob.DownloadFileOptions,
+	) (int64, error)
+	NewListBlobsFlatPager(
+		containerName string,
+		options *azblob.ListBlobsFlatOptions,
+	) *runtime.Pager[azblob.ListBlobsFlatResponse]
 }
 
 type AzureBlockBlobClient interface {
-	UploadStream(ctx context.Context, body io.Reader, options *blockblob.UploadStreamOptions) (blockblob.UploadStreamResponse, error)
+	UploadStream(
+		ctx context.Context,
+		body io.Reader,
+		options *blockblob.UploadStreamOptions,
+	) (blockblob.UploadStreamResponse, error)
 }
 
 // AzureClientsMap is a map of account URLs/container names to client objects.
@@ -194,7 +214,7 @@ func setupBlobClient(
 	return client, nil
 }
 
-// Upload uploads a file to the server.
+// Upload implements ArtifactFileTransfer.Upload
 func (ft *AzureFileTransfer) Upload(task *DefaultUploadTask) error {
 	ft.logger.Debug("Azure file transfer: uploading file", "path", task.Path, "url", task.Url)
 
@@ -230,7 +250,10 @@ func (ft *AzureFileTransfer) Upload(task *DefaultUploadTask) error {
 }
 
 // uploadBlob uploads the given request body to a blob at task.Url.
-func (ft *AzureFileTransfer) uploadBlob(task *DefaultUploadTask, requestBody io.Reader) (*http.Response, error) {
+func (ft *AzureFileTransfer) uploadBlob(
+	task *DefaultUploadTask,
+	requestBody io.Reader,
+) (*http.Response, error) {
 	clientOptions := blockblob.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
 			Retry: policy.RetryOptions{
@@ -310,7 +333,7 @@ type ParsedBlobInfo struct {
 	BlobPrefix string
 }
 
-// Download downloads a file from the server.
+// Download implements ArtifactFileTransfer.Download
 func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	ft.logger.Debug(
 		"Azure file transfer: downloading file",

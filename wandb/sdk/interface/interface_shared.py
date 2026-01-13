@@ -1,12 +1,8 @@
-"""InterfaceShared - Derived from InterfaceBase - shared with InterfaceQueue and InterfaceSock.
-
-See interface.py for how interface classes relate to each other.
-
-"""
-
+import abc
 import logging
-from abc import abstractmethod
 from typing import Any, Optional, cast
+
+from typing_extensions import override
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -18,22 +14,70 @@ from .interface import InterfaceBase
 logger = logging.getLogger("wandb")
 
 
-class InterfaceShared(InterfaceBase):
+class InterfaceShared(InterfaceBase, abc.ABC):
+    """Partially implemented InterfaceBase.
+
+    There is little reason for this to exist separately from InterfaceBase,
+    which itself is not a pure abstract class and has no other direct
+    subclasses. Most methods are implemented in this class in terms of the
+    protected _publish and _deliver methods defined by subclasses.
+    """
+
     def __init__(self) -> None:
         super().__init__()
 
-    def _publish_output(self, outdata: pb.OutputRecord) -> None:
+    @abc.abstractmethod
+    def _publish(
+        self,
+        record: pb.Record,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        """Send a record to the internal service.
+
+        Args:
+            record: The record to send. This method assigns its stream ID.
+            nowait: If true, this does not block on socket IO and is safe
+                to call in W&B's asyncio thread, but it will also not slow
+                down even if the socket is blocked and allow data to accumulate
+                in the Python memory.
+        """
+
+    @abc.abstractmethod
+    def _deliver(self, record: pb.Record) -> "MailboxHandle[pb.Result]":
+        """Send a record to the internal service and return a response handle.
+
+        Args:
+            record: The record to send. This method assigns its stream ID.
+
+        Returns:
+            A mailbox handle for waiting for a response.
+        """
+
+    @override
+    def _publish_output(
+        self,
+        outdata: pb.OutputRecord,
+        *,
+        nowait: bool = False,
+    ) -> None:
         rec = pb.Record()
         rec.output.CopyFrom(outdata)
-        self._publish(rec)
+        self._publish(rec, nowait=nowait)
+
+    @override
+    def _publish_output_raw(
+        self,
+        outdata: pb.OutputRawRecord,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        rec = pb.Record()
+        rec.output_raw.CopyFrom(outdata)
+        self._publish(rec, nowait=nowait)
 
     def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
         rec = self._make_request(cancel=cancel)
-        self._publish(rec)
-
-    def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
-        rec = pb.Record()
-        rec.output_raw.CopyFrom(outdata)
         self._publish(rec)
 
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
@@ -258,17 +302,11 @@ class InterfaceShared(InterfaceBase):
             raise Exception("Invalid record")
         return record
 
-    @abstractmethod
-    def _publish(self, record: pb.Record, local: Optional[bool] = None) -> None:
-        raise NotImplementedError
-
-    def _deliver(self, record: pb.Record) -> "MailboxHandle[pb.Result]":
-        raise NotImplementedError
-
     def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
-        self._publish(rec, local=True)
+        rec.control.local = True
+        self._publish(rec)
 
     def publish_defer(self, state: int = 0) -> None:
         self._publish_defer(cast("pb.DeferRequest.DeferState.V", state))

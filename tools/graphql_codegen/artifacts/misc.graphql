@@ -1,3 +1,21 @@
+fragment TagFragment on Tag {
+  __typename
+  id
+  name # The actual string name of the tag
+}
+
+fragment ArtifactAliasFragment on ArtifactAlias {
+  __typename
+  id
+  alias # The actual string name of the alias
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
 # Query for info on a GraphQL type to check for server compatibility
 fragment TypeInfoFragment on __Type {
   name
@@ -15,5 +33,33 @@ fragment TypeInfoFragment on __Type {
 query TypeInfo($name: String!) {
   __type(name: $name) {
     ...TypeInfoFragment
+  }
+}
+
+fragment OrgInfoFragment on Organization {
+  name
+  orgEntity {
+    name
+  }
+}
+
+query FetchOrgInfoFromEntity($entity: String!) {
+  entity(name: $entity) {
+    organization {
+      ...OrgInfoFragment
+    }
+    user {
+      organizations {
+        ...OrgInfoFragment
+      }
+    }
+  }
+}
+
+query FetchOrgEntityFromOrganization($organization: String!) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+    }
   }
 }

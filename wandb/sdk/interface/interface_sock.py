@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from typing_extensions import override
 
@@ -31,17 +31,21 @@ class InterfaceSock(InterfaceShared):
         self._client = client
         self._stream_id = stream_id
 
-    def _assign(self, record: Any) -> None:
-        assert self._stream_id
+    def _assign(self, record: pb.Record) -> None:
         record._info.stream_id = self._stream_id
 
     @override
-    def _publish(self, record: pb.Record, local: bool | None = None) -> None:
+    def _publish(self, record: pb.Record, *, nowait: bool = False) -> None:
         self._assign(record)
         request = spb.ServerRequest()
         request.record_publish.CopyFrom(record)
-        self._asyncer.run(lambda: self._client.publish(request))
 
+        if nowait:
+            self._asyncer.run_soon(lambda: self._client.publish(request))
+        else:
+            self._asyncer.run(lambda: self._client.publish(request))
+
+    @override
     def _deliver(self, record: pb.Record) -> MailboxHandle[pb.Result]:
         return self._asyncer.run(lambda: self.deliver_async(record))
 

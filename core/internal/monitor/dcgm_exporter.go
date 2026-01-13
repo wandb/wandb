@@ -120,7 +120,10 @@ func NewDCGMExporter(params DCGMExporterParams) *DCGMExporter {
 		RoundTripper: roundTripper,
 	})
 	if err != nil {
-		params.Logger.Error("monitor: dcgm_exporter: error creating Prometheus API client", "error", err)
+		params.Logger.Error(
+			"monitor: dcgm_exporter: error creating Prometheus API client",
+			"error", err,
+		)
 		return nil
 	}
 
@@ -327,17 +330,26 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 			v1.WithTimeout(DefaultOpenMetricsTimeout),
 		)
 		if err != nil {
-			de.logger.Error("monitor: dcgm_exporter: error querying Prometheus API endpoint", "error", err)
+			de.logger.Error(
+				"monitor: dcgm_exporter: error querying Prometheus API endpoint",
+				"error", err,
+			)
 			return nil, err
 		}
 		if len(warnings) > 0 {
-			de.logger.Warn("monitor: openmetrics: warnings querying Prometheus API endpoint", "warnings", warnings)
+			de.logger.Warn(
+				"monitor: openmetrics: warnings querying Prometheus API endpoint",
+				"warnings", warnings,
+			)
 		}
 
 		// model.Vector is expected.
 		vector, ok := result.(model.Vector)
 		if !ok {
-			de.logger.Error("monitor: dcgm: unexpected result type", "type", fmt.Sprintf("%T", result))
+			de.logger.Error(
+				"monitor: dcgm: unexpected result type",
+				"type", fmt.Sprintf("%T", result),
+			)
 			continue
 		}
 
@@ -377,17 +389,26 @@ func (de *DCGMExporter) Probe(ctx context.Context) *spb.EnvironmentRecord {
 			v1.WithTimeout(DefaultOpenMetricsTimeout),
 		)
 		if err != nil {
-			de.logger.Error("monitor: dcgm_exporter: error querying Prometheus API endpoint", "error", err)
+			de.logger.Error(
+				"monitor: dcgm_exporter: error querying Prometheus API endpoint",
+				"error", err,
+			)
 			return nil
 		}
 		if len(warnings) > 0 {
-			de.logger.Warn("monitor: openmetrics: warnings querying Prometheus API endpoint", "warnings", warnings)
+			de.logger.Warn(
+				"monitor: openmetrics: warnings querying Prometheus API endpoint",
+				"warnings", warnings,
+			)
 		}
 
 		// Process the results based on type
 		vector, ok := result.(model.Vector)
 		if !ok {
-			de.logger.Error("monitor: dcgm: unexpected result type", "type", fmt.Sprintf("%T", result))
+			de.logger.Error(
+				"monitor: dcgm: unexpected result type",
+				"type", fmt.Sprintf("%T", result),
+			)
 			continue
 		}
 
@@ -395,7 +416,10 @@ func (de *DCGMExporter) Probe(ctx context.Context) *spb.EnvironmentRecord {
 		for _, sample := range vector {
 			gm, err := newGPUMetric(sample)
 			if err != nil {
-				de.logger.Debug("monitor: dcgm_exporter: error parsing GPU metric", "error", err)
+				de.logger.Debug(
+					"monitor: dcgm_exporter: error parsing GPU metric",
+					"error", err,
+				)
 				continue
 			}
 

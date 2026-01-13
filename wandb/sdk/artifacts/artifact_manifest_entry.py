@@ -19,8 +19,8 @@ from typing_extensions import Annotated, Self
 
 from wandb._pydantic import field_validator, model_validator
 from wandb._strutils import nameof
-from wandb.proto.wandb_deprecated import Deprecated
-from wandb.sdk.lib.deprecate import deprecate
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.lib.hashutil import (
     B64MD5,
@@ -102,7 +102,8 @@ class ArtifactManifestEntry(ArtifactsBase):
 
     skip_cache: bool = False
 
-    # Note: Pydantic considers these private attributes, omitting them from validation and comparison logic.
+    # Note: Pydantic treats these as private attributes, omitting them from
+    # validation and comparison logic.
     _parent_artifact: Optional[Artifact] = None
     _download_url: Optional[str] = None
 
@@ -110,9 +111,9 @@ class ArtifactManifestEntry(ArtifactsBase):
     def _validate_path(cls, v: Any) -> LogicalPath:
         """Coerce `path` to a LogicalPath.
 
-        LogicalPath doesn't implement its own pydantic validator, and implementing one for
-        both pydantic V1 _and_ V2 would add too much boilerplate. Until we drop V1 support,
-        just coerce to LogicalPath in the field validator here.
+        LogicalPath does not implement its own pydantic validator, and adding
+        one for both pydantic V1 and V2 would add excessive boilerplate. Until
+        we drop V1 support, coerce to LogicalPath in this field validator.
         """
         return LogicalPath(v)
 
@@ -137,9 +138,9 @@ class ArtifactManifestEntry(ArtifactsBase):
     @property
     def name(self) -> LogicalPath:
         """Deprecated; use `path` instead."""
-        deprecate(
-            field_name=Deprecated.artifactmanifestentry__name,
-            warning_message="ArtifactManifestEntry.name is deprecated, use .path instead.",
+        warn_and_record_deprecation(
+            feature=Deprecated(artifactmanifestentry__name=True),
+            message="ArtifactManifestEntry.name is deprecated, use .path instead.",
         )
         return self.path
 

@@ -11,7 +11,7 @@ jobs:
     steps:
       # check the basic semantic compliance of the PR title
       # https://github.com/amannn/action-semantic-pull-request/releases
-      - uses: amannn/action-semantic-pull-request@v5.5.3
+      - uses: amannn/action-semantic-pull-request@v6.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -27,10 +27,13 @@ jobs:
           # Product based scopes
           scopes: |
             artifacts
+            registries
+            automations
             integrations
             launch
             sdk
             sweeps
+            leet
           requireScope: false
           # Ensures the subject doesn't start with an uppercase character.
           subjectPattern: ^(?![A-Z]).+$

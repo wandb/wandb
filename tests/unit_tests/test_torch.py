@@ -76,7 +76,7 @@ def test_watch_parameters_torch_jit(mock_run, log_type, mock_wandb_log):
     net = torch.jit.script(nn.Linear(10, 2))
     run.watch(net, log=log_type)
 
-    assert mock_wandb_log.warned("skipping parameter tracking")
+    mock_wandb_log.assert_warned("skipping parameter tracking")
 
 
 def test_watch_graph_torch_jit(mock_run, mock_wandb_log):
@@ -93,7 +93,7 @@ def test_watch_graph_torch_jit(mock_run, mock_wandb_log):
     net = torch.jit.script(Net())
     run.watch(net, log_graph=True)
 
-    assert mock_wandb_log.warned("skipping graph tracking")
+    mock_wandb_log.assert_warned("skipping graph tracking")
 
 
 def test_watch_bad_argument(mock_run):

@@ -5,3 +5,8 @@ linters:
     # https://golangci-lint.run/usage/false-positives/#preset-std-error-handling
     presets:
       - std-error-handling
+
+formatters:
+  enable:
+    - gofmt
+    - golines

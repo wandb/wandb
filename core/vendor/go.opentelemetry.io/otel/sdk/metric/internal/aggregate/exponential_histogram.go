@@ -183,8 +183,8 @@ func (p *expoHistogramDataPoint[N]) scaleChange(bin, startBin int32, length int)
 
 	var count int32
 	for high-low >= p.maxSize {
-		low = low >> 1
-		high = high >> 1
+		low >>= 1
+		high >>= 1
 		count++
 		if count > expoMaxScale-expoMinScale {
 			return count
@@ -225,7 +225,7 @@ func (b *expoBuckets) record(bin int32) {
 			b.counts = append(b.counts, make([]uint64, newLength-len(b.counts))...)
 		}
 
-		copy(b.counts[shift:origLen+int(shift)], b.counts[:])
+		copy(b.counts[shift:origLen+int(shift)], b.counts)
 		b.counts = b.counts[:newLength]
 		for i := 1; i < int(shift); i++ {
 			b.counts[i] = 0
@@ -264,7 +264,7 @@ func (b *expoBuckets) downscale(delta int32) {
 	// new Counts: [4, 14, 30, 10]
 
 	if len(b.counts) <= 1 || delta < 1 {
-		b.startBin = b.startBin >> delta
+		b.startBin >>= delta
 		return
 	}
 
@@ -282,7 +282,7 @@ func (b *expoBuckets) downscale(delta int32) {
 
 	lastIdx := (len(b.counts) - 1 + int(offset)) / int(steps)
 	b.counts = b.counts[:lastIdx+1]
-	b.startBin = b.startBin >> delta
+	b.startBin >>= delta
 }
 
 // newExponentialHistogram returns an Aggregator that summarizes a set of
@@ -301,7 +301,7 @@ func newExponentialHistogram[N int64 | float64](
 		maxScale: maxScale,
 
 		newRes: r,
-		limit:  newLimiter[*expoHistogramDataPoint[N]](limit),
+		limit:  newLimiter[expoHistogramDataPoint[N]](limit),
 		values: make(map[attribute.Distinct]*expoHistogramDataPoint[N]),
 
 		start: now(),
@@ -317,7 +317,7 @@ type expoHistogram[N int64 | float64] struct {
 	maxScale int32
 
 	newRes   func(attribute.Set) FilteredExemplarReservoir[N]
-	limit    limiter[*expoHistogramDataPoint[N]]
+	limit    limiter[expoHistogramDataPoint[N]]
 	values   map[attribute.Distinct]*expoHistogramDataPoint[N]
 	valuesMu sync.Mutex
 
@@ -338,19 +338,26 @@ func (e *expoHistogram[N]) measure(
 	e.valuesMu.Lock()
 	defer e.valuesMu.Unlock()
 
-	attr := e.limit.Attributes(fltrAttr, e.values)
-	v, ok := e.values[attr.Equivalent()]
+	v, ok := e.values[fltrAttr.Equivalent()]
 	if !ok {
-		v = newExpoHistogramDataPoint[N](attr, e.maxSize, e.maxScale, e.noMinMax, e.noSum)
-		v.res = e.newRes(attr)
+		fltrAttr = e.limit.Attributes(fltrAttr, e.values)
+		// If we overflowed, make sure we add to the existing overflow series
+		// if it already exists.
+		v, ok = e.values[fltrAttr.Equivalent()]
+		if !ok {
+			v = newExpoHistogramDataPoint[N](fltrAttr, e.maxSize, e.maxScale, e.noMinMax, e.noSum)
+			v.res = e.newRes(fltrAttr)
 
-		e.values[attr.Equivalent()] = v
+			e.values[fltrAttr.Equivalent()] = v
+		}
 	}
 	v.record(value)
 	v.res.Offer(ctx, value, droppedAttr)
 }
 
-func (e *expoHistogram[N]) delta(dest *metricdata.Aggregation) int {
+func (e *expoHistogram[N]) delta(
+	dest *metricdata.Aggregation, //nolint:gocritic // The pointer is needed for the ComputeAggregation interface
+) int {
 	t := now()
 
 	// If *dest is not a metricdata.ExponentialHistogram, memory reuse is missed.
@@ -411,7 +418,9 @@ func (e *expoHistogram[N]) delta(dest *metricdata.Aggregation) int {
 	return n
 }
 
-func (e *expoHistogram[N]) cumulative(dest *metricdata.Aggregation) int {
+func (e *expoHistogram[N]) cumulative(
+	dest *metricdata.Aggregation, //nolint:gocritic // The pointer is needed for the ComputeAggregation interface
+) int {
 	t := now()
 
 	// If *dest is not a metricdata.ExponentialHistogram, memory reuse is missed.

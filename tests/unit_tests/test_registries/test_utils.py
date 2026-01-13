@@ -1,7 +1,7 @@
 import pytest
 from wandb.apis.public.registries._utils import (
     ensure_registry_prefix_on_names,
-    format_gql_artifact_types_input,
+    prepare_artifact_types_input,
 )
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
@@ -16,13 +16,13 @@ from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
             [{"name": "apple"}, {"name": "banana"}, {"name": "cherry"}],
         ),
         # None/empty input
-        (None, []),
-        ([], []),
+        (None, None),
+        ([], None),
     ],
 )
 def test_format_gql_artifact_types_input_valid(artifact_types, expected_output):
     """Test artifact type name validation and formatting for valid inputs."""
-    result = format_gql_artifact_types_input(artifact_types=artifact_types)
+    result = prepare_artifact_types_input(artifact_types=artifact_types)
     assert result == expected_output
 
 
@@ -40,7 +40,7 @@ def test_format_gql_artifact_types_input_valid(artifact_types, expected_output):
 def test_format_gql_artifact_types_input_error(artifact_types):
     """Test artifact type name validation raises errors for invalid inputs."""
     with pytest.raises(ValueError):
-        format_gql_artifact_types_input(artifact_types=artifact_types)
+        prepare_artifact_types_input(artifact_types=artifact_types)
 
 
 def test_simple_name_transform():

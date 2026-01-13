@@ -22,8 +22,7 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 
 class Opener(Protocol):
-    def __call__(self, mode: str = ...) -> ContextManager[IO]:
-        pass
+    def __call__(self, mode: str = ...) -> ContextManager[IO]: ...
 
 
 def artifacts_cache_dir() -> Path:
@@ -147,7 +146,7 @@ class ArtifactFileCache:
         if temp_size:
             wandb.termwarn(
                 f"Cache contains {util.to_human_size(temp_size)} of temporary files. "
-                "Run `wandb artifact cleanup --remove-temp` to remove them."
+                "Run `wandb artifact cache cleanup --remove-temp` to remove them."
             )
 
         entries = []
@@ -207,9 +206,9 @@ class ArtifactFileCache:
                 raise ValueError("Appending to cache files is not supported")
 
             if skip_cache:
-                # We skip the cache, but we'll still need an intermediate, temporary file to ensure atomicity.
-                # Put the temp file in the same root as the destination file in an attempt to avoid moving/copying
-                # across filesystems.
+                # Skip the cache but still use an intermediate temporary file to
+                # ensure atomicity. Place the temp file in the same root as the
+                # destination file to avoid cross-filesystem move/copy operations.
                 temp_dir = path.parent
             else:
                 self._reserve_space(size)

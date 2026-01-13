@@ -1,12 +1,16 @@
 package runconsolelogs
 
 import (
+	"time"
+
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/sparselist"
+	"golang.org/x/time/rate"
 )
 
 // filestreamWriter sends modified console log lines to the filestream.
 type filestreamWriter struct {
+	debouncer  *debouncedWriter
 	FileStream filestream.FileStream
 
 	// Structured controls the format of uploaded lines.
@@ -26,22 +30,49 @@ type filestreamWriter struct {
 	Structured bool
 }
 
-func (w *filestreamWriter) SendChanged(
-	changes sparselist.SparseList[*RunLogsLine],
+func NewFileStreamWriter(
+	structured bool,
+	fileStream filestream.FileStream,
+) *filestreamWriter {
+	w := &filestreamWriter{
+		FileStream: fileStream,
+		Structured: structured,
+	}
+
+	w.debouncer = NewDebouncedWriter(
+		// This short delay prevents every single character change from
+		// triggering a relatively expensive merging logic.
+		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
+		w.sendBatch,
+	)
+
+	return w
+}
+
+// UpdateLine sends a console logs update through FileStream.
+func (w *filestreamWriter) UpdateLine(lineNum int, line *RunLogsLine) {
+	w.debouncer.OnChanged(lineNum, line)
+}
+
+func (w *filestreamWriter) sendBatch(
+	lines *sparselist.SparseList[*RunLogsLine],
 ) {
-	lines := sparselist.Map(changes, func(line *RunLogsLine) string {
-		if w.Structured {
-			s, err := line.StructuredFormat()
-			if err != nil {
-				return line.LegacyFormat()
-			}
-			return s
-		}
-
-		return line.LegacyFormat()
-	})
-
 	w.FileStream.StreamUpdate(&filestream.LogsUpdate{
-		Lines: lines,
+		Lines: sparselist.Map(lines, func(line *RunLogsLine) string {
+			if w.Structured {
+				if s, err := line.StructuredFormat(); err == nil {
+					return s
+				} else {
+					return line.LegacyFormat()
+				}
+			}
+
+			return line.LegacyFormat()
+		}),
 	})
+}
+
+// Finish flushes all accumulated updates.
+func (w *filestreamWriter) Finish() {
+	w.debouncer.Finish()
 }

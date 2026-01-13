@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Union
+from typing import Any, Dict, Union
 
 from pydantic import ConfigDict, model_serializer
-from typing_extensions import Self, TypeAlias, get_args
+from typing_extensions import Self, TypeAlias
 
 from wandb._pydantic import CompatBaseModel, model_validator
 from wandb._strutils import nameof
 
 from .operators import (
+    And,
     Contains,
     Eq,
     Exists,
@@ -21,13 +22,15 @@ from .operators import (
     Lt,
     Lte,
     Ne,
+    Nor,
+    Not,
     NotIn,
     Op,
+    Or,
     Regex,
     RichReprResult,
     Scalar,
-    ScalarTypes,
-    SupportsLogicalOpSyntax,
+    SupportsBitwiseLogicalOps,
 )
 
 
@@ -63,79 +66,69 @@ class FilterableField:
         return f"{nameof(type(self))}({self._name!r})"
 
     # Methods to define filter expressions through chaining
-    def matches_regex(self, pattern: str) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Regex(regex_=pattern))
+    def matches_regex(self, pattern: str, /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=Regex(val=pattern))
 
-    def contains(self, text: str) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Contains(contains_=text))
+    def contains(self, text: str, /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=Contains(val=text))
 
-    def exists(self, exists: bool = True) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Exists(exists_=exists))
+    def exists(self, exists: bool = True, /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=Exists(val=exists))
 
-    def lt(self, value: Scalar) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Lt(lt_=value))
+    def lt(self, value: Scalar, /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=Lt(val=value))
 
-    def gt(self, value: Scalar) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Gt(gt_=value))
+    def gt(self, value: Scalar, /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=Gt(val=value))
 
-    def lte(self, value: Scalar) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Lte(lte_=value))
+    def lte(self, value: Scalar, /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=Lte(val=value))
 
-    def gte(self, value: Scalar) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Gte(gte_=value))
+    def gte(self, value: Scalar, /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=Gte(val=value))
 
-    def ne(self, value: Scalar) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Ne(ne_=value))
+    def ne(self, value: Scalar, /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=Ne(val=value))
 
-    def eq(self, value: Scalar) -> FilterExpr:
-        return FilterExpr(field=self._name, op=Eq(eq_=value))
+    def eq(self, value: Scalar, /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=Eq(val=value))
 
-    def in_(self, values: Iterable[Scalar]) -> FilterExpr:
-        return FilterExpr(field=self._name, op=In(in_=values))
+    def in_(self, values: Iterable[Scalar], /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=In(val=values))
 
-    def not_in(self, values: Iterable[Scalar]) -> FilterExpr:
-        return FilterExpr(field=self._name, op=NotIn(nin_=values))
+    def not_in(self, values: Iterable[Scalar], /) -> FilterExpr:
+        return FilterExpr(field=self._name, op=NotIn(val=values))
 
-    # Override the default behavior of comparison operators: <, >=, ==, etc
+    # Deliberately override the default behavior of comparison operator symbols,
+    # (`<`, `>`, `<=`, `>=`, `==`, `!=`), to allow defining filter expressions
+    # idiomatically, e.g. `field == "value"`.
+    #
+    # See similar overrides of built-in dunder methods in common libraries like
+    # `sqlalchemy`, `polars`, `pandas`, `numpy`, etc.
+    #
+    # As an illustrative example from `sqlalchemy`, see:
+    # https://github.com/sqlalchemy/sqlalchemy/blob/f21ae633486380a26dc0b67b70ae1c0efc6b4dc4/lib/sqlalchemy/orm/descriptor_props.py#L808-L812
     def __lt__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.lt(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.lt(other)
 
     def __gt__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.gt(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.gt(other)
 
     def __le__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.lte(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.lte(other)
 
     def __ge__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.gte(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.gte(other)
 
-    # Operator behavior is intentionally overridden to allow defining
-    # filter expressions like `field == "value"`.  See similar overrides
-    # of built-in dunder methods in sqlalchemy, polars, pandas, numpy, etc.
-    #
-    # sqlalchemy example for illustrative purposes:
-    # https://github.com/sqlalchemy/sqlalchemy/blob/f21ae633486380a26dc0b67b70ae1c0efc6b4dc4/lib/sqlalchemy/orm/descriptor_props.py#L808-L812
     def __eq__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.eq(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.eq(other)
 
     def __ne__(self, other: Any) -> FilterExpr:
-        if isinstance(other, ScalarTypes):
-            return self.ne(other)  # type: ignore[arg-type]
-        raise TypeError(f"Invalid operand type in filter expression: {type(other)!r}")
+        return self.ne(other)
 
 
 # ------------------------------------------------------------------------------
-class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
+class FilterExpr(CompatBaseModel, SupportsBitwiseLogicalOps):
     """A MongoDB filter expression on a specific field."""
 
     model_config = ConfigDict(
@@ -143,7 +136,7 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
     )
 
     field: str
-    op: Op
+    op: Union[Op, Dict[str, Any]]
 
     def __repr__(self) -> str:
         return f"{nameof(type(self))}({self.field!s}: {self.op!r})"
@@ -161,22 +154,27 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
             and len(data) == 1
             and not any(key.startswith("$") for key in data)
         ):
-            # This looks like a MongoDB filter dict.  E.g.:
+            # This looks like a MongoDB filter expression on a single field.  E.g.:
             # - in:  `{"display_name": {"$contains": "my-run"}}`
-            # - out: `FilterExpr(field="display_name", op=Contains(contains_="my-run"))`
+            # - out: `FilterExpr(field="display_name", op=Contains(val="my-run"))`
             ((field, op),) = data.items()
             return {"field": field, "op": op}
         return data
 
     @model_serializer(mode="plain")
-    def _serialize(self) -> dict[str, Any]:
+    def _to_mongo_dict(self) -> dict[str, Any]:
         """Return a MongoDB dict representation of the expression."""
         from pydantic_core import to_jsonable_python  # Only valid in pydantic v2
 
         return {self.field: to_jsonable_python(self.op, by_alias=True, round_trip=True)}
 
 
+# Some of the MongoDB op types need to be rebuilt after defining FilterExpr,
+# due to forward references.
+And.model_rebuild()
+Or.model_rebuild()
+Nor.model_rebuild()
+Not.model_rebuild()
+
 # for type annotations
-MongoLikeFilter: TypeAlias = Union[Op, FilterExpr]
-# for runtime type checks
-MongoLikeFilterTypes: tuple[type, ...] = get_args(MongoLikeFilter)
+MongoLikeFilter: TypeAlias = Union[Op, FilterExpr, Dict[str, Any]]

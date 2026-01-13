@@ -147,7 +147,7 @@ def box3d(
             into the box's local XYZ coordinates, given as a length-4
             ndarray [r, x, y, z] corresponding to the non-zero quaternion
             r + xi + yj + zk.
-        color: The box's color as an (r, g, b) tuple with 0 <= r,g,b <= 1.
+        color: The box's color as an (r, g, b) tuple with `0 <= r,g,b <= 1`.
         label: An optional label for the box.
         score: An optional score for the box. Typically used to indicate
             the confidence of a detection.

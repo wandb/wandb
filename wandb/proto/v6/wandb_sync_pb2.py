@@ -26,7 +26,7 @@ from wandb.proto import wandb_internal_pb2 as wandb_dot_proto_dot_wandb__interna
 from wandb.proto import wandb_settings_pb2 as wandb_dot_proto_dot_wandb__settings__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cwandb/proto/wandb_sync.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\"Q\n\x15ServerInitSyncRequest\x12\x0c\n\x04path\x18\x01 \x03(\t\x12*\n\x08settings\x18\x02 \x01(\x0b\x32\x18.wandb_internal.Settings\"$\n\x16ServerInitSyncResponse\x12\n\n\x02id\x18\x01 \x01(\t\"4\n\x11ServerSyncRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bparallelism\x18\x02 \x01(\r\"I\n\x12ServerSyncResponse\x12\x33\n\x08messages\x18\x01 \x03(\x0b\x32!.wandb_internal.ServerSyncMessage\"%\n\x17ServerSyncStatusRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\x82\x01\n\x18ServerSyncStatusResponse\x12-\n\x05stats\x18\x01 \x01(\x0b\x32\x1e.wandb_internal.OperationStats\x12\x37\n\x0cnew_messages\x18\x02 \x03(\x0b\x32!.wandb_internal.ServerSyncMessage\"\xaa\x01\n\x11ServerSyncMessage\x12<\n\x08severity\x18\x01 \x01(\x0e\x32*.wandb_internal.ServerSyncMessage.Severity\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\t\"F\n\x08Severity\x12\x13\n\x0fSEVERITY_NOTSET\x10\x00\x12\x11\n\rSEVERITY_INFO\x10\x14\x12\x12\n\x0eSEVERITY_ERROR\x10(B\x1bZ\x19\x63ore/pkg/service_go_protob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cwandb/proto/wandb_sync.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\"\xa9\x01\n\x15ServerInitSyncRequest\x12\x0c\n\x04path\x18\x01 \x03(\t\x12\x0b\n\x03\x63wd\x18\x07 \x01(\t\x12\x0c\n\x04live\x18\x06 \x01(\x08\x12*\n\x08settings\x18\x02 \x01(\x0b\x32\x18.wandb_internal.Settings\x12\x12\n\nnew_entity\x18\x03 \x01(\t\x12\x13\n\x0bnew_project\x18\x04 \x01(\t\x12\x12\n\nnew_run_id\x18\x05 \x01(\t\"$\n\x16ServerInitSyncResponse\x12\n\n\x02id\x18\x01 \x01(\t\"4\n\x11ServerSyncRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bparallelism\x18\x02 \x01(\r\"I\n\x12ServerSyncResponse\x12\x33\n\x08messages\x18\x01 \x03(\x0b\x32!.wandb_internal.ServerSyncMessage\"%\n\x17ServerSyncStatusRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\x82\x01\n\x18ServerSyncStatusResponse\x12-\n\x05stats\x18\x01 \x03(\x0b\x32\x1e.wandb_internal.OperationStats\x12\x37\n\x0cnew_messages\x18\x02 \x03(\x0b\x32!.wandb_internal.ServerSyncMessage\"\xc0\x01\n\x11ServerSyncMessage\x12<\n\x08severity\x18\x01 \x01(\x0e\x32*.wandb_internal.ServerSyncMessage.Severity\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\t\"\\\n\x08Severity\x12\x13\n\x0fSEVERITY_NOTSET\x10\x00\x12\x11\n\rSEVERITY_INFO\x10\x14\x12\x14\n\x10SEVERITY_WARNING\x10\x1e\x12\x12\n\x0eSEVERITY_ERROR\x10(B\x1bZ\x19\x63ore/pkg/service_go_protob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,20 +34,20 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'wandb.proto.wandb_sync_pb2'
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z\031core/pkg/service_go_proto'
-  _globals['_SERVERINITSYNCREQUEST']._serialized_start=116
-  _globals['_SERVERINITSYNCREQUEST']._serialized_end=197
-  _globals['_SERVERINITSYNCRESPONSE']._serialized_start=199
-  _globals['_SERVERINITSYNCRESPONSE']._serialized_end=235
-  _globals['_SERVERSYNCREQUEST']._serialized_start=237
-  _globals['_SERVERSYNCREQUEST']._serialized_end=289
-  _globals['_SERVERSYNCRESPONSE']._serialized_start=291
-  _globals['_SERVERSYNCRESPONSE']._serialized_end=364
-  _globals['_SERVERSYNCSTATUSREQUEST']._serialized_start=366
-  _globals['_SERVERSYNCSTATUSREQUEST']._serialized_end=403
-  _globals['_SERVERSYNCSTATUSRESPONSE']._serialized_start=406
-  _globals['_SERVERSYNCSTATUSRESPONSE']._serialized_end=536
-  _globals['_SERVERSYNCMESSAGE']._serialized_start=539
-  _globals['_SERVERSYNCMESSAGE']._serialized_end=709
-  _globals['_SERVERSYNCMESSAGE_SEVERITY']._serialized_start=639
-  _globals['_SERVERSYNCMESSAGE_SEVERITY']._serialized_end=709
+  _globals['_SERVERINITSYNCREQUEST']._serialized_start=117
+  _globals['_SERVERINITSYNCREQUEST']._serialized_end=286
+  _globals['_SERVERINITSYNCRESPONSE']._serialized_start=288
+  _globals['_SERVERINITSYNCRESPONSE']._serialized_end=324
+  _globals['_SERVERSYNCREQUEST']._serialized_start=326
+  _globals['_SERVERSYNCREQUEST']._serialized_end=378
+  _globals['_SERVERSYNCRESPONSE']._serialized_start=380
+  _globals['_SERVERSYNCRESPONSE']._serialized_end=453
+  _globals['_SERVERSYNCSTATUSREQUEST']._serialized_start=455
+  _globals['_SERVERSYNCSTATUSREQUEST']._serialized_end=492
+  _globals['_SERVERSYNCSTATUSRESPONSE']._serialized_start=495
+  _globals['_SERVERSYNCSTATUSRESPONSE']._serialized_end=625
+  _globals['_SERVERSYNCMESSAGE']._serialized_start=628
+  _globals['_SERVERSYNCMESSAGE']._serialized_end=820
+  _globals['_SERVERSYNCMESSAGE_SEVERITY']._serialized_start=728
+  _globals['_SERVERSYNCMESSAGE_SEVERITY']._serialized_end=820
 # @@protoc_insertion_point(module_scope)

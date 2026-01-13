@@ -29,7 +29,7 @@ func TestUpdateLines(t *testing.T) {
 	require.NoError(t, err)
 
 	// TEST: Append new lines.
-	lines := sparselist.SparseList[string]{}
+	lines := &sparselist.SparseList[string]{}
 	lines.Put(0, "one")
 	lines.Put(1, "two")
 	lines.Put(3, "four")
@@ -42,7 +42,7 @@ func TestUpdateLines(t *testing.T) {
 		string(content))
 
 	// TEST: Modify old lines, use non-ASCII characters.
-	lines = sparselist.SparseList[string]{}
+	lines = &sparselist.SparseList[string]{}
 	lines.Put(1, "two 💥") // 💥 takes 4 UTF-8 codepoints
 	lines.Put(2, "three, added")
 	lines.Put(6, "seven, new")

@@ -14,11 +14,29 @@ option go_package = "core/pkg/service_go_proto";
 message ServerInitSyncRequest {
   // Paths to the .wandb files to upload.
   //
-  // Paths should be absolute.
+  // Paths should either be absolute or relative to the cwd, and all paths
+  // should refer to different files.
   repeated string path = 1;
+
+  // An absolute path to the user's current working directory.
+  //
+  // Paths are displayed relative to this if the result is shorter.
+  string cwd = 7;
+
+  // Whether to perform a live sync.
+  bool live = 6;
 
   // Settings to use when syncing.
   Settings settings = 2;
+
+  // An updated entity to use for all paths being synced.
+  string new_entity = 3;
+
+  // An updated project to use for all paths being synced.
+  string new_project = 4;
+
+  // A new ID to use for all paths being synced.
+  string new_run_id = 5;
 }
 
 // Indicates a sync operation is ready.
@@ -55,8 +73,9 @@ message ServerSyncStatusRequest {
 
 // The status of a sync operation.
 message ServerSyncStatusResponse {
-  // The status of any ongoing work (such as network requests).
-  OperationStats stats = 1;
+  // The status of any ongoing work (such as network requests),
+  // labeled by the run it's for.
+  repeated OperationStats stats = 1;
 
   // New messages since the last status request.
   repeated ServerSyncMessage new_messages = 2;
@@ -68,6 +87,7 @@ message ServerSyncMessage {
   enum Severity {
     SEVERITY_NOTSET = 0;
     SEVERITY_INFO = 20;
+    SEVERITY_WARNING = 30;
     SEVERITY_ERROR = 40;
   }
 

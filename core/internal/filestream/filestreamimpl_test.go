@@ -9,16 +9,14 @@ func TestStopState_FeedbackTable(t *testing.T) {
 	tests := []struct {
 		name     string
 		feedback []any
-		want     StopState
+		want     bool
 	}{
-		{"default unknown", nil, StopUnknown},
-		{"false only -> false", []any{false}, StopFalse},
-		{"true only -> true", []any{true}, StopTrue},
-		{"false then true -> true", []any{false, true}, StopTrue},
-		{"true then false -> true", []any{true, false}, StopTrue},
-		{"non-bool ignored -> unknown", []any{"nope", 1}, StopUnknown},
-		{"non-bool then false -> false", []any{"nope", false}, StopFalse},
-		{"non-bool then true -> true", []any{0, true}, StopTrue},
+		{"default false", nil, false},
+		{"false only -> false", []any{false}, false},
+		{"true only -> true", []any{true}, true},
+		{"false, non-bool, true -> true", []any{false, true}, true},
+		{"true, non-bool, false -> true", []any{true, false}, true},
+		{"non-bool ignored", []any{"nope", 1}, false},
 	}
 
 	for _, tc := range tests {
@@ -34,7 +32,7 @@ func TestStopState_FeedbackTable(t *testing.T) {
 			close(ch)
 			wg.Wait()
 
-			if got := fs.StopState(); got != tc.want {
+			if got := fs.IsStopped(); got != tc.want {
 				t.Fatalf("StopState = %v, want %v", got, tc.want)
 			}
 		})

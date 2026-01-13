@@ -1,7 +1,7 @@
 import threading
 from typing import MutableMapping, NamedTuple
 
-import wandb
+from wandb.sdk.lib import filenames
 
 
 class FileStats(NamedTuple):
@@ -86,7 +86,7 @@ class Stats:
         for save_name, stats in file_stats:
             if stats.artifact_file:
                 artifact_files += 1
-            elif wandb.wandb_lib.filenames.is_wandb_file(save_name):  # type: ignore[attr-defined]  # TODO(spencerpearson): this is probably synonymous with wandb.sdk.lib.filenames...?
+            elif filenames.is_wandb_file(save_name):
                 wandb_files += 1
             elif save_name.startswith("media"):
                 media_files += 1

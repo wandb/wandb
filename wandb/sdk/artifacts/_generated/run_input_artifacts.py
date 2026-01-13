@@ -3,29 +3,39 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
-from .fragments import RunInputArtifactConnectionFragment
+from .fragments import ArtifactFragment, PageInfoFragment
 
 
-class RunInputArtifacts(GQLBase):
+class RunInputArtifacts(GQLResult):
     project: Optional[RunInputArtifactsProject]
 
 
-class RunInputArtifactsProject(GQLBase):
+class RunInputArtifactsProject(GQLResult):
     run: Optional[RunInputArtifactsProjectRun]
 
 
-class RunInputArtifactsProjectRun(GQLBase):
-    input_artifacts: Optional[RunInputArtifactConnectionFragment] = Field(
-        alias="inputArtifacts"
-    )
+class RunInputArtifactsProjectRun(GQLResult):
+    artifacts: Optional[RunInputArtifactsProjectRunArtifacts]
+
+
+class RunInputArtifactsProjectRunArtifacts(GQLResult):
+    total_count: int = Field(alias="totalCount")
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[RunInputArtifactsProjectRunArtifactsEdges]
+
+
+class RunInputArtifactsProjectRunArtifactsEdges(GQLResult):
+    node: Optional[ArtifactFragment]
 
 
 RunInputArtifacts.model_rebuild()
 RunInputArtifactsProject.model_rebuild()
 RunInputArtifactsProjectRun.model_rebuild()
+RunInputArtifactsProjectRunArtifacts.model_rebuild()
+RunInputArtifactsProjectRunArtifactsEdges.model_rebuild()

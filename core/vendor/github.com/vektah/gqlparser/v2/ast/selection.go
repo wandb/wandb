@@ -37,5 +37,8 @@ type Argument struct {
 }
 
 func (f *Field) ArgumentMap(vars map[string]interface{}) map[string]interface{} {
+	if f.Definition == nil {
+		return nil
+	}
 	return arg2map(f.Definition.Arguments, f.Arguments, vars)
 }

@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Dict
 from pydantic import Field
 from typing_extensions import Annotated
 
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import HexMD5
 
 from ._models.base_model import ArtifactsBase
@@ -19,7 +18,8 @@ if TYPE_CHECKING:
 
 
 class ArtifactManifest(ArtifactsBase, ABC):
-    # Note: this can't be named "version" since it conflicts with the prior `version()` classmethod.
+    # Note: we can't name this "version" since it conflicts with the prior
+    # `version()` classmethod.
     manifest_version: Annotated[Any, Field(repr=False)]
     entries: Dict[str, ArtifactManifestEntry] = Field(default_factory=dict)  # noqa: UP006
 
@@ -31,15 +31,13 @@ class ArtifactManifest(ArtifactsBase, ABC):
 
     @classmethod
     @abstractmethod
-    def from_manifest_json(
-        cls, manifest_json: dict[str, Any], api: InternalApi | None = None
-    ) -> ArtifactManifest:
+    def from_manifest_json(cls, manifest_json: dict[str, Any]) -> ArtifactManifest:
         if (version := manifest_json.get("version")) is None:
             raise ValueError("Invalid manifest format. Must contain version field.")
 
         for sub in cls.__subclasses__():
             if sub.version() == version:
-                return sub.from_manifest_json(manifest_json, api=api)
+                return sub.from_manifest_json(manifest_json)
         raise ValueError("Invalid manifest version.")
 
     def __len__(self) -> int:
@@ -51,6 +49,10 @@ class ArtifactManifest(ArtifactsBase, ABC):
 
     @abstractmethod
     def digest(self) -> HexMD5:
+        raise NotImplementedError
+
+    @abstractmethod
+    def size(self) -> int:
         raise NotImplementedError
 
     def add_entry(self, entry: ArtifactManifestEntry, overwrite: bool = False) -> None:

@@ -115,7 +115,11 @@ func (cwm *CoreWeaveMetadata) Sample() (*spb.StatsRecord, error) {
 // metadata from the CoreWeave metadata endpoint using the Get method.
 func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord {
 	if cwm.graphqlClient == nil {
-		cwm.logger.Debug("cwmetadata: error collecting data", "error", fmt.Errorf("GraphQL client is nil"))
+		cwm.logger.Debug(
+			"cwmetadata: error collecting data",
+			"error",
+			fmt.Errorf("GraphQL client is nil"),
+		)
 		return nil
 	}
 
@@ -133,7 +137,8 @@ func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord 
 		cwm.graphqlClient,
 		entity,
 	)
-	if err != nil || data == nil || data.GetEntity() == nil || data.GetEntity().GetOrganization() == nil {
+	if err != nil || data == nil || data.GetEntity() == nil ||
+		data.GetEntity().GetOrganization() == nil {
 		return nil
 	}
 	coreWeaveOrgID := data.GetEntity().GetOrganization().GetCoreWeaveOrganizationId()
@@ -194,7 +199,11 @@ func (cwm *CoreWeaveMetadata) fetchMetadata() (*http.Response, error) {
 		return nil, fmt.Errorf("could not fetch metadata from endpoint %s (nil response)", fullURL)
 	}
 
-	cwm.logger.Debug("cwmetadata: received response", "url", fullURL, "status_code", resp.StatusCode)
+	cwm.logger.Debug(
+		"cwmetadata: received response",
+		"url", fullURL,
+		"status_code", resp.StatusCode,
+	)
 	return resp, nil
 }
 
@@ -268,7 +277,11 @@ func (cwm *CoreWeaveMetadata) buildFieldMap(data *CoreWeaveInstanceData) map[str
 }
 
 // parseLine parses a single line of metadata and updates the corresponding field.
-func (cwm *CoreWeaveMetadata) parseLine(line string, lineNumber int, fieldMap map[string]reflect.Value) {
+func (cwm *CoreWeaveMetadata) parseLine(
+	line string,
+	lineNumber int,
+	fieldMap map[string]reflect.Value,
+) {
 	line = strings.TrimSpace(line)
 	if line == "" {
 		return
@@ -276,7 +289,11 @@ func (cwm *CoreWeaveMetadata) parseLine(line string, lineNumber int, fieldMap ma
 
 	parts := strings.SplitN(line, ":", 2)
 	if len(parts) != 2 {
-		cwm.logger.Debug("cwmetadata: malformed line", "line_number", lineNumber, "line_content", line)
+		cwm.logger.Debug(
+			"cwmetadata: malformed line",
+			"line_number", lineNumber,
+			"line_content", line,
+		)
 		return
 	}
 

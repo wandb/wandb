@@ -6,7 +6,6 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
-import "wandb/proto/wandb_api.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
@@ -55,8 +54,6 @@ message Record {
 
     // request field does not belong here longterm
     Request request = 100;
-
-    ApiRequest api_request = 101;
   }
   Control control = 16;
   string uuid = 19;
@@ -665,7 +662,6 @@ message Response {
     SyncResponse sync_response = 70;
     RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
     OperationStatsResponse operations_response = 74;
-    ApiResponse api_response = 84;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -838,6 +834,17 @@ message OperationStatsResponse {
 // wandb:   retrying HTTP 500 in 13s; attempt 22/10085 - see logs
 // wandb: + 7 more tasks
 message OperationStats {
+  // An optional short label for this set of operations.
+  //
+  // This is used when multiple OperationStats are presented simultaneously,
+  // such as when syncing multiple runs in parallel.
+  //
+  // The difference between an Operation with subtasks and a labeled
+  // OperationStats is that the latter does not represent an ongoing task.
+  // For that reason, the label is optional and there is no duration,
+  // progress information or error status.
+  string label = 3;
+
   // The ongoing operations sorted by usefulness for the user to see.
   //
   // This may not contain all operations, but it may also contain more than can
@@ -1502,6 +1509,9 @@ enum ServerFeature {
   // Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
   // mutation.
   ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE = 14;
+
+  // Indicates that the server supports returning the total file count in a file connection.
+  TOTAL_COUNT_IN_FILE_CONNECTION = 15;
 }
 
 /**

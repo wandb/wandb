@@ -3,28 +3,27 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import Field
+from typing_extensions import Literal
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
 
 from .enums import ArtifactCollectionState
 
 
-class DeleteArtifactSequence(GQLBase):
-    delete_artifact_sequence: Optional[DeleteArtifactSequenceDeleteArtifactSequence] = (
-        Field(alias="deleteArtifactSequence")
-    )
+class DeleteArtifactSequence(GQLResult):
+    result: Optional[DeleteArtifactSequenceResult]
 
 
-class DeleteArtifactSequenceDeleteArtifactSequence(GQLBase):
-    artifact_collection: DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection = Field(
+class DeleteArtifactSequenceResult(GQLResult):
+    artifact_collection: DeleteArtifactSequenceResultArtifactCollection = Field(
         alias="artifactCollection"
     )
 
 
-class DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection(GQLBase):
+class DeleteArtifactSequenceResultArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -32,4 +31,4 @@ class DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection(GQLBase):
 
 
 DeleteArtifactSequence.model_rebuild()
-DeleteArtifactSequenceDeleteArtifactSequence.model_rebuild()
+DeleteArtifactSequenceResult.model_rebuild()

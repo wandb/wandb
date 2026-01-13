@@ -1,6 +1,7 @@
 package sparselist
 
 import (
+	"iter"
 	"maps"
 	"math"
 	"slices"
@@ -8,11 +9,14 @@ import (
 
 // SparseList is a list where many indices are not set.
 //
-// A `SparseList[T]` is isomorphic to `(int, []*T)` but uses less memory when
+// A `SparseList[T]` is like `(int, []*T)` but uses less memory when
 // many values are nil and can perform some operations more efficiently. The
 // extra 'int' is there because a `SparseList` can have negative indices.
 //
 // The zero value is an empty list.
+//
+// A nil SparseList is like a nil map: all getter methods treat it like an
+// empty SparseList, and all mutating methods panic.
 type SparseList[T any] struct {
 	items        map[int]T
 	firstIndex   int
@@ -22,11 +26,19 @@ type SparseList[T any] struct {
 
 // Len returns the number of indices in the list that are set.
 func (l *SparseList[T]) Len() int {
+	if l == nil {
+		return 0
+	}
+
 	return len(l.items)
 }
 
 // FirstIndex is the smallest index that is set, if Len > 0.
 func (l *SparseList[T]) FirstIndex() int {
+	if l == nil {
+		return 0
+	}
+
 	if !l.boundsCached {
 		l.recomputeBounds()
 	}
@@ -36,6 +48,10 @@ func (l *SparseList[T]) FirstIndex() int {
 
 // LastIndex is the largest index that is set, if Len > 0.
 func (l *SparseList[T]) LastIndex() int {
+	if l == nil {
+		return 0
+	}
+
 	if !l.boundsCached {
 		l.recomputeBounds()
 	}
@@ -81,7 +97,7 @@ func (l *SparseList[T]) Put(index int, item T) {
 //
 // The second return value indicates whether there was anything at the index.
 func (l *SparseList[T]) Get(index int) (T, bool) {
-	if len(l.items) == 0 {
+	if l == nil || len(l.items) == 0 {
 		return *new(T), false
 	}
 
@@ -108,7 +124,11 @@ func (l *SparseList[T]) Delete(index int) {
 }
 
 // Update overwrites the data in this list by the other list.
-func (l *SparseList[T]) Update(other SparseList[T]) {
+func (l *SparseList[T]) Update(other *SparseList[T]) {
+	if other.Len() == 0 {
+		return
+	}
+
 	if l.items == nil {
 		l.items = make(map[int]T)
 	}
@@ -117,16 +137,50 @@ func (l *SparseList[T]) Update(other SparseList[T]) {
 	l.boundsCached = false
 }
 
+// FirstRun returns an iterator over the first run of consecutive values
+// in the list.
+//
+// It is valid to modify the list while iterating through this.
+func (l *SparseList[T]) FirstRun() iter.Seq2[int, T] {
+	return func(yield func(idx int, value T) bool) {
+		if l.Len() == 0 {
+			return
+		}
+
+		for i := l.FirstIndex(); i <= l.LastIndex(); i++ {
+			value, ok := l.Get(i)
+			if !ok || !yield(i, value) {
+				return
+			}
+		}
+	}
+}
+
+// FirstRunValues is like FirstRun but without indices.
+func (l *SparseList[T]) FirstRunValues() iter.Seq[T] {
+	return func(yield func(value T) bool) {
+		for _, value := range l.FirstRun() {
+			if !yield(value) {
+				return
+			}
+		}
+	}
+}
+
 // ForEach invokes a callback on each value in the list.
 func (l *SparseList[T]) ForEach(fn func(int, T)) {
+	if l == nil {
+		return
+	}
+
 	for i, x := range l.items {
 		fn(i, x)
 	}
 }
 
 // Map returns a new list by applying a transformation to each element.
-func Map[T, U any](list SparseList[T], fn func(T) U) SparseList[U] {
-	result := SparseList[U]{}
+func Map[T, U any](list *SparseList[T], fn func(T) U) *SparseList[U] {
+	result := &SparseList[U]{}
 
 	list.ForEach(func(i int, x T) {
 		result.Put(i, fn(x))
@@ -144,8 +198,21 @@ type Run[T any] struct {
 	Items []T
 }
 
+// ToMap returns this list as a map from indices to values.
+func (l *SparseList[T]) ToMap() map[int]T {
+	if l == nil {
+		return nil
+	}
+
+	return maps.Clone(l.items)
+}
+
 // ToRuns returns the runs of consecutive values in the list.
 func (l *SparseList[T]) ToRuns() []Run[T] {
+	if l == nil {
+		return nil
+	}
+
 	indices := make([]int, 0, len(l.items))
 	for listIdx := range l.items {
 		indices = append(indices, listIdx)

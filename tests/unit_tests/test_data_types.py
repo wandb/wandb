@@ -16,6 +16,7 @@ from bokeh.plotting import figure
 from PIL import Image
 from wandb import data_types, env
 from wandb.sdk.data_types import _dtypes
+from wandb.sdk.data_types import utils as data_types_utils
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 from wandb.sdk.wandb_settings import Settings
 
@@ -277,7 +278,7 @@ def test_max_images(mock_run):
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(run, "test2", 0, 0)
     meta = wandb.Image.seq_to_json(
-        wandb.wandb_sdk.data_types.utils._prune_max_seq(large_list),
+        data_types_utils._prune_max_seq(large_list),
         run,
         "test2",
         0,
@@ -1676,7 +1677,7 @@ def test_log_uint8_image():
 def test_init_image_jpeg_removes_transparency(data, file_type, mock_wandb_log):
     wandb_img = wandb.Image(data, file_type=file_type)
 
-    assert mock_wandb_log.warned(
+    mock_wandb_log.assert_warned(
         "JPEG format does not support transparency. Ignoring alpha channel.",
     )
     assert wandb_img.format == file_type

@@ -77,6 +77,33 @@ def test_sweep_api_expected_run_count(
     assert sweep._attrs["priorRuns"]["edges"][0]["node"]["name"] == run_id
 
 
+def test_sweep_api_get_sweep_run(
+    use_local_wandb_backend,
+    user,
+):
+    sweep_config = SWEEP_CONFIG_GRID
+    _ = use_local_wandb_backend
+    project = "test"
+    sweep_id = wandb.sweep(
+        sweep_config,
+        entity=user,
+        project=project,
+    )
+
+    # Create a sweep run
+    with wandb.init(
+        entity=user, project=project, settings=wandb.Settings(sweep_id=sweep_id)
+    ) as sweep_run:
+        sweep_run.log({"y": 2})
+        sweep_run_id = sweep_run.id
+
+    api = Api()
+    run = api.run(f"{user}/{project}/{sweep_run_id}")
+
+    assert run.sweep.id == sweep_id
+    assert run.summary_metrics.get("y") == 2
+
+
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_api(use_local_wandb_backend, user, sweep_config):
     _ = use_local_wandb_backend

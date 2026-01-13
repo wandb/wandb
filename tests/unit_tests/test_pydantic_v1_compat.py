@@ -26,11 +26,13 @@ from wandb._pydantic import (
     IS_PYDANTIC_V2,
     AliasChoices,
     CompatBaseModel,
+    GQLInput,
+    GQLResult,
     computed_field,
     field_validator,
     model_validator,
 )
-from wandb.sdk.artifacts._generated import ArtifactVersionFiles
+from wandb.sdk.artifacts._generated import GetArtifactFiles, TypeInfoFragment
 
 
 def test_field_validator_before():
@@ -256,6 +258,85 @@ def test_model_dump_methods_with_json_fields():
     assert json.loads(rt_json) == obj.model_dump(round_trip=True)
 
 
+def test_field_constraints_on_list_fields():
+    class ListFields(CompatBaseModel):
+        required_list: List[int] = Field(min_length=1, max_length=3)
+        optional_list: Optional[List[str]] = Field(
+            default=None, min_length=1, max_length=3
+        )
+
+    # Valid values
+    valid_model1 = ListFields(required_list=[1, 2, 3])
+    assert valid_model1.required_list == [1, 2, 3]
+    assert valid_model1.optional_list is None
+
+    valid_model2 = ListFields(required_list=[1, 2, 3], optional_list=None)
+    assert valid_model2.required_list == [1, 2, 3]
+    assert valid_model2.optional_list is None
+
+    valid_model3 = ListFields(required_list=[1], optional_list=["hello"])
+    assert valid_model3.required_list == [1]
+    assert valid_model3.optional_list == ["hello"]
+
+    # Invalid values
+    with raises(ValidationError):
+        # required too short
+        ListFields(required_list=[])
+    with raises(ValidationError):
+        # required too long
+        ListFields(required_list=[1, 2, 3, 4])
+    with raises(ValidationError):
+        # required ok; optional too short
+        ListFields(required_list=[1, 2, 3], optional_list=[])
+    with raises(ValidationError):
+        # required ok; optional too long
+        ListFields(required_list=[1], optional_list=["hello", "world", "foo", "bar"])
+
+
+def test_field_constraints_on_str_fields():
+    class StringFields(CompatBaseModel):
+        required_str: str = Field(min_length=1, max_length=3, pattern=r"^[a-z]+$")
+        optional_str: Optional[str] = Field(
+            default=None, min_length=1, max_length=3, pattern=r"^[a-z]+$"
+        )
+
+    # Valid values
+    valid_model1 = StringFields(required_str="abc")
+    assert valid_model1.required_str == "abc"
+    assert valid_model1.optional_str is None
+
+    valid_model2 = StringFields(required_str="abc", optional_str=None)
+    assert valid_model2.required_str == "abc"
+    assert valid_model2.optional_str is None
+
+    valid_model3 = StringFields(required_str="a", optional_str="def")
+    assert valid_model3.required_str == "a"
+    assert valid_model3.optional_str == "def"
+
+    # Invalid values
+    with raises(ValidationError):
+        # required too short
+        StringFields(required_str="")
+    with raises(ValidationError):
+        # required too long
+        StringFields(required_str="abcd")
+    with raises(ValidationError):
+        # required ok; optional too short
+        StringFields(required_str="a", optional_str="")
+    with raises(ValidationError):
+        # required ok; optional too long
+        StringFields(required_str="a", optional_str="abcd")
+    with raises(ValidationError):
+        # required doesn't match pattern; optional ok
+        StringFields(required_str="ABC", optional_str="def")
+    with raises(ValidationError):
+        # required ok; optional doesn't match pattern
+        StringFields(required_str="abc", optional_str="DEF")
+    with raises(ValidationError):
+        # neither matches pattern
+        StringFields(required_str="ABC", optional_str="123")
+
+
 # ------------------------------------------------------------------------------
 def test_generated_pydantic_fragment_validates_response_data():
     """Check that the generated fragment validates the response data.
@@ -294,8 +375,89 @@ def test_generated_pydantic_fragment_validates_response_data():
             }
         }
     }
-    validated = ArtifactVersionFiles.model_validate(response_data)
+    validated = GetArtifactFiles.model_validate(response_data)
     assert (
         validated.project.artifact_type.artifact.files.edges[0].node.name
         == "random_image.png"
     )
+
+
+def test_type_info_fragment_validates_response_data():
+    response_data = {
+        "name": "artifact",
+        "fields": [
+            {
+                "name": "files",
+                "args": [
+                    {"name": "names"},
+                    {"name": "after"},
+                    {"name": "first"},
+                ],
+            }
+        ],
+        "inputFields": [],
+    }
+    validated = TypeInfoFragment.model_validate(response_data)
+    assert validated.name == "artifact"
+
+
+# ------------------------------------------------------------------------------
+class NestedInput(GQLInput):
+    inner_str: Optional[str] = None
+    inner_int: Optional[int] = None
+
+
+class CreateThingInput(GQLInput):
+    required_value: int
+    optional_str: Optional[str] = None
+    optional_int: Optional[int] = None
+    nested: Optional[NestedInput] = None
+
+
+NestedInput.model_rebuild()
+CreateThingInput.model_rebuild()
+
+
+def test_gql_input_dump_excludes_none_by_default():
+    """Check that GQLInput classes omit None-valued fields by default but allow for overrides."""
+    obj = CreateThingInput(
+        required_value=1,
+        optional_str=None,
+        nested={"inner_str": "inside"},
+    )
+
+    # By default, None-valued fields are excluded
+    expected_with_default = {"required_value": 1, "nested": {"inner_str": "inside"}}
+    assert obj.model_dump() == expected_with_default
+    assert json.loads(obj.model_dump_json()) == expected_with_default
+
+    # Overrides are respected
+    expected_with_nones = {
+        "required_value": 1,
+        "optional_str": None,
+        "optional_int": None,
+        "nested": {
+            "inner_str": "inside",
+            "inner_int": None,
+        },
+    }
+    assert obj.model_dump(exclude_none=False) == expected_with_nones
+    assert json.loads(obj.model_dump_json(exclude_none=False)) == expected_with_nones
+
+
+class ThingResult(GQLResult):
+    foo_bar: int
+    hello_world: str = Field(alias="helloWORLD")
+
+
+def test_gql_result_is_frozen_and_uses_camelcase_aliases_by_default():
+    """Check that GQLResult classes are frozen and use camelCase aliases by default."""
+    result = ThingResult.model_validate({"fooBar": 7, "helloWORLD": "good morning"})
+
+    # camelCase aliasing is applied by default for dumps
+    assert result.model_dump() == {"fooBar": 7, "helloWORLD": "good morning"}
+
+    # Instances are frozen/immutable
+    expectation = raises(ValidationError if IS_PYDANTIC_V2 else TypeError)
+    with expectation:
+        result.foo_bar = 9  # type: ignore[misc]

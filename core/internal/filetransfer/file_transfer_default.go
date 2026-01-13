@@ -24,6 +24,10 @@ type DefaultFileTransfer struct {
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
+
+	// extraHeaders attached to presigned urls, using same set of
+	// headers from graphql requests.
+	extraHeaders map[string]string
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
@@ -31,18 +35,24 @@ func NewDefaultFileTransfer(
 	client *retryablehttp.Client,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
+	extraHeaders map[string]string,
 ) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
 		logger:            logger,
 		client:            client,
 		fileTransferStats: fileTransferStats,
+		extraHeaders:      extraHeaders,
 	}
 	return fileTransfer
 }
 
-// Upload uploads a file to the server
+// Upload implements FileTransfer.Upload
 func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
-	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)
+	ft.logger.Debug(
+		"default file transfer: uploading file",
+		"path", task.Path,
+		"url", task.Url,
+	)
 
 	// open the file for reading and defer closing it
 	file, err := os.Open(task.Path)
@@ -66,14 +76,17 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		return err
 	}
 
-	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, requestBody)
+	req, err := ft.newRequest(http.MethodPut, task.Url, requestBody)
 	if err != nil {
 		return err
 	}
 	for _, header := range task.Headers {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) != 2 {
-			ft.logger.Error("file transfer: upload: invalid header", "header", header)
+			ft.logger.Error(
+				"file transfer: upload: invalid header",
+				"header", header,
+			)
 			continue
 		}
 		req.Header.Set(parts[0], parts[1])
@@ -86,16 +99,37 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
+		// Try to read the body to know the detail error message
+		return attachErrorResponseBody(
+			"file transfer: upload: failed to upload: status: "+resp.Status,
+			resp,
+		)
 	}
 	task.Response = resp
 
 	return nil
 }
 
-// Download downloads a file from the server
+// attachErrorResponseBody returns an error with the error prefix and
+// the first 1024 bytes of the response body. It closes the response
+// body after reading the first 1024 bytes.
+func attachErrorResponseBody(errPrefix string, resp *http.Response) error {
+	// Only read first 1024 bytes of error message
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	resp.Body.Close()
+	if err != nil {
+		return fmt.Errorf("%s: error reading body: %s", errPrefix, err)
+	}
+	return fmt.Errorf("%s: body: %s", errPrefix, string(body))
+}
+
+// Download implements FileTransfer.Download
 func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
-	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
+	ft.logger.Debug(
+		"default file transfer: downloading file",
+		"path", task.Path,
+		"url", task.Url,
+	)
 	dir := path.Dir(task.Path)
 
 	// Check if the directory already exists
@@ -111,7 +145,11 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	}
 
 	// TODO: redo it to use the progress writer, to track the download progress
-	resp, err := ft.client.Get(task.Url)
+	req, err := ft.newRequest(http.MethodGet, task.Url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -148,6 +186,21 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 	return nil
+}
+
+func (ft *DefaultFileTransfer) newRequest(
+	method string,
+	url string,
+	body io.Reader,
+) (*retryablehttp.Request, error) {
+	req, err := retryablehttp.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range ft.extraHeaders {
+		req.Header.Set(k, v)
+	}
+	return req, nil
 }
 
 func getUploadRequestBody(
@@ -204,13 +257,13 @@ func getUploadRequestBody(
 
 		requestBody = NewProgressReader(
 			io.NewSectionReader(file, task.Offset, task.Size),
-			int(task.Size),
-			func(processed int, total int) {
+			task.Size,
+			func(processed, total int64) {
 				if task.ProgressCallback != nil {
-					task.ProgressCallback(processed, total)
+					task.ProgressCallback(int(processed), int(total))
 				}
 
-				progress.SetBytesOfTotal(processed, total)
+				progress.SetBytesOfTotal(int(processed), int(total))
 
 				fileTransferStats.UpdateUploadStats(FileUploadInfo{
 					FileKind:      task.FileKind,
@@ -225,37 +278,55 @@ func getUploadRequestBody(
 }
 
 type ProgressReader struct {
-	io.ReadSeeker
-	len      int
-	read     int
-	callback func(processed, total int)
+	reader   io.ReadSeeker
+	len      int64
+	read     int64
+	callback func(processed, total int64)
 }
 
 func NewProgressReader(
 	reader io.ReadSeeker,
-	size int,
-	callback func(processed, total int),
+	size int64,
+	callback func(processed, total int64),
 ) *ProgressReader {
 	return &ProgressReader{
-		ReadSeeker: reader,
-		len:        size,
-		callback:   callback,
+		reader:   reader,
+		len:      size,
+		callback: callback,
 	}
 }
 
-func (pr *ProgressReader) Read(p []byte) (int, error) {
-	n, err := pr.ReadSeeker.Read(p)
-	if err != nil {
-		return n, err // Return early if there's an error
+// Seek implements io.Seeker.
+func (pr *ProgressReader) Seek(offset int64, whence int) (n int64, err error) {
+	n, err = pr.reader.Seek(offset, whence)
+
+	if err == nil {
+		pr.read = n
+		pr.invokeCallback()
 	}
 
-	pr.read += n
+	return
+}
+
+// Read implements io.Reader.
+func (pr *ProgressReader) Read(p []byte) (n int, err error) {
+	n, err = pr.reader.Read(p)
+
+	if err == nil {
+		pr.read += int64(n)
+		pr.invokeCallback()
+	}
+
+	return
+}
+
+// Len implements retryablehttp.LenReader.
+func (pr *ProgressReader) Len() int {
+	return int(pr.len)
+}
+
+func (pr *ProgressReader) invokeCallback() {
 	if pr.callback != nil {
 		pr.callback(pr.read, pr.len)
 	}
-	return n, err
-}
-
-func (pr *ProgressReader) Len() int {
-	return int(pr.len)
 }

@@ -2,34 +2,43 @@
 
 __all__ = [
     "ADD_ALIASES_GQL",
+    "ADD_ARTIFACT_COLLECTION_TAGS_GQL",
     "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_BY_NAME_GQL",
-    "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
-    "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
+    "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
-    "ARTIFACT_FILE_URLS_GQL",
+    "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
     "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
-    "ARTIFACT_VERSION_FILES_GQL",
-    "ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL",
-    "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
+    "CREATE_REGISTRY_MEMBERS_GQL",
     "DELETE_ALIASES_GQL",
-    "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
+    "DELETE_ARTIFACT_COLLECTION_TAGS_GQL",
     "DELETE_ARTIFACT_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
+    "DELETE_REGISTRY_GQL",
+    "DELETE_REGISTRY_MEMBERS_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
+    "FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL",
+    "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
+    "FETCH_REGISTRY_GQL",
+    "GET_ARTIFACT_FILES_GQL",
+    "GET_ARTIFACT_FILE_URLS_GQL",
+    "GET_ARTIFACT_MEMBERSHIP_FILES_GQL",
+    "GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL",
     "LINK_ARTIFACT_GQL",
-    "MOVE_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
     "PROJECT_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
     "REGISTRY_COLLECTIONS_GQL",
+    "REGISTRY_TEAM_MEMBERS_GQL",
+    "REGISTRY_USER_MEMBERS_GQL",
     "REGISTRY_VERSIONS_GQL",
+    "RENAME_REGISTRY_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
     "TYPE_INFO_GQL",
@@ -37,19 +46,24 @@ __all__ = [
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
+    "UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL",
+    "UPDATE_TEAM_REGISTRY_ROLE_GQL",
+    "UPDATE_USER_REGISTRY_ROLE_GQL",
+    "UPSERT_REGISTRY_GQL",
     "DeleteArtifactSequence",
     "DeleteArtifactPortfolio",
     "UpdateArtifactSequence",
     "UpdateArtifactPortfolio",
-    "MoveArtifactCollection",
-    "CreateArtifactCollectionTagAssignments",
-    "DeleteArtifactCollectionTagAssignments",
+    "UpdateArtifactSequenceType",
+    "AddArtifactCollectionTags",
+    "DeleteArtifactCollectionTags",
     "ProjectArtifactCollections",
     "ProjectArtifactCollection",
-    "ArtifactVersionFiles",
-    "ArtifactCollectionMembershipFiles",
-    "ArtifactCollectionMembershipFileUrls",
-    "ArtifactFileUrls",
+    "ArtifactCollectionAliases",
+    "GetArtifactFiles",
+    "GetArtifactMembershipFiles",
+    "GetArtifactFileUrls",
+    "GetArtifactMembershipFileUrls",
     "ProjectArtifactTypes",
     "ProjectArtifactType",
     "ProjectArtifacts",
@@ -59,7 +73,7 @@ __all__ = [
     "FetchArtifactManifest",
     "ArtifactByID",
     "ArtifactByName",
-    "ArtifactViaMembershipByName",
+    "ArtifactMembershipByName",
     "ArtifactUsedBy",
     "ArtifactCreatedBy",
     "ArtifactType",
@@ -70,120 +84,191 @@ __all__ = [
     "LinkArtifact",
     "UnlinkArtifact",
     "TypeInfo",
+    "FetchOrgInfoFromEntity",
+    "FetchOrgEntityFromOrganization",
     "RegistryVersions",
     "RegistryCollections",
+    "FetchRegistry",
     "FetchRegistries",
+    "RenameRegistry",
+    "UpsertRegistry",
+    "DeleteRegistry",
+    "RegistryUserMembers",
+    "RegistryTeamMembers",
+    "CreateRegistryMembers",
+    "DeleteRegistryMembers",
+    "UpdateUserRegistryRole",
+    "UpdateTeamRegistryRole",
+    "AddAliasesInput",
     "ArtifactAliasInput",
     "ArtifactCollectionAliasInput",
+    "ArtifactTypeInput",
+    "CreateArtifactCollectionTagAssignmentsInput",
+    "CreateProjectMembersInput",
+    "DeleteAliasesInput",
+    "DeleteArtifactCollectionTagAssignmentsInput",
+    "DeleteArtifactInput",
+    "DeleteProjectMembersInput",
     "LinkArtifactInput",
+    "MoveArtifactSequenceInput",
+    "RateLimitsInput",
+    "RenameProjectInput",
     "TagInput",
-    "ArtifactCollectionsFragment",
+    "UnlinkArtifactInput",
+    "UpdateArtifactInput",
+    "UpdateArtifactPortfolioInput",
+    "UpdateArtifactSequenceInput",
+    "UpdateProjectMemberInput",
+    "UpdateProjectTeamMemberInput",
+    "UpsertModelInput",
+    "ArtifactAliasFragment",
+    "ArtifactCollectionFragment",
     "ArtifactFragment",
-    "ArtifactFragmentWithoutAliases",
+    "ArtifactMembershipFragment",
     "ArtifactPortfolioTypeFields",
     "ArtifactSequenceTypeFields",
     "ArtifactTypeFragment",
-    "ArtifactTypesFragment",
-    "ArtifactsFragment",
-    "FileUrlsFragment",
-    "FilesFragment",
-    "MembershipWithArtifact",
-    "RegistriesPage",
-    "RegistryCollectionsPage",
+    "CollectionInfoFragment",
+    "DeferredManifestFragment",
+    "FileFragment",
+    "FileWithUrlFragment",
+    "OrgInfoFragment",
+    "PageInfoFragment",
+    "ProjectInfoFragment",
+    "RegistryCollectionFragment",
     "RegistryFragment",
-    "RegistryVersionsPage",
-    "RunInputArtifactConnectionFragment",
-    "RunOutputArtifactConnectionFragment",
+    "RegistryRoleFragment",
+    "RunInfoFragment",
+    "SourceCollectionInfoFragment",
+    "TagFragment",
+    "TeamFragment",
+    "TeamMemberFragment",
+    "TeamRegistryMemberFragment",
     "TypeInfoFragment",
+    "UserRegistryMemberFragment",
     "ArtifactCollectionState",
     "ArtifactCollectionType",
     "ArtifactState",
 ]
 from .add_aliases import AddAliases
+from .add_artifact_collection_tags import AddArtifactCollectionTags
 from .artifact_by_id import ArtifactByID
 from .artifact_by_name import ArtifactByName
-from .artifact_collection_membership_file_urls import (
-    ArtifactCollectionMembershipFileUrls,
-)
-from .artifact_collection_membership_files import ArtifactCollectionMembershipFiles
+from .artifact_collection_aliases import ArtifactCollectionAliases
 from .artifact_created_by import ArtifactCreatedBy
-from .artifact_file_urls import ArtifactFileUrls
+from .artifact_membership_by_name import ArtifactMembershipByName
 from .artifact_type import ArtifactType
 from .artifact_used_by import ArtifactUsedBy
-from .artifact_version_files import ArtifactVersionFiles
-from .artifact_via_membership_by_name import ArtifactViaMembershipByName
-from .create_artifact_collection_tag_assignments import (
-    CreateArtifactCollectionTagAssignments,
-)
+from .create_registry_members import CreateRegistryMembers
 from .delete_aliases import DeleteAliases
 from .delete_artifact import DeleteArtifact
-from .delete_artifact_collection_tag_assignments import (
-    DeleteArtifactCollectionTagAssignments,
-)
+from .delete_artifact_collection_tags import DeleteArtifactCollectionTags
 from .delete_artifact_portfolio import DeleteArtifactPortfolio
 from .delete_artifact_sequence import DeleteArtifactSequence
+from .delete_registry import DeleteRegistry
+from .delete_registry_members import DeleteRegistryMembers
 from .enums import ArtifactCollectionState, ArtifactCollectionType, ArtifactState
 from .fetch_artifact_manifest import FetchArtifactManifest
 from .fetch_linked_artifacts import FetchLinkedArtifacts
+from .fetch_org_entity_from_organization import FetchOrgEntityFromOrganization
+from .fetch_org_info_from_entity import FetchOrgInfoFromEntity
 from .fetch_registries import FetchRegistries
+from .fetch_registry import FetchRegistry
 from .fragments import (
-    ArtifactCollectionsFragment,
+    ArtifactAliasFragment,
+    ArtifactCollectionFragment,
     ArtifactFragment,
-    ArtifactFragmentWithoutAliases,
+    ArtifactMembershipFragment,
     ArtifactPortfolioTypeFields,
     ArtifactSequenceTypeFields,
-    ArtifactsFragment,
     ArtifactTypeFragment,
-    ArtifactTypesFragment,
-    FilesFragment,
-    FileUrlsFragment,
-    MembershipWithArtifact,
-    RegistriesPage,
-    RegistryCollectionsPage,
+    CollectionInfoFragment,
+    DeferredManifestFragment,
+    FileFragment,
+    FileWithUrlFragment,
+    OrgInfoFragment,
+    PageInfoFragment,
+    ProjectInfoFragment,
+    RegistryCollectionFragment,
     RegistryFragment,
-    RegistryVersionsPage,
-    RunInputArtifactConnectionFragment,
-    RunOutputArtifactConnectionFragment,
+    RegistryRoleFragment,
+    RunInfoFragment,
+    SourceCollectionInfoFragment,
+    TagFragment,
+    TeamFragment,
+    TeamMemberFragment,
+    TeamRegistryMemberFragment,
     TypeInfoFragment,
+    UserRegistryMemberFragment,
 )
+from .get_artifact_file_urls import GetArtifactFileUrls
+from .get_artifact_files import GetArtifactFiles
+from .get_artifact_membership_file_urls import GetArtifactMembershipFileUrls
+from .get_artifact_membership_files import GetArtifactMembershipFiles
 from .input_types import (
+    AddAliasesInput,
     ArtifactAliasInput,
     ArtifactCollectionAliasInput,
+    ArtifactTypeInput,
+    CreateArtifactCollectionTagAssignmentsInput,
+    CreateProjectMembersInput,
+    DeleteAliasesInput,
+    DeleteArtifactCollectionTagAssignmentsInput,
+    DeleteArtifactInput,
+    DeleteProjectMembersInput,
     LinkArtifactInput,
+    MoveArtifactSequenceInput,
+    RateLimitsInput,
+    RenameProjectInput,
     TagInput,
+    UnlinkArtifactInput,
+    UpdateArtifactInput,
+    UpdateArtifactPortfolioInput,
+    UpdateArtifactSequenceInput,
+    UpdateProjectMemberInput,
+    UpdateProjectTeamMemberInput,
+    UpsertModelInput,
 )
 from .link_artifact import LinkArtifact
-from .move_artifact_collection import MoveArtifactCollection
 from .operations import (
     ADD_ALIASES_GQL,
+    ADD_ARTIFACT_COLLECTION_TAGS_GQL,
     ARTIFACT_BY_ID_GQL,
     ARTIFACT_BY_NAME_GQL,
-    ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
-    ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
+    ARTIFACT_COLLECTION_ALIASES_GQL,
     ARTIFACT_CREATED_BY_GQL,
-    ARTIFACT_FILE_URLS_GQL,
+    ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
     ARTIFACT_TYPE_GQL,
     ARTIFACT_USED_BY_GQL,
-    ARTIFACT_VERSION_FILES_GQL,
-    ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
-    CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
+    CREATE_REGISTRY_MEMBERS_GQL,
     DELETE_ALIASES_GQL,
-    DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
+    DELETE_ARTIFACT_COLLECTION_TAGS_GQL,
     DELETE_ARTIFACT_GQL,
     DELETE_ARTIFACT_PORTFOLIO_GQL,
     DELETE_ARTIFACT_SEQUENCE_GQL,
+    DELETE_REGISTRY_GQL,
+    DELETE_REGISTRY_MEMBERS_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
+    FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL,
+    FETCH_ORG_INFO_FROM_ENTITY_GQL,
     FETCH_REGISTRIES_GQL,
+    FETCH_REGISTRY_GQL,
+    GET_ARTIFACT_FILE_URLS_GQL,
+    GET_ARTIFACT_FILES_GQL,
+    GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL,
+    GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
     LINK_ARTIFACT_GQL,
-    MOVE_ARTIFACT_COLLECTION_GQL,
     PROJECT_ARTIFACT_COLLECTION_GQL,
     PROJECT_ARTIFACT_COLLECTIONS_GQL,
     PROJECT_ARTIFACT_TYPE_GQL,
     PROJECT_ARTIFACT_TYPES_GQL,
     PROJECT_ARTIFACTS_GQL,
     REGISTRY_COLLECTIONS_GQL,
+    REGISTRY_TEAM_MEMBERS_GQL,
+    REGISTRY_USER_MEMBERS_GQL,
     REGISTRY_VERSIONS_GQL,
+    RENAME_REGISTRY_GQL,
     RUN_INPUT_ARTIFACTS_GQL,
     RUN_OUTPUT_ARTIFACTS_GQL,
     TYPE_INFO_GQL,
@@ -191,6 +276,10 @@ from .operations import (
     UPDATE_ARTIFACT_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
     UPDATE_ARTIFACT_SEQUENCE_GQL,
+    UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL,
+    UPDATE_TEAM_REGISTRY_ROLE_GQL,
+    UPDATE_USER_REGISTRY_ROLE_GQL,
+    UPSERT_REGISTRY_GQL,
 )
 from .project_artifact_collection import ProjectArtifactCollection
 from .project_artifact_collections import ProjectArtifactCollections
@@ -198,7 +287,10 @@ from .project_artifact_type import ProjectArtifactType
 from .project_artifact_types import ProjectArtifactTypes
 from .project_artifacts import ProjectArtifacts
 from .registry_collections import RegistryCollections
+from .registry_team_members import RegistryTeamMembers
+from .registry_user_members import RegistryUserMembers
 from .registry_versions import RegistryVersions
+from .rename_registry import RenameRegistry
 from .run_input_artifacts import RunInputArtifacts
 from .run_output_artifacts import RunOutputArtifacts
 from .type_info import TypeInfo
@@ -206,3 +298,7 @@ from .unlink_artifact import UnlinkArtifact
 from .update_artifact import UpdateArtifact
 from .update_artifact_portfolio import UpdateArtifactPortfolio
 from .update_artifact_sequence import UpdateArtifactSequence
+from .update_artifact_sequence_type import UpdateArtifactSequenceType
+from .update_team_registry_role import UpdateTeamRegistryRole
+from .update_user_registry_role import UpdateUserRegistryRole
+from .upsert_registry import UpsertRegistry

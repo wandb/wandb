@@ -157,23 +157,6 @@ def test_custom_dir_env(user):
         )
 
 
-@pytest.mark.xfail(reason="Backend race condition")
-def test_anonymous_mode(user, capsys, local_settings):
-    copied_env = os.environ.copy()
-    copied_env.pop("WANDB_API_KEY")
-    copied_env.pop("WANDB_USERNAME")
-    copied_env.pop("WANDB_ENTITY")
-    with mock.patch.dict("os.environ", copied_env, clear=True):
-        with wandb.init(anonymous="must") as run:
-            run.log({"something": 1})
-
-    _, err = capsys.readouterr()
-    assert (
-        "Do NOT share these links with anyone. They can be used to claim your runs."
-        in err
-    )
-
-
 def test_run_id(user):
     with mock.patch.dict("os.environ", {"WANDB_RUN_ID": "123456"}):
         run = wandb.init()

@@ -1,0 +1,83 @@
+fragment ApiKeyFragment on ApiKey {
+  id
+  name
+  description
+}
+
+fragment UserInfoFragment on User {
+  id
+  name
+  username
+  email
+  admin
+}
+
+fragment UserFragment on User {
+  id
+  name
+  username
+  email
+  admin
+  flags
+  entity
+  deletedAt
+  apiKeys {
+    edges {
+      node {
+        ...ApiKeyFragment
+      }
+    }
+  }
+  teams {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+}
+
+query SearchUsers($query: String) {
+  users(query: $query) {
+    edges {
+      node {
+        ...UserFragment
+      }
+    }
+  }
+}
+
+query GetViewer {
+  viewer {
+    ...UserFragment
+  }
+}
+
+query GetDefaultEntity {
+  viewer {
+    id
+    entity
+  }
+}
+
+mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
+  result: createUser(input: { email: $email, admin: $admin }) {
+    user {
+      ...UserInfoFragment
+    }
+  }
+}
+
+mutation DeleteApiKey($id: String!) {
+  result: deleteApiKey(input: { id: $id }) {
+    success
+  }
+}
+
+mutation GenerateApiKey($description: String) {
+  result: generateApiKey(input: { description: $description }) {
+    apiKey {
+      ...ApiKeyFragment
+    }
+  }
+}

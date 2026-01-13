@@ -1,6 +1,4 @@
-from wandb import wandb_lib
-
-sparkline = wandb_lib.sparkline
+from wandb.sdk.lib import sparkline
 
 
 def test_sparkline():

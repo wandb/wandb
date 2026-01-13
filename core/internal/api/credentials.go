@@ -37,7 +37,18 @@ func NewCredentialProvider(
 			logger,
 		)
 	}
-	return NewAPIKeyCredentialProvider(settings)
+
+	if apiKey := settings.GetAPIKey(); apiKey != "" {
+		return &apiKeyCredentialProvider{apiKey: apiKey}, nil
+	}
+
+	return NoopCredentialProvider{}, nil
+}
+
+// NewAPIKeyCredentialProvider returns a credential provider that uses the given
+// API key.
+func NewAPIKeyCredentialProvider(apiKey string) CredentialProvider {
+	return &apiKeyCredentialProvider{apiKey}
 }
 
 var _ CredentialProvider = &apiKeyCredentialProvider{}
@@ -45,20 +56,6 @@ var _ CredentialProvider = &apiKeyCredentialProvider{}
 type apiKeyCredentialProvider struct {
 	// The W&B API key
 	apiKey string
-}
-
-// NewAPIKeyCredentialProvider validates the presence of an API key and
-// returns a new APIKeyCredentialProvider. Returns an error if the API key is unavailable.
-func NewAPIKeyCredentialProvider(
-	settings *settings.Settings,
-) (CredentialProvider, error) {
-	if err := settings.EnsureAPIKey(); err != nil {
-		return nil, fmt.Errorf("api: couldn't get API key: %v", err)
-	}
-
-	return &apiKeyCredentialProvider{
-		apiKey: settings.GetAPIKey(),
-	}, nil
 }
 
 // Apply sets the API key in the Authorization header of the request using
@@ -70,6 +67,12 @@ func (c *apiKeyCredentialProvider) Apply(req *http.Request) error {
 		"Basic "+base64.StdEncoding.EncodeToString(
 			[]byte("api:"+c.apiKey)),
 	)
+	return nil
+}
+
+type NoopCredentialProvider struct{}
+
+func (c NoopCredentialProvider) Apply(req *http.Request) error {
 	return nil
 }
 
@@ -271,7 +274,10 @@ func (c *oauth2CredentialProvider) trySaveCredentialsToFile(credentials Credenti
 // in OAuth RFC 7523. The access token is then returned with its expiration time.
 func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
 	url := fmt.Sprintf("%s/oidc/token", c.baseURL)
-	data := fmt.Sprintf("grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s", c.identityToken)
+	data := fmt.Sprintf(
+		"grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s",
+		c.identityToken,
+	)
 	req, err := http.NewRequest("POST", url, strings.NewReader(data))
 	if err != nil {
 		return accessTokenInfo{}, err

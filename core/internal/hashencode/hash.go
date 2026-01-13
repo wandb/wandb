@@ -13,7 +13,8 @@ import (
 // base64 encoded string.
 func ComputeB64MD5(data []byte) string {
 	hasher := md5.New()
-	_, _ = hasher.Write(data) // hasher.Write can't fail; the returned values are just to implement io.Writer
+	// hasher.Write can't fail; the returned values are just to implement io.Writer
+	_, _ = hasher.Write(data)
 	return base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 }
 

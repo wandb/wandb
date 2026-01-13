@@ -50,9 +50,9 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 199
+// Next ID: 203
 message Settings {
-  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 70, 91, 94, 100, 136, 137, 173, 176, 180;
+  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
 
   // The W&B API key.
   //
@@ -108,6 +108,11 @@ message Settings {
   // By default, this is the current working directory.
   google.protobuf.StringValue root_dir = 105;
 
+  // The path to the "wandb" workspace directory.
+  //
+  // Often a path like `./wandb/`.
+  google.protobuf.StringValue wandb_dir = 142;
+
   // The directory for storing log files.
   google.protobuf.StringValue log_dir = 85;
 
@@ -116,6 +121,9 @@ message Settings {
 
   // Unix glob patterns relative to `files_dir` to not upload.
   ListStringValue ignore_globs = 78;
+
+  // The URL for the W&B UI.
+  google.protobuf.StringValue app_url = 202;
 
   // The URL for the W&B backend.
   //
@@ -382,13 +390,24 @@ message Settings {
   // "wrap_emu" - Same as "wrap" but captures output through an emulator.
   google.protobuf.StringValue console = 60;
 
-  // Whether to capture console logs in multipart format.
+  // Enable multipart console logging.
   //
-  // This is used to make sure we don't overwrite the console log file if it
-  // already exists.
+  // When True, the SDK writes console output to timestamped files
+  // under the `logs/` directory instead of a single `output.log`.
+  //
+  // Each part is uploaded as soon as it is closed, giving users live
+  // access to logs while the run is active. Rollover cadence is
+  // controlled by `console_chunk_max_bytes` and/or `console_chunk_max_seconds`.
+  // If both limits are `0`, all logs are uploaded once at run finish.
   //
   // The format is: logs/output_<optional:Settings.Label>_<timestamp>_<nanoseconds>.log
   google.protobuf.BoolValue console_multipart = 166;
+
+  // Size-based rollover threshold for multipart console logs, in bytes.
+  google.protobuf.Int32Value console_chunk_max_bytes = 199;
+
+  // Time-based rollover threshold for multipart console logs, in seconds.
+  google.protobuf.Int32Value console_chunk_max_seconds = 201;
 
   // Whether to sync TensorBoard logs to W&B.
   google.protobuf.BoolValue sync_tensorboard = 179;
@@ -440,7 +459,6 @@ message Settings {
   google.protobuf.StringValue _tmp_code_dir = 49;
   google.protobuf.BoolValue _windows = 52;
   google.protobuf.BoolValue allow_val_change = 53;
-  google.protobuf.StringValue anonymous = 54;
   MapStringKeyStringValue azure_account_url_to_access_key = 56;
   google.protobuf.StringValue code_dir = 58;
   ListStringValue config_paths = 59;
@@ -499,7 +517,6 @@ message Settings {
   google.protobuf.BoolValue table_raise_on_max_row_limit_exceeded = 138;
   google.protobuf.StringValue timespec = 139;
   google.protobuf.StringValue tmp_dir = 140;
-  google.protobuf.StringValue wandb_dir = 142;
   google.protobuf.StringValue x_jupyter_name = 143;
   google.protobuf.StringValue x_jupyter_path = 144;
   google.protobuf.StringValue job_name = 145;

@@ -17,7 +17,11 @@ type mockRuntimeMetricServiceClient struct {
 	metrics map[monitor.TPUMetricName][]*tpuproto.Metric
 }
 
-func (m *mockRuntimeMetricServiceClient) GetRuntimeMetric(ctx context.Context, in *tpuproto.MetricRequest, opts ...grpc.CallOption) (*tpuproto.MetricResponse, error) {
+func (m *mockRuntimeMetricServiceClient) GetRuntimeMetric(
+	ctx context.Context,
+	in *tpuproto.MetricRequest,
+	opts ...grpc.CallOption,
+) (*tpuproto.MetricResponse, error) {
 	metrics, ok := m.metrics[monitor.TPUMetricName(in.MetricName)]
 	if !ok {
 		return nil, fmt.Errorf("metric not found")
@@ -25,6 +29,20 @@ func (m *mockRuntimeMetricServiceClient) GetRuntimeMetric(ctx context.Context, i
 	return &tpuproto.MetricResponse{
 		Metric: &tpuproto.TPUMetric{
 			Metrics: metrics,
+		},
+	}, nil
+}
+
+func (m *mockRuntimeMetricServiceClient) ListSupportedMetrics(
+	ctx context.Context,
+	in *tpuproto.ListSupportedMetricsRequest,
+	opts ...grpc.CallOption,
+) (*tpuproto.ListSupportedMetricsResponse, error) {
+	return &tpuproto.ListSupportedMetricsResponse{
+		SupportedMetric: []*tpuproto.SupportedMetric{
+			{MetricName: string(monitor.TPUTotalMemory)},
+			{MetricName: string(monitor.TPUMemoryUsage)},
+			{MetricName: string(monitor.TPUDutyCyclePct)},
 		},
 	}, nil
 }

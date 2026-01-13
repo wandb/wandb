@@ -2,42 +2,88 @@ syntax = "proto3";
 
 package wandb_internal;
 
-import "wandb/proto/wandb_base.proto";
+import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
+
+// ServerApiInitRequest instructs the backend process
+// to initialize resources to handle ApiRequests.
+//
+// This should be sent once prior to sending any ApiRequests.
+message ServerApiInitRequest {
+  Settings settings = 1;
+}
 
 // ApiRequest is a request to the backend process
 // to perform an action related to an API call.
 message ApiRequest {
   oneof request {
-    ReadRunHistoryApiRequest read_run_history = 1;
+    ReadRunHistoryRequest read_run_history_request = 1;
   }
+}
+
+message ServerApiInitResponse {
+  string error_message = 1;
 }
 
 // ApiResponse is a response from the backend process for an ApiRequest.
 message ApiResponse {
   oneof response {
-    ReadRunHistoryApiResponse read_run_history = 1;
+    ReadRunHistoryResponse read_run_history_response = 1;
+    ApiErrorResponse api_error_response = 2;
   }
 }
 
-// Start of Read run history
-// ReadRunHistoryApiRequest is a request to get a slice of a run's history.
+message ApiErrorResponse {
+  string message = 1;
+}
 
-message ReadRunHistoryApiRequest {
+// Start of Scan run history
+
+message ReadRunHistoryRequest {
+  oneof request {
+    ScanRunHistoryInit scan_run_history_init = 1;
+    ScanRunHistory scan_run_history = 2;
+    ScanRunHistoryCleanup scan_run_history_cleanup = 3;
+  }
+}
+
+message ReadRunHistoryResponse {
+  oneof response {
+    ScanRunHistoryInitResponse scan_run_history_init = 1;
+    RunHistoryResponse run_history = 2;
+    ScanRunHistoryCleanupResponse scan_run_history_cleanup = 3;
+  }
+}
+
+// ScanRunHistoryInit is a request to initialize
+// a scan over a run's history.
+//
+// Because scan history request will be made over a series of requests,
+// We want to keep initialize and keep track of the resources
+// associated with the scan request.
+message ScanRunHistoryInit {
   string entity = 1;
   string project = 2;
   string run_id = 3;
   repeated string keys = 4;
-  int64 min_step = 5;
-  int64 max_step = 6;
-
-  _RecordInfo _info = 200;
+  bool use_cache = 5;
 }
 
-message ReadRunHistoryApiResponse {
+message ScanRunHistoryInitResponse {
+  int32 request_id = 1;
+}
+
+// ScanRunHistory is a request to scan
+// over a portion of a run's history.
+message ScanRunHistory {
+  int64 min_step = 1;
+  int64 max_step = 2;
+  int32 request_id = 3;
+}
+
+message RunHistoryResponse {
   repeated HistoryRow history_rows = 1;
-  string error_message = 2;
 }
 
 message HistoryRow {
@@ -49,4 +95,12 @@ message ParquetHistoryItem {
   string value_json = 16;
 }
 
-// End of Read run history
+// ScanRunHistoryCleanup is a request to cleanup
+// any resources associated with a scan request.
+message ScanRunHistoryCleanup {
+  int32 request_id = 1;
+}
+
+message ScanRunHistoryCleanupResponse {}
+
+// End of Scan run history

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/wandb/wandb/core/internal/monitor/tpuproto"
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/local"
@@ -44,7 +45,16 @@ type TPUChip struct {
 }
 
 type RuntimeMetricServiceClient interface {
-	GetRuntimeMetric(ctx context.Context, in *tpuproto.MetricRequest, opts ...grpc.CallOption) (*tpuproto.MetricResponse, error)
+	GetRuntimeMetric(
+		ctx context.Context,
+		in *tpuproto.MetricRequest,
+		opts ...grpc.CallOption,
+	) (*tpuproto.MetricResponse, error)
+	ListSupportedMetrics(
+		ctx context.Context,
+		in *tpuproto.ListSupportedMetricsRequest,
+		opts ...grpc.CallOption,
+	) (*tpuproto.ListSupportedMetricsResponse, error)
 }
 
 // TPU represents a TPU resource with gRPC connection and client.
@@ -63,11 +73,14 @@ type TPU struct {
 
 	// Total number of TPU devices detected.
 	count int
+
+	// logger is the debug logger.
+	logger *observability.CoreLogger
 }
 
 // NewTPU creates a new TPU instance by detecting local TPU chips and initializing the gRPC connection.
-func NewTPU() *TPU {
-	t := &TPU{}
+func NewTPU(logger *observability.CoreLogger) *TPU {
+	t := &TPU{logger: logger}
 
 	chip, count := getLocalTPUChips()
 	if count == 0 {
@@ -143,7 +156,7 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 		deviceID := duty.GetAttribute().GetValue().GetIntAttr()
 		dutyCycle := duty.GetGauge().GetAsDouble()
 		if t.chip.DevicesPerChip == 2 {
-			// For v2/v3 chips, distribute duty cycle to both devices
+			// For v2/v3/v7x chips, distribute duty cycle to both devices
 			dutyCyclesPerCore[deviceID*2] = dutyCycle
 			dutyCyclesPerCore[deviceID*2+1] = dutyCycle
 		} else {
@@ -265,6 +278,8 @@ func tpuChipFromPCIDeviceID(deviceID, subsystemID string) (TPUChip, error) {
 		return TPUChip{Name: "v5p", HbmGiB: 95, DevicesPerChip: 1}, nil
 	case "0x006f":
 		return TPUChip{Name: "v6e", HbmGiB: 32, DevicesPerChip: 1}, nil
+	case "0x0076":
+		return TPUChip{Name: "7x", HbmGiB: 192, DevicesPerChip: 2}, nil
 	}
 
 	return TPUChip{}, fmt.Errorf("unknown TPU chip")
@@ -284,9 +299,20 @@ func (t *TPU) getMetrics(metricName TPUMetricName) ([]*tpuproto.Metric, error) {
 }
 
 // Probe returns the TPU metadata.
-func (t *TPU) Probe(_ context.Context) *spb.EnvironmentRecord {
+func (t *TPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
 	if t.count == 0 {
 		return nil
+	}
+
+	// Log available metric names.
+	req := &tpuproto.ListSupportedMetricsRequest{}
+	resp, err := t.client.ListSupportedMetrics(ctx, req)
+	if err == nil {
+		supportedMetrics := []string{}
+		for _, sm := range resp.SupportedMetric {
+			supportedMetrics = append(supportedMetrics, sm.MetricName)
+		}
+		t.logger.Debug("tpu: supported metrics", "metrics", supportedMetrics)
 	}
 
 	return &spb.EnvironmentRecord{

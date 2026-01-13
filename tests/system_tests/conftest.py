@@ -6,12 +6,17 @@ from typing import Callable, Generator, Iterator
 
 import pytest
 
+from tests.fixtures.wandb_backend_spy import (
+    WandbBackendProxy,
+    WandbBackendSpy,
+    spy_proxy,
+)
+
 from .backend_fixtures import (
     BackendFixtureFactory,
     LocalWandbBackendAddress,
     connect_to_local_wandb_backend,
 )
-from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 
 
 @pytest.fixture(scope="session")
@@ -107,7 +112,8 @@ class UserOrg:
 
 @pytest.fixture
 def user_in_orgs_factory(
-    mocker: pytest.MonkeyPatch, backend_fixture_factory: BackendFixtureFactory
+    backend_fixture_factory: BackendFixtureFactory,
+    user: str,
 ) -> Iterator[Callable[[int], UserOrg]]:
     """Fixture that provides a factory function to create a user and associated orgs.
 
@@ -119,13 +125,6 @@ def user_in_orgs_factory(
             # Get a user with the default (1) organization
             user_org_data_default = user_in_orgs_factory()
     """
-    username = backend_fixture_factory.make_user()
-    envvars = {
-        "WANDB_API_KEY": username,
-        "WANDB_ENTITY": username,
-        "WANDB_USERNAME": username,
-    }
-    mocker.patch.dict(os.environ, envvars)
 
     def _factory(number_of_orgs: int = 1) -> UserOrg:
         """Creates organizations for the pre-defined user."""
@@ -133,7 +132,7 @@ def user_in_orgs_factory(
             raise ValueError("Number of organizations have to be positive.")
         try:
             orgs = [
-                backend_fixture_factory.make_org(username=username)
+                backend_fixture_factory.make_org(username=user)
                 for _ in range(number_of_orgs)
             ]
         except Exception as e:
@@ -143,7 +142,7 @@ def user_in_orgs_factory(
                 f"Error: {e}",
             )
 
-        return UserOrg(username=username, organization_names=orgs)
+        return UserOrg(username=user, organization_names=orgs)
 
     yield _factory
 

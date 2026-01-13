@@ -1,6 +1,12 @@
 """Agent tests."""
 
 import os
+import platform
+import signal
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -84,3 +90,101 @@ def test_agent_create_sweep_command():
         "--foovar",
         "foo_var",
     ]
+
+
+def _write_signal_child_script(path: Path) -> Path:
+    script = path / "child_signal.py"
+    script.write_text(
+        textwrap.dedent(
+            """
+            import pathlib
+            import signal
+            import sys
+            import time
+
+            marker = pathlib.Path(sys.argv[1])
+
+            def _handle(signum, frame):
+                marker.write_text(str(signum))
+                sys.exit(0)
+
+            signal.signal(signal.SIGTERM, _handle)
+            signal.signal(signal.SIGINT, _handle)
+
+            while True:
+                time.sleep(0.1)
+            """
+        ).strip()
+    )
+    return script
+
+
+def _write_signal_parent_script(path: Path) -> Path:
+    script = path / "parent_signal.py"
+    script.write_text(
+        textwrap.dedent(
+            """
+            import os
+            import signal
+            import sys
+            import time
+            from pathlib import Path
+
+            from wandb.wandb_agent import AgentProcess
+
+            marker = Path(sys.argv[1])
+            child_script = Path(sys.argv[2])
+
+            signal.signal(signal.SIGTERM, lambda s, f: None)
+
+            proc = AgentProcess(
+                env=dict(os.environ),
+                command=[sys.executable, str(child_script), str(marker)],
+                forward_signals=True,
+            )
+
+            time.sleep(0.5)
+            os.kill(os.getpid(), signal.SIGTERM)
+
+            deadline = time.time() + 10
+            while proc.poll() is None and time.time() < deadline:
+                time.sleep(0.1)
+
+            if proc.poll() is None:
+                proc.terminate()
+                sys.exit(2)
+
+            if not marker.exists():
+                sys.exit(3)
+            """
+        ).strip()
+    )
+    return script
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="POSIX signals required for this test"
+)
+def test_agent_process_forwards_signals_end_to_end(tmp_path):
+    marker = tmp_path / "signal.txt"
+    child_script = _write_signal_child_script(tmp_path)
+    parent_script = _write_signal_parent_script(tmp_path)
+
+    repo_root = Path(__file__).resolve().parents[3]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = (
+        f"{repo_root}{os.pathsep}{env['PYTHONPATH']}"
+        if "PYTHONPATH" in env and env["PYTHONPATH"]
+        else str(repo_root)
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(parent_script), str(marker), str(child_script)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0, f"stderr:\n{result.stderr}"
+    assert marker.exists()
+    assert marker.read_text().strip() == str(int(signal.SIGTERM))

@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from dataclasses import asdict
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 from urllib.parse import ParseResult
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import Self
 
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
-from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
-from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
@@ -19,6 +21,36 @@ if TYPE_CHECKING:
 
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
+
+
+@pydantic_dataclass(frozen=True)
+class _HttpEntryInfo:
+    """Partial ArtifactManifestEntry fields parsed from an HTTP response."""
+
+    ref: str  # The reference URL for the manifest entry, i.e. original URL of the request
+    extra: Dict[str, Any]  # noqa: UP006
+    digest: Optional[str]  # noqa: UP045
+    size: Optional[int]  # noqa: UP045
+
+    @classmethod
+    def from_response(cls, rsp: requests.Response) -> Self:
+        # NOTE(tonyyli): For continuity with prior behavior, note that:
+        # - `extra["etag"]` includes leading/trailing quotes, if any, from the ETag
+        # - `digest` strips leading/trailing quotes, if any, from the ETag
+        #
+        # - `digest` apparently falls back to the original reference URL (request URL)
+        #   if no ETag is present. This is weird: wouldn't we hash the response body
+        #   instead of using the URL? For now, at the time of writing/refactoring this,
+        #   we'll maintain the prior behavior to minimize risk of breakage.
+        headers: CaseInsensitiveDict = rsp.headers
+        etag = headers.get("etag")
+        ref_url = rsp.request.url
+        return cls(
+            ref=cast(str, ref_url),
+            extra={"etag": etag} if etag else {},
+            digest=etag.strip('"') if etag else ref_url,
+            size=headers.get("content-length"),
+        )
 
 
 class HTTPHandler(StorageHandler):
@@ -34,44 +66,42 @@ class HTTPHandler(StorageHandler):
     def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
 
+    def _get_stream(self, url: str) -> requests.Response:
+        """Returns a streaming response from a GET request to the given URL."""
+        return self._session.get(
+            url,
+            stream=True,
+        )
+
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> URIStr | FilePathStr:
+        if (ref_url := manifest_entry.ref) is None:
+            raise ValueError("Missing URL on artifact manifest entry")
         if not local:
-            assert manifest_entry.ref is not None
-            return manifest_entry.ref
+            return ref_url
 
-        assert manifest_entry.ref is not None
+        expected_digest = manifest_entry.digest
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            URIStr(manifest_entry.ref),
-            ETag(manifest_entry.digest),
-            manifest_entry.size or 0,
+            url=ref_url, etag=expected_digest, size=manifest_entry.size or 0
         )
         if hit:
             return path
 
-        response = self._session.get(
-            manifest_entry.ref,
-            stream=True,
-            cookies=_thread_local_api_settings.cookies,
-            headers=_thread_local_api_settings.headers,
-        )
+        with self._get_stream(ref_url) as rsp:
+            entry_info = _HttpEntryInfo.from_response(rsp)
+            if (digest := entry_info.digest) != expected_digest:
+                raise ValueError(
+                    f"Digest mismatch for url {ref_url!r}: expected {expected_digest!r} but found {digest!r}"
+                )
 
-        digest: ETag | FilePathStr | URIStr | None
-        digest, size, extra = self._entry_from_headers(response.headers)
-        digest = digest or manifest_entry.ref
-        if manifest_entry.digest != digest:
-            raise ValueError(
-                f"Digest mismatch for url {manifest_entry.ref}: expected {manifest_entry.digest} but found {digest}"
-            )
-
-        with cache_open(mode="wb") as file:
-            for data in response.iter_content(chunk_size=16 * 1024):
-                file.write(data)
-        return path
+            with cache_open(mode="wb") as file:
+                for data in rsp.iter_content(chunk_size=128 * 1024):
+                    file.write(data)
+            return path
 
     def store_path(
         self,
@@ -85,33 +115,6 @@ class HTTPHandler(StorageHandler):
         if not checksum:
             return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
 
-        with self._session.get(
-            path,
-            stream=True,
-            cookies=_thread_local_api_settings.cookies,
-            headers=_thread_local_api_settings.headers,
-        ) as response:
-            digest: ETag | FilePathStr | URIStr | None
-            digest, size, extra = self._entry_from_headers(response.headers)
-            digest = digest or path
-        return [
-            ArtifactManifestEntry(
-                path=name, ref=path, digest=digest, size=size, extra=extra
-            )
-        ]
-
-    def _entry_from_headers(
-        self, headers: CaseInsensitiveDict
-    ) -> tuple[ETag | None, int | None, dict[str, str]]:
-        response_headers = {k.lower(): v for k, v in headers.items()}
-        size = None
-        if response_headers.get("content-length", None):
-            size = int(response_headers["content-length"])
-
-        digest = response_headers.get("etag", None)
-        extra = {}
-        if digest:
-            extra["etag"] = digest
-        if digest and digest[:1] == '"' and digest[-1:] == '"':
-            digest = digest[1:-1]  # trim leading and trailing quotes around etag
-        return digest, size, extra
+        with self._get_stream(path) as rsp:
+            entry_info = _HttpEntryInfo.from_response(rsp)
+            return [ArtifactManifestEntry(path=name, **asdict(entry_info))]

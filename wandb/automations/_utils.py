@@ -5,7 +5,7 @@ from typing import Any, Collection, Final, Optional, Protocol, TypedDict
 from pydantic import Field
 from typing_extensions import Annotated, Self, Unpack
 
-from wandb._pydantic import GQLBase, GQLId, computed_field, model_validator, to_json
+from wandb._pydantic import GQLId, GQLInput, computed_field, model_validator, to_json
 
 from ._filters import MongoLikeFilter
 from ._generated import (
@@ -14,7 +14,7 @@ from ._generated import (
     TriggeredActionConfig,
     UpdateFilterTriggerInput,
 )
-from ._validators import to_input_action
+from ._validators import parse_input_action
 from .actions import (
     ActionType,
     DoNothing,
@@ -27,19 +27,19 @@ from .automations import Automation, NewAutomation
 from .events import EventType, InputEvent, RunMetricFilter, _WrappedSavedEventFilter
 from .scopes import AutomationScope, ScopeType
 
-EXCLUDED_INPUT_EVENTS: Final[Collection[EventType]] = frozenset(
-    {
-        EventType.UPDATE_ARTIFACT_ALIAS,
-    }
-)
-"""Event types that should not be assigned when creating/updating automations."""
+INVALID_INPUT_EVENTS: Final[Collection[EventType]] = (EventType.UPDATE_ARTIFACT_ALIAS,)
+"""Event types that should NOT be allowed as new values on new or edited automations.
 
-EXCLUDED_INPUT_ACTIONS: Final[Collection[ActionType]] = frozenset(
-    {
-        ActionType.QUEUE_JOB,
-    }
-)
-"""Action types that should not be assigned when creating/updating automations."""
+While we forbid new/edited automations from assigning these event types,
+they're defined so that we can still parse existing automations that may use them.
+"""
+
+INVALID_INPUT_ACTIONS: Final[Collection[ActionType]] = (ActionType.QUEUE_JOB,)
+"""Action types that should NOT be allowed as new values on new or edited automations.
+
+While we forbid new/edited automations from assigning these action types,
+they're defined so that we can still parse existing automations that may use them.
+"""
 
 ALWAYS_SUPPORTED_EVENTS: Final[Collection[EventType]] = frozenset(
     {
@@ -48,7 +48,7 @@ ALWAYS_SUPPORTED_EVENTS: Final[Collection[EventType]] = frozenset(
         EventType.ADD_ARTIFACT_ALIAS,
     }
 )
-"""Event types that we can safely assume all contemporary server versions support."""
+"""Event types that should be supported by all current, non-EOL server versions."""
 
 ALWAYS_SUPPORTED_ACTIONS: Final[Collection[ActionType]] = frozenset(
     {
@@ -56,7 +56,7 @@ ALWAYS_SUPPORTED_ACTIONS: Final[Collection[ActionType]] = frozenset(
         ActionType.GENERIC_WEBHOOK,
     }
 )
-"""Action types that we can safely assume all contemporary server versions support."""
+"""Action types that should be supported by all current, non-EOL server versions."""
 
 
 class HasId(Protocol):
@@ -77,7 +77,7 @@ ACTION_CONFIG_KEYS: dict[ActionType, str] = {
 
 
 class InputActionConfig(TriggeredActionConfig):
-    """A `TriggeredActionConfig` that prepares the action config for saving an automation."""
+    """Prepares action configuration data for saving an automation."""
 
     # NOTE: `QueueJobActionInput` for defining a Launch job is deprecated,
     # so while it's allowed here to update EXISTING mutations, we don't
@@ -90,35 +90,34 @@ class InputActionConfig(TriggeredActionConfig):
 
 
 def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any]:
-    """Prepare the `TriggeredActionConfig` input, nesting the action input inside the appropriate key.
+    """Nests the action input under the correct key for `TriggeredActionConfig`.
 
     This is necessary to conform to the schemas for:
-    - CreateFilterTriggerInput
-    - UpdateFilterTriggerInput
+    - `CreateFilterTriggerInput`
+    - `UpdateFilterTriggerInput`
     """
     # Delegate to inner validators to convert SavedAction -> InputAction types, if needed.
-    obj = to_input_action(obj)
+    obj = parse_input_action(obj)
     return InputActionConfig(**{ACTION_CONFIG_KEYS[obj.action_type]: obj}).model_dump()
 
 
 def prepare_event_filter_input(
     obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter,
 ) -> str:
-    """Prepare the `EventFilter` input, unnesting the filter if needed and serializing to JSON.
+    """Unnests (if needed) and serializes an `EventFilter` input to JSON.
 
     This is necessary to conform to the schemas for:
-    - CreateFilterTriggerInput
-    - UpdateFilterTriggerInput
+    - `CreateFilterTriggerInput`
+    - `UpdateFilterTriggerInput`
     """
     # Input event filters are nested one level deeper than saved event filters.
     # Note that this is NOT the case for run/run metric filters.
     #
     # Yes, this is confusing.  It's also necessary to conform to under-the-hood
     # schemas and logic in the backend.
-    filter_to_serialize = (
-        obj.filter if isinstance(obj, _WrappedSavedEventFilter) else obj
-    )
-    return to_json(filter_to_serialize)
+    if isinstance(obj, _WrappedSavedEventFilter):
+        return to_json(obj.filter)
+    return to_json(obj)
 
 
 class WriteAutomationsKwargs(TypedDict, total=False):
@@ -132,7 +131,7 @@ class WriteAutomationsKwargs(TypedDict, total=False):
     action: InputAction
 
 
-class ValidatedCreateInput(GQLBase, extra="forbid", frozen=True):
+class ValidatedCreateInput(GQLInput, extra="forbid", frozen=True):
     """Validated automation parameters, prepared for creating a new automation.
 
     Note: Users should never need to instantiate this class directly.
@@ -178,13 +177,13 @@ class ValidatedCreateInput(GQLBase, extra="forbid", frozen=True):
     # Custom validation
     @model_validator(mode="after")
     def _forbid_legacy_event_types(self) -> Self:
-        if (type_ := self.event.event_type) in EXCLUDED_INPUT_EVENTS:
+        if (type_ := self.event.event_type) in INVALID_INPUT_EVENTS:
             raise ValueError(f"{type_!r} events cannot be assigned to automations.")
         return self
 
     @model_validator(mode="after")
     def _forbid_legacy_action_types(self) -> Self:
-        if (type_ := self.action.action_type) in EXCLUDED_INPUT_ACTIONS:
+        if (type_ := self.action.action_type) in INVALID_INPUT_ACTIONS:
             raise ValueError(f"{type_!r} actions cannot be assigned to automations.")
         return self
 
@@ -198,16 +197,9 @@ def prepare_to_create(
     # Validate all input variables, and prepare as expected by the GraphQL request.
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
-
-    # NOTE: `exclude_none=True` drops fields that are still `None`.
-    #
-    # This assumes that `None` is good enough for now as a sentinel
-    # "unset" value.  If this proves insufficient, revisit in the future,
-    # as it should be reasonably easy to implement a custom sentinel
-    # type later on.
-    obj_dict = {**obj.model_dump(exclude_none=True), **kwargs} if obj else kwargs
-    validated = ValidatedCreateInput(**obj_dict)
-    return CreateFilterTriggerInput.model_validate(validated)
+    obj_dict = {**obj.model_dump(), **kwargs} if obj else kwargs
+    vobj = ValidatedCreateInput(**obj_dict)
+    return CreateFilterTriggerInput.model_validate(vobj)
 
 
 def prepare_to_update(
@@ -219,17 +211,16 @@ def prepare_to_update(
     # Validate all values:
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
-    v_obj = Automation(**{**dict(obj or {}), **kwargs})
-
+    vobj = Automation(**{**dict(obj or {}), **kwargs})
     return UpdateFilterTriggerInput(
-        id=v_obj.id,
-        name=v_obj.name,
-        description=v_obj.description,
-        enabled=v_obj.enabled,
-        scope_type=v_obj.scope.scope_type,
-        scope_id=v_obj.scope.id,
-        triggering_event_type=v_obj.event.event_type,
-        event_filter=prepare_event_filter_input(v_obj.event.filter),
-        triggered_action_type=v_obj.action.action_type,
-        triggered_action_config=prepare_action_config_input(v_obj.action),
+        id=vobj.id,
+        name=vobj.name,
+        description=vobj.description,
+        enabled=vobj.enabled,
+        scope_type=vobj.scope.scope_type,
+        scope_id=vobj.scope.id,
+        triggering_event_type=vobj.event.event_type,
+        event_filter=prepare_event_filter_input(vobj.event.filter),
+        triggered_action_type=vobj.action.action_type,
+        triggered_action_config=prepare_action_config_input(vobj.action),
     )

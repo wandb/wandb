@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import functools
 import json
 import logging
 import os
@@ -27,11 +28,12 @@ from typing_extensions import Any, Literal, Protocol, Self
 import wandb
 import wandb.env
 from wandb import env, trigger
+from wandb.analytics import get_sentry
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker, weave
-from wandb.proto.wandb_deprecated import Deprecated
+from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import progress, runid, wb_logging
 from wandb.sdk.lib.paths import StrPath
@@ -40,7 +42,7 @@ from wandb.util import _is_artifact_representation
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
-from .lib.deprecate import deprecate
+from .lib.deprecation import UNSET, DoNotSet, warn_and_record_deprecation
 from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
@@ -159,7 +161,7 @@ class _WandbInit:
         self._teardown_hooks: list[TeardownHook] = []
         self.notebook: wandb.jupyter.Notebook | None = None
 
-        self.deprecated_features_used: dict[str, str] = dict()
+        self.deprecated_features_used: list[tuple[Deprecated, str]] = []
 
     @property
     def _logger(self) -> wandb_setup.Logger:
@@ -187,12 +189,16 @@ class _WandbInit:
         if run_settings._noop or run_settings._offline:
             return
 
+        # Only pass an explicit key when the key was provided directly
+        # to ensure correct messaging in _login().
+        explicit_key = init_settings.api_key
+
         wandb_login._login(
-            anonymous=run_settings.anonymous,
             host=run_settings.base_url,
             force=run_settings.force,
-            _disable_warning=True,
             _silent=run_settings.quiet or run_settings.silent,
+            key=explicit_key,
+            update_api_key=explicit_key is None,
         )
 
     def warn_env_vars_change_after_setup(self) -> _PrinterCallback:
@@ -444,16 +450,22 @@ class _WandbInit:
             Initial values for the run's config.
         """
         if config_exclude_keys:
-            self.deprecated_features_used["init__config_exclude_keys"] = (
-                "config_exclude_keys is deprecated. Use"
-                " `config=wandb.helper.parse_config(config_object,"
-                " exclude=('key',))` instead."
+            self.deprecated_features_used.append(
+                (
+                    Deprecated(init__config_exclude_keys=True),
+                    "config_exclude_keys is deprecated. Use"
+                    " `config=wandb.helper.parse_config(config_object,"
+                    " exclude=('key',))` instead.",
+                )
             )
         if config_include_keys:
-            self.deprecated_features_used["init__config_include_keys"] = (
-                "config_include_keys is deprecated. Use"
-                " `config=wandb.helper.parse_config(config_object,"
-                " include=('key',))` instead."
+            self.deprecated_features_used.append(
+                (
+                    Deprecated(init__config_include_keys=True),
+                    "config_include_keys is deprecated. Use"
+                    " `config=wandb.helper.parse_config(config_object,"
+                    " include=('key',))` instead.",
+                )
             )
         config = parse_config(
             config or dict(),
@@ -951,10 +963,10 @@ class _WandbInit:
             else:
                 run._label_probe_main()
 
-        for deprecated_feature, msg in self.deprecated_features_used.items():
-            deprecate(
-                field_name=getattr(Deprecated, deprecated_feature),
-                warning_message=msg,
+        for deprecated_feature, msg in self.deprecated_features_used:
+            warn_and_record_deprecation(
+                feature=deprecated_feature,
+                message=msg,
                 run=run,
             )
 
@@ -988,24 +1000,20 @@ class _WandbInit:
 
         run_init_handle = backend.interface.deliver_run(run)
 
-        async def display_init_message() -> None:
-            assert backend.interface
-
+        try:
             with progress.progress_printer(
                 run_printer,
                 default_text="Waiting for wandb.init()...",
             ) as progress_printer:
-                await progress.loop_printing_operation_stats(
-                    progress_printer,
-                    backend.interface,
+                result = wait_with_progress(
+                    run_init_handle,
+                    timeout=timeout,
+                    display_progress=functools.partial(
+                        progress.loop_printing_operation_stats,
+                        progress_printer,
+                        backend.interface,
+                    ),
                 )
-
-        try:
-            result = wait_with_progress(
-                run_init_handle,
-                timeout=timeout,
-                display_progress=display_init_message,
-            )
 
         except TimeoutError:
             run_init_handle.cancel(backend.interface)
@@ -1101,7 +1109,6 @@ def _attach(
         raise UsageError(
             "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
         )
-    wandb._assert_is_user_process()  # type: ignore
 
     _wl = wandb_setup.singleton()
     logger = _wl._get_logger()
@@ -1260,7 +1267,6 @@ def init(  # noqa: C901
     job_type: str | None = None,
     mode: Literal["online", "offline", "disabled", "shared"] | None = None,
     force: bool | None = None,
-    anonymous: Literal["never", "allow", "must"] | None = None,
     reinit: (
         bool
         | Literal[
@@ -1279,6 +1285,7 @@ def init(  # noqa: C901
     sync_tensorboard: bool | None = None,
     monitor_gym: bool | None = None,
     settings: Settings | dict[str, Any] | None = None,
+    anonymous: DoNotSet = UNSET,
 ) -> Run:
     r"""Start a new run to track and log to W&B.
 
@@ -1375,16 +1382,6 @@ def init(  # noqa: C901
             the user must be logged in to W&B; otherwise, the script will not
             proceed. If `False` (default), the script can proceed without a login,
             switching to offline mode if the user is not logged in.
-        anonymous: Specifies the level of control over anonymous data logging.
-            Available options are:
-        - `"never"` (default): Requires you to link your W&B account before
-            tracking the run. This prevents unintentional creation of anonymous
-            runs by ensuring each run is associated with an account.
-        - `"allow"`: Enables a logged-in user to track runs with their account,
-            but also allows someone running the script without a W&B account
-            to view the charts and data in the UI.
-        - `"must"`: Forces the run to be logged to an anonymous account, even
-            if the user is logged in.
         reinit: Shorthand for the "reinit" setting. Determines the behavior of
             `wandb.init()` when a run is active.
         resume: Controls the behavior when resuming a run with the specified `id`.
@@ -1459,8 +1456,6 @@ def init(  # noqa: C901
         run.log({"accuracy": acc, "loss": loss})
     ```
     """
-    wandb._assert_is_user_process()  # type: ignore
-
     init_telemetry = telemetry.TelemetryRecord()
 
     init_settings = Settings()
@@ -1488,8 +1483,8 @@ def init(  # noqa: C901
         init_settings.run_name = name
     if notes is not None:
         init_settings.run_notes = notes
-    if anonymous is not None:
-        init_settings.anonymous = anonymous  # type: ignore
+    if anonymous is not UNSET:
+        init_settings.anonymous = anonymous
     if mode is not None:
         init_settings.mode = mode  # type: ignore
     if resume is not None:
@@ -1524,9 +1519,12 @@ def init(  # noqa: C901
         run_settings, show_warnings = wi.make_run_settings(init_settings)
 
         if isinstance(run_settings.reinit, bool):
-            wi.deprecated_features_used["run__reinit_bool"] = (
-                "Using a boolean value for 'reinit' is deprecated."
-                " Use 'return_previous' or 'finish_previous' instead."
+            wi.deprecated_features_used.append(
+                (
+                    Deprecated(run__reinit_bool=True),
+                    "Using a boolean value for 'reinit' is deprecated."
+                    " Use 'return_previous' or 'finish_previous' instead.",
+                )
             )
 
         if run_settings.run_id is not None:
@@ -1596,6 +1594,4 @@ def init(  # noqa: C901
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
 
-        # Need to build delay into this sentry capture because our exit hooks
-        # mess with sentry's ability to send out errors before the program ends.
-        wandb._sentry.reraise(e)
+        get_sentry().reraise(e)

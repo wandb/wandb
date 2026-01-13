@@ -59,12 +59,12 @@ func (fs *FakeStopwatch) Reset() {
 }
 
 func (fs *FakeStopwatch) Wait() (<-chan struct{}, func()) {
-	if fs.IsDone() {
-		return completedDelay(), func() {}
-	}
-
 	fs.Lock()
 	defer fs.Unlock()
+
+	if fs.done || fs.doneForever {
+		return completedDelay(), func() {}
+	}
 
 	if fs.waitChan == nil {
 		fs.waitChan = make(chan struct{})

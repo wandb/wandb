@@ -102,8 +102,15 @@ def test_multiple_orgs_raises_error(mock_fetch_orgs_and_org_entities_from_entity
         fetch_org_from_settings_or_entity(settings)
 
 
+def normalize_gql_str(gql_str: str) -> str:
+    """Test helper to normalize a GraphQL string for consistent comparison and easier diffing."""
+    normalized_str = print_ast(gql(gql_str))
+    # handle whitespace consistently for easier diffing
+    return "\n".join(filter(str.strip, normalized_str.splitlines()))
+
+
 def test_gql_compat():
-    """Test that gql_compat rewrites a GraphQL request by omitting the expected parts."""
+    """Test that gql_compat rewrites a reasonably complex, realistic GraphQL request by omitting the expected parts."""
     omit_fragments = ["ArtifactInfo"]
     omit_variables = ["ttlDurationSeconds", "tagsToAdd", "tagsToDelete"]
     omit_fields = ["ttlDurationSeconds", "ttlIsInherited", "tags"]
@@ -187,17 +194,82 @@ def test_gql_compat():
     )
 
     # Normalize the expected and actual query strings for consistent comparison
-    orig_query_str = print_ast(gql(orig_query_str))
-    orig_query_str = "\n".join(filter(str.strip, orig_query_str.splitlines()))
-
-    expected_query_str = print_ast(gql(expected_query_str))
-    expected_query_str = "\n".join(filter(str.strip, expected_query_str.splitlines()))
-
-    compat_query_str = print_ast(compat_query)
-    compat_query_str = "\n".join(filter(str.strip, compat_query_str.splitlines()))
+    orig_query_str = normalize_gql_str(orig_query_str)
+    expected_query_str = normalize_gql_str(expected_query_str)
+    compat_query_str = normalize_gql_str(print_ast(compat_query))
 
     assert compat_query_str == expected_query_str
     assert compat_query_str != orig_query_str
+
+
+def test_gql_compat_omits_unused_fragments():
+    # NOTE: fragment definitions below are deliberately in an unconventional order.
+    # This is to test that the rewriter is agnostic to -- and preserves -- the original ordering.
+    orig_query_str = dedent(
+        """\
+        fragment KeptFragmentA on KeptTypeA {
+            keptInnerFieldA
+        }
+
+        query MyQuery {
+            ...KeptFragmentA
+            ...KeptFragmentB
+            keptField
+            removedParentField {...RemovedFragment}
+        }
+
+        fragment RemovedFragment on RemovedType {
+            removedInnerField
+            ...OrphanedFragment
+        }
+        fragment OrphanedFragment on RemovedType {
+            anotherRemovedInnerField
+        }
+
+        fragment KeptFragmentB on KeptTypeB {
+            ...KeptNestedFragment
+        }
+        fragment KeptNestedFragment on KeptTypeB {
+            keptInnerFieldB
+        }
+        """
+    )
+    expected_query_str = dedent(
+        """\
+        fragment KeptFragmentA on KeptTypeA {
+            keptInnerFieldA
+        }
+        query MyQuery {
+            ...KeptFragmentA
+            ...KeptFragmentB
+            keptField
+        }
+        fragment KeptFragmentB on KeptTypeB {
+            ...KeptNestedFragment
+        }
+        fragment KeptNestedFragment on KeptTypeB {
+            keptInnerFieldB
+        }
+        """
+    )
+
+    # Omit RemovedFragment by its fragment (spread) name
+    compat_query = gql_compat(orig_query_str, omit_fragments={"RemovedFragment"})
+
+    compat_query_str = normalize_gql_str(print_ast(compat_query))
+    expected_query_str = normalize_gql_str(expected_query_str)
+
+    assert compat_query_str != orig_query_str
+    assert compat_query_str == expected_query_str
+
+    # Omit RemovedFragment by its _parent_ field name
+    compat_query = gql_compat(orig_query_str, omit_fields={"removedParentField"})
+
+    compat_query_str = normalize_gql_str(print_ast(compat_query))
+    expected_query_str = normalize_gql_str(expected_query_str)
+
+    assert compat_query_str != orig_query_str
+    assert compat_query_str == expected_query_str
 
 
 def test_gql_compat_rename_fields():
@@ -251,14 +323,9 @@ def test_gql_compat_rename_fields():
     )
 
     # Normalize the query strings for consistent comparison
-    orig_query_str = print_ast(gql(orig_query_str))
-    orig_query_str = "\n".join(filter(str.strip, orig_query_str.splitlines()))
-
-    expected_query_str = print_ast(gql(expected_query_str))
-    expected_query_str = "\n".join(filter(str.strip, expected_query_str.splitlines()))
-
-    compat_query_str = print_ast(compat_query)
-    compat_query_str = "\n".join(filter(str.strip, compat_query_str.splitlines()))
+    orig_query_str = normalize_gql_str(orig_query_str)
+    expected_query_str = normalize_gql_str(expected_query_str)
+    compat_query_str = normalize_gql_str(print_ast(compat_query))
 
     assert compat_query_str == expected_query_str
     assert compat_query_str != orig_query_str

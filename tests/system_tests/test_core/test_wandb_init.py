@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.errors import CommError
+from wandb.errors import AuthenticationError, CommError
 from wandb.sdk.lib import runid
 
 
@@ -121,6 +121,27 @@ def test_init_param_not_set_telemetry(wandb_backend_spy):
         assert 14 not in features  # set_init_id
         assert 15 not in features  # set_init_tags
         assert 16 not in features  # set_init_config
+
+
+def test_init_uses_given_api_key():
+    api_key = "invalid-api-key"
+    with pytest.raises(AuthenticationError, match=r"API key must have 40\+ characters"):
+        wandb.init(settings=wandb.Settings(api_key=api_key))
+
+
+def test_init_with_api_key_no_netrc(user, tmp_path, monkeypatch):
+    netrc_path = str(tmp_path / "netrc")
+    monkeypatch.setenv("NETRC", netrc_path)
+
+    # No netrc before init
+    assert not os.path.exists(netrc_path)
+
+    # Explicitly pass the key
+    with wandb.init(settings=wandb.Settings(api_key=user)):
+        pass
+
+    # No netrc after init
+    assert not os.path.exists(netrc_path)
 
 
 def test_shared_mode_x_label(user):

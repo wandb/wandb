@@ -168,7 +168,14 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 				)
 			},
 			httpServerHandler: func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte("cluster_name: partial-cluster\norg_id: partial-org\ninvalid line\nregion: partial-region"))
+				_, _ = w.Write(
+					[]byte(
+						"cluster_name: partial-cluster" +
+							"\norg_id: partial-org" +
+							"\ninvalid line" +
+							"\nregion: partial-region",
+					),
+				)
 			},
 			expectedEnvironment: &spb.EnvironmentRecord{
 				Coreweave: &spb.CoreWeaveInfo{

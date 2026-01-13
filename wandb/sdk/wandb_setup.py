@@ -34,9 +34,9 @@ from typing import TYPE_CHECKING, Any, Union
 import wandb
 import wandb.integration.sagemaker as sagemaker
 from wandb.env import CONFIG_DIR
+from wandb.errors import UsageError
 from wandb.sdk.lib import asyncio_manager, import_hooks, wb_logging
 
-from . import wandb_settings
 from .lib import config_util, server
 
 if TYPE_CHECKING:
@@ -204,7 +204,9 @@ class _WandbSetup:
                 SageMaker.
             overrides: Additional settings to apply to the global settings.
         """
-        self._settings = wandb_settings.Settings()
+        from wandb.sdk.wandb_settings import Settings
+
+        self._settings = Settings()
 
         # the pid of the process to monitor for system stats
         pid = os.getpid()
@@ -221,20 +223,7 @@ class _WandbSetup:
             self._settings.settings_system = str(
                 pathlib.Path("~", ".config", "wandb", "settings").expanduser()
             )
-
-        # load settings from the system config
-        if self._settings.settings_system:
-            self._logger.info(
-                f"Loading settings from {self._settings.settings_system}",
-            )
-        self._settings.update_from_system_config_file()
-
-        # load settings from the workspace config
-        if self._settings.settings_workspace:
-            self._logger.info(
-                f"Loading settings from {self._settings.settings_workspace}",
-            )
-        self._settings.update_from_workspace_config_file()
+        self._settings.update_from_system_settings()
 
         # load settings from the environment variables
         self._logger.info("Loading settings from environment variables")
@@ -281,9 +270,6 @@ class _WandbSetup:
     def update_user_settings(self) -> None:
         # Get rid of cached results to force a refresh.
         self._server = None
-        user_settings = self._load_user_settings()
-        if user_settings is not None:
-            self.settings.update_from_dict(user_settings)
 
     def _early_logger_flush(self, new_logger: Logger) -> None:
         if self._logger is new_logger:
@@ -297,7 +283,7 @@ class _WandbSetup:
         return self._logger
 
     @property
-    def settings(self) -> wandb_settings.Settings:
+    def settings(self) -> Settings:
         """The global wandb settings.
 
         Initializes settings if they have not yet been loaded.
@@ -312,7 +298,7 @@ class _WandbSetup:
         return self._settings
 
     @property
-    def settings_if_loaded(self) -> wandb_settings.Settings | None:
+    def settings_if_loaded(self) -> Settings | None:
         """The global wandb settings, or None if not yet loaded."""
         return self._settings
 
@@ -476,7 +462,48 @@ def _setup(
 
         _singleton = current_singleton
 
-    return _singleton
+    # Update after configuring the _singleton.
+    #
+    # Do not hold the lock while updating credentials, as it writes back
+    # to settings.
+    if settings:
+        _maybe_update_credentials(settings)
+
+    return current_singleton
+
+
+def _maybe_update_credentials(settings: Settings) -> None:
+    """Update session credentials if they're set on settings.
+
+    This is a refactoring step for moving credentials into a separate module
+    and out of settings. If a user calls `wandb.setup()` explicitly with an
+    api_key or other credential, this overwrites credentials that might have
+    been set by a call to `wandb.login()`.
+    """
+    if settings.api_key and settings.identity_token_file:
+        raise UsageError(
+            "The api_key and identity_token_file settings cannot be used together."
+        )
+
+    from wandb.sdk.lib import wbauth
+
+    if settings.api_key:
+        wbauth.use_explicit_auth(
+            wbauth.AuthApiKey(
+                host=wbauth.HostUrl(settings.base_url, app_url=settings.app_url),
+                api_key=settings.api_key,
+            ),
+            source="wandb.setup()",
+        )
+
+    elif settings.identity_token_file:
+        wbauth.use_explicit_auth(
+            wbauth.AuthIdentityTokenFile(
+                host=wbauth.HostUrl(settings.base_url, app_url=settings.app_url),
+                path=settings.identity_token_file,
+            ),
+            source="wandb.setup()",
+        )
 
 
 def setup(settings: Settings | None = None) -> _WandbSetup:
@@ -552,9 +579,13 @@ def teardown(exit_code: int | None = None) -> None:
     """
     global _singleton
 
+    from wandb.sdk.lib import wbauth
+
     with _singleton_lock:
         orig_singleton = _singleton
         _singleton = None
 
-        if orig_singleton:
-            orig_singleton._teardown(exit_code=exit_code)
+    if orig_singleton:
+        orig_singleton._teardown(exit_code=exit_code)
+
+    wbauth.unauthenticate_session(update_settings=False)

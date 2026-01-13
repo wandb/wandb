@@ -650,22 +650,26 @@ func (b *bucket) ErrorAs(err error, i any) bool {
 }
 
 func (b *bucket) ErrorCode(err error) gcerrors.ErrorCode {
-	if bloberror.HasCode(err, bloberror.BlobNotFound) {
-		return gcerrors.NotFound
-	}
-	if bloberror.HasCode(err, bloberror.AuthenticationFailed) {
-		return gcerrors.PermissionDenied
-	}
 	var rErr *azcore.ResponseError
 	if errors.As(err, &rErr) {
-		code := bloberror.Code(rErr.ErrorCode)
-		if code == bloberror.BlobNotFound || rErr.StatusCode == 404 {
+		switch bloberror.Code(rErr.ErrorCode) {
+		case bloberror.AuthenticationFailed:
+			return gcerrors.PermissionDenied
+		case bloberror.BlobAlreadyExists,
+			bloberror.ConditionNotMet,
+			bloberror.TargetConditionNotMet,
+			bloberror.SourceConditionNotMet:
+			// the documented error code is a variation of "ConditionNotMet", but "BlobAlreadyExists" has also been observed
+			return gcerrors.FailedPrecondition
+		case bloberror.BlobNotFound:
 			return gcerrors.NotFound
 		}
-		if code == bloberror.AuthenticationFailed {
-			return gcerrors.PermissionDenied
+
+		if rErr.StatusCode == http.StatusNotFound {
+			return gcerrors.NotFound
 		}
 	}
+
 	if strings.Contains(err.Error(), "no such host") {
 		// This happens with an invalid storage account name; the host
 		// is something like invalidstorageaccount.blob.core.windows.net.

@@ -6,6 +6,7 @@ import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_settings.proto";
 import "wandb/proto/wandb_sync.proto";
+import "wandb/proto/wandb_api.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
@@ -104,6 +105,9 @@ message ServerRequest {
     ServerInitSyncRequest init_sync = 11;
     ServerSyncRequest sync = 12;
     ServerSyncStatusRequest sync_status = 13;
+
+    ServerApiInitRequest api_init_request = 14;
+    ApiRequest api_request = 15;
   }
 }
 
@@ -128,5 +132,8 @@ message ServerResponse {
     ServerInitSyncResponse init_sync_response = 11;
     ServerSyncResponse sync_response = 12;
     ServerSyncStatusResponse sync_status_response = 13;
+
+    ServerApiInitResponse api_init_response = 14;
+    ApiResponse api_response = 15;
   }
 }

@@ -1,4 +1,13 @@
-"""Global functions for printing to stderr for wandb."""
+"""Global functions for interacting with the terminal for wandb.
+
+The functions termlog, termwarn and termerror print to stderr.
+
+The function terminput prints to stderr and reads from stdin.
+
+We print to stderr because wandb does not output any messages that are useful
+to pipe to another program. Using stderr allows using wandb in a program that
+*does* output pipe-able text.
+"""
 
 from __future__ import annotations
 
@@ -49,6 +58,10 @@ the `_l_` prefix must be guarded by this lock.
 
 _dynamic_blocks: list[DynamicBlock] = []
 """Active dynamic text areas, created with dynamic_text()."""
+
+
+class NotATerminalError(Exception):
+    """The output device is not sufficiently capable for the operation."""
 
 
 class SupportsLeveledLogging(Protocol):
@@ -111,13 +124,7 @@ def dynamic_text() -> Iterator[DynamicBlock | None]:
     # NOTE: In Jupyter notebooks, this will return False. Notebooks
     #   support ANSI color sequences and the '\r' character, but not
     #   cursor motions or line clear commands.
-    if not _sys_stderr_isatty():
-        yield None
-        return
-
-    # This is a convention to indicate that the terminal doesn't support
-    # clearing the screen / positioning the cursor.
-    if os.environ.get("TERM") == "dumb":
+    if not _sys_stderr_isatty() or _is_term_dumb():
         yield None
         return
 
@@ -147,7 +154,44 @@ def _sys_stderr_isatty() -> bool:
 
     Defined here for patching in tests.
     """
-    return sys.stderr.isatty()
+    return _isatty(sys.stderr)
+
+
+def _sys_stdin_isatty() -> bool:
+    """Returns sys.stdin.isatty().
+
+    Defined here for patching in tests.
+    """
+    return _isatty(sys.stdin)
+
+
+def _isatty(stream: object) -> bool:
+    """Returns true if the stream defines isatty and returns true for it.
+
+    This is needed because some people patch `sys.stderr` / `sys.stdin`
+    with incompatible objects, e.g. a Logger.
+
+    Args:
+        stream: An IO object like stdin or stderr.
+    """
+    isatty = getattr(stream, "isatty", None)
+
+    if not isatty or not callable(isatty):
+        return False
+
+    try:
+        return bool(isatty())
+    except TypeError:  # if isatty has required arguments
+        return False
+
+
+def _is_term_dumb() -> bool:
+    """Returns whether the TERM environment variable is set to 'dumb'.
+
+    This is a convention to indicate that the terminal doesn't support
+    ANSI sequences like colors, clearing the screen and positioning the cursor.
+    """
+    return os.getenv("TERM") == "dumb"
 
 
 def termlog(
@@ -220,10 +264,127 @@ def termerror(
     )
 
 
+def _in_jupyter() -> bool:
+    """Returns True if we're in a Jupyter notebook."""
+    # Lazy import to avoid circular imports.
+    from wandb.sdk.lib import ipython
+
+    return ipython.in_jupyter()
+
+
+def can_use_terminput() -> bool:
+    """Returns True if terminput won't raise a NotATerminalError."""
+    if _silent or not _show_info or _is_term_dumb():
+        return False
+
+    from wandb import util
+
+    # TODO: Verify the databricks check is still necessary.
+    # Originally added to fix WB-5264.
+    if util._is_databricks():
+        return False
+
+    # isatty() returns false in Jupyter, but it's OK to output ANSI color
+    # sequences and to read from stdin.
+    return _in_jupyter() or (_sys_stderr_isatty() and _sys_stdin_isatty())
+
+
+def terminput(
+    prompt: str,
+    *,
+    timeout: float | None = None,
+    hide: bool = False,
+) -> str:
+    """Prompt the user for input.
+
+    Args:
+        prompt: The prompt to display. The prompt is printed without a newline
+            and the cursor is positioned after the prompt's last character.
+            The prompt should end with whitespace.
+        timeout: A timeout after which to raise a TimeoutError.
+            Cannot be set if hide is True.
+        hide: If true, does not echo the characters typed by the user.
+            This is useful for passwords.
+
+    Returns:
+        The text typed by the user before pressing the 'return' key.
+
+    Raises:
+        TimeoutError: If a timeout was specified and expired.
+        NotATerminalError: If the output device is not capable, like if stderr
+            is redirected to a file, stdin is a pipe or closed, TERM=dumb is
+            set, or wandb is configured in 'silent' mode.
+        KeyboardInterrupt: If the user pressed Ctrl+C during the prompt.
+    """
+    prefixed_prompt = f"{LOG_STRING}: {prompt}"
+    return _terminput(prefixed_prompt, timeout=timeout, hide=hide)
+
+
+def confirm(prompt: str) -> bool:
+    """Prompt the user with a yes/no question.
+
+    Args:
+        prompt: A prompt ending with a question mark (not whitespace),
+            like "Are you sure?".
+
+    Returns:
+        The user's choice.
+    """
+    prompt = f"{prompt} [y/n] "
+    while True:
+        answer = terminput(prompt).strip().lower()
+
+        if answer in ("n", "no"):
+            return False
+        if answer in ("y", "yes"):
+            return True
+
+
+def _terminput(
+    prefixed_prompt: str,
+    *,
+    timeout: float | None = None,
+    hide: bool = False,
+) -> str:
+    """Implements terminput() and can be patched by tests."""
+    if not can_use_terminput():
+        raise NotATerminalError
+
+    if hide and timeout is not None:
+        # Only click.prompt() can hide, and only timed_input can time out.
+        raise NotImplementedError
+
+    if timeout is not None:
+        # Lazy import to avoid circular imports.
+        from wandb.sdk.lib.timed_input import timed_input
+
+        try:
+            return timed_input(
+                prefixed_prompt,
+                timeout=timeout,
+                err=True,
+                jupyter=_in_jupyter(),
+            )
+        except KeyboardInterrupt:
+            sys.stderr.write("\n")
+            raise
+
+    try:
+        return click.prompt(
+            prefixed_prompt,
+            prompt_suffix="",
+            hide_input=hide,
+            err=True,
+        )
+    except click.Abort:
+        sys.stderr.write("\n")
+        raise KeyboardInterrupt from None
+
+
 class DynamicBlock:
     """A handle to a changeable text area in the terminal."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._lines_to_print: list[str] = []
         self._num_lines_printed = 0
 
