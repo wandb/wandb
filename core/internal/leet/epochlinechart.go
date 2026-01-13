@@ -484,6 +484,11 @@ func (c *EpochLineChart) Resize(width, height int) {
 	c.updateRanges()
 }
 
+// Park minimizes the chart's canvas dimensions.
+func (c *EpochLineChart) Park() {
+	c.Resize(parkedCanvasSize, parkedCanvasSize)
+}
+
 func isFinite(f float64) bool {
 	return !math.IsNaN(f) && !math.IsInf(f, 0)
 }
