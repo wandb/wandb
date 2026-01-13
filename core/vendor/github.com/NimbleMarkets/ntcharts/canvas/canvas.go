@@ -243,8 +243,9 @@ func (m *Model) Resize(w, h int) {
 
 // Clear will reset canvas contents.
 func (m *Model) Clear() {
+	dx := m.area.Dx()
 	for i := range m.content {
-		m.content[i] = make(CellLine, m.area.Dx())
+		m.content[i] = make(CellLine, dx)
 	}
 }
 
