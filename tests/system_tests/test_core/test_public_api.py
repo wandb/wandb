@@ -948,12 +948,16 @@ def test_query_team(user, api):
     assert repr(t.members[0]) == f"<Member {user} (USER)>"
 
 
-def test_viewer(user, api):
+def test_viewer(user: str, api: wandb.Api):
     v = api.viewer
     assert v.admin is False
     assert v.username == user
-    assert v.api_keys == [user]
     assert v.teams == [user]
+
+    # api_keys returns IDs of API keys. In tests, the API key ID is a prefix
+    # of the API key, which is also the username.
+    assert len(v.api_keys) == 1
+    assert user.startswith(v.api_keys[0])
 
 
 def test_create_team_exists(wandb_backend_spy):
