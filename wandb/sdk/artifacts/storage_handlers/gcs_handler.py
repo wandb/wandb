@@ -216,7 +216,7 @@ class GCSHandler(StorageHandler):
             )
 
             entries = [
-                self._entry_from_obj(obj, path, name, prefix=gcs_path.key)
+                self._entry_from_obj(obj, gcs_path, name)
                 for obj in objects
                 if obj
                 # Skip folder
@@ -271,59 +271,73 @@ class GCSHandler(StorageHandler):
             return []
 
         # Single object found
-        return [self._entry_from_obj(obj, path, name, prefix=gcs_path.key)]
+        return [self._entry_from_obj(obj, gcs_path, name)]
 
     def _entry_from_obj(
         self,
         obj: storage.Blob,
-        path: str,
+        gcs_path: _GCSPath,
         name: StrPath | None = None,
-        prefix: str = "",
     ) -> ArtifactManifestEntry:
         """Create an ArtifactManifestEntry from a GCS object.
 
         Args:
-            obj: The GCS object
-            path: The GCS-style path (e.g.: "gs://bucket/file.txt")
+            obj: GCS Blob
+            gcs_path: parsed from add_reference, bucket, key and version
             name: The user assigned name, or None if not specified
-            prefix: The prefix used for listing (same as key for single files)
         """
-        uri = _GCSPath.from_uri(path)
+        # e.g. my_folder/my_object.pb
+        if obj.name is None:
+            raise ValueError(f"Object name is None: {obj}")
+        posix_key = PurePosixPath(obj.name)
+        # ref is the full path used for download later on.
+        # e.g. gs://my-bucket/my_folder/my_object.pb
+        ref = f"{self._scheme}://{gcs_path.bucket}/{posix_key}"
 
-        # Always use posix paths, since that's what S3 uses.
-        posix_key = PurePosixPath(obj.name)  # the bucket key
-        posix_path = PurePosixPath(uri.bucket, uri.key)  # path without the scheme
-        posix_prefix = PurePosixPath(prefix)  # the prefix used for listing
+        # Validate that gcs_path.key is either an exact match or a folder prefix.
+        # Partial filename prefixes are rejected (similar to `ls -R` behavior).
+        #
+        # For obj.name = "my_folder/my_object.pb":
+        #   gcs_path.key           | valid | reason
+        #   -----------------------|-------|--------------------
+        #   my_folder/my_object.pb | yes   | exact match
+        #   my_folder/             | yes   | folder prefix
+        #   my_folder              | yes   | folder prefix (no slash)
+        #   my_folder/my_obj       | no    | partial filename
+        posix_prefix = PurePosixPath(gcs_path.key)
+        is_exact_match = gcs_path.key == obj.name
+        is_within_folder = not is_exact_match and posix_key.is_relative_to(posix_prefix)
+        valid_prefix = is_exact_match or is_within_folder
+        if not valid_prefix:
+            raise ValueError(
+                f"Invalid reference: {gcs_path.key} is not same or a parent folder of {obj.name}"
+            )
 
-        # Check if this object is under a directory prefix
-        is_under_prefix = posix_prefix in posix_key.parents
-
+        # Compute the artifact entry name (path in manifest).
+        #
+        # Given obj.name = "my_folder/sub_folder/my_object.pb":
+        #   gcs_path.key                      | name | result
+        #   ----------------------------------|------|---------------------------
+        #   my_folder/sub_folder/my_object.pb | None | my_object.pb
+        #   my_folder/sub_folder/             | None | my_object.pb
+        #   my_folder/                        | None | sub_folder/my_object.pb
+        #   my_folder/sub_folder/my_object.pb | data | data
+        #   my_folder/sub_folder/             | data | data/my_object.pb
+        #   my_folder/                        | data | data/sub_folder/my_object.pb
         if name is None:
-            if is_under_prefix:
-                # Object is under a directory prefix, use relative path
+            if is_within_folder:
                 posix_name = posix_key.relative_to(posix_prefix)
-                posix_ref = posix_path / posix_name
             else:
-                # Single file, use just the filename
                 posix_name = PurePosixPath(posix_key.name)
-                posix_ref = posix_path
-        # FIXME: This breaks when the prefix is not a folder
-        # also same code is copy pased in s3_hander.py
-        # azure_handler.py actuall have different logic and has
-        # external contribution in https://github.com/wandb/wandb/pull/7876/changes
-        elif is_under_prefix:
-            # Directory with custom name override
-            relpath = posix_key.relative_to(posix_prefix)
-            posix_name = PurePosixPath(name) / relpath
-            posix_ref = posix_path / relpath
         else:
-            # Single file with custom name
-            posix_name = PurePosixPath(name)
-            posix_ref = posix_path
+            if is_within_folder:
+                posix_name = PurePosixPath(name) / posix_key.relative_to(posix_prefix)
+            else:
+                posix_name = PurePosixPath(name)
 
         return ArtifactManifestEntry(
             path=posix_name,
-            ref=f"{self._scheme}://{posix_ref}",
+            ref=ref,
             digest=obj.etag,
             size=obj.size,
             # NOTE: gcs returns int for generation
