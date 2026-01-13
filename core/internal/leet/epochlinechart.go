@@ -20,6 +20,11 @@ const (
 	tailAnchorMouseThreshold = 0.95
 	defaultMaxX              = 20
 	defaultMaxY              = 1
+
+	// Minimal canvas size for parked charts
+	parkedCanvasSize = 1
+
+	initDataSliceCap = 256
 )
 
 // EpochLineChart is a custom line chart for epoch-based data.
@@ -67,22 +72,22 @@ type EpochLineChart struct {
 	inspection ChartInspection
 }
 
-func NewEpochLineChart(width, height int, title string) *EpochLineChart {
+func NewEpochLineChart(title string) *EpochLineChart {
 	graphColors := GraphColors()
 
 	// Default style; sort will install the stable color later.
 	graphStyle := lipgloss.NewStyle().Foreground(graphColors[0])
 
 	chart := &EpochLineChart{
-		Model: linechart.New(width, height, 0, defaultMaxX, 0, defaultMaxY,
+		Model: linechart.New(parkedCanvasSize, parkedCanvasSize, 0, defaultMaxX, 0, defaultMaxY,
 			linechart.WithXYSteps(4, 5),
 			linechart.WithAutoXRange(),
 			linechart.WithYLabelFormatter(func(i int, v float64) string {
 				return UnitScalar.Format(v)
 			}),
 		),
-		xData: make([]float64, 0, 1000),
-		yData: make([]float64, 0, 1000),
+		xData: make([]float64, 0, initDataSliceCap),
+		yData: make([]float64, 0, initDataSliceCap),
 		title: title,
 		xMin:  math.Inf(1),
 		xMax:  math.Inf(-1),
@@ -469,15 +474,14 @@ func (c *EpochLineChart) SetFocused(focused bool) {
 	c.focused = focused
 }
 
-// Resize updates the chart dimensions.
+// Resize updates the chart's canvas dimensions.
 func (c *EpochLineChart) Resize(width, height int) {
-	// Check if dimensions actually changed
-	if c.Width() != width || c.Height() != height {
-		c.Model.Resize(width, height)
-		c.dirty = true
-		// Force recalculation of ranges after resize
-		c.updateRanges()
+	if c.Width() == width && c.Height() == height {
+		return
 	}
+	c.Model.Resize(width, height)
+	c.dirty = true
+	c.updateRanges()
 }
 
 func isFinite(f float64) bool {
