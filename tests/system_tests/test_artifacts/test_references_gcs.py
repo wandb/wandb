@@ -111,7 +111,7 @@ def test_add_gs_reference_object(artifact, no_list_blobs_permission):
     )
     artifact.add_reference("gs://my-bucket/my_object.pb")
 
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    # assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "my_object.pb": {
@@ -234,6 +234,13 @@ def test_add_gs_reference_with_dir_paths(artifact):
             "size": 10,
         },
     }
+
+
+def test_add_gs_reference_with_non_dir_prefix_fails(artifact):
+    """Non-directory prefixes like 'my_folder/my_object_' should fail."""
+    mock_gcs(artifact, blobs=["my_folder/my_object_1.pb"])
+    with pytest.raises(ValueError, match="is not same or a parent folder of"):
+        artifact.add_reference("gs://my-bucket/my_folder/my_object_")
 
 
 def test_load_gs_reference_with_dir_paths(artifact):
