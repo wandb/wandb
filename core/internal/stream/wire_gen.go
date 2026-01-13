@@ -80,7 +80,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Printer:    printer,
 		Settings:   settings2,
 	}
-	fileTransferManager := NewFileTransferManager(fileTransferStats, coreLogger, settings2)
+	fileTransferManager := NewFileTransferManager(wbBaseURL, fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)
 	uploaderFactory := &runfiles.UploaderFactory{
 		FileTransfer: fileTransferManager,

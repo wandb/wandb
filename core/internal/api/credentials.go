@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
 )
 
 // CredentialProvider adds credentials to HTTP requests.
 type CredentialProvider interface {
-	// Apply sets the appropriate authorization headers or parameters on the
-	// HTTP request.
+	httplayers.HTTPWrapper
 	Apply(req *http.Request) error
 }
 
@@ -47,6 +47,10 @@ func NewCredentialProvider(
 
 // NewAPIKeyCredentialProvider returns a credential provider that uses the given
 // API key.
+//
+// This passes the API key in the Authorization header of the request using
+// HTTP Basic Authentication. The API key is used as the password,
+// while the username is left empty.
 func NewAPIKeyCredentialProvider(apiKey string) CredentialProvider {
 	return &apiKeyCredentialProvider{apiKey}
 }
@@ -58,9 +62,17 @@ type apiKeyCredentialProvider struct {
 	apiKey string
 }
 
-// Apply sets the API key in the Authorization header of the request using
-// HTTP Basic Authentication. The API key is used as the password,
-// while the username is left empty.
+// WrapHTTP implements HTTPWrapper.WrapHTTP.
+func (c *apiKeyCredentialProvider) WrapHTTP(
+	send httplayers.HTTPDoFunc,
+) httplayers.HTTPDoFunc {
+	return func(req *http.Request) (*http.Response, error) {
+		_ = c.Apply(req)
+		return send(req)
+	}
+}
+
+// Apply implements CredentialProvider.Apply.
 func (c *apiKeyCredentialProvider) Apply(req *http.Request) error {
 	req.Header.Set(
 		"Authorization",
@@ -72,11 +84,17 @@ func (c *apiKeyCredentialProvider) Apply(req *http.Request) error {
 
 type NoopCredentialProvider struct{}
 
+// WrapHTTP implements HTTPWrapper.WrapHTTP.
+func (c NoopCredentialProvider) WrapHTTP(
+	send httplayers.HTTPDoFunc,
+) httplayers.HTTPDoFunc {
+	return send
+}
+
+// Apply implements CredentialProvider.Apply.
 func (c NoopCredentialProvider) Apply(req *http.Request) error {
 	return nil
 }
-
-var _ CredentialProvider = &oauth2CredentialProvider{}
 
 // OAuth2CredentialProvider creates a credentials provider that exchanges a JWT
 // for an access token via an authorization server. The access token is then used
@@ -168,9 +186,22 @@ type CredentialsFile struct {
 	Credentials map[string]accessTokenInfo `json:"credentials"`
 }
 
-// Apply Checks if the access token is expiring, and fetches a new one if so.
-// It then supplies the access token to the request via the Authorization header
-// as a Bearer token.
+// WrapHTTP implements HTTPWrapper.WrapHTTP.
+func (c *oauth2CredentialProvider) WrapHTTP(
+	send httplayers.HTTPDoFunc,
+) httplayers.HTTPDoFunc {
+	return func(req *http.Request) (*http.Response, error) {
+		err := c.Apply(req)
+		if err != nil {
+			return nil, httplayers.URLError(req, err)
+		}
+
+		return send(req)
+	}
+}
+
+// Apply fetches a new access token if necessary and supplies it to the request
+// via the Authorization header as a Bearer token.
 func (c *oauth2CredentialProvider) Apply(req *http.Request) error {
 	if c.shouldRefreshToken() {
 		err := c.loadCredentials()

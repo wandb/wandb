@@ -10,20 +10,11 @@ import (
 )
 
 func (client *clientImpl) Do(req *retryablehttp.Request) (*http.Response, error) {
-	if !client.isToWandb(req) {
-		if client.logger != nil {
-			client.logger.Warn(
-				fmt.Sprintf(
-					"api: unexpected request through W&B HTTP client: %v",
-					req.URL,
-				),
-			)
-		}
-
+	if client.isToWandb(req) {
+		return client.sendToWandbBackend(req)
+	} else {
 		return client.send(req)
 	}
-
-	return client.sendToWandbBackend(req)
 }
 
 // Returns whether the request would go to the W&B backend.
@@ -39,13 +30,6 @@ func (client *clientImpl) isToWandb(req *retryablehttp.Request) bool {
 func (client *clientImpl) sendToWandbBackend(
 	req *retryablehttp.Request,
 ) (*http.Response, error) {
-	client.setClientHeaders(req)
-	err := client.credentialProvider.Apply(req.Request)
-	if err != nil {
-		return nil, fmt.Errorf("api: failed provide credentials for "+
-			"request: %v", err)
-	}
-
 	resp, err := client.send(req)
 
 	// This is a bug that happens with retryablehttp sometimes.
@@ -73,11 +57,4 @@ func (client *clientImpl) send(
 
 	client.logFinalResponseOnError(req, resp)
 	return resp, nil
-}
-
-func (client *clientImpl) setClientHeaders(req *retryablehttp.Request) {
-	req.Header.Set("User-Agent", "wandb-core")
-	for headerKey, headerValue := range client.extraHeaders {
-		req.Header.Set(headerKey, headerValue)
-	}
 }
