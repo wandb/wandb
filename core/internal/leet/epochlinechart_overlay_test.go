@@ -27,7 +27,9 @@ func seedXY(n int) leet.MetricData {
 }
 
 func TestEpochLineChart_DrawInspectionOverlay_RendersHairlineAndLegend_RightSide(t *testing.T) {
-	c := leet.NewEpochLineChart(80, 12, "acc")
+	m := "acc"
+	c := leet.NewEpochLineChart(m)
+	c.Resize(80, 12)
 	c.AddData(seedXY(30))
 	c.Draw()
 
@@ -56,7 +58,9 @@ func TestEpochLineChart_DrawInspectionOverlay_RendersHairlineAndLegend_RightSide
 }
 
 func TestInspectAtDataX_SnapsToNearestAndPixel(t *testing.T) {
-	c := leet.NewEpochLineChart(80, 12, "loss")
+	m := "loss"
+	c := leet.NewEpochLineChart(m)
+	c.Resize(80, 12)
 
 	// Non-uniform X to exercise nearest selection.
 	data := leet.MetricData{
@@ -88,7 +92,8 @@ func TestInspectAtDataX_SnapsToNearestAndPixel(t *testing.T) {
 }
 
 func TestInspectAtDataX_NoData_NoActivate(t *testing.T) {
-	c := leet.NewEpochLineChart(80, 12, "acc")
+	c := leet.NewEpochLineChart("acc")
+	c.Resize(80, 12)
 	// No data; should no-op
 	c.InspectAtDataX(1.0)
 	_, _, active := c.InspectionData()
@@ -98,7 +103,9 @@ func TestInspectAtDataX_NoData_NoActivate(t *testing.T) {
 // When new data expands the X domain (e.g., [0,20] -> [0,30]), the overlay
 // should keep pointing at the same data X and move to the correct pixel.
 func TestInspection_RepositionsOnXDomainExpansion(t *testing.T) {
-	c := leet.NewEpochLineChart(120, 12, "loss")
+	m := "loss"
+	c := leet.NewEpochLineChart(m)
+	c.Resize(120, 12)
 
 	// Seed 0..19 so nice X domain is [0,20].
 	xs := make([]float64, 20)
@@ -147,7 +154,9 @@ func TestInspection_RepositionsOnXDomainExpansion(t *testing.T) {
 
 // Resizing the chart should also keep the overlay anchored to the same DataX.
 func TestInspection_RepositionsOnResize(t *testing.T) {
-	c := leet.NewEpochLineChart(80, 12, "acc")
+	m := "acc"
+	c := leet.NewEpochLineChart(m)
+	c.Resize(80, 12)
 
 	// Seed 0..29 so nice X domain is [0,30].
 	xs := make([]float64, 30)
