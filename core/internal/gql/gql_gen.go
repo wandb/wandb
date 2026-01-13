@@ -5,6 +5,7 @@ package gql
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Khan/genqlient/graphql"
 )
@@ -940,6 +941,594 @@ type LinkArtifactResponse struct {
 func (v *LinkArtifactResponse) GetLinkArtifact() *LinkArtifactLinkArtifactLinkArtifactPayload {
 	return v.LinkArtifact
 }
+
+// NFSArtifactCollectionsProject includes the requested fields of the GraphQL type Project.
+type NFSArtifactCollectionsProject struct {
+	ArtifactType *NFSArtifactCollectionsProjectArtifactType `json:"artifactType"`
+}
+
+// GetArtifactType returns NFSArtifactCollectionsProject.ArtifactType, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProject) GetArtifactType() *NFSArtifactCollectionsProjectArtifactType {
+	return v.ArtifactType
+}
+
+// NFSArtifactCollectionsProjectArtifactType includes the requested fields of the GraphQL type ArtifactType.
+type NFSArtifactCollectionsProjectArtifactType struct {
+	ArtifactCollections *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnection `json:"artifactCollections"`
+}
+
+// GetArtifactCollections returns NFSArtifactCollectionsProjectArtifactType.ArtifactCollections, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactType) GetArtifactCollections() *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnection {
+	return v.ArtifactCollections
+}
+
+// NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnection includes the requested fields of the GraphQL type ArtifactCollectionConnection.
+type NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnection struct {
+	Edges    []NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge `json:"edges"`
+	PageInfo NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionPageInfo                      `json:"pageInfo"`
+}
+
+// GetEdges returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnection.Edges, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnection) GetEdges() []NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge {
+	return v.Edges
+}
+
+// GetPageInfo returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnection) GetPageInfo() NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionPageInfo {
+	return v.PageInfo
+}
+
+// NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge includes the requested fields of the GraphQL type ArtifactCollectionEdge.
+type NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge struct {
+	Node *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection `json:"-"`
+}
+
+// GetNode returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge.Node, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge) GetNode() *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection {
+	return v.Node
+}
+
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge
+		Node json.RawMessage `json:"node"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Node
+		src := firstPass.Node
+		if len(src) != 0 && string(src) != "null" {
+			*dst = new(NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection)
+			err = __unmarshalNFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection(
+				src, *dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge.Node: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalNFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge struct {
+	Node json.RawMessage `json:"node"`
+}
+
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge) __premarshalJSON() (*__premarshalNFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge, error) {
+	var retval __premarshalNFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge
+
+	{
+
+		dst := &retval.Node
+		src := v.Node
+		if src != nil {
+			var err error
+			*dst, err = __marshalNFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection(
+				src)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"unable to marshal NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdge.Node: %w", err)
+			}
+		}
+	}
+	return &retval, nil
+}
+
+// NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection includes the requested fields of the GraphQL interface ArtifactCollection.
+//
+// NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection is implemented by the following types:
+// NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio
+// NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence
+type NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection interface {
+	implementsGraphQLInterfaceNFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() *string
+	// GetId returns the interface-field "id" from its implementation.
+	GetId() string
+	// GetName returns the interface-field "name" from its implementation.
+	GetName() string
+}
+
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio) implementsGraphQLInterfaceNFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection() {
+}
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence) implementsGraphQLInterfaceNFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection() {
+}
+
+func __unmarshalNFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection(b []byte, v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "ArtifactPortfolio":
+		*v = new(NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio)
+		return json.Unmarshal(b, *v)
+	case "ArtifactSequence":
+		*v = new(NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing ArtifactCollection.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalNFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection(v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio:
+		typename = "ArtifactPortfolio"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio
+		}{typename, v}
+		return json.Marshal(result)
+	case *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence:
+		typename = "ArtifactSequence"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactCollection: "%T"`, v)
+	}
+}
+
+// NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio includes the requested fields of the GraphQL type ArtifactPortfolio.
+type NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio struct {
+	Typename *string `json:"__typename"`
+	Id       string  `json:"id"`
+	Name     string  `json:"name"`
+}
+
+// GetTypename returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio.Typename, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio) GetTypename() *string {
+	return v.Typename
+}
+
+// GetId returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio.Id, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio) GetId() string {
+	return v.Id
+}
+
+// GetName returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio.Name, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactPortfolio) GetName() string {
+	return v.Name
+}
+
+// NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence includes the requested fields of the GraphQL type ArtifactSequence.
+type NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence struct {
+	Typename *string `json:"__typename"`
+	Id       string  `json:"id"`
+	Name     string  `json:"name"`
+}
+
+// GetTypename returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence.Typename, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence) GetTypename() *string {
+	return v.Typename
+}
+
+// GetId returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence.Id, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence) GetId() string {
+	return v.Id
+}
+
+// GetName returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence.Name, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionEdgesArtifactCollectionEdgeNodeArtifactSequence) GetName() string {
+	return v.Name
+}
+
+// NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionPageInfo struct {
+	EndCursor   *string `json:"endCursor"`
+	HasNextPage bool    `json:"hasNextPage"`
+}
+
+// GetEndCursor returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// GetHasNextPage returns NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsProjectArtifactTypeArtifactCollectionsArtifactCollectionConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// NFSArtifactCollectionsResponse is returned by NFSArtifactCollections on success.
+type NFSArtifactCollectionsResponse struct {
+	Project *NFSArtifactCollectionsProject `json:"project"`
+}
+
+// GetProject returns NFSArtifactCollectionsResponse.Project, and is useful for accessing the field via an interface.
+func (v *NFSArtifactCollectionsResponse) GetProject() *NFSArtifactCollectionsProject {
+	return v.Project
+}
+
+// NFSArtifactTypesProject includes the requested fields of the GraphQL type Project.
+type NFSArtifactTypesProject struct {
+	ArtifactTypes NFSArtifactTypesProjectArtifactTypesArtifactTypeConnection `json:"artifactTypes"`
+}
+
+// GetArtifactTypes returns NFSArtifactTypesProject.ArtifactTypes, and is useful for accessing the field via an interface.
+func (v *NFSArtifactTypesProject) GetArtifactTypes() NFSArtifactTypesProjectArtifactTypesArtifactTypeConnection {
+	return v.ArtifactTypes
+}
+
+// NFSArtifactTypesProjectArtifactTypesArtifactTypeConnection includes the requested fields of the GraphQL type ArtifactTypeConnection.
+type NFSArtifactTypesProjectArtifactTypesArtifactTypeConnection struct {
+	Edges    []NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdge `json:"edges"`
+	PageInfo NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionPageInfo                `json:"pageInfo"`
+}
+
+// GetEdges returns NFSArtifactTypesProjectArtifactTypesArtifactTypeConnection.Edges, and is useful for accessing the field via an interface.
+func (v *NFSArtifactTypesProjectArtifactTypesArtifactTypeConnection) GetEdges() []NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdge {
+	return v.Edges
+}
+
+// GetPageInfo returns NFSArtifactTypesProjectArtifactTypesArtifactTypeConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *NFSArtifactTypesProjectArtifactTypesArtifactTypeConnection) GetPageInfo() NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionPageInfo {
+	return v.PageInfo
+}
+
+// NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdge includes the requested fields of the GraphQL type ArtifactTypeEdge.
+type NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdge struct {
+	Node *NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdgeNodeArtifactType `json:"node"`
+}
+
+// GetNode returns NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdge.Node, and is useful for accessing the field via an interface.
+func (v *NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdge) GetNode() *NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdgeNodeArtifactType {
+	return v.Node
+}
+
+// NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdgeNodeArtifactType includes the requested fields of the GraphQL type ArtifactType.
+type NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdgeNodeArtifactType struct {
+	Name string `json:"name"`
+}
+
+// GetName returns NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdgeNodeArtifactType.Name, and is useful for accessing the field via an interface.
+func (v *NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionEdgesArtifactTypeEdgeNodeArtifactType) GetName() string {
+	return v.Name
+}
+
+// NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionPageInfo struct {
+	EndCursor   *string `json:"endCursor"`
+	HasNextPage bool    `json:"hasNextPage"`
+}
+
+// GetEndCursor returns NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// GetHasNextPage returns NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *NFSArtifactTypesProjectArtifactTypesArtifactTypeConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// NFSArtifactTypesResponse is returned by NFSArtifactTypes on success.
+type NFSArtifactTypesResponse struct {
+	Project *NFSArtifactTypesProject `json:"project"`
+}
+
+// GetProject returns NFSArtifactTypesResponse.Project, and is useful for accessing the field via an interface.
+func (v *NFSArtifactTypesResponse) GetProject() *NFSArtifactTypesProject { return v.Project }
+
+// NFSArtifactsProject includes the requested fields of the GraphQL type Project.
+type NFSArtifactsProject struct {
+	ArtifactType *NFSArtifactsProjectArtifactType `json:"artifactType"`
+}
+
+// GetArtifactType returns NFSArtifactsProject.ArtifactType, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProject) GetArtifactType() *NFSArtifactsProjectArtifactType {
+	return v.ArtifactType
+}
+
+// NFSArtifactsProjectArtifactType includes the requested fields of the GraphQL type ArtifactType.
+type NFSArtifactsProjectArtifactType struct {
+	ArtifactCollection *NFSArtifactsProjectArtifactTypeArtifactCollection `json:"-"`
+}
+
+// GetArtifactCollection returns NFSArtifactsProjectArtifactType.ArtifactCollection, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactType) GetArtifactCollection() *NFSArtifactsProjectArtifactTypeArtifactCollection {
+	return v.ArtifactCollection
+}
+
+func (v *NFSArtifactsProjectArtifactType) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*NFSArtifactsProjectArtifactType
+		ArtifactCollection json.RawMessage `json:"artifactCollection"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.NFSArtifactsProjectArtifactType = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.ArtifactCollection
+		src := firstPass.ArtifactCollection
+		if len(src) != 0 && string(src) != "null" {
+			*dst = new(NFSArtifactsProjectArtifactTypeArtifactCollection)
+			err = __unmarshalNFSArtifactsProjectArtifactTypeArtifactCollection(
+				src, *dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal NFSArtifactsProjectArtifactType.ArtifactCollection: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalNFSArtifactsProjectArtifactType struct {
+	ArtifactCollection json.RawMessage `json:"artifactCollection"`
+}
+
+func (v *NFSArtifactsProjectArtifactType) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *NFSArtifactsProjectArtifactType) __premarshalJSON() (*__premarshalNFSArtifactsProjectArtifactType, error) {
+	var retval __premarshalNFSArtifactsProjectArtifactType
+
+	{
+
+		dst := &retval.ArtifactCollection
+		src := v.ArtifactCollection
+		if src != nil {
+			var err error
+			*dst, err = __marshalNFSArtifactsProjectArtifactTypeArtifactCollection(
+				src)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"unable to marshal NFSArtifactsProjectArtifactType.ArtifactCollection: %w", err)
+			}
+		}
+	}
+	return &retval, nil
+}
+
+// NFSArtifactsProjectArtifactTypeArtifactCollection includes the requested fields of the GraphQL interface ArtifactCollection.
+//
+// NFSArtifactsProjectArtifactTypeArtifactCollection is implemented by the following types:
+// NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio
+// NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence
+type NFSArtifactsProjectArtifactTypeArtifactCollection interface {
+	implementsGraphQLInterfaceNFSArtifactsProjectArtifactTypeArtifactCollection()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() *string
+	// GetArtifacts returns the interface-field "artifacts" from its implementation.
+	GetArtifacts() *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection
+}
+
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio) implementsGraphQLInterfaceNFSArtifactsProjectArtifactTypeArtifactCollection() {
+}
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence) implementsGraphQLInterfaceNFSArtifactsProjectArtifactTypeArtifactCollection() {
+}
+
+func __unmarshalNFSArtifactsProjectArtifactTypeArtifactCollection(b []byte, v *NFSArtifactsProjectArtifactTypeArtifactCollection) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "ArtifactPortfolio":
+		*v = new(NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio)
+		return json.Unmarshal(b, *v)
+	case "ArtifactSequence":
+		*v = new(NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing ArtifactCollection.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for NFSArtifactsProjectArtifactTypeArtifactCollection: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalNFSArtifactsProjectArtifactTypeArtifactCollection(v *NFSArtifactsProjectArtifactTypeArtifactCollection) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio:
+		typename = "ArtifactPortfolio"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio
+		}{typename, v}
+		return json.Marshal(result)
+	case *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence:
+		typename = "ArtifactSequence"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for NFSArtifactsProjectArtifactTypeArtifactCollection: "%T"`, v)
+	}
+}
+
+// NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio includes the requested fields of the GraphQL type ArtifactPortfolio.
+type NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio struct {
+	Typename  *string                                                                                `json:"__typename"`
+	Artifacts *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection `json:"artifacts"`
+}
+
+// GetTypename returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio.Typename, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio) GetTypename() *string {
+	return v.Typename
+}
+
+// GetArtifacts returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio.Artifacts, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactPortfolio) GetArtifacts() *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection {
+	return v.Artifacts
+}
+
+// NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence includes the requested fields of the GraphQL type ArtifactSequence.
+type NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence struct {
+	Typename  *string                                                                                `json:"__typename"`
+	Artifacts *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection `json:"artifacts"`
+}
+
+// GetTypename returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence.Typename, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence) GetTypename() *string {
+	return v.Typename
+}
+
+// GetArtifacts returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence.Artifacts, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactSequence) GetArtifacts() *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection {
+	return v.Artifacts
+}
+
+// NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection includes the requested fields of the GraphQL type VersionedArtifactConnection.
+type NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection struct {
+	Edges    []NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdge `json:"edges"`
+	PageInfo NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionPageInfo                     `json:"pageInfo"`
+}
+
+// GetEdges returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection.Edges, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection) GetEdges() []NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdge {
+	return v.Edges
+}
+
+// GetPageInfo returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnection) GetPageInfo() NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionPageInfo {
+	return v.PageInfo
+}
+
+// NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdge includes the requested fields of the GraphQL type VersionedArtifactEdge.
+type NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdge struct {
+	Node NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdgeNodeArtifact `json:"node"`
+}
+
+// GetNode returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdge.Node, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdge) GetNode() NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdgeNodeArtifact {
+	return v.Node
+}
+
+// NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdgeNodeArtifact includes the requested fields of the GraphQL type Artifact.
+type NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdgeNodeArtifact struct {
+	Id           string `json:"id"`
+	VersionIndex *int   `json:"versionIndex"`
+}
+
+// GetId returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdgeNodeArtifact.Id, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdgeNodeArtifact) GetId() string {
+	return v.Id
+}
+
+// GetVersionIndex returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdgeNodeArtifact.VersionIndex, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionEdgesVersionedArtifactEdgeNodeArtifact) GetVersionIndex() *int {
+	return v.VersionIndex
+}
+
+// NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionPageInfo struct {
+	EndCursor   *string `json:"endCursor"`
+	HasNextPage bool    `json:"hasNextPage"`
+}
+
+// GetEndCursor returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// GetHasNextPage returns NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsProjectArtifactTypeArtifactCollectionArtifactsVersionedArtifactConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// NFSArtifactsResponse is returned by NFSArtifacts on success.
+type NFSArtifactsResponse struct {
+	Project *NFSArtifactsProject `json:"project"`
+}
+
+// GetProject returns NFSArtifactsResponse.Project, and is useful for accessing the field via an interface.
+func (v *NFSArtifactsResponse) GetProject() *NFSArtifactsProject { return v.Project }
 
 // NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload includes the requested fields of the GraphQL type NotifyScriptableRunAlertPayload.
 type NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload struct {
@@ -1956,6 +2545,78 @@ func (v *__LinkArtifactInput) GetClientId() *string { return v.ClientId }
 // GetArtifactId returns __LinkArtifactInput.ArtifactId, and is useful for accessing the field via an interface.
 func (v *__LinkArtifactInput) GetArtifactId() *string { return v.ArtifactId }
 
+// __NFSArtifactCollectionsInput is used internally by genqlient
+type __NFSArtifactCollectionsInput struct {
+	Entity   string  `json:"entity"`
+	Project  string  `json:"project"`
+	TypeName string  `json:"typeName"`
+	Cursor   *string `json:"cursor"`
+	PerPage  *int    `json:"perPage"`
+}
+
+// GetEntity returns __NFSArtifactCollectionsInput.Entity, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactCollectionsInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __NFSArtifactCollectionsInput.Project, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactCollectionsInput) GetProject() string { return v.Project }
+
+// GetTypeName returns __NFSArtifactCollectionsInput.TypeName, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactCollectionsInput) GetTypeName() string { return v.TypeName }
+
+// GetCursor returns __NFSArtifactCollectionsInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactCollectionsInput) GetCursor() *string { return v.Cursor }
+
+// GetPerPage returns __NFSArtifactCollectionsInput.PerPage, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactCollectionsInput) GetPerPage() *int { return v.PerPage }
+
+// __NFSArtifactTypesInput is used internally by genqlient
+type __NFSArtifactTypesInput struct {
+	Entity  string  `json:"entity"`
+	Project string  `json:"project"`
+	Cursor  *string `json:"cursor"`
+	PerPage *int    `json:"perPage"`
+}
+
+// GetEntity returns __NFSArtifactTypesInput.Entity, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactTypesInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __NFSArtifactTypesInput.Project, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactTypesInput) GetProject() string { return v.Project }
+
+// GetCursor returns __NFSArtifactTypesInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactTypesInput) GetCursor() *string { return v.Cursor }
+
+// GetPerPage returns __NFSArtifactTypesInput.PerPage, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactTypesInput) GetPerPage() *int { return v.PerPage }
+
+// __NFSArtifactsInput is used internally by genqlient
+type __NFSArtifactsInput struct {
+	Entity         string  `json:"entity"`
+	Project        string  `json:"project"`
+	TypeName       string  `json:"typeName"`
+	CollectionName string  `json:"collectionName"`
+	Cursor         *string `json:"cursor"`
+	PerPage        *int    `json:"perPage"`
+}
+
+// GetEntity returns __NFSArtifactsInput.Entity, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactsInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __NFSArtifactsInput.Project, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactsInput) GetProject() string { return v.Project }
+
+// GetTypeName returns __NFSArtifactsInput.TypeName, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactsInput) GetTypeName() string { return v.TypeName }
+
+// GetCollectionName returns __NFSArtifactsInput.CollectionName, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactsInput) GetCollectionName() string { return v.CollectionName }
+
+// GetCursor returns __NFSArtifactsInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactsInput) GetCursor() *string { return v.Cursor }
+
+// GetPerPage returns __NFSArtifactsInput.PerPage, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactsInput) GetPerPage() *int { return v.PerPage }
+
 // __NotifyScriptableRunAlertInput is used internally by genqlient
 type __NotifyScriptableRunAlertInput struct {
 	EntityName   string         `json:"entityName"`
@@ -2831,6 +3492,172 @@ func LinkArtifact(
 	}
 
 	data_ = &LinkArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by NFSArtifactCollections.
+const NFSArtifactCollections_Operation = `
+query NFSArtifactCollections ($entity: String!, $project: String!, $typeName: String!, $cursor: String, $perPage: Int) {
+	project(entityName: $entity, name: $project) {
+		artifactType(name: $typeName) {
+			artifactCollections(after: $cursor, first: $perPage) {
+				edges {
+					node {
+						__typename
+						id
+						name
+					}
+				}
+				pageInfo {
+					endCursor
+					hasNextPage
+				}
+			}
+		}
+	}
+}
+`
+
+func NFSArtifactCollections(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	typeName string,
+	cursor *string,
+	perPage *int,
+) (data_ *NFSArtifactCollectionsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "NFSArtifactCollections",
+		Query:  NFSArtifactCollections_Operation,
+		Variables: &__NFSArtifactCollectionsInput{
+			Entity:   entity,
+			Project:  project,
+			TypeName: typeName,
+			Cursor:   cursor,
+			PerPage:  perPage,
+		},
+	}
+
+	data_ = &NFSArtifactCollectionsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by NFSArtifactTypes.
+const NFSArtifactTypes_Operation = `
+query NFSArtifactTypes ($entity: String!, $project: String!, $cursor: String, $perPage: Int) {
+	project(name: $project, entityName: $entity) {
+		artifactTypes(after: $cursor, first: $perPage) {
+			edges {
+				node {
+					name
+				}
+			}
+			pageInfo {
+				endCursor
+				hasNextPage
+			}
+		}
+	}
+}
+`
+
+func NFSArtifactTypes(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	cursor *string,
+	perPage *int,
+) (data_ *NFSArtifactTypesResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "NFSArtifactTypes",
+		Query:  NFSArtifactTypes_Operation,
+		Variables: &__NFSArtifactTypesInput{
+			Entity:  entity,
+			Project: project,
+			Cursor:  cursor,
+			PerPage: perPage,
+		},
+	}
+
+	data_ = &NFSArtifactTypesResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by NFSArtifacts.
+const NFSArtifacts_Operation = `
+query NFSArtifacts ($entity: String!, $project: String!, $typeName: String!, $collectionName: String!, $cursor: String, $perPage: Int) {
+	project(entityName: $entity, name: $project) {
+		artifactType(name: $typeName) {
+			artifactCollection(name: $collectionName) {
+				__typename
+				artifacts(after: $cursor, first: $perPage) {
+					edges {
+						node {
+							id
+							versionIndex
+						}
+					}
+					pageInfo {
+						endCursor
+						hasNextPage
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+func NFSArtifacts(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	typeName string,
+	collectionName string,
+	cursor *string,
+	perPage *int,
+) (data_ *NFSArtifactsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "NFSArtifacts",
+		Query:  NFSArtifacts_Operation,
+		Variables: &__NFSArtifactsInput{
+			Entity:         entity,
+			Project:        project,
+			TypeName:       typeName,
+			CollectionName: collectionName,
+			Cursor:         cursor,
+			PerPage:        perPage,
+		},
+	}
+
+	data_ = &NFSArtifactsResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

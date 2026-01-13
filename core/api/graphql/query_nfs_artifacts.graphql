@@ -1,0 +1,20 @@
+query NFSArtifacts($entity: String!, $project: String!, $typeName: String!, $collectionName: String!, $cursor: String, $perPage: Int) {
+  project(entityName: $entity, name: $project) {
+    artifactType(name: $typeName) {
+      artifactCollection(name: $collectionName) {
+        artifacts(after: $cursor, first: $perPage) {
+          edges {
+            node {
+              id
+              versionIndex
+            }
+          }
+          pageInfo {
+            endCursor
+            hasNextPage
+          }
+        }
+      }
+    }
+  }
+}

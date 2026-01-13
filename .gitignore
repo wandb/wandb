@@ -44,3 +44,6 @@ gpu_stats/target/
 # Outputs of tools/local_wandb_server.py
 tools/local_wandb_server.state.lock
 tools/local_wandb_server.state
+
+# Somehow claude code build the go core binary here... which is fine
+core/wandb-core

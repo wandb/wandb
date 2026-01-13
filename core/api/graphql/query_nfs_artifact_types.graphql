@@ -1,0 +1,15 @@
+query NFSArtifactTypes($entity: String!, $project: String!, $cursor: String, $perPage: Int) {
+  project(name: $project, entityName: $entity) {
+    artifactTypes(after: $cursor, first: $perPage) {
+      edges {
+        node {
+          name
+        }
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}

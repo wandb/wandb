@@ -12,6 +12,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wandb/wandb/core/internal/leet"
+	"github.com/wandb/wandb/core/internal/nfs"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/processlib"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
@@ -43,8 +45,13 @@ func main() {
 }
 
 func run(args []string) int {
-	if len(args) > 0 && args[0] == "leet" {
-		return leetMain(args[1:])
+	if len(args) > 0 {
+		switch args[0] {
+		case "leet":
+			return leetMain(args[1:])
+		case "nfs":
+			return nfsMain(args[1:])
+		}
 	}
 	return serviceMain()
 }
@@ -256,4 +263,82 @@ Flags:
 
 		return exitCodeSuccess
 	}
+}
+
+// nfsMain runs the NFS subcommand for listing artifacts and runs.
+func nfsMain(args []string) int {
+	fs := flag.NewFlagSet("nfs", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `wandb-core nfs - List artifacts in a W&B project
+
+Usage:
+  wandb-core nfs ls <entity>/<project>
+
+Environment Variables:
+  WANDB_API_KEY   - Your W&B API key (required)
+  WANDB_BASE_URL  - W&B API base URL (default: https://api.wandb.ai)
+
+Examples:
+  wandb-core nfs ls my-team/my-project
+
+`)
+	}
+
+	err := fs.Parse(args)
+	if err == flag.ErrHelp {
+		return exitCodeSuccess
+	}
+	if err != nil {
+		return exitCodeErrorArgs
+	}
+
+	if fs.NArg() < 1 {
+		fs.Usage()
+		return exitCodeErrorArgs
+	}
+
+	subCmd := fs.Arg(0)
+	switch subCmd {
+	case "ls":
+		if fs.NArg() < 2 {
+			fmt.Fprintln(os.Stderr, "Error: missing project path (entity/project)")
+			return exitCodeErrorArgs
+		}
+		return nfsLs(fs.Arg(1))
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unknown nfs subcommand: %s\n", subCmd)
+		return exitCodeErrorArgs
+	}
+}
+
+func nfsLs(projectPath string) int {
+	cfg, err := nfs.LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return exitCodeErrorInternal
+	}
+
+	client, err := nfs.NewGraphQLClient(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating GraphQL client: %v\n", err)
+		return exitCodeErrorInternal
+	}
+
+	path, err := nfs.ParseProjectPath(projectPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return exitCodeErrorArgs
+	}
+
+	lister := nfs.NewLister(client)
+	collections, err := lister.ListCollections(context.Background(), path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return exitCodeErrorInternal
+	}
+
+	nfs.PrintCollections(os.Stdout, collections)
+	return exitCodeSuccess
 }
