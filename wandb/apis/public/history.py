@@ -158,18 +158,6 @@ class HistoryScan(Iterator[_RowDict]):
     <!-- lazydoc-ignore-class: internal -->
     """
 
-    QUERY = gql(
-        """
-        query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $run) {
-                    history(minStep: $minStep, maxStep: $maxStep, samples: $pageSize)
-                }
-            }
-        }
-        """
-    )
-
     def __init__(
         self,
         client: RetryingClient,
@@ -221,6 +209,8 @@ class HistoryScan(Iterator[_RowDict]):
 
     @normalize_exceptions
     def _load_next(self) -> None:
+        from wandb.apis._generated import HISTORY_PAGE_GQL, HistoryPage
+
         max_step = self.page_offset + self.page_size
         if max_step > self.max_step:
             max_step = self.max_step
@@ -233,8 +223,8 @@ class HistoryScan(Iterator[_RowDict]):
             "pageSize": int(self.page_size),
         }
 
-        res = self.client.execute(self.QUERY, variable_values=variables)
-        res = res["project"]["run"]["history"]
+        data = self.client.execute(gql(HISTORY_PAGE_GQL), variable_values=variables)
+        res = HistoryPage.model_validate(data).project.run.history
         self.rows = [json.loads(row) for row in res]
         self.page_offset += self.page_size
         self.scan_offset = 0
@@ -245,18 +235,6 @@ class SampledHistoryScan(Iterator[_RowDict]):
 
     <!-- lazydoc-ignore-class: internal -->
     """
-
-    QUERY = gql(
-        """
-        query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $run) {
-                    sampledHistory(specs: [$spec])
-                }
-            }
-        }
-        """
-    )
 
     def __init__(
         self,
@@ -312,6 +290,8 @@ class SampledHistoryScan(Iterator[_RowDict]):
 
     @normalize_exceptions
     def _load_next(self) -> None:
+        from wandb.apis._generated import SAMPLED_HISTORY_PAGE_GQL, SampledHistoryPage
+
         max_step = self.page_offset + self.page_size
         if max_step > self.max_step:
             max_step = self.max_step
@@ -329,8 +309,10 @@ class SampledHistoryScan(Iterator[_RowDict]):
             ),
         }
 
-        res = self.client.execute(self.QUERY, variable_values=variables)
-        res = res["project"]["run"]["sampledHistory"]
+        data = self.client.execute(
+            gql(SAMPLED_HISTORY_PAGE_GQL), variable_values=variables
+        )
+        res = SampledHistoryPage.model_validate(data).project.run.sampled_history
         self.rows = res[0]
         self.page_offset += self.page_size
         self.scan_offset = 0

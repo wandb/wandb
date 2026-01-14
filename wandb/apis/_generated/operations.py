@@ -31,8 +31,10 @@ __all__ = [
     "GET_SWEEP_LEGACY_GQL",
     "GET_TEAM_ENTITY_GQL",
     "GET_VIEWER_GQL",
+    "HISTORY_PAGE_GQL",
     "PROBE_FIELDS_GQL",
     "PROBE_INPUT_FIELDS_GQL",
+    "SAMPLED_HISTORY_PAGE_GQL",
     "SEARCH_USERS_GQL",
     "UPDATE_RUN_GQL",
 ]
@@ -80,6 +82,26 @@ DELETE_FILES_GQL = """
 mutation DeleteFiles($files: [ID!]!, $projectId: Int) {
   deleteFiles(input: {files: $files, projectId: $projectId}) {
     success
+  }
+}
+"""
+
+HISTORY_PAGE_GQL = """
+query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $run) {
+      history(minStep: $minStep, maxStep: $maxStep, samples: $pageSize)
+    }
+  }
+}
+"""
+
+SAMPLED_HISTORY_PAGE_GQL = """
+query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $run) {
+      sampledHistory(specs: [$spec])
+    }
   }
 }
 """
