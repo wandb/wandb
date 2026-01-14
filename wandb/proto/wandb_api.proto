@@ -38,13 +38,11 @@ message ApiResponse {
 
 message ApiErrorResponse {
   string message = 1;
-  ErrorType error_type = 2;
+  optional ErrorType error_type = 2;
 }
 
-message ErrorType {
-  oneof error_type {
-    IncompleteRunHistoryError incomplete_run_history_error = 1;
-  }
+enum ErrorType {
+  INCOMPLETE_RUN_HISTORY_ERROR = 0;
 }
 
 // Start of Scan run history
@@ -118,7 +116,7 @@ message ScanRunHistoryCleanupResponse {}
 
 // Download run history
 
-// DownloadRunHistory is a request to download a run's history exports.
+// A request to download a run's history exports.
 message DownloadRunHistory {
   // The entity who owns the run.
   string entity = 1;
@@ -136,7 +134,7 @@ message DownloadRunHistory {
   bool require_complete_history = 5;
 }
 
-// DownloadRunHistoryResponse is a response to a DownloadRunHistory request.
+// A response to a DownloadRunHistory request.
 message DownloadRunHistoryResponse {
   // The list of file names that were downloaded.
   // Each value is the full path to the downloaded file.

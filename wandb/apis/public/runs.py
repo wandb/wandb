@@ -125,24 +125,28 @@ LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
 
 
 class IncompleteRunHistoryError(Exception):
-    """Raised when run history has live data, but history is required to be complete."""
+    """Raised when run history has incomplete history.
+    
+    Incomplete history occurs when there is some data
+    that has not been exported to parquet files yet.
+    Typically due to an on-going run.
+    """
 
 
 @dataclass(frozen=True)
 class DownloadHistoryResult:
-    """Result of downloading a run's history exports."""
+    """Result of downloading a run's history exports.
+    
+    Attributes:
+        paths: The paths to the downloaded history files.
+        errors: A dictionary of errors that occurred while downloading the history files.
+        contains_live_data: Whether the run contains live data,
+            not yet exported to parquet files:w.
+    """
 
-    file_names: list[pathlib.Path]
+    paths: list[pathlib.Path]
+    errors: dict[pathlib.Path, str]
     contains_live_data: bool
-
-    def __iter__(self):
-        return iter(self.file_names)
-
-    def __len__(self):
-        return len(self.file_names)
-
-    def __getitem__(self, index: int):
-        return self.file_names[index]
 
 
 def _create_runs_query(
@@ -1602,10 +1606,12 @@ class Run(Attrs):
 
         Args:
             download_dir: The directory to download the history files to.
+            require_complete_history: Whether to require the complete history to be downloaded.
+                If true, and the run contains data that has not been exported to parquet files yet,
+                an IncompleteRunHistoryError will be raised.
 
         Returns:
-            A tuple containing the list of file names
-            and a boolean indicating if the run contains live data.
+            A DownloadHistoryResult.
         """
         if self._api is None:
             self._api = public.Api()
@@ -1629,10 +1635,9 @@ class Run(Attrs):
             if (
                 e.response is not None
                 and e.response.error_type is not None
-                and e.response.error_type.WhichOneof("error_type")
-                == "incomplete_run_history_error"
+                and e.response.error_type == apb.ErrorType.INCOMPLETE_RUN_HISTORY_ERROR
             ):
-                raise IncompleteRunHistoryError() from e
+                raise IncompleteRunHistoryError() from None
 
         if response is None:
             raise wandb.Error(
@@ -1646,4 +1651,8 @@ class Run(Attrs):
         for file_name in response.download_run_history_response.file_names:
             file_names.append(pathlib.Path(download_dir, file_name))
 
-        return DownloadHistoryResult(file_names, contains_live_data)
+        return DownloadHistoryResult(
+            paths=file_names,
+            errors={},
+            contains_live_data=contains_live_data
+        )

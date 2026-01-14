@@ -7,11 +7,31 @@ import builtins
 import collections.abc
 import google.protobuf.descriptor
 import google.protobuf.internal.containers
+import google.protobuf.internal.enum_type_wrapper
 import google.protobuf.message
+import sys
 import typing
 import wandb.proto.wandb_settings_pb2
 
+if sys.version_info >= (3, 10):
+    import typing as typing_extensions
+else:
+    import typing_extensions
+
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
+
+class _ErrorType:
+    ValueType = typing.NewType("ValueType", builtins.int)
+    V: typing_extensions.TypeAlias = ValueType
+
+class _ErrorTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ErrorType.ValueType], builtins.type):
+    DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+    INCOMPLETE_RUN_HISTORY_ERROR: _ErrorType.ValueType  # 0
+
+class ErrorType(_ErrorType, metaclass=_ErrorTypeEnumTypeWrapper): ...
+
+INCOMPLETE_RUN_HISTORY_ERROR: ErrorType.ValueType  # 0
+global___ErrorType = ErrorType
 
 @typing.final
 class ServerApiInitRequest(google.protobuf.message.Message):
@@ -108,36 +128,18 @@ class ApiErrorResponse(google.protobuf.message.Message):
     MESSAGE_FIELD_NUMBER: builtins.int
     ERROR_TYPE_FIELD_NUMBER: builtins.int
     message: builtins.str
-    @property
-    def error_type(self) -> global___ErrorType: ...
+    error_type: global___ErrorType.ValueType
     def __init__(
         self,
         *,
         message: builtins.str = ...,
-        error_type: global___ErrorType | None = ...,
+        error_type: global___ErrorType.ValueType | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["error_type", b"error_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["error_type", b"error_type", "message", b"message"]) -> None: ...
+    def HasField(self, field_name: typing.Literal["_error_type", b"_error_type", "error_type", b"error_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["_error_type", b"_error_type", "error_type", b"error_type", "message", b"message"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["_error_type", b"_error_type"]) -> typing.Literal["error_type"] | None: ...
 
 global___ApiErrorResponse = ApiErrorResponse
-
-@typing.final
-class ErrorType(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    INCOMPLETE_RUN_HISTORY_ERROR_FIELD_NUMBER: builtins.int
-    @property
-    def incomplete_run_history_error(self) -> global___IncompleteRunHistoryError: ...
-    def __init__(
-        self,
-        *,
-        incomplete_run_history_error: global___IncompleteRunHistoryError | None = ...,
-    ) -> None: ...
-    def HasField(self, field_name: typing.Literal["error_type", b"error_type", "incomplete_run_history_error", b"incomplete_run_history_error"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["error_type", b"error_type", "incomplete_run_history_error", b"incomplete_run_history_error"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["error_type", b"error_type"]) -> typing.Literal["incomplete_run_history_error"] | None: ...
-
-global___ErrorType = ErrorType
 
 @typing.final
 class ReadRunHistoryRequest(google.protobuf.message.Message):

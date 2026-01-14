@@ -287,11 +287,7 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
 			Response: &spb.ApiResponse_ApiErrorResponse{
 				ApiErrorResponse: &spb.ApiErrorResponse{
 					Message: "Run contains data that has not been exported to parquet files yet.",
-					ErrorType: &spb.ErrorType{
-						ErrorType: &spb.ErrorType_IncompleteRunHistoryError{
-							IncompleteRunHistoryError: &spb.IncompleteRunHistoryError{},
-						},
-					},
+					ErrorType: spb.ErrorType_INCOMPLETE_RUN_HISTORY_ERROR.Enum(),
 				},
 			},
 		}
