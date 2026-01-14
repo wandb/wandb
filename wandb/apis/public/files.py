@@ -38,6 +38,7 @@ import io
 import os
 from typing import TYPE_CHECKING, Any, Callable
 
+from typing_extensions import override
 from wandb_gql import gql
 from wandb_gql.client import RetryError
 
@@ -49,35 +50,15 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.runs import Run, _server_has_field
+from wandb.apis.public.utils import gql_compat
 from wandb.sdk.lib import retry
 from wandb.util import POW_2_BYTES, download_file_from_url, no_retry_auth, to_human_size
 
 if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
+    from wandb.apis._generated import GetRunFiles
     from wandb.apis.public import Api, RetryingClient
-
-FILE_FRAGMENT = """fragment RunFilesFragment on Run {
-    files(names: $fileNames, after: $fileCursor, first: $fileLimit, pattern: $pattern) {
-        edges {
-            node {
-                id
-                name
-                url(upload: $upload)
-                directUrl
-                sizeBytes
-                mimetype
-                updatedAt
-                md5
-            }
-            cursor
-        }
-        pageInfo {
-            endCursor
-            hasNextPage
-        }
-    }
-}"""
 
 
 class Files(SizedPaginator["File"]):
@@ -108,24 +89,18 @@ class Files(SizedPaginator["File"]):
     ```
     """
 
+    last_response: GetRunFiles | None
+
     def _get_query(self) -> Document:
         """Generate query dynamically based on server capabilities."""
-        with_internal_id = _server_has_field(self.client, "Project", "internalId")
-        return gql(
-            f"""
-            query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
-                $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
-                project(name: $project, entityName: $entity) {{
-                    {"internalId" if with_internal_id else ""}
-                    run(name: $name) {{
-                        fileCount
-                        ...RunFilesFragment
-                    }}
-                }}
-            }}
-            {FILE_FRAGMENT}
-            """
+        from wandb.apis._generated import GET_RUN_FILES_GQL
+
+        omit_fields = (
+            None
+            if _server_has_field(self.client, "Project", "internalId")
+            else {"internalId"}
         )
+        return gql_compat(GET_RUN_FILES_GQL, omit_fields=omit_fields)
 
     def __init__(
         self,
@@ -168,63 +143,56 @@ class Files(SizedPaginator["File"]):
         }
         super().__init__(client, variables, per_page)
 
+    @override
     def _update_response(self) -> None:
-        """Fetch and store the response data for the next page using dynamic query."""
-        self.last_response = self.client.execute(
-            self._get_query(), variable_values=self.variables
-        )
+        """Fetch and validate the response data for the current page."""
+        from wandb.apis._generated import GetRunFiles
+
+        data = self.client.execute(self._get_query(), variable_values=self.variables)
+        self.last_response = GetRunFiles.model_validate(data)
 
     @property
+    @override
     def _length(self) -> int:
-        """
-        Returns total number of files.
+        """Returns total number of files.
 
         <!-- lazydoc-ignore: internal -->
         """
-        if not self.last_response:
+        if self.last_response is None:
             self._load_page()
-
-        return self.last_response["project"]["run"]["fileCount"]
+        return self.last_response.project.run.file_count
 
     @property
+    @override
     def more(self) -> bool:
         """Returns whether there are more files to fetch.
 
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return self.last_response["project"]["run"]["files"]["pageInfo"][
-                "hasNextPage"
-            ]
-        else:
-            return True
+            return self.last_response.project.run.files.page_info.has_next_page
+        return True
 
     @property
+    @override
     def cursor(self) -> str | None:
         """Returns the cursor position for pagination of file results.
 
         <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
-            return self.last_response["project"]["run"]["files"]["edges"][-1]["cursor"]
-        else:
-            return None
+            return self.last_response.project.run.files.page_info.end_cursor
+        return None
 
-    def update_variables(self) -> None:
-        """Updates the GraphQL query variables for pagination.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
-
+    @override
     def convert_objects(self) -> list[File]:
         """Converts GraphQL edges to File objects.
 
         <!-- lazydoc-ignore: internal -->
         """
         return [
-            File(self.client, r["node"], self.run)
-            for r in self.last_response["project"]["run"]["files"]["edges"]
+            File(self.client, r.node.model_dump(), self.run)
+            for r in self.last_response.project.run.files.edges
         ]
 
     def __repr__(self) -> str:
@@ -268,19 +236,15 @@ class File(Attrs):
         run: Run | None = None,
     ):
         self.client = client
-        self._attrs = attrs
         self.run = run
         self.server_supports_delete_file_with_project_id: bool | None = None
         self._download_decorated: Callable[..., Any] | None = None
-        super().__init__(dict(attrs))
+        super().__init__(attrs)
 
     @property
     def size(self) -> int:
         """Returns the size of the file in bytes."""
-        size_bytes = self._attrs["sizeBytes"]
-        if size_bytes is not None:
-            return int(size_bytes)
-        return 0
+        return 0 if (size := self._attrs.get("sizeBytes")) is None else int(size)
 
     @property
     def path_uri(self) -> str:
@@ -366,35 +330,20 @@ class File(Attrs):
     @normalize_exceptions
     def delete(self) -> None:
         """Delete the file from the W&B server."""
-        project_id_mutation_fragment = ""
-        project_id_variable_fragment = ""
+        from wandb.apis._generated import DELETE_FILES_GQL
+
         variable_values = {
             "files": [self.id],
+            "projectId": run._project_internal_id if (run := self.run) else None,
         }
 
-        # Add projectId to mutation and variables if the server supports it.
-        # Otherwise, do not include projectId in mutation for older server versions which do not support it.
-        if self._server_accepts_project_id_for_delete_file():
-            variable_values["projectId"] = self.run._project_internal_id
-            project_id_variable_fragment = ", $projectId: Int"
-            project_id_mutation_fragment = "projectId: $projectId"
-
-        mutation_string = """
-            mutation deleteFiles($files: [ID!]!{}) {{
-                deleteFiles(input: {{
-                    files: $files
-                    {}
-                }}) {{
-                    success
-                }}
-            }}
-            """.format(project_id_variable_fragment, project_id_mutation_fragment)
-        mutation = gql(mutation_string)
-
-        self.client.execute(
-            mutation,
-            variable_values=variable_values,
+        # Omit projectId from the mutation for older servers that don't support it.
+        # GraphQL ignores extra variables in the payload when not declared in the op.
+        omit_vars = (
+            None if self._server_accepts_project_id_for_delete_file() else {"projectId"}
         )
+        mutation = gql_compat(DELETE_FILES_GQL, omit_variables=omit_vars)
+        self.client.execute(mutation, variable_values=variable_values)
 
     def __repr__(self) -> str:
         classname = nameof(type(self))
@@ -407,29 +356,20 @@ class File(Attrs):
 
         This check is done by utilizing GraphQL introspection in the available fields on the DeleteFiles API.
         """
-        query_string = """
-           query ProbeDeleteFilesProjectIdInput {
-                DeleteFilesProjectIdInputType: __type(name:"DeleteFilesInput") {
-                    inputFields{
-                        name
-                    }
-                }
-            }
-        """
+        from wandb.apis._generated import PROBE_INPUT_FIELDS_GQL, ProbeInputFields
 
         # Only perform the query once to avoid extra network calls
         if self.server_supports_delete_file_with_project_id is None:
-            query = gql(query_string)
-            res = self.client.execute(query)
+            gql_op = gql(PROBE_INPUT_FIELDS_GQL)
+            gql_vars = {"type": "DeleteFilesInput"}
+            data = self.client.execute(gql_op, variable_values=gql_vars)
+            result = ProbeInputFields.model_validate(data)
 
             # If projectId is in the inputFields, the server supports deleting files with a projectId
-            self.server_supports_delete_file_with_project_id = "projectId" in [
-                x["name"]
-                for x in (
-                    res.get("DeleteFilesProjectIdInputType", {}).get(
-                        "inputFields", [{}]
-                    )
-                )
-            ]
+            self.server_supports_delete_file_with_project_id = (
+                (type_info := result.type_info) is not None
+                and (fields := type_info.input_fields) is not None
+                and any(f.name == "projectId" for f in fields)
+            )
 
         return self.server_supports_delete_file_with_project_id

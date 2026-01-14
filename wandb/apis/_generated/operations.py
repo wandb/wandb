@@ -9,6 +9,7 @@ __all__ = [
     "CREATE_TEAM_GQL",
     "CREATE_USER_FROM_ADMIN_GQL",
     "DELETE_API_KEY_GQL",
+    "DELETE_FILES_GQL",
     "DELETE_INVITE_GQL",
     "DELETE_RUN_GQL",
     "GENERATE_API_KEY_GQL",
@@ -19,6 +20,7 @@ __all__ = [
     "GET_PROJECT_GQL",
     "GET_RUNS_GQL",
     "GET_RUN_EVENTS_GQL",
+    "GET_RUN_FILES_GQL",
     "GET_RUN_GQL",
     "GET_RUN_HISTORY_GQL",
     "GET_RUN_HISTORY_KEYS_GQL",
@@ -30,14 +32,72 @@ __all__ = [
     "GET_TEAM_ENTITY_GQL",
     "GET_VIEWER_GQL",
     "PROBE_FIELDS_GQL",
+    "PROBE_INPUT_FIELDS_GQL",
     "SEARCH_USERS_GQL",
     "UPDATE_RUN_GQL",
 ]
+
+GET_RUN_FILES_GQL = """
+query GetRunFiles($project: String!, $entity: String!, $name: String!, $cursor: String, $perPage: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {
+  project(name: $project, entityName: $entity) {
+    internalId @include(if: true)
+    run(name: $name) {
+      fileCount
+      files(names: $fileNames, after: $cursor, first: $perPage, pattern: $pattern) {
+        pageInfo {
+          ...PageInfoFragment
+        }
+        edges {
+          node {
+            ...FileFragment
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment FileFragment on File {
+  __typename
+  id
+  name
+  url(upload: $upload)
+  directUrl
+  sizeBytes
+  mimetype
+  updatedAt
+  md5
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+"""
+
+DELETE_FILES_GQL = """
+mutation DeleteFiles($files: [ID!]!, $projectId: Int) {
+  deleteFiles(input: {files: $files, projectId: $projectId}) {
+    success
+  }
+}
+"""
 
 PROBE_FIELDS_GQL = """
 query ProbeFields($type: String!) {
   typeInfo: __type(name: $type) {
     fields {
+      name
+    }
+  }
+}
+"""
+
+PROBE_INPUT_FIELDS_GQL = """
+query ProbeInputFields($type: String!) {
+  typeInfo: __type(name: $type) {
+    inputFields {
       name
     }
   }
