@@ -19,17 +19,17 @@ class DisplayableMixin(ABC):
 
     def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Display this object in jupyter."""
-        if ((curr_run := wandb.run) and curr_run._settings.silent) or not in_jupyter():
+        if ((run := wandb.run) and run._settings.silent) or not in_jupyter():
             return False
 
         try:
-            from IPython.display import HTML, display
+            from IPython.display import display_html
         except ImportError:
             msg = f"{nameof(self.display)}() only works in jupyter environments"
             wandb.termwarn(msg)
             return False
 
-        display(HTML(self.to_html(height=height, hidden=hidden)))
+        display_html(self.to_html(height=height, hidden=hidden))
         return True
 
     def _repr_html_(self) -> str:
