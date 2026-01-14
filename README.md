@@ -39,7 +39,9 @@ pip install wandb
 
 ## Sign up and create an API key
 
-Sign up for a [W&B account](https://wandb.ai/login?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=quickstart). Optionally, use the `wandb login` CLI to configure an API key on your machine. You can skip this step -- W&B will prompt you for an API key the first time you use it.
+Sign up for a [W&B account](https://wandb.ai/login?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=quickstart). Create a new API key at [wandb.ai/settings](https://wandb.ai/settings) and store it securely. Optionally, use the `wandb login` CLI to configure your API key on your machine. You can skip this step -- W&B will prompt you to create an API key the first time you use it.
+
+**Note:** API keys can only be viewed once when created. Store your API key in a secure location like a password manager or environment variable.
 
 ## Create a machine learning training experiment
 
