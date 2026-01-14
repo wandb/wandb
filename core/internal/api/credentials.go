@@ -17,10 +17,7 @@ import (
 )
 
 // CredentialProvider adds credentials to HTTP requests.
-type CredentialProvider interface {
-	httplayers.HTTPWrapper
-	Apply(req *http.Request) error
-}
+type CredentialProvider httplayers.HTTPWrapper
 
 // NewCredentialProvider creates a new credential provider based on the SDK
 // settings. Settings for JWT authentication are prioritized above API key
@@ -67,13 +64,13 @@ func (c *apiKeyCredentialProvider) WrapHTTP(
 	send httplayers.HTTPDoFunc,
 ) httplayers.HTTPDoFunc {
 	return func(req *http.Request) (*http.Response, error) {
-		_ = c.Apply(req)
+		_ = c.apply(req)
 		return send(req)
 	}
 }
 
-// Apply implements CredentialProvider.Apply.
-func (c *apiKeyCredentialProvider) Apply(req *http.Request) error {
+// apply sets the Authorization header on the request.
+func (c *apiKeyCredentialProvider) apply(req *http.Request) error {
 	req.Header.Set(
 		"Authorization",
 		"Basic "+base64.StdEncoding.EncodeToString(
@@ -89,11 +86,6 @@ func (c NoopCredentialProvider) WrapHTTP(
 	send httplayers.HTTPDoFunc,
 ) httplayers.HTTPDoFunc {
 	return send
-}
-
-// Apply implements CredentialProvider.Apply.
-func (c NoopCredentialProvider) Apply(req *http.Request) error {
-	return nil
 }
 
 // OAuth2CredentialProvider creates a credentials provider that exchanges a JWT
@@ -191,7 +183,7 @@ func (c *oauth2CredentialProvider) WrapHTTP(
 	send httplayers.HTTPDoFunc,
 ) httplayers.HTTPDoFunc {
 	return func(req *http.Request) (*http.Response, error) {
-		err := c.Apply(req)
+		err := c.apply(req)
 		if err != nil {
 			return nil, httplayers.URLError(req, err)
 		}
@@ -200,9 +192,9 @@ func (c *oauth2CredentialProvider) WrapHTTP(
 	}
 }
 
-// Apply fetches a new access token if necessary and supplies it to the request
+// apply fetches a new access token if necessary and supplies it to the request
 // via the Authorization header as a Bearer token.
-func (c *oauth2CredentialProvider) Apply(req *http.Request) error {
+func (c *oauth2CredentialProvider) apply(req *http.Request) error {
 	if c.shouldRefreshToken() {
 		err := c.loadCredentials()
 		if err != nil {
