@@ -8,24 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/httplayers"
+	"github.com/wandb/wandb/core/internal/httplayerstest"
 )
-
-type urlFilterTestHelper struct {
-	ran bool
-}
-
-// WrapHTTP implements HTTPWrapper.WrapHTTP.
-func (h *urlFilterTestHelper) WrapHTTP(send httplayers.HTTPDoFunc) httplayers.HTTPDoFunc {
-	return func(req *http.Request) (*http.Response, error) {
-		h.ran = true
-		return send(req)
-	}
-}
-
-// noopHTTPDoFunc is an HTTPDoFunc for testing that just returns nil, nil.
-func noopHTTPDoFunc(req *http.Request) (*http.Response, error) {
-	return nil, nil
-}
 
 func TestURLFilter(t *testing.T) {
 	testCases := []struct {
@@ -53,11 +37,20 @@ func TestURLFilter(t *testing.T) {
 			request, err := http.NewRequest(http.MethodGet, tc.requestURL, nil)
 			require.NoError(t, err)
 
-			matcher := &urlFilterTestHelper{}
-			wrapper := httplayers.LimitTo(filterURL, matcher).WrapHTTP(noopHTTPDoFunc)
-			_, _ = wrapper(request)
+			filteredWrapper := httplayerstest.NewHTTPWrapperRecorder()
+			requests, err := httplayerstest.MapRequest(t,
+				httplayers.LimitTo(filterURL, filteredWrapper),
+				request,
+			)
 
-			assert.Equal(t, tc.matches, matcher.ran)
+			assert.NoError(t, err)
+			assert.Equal(t, []*http.Request{request}, requests)
+
+			if tc.matches {
+				assert.Equal(t, []*http.Request{request}, filteredWrapper.Calls())
+			} else {
+				assert.Empty(t, filteredWrapper.Calls())
+			}
 		})
 	}
 }
