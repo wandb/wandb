@@ -238,15 +238,6 @@ uv pip install -e .
 
 If you are modifying Go code, you should rerun the command to rebuild and reinstall the package.
 
-Alternatively, you can install `wandb-core` (the Go backend of the SDK) in development mode, by running the following command:
-
-```shell
-./core/scripts/setup-core-path.sh
-```
-
-This script will also allow you to unset the `wandb-core` path if you no longer want to use
-the development version of `wandb-core`.
-
 ### Linting the code
 
 We are using [pre-commit hooks](https://pre-commit.com/#install) to manage our linters and other auto-generated code.

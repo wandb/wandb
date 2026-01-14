@@ -1970,26 +1970,12 @@ def working_set() -> Iterable[InstalledDistribution]:
 def get_core_path() -> str:
     """Returns the path to the wandb-core binary.
 
-    The path can be set explicitly via the _WANDB_CORE_PATH environment
-    variable. Otherwise, the path to the binary in the current package
-    is returned.
-
     Returns:
         str: The path to the wandb-core package.
 
     Raises:
         WandbCoreNotAvailableError: If wandb-core was not built for the current system.
     """
-    # NOTE: Environment variable _WANDB_CORE_PATH is a temporary development feature
-    #       to assist in running the core service from a live development directory.
-    path_from_env: str = os.environ.get("_WANDB_CORE_PATH", "")
-    if path_from_env:
-        wandb.termwarn(
-            f"Using wandb-core from path `_WANDB_CORE_PATH={path_from_env}`. "
-            "This is a development feature and may not work as expected."
-        )
-        return path_from_env
-
     bin_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
     if not bin_path.exists():
         raise WandbCoreNotAvailableError(
