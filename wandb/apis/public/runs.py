@@ -126,7 +126,7 @@ LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
 
 class IncompleteRunHistoryError(Exception):
     """Raised when run history has incomplete history.
-    
+
     Incomplete history occurs when there is some data
     that has not been exported to parquet files yet.
     Typically due to an on-going run.
@@ -136,7 +136,7 @@ class IncompleteRunHistoryError(Exception):
 @dataclass(frozen=True)
 class DownloadHistoryResult:
     """Result of downloading a run's history exports.
-    
+
     Attributes:
         paths: The paths to the downloaded history files.
         errors: A dictionary of errors that occurred while downloading the history files.
@@ -145,8 +145,8 @@ class DownloadHistoryResult:
     """
 
     paths: list[pathlib.Path]
-    errors: dict[pathlib.Path, str]
     contains_live_data: bool
+    errors: dict[pathlib.Path, str] | None = None
 
 
 def _create_runs_query(
@@ -1601,9 +1601,6 @@ class Run(Attrs):
     ) -> DownloadHistoryResult:
         """Download any parquet history files for the run to the provided directory.
 
-        If the run contains live data (data that is not yet exported to parquet),
-        then the second return value will be True.
-
         Args:
             download_dir: The directory to download the history files to.
             require_complete_history: Whether to require the complete history to be downloaded.
@@ -1653,6 +1650,5 @@ class Run(Attrs):
 
         return DownloadHistoryResult(
             paths=file_names,
-            errors={},
-            contains_live_data=contains_live_data
+            contains_live_data=contains_live_data,
         )

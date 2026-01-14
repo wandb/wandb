@@ -26,11 +26,13 @@ class _ErrorType:
 
 class _ErrorTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ErrorType.ValueType], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
-    INCOMPLETE_RUN_HISTORY_ERROR: _ErrorType.ValueType  # 0
+    UNKNOWN_ERROR: _ErrorType.ValueType  # 0
+    INCOMPLETE_RUN_HISTORY_ERROR: _ErrorType.ValueType  # 1
 
 class ErrorType(_ErrorType, metaclass=_ErrorTypeEnumTypeWrapper): ...
 
-INCOMPLETE_RUN_HISTORY_ERROR: ErrorType.ValueType  # 0
+UNKNOWN_ERROR: ErrorType.ValueType  # 0
+INCOMPLETE_RUN_HISTORY_ERROR: ErrorType.ValueType  # 1
 global___ErrorType = ErrorType
 
 @typing.final
@@ -362,7 +364,7 @@ global___ScanRunHistoryCleanupResponse = ScanRunHistoryCleanupResponse
 class DownloadRunHistory(google.protobuf.message.Message):
     """Download run history
 
-    DownloadRunHistory is a request to download a run's history exports.
+    A request to download a run's history exports.
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -400,7 +402,7 @@ global___DownloadRunHistory = DownloadRunHistory
 
 @typing.final
 class DownloadRunHistoryResponse(google.protobuf.message.Message):
-    """DownloadRunHistoryResponse is a response to a DownloadRunHistory request."""
+    """A response to a DownloadRunHistory request."""
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 

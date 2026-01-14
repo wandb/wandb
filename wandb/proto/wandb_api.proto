@@ -42,7 +42,8 @@ message ApiErrorResponse {
 }
 
 enum ErrorType {
-  INCOMPLETE_RUN_HISTORY_ERROR = 0;
+  UNKNOWN_ERROR = 0;
+  INCOMPLETE_RUN_HISTORY_ERROR = 1;
 }
 
 // Start of Scan run history

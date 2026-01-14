@@ -74,7 +74,13 @@ from wandb.apis.public.reports import (
     PythonMongoishQueryGenerator,
     Reports,
 )
-from wandb.apis.public.runs import RUN_FRAGMENT, Run, Runs, IncompleteRunHistoryError, DownloadHistoryResult
+from wandb.apis.public.runs import (
+    RUN_FRAGMENT,
+    DownloadHistoryResult,
+    IncompleteRunHistoryError,
+    Run,
+    Runs,
+)
 from wandb.apis.public.sweeps import Sweep
 from wandb.apis.public.teams import Member, Team
 from wandb.apis.public.users import User

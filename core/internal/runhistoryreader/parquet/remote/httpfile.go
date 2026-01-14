@@ -24,10 +24,15 @@ var successfulResponseStatusCodes = map[int]struct{}{
 // it returns -1, and the error that occurred or the status code.
 func getObjectSize(
 	ctx context.Context,
-	client *http.Client,
+	client *retryablehttp.Client,
 	url string,
 ) (int64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, http.NoBody)
+	req, err := retryablehttp.NewRequestWithContext(
+		ctx,
+		http.MethodHead,
+		url,
+		nil,
+	)
 	if err != nil {
 		return -1, err
 	}
@@ -63,7 +68,7 @@ func NewHttpFileReader(
 	client *retryablehttp.Client,
 	url string,
 ) (parquet.ReaderAtSeeker, error) {
-	fileSize, err := getObjectSize(ctx, client.HTTPClient, url)
+	fileSize, err := getObjectSize(ctx, client, url)
 	if err != nil {
 		return nil, err
 	}

@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 import wandb
+from wandb.apis.public import DownloadHistoryResult, Run
 
 
 def stub_run_parquet_history(
@@ -232,12 +233,12 @@ def test_run_download_history_exports(
     with wandb.init() as run:
         pass
 
-    run = wandb.Api().run(
+    api_run: Run = wandb.Api().run(
         f"{run.entity}/{run.project}/{run.id}",
     )
 
     download_dir = tempfile.mkdtemp()
-    download_result = run.download_history_exports(
+    download_result: DownloadHistoryResult = api_run.download_history_exports(
         download_dir=download_dir,
         require_complete_history=False,
     )
@@ -249,10 +250,10 @@ def test_run_download_history_exports(
         )
         for i in range(len(parquet_files))
     ]
-    assert download_result.file_names == expected_file_names
+    assert download_result.paths == expected_file_names
 
-    for file_name in download_result.file_names:
-        assert file_name.exists()
+    for path in download_result.paths:
+        assert path.exists()
 
     assert download_result.contains_live_data == (
         live_data is not None and len(live_data) > 0

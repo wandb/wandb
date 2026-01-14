@@ -142,7 +142,11 @@ func createNoContentLengthServer(t *testing.T) *httptest.Server {
 
 func TestGetObjectSize(t *testing.T) {
 	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := retryablehttp.NewClient()
+	client.HTTPClient.Timeout = 1 * time.Second
+	client.RetryMax = 1
+	client.RetryWaitMin = 1 * time.Millisecond
+	client.RetryWaitMax = 10 * time.Millisecond
 
 	t.Run("successful HEAD request", func(t *testing.T) {
 		server := createTestServer(t)
@@ -175,7 +179,7 @@ func TestGetObjectSize(t *testing.T) {
 		assert.Contains(
 			t,
 			err.Error(),
-			"failed to get object size with status code: 500",
+			"giving up after 2 attempt(s)",
 		)
 
 		// When server returns error status without Content-Length, it should return -1

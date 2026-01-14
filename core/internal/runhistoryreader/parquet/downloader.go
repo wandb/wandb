@@ -87,10 +87,10 @@ func DownloadRunHistoryFile(
 }
 
 func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {
-	stepValues := make([]int64, 0, len(liveData))
 	if liveData == nil {
-		return stepValues, nil
+		return nil, nil
 	}
+	stepValues := make([]int64, 0, len(liveData))
 
 	for _, data := range liveData {
 		liveDataMap, ok := data.(map[string]any)
