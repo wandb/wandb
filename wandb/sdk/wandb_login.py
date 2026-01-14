@@ -179,7 +179,7 @@ def _login(
         return False, None
 
     if key:
-        auth = _use_explicit_key(
+        auth: wbauth.Auth | None = _use_explicit_key(
             key,
             host=host_url,
             settings=settings,

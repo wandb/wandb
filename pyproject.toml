@@ -399,7 +399,6 @@ module = [
     "wandb.apis.reports.v2",
     "wandb.apis.workspaces",
     "wandb.proto.*",
-    "wandb.sdk.wandb_login",
     "wandb.cli.*",
     "wandb.wandb_torch.*",
     "wandb.wandb_controller.*",
