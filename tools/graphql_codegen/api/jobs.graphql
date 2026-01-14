@@ -1,0 +1,116 @@
+# Legacy query to get run queue items
+query GetRunQueueItemsLegacy($projectName: String!, $entityName: String!, $runQueue: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    runQueue(name: $runQueue) {
+      runQueueItems {
+        edges {
+          node {
+            id
+            state
+            associatedRunId
+          }
+        }
+      }
+    }
+  }
+}
+
+query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!, $itemId: ID!) {
+  project(name: $projectName, entityName: $entityName) {
+    runQueue(name: $runQueue) {
+      runQueueItem(id: $itemId) {
+        id
+        state
+        associatedRunId
+      }
+    }
+  }
+}
+
+query FetchRunQueueFromProject($entityName: String!, $projectName: String!, $runQueueName: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    runQueue(name: $runQueueName) {
+      id
+    }
+  }
+}
+
+mutation DeleteFromRunQueue($queueID: ID!, $runQueueItemId: ID!) {
+  deleteFromRunQueue(input: { queueID: $queueID, runQueueItemId: $runQueueItemId }) {
+    success
+    clientMutationId
+  }
+}
+
+mutation DeleteRunQueue($id: ID!) {
+  deleteRunQueues(input: { queueIDs: [$id] }) {
+    success
+    clientMutationId
+  }
+}
+
+query GetRunQueueMetadata($projectName: String!, $entityName: String!, $runQueue: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    runQueue(name: $runQueue) {
+      id
+      access
+      defaultResourceConfigID
+      prioritizationMode
+      externalLinks
+    }
+  }
+}
+
+query GetDefaultResourceConfig($entityName: String!, $id: ID!) {
+  entity(name: $entityName) {
+    defaultResourceConfig(id: $id) {
+      config
+      resource
+      templateVariables {
+        name
+        schema
+      }
+    }
+  }
+}
+
+query GetRunQueueItems($projectName: String!, $entityName: String!, $runQueue: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    runQueue(name: $runQueue) {
+      runQueueItems(first: 100) {
+        edges {
+          node {
+            id
+          }
+        }
+      }
+    }
+  }
+}
+
+query ArtifactOfType($entityName: String!, $projectName: String!, $artifactTypeName: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactType(name: $artifactTypeName) {
+      artifactCollections {
+        edges {
+          node {
+            artifacts {
+              edges {
+                node {
+                  id
+                  state
+                  aliases {
+                    alias
+                  }
+                  artifactSequence {
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
