@@ -233,7 +233,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$H
 We recommend installing the `wandb` package in the editable mode with either `pip` or `uv`:
 
 ```shell
-uv pip install -e .
+uv pip install --reinstall --refresh-package wandb -e .
 ```
 
 If you are modifying Go code, you should rerun the command to rebuild and reinstall the package.

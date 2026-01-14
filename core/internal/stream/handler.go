@@ -569,7 +569,8 @@ func (h *Handler) handleCodeSave() {
 	}
 
 	codeDir := filepath.Join(h.settings.GetFilesDir(), "code")
-	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
+	programPath := filepath.Join(codeDir, filepath.Dir(programRelative))
+	if err := os.MkdirAll(programPath, os.ModePerm); err != nil {
 		return
 	}
 	savedProgram := filepath.Join(codeDir, programRelative)

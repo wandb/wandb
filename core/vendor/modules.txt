@@ -531,6 +531,8 @@ github.com/envoyproxy/protoc-gen-validate/validate
 # github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f
 ## explicit; go 1.16
 github.com/erikgeiser/coninput
+# github.com/fatih/color v1.18.0
+## explicit; go 1.17
 # github.com/felixge/httpsnoop v1.0.4
 ## explicit; go 1.13
 github.com/felixge/httpsnoop
@@ -750,6 +752,8 @@ github.com/lucasb-eyer/go-colorful
 # github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3
 ## explicit; go 1.21
 github.com/lufia/plan9stats
+# github.com/mattn/go-colorable v0.1.14
+## explicit; go 1.18
 # github.com/mattn/go-isatty v0.0.20
 ## explicit; go 1.15
 github.com/mattn/go-isatty
@@ -787,6 +791,8 @@ github.com/munnerz/goautoneg
 # github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 ## explicit
 github.com/mwitkow/go-conntrack
+# github.com/onsi/gomega v1.36.2
+## explicit; go 1.22.0
 # github.com/pierrec/lz4/v4 v4.1.22
 ## explicit; go 1.14
 github.com/pierrec/lz4/v4

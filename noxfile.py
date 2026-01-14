@@ -871,3 +871,22 @@ def wandb_import_time_check(session: nox.Session) -> None:
         session.error(f"Import time increased by {pct:+.0%} (>20% threshold)")
     elif pct > 0.10:
         session.warn(f"Import time increased by {pct:+.0%}")
+
+
+@nox.session(python=False, name="install-hooks")
+def install_hooks(session: nox.Session) -> None:
+    """Install pre-commit hooks."""
+    session.run("pre-commit", "install", "-t", "pre-push", external=True)
+
+
+@nox.session(python=False)
+def lint(session: nox.Session) -> None:
+    """Run all linters (via pre-commit)."""
+    session.run(
+        "pre-commit",
+        "run",
+        "--hook-stage",
+        "pre-push",
+        *(["--all-files"] if "--all" in session.posargs else []),
+        external=True,
+    )
