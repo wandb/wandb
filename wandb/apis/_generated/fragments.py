@@ -175,6 +175,23 @@ class UserInfoFragment(GQLResult):
     admin: Optional[bool]
 
 
+class ViewFragment(GQLResult):
+    id: GQLId
+    name: Optional[str]
+    display_name: Optional[str] = Field(alias="displayName")
+    description: Optional[str]
+    user: Optional[ViewFragmentUser]
+    spec: Optional[str]
+    updated_at: Optional[str] = Field(alias="updatedAt")
+    created_at: str = Field(alias="createdAt")
+
+
+class ViewFragmentUser(GQLResult):
+    username: Optional[str]
+    photo_url: Optional[str] = Field(alias="photoUrl")
+    email: Optional[str]
+
+
 ApiKeyFragment.model_rebuild()
 CreatedProjectFragment.model_rebuild()
 FileFragment.model_rebuild()
@@ -194,3 +211,5 @@ UserFragmentTeams.model_rebuild()
 UserFragmentTeamsEdges.model_rebuild()
 UserFragmentTeamsEdgesNode.model_rebuild()
 UserInfoFragment.model_rebuild()
+ViewFragment.model_rebuild()
+ViewFragmentUser.model_rebuild()

@@ -12,6 +12,7 @@ import re
 import urllib
 from typing import TYPE_CHECKING, Any
 
+from typing_extensions import override
 from wandb_gql import gql
 
 import wandb
@@ -19,15 +20,18 @@ from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis._displayable import DisplayableMixin
 from wandb.apis.attrs import Attrs
-from wandb.apis.paginator import SizedPaginator
+from wandb.apis.paginator import SizedRelayPaginator
 from wandb.sdk.lib import ipython
 
 if TYPE_CHECKING:
+    from wandb._pydantic import Connection
+    from wandb.apis._generated import ViewFragment
+
     from .api import RetryingClient
     from .projects import Project
 
 
-class Reports(SizedPaginator["BetaReport"]):
+class Reports(SizedRelayPaginator["ViewFragment", "BetaReport"]):
     """Reports is a lazy iterator of `BetaReport` objects.
 
     Args:
@@ -39,6 +43,8 @@ class Reports(SizedPaginator["BetaReport"]):
             the project entity.
         per_page (int): Number of reports to fetch per page (default is 50).
     """
+
+    last_response: Connection[ViewFragment] | None
 
     def __init__(
         self,
@@ -57,68 +63,28 @@ class Reports(SizedPaginator["BetaReport"]):
         }
         super().__init__(client, variables, per_page)
 
+    @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
-        from wandb.apis._generated import PROJECT_VIEWS_GQL, ProjectViews
+        from wandb._pydantic import Connection
+        from wandb.apis._generated import PROJECT_VIEWS_GQL, ProjectViews, ViewFragment
 
-        data = self.client.execute(
-            gql(PROJECT_VIEWS_GQL), variable_values=self.variables
+        gql_op = gql(PROJECT_VIEWS_GQL)
+        data = self.client.execute(gql_op, variable_values=self.variables)
+        result = ProjectViews.model_validate(data)
+        if not (project := result.project):
+            msg = f"Project {self.project.name} does not exist under entity {self.project.entity}"
+            raise ValueError(msg)
+        self.last_response = Connection[ViewFragment].model_validate(project.all_views)
+
+    def _convert(self, node: ViewFragment) -> BetaReport:
+        """Convert a GraphQL ViewFragment to a BetaReport object."""
+        return BetaReport(
+            self.client,
+            node.model_dump(),
+            entity=self.project.entity,
+            project=self.project.name,
         )
-        self.last_response = ProjectViews.model_validate(data)
-
-    @property
-    def _length(self) -> int | None:
-        """The number of reports in the project.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        # TODO: Add the count the backend
-        if self.last_response:
-            return len(self.objects)
-        return None
-
-    @property
-    def more(self) -> bool:
-        """Returns whether there are more files to fetch.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response:
-            return self.last_response.project.all_views.page_info.has_next_page
-        return True
-
-    @property
-    def cursor(self) -> str | None:
-        """Returns the cursor position for pagination of file results.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        if self.last_response:
-            return self.last_response.project.all_views.page_info.end_cursor
-        return None
-
-    def update_variables(self) -> None:
-        """Updates the GraphQL query variables for pagination."""
-        self.variables.update(
-            {"reportCursor": self.cursor, "reportLimit": self.per_page}
-        )
-
-    def convert_objects(self) -> list[BetaReport]:
-        """Converts GraphQL edges to BetaReport objects."""
-        if self.last_response.project is None:
-            raise ValueError(
-                f"Project {self.variables['project']} does not exist under entity {self.variables['entity']}"
-            )
-        return [
-            BetaReport(
-                self.client,
-                edge.node.model_dump(),
-                entity=self.project.entity,
-                project=self.project.name,
-            )
-            for edge in self.last_response.project.all_views.edges
-            if edge.node is not None
-        ]
 
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {'/'.join(self.project.path)}>"

@@ -343,31 +343,21 @@ fragment CreatedProjectFragment on Project {
 """
 
 PROJECT_VIEWS_GQL = """
-query ProjectViews($project: String!, $entity: String!, $reportCursor: String, $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
+query ProjectViews($project: String!, $entity: String!, $cursor: String, $perPage: Int!, $viewType: String = "runs", $viewName: String) {
   project(name: $project, entityName: $entity) {
     allViews(
       viewType: $viewType
       viewName: $viewName
-      first: $reportLimit
-      after: $reportCursor
+      after: $cursor
+      first: $perPage
     ) {
+      totalCount
       pageInfo {
         ...PageInfoFragment
       }
       edges {
         node {
-          id
-          name
-          displayName
-          description
-          user {
-            username
-            photoUrl
-            email
-          }
-          spec
-          updatedAt
-          createdAt
+          ...ViewFragment
         }
       }
     }
@@ -378,6 +368,21 @@ fragment PageInfoFragment on PageInfo {
   __typename
   endCursor
   hasNextPage
+}
+
+fragment ViewFragment on View {
+  id
+  name
+  displayName
+  description
+  user {
+    username
+    photoUrl
+    email
+  }
+  spec
+  updatedAt
+  createdAt
 }
 """
 
