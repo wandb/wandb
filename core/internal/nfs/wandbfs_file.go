@@ -1,7 +1,10 @@
 package nfs
 
 import (
+	"context"
+	"fmt"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/smallfz/libnfs-go/fs"
@@ -9,12 +12,13 @@ import (
 
 // WandBFile implements fs.File for read-only access to W&B artifacts.
 type WandBFile struct {
-	wfs    *WandBFS
-	node   *VirtualNode
-	fi     *WandBFileInfo
-	pos    int64
-	data   []byte // For files that have content (like metadata.json)
-	closed bool
+	wfs       *WandBFS
+	node      *VirtualNode
+	fi        *WandBFileInfo
+	pos       int64
+	data      []byte   // For files that have content (like metadata.json)
+	localFile *os.File // For cached artifact files
+	closed    bool
 }
 
 // newWandBFile creates a new WandBFile.
@@ -38,29 +42,112 @@ func (f *WandBFile) Stat() (fs.FileInfo, error) {
 }
 
 // Read reads data from the file.
-// For regular artifact files, content reading is not implemented yet.
-// For metadata.json files, we return the JSON content.
+// For metadata.json files, we return the JSON content from memory.
+// For regular artifact files, we download to cache and read from disk.
 func (f *WandBFile) Read(p []byte) (int, error) {
 	if f.closed {
+		slog.Debug("Read: file closed", "name", f.fi.name)
 		return 0, os.ErrClosed
 	}
 
 	if f.fi.IsDir() {
+		slog.Debug("Read: is directory", "name", f.fi.name)
 		return 0, io.EOF
 	}
 
 	// If we have data (like metadata.json), read from it
 	if f.data != nil {
 		if f.pos >= int64(len(f.data)) {
+			slog.Debug("Read: EOF on in-memory data",
+				"name", f.fi.name,
+				"pos", f.pos,
+				"dataLen", len(f.data))
 			return 0, io.EOF
 		}
 		n := copy(p, f.data[f.pos:])
 		f.pos += int64(n)
+		slog.Info("Read: from in-memory data",
+			"name", f.fi.name,
+			"bytesRead", n,
+			"newPos", f.pos)
 		return n, nil
 	}
 
-	// For regular artifact files, content reading is not implemented
-	return 0, io.EOF
+	slog.Info("Read: need to read from cache",
+		"name", f.fi.name,
+		"nodeType", f.node.Type,
+		"hasLocalFile", f.localFile != nil)
+
+	// Regular artifact file - read from cache
+	if f.localFile == nil {
+		if err := f.ensureCached(); err != nil {
+			slog.Error("Read: ensureCached failed",
+				"name", f.fi.name,
+				"error", err)
+			return 0, err
+		}
+	}
+
+	// Read from local cached file at current position
+	n, err := f.localFile.ReadAt(p, f.pos)
+	if n > 0 {
+		f.pos += int64(n)
+	}
+	// ReadAt returns io.EOF when reaching end, but Read should only
+	// return EOF when no bytes were read
+	if err == io.EOF && n > 0 {
+		err = nil
+	}
+	slog.Debug("Read: from cached file",
+		"name", f.fi.name,
+		"bytesRead", n,
+		"newPos", f.pos,
+		"error", err)
+	return n, err
+}
+
+// ensureCached downloads the file to cache if not already cached.
+func (f *WandBFile) ensureCached() error {
+	path := f.node.FullPath()
+
+	if f.node.DirectURL == "" || f.node.MD5 == "" {
+		slog.Warn("file missing download info",
+			"path", path,
+			"hasDirectURL", f.node.DirectURL != "",
+			"hasMD5", f.node.MD5 != "")
+		return fmt.Errorf("file %s: missing download info (directUrl or md5)", path)
+	}
+
+	slog.Debug("downloading file to cache",
+		"path", path,
+		"size", f.node.FileSize,
+		"md5", f.node.MD5[:8]+"...")
+
+	cachePath, err := f.wfs.contentCache.GetOrDownload(
+		context.Background(),
+		f.node.MD5,
+		f.node.DirectURL,
+		f.node.FileSize,
+	)
+	if err != nil {
+		slog.Error("failed to download file",
+			"path", path,
+			"error", err)
+		return fmt.Errorf("downloading %s: %w", path, err)
+	}
+
+	slog.Debug("file cached successfully",
+		"path", path,
+		"cachePath", cachePath)
+
+	f.localFile, err = os.Open(cachePath)
+	if err != nil {
+		slog.Error("failed to open cached file",
+			"path", path,
+			"cachePath", cachePath,
+			"error", err)
+	}
+	return err
 }
 
 // Write is not supported (read-only filesystem).
@@ -111,6 +198,9 @@ func (f *WandBFile) Sync() error {
 // Close closes the file.
 func (f *WandBFile) Close() error {
 	f.closed = true
+	if f.localFile != nil {
+		return f.localFile.Close()
+	}
 	return nil
 }
 

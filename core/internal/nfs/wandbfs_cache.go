@@ -2,8 +2,15 @@ package nfs
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -23,6 +30,8 @@ const (
 type ArtifactFileInfo struct {
 	Name      string
 	SizeBytes int64
+	DirectURL string // Download URL for file content
+	MD5       string // Base64 MD5 hash for cache key
 }
 
 // ArtifactMetadata holds metadata for an artifact version.
@@ -215,9 +224,15 @@ func (c *DataCache) fetchFiles(ctx context.Context, artifactID string) ([]Artifa
 			if edge.Node == nil {
 				continue
 			}
+			md5 := ""
+			if edge.Node.Md5 != nil {
+				md5 = *edge.Node.Md5
+			}
 			files = append(files, ArtifactFileInfo{
 				Name:      edge.Node.Name,
 				SizeBytes: edge.Node.SizeBytes,
+				DirectURL: edge.Node.DirectUrl,
+				MD5:       md5,
 			})
 		}
 
@@ -291,4 +306,127 @@ func (c *DataCache) fetchMetadata(ctx context.Context, artifactID string) (*Arti
 		Description:  description,
 		State:        string(resp.Artifact.State),
 	}, nil
+}
+
+// FileContentCache handles disk-based caching of artifact file content.
+// Uses the same cache structure as Python SDK for cache sharing.
+type FileContentCache struct {
+	cacheDir string
+	client   *http.Client
+	mu       sync.Mutex
+}
+
+// NewFileContentCache creates a new file content cache.
+// Cache location: ~/.cache/wandb/artifacts/obj/md5/{first2}/{rest}
+func NewFileContentCache() *FileContentCache {
+	homeDir, _ := os.UserHomeDir()
+	return &FileContentCache{
+		cacheDir: filepath.Join(homeDir, ".cache", "wandb", "artifacts"),
+		client:   &http.Client{Timeout: 10 * time.Minute},
+	}
+}
+
+// GetOrDownload returns the path to a cached file, downloading if necessary.
+// md5B64 is the base64-encoded MD5 hash of the file content.
+func (c *FileContentCache) GetOrDownload(ctx context.Context, md5B64, directURL string, size int64) (string, error) {
+	if md5B64 == "" || directURL == "" {
+		return "", fmt.Errorf("missing md5 or directURL")
+	}
+
+	// Convert base64 MD5 to hex
+	md5Hex, err := b64ToHex(md5B64)
+	if err != nil {
+		return "", fmt.Errorf("invalid md5 hash: %w", err)
+	}
+
+	// Cache path: ~/.cache/wandb/artifacts/obj/md5/{first2}/{rest}
+	cachePath := filepath.Join(c.cacheDir, "obj", "md5", md5Hex[:2], md5Hex[2:])
+
+	// Check if already cached with correct size
+	if info, err := os.Stat(cachePath); err == nil && info.Size() == size {
+		return cachePath, nil
+	}
+
+	// Download to cache
+	return c.download(ctx, directURL, cachePath)
+}
+
+// download downloads a file from URL to the cache path atomically.
+func (c *FileContentCache) download(ctx context.Context, url, destPath string) (string, error) {
+	slog.Info("downloading artifact file",
+		"destPath", destPath,
+		"urlPrefix", url[:min(80, len(url))]+"...")
+
+	// Create parent directories
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return "", fmt.Errorf("creating cache directory: %w", err)
+	}
+
+	// Create temp file in the same directory for atomic rename
+	tmpFile, err := os.CreateTemp(filepath.Dir(destPath), ".download-*")
+	if err != nil {
+		return "", fmt.Errorf("creating temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+
+	// Ensure cleanup on failure
+	success := false
+	defer func() {
+		if !success {
+			os.Remove(tmpPath)
+		}
+	}()
+
+	// Download the file
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		tmpFile.Close()
+		return "", fmt.Errorf("creating request: %w", err)
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		tmpFile.Close()
+		slog.Error("HTTP request failed", "error", err)
+		return "", fmt.Errorf("downloading file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		tmpFile.Close()
+		slog.Error("download failed",
+			"status", resp.StatusCode,
+			"statusText", resp.Status)
+		if resp.StatusCode == http.StatusForbidden {
+			return "", fmt.Errorf("download failed: HTTP 403 Forbidden (URL may have expired, try re-listing the directory)")
+		}
+		return "", fmt.Errorf("download failed: HTTP %d %s", resp.StatusCode, resp.Status)
+	}
+
+	// Copy to temp file
+	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+		tmpFile.Close()
+		return "", fmt.Errorf("writing file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return "", fmt.Errorf("closing temp file: %w", err)
+	}
+
+	// Atomic rename to final location
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return "", fmt.Errorf("renaming to cache: %w", err)
+	}
+
+	success = true
+	return destPath, nil
+}
+
+// b64ToHex converts a base64-encoded string to hex.
+func b64ToHex(b64 string) (string, error) {
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(data), nil
 }

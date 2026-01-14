@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ type WandBFS struct {
 	client      graphql.Client
 	projectPath *ProjectPath
 	cache       *DataCache
+	contentCache *FileContentCache
 	auditLog    *AuditLogger
 
 	root     *VirtualNode
@@ -31,12 +33,13 @@ type WandBFS struct {
 // NewWandBFS creates a new W&B filesystem.
 func NewWandBFS(client graphql.Client, projectPath *ProjectPath, auditLog *AuditLogger) *WandBFS {
 	wfs := &WandBFS{
-		client:      client,
-		projectPath: projectPath,
-		cache:       NewDataCache(client, projectPath),
-		auditLog:    auditLog,
-		nodeByID:    make(map[uint64]*VirtualNode),
-		nextID:      1000,
+		client:       client,
+		projectPath:  projectPath,
+		cache:        NewDataCache(client, projectPath),
+		contentCache: NewFileContentCache(),
+		auditLog:     auditLog,
+		nodeByID:     make(map[uint64]*VirtualNode),
+		nextID:       1000,
 		attributes: fs.Attributes{
 			LinkSupport:     true,
 			SymlinkSupport:  true,
@@ -114,8 +117,8 @@ func (wfs *WandBFS) OpenFile(name string, flag int, perm os.FileMode) (fs.File, 
 	wfs.mu.Lock()
 	defer wfs.mu.Unlock()
 
-	// Check for write flags
-	if flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE|os.O_APPEND|os.O_TRUNC) != 0 {
+	// Check for write-only flags (O_RDWR is allowed since it includes read)
+	if flag&(os.O_WRONLY|os.O_CREATE|os.O_APPEND|os.O_TRUNC) != 0 {
 		return nil, os.ErrPermission
 	}
 
@@ -134,12 +137,34 @@ func (wfs *WandBFS) OpenFile(name string, flag int, perm os.FileMode) (fs.File, 
 	// Get file data for metadata.json files
 	var data []byte
 	if node.Type == NodeTypeMetadataJSON {
+		slog.Debug("OpenFile: loading metadata.json",
+			"name", name,
+			"artifactID", node.ArtifactID)
 		metadata, err := wfs.cache.GetMetadata(context.Background(), node.ArtifactID)
-		if err == nil {
-			data, _ = metadata.ToJSON()
-			node.FileSize = int64(len(data))
+		if err != nil {
+			slog.Error("OpenFile: failed to get metadata",
+				"name", name,
+				"error", err)
+			return nil, fmt.Errorf("getting metadata for %s: %w", name, err)
 		}
+		data, err = metadata.ToJSON()
+		if err != nil {
+			slog.Error("OpenFile: failed to serialize metadata",
+				"name", name,
+				"error", err)
+			return nil, fmt.Errorf("serializing metadata for %s: %w", name, err)
+		}
+		node.FileSize = int64(len(data))
+		slog.Debug("OpenFile: metadata.json loaded",
+			"name", name,
+			"dataLen", len(data))
 	}
+
+	slog.Info("OpenFile: creating file handle",
+		"name", name,
+		"nodeType", node.Type,
+		"hasData", data != nil,
+		"dataLen", len(data))
 
 	if wfs.auditLog != nil {
 		host, uid, gid := wfs.getCredInfoLocked()
@@ -332,6 +357,8 @@ func (wfs *WandBFS) ensureLoadedLocked(node *VirtualNode) error {
 		for _, f := range files {
 			fileNode := NewVirtualNode(wfs.allocID(), f.Name, NodeTypeFile, false)
 			fileNode.FileSize = f.SizeBytes
+			fileNode.DirectURL = f.DirectURL
+			fileNode.MD5 = f.MD5
 			fileNode.ArtifactID = node.ArtifactID
 			node.AddChild(fileNode)
 			wfs.registerNode(fileNode)

@@ -9,6 +9,8 @@ query NFSArtifactFiles($artifactId: ID!, $cursor: String, $perPage: Int) {
         node {
           name: displayName
           sizeBytes
+          directUrl
+          md5
         }
       }
     }

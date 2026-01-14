@@ -4,6 +4,7 @@ Support a read only NFS mount using go core for artifact and run files.
 
 ## Status
 
+- [x] nfs server for artifact, can list artifacts, files and read file content
 - [x] go cli that list artifacts only, `wandb-core nfs ls <entity/project>`
  - [ ] does not support `~/.netrc`
 
@@ -132,7 +133,33 @@ mount -t nfs -o vers=4,port=2049 localhost:/ /tmp/wandb-mount
 # Browse
 ls /tmp/wandb-mount/artifacts/types/
 ls /tmp/wandb-mount/artifacts/collections/
+# Open entire folder in your favorite editor!
+cursor /tmp/wandb-mount
 
 # Unmount
 umount /tmp/wandb-mount
 ```
+
+## Read file in NFS
+
+Now we can list but cannot read file content.
+Implement read file logic.
+
+First read the nfs library and protocol to see what we need to implement.
+A naive approach is simply download entire file content to local disk
+and read from local disk.
+
+For caching file on local disk, existing wandb sdk already has a standard
+file cache location and checksum logic, we can consider reuse that so that
+files cached on nfs server can be used by python sdk and vice versa.
+
+A better approach can be reading file by range using http range header.
+Which is supported by object storage and used for parallel file download.
+NOTE: the download in go core is still in serial for now (unlike python),
+we can stay with it for now.
+
+```bash
+cd ~/go/src/github.com/wandb/wandb-nfs/core && go build -o wandb-core ./cmd/wandb-core
+```
+
+Seems it cached at `~/.cache/wandb/artifacts/obj/md5/{hex}/` need to verify that.

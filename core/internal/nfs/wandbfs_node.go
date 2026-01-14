@@ -47,7 +47,9 @@ type VirtualNode struct {
 	VersionIndex   int    // Version number
 
 	// File metadata for file nodes
-	FileSize int64
+	FileSize  int64
+	DirectURL string // Download URL for file content
+	MD5       string // Base64 MD5 hash for cache key
 
 	// Timestamps
 	ModTime time.Time

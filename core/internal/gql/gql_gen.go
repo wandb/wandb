@@ -1240,8 +1240,10 @@ func (v *NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdge) GetNode() *NF
 
 // NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile includes the requested fields of the GraphQL type File.
 type NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile struct {
-	Name      string `json:"name"`
-	SizeBytes int64  `json:"sizeBytes"`
+	Name      string  `json:"name"`
+	SizeBytes int64   `json:"sizeBytes"`
+	DirectUrl string  `json:"directUrl"`
+	Md5       *string `json:"md5"`
 }
 
 // GetName returns NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile.Name, and is useful for accessing the field via an interface.
@@ -1252,6 +1254,16 @@ func (v *NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile) GetNa
 // GetSizeBytes returns NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile.SizeBytes, and is useful for accessing the field via an interface.
 func (v *NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile) GetSizeBytes() int64 {
 	return v.SizeBytes
+}
+
+// GetDirectUrl returns NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile.DirectUrl, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile) GetDirectUrl() string {
+	return v.DirectUrl
+}
+
+// GetMd5 returns NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile.Md5, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile) GetMd5() *string {
+	return v.Md5
 }
 
 // NFSArtifactFilesArtifactFilesFileConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
@@ -3721,6 +3733,8 @@ query NFSArtifactFiles ($artifactId: ID!, $cursor: String, $perPage: Int) {
 				node {
 					name: displayName
 					sizeBytes
+					directUrl
+					md5
 				}
 			}
 		}
