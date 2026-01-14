@@ -19,7 +19,7 @@ class ParquetFileHandler(http.server.SimpleHTTPRequestHandler):
 
     parquet_files: dict[str, bytes] = {}
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         path = self.path.lstrip("/")
 
         if path in self.parquet_files:
