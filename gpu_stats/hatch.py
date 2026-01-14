@@ -1,7 +1,5 @@
 """Builds the gpu_stats binary for monitoring NVIDIA and Apple ARM GPUs."""
 
-from __future__ import annotations
-
 import json
 import pathlib
 import subprocess

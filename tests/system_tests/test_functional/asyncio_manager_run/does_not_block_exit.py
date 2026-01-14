@@ -1,7 +1,5 @@
 """Tests that the asyncio thread is daemon."""
 
-from __future__ import annotations
-
 import asyncio
 import threading
 import time

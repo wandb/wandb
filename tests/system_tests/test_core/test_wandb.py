@@ -3,8 +3,6 @@
 See wandb_integration_test.py for tests that launch a real backend server.
 """
 
-from __future__ import annotations
-
 import glob
 import io
 import os

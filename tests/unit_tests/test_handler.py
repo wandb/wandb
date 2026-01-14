@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import queue
 from collections import defaultdict
 from unittest.mock import MagicMock

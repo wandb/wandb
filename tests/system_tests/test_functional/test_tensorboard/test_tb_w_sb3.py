@@ -1,7 +1,5 @@
 """Test stable_baselines3 integration."""
 
-from __future__ import annotations
-
 import gymnasium as gym
 import wandb
 from stable_baselines3 import PPO

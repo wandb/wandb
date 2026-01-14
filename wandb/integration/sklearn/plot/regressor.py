@@ -1,7 +1,5 @@
 """Define plots for regression models built with scikit-learn."""
 
-from __future__ import annotations
-
 from warnings import simplefilter
 
 import numpy as np

@@ -1,7 +1,5 @@
 """telemetry lib tests."""
 
-from __future__ import annotations
-
 from wandb.sdk.lib import telemetry
 
 

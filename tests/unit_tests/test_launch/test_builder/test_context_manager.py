@@ -1,7 +1,5 @@
 """Tests for the BuildContextManager class in the builder module."""
 
-from __future__ import annotations
-
 import pathlib
 from unittest.mock import MagicMock
 

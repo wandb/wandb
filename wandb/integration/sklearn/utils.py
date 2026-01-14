@@ -1,7 +1,5 @@
 """Shared utilities for the modules in wandb.sklearn."""
 
-from __future__ import annotations
-
 from collections.abc import Iterable, Sequence
 
 import numpy as np

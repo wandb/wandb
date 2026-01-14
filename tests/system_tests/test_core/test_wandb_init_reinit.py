@@ -1,7 +1,5 @@
 """Tests for the `reinit` setting."""
 
-from __future__ import annotations
-
 import pytest
 import wandb
 

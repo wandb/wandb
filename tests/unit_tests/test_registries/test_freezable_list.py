@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pytest
 from wandb.apis.public.registries._freezable_list import FreezableList
 

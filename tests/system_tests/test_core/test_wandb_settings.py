@@ -1,7 +1,5 @@
 """settings test."""
 
-from __future__ import annotations
-
 import os
 import platform
 from unittest import mock

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pytest
 from wandb.plot import confusion_matrix, line_series, pr_curve, roc_curve
 

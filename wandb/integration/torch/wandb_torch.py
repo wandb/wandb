@@ -1,7 +1,5 @@
 """PyTorch-specific functionality."""
 
-from __future__ import annotations
-
 import itertools
 from functools import reduce
 from operator import mul

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import wandb.data_types as data_types
 
 

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, Dict, Literal, final
 
 from wandb._pydantic import field_validator, to_camel

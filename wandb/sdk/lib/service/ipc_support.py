@@ -1,7 +1,5 @@
 """Constants determining what IPC methods are supported."""
 
-from __future__ import annotations
-
 import socket
 
 SUPPORTS_UNIX = hasattr(socket, "AF_UNIX")

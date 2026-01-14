@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from warnings import simplefilter
 
 from sklearn import model_selection

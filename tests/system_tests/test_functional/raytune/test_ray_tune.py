@@ -5,8 +5,6 @@ Based on:
     https://docs.ray.io/en/latest/tune/examples/tune-wandb.html
 """
 
-from __future__ import annotations
-
 import pathlib
 import platform
 import subprocess

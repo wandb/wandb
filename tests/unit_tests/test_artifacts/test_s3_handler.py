@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pytest
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 

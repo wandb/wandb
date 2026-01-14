@@ -1,7 +1,5 @@
 """Passes if Ctrl+C during join() makes run() raise RunCancelledError."""
 
-from __future__ import annotations
-
 import asyncio
 import sys
 import threading

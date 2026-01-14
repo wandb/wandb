@@ -5,8 +5,6 @@ Semi-stubbed run for internal process use.
 
 """
 
-from __future__ import annotations
-
 from typing_extensions import override
 
 from wandb.sdk import wandb_run
