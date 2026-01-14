@@ -1,0 +1,22 @@
+query NFSSweeps($entity: String!, $project: String!, $cursor: String, $perPage: Int) {
+  project(name: $project, entityName: $entity) {
+    sweeps(after: $cursor, first: $perPage) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          id
+          name
+          displayName
+          state
+          config
+          runCount
+          bestLoss
+          createdAt
+        }
+      }
+    }
+  }
+}

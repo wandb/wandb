@@ -3,6 +3,7 @@ package nfs
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -84,6 +85,16 @@ func (wfs *WandBFS) initTree() {
 	collections := NewVirtualNode(wfs.allocID(), "collections", NodeTypeCollectionsDir, true)
 	artifacts.AddChild(collections)
 	wfs.registerNode(collections)
+
+	// Create /runs directory
+	runs := NewVirtualNode(wfs.allocID(), "runs", NodeTypeRunsDir, true)
+	wfs.root.AddChild(runs)
+	wfs.registerNode(runs)
+
+	// Create /sweeps directory
+	sweeps := NewVirtualNode(wfs.allocID(), "sweeps", NodeTypeSweepsDir, true)
+	wfs.root.AddChild(sweeps)
+	wfs.registerNode(sweeps)
 }
 
 // SetCreds sets the client credentials.
@@ -137,7 +148,7 @@ func (wfs *WandBFS) OpenFile(name string, flag int, perm os.FileMode) (fs.File, 
 	// Get file data for metadata.json files
 	var data []byte
 	if node.Type == NodeTypeMetadataJSON {
-		slog.Debug("OpenFile: loading metadata.json",
+		slog.Debug("OpenFile: loading artifact metadata.json",
 			"name", name,
 			"artifactID", node.ArtifactID)
 		metadata, err := wfs.cache.GetMetadata(context.Background(), node.ArtifactID)
@@ -155,7 +166,66 @@ func (wfs *WandBFS) OpenFile(name string, flag int, perm os.FileMode) (fs.File, 
 			return nil, fmt.Errorf("serializing metadata for %s: %w", name, err)
 		}
 		node.FileSize = int64(len(data))
-		slog.Debug("OpenFile: metadata.json loaded",
+		slog.Debug("OpenFile: artifact metadata.json loaded",
+			"name", name,
+			"dataLen", len(data))
+	} else if node.Type == NodeTypeRunMetadataJSON {
+		slog.Debug("OpenFile: loading run metadata.json",
+			"name", name,
+			"runName", node.RunName)
+		runs, err := wfs.cache.GetRuns(context.Background())
+		if err != nil {
+			slog.Error("OpenFile: failed to get runs",
+				"name", name,
+				"error", err)
+			return nil, fmt.Errorf("getting runs for %s: %w", name, err)
+		}
+
+		// Find the run with matching name
+		for _, run := range runs {
+			if run.Name == node.RunName {
+				runMetadata := map[string]interface{}{
+					"id":          run.ID,
+					"name":        run.Name,
+					"displayName": run.DisplayName,
+					"state":       run.State,
+					"createdAt":   run.CreatedAt,
+					"sweepName":   run.SweepName,
+					"username":    run.Username,
+				}
+
+				// Parse config from JSON string
+				if run.Config != "" {
+					var config interface{}
+					if err := json.Unmarshal([]byte(run.Config), &config); err == nil {
+						runMetadata["config"] = config
+					}
+				}
+
+				// Parse summary from JSON string
+				if run.SummaryMetrics != "" {
+					var summary interface{}
+					if err := json.Unmarshal([]byte(run.SummaryMetrics), &summary); err == nil {
+						runMetadata["summary"] = summary
+					}
+				}
+
+				if run.HeartbeatAt != nil {
+					runMetadata["heartbeatAt"] = run.HeartbeatAt
+				}
+
+				data, err = json.MarshalIndent(runMetadata, "", "  ")
+				if err != nil {
+					slog.Error("OpenFile: failed to serialize run metadata",
+						"name", name,
+						"error", err)
+					return nil, fmt.Errorf("serializing run metadata for %s: %w", name, err)
+				}
+				node.FileSize = int64(len(data))
+				break
+			}
+		}
+		slog.Debug("OpenFile: run metadata.json loaded",
 			"name", name,
 			"dataLen", len(data))
 	}
@@ -207,12 +277,50 @@ func (wfs *WandBFS) Stat(name string) (fs.FileInfo, error) {
 		}
 	}
 
-	// Update file size for metadata.json
+	// Update file size for artifact metadata.json
 	if node.Type == NodeTypeMetadataJSON && node.FileSize == 0 {
 		metadata, err := wfs.cache.GetMetadata(context.Background(), node.ArtifactID)
 		if err == nil {
 			data, _ := metadata.ToJSON()
 			node.FileSize = int64(len(data))
+		}
+	}
+
+	// Update file size for run metadata.json
+	if node.Type == NodeTypeRunMetadataJSON && node.FileSize == 0 {
+		runs, err := wfs.cache.GetRuns(context.Background())
+		if err == nil {
+			for _, run := range runs {
+				if run.Name == node.RunName {
+					runMetadata := map[string]interface{}{
+						"id":          run.ID,
+						"name":        run.Name,
+						"displayName": run.DisplayName,
+						"state":       run.State,
+						"createdAt":   run.CreatedAt,
+						"sweepName":   run.SweepName,
+						"username":    run.Username,
+					}
+					if run.Config != "" {
+						var config interface{}
+						if json.Unmarshal([]byte(run.Config), &config) == nil {
+							runMetadata["config"] = config
+						}
+					}
+					if run.SummaryMetrics != "" {
+						var summary interface{}
+						if json.Unmarshal([]byte(run.SummaryMetrics), &summary) == nil {
+							runMetadata["summary"] = summary
+						}
+					}
+					if run.HeartbeatAt != nil {
+						runMetadata["heartbeatAt"] = run.HeartbeatAt
+					}
+					data, _ := json.MarshalIndent(runMetadata, "", "  ")
+					node.FileSize = int64(len(data))
+					break
+				}
+			}
 		}
 	}
 
@@ -362,6 +470,102 @@ func (wfs *WandBFS) ensureLoadedLocked(node *VirtualNode) error {
 			fileNode.ArtifactID = node.ArtifactID
 			node.AddChild(fileNode)
 			wfs.registerNode(fileNode)
+		}
+
+	// Run types
+	case NodeTypeRunsDir:
+		// Load all runs
+		runs, err := wfs.cache.GetRuns(ctx)
+		if err != nil {
+			node.LoadErr = err
+			return err
+		}
+		for _, run := range runs {
+			runNode := NewVirtualNode(wfs.allocID(), run.Name, NodeTypeRun, true)
+			runNode.RunID = run.ID
+			runNode.RunName = run.Name
+			runNode.RunState = run.State
+			runNode.SweepName = run.SweepName
+			node.AddChild(runNode)
+			wfs.registerNode(runNode)
+		}
+
+	case NodeTypeRun:
+		// Add metadata.json and files/ directory
+		metaNode := NewVirtualNode(wfs.allocID(), "metadata.json", NodeTypeRunMetadataJSON, false)
+		metaNode.RunID = node.RunID
+		metaNode.RunName = node.RunName
+		node.AddChild(metaNode)
+		wfs.registerNode(metaNode)
+
+		filesNode := NewVirtualNode(wfs.allocID(), "files", NodeTypeRunFilesDir, true)
+		filesNode.RunID = node.RunID
+		filesNode.RunName = node.RunName
+		node.AddChild(filesNode)
+		wfs.registerNode(filesNode)
+
+	case NodeTypeRunFilesDir:
+		// Load run files
+		files, err := wfs.cache.GetRunFiles(ctx, node.RunName)
+		if err != nil {
+			node.LoadErr = err
+			return err
+		}
+		for _, f := range files {
+			fileNode := NewVirtualNode(wfs.allocID(), f.Name, NodeTypeRunFile, false)
+			fileNode.FileSize = f.SizeBytes
+			fileNode.DirectURL = f.DirectURL
+			fileNode.MD5 = f.MD5
+			fileNode.RunID = node.RunID
+			fileNode.RunName = node.RunName
+			node.AddChild(fileNode)
+			wfs.registerNode(fileNode)
+		}
+
+	// Sweep types
+	case NodeTypeSweepsDir:
+		// Load all sweeps
+		sweeps, err := wfs.cache.GetSweeps(ctx)
+		if err != nil {
+			node.LoadErr = err
+			return err
+		}
+		for _, sweep := range sweeps {
+			sweepNode := NewVirtualNode(wfs.allocID(), sweep.Name, NodeTypeSweep, true)
+			sweepNode.SweepID = sweep.ID
+			node.AddChild(sweepNode)
+			wfs.registerNode(sweepNode)
+		}
+
+	case NodeTypeSweep:
+		// Add runs/ subdirectory for this sweep
+		runsNode := NewVirtualNode(wfs.allocID(), "runs", NodeTypeSweepRunsDir, true)
+		runsNode.SweepID = node.SweepID
+		node.AddChild(runsNode)
+		wfs.registerNode(runsNode)
+
+	case NodeTypeSweepRunsDir:
+		// Load runs and create symlinks for runs in this sweep
+		runs, err := wfs.cache.GetRuns(ctx)
+		if err != nil {
+			node.LoadErr = err
+			return err
+		}
+
+		// Get sweep name from parent
+		sweepName := node.Parent.Name
+
+		for _, run := range runs {
+			if run.SweepName == sweepName {
+				// Create symlink to ../../../runs/{run_name}
+				// Need 3 levels up: /sweeps/{sweep}/runs/ -> /sweeps/{sweep}/ -> /sweeps/ -> /
+				target := fmt.Sprintf("../../../runs/%s", run.Name)
+				symlinkNode := NewSymlinkNode(wfs.allocID(), run.Name, target)
+				symlinkNode.RunID = run.ID
+				symlinkNode.RunName = run.Name
+				node.AddChild(symlinkNode)
+				wfs.registerNode(symlinkNode)
+			}
 		}
 	}
 

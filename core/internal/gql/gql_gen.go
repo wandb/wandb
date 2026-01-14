@@ -1667,6 +1667,322 @@ type NFSArtifactsResponse struct {
 // GetProject returns NFSArtifactsResponse.Project, and is useful for accessing the field via an interface.
 func (v *NFSArtifactsResponse) GetProject() *NFSArtifactsProject { return v.Project }
 
+// NFSRunFilesProject includes the requested fields of the GraphQL type Project.
+type NFSRunFilesProject struct {
+	Run *NFSRunFilesProjectRun `json:"run"`
+}
+
+// GetRun returns NFSRunFilesProject.Run, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProject) GetRun() *NFSRunFilesProjectRun { return v.Run }
+
+// NFSRunFilesProjectRun includes the requested fields of the GraphQL type Run.
+type NFSRunFilesProjectRun struct {
+	Files *NFSRunFilesProjectRunFilesFileConnection `json:"files"`
+}
+
+// GetFiles returns NFSRunFilesProjectRun.Files, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProjectRun) GetFiles() *NFSRunFilesProjectRunFilesFileConnection { return v.Files }
+
+// NFSRunFilesProjectRunFilesFileConnection includes the requested fields of the GraphQL type FileConnection.
+type NFSRunFilesProjectRunFilesFileConnection struct {
+	PageInfo NFSRunFilesProjectRunFilesFileConnectionPageInfo        `json:"pageInfo"`
+	Edges    []NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdge `json:"edges"`
+}
+
+// GetPageInfo returns NFSRunFilesProjectRunFilesFileConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProjectRunFilesFileConnection) GetPageInfo() NFSRunFilesProjectRunFilesFileConnectionPageInfo {
+	return v.PageInfo
+}
+
+// GetEdges returns NFSRunFilesProjectRunFilesFileConnection.Edges, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProjectRunFilesFileConnection) GetEdges() []NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdge {
+	return v.Edges
+}
+
+// NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdge includes the requested fields of the GraphQL type FileEdge.
+type NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdge struct {
+	Node *NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile `json:"node"`
+}
+
+// GetNode returns NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdge.Node, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdge) GetNode() *NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile {
+	return v.Node
+}
+
+// NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile includes the requested fields of the GraphQL type File.
+type NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile struct {
+	Name      string  `json:"name"`
+	SizeBytes int64   `json:"sizeBytes"`
+	DirectUrl string  `json:"directUrl"`
+	Md5       *string `json:"md5"`
+}
+
+// GetName returns NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile.Name, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile) GetName() string {
+	return v.Name
+}
+
+// GetSizeBytes returns NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile.SizeBytes, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile) GetSizeBytes() int64 {
+	return v.SizeBytes
+}
+
+// GetDirectUrl returns NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile.DirectUrl, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile) GetDirectUrl() string {
+	return v.DirectUrl
+}
+
+// GetMd5 returns NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile.Md5, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProjectRunFilesFileConnectionEdgesFileEdgeNodeFile) GetMd5() *string {
+	return v.Md5
+}
+
+// NFSRunFilesProjectRunFilesFileConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type NFSRunFilesProjectRunFilesFileConnectionPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns NFSRunFilesProjectRunFilesFileConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProjectRunFilesFileConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// GetEndCursor returns NFSRunFilesProjectRunFilesFileConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesProjectRunFilesFileConnectionPageInfo) GetEndCursor() *string { return v.EndCursor }
+
+// NFSRunFilesResponse is returned by NFSRunFiles on success.
+type NFSRunFilesResponse struct {
+	Project *NFSRunFilesProject `json:"project"`
+}
+
+// GetProject returns NFSRunFilesResponse.Project, and is useful for accessing the field via an interface.
+func (v *NFSRunFilesResponse) GetProject() *NFSRunFilesProject { return v.Project }
+
+// NFSRunsProject includes the requested fields of the GraphQL type Project.
+type NFSRunsProject struct {
+	Runs *NFSRunsProjectRunsRunConnection `json:"runs"`
+}
+
+// GetRuns returns NFSRunsProject.Runs, and is useful for accessing the field via an interface.
+func (v *NFSRunsProject) GetRuns() *NFSRunsProjectRunsRunConnection { return v.Runs }
+
+// NFSRunsProjectRunsRunConnection includes the requested fields of the GraphQL type RunConnection.
+type NFSRunsProjectRunsRunConnection struct {
+	PageInfo NFSRunsProjectRunsRunConnectionPageInfo       `json:"pageInfo"`
+	Edges    []NFSRunsProjectRunsRunConnectionEdgesRunEdge `json:"edges"`
+}
+
+// GetPageInfo returns NFSRunsProjectRunsRunConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnection) GetPageInfo() NFSRunsProjectRunsRunConnectionPageInfo {
+	return v.PageInfo
+}
+
+// GetEdges returns NFSRunsProjectRunsRunConnection.Edges, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnection) GetEdges() []NFSRunsProjectRunsRunConnectionEdgesRunEdge {
+	return v.Edges
+}
+
+// NFSRunsProjectRunsRunConnectionEdgesRunEdge includes the requested fields of the GraphQL type RunEdge.
+type NFSRunsProjectRunsRunConnectionEdgesRunEdge struct {
+	Node NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun `json:"node"`
+}
+
+// GetNode returns NFSRunsProjectRunsRunConnectionEdgesRunEdge.Node, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdge) GetNode() NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun {
+	return v.Node
+}
+
+// NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun includes the requested fields of the GraphQL type Run.
+type NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun struct {
+	Id             string                                                  `json:"id"`
+	Name           string                                                  `json:"name"`
+	DisplayName    *string                                                 `json:"displayName"`
+	State          *string                                                 `json:"state"`
+	Config         *string                                                 `json:"config"`
+	SummaryMetrics *string                                                 `json:"summaryMetrics"`
+	CreatedAt      time.Time                                               `json:"createdAt"`
+	HeartbeatAt    *time.Time                                              `json:"heartbeatAt"`
+	SweepName      *string                                                 `json:"sweepName"`
+	User           *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRunUser `json:"user"`
+}
+
+// GetId returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Id, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetId() string { return v.Id }
+
+// GetName returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Name, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetName() string { return v.Name }
+
+// GetDisplayName returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetDisplayName() *string {
+	return v.DisplayName
+}
+
+// GetState returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.State, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetState() *string { return v.State }
+
+// GetConfig returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Config, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetConfig() *string { return v.Config }
+
+// GetSummaryMetrics returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetSummaryMetrics() *string {
+	return v.SummaryMetrics
+}
+
+// GetCreatedAt returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.CreatedAt, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetCreatedAt() time.Time {
+	return v.CreatedAt
+}
+
+// GetHeartbeatAt returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.HeartbeatAt, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetHeartbeatAt() *time.Time {
+	return v.HeartbeatAt
+}
+
+// GetSweepName returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.SweepName, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetSweepName() *string {
+	return v.SweepName
+}
+
+// GetUser returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.User, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetUser() *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRunUser {
+	return v.User
+}
+
+// NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRunUser includes the requested fields of the GraphQL type User.
+type NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRunUser struct {
+	Username *string `json:"username"`
+}
+
+// GetUsername returns NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRunUser.Username, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionEdgesRunEdgeNodeRunUser) GetUsername() *string {
+	return v.Username
+}
+
+// NFSRunsProjectRunsRunConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type NFSRunsProjectRunsRunConnectionPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns NFSRunsProjectRunsRunConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionPageInfo) GetHasNextPage() bool { return v.HasNextPage }
+
+// GetEndCursor returns NFSRunsProjectRunsRunConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *NFSRunsProjectRunsRunConnectionPageInfo) GetEndCursor() *string { return v.EndCursor }
+
+// NFSRunsResponse is returned by NFSRuns on success.
+type NFSRunsResponse struct {
+	Project *NFSRunsProject `json:"project"`
+}
+
+// GetProject returns NFSRunsResponse.Project, and is useful for accessing the field via an interface.
+func (v *NFSRunsResponse) GetProject() *NFSRunsProject { return v.Project }
+
+// NFSSweepsProject includes the requested fields of the GraphQL type Project.
+type NFSSweepsProject struct {
+	Sweeps *NFSSweepsProjectSweepsSweepConnection `json:"sweeps"`
+}
+
+// GetSweeps returns NFSSweepsProject.Sweeps, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProject) GetSweeps() *NFSSweepsProjectSweepsSweepConnection { return v.Sweeps }
+
+// NFSSweepsProjectSweepsSweepConnection includes the requested fields of the GraphQL type SweepConnection.
+type NFSSweepsProjectSweepsSweepConnection struct {
+	PageInfo NFSSweepsProjectSweepsSweepConnectionPageInfo         `json:"pageInfo"`
+	Edges    []NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdge `json:"edges"`
+}
+
+// GetPageInfo returns NFSSweepsProjectSweepsSweepConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnection) GetPageInfo() NFSSweepsProjectSweepsSweepConnectionPageInfo {
+	return v.PageInfo
+}
+
+// GetEdges returns NFSSweepsProjectSweepsSweepConnection.Edges, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnection) GetEdges() []NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdge {
+	return v.Edges
+}
+
+// NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdge includes the requested fields of the GraphQL type SweepEdge.
+type NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdge struct {
+	Node NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep `json:"node"`
+}
+
+// GetNode returns NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdge.Node, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdge) GetNode() NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep {
+	return v.Node
+}
+
+// NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep includes the requested fields of the GraphQL type Sweep.
+type NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep struct {
+	Id          string    `json:"id"`
+	Name        string    `json:"name"`
+	DisplayName *string   `json:"displayName"`
+	State       string    `json:"state"`
+	Config      string    `json:"config"`
+	RunCount    int       `json:"runCount"`
+	BestLoss    *float64  `json:"bestLoss"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// GetId returns NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep.Id, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep) GetId() string { return v.Id }
+
+// GetName returns NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep.Name, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep) GetName() string {
+	return v.Name
+}
+
+// GetDisplayName returns NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep.DisplayName, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep) GetDisplayName() *string {
+	return v.DisplayName
+}
+
+// GetState returns NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep.State, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep) GetState() string {
+	return v.State
+}
+
+// GetConfig returns NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep.Config, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep) GetConfig() string {
+	return v.Config
+}
+
+// GetRunCount returns NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep.RunCount, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep) GetRunCount() int {
+	return v.RunCount
+}
+
+// GetBestLoss returns NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep.BestLoss, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep) GetBestLoss() *float64 {
+	return v.BestLoss
+}
+
+// GetCreatedAt returns NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep.CreatedAt, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionEdgesSweepEdgeNodeSweep) GetCreatedAt() time.Time {
+	return v.CreatedAt
+}
+
+// NFSSweepsProjectSweepsSweepConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type NFSSweepsProjectSweepsSweepConnectionPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns NFSSweepsProjectSweepsSweepConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionPageInfo) GetHasNextPage() bool { return v.HasNextPage }
+
+// GetEndCursor returns NFSSweepsProjectSweepsSweepConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *NFSSweepsProjectSweepsSweepConnectionPageInfo) GetEndCursor() *string { return v.EndCursor }
+
+// NFSSweepsResponse is returned by NFSSweeps on success.
+type NFSSweepsResponse struct {
+	Project *NFSSweepsProject `json:"project"`
+}
+
+// GetProject returns NFSSweepsResponse.Project, and is useful for accessing the field via an interface.
+func (v *NFSSweepsResponse) GetProject() *NFSSweepsProject { return v.Project }
+
 // NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload includes the requested fields of the GraphQL type NotifyScriptableRunAlertPayload.
 type NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload struct {
 	Success bool `json:"success"`
@@ -2777,6 +3093,70 @@ func (v *__NFSArtifactsInput) GetCursor() *string { return v.Cursor }
 
 // GetPerPage returns __NFSArtifactsInput.PerPage, and is useful for accessing the field via an interface.
 func (v *__NFSArtifactsInput) GetPerPage() *int { return v.PerPage }
+
+// __NFSRunFilesInput is used internally by genqlient
+type __NFSRunFilesInput struct {
+	Entity  string  `json:"entity"`
+	Project string  `json:"project"`
+	RunName string  `json:"runName"`
+	Cursor  *string `json:"cursor"`
+	PerPage *int    `json:"perPage"`
+}
+
+// GetEntity returns __NFSRunFilesInput.Entity, and is useful for accessing the field via an interface.
+func (v *__NFSRunFilesInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __NFSRunFilesInput.Project, and is useful for accessing the field via an interface.
+func (v *__NFSRunFilesInput) GetProject() string { return v.Project }
+
+// GetRunName returns __NFSRunFilesInput.RunName, and is useful for accessing the field via an interface.
+func (v *__NFSRunFilesInput) GetRunName() string { return v.RunName }
+
+// GetCursor returns __NFSRunFilesInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__NFSRunFilesInput) GetCursor() *string { return v.Cursor }
+
+// GetPerPage returns __NFSRunFilesInput.PerPage, and is useful for accessing the field via an interface.
+func (v *__NFSRunFilesInput) GetPerPage() *int { return v.PerPage }
+
+// __NFSRunsInput is used internally by genqlient
+type __NFSRunsInput struct {
+	Entity  string  `json:"entity"`
+	Project string  `json:"project"`
+	Cursor  *string `json:"cursor"`
+	PerPage *int    `json:"perPage"`
+}
+
+// GetEntity returns __NFSRunsInput.Entity, and is useful for accessing the field via an interface.
+func (v *__NFSRunsInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __NFSRunsInput.Project, and is useful for accessing the field via an interface.
+func (v *__NFSRunsInput) GetProject() string { return v.Project }
+
+// GetCursor returns __NFSRunsInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__NFSRunsInput) GetCursor() *string { return v.Cursor }
+
+// GetPerPage returns __NFSRunsInput.PerPage, and is useful for accessing the field via an interface.
+func (v *__NFSRunsInput) GetPerPage() *int { return v.PerPage }
+
+// __NFSSweepsInput is used internally by genqlient
+type __NFSSweepsInput struct {
+	Entity  string  `json:"entity"`
+	Project string  `json:"project"`
+	Cursor  *string `json:"cursor"`
+	PerPage *int    `json:"perPage"`
+}
+
+// GetEntity returns __NFSSweepsInput.Entity, and is useful for accessing the field via an interface.
+func (v *__NFSSweepsInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __NFSSweepsInput.Project, and is useful for accessing the field via an interface.
+func (v *__NFSSweepsInput) GetProject() string { return v.Project }
+
+// GetCursor returns __NFSSweepsInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__NFSSweepsInput) GetCursor() *string { return v.Cursor }
+
+// GetPerPage returns __NFSSweepsInput.PerPage, and is useful for accessing the field via an interface.
+func (v *__NFSSweepsInput) GetPerPage() *int { return v.PerPage }
 
 // __NotifyScriptableRunAlertInput is used internally by genqlient
 type __NotifyScriptableRunAlertInput struct {
@@ -3912,6 +4292,181 @@ func NFSArtifacts(
 	}
 
 	data_ = &NFSArtifactsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by NFSRunFiles.
+const NFSRunFiles_Operation = `
+query NFSRunFiles ($entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int) {
+	project(name: $project, entityName: $entity) {
+		run(name: $runName) {
+			files(after: $cursor, first: $perPage) {
+				pageInfo {
+					hasNextPage
+					endCursor
+				}
+				edges {
+					node {
+						name
+						sizeBytes
+						directUrl
+						md5
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+func NFSRunFiles(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	runName string,
+	cursor *string,
+	perPage *int,
+) (data_ *NFSRunFilesResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "NFSRunFiles",
+		Query:  NFSRunFiles_Operation,
+		Variables: &__NFSRunFilesInput{
+			Entity:  entity,
+			Project: project,
+			RunName: runName,
+			Cursor:  cursor,
+			PerPage: perPage,
+		},
+	}
+
+	data_ = &NFSRunFilesResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by NFSRuns.
+const NFSRuns_Operation = `
+query NFSRuns ($entity: String!, $project: String!, $cursor: String, $perPage: Int) {
+	project(name: $project, entityName: $entity) {
+		runs(after: $cursor, first: $perPage) {
+			pageInfo {
+				hasNextPage
+				endCursor
+			}
+			edges {
+				node {
+					id
+					name
+					displayName
+					state
+					config
+					summaryMetrics
+					createdAt
+					heartbeatAt
+					sweepName
+					user {
+						username
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+func NFSRuns(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	cursor *string,
+	perPage *int,
+) (data_ *NFSRunsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "NFSRuns",
+		Query:  NFSRuns_Operation,
+		Variables: &__NFSRunsInput{
+			Entity:  entity,
+			Project: project,
+			Cursor:  cursor,
+			PerPage: perPage,
+		},
+	}
+
+	data_ = &NFSRunsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by NFSSweeps.
+const NFSSweeps_Operation = `
+query NFSSweeps ($entity: String!, $project: String!, $cursor: String, $perPage: Int) {
+	project(name: $project, entityName: $entity) {
+		sweeps(after: $cursor, first: $perPage) {
+			pageInfo {
+				hasNextPage
+				endCursor
+			}
+			edges {
+				node {
+					id
+					name
+					displayName
+					state
+					config
+					runCount
+					bestLoss
+					createdAt
+				}
+			}
+		}
+	}
+}
+`
+
+func NFSSweeps(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	cursor *string,
+	perPage *int,
+) (data_ *NFSSweepsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "NFSSweeps",
+		Query:  NFSSweeps_Operation,
+		Variables: &__NFSSweepsInput{
+			Entity:  entity,
+			Project: project,
+			Cursor:  cursor,
+			PerPage: perPage,
+		},
+	}
+
+	data_ = &NFSSweepsResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

@@ -186,3 +186,156 @@ func (l *Lister) listVersionsForCollection(ctx context.Context, p *ProjectPath, 
 
 	return versions, nil
 }
+
+// listRuns fetches all runs in a project.
+func (l *Lister) listRuns(ctx context.Context, p *ProjectPath) ([]RunInfo, error) {
+	var runs []RunInfo
+	var cursor *string
+	perPage := 100
+
+	for {
+		resp, err := gql.NFSRuns(ctx, l.client, p.Entity, p.Project, cursor, &perPage)
+		if err != nil {
+			return nil, err
+		}
+		if resp.Project == nil || resp.Project.Runs == nil {
+			break
+		}
+
+		for _, edge := range resp.Project.Runs.Edges {
+			node := edge.Node
+
+			displayName := ""
+			if node.DisplayName != nil {
+				displayName = *node.DisplayName
+			}
+			sweepName := ""
+			if node.SweepName != nil {
+				sweepName = *node.SweepName
+			}
+			username := ""
+			if node.User != nil && node.User.Username != nil {
+				username = *node.User.Username
+			}
+			state := ""
+			if node.State != nil {
+				state = *node.State
+			}
+			config := ""
+			if node.Config != nil {
+				config = *node.Config
+			}
+			summaryMetrics := ""
+			if node.SummaryMetrics != nil {
+				summaryMetrics = *node.SummaryMetrics
+			}
+
+			runs = append(runs, RunInfo{
+				ID:             node.Id,
+				Name:           node.Name,
+				DisplayName:    displayName,
+				State:          state,
+				Config:         config,
+				SummaryMetrics: summaryMetrics,
+				CreatedAt:      node.CreatedAt,
+				HeartbeatAt:    node.HeartbeatAt,
+				SweepName:      sweepName,
+				Username:       username,
+			})
+		}
+
+		if !resp.Project.Runs.PageInfo.HasNextPage {
+			break
+		}
+		cursor = resp.Project.Runs.PageInfo.EndCursor
+	}
+
+	return runs, nil
+}
+
+// listSweeps fetches all sweeps in a project.
+func (l *Lister) listSweeps(ctx context.Context, p *ProjectPath) ([]SweepInfo, error) {
+	var sweeps []SweepInfo
+	var cursor *string
+	perPage := 100
+
+	for {
+		resp, err := gql.NFSSweeps(ctx, l.client, p.Entity, p.Project, cursor, &perPage)
+		if err != nil {
+			return nil, err
+		}
+		if resp.Project == nil || resp.Project.Sweeps == nil {
+			break
+		}
+
+		for _, edge := range resp.Project.Sweeps.Edges {
+			node := edge.Node
+
+			displayName := ""
+			if node.DisplayName != nil {
+				displayName = *node.DisplayName
+			}
+
+			sweeps = append(sweeps, SweepInfo{
+				ID:          node.Id,
+				Name:        node.Name,
+				DisplayName: displayName,
+				State:       node.State,
+				Config:      node.Config,
+				RunCount:    node.RunCount,
+				BestLoss:    node.BestLoss,
+				CreatedAt:   node.CreatedAt,
+			})
+		}
+
+		if !resp.Project.Sweeps.PageInfo.HasNextPage {
+			break
+		}
+		cursor = resp.Project.Sweeps.PageInfo.EndCursor
+	}
+
+	return sweeps, nil
+}
+
+// listRunFiles fetches all files for a run.
+func (l *Lister) listRunFiles(ctx context.Context, p *ProjectPath, runName string) ([]RunFileInfo, error) {
+	var files []RunFileInfo
+	var cursor *string
+	perPage := 100
+
+	for {
+		resp, err := gql.NFSRunFiles(ctx, l.client, p.Entity, p.Project, runName, cursor, &perPage)
+		if err != nil {
+			return nil, err
+		}
+		if resp.Project == nil || resp.Project.Run == nil || resp.Project.Run.Files == nil {
+			break
+		}
+
+		for _, edge := range resp.Project.Run.Files.Edges {
+			if edge.Node == nil {
+				continue
+			}
+			node := edge.Node
+
+			md5 := ""
+			if node.Md5 != nil {
+				md5 = *node.Md5
+			}
+
+			files = append(files, RunFileInfo{
+				Name:      node.Name,
+				SizeBytes: node.SizeBytes,
+				DirectURL: node.DirectUrl,
+				MD5:       md5,
+			})
+		}
+
+		if !resp.Project.Run.Files.PageInfo.HasNextPage {
+			break
+		}
+		cursor = resp.Project.Run.Files.PageInfo.EndCursor
+	}
+
+	return files, nil
+}

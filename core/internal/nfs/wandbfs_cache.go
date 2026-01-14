@@ -19,12 +19,33 @@ import (
 )
 
 const (
-	// TTL for cached data
+	// TTL for cached data - artifacts
 	typesTTL       = 5 * time.Minute
 	collectionsTTL = 1 * time.Minute
 	filesTTL       = 5 * time.Minute
 	metadataTTL    = 5 * time.Minute
+
+	// TTL for cached data - runs/sweeps (state-based)
+	terminalRunsTTL   = 5 * time.Minute  // Terminal states - stable data
+	terminalSweepsTTL = 5 * time.Minute  // Terminal states - stable data
+	activeRunsTTL     = 30 * time.Second // Non-terminal states - data changes
+	activeSweepsTTL   = 30 * time.Second // Non-terminal states - data changes
+	runFilesTTL       = 5 * time.Minute  // Run files are stable once run finishes
 )
+
+// Terminal run states - runs in these states won't change
+var terminalRunStates = map[string]bool{
+	"finished": true,
+	"crashed":  true,
+	"failed":   true,
+}
+
+// Terminal sweep states - sweeps in these states won't change
+var terminalSweepStates = map[string]bool{
+	"FINISHED": true,
+	"CRASHED":  true,
+	"FAILED":   true,
+}
 
 // ArtifactFileInfo represents a file in an artifact.
 type ArtifactFileInfo struct {
@@ -52,6 +73,40 @@ func (m *ArtifactMetadata) ToJSON() ([]byte, error) {
 	return json.MarshalIndent(m, "", "  ")
 }
 
+// RunInfo represents a run in the project.
+type RunInfo struct {
+	ID             string
+	Name           string
+	DisplayName    string
+	State          string
+	Config         string // JSON string
+	SummaryMetrics string // JSON string
+	CreatedAt      time.Time
+	HeartbeatAt    *time.Time
+	SweepName      string
+	Username       string
+}
+
+// SweepInfo represents a sweep in the project.
+type SweepInfo struct {
+	ID          string
+	Name        string
+	DisplayName string
+	State       string
+	Config      string // YAML string
+	RunCount    int
+	BestLoss    *float64
+	CreatedAt   time.Time
+}
+
+// RunFileInfo represents a file in a run.
+type RunFileInfo struct {
+	Name      string
+	SizeBytes int64
+	DirectURL string
+	MD5       string
+}
+
 // cacheEntry holds cached data with expiration.
 type cacheEntry[T any] struct {
 	data      T
@@ -64,6 +119,40 @@ type cacheEntry[T any] struct {
 
 func (e *cacheEntry[T]) isExpired() bool {
 	return time.Since(e.loadedAt) > e.ttl
+}
+
+// runsCache is a specialized cache for runs with state-based TTL.
+type runsCache struct {
+	data      []RunInfo
+	loadedAt  time.Time
+	hasActive bool // true if any run is in non-terminal state
+	loadErr   error
+	loadMutex sync.Mutex
+}
+
+func (c *runsCache) isExpired() bool {
+	ttl := terminalRunsTTL
+	if c.hasActive {
+		ttl = activeRunsTTL // Use shorter TTL if any run is active
+	}
+	return time.Since(c.loadedAt) > ttl
+}
+
+// sweepsCache is a specialized cache for sweeps with state-based TTL.
+type sweepsCache struct {
+	data      []SweepInfo
+	loadedAt  time.Time
+	hasActive bool // true if any sweep is in non-terminal state
+	loadErr   error
+	loadMutex sync.Mutex
+}
+
+func (c *sweepsCache) isExpired() bool {
+	ttl := terminalSweepsTTL
+	if c.hasActive {
+		ttl = activeSweepsTTL // Use shorter TTL if any sweep is active
+	}
+	return time.Since(c.loadedAt) > ttl
 }
 
 // DataCache handles lazy fetching and caching of W&B data.
@@ -84,6 +173,15 @@ type DataCache struct {
 
 	// Cache for metadata by artifact ID
 	metadata map[string]*cacheEntry[*ArtifactMetadata]
+
+	// Cache for runs (with state-based TTL)
+	runs *runsCache
+
+	// Cache for sweeps (with state-based TTL)
+	sweeps *sweepsCache
+
+	// Cache for run files by run name
+	runFiles map[string]*cacheEntry[[]RunFileInfo]
 }
 
 // NewDataCache creates a new data cache.
@@ -95,6 +193,7 @@ func NewDataCache(client graphql.Client, project *ProjectPath) *DataCache {
 		collections: make(map[string]*cacheEntry[[]CollectionInfo]),
 		files:       make(map[string]*cacheEntry[[]ArtifactFileInfo]),
 		metadata:    make(map[string]*cacheEntry[*ArtifactMetadata]),
+		runFiles:    make(map[string]*cacheEntry[[]RunFileInfo]),
 	}
 }
 
@@ -306,6 +405,114 @@ func (c *DataCache) fetchMetadata(ctx context.Context, artifactID string) (*Arti
 		Description:  description,
 		State:        string(resp.Artifact.State),
 	}, nil
+}
+
+// GetRuns returns all runs in the project.
+func (c *DataCache) GetRuns(ctx context.Context) ([]RunInfo, error) {
+	c.mu.Lock()
+	if c.runs == nil {
+		c.runs = &runsCache{}
+	}
+	entry := c.runs
+	c.mu.Unlock()
+
+	entry.loadMutex.Lock()
+	defer entry.loadMutex.Unlock()
+
+	if entry.loadErr == nil && len(entry.data) > 0 && !entry.isExpired() {
+		return entry.data, nil
+	}
+
+	// Fetch from API
+	runs, err := c.lister.listRuns(ctx, c.project)
+	if err != nil {
+		entry.loadErr = err
+		return nil, err
+	}
+
+	// Check if any run is in non-terminal state
+	hasActive := false
+	for _, run := range runs {
+		if !terminalRunStates[run.State] {
+			hasActive = true
+			break
+		}
+	}
+
+	entry.data = runs
+	entry.loadedAt = time.Now()
+	entry.hasActive = hasActive
+	entry.loadErr = nil
+	return runs, nil
+}
+
+// GetSweeps returns all sweeps in the project.
+func (c *DataCache) GetSweeps(ctx context.Context) ([]SweepInfo, error) {
+	c.mu.Lock()
+	if c.sweeps == nil {
+		c.sweeps = &sweepsCache{}
+	}
+	entry := c.sweeps
+	c.mu.Unlock()
+
+	entry.loadMutex.Lock()
+	defer entry.loadMutex.Unlock()
+
+	if entry.loadErr == nil && len(entry.data) > 0 && !entry.isExpired() {
+		return entry.data, nil
+	}
+
+	// Fetch from API
+	sweeps, err := c.lister.listSweeps(ctx, c.project)
+	if err != nil {
+		entry.loadErr = err
+		return nil, err
+	}
+
+	// Check if any sweep is in non-terminal state
+	hasActive := false
+	for _, sweep := range sweeps {
+		if !terminalSweepStates[sweep.State] {
+			hasActive = true
+			break
+		}
+	}
+
+	entry.data = sweeps
+	entry.loadedAt = time.Now()
+	entry.hasActive = hasActive
+	entry.loadErr = nil
+	return sweeps, nil
+}
+
+// GetRunFiles returns all files for a run.
+func (c *DataCache) GetRunFiles(ctx context.Context, runName string) ([]RunFileInfo, error) {
+	c.mu.Lock()
+	entry, ok := c.runFiles[runName]
+	if !ok {
+		entry = &cacheEntry[[]RunFileInfo]{ttl: runFilesTTL}
+		c.runFiles[runName] = entry
+	}
+	c.mu.Unlock()
+
+	entry.loadMutex.Lock()
+	defer entry.loadMutex.Unlock()
+
+	if entry.loadErr == nil && len(entry.data) > 0 && !entry.isExpired() {
+		return entry.data, nil
+	}
+
+	// Fetch from API
+	files, err := c.lister.listRunFiles(ctx, c.project, runName)
+	if err != nil {
+		entry.loadErr = err
+		return nil, err
+	}
+
+	entry.data = files
+	entry.loadedAt = time.Now()
+	entry.loadErr = nil
+	return files, nil
 }
 
 // FileContentCache handles disk-based caching of artifact file content.

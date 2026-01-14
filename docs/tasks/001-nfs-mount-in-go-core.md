@@ -5,8 +5,9 @@ Support a read only NFS mount using go core for artifact and run files.
 ## Status
 
 - [x] nfs server for artifact, can list artifacts, files and read file content
+  - [ ] does not support run, metrics and run files
 - [x] go cli that list artifacts only, `wandb-core nfs ls <entity/project>`
- - [ ] does not support `~/.netrc`
+  - [ ] does not support `~/.netrc` have to `export WANDB_API_KEY=...`
 
 ## Background
 

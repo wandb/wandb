@@ -22,6 +22,19 @@ const (
 	NodeTypeMetadataJSON                     // .../metadata.json
 	NodeTypeFilesDir                         // .../files/
 	NodeTypeFile                             // actual artifact file
+
+	// Run types
+	NodeTypeRunsDir         // /runs
+	NodeTypeRun             // /runs/{run_name}
+	NodeTypeRunMetadataJSON // /runs/{run_name}/metadata.json
+	NodeTypeRunFilesDir     // /runs/{run_name}/files
+	NodeTypeRunFile         // /runs/{run_name}/files/{filename}
+
+	// Sweep types
+	NodeTypeSweepsDir       // /sweeps
+	NodeTypeSweep           // /sweeps/{sweep_name}
+	NodeTypeSweepRunsDir    // /sweeps/{sweep_name}/runs
+	NodeTypeSweepRunSymlink // /sweeps/{sweep_name}/runs/{run_name} -> symlink
 )
 
 // VirtualNode represents a node in the virtual filesystem tree.
@@ -50,6 +63,15 @@ type VirtualNode struct {
 	FileSize  int64
 	DirectURL string // Download URL for file content
 	MD5       string // Base64 MD5 hash for cache key
+
+	// Run metadata
+	RunID     string // For run nodes
+	RunName   string // Run name (also used for files within runs)
+	RunState  string // Run state (running, finished, etc.)
+	SweepName string // Which sweep this run belongs to (if any)
+
+	// Sweep metadata
+	SweepID string // For sweep nodes
 
 	// Timestamps
 	ModTime time.Time

@@ -1,0 +1,20 @@
+query NFSRunFiles($entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int) {
+  project(name: $project, entityName: $entity) {
+    run(name: $runName) {
+      files(after: $cursor, first: $perPage) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            name
+            sizeBytes
+            directUrl
+            md5
+          }
+        }
+      }
+    }
+  }
+}

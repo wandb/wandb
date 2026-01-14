@@ -1,0 +1,26 @@
+query NFSRuns($entity: String!, $project: String!, $cursor: String, $perPage: Int) {
+  project(name: $project, entityName: $entity) {
+    runs(after: $cursor, first: $perPage) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          id
+          name
+          displayName
+          state
+          config
+          summaryMetrics
+          createdAt
+          heartbeatAt
+          sweepName
+          user {
+            username
+          }
+        }
+      }
+    }
+  }
+}
