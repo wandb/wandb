@@ -257,6 +257,12 @@ func (h *HistoryReader) initParquetFiles(
 		return err
 	}
 
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+
 	for i, url := range signedUrls {
 		var parquetFile *pqarrow.FileReader
 
