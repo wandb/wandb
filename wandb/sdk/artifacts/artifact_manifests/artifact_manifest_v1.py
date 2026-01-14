@@ -1,6 +1,7 @@
 """Artifact manifest v1."""
 
 # Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
+# ruff: noqa: UP006, UP035
 
 from __future__ import annotations
 
