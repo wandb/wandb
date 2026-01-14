@@ -5,9 +5,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
-from wandb._pydantic import GQLId, GQLResult
+from wandb._pydantic import GQLResult
 
 from .fragments import LightRunFragment
 
@@ -17,11 +15,7 @@ class GetLightRun(GQLResult):
 
 
 class GetLightRunProject(GQLResult):
-    run: Optional[GetLightRunProjectRun]
-
-
-class GetLightRunProjectRun(LightRunFragment):
-    project_id: Optional[GQLId] = Field(alias="projectId", default=None)
+    run: Optional[LightRunFragment]
 
 
 GetLightRun.model_rebuild()

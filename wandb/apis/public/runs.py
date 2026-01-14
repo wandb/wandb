@@ -71,42 +71,6 @@ if TYPE_CHECKING:
 WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 
 
-def _create_runs_query(
-    *, lazy: bool, with_internal_id: bool, with_project_id: bool
-) -> Document:
-    """Create GraphQL query for runs with appropriate fragment.
-
-    The values of `with_internal_id/with_project_id` control whether
-    to omit `internalId/projectId` from the query fields, as older
-    servers may not support these fields.
-    """
-    from wandb.apis._generated import GET_LIGHT_RUNS_GQL, GET_RUNS_GQL
-
-    # Omit fields not supported by the server
-    omit_fields = {
-        *(() if with_internal_id else {"internalId"}),
-        *(() if with_project_id else {"projectId"}),
-    }
-    return gql_compat(
-        GET_LIGHT_RUNS_GQL if lazy else GET_RUNS_GQL,
-        omit_fields=omit_fields,
-    )
-
-
-@normalize_exceptions
-def _server_has_field(client: RetryingClient, type: str, field: str) -> bool:
-    """Returns True if the server supports querying the GQL `FIELD` on the `OBJECT` type."""
-    from wandb.apis._generated import PROBE_FIELDS_GQL, ProbeFields
-
-    res = client.execute(gql(PROBE_FIELDS_GQL), variable_values={"type": type})
-    result = ProbeFields.model_validate(res)
-    return (
-        (type_info := result.type_info) is not None
-        and (fields := type_info.fields) is not None
-        and any(f.name == field for f in fields)
-    )
-
-
 @normalize_exceptions
 def _convert_to_dict(value: Any) -> dict[str, Any]:
     """Converts a value to a dictionary.
@@ -169,14 +133,12 @@ class Runs(SizedPaginator["Run"]):
         lazy: bool = True,
         api: public.Api | None = None,
     ):
+        from wandb.apis._generated import GET_LIGHT_RUNS_GQL, GET_RUNS_GQL
+
         if not order:
             order = "+created_at"
 
-        self.QUERY = _create_runs_query(
-            lazy=lazy,
-            with_internal_id=_server_has_field(client, "Project", "internalId"),
-            with_project_id=_server_has_field(client, "Run", "projectId"),
-        )
+        self.QUERY = gql(GET_LIGHT_RUNS_GQL if lazy else GET_RUNS_GQL)
 
         self.entity = entity
         self.project = project
@@ -391,6 +353,8 @@ class Runs(SizedPaginator["Run"]):
         upgrades any already-loaded Run objects to have full data.
         Uses parallel loading for better performance when upgrading multiple runs.
         """
+        from wandb.apis._generated import GET_RUNS_GQL
+
         if not self._lazy:
             return  # Already in full mode
 
@@ -398,11 +362,7 @@ class Runs(SizedPaginator["Run"]):
         self._lazy = False
 
         # Regenerate query with full fragment
-        self.QUERY = _create_runs_query(
-            lazy=False,
-            with_internal_id=_server_has_field(self.client, "Project", "internalId"),
-            with_project_id=_server_has_field(self.client, "Run", "projectId"),
-        )
+        self.QUERY = gql(GET_RUNS_GQL)
 
         # Upgrade any existing runs that have been loaded - use parallel loading for performance
         lazy_runs = [run for run in self.objects if run._lazy]
@@ -487,8 +447,6 @@ class Run(Attrs, DisplayableMixin):
         self._summary = None
         self._metadata: dict[str, Any] | None = None
         self._state = _attrs.get("state", "not found")
-        self.server_provides_internal_id_field: bool | None = None
-        self._server_provides_project_id_field: bool | None = None
         self._is_loaded: bool = False
         self._api: public.Api | None = api
 
@@ -586,22 +544,14 @@ class Run(Attrs, DisplayableMixin):
         Uses gql_compat to omit projectId if not supported by the server.
         """
         from wandb.apis._generated import (
-            GET_LIGHT_RUN_GQL,
+            GET_LIGHT_RUNS_GQL,
             GET_RUN_GQL,
-            GetLightRun,
-            GetRun,
+            GetLightRuns,
+            GetRuns,
         )
 
-        # Cache the server capability check to avoid repeated network calls
-        if self._server_provides_project_id_field is None:
-            self._server_provides_project_id_field = _server_has_field(
-                self.client, type="Run", field="projectId"
-            )
-
-        response_cls = GetLightRun if lazy else GetRun
-        query_str = GET_LIGHT_RUN_GQL if lazy else GET_RUN_GQL
-        omit_fields = None if self._server_provides_project_id_field else {"projectId"}
-        query = gql_compat(query_str, omit_fields=omit_fields)
+        query = gql(GET_LIGHT_RUNS_GQL if lazy else GET_RUN_GQL)
+        response_cls = GetLightRuns if lazy else GetRuns
 
         if force or not self._attrs:
             response = response_cls.model_validate(self._exec(query))

@@ -49,14 +49,12 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.runs import Run, _server_has_field
+from wandb.apis.public.runs import Run
 from wandb.apis.public.utils import gql_compat
 from wandb.sdk.lib import retry
 from wandb.util import POW_2_BYTES, download_file_from_url, no_retry_auth, to_human_size
 
 if TYPE_CHECKING:
-    from wandb_graphql.language.ast import Document
-
     from wandb.apis._generated import GetRunFiles
     from wandb.apis.public import Api, RetryingClient
 
@@ -90,17 +88,6 @@ class Files(SizedPaginator["File"]):
     """
 
     last_response: GetRunFiles | None
-
-    def _get_query(self) -> Document:
-        """Generate query dynamically based on server capabilities."""
-        from wandb.apis._generated import GET_RUN_FILES_GQL
-
-        omit_fields = (
-            None
-            if _server_has_field(self.client, "Project", "internalId")
-            else {"internalId"}
-        )
-        return gql_compat(GET_RUN_FILES_GQL, omit_fields=omit_fields)
 
     def __init__(
         self,
@@ -146,9 +133,10 @@ class Files(SizedPaginator["File"]):
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
-        from wandb.apis._generated import GetRunFiles
+        from wandb.apis._generated import GET_RUN_FILES_GQL, GetRunFiles
 
-        data = self.client.execute(self._get_query(), variable_values=self.variables)
+        gql_op = gql(GET_RUN_FILES_GQL)
+        data = self.client.execute(gql_op, variable_values=self.variables)
         self.last_response = GetRunFiles.model_validate(data)
 
     @property
