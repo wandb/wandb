@@ -12,7 +12,3 @@ updates:
       interval: daily
     reviewers:
       - wandb/sdk-team
-  - package-ecosystem: pre-commit
-    directory: "/"
-    schedule:
-      interval: daily
