@@ -251,8 +251,13 @@ uv pip install -U pre-commit
 To install all of our pre-commit hooks run:
 
 ```shell
-./core/scripts/code-checks.sh update
-pre-commit install
+nox -s install-hooks
+```
+
+To run all hooks:
+
+```shell
+nox -s lint -- --all
 ```
 
 If you just want to run a specific hook, for example formating your code, you could run the following:
