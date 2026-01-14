@@ -4,22 +4,45 @@
 __all__ = [
     "CREATE_INVITE_GQL",
     "CREATE_PROJECT_GQL",
+    "CREATE_RUN_GQL",
     "CREATE_SERVICE_ACCOUNT_GQL",
     "CREATE_TEAM_GQL",
     "CREATE_USER_FROM_ADMIN_GQL",
     "DELETE_API_KEY_GQL",
     "DELETE_INVITE_GQL",
+    "DELETE_RUN_GQL",
     "GENERATE_API_KEY_GQL",
     "GET_DEFAULT_ENTITY_GQL",
+    "GET_LIGHT_RUNS_GQL",
+    "GET_LIGHT_RUN_GQL",
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
+    "GET_RUNS_GQL",
+    "GET_RUN_EVENTS_GQL",
+    "GET_RUN_GQL",
+    "GET_RUN_HISTORY_GQL",
+    "GET_RUN_HISTORY_KEYS_GQL",
+    "GET_RUN_SAMPLED_HISTORY_GQL",
+    "GET_RUN_STATE_GQL",
     "GET_SWEEPS_GQL",
     "GET_SWEEP_GQL",
     "GET_SWEEP_LEGACY_GQL",
     "GET_TEAM_ENTITY_GQL",
     "GET_VIEWER_GQL",
+    "PROBE_FIELDS_GQL",
     "SEARCH_USERS_GQL",
+    "UPDATE_RUN_GQL",
 ]
+
+PROBE_FIELDS_GQL = """
+query ProbeFields($type: String!) {
+  typeInfo: __type(name: $type) {
+    fields {
+      name
+    }
+  }
+}
+"""
 
 GET_PROJECTS_GQL = """
 query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
@@ -88,6 +111,300 @@ fragment CreatedProjectFragment on Project {
   description
   access
   views
+}
+"""
+
+GET_RUNS_GQL = """
+query GetRuns($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
+  project(name: $project, entityName: $entity) {
+    internalId @include(if: true)
+    readOnly
+    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+      totalCount
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...RunFragment
+        }
+      }
+    }
+  }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
+fragment RunFragment on Run {
+  __typename
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  projectId
+  user {
+    name
+    username
+  }
+  config
+  systemMetrics
+  summaryMetrics
+  historyKeys
+}
+"""
+
+GET_LIGHT_RUNS_GQL = """
+query GetLightRuns($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
+  project(name: $project, entityName: $entity) {
+    internalId @include(if: true)
+    readOnly
+    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
+      totalCount
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...LightRunFragment
+        }
+      }
+    }
+  }
+}
+
+fragment LightRunFragment on Run {
+  __typename
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  projectId
+  user {
+    name
+    username
+  }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+"""
+
+GET_RUN_GQL = """
+query GetRun($name: String!, $project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      projectId @include(if: true)
+      ...RunFragment
+    }
+  }
+}
+
+fragment RunFragment on Run {
+  __typename
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  projectId
+  user {
+    name
+    username
+  }
+  config
+  systemMetrics
+  summaryMetrics
+  historyKeys
+}
+"""
+
+GET_LIGHT_RUN_GQL = """
+query GetLightRun($name: String!, $project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      projectId @include(if: true)
+      ...LightRunFragment
+    }
+  }
+}
+
+fragment LightRunFragment on Run {
+  __typename
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  projectId
+  user {
+    name
+    username
+  }
+}
+"""
+
+GET_RUN_STATE_GQL = """
+query GetRunState($name: String!, $project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      state
+    }
+  }
+}
+"""
+
+CREATE_RUN_GQL = """
+mutation CreateRun($name: String!, $project: String, $entity: String, $state: String) {
+  upsertBucket(
+    input: {modelName: $project, entityName: $entity, name: $name, state: $state}
+  ) {
+    bucket {
+      project {
+        name
+        entity {
+          name
+        }
+      }
+      id
+      name
+    }
+    inserted
+  }
+}
+"""
+
+UPDATE_RUN_GQL = """
+mutation UpdateRun($input: UpsertBucketInput!) {
+  upsertBucket(input: $input) {
+    bucket {
+      ...RunFragment
+    }
+  }
+}
+
+fragment RunFragment on Run {
+  __typename
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  historyLineCount
+  projectId
+  user {
+    name
+    username
+  }
+  config
+  systemMetrics
+  summaryMetrics
+  historyKeys
+}
+"""
+
+DELETE_RUN_GQL = """
+mutation DeleteRun($id: ID!, $deleteArtifacts: Boolean) {
+  deleteRun(input: {id: $id, deleteArtifacts: $deleteArtifacts}) {
+    clientMutationId
+  }
+}
+"""
+
+GET_RUN_SAMPLED_HISTORY_GQL = """
+query GetRunSampledHistory($name: String!, $project: String!, $entity: String!, $specs: [JSONString!]!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      sampledHistory(specs: $specs)
+    }
+  }
+}
+"""
+
+GET_RUN_HISTORY_GQL = """
+query GetRunHistory($name: String!, $project: String!, $entity: String!, $samples: Int) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      history(samples: $samples)
+    }
+  }
+}
+"""
+
+GET_RUN_EVENTS_GQL = """
+query GetRunEvents($name: String!, $project: String!, $entity: String!, $samples: Int) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      events(samples: $samples)
+    }
+  }
+}
+"""
+
+GET_RUN_HISTORY_KEYS_GQL = """
+query GetRunHistoryKeys($name: String!, $project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      historyKeys
+    }
+  }
 }
 """
 

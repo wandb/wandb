@@ -85,6 +85,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
                 "project": {
                     "internalId": "testinternalid",
                     "run": {
+                        "__typename": "Run",
                         "id": id,
                         "projectId": project_id,
                         "tags": [],
@@ -93,7 +94,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
                         "state": "finished",
                         "config": json.dumps(config or {}),
                         "group": "test",
-                        "sweep_name": None,
+                        "sweepName": None,
                         "jobType": None,
                         "commit": None,
                         "readOnly": False,
@@ -103,6 +104,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
                         "notes": None,
                         "systemMetrics": "{}",
                         "summaryMetrics": json.dumps(summary_metrics or {}),
+                        "historyKeys": None,
                         "historyLineCount": 0,
                         "user": {
                             "name": "test",
@@ -114,8 +116,13 @@ def stub_run_gql_once(user, wandb_backend_spy):
         }
 
         responder = gql.once(content=body)
+        # Match both GetRun (full) and GetLightRun (lazy) operation names
         wandb_backend_spy.stub_gql(
-            gql.Matcher(operation="Run"),
+            gql.Matcher(operation="GetRun"),
+            responder,
+        )
+        wandb_backend_spy.stub_gql(
+            gql.Matcher(operation="GetLightRun"),
             responder,
         )
         return responder
@@ -125,30 +132,43 @@ def stub_run_gql_once(user, wandb_backend_spy):
 
 @pytest.fixture(scope="function")
 def stub_run_full_history(wandb_backend_spy):
-    """Helper fixture for stubbing out RunFullHistory."""
+    """Helper fixture for stubbing out GetRunHistory/GetRunEvents."""
 
     gql = wandb_backend_spy.gql
 
     def helper(history: Optional[List] = None, events: Optional[List] = None):
-        history = [json.dumps(h) for h in history or []]
-        events = [json.dumps(e) for e in events or []]
-        body = {
+        history_data = [json.dumps(h) for h in history or []]
+        events_data = [json.dumps(e) for e in events or []]
+
+        # Stub GetRunHistory for regular history
+        history_body = {
             "data": {
                 "project": {
                     "run": {
-                        "history": history,
-                        "events": events,
+                        "history": history_data,
                     },
                 },
             },
         }
-
-        responder = gql.Constant(content=body)
         wandb_backend_spy.stub_gql(
-            gql.Matcher(operation="RunFullHistory"),
-            responder,
+            gql.Matcher(operation="GetRunHistory"),
+            gql.Constant(content=history_body),
         )
-        return responder
+
+        # Stub GetRunEvents for system metrics
+        events_body = {
+            "data": {
+                "project": {
+                    "run": {
+                        "events": events_data,
+                    },
+                },
+            },
+        }
+        wandb_backend_spy.stub_gql(
+            gql.Matcher(operation="GetRunEvents"),
+            gql.Constant(content=events_body),
+        )
 
     return helper
 
@@ -221,7 +241,7 @@ def test_run_history_keys(stub_run_gql_once, wandb_backend_spy):
         {"loss": 1, "acc": 0},
     ]
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="RunSampledHistory"),
+        gql.Matcher(operation="GetRunSampledHistory"),
         gql.once(
             content={
                 "data": {
@@ -277,21 +297,28 @@ def test_run_load_multiple_times(user):
 
 def test_run_create(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
-    upsert_bucket_spy = gql.Capture()
+    create_run_spy = gql.Capture()
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpsertBucket"),
-        upsert_bucket_spy,
+        gql.Matcher(operation="CreateRun"),
+        create_run_spy,
     )
 
     Api().create_run(project="test")
 
-    assert upsert_bucket_spy.total_calls == 1
-    assert upsert_bucket_spy.requests[0].variables["entity"] == user
-    assert upsert_bucket_spy.requests[0].variables["project"] == "test"
+    assert create_run_spy.total_calls == 1
+    assert create_run_spy.requests[0].variables["entity"] == user
+    assert create_run_spy.requests[0].variables["project"] == "test"
 
 
 def test_run_update(wandb_backend_spy):
     gql = wandb_backend_spy.gql
+    # run.update() triggers UpdateRun mutation for run metadata
+    update_run_spy = gql.Capture()
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpdateRun"),
+        update_run_spy,
+    )
+    # summary.update() still uses inline UpsertBucket mutation
     upsert_bucket_spy = gql.Capture()
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="UpsertBucket"),
@@ -308,12 +335,11 @@ def test_run_update(wandb_backend_spy):
     run.config["foo"] = "bar"
     run.update()
 
-    # run.update() triggers two UpdateBucket calls;
-    # the second one just updates the summary.
-    update_request = upsert_bucket_spy.requests[-2]
-    assert update_request.variables["entity"] == seed_run.entity
-    assert update_request.variables["tags"] == ["test"]
-    config = json.loads(update_request.variables["config"])
+    # Check the UpdateRun call for run metadata
+    update_request = update_run_spy.requests[-1]
+    update_input_vars = update_request.variables["input"]
+    assert update_input_vars["tags"] == ["test"]
+    config = json.loads(update_input_vars["config"])
     assert config["foo"]["value"] == "bar"
     assert config["_wandb"]["value"] == wandb_key
 
@@ -330,8 +356,8 @@ def test_run_delete(wandb_backend_spy):
     run.delete(delete_artifacts=True)
 
     assert delete_spy.total_calls == 2
-    assert not delete_spy.requests[0].variables["deleteArtifacts"]
-    assert delete_spy.requests[1].variables["deleteArtifacts"]
+    assert delete_spy.requests[0].variables["deleteArtifacts"] is False
+    assert delete_spy.requests[1].variables["deleteArtifacts"] is True
 
 
 def test_run_file_direct(
@@ -394,26 +420,50 @@ def test_run_retry(wandb_backend_spy):
 def test_runs_from_path_index(wandb_backend_spy):
     num_runs = 4
     gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Runs"),
-        gql.once(
-            content={
-                "data": {
-                    "project": {
-                        "runCount": num_runs,
-                        "runs": {
-                            "edges": [
-                                {
-                                    "node": {"name": f"test_{i}", "sweepName": None},
-                                }
-                                for i in range(num_runs)
-                            ],
+    runs_response = gql.once(
+        content={
+            "data": {
+                "project": {
+                    "internalId": "testinternalid",
+                    "readOnly": False,
+                    "runs": {
+                        "totalCount": num_runs,
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": f"run_{i}",
+                                    "name": f"test_{i}",
+                                    "displayName": f"test_{i}",
+                                    "sweepName": None,
+                                    "state": "finished",
+                                    "tags": [],
+                                    "group": None,
+                                    "jobType": None,
+                                    "commit": None,
+                                    "readOnly": False,
+                                    "createdAt": "2023-11-05T17:46:35",
+                                    "heartbeatAt": "2023-11-05T17:46:36",
+                                    "description": None,
+                                    "notes": None,
+                                    "historyLineCount": 0,
+                                    "projectId": "123",
+                                    "user": {"name": "test", "username": "test"},
+                                },
+                            }
+                            for i in range(num_runs)
+                        ],
+                        "pageInfo": {
+                            "endCursor": f"cursor_{num_runs - 1}",
+                            "hasNextPage": False,
                         },
                     },
                 },
             },
-        ),
+        },
     )
+    # Stub both GetRuns and GetLightRuns
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetRuns"), runs_response)
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetLightRuns"), runs_response)
 
     runs = Api().runs("test/test")
 
@@ -431,21 +481,38 @@ def test_runs_from_path(user, wandb_backend_spy):
     body = {
         "data": {
             "project": {
-                "runCount": num_runs,
+                "internalId": "testinternalid",
+                "readOnly": False,
                 "runs": {
+                    "totalCount": num_runs,
                     "edges": [
                         {
                             "node": {
+                                "id": f"run_{i}",
                                 "name": f"test_{i}",
+                                "displayName": f"test_{i}",
                                 "sweepName": None,
+                                "state": "finished",
+                                "tags": [],
                                 "group": group,
                                 "jobType": job_type,
+                                "commit": None,
+                                "readOnly": False,
+                                "createdAt": "2023-11-05T17:46:35",
+                                "heartbeatAt": "2023-11-05T17:46:36",
+                                "description": None,
+                                "notes": None,
+                                "historyLineCount": 0,
+                                "projectId": "123",
                                 "summaryMetrics": json.dumps(summary_metrics),
+                                "historyKeys": None,
+                                "user": {"name": "test", "username": "test"},
                             },
                         }
                         for i in range(ratio)
                     ],
                     "pageInfo": {
+                        "endCursor": f"cursor_{ratio - 1}",
                         "hasNextPage": True,
                     },
                 },
@@ -453,9 +520,46 @@ def test_runs_from_path(user, wandb_backend_spy):
         },
     }
     gql = wandb_backend_spy.gql
+    runs_response = gql.Constant(content=body)
+    # Stub both GetRuns and GetLightRuns
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetRuns"), runs_response)
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetLightRuns"), runs_response)
+    # Stub GetRun for individual run loads (when accessing summary_metrics triggers full load)
+    single_run_body = {
+        "data": {
+            "project": {
+                "run": {
+                    "id": "run_0",
+                    "name": "test_0",
+                    "displayName": "test_0",
+                    "sweepName": None,
+                    "state": "finished",
+                    "tags": [],
+                    "group": group,
+                    "jobType": job_type,
+                    "commit": None,
+                    "readOnly": False,
+                    "createdAt": "2023-11-05T17:46:35",
+                    "heartbeatAt": "2023-11-05T17:46:36",
+                    "description": None,
+                    "notes": None,
+                    "historyLineCount": 0,
+                    "projectId": "123",
+                    "config": "{}",
+                    "summaryMetrics": json.dumps(summary_metrics),
+                    "systemMetrics": "{}",
+                    "historyKeys": None,
+                    "user": {"name": "test", "username": "test"},
+                },
+            },
+        },
+    }
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Runs"),
-        gql.Constant(content=body),
+        gql.Matcher(operation="GetRun"), gql.Constant(content=single_run_body)
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetLightRun"),
+        gql.Constant(content=single_run_body),
     )
 
     runs = Api().runs(f"{user}/test", per_page=per_page)
@@ -756,26 +860,56 @@ def test_delete_files_for_multiple_runs(
     runs_gql_body = {
         "data": {
             "project": {
-                "runCount": 2,
+                "internalId": "testinternalid",
+                "readOnly": False,
                 "runs": {
+                    "totalCount": 2,
                     "edges": [
                         {
                             "node": {
-                                "name": "test",
                                 "id": "test",
-                                "sweep_name": None,
+                                "name": "test",
+                                "displayName": "test",
+                                "sweepName": None,
+                                "state": "finished",
+                                "tags": [],
+                                "group": None,
+                                "jobType": None,
+                                "commit": None,
+                                "readOnly": False,
+                                "createdAt": "2023-11-05T17:46:35",
+                                "heartbeatAt": "2023-11-05T17:46:36",
+                                "description": None,
+                                "notes": None,
+                                "historyLineCount": 0,
+                                "projectId": "123",
+                                "user": {"name": "test", "username": "test"},
                             },
                         },
                         {
                             "node": {
-                                "name": "test",
                                 "id": "test2",
-                                "sweep_name": None,
+                                "name": "test2",
+                                "displayName": "test2",
+                                "sweepName": None,
+                                "state": "finished",
+                                "tags": [],
+                                "group": None,
+                                "jobType": None,
+                                "commit": None,
+                                "readOnly": False,
+                                "createdAt": "2023-11-05T17:46:35",
+                                "heartbeatAt": "2023-11-05T17:46:36",
+                                "description": None,
+                                "notes": None,
+                                "historyLineCount": 0,
+                                "projectId": "123",
+                                "user": {"name": "test", "username": "test"},
                             },
                         },
                     ],
                     "pageInfo": {
-                        "endCursor": None,
+                        "endCursor": "cursor_1",
                         "hasNextPage": False,
                     },
                 },
@@ -806,10 +940,10 @@ def test_delete_files_for_multiple_runs(
         }
     }
     gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Runs"),
-        gql.once(content=runs_gql_body),
-    )
+    runs_response = gql.once(content=runs_gql_body)
+    # Stub both GetRuns and GetLightRuns
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetRuns"), runs_response)
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetLightRuns"), runs_response)
 
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="RunFiles"),
@@ -1176,12 +1310,16 @@ def test_runs_histories(
     body = {
         "data": {
             "project": {
-                "runCount": 1,
+                "internalId": "testinternalid",
+                "readOnly": False,
                 "runs": {
+                    "totalCount": 1,
                     "edges": [
                         {
                             "node": {
+                                "id": "test_1",
                                 "name": "test_1",
+                                "displayName": "test_1",
                                 "historyKeys": None,
                                 "sweepName": None,
                                 "state": "finished",
@@ -1189,27 +1327,33 @@ def test_runs_histories(
                                 "systemMetrics": "{}",
                                 "summaryMetrics": "{}",
                                 "tags": [],
+                                "group": None,
+                                "jobType": None,
+                                "commit": None,
+                                "readOnly": False,
                                 "description": None,
                                 "notes": None,
+                                "historyLineCount": 0,
+                                "projectId": "123",
                                 "createdAt": "2023-11-05T17:46:35",
                                 "heartbeatAt": "2023-11-05T17:46:36",
                                 "user": {
                                     "name": "test",
                                     "username": "test",
                                 },
-                            }
+                            },
                         },
                     ],
-                    "pageInfo": {"endCursor": None, "hasNextPage": False},
+                    "pageInfo": {"endCursor": "cursor_0", "hasNextPage": False},
                 },
             },
         },
     }
     gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Runs"),
-        gql.once(content=body),
-    )
+    runs_response = gql.once(content=body)
+    # Stub both GetRuns and GetLightRuns
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetRuns"), runs_response)
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetLightRuns"), runs_response)
 
     # Inject dummy history data for the run
     history_run_1 = [
@@ -1268,8 +1412,10 @@ def test_runs_histories_empty(wandb_backend_spy):
     body = {
         "data": {
             "project": {
-                "runCount": 1,
+                "internalId": "testinternalid",
+                "readOnly": False,
                 "runs": {
+                    "totalCount": 0,
                     "edges": [],
                     "pageInfo": {"endCursor": None, "hasNextPage": False},
                 },
@@ -1278,10 +1424,10 @@ def test_runs_histories_empty(wandb_backend_spy):
     }
 
     gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Runs"),
-        gql.once(content=body),
-    )
+    runs_response = gql.once(content=body)
+    # Stub both GetRuns and GetLightRuns
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetRuns"), runs_response)
+    wandb_backend_spy.stub_gql(gql.Matcher(operation="GetLightRuns"), runs_response)
 
     api = Api()
     runs = api.runs("test/test")
