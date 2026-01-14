@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 
 	"github.com/wandb/simplejsonext"
 
@@ -173,16 +172,4 @@ func convertHistoryRowToKeyValueList(
 		kvList = append(kvList, iterator.KeyValuePair{Key: key, Value: val})
 	}
 	return kvList
-}
-
-// getMinLiveStep gets the minimum step present from the live data.
-func getMinLiveStep(liveSteps []int64) (int64, error) {
-	minLiveStep := int64(math.MaxInt64)
-	for _, stepValue := range liveSteps {
-		if stepValue < minLiveStep {
-			minLiveStep = stepValue
-		}
-	}
-
-	return minLiveStep, nil
 }

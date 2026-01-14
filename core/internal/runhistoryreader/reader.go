@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
@@ -247,9 +248,8 @@ func (h *HistoryReader) initParquetFiles(
 		return err
 	}
 
-	h.minLiveStep, err = getMinLiveStep(liveData)
-	if err != nil {
-		return err
+	if len(liveData) > 0 {
+		h.minLiveStep = slices.Min(liveData)
 	}
 
 	dir, err := getUserRunHistoryCacheDir()

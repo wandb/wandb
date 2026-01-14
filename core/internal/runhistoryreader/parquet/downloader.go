@@ -13,12 +13,11 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 )
 
-// GetSignedUrlsWithLiveSteps gets URLs
-// that can be used to download a run's history files.
-// As well as any steps which have not been exported to parquet files yet.
+// GetSignedUrlsWithLiveSteps retrieves signed URLs for downloading a run's
+// parquet history files.
+// Additionally, it returns the step numbers for any history data not yet exported.
 //
-// The order of the URLs returned is not guaranteed
-// to be the same order as the order the run history partitions were created in.
+// The order of URLs is not guaranteed to be consistent across calls.
 func GetSignedUrlsWithLiveSteps(
 	ctx context.Context,
 	graphqlClient graphql.Client,
@@ -62,12 +61,16 @@ func DownloadRunHistoryFile(
 	httpClient *retryablehttp.Client,
 	fileUrl string,
 	filePath string,
-) error {
+) (err error) {
 	file, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, fileUrl, nil)
 	if err != nil {
@@ -80,11 +83,7 @@ func DownloadRunHistoryFile(
 	defer resp.Body.Close()
 
 	_, err = io.Copy(file, resp.Body)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {
