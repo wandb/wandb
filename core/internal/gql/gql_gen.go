@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 )
@@ -1200,6 +1201,130 @@ type NFSArtifactCollectionsResponse struct {
 func (v *NFSArtifactCollectionsResponse) GetProject() *NFSArtifactCollectionsProject {
 	return v.Project
 }
+
+// NFSArtifactFilesArtifact includes the requested fields of the GraphQL type Artifact.
+type NFSArtifactFilesArtifact struct {
+	Files *NFSArtifactFilesArtifactFilesFileConnection `json:"files"`
+}
+
+// GetFiles returns NFSArtifactFilesArtifact.Files, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesArtifact) GetFiles() *NFSArtifactFilesArtifactFilesFileConnection {
+	return v.Files
+}
+
+// NFSArtifactFilesArtifactFilesFileConnection includes the requested fields of the GraphQL type FileConnection.
+type NFSArtifactFilesArtifactFilesFileConnection struct {
+	PageInfo NFSArtifactFilesArtifactFilesFileConnectionPageInfo        `json:"pageInfo"`
+	Edges    []NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdge `json:"edges"`
+}
+
+// GetPageInfo returns NFSArtifactFilesArtifactFilesFileConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesArtifactFilesFileConnection) GetPageInfo() NFSArtifactFilesArtifactFilesFileConnectionPageInfo {
+	return v.PageInfo
+}
+
+// GetEdges returns NFSArtifactFilesArtifactFilesFileConnection.Edges, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesArtifactFilesFileConnection) GetEdges() []NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdge {
+	return v.Edges
+}
+
+// NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdge includes the requested fields of the GraphQL type FileEdge.
+type NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdge struct {
+	Node *NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile `json:"node"`
+}
+
+// GetNode returns NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdge.Node, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdge) GetNode() *NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile {
+	return v.Node
+}
+
+// NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile includes the requested fields of the GraphQL type File.
+type NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile struct {
+	Name      string `json:"name"`
+	SizeBytes int64  `json:"sizeBytes"`
+}
+
+// GetName returns NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile.Name, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile) GetName() string {
+	return v.Name
+}
+
+// GetSizeBytes returns NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile.SizeBytes, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesArtifactFilesFileConnectionEdgesFileEdgeNodeFile) GetSizeBytes() int64 {
+	return v.SizeBytes
+}
+
+// NFSArtifactFilesArtifactFilesFileConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type NFSArtifactFilesArtifactFilesFileConnectionPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns NFSArtifactFilesArtifactFilesFileConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesArtifactFilesFileConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// GetEndCursor returns NFSArtifactFilesArtifactFilesFileConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesArtifactFilesFileConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// NFSArtifactFilesResponse is returned by NFSArtifactFiles on success.
+type NFSArtifactFilesResponse struct {
+	Artifact *NFSArtifactFilesArtifact `json:"artifact"`
+}
+
+// GetArtifact returns NFSArtifactFilesResponse.Artifact, and is useful for accessing the field via an interface.
+func (v *NFSArtifactFilesResponse) GetArtifact() *NFSArtifactFilesArtifact { return v.Artifact }
+
+// NFSArtifactMetadataArtifact includes the requested fields of the GraphQL type Artifact.
+type NFSArtifactMetadataArtifact struct {
+	Id           string        `json:"id"`
+	VersionIndex *int          `json:"versionIndex"`
+	Digest       string        `json:"digest"`
+	Size         int64         `json:"size"`
+	FileCount    int64         `json:"fileCount"`
+	CreatedAt    time.Time     `json:"createdAt"`
+	UpdatedAt    *time.Time    `json:"updatedAt"`
+	Description  *string       `json:"description"`
+	State        ArtifactState `json:"state"`
+}
+
+// GetId returns NFSArtifactMetadataArtifact.Id, and is useful for accessing the field via an interface.
+func (v *NFSArtifactMetadataArtifact) GetId() string { return v.Id }
+
+// GetVersionIndex returns NFSArtifactMetadataArtifact.VersionIndex, and is useful for accessing the field via an interface.
+func (v *NFSArtifactMetadataArtifact) GetVersionIndex() *int { return v.VersionIndex }
+
+// GetDigest returns NFSArtifactMetadataArtifact.Digest, and is useful for accessing the field via an interface.
+func (v *NFSArtifactMetadataArtifact) GetDigest() string { return v.Digest }
+
+// GetSize returns NFSArtifactMetadataArtifact.Size, and is useful for accessing the field via an interface.
+func (v *NFSArtifactMetadataArtifact) GetSize() int64 { return v.Size }
+
+// GetFileCount returns NFSArtifactMetadataArtifact.FileCount, and is useful for accessing the field via an interface.
+func (v *NFSArtifactMetadataArtifact) GetFileCount() int64 { return v.FileCount }
+
+// GetCreatedAt returns NFSArtifactMetadataArtifact.CreatedAt, and is useful for accessing the field via an interface.
+func (v *NFSArtifactMetadataArtifact) GetCreatedAt() time.Time { return v.CreatedAt }
+
+// GetUpdatedAt returns NFSArtifactMetadataArtifact.UpdatedAt, and is useful for accessing the field via an interface.
+func (v *NFSArtifactMetadataArtifact) GetUpdatedAt() *time.Time { return v.UpdatedAt }
+
+// GetDescription returns NFSArtifactMetadataArtifact.Description, and is useful for accessing the field via an interface.
+func (v *NFSArtifactMetadataArtifact) GetDescription() *string { return v.Description }
+
+// GetState returns NFSArtifactMetadataArtifact.State, and is useful for accessing the field via an interface.
+func (v *NFSArtifactMetadataArtifact) GetState() ArtifactState { return v.State }
+
+// NFSArtifactMetadataResponse is returned by NFSArtifactMetadata on success.
+type NFSArtifactMetadataResponse struct {
+	Artifact *NFSArtifactMetadataArtifact `json:"artifact"`
+}
+
+// GetArtifact returns NFSArtifactMetadataResponse.Artifact, and is useful for accessing the field via an interface.
+func (v *NFSArtifactMetadataResponse) GetArtifact() *NFSArtifactMetadataArtifact { return v.Artifact }
 
 // NFSArtifactTypesProject includes the requested fields of the GraphQL type Project.
 type NFSArtifactTypesProject struct {
@@ -2569,6 +2694,30 @@ func (v *__NFSArtifactCollectionsInput) GetCursor() *string { return v.Cursor }
 // GetPerPage returns __NFSArtifactCollectionsInput.PerPage, and is useful for accessing the field via an interface.
 func (v *__NFSArtifactCollectionsInput) GetPerPage() *int { return v.PerPage }
 
+// __NFSArtifactFilesInput is used internally by genqlient
+type __NFSArtifactFilesInput struct {
+	ArtifactId string  `json:"artifactId"`
+	Cursor     *string `json:"cursor"`
+	PerPage    *int    `json:"perPage"`
+}
+
+// GetArtifactId returns __NFSArtifactFilesInput.ArtifactId, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactFilesInput) GetArtifactId() string { return v.ArtifactId }
+
+// GetCursor returns __NFSArtifactFilesInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactFilesInput) GetCursor() *string { return v.Cursor }
+
+// GetPerPage returns __NFSArtifactFilesInput.PerPage, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactFilesInput) GetPerPage() *int { return v.PerPage }
+
+// __NFSArtifactMetadataInput is used internally by genqlient
+type __NFSArtifactMetadataInput struct {
+	ArtifactId string `json:"artifactId"`
+}
+
+// GetArtifactId returns __NFSArtifactMetadataInput.ArtifactId, and is useful for accessing the field via an interface.
+func (v *__NFSArtifactMetadataInput) GetArtifactId() string { return v.ArtifactId }
+
 // __NFSArtifactTypesInput is used internally by genqlient
 type __NFSArtifactTypesInput struct {
 	Entity  string  `json:"entity"`
@@ -3548,6 +3697,97 @@ func NFSArtifactCollections(
 	}
 
 	data_ = &NFSArtifactCollectionsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by NFSArtifactFiles.
+const NFSArtifactFiles_Operation = `
+query NFSArtifactFiles ($artifactId: ID!, $cursor: String, $perPage: Int) {
+	artifact(id: $artifactId) {
+		files(after: $cursor, first: $perPage) {
+			pageInfo {
+				hasNextPage
+				endCursor
+			}
+			edges {
+				node {
+					name: displayName
+					sizeBytes
+				}
+			}
+		}
+	}
+}
+`
+
+func NFSArtifactFiles(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	artifactId string,
+	cursor *string,
+	perPage *int,
+) (data_ *NFSArtifactFilesResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "NFSArtifactFiles",
+		Query:  NFSArtifactFiles_Operation,
+		Variables: &__NFSArtifactFilesInput{
+			ArtifactId: artifactId,
+			Cursor:     cursor,
+			PerPage:    perPage,
+		},
+	}
+
+	data_ = &NFSArtifactFilesResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by NFSArtifactMetadata.
+const NFSArtifactMetadata_Operation = `
+query NFSArtifactMetadata ($artifactId: ID!) {
+	artifact(id: $artifactId) {
+		id
+		versionIndex
+		digest
+		size
+		fileCount
+		createdAt
+		updatedAt
+		description
+		state
+	}
+}
+`
+
+func NFSArtifactMetadata(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	artifactId string,
+) (data_ *NFSArtifactMetadataResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "NFSArtifactMetadata",
+		Query:  NFSArtifactMetadata_Operation,
+		Variables: &__NFSArtifactMetadataInput{
+			ArtifactId: artifactId,
+		},
+	}
+
+	data_ = &NFSArtifactMetadataResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

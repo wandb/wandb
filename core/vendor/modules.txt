@@ -857,6 +857,17 @@ github.com/shirou/gopsutil/v4/process
 # github.com/skeema/knownhosts v1.3.2
 ## explicit; go 1.24.0
 github.com/skeema/knownhosts
+# github.com/smallfz/libnfs-go v0.0.7
+## explicit; go 1.18
+github.com/smallfz/libnfs-go/auth
+github.com/smallfz/libnfs-go/backend
+github.com/smallfz/libnfs-go/fs
+github.com/smallfz/libnfs-go/log
+github.com/smallfz/libnfs-go/nfs
+github.com/smallfz/libnfs-go/nfs/implv3
+github.com/smallfz/libnfs-go/nfs/implv4
+github.com/smallfz/libnfs-go/server
+github.com/smallfz/libnfs-go/xdr
 # github.com/spf13/afero v1.15.0
 ## explicit; go 1.23.0
 github.com/spf13/afero

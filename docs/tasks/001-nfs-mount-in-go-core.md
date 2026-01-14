@@ -75,3 +75,64 @@ run-jhidltab-history/
 run-unmgo349-history/
    v0
 ```
+
+## NFS v4 using libnfs-go
+
+I have cloned the repo locally at `~/go/src/github.com/smallfz/libnfs-go/examples/server`
+
+- It ships with exampme memfs and disk fs implementation, which can be good reference
+- You need to update go mod to use the library, it should be published
+
+I want to have `wandb-core nfs serve <entity/project>` command that starts the NFS server similar to the example.
+For beginning, we can just support listing artifact collections and their versions.
+I want the folder layout to look following
+
+```text
+artifacts/
+   types/
+      model/
+        foo/
+          v0
+      dataset/
+   collections/
+      foo/
+         v0/
+           metadata.json
+           files/
+              a.parquet
+```
+
+Now need to actually list files within in the artifacts.
+For simplicity we do NOT allow
+
+- Any write operation
+- Read file content (we will implement that later)
+
+I want to implement a audit log logic to know which nfs client has accessed what file/folder.
+
+For test
+
+- You can run the go server in background with tee to show the log in both stdout and a file.
+- You should be able to mount the nfs in folder you created, remember to create a folder before mounting on it.
+
+Trial run
+
+```bash
+# Start the NFS server
+./wandb-core nfs serve reg-team-2/pinglei-benchmark
+
+# With custom port
+./wandb-core nfs serve --listen :3049 entity/project
+
+# Mount (macOS)
+mkdir -p /tmp/wandb-mount
+# NOTE: You do NOT need sudo
+mount -t nfs -o vers=4,port=2049 localhost:/ /tmp/wandb-mount
+
+# Browse
+ls /tmp/wandb-mount/artifacts/types/
+ls /tmp/wandb-mount/artifacts/collections/
+
+# Unmount
+umount /tmp/wandb-mount
+```

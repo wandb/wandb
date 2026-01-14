@@ -1,0 +1,13 @@
+query NFSArtifactMetadata($artifactId: ID!) {
+  artifact(id: $artifactId) {
+    id
+    versionIndex
+    digest
+    size
+    fileCount
+    createdAt
+    updatedAt
+    description
+    state
+  }
+}

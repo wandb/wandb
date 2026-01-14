@@ -271,10 +271,15 @@ func nfsMain(args []string) int {
 	fs.SetOutput(os.Stderr)
 
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, `wandb-core nfs - List artifacts in a W&B project
+		fmt.Fprintf(os.Stderr, `wandb-core nfs - NFS server for W&B artifacts
 
 Usage:
   wandb-core nfs ls <entity>/<project>
+  wandb-core nfs serve [--listen :2049] <entity>/<project>
+
+Commands:
+  ls      List artifacts in a project
+  serve   Start NFS server to browse artifacts
 
 Environment Variables:
   WANDB_API_KEY   - Your W&B API key (required)
@@ -282,6 +287,8 @@ Environment Variables:
 
 Examples:
   wandb-core nfs ls my-team/my-project
+  wandb-core nfs serve my-team/my-project
+  wandb-core nfs serve --listen :3049 my-team/my-project
 
 `)
 	}
@@ -307,6 +314,8 @@ Examples:
 			return exitCodeErrorArgs
 		}
 		return nfsLs(fs.Arg(1))
+	case "serve":
+		return nfsServe(fs.Args()[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "Error: unknown nfs subcommand: %s\n", subCmd)
 		return exitCodeErrorArgs
@@ -340,5 +349,77 @@ func nfsLs(projectPath string) int {
 	}
 
 	nfs.PrintCollections(os.Stdout, collections)
+	return exitCodeSuccess
+}
+
+func nfsServe(args []string) int {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	listen := fs.String("listen", ":2049", "Listen address for NFS server")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `wandb-core nfs serve - Start NFS server for W&B artifacts
+
+Usage:
+  wandb-core nfs serve [--listen :2049] <entity>/<project>
+
+Flags:
+  --listen   Listen address (default: :2049)
+
+Examples:
+  wandb-core nfs serve my-team/my-project
+  wandb-core nfs serve --listen :3049 my-team/my-project
+
+Mount the NFS share (macOS):
+  mkdir -p /tmp/wandb-mount
+  sudo mount -t nfs -o vers=4,port=2049 localhost:/ /tmp/wandb-mount
+
+`)
+	}
+
+	err := fs.Parse(args)
+	if err == flag.ErrHelp {
+		return exitCodeSuccess
+	}
+	if err != nil {
+		return exitCodeErrorArgs
+	}
+
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "Error: missing project path (entity/project)")
+		fs.Usage()
+		return exitCodeErrorArgs
+	}
+
+	projectPath := fs.Arg(0)
+	path, err := nfs.ParseProjectPath(projectPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return exitCodeErrorArgs
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle signals
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		fmt.Fprintln(os.Stderr, "\nReceived shutdown signal")
+		cancel()
+	}()
+
+	opts := nfs.ServeOptions{
+		ListenAddr:  *listen,
+		ProjectPath: path,
+	}
+
+	if err := nfs.Serve(ctx, opts); err != nil && err != context.Canceled {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return exitCodeErrorInternal
+	}
+
 	return exitCodeSuccess
 }

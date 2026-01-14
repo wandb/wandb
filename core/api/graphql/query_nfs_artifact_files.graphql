@@ -1,0 +1,16 @@
+query NFSArtifactFiles($artifactId: ID!, $cursor: String, $perPage: Int) {
+  artifact(id: $artifactId) {
+    files(after: $cursor, first: $perPage) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          name: displayName
+          sizeBytes
+        }
+      }
+    }
+  }
+}

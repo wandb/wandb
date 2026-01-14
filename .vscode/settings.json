@@ -7,7 +7,7 @@
   "git.ignoreLimitWarning": true,
   "editor.formatOnSave": true,
   "editor.lineHeight": 1.4,
-  "editor.scrollBeyondLastLine": false,
+  "editor.scrollBeyondLastLine": true,
   "python.analysis.extraPaths": [
     "./wandb/vendor/gql-0.2.0",
     "./wandb/vendor/graphql-core-1.1"
