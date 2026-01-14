@@ -197,18 +197,24 @@ If the feature or fix does not directly impact users, consider using a different
 
 ## Setting up your development environment
 
-The W&B SDK is implemented in Python and Go.
+The W&B SDK is implemented in Python, Go, and Rust.
 
 ### Setting up Python
 
-You can use your favorite `python` version management tool, such as [`pyenv`](https://github.com/pyenv/pyenv). To install it, follow [these instructions](https://github.com/pyenv/pyenv?tab=readme-ov-file#getting-pyenv).
+We recommend using [`uv`](https://github.com/astral-sh/uv) for Python version management and virtual environments.
 
-Optionally set up a tool to manage multiple virtual environments, for example [`pyenv-virtualenv`](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#pyenv-virtualenv).
+To install `uv`, follow [these instructions](https://docs.astral.sh/uv/getting-started/installation/).
 
-Install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation) and [`uv`](https://github.com/astral-sh/uv) into your environment:
-
+Then install a supported Python version and set up your environment:
 ```shell
-pip install -U nox uv
+uv python install 3.13
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+
+Install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation) into your environment:
+```shell
+uv pip install nox
 ```
 
 ### Setting up Go
@@ -230,35 +236,34 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$H
 
 ### Building/installing the package
 
-We recommend installing the `wandb` package in the editable mode with either `pip` or `uv`:
+We recommend installing the `wandb` package in the editable mode:
 
 ```shell
-uv pip install -e .
+uv pip install --reinstall --refresh-package wandb -e .
 ```
 
-If you are modifying Go code, you should rerun the command to rebuild and reinstall the package.
+If you are modifying Go or Rust code, you should rerun the command to rebuild and reinstall the package.
 
 ### Linting the code
 
-We are using [pre-commit hooks](https://pre-commit.com/#install) to manage our linters and other auto-generated code.
+We are using [prek hooks](https://prek.j178.dev/) to manage our linters and other auto-generated code.
 
-To install `pre-commit` run the following:
+To install `prek` run the following:
 
 ```shell
-uv pip install -U pre-commit
+uv tool install prek
 ```
 
-To install all of our pre-commit hooks run:
+To install all of our prek hooks run:
 
 ```shell
-./core/scripts/code-checks.sh update
-pre-commit install
+prek install
 ```
 
 If you just want to run a specific hook, for example formating your code, you could run the following:
 
 ```shell
-pre-commit run ruff-format --all-files --hook-stage pre-push
+prek run ruff-format --all-files --hook-stage pre-push
 ```
 
 ### Auto-Generating Code

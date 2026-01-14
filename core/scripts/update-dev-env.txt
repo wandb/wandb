@@ -1,4 +1,0 @@
-golang.org/x/tools/cmd/goimports v0.31.0
-github.com/go-critic/go-critic/cmd/gocritic v0.13.0
-github.com/fzipp/gocyclo/cmd/gocyclo v0.6.0
-github.com/golangci/golangci-lint/cmd/golangci-lint v2.4.0 scripts/install-golangci-lint.sh

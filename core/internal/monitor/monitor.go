@@ -184,7 +184,12 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 		sm.resources = append(sm.resources, tpu)
 	}
 
-	if trainium := NewTrainium(sm.logger, pid, samplingInterval, neuronMonitorConfigPath); trainium != nil {
+	if trainium := NewTrainium(
+		sm.logger,
+		pid,
+		samplingInterval,
+		neuronMonitorConfigPath,
+	); trainium != nil {
 		sm.resources = append(sm.resources, trainium)
 	}
 
