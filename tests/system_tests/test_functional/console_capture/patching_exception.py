@@ -1,7 +1,5 @@
 """Exits with code 0 if an exception patching stdout is rethrown."""
 
-from __future__ import annotations
-
 import io
 import sys
 from typing import TextIO

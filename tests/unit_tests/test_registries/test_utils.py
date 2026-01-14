@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pytest
 from wandb.apis.public.registries._utils import (
     ensure_registry_prefix_on_names,

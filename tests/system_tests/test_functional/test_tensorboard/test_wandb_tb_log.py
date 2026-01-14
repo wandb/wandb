@@ -1,7 +1,5 @@
 """Tests for wandb.tensorboard.log and wandb.tensorboard.WandbHook."""
 
-from __future__ import annotations
-
 import pytest
 import tensorflow as tf
 import wandb

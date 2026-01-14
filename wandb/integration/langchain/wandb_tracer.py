@@ -15,8 +15,6 @@ LangChain is not installed, or the symbols are not in the same place, the approp
 will be raised when importing this module.
 """
 
-from __future__ import annotations
-
 from packaging import version
 
 import wandb.util

@@ -4,8 +4,6 @@ module but are also used in modules that import the wandb module.
 The purpose of this module is to break circular imports.
 """
 
-from __future__ import annotations
-
 import os
 import tempfile
 import time

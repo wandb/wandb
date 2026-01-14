@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from ray import tune
 from ray.air.integrations.wandb import WandbLoggerCallback
 

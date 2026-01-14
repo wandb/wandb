@@ -3,8 +3,6 @@
 Approach was inspired by: https://github.com/johejo/inputimeout
 """
 
-from __future__ import annotations
-
 import sys
 import threading
 

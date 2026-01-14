@@ -1,7 +1,5 @@
 """Agent tests."""
 
-from __future__ import annotations
-
 import contextlib
 import io
 import pathlib

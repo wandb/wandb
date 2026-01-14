@@ -4,8 +4,6 @@ On success, prints "I AM STDOUT" to stdout and "I AM STDERR" to stderr.
 On error, prints additional text to stderr.
 """
 
-from __future__ import annotations
-
 import sys
 
 from wandb.sdk.lib import console_capture

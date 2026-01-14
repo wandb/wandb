@@ -4,8 +4,6 @@ This is necessary because Windows and POSIX use different models for Ctrl+C
 interrupts.
 """
 
-from __future__ import annotations
-
 import platform
 import signal
 import threading

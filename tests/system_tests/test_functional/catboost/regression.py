@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import wandb
 from catboost import CatBoostClassifier, Pool, datasets
 from wandb.integration.catboost import WandbCallback, log_summary

@@ -1,7 +1,5 @@
 """Test executing notebooks against running Jupyter servers."""
 
-from __future__ import annotations
-
 import nbformat
 
 

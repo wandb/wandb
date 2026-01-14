@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from wandb.sdk.internal import tb_watcher
 
 

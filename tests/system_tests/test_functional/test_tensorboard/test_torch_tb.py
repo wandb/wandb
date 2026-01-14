@@ -3,8 +3,6 @@
 This test is to check if the tensorboard data is being processed correctly and sent to W&B.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pytest
 import torch

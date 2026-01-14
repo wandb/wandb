@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 META_SCHEMA = {
     "type": "object",
     "properties": {

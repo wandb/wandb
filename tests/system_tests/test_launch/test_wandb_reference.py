@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from wandb.sdk.launch.wandb_reference import WandbReference
 
 

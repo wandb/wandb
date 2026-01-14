@@ -7,8 +7,6 @@ logic.
 Be sure to use `test_settings` or an isolated directory
 """
 
-from __future__ import annotations
-
 import importlib
 import os
 import shutil

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pathlib
 import textwrap
 from unittest.mock import Mock

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 
 from wandb.sdk.integration_utils.auto_logging import AutologAPI

@@ -1,8 +1,6 @@
 """Test that the TensorFlow summary API works with W&B.
 Used https://www.tensorflow.org/api_docs/python/tf/summary as reference."""
 
-from __future__ import annotations
-
 import os
 
 import numpy as np

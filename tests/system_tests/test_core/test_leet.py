@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import subprocess
 
 from wandb.util import get_core_path

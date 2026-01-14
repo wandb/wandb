@@ -1,7 +1,5 @@
 """Artifacts-specific data models for handling paginated results from GraphQL queries."""
 
-from __future__ import annotations
-
 from wandb._pydantic import Connection, ConnectionWithTotal
 
 from .._generated.fragments import (

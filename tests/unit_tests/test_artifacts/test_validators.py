@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pytest
 from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,

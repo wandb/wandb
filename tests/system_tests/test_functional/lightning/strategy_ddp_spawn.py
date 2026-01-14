@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from base import BoringModel, RandomDataset  # type: ignore
 from lightning import Trainer
 from lightning.pytorch.loggers import WandbLogger

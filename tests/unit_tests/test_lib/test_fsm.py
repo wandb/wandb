@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from wandb.sdk.lib.fsm import Fsm, FsmEntry
 
 # TODO(testing): investigate if we can use unittest.mock and Call() tracking
