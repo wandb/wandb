@@ -14,7 +14,8 @@ from __future__ import annotations
 import contextlib
 import json
 import weakref
-from typing import TYPE_CHECKING, Any, Dict, Iterator
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 
 from typing_extensions import Self, TypeAlias
 from wandb_gql import gql
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
     from . import runs
     from .api import Api, RetryingClient
 
-_RowDict: TypeAlias = Dict[str, Any]
+_RowDict: TypeAlias = dict[str, Any]
 """Type alias for a single history row as a dict."""
 
 

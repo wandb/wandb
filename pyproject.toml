@@ -203,12 +203,6 @@ ignore = [
     "D105", # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
     "D106", # Allow missing docstrings in nested classes.
     "D107", # Allow missing docstrings in __init__ methods.
-
-    # NEW PYTHON 3.9 ERRORS: Temporarily silence new ruff errors from dropping python 3.8.
-    # TODO: Remove these in separate follow-up PRs.
-    "UP006",
-    "UP035",
-    "RUF100",
 ]
 
 [tool.ruff.lint.mccabe]
@@ -354,12 +348,12 @@ ignore-decorators = [
 ]
 
 # Pydantic code requires an older style for type annotations.
-"wandb/sdk/wandb_settings.py" = ["UP006", "UP007", "UP045"]
-"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP045"]
-"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP045"]
-"wandb/automations/**" = ["UP006", "UP007", "UP045"]
-"wandb/sdk/artifacts/_models/**" = ["UP006", "UP007", "UP045"]
-"wandb/_pydantic/**" = ["UP006", "UP007", "UP045"]
+"wandb/sdk/wandb_settings.py" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/automations/**" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/sdk/artifacts/_models/**" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/_pydantic/**" = ["UP006", "UP007", "UP035", "UP045"]
 
 # TODO: Remove the landfill/ directory.
 "landfill/**" = ["F405", "N806", "D415"]
