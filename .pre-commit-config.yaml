@@ -11,7 +11,7 @@ repos:
     rev: "v0.14.11"
     hooks:
       - id: ruff-check
-        args: [--fix]
+        # args: [--fix]
       - id: ruff-format
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v21.1.8
@@ -56,7 +56,7 @@ repos:
         language: python
         pass_filenames: false
         always_run: true
-        additional_dependencies: ["ruff", "astunparse>=1.6.3"]
+        additional_dependencies: ["ruff"]
         description: "Generates stubs for wandb module"
       - id: go-generate-proto
         name: go-generate-proto

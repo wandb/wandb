@@ -13,8 +13,9 @@ def test_run_use_job_env_var(runner, wandb_backend_spy, user):
     art_name = "job-my-test-image"
     artifact_name = f"{user}/uncategorized/{art_name}"
     artifact_env = json.dumps({"_wandb_job": f"{artifact_name}:latest"})
-    with runner.isolated_filesystem(), mock.patch.dict(
-        "os.environ", WANDB_ARTIFACTS=artifact_env
+    with (
+        runner.isolated_filesystem(),
+        mock.patch.dict("os.environ", WANDB_ARTIFACTS=artifact_env),
     ):
         artifact = InternalArtifact(name=art_name, type=job_builder.JOB_ARTIFACT_TYPE)
         filename = "file1.txt"

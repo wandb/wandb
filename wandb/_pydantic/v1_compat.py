@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from functools import lru_cache
+from functools import cache
 from inspect import signature
 from operator import attrgetter
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal, overload
@@ -83,7 +83,7 @@ def _is_str_like_ann(ann_str: str) -> bool:
     return ann_str.strip().lower() in {"str", "optional[str]"}
 
 
-@lru_cache(maxsize=None)  # Reduce repeat introspection via `signature()`
+@cache  # Reduce repeat introspection via `signature()`
 def allowed_arg_names(func: Callable) -> set[str]:
     """Internal helper: Return the names of args accepted by the given function."""
     return set(signature(func).parameters)
