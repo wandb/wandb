@@ -1,6 +1,7 @@
 # Unreleased changes
 
-Add here any changes made in a PR that are relevant to end users. Allowed sections:
+Add here any changes made in a PR that are relevant to end users. Allowed
+sections:
 
 - Added - for new features.
 - Changed - for changes in existing functionality.
@@ -13,11 +14,22 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Notable Changes
+
+This version drops support for Python 3.8.
+
 ### Changed
 
-- When a settings file (such as `./wandb/settings` or `~/.config/wandb/settings`) contains an invalid setting, all settings files are ignored and an error is printed (@timoffex in https://github.com/wandb/wandb/pull/11207)
+- Python 3.8 is no longer supported (@tonyyli-wandb in
+  https://github.com/wandb/wandb/pull/11164)
+- When a settings file (such as `./wandb/settings` or
+  `~/.config/wandb/settings`) contains an invalid setting, all settings files
+  are ignored and an error is printed (@timoffex in
+  https://github.com/wandb/wandb/pull/11207)
 
 ### Fixed
 
-- After `wandb login --host <invalid-url>`, using `wandb login --host <valid-url>` works as usual (@timoffex in https://github.com/wandb/wandb/pull/11207)
+- After `wandb login --host <invalid-url>`, using
+  `wandb login --host <valid-url>` works as usual (@timoffex in
+  https://github.com/wandb/wandb/pull/11207)
   - Regression introduced in 0.24.0

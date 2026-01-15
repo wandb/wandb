@@ -38,16 +38,8 @@ Note:
 import ast
 import re
 import subprocess
-import sys
 from pathlib import Path
 from typing import Dict, Optional
-
-if sys.version_info >= (3, 9):
-    unparse = ast.unparse
-else:
-    import astunparse
-
-    unparse = astunparse.unparse
 
 
 def extract_docstring(file_path: Path, location: str) -> Optional[str]:
@@ -227,8 +219,8 @@ def verify_signatures(wandb_root: Path, generated_stub: str, template: str) -> i
                 source_args.defaults,
             )
 
-        source_sig = unparse(source_args)
-        output_sig = unparse(output_func.args)
+        source_sig = ast.unparse(source_args)
+        output_sig = ast.unparse(output_func.args)
 
         if source_sig != output_sig:
             print(f"Signature mismatch for '{func_name}':")
