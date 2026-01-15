@@ -35,6 +35,8 @@ class StateFilter(GQLBase):  # from: RunStateFilter
 
     @property
     def event_type(self) -> EventType:
+        from wandb.automations import EventType
+
         return EventType.RUN_STATE
 
     @field_validator("states", mode="after")

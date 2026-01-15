@@ -182,6 +182,8 @@ select = [
     "C90",    # mccabe
     "UP",     # pyupgrade
     "T20",    # flake8-print
+    "TC004",  # flake8-type-checking
+    "TC005",  # flake8-type-checking
     "RUF100", # unused-noqa
 
     # tryceratops
