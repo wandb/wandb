@@ -42,11 +42,12 @@ var SenderProviders = wire.NewSet(
 
 // SenderFactory constructs a Sender.
 type SenderFactory struct {
+	BaseURL                 api.WBBaseURL
 	ClientID                sharedmode.ClientID
+	CredentialProvider      api.CredentialProvider
 	Logger                  *observability.CoreLogger
 	Operations              *wboperation.WandbOperations
 	Settings                *settings.Settings
-	Backend                 *api.Backend
 	FeatureProvider         *featurechecker.ServerFeaturesCache
 	FileStreamFactory       *fs.FileStreamFactory
 	FileTransferManager     filetransfer.FileTransferManager
@@ -137,10 +138,12 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	if !f.Settings.IsOffline() {
 		fileStream = NewFileStream(
 			f.FileStreamFactory,
-			f.Backend,
-			f.Settings,
-			f.Peeker,
+			f.BaseURL,
 			f.ClientID,
+			f.CredentialProvider,
+			f.Logger,
+			f.Peeker,
+			f.Settings,
 		)
 	}
 
@@ -197,8 +200,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
-	backendOrNil := f.Backend
-	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
+	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
 	}
 

@@ -3,6 +3,7 @@ package filestream
 
 import (
 	"fmt"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -113,7 +114,8 @@ type fileStream struct {
 	printer *observability.Printer
 
 	// The client for making API requests.
-	apiClient api.Client
+	apiClient api.RetryableClient
+	baseURL   *url.URL
 
 	// The rate limit for sending data to the backend.
 	transmitRateLimit *rate.Limiter
@@ -138,6 +140,7 @@ var FileStreamProviders = wire.NewSet(
 )
 
 type FileStreamFactory struct {
+	BaseURL    api.WBBaseURL
 	Logger     *observability.CoreLogger
 	Operations *wboperation.WandbOperations
 	Printer    *observability.Printer
@@ -146,7 +149,7 @@ type FileStreamFactory struct {
 
 // New returns a new FileStream.
 func (f *FileStreamFactory) New(
-	apiClient api.Client,
+	apiClient api.RetryableClient,
 	heartbeatStopwatch waiting.Stopwatch,
 	transmitRateLimit *rate.Limiter,
 ) FileStream {
@@ -164,6 +167,7 @@ func (f *FileStreamFactory) New(
 		operations:   f.Operations,
 		printer:      f.Printer,
 		apiClient:    apiClient,
+		baseURL:      f.BaseURL,
 		processChan:  make(chan Update, BufferSize),
 		feedbackWait: &sync.WaitGroup{},
 		deadChanOnce: &sync.Once{},

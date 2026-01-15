@@ -37,6 +37,9 @@ type MetricsGrid struct {
 	// Charts visible on the current page grid.
 	currentPage [][]*EpochLineChart
 
+	// lastDrawnCharts holds charts from the last visible page for parking.
+	lastDrawnCharts map[*EpochLineChart]struct{}
+
 	// Chart focus management.
 	focus *Focus // focus.Row/Col only meaningful relative to currentPage
 
@@ -107,7 +110,6 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 	prevTitle := mg.saveFocusTitle()
 
 	needsSort := false
-	dims := mg.CalculateChartDimensions(mg.width, mg.height)
 
 	mg.mu.Lock()
 	var wg sync.WaitGroup
@@ -115,7 +117,7 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 	for name, data := range metrics {
 		chart, exists := mg.byTitle[name]
 		if !exists {
-			chart = NewEpochLineChart(dims.CellW, dims.CellH, name)
+			chart = NewEpochLineChart(name)
 			mg.all = append(mg.all, chart)
 			mg.byTitle[name] = chart
 			needsSort = true
@@ -384,39 +386,37 @@ func (mg *MetricsGrid) Navigate(direction int) {
 
 // drawVisible draws charts that are currently visible.
 //
-// Snapshot page first; do not hold mg.mu while drawing.
+// Charts no longer visible are parked to reduce memory usage.
+// Do not hold mg.mu while drawing.
 func (mg *MetricsGrid) drawVisible() {
-	page := mg.snapshotCurrentPage()
 	dims := mg.CalculateChartDimensions(mg.width, mg.height)
 
-	for row := range len(page) {
-		for col := range len(page[row]) {
-			if ch := page[row][col]; ch != nil {
-				// Ensure visible charts always match current cell dims.
-				if ch.Width() != dims.CellW || ch.Height() != dims.CellH {
-					ch.Resize(dims.CellW, dims.CellH)
-				}
-				ch.dirty = true
-				ch.Draw()
-				ch.dirty = false
+	mg.mu.Lock()
+	currentCharts := make(map[*EpochLineChart]struct{})
+	for row := range mg.currentPage {
+		for col := range mg.currentPage[row] {
+			if ch := mg.currentPage[row][col]; ch != nil {
+				currentCharts[ch] = struct{}{}
 			}
 		}
 	}
-}
+	lastDrawnCharts := mg.lastDrawnCharts
+	mg.lastDrawnCharts = currentCharts
+	mg.mu.Unlock()
 
-// snapshotCurrentPage copies the 2D slice headers.
-func (mg *MetricsGrid) snapshotCurrentPage() [][]*EpochLineChart {
-	mg.mu.RLock()
-	defer mg.mu.RUnlock()
-
-	cp := make([][]*EpochLineChart, len(mg.currentPage))
-	for i := range mg.currentPage {
-		if mg.currentPage[i] == nil {
-			continue
+	for ch := range lastDrawnCharts {
+		if ch != nil {
+			if _, stillVisible := currentCharts[ch]; !stillVisible {
+				ch.Park()
+			}
 		}
-		cp[i] = append([]*EpochLineChart(nil), mg.currentPage[i]...)
 	}
-	return cp
+
+	// Resize and draw visible charts.
+	for ch := range currentCharts {
+		ch.Resize(dims.CellW, dims.CellH)
+		ch.Draw()
+	}
 }
 
 // saveFocusTitle returns the title of the currently focused main-grid chart,

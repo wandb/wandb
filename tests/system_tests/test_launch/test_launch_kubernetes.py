@@ -371,6 +371,11 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         "get_kube_context_and_api_client",
         _mock_get_context_and_client,
     )
+    monkeypatch.setattr(
+        kubernetes_runner,
+        "get_kube_context_and_api_client",
+        _mock_get_context_and_client,
+    )
 
     async def mock_create_from_dict(jobd, jobs_dict, mock_status):
         name = jobd["metadata"].get("name")

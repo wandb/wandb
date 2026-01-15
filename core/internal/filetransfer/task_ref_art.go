@@ -72,7 +72,10 @@ func (t *ReferenceArtifactDownloadTask) SetVersionID(val any) error {
 	case string, int64, float64:
 		t.VersionId = val
 	default:
-		return fmt.Errorf("reference artifact task: error setting version id of unexpected type: %v", val)
+		return fmt.Errorf(
+			"reference artifact task: error setting version id of unexpected type: %v",
+			val,
+		)
 	}
 	return nil
 }
