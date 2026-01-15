@@ -1,12 +1,9 @@
 """Artifact manifest v1."""
 
-# Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
-# ruff: noqa: UP006, UP035
-
 from __future__ import annotations
 
 from operator import itemgetter
-from typing import Annotated, Any, ClassVar, Dict, Literal, final
+from typing import Annotated, Any, ClassVar, Literal, final
 
 from pydantic import Field
 
@@ -22,7 +19,7 @@ from ..storage_policy import StoragePolicy
 @final
 class ArtifactManifestV1(ArtifactManifest):
     manifest_version: Annotated[Literal[1], Field(repr=False)] = 1
-    entries: Dict[str, ArtifactManifestEntry] = Field(default_factory=dict)
+    entries: dict[str, ArtifactManifestEntry] = Field(default_factory=dict)
 
     storage_policy: StoragePolicy = Field(
         default_factory=make_storage_policy, exclude=True, repr=False

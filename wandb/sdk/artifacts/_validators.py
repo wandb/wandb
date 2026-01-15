@@ -6,7 +6,7 @@ import json
 import re
 from dataclasses import dataclass, field, replace
 from functools import singledispatch, wraps
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Concatenate, ParamSpec, Self
@@ -290,9 +290,9 @@ def remove_registry_prefix(project: str) -> str:
 class ArtifactPath:
     name: str
     """The collection or artifact version name."""
-    project: Optional[str] = None  # noqa: UP045
+    project: str | None = None
     """The project name."""
-    prefix: Optional[str] = None  # noqa: UP045
+    prefix: str | None = None
     """Typically the entity or org name."""
 
     @classmethod

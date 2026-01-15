@@ -3,15 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import ArtifactFragment
 
 
 class UpdateArtifact(GQLResult):
-    result: Optional[UpdateArtifactResult]
+    result: UpdateArtifactResult | None
 
 
 class UpdateArtifactResult(GQLResult):

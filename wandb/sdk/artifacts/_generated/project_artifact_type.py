@@ -13,11 +13,11 @@ from .fragments import ArtifactTypeFragment
 
 
 class ProjectArtifactType(GQLResult):
-    project: Optional[ProjectArtifactTypeProject]
+    project: ProjectArtifactTypeProject | None
 
 
 class ProjectArtifactTypeProject(GQLResult):
-    artifact_type: Optional[ArtifactTypeFragment] = Field(alias="artifactType")
+    artifact_type: ArtifactTypeFragment | None = Field(alias="artifactType")
 
 
 ProjectArtifactType.model_rebuild()

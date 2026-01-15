@@ -3,13 +3,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 
 class DeleteRegistryMembers(GQLResult):
-    result: Optional[DeleteRegistryMembersResult]
+    result: DeleteRegistryMembersResult | None
 
 
 class DeleteRegistryMembersResult(GQLResult):

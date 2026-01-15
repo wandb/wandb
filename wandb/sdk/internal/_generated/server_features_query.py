@@ -11,11 +11,11 @@ from wandb._pydantic import GQLResult
 
 
 class ServerFeaturesQuery(GQLResult):
-    server_info: Optional[ServerFeaturesQueryServerInfo] = Field(alias="serverInfo")
+    server_info: ServerFeaturesQueryServerInfo | None = Field(alias="serverInfo")
 
 
 class ServerFeaturesQueryServerInfo(GQLResult):
-    features: List[Optional[ServerFeaturesQueryServerInfoFeatures]]
+    features: list[ServerFeaturesQueryServerInfoFeatures | None]
 
 
 class ServerFeaturesQueryServerInfoFeatures(GQLResult):

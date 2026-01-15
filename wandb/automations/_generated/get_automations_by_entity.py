@@ -13,20 +13,20 @@ from .fragments import PageInfoFields, ProjectTriggersFields
 
 
 class GetAutomationsByEntity(GQLResult):
-    scope: Optional[GetAutomationsByEntityScope]
+    scope: GetAutomationsByEntityScope | None
 
 
 class GetAutomationsByEntityScope(GQLResult):
-    projects: Optional[GetAutomationsByEntityScopeProjects]
+    projects: GetAutomationsByEntityScopeProjects | None
 
 
 class GetAutomationsByEntityScopeProjects(GQLResult):
     page_info: PageInfoFields = Field(alias="pageInfo")
-    edges: List[GetAutomationsByEntityScopeProjectsEdges]
+    edges: list[GetAutomationsByEntityScopeProjectsEdges]
 
 
 class GetAutomationsByEntityScopeProjectsEdges(GQLResult):
-    node: Optional[ProjectTriggersFields]
+    node: ProjectTriggersFields | None
 
 
 GetAutomationsByEntity.model_rebuild()

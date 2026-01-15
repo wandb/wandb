@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict
-from typing import TYPE_CHECKING, Any, Dict, Optional, cast  # noqa: UP035
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import ParseResult
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -28,9 +28,9 @@ class _HttpEntryInfo:
     """Partial ArtifactManifestEntry fields parsed from an HTTP response."""
 
     ref: str  # The reference URL for the manifest entry, i.e. original URL of the request
-    extra: Dict[str, Any]  # noqa: UP006
-    digest: Optional[str]  # noqa: UP045
-    size: Optional[int]  # noqa: UP045
+    extra: dict[str, Any]
+    digest: str | None
+    size: int | None
 
     @classmethod
     def from_response(cls, rsp: requests.Response) -> Self:

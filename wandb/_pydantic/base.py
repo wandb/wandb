@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Literal, overload
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal, overload
 
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -78,7 +78,7 @@ class JsonableModel(BaseModel, ABC):
     # - by_alias: Convert keys to JSON-ready names and objects to JSON-ready
     #   dicts.
     # - round_trip: Ensure the result can round-trip.
-    __DUMP_DEFAULTS: ClassVar[Dict[str, Any]] = dict(by_alias=True, round_trip=True)
+    __DUMP_DEFAULTS: ClassVar[dict[str, Any]] = dict(by_alias=True, round_trip=True)
 
     @overload  # Actual signature
     def model_dump(
@@ -127,7 +127,7 @@ class GQLResult(GQLBase, ABC):
 class GQLInput(GQLBase, ABC):
     # For GraphQL inputs, exclude null values when preparing JSON-able request
     # data.
-    __DUMP_DEFAULTS: ClassVar[Dict[str, Any]] = dict(exclude_none=True)
+    __DUMP_DEFAULTS: ClassVar[dict[str, Any]] = dict(exclude_none=True)
 
     @override
     def model_dump(self, *, mode: str = "json", **kwargs: Any) -> dict[str, Any]:

@@ -3,19 +3,17 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import TriggerFields
 
 
 class UpdateAutomation(GQLResult):
-    result: Optional[UpdateAutomationResult]
+    result: UpdateAutomationResult | None
 
 
 class UpdateAutomationResult(GQLResult):
-    trigger: Optional[TriggerFields]
+    trigger: TriggerFields | None
 
 
 UpdateAutomation.model_rebuild()

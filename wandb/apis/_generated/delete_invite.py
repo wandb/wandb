@@ -3,17 +3,15 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 
 class DeleteInvite(GQLResult):
-    result: Optional[DeleteInviteResult]
+    result: DeleteInviteResult | None
 
 
 class DeleteInviteResult(GQLResult):
-    success: Optional[bool]
+    success: bool | None
 
 
 DeleteInvite.model_rebuild()

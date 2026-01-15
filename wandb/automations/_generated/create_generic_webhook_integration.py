@@ -14,16 +14,16 @@ from .fragments import WebhookIntegrationFields
 
 
 class CreateGenericWebhookIntegration(GQLResult):
-    create_generic_webhook_integration: Optional[
-        CreateGenericWebhookIntegrationCreateGenericWebhookIntegration
-    ] = Field(alias="createGenericWebhookIntegration")
+    create_generic_webhook_integration: (
+        CreateGenericWebhookIntegrationCreateGenericWebhookIntegration | None
+    ) = Field(alias="createGenericWebhookIntegration")
 
 
 class CreateGenericWebhookIntegrationCreateGenericWebhookIntegration(GQLResult):
-    integration: Union[
-        CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationIntegration,
-        WebhookIntegrationFields,
-    ] = Field(discriminator="typename__")
+    integration: (
+        CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationIntegration
+        | WebhookIntegrationFields
+    ) = Field(discriminator="typename__")
 
 
 class CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationIntegration(

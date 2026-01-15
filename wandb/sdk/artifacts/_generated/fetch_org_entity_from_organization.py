@@ -11,11 +11,11 @@ from wandb._pydantic import GQLResult
 
 
 class FetchOrgEntityFromOrganization(GQLResult):
-    organization: Optional[FetchOrgEntityFromOrganizationOrganization]
+    organization: FetchOrgEntityFromOrganizationOrganization | None
 
 
 class FetchOrgEntityFromOrganizationOrganization(GQLResult):
-    org_entity: Optional[FetchOrgEntityFromOrganizationOrganizationOrgEntity] = Field(
+    org_entity: FetchOrgEntityFromOrganizationOrganizationOrgEntity | None = Field(
         alias="orgEntity"
     )
 

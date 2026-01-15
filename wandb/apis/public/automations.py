@@ -62,4 +62,9 @@ class Automations(RelayPaginator["ProjectTriggersFields", "Automation"]):
 
     @override
     def convert_objects(self) -> Iterator[Automation]:
-        return chain.from_iterable(super().convert_objects())
+        if conn := self.last_response:
+            # The current GQL query actually paginates the parent projects/entities
+            # and fetches automations in each one, so we need to flatten/chain these.
+            # FIXME: Implement the proper query in the backend so we don't need this.
+            grouped_automations = filter(None, map(self._convert, conn.nodes()))
+            yield from chain.from_iterable(grouped_automations)

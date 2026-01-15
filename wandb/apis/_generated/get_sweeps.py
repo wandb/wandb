@@ -13,17 +13,17 @@ from .fragments import PageInfoFragment, SweepFragment
 
 
 class GetSweeps(GQLResult):
-    project: Optional[GetSweepsProject]
+    project: GetSweepsProject | None
 
 
 class GetSweepsProject(GQLResult):
     total_sweeps: int = Field(alias="totalSweeps")
-    sweeps: Optional[GetSweepsProjectSweeps]
+    sweeps: GetSweepsProjectSweeps | None
 
 
 class GetSweepsProjectSweeps(GQLResult):
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[GetSweepsProjectSweepsEdges]
+    edges: list[GetSweepsProjectSweepsEdges]
 
 
 class GetSweepsProjectSweepsEdges(GQLResult):

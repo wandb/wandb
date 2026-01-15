@@ -1,4 +1,4 @@
-from typing import Any, Dict, Literal, final
+from typing import Any, Literal, final
 
 from pydantic import field_validator
 from pydantic.alias_generators import to_camel
@@ -15,7 +15,7 @@ class ArtifactManifestV1Data(ArtifactsBase, alias_generator=to_camel):
 
     version: Literal[1]
 
-    contents: Dict[str, ArtifactManifestEntry]
+    contents: dict[str, ArtifactManifestEntry]
 
     storage_policy: str
     storage_policy_config: StoragePolicyConfig

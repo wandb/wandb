@@ -144,9 +144,10 @@ class GraphQLCodegenPlugin(Plugin):
 
     def _run_ruff(self) -> None:
         """Autofix and format the generated code via Ruff."""
+        package_root = str(self.package_dir)
         commands = (
-            ["ruff", "check", "--fix", "--unsafe-fixes", str(self.package_dir)],
-            ["ruff", "format", str(self.package_dir)],
+            ["ruff", "check", "--fix", "--unsafe-fixes", package_root],
+            ["ruff", "format", package_root],
         )
         sys.stdout.write(f"\n========== Reformatting: {self.package_dir} ==========\n")
         for cmd in commands:

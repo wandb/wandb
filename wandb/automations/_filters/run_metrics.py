@@ -1,16 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import (
-    TYPE_CHECKING,
-    Annotated,
-    Any,
-    Final,
-    Literal,
-    Optional,
-    Union,
-    overload,
-)
+from typing import TYPE_CHECKING, Annotated, Any, Final, Literal, Union, overload
 
 from pydantic import (
     Field,
@@ -89,18 +80,18 @@ class BaseMetricFilter(GQLBase, ABC, extra="forbid"):
     name: str
     """Name of the observed metric."""
 
-    agg: Optional[Agg]
+    agg: Agg | None
     """Aggregate operation, if any, to apply over the window size."""
 
     window: PositiveInt
     """Size of the metric aggregation window (ignored if `agg` is ``None``)."""
 
     # ------------------------------------------------------------------------------
-    cmp: Optional[str]
+    cmp: str | None
     """Comparison operator between the metric expression (left) vs. the threshold or target (right)."""  # noqa: W505
 
     # ------------------------------------------------------------------------------
-    threshold: Union[StrictInt, StrictFloat]
+    threshold: StrictInt | StrictFloat
     """Threshold value to compare against."""
 
     def __and__(self, other: Any) -> RunMetricFilter:
@@ -140,13 +131,13 @@ class MetricThresholdFilter(BaseMetricFilter):  # from: RunMetricThresholdFilter
     """
 
     name: str
-    agg: Annotated[Optional[Agg], Field(alias="agg_op")] = None
+    agg: Annotated[Agg | None, Field(alias="agg_op")] = None
     window: Annotated[PositiveInt, Field(alias="window_size")] = 1
 
     cmp: Annotated[Literal["$gte", "$gt", "$lt", "$lte"], Field(alias="cmp_op")]
     """Comparison operator between the metric value (left) vs. the threshold (right)."""
 
-    threshold: Union[StrictInt, StrictFloat]
+    threshold: StrictInt | StrictFloat
 
     @field_validator("cmp", mode="before")
     def _validate_cmp(cls, v: Any) -> Any:
@@ -167,7 +158,7 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     """
 
     name: str
-    agg: Annotated[Optional[Agg], Field(alias="agg_op")] = None
+    agg: Annotated[Agg | None, Field(alias="agg_op")] = None
     window: Annotated[PositiveInt, Field(alias="current_window_size")] = 1
 
     # `prior_window` is only for `RUN_METRIC_CHANGE` events

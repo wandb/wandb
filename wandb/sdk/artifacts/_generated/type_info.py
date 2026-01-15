@@ -13,7 +13,7 @@ from .fragments import TypeInfoFragment
 
 
 class TypeInfo(GQLResult):
-    type: Optional[TypeInfoFragment] = Field(alias="__type")
+    type: TypeInfoFragment | None = Field(alias="__type")
 
 
 TypeInfo.model_rebuild()

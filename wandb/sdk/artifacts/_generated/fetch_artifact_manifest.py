@@ -13,13 +13,11 @@ from .fragments import DeferredManifestFragment
 
 
 class FetchArtifactManifest(GQLResult):
-    artifact: Optional[FetchArtifactManifestArtifact]
+    artifact: FetchArtifactManifestArtifact | None
 
 
 class FetchArtifactManifestArtifact(GQLResult):
-    current_manifest: Optional[DeferredManifestFragment] = Field(
-        alias="currentManifest"
-    )
+    current_manifest: DeferredManifestFragment | None = Field(alias="currentManifest")
 
 
 FetchArtifactManifest.model_rebuild()
