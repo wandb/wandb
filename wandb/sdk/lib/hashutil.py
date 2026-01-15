@@ -4,7 +4,6 @@ import base64
 import hashlib
 import logging
 import mmap
-import sys
 import time
 from typing import TYPE_CHECKING
 
@@ -31,10 +30,7 @@ B64MD5: TypeAlias = str
 
 def _md5(data: bytes = b"") -> _hashlib.HASH:
     """Allow FIPS-compliant md5 hash when supported."""
-    if sys.version_info >= (3, 9):
-        return hashlib.md5(data, usedforsecurity=False)
-    else:
-        return hashlib.md5(data)
+    return hashlib.md5(data, usedforsecurity=False)
 
 
 def md5_string(string: str) -> B64MD5:

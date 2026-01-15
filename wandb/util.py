@@ -4,7 +4,6 @@ import colorsys
 import contextlib
 import dataclasses
 import enum
-import gzip
 import importlib
 import importlib.util
 import itertools
@@ -31,6 +30,7 @@ import types
 import urllib
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
+from gzip import GzipFile
 from importlib import import_module
 from sys import getsizeof
 from types import ModuleType
@@ -412,9 +412,11 @@ def make_tarfile(
             tar.add(source_dir, arcname=archive_name, filter=_filter_timestamps)
         # When gzipping the tar, don't include the tar's filename or modification time in the
         # zipped archive (see https://docs.python.org/3/library/gzip.html#gzip.GzipFile)
-        with gzip.GzipFile(
-            filename="", fileobj=open(output_filename, "wb"), mode="wb", mtime=0
-        ) as gzipped_tar, open(unzipped_filename, "rb") as tar_file:
+        with (
+            open(output_filename, "wb") as out_file,
+            GzipFile(filename="", fileobj=out_file, mode="wb", mtime=0) as gzipped_tar,
+            open(unzipped_filename, "rb") as tar_file,
+        ):
             gzipped_tar.write(tar_file.read())
     finally:
         os.close(descriptor)

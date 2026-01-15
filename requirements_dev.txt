@@ -1,14 +1,12 @@
 -r requirements_test.txt
 
-astunparse; python_version < '3.9'
 cloudpickle
 click~=8.1
 filelock~=3.13
-pydantic~=2.9; python_version < '3.9'
-pydantic~=2.11; python_version >= '3.9'
+pydantic~=2.11
 
 # For Pydantic to work with modern type annotations in older Pythons:
-eval-type-backport~=0.2.0; python_version >= '3.8' and python_version < '3.10'
+eval-type-backport~=0.2.0; python_version < '3.10'
 
 Pillow
 polars
@@ -26,19 +24,12 @@ tqdm
 tenacity
 
 ipython
-ipython<8.13; python_version < '3.9'
 jupyter
 ipykernel
 nbclient~=0.10.1
 
-tensorflow==2.9.2; python_version < '3.9' and sys_platform != 'darwin'
-tensorflow-macos==2.9.2; python_version < '3.9' and sys_platform == 'darwin'
-tensorflow~=2.20; python_version >= '3.9' and sys_platform != 'darwin'
+tensorflow~=2.20; sys_platform != 'darwin'
 numpy<2.4.0  # tensorflow==2.20.0 uses deprecated args removed in numpy==2.4.0
-
-# This is a transitive dependency of `tensorflow` via `tensorboard`
-# which fails to specify an upper bound causing import errors.
-protobuf==3.19.6; python_version < '3.9' and sys_platform == 'darwin'
 
 scikit-learn
 torch
@@ -73,7 +64,7 @@ boto3
 botocore>=1.5.76
 
 # `ariadne-codegen` is a dev-only dependency used for GraphQL codegen.
-ariadne-codegen~=0.16.0; python_version >= '3.9'
+ariadne-codegen~=0.16.0
 
 .[perf]
 awscli~=1.42; sys_platform == 'win32'

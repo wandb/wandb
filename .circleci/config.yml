@@ -508,7 +508,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       - nox-tests-linux:
           name: unit-tests-pydantic-v1-linux-<<matrix.python>>
@@ -518,7 +518,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       #
       # Unit tests with pytest on macOS
@@ -570,7 +570,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       - nox-tests-linux:
           name: system-tests-min-server-version-linux-<<matrix.python>>
@@ -602,7 +602,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       #
       # Functional tests with pytest on Linux

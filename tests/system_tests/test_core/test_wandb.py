@@ -47,19 +47,23 @@ def mock_sagemaker():
 
         return magic
 
-    with unittest.mock.patch.dict(
-        os.environ,
-        {
-            "TRAINING_JOB_NAME": "sage",
-            "CURRENT_HOST": "maker",
-        },
-    ), unittest.mock.patch(
-        "wandb.util.os.path.exists",
-        exists,
-    ), unittest.mock.patch(
-        "builtins.open",
-        magic_factory(open),
-        create=True,
+    with (
+        unittest.mock.patch.dict(
+            os.environ,
+            {
+                "TRAINING_JOB_NAME": "sage",
+                "CURRENT_HOST": "maker",
+            },
+        ),
+        unittest.mock.patch(
+            "wandb.util.os.path.exists",
+            exists,
+        ),
+        unittest.mock.patch(
+            "builtins.open",
+            magic_factory(open),
+            create=True,
+        ),
     ):
         yield
 
