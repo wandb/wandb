@@ -1,17 +1,19 @@
 """summary test."""
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 
 from typing_extensions import Self
-from wandb import sdk as wandb_sdk
+from wandb.sdk import Summary
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.summary_record import SummaryRecord
 
 
 class MockCallback:
-    # current_dict: t.Dict
-    # summary_record: t.Optional[SummaryRecord]
+    current_dict: dict
+    summary_record: SummaryRecord | None
 
     def __init__(self, current_dict: dict) -> None:
         self.reset(current_dict)
@@ -45,11 +47,9 @@ class MockCallback:
         raise AssertionError
 
 
-def create_summary_and_mock(
-    current_dict: dict,
-) -> tuple[wandb_sdk.Summary, MockCallback]:
+def create_summary_and_mock(current_dict: dict) -> tuple[Summary, MockCallback]:
     m = MockCallback(current_dict)
-    s = wandb_sdk.Summary(
+    s = Summary(
         m.get_current_summary_callback,
     )
     s._set_update_callback(
