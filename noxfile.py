@@ -476,6 +476,8 @@ def proto_python(session: nox.Session, pb: int) -> None:
 
 
 def _generate_proto_python(session: nox.Session, pb: int) -> None:
+    # FIXME: Drop support for protobuf 3 and 4, as we no longer support
+    # Python 3.8 as of: https://github.com/wandb/wandb/pull/11198
     if pb == 3:
         session.install("protobuf==3.20.3")
         session.install("mypy-protobuf==3.4.0")
@@ -519,7 +521,7 @@ def _ensure_no_diff(
 
 
 @nox.session(name="proto-check-python", tags=["proto-check"])
-@nox.parametrize("pb", [3, 4])
+@nox.parametrize("pb", [5, 6])
 def proto_check_python(session: nox.Session, pb: int) -> None:
     """Regenerates Python protobuf files and ensures nothing changed."""
     _ensure_no_diff(

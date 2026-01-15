@@ -204,7 +204,7 @@ ignore = [
     "D107", # Allow missing docstrings in __init__ methods.
 
     # NEW PYTHON 3.9 ERRORS: Temporarily silence new ruff errors from dropping python 3.8.
-    # TODO: Remove these in a separate, follow-up PR.
+    # TODO: Remove these in separate follow-up PRs.
     "UP006",
     "UP035",
     "RUF100",

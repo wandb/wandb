@@ -24,7 +24,7 @@ This version drops support for Python 3.8.
 
 ### Changed
 
-- Python 3.8 is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11164)
+- Python 3.8 is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11198, https://github.com/wandb/wandb/pull/11164)
 
 ### Fixed
 
