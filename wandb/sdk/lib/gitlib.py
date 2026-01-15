@@ -16,7 +16,7 @@ try:
         Repo,
     )
 except ImportError:
-    Repo = None  # type: ignore
+    pass
 
 if TYPE_CHECKING:
     from git import Repo
@@ -45,7 +45,9 @@ class GitRepo:
 
     def _init_repo(self) -> Repo | None:
         self._repo_initialized = True
-        if Repo is None:
+        try:
+            from git import Repo
+        except ImportError:
             return None
         if self.remote_name is None:
             return None

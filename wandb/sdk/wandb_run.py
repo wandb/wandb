@@ -96,16 +96,16 @@ if TYPE_CHECKING:
 
     import torch  # type: ignore [import-not-found]
 
-    import wandb.sdk.backend.backend
-    import wandb.sdk.interface.interface_queue
     from wandb.apis.public import Api as PublicApi
     from wandb.proto.wandb_internal_pb2 import (
         GetSummaryResponse,
         InternalMessagesResponse,
         SampledHistoryResponse,
     )
-    from wandb.sdk.artifacts.artifact import Artifact
 
+    from .artifacts.artifact import Artifact
+    from .backend.backend import Backend
+    from .interface.interface_queue import InterfaceQueue
     from .wandb_settings import Settings
 
     class GitSourceDict(TypedDict):
@@ -526,8 +526,8 @@ class Run:
 
     _teardown_hooks: list[TeardownHook]
 
-    _backend: wandb.sdk.backend.backend.Backend | None
-    _internal_run_interface: wandb.sdk.interface.interface_queue.InterfaceQueue | None
+    _backend: Backend | None
+    _internal_run_interface: InterfaceQueue | None
     _wl: _WandbSetup | None
 
     _out_redir: redirect.RedirectBase | None
@@ -1619,13 +1619,10 @@ class Run:
     def _set_library(self, library: _WandbSetup) -> None:
         self._wl = library
 
-    def _set_backend(self, backend: wandb.sdk.backend.backend.Backend) -> None:
+    def _set_backend(self, backend: Backend) -> None:
         self._backend = backend
 
-    def _set_internal_run_interface(
-        self,
-        interface: wandb.sdk.interface.interface_queue.InterfaceQueue,
-    ) -> None:
+    def _set_internal_run_interface(self, interface: InterfaceQueue) -> None:
         self._internal_run_interface = interface
 
     def _set_teardown_hooks(self, hooks: list[TeardownHook]) -> None:
