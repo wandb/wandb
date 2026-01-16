@@ -33,7 +33,7 @@ func TestModel_WorkspaceFilterDoesNotLeakIntoRunView(t *testing.T) {
 
 	// Workspace: set metrics filter to "train".
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
-	for _, r := range []rune("train") {
+	for _, r := range "train" {
 		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 	}
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter}) // apply
@@ -76,7 +76,7 @@ func TestModel_CtrlLInRunViewDoesNotClearWorkspaceFilter(t *testing.T) {
 
 	// Workspace: set filter to "train".
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
-	for _, r := range []rune("train") {
+	for _, r := range "train" {
 		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 	}
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})

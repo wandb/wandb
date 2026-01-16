@@ -30,8 +30,6 @@ const (
 	initDataSliceCap = 256
 )
 
-const initialSeriesCap = 256
-
 var cache, _ = lru.New(128)
 
 func mapStringToIndex(s string, sliceLen int) int {

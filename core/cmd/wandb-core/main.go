@@ -180,9 +180,12 @@ func leetMain(args []string) int {
 	runFile := fs.String("run-file", "",
 		"Path to a .wandb file to open directly in single-run view.")
 
-	pprofAddr := fs.String("pprof", "", "If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
-	pprofBlockRate := fs.Int("pprof-block-rate", 0, "If >0, sets runtime.SetBlockProfileRate(n).")
-	pprofMutexFraction := fs.Int("pprof-mutex-fraction", 0, "If >0, sets runtime.SetMutexProfileFraction(n).")
+	pprofAddr := fs.String("pprof", "",
+		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
+	pprofBlockRate := fs.Int("pprof-block-rate", 0,
+		"If >0, sets runtime.SetBlockProfileRate(n).")
+	pprofMutexFraction := fs.Int("pprof-mutex-fraction", 0,
+		"If >0, sets runtime.SetMutexProfileFraction(n).")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
