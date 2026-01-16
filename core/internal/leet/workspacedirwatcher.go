@@ -136,12 +136,12 @@ func (w *Workspace) preloadRunOverview(runKeys []string) {
 				if record == nil {
 					continue
 				}
-				if runRecord, ok := record.RecordType.(*spb.Record_Run); ok && runRecord.Run != nil {
+				if rr, ok := record.RecordType.(*spb.Record_Run); ok && rr.Run != nil {
 					rm := RunMsg{
-						ID:          runRecord.Run.RunId,
-						DisplayName: runRecord.Run.DisplayName,
-						Project:     runRecord.Run.Project,
-						Config:      runRecord.Run.Config,
+						ID:          rr.Run.RunId,
+						DisplayName: rr.Run.DisplayName,
+						Project:     rr.Run.Project,
+						Config:      rr.Run.Config,
 					}
 					w.roMu.Lock()
 					w.runOverview[runKey] = NewRunOverview()

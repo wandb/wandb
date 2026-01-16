@@ -56,7 +56,7 @@ const (
 // Rune constants for UI drawing.
 const (
 	// verticalLine is ASCII vertical bar U+007C.
-	verticalLine rune = '\u007C' // |
+	// verticalLine rune = '\u007C' // |
 
 	// BoxLightVertical is U+2502 and is "taller" than verticalLine.
 	boxLightVertical rune = '\u2502' // │
