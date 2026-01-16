@@ -26,6 +26,8 @@ const (
 
 	// Minimal canvas size for parked charts
 	parkedCanvasSize = 1
+
+	initDataSliceCap = 256
 )
 
 const initialSeriesCap = 256
@@ -58,8 +60,8 @@ type Series struct {
 
 func NewSeries(name string) *Series {
 	md := MetricData{
-		X: make([]float64, 0, initialSeriesCap),
-		Y: make([]float64, 0, initialSeriesCap),
+		X: make([]float64, 0, initDataSliceCap),
+		Y: make([]float64, 0, initDataSliceCap),
 	}
 
 	s := Series{MetricData: md}
@@ -680,6 +682,15 @@ func (c *EpochLineChart) Resize(width, height int) {
 	c.Model.Resize(width, height)
 	c.dirty = true
 	c.updateRanges()
+}
+
+// Park minimizes the chart's canvas to reduce memory usage when the chart
+// is not visible on screen (e.g., scrolled out of view in a grid).
+//
+// A parked chart retains its data and can be restored by calling Resize
+// with the desired dimensions before the next Draw.
+func (c *EpochLineChart) Park() {
+	c.Resize(parkedCanvasSize, parkedCanvasSize)
 }
 
 func isFinite(f float64) bool {

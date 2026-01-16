@@ -42,11 +42,12 @@ var SenderProviders = wire.NewSet(
 
 // SenderFactory constructs a Sender.
 type SenderFactory struct {
+	BaseURL                 api.WBBaseURL
 	ClientID                sharedmode.ClientID
+	CredentialProvider      api.CredentialProvider
 	Logger                  *observability.CoreLogger
 	Operations              *wboperation.WandbOperations
 	Settings                *settings.Settings
-	Backend                 *api.Backend
 	FeatureProvider         *featurechecker.ServerFeaturesCache
 	FileStreamFactory       *fs.FileStreamFactory
 	FileTransferManager     filetransfer.FileTransferManager
@@ -114,9 +115,6 @@ type Sender struct {
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *spb.Record
 
-	// Keep track of sync finish record to pass to file stream when the time comes
-	syncFinishRecord *spb.Record
-
 	// Keep track of finishWithoutExitRecord to pass to file stream if and when the time comes
 	finishWithoutExitRecord *spb.Record
 
@@ -140,10 +138,12 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	if !f.Settings.IsOffline() {
 		fileStream = NewFileStream(
 			f.FileStreamFactory,
-			f.Backend,
-			f.Settings,
-			f.Peeker,
+			f.BaseURL,
 			f.ClientID,
+			f.CredentialProvider,
+			f.Logger,
+			f.Peeker,
+			f.Settings,
 		)
 	}
 
@@ -200,8 +200,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
-	backendOrNil := f.Backend
-	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
+	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
 	}
 
@@ -421,8 +420,6 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendLinkArtifact(record, x.LinkArtifact)
 	case *spb.Request_DownloadArtifact:
 		s.sendRequestDownloadArtifact(record, x.DownloadArtifact)
-	case *spb.Request_SyncFinish:
-		s.sendRequestSyncFinish(record, x.SyncFinish)
 	case *spb.Request_SenderRead:
 		// TODO: implement this
 	case *spb.Request_StopStatus:
@@ -630,37 +627,16 @@ func (s *Sender) finishRunSync() {
 	s.fileTransferStats.SetDone()
 
 	// Respond to the client's exit record, if necessary.
-	//
-	// Not necessary when syncing as the exit record is in the transaction log
-	// and the client is not waiting on a response.
-	//
-	// TODO: add logic to handle the case where the exit record is not present
-	//       in the transaction log.
 	switch {
-	case !s.settings.IsSync() && s.exitRecord != nil:
+	case s.exitRecord != nil:
 		s.respond(s.exitRecord, &spb.RunExitResult{})
-	case !s.settings.IsSync() && s.finishWithoutExitRecord != nil:
+	case s.finishWithoutExitRecord != nil:
 		response := &spb.Response{
 			ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
 		}
 		s.respond(s.finishWithoutExitRecord, response)
-	case s.settings.IsSync() && s.syncFinishRecord != nil:
-		s.respond(s.syncFinishRecord, &spb.Response{
-			ResponseType: &spb.Response_SyncResponse{
-				SyncResponse: &spb.SyncResponse{
-					Url: fmt.Sprintf("%s/%s/%s/runs/%s",
-						s.settings.GetBaseURL(),
-						s.settings.GetEntity(),
-						s.settings.GetProject(),
-						s.settings.GetRunID(),
-					),
-				},
-			},
-		})
 	default:
-		s.logger.Error(
-			"sender: no sync finish record or exit record",
-		)
+		s.logger.Error("sender: finished without exit record")
 	}
 
 	// Prevent any new work from being added.
@@ -1200,10 +1176,6 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
-}
-
-func (s *Sender) sendRequestSyncFinish(record *spb.Record, _ *spb.SyncFinishRequest) {
-	s.syncFinishRecord = record
 }
 
 // logCalledAfterExit logs an error for a method wrongly called after an Exit

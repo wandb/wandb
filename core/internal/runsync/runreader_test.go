@@ -47,6 +47,7 @@ func setup(t *testing.T) testFixtures {
 	return testFixtures{
 		RunReader: factory.New(
 			transactionLog,
+			runsync.ToDisplayPath(transactionLog, ""),
 			nil,
 			false,
 			mockRecordParser,

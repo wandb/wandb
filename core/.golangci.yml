@@ -1,0 +1,29 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - gofmt
+    - goimports
+    - govet
+    - gocritic
+    - gocyclo
+
+linters-settings:
+  gocyclo:
+    min-complexity: 21
+  goimports:
+    local-prefixes: github.com/wandb/wandb
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+
+issues:
+  exclude-dirs:
+    - vendor
+  exclude-files:
+    - "wire_gen\\.go$"

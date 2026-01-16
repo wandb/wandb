@@ -39,7 +39,7 @@ def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
     class MyServer(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
-        def do_GET(self):  # noqa: N802
+        def do_GET(self):
             body = b"Hello, world!"
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")

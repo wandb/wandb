@@ -318,7 +318,12 @@ func (cwm *CoreWeaveMetadata) setFieldValue(field reflect.Value, key, value stri
 		if bVal, err := strconv.ParseBool(value); err == nil {
 			field.SetBool(bVal)
 		} else {
-			cwm.logger.Debug("cwmetadata: could not parse bool", "key", key, "value", value, "error", err)
+			cwm.logger.Debug(
+				"cwmetadata: could not parse bool",
+				"key", key,
+				"value", value,
+				"error", err,
+			)
 		}
 	default:
 		cwm.logger.Debug("cwmetadata: unhandled field type", "key", key, "type", field.Kind())

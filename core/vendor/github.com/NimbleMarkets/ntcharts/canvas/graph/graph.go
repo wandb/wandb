@@ -99,7 +99,7 @@ func DrawVerticalLineUp(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 	x := p.X
 	r := canvas.NewCellWithStyle(runes.LineVertical, s)
 	for i := p.Y; i >= 0; i-- {
-		m.SetCell(canvas.Point{x, i}, r)
+		m.SetCell(canvas.Point{X: x, Y: i}, r)
 	}
 }
 
@@ -110,7 +110,7 @@ func DrawVerticalLineDown(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 	x := p.X
 	r := canvas.NewCellWithStyle(runes.LineVertical, s)
 	for i := p.Y; i < m.Height(); i++ {
-		m.SetCell(canvas.Point{x, i}, r)
+		m.SetCell(canvas.Point{X: x, Y: i}, r)
 	}
 }
 
@@ -121,7 +121,7 @@ func DrawHorizonalLineLeft(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 	y := p.Y
 	r := canvas.NewCellWithStyle(runes.LineHorizontal, s)
 	for i := p.X; i >= 0; i-- {
-		m.SetCell(canvas.Point{i, y}, r)
+		m.SetCell(canvas.Point{X: i, Y: y}, r)
 	}
 }
 
@@ -132,7 +132,7 @@ func DrawHorizonalLineRight(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 	y := p.Y
 	r := canvas.NewCellWithStyle(runes.LineHorizontal, s)
 	for i := p.X; i < m.Width(); i++ {
-		m.SetCell(canvas.Point{i, y}, r)
+		m.SetCell(canvas.Point{X: i, Y: y}, r)
 	}
 }
 
@@ -141,8 +141,8 @@ func DrawHorizonalLineRight(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 // Coordinates (0,0) is top left of canvas.
 func DrawXYAxis(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 	m.SetCell(p, canvas.NewCellWithStyle(runes.LineUpRight, s))
-	DrawVerticalLineUp(m, canvas.Point{p.X, p.Y - 1}, s)
-	DrawHorizonalLineRight(m, canvas.Point{p.X + 1, p.Y}, s)
+	DrawVerticalLineUp(m, canvas.Point{X: p.X, Y: p.Y - 1}, s)
+	DrawHorizonalLineRight(m, canvas.Point{X: p.X + 1, Y: p.Y}, s)
 }
 
 // DrawXYAxisDown draws X and Y axes with origin at (X,Y cordinates) with given style.
@@ -150,9 +150,9 @@ func DrawXYAxis(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 // Coordinates (0,0) is top left of canvas.
 func DrawXYAxisDown(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 	m.SetCell(p, canvas.NewCellWithStyle(runes.LineVerticalRight, s))
-	DrawVerticalLineUp(m, canvas.Point{p.X, p.Y - 1}, s)
-	DrawVerticalLineDown(m, canvas.Point{p.X, p.Y + 1}, s)
-	DrawHorizonalLineRight(m, canvas.Point{p.X + 1, p.Y}, s)
+	DrawVerticalLineUp(m, canvas.Point{X: p.X, Y: p.Y - 1}, s)
+	DrawVerticalLineDown(m, canvas.Point{X: p.X, Y: p.Y + 1}, s)
+	DrawHorizonalLineRight(m, canvas.Point{X: p.X + 1, Y: p.Y}, s)
 }
 
 // DrawXYAxisLeft draws X and Y axes with origin at (X,Y cordinates) with given style.
@@ -160,9 +160,9 @@ func DrawXYAxisDown(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 // Coordinates (0,0) is top left of canvas.
 func DrawXYAxisLeft(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 	m.SetCell(p, canvas.NewCellWithStyle(runes.LineHorizontalUp, s))
-	DrawVerticalLineUp(m, canvas.Point{p.X, p.Y - 1}, s)
-	DrawHorizonalLineRight(m, canvas.Point{p.X + 1, p.Y}, s)
-	DrawHorizonalLineLeft(m, canvas.Point{p.X - 1, p.Y}, s)
+	DrawVerticalLineUp(m, canvas.Point{X: p.X, Y: p.Y - 1}, s)
+	DrawHorizonalLineRight(m, canvas.Point{X: p.X + 1, Y: p.Y}, s)
+	DrawHorizonalLineLeft(m, canvas.Point{X: p.X - 1, Y: p.Y}, s)
 }
 
 // DrawXYAxisAll draws X and Y axes with origin at (X,Y cordinates) with given style.
@@ -170,10 +170,10 @@ func DrawXYAxisLeft(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 // Coordinates (0,0) is top left of canvas.
 func DrawXYAxisAll(m *canvas.Model, p canvas.Point, s lipgloss.Style) {
 	m.SetCell(p, canvas.NewCellWithStyle(runes.LineHorizontalVertical, s))
-	DrawVerticalLineUp(m, canvas.Point{p.X, p.Y - 1}, s)
-	DrawVerticalLineDown(m, canvas.Point{p.X, p.Y + 1}, s)
-	DrawHorizonalLineRight(m, canvas.Point{p.X + 1, p.Y}, s)
-	DrawHorizonalLineLeft(m, canvas.Point{p.X - 1, p.Y}, s)
+	DrawVerticalLineUp(m, canvas.Point{X: p.X, Y: p.Y - 1}, s)
+	DrawVerticalLineDown(m, canvas.Point{X: p.X, Y: p.Y + 1}, s)
+	DrawHorizonalLineRight(m, canvas.Point{X: p.X + 1, Y: p.Y}, s)
+	DrawHorizonalLineLeft(m, canvas.Point{X: p.X - 1, Y: p.Y}, s)
 }
 
 // DrawBrailleRune draws a braille rune on to the canvas at given (X,Y) coordinates with given style.
@@ -219,7 +219,7 @@ func DrawLineSequence(m *canvas.Model, startYAxis bool, startX int, seqY []int, 
 	var prevY int
 	for i, y := range seqY {
 		if i == 0 { // draw first point
-			p := canvas.Point{startX, y}
+			p := canvas.Point{X: startX, Y: y}
 			r := runes.LineHorizontal
 			if startYAxis {
 				switch m.Cell(p).Rune {
@@ -236,7 +236,7 @@ func DrawLineSequence(m *canvas.Model, startYAxis bool, startX int, seqY []int, 
 				DrawLineRune(m, p, r, ls, s)
 			}
 		} else {
-			DrawLineSequenceLeftToRight(m, canvas.Point{i + startX - 1, prevY}, canvas.Point{i + startX, y}, ls, s)
+			DrawLineSequenceLeftToRight(m, canvas.Point{X: i + startX - 1, Y: prevY}, canvas.Point{X: i + startX, Y: y}, ls, s)
 		}
 		prevY = y
 	}
@@ -262,15 +262,15 @@ func DrawLineSequenceLeftToRight(m *canvas.Model, a canvas.Point, b canvas.Point
 	// draw vertical lines from point A to point B
 	if prevY > y { // drawing line up
 		r = runes.ArcDownRight
-		DrawLineRune(m, canvas.Point{x, prevY}, runes.ArcUpLeft, ls, s)
+		DrawLineRune(m, canvas.Point{X: x, Y: prevY}, runes.ArcUpLeft, ls, s)
 		for j := prevY - 1; j > y; j-- { // draw vertical lines
-			DrawLineRune(m, canvas.Point{x, j}, runes.LineVertical, ls, s)
+			DrawLineRune(m, canvas.Point{X: x, Y: j}, runes.LineVertical, ls, s)
 		}
 	} else if prevY < y { // drawing line down
 		r = runes.ArcUpRight
-		DrawLineRune(m, canvas.Point{x, prevY}, runes.ArcDownLeft, ls, s)
+		DrawLineRune(m, canvas.Point{X: x, Y: prevY}, runes.ArcDownLeft, ls, s)
 		for j := prevY + 1; j < y; j++ { // draw vertical lines
-			DrawLineRune(m, canvas.Point{x, j}, runes.LineVertical, ls, s)
+			DrawLineRune(m, canvas.Point{X: x, Y: j}, runes.LineVertical, ls, s)
 		}
 	}
 
@@ -287,7 +287,7 @@ func DrawLinePoints(m *canvas.Model, points []canvas.Point, ls runes.LineStyle, 
 	}
 	extraPoints := []canvas.Point{}
 	extraRunes := []rune{} // additional corner runes to draw
-	dir := make([]runes.LineSegments, len(points), len(points))
+	dir := make([]runes.LineSegments, len(points))
 	for i := 1; i < len(points); i++ {
 		p := points[i]
 		prev := points[i-1]
@@ -368,7 +368,7 @@ func DrawColumns(m *canvas.Model, p canvas.Point, seqLen []float64, s lipgloss.S
 	y := p.Y
 	x := p.X
 	for i, f := range seqLen {
-		DrawColumnBottomToTop(m, canvas.Point{x + i, y}, f, s)
+		DrawColumnBottomToTop(m, canvas.Point{X: x + i, Y: y}, f, s)
 	}
 }
 
@@ -402,32 +402,32 @@ func DrawColumnBottomToTop(m *canvas.Model, p canvas.Point, v float64, s lipglos
 		// set full block columns
 		end := int(n)
 		for i := 0; i < end; i++ {
-			m.SetCell(canvas.Point{x, y - i}, fb)
+			m.SetCell(canvas.Point{X: x, Y: y - i}, fb)
 		}
 		// set column top rune
-		DrawColumnRune(m, canvas.Point{x, y - end}, r, s)
+		DrawColumnRune(m, canvas.Point{X: x, Y: y - end}, r, s)
 	} else if nh < h { // new column shorter than old column
 		// replace existing full blocks with new full blocks
 		end := int(n)
 		for i := 0; i < end; i++ {
-			m.SetCell(canvas.Point{x, y - i}, fb)
+			m.SetCell(canvas.Point{X: x, Y: y - i}, fb)
 		}
 		// overlap new column top rune on top of old full block
-		DrawColumnRune(m, canvas.Point{x, y - end}, r, s)
+		DrawColumnRune(m, canvas.Point{X: x, Y: y - end}, r, s)
 	} else if nh > h { // new column taller than old column
 		oc := (h - 1) // index of existing column top
 		if oc <= 0 {
 			oc = 0
 		}
 		// overlap existing column top rune on top of new full block
-		DrawColumnRune(m, canvas.Point{x, y - oc}, runes.FullBlock, s)
+		DrawColumnRune(m, canvas.Point{X: x, Y: y - oc}, runes.FullBlock, s)
 		// draw new full blocks above existing columns
 		end := int(n)
 		for i := h; i < end; i++ {
-			m.SetCell(canvas.Point{x, y - i}, fb)
+			m.SetCell(canvas.Point{X: x, Y: y - i}, fb)
 		}
 		// set new column top rune
-		m.SetCell(canvas.Point{x, y - end}, canvas.NewCellWithStyle(r, s))
+		m.SetCell(canvas.Point{X: x, Y: y - end}, canvas.NewCellWithStyle(r, s))
 	}
 }
 
@@ -461,10 +461,10 @@ func getColumnHeight(m *canvas.Model, p canvas.Point) int {
 	x := p.X
 	y := p.Y
 	i := 0
-	c := m.Cell(canvas.Point{x, y})
+	c := m.Cell(canvas.Point{X: x, Y: y})
 	for runes.IsLowerBlockElement(c.Rune) {
 		i++
-		c = m.Cell(canvas.Point{x, y - i})
+		c = m.Cell(canvas.Point{X: x, Y: y - i})
 	}
 	return i
 }
@@ -482,7 +482,7 @@ func DrawRows(m *canvas.Model, p canvas.Point, seqLen []float64, s lipgloss.Styl
 	y := p.Y
 	x := p.X
 	for i, f := range seqLen {
-		DrawRowLeftToRight(m, canvas.Point{x, y + i}, f, s)
+		DrawRowLeftToRight(m, canvas.Point{X: x, Y: y + i}, f, s)
 	}
 }
 
@@ -516,32 +516,32 @@ func DrawRowLeftToRight(m *canvas.Model, p canvas.Point, v float64, s lipgloss.S
 		// set full block rows
 		end := int(n)
 		for i := 0; i < end; i++ {
-			m.SetCell(canvas.Point{x + i, y}, fb)
+			m.SetCell(canvas.Point{X: x + i, Y: y}, fb)
 		}
 		// set row rightmost rune
-		DrawRowRune(m, canvas.Point{x + end, y}, r, s)
+		DrawRowRune(m, canvas.Point{X: x + end, Y: y}, r, s)
 	} else if nw < w { // new row thinner than old row
 		// replace existing full blocks with new full blocks
 		end := int(n)
 		for i := 0; i < end; i++ {
-			m.SetCell(canvas.Point{x + i, y}, fb)
+			m.SetCell(canvas.Point{X: x + i, Y: y}, fb)
 		}
 		// overlap new row rightmost rune on top of old full block
-		DrawRowRune(m, canvas.Point{x + end, y}, r, s)
+		DrawRowRune(m, canvas.Point{X: x + end, Y: y}, r, s)
 	} else if nw > w { // new row wider than old row
 		oc := (w - 1) // index of existing row rightmost rune
 		if oc <= 0 {
 			oc = 0
 		}
 		// overlap existing row rightmost rune on top of new full block
-		DrawRowRune(m, canvas.Point{x + oc, y}, runes.FullBlock, s)
+		DrawRowRune(m, canvas.Point{X: x + oc, Y: y}, runes.FullBlock, s)
 		// draw new full blocks above existing rows
 		end := int(n)
 		for i := w; i < end; i++ {
-			m.SetCell(canvas.Point{x + i, y}, fb)
+			m.SetCell(canvas.Point{X: x + i, Y: y}, fb)
 		}
 		// set new row rightmost rune
-		m.SetCell(canvas.Point{x + end, y}, canvas.NewCellWithStyle(r, s))
+		m.SetCell(canvas.Point{X: x + end, Y: y}, canvas.NewCellWithStyle(r, s))
 	}
 }
 
@@ -575,10 +575,10 @@ func getRowWidth(m *canvas.Model, p canvas.Point) int {
 	x := p.X
 	y := p.Y
 	i := 0
-	c := m.Cell(canvas.Point{x, y})
+	c := m.Cell(canvas.Point{X: x, Y: y})
 	for runes.IsLeftBlockElement(c.Rune) {
 		i++
-		c = m.Cell(canvas.Point{x + i, y})
+		c = m.Cell(canvas.Point{X: x + i, Y: y})
 	}
 	return i
 }
@@ -807,7 +807,6 @@ func DrawCandlestickBottomToTop(m *canvas.Model, p canvas.Point, l, bl, bh, h fl
 		DrawCandlestickRune(m, canvas.Point{X: p.X, Y: p.Y - i}, runes.LineVertical, s)
 	}
 	DrawCandlestickRune(m, canvas.Point{X: p.X, Y: p.Y - int(hf)}, hr, s)
-	return
 }
 
 // DrawCandlestickRune draws a canndlestick rune on to the canvas

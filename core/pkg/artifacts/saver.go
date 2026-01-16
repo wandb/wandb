@@ -293,7 +293,12 @@ func (as *ArtifactSaver) upsertManifest(
 		}
 		return updateManifestAttrs.File.UploadUrl, updateManifestAttrs.File.UploadHeaders, nil
 	} else {
-		manifestAttrs, err := as.createManifest(artifactId, baseArtifactId, manifestDigest, true /* includeUpload */)
+		manifestAttrs, err := as.createManifest(
+			artifactId,
+			baseArtifactId,
+			manifestDigest,
+			true, /* includeUpload */
+		)
 		if err != nil {
 			return nil, nil, fmt.Errorf("ArtifactSaver.createManifest: %w", err)
 		}

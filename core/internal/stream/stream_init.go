@@ -3,14 +3,12 @@ package stream
 // This file contains functions to construct the objects used by a Stream.
 
 import (
-	"crypto/tls"
 	"fmt"
 	"maps"
 	"net/http"
 	"net/url"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -21,11 +19,13 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// NewBackend returns a Backend or nil if we're offline.
-func NewBackend(
+// BaseURLFromSettings extracts the W&B server URL from W&B settings.
+//
+// It returns nil if offline.
+func BaseURLFromSettings(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
-) *api.Backend {
+) api.WBBaseURL {
 	if settings.IsOffline() {
 		return nil
 	}
@@ -33,20 +33,25 @@ func NewBackend(
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	if err != nil {
 		logger.CaptureFatalAndPanic(
-			fmt.Errorf("stream_init: failed to parse base URL: %v", err))
+			fmt.Errorf("stream_init: BaseURLFromSettings: %v", err))
 	}
 
+	return baseURL
+}
+
+// CredentialsFromSettings creates a CredentialProvider based on settings.
+func CredentialsFromSettings(
+	logger *observability.CoreLogger,
+	settings *settings.Settings,
+) api.CredentialProvider {
 	credentialProvider, err := api.NewCredentialProvider(settings, logger.Logger)
+
 	if err != nil {
 		logger.CaptureFatalAndPanic(
-			fmt.Errorf("stream_init: failed to fetch credentials: %v", err))
+			fmt.Errorf("stream_init: NewCredentialProvider: %v", err))
 	}
 
-	return api.New(api.BackendOptions{
-		BaseURL:            baseURL,
-		Logger:             logger.Logger,
-		CredentialProvider: credentialProvider,
-	})
+	return credentialProvider
 }
 
 // ProxyFn returns a function that returns a proxy URL for a given hhtp.Request.
@@ -84,10 +89,12 @@ func ProxyFn(httpProxy string, httpsProxy string) func(req *http.Request) (*url.
 }
 
 func NewGraphQLClient(
-	backend *api.Backend,
-	settings *settings.Settings,
-	peeker *observability.Peeker,
+	baseURL api.WBBaseURL,
 	clientID sharedmode.ClientID,
+	credentialProvider api.CredentialProvider,
+	logger *observability.CoreLogger,
+	peeker *observability.Peeker,
+	settings *settings.Settings,
 ) graphql.Client {
 	if settings.IsOffline() {
 		return nil
@@ -123,6 +130,7 @@ func NewGraphQLClient(
 	}
 
 	opts := api.ClientOptions{
+		BaseURL:            baseURL,
 		RetryPolicy:        clients.CheckRetry,
 		RetryMax:           api.DefaultRetryMax,
 		RetryWaitMin:       api.DefaultRetryWaitMin,
@@ -132,6 +140,8 @@ func NewGraphQLClient(
 		NetworkPeeker:      peeker,
 		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
 		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
+		CredentialProvider: credentialProvider,
+		Logger:             logger.Logger,
 	}
 	if retryMax := settings.GetGraphQLMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
@@ -146,18 +156,20 @@ func NewGraphQLClient(
 		opts.NonRetryTimeout = timeout
 	}
 
-	httpClient := backend.NewClient(opts)
+	httpClient := api.NewClient(opts)
 	endpoint := fmt.Sprintf("%s/graphql", settings.GetBaseURL())
 
-	return graphql.NewClient(endpoint, httpClient)
+	return graphql.NewClient(endpoint, api.AsStandardClient(httpClient))
 }
 
 func NewFileStream(
 	factory *filestream.FileStreamFactory,
-	backend *api.Backend,
-	settings *settings.Settings,
-	peeker api.Peeker,
+	baseURL api.WBBaseURL,
 	clientID sharedmode.ClientID,
+	credentialProvider api.CredentialProvider,
+	logger *observability.CoreLogger,
+	peeker api.Peeker,
+	settings *settings.Settings,
 ) filestream.FileStream {
 	if settings.IsOffline() {
 		return nil
@@ -174,6 +186,7 @@ func NewFileStream(
 	}
 
 	opts := api.ClientOptions{
+		BaseURL:            baseURL,
 		RetryPolicy:        clients.RetryMostFailures,
 		RetryMax:           filestream.DefaultRetryMax,
 		RetryWaitMin:       filestream.DefaultRetryWaitMin,
@@ -183,6 +196,8 @@ func NewFileStream(
 		NetworkPeeker:      peeker,
 		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
 		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
+		CredentialProvider: credentialProvider,
+		Logger:             logger.Logger,
 	}
 	if retryMax := settings.GetFileStreamMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
@@ -197,7 +212,7 @@ func NewFileStream(
 		opts.NonRetryTimeout = timeout
 	}
 
-	fileStreamRetryClient := backend.NewClient(opts)
+	fileStreamRetryClient := api.NewClient(opts)
 
 	var transmitRateLimit *rate.Limiter
 	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {
@@ -212,6 +227,7 @@ func NewFileStream(
 }
 
 func NewFileTransferManager(
+	baseURL api.WBBaseURL,
 	fileTransferStats filetransfer.FileTransferStats,
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
@@ -220,55 +236,45 @@ func NewFileTransferManager(
 		return nil
 	}
 
-	fileTransferRetryClient := retryablehttp.NewClient()
-	fileTransferRetryClient.Logger = logger
-	fileTransferRetryClient.CheckRetry = filetransfer.FileTransferRetryPolicy
-	fileTransferRetryClient.RetryMax = filetransfer.DefaultRetryMax
-	fileTransferRetryClient.RetryWaitMin = filetransfer.DefaultRetryWaitMin
-	fileTransferRetryClient.RetryWaitMax = filetransfer.DefaultRetryWaitMax
-	fileTransferRetryClient.HTTPClient.Timeout = filetransfer.DefaultNonRetryTimeout
-	fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
-	fileTransfers := filetransfer.NewFileTransfers(
-		fileTransferRetryClient,
-		logger,
-		fileTransferStats,
-		settings.GetExtraHTTPHeaders(),
-	)
+	httpOpts := api.ClientOptions{
+		BaseURL:     baseURL,
+		RetryPolicy: filetransfer.FileTransferRetryPolicy,
+		Logger:      logger.Logger,
 
-	// Set the Proxy function on the HTTP client.
-	transport := &http.Transport{
+		RetryMax:        filetransfer.DefaultRetryMax,
+		RetryWaitMin:    filetransfer.DefaultRetryWaitMin,
+		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
+		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
+
 		Proxy: ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
-	}
 
-	// Set the TLS client config to skip SSL verification if the setting is enabled.
-	if settings.IsInsecureDisableSSL() {
-		transport.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
-	}
+		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
 
-	// Set the "Proxy-Authorization" header for the CONNECT requests
-	// to the proxy server if the header is present in the extra headers.
-	// NOTE: [NewGraphQLClient] and [NewFileStream] does this in backend.NewClient
-	if header, ok := settings.GetExtraHTTPHeaders()["Proxy-Authorization"]; ok {
-		transport.ProxyConnectHeader = http.Header{
-			"Proxy-Authorization": []string{header},
-		}
+		ExtraHeaders: settings.GetExtraHTTPHeaders(),
+
+		CredentialProvider: api.NoopCredentialProvider{},
 	}
-	fileTransferRetryClient.HTTPClient.Transport = transport
 
 	if retryMax := settings.GetFileTransferMaxRetries(); retryMax > 0 {
-		fileTransferRetryClient.RetryMax = int(retryMax)
+		httpOpts.RetryMax = int(retryMax)
 	}
 	if retryWaitMin := settings.GetFileTransferRetryWaitMin(); retryWaitMin > 0 {
-		fileTransferRetryClient.RetryWaitMin = retryWaitMin
+		httpOpts.RetryWaitMin = retryWaitMin
 	}
 	if retryWaitMax := settings.GetFileTransferRetryWaitMax(); retryWaitMax > 0 {
-		fileTransferRetryClient.RetryWaitMax = retryWaitMax
+		httpOpts.RetryWaitMax = retryWaitMax
 	}
 	if timeout := settings.GetFileTransferTimeout(); timeout > 0 {
-		fileTransferRetryClient.HTTPClient.Timeout = timeout
+		httpOpts.NonRetryTimeout = timeout
 	}
+
+	httpClient := api.NewClient(httpOpts)
+
+	fileTransfers := filetransfer.NewFileTransfers(
+		httpClient,
+		logger,
+		fileTransferStats,
+	)
 
 	return filetransfer.NewFileTransferManager(
 		filetransfer.FileTransferManagerOptions{

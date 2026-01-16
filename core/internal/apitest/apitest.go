@@ -1,7 +1,6 @@
 package apitest
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/api"
 )
 
@@ -111,22 +111,9 @@ func (c *FakeClient) WaitUntilRequestCount(
 	}
 }
 
-var _ api.Client = &FakeClient{}
+var _ api.RetryableClient = &FakeClient{}
 
-func (c *FakeClient) Send(req *api.Request) (*http.Response, error) {
-	httpReq, err := http.NewRequest(
-		req.Method,
-		c.baseURL.JoinPath(req.Path).String(),
-		bytes.NewReader(req.Body),
-	)
-	if err != nil {
-		panic(err)
-	}
-
-	return c.Do(httpReq)
-}
-
-func (c *FakeClient) Do(req *http.Request) (*http.Response, error) {
+func (c *FakeClient) Do(req *retryablehttp.Request) (*http.Response, error) {
 	c.Lock()
 	defer c.Unlock()
 

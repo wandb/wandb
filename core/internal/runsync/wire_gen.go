@@ -29,10 +29,11 @@ import (
 func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.CoreLogger) *RunSyncerFactory {
 	wandbOperations := wboperation.NewOperations()
 	printer := observability.NewPrinter()
-	backend := stream.NewBackend(logger, settings2)
-	peeker := &observability.Peeker{}
+	wbBaseURL := stream.BaseURLFromSettings(logger, settings2)
 	clientID := sharedmode.RandomClientID()
-	client := stream.NewGraphQLClient(backend, settings2, peeker, clientID)
+	credentialProvider := stream.CredentialsFromSettings(logger, settings2)
+	peeker := &observability.Peeker{}
+	client := stream.NewGraphQLClient(wbBaseURL, clientID, credentialProvider, logger, peeker, settings2)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(client, logger)
 	runHandle := runhandle.New()
 	recordParserFactory := &stream.RecordParserFactory{
@@ -49,13 +50,14 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Operations: wandbOperations,
 	}
 	fileStreamFactory := &filestream.FileStreamFactory{
+		BaseURL:    wbBaseURL,
 		Logger:     logger,
 		Operations: wandbOperations,
 		Printer:    printer,
 		Settings:   settings2,
 	}
 	fileTransferStats := filetransfer.NewFileTransferStats()
-	fileTransferManager := stream.NewFileTransferManager(fileTransferStats, logger, settings2)
+	fileTransferManager := stream.NewFileTransferManager(wbBaseURL, fileTransferStats, logger, settings2)
 	watcher := provideFileWatcher(logger)
 	uploaderFactory := &runfiles.UploaderFactory{
 		FileTransfer: fileTransferManager,
@@ -68,11 +70,12 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 	}
 	mailboxMailbox := mailbox.New()
 	senderFactory := &stream.SenderFactory{
+		BaseURL:                 wbBaseURL,
 		ClientID:                clientID,
+		CredentialProvider:      credentialProvider,
 		Logger:                  logger,
 		Operations:              wandbOperations,
 		Settings:                settings2,
-		Backend:                 backend,
 		FeatureProvider:         serverFeaturesCache,
 		FileStreamFactory:       fileStreamFactory,
 		FileTransferManager:     fileTransferManager,
@@ -93,8 +96,10 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Operations:          wandbOperations,
 		Printer:             printer,
 		RecordParserFactory: recordParserFactory,
+		RunHandle:           runHandle,
 		RunReaderFactory:    runReaderFactory,
 		SenderFactory:       senderFactory,
+		Settings:            settings2,
 		TBHandlerFactory:    tbHandlerFactory,
 	}
 	return runSyncerFactory
@@ -103,7 +108,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 // wire.go:
 
 var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, observability.NewPrinter, provideFileWatcher, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
-	runSyncerProviders, sharedmode.RandomClientID, stream.NewBackend, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations,
+	runSyncerProviders, sharedmode.RandomClientID, stream.BaseURLFromSettings, stream.CredentialsFromSettings, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations,
 )
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {

@@ -355,9 +355,6 @@ ignore-decorators = [
 # TODO: Remove the landfill/ directory.
 "landfill/**" = ["F405", "N806", "D415"]
 
-# TODO: Remove once wandb.beta.workflows is removed.
-"wandb/beta/workflows.py" = ["W505"]
-
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
@@ -374,10 +371,34 @@ ignore_errors = false
 [[tool.mypy.overrides]]
 module = [
     "wandb.integration.*",
-    "wandb.apis.*",
+    "wandb.apis",
+    "wandb.apis.internal",
+    "wandb.apis.importers.internals.internal",
+    "wandb.apis.importers.mlflow",
+    "wandb.apis.importers.validation",
+    "wandb.apis.importers.wandb",
+    "wandb.apis.normalize",
+    "wandb.apis.paginator",
+    "wandb.apis.public.api",
+    "wandb.apis.public.artifacts",
+    "wandb.apis.public.files",
+    "wandb.apis.public.history",
+    "wandb.apis.public.jobs",
+    "wandb.apis.public.integrations",
+    "wandb.apis.public.projects",
+    "wandb.apis.public.registries._freezable_list",
+    "wandb.apis.public.registries._members",
+    "wandb.apis.public.registries._utils",
+    "wandb.apis.public.registries.registries_search",
+    "wandb.apis.public.registries.registry",
+    "wandb.apis.public.reports",
+    "wandb.apis.public.runs",
+    "wandb.apis.public.sweeps",
+    "wandb.apis.public.users",
+    "wandb.apis.reports.v1",
+    "wandb.apis.reports.v2",
+    "wandb.apis.workspaces",
     "wandb.proto.*",
-    "wandb.beta.*",
-    "wandb.sdk.wandb_login",
     "wandb.cli.*",
     "wandb.wandb_torch.*",
     "wandb.wandb_controller.*",
