@@ -821,15 +821,16 @@ class Api:
         parts = (
             path.replace("/runs/", "/").replace("/sweeps/", "/").strip("/ ").split("/")
         )
-        
-        # Validate that we have a valid ID component
-        if not parts or not parts[-1] or (
-            ":" in parts[-1] and not parts[-1].split(":")[-1]
+
+        if (
+            not parts
+            or not parts[-1]
+            or (":" in parts[-1] and not parts[-1].split(":")[-1])
         ):
             raise ValueError(
                 f"Invalid path '{path}': path must contain a run or sweep ID"
             )
-        
+
         if ":" in parts[-1]:
             id = parts[-1].split(":")[-1]
             parts[-1] = parts[-1].split(":")[0]

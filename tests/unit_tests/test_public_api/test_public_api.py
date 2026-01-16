@@ -115,49 +115,66 @@ def test_parse_path_id():
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_empty_string():
-    with pytest.raises(ValueError, match="Invalid path '': path must contain a run or sweep ID"):
+    with pytest.raises(
+        ValueError, match="Invalid path '': path must contain a run or sweep ID"
+    ):
         Api()._parse_path("")
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_whitespace():
-    with pytest.raises(ValueError, match="Invalid path '   ': path must contain a run or sweep ID"):
+    with pytest.raises(
+        ValueError, match="Invalid path '   ': path must contain a run or sweep ID"
+    ):
         Api()._parse_path("   ")
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_only_slashes():
-    with pytest.raises(ValueError, match="Invalid path '/': path must contain a run or sweep ID"):
+    with pytest.raises(
+        ValueError, match="Invalid path '/': path must contain a run or sweep ID"
+    ):
         Api()._parse_path("/")
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_multiple_slashes():
-    with pytest.raises(ValueError, match="Invalid path '///': path must contain a run or sweep ID"):
+    with pytest.raises(
+        ValueError, match="Invalid path '///': path must contain a run or sweep ID"
+    ):
         Api()._parse_path("///")
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_slashes_with_spaces():
-    with pytest.raises(ValueError, match="Invalid path '/ / /': path must contain a run or sweep ID"):
+    with pytest.raises(
+        ValueError, match="Invalid path '/ / /': path must contain a run or sweep ID"
+    ):
         Api()._parse_path("/ / /")
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_empty_id_after_colon():
-    with pytest.raises(ValueError, match="Invalid path 'entity/project:': path must contain a run or sweep ID"):
+    with pytest.raises(
+        ValueError,
+        match="Invalid path 'entity/project:': path must contain a run or sweep ID",
+    ):
         Api()._parse_path("entity/project:")
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_only_colon():
-    with pytest.raises(ValueError, match="Invalid path ':': path must contain a run or sweep ID"):
+    with pytest.raises(
+        ValueError, match="Invalid path ':': path must contain a run or sweep ID"
+    ):
         Api()._parse_path(":")
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
 def test_parse_path_double_slashes():
-    with pytest.raises(ValueError, match="Invalid path '//': path must contain a run or sweep ID"):
+    with pytest.raises(
+        ValueError, match="Invalid path '//': path must contain a run or sweep ID"
+    ):
         Api()._parse_path("//")
 
 
