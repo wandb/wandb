@@ -344,7 +344,9 @@ ignore-decorators = [
     # Pydantic versions.
     "UP006",
 
-    # The `X | Y` syntax can cause issues with pydantic < 2.6
+    # The `X | Y` syntax can cause issues with older python + pydantic versions:
+    # - if `eval_type_backport` is installed, with pydantic < 2.0
+    # - if `eval_type_backport` is not installed, with pydantic < 2.6
     "UP007",
     "UP045",
 ]

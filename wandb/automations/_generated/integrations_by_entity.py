@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
+from typing import Annotated, List, Literal, Optional, Union
+
 from pydantic import Field
-from typing_extensions import Annotated, List, Literal, Optional, Union
 
 from wandb._pydantic import GQLResult, Typename
 

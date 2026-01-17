@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import List, Literal, Optional, Union
 
 from pydantic import Field
-from typing_extensions import List, Literal, Optional, Union
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
