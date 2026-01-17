@@ -781,7 +781,7 @@ func (c *EpochLineChart) RemoveSeries(key string) {
 
 // TODO: instead, keep and use x/y min/max per series.
 func (c *EpochLineChart) recomputeBounds() {
-	// Reset to “no data” sentinels.
+	// Reset to "no data" sentinels.
 	c.xMin = math.Inf(1)
 	c.xMax = math.Inf(-1)
 	c.yMin = math.Inf(1)

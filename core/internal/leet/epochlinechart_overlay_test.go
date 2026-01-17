@@ -48,8 +48,7 @@ func TestEpochLineChart_DrawInspectionOverlay_RendersHairlineAndLegend_RightSide
 	label := "5: 6" // y = x+1
 	found := false
 	for _, line := range lines {
-		// When placed on the right: hairline '│' immediately followed by label.
-		if strings.Contains(line, "│"+label) {
+		if strings.Contains(line, "│▬▬ "+label) {
 			found = true
 			break
 		}
