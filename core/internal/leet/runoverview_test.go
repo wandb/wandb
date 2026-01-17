@@ -85,6 +85,8 @@ func TestRunOverview_ProcessSummaryMsg_FlattensAndSorts(t *testing.T) {
 
 func TestRunOverview_StateTransitions(t *testing.T) {
 	ro := leet.NewRunOverview()
+	require.Equal(t, leet.RunStateUnknown, ro.State())
+	ro.ProcessRunMsg(leet.RunMsg{})
 	require.Equal(t, leet.RunStateRunning, ro.State())
 
 	ro.SetRunState(leet.RunStateFinished)
