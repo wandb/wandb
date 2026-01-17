@@ -71,6 +71,7 @@ func (ro *RunOverview) ProcessRunMsg(msg RunMsg) {
 	ro.runID = msg.ID
 	ro.displayName = msg.DisplayName
 	ro.project = msg.Project
+	ro.runState = RunStateRunning
 
 	if msg.Config != nil {
 		ro.runConfig.ApplyChangeRecord(msg.Config, func(err error) {})
