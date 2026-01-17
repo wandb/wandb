@@ -44,7 +44,7 @@ type MetricsGrid struct {
 	focus *Focus // focus.Row/Col only meaningful relative to currentPage
 
 	// Filter state.
-	filter Filter
+	filter *Filter
 
 	// Stable color assignment.
 	colorOfTitle map[string]lipgloss.AdaptiveColor
@@ -68,6 +68,7 @@ func NewMetricsGrid(
 		filtered:     make([]*EpochLineChart, 0),
 		currentPage:  make([][]*EpochLineChart, gridRows),
 		focus:        focus,
+		filter:       NewFilter(),
 		logger:       logger,
 		colorOfTitle: make(map[string]lipgloss.AdaptiveColor),
 	}

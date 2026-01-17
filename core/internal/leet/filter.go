@@ -11,7 +11,8 @@ import (
 type FilterMatchMode int
 
 const (
-	FilterModeRegex FilterMatchMode = iota
+	FilterModeUndefined FilterMatchMode = iota
+	FilterModeRegex
 	FilterModeGlob
 )
 
@@ -32,6 +33,10 @@ type Filter struct {
 	draft       string          // what the user is typing (preview)
 	applied     string          // committed pattern
 	mode        FilterMatchMode // current match mode
+}
+
+func NewFilter() *Filter {
+	return &Filter{mode: FilterModeRegex}
 }
 
 // Activate enters input mode, initializing the draft with the current applied pattern.
@@ -113,7 +118,7 @@ func (f *Filter) Matcher() func(string) bool {
 		return func(title string) bool {
 			return globMatchUnanchoredCaseInsensitive(f.Query(), title)
 		}
-	default: // FilterModeRegex
+	case FilterModeRegex:
 		if !hasRegexMeta(f.Query()) {
 			lp := strings.ToLower(f.Query())
 			return func(title string) bool {
@@ -130,6 +135,8 @@ func (f *Filter) Matcher() func(string) bool {
 		}
 		return func(title string) bool { return re.FindStringIndex(title) != nil }
 	}
+
+	return func(string) bool { return true }
 }
 
 // globMatchUnanchoredCaseInsensitive reports whether s matches pattern using
