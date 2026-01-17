@@ -39,10 +39,10 @@ def beta():
     "--pprof",
     default="",
     hidden=True,
-    help=(
-        "Run with pprof enabled at a specified address, e.g. --pprof=127.0.0.1:6060",
-        "If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060/debug/pprof)",
-    ),
+    help="""Run with pprof enabled at a specified address, e.g. --pprof=127.0.0.1:6060.
+
+    If set, serves /debug/pprof/* on this address, e.g. 127.0.0.1:6060/debug/pprof.
+    """,
 )
 def leet(
     path: str | None = None,
