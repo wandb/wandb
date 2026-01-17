@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing_extensions import List, Optional
+from typing import List, Optional
 
 from wandb._pydantic import GQLResult
 

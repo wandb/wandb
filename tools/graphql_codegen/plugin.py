@@ -485,12 +485,6 @@ class PydanticModuleRewriter(ast.NodeTransformer):
         ]
         return self.generic_visit(node)
 
-    def visit_ImportFrom(self, node: ast.ImportFrom) -> Any:
-        if node.module == "typing":
-            # Import from `typing_extensions` instead, and let Ruff rewrite later.
-            node.module = "typing_extensions"
-        return node
-
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
         match node:
             case ast.AnnAssign(target=ast.Name("typename__")):
