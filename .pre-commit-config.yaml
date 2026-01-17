@@ -89,6 +89,13 @@ repos:
         pass_filenames: false
         language: script
         description: "Runs `go mod tidy -v`, requires golang"
+      - id: go-unit-tests
+        name: go-unit-tests
+        entry: core/scripts/pre-commit-hooks/run-go-unit-tests.sh
+        files: '\.go$'
+        language: script
+        description: "Runs `go test`"
+        require_serial: true
       - id: go-build
         name: go-build
         entry: core/scripts/pre-commit-hooks/run-go-build.sh
