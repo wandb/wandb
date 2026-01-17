@@ -25,19 +25,23 @@ const (
 
 // newTestModel creates a test model and sends an initial WindowSizeMsg to force the first render.
 // The model's View returns "Loading..." until width/height are non-zero, so we always size first.
-// (See Model.View early return.)
+// Uses the full Model (not bare Run) so help and mode-switching work correctly.
 func newTestModel(
 	t *testing.T,
 	cfg *leet.ConfigManager,
 	runPath string,
 	w, h int,
-) (*teatest.TestModel, *leet.Run) {
+) *teatest.TestModel {
 	t.Helper()
 	logger := observability.NewNoOpLogger()
-	m := leet.NewRun(runPath, cfg, logger)
+	m := leet.NewModel(leet.ModelParams{
+		RunFile: runPath,
+		Config:  cfg,
+		Logger:  logger,
+	})
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(w, h))
 	tm.Send(tea.WindowSizeMsg{Width: w, Height: h})
-	return tm, m
+	return tm
 }
 
 // writeRecord marshals and writes a single protobuf record to the leveldb writer.
@@ -62,7 +66,7 @@ func forceRepaint(tm *teatest.TestModel, w, h int) {
 func TestLoadingScreenAndQuit(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	tm, _ := newTestModel(t, cfg, "no/such/file.wandb", 100, 30)
+	tm := newTestModel(t, cfg, "no/such/file.wandb", 100, 30)
 
 	// Wait for loading screen text.
 	teatest.WaitFor(t, tm.Output(),
@@ -132,7 +136,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 
 	// Spin up the TUI against the live file.
 	const W, H = 240, 80
-	tm, _ := newTestModel(t, cfg, tmp.Name(), W, H)
+	tm := newTestModel(t, cfg, tmp.Name(), W, H)
 
 	// Wait for the main grid to show (loss chart).
 	teatest.WaitFor(t, tm.Output(),
