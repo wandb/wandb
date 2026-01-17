@@ -12,8 +12,6 @@ import (
 )
 
 const (
-	runOverviewHeader = "Run Overview"
-
 	// Sidebar header lines (title + state + ID + name + project + blank line).
 	// TODO: replace with len(LeftSidebar.buildHeaderLines())
 	sidebarHeaderLines = 7

@@ -13,24 +13,19 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
-
-	"net/http/pprof"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/pprof"
 	"github.com/wandb/wandb/core/internal/processlib"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/version"
@@ -182,10 +177,6 @@ func leetMain(args []string) int {
 
 	pprofAddr := fs.String("pprof", "",
 		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
-	pprofBlockRate := fs.Int("pprof-block-rate", 0,
-		"If >0, sets runtime.SetBlockProfileRate(n).")
-	pprofMutexFraction := fs.Int("pprof-mutex-fraction", 0,
-		"If >0, sets runtime.SetMutexProfileFraction(n).")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
@@ -212,14 +203,12 @@ Flags:
 		return exitCodeErrorArgs
 	}
 
-	pprofStop, pprofURL, err := startPprofServer(*pprofAddr, *pprofBlockRate, *pprofMutexFraction)
+	pprofStop, err := pprof.StartServer(*pprofAddr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "pprof:", err)
 		return exitCodeErrorArgs
 	}
 	if pprofStop != nil {
-		// Print to stderr so you see it even if normal logging is discarded.
-		fmt.Fprintln(os.Stderr, "pprof:", pprofURL)
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
@@ -294,54 +283,4 @@ Flags:
 
 		return exitCodeSuccess
 	}
-}
-
-// startPprofServer starts an HTTP server exposing the standard /debug/pprof/* endpoints.
-//
-// For safety, prefer binding explicitly to loopback (e.g. 127.0.0.1:6060) instead of ":6060".
-func startPprofServer(
-	addr string,
-	blockRate, mutexFraction int,
-) (shutdown func(context.Context) error, url string, err error) {
-	if addr == "" {
-		return nil, "", nil
-	}
-	if blockRate > 0 {
-		runtime.SetBlockProfileRate(blockRate)
-	}
-	if mutexFraction > 0 {
-		runtime.SetMutexProfileFraction(mutexFraction)
-	}
-
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return nil, "", fmt.Errorf("listen %q: %w", addr, err)
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	// Explicit handlers so the common endpoints show up even if index routing changes.
-	mux.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
-	mux.Handle("/debug/pprof/block", pprof.Handler("block"))
-	mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-	mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-	mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
-	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
-
-	srv := &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-	go func() {
-		serveErr := srv.Serve(ln)
-		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			fmt.Fprintln(os.Stderr, "pprof: server error:", serveErr)
-		}
-	}()
-
-	return srv.Shutdown, "http://" + ln.Addr().String() + "/debug/pprof/", nil
 }

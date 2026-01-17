@@ -38,7 +38,11 @@ def beta():
 @click.option(
     "--pprof",
     default="",
-    help="Run with pprof enabled at a specified address, e.g. --pprof=127.0.0.1:6060",
+    hidden=True,
+    help="""Run with pprof enabled at a specified address, e.g. --pprof=127.0.0.1:6060.
+
+    If set, serves /debug/pprof/* on this address, e.g. 127.0.0.1:6060/debug/pprof.
+    """,
 )
 def leet(
     path: str | None = None,
