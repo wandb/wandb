@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import collections
-from typing import Any, Optional
+from typing import Any
 
 
 class CappedDict(collections.OrderedDict):
     default_max_size = 50
 
-    def __init__(self, max_size: Optional[int] = None) -> None:
+    def __init__(self, max_size: int | None = None) -> None:
         self.max_size = max_size or self.default_max_size
         super().__init__()
 

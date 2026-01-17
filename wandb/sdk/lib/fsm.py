@@ -28,9 +28,12 @@ Usage:
     ```
 """
 
+from __future__ import annotations
+
 from abc import abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Callable, Dict, Generic, Optional, Sequence, Type, Union
+from typing import Callable, Generic, Union
 
 from typing_extensions import Protocol, TypeAlias, TypeVar, runtime_checkable
 
@@ -95,12 +98,12 @@ FsmState: TypeAlias = Union[
 @dataclass
 class FsmEntry(Generic[T_FsmInputs, T_FsmContext]):
     condition: Callable[[T_FsmInputs], bool]
-    target_state: Type[FsmState[T_FsmInputs, T_FsmContext]]
-    action: Optional[Callable[[T_FsmInputs], None]] = None
+    target_state: type[FsmState[T_FsmInputs, T_FsmContext]]
+    action: Callable[[T_FsmInputs], None] | None = None
 
 
-FsmTableWithContext: TypeAlias = Dict[
-    Type[FsmState[T_FsmInputs, T_FsmContext]],
+FsmTableWithContext: TypeAlias = dict[
+    type[FsmState[T_FsmInputs, T_FsmContext]],
     Sequence[FsmEntry[T_FsmInputs, T_FsmContext]],
 ]
 
@@ -109,7 +112,7 @@ FsmTable: TypeAlias = FsmTableWithContext[T_FsmInputs, None]
 
 
 class FsmWithContext(Generic[T_FsmInputs, T_FsmContext]):
-    _state_dict: Dict[Type[FsmState], FsmState]
+    _state_dict: dict[type[FsmState], FsmState]
     _table: FsmTableWithContext[T_FsmInputs, T_FsmContext]
     _state: FsmState[T_FsmInputs, T_FsmContext]
     _states: Sequence[FsmState]
@@ -127,8 +130,8 @@ class FsmWithContext(Generic[T_FsmInputs, T_FsmContext]):
     def _transition(
         self,
         inputs: T_FsmInputs,
-        new_state: Type[FsmState[T_FsmInputs, T_FsmContext]],
-        action: Optional[Callable[[T_FsmInputs], None]],
+        new_state: type[FsmState[T_FsmInputs, T_FsmContext]],
+        action: Callable[[T_FsmInputs], None] | None,
     ) -> None:
         if action:
             action(inputs)

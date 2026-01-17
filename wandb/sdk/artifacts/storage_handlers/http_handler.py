@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict
-from typing import TYPE_CHECKING, Any, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast  # noqa: UP035
 from urllib.parse import ParseResult
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass

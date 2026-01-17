@@ -1,5 +1,7 @@
 """sender."""
 
+from __future__ import annotations
+
 import contextlib
 import glob
 import gzip
@@ -11,20 +13,10 @@ import threading
 import time
 import traceback
 from collections import defaultdict
+from collections.abc import Generator
 from datetime import datetime
 from queue import Queue
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Generator,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Literal
 
 import requests
 
@@ -83,7 +75,7 @@ logger = logging.getLogger(__name__)
 _OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
-def _framework_priority() -> Generator[Tuple[str, str], None, None]:
+def _framework_priority() -> Generator[tuple[str, str], None, None]:
     yield from [
         ("lightgbm", "lightgbm"),
         ("catboost", "catboost"),
@@ -101,7 +93,7 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
     ]
 
 
-def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
+def _manifest_json_from_proto(manifest: ArtifactManifest) -> dict:
     if manifest.version == 1:
         if manifest.manifest_file_path:
             contents = {}
@@ -129,7 +121,7 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
     }
 
 
-def _manifest_entry_from_proto(entry: "ArtifactManifestEntry") -> Dict:
+def _manifest_entry_from_proto(entry: ArtifactManifestEntry) -> dict:
     birth_artifact_id = entry.birth_artifact_id if entry.birth_artifact_id else None
     return {
         "digest": entry.digest,
@@ -149,10 +141,10 @@ class ResumeState:
     events: int
     output: int
     runtime: float
-    wandb_runtime: Optional[int]
-    summary: Optional[Dict[str, Any]]
-    config: Optional[Dict[str, Any]]
-    tags: Optional[List[str]]
+    wandb_runtime: int | None
+    summary: dict[str, Any] | None
+    config: dict[str, Any] | None
+    tags: list[str] | None
 
     def __init__(self) -> None:
         self.resumed = False
@@ -179,7 +171,7 @@ class _OutputRawStream:
     _writer_thr: threading.Thread
     _reader_thr: threading.Thread
 
-    def __init__(self, stream: str, sm: "SendManager"):
+    def __init__(self, stream: str, sm: SendManager):
         self._stopped = threading.Event()
         self._queue = queue.Queue()
         self._emulator = redirect.TerminalEmulator()
@@ -206,31 +198,31 @@ class SendManager:
     UPDATE_STATUS_TIME: int = 5
 
     _settings: SettingsStatic
-    _record_q: "Queue[Record]"
-    _result_q: "Queue[Result]"
+    _record_q: Queue[Record]
+    _result_q: Queue[Result]
     _interface: InterfaceQueue
-    _api_settings: Dict[str, str]
-    _partial_output: Dict[str, str]
+    _api_settings: dict[str, str]
+    _partial_output: dict[str, str]
     _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
-    _environment_obj: "EnvironmentRecord"
-    _fs: Optional["file_stream.FileStreamApi"]
-    _run: Optional["RunRecord"]
-    _entity: Optional[str]
-    _project: Optional[str]
-    _dir_watcher: Optional["DirWatcher"]
-    _pusher: Optional["FilePusher"]
-    _record_exit: Optional["Record"]
-    _exit_result: Optional["RunExitResult"]
+    _environment_obj: EnvironmentRecord
+    _fs: file_stream.FileStreamApi | None
+    _run: RunRecord | None
+    _entity: str | None
+    _project: str | None
+    _dir_watcher: DirWatcher | None
+    _pusher: FilePusher | None
+    _record_exit: Record | None
+    _exit_result: RunExitResult | None
     _resume_state: ResumeState
-    _rewind_response: Optional[Dict[str, Any]]
-    _cached_server_info: Dict[str, Any]
-    _cached_viewer: Dict[str, Any]
-    _server_messages: List[Dict[str, Any]]
-    _ds: Optional[datastore.DataStore]
-    _output_raw_streams: Dict["StreamLiterals", _OutputRawStream]
-    _output_raw_file: Optional[filesystem.CRDedupedFile]
+    _rewind_response: dict[str, Any] | None
+    _cached_server_info: dict[str, Any]
+    _cached_viewer: dict[str, Any]
+    _server_messages: list[dict[str, Any]]
+    _ds: datastore.DataStore | None
+    _output_raw_streams: dict[StreamLiterals, _OutputRawStream]
+    _output_raw_file: filesystem.CRDedupedFile | None
     _send_record_num: int
     _send_end_offset: int
     _debounce_config_time: float
@@ -239,8 +231,8 @@ class SendManager:
     def __init__(
         self,
         settings: SettingsStatic,
-        record_q: "Queue[Record]",
-        result_q: "Queue[Result]",
+        record_q: Queue[Record],
+        result_q: Queue[Result],
         interface: InterfaceQueue,
         context_keeper: context.ContextKeeper,
     ) -> None:
@@ -272,12 +264,12 @@ class SendManager:
         self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._environment_obj = wandb_internal_pb2.EnvironmentRecord()
-        self._config_metric_pbdict_list: List[Dict[int, Any]] = []
-        self._metadata_summary: Dict[str, Any] = defaultdict()
-        self._cached_summary: Dict[str, Any] = dict()
-        self._config_metric_index_dict: Dict[str, int] = {}
-        self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
-        self._consolidated_summary: Dict[str, Any] = dict()
+        self._config_metric_pbdict_list: list[dict[int, Any]] = []
+        self._metadata_summary: dict[str, Any] = defaultdict()
+        self._cached_summary: dict[str, Any] = dict()
+        self._config_metric_index_dict: dict[str, int] = {}
+        self._config_metric_dict: dict[str, wandb_internal_pb2.MetricRecord] = {}
+        self._consolidated_summary: dict[str, Any] = dict()
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
@@ -325,8 +317,8 @@ class SendManager:
     def setup(
         cls,
         root_dir: str,
-        resume: Union[None, bool, str],
-    ) -> "SendManager":
+        resume: None | bool | str,
+    ) -> SendManager:
         """Set up a standalone SendManager.
 
         Exclusively used in `sync.py`.
@@ -357,14 +349,14 @@ class SendManager:
     def __len__(self) -> int:
         return self._record_q.qsize()
 
-    def __enter__(self) -> "SendManager":
+    def __enter__(self) -> SendManager:
         return self
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        exc_traceback: Optional[traceback.TracebackException],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: traceback.TracebackException | None,
     ) -> Literal[False]:
         while self:
             data = next(self)
@@ -378,7 +370,7 @@ class SendManager:
         response.http_response_text = response_text
         self._retry_q.put(response)
 
-    def send(self, record: "Record") -> None:
+    def send(self, record: Record) -> None:
         self._update_record_num(record.num)
         self._update_end_offset(record.control.end_offset)
 
@@ -402,14 +394,14 @@ class SendManager:
         finally:
             self._api.clear_local_context()
 
-    def send_preempting(self, _: "Record") -> None:
+    def send_preempting(self, _: Record) -> None:
         if self._fs:
             self._fs.enqueue_preempting()
 
-    def send_request_sender_mark(self, _: "Record") -> None:
+    def send_request_sender_mark(self, _: Record) -> None:
         self._maybe_report_status(always=True)
 
-    def send_request(self, record: "Record") -> None:
+    def send_request(self, record: Record) -> None:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         handler_str = "send_request_" + request_type
@@ -419,12 +411,12 @@ class SendManager:
         assert send_handler, f"unknown handle: {handler_str}"
         send_handler(record)
 
-    def _respond_result(self, result: "Result") -> None:
+    def _respond_result(self, result: Result) -> None:
         context_id = context.context_id_from_result(result)
         self._context_keeper.release(context_id)
         self._result_q.put(result)
 
-    def _flatten(self, dictionary: Dict) -> None:
+    def _flatten(self, dictionary: dict) -> None:
         if isinstance(dictionary, dict):
             for k, v in list(dictionary.items()):
                 if isinstance(v, dict):
@@ -452,7 +444,7 @@ class SendManager:
             return
         self._send_end_offset = end_offset
 
-    def send_request_sender_read(self, record: "Record") -> None:
+    def send_request_sender_read(self, record: Record) -> None:
         if self._ds is None:
             self._ds = datastore.DataStore()
             self._ds.open_for_scan(self._settings.sync_file)
@@ -482,7 +474,7 @@ class SendManager:
         # make sure that we always update writer for every sended read request
         self._maybe_report_status(always=True)
 
-    def send_request_stop_status(self, record: "Record") -> None:
+    def send_request_stop_status(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
         status_resp = result.response.stop_status_response
         status_resp.run_should_stop = False
@@ -540,7 +532,7 @@ class SendManager:
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
 
-    def send_request_network_status(self, record: "Record") -> None:
+    def send_request_network_status(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
         status_resp = result.response.network_status_response
         while True:
@@ -552,7 +544,7 @@ class SendManager:
                 logger.warning(f"Error emptying retry queue: {e}")
         self._respond_result(result)
 
-    def send_exit(self, record: "Record") -> None:
+    def send_exit(self, record: Record) -> None:
         # track where the exit came from
         self._record_exit = record
 
@@ -569,17 +561,17 @@ class SendManager:
         logger.info("send defer")
         self._interface.publish_defer()
 
-    def send_final(self, record: "Record") -> None:
+    def send_final(self, record: Record) -> None:
         pass
 
     def _flush_run(self) -> None:
         pass
 
-    def send_request_status_report(self, record: "Record") -> None:
+    def send_request_status_report(self, record: Record) -> None:
         # todo? this is just a noop to please wandb sync
         pass
 
-    def send_request_defer(self, record: "Record") -> None:  # noqa: C901
+    def send_request_defer(self, record: Record) -> None:  # noqa: C901
         defer = record.request.defer
         state = defer.state
         logger.info(f"handle sender defer: {state}")
@@ -663,7 +655,7 @@ class SendManager:
             result.exit_result.CopyFrom(exit_result)
             self._respond_result(result)
 
-    def send_request_poll_exit(self, record: "Record") -> None:
+    def send_request_poll_exit(self, record: Record) -> None:
         if not record.control.req_resp and not record.control.mailbox_slot:
             return
 
@@ -687,9 +679,7 @@ class SendManager:
 
         self._respond_result(result)
 
-    def _setup_resume(
-        self, run: "RunRecord"
-    ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
+    def _setup_resume(self, run: RunRecord) -> wandb_internal_pb2.ErrorInfo | None:
         """Queries the backend for a run; fail if the settings are incompatible."""
         if not self._settings.resume:
             return None
@@ -840,7 +830,7 @@ class SendManager:
         self._run.forked = True
         self._run.starting_step = first_step
 
-    def _load_rewind_state(self, run: "RunRecord"):
+    def _load_rewind_state(self, run: RunRecord):
         assert run.branch_point
         self._rewind_response = self._api.rewind_run(
             run_name=run.run_id,
@@ -871,9 +861,9 @@ class SendManager:
 
     def _handle_error(
         self,
-        record: "Record",
-        error: "wandb_internal_pb2.ErrorInfo",
-        run: "RunRecord",
+        record: Record,
+        error: wandb_internal_pb2.ErrorInfo,
+        run: RunRecord,
     ) -> None:
         if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
@@ -883,7 +873,7 @@ class SendManager:
         else:
             logger.error("Got error in async mode: %s", error.message)
 
-    def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
+    def send_run(self, record: Record, file_dir: str | None = None) -> None:
         run = record.run
         error = None
         is_wandb_init = self._run is None
@@ -898,7 +888,7 @@ class SendManager:
             self._telemetry_obj.feature.sync = True
 
         # build config dict
-        config_value_dict: Optional[sender_config.BackendConfigDict] = None
+        config_value_dict: sender_config.BackendConfigDict | None = None
         if run.config:
             self._consolidated_config.update_from_proto(run.config)
             config_value_dict = self._config_backend_dict()
@@ -1003,8 +993,8 @@ class SendManager:
 
     def _init_run(
         self,
-        run: "RunRecord",
-        config_dict: Optional[sender_config.BackendConfigDict],
+        run: RunRecord,
+        config_dict: sender_config.BackendConfigDict | None,
     ) -> dict:
         # We subtract the previous runs runtime when resuming
         start_time = (
@@ -1098,7 +1088,7 @@ class SendManager:
             self._sync_spell()
         return server_run
 
-    def _start_run_threads(self, file_dir: Optional[str] = None) -> None:
+    def _start_run_threads(self, file_dir: str | None = None) -> None:
         assert self._run  # self._run is configured by caller
         self._fs = file_stream.FileStreamApi(
             self._api,
@@ -1138,24 +1128,24 @@ class SendManager:
             self._run.start_time.ToMicroseconds() / 1e6,
         )
 
-    def _save_history(self, history_dict: Dict[str, Any]) -> None:
+    def _save_history(self, history_dict: dict[str, Any]) -> None:
         if self._fs:
             self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
 
-    def send_history(self, record: "Record") -> None:
+    def send_history(self, record: Record) -> None:
         history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
 
-    def _update_summary_record(self, summary: "SummaryRecord") -> None:
+    def _update_summary_record(self, summary: SummaryRecord) -> None:
         summary_dict = proto_util.dict_from_proto_list(summary.update)
         self._cached_summary = summary_dict
         self._update_summary()
 
-    def send_summary(self, record: "Record") -> None:
+    def send_summary(self, record: Record) -> None:
         self._update_summary_record(record.summary)
 
-    def send_request_summary_record(self, record: "Record") -> None:
+    def send_request_summary_record(self, record: Record) -> None:
         self._update_summary_record(record.request.summary_record.summary)
 
     def _update_summary(self) -> None:
@@ -1174,7 +1164,7 @@ class SendManager:
             f.write(json_summary)
         self._save_file(filesystem.GlobStr(filenames.SUMMARY_FNAME))
 
-    def send_stats(self, record: "Record") -> None:
+    def send_stats(self, record: Record) -> None:
         stats = record.stats
         if stats.stats_type != wandb_internal_pb2.StatsRecord.StatsType.SYSTEM:
             return
@@ -1190,7 +1180,7 @@ class SendManager:
                 d[item.key] = json.loads(item.value_json)
             except json.JSONDecodeError:
                 logger.exception("error decoding stats json: %s", item.value_json)
-        row: Dict[str, Any] = dict(system=d)
+        row: dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
         row["_timestamp"] = now_us / 1e6
@@ -1216,7 +1206,7 @@ class SendManager:
             self._output_raw_file.close()
             self._output_raw_file = None
 
-    def _output_raw_writer_thread(self, stream: "StreamLiterals") -> None:
+    def _output_raw_writer_thread(self, stream: StreamLiterals) -> None:
         while True:
             output_raw = self._output_raw_streams[stream]
             if output_raw._queue.empty():
@@ -1239,14 +1229,14 @@ class SendManager:
             except Exception as e:
                 logger.warning(f"problem writing to output_raw emulator: {e}")
 
-    def _output_raw_reader_thread(self, stream: "StreamLiterals") -> None:
+    def _output_raw_reader_thread(self, stream: StreamLiterals) -> None:
         output_raw = self._output_raw_streams[stream]
         while not (output_raw._stopped.is_set() and output_raw._queue.empty()):
             self._output_raw_flush(stream)
             time.sleep(_OUTPUT_MIN_CALLBACK_INTERVAL)
 
     def _output_raw_flush(
-        self, stream: "StreamLiterals", data: Optional[str] = None
+        self, stream: StreamLiterals, data: str | None = None
     ) -> None:
         if data is None:
             output_raw = self._output_raw_streams[stream]
@@ -1259,7 +1249,7 @@ class SendManager:
             if self._output_raw_file:
                 self._output_raw_file.write(data.encode("utf-8"))
 
-    def send_request_python_packages(self, record: "Record") -> None:
+    def send_request_python_packages(self, record: Record) -> None:
         import os
 
         from wandb.sdk.lib.filenames import REQUIREMENTS_FNAME
@@ -1270,7 +1260,7 @@ class SendManager:
         with open(os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME), "w") as f:
             f.write("\n".join(installed_packages_list))
 
-    def send_output(self, record: "Record") -> None:
+    def send_output(self, record: Record) -> None:
         if not self._fs:
             return
         out = record.output
@@ -1280,7 +1270,7 @@ class SendManager:
         line = out.line
         self._send_output_line(stream, line)
 
-    def send_output_raw(self, record: "Record") -> None:
+    def send_output_raw(self, record: Record) -> None:
         if not self._fs:
             return
         out = record.output_raw
@@ -1312,7 +1302,7 @@ class SendManager:
 
         output_raw._queue.put(line)
 
-    def _send_output_line(self, stream: "StreamLiterals", line: str) -> None:
+    def _send_output_line(self, stream: StreamLiterals, line: str) -> None:
         """Combined writer for raw and non raw output lines.
 
         This is combined because they are both post emulator.
@@ -1345,11 +1335,11 @@ class SendManager:
     def _update_config(self) -> None:
         self._config_needs_debounce = True
 
-    def send_config(self, record: "Record") -> None:
+    def send_config(self, record: Record) -> None:
         self._consolidated_config.update_from_proto(record.config)
         self._update_config()
 
-    def send_metric(self, record: "Record") -> None:
+    def send_metric(self, record: Record) -> None:
         metric = record.metric
         if metric.glob_name:
             logger.warning("Seen metric with glob (shouldn't happen)")
@@ -1378,7 +1368,7 @@ class SendManager:
                 metric.ClearField("step_metric")
                 metric.step_metric_index = find_step_idx + 1
 
-        md: Dict[int, Any] = proto_util.proto_encode_to_dict(metric)
+        md: dict[int, Any] = proto_util.proto_encode_to_dict(metric)
         find_idx = self._config_metric_index_dict.get(metric.name)
         if find_idx is not None:
             self._config_metric_pbdict_list[find_idx] = md
@@ -1392,20 +1382,20 @@ class SendManager:
         self._telemetry_obj.MergeFrom(telemetry)
         self._debounce_config()
 
-    def send_telemetry(self, record: "Record") -> None:
+    def send_telemetry(self, record: Record) -> None:
         self._update_telemetry_record(record.telemetry)
 
-    def send_request_telemetry_record(self, record: "Record") -> None:
+    def send_request_telemetry_record(self, record: Record) -> None:
         self._update_telemetry_record(record.request.telemetry_record.telemetry)
 
     def _save_file(
-        self, fname: filesystem.GlobStr, policy: "filesystem.PolicyName" = "end"
+        self, fname: filesystem.GlobStr, policy: filesystem.PolicyName = "end"
     ) -> None:
         logger.info("saving file %s with policy %s", fname, policy)
         if self._dir_watcher:
             self._dir_watcher.update_policy(fname, policy)
 
-    def send_files(self, record: "Record") -> None:
+    def send_files(self, record: Record) -> None:
         files = record.files
         for k in files.files:
             # TODO(jhr): fix paths with directories
@@ -1414,21 +1404,21 @@ class SendManager:
                 interface.file_enum_to_policy(k.policy),
             )
 
-    def send_header(self, record: "Record") -> None:
+    def send_header(self, record: Record) -> None:
         pass
 
-    def send_footer(self, record: "Record") -> None:
+    def send_footer(self, record: Record) -> None:
         pass
 
-    def send_tbrecord(self, record: "Record") -> None:
+    def send_tbrecord(self, record: Record) -> None:
         # tbrecord watching threads are handled by handler.py
         pass
 
-    def _update_environment_record(self, environment: "EnvironmentRecord") -> None:
+    def _update_environment_record(self, environment: EnvironmentRecord) -> None:
         self._environment_obj.MergeFrom(environment)
         self._debounce_config()
 
-    def send_environment(self, record: "Record") -> None:
+    def send_environment(self, record: Record) -> None:
         """Inject environment info into config and upload as a JSON file."""
         self._update_environment_record(record.environment)
 
@@ -1441,7 +1431,7 @@ class SendManager:
 
         self._save_file(filesystem.GlobStr(filenames.METADATA_FNAME), policy="now")
 
-    def send_request_link_artifact(self, record: "Record") -> None:
+    def send_request_link_artifact(self, record: Record) -> None:
         if not (record.control.req_resp or record.control.mailbox_slot):
             raise ValueError(
                 f"Expected either `req_resp` or `mailbox_slot`, got: {record.control!r}"
@@ -1483,7 +1473,7 @@ class SendManager:
                 logger.warning("Failed to link artifact to portfolio: %s", e)
         self._respond_result(result)
 
-    def send_use_artifact(self, record: "Record") -> None:
+    def send_use_artifact(self, record: Record) -> None:
         """Pretend to send a used artifact.
 
         This function doesn't actually send anything, it is just used internally.
@@ -1496,7 +1486,7 @@ class SendManager:
             # job is partial, let job builder rebuild job, set job source dict
             self._job_builder.set_partial_source_id(use.id)
 
-    def send_request_log_artifact(self, record: "Record") -> None:
+    def send_request_log_artifact(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
         history_step = record.request.log_artifact.history_step
@@ -1513,7 +1503,7 @@ class SendManager:
 
         self._respond_result(result)
 
-    def send_artifact(self, record: "Record") -> None:
+    def send_artifact(self, record: Record) -> None:
         artifact = record.artifact
         try:
             res = self._send_artifact(artifact)
@@ -1524,8 +1514,8 @@ class SendManager:
             )
 
     def _send_artifact(
-        self, artifact: "ArtifactRecord", history_step: Optional[int] = None
-    ) -> Optional[Dict]:
+        self, artifact: ArtifactRecord, history_step: int | None = None
+    ) -> dict | None:
         from packaging.version import parse
 
         assert self._pusher
@@ -1574,7 +1564,7 @@ class SendManager:
                 os.remove(artifact.manifest.manifest_file_path)
         return res
 
-    def send_alert(self, record: "Record") -> None:
+    def send_alert(self, record: Record) -> None:
         from packaging.version import parse
 
         alert = record.alert
@@ -1612,7 +1602,7 @@ class SendManager:
             self._fs = None
         get_sentry().end_session()
 
-    def _max_cli_version(self) -> Optional[str]:
+    def _max_cli_version(self) -> str | None:
         server_info = self.get_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
@@ -1626,17 +1616,17 @@ class SendManager:
             return
         self._cached_viewer, self._cached_server_info = self._api.viewer_server_info()
 
-    def get_viewer_info(self) -> Dict[str, Any]:
+    def get_viewer_info(self) -> dict[str, Any]:
         if not self._cached_viewer:
             self.get_viewer_server_info()
         return self._cached_viewer
 
-    def get_server_info(self) -> Dict[str, Any]:
+    def get_server_info(self) -> dict[str, Any]:
         if not self._cached_server_info:
             self.get_viewer_server_info()
         return self._cached_server_info
 
-    def get_local_info(self) -> "LocalInfo":
+    def get_local_info(self) -> LocalInfo:
         """Queries the server to get the local version information.
 
         First, we perform an introspection, if it returns empty we deduce that the
@@ -1690,7 +1680,7 @@ class SendManager:
 
             self._interface._publish_artifact(proto_artifact)
 
-    def __next__(self) -> "Record":
+    def __next__(self) -> Record:
         return self._record_q.get(block=True)
 
     next = __next__

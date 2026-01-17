@@ -62,19 +62,8 @@ __all__ = (
 )
 
 import os
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    List,
-    Literal,
-    Optional,
-    Sequence,
-    TextIO,
-    Union,
-)
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Literal, TextIO
 
 import wandb.plot as plot
 from wandb.apis import InternalApi
@@ -116,7 +105,7 @@ summary: wandb_summary.Summary
 
 # private attributes
 api: InternalApi
-patched: Dict[str, List[Callable]]
+patched: dict[str, list[Callable]]
 
 def require(
     requirement: str | Iterable[str] | None = None,
@@ -806,10 +795,10 @@ def save(
     ...
 
 def sweep(
-    sweep: Union[dict, Callable],
-    entity: Optional[str] = None,
-    project: Optional[str] = None,
-    prior_runs: Optional[List[str]] = None,
+    sweep: dict | Callable,
+    entity: str | None = None,
+    project: str | None = None,
+    prior_runs: list[str] | None = None,
 ) -> str:
     """Initialize a hyperparameter sweep.
 
@@ -844,9 +833,9 @@ def sweep(
     ...
 
 def controller(
-    sweep_id_or_config: Optional[Union[str, Dict]] = None,
-    entity: Optional[str] = None,
-    project: Optional[str] = None,
+    sweep_id_or_config: str | dict | None = None,
+    entity: str | None = None,
+    project: str | None = None,
 ) -> _WandbController:
     """Public sweep controller constructor.
 
@@ -865,10 +854,10 @@ def controller(
 
 def agent(
     sweep_id: str,
-    function: Optional[Callable] = None,
-    entity: Optional[str] = None,
-    project: Optional[str] = None,
-    count: Optional[int] = None,
+    function: Callable | None = None,
+    entity: str | None = None,
+    project: str | None = None,
+    count: int | None = None,
     forward_signals: bool = False,
 ) -> None:
     """Start one or more sweep agents.

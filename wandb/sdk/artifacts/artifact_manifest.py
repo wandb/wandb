@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Annotated, Any, Dict  # noqa: UP035
 
 from pydantic import Field
-from typing_extensions import Annotated
 
 from wandb.sdk.lib.hashutil import HexMD5
 

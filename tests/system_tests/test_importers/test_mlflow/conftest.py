@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import subprocess
 import tempfile
@@ -5,8 +7,8 @@ import time
 import urllib.parse
 import uuid
 import warnings
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, List, Optional
 
 import hypothesis.strategies as st
 import mlflow
@@ -43,7 +45,7 @@ class MlflowServerSettings:
     health_endpoint: str = "health"
 
     # helper if port is blocked
-    new_port: Optional[str] = None
+    new_port: str | None = None
 
     def __post_init__(self):
         self.new_port = self._get_free_port()
@@ -91,7 +93,7 @@ class MlflowLoggingConfig:
 #             make_run(batch_size=50)
 
 
-def batch_metrics(metrics, bs: int) -> Iterable[List[Metric]]:
+def batch_metrics(metrics, bs: int) -> Iterable[list[Metric]]:
     step = 0
     for i, batch in enumerate(batched(bs, metrics)):
         batched_metrics = []

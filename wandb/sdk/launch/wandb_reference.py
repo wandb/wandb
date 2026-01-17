@@ -1,8 +1,9 @@
 """Support for parsing W&B URLs (which might be user provided) into constituent parts."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional
 from urllib.parse import urlparse
 
 PREFIX_HTTP = "http://"
@@ -34,20 +35,20 @@ RESERVED_JOB_PATHS = ("_view",)
 @dataclass
 class WandbReference:
     # TODO: This will include port, should we separate that out?
-    host: Optional[str] = None
+    host: str | None = None
 
-    entity: Optional[str] = None
-    project: Optional[str] = None
+    entity: str | None = None
+    project: str | None = None
 
     # Set when we don't know how to parse yet
-    path: Optional[str] = None
+    path: str | None = None
 
     # Reference type will determine what other fields are set
-    ref_type: Optional[ReferenceType] = None
+    ref_type: ReferenceType | None = None
 
-    run_id: Optional[str] = None
+    run_id: str | None = None
 
-    job_name: Optional[str] = None
+    job_name: str | None = None
     job_alias: str = "latest"  # In addition to an alias can be a version specifier
 
     def is_bare(self) -> bool:
@@ -84,7 +85,7 @@ class WandbReference:
         return f"{self.url_entity()}/{self.project}"
 
     @staticmethod
-    def parse(uri: str) -> Optional["WandbReference"]:
+    def parse(uri: str) -> WandbReference | None:
         """Attempt to parse a string as a W&B URL."""
         # TODO: Error if HTTP and host is not localhost?
         if (

@@ -1,4 +1,4 @@
-from typing import Optional
+from __future__ import annotations
 
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -19,7 +19,7 @@ class ProtobufErrorHandler:
     """Converts protobuf errors to exceptions and vice versa."""
 
     @staticmethod
-    def to_exception(error: pb.ErrorInfo) -> Optional[Error]:
+    def to_exception(error: pb.ErrorInfo) -> Error | None:
         """Convert a protobuf error to an exception.
 
         Args:
@@ -37,7 +37,7 @@ class ProtobufErrorHandler:
         return Error(error.message)
 
     @classmethod
-    def from_exception(cls, exc: Error) -> "pb.ErrorInfo":
+    def from_exception(cls, exc: Error) -> pb.ErrorInfo:
         """Convert an wandb error to a protobuf error message.
 
         Args:

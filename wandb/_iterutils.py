@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Hashable
-from typing import TYPE_CHECKING, Any, Iterable, TypeVar, Union, overload
+from collections.abc import Hashable, Iterable
+from typing import TYPE_CHECKING, Any, TypeVar, Union, overload
 
 if TYPE_CHECKING:
     T = TypeVar("T")

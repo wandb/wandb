@@ -34,20 +34,20 @@ MAXIMIZE_METRICS = ["map", "auc", "average_precision"]
 
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, List, NamedTuple, Tuple, Union
+    from typing import Any, NamedTuple, Union
 
     # Note: upstream lightgbm has this defined incorrectly
     _EvalResultTuple = Union[
-        Tuple[str, str, float, bool], Tuple[str, str, float, bool, float]
+        tuple[str, str, float, bool], tuple[str, str, float, bool, float]
     ]
 
     class CallbackEnv(NamedTuple):
         model: Any
-        params: Dict
+        params: dict
         iteration: int
         begin_interation: int
         end_iteration: int
-        evaluation_result_list: List[_EvalResultTuple]
+        evaluation_result_list: list[_EvalResultTuple]
 
 
 def _define_metric(data: str, metric_name: str) -> None:
@@ -64,7 +64,7 @@ def _define_metric(data: str, metric_name: str) -> None:
 
 
 def _checkpoint_artifact(
-    model: "Booster", iteration: int, aliases: "List[str]"
+    model: "Booster", iteration: int, aliases: "list[str]"
 ) -> None:
     """Upload model checkpoint as W&B artifact."""
     # NOTE: type ignore required because wandb.run is improperly inferred as None type

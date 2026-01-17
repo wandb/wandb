@@ -30,7 +30,8 @@ Note:
 from __future__ import annotations
 
 import urllib
-from typing import TYPE_CHECKING, Any, ClassVar, Mapping
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
 from wandb_gql import gql

@@ -3,7 +3,10 @@
 For formal specs and definitions, see https://relay.dev/graphql/connections.htm.
 """
 
-from typing import Generic, Iterator, List, Literal, Optional, TypeVar
+from __future__ import annotations
+
+from collections.abc import Iterator
+from typing import Generic, Literal, Optional, TypeVar
 
 from pydantic import NonNegativeInt
 
@@ -50,7 +53,7 @@ class Connection(GQLResult, Generic[NodeT]):
     - Optionally, a `total_count` of all results (not just this page).
     """
 
-    edges: List[Edge[NodeT]]
+    edges: list[Edge[NodeT]]
     """The items in this page, each wrapped in an `Edge`."""
 
     page_info: PageInfo

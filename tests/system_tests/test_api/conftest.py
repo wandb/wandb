@@ -7,7 +7,7 @@ import io
 import socket
 import socketserver
 import threading
-from typing import Generator
+from collections.abc import Generator
 
 import pyarrow as pa
 import pyarrow.parquet as pq

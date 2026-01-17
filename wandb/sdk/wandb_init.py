@@ -21,7 +21,7 @@ import platform
 import sys
 import tempfile
 import time
-from typing import TYPE_CHECKING, Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 
 from typing_extensions import Any, Literal, Protocol, Self
 
@@ -47,9 +47,6 @@ from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
-
-if TYPE_CHECKING:
-    import wandb.jupyter
 
 
 def _huggingface_version() -> str | None:

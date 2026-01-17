@@ -1,5 +1,6 @@
 import threading
-from typing import MutableMapping, NamedTuple
+from collections.abc import MutableMapping
+from typing import NamedTuple
 
 from wandb.sdk.lib import filenames
 

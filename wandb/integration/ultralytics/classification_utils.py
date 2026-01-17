@@ -1,4 +1,6 @@
-from typing import Any, Optional
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -11,8 +13,8 @@ import wandb
 def plot_classification_predictions(
     result: Results,
     model_name: str,
-    table: Optional[wandb.Table] = None,
-    original_image: Optional[np.array] = None,
+    table: wandb.Table | None = None,
+    original_image: np.array | None = None,
 ):
     """Plot classification prediction results to a `wandb.Table` if the table is passed otherwise return the data."""
     result = result.to("cpu")
@@ -49,7 +51,7 @@ def plot_classification_validation_results(
     predictor: ClassificationPredictor,
     table: wandb.Table,
     max_validation_batches: int,
-    epoch: Optional[int] = None,
+    epoch: int | None = None,
 ) -> wandb.Table:
     """Plot classification results to a `wandb.Table`."""
     data_idx = 0

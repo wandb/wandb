@@ -4,14 +4,16 @@ This module implements a summary record as an intermediate format before being c
 to a protocol buffer.
 """
 
+from __future__ import annotations
+
 import typing as t
 
 
 class SummaryRecord:
     """Encodes a diff -- analogous to the SummaryRecord protobuf message."""
 
-    update: t.List["SummaryItem"]
-    remove: t.List["SummaryItem"]
+    update: list[SummaryItem]
+    remove: list[SummaryItem]
 
     def __init__(self):
         self.update = []
@@ -42,7 +44,7 @@ class SummaryRecord:
 class SummaryItem:
     """Analogous to the SummaryItem protobuf message."""
 
-    key: t.Tuple[str]
+    key: tuple[str]
     value: t.Any
 
     def __init__(self):

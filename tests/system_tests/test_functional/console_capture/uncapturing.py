@@ -1,5 +1,7 @@
 """Exits with code 0 if callbacks can be unregistered."""
 
+from __future__ import annotations
+
 import io
 import sys
 

@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import configparser
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse, urlunparse
 
 import wandb
@@ -14,7 +16,7 @@ try:
         Repo,
     )
 except ImportError:
-    Repo = None  # type: ignore
+    pass
 
 if TYPE_CHECKING:
     from git import Repo
@@ -26,11 +28,11 @@ logger = logging.getLogger(__name__)
 class GitRepo:
     def __init__(
         self,
-        root: Optional[str] = None,
+        root: str | None = None,
         remote: str = "origin",
         lazy: bool = True,
-        remote_url: Optional[str] = None,
-        commit: Optional[str] = None,
+        remote_url: str | None = None,
+        commit: str | None = None,
     ) -> None:
         self.remote_name = remote if remote_url is None else None
         self._root = root
@@ -41,9 +43,11 @@ class GitRepo:
         if not lazy:
             self._repo = self._init_repo()
 
-    def _init_repo(self) -> Optional[Repo]:
+    def _init_repo(self) -> Repo | None:
         self._repo_initialized = True
-        if Repo is None:
+        try:
+            from git import Repo
+        except ImportError:
             return None
         if self.remote_name is None:
             return None
@@ -60,7 +64,7 @@ class GitRepo:
         return None
 
     @property
-    def repo(self) -> Optional[Repo]:
+    def repo(self) -> Repo | None:
         if not self._repo_initialized:
             self._repo = self._init_repo()
         return self._repo
@@ -69,7 +73,7 @@ class GitRepo:
     def auto(self) -> bool:
         return self._remote_url is None
 
-    def is_untracked(self, file_name: str) -> Optional[bool]:
+    def is_untracked(self, file_name: str) -> bool | None:
         if not self.repo:
             return True
         try:
@@ -102,7 +106,7 @@ class GitRepo:
             return False
 
     @property
-    def email(self) -> Optional[str]:
+    def email(self) -> str | None:
         if not self.repo:
             return None
         try:
@@ -221,7 +225,7 @@ class GitRepo:
 
         return most_recent_ancestor
 
-    def tag(self, name: str, message: Optional[str]) -> Any:
+    def tag(self, name: str, message: str | None) -> Any:
         if not self.repo:
             return None
         try:

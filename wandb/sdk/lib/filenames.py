@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import os
-from typing import Callable, Generator, Union
+from collections.abc import Generator
+from typing import Callable
 
 WANDB_DIRS = ("wandb", ".wandb")
 
@@ -29,8 +32,8 @@ def is_wandb_file(name: str) -> bool:
 
 def filtered_dir(
     root: str,
-    include_fn: Union[Callable[[str, str], bool], Callable[[str], bool]],
-    exclude_fn: Union[Callable[[str, str], bool], Callable[[str], bool]],
+    include_fn: Callable[[str, str], bool] | Callable[[str], bool],
+    exclude_fn: Callable[[str, str], bool] | Callable[[str], bool],
 ) -> Generator[str, None, None]:
     """Simple generator to walk a directory."""
     import inspect

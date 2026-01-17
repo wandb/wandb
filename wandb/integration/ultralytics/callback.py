@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import copy
 from datetime import datetime
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Union
 
 from packaging import version
 
@@ -421,7 +423,7 @@ class WandBUltralyticsCallback:
             wandb.log({"Prediction-Table": self.prediction_table}, commit=False)
 
     @property
-    def callbacks(self) -> Dict[str, Callable]:
+    def callbacks(self) -> dict[str, Callable]:
         """Property contains all the relevant callbacks to add to the YOLO model for the Weights & Biases logging."""
         return {
             "on_train_start": self.on_train_start,
@@ -442,8 +444,8 @@ def add_wandb_callback(
     enable_train_validation_logging: bool = True,
     enable_validation_logging: bool = True,
     enable_prediction_logging: bool = True,
-    max_validation_batches: Optional[int] = 1,
-    visualize_skeleton: Optional[bool] = True,
+    max_validation_batches: int | None = 1,
+    visualize_skeleton: bool | None = True,
 ):
     """Function to add the `WandBUltralyticsCallback` callback to the `YOLO` model.
 

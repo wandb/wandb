@@ -17,8 +17,9 @@ import json
 import logging
 import os
 import urllib
+from collections.abc import Iterator
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from pydantic import ValidationError
 from typing_extensions import Unpack, overload

@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import logging
 import sys
 import warnings
-from typing import Literal, Optional
+from typing import Literal
 
 import wandb
 
@@ -122,7 +124,7 @@ class ProgressWidget:
         self._widget.close()
 
 
-def jupyter_progress_bar(min: float = 0, max: float = 1.0) -> Optional[ProgressWidget]:
+def jupyter_progress_bar(min: float = 0, max: float = 1.0) -> ProgressWidget | None:
     """Return an ipywidget progress bar or None if we can't import it."""
     widgets = wandb.util.get_module("ipywidgets")
     try:
