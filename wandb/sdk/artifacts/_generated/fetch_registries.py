@@ -13,26 +13,24 @@ from .fragments import PageInfoFragment, RegistryFragment
 
 
 class FetchRegistries(GQLResult):
-    organization: Optional[FetchRegistriesOrganization]
+    organization: FetchRegistriesOrganization | None
 
 
 class FetchRegistriesOrganization(GQLResult):
-    org_entity: Optional[FetchRegistriesOrganizationOrgEntity] = Field(
-        alias="orgEntity"
-    )
+    org_entity: FetchRegistriesOrganizationOrgEntity | None = Field(alias="orgEntity")
 
 
 class FetchRegistriesOrganizationOrgEntity(GQLResult):
-    projects: Optional[FetchRegistriesOrganizationOrgEntityProjects]
+    projects: FetchRegistriesOrganizationOrgEntityProjects | None
 
 
 class FetchRegistriesOrganizationOrgEntityProjects(GQLResult):
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[FetchRegistriesOrganizationOrgEntityProjectsEdges]
+    edges: list[FetchRegistriesOrganizationOrgEntityProjectsEdges]
 
 
 class FetchRegistriesOrganizationOrgEntityProjectsEdges(GQLResult):
-    node: Optional[RegistryFragment]
+    node: RegistryFragment | None
 
 
 FetchRegistries.model_rebuild()

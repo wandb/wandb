@@ -13,7 +13,7 @@ from .fragments import ArtifactCollectionFragment
 
 
 class UpdateArtifactSequence(GQLResult):
-    result: Optional[UpdateArtifactSequenceResult]
+    result: UpdateArtifactSequenceResult | None
 
 
 class UpdateArtifactSequenceResult(GQLResult):

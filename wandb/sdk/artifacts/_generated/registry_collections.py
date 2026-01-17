@@ -13,30 +13,30 @@ from .fragments import PageInfoFragment, RegistryCollectionFragment
 
 
 class RegistryCollections(GQLResult):
-    organization: Optional[RegistryCollectionsOrganization]
+    organization: RegistryCollectionsOrganization | None
 
 
 class RegistryCollectionsOrganization(GQLResult):
-    org_entity: Optional[RegistryCollectionsOrganizationOrgEntity] = Field(
+    org_entity: RegistryCollectionsOrganizationOrgEntity | None = Field(
         alias="orgEntity"
     )
 
 
 class RegistryCollectionsOrganizationOrgEntity(GQLResult):
     name: str
-    artifact_collections: Optional[
-        RegistryCollectionsOrganizationOrgEntityArtifactCollections
-    ] = Field(alias="artifactCollections")
+    artifact_collections: (
+        RegistryCollectionsOrganizationOrgEntityArtifactCollections | None
+    ) = Field(alias="artifactCollections")
 
 
 class RegistryCollectionsOrganizationOrgEntityArtifactCollections(GQLResult):
     total_count: int = Field(alias="totalCount")
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RegistryCollectionsOrganizationOrgEntityArtifactCollectionsEdges]
+    edges: list[RegistryCollectionsOrganizationOrgEntityArtifactCollectionsEdges]
 
 
 class RegistryCollectionsOrganizationOrgEntityArtifactCollectionsEdges(GQLResult):
-    node: Optional[RegistryCollectionFragment]
+    node: RegistryCollectionFragment | None
 
 
 RegistryCollections.model_rebuild()

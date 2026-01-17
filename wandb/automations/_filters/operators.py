@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Tuple, TypeVar, Union
+from typing import TYPE_CHECKING, Any, TypeVar, Union
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from typing_extensions import Self, TypeAlias, get_args, override
@@ -24,14 +24,14 @@ ScalarTypes: tuple[type, ...] = tuple(t.__origin__ for t in get_args(Scalar))
 RichReprResult: TypeAlias = Iterable[
     Union[
         Any,
-        Tuple[Any],
-        Tuple[str, Any],
-        Tuple[str, Any, Any],
+        tuple[Any],
+        tuple[str, Any],
+        tuple[str, Any, Any],
     ]
 ]
 
 T = TypeVar("T")
-TupleOf: TypeAlias = Tuple[T, ...]
+TupleOf: TypeAlias = tuple[T, ...]
 
 
 # NOTE: Wherever class descriptions that are not docstrings, this is deliberate.
@@ -88,7 +88,7 @@ class BaseOp(GQLBase, SupportsBitwiseLogicalOps, ABC):
 
 # Base type for logical operators that take a variable number of expressions.
 class BaseVariadicLogicalOp(BaseOp, ABC):
-    exprs: TupleOf[Union[FilterExpr, Op]]
+    exprs: TupleOf[FilterExpr | Op]
 
     @classmethod
     def wrap(cls, expr: Any) -> Self:
@@ -101,32 +101,32 @@ class BaseVariadicLogicalOp(BaseOp, ABC):
 # https://www.mongodb.com/docs/manual/reference/operator/query/nor/
 # https://www.mongodb.com/docs/manual/reference/operator/query/not/
 class And(BaseVariadicLogicalOp):
-    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$and")
+    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$and")
 
 
 class Or(BaseVariadicLogicalOp):
-    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$or")
+    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$or")
 
     @override
-    def __invert__(self) -> Nor:
+    def __invert__(self) -> Nor:  # type: ignore[override]
         """Implements `~Or(a, b) -> Nor(a, b)`."""
         return Nor(exprs=self.exprs)
 
 
 class Nor(BaseVariadicLogicalOp):
-    exprs: TupleOf[Union[FilterExpr, Op]] = Field(default=(), alias="$nor")
+    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$nor")
 
     @override
-    def __invert__(self) -> Or:
+    def __invert__(self) -> Or:  # type: ignore[override]
         """Implements `~Nor(a, b) -> Or(a, b)`."""
         return Or(exprs=self.exprs)
 
 
 class Not(BaseOp):
-    expr: Union[FilterExpr, Op] = Field(alias="$not")
+    expr: FilterExpr | Op = Field(alias="$not")
 
     @override
-    def __invert__(self) -> Union[FilterExpr, Op]:
+    def __invert__(self) -> FilterExpr | Op:  # type: ignore[override]
         """Implements `~Not(a) -> a`."""
         return self.expr
 
@@ -144,7 +144,7 @@ class Lt(BaseOp):
     val: Scalar = Field(alias="$lt")
 
     @override
-    def __invert__(self) -> Gte:
+    def __invert__(self) -> Gte:  # type: ignore[override]
         """Implements `~Lt(a) -> Gte(a)`."""
         return Gte(val=self.val)
 
@@ -153,7 +153,7 @@ class Gt(BaseOp):
     val: Scalar = Field(alias="$gt")
 
     @override
-    def __invert__(self) -> Lte:
+    def __invert__(self) -> Lte:  # type: ignore[override]
         """Implements `~Gt(a) -> Lte(a)`."""
         return Lte(val=self.val)
 
@@ -162,7 +162,7 @@ class Lte(BaseOp):
     val: Scalar = Field(alias="$lte")
 
     @override
-    def __invert__(self) -> Gt:
+    def __invert__(self) -> Gt:  # type: ignore[override]
         """Implements `~Lte(a) -> Gt(a)`."""
         return Gt(val=self.val)
 
@@ -171,7 +171,7 @@ class Gte(BaseOp):
     val: Scalar = Field(alias="$gte")
 
     @override
-    def __invert__(self) -> Lt:
+    def __invert__(self) -> Lt:  # type: ignore[override]
         """Implements `~Gte(a) -> Lt(a)`."""
         return Lt(val=self.val)
 
@@ -180,7 +180,7 @@ class Eq(BaseOp):
     val: Scalar = Field(alias="$eq")
 
     @override
-    def __invert__(self) -> Ne:
+    def __invert__(self) -> Ne:  # type: ignore[override]
         """Implements `~Eq(a) -> Ne(a)`."""
         return Ne(val=self.val)
 
@@ -189,7 +189,7 @@ class Ne(BaseOp):
     val: Scalar = Field(alias="$ne")
 
     @override
-    def __invert__(self) -> Eq:
+    def __invert__(self) -> Eq:  # type: ignore[override]
         """Implements `~Ne(a) -> Eq(a)`."""
         return Eq(val=self.val)
 
@@ -198,7 +198,7 @@ class In(BaseOp):
     val: TupleOf[Scalar] = Field(default=(), alias="$in")
 
     @override
-    def __invert__(self) -> NotIn:
+    def __invert__(self) -> NotIn:  # type: ignore[override]
         """Implements `~In(a) -> NotIn(a)`."""
         return NotIn(val=self.val)
 
@@ -207,7 +207,7 @@ class NotIn(BaseOp):
     val: TupleOf[Scalar] = Field(default=(), alias="$nin")
 
     @override
-    def __invert__(self) -> In:
+    def __invert__(self) -> In:  # type: ignore[override]
         """Implements `~NotIn(a) -> In(a)`."""
         return In(val=self.val)
 
@@ -218,7 +218,7 @@ class Exists(BaseOp):
     val: bool = Field(alias="$exists")
 
     @override
-    def __invert__(self) -> Exists:
+    def __invert__(self) -> Exists:  # type: ignore[override]
         """Implements `~Exists(True) -> Exists(False)` and vice versa."""
         return Exists(val=not self.val)
 

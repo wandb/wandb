@@ -12,7 +12,6 @@ from __future__ import annotations
 import ast
 import subprocess
 import sys
-from collections import deque
 from contextlib import suppress
 from itertools import chain
 from pathlib import Path
@@ -145,9 +144,10 @@ class GraphQLCodegenPlugin(Plugin):
 
     def _run_ruff(self) -> None:
         """Autofix and format the generated code via Ruff."""
+        package_root = str(self.package_dir)
         commands = (
-            ["ruff", "check", "--fix", "--unsafe-fixes", str(self.package_dir)],
-            ["ruff", "format", str(self.package_dir)],
+            ["ruff", "check", "--fix", "--unsafe-fixes", package_root],
+            ["ruff", "format", package_root],
         )
         sys.stdout.write(f"\n========== Reformatting: {self.package_dir} ==========\n")
         for cmd in commands:
@@ -185,55 +185,6 @@ class GraphQLCodegenPlugin(Plugin):
                 # Keep only imported names that aren't being dropped
                 kept_names = sorted(set(imported_names(imp)) - omit_names)
                 yield make_import_from(imp.module, kept_names, level=imp.level)
-
-    def _ensure_all_model_rebuilds(self, module: ast.Module) -> ast.Module:
-        """Ensure that all generated classes call `model_rebuild()` after being defined.
-
-        NOTE: This is intended only as a workaround to accommodate pydantic v1
-        compatibility issues.
-
-        Context: In some cases, depending on the order of class definitions/imports/etc.,
-        pydantic v1 requires calling `.update_forward_refs()` (i.e. `.model_rebuild()` in v2)
-        when it would no longer be necessary in pydantic v2.
-
-        Example error from pydantic v1:
-
-            pydantic.errors.ConfigError: field "args" not yet prepared
-            so type is still a ForwardRef, you might need to call
-            TypeInfoFragmentFields.update_forward_refs().
-
-        We can probably drop this codegen hack/workaround once pydantic v1 is no longer supported.
-        """
-        import_stmts = deque()  # e.g. `from typing import ...`
-        classdef_stmts = deque()  # e.g. `class MyFragmentFields(BaseModel): ...`
-
-        for stmt in module.body:
-            match stmt:
-                case ast.ImportFrom() | ast.Import():
-                    import_stmts.append(stmt)
-                case ast.ClassDef():
-                    classdef_stmts.append(stmt)
-                case ast.Expr(value=ast.Call(func=ast.Attribute(attr="model_rebuild"))):
-                    # e.g. `MyFragmentFields.model_rebuild()`
-                    # We'll regenerate these from scratch
-                    pass
-                case _:
-                    msg = f"Unexpected AST statement in module: {ast.dump(stmt)}"
-                    raise ValueError(msg)
-
-        rebuild_stmts = [
-            ast.Expr(
-                value=ast.Call(
-                    func=ast.Attribute(value=ast.Name(cl.name), attr="model_rebuild"),
-                    args=[],
-                    keywords=[],
-                )
-            )
-            for cl in classdef_stmts
-        ]
-
-        module.body = [*import_stmts, *classdef_stmts, *rebuild_stmts]
-        return module
 
     def process_schema(self, schema: GraphQLSchema) -> GraphQLSchema:
         # `ariadne-codegen` doesn't automatically recognize standard introspection fields
@@ -448,7 +399,6 @@ class GraphQLCodegenPlugin(Plugin):
                     # - omit default: Fragment defined on a GQL interface with multiple impls.
                     stmt.value = ast.Constant(names[0]) if len(names) == 1 else None
 
-        module = self._ensure_all_model_rebuilds(module)
         return self._rewrite_generated_module(module)
 
     def _rewrite_generated_module(self, module: ast.Module) -> ast.Module:

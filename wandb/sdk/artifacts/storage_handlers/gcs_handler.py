@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, urlparse
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -45,7 +45,7 @@ class _GCSPath:
 
     bucket: str
     key: str
-    version: Optional[str]  # noqa: UP045
+    version: str | None
 
     @classmethod
     def from_uri(cls, uri: str) -> Self:

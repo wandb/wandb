@@ -13,16 +13,16 @@ from .fragments import PageInfoFragment, ProjectFragment
 
 
 class GetProjects(GQLResult):
-    models: Optional[GetProjectsModels]
+    models: GetProjectsModels | None
 
 
 class GetProjectsModels(GQLResult):
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[GetProjectsModelsEdges]
+    edges: list[GetProjectsModelsEdges]
 
 
 class GetProjectsModelsEdges(GQLResult):
-    node: Optional[ProjectFragment]
+    node: ProjectFragment | None
 
 
 GetProjects.model_rebuild()

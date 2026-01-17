@@ -13,7 +13,7 @@ from .fragments import ArtifactCollectionFragment
 
 
 class UpdateArtifactPortfolio(GQLResult):
-    result: Optional[UpdateArtifactPortfolioResult]
+    result: UpdateArtifactPortfolioResult | None
 
 
 class UpdateArtifactPortfolioResult(GQLResult):

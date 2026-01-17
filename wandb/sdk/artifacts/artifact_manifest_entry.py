@@ -1,8 +1,5 @@
 """Artifact manifest entry."""
 
-# Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
-# ruff: noqa: UP006, UP007, UP035, UP045
-
 from __future__ import annotations
 
 import concurrent.futures
@@ -11,13 +8,12 @@ import logging
 import os
 from contextlib import suppress
 from os.path import getsize
-from typing import TYPE_CHECKING, Annotated, Any, Dict, Final, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Any, Final
 from urllib.parse import urlparse
 
-from pydantic import Field, NonNegativeInt
+from pydantic import Field, NonNegativeInt, field_validator, model_validator
 from typing_extensions import Self
 
-from wandb._pydantic import field_validator, model_validator
 from wandb._strutils import nameof
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
@@ -93,19 +89,19 @@ class ArtifactManifestEntry(ArtifactsBase):
 
     path: LogicalPath
 
-    digest: Union[B64MD5, ETag, URIStr, FilePathStr]
-    ref: Union[URIStr, FilePathStr, None] = None
-    birth_artifact_id: Annotated[Optional[str], Field(alias="birthArtifactID")] = None
-    size: Optional[NonNegativeInt] = None
-    extra: Dict[str, Any] = Field(default_factory=dict)
-    local_path: Optional[str] = None
+    digest: B64MD5 | ETag | URIStr | FilePathStr
+    ref: URIStr | FilePathStr | None = None
+    birth_artifact_id: Annotated[str | None, Field(alias="birthArtifactID")] = None
+    size: NonNegativeInt | None = None
+    extra: dict[str, Any] = Field(default_factory=dict)
+    local_path: str | None = None
 
     skip_cache: bool = False
 
     # Note: Pydantic treats these as private attributes, omitting them from
     # validation and comparison logic.
-    _parent_artifact: Optional[Artifact] = None
-    _download_url: Optional[str] = None
+    _parent_artifact: Artifact | None = None
+    _download_url: str | None = None
 
     @field_validator("path", mode="before")
     def _validate_path(cls, v: Any) -> LogicalPath:

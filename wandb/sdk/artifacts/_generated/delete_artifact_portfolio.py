@@ -14,7 +14,7 @@ from .enums import ArtifactCollectionState
 
 
 class DeleteArtifactPortfolio(GQLResult):
-    result: Optional[DeleteArtifactPortfolioResult]
+    result: DeleteArtifactPortfolioResult | None
 
 
 class DeleteArtifactPortfolioResult(GQLResult):

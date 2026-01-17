@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, Dict  # noqa: UP035
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import Field
 
@@ -20,7 +20,7 @@ class ArtifactManifest(ArtifactsBase, ABC):
     # Note: we can't name this "version" since it conflicts with the prior
     # `version()` classmethod.
     manifest_version: Annotated[Any, Field(repr=False)]
-    entries: Dict[str, ArtifactManifestEntry] = Field(default_factory=dict)  # noqa: UP006
+    entries: dict[str, ArtifactManifestEntry] = Field(default_factory=dict)
 
     storage_policy: Annotated[StoragePolicy, Field(exclude=True, repr=False)]
 

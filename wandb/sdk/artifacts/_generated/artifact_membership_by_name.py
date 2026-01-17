@@ -13,11 +13,11 @@ from .fragments import ArtifactMembershipFragment
 
 
 class ArtifactMembershipByName(GQLResult):
-    project: Optional[ArtifactMembershipByNameProject]
+    project: ArtifactMembershipByNameProject | None
 
 
 class ArtifactMembershipByNameProject(GQLResult):
-    artifact_collection_membership: Optional[ArtifactMembershipFragment] = Field(
+    artifact_collection_membership: ArtifactMembershipFragment | None = Field(
         alias="artifactCollectionMembership"
     )
 

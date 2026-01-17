@@ -13,29 +13,27 @@ from .fragments import ArtifactMembershipFragment, PageInfoFragment
 
 
 class RegistryVersions(GQLResult):
-    organization: Optional[RegistryVersionsOrganization]
+    organization: RegistryVersionsOrganization | None
 
 
 class RegistryVersionsOrganization(GQLResult):
-    org_entity: Optional[RegistryVersionsOrganizationOrgEntity] = Field(
-        alias="orgEntity"
-    )
+    org_entity: RegistryVersionsOrganizationOrgEntity | None = Field(alias="orgEntity")
 
 
 class RegistryVersionsOrganizationOrgEntity(GQLResult):
     name: str
-    artifact_memberships: Optional[
-        RegistryVersionsOrganizationOrgEntityArtifactMemberships
-    ] = Field(alias="artifactMemberships")
+    artifact_memberships: (
+        RegistryVersionsOrganizationOrgEntityArtifactMemberships | None
+    ) = Field(alias="artifactMemberships")
 
 
 class RegistryVersionsOrganizationOrgEntityArtifactMemberships(GQLResult):
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RegistryVersionsOrganizationOrgEntityArtifactMembershipsEdges]
+    edges: list[RegistryVersionsOrganizationOrgEntityArtifactMembershipsEdges]
 
 
 class RegistryVersionsOrganizationOrgEntityArtifactMembershipsEdges(GQLResult):
-    node: Optional[ArtifactMembershipFragment]
+    node: ArtifactMembershipFragment | None
 
 
 RegistryVersions.model_rebuild()

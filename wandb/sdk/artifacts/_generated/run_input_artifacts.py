@@ -13,25 +13,25 @@ from .fragments import ArtifactFragment, PageInfoFragment
 
 
 class RunInputArtifacts(GQLResult):
-    project: Optional[RunInputArtifactsProject]
+    project: RunInputArtifactsProject | None
 
 
 class RunInputArtifactsProject(GQLResult):
-    run: Optional[RunInputArtifactsProjectRun]
+    run: RunInputArtifactsProjectRun | None
 
 
 class RunInputArtifactsProjectRun(GQLResult):
-    artifacts: Optional[RunInputArtifactsProjectRunArtifacts]
+    artifacts: RunInputArtifactsProjectRunArtifacts | None
 
 
 class RunInputArtifactsProjectRunArtifacts(GQLResult):
     total_count: int = Field(alias="totalCount")
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RunInputArtifactsProjectRunArtifactsEdges]
+    edges: list[RunInputArtifactsProjectRunArtifactsEdges]
 
 
 class RunInputArtifactsProjectRunArtifactsEdges(GQLResult):
-    node: Optional[ArtifactFragment]
+    node: ArtifactFragment | None
 
 
 RunInputArtifacts.model_rebuild()

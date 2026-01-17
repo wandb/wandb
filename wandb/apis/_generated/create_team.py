@@ -11,19 +11,19 @@ from wandb._pydantic import GQLId, GQLResult
 
 
 class CreateTeam(GQLResult):
-    result: Optional[CreateTeamResult]
+    result: CreateTeamResult | None
 
 
 class CreateTeamResult(GQLResult):
-    entity: Optional[CreateTeamResultEntity]
+    entity: CreateTeamResultEntity | None
 
 
 class CreateTeamResultEntity(GQLResult):
     id: GQLId
     name: str
-    available: Optional[bool]
-    photo_url: Optional[str] = Field(alias="photoUrl")
-    limits: Optional[str]
+    available: bool | None
+    photo_url: str | None = Field(alias="photoUrl")
+    limits: str | None
 
 
 CreateTeam.model_rebuild()

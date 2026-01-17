@@ -1,6 +1,8 @@
-from typing import Any, Dict, Literal, final
+from typing import Any, Literal, final
 
-from wandb._pydantic import field_validator, to_camel
+from pydantic import field_validator
+from pydantic.alias_generators import to_camel
+
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
 from .base_model import ArtifactsBase
@@ -13,7 +15,7 @@ class ArtifactManifestV1Data(ArtifactsBase, alias_generator=to_camel):
 
     version: Literal[1]
 
-    contents: Dict[str, ArtifactManifestEntry]
+    contents: dict[str, ArtifactManifestEntry]
 
     storage_policy: str
     storage_policy_config: StoragePolicyConfig

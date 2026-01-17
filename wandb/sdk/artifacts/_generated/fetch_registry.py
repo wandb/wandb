@@ -3,19 +3,17 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import RegistryFragment
 
 
 class FetchRegistry(GQLResult):
-    entity: Optional[FetchRegistryEntity]
+    entity: FetchRegistryEntity | None
 
 
 class FetchRegistryEntity(GQLResult):
-    project: Optional[RegistryFragment]
+    project: RegistryFragment | None
 
 
 FetchRegistry.model_rebuild()

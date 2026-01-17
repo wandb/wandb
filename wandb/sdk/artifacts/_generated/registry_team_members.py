@@ -13,11 +13,11 @@ from .fragments import TeamRegistryMemberFragment
 
 
 class RegistryTeamMembers(GQLResult):
-    project: Optional[RegistryTeamMembersProject]
+    project: RegistryTeamMembersProject | None
 
 
 class RegistryTeamMembersProject(GQLResult):
-    team_members: List[TeamRegistryMemberFragment] = Field(alias="teamMembers")
+    team_members: list[TeamRegistryMemberFragment] = Field(alias="teamMembers")
 
 
 RegistryTeamMembers.model_rebuild()

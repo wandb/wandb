@@ -3,17 +3,15 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 
 class DeleteApiKey(GQLResult):
-    result: Optional[DeleteApiKeyResult]
+    result: DeleteApiKeyResult | None
 
 
 class DeleteApiKeyResult(GQLResult):
-    success: Optional[bool]
+    success: bool | None
 
 
 DeleteApiKey.model_rebuild()

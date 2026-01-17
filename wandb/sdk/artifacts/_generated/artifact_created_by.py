@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Annotated
 
 from pydantic import Field
-from typing_extensions import Annotated, Literal
+from typing_extensions import Literal
 
 from wandb._pydantic import GQLResult, Typename
 
@@ -14,16 +14,17 @@ from .fragments import RunInfoFragment
 
 
 class ArtifactCreatedBy(GQLResult):
-    artifact: Optional[ArtifactCreatedByArtifact]
+    artifact: ArtifactCreatedByArtifact | None
 
 
 class ArtifactCreatedByArtifact(GQLResult):
-    created_by: Optional[
+    created_by: (
         Annotated[
-            Union[RunInfoFragment, ArtifactCreatedByArtifactCreatedByUser],
+            RunInfoFragment | ArtifactCreatedByArtifactCreatedByUser,
             Field(discriminator="typename__"),
         ]
-    ] = Field(alias="createdBy")
+        | None
+    ) = Field(alias="createdBy")
 
 
 class ArtifactCreatedByArtifactCreatedByUser(GQLResult):

@@ -13,12 +13,12 @@ from .fragments import RegistryFragment
 
 
 class RenameRegistry(GQLResult):
-    rename_project: Optional[RenameRegistryRenameProject] = Field(alias="renameProject")
+    rename_project: RenameRegistryRenameProject | None = Field(alias="renameProject")
 
 
 class RenameRegistryRenameProject(GQLResult):
-    inserted: Optional[bool]
-    project: Optional[RegistryFragment]
+    inserted: bool | None
+    project: RegistryFragment | None
 
 
 RenameRegistry.model_rebuild()

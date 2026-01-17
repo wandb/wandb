@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import Annotated
 
 from pydantic import Field
-from typing_extensions import Annotated, Literal
+from typing_extensions import Literal
 
 from wandb._pydantic import GQLResult, Typename
 
@@ -14,29 +14,28 @@ from .fragments import PageInfoFields, SlackIntegrationFields, WebhookIntegratio
 
 
 class IntegrationsByEntity(GQLResult):
-    entity: Optional[IntegrationsByEntityEntity]
+    entity: IntegrationsByEntityEntity | None
 
 
 class IntegrationsByEntityEntity(GQLResult):
-    integrations: Optional[IntegrationsByEntityEntityIntegrations]
+    integrations: IntegrationsByEntityEntityIntegrations | None
 
 
 class IntegrationsByEntityEntityIntegrations(GQLResult):
     page_info: PageInfoFields = Field(alias="pageInfo")
-    edges: List[IntegrationsByEntityEntityIntegrationsEdges]
+    edges: list[IntegrationsByEntityEntityIntegrationsEdges]
 
 
 class IntegrationsByEntityEntityIntegrationsEdges(GQLResult):
-    node: Optional[
+    node: (
         Annotated[
-            Union[
-                IntegrationsByEntityEntityIntegrationsEdgesNodeIntegration,
-                WebhookIntegrationFields,
-                SlackIntegrationFields,
-            ],
+            IntegrationsByEntityEntityIntegrationsEdgesNodeIntegration
+            | WebhookIntegrationFields
+            | SlackIntegrationFields,
             Field(discriminator="typename__"),
         ]
-    ]
+        | None
+    )
 
 
 class IntegrationsByEntityEntityIntegrationsEdgesNodeIntegration(GQLResult):

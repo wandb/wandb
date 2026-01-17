@@ -3,23 +3,21 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import UserFragment
 
 
 class SearchUsers(GQLResult):
-    users: Optional[SearchUsersUsers]
+    users: SearchUsersUsers | None
 
 
 class SearchUsersUsers(GQLResult):
-    edges: List[SearchUsersUsersEdges]
+    edges: list[SearchUsersUsersEdges]
 
 
 class SearchUsersUsersEdges(GQLResult):
-    node: Optional[UserFragment]
+    node: UserFragment | None
 
 
 SearchUsers.model_rebuild()
