@@ -181,9 +181,6 @@ func (c *EpochLineChart) updateRanges() {
 
 	// Y range with padding.
 	valueRange := c.yMax - c.yMin
-	if valueRange == 0 {
-		return
-	}
 	padding := c.calculatePadding(valueRange)
 
 	newYMin := c.yMin - padding
