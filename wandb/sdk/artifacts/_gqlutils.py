@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from wandb_gql import gql
 
 from wandb._iterutils import one
-from wandb.errors import UnsupportedError
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 
@@ -111,24 +110,10 @@ def resolve_org_entity_name(
     if not non_org_entity:
         raise ValueError("Entity name is required to resolve org entity name.")
 
-    if "orgEntity" not in allowed_fields(client, "Organization"):
-        if org_or_entity:
-            # Server doesn't support fetching orgEntity to match against,
-            # so assume orgEntity as provided is already correct.
-            return org_or_entity
-
-        raise UnsupportedError(
-            "Fetching Registry artifacts without inputting an organization "
-            "is unavailable for your server version. "
-            "Please upgrade your server to 0.50.0 or later."
-        )
-
-    # Otherwise, fetch candidate orgs to verify or identify the correct orgEntity
-    # name when possible.
+    # Fetch candidate orgs to verify or identify the correct orgEntity name.
     entity = org_info_from_entity(client, non_org_entity)
 
-    # Parse possible organization(s) from the response
-
+    # Parse possible organization(s) from the response...
     # ----------------------------------------------------------------------------
     # If a team entity was provided, a single organization should exist under
     # the team/org entity type.

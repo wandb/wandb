@@ -117,7 +117,8 @@ def test_choice_new(referrer: str, emulated_terminal: EmulatedTerminal):
         "wandb: Enter your choice: 1",
         "wandb: You chose 'Create a W&B account'",
         f"wandb: Create an account here: {expected_auth_url}",
-        "wandb: Paste an API key from your profile and hit enter:",
+        "wandb: After creating your account, create a new API key and store it securely.",
+        "wandb: Paste your API key and hit enter:",
     ]
 
 
@@ -180,8 +181,9 @@ def test_choice_existing(
         "wandb: Enter your choice: 2",
         "wandb: You chose 'Use an existing W&B account'",
     ] + maybe_local_server_hint + [
-        f"wandb: Find your API key here: {expected_auth_url}",
-        "wandb: Paste an API key from your profile and hit enter:",
+        f"wandb: Create a new API key at: {expected_auth_url}",
+        "wandb: Store your API key securely and do not share it.",
+        "wandb: Paste your API key and hit enter:",
     ]
 
 

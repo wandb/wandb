@@ -10,9 +10,15 @@ Note:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, Mapping
+
+from typing_extensions import Self
 from wandb_gql import gql
 
 from wandb.apis.attrs import Attrs
+
+if TYPE_CHECKING:
+    from .api import Api, RetryingClient
 
 
 class Member(Attrs):
@@ -24,17 +30,7 @@ class Member(Attrs):
         attrs (dict): The member attributes
     """
 
-    DELETE_MEMBER_MUTATION = gql(
-        """
-    mutation DeleteInvite($id: String, $entityName: String) {
-        deleteInvite(input: {id: $id, entityName: $entityName}) {
-            success
-        }
-    }
-  """
-    )
-
-    def __init__(self, client, team, attrs):
+    def __init__(self, client: RetryingClient, team: str, attrs: Mapping[str, Any]):
         super().__init__(attrs)
         self._client = client
         self.team = team
@@ -45,14 +41,19 @@ class Member(Attrs):
         Returns:
             Boolean indicating success
         """
-        import requests
+        from requests import HTTPError
+
+        from wandb.apis._generated import DELETE_INVITE_GQL, DeleteInvite
 
         try:
-            return self._client.execute(
-                self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
-            )["deleteInvite"]["success"]
-        except requests.exceptions.HTTPError:
+            data = self._client.execute(
+                gql(DELETE_INVITE_GQL), {"id": self.id, "entity": self.team}
+            )
+        except HTTPError:
             return False
+        else:
+            result = DeleteInvite.model_validate(data).result
+            return (result is not None) and result.success
 
     def __repr__(self):
         return f"<Member {self.name} ({self.account_type})>"
@@ -74,91 +75,19 @@ class Team(Attrs):
         Team management requires appropriate permissions.
     """
 
-    CREATE_TEAM_MUTATION = gql(
-        """
-    mutation CreateTeam($teamName: String!, $teamAdminUserName: String) {
-        createTeam(input: {teamName: $teamName, teamAdminUserName: $teamAdminUserName}) {
-            entity {
-                id
-                name
-                available
-                photoUrl
-                limits
-            }
-        }
-    }
-    """
-    )
-    CREATE_INVITE_MUTATION = gql(
-        """
-    mutation CreateInvite($entityName: String!, $email: String, $username: String, $admin: Boolean) {
-        createInvite(input: {entityName: $entityName, email: $email, username: $username, admin: $admin}) {
-            invite {
-                id
-                name
-                email
-                createdAt
-                toUser {
-                    name
-                }
-            }
-        }
-    }
-    """
-    )
-    TEAM_QUERY = gql(
-        """
-    query Entity($name: String!) {
-        entity(name: $name) {
-            id
-            name
-            available
-            photoUrl
-            readOnly
-            readOnlyAdmin
-            isTeam
-            privateOnly
-            storageBytes
-            codeSavingEnabled
-            defaultAccess
-            isPaid
-            members {
-                id
-                admin
-                pending
-                email
-                username
-                name
-                photoUrl
-                accountType
-                apiKey
-            }
-        }
-    }
-    """
-    )
-    CREATE_SERVICE_ACCOUNT_MUTATION = gql(
-        """
-    mutation CreateServiceAccount($entityName: String!, $description: String!) {
-        createServiceAccount(
-            input: {description: $description, entityName: $entityName}
-        ) {
-            user {
-                id
-            }
-        }
-    }
-    """
-    )
-
-    def __init__(self, client, name, attrs=None):
+    def __init__(
+        self,
+        client: RetryingClient,
+        name: str,
+        attrs: Mapping[str, Any] | None = None,
+    ):
         super().__init__(attrs or {})
         self._client = client
         self.name = name
         self.load()
 
     @classmethod
-    def create(cls, api, team, admin_username=None):
+    def create(cls, api: Api, team: str, admin_username: str | None = None) -> Self:
         """Create a new team.
 
         Args:
@@ -169,18 +98,20 @@ class Team(Attrs):
         Returns:
             A `Team` object
         """
-        import requests
+        from requests import HTTPError
+
+        from wandb.apis._generated import CREATE_TEAM_GQL
 
         try:
             api.client.execute(
-                cls.CREATE_TEAM_MUTATION,
+                gql(CREATE_TEAM_GQL),
                 {"teamName": team, "teamAdminUserName": admin_username},
             )
-        except requests.exceptions.HTTPError:
+        except HTTPError:
             pass
-        return Team(api.client, team)
+        return cls(api.client, team)
 
-    def invite(self, username_or_email, admin=False):
+    def invite(self, username_or_email: str, admin: bool = False) -> bool:
         """Invite a user to a team.
 
         Args:
@@ -192,20 +123,22 @@ class Team(Attrs):
         Returns:
             `True` on success, `False` if user was already invited or didn't exist.
         """
-        import requests
+        from requests import HTTPError
 
-        variables = {"entityName": self.name, "admin": admin}
-        if "@" in username_or_email:
-            variables["email"] = username_or_email
-        else:
-            variables["username"] = username_or_email
+        from wandb.apis._generated import CREATE_INVITE_GQL
+
+        variables = {
+            "entity": self.name,
+            "admin": admin,
+            ("email" if ("@" in username_or_email) else "username"): username_or_email,
+        }
         try:
-            self._client.execute(self.CREATE_INVITE_MUTATION, variables)
-        except requests.exceptions.HTTPError:
+            self._client.execute(gql(CREATE_INVITE_GQL), variables)
+        except HTTPError:
             return False
         return True
 
-    def create_service_account(self, description):
+    def create_service_account(self, description: str) -> Member | None:
         """Create a service account for the team.
 
         Args:
@@ -214,31 +147,36 @@ class Team(Attrs):
         Returns:
             The service account `Member` object, or None on failure
         """
-        import requests
+        from requests import HTTPError
+
+        from wandb.apis._generated import CREATE_SERVICE_ACCOUNT_GQL
 
         try:
             self._client.execute(
-                self.CREATE_SERVICE_ACCOUNT_MUTATION,
-                {"description": description, "entityName": self.name},
+                gql(CREATE_SERVICE_ACCOUNT_GQL),
+                {"entity": self.name, "description": description},
             )
             self.load(True)
             return self.members[-1]
-        except requests.exceptions.HTTPError:
+        except HTTPError:
             return None
 
-    def load(self, force=False):
+    def load(self, force: bool = False) -> dict[str, Any]:
         """Return members that belong to a team.
 
         <!-- lazydoc-ignore: internal -->
         """
+        from wandb.apis._generated import GET_TEAM_ENTITY_GQL, GetTeamEntity
+
         if force or not self._attrs:
-            response = self._client.execute(self.TEAM_QUERY, {"name": self.name})
-            self._attrs = response["entity"]
+            data = self._client.execute(gql(GET_TEAM_ENTITY_GQL), {"name": self.name})
+            result = GetTeamEntity.model_validate(data)
+            self._attrs = entity.model_dump() if (entity := result.entity) else {}
             self._attrs["members"] = [
                 Member(self._client, self.name, member)
                 for member in self._attrs["members"]
             ]
         return self._attrs
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Team {self.name}>"

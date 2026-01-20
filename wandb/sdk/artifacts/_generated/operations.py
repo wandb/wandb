@@ -21,6 +21,7 @@ __all__ = [
     "DELETE_REGISTRY_MEMBERS_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
+    "FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL",
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "FETCH_REGISTRY_GQL",
@@ -398,7 +399,7 @@ fragment FileFragment on File {
   name: displayName
   url
   sizeBytes
-  storagePath @include(if: true)
+  storagePath
   mimetype
   updatedAt
   digest
@@ -441,7 +442,7 @@ fragment FileFragment on File {
   name: displayName
   url
   sizeBytes
-  storagePath @include(if: true)
+  storagePath
   mimetype
   updatedAt
   digest
@@ -1473,8 +1474,18 @@ query FetchOrgInfoFromEntity($entity: String!) {
 
 fragment OrgInfoFragment on Organization {
   name
-  orgEntity @include(if: true) {
+  orgEntity {
     name
+  }
+}
+"""
+
+FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL = """
+query FetchOrgEntityFromOrganization($organization: String!) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+    }
   }
 }
 """

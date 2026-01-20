@@ -4,7 +4,7 @@ fragment FileFragment on File {
   name: displayName
   url
   sizeBytes
-  storagePath @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
+  storagePath
   mimetype
   updatedAt
   digest

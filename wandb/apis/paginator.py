@@ -9,7 +9,6 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
-    Protocol,
     Sized,
     TypeVar,
     overload,
@@ -22,17 +21,13 @@ if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
     from wandb._pydantic import Connection
+    from wandb.apis.public.api import RetryingClient
 
 _WandbT = TypeVar("_WandbT")
 """Generic type variable for a W&B object."""
 
 _NodeT = TypeVar("_NodeT")
 """Generic type variable for a parsed GraphQL relay node."""
-
-
-# Structural type hint for the client instance
-class _Client(Protocol):
-    def execute(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
 
 
 class Paginator(Iterator[_WandbT], ABC):
@@ -42,11 +37,11 @@ class Paginator(Iterator[_WandbT], ABC):
 
     def __init__(
         self,
-        client: _Client,
+        client: RetryingClient,
         variables: Mapping[str, Any],
         per_page: int = 50,  # We don't allow unbounded paging
     ):
-        self.client: _Client = client
+        self.client = client
 
         # shallow copy partly guards against mutating the original input
         self.variables: dict[str, Any] = dict(variables)

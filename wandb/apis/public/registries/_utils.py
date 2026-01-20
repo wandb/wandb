@@ -9,7 +9,7 @@ from wandb_gql import gql
 from wandb._strutils import ensureprefix
 
 if TYPE_CHECKING:
-    from wandb_gql import Client
+    from wandb.apis.public.api import RetryingClient
 
 
 class Visibility(str, Enum):
@@ -93,35 +93,32 @@ def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
 
 
 @lru_cache(maxsize=10)
-def fetch_org_entity_from_organization(client: Client, organization: str) -> str:
+def fetch_org_entity_from_organization(
+    client: RetryingClient, organization: str
+) -> str:
     """Fetch the org entity from the organization.
 
     Args:
         client (Client): Graphql client.
         organization (str): The organization to fetch the org entity for.
     """
-    query = gql(
-        """
-        query FetchOrgEntityFromOrganization($organization: String!) {
-            organization(name: $organization) {
-                    orgEntity {
-                        name
-                    }
-                }
-            }
-        """
+    from wandb.sdk.artifacts._generated import (
+        FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL,
+        FetchOrgEntityFromOrganization,
     )
-    try:
-        response = client.execute(query, variable_values={"organization": organization})
-    except Exception as e:
-        raise ValueError(
-            f"Error fetching org entity for organization: {organization!r}"
-        ) from e
 
+    gql_op = gql(FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL)
+    try:
+        data = client.execute(gql_op, variable_values={"organization": organization})
+    except Exception as e:
+        msg = f"Error fetching org entity for organization: {organization!r}"
+        raise ValueError(msg) from e
+
+    result = FetchOrgEntityFromOrganization.model_validate(data)
     if (
-        not (org := response["organization"])
-        or not (org_entity := org["orgEntity"])
-        or not (org_name := org_entity["name"])
+        not (org := result.organization)
+        or not (org_entity := org.org_entity)
+        or not (org_name := org_entity.name)
     ):
         raise ValueError(f"Organization entity for {organization!r} not found.")
 

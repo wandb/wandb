@@ -2027,6 +2027,17 @@ pub struct OperationStatsResponse {
 /// wandb: + 7 more tasks
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OperationStats {
+    /// An optional short label for this set of operations.
+    ///
+    /// This is used when multiple OperationStats are presented simultaneously,
+    /// such as when syncing multiple runs in parallel.
+    ///
+    /// The difference between an Operation with subtasks and a labeled
+    /// OperationStats is that the latter does not represent an ongoing task.
+    /// For that reason, the label is optional and there is no duration,
+    /// progress information or error status.
+    #[prost(string, tag = "3")]
+    pub label: ::prost::alloc::string::String,
     /// The ongoing operations sorted by usefulness for the user to see.
     ///
     /// This may not contain all operations, but it may also contain more than can

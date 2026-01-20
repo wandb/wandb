@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
     from wandb._pydantic import Connection
-    from wandb.apis.paginator import _Client
+    from wandb.apis.public.api import RetryingClient
     from wandb.automations import Integration, SlackIntegration, WebhookIntegration
     from wandb.automations._generated import (
         SlackIntegrationFields,
@@ -35,7 +35,12 @@ class Integrations(RelayPaginator["IntegrationFields", "Integration"]):
     QUERY: ClassVar[Document | None] = None
     last_response: Connection[IntegrationFields] | None
 
-    def __init__(self, client: _Client, variables: dict[str, Any], per_page: int = 50):
+    def __init__(
+        self,
+        client: RetryingClient,
+        variables: dict[str, Any],
+        per_page: int = 50,
+    ):
         if self.QUERY is None:
             from wandb.automations._generated import INTEGRATIONS_BY_ENTITY_GQL
 

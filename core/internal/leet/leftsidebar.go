@@ -12,8 +12,6 @@ import (
 )
 
 const (
-	leftSidebarHeader = "Run Overview"
-
 	// Sidebar header lines (title + state + ID + name + project + blank line).
 	// TODO: replace with len(LeftSidebar.buildHeaderLines())
 	sidebarHeaderLines = 7
@@ -29,11 +27,11 @@ type LeftSidebar struct {
 
 	// UI state: sections, filtering, navigation.
 	// TODO: encapsulate and refactor
-	sections      []SectionView
+	sections      []PagedList
 	activeSection int
 
 	// Filter state.
-	filter Filter
+	filter *Filter
 
 	// Dimensions.
 	height int
@@ -42,18 +40,19 @@ type LeftSidebar struct {
 func NewLeftSidebar(config *ConfigManager) *LeftSidebar {
 	animState := NewAnimationState(config.LeftSidebarVisible(), SidebarMinWidth)
 
-	es := SectionView{Title: "Environment", Active: true}
+	es := PagedList{Title: "Environment", Active: true}
 	es.SetItemsPerPage(10)
-	cs := SectionView{Title: "Config"}
+	cs := PagedList{Title: "Config"}
 	cs.SetItemsPerPage(15)
-	ss := SectionView{Title: "Summary"}
+	ss := PagedList{Title: "Summary"}
 	ss.SetItemsPerPage(20)
 
 	return &LeftSidebar{
 		animState:     animState,
 		runOverview:   NewRunOverview(),
-		sections:      []SectionView{es, cs, ss},
+		sections:      []PagedList{es, cs, ss},
 		activeSection: 0,
+		filter:        NewFilter(),
 	}
 }
 
@@ -258,15 +257,14 @@ func (s *LeftSidebar) buildHeaderLines() []string {
 	lines := make([]string, 0, sidebarHeaderLines)
 
 	// Title.
-	lines = append(lines, leftSidebarHeaderStyle.Render(leftSidebarHeader))
+	lines = append(lines, leftSidebarHeaderStyle.Render(runOverviewHeader))
 
-	// Run state from data model.
-	stateLabel := "State: "
-	stateValue := s.runStateString()
-	lines = append(lines,
-		leftSidebarKeyStyle.Render(stateLabel)+leftSidebarValueStyle.Render(stateValue))
+	if s.runOverview.State() != RunStateUnknown {
+		lines = append(lines,
+			leftSidebarKeyStyle.Render("State: ")+
+				leftSidebarValueStyle.Render(s.runOverview.StateString()))
+	}
 
-	// Optional metadata from data model (only if present).
 	if id := s.runOverview.ID(); id != "" {
 		lines = append(lines,
 			leftSidebarKeyStyle.Render("ID: ")+leftSidebarValueStyle.Render(id))
@@ -330,7 +328,7 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 }
 
 // renderSectionHeader renders the section title with pagination info.
-func (s *LeftSidebar) renderSectionHeader(section *SectionView) string {
+func (s *LeftSidebar) renderSectionHeader(section *PagedList) string {
 	titleStyle := leftSidebarSectionStyle
 	if section.Active {
 		titleStyle = leftSidebarSectionHeaderStyle
@@ -350,7 +348,7 @@ func (s *LeftSidebar) renderSectionHeader(section *SectionView) string {
 
 // buildSectionInfo builds the pagination/count info string for a section.
 func (s *LeftSidebar) buildSectionInfo(
-	section *SectionView,
+	section *PagedList,
 	totalItems, filteredItems, startIdx, endIdx int,
 ) string {
 	switch {
@@ -370,7 +368,7 @@ func (s *LeftSidebar) buildSectionInfo(
 }
 
 // renderSectionItems renders the items for a section.
-func (s *LeftSidebar) renderSectionItems(section *SectionView, width int) []string {
+func (s *LeftSidebar) renderSectionItems(section *PagedList, width int) []string {
 	maxKeyWidth := int(float64(width) * leftSidebarKeyWidthRatio)
 	maxValueWidth := width - maxKeyWidth - 1
 
@@ -403,7 +401,7 @@ func (s *LeftSidebar) renderSectionItems(section *SectionView, width int) []stri
 func (s *LeftSidebar) renderItem(
 	item KeyValuePair,
 	posInPage int,
-	section *SectionView,
+	section *PagedList,
 	maxKeyWidth, maxValueWidth int,
 ) string {
 	keyStyle := leftSidebarKeyStyle
@@ -421,22 +419,6 @@ func (s *LeftSidebar) renderItem(
 	return fmt.Sprintf("%s %s",
 		keyStyle.Width(maxKeyWidth).Render(key),
 		valueStyle.Render(value))
-}
-
-// runStateString returns a string representation from the data model.
-func (s *LeftSidebar) runStateString() string {
-	switch s.runOverview.State() {
-	case RunStateRunning:
-		return "Running"
-	case RunStateFinished:
-		return "Finished"
-	case RunStateFailed:
-		return "Failed"
-	case RunStateCrashed:
-		return "Error"
-	default:
-		return "Unknown"
-	}
 }
 
 // hasNextVisibleSection returns true if there's another visible section after idx.

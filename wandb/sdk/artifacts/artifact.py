@@ -89,6 +89,7 @@ from .exceptions import (
 )
 from .staging import get_staging_dir
 from .storage_handlers.gcs_handler import _GCSIsADirectoryError
+from .storage_policies._factories import make_http_session
 from .storage_policies._multipart import should_multipart_download
 
 reset_path = vendor_setup()
@@ -623,9 +624,11 @@ class Artifact:
         The collection that an artifact originates from is known as
         the source sequence.
         """
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized")
         base_name = self.name.split(":")[0]
         return ArtifactCollection(
-            self._client, self.entity, self.project, base_name, self.type
+            client, self.entity, self.project, base_name, self.type
         )
 
     @property
@@ -673,9 +676,11 @@ class Artifact:
 
         The source collection is the collection that the artifact was logged from.
         """
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized")
         base_name = self.source_name.split(":")[0]
         return ArtifactCollection(
-            self._client, self.source_entity, self.source_project, base_name, self.type
+            client, self.source_entity, self.source_project, base_name, self.type
         )
 
     @property
@@ -1030,8 +1035,6 @@ class Artifact:
 
     def _fetch_manifest(self) -> ArtifactManifest:
         """Fetch, parse, and load the full ArtifactManifest."""
-        import requests
-
         from ._generated import FETCH_ARTIFACT_MANIFEST_GQL, FetchArtifactManifest
 
         if (client := self._client) is None:
@@ -1045,12 +1048,21 @@ class Artifact:
 
         # Now fetch the actual manifest contents from the directUrl.
         if (artifact := result.artifact) and (manifest := artifact.current_manifest):
-            # FIXME: For successive/repeated calls to `manifest`, figure out how to reuse a single
-            # `requests.Session` within the constraints of the current artifacts API.
-            # Right now, `requests.get()` creates a new session for _each_ fetch.
-            # This is wasteful and introduces a noticeable perf overhead when e.g.
-            # downloading many artifacts sequentially or concurrently.
-            response = requests.get(manifest.file.direct_url)
+            # Create a short lived session instead of using requests.get()
+            # because make_http_session() adds http headers from env vars.
+            # Artifact manifest json is also downloaded from object storage
+            # using presigned urls like artifact files, which requires adding
+            # extra http headers when user specifies them in env vars.
+            #
+            # FIXME: For successive/repeated calls to `manifest`, figure out
+            # how to reuse a single `requests.Session` within the constraints
+            # of the current API. Creating a new session for _each_ fetch is
+            # wasteful and introduces noticeable perf overhead when e.g.
+            # downloading many artifacts sequentially or concurrently. The
+            # storage policy's session is also not reused across different
+            # artifacts.
+            with make_http_session() as session:
+                response = session.get(manifest.file.direct_url)
             return ArtifactManifest.from_manifest_json(from_json(response.content))
 
         raise ValueError("Failed to fetch artifact manifest")
@@ -2307,7 +2319,9 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        return ArtifactFiles(self._client, self, names, per_page)
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized")
+        return ArtifactFiles(client, self, names, per_page)
 
     def _default_root(self, include_version: bool = True) -> FilePathStr:
         name = self.source_name if include_version else self.source_name.split(":")[0]

@@ -26,9 +26,7 @@ pub struct SessionInner {
 }
 
 pub fn get_core_address() -> String {
-    // TODO: get and set WANDB_CORE env variable to handle multiprocessing
-    let current_dir =
-        env::var("_WANDB_CORE_PATH").expect("Environment variable _WANDB_CORE_PATH is not set");
+    let current_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bin");
     let core_cmd = Path::new(&current_dir)
         .join("wandb-core")
         .into_os_string()

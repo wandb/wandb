@@ -40,9 +40,9 @@ from .files import File
 from .utils import gql_compat
 
 if TYPE_CHECKING:
-    from wandb_gql import Client
     from wandb_graphql.language.ast import Document
 
+    from wandb.apis.public.api import RetryingClient
     from wandb.sdk.artifacts._generated import (
         ArtifactAliasFragment,
         ArtifactCollectionFragment,
@@ -87,7 +87,12 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
     QUERY: ClassVar[Document | None] = None
     last_response: Connection[ArtifactAliasFragment] | None
 
-    def __init__(self, client: Client, collection_id: str, per_page: int = 1_000):
+    def __init__(
+        self,
+        client: RetryingClient,
+        collection_id: str,
+        per_page: int = 1_000,
+    ):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import ARTIFACT_COLLECTION_ALIASES_GQL
 
@@ -126,7 +131,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         entity: str,
         project: str,
         per_page: int = 50,
@@ -185,7 +190,7 @@ class ArtifactType:
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         entity: str,
         project: str,
         type_name: str,
@@ -283,7 +288,7 @@ class ArtifactCollections(
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         entity: str,
         project: str,
         type_name: str,
@@ -357,7 +362,7 @@ class ArtifactCollection:
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         entity: str,
         project: str,
         name: str,
@@ -698,7 +703,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         entity: str,
         project: str,
         collection_name: str,
@@ -796,7 +801,7 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         run: Run,
         mode: Literal["logged", "used"] = "logged",
         per_page: int = 50,
@@ -850,7 +855,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
 
     def __init__(
         self,
-        client: Client,
+        client: RetryingClient,
         artifact: Artifact,
         names: Sequence[str] | None = None,
         per_page: int = 50,
@@ -885,16 +890,11 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
                 "fileNames": names,
             }
 
-        omit_fields = set()
-
-        # The server must advertise at least SDK 0.12.21
-        # to get storagePath
-        if not client.version_supported("0.12.21"):
-            omit_fields.add("storagePath")
-
-        if not server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
-            omit_fields.add("totalCount")
-
+        omit_fields = (
+            None
+            if server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+            else {"totalCount"}
+        )
         self.QUERY = gql_compat(query_str, omit_fields=omit_fields)
         super().__init__(client, variables=variables, per_page=per_page)
 

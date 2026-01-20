@@ -1,0 +1,61 @@
+fragment SweepFragment on Sweep {
+  __typename
+  id
+  name
+  displayName
+  method
+  state
+  description
+  bestLoss
+  config
+  createdAt
+  updatedAt
+  runCount
+  runCountExpected
+}
+
+# Legacy fragment for servers that don't support displayName/runCountExpected.
+fragment LegacySweepFragment on Sweep {
+  __typename
+  id
+  name
+  state
+  bestLoss
+  config
+}
+
+# Paginated query for fetching sweeps in a project.
+# Note: totalSweeps is at the project level, not on the connection.
+query GetSweeps($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50) {
+  project(name: $project, entityName: $entity) {
+    totalSweeps
+    sweeps(after: $cursor, first: $perPage) {
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...SweepFragment
+        }
+      }
+    }
+  }
+}
+
+# Query for fetching a single sweep by name.
+query GetSweep($name: String!, $project: String, $entity: String) {
+  project(name: $project, entityName: $entity) {
+    sweep(sweepName: $name) {
+      ...SweepFragment
+    }
+  }
+}
+
+# Legacy query for servers that don't support displayName/runCountExpected.
+query GetSweepLegacy($name: String!, $project: String, $entity: String) {
+  project(name: $project, entityName: $entity) {
+    sweep(sweepName: $name) {
+      ...LegacySweepFragment
+    }
+  }
+}

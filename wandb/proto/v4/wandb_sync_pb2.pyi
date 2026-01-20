@@ -31,6 +31,7 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     PATH_FIELD_NUMBER: builtins.int
+    CWD_FIELD_NUMBER: builtins.int
     LIVE_FIELD_NUMBER: builtins.int
     SETTINGS_FIELD_NUMBER: builtins.int
     NEW_ENTITY_FIELD_NUMBER: builtins.int
@@ -40,8 +41,14 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
     def path(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
         """Paths to the .wandb files to upload.
 
-        Paths should be absolute.
+        Paths should either be absolute or relative to the cwd, and all paths
+        should refer to different files.
         """
+    cwd: builtins.str
+    """An absolute path to the user's current working directory.
+
+    Paths are displayed relative to this if the result is shorter.
+    """
     live: builtins.bool
     """Whether to perform a live sync."""
     @property
@@ -57,6 +64,7 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
         self,
         *,
         path: collections.abc.Iterable[builtins.str] | None = ...,
+        cwd: builtins.str = ...,
         live: builtins.bool = ...,
         settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
         new_entity: builtins.str = ...,
@@ -64,7 +72,7 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
         new_run_id: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["live", b"live", "new_entity", b"new_entity", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["cwd", b"cwd", "live", b"live", "new_entity", b"new_entity", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
 
 global___ServerInitSyncRequest = ServerInitSyncRequest
 
@@ -158,30 +166,12 @@ class ServerSyncStatusResponse(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    @typing_extensions.final
-    class StatsEntry(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-        KEY_FIELD_NUMBER: builtins.int
-        VALUE_FIELD_NUMBER: builtins.int
-        key: builtins.str
-        @property
-        def value(self) -> wandb.proto.wandb_internal_pb2.OperationStats: ...
-        def __init__(
-            self,
-            *,
-            key: builtins.str = ...,
-            value: wandb.proto.wandb_internal_pb2.OperationStats | None = ...,
-        ) -> None: ...
-        def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
-        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
-
     STATS_FIELD_NUMBER: builtins.int
     NEW_MESSAGES_FIELD_NUMBER: builtins.int
     @property
-    def stats(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, wandb.proto.wandb_internal_pb2.OperationStats]:
+    def stats(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[wandb.proto.wandb_internal_pb2.OperationStats]:
         """The status of any ongoing work (such as network requests),
-        keyed by the run path (entity/project/id).
+        labeled by the run it's for.
         """
     @property
     def new_messages(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerSyncMessage]:
@@ -189,7 +179,7 @@ class ServerSyncStatusResponse(google.protobuf.message.Message):
     def __init__(
         self,
         *,
-        stats: collections.abc.Mapping[builtins.str, wandb.proto.wandb_internal_pb2.OperationStats] | None = ...,
+        stats: collections.abc.Iterable[wandb.proto.wandb_internal_pb2.OperationStats] | None = ...,
         new_messages: collections.abc.Iterable[global___ServerSyncMessage] | None = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["new_messages", b"new_messages", "stats", b"stats"]) -> None: ...

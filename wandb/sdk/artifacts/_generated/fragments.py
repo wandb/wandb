@@ -148,7 +148,7 @@ class FileFragment(GQLResult):
     name: str
     url: Optional[str]
     size_bytes: int = Field(alias="sizeBytes")
-    storage_path: Optional[str] = Field(alias="storagePath", default=None)
+    storage_path: Optional[str] = Field(alias="storagePath")
     mimetype: Optional[str]
     updated_at: Optional[str] = Field(alias="updatedAt")
     digest: Optional[str]
@@ -164,9 +164,7 @@ class FileWithUrlFragment(GQLResult):
 
 class OrgInfoFragment(GQLResult):
     name: str
-    org_entity: Optional[OrgInfoFragmentOrgEntity] = Field(
-        alias="orgEntity", default=None
-    )
+    org_entity: Optional[OrgInfoFragmentOrgEntity] = Field(alias="orgEntity")
 
 
 class OrgInfoFragmentOrgEntity(GQLResult):
