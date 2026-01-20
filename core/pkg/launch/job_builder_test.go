@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/settings"
 	. "github.com/wandb/wandb/core/pkg/launch"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func writeRequirements(t *testing.T, fdir string) {

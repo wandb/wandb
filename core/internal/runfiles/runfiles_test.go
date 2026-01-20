@@ -9,6 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -20,8 +23,6 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watchertest"
-	"go.uber.org/mock/gomock"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )

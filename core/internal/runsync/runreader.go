@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/wire"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/stream"

@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	"github.com/wandb/wandb/core/pkg/leveldb"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/proto"
 )
 
 // TestNewLiveStore_ValidFile tests creating a LiveStore with a valid file
@@ -52,7 +53,7 @@ func TestNewLiveStore_InvalidHeader(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 
 	// Write invalid header data
-	_, err = tmpFile.Write([]byte("INVALID_HEADER_DATA"))
+	_, err = tmpFile.WriteString("INVALID_HEADER_DATA")
 	require.NoError(t, err)
 	tmpFile.Close()
 

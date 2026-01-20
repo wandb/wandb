@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/wandb/simplejsonext"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"

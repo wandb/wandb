@@ -23,6 +23,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pprof"

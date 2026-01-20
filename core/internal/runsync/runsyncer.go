@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/wire"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -16,7 +18,6 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"golang.org/x/sync/errgroup"
 )
 
 var runSyncerProviders = wire.NewSet(

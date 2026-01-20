@@ -13,9 +13,10 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/googleapis/gax-go/v2"
-	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/iterator"
+
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 type GCSClient interface {

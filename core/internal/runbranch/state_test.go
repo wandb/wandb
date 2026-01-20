@@ -5,12 +5,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/runbranch"
-	"github.com/wandb/wandb/core/internal/settings"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/wandb/wandb/core/internal/runbranch"
+	"github.com/wandb/wandb/core/internal/settings"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func assertProtoEqual(t *testing.T, expected proto.Message, actual proto.Message) {

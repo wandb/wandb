@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
+
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"

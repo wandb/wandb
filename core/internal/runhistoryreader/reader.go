@@ -13,6 +13,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
+
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"

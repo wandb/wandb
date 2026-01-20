@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // Settings for the SDK.

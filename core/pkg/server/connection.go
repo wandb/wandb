@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Khan/genqlient/graphql"
+
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -24,8 +25,9 @@ import (
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/wbapi"
 
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (

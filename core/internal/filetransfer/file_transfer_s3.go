@@ -11,9 +11,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
-	"golang.org/x/sync/errgroup"
 )
 
 type S3Client interface {

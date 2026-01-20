@@ -3,10 +3,11 @@ package runsync
 import (
 	"path/filepath"
 
-	"github.com/wandb/wandb/core/internal/settings"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/wandb/wandb/core/internal/settings"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // MakeSyncSettings creates the settings for syncing a run.

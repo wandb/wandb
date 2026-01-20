@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	leet "github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 )

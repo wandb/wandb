@@ -66,7 +66,7 @@ func TestProxyFn(t *testing.T) {
 				}(env)
 			}
 
-			req, err := http.NewRequest("GET", tt.requestURL, nil)
+			req, err := http.NewRequest("GET", tt.requestURL, http.NoBody)
 			if err != nil {
 				t.Fatalf("http.NewRequest failed: %v", err)
 			}

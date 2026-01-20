@@ -9,9 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandb/wandb/core/internal/paths"
 	"gocloud.dev/blob"
 	"gocloud.dev/blob/fileblob"
+
+	"github.com/wandb/wandb/core/internal/paths"
 
 	// Imported for the side-effect of registering blob.OpenBucket() providers.
 	_ "gocloud.dev/blob/azureblob"

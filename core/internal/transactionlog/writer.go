@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"os"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/core/pkg/leveldb"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/proto"
 )
 
 // Writer creates a .wandb file.

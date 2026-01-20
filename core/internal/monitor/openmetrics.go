@@ -13,10 +13,11 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	lru "github.com/hashicorp/golang-lru"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"

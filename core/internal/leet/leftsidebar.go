@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 

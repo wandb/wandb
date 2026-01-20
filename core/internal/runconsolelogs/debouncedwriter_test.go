@@ -7,9 +7,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
+
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/sparselist"
-	"golang.org/x/time/rate"
 )
 
 func TestDebouncesAndInvokesCallback(t *testing.T) {

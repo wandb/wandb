@@ -9,6 +9,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wandb/wandb/core/internal/gitops"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 )

@@ -8,9 +8,10 @@ import (
 	"os"
 	"sort"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/core/internal/hashencode"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/proto"
 )
 
 type ArtifactBuilder struct {

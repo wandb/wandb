@@ -9,6 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
@@ -18,8 +21,6 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"go.uber.org/mock/gomock"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // runRecord returns a Record with the run field set.

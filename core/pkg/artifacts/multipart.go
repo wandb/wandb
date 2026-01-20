@@ -9,10 +9,11 @@ import (
 	"runtime"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/observability"
-	"golang.org/x/sync/errgroup"
 )
 
 const (

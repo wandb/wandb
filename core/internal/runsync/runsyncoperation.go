@@ -6,10 +6,11 @@ import (
 	"slices"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"golang.org/x/sync/errgroup"
 )
 
 // RunSyncOperationFactory creates RunSyncOperations.

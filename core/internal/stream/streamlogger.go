@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/google/wire"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"

@@ -9,10 +9,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestOpenDebugSyncLogFile(t *testing.T) {

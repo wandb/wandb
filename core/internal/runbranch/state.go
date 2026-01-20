@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/wandb/simplejsonext"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type RunPath struct {

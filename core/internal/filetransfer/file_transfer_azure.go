@@ -20,8 +20,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
-	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 const (

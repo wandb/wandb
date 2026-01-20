@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 

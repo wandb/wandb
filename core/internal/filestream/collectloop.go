@@ -3,8 +3,9 @@ package filestream
 import (
 	"time"
 
-	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/time/rate"
+
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 // CollectLoop batches changes together to make filestream requests.

@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func newTestSystemMonitor(t *testing.T) *monitor.SystemMonitor {

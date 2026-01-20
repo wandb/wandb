@@ -4,8 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wandb/wandb/core/internal/sparselist"
 	"golang.org/x/time/rate"
+
+	"github.com/wandb/wandb/core/internal/sparselist"
 )
 
 // debouncedWriter buffers and rate limits line modifications.

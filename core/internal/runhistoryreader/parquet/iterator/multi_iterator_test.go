@@ -7,6 +7,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
 )
 

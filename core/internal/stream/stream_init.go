@@ -9,6 +9,8 @@ import (
 	"net/url"
 
 	"github.com/Khan/genqlient/graphql"
+	"golang.org/x/time/rate"
+
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -16,7 +18,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
-	"golang.org/x/time/rate"
 )
 
 // BaseURLFromSettings extracts the W&B server URL from W&B settings.

@@ -3,9 +3,10 @@ package runconsolelogs
 import (
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/sparselist"
-	"golang.org/x/time/rate"
 )
 
 // filestreamWriter sends modified console log lines to the filestream.

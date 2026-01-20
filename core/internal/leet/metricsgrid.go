@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
