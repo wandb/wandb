@@ -7,28 +7,28 @@ formatters:
   enable:
     - gofmt
     - golines
+    - goimports
+  settings:
+    goimports:
+      local-prefixes: github.com/wandb/wandb
 
 linters:
   enable:
-    - goimports
     - govet
     - gocritic
     - gocyclo
+  settings:
+    gocyclo:
+      min-complexity: 21
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
   exclusions:
     # https://golangci-lint.run/usage/false-positives/#preset-std-error-handling
     presets:
       - std-error-handling
-
-linters-settings:
-  gocyclo:
-    min-complexity: 21
-  goimports:
-    local-prefixes: github.com/wandb/wandb
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
 
 issues:
   exclude-dirs:
