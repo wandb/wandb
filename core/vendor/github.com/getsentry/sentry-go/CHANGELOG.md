@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.41.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.41.0.
+
+### Features
+
+- Add HTTP client integration for distributed tracing via `sentryhttpclient` package ([#876](https://github.com/getsentry/sentry-go/pull/876))
+  - Provides an `http.RoundTripper` implementation that automatically creates spans for outgoing HTTP requests
+  - Supports trace propagation targets configuration via `WithTracePropagationTargets` option
+  - Example usage:
+    ```go
+    import sentryhttpclient "github.com/getsentry/sentry-go/httpclient"
+
+    roundTripper := sentryhttpclient.NewSentryRoundTripper(nil)
+    client := &http.Client{
+        Transport: roundTripper,
+    }
+    ```
+- Add `ClientOptions.PropagateTraceparent` option to control W3C `traceparent` header propagation in outgoing HTTP requests ([#1161](https://github.com/getsentry/sentry-go/pull/1161))
+- Add `SpanID` field to structured logs ([#1169](https://github.com/getsentry/sentry-go/pull/1169))
+
 ## 0.40.0
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.40.0.

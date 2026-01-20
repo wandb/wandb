@@ -19,6 +19,7 @@ import (
 const (
 	SentryTraceHeader   = "sentry-trace"
 	SentryBaggageHeader = "baggage"
+	TraceparentHeader   = "traceparent"
 )
 
 // SpanOrigin indicates what created a trace or a span. See: https://develop.sentry.dev/sdk/performance/trace-origin/
@@ -318,6 +319,15 @@ func (s *Span) ToSentryTrace() string {
 		b.WriteString("-0")
 	}
 	return b.String()
+}
+
+// ToTraceparent returns the W3C traceparent header value for the span.
+func (s *Span) ToTraceparent() string {
+	traceFlags := "00"
+	if s.Sampled == SampledTrue {
+		traceFlags = "01"
+	}
+	return fmt.Sprintf("00-%s-%s-%s", s.TraceID.String(), s.SpanID.String(), traceFlags)
 }
 
 // ToBaggage returns the serialized DynamicSamplingContext from a transaction.

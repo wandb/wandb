@@ -35,7 +35,19 @@ def beta():
 
 @beta.command()
 @click.argument("path", nargs=1, type=click.Path(exists=True), required=False)
-def leet(path: str | None = None) -> None:
+@click.option(
+    "--pprof",
+    default="",
+    hidden=True,
+    help="""Run with pprof enabled at a specified address, e.g. --pprof=127.0.0.1:6060.
+
+    If set, serves /debug/pprof/* on this address, e.g. 127.0.0.1:6060/debug/pprof.
+    """,
+)
+def leet(
+    path: str | None = None,
+    pprof: str = "",
+) -> None:
     """Launch W&B LEET: the Lightweight Experiment Exploration Tool.
 
     LEET is a terminal UI for viewing a W&B run specified by an optional PATH.
@@ -45,7 +57,7 @@ def leet(path: str | None = None) -> None:
     """
     from . import beta_leet
 
-    beta_leet.launch(path)
+    beta_leet.launch(path, pprof)
 
 
 @beta.command()

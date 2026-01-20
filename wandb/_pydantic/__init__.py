@@ -22,7 +22,11 @@ __all__ = [
     "to_json",
     "from_json",
     "gql_typename",
+    "ValidationError",
 ]
+
+# Available in all supported Pydantic versions.
+from pydantic import ValidationError
 
 from .base import CompatBaseModel, GQLBase, GQLInput, GQLResult, JsonableModel
 from .field_types import GQLId, Typename

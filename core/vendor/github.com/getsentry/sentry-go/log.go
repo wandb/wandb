@@ -167,9 +167,6 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 			attrs["user.email"] = Attribute{Value: user.Email, Type: AttributeString}
 		}
 	}
-	if span != nil {
-		attrs["sentry.trace.parent_span_id"] = Attribute{Value: spanID.String(), Type: AttributeString}
-	}
 	if sdkIdentifier := l.client.sdkIdentifier; sdkIdentifier != "" {
 		attrs["sentry.sdk.name"] = Attribute{Value: sdkIdentifier, Type: AttributeString}
 	}
@@ -180,6 +177,7 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	log := &Log{
 		Timestamp:  time.Now(),
 		TraceID:    traceID,
+		SpanID:     spanID,
 		Level:      level,
 		Severity:   severity,
 		Body:       fmt.Sprintf(message, args...),
