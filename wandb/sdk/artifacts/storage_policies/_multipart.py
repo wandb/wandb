@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from queue import Queue
 from typing import TYPE_CHECKING, Any, Final, Iterator, Union
 
+import requests
 from typing_extensions import TypeAlias, TypeIs, final
 
 from wandb import env
@@ -17,6 +18,8 @@ from wandb.sdk.artifacts.artifact_file_cache import Opener
 
 if TYPE_CHECKING:
     from requests import Session
+
+    from ._url_provider import SharedUrlProvider
 
 logger = logging.getLogger(__name__)
 
@@ -105,16 +108,30 @@ def multipart_download(
     url: str,
     size: int,
     cached_open: Opener,
+    url_provider: SharedUrlProvider,
     part_size: int = MULTI_DEFAULT_PART_SIZE,
 ):
     """Download file as multiple parts in parallel.
 
     Only one thread for writing to file. Each part run one http request in one thread.
     HTTP response chunk of a file part is sent to the writer thread via a queue.
+
+    Args:
+        executor: Thread pool executor for parallel downloads.
+        session: HTTP session for making requests.
+        url: Initial presigned URL for downloading the file.
+        size: Total file size in bytes.
+        cached_open: Opener function for writing to cache.
+        url_provider: SharedUrlProvider for refreshing expired URLs.
+                     Chunks will retry with fresh URLs on 401/403.
+        part_size: Size of each download part in bytes.
     """
     # ------------------------------------------------------------------------------
     # Shared between threads
     ctx = MultipartDownloadContext(q=Queue(maxsize=500))
+
+    # Set initial URL in provider
+    url_provider.set_initial_url(url)
 
     # Put cache_open at top so we remove the tmp file when there is network error.
     with cached_open("wb") as f:
@@ -129,13 +146,41 @@ def multipart_download(
             # of the file. Example string: "bytes=0-499".
             bytes_range = f"{start}-" if (end is None) else f"{start}-{end}"
             headers = {"Range": f"bytes={bytes_range}"}
-            with session.get(url=url, headers=headers, stream=True) as rsp:
-                offset = start
-                for chunk in rsp.iter_content(chunk_size=RSP_CHUNK_SIZE):
-                    if ctx.cancel.is_set():
-                        return
-                    ctx.q.put(ChunkContent(offset=offset, data=chunk))
-                    offset += len(chunk)
+
+            # Get URL from provider (may be refreshed if expired)
+            current_url = url_provider.get_url()
+
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    with session.get(
+                        url=current_url, headers=headers, stream=True
+                    ) as rsp:
+                        # Check for auth errors indicating expired URL
+                        status_code = getattr(rsp, "status_code", None)
+                        if status_code in (401, 403):
+                            raise requests.HTTPError(response=rsp)
+
+                        offset = start
+                        for chunk in rsp.iter_content(chunk_size=RSP_CHUNK_SIZE):
+                            if ctx.cancel.is_set():
+                                return
+                            ctx.q.put(ChunkContent(offset=offset, data=chunk))
+                            offset += len(chunk)
+                        return  # Success, exit retry loop
+
+                except requests.HTTPError as e:
+                    status_code = getattr(e.response, "status_code", None)
+                    if status_code in (401, 403) and attempt < max_retries - 1:
+                        # URL likely expired, invalidate and get fresh URL
+                        if env.is_debug():
+                            logger.debug(
+                                f"Got {status_code} on attempt {attempt + 1}, refreshing URL"
+                            )
+                        url_provider.invalidate()
+                        current_url = url_provider.get_url()
+                        continue  # Retry with new URL
+                    raise  # Re-raise if not retryable or max retries exceeded
 
         def write_chunks() -> None:
             # If all chunks are written or there's an error in another thread, shutdown

@@ -41,6 +41,7 @@ from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 from ._factories import make_http_session, make_storage_handlers
+from ._url_provider import SharedUrlProvider
 
 if TYPE_CHECKING:
     import requests
@@ -142,7 +143,29 @@ class WandbStoragePolicy(StoragePolicy):
         if url := manifest_entry._download_url:
             # Use multipart parallel download for large file
             if executor and (size := manifest_entry.size):
-                multipart_download(executor, self._session, url, size, cache_open)
+                # Create URL provider with GraphQL-based refresh callback
+                def fetch_fresh_url() -> str:
+                    fresh_url = artifact._fetch_single_file_url(
+                        str(manifest_entry.path)
+                    )
+                    if fresh_url is None:
+                        raise ValueError(
+                            f"Failed to fetch URL for file: {manifest_entry.path}"
+                        )
+                    return fresh_url
+
+                url_provider = SharedUrlProvider(
+                    fetch_fn=fetch_fresh_url, ttl_seconds=5.0
+                )
+
+                multipart_download(
+                    executor,
+                    self._session,
+                    url,
+                    size,
+                    cache_open,
+                    url_provider=url_provider,
+                )
                 return path
 
             # Serial download
