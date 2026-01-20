@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -632,7 +633,7 @@ def test_reads_system_settings(
     assert settings.base_url == "https://test-url"
     assert settings.project == "my-project"
     mock_wandb_log.assert_logged_re(
-        r"^Loading settings from .+/system-settings-test-root/wandb/settings$",
+        rf"^Loading settings from {re.escape(str(settings_file))}$",
     )
 
 
@@ -691,9 +692,9 @@ def test_reports_invalid_system_settings(
     mock_wandb_log.assert_errored(str(field_invalid))
     if not quiet:
         mock_wandb_log.assert_logged_re(
-            r"^Loading settings from .+/system-settings-test-root/wandb/settings$",
+            rf"^Loading settings from {re.escape(str(settings_file))}$",
         )
     else:
         mock_wandb_log.assert_errored_re(
-            r"Failed to load settings from .+/system-settings-test-root/wandb/settings$",
+            rf"^Failed to load settings from {re.escape(str(settings_file))}$",
         )
