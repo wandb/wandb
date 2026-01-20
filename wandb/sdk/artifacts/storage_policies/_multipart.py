@@ -150,16 +150,18 @@ def multipart_download(
             # Get URL from provider (may be refreshed if expired)
             current_url = url_provider.get_url()
 
+            # FIXME: Sleep for 2 minutes to simulate URL expiration
+            # print("Sleeping for 70s to simulate URL expiration")
+            # time.sleep(70)
+            # print("Done sleeping")
+
             max_retries = 3
             for attempt in range(max_retries):
                 try:
                     with session.get(
                         url=current_url, headers=headers, stream=True
                     ) as rsp:
-                        # Check for auth errors indicating expired URL
-                        status_code = getattr(rsp, "status_code", None)
-                        if status_code in (401, 403):
-                            raise requests.HTTPError(response=rsp)
+                        rsp.raise_for_status()
 
                         offset = start
                         for chunk in rsp.iter_content(chunk_size=RSP_CHUNK_SIZE):
@@ -175,7 +177,7 @@ def multipart_download(
                         # URL likely expired, invalidate and get fresh URL
                         if env.is_debug():
                             logger.debug(
-                                f"Got {status_code} on attempt {attempt + 1}, refreshing URL"
+                                f"Download got {status_code} on attempt {attempt + 1}, refreshing URL"
                             )
                         url_provider.invalidate()
                         current_url = url_provider.get_url()
