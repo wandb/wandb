@@ -3,13 +3,21 @@ version: "2"
 run:
   timeout: 5m
 
-linters:
+formatters:
   enable:
     - gofmt
+    - golines
+
+linters:
+  enable:
     - goimports
     - govet
     - gocritic
     - gocyclo
+  exclusions:
+    # https://golangci-lint.run/usage/false-positives/#preset-std-error-handling
+    presets:
+      - std-error-handling
 
 linters-settings:
   gocyclo:
