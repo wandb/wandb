@@ -915,7 +915,7 @@ class Settings(BaseModel, validate_assignment=True):
         def validate_mutual_exclusion_of_branching_args(self) -> Self:
             """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
 
-            <!-- lazydoc-ignore-classmethod: internal -->
+            <!-- lazydoc-ignore: internal -->
             """
             if (
                 sum(
