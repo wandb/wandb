@@ -41,12 +41,14 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
-      - name: Install Dependencies
-        run: pip install bump2version click
+      - name: Install Python Dependencies and uv
+        run: |
+          pip install bump2version click
+          curl -LsSf https://astral.sh/uv/install.sh | sh
 
       - name: Create and Switch to Release Branch
         run: |
-          git checkout -b release-${{ github.event.inputs.version }}
+          git switch -c release-${{ github.event.inputs.version }}
 
       - name: Bump Version
         run: |
@@ -60,10 +62,10 @@ jobs:
 
       - name: Lint changes
         run: |
-          pip install pre-commit
-          pre-commit install
+          uv tool install prek
+          prek install
           # if there are linting errors, this will fix them and proceed
-          sh -c 'pre-commit run trailing-whitespace --all-files --hook-stage pre-push' || exit 0
+          sh -c 'prek run trailing-whitespace --all-files --hook-stage pre-push' || exit 0
 
       - name: Commit and push changes
         run: |
