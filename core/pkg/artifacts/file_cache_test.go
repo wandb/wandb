@@ -12,13 +12,13 @@ import (
 	"github.com/wandb/wandb/core/internal/hashencode"
 )
 
-func setupTestEnvironment(t *testing.T) (*FileCache, func()) {
+func setupTestEnvironment(t *testing.T) (cache *FileCache, cleanup func()) {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "wandb_test")
 	require.NoError(t, err)
 	_ = os.Setenv("WANDB_CACHE_DIR", dir)
 
-	cleanup := func() {
+	cleanup = func() {
 		_ = os.RemoveAll(dir)
 		_ = os.Unsetenv("WANDB_CACHE_DIR")
 	}
