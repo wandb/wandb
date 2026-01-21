@@ -58,8 +58,8 @@ func (f *RunSyncOperationFactory) New(
 			continue
 		}
 
-		settings := MakeSyncSettings(globalSettings, userPath)
-		factory := InjectRunSyncerFactory(settings, op.logger)
+		s := MakeSyncSettings(globalSettings, userPath)
+		factory := InjectRunSyncerFactory(s, op.logger)
 		op.syncers = append(op.syncers,
 			factory.New(path, ToDisplayPath(userPath, cwd), updates, live))
 	}

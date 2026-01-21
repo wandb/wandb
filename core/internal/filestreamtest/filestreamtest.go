@@ -30,7 +30,7 @@ func (fs *FakeFileStream) GetUpdates() []filestream.Update {
 
 // GetRequest returns a request accumulated from applying all updates.
 func (fs *FakeFileStream) GetRequest(
-	settings *settings.Settings,
+	s *settings.Settings,
 ) *filestream.FileStreamRequest {
 	fullRequest := &filestream.FileStreamRequest{}
 
@@ -40,7 +40,7 @@ func (fs *FakeFileStream) GetRequest(
 				fullRequest.Merge(request)
 			},
 
-			Settings: settings,
+			Settings: s,
 			Logger:   observability.NewNoOpLogger(),
 			Printer:  observability.NewPrinter(),
 		})
