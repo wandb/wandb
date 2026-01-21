@@ -12,7 +12,7 @@ import (
 
 // Peeker stores HTTP responses for failed requests.
 type Peeker struct {
-	mu sync.Mutex
+	mu        sync.Mutex
 	responses []*spb.HttpResponse
 }
 
