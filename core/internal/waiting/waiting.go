@@ -56,7 +56,7 @@ func (d *realDelay) IsZero() bool {
 	return d.duration == 0
 }
 
-func (d *realDelay) Wait() (delayCh <-chan struct{}, cleanupFunc func()) {
+func (d *realDelay) Wait() (<-chan struct{}, func()) {
 	if d.IsZero() {
 		return completedDelay(), func() {}
 	}
@@ -94,7 +94,7 @@ func (s *realStopwatch) Reset() {
 	s.startTimeMicros.Store(time.Now().UnixMicro())
 }
 
-func (s *realStopwatch) Wait() (<-chan struct{}, func()) { //nolint
+func (s *realStopwatch) Wait() (<-chan struct{}, func()) {
 	ch := make(chan struct{})
 	cancel := make(chan struct{})
 

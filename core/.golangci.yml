@@ -24,6 +24,8 @@ linters:
       settings:
         hugeParam:
           sizeThreshold: 129
+      disabled-checks:
+        - unnamedResult
       enabled-tags:
         - diagnostic
         - style
