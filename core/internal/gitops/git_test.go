@@ -14,8 +14,8 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
-func setupTestRepo() (string, func(), error) {
-	repoPath, err := os.MkdirTemp("", "testrepo")
+func setupTestRepo() (repoPath string, cleanupFunc func(), err error) {
+	repoPath, err = os.MkdirTemp("", "testrepo")
 	if err != nil {
 		return "", nil, err
 	}
@@ -29,7 +29,7 @@ func setupTestRepo() (string, func(), error) {
 		return "", nil, err
 	}
 	tempFile := filepath.Join(repoPath, "temp.txt")
-	err = os.WriteFile(tempFile, []byte("test content"), 0644)
+	err = os.WriteFile(tempFile, []byte("test content"), 0o644)
 	if err != nil {
 		return "", nil, err
 	}
@@ -64,8 +64,8 @@ func TestIsAvailable(t *testing.T) {
 	defer cleanup()
 
 	logger := observabilitytest.NewTestLogger(t)
-	git := gitops.New(repoPath, logger)
-	available := git.IsAvailable()
+	g := gitops.New(repoPath, logger)
+	available := g.IsAvailable()
 	assert.True(t, available)
 }
 
@@ -77,8 +77,8 @@ func TestLatestCommit(t *testing.T) {
 	defer cleanup()
 
 	logger := observabilitytest.NewTestLogger(t)
-	git := gitops.New(repoPath, logger)
-	latest, err := git.LatestCommit("HEAD")
+	g := gitops.New(repoPath, logger)
+	latest, err := g.LatestCommit("HEAD")
 	assert.NoError(t, err)
 	assert.Len(t, latest, 40)
 }
@@ -92,7 +92,7 @@ func TestSavePatch(t *testing.T) {
 
 	// append a line to the temp.txt file
 	tempFile := filepath.Join(repoPath, "temp.txt")
-	err = os.WriteFile(tempFile, []byte("test content\n"), 0644)
+	err = os.WriteFile(tempFile, []byte("test content\n"), 0o644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,8 +107,8 @@ func TestSavePatch(t *testing.T) {
 	outputPath := filepath.Join(tempDir, "diff.patch")
 
 	logger := observabilitytest.NewTestLogger(t)
-	git := gitops.New(repoPath, logger)
-	err = git.SavePatch("HEAD", outputPath)
+	g := gitops.New(repoPath, logger)
+	err = g.SavePatch("HEAD", outputPath)
 	assert.NoError(t, err)
 	assert.FileExists(t, outputPath)
 	// check that the patch file contains the new line

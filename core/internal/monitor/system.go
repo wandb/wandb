@@ -200,8 +200,7 @@ func (s *System) processAndDescendants(ctx context.Context, pid int32) ([]*proce
 		select {
 		case <-ctx.Done():
 			return out, nil
-		default:
-			// continue processing
+		default: // continue processing
 		}
 
 		currProc := queue[0]
