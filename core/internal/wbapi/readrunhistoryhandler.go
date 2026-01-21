@@ -40,26 +40,26 @@ type RunHistoryAPIHandler struct {
 }
 
 func NewRunHistoryAPIHandler(
-	settings *settings.Settings,
+	s *settings.Settings,
 	sentryClient *sentry_ext.Client,
 ) *RunHistoryAPIHandler {
 	logger := observability.NewNoOpLogger()
-	baseURL := stream.BaseURLFromSettings(logger, settings)
-	credentialProvider := stream.CredentialsFromSettings(logger, settings)
+	baseURL := stream.BaseURLFromSettings(logger, s)
+	credentialProvider := stream.CredentialsFromSettings(logger, s)
 	graphqlClient := stream.NewGraphQLClient(
 		baseURL,
 		"", /*clientID*/
 		credentialProvider,
 		logger,
 		&observability.Peeker{},
-		settings,
+		s,
 	)
 
 	httpClient := retryablehttp.NewClient()
-	httpClient.RetryMax = int(settings.GetFileTransferMaxRetries())
-	httpClient.RetryWaitMin = settings.GetFileTransferRetryWaitMin()
-	httpClient.RetryWaitMax = settings.GetFileTransferRetryWaitMax()
-	httpClient.HTTPClient.Timeout = settings.GetFileTransferTimeout()
+	httpClient.RetryMax = int(s.GetFileTransferMaxRetries())
+	httpClient.RetryWaitMin = s.GetFileTransferRetryWaitMin()
+	httpClient.RetryWaitMax = s.GetFileTransferRetryWaitMax()
+	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
 
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,

@@ -94,7 +94,7 @@ func NewEpochLineChart(title string) *EpochLineChart {
 		yMin:  math.Inf(1),
 		yMax:  math.Inf(-1),
 	}
-	chart.graphStyle.Store(graphStyle)
+	chart.graphStyle.Store(&graphStyle)
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
 

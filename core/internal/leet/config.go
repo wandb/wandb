@@ -202,7 +202,7 @@ func (cm *ConfigManager) save() error {
 }
 
 // MetricsGrid returns the metrics grid configuration.
-func (cm *ConfigManager) MetricsGrid() (int, int) {
+func (cm *ConfigManager) MetricsGrid() (rows, cols int) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.config.MetricsGrid.Rows, cm.config.MetricsGrid.Cols
@@ -233,7 +233,7 @@ func (cm *ConfigManager) SetMetricsCols(cols int) error {
 }
 
 // SystemGrid returns the system grid configuration.
-func (cm *ConfigManager) SystemGrid() (int, int) {
+func (cm *ConfigManager) SystemGrid() (rows, cols int) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.config.SystemGrid.Rows, cm.config.SystemGrid.Cols

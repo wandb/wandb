@@ -26,11 +26,11 @@ func TestOpenDebugSyncLogFile(t *testing.T) {
 
 		// Test that OpenDebugSyncLogFile creates the directory.
 		wandbDir := filepath.Join(t.TempDir(), "my-dir", "wandb")
-		settings := settings.From(&spb.Settings{
+		s := settings.From(&spb.Settings{
 			WandbDir: wrapperspb.String(wandbDir),
 		})
 
-		file, err := runsync.OpenDebugSyncLogFile(settings)
+		file, err := runsync.OpenDebugSyncLogFile(s)
 		require.NoError(t, err)
 		require.NotNil(t, file)
 		file.Close()

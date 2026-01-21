@@ -408,7 +408,7 @@ func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error
 func (ft *AzureFileTransfer) getBlob(
 	blobInfo ParsedBlobInfo,
 	task *ReferenceArtifactDownloadTask,
-) (string, string, error) {
+) (blobName, versionId string, err error) {
 	blobClient := ft.blobClient
 	if ft.blobClient == nil {
 		client, err := setupBlobClient(task)
@@ -435,7 +435,7 @@ func (ft *AzureFileTransfer) getBlob(
 	}
 
 	// Otherwise, find the correct blob version
-	blobName, versionId, err := ft.getCorrectBlobVersion(blobInfo, task)
+	blobName, versionId, err = ft.getCorrectBlobVersion(blobInfo, task)
 	if err != nil {
 		return "", "", err
 	}
@@ -447,7 +447,7 @@ func (ft *AzureFileTransfer) getBlob(
 func (ft *AzureFileTransfer) getCorrectBlobVersion(
 	blobInfo ParsedBlobInfo,
 	task *ReferenceArtifactDownloadTask,
-) (string, string, error) {
+) (blobName, versionId string, err error) {
 	containerUrl := fmt.Sprintf("%s/%s", blobInfo.AccountUrl, blobInfo.Container)
 	containerClient, err := ft.containerClients.LoadOrStore(containerUrl, setupContainerClient)
 	if err != nil {

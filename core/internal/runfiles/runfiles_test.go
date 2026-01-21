@@ -423,7 +423,7 @@ func TestUploader(t *testing.T) {
 			testAbs := filepath.Join(filesDir, testRel)
 			writeEmptyFile(t, testAbs)
 
-			require.NoError(t, os.Chmod(testAbs, os.FileMode(0644)))
+			require.NoError(t, os.Chmod(testAbs, os.FileMode(0o644)))
 
 			// 1) First Process -> schedules a single upload task.
 			stubCreateRunFilesOneFile(mockGQLClient, testRel)
