@@ -37,7 +37,7 @@ const testGif1x1 = "" +
 	// random Gif data
 	"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
 
-func scalarValue(tag string, plugin string, value float32) *tbproto.Summary_Value {
+func scalarValue(tag, plugin string, value float32) *tbproto.Summary_Value {
 	return &tbproto.Summary_Value{
 		Tag: tag,
 		Value: &tbproto.Summary_Value_SimpleValue{
@@ -51,7 +51,7 @@ func scalarValue(tag string, plugin string, value float32) *tbproto.Summary_Valu
 	}
 }
 
-func tensorValue(tag string, plugin string, dims []int, values ...float32) *tbproto.Summary_Value {
+func tensorValue(tag, plugin string, dims []int, values ...float32) *tbproto.Summary_Value {
 	tensor := &tbproto.TensorProto{
 		Dtype:    tbproto.DataType_DT_FLOAT,
 		FloatVal: values,
@@ -108,10 +108,8 @@ func tensorValueStrings(
 }
 
 func tensorValueImage(
-	tag string,
-	plugin string,
-	width int,
-	height int,
+	tag, plugin string,
+	width, height int,
 	encodedImageData string,
 ) *tbproto.Summary_Value {
 	return &tbproto.Summary_Value{
@@ -132,8 +130,7 @@ func tensorValueImage(
 }
 
 func tensorValueBytes(
-	tag string,
-	plugin string,
+	tag, plugin string,
 	dtype tbproto.DataType,
 	data []byte,
 ) *tbproto.Summary_Value {

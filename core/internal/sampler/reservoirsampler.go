@@ -111,10 +111,10 @@ func (rs *ReservoirSampler[T]) Sample() []T {
 // uniformly from the range (0, 1).
 //
 // 'k' is the size of the sample we are generating.
-func getSkipAndW(rand *rand.Rand, w float64, k int) (int, float64) {
-	nextW := w * math.Exp(randLogFloat(rand)/float64(k))
+func getSkipAndW(r *rand.Rand, w float64, k int) (int, float64) {
+	nextW := w * math.Exp(randLogFloat(r)/float64(k))
 
-	skip := int(randLogFloat(rand) / math.Log(1-nextW))
+	skip := int(randLogFloat(r) / math.Log(1-nextW))
 
 	if skip < 0 {
 		// This can only happen on overflow. It just means that the current
@@ -129,8 +129,8 @@ func getSkipAndW(rand *rand.Rand, w float64, k int) (int, float64) {
 //
 // The returned value is roughly in the range (-710, 0], since the logarithm
 // of the smallest nonzero float64 is approximately -709.
-func randLogFloat(rand *rand.Rand) float64 {
-	x := rand.Float64()
+func randLogFloat(r *rand.Rand) float64 {
+	x := r.Float64()
 
 	if x <= 0 {
 		return math.Log(math.SmallestNonzeroFloat64)

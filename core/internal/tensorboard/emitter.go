@@ -299,7 +299,7 @@ func (e *tfEmitter) EmitImages(
 
 func (e *tfEmitter) verifyAndGetImagesMetadata(
 	images []wbvalue.Image,
-) (format string, width int, height int, err error) {
+) (format string, width, height int, err error) {
 	// All Tensorboard images in a summary step should be of the same format.
 	// https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/image/summary.py#L85
 	format = images[0].Format
@@ -344,10 +344,10 @@ func (e *tfEmitter) writeDataToPath(path string, data []byte) error {
 	}
 
 	// Create path, and write data to file.
-	if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o777); err != nil {
 		return fmt.Errorf("error creating directory: %v", err)
 	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("error writing data to file: %v", err)
 	}
 
