@@ -44,12 +44,12 @@ func TestSamplesAreUniform(t *testing.T) {
 	// a sample of 10 values from the range [0, 99], we expect each value to
 	// occur in a sample about 10,000 times.
 
-	rand := getTestRandom()
+	r := getTestRandom()
 	freq := make([]int, 100)
 
 	// Run trials and see how often each number is sampled.
 	for range 100000 {
-		s := sampler.NewReservoirSampler[int](rand, 10)
+		s := sampler.NewReservoirSampler[int](r, 10)
 		for i := range 100 {
 			s.Add(i)
 		}

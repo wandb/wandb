@@ -18,7 +18,7 @@ import (
 )
 
 func writeRequirements(t *testing.T, fdir string) {
-	f, err := os.OpenFile(filepath.Join(fdir, REQUIREMENTS_FNAME), os.O_CREATE|os.O_WRONLY, 0777)
+	f, err := os.OpenFile(filepath.Join(fdir, REQUIREMENTS_FNAME), os.O_CREATE|os.O_WRONLY, 0o777)
 	assert.Nil(t, err)
 	_, err = f.WriteString("wandb")
 	assert.Nil(t, err)
@@ -27,8 +27,8 @@ func writeRequirements(t *testing.T, fdir string) {
 	_ = f.Close()
 }
 
-func writeWandbMetadata(t *testing.T, fdir string, metadata map[string]interface{}) {
-	f, err := os.OpenFile(filepath.Join(fdir, WANDB_METADATA_FNAME), os.O_CREATE|os.O_WRONLY, 0777)
+func writeWandbMetadata(t *testing.T, fdir string, metadata map[string]any) {
+	f, err := os.OpenFile(filepath.Join(fdir, WANDB_METADATA_FNAME), os.O_CREATE|os.O_WRONLY, 0o777)
 	assert.Nil(t, err)
 	metaDataString, err := json.Marshal(metadata)
 	assert.Nil(t, err)
@@ -40,7 +40,7 @@ func writeWandbMetadata(t *testing.T, fdir string, metadata map[string]interface
 }
 
 func writeDiffFile(t *testing.T, fdir string) {
-	f, err := os.OpenFile(filepath.Join(fdir, DIFF_FNAME), os.O_CREATE|os.O_WRONLY, 0777)
+	f, err := os.OpenFile(filepath.Join(fdir, DIFF_FNAME), os.O_CREATE|os.O_WRONLY, 0o777)
 	assert.Nil(t, err)
 	_, err = f.WriteString("wandb")
 	assert.Nil(t, err)
@@ -49,8 +49,8 @@ func writeDiffFile(t *testing.T, fdir string) {
 	_ = f.Close()
 }
 
-func writeFile(t *testing.T, fdir string, fname string, content string) {
-	f, err := os.OpenFile(filepath.Join(fdir, fname), os.O_CREATE|os.O_WRONLY, 0777)
+func writeFile(t *testing.T, fdir, fname, content string) {
+	f, err := os.OpenFile(filepath.Join(fdir, fname), os.O_CREATE|os.O_WRONLY, 0o777)
 	assert.Nil(t, err)
 	_, err = f.WriteString(content)
 	assert.Nil(t, err)
@@ -63,9 +63,9 @@ func TestJobBuilderRepo(t *testing.T) {
 	t.Run("Build repo sourced job", func(t *testing.T) {
 		gql := gqlmock.NewMockClient()
 		ctx := context.Background()
-		metadata := map[string]interface{}{
+		metadata := map[string]any{
 			"python": "3.11.2",
-			"git": map[string]interface{}{
+			"git": map[string]any{
 				"commit": "1234567890",
 				"remote": "example.com",
 			},
@@ -74,7 +74,7 @@ func TestJobBuilderRepo(t *testing.T) {
 
 		syncDir := filepath.Join(os.TempDir(), "test")
 		fdir := filepath.Join(syncDir, "files")
-		err := os.MkdirAll(fdir, 0777)
+		err := os.MkdirAll(fdir, 0o777)
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
 		writeDiffFile(t, fdir)
@@ -111,24 +111,24 @@ func TestJobBuilderRepo(t *testing.T) {
 					_ = jobFile.Close()
 				}()
 				assert.Nil(t, err)
-				data := make(map[string]interface{})
+				data := make(map[string]any)
 				err = json.NewDecoder(jobFile).Decode(&data)
 				assert.Nil(t, err)
 				assert.Equal(t, "3.11.2", data["runtime"])
 				assert.Equal(
 					t,
 					"1234567890",
-					data["source"].(map[string]interface{})["git"].(map[string]interface{})["commit"],
+					data["source"].(map[string]any)["git"].(map[string]any)["commit"],
 				)
 				assert.Equal(
 					t,
 					"example.com",
-					data["source"].(map[string]interface{})["git"].(map[string]interface{})["remote"],
+					data["source"].(map[string]any)["git"].(map[string]any)["remote"],
 				)
 				assert.Equal(
 					t,
 					[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
-					data["source"].(map[string]interface{})["entrypoint"],
+					data["source"].(map[string]any)["entrypoint"],
 				)
 			}
 		}
@@ -139,7 +139,7 @@ func TestJobBuilderRepo(t *testing.T) {
 		gql := gqlmock.NewMockClient()
 		syncDir := filepath.Join(os.TempDir(), "test")
 		fdir := filepath.Join(syncDir, "files")
-		err := os.MkdirAll(fdir, 0777)
+		err := os.MkdirAll(fdir, 0o777)
 		assert.Nil(t, err)
 		_, err = os.Create(filepath.Join(fdir, "Untitled.ipynb"))
 		assert.Nil(t, err)
@@ -147,9 +147,9 @@ func TestJobBuilderRepo(t *testing.T) {
 		assert.Nil(t, err)
 
 		assert.Nil(t, err)
-		metadata := map[string]interface{}{
+		metadata := map[string]any{
 			"python": "3.11.2",
-			"git": map[string]interface{}{
+			"git": map[string]any{
 				"commit": "1234567890",
 				"remote": "example.com",
 			},
@@ -188,33 +188,34 @@ func TestJobBuilderRepo(t *testing.T) {
 		assert.Equal(t, "c49daf702bc4e81a094df1cc6b00961c", artifact.Digest)
 		assert.Equal(t, []string{"latest"}, artifact.Aliases)
 		for _, content := range artifact.Manifest.Contents {
-			if content.Path == "wandb-job.json" {
-				jobFile, err := os.Open(content.LocalPath)
-				assert.Nil(t, err)
-				defer func() {
-					_ = jobFile.Close()
-				}()
-				assert.Nil(t, err)
-				data := make(map[string]interface{})
-				err = json.NewDecoder(jobFile).Decode(&data)
-				assert.Nil(t, err)
-				assert.Equal(t, "3.11.2", data["runtime"])
-				assert.Equal(
-					t,
-					"1234567890",
-					data["source"].(map[string]interface{})["git"].(map[string]interface{})["commit"],
-				)
-				assert.Equal(
-					t,
-					"example.com",
-					data["source"].(map[string]interface{})["git"].(map[string]interface{})["remote"],
-				)
-				assert.Equal(
-					t,
-					[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
-					data["source"].(map[string]interface{})["entrypoint"],
-				)
+			if content.Path != "wandb-job.json" {
+				continue
 			}
+			jobFile, err := os.Open(content.LocalPath)
+			assert.Nil(t, err)
+			defer func() {
+				_ = jobFile.Close()
+			}()
+			assert.Nil(t, err)
+			data := make(map[string]any)
+			err = json.NewDecoder(jobFile).Decode(&data)
+			assert.Nil(t, err)
+			assert.Equal(t, "3.11.2", data["runtime"])
+			assert.Equal(
+				t,
+				"1234567890",
+				data["source"].(map[string]any)["git"].(map[string]any)["commit"],
+			)
+			assert.Equal(
+				t,
+				"example.com",
+				data["source"].(map[string]any)["git"].(map[string]any)["remote"],
+			)
+			assert.Equal(
+				t,
+				[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
+				data["source"].(map[string]any)["entrypoint"],
+			)
 		}
 	})
 }
@@ -222,14 +223,14 @@ func TestJobBuilderArtifact(t *testing.T) {
 	t.Run("Build artifact sourced job", func(t *testing.T) {
 		ctx := context.Background()
 		gql := gqlmock.NewMockClient()
-		metadata := map[string]interface{}{
+		metadata := map[string]any{
 			"python":   "3.11.2",
 			"codePath": "/path/to/train.py",
 		}
 
 		syncDir := filepath.Join(os.TempDir(), "test")
 		fdir := filepath.Join(syncDir, "files")
-		err := os.MkdirAll(fdir, 0777)
+		err := os.MkdirAll(fdir, 0o777)
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
@@ -270,20 +271,20 @@ func TestJobBuilderArtifact(t *testing.T) {
 					_ = jobFile.Close()
 				}()
 				assert.Nil(t, err)
-				data := make(map[string]interface{})
+				data := make(map[string]any)
 				err = json.NewDecoder(jobFile).Decode(&data)
 				assert.Nil(t, err)
 				assert.Equal(t, "3.11.2", data["runtime"])
 				assert.Equal(
 					t,
 					"wandb-artifact://_id/testArtifactId",
-					data["source"].(map[string]interface{})["artifact"],
+					data["source"].(map[string]any)["artifact"],
 				)
 				assert.Equal(t, "artifact", data["source_type"])
 				assert.Equal(
 					t,
 					[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
-					data["source"].(map[string]interface{})["entrypoint"],
+					data["source"].(map[string]any)["entrypoint"],
 				)
 			}
 		}
@@ -294,7 +295,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 		gql := gqlmock.NewMockClient()
 		syncDir := filepath.Join(os.TempDir(), "test")
 		fdir := filepath.Join(syncDir, "files")
-		err := os.MkdirAll(fdir, 0777)
+		err := os.MkdirAll(fdir, 0o777)
 		assert.Nil(t, err)
 		_, err = os.Create(filepath.Join(fdir, "Untitled.ipynb"))
 		assert.Nil(t, err)
@@ -302,7 +303,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 		assert.Nil(t, err)
 
 		assert.Nil(t, err)
-		metadata := map[string]interface{}{
+		metadata := map[string]any{
 			"python":        "3.11.2",
 			"program":       "Untitled.ipynb",
 			"codePathLocal": "Untitled.ipynb",
@@ -350,20 +351,20 @@ func TestJobBuilderArtifact(t *testing.T) {
 					_ = jobFile.Close()
 				}()
 				assert.Nil(t, err)
-				data := make(map[string]interface{})
+				data := make(map[string]any)
 				err = json.NewDecoder(jobFile).Decode(&data)
 				assert.Nil(t, err)
 				assert.Equal(t, "3.11.2", data["runtime"])
 				assert.Equal(
 					t,
 					"wandb-artifact://_id/testArtifactId",
-					data["source"].(map[string]interface{})["artifact"],
+					data["source"].(map[string]any)["artifact"],
 				)
 				assert.Equal(t, "artifact", data["source_type"])
 				assert.Equal(
 					t,
 					[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
-					data["source"].(map[string]interface{})["entrypoint"],
+					data["source"].(map[string]any)["entrypoint"],
 				)
 			}
 		}
@@ -373,14 +374,14 @@ func TestJobBuilderImage(t *testing.T) {
 	t.Run("Build image sourced job", func(t *testing.T) {
 		ctx := context.Background()
 		gql := gqlmock.NewMockClient()
-		metadata := map[string]interface{}{
+		metadata := map[string]any{
 			"docker": "testImage:testTag",
 			"python": "3.11.2",
 		}
 
 		syncDir := filepath.Join(os.TempDir(), "test")
 		fdir := filepath.Join(syncDir, "files")
-		err := os.MkdirAll(fdir, 0777)
+		err := os.MkdirAll(fdir, 0o777)
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
@@ -417,7 +418,7 @@ func TestJobBuilderImage(t *testing.T) {
 					_ = jobFile.Close()
 				}()
 				assert.Nil(t, err)
-				data := make(map[string]interface{})
+				data := make(map[string]any)
 				err = json.NewDecoder(jobFile).Decode(&data)
 				assert.Nil(t, err)
 				assert.Equal(t, "3.11.2", data["runtime"])
@@ -425,7 +426,7 @@ func TestJobBuilderImage(t *testing.T) {
 				assert.Equal(
 					t,
 					"testImage:testTag",
-					data["source"].(map[string]interface{})["image"],
+					data["source"].(map[string]any)["image"],
 				)
 			}
 		}
@@ -475,7 +476,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		gql := gqlmock.NewMockClient()
 		syncDir := filepath.Join(os.TempDir(), "test")
 		fdir := filepath.Join(syncDir, "files")
-		err := os.MkdirAll(fdir, 0777)
+		err := os.MkdirAll(fdir, 0o777)
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
 
@@ -497,10 +498,10 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 	t.Run("Missing python in metadata", func(t *testing.T) {
 		ctx := context.Background()
 		gql := gqlmock.NewMockClient()
-		metadata := map[string]interface{}{}
+		metadata := map[string]any{}
 		syncDir := filepath.Join(os.TempDir(), "test")
 		fdir := filepath.Join(syncDir, "files")
-		err := os.MkdirAll(fdir, 0777)
+		err := os.MkdirAll(fdir, 0o777)
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
@@ -844,9 +845,9 @@ func TestWandbConfigParameters(t *testing.T) {
 
 	ctx := context.Background()
 	gql := gqlmock.NewMockClient()
-	metadata := map[string]interface{}{
+	metadata := map[string]any{
 		"python": "3.11.2",
-		"git": map[string]interface{}{
+		"git": map[string]any{
 			"commit": "1234567890",
 			"remote": "example.com",
 		},
@@ -875,11 +876,11 @@ func TestWandbConfigParameters(t *testing.T) {
 		observabilitytest.NewTestLogger(t),
 		true,
 	)
-	runConfig := map[string]interface{}{
+	runConfig := map[string]any{
 		"key1": "value1",
 		"key2": "value2",
-		"key3": map[string]interface{}{
-			"key4": map[string]interface{}{
+		"key3": map[string]any{
+			"key4": map[string]any{
 				"key6": "value6",
 				"key7": "value7",
 			},
@@ -898,25 +899,25 @@ func TestWandbConfigParameters(t *testing.T) {
 	})
 	artifact, err := jobBuilder.Build(ctx, gql, runConfig, nil)
 	assert.Nil(t, err)
-	var artifactMetadata map[string]interface{}
+	var artifactMetadata map[string]any
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
-	inputs := artifactMetadata["input_types"].(map[string]interface{})
+	inputs := artifactMetadata["input_types"].(map[string]any)
 	assert.Nil(t, err)
-	assert.Equal(t, map[string]interface{}{
-		WandbConfigKey: map[string]interface{}{
-			"params": map[string]interface{}{
-				"type_map": map[string]interface{}{
-					"key1": map[string]interface{}{
+	assert.Equal(t, map[string]any{
+		WandbConfigKey: map[string]any{
+			"params": map[string]any{
+				"type_map": map[string]any{
+					"key1": map[string]any{
 						"wb_type": "string",
 					},
-					"key3": map[string]interface{}{
-						"params": map[string]interface{}{
-							"type_map": map[string]interface{}{
-								"key4": map[string]interface{}{
+					"key3": map[string]any{
+						"params": map[string]any{
+							"type_map": map[string]any{
+								"key4": map[string]any{
 									"wb_type": "typedDict",
-									"params": map[string]interface{}{
-										"type_map": map[string]interface{}{
-											"key7": map[string]interface{}{
+									"params": map[string]any{
+										"type_map": map[string]any{
+											"key7": map[string]any{
 												"wb_type": "string",
 											},
 										},
@@ -939,9 +940,9 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 
 	ctx := context.Background()
 	gql := gqlmock.NewMockClient()
-	metadata := map[string]interface{}{
+	metadata := map[string]any{
 		"python": "3.11.2",
-		"git": map[string]interface{}{
+		"git": map[string]any{
 			"commit": "1234567890",
 			"remote": "example.com",
 		},
@@ -970,27 +971,27 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 		observabilitytest.NewTestLogger(t),
 		true,
 	)
-	runConfig := map[string]interface{}{
+	runConfig := map[string]any{
 		"key1": "value1",
 		"key2": "value2",
-		"key3": map[string]interface{}{
-			"key4": map[string]interface{}{
+		"key3": map[string]any{
+			"key4": map[string]any{
 				"key6": "value6",
 				"key7": "value7",
 			},
 			"key5": "value5",
 		},
 	}
-	inputSchema, _ := json.Marshal(map[string]interface{}{
+	inputSchema, _ := json.Marshal(map[string]any{
 		"type": "object",
-		"properties": map[string]interface{}{
-			"key1": map[string]interface{}{
+		"properties": map[string]any{
+			"key1": map[string]any{
 				"type": "string",
 			},
-			"key3": map[string]interface{}{
+			"key3": map[string]any{
 				"type": "object",
-				"properties": map[string]interface{}{
-					"key5": map[string]interface{}{
+				"properties": map[string]any{
+					"key5": map[string]any{
 						"type": "string",
 					},
 				},
@@ -1013,18 +1014,18 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 	var artifactMetadata map[string]any
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
-	schema := artifactMetadata["input_schemas"].(map[string]interface{})
-	assert.Equal(t, map[string]interface{}{
-		WandbConfigKey: map[string]interface{}{
+	schema := artifactMetadata["input_schemas"].(map[string]any)
+	assert.Equal(t, map[string]any{
+		WandbConfigKey: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"key1": map[string]interface{}{
+			"properties": map[string]any{
+				"key1": map[string]any{
 					"type": "string",
 				},
-				"key3": map[string]interface{}{
+				"key3": map[string]any{
 					"type": "object",
-					"properties": map[string]interface{}{
-						"key5": map[string]interface{}{
+					"properties": map[string]any{
+						"key5": map[string]any{
 							"type": "string",
 						},
 					},
@@ -1041,9 +1042,9 @@ func TestConfigFileParameters(t *testing.T) {
 
 	ctx := context.Background()
 	gql := gqlmock.NewMockClient()
-	metadata := map[string]interface{}{
+	metadata := map[string]any{
 		"python": "3.11.2",
-		"git": map[string]interface{}{
+		"git": map[string]any{
 			"commit": "1234567890",
 			"remote": "example.com",
 		},
@@ -1090,22 +1091,22 @@ func TestConfigFileParameters(t *testing.T) {
 	artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 
 	assert.Nil(t, err)
-	var artifactMetadata map[string]interface{}
+	var artifactMetadata map[string]any
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
-	inputs := artifactMetadata["input_types"].(map[string]interface{})
-	files := inputs["files"].(map[string]interface{})
+	inputs := artifactMetadata["input_types"].(map[string]any)
+	files := inputs["files"].(map[string]any)
 	assert.Nil(t, err)
-	assert.Equal(t, map[string]interface{}{
-		"config.yaml": map[string]interface{}{
-			"params": map[string]interface{}{
-				"type_map": map[string]interface{}{
-					"key1": map[string]interface{}{
+	assert.Equal(t, map[string]any{
+		"config.yaml": map[string]any{
+			"params": map[string]any{
+				"type_map": map[string]any{
+					"key1": map[string]any{
 						"wb_type": "string",
 					},
-					"key3": map[string]interface{}{
-						"params": map[string]interface{}{
-							"type_map": map[string]interface{}{
-								"key5": map[string]interface{}{
+					"key3": map[string]any{
+						"params": map[string]any{
+							"type_map": map[string]any{
+								"key5": map[string]any{
 									"wb_type": "string",
 								},
 							},
@@ -1125,9 +1126,9 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 
 	ctx := context.Background()
 	gql := gqlmock.NewMockClient()
-	metadata := map[string]interface{}{
+	metadata := map[string]any{
 		"python": "3.11.2",
-		"git": map[string]interface{}{
+		"git": map[string]any{
 			"commit": "1234567890",
 			"remote": "example.com",
 		},
@@ -1160,16 +1161,16 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 		true,
 	)
 
-	inputSchema, _ := json.Marshal(map[string]interface{}{
+	inputSchema, _ := json.Marshal(map[string]any{
 		"type": "object",
-		"properties": map[string]interface{}{
-			"key1": map[string]interface{}{
+		"properties": map[string]any{
+			"key1": map[string]any{
 				"type": "string",
 			},
-			"key3": map[string]interface{}{
+			"key3": map[string]any{
 				"type": "object",
-				"properties": map[string]interface{}{
-					"key5": map[string]interface{}{
+				"properties": map[string]any{
+					"key5": map[string]any{
 						"type": "string",
 					},
 				},
@@ -1191,22 +1192,22 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 	artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 
 	assert.Nil(t, err)
-	var artifactMetadata map[string]interface{}
+	var artifactMetadata map[string]any
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
-	metadataInputSchema := artifactMetadata["input_schemas"].(map[string]interface{})
-	files := metadataInputSchema["files"].(map[string]interface{})
-	assert.Equal(t, map[string]interface{}{
-		"config.yaml": map[string]interface{}{
+	metadataInputSchema := artifactMetadata["input_schemas"].(map[string]any)
+	files := metadataInputSchema["files"].(map[string]any)
+	assert.Equal(t, map[string]any{
+		"config.yaml": map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"key1": map[string]interface{}{
+			"properties": map[string]any{
+				"key1": map[string]any{
 					"type": "string",
 				},
-				"key3": map[string]interface{}{
+				"key3": map[string]any{
 					"type": "object",
-					"properties": map[string]interface{}{
-						"key5": map[string]interface{}{
+					"properties": map[string]any{
+						"key5": map[string]any{
 							"type": "string",
 						},
 					},

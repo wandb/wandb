@@ -18,7 +18,7 @@ func newUnsavedWork(value string) runwork.MaybeSavedWork {
 	}
 }
 
-func newSavedWork(value string, num int64, offset int64) runwork.MaybeSavedWork {
+func newSavedWork(value string, num, offset int64) runwork.MaybeSavedWork {
 	return runwork.MaybeSavedWork{
 		Work:         &runworktest.NoopWork{Value: value},
 		IsSaved:      true,

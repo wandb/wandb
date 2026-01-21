@@ -204,7 +204,7 @@ func (w *outputFileWriter) createNewChunk() error {
 
 	// 6 = read, write permissions for the user.
 	// 4 = read-only for "group" and "other".
-	chunk, err := CreateLineFile(fullPath, 0644)
+	chunk, err := CreateLineFile(fullPath, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to create chunk file: %v", err)
 	}

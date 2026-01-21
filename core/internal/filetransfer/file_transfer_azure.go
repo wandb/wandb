@@ -565,7 +565,7 @@ func (ft *AzureFileTransfer) downloadBlobToFile(
 	localPath string,
 ) error {
 	// Create or open a local file where we can download the blob
-	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 		return fmt.Errorf(
 			"unable to create destination directory %s: %w",
 			filepath.Dir(localPath),

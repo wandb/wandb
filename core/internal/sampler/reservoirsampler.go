@@ -38,15 +38,15 @@ type reservoirItem[T comparable] struct {
 	originalIndex int
 }
 
-func NewReservoirSampler[T comparable](rand *rand.Rand, k int) *ReservoirSampler[T] {
+func NewReservoirSampler[T comparable](r *rand.Rand, k int) *ReservoirSampler[T] {
 	// NOTE: nextAccepted is initialized to the index of the next item after
 	// the first k items that ends up in the sample. We only start to use it
 	// after the first k items have been selected.
-	skip, w := getSkipAndW(rand, 1, k)
+	skip, w := getSkipAndW(r, 1, k)
 	nextAccepted := k + skip
 
 	return &ReservoirSampler[T]{
-		rand:         rand,
+		rand:         r,
 		k:            k,
 		w:            w,
 		nextAccepted: nextAccepted,

@@ -63,7 +63,7 @@ type FailOpenFileFs struct {
 	afero.Fs
 }
 
-func (fs FailOpenFileFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+func (fofs FailOpenFileFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
 	return nil, fmt.Errorf("simulated open file error")
 }
 

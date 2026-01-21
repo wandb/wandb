@@ -57,7 +57,7 @@ func NewTerminal(
 func (t *Terminal) Write(input string) {
 	for _, char := range input {
 		switch {
-		case len(t.escapeSequence) == 0:
+		case t.escapeSequence == "":
 			switch char {
 			default:
 				t.putChar(char)

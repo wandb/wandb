@@ -14,7 +14,7 @@ const (
 )
 
 type cache struct {
-	lru *lru.Cache
+	*lru.Cache
 }
 
 // newCache creates a new cache
@@ -22,11 +22,11 @@ func newCache(size int) (*cache, error) {
 	if size == 0 {
 		size = defaultCacheSize
 	}
-	lru, err := lru.New(size)
+	c, err := lru.New(size)
 	if err != nil {
 		return nil, err
 	}
-	return &cache{lru: lru}, nil
+	return &cache{c}, nil
 }
 
 // shouldCapture returns true if the error should be captured
@@ -41,20 +41,13 @@ func (c *cache) shouldCapture(err error) bool {
 	hash := hex.EncodeToString(h.Sum(nil))
 
 	now := time.Now()
-	if lastSent, exists := c.lru.Get(hash); exists {
+	if lastSent, exists := c.Get(hash); exists {
 		if now.Sub(lastSent.(time.Time)) < recentErrorDuration {
 			return false // Skip sending the error if it's too recent
 		}
 	}
 
 	// Update the timestamp for the error
-	c.lru.Add(hash, now)
+	c.Add(hash, now)
 	return true
-}
-
-// Len returns the number of items in the cache
-//
-// This function is used for testing.
-func (c *cache) Len() int {
-	return c.lru.Len()
 }

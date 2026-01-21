@@ -389,7 +389,7 @@ func (h *Handler) handleMetric(record *spb.Record) {
 		return
 	}
 
-	if len(metric.Name) > 0 {
+	if metric.Name != "" {
 		// TODO: Add !h.settings.IsEnableServerSideDerivedSummary() to the condition
 		// once we support server-side derived summary aggregation (min, max, mean, etc.)
 		h.metricHandler.UpdateSummary(metric.Name, h.runSummary)

@@ -63,8 +63,8 @@ type tfEmitter struct {
 	settings *settings.Settings
 }
 
-func NewTFEmitter(settings *settings.Settings) *tfEmitter {
-	return &tfEmitter{settings: settings}
+func NewTFEmitter(s *settings.Settings) *tfEmitter {
+	return &tfEmitter{settings: s}
 }
 
 // Emit sends accumulated data to the run.

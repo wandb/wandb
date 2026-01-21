@@ -68,7 +68,7 @@ func CredentialsFromSettings(
 //
 // The default environment proxy settings are read from the environment variables
 // HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
-func ProxyFn(httpProxy string, httpsProxy string) func(req *http.Request) (*url.URL, error) {
+func ProxyFn(httpProxy, httpsProxy string) func(req *http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
 		if req.URL.Scheme == "http" && httpProxy != "" {
 			proxyURLParsed, err := url.Parse(httpProxy)

@@ -105,7 +105,7 @@ func openStreamLoggerFile(settings *settings.Settings) streamLoggerFile {
 	loggerFile, err := os.OpenFile(
 		path,
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0666,
+		0o666,
 	)
 
 	if err != nil {

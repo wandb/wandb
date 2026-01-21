@@ -46,7 +46,7 @@ func localConfigUpdate(items []*spb.ConfigItem) *spb.Record {
 	}
 }
 
-func assertProtoEqual(t *testing.T, expected proto.Message, actual proto.Message) {
+func assertProtoEqual(t *testing.T, expected, actual proto.Message) {
 	assert.True(t,
 		proto.Equal(expected, actual),
 		"Value is\n\t%v\nbut expected\n\t%v", actual, expected)
@@ -164,10 +164,10 @@ func TestTableUpdatesHistory(t *testing.T) {
 }
 
 func TestEmitImages(t *testing.T) {
-	settings := settings.From(&spb.Settings{
+	s := settings.From(&spb.Settings{
 		SyncDir: wrapperspb.String(t.TempDir()),
 	})
-	emitter := tensorboard.NewTFEmitter(settings)
+	emitter := tensorboard.NewTFEmitter(s)
 	require.NoError(t,
 		emitter.EmitImages(
 			pathtree.PathOf("my", "image"),
@@ -199,6 +199,6 @@ func TestEmitImages(t *testing.T) {
 		assert.Regexp(t,
 			`media/images/[a-z0-9]{32}\.png`,
 			filepath.ToSlash(file.Path))
-		assert.FileExists(t, filepath.Join(settings.GetFilesDir(), file.Path))
+		assert.FileExists(t, filepath.Join(s.GetFilesDir(), file.Path))
 	}
 }

@@ -135,9 +135,6 @@ func makeOutput(record *spb.Record) data {
 		}
 		items := map[string]string{}
 		for _, item := range history.Item {
-			// if strings.HasPrefix(item.Key, "_") {
-			// 	continue
-			// }
 			items[strings.Join(item.NestedKey, ".")] = item.ValueJson
 		}
 		return data{

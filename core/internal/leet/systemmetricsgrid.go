@@ -141,7 +141,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) *TimeSeriesLineCha
 		baseIdx = (g.nextColor - 1) % len(colors)
 	}
 
-	return NewTimeSeriesLineChart(TimeSeriesLineChartParams{
+	return NewTimeSeriesLineChart(&TimeSeriesLineChartParams{
 		chartWidth, chartHeight,
 		def,
 		baseColor,

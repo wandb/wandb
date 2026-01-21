@@ -31,6 +31,7 @@ linters:
       - std-error-handling
 
 issues:
+  max-issues-per-linter: 1000
   exclude-dirs:
     - vendor
   exclude-files:

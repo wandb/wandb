@@ -124,7 +124,7 @@ type hashWorkerTask struct {
 
 // splitHashTasks distributes parts evenly among workers for parallel processing.
 // If parts cannot be divided evenly, extra parts are distributed to earlier workers.
-func splitHashTasks(numParts int, numWorkers int) []hashWorkerTask {
+func splitHashTasks(numParts, numWorkers int) []hashWorkerTask {
 	partsPerWorker := numParts / numWorkers
 	workersWithOneMorePart := numParts % numWorkers
 

@@ -34,7 +34,7 @@ type TimeSeriesLineChartParams struct {
 	Now           time.Time
 }
 
-func NewTimeSeriesLineChart(params TimeSeriesLineChartParams) *TimeSeriesLineChart {
+func NewTimeSeriesLineChart(params *TimeSeriesLineChartParams) *TimeSeriesLineChart {
 	graphStyle := lipgloss.NewStyle().Foreground(params.BaseColor)
 
 	// Show the most recent 10 minutes (slight look-back).

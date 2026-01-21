@@ -299,6 +299,6 @@ func (ft *GCSFileTransfer) getObject(
 	return object, nil
 }
 
-func (ft *GCSFileTransfer) formatDownloadError(context string, err error) error {
-	return fmt.Errorf("GCSFileTransfer: Download: %s: %v", context, err)
+func (ft *GCSFileTransfer) formatDownloadError(ctx string, err error) error {
+	return fmt.Errorf("GCSFileTransfer: Download: %s: %v", ctx, err)
 }

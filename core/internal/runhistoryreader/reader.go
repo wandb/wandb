@@ -201,7 +201,7 @@ func (h *HistoryReader) downloadRunHistoryFile(
 	downloadDir string,
 	fileName string,
 ) error {
-	err := os.MkdirAll(downloadDir, 0755)
+	err := os.MkdirAll(downloadDir, 0o755)
 	if err != nil {
 		return err
 	}

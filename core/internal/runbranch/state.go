@@ -25,11 +25,11 @@ type RunPath struct {
 // If the run's entity or project is not known, this returns an error.
 func (path RunPath) URL(appURL string) (string, error) {
 	switch {
-	case len(path.Entity) == 0:
+	case path.Entity == "":
 		return "", errors.New("no entity")
-	case len(path.Project) == 0:
+	case path.Project == "":
 		return "", errors.New("no project")
-	case len(path.RunID) == 0:
+	case path.RunID == "":
 		return "", errors.New("no run ID")
 	}
 

@@ -31,7 +31,7 @@ func setupTestEnvironment(t *testing.T) (*FileCache, func()) {
 
 func TestNewFileCache(t *testing.T) {
 	_, cleanup := setupTestEnvironment(t)
-	defer cleanup()
+	cleanup()
 }
 
 func TestFileCache_Write(t *testing.T) {

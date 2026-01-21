@@ -881,13 +881,13 @@ func (s *Sender) scheduleFileUpload(
 	}
 	runPath := *maybeRunPath
 
-	if err = os.WriteFile(
+	if err := os.WriteFile(
 		filepath.Join(
 			s.settings.GetFilesDir(),
 			string(runPath),
 		),
 		content,
-		0644,
+		0o644,
 	); err != nil {
 		return err
 	}

@@ -35,7 +35,7 @@ func TestNewTimeSeriesLineChart_ConstructsAndInitializes(t *testing.T) {
 	}
 	now := time.Unix(1_700_000_000, 0)
 
-	ch := leet.NewTimeSeriesLineChart(leet.TimeSeriesLineChartParams{
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
 		80, 20,
 		def,
 		lipgloss.AdaptiveColor{Light: "#FF00FF", Dark: "#FF00FF"}, // base color
@@ -46,9 +46,9 @@ func TestNewTimeSeriesLineChart_ConstructsAndInitializes(t *testing.T) {
 	require.Equal(t, "CPU (%)", ch.Title())
 	require.Equal(t, now, ch.LastUpdate(), "constructor sets last update to now")
 
-	min, max := ch.ValueBounds()
-	require.True(t, math.IsInf(min, +1))
-	require.True(t, math.IsInf(max, -1))
+	minimum, maximum := ch.ValueBounds()
+	require.True(t, math.IsInf(minimum, +1))
+	require.True(t, math.IsInf(maximum, -1))
 }
 
 func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
@@ -61,8 +61,9 @@ func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
 		Percentage: false,
 	}
 	now := time.Unix(1_700_000_000, 0)
-	ch := leet.NewTimeSeriesLineChart(leet.TimeSeriesLineChartParams{
-		80, 20, def, lipgloss.AdaptiveColor{Light: "#ABCDEF", Dark: "#ABCDEF"}, stubColorProvider(), now})
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		80, 20, def, lipgloss.AdaptiveColor{Light: "#ABCDEF", Dark: "#ABCDEF"},
+		stubColorProvider(), now})
 
 	// First point
 	ts1 := now.Add(-5 * time.Minute).Unix()
@@ -71,26 +72,26 @@ func TestAddDataPoint_DefaultSeries_BookKeeping(t *testing.T) {
 
 	require.Equal(t, time.Unix(ts1, 0), ch.LastUpdate())
 
-	min, max := ch.ValueBounds()
-	require.Equal(t, val1, min)
-	require.Equal(t, val1, max)
+	minimum, maximum := ch.ValueBounds()
+	require.Equal(t, val1, minimum)
+	require.Equal(t, val1, maximum)
 	require.Equal(t, 0, ch.TestSeriesCount(), "Default dataset should not create a named series")
 
 	// Lower value adjusts min only
 	ts2 := ts1 + 5
 	val2 := 10.0
 	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, ts2, val2)
-	min, max = ch.ValueBounds()
-	require.Equal(t, val2, min)
-	require.Equal(t, val1, max)
+	minimum, maximum = ch.ValueBounds()
+	require.Equal(t, val2, minimum)
+	require.Equal(t, val1, maximum)
 
 	// Higher value adjusts max only
 	ts3 := ts2 + 5
 	val3 := 20.0
 	ch.AddDataPoint(leet.DefaultSystemMetricSeriesName, ts3, val3)
-	min, max = ch.ValueBounds()
-	require.Equal(t, val2, min)
-	require.Equal(t, val3, max)
+	minimum, maximum = ch.ValueBounds()
+	require.Equal(t, val2, minimum)
+	require.Equal(t, val3, maximum)
 	require.Equal(t, time.Unix(ts3, 0), ch.LastUpdate())
 }
 
@@ -104,8 +105,9 @@ func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 		Percentage: false,
 	}
 	now := time.Unix(1_700_000_000, 0)
-	ch := leet.NewTimeSeriesLineChart(leet.TimeSeriesLineChartParams{
-		80, 20, def, lipgloss.AdaptiveColor{Light: "#FF00FF", Dark: "#FF00FF"}, stubColorProvider("#00FF00", "#0000FF"), now})
+	ch := leet.NewTimeSeriesLineChart(&leet.TimeSeriesLineChartParams{
+		80, 20, def, lipgloss.AdaptiveColor{Light: "#FF00FF", Dark: "#FF00FF"},
+		stubColorProvider("#00FF00", "#0000FF"), now})
 
 	ts := now.Unix()
 	ch.AddDataPoint("cpu0", ts, 30)
@@ -119,7 +121,7 @@ func TestAddDataPoint_NamedSeries_CreatesSeriesOnDemand(t *testing.T) {
 	require.Equal(t, 2, ch.TestSeriesCount(), "reusing series must not change count")
 
 	// Bounds track across all series
-	min, max := ch.ValueBounds()
-	require.Equal(t, 15.0, min)
-	require.Equal(t, 70.0, max)
+	minimum, maximum := ch.ValueBounds()
+	require.Equal(t, 15.0, minimum)
+	require.Equal(t, 70.0, maximum)
 }

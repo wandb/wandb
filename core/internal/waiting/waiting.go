@@ -56,7 +56,7 @@ func (d *realDelay) IsZero() bool {
 	return d.duration == 0
 }
 
-func (d *realDelay) Wait() (<-chan struct{}, func()) {
+func (d *realDelay) Wait() (delayCh <-chan struct{}, cleanupFunc func()) {
 	if d.IsZero() {
 		return completedDelay(), func() {}
 	}

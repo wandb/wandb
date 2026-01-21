@@ -34,7 +34,7 @@ func (mh *MetricHandler) Exists(key string) bool {
 
 // ProcessRecord updates metric definitions.
 func (mh *MetricHandler) ProcessRecord(record *spb.MetricRecord) error {
-	if len(record.StepMetric) > 0 {
+	if record.StepMetric != "" {
 		if _, ok := mh.latestStep[record.StepMetric]; !ok {
 			mh.latestStep[record.StepMetric] = 0
 		}

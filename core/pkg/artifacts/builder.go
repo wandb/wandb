@@ -58,7 +58,7 @@ func (b *ArtifactBuilder) AddData(name string, data any) error {
 	return nil
 }
 
-func (b *ArtifactBuilder) AddFile(path string, name string) error {
+func (b *ArtifactBuilder) AddFile(path, name string) error {
 
 	file, err := os.Open(path)
 	if err != nil {

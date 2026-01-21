@@ -183,7 +183,7 @@ func (rs *RunSyncer) printRunURL() {
 
 	displayName := upserter.DisplayName()
 
-	if len(displayName) > 0 {
+	if displayName != "" {
 		rs.printer.Infof("View run %s at %s", displayName, url)
 	} else {
 		rs.printer.Infof("View run at %s", url)
