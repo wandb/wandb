@@ -265,7 +265,7 @@ func (f *lineFileIO) cursorBack() error {
 //
 // If the cursor is already at the start of the file, the second return
 // value is true.
-func (f *lineFileIO) peekPrevByte() (byte, bool, error) {
+func (f *lineFileIO) peekPrevByte() (prevByte byte, isAtStart bool, err error) {
 	if f.cursor == 0 {
 		return 0, true, nil
 	}

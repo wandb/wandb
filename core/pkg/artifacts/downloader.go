@@ -211,7 +211,7 @@ func (ad *ArtifactDownloader) addEntriesToBatch(
 	manifest Manifest,
 	manifestEntriesCopy map[string]ManifestEntry,
 	nameToScheduledTime map[string]time.Time,
-) ([]ManifestEntry, int, bool, error) {
+) (entries []ManifestEntry, numSkipped int, hasNextPage bool, err error) {
 	curBatchSize, numSkipped := 0, 0
 	var entriesToFetch []gql.ArtifactManifestEntryInput
 	for filePath, entry := range manifestEntriesCopy {
@@ -237,7 +237,7 @@ func (ad *ArtifactDownloader) addEntriesToBatch(
 			break
 		}
 	}
-	entries := []ManifestEntry{}
+	entries = []ManifestEntry{}
 	if len(entriesToFetch) > 0 {
 		var err error
 		entries, err = ad.getBatchEntriesWithFileUrls(
@@ -251,7 +251,7 @@ func (ad *ArtifactDownloader) addEntriesToBatch(
 			return nil, 0, false, err
 		}
 	}
-	hasNextPage := len(manifestEntriesCopy) > 0
+	hasNextPage = len(manifestEntriesCopy) > 0
 	return entries, numSkipped, hasNextPage, nil
 }
 

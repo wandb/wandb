@@ -313,7 +313,7 @@ func TestLiveStore_PartialWrite(t *testing.T) {
 	w.Close()
 
 	// Append partial record data (simulate interrupted write)
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
 	require.NoError(t, err)
 	// Write incomplete record header
 	_, _ = f.Write([]byte{0x00, 0x00}) // Partial record that will cause read error

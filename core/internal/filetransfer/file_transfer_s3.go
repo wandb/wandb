@@ -309,6 +309,6 @@ func (ft *S3FileTransfer) downloadFile(
 	return fileutil.CopyReaderToFile(object.Body, localPath)
 }
 
-func (ft *S3FileTransfer) formatDownloadError(context string, err error) error {
-	return fmt.Errorf("S3FileTransfer: Download: %s: %v", context, err)
+func (ft *S3FileTransfer) formatDownloadError(ctx string, err error) error {
+	return fmt.Errorf("S3FileTransfer: Download: %s: %v", ctx, err)
 }

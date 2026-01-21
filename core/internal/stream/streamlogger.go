@@ -25,14 +25,14 @@ var streamLoggerProviders = wire.NewSet(
 
 // symlinkDebugCore symlinks the debug-core.log file to the run's directory.
 func symlinkDebugCore(
-	settings *settings.Settings,
+	s *settings.Settings,
 	loggerPath string,
 ) {
 	if loggerPath == "" {
 		return
 	}
 
-	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
+	targetPath := filepath.Join(s.GetLogDir(), "debug-core.log")
 
 	err := os.Symlink(loggerPath, targetPath)
 	if err != nil {
@@ -47,14 +47,14 @@ func symlinkDebugCore(
 // streamLogger initializes a logger for the run.
 func streamLogger(
 	loggerFile streamLoggerFile,
-	settings *settings.Settings,
+	s *settings.Settings,
 	sentryClient *sentry_ext.Client,
 	logLevel slog.Level,
 ) *observability.CoreLogger {
 	sentryClient.SetUser(
-		settings.GetEntity(),
-		settings.GetEmail(),
-		settings.GetUserName(),
+		s.GetEntity(),
+		s.GetEmail(),
+		s.GetUserName(),
 	)
 
 	var writer io.Writer
@@ -83,13 +83,13 @@ func streamLogger(
 		"core version", version.Version)
 
 	tags := observability.Tags{
-		"run_id":   settings.GetRunID(),
-		"run_url":  settings.GetRunURL(),
-		"project":  settings.GetProject(),
-		"base_url": settings.GetBaseURL(),
+		"run_id":   s.GetRunID(),
+		"run_url":  s.GetRunURL(),
+		"project":  s.GetProject(),
+		"base_url": s.GetBaseURL(),
 	}
-	if settings.GetSweepURL() != "" {
-		tags["sweep_url"] = settings.GetSweepURL()
+	if s.GetSweepURL() != "" {
+		tags["sweep_url"] = s.GetSweepURL()
 	}
 	logger.SetGlobalTags(tags)
 
@@ -100,8 +100,8 @@ func streamLogger(
 //
 // On failure, this will log to the global log file (debug-core.log)
 // and return nil.
-func openStreamLoggerFile(settings *settings.Settings) streamLoggerFile {
-	path := settings.GetInternalLogFile()
+func openStreamLoggerFile(s *settings.Settings) streamLoggerFile {
+	path := s.GetInternalLogFile()
 	loggerFile, err := os.OpenFile(
 		path,
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
