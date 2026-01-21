@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/wandb/simplejsonext"
+
 	"github.com/wandb/wandb/core/internal/filestream"
 )
 

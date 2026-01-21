@@ -16,13 +16,13 @@ type RunSyncUpdates struct {
 func UpdatesFromRequest(request *spb.ServerInitSyncRequest) *RunSyncUpdates {
 	u := &RunSyncUpdates{}
 
-	if entity := request.GetNewEntity(); len(entity) > 0 {
+	if entity := request.GetNewEntity(); entity != "" {
 		u.Entity = entity
 	}
-	if project := request.GetNewProject(); len(project) > 0 {
+	if project := request.GetNewProject(); project != "" {
 		u.Project = project
 	}
-	if runID := request.GetNewRunId(); len(runID) > 0 {
+	if runID := request.GetNewRunId(); runID != "" {
 		u.RunID = runID
 	}
 
@@ -36,15 +36,15 @@ func (u *RunSyncUpdates) Modify(record *spb.Record) {
 	}
 
 	if run := record.GetRun(); run != nil {
-		if len(u.Entity) > 0 {
+		if u.Entity != "" {
 			run.Entity = u.Entity
 		}
 
-		if len(u.Project) > 0 {
+		if u.Project != "" {
 			run.Project = u.Project
 		}
 
-		if len(u.RunID) > 0 {
+		if u.RunID != "" {
 			run.RunId = u.RunID
 		}
 	}

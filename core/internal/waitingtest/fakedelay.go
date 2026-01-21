@@ -100,7 +100,7 @@ func (d *FakeDelay) IsZero() bool {
 	return d.isZero
 }
 
-func (d *FakeDelay) Wait() (<-chan struct{}, func()) {
+func (d *FakeDelay) Wait() (<-chan struct{}, func()) { //nolint
 	if d == nil {
 		return completedDelay(), func() {}
 	}

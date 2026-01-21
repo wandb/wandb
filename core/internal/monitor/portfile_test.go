@@ -13,7 +13,7 @@ import (
 
 func writeToTempFile(t *testing.T, path, content string) {
 	t.Helper()
-	err := os.WriteFile(path, []byte(content), 0644)
+	err := os.WriteFile(path, []byte(content), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to write to temp file: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestRead_SuccessWithPolling(t *testing.T) {
 	fileContent := "sock=54321"
 	go func() {
 		time.Sleep(200 * time.Millisecond)
-		err := os.WriteFile(pf.Path, []byte(fileContent), 0644)
+		err := os.WriteFile(pf.Path, []byte(fileContent), 0o644)
 		if err != nil {
 			// Use t.Error in a goroutine as t.Fatal will not stop the test.
 			t.Errorf("Failed to write to portfile in goroutine: %v", err)

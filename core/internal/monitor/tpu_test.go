@@ -8,9 +8,10 @@ import (
 	"testing"
 
 	"github.com/wandb/simplejsonext"
+	"google.golang.org/grpc"
+
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/monitor/tpuproto"
-	"google.golang.org/grpc"
 )
 
 type mockRuntimeMetricServiceClient struct {

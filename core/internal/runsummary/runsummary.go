@@ -143,7 +143,7 @@ func (rs *RunSummary) ToRecords() ([]*spb.SummaryItem, error) {
 				errs = append(errs, err)
 				return true
 			}
-			if len(encoded) == 0 {
+			if encoded == "" {
 				return true
 			}
 

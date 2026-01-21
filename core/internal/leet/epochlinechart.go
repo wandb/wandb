@@ -94,7 +94,7 @@ func NewEpochLineChart(title string) *EpochLineChart {
 		yMin:  math.Inf(1),
 		yMax:  math.Inf(-1),
 	}
-	chart.graphStyle.Store(graphStyle)
+	chart.graphStyle.Store(&graphStyle)
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
 
@@ -341,11 +341,11 @@ func (c *EpochLineChart) Draw() {
 		startX = c.Origin().X + 1
 	}
 	patterns := bGrid.BraillePatterns()
-	style := c.graphStyle.Load().(lipgloss.Style)
+	style := c.graphStyle.Load().(*lipgloss.Style)
 	graph.DrawBraillePatterns(&c.Canvas,
 		canvas.Point{X: startX, Y: 0},
 		patterns,
-		style)
+		*style)
 
 	// Overlay: vertical crosshair + legend.
 	c.drawInspectionOverlay(startX)
@@ -547,7 +547,7 @@ func TruncateTitle(title string, maxWidth int) string {
 }
 
 // SetGraphStyle swaps the style used for drawing.
-func (c *EpochLineChart) SetGraphStyle(s lipgloss.Style) {
+func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
 	c.graphStyle.Store(s)
 }
 

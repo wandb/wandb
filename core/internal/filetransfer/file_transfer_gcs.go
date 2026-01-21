@@ -13,9 +13,10 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/googleapis/gax-go/v2"
-	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/iterator"
+
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 type GCSClient interface {
@@ -298,6 +299,6 @@ func (ft *GCSFileTransfer) getObject(
 	return object, nil
 }
 
-func (ft *GCSFileTransfer) formatDownloadError(context string, err error) error {
-	return fmt.Errorf("GCSFileTransfer: Download: %s: %v", context, err)
+func (ft *GCSFileTransfer) formatDownloadError(ctx string, err error) error {
+	return fmt.Errorf("GCSFileTransfer: Download: %s: %v", ctx, err)
 }

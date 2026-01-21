@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"sync"
 
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // RunEnvironment stores the information about the system, hardware, software,

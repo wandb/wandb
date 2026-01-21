@@ -227,7 +227,7 @@ func (op *WandbOperation) MarkRetryingHTTPError(
 	op.mu.Lock()
 	defer op.mu.Unlock()
 
-	if len(responseError) > 0 {
+	if responseError != "" {
 		op.errorStatus = fmt.Sprintf(
 			"retrying HTTP %d: %s",
 			responseStatusCode,

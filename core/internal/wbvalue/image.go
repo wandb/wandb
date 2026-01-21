@@ -79,7 +79,7 @@ func HistoryImageValuesJSON(
 		filePathToSlash = append(filePathToSlash, filepath.ToSlash(string(filePath)))
 	}
 
-	bytes, err := json.Marshal(map[string]any{
+	b, err := json.Marshal(map[string]any{
 		"_type":     "images/separated",
 		"filenames": filePathToSlash,
 		"format":    format,
@@ -88,5 +88,5 @@ func HistoryImageValuesJSON(
 		"count":     len(filePaths),
 	})
 
-	return string(bytes), err
+	return string(b), err
 }

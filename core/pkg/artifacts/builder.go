@@ -8,9 +8,10 @@ import (
 	"os"
 	"sort"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/core/internal/hashencode"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/proto"
 )
 
 type ArtifactBuilder struct {
@@ -57,7 +58,7 @@ func (b *ArtifactBuilder) AddData(name string, data any) error {
 	return nil
 }
 
-func (b *ArtifactBuilder) AddFile(path string, name string) error {
+func (b *ArtifactBuilder) AddFile(path, name string) error {
 
 	file, err := os.Open(path)
 	if err != nil {

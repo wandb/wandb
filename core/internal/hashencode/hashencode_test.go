@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wandb/wandb/core/internal/hashencode"
 )
 
@@ -38,7 +39,7 @@ func TestVerifyFileB64MD5(t *testing.T) {
 	defer func() {
 		_ = testFile.Close()
 	}()
-	_, err = testFile.Write([]byte(`foobar`))
+	_, err = testFile.WriteString(`foobar`)
 	assert.NoError(t, err)
 
 	b64md5 := hashencode.ComputeB64MD5([]byte(`foobar`))
@@ -65,7 +66,7 @@ func TestComputeReaderHexMD5(t *testing.T) {
 	// Create a test file
 	tempFile, err := os.CreateTemp("", "giveme5.txt")
 	require.NoError(t, err)
-	_, err = tempFile.Write([]byte(`example data`))
+	_, err = tempFile.WriteString(`example data`)
 	require.NoError(t, err)
 	require.NoError(t, tempFile.Close()) // Close to flush the content
 	defer os.Remove(tempFile.Name())

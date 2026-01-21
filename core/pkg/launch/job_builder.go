@@ -202,15 +202,15 @@ func MakeArtifactNameSafe(name string) string {
 }
 
 func NewJobBuilder(
-	settings *settings.Settings,
+	s *settings.Settings,
 	logger *observability.CoreLogger,
 	verbose bool,
 ) *JobBuilder {
 	jobBuilder := JobBuilder{
-		settings:            settings,
-		isNotebookRun:       settings.Proto.GetXJupyter().GetValue(),
+		settings:            s,
+		isNotebookRun:       s.Proto.GetXJupyter().GetValue(),
 		logger:              logger,
-		Disable:             settings.Proto.GetDisableJobCreation().GetValue(),
+		Disable:             s.Proto.GetDisableJobCreation().GetValue(),
 		saveShapeToMetadata: false,
 		verbose:             verbose,
 	}
@@ -738,7 +738,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *spb.Record) {
 	}
 
 	// if empty job name, disable job builder
-	if useArtifact.Partial != nil && len(useArtifact.Partial.JobName) == 0 {
+	if useArtifact.Partial != nil && useArtifact.Partial.JobName == "" {
 		j.logger.Debug(
 			"jobBuilder: no job name found in partial use artifact record, disabling job builder",
 		)
@@ -749,9 +749,9 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *spb.Record) {
 	j.PartialJobID = &useArtifact.Id
 }
 
-func (j *JobBuilder) MakeFilesAndSchemas() (map[string]any, map[string]any, error) {
-	files := make(map[string]any)
-	file_schemas := make(map[string]any)
+func (j *JobBuilder) MakeFilesAndSchemas() (files, file_schemas map[string]any, err error) {
+	files = make(map[string]any)
+	file_schemas = make(map[string]any)
 	for _, configFile := range j.configFiles {
 		files[configFile.relpath] = j.generateConfigFileSchema(configFile)
 		if configFile.inputSchema != nil {

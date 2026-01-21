@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wandb/wandb/core/internal/watcher"
 )
 
@@ -20,7 +21,7 @@ func mkdir(t *testing.T, path string) {
 		))
 }
 
-func writeFileAndGetModTime(t *testing.T, path string, content string) time.Time {
+func writeFileAndGetModTime(t *testing.T, path, content string) time.Time {
 	mkdir(t, filepath.Dir(path))
 
 	require.NoError(t,
@@ -32,7 +33,7 @@ func writeFileAndGetModTime(t *testing.T, path string, content string) time.Time
 	return info.ModTime()
 }
 
-func writeFile(t *testing.T, path string, content string) {
+func writeFile(t *testing.T, path, content string) {
 	_ = writeFileAndGetModTime(t, path, content)
 }
 
@@ -87,14 +88,14 @@ func TestWatcher(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "file.txt")
 		t1 := writeFileAndGetModTime(t, file, "")
 
-		watcher := newTestWatcher()
-		defer finishWithDeadline(t, watcher)
+		w := newTestWatcher()
+		defer finishWithDeadline(t, w)
 		require.NoError(t,
-			watcher.Watch(file, func() { onChangeChan <- struct{}{} }))
+			w.Watch(file, func() { onChangeChan <- struct{}{} }))
 		time.Sleep(100 * time.Millisecond) // see below
 		t2 := writeFileAndGetModTime(t, file, "xyz")
 
-		if time.Time.Equal(t1, t2) {
+		if t1.Equal(t2) {
 			// We sleep before updating the file to try to increase the
 			// likelihood of the second write updating the file's ModTime.
 			//
@@ -118,10 +119,10 @@ func TestWatcher(t *testing.T) {
 		file := filepath.Join(dir, "file.txt")
 		mkdir(t, dir)
 
-		watcher := newTestWatcher()
-		defer finishWithDeadline(t, watcher)
+		w := newTestWatcher()
+		defer finishWithDeadline(t, w)
 		require.NoError(t,
-			watcher.WatchDir(dir, func(s string) { onChangeChan <- s }))
+			w.WatchDir(dir, func(s string) { onChangeChan <- s }))
 		writeFile(t, file, "")
 
 		result := waitWithDeadline(t, onChangeChan,
@@ -134,9 +135,9 @@ func TestWatcher(t *testing.T) {
 
 		file := filepath.Join(t.TempDir(), "file.txt")
 
-		watcher := newTestWatcher()
-		defer finishWithDeadline(t, watcher)
-		err := watcher.Watch(file, func() {})
+		w := newTestWatcher()
+		defer finishWithDeadline(t, w)
+		err := w.Watch(file, func() {})
 
 		require.Error(t, err)
 	})
@@ -147,9 +148,9 @@ func TestWatcher(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "file.txt")
 		writeFile(t, file, "")
 
-		watcher := newTestWatcher()
-		finishWithDeadline(t, watcher)
-		err := watcher.Watch(file, func() {})
+		w := newTestWatcher()
+		finishWithDeadline(t, w)
+		err := w.Watch(file, func() {})
 
 		require.ErrorContains(t, err, "tried to call Watch() after Finish()")
 	})

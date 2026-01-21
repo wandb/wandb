@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -470,7 +471,7 @@ func (m *Model) buildActiveStatus() string {
 	// Add filter info if active.
 	if m.metricsGrid.IsFiltering() {
 		parts = append(parts, fmt.Sprintf(
-			"Filter (%s): \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
+			"Filter (%s): %q [%d/%d] (/ to change, Ctrl+L to clear)",
 			m.metricsGrid.FilterMode().String(),
 			m.metricsGrid.FilterQuery(),
 			m.metricsGrid.FilteredChartCount(), m.metricsGrid.ChartCount()))
@@ -478,7 +479,7 @@ func (m *Model) buildActiveStatus() string {
 
 	// Add overview filter info if active.
 	if m.leftSidebar.IsFiltering() {
-		parts = append(parts, fmt.Sprintf("Overview: \"%s\" [%s] (o to change, Ctrl+K to clear)",
+		parts = append(parts, fmt.Sprintf("Overview: %q [%s] (o to change, Ctrl+K to clear)",
 			m.leftSidebar.FilterQuery(),
 			m.leftSidebar.FilterInfo(),
 		))

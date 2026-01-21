@@ -23,14 +23,14 @@ type RunInfo struct {
 func (info *RunInfo) Path() string {
 	parts := make([]string, 0, 3)
 
-	if len(info.Entity) > 0 {
+	if info.Entity != "" {
 		parts = append(parts, info.Entity)
 	}
-	if len(info.Project) > 0 {
+	if info.Project != "" {
 		parts = append(parts, info.Project)
 	}
 
-	if len(info.RunID) > 0 {
+	if info.RunID != "" {
 		parts = append(parts, info.RunID)
 	} else {
 		// Not normally valid, but useful for debugging.

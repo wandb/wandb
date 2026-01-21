@@ -8,10 +8,11 @@ import (
 	"os"
 	"sync"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/pkg/leveldb"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/proto"
 )
 
 // Reader reads from a .wandb file.

@@ -9,6 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -20,8 +23,6 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watchertest"
-	"go.uber.org/mock/gomock"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -422,7 +423,7 @@ func TestUploader(t *testing.T) {
 			testAbs := filepath.Join(filesDir, testRel)
 			writeEmptyFile(t, testAbs)
 
-			require.NoError(t, os.Chmod(testAbs, os.FileMode(0644)))
+			require.NoError(t, os.Chmod(testAbs, os.FileMode(0o644)))
 
 			// 1) First Process -> schedules a single upload task.
 			stubCreateRunFilesOneFile(mockGQLClient, testRel)
@@ -469,7 +470,7 @@ func TestUploader(t *testing.T) {
 			testAbs := filepath.Join(filesDir, testRel)
 			writeEmptyFile(t, testAbs)
 
-			require.NoError(t, os.Chmod(testAbs, os.FileMode(0644)))
+			require.NoError(t, os.Chmod(testAbs, os.FileMode(0o644)))
 
 			// 1) First Process -> schedules a single upload task.
 			stubCreateRunFilesOneFile(mockGQLClient, testRel)
@@ -490,8 +491,8 @@ func TestUploader(t *testing.T) {
 			uploader.(UploaderTesting).FlushSchedulingForTest()
 
 			// Modify the file (size changes).
-			require.NoError(t, os.Chmod(testAbs, os.FileMode(0644)))
-			require.NoError(t, os.WriteFile(testAbs, []byte("changed"), 0644))
+			require.NoError(t, os.Chmod(testAbs, os.FileMode(0o644)))
+			require.NoError(t, os.WriteFile(testAbs, []byte("changed"), 0o644))
 
 			// 2) Second Process after modification -> should schedule a new task.
 			stubCreateRunFilesOneFile(mockGQLClient, testRel)
@@ -520,10 +521,10 @@ func TestUploader(t *testing.T) {
 			testRel := "same_size_change.txt"
 			testAbs := filepath.Join(filesDir, testRel)
 			writeEmptyFile(t, testAbs)
-			require.NoError(t, os.Chmod(testAbs, os.FileMode(0644)))
+			require.NoError(t, os.Chmod(testAbs, os.FileMode(0o644)))
 
 			// Write 4 bytes, make file writable.
-			require.NoError(t, os.WriteFile(testAbs, []byte("AAAA"), 0644))
+			require.NoError(t, os.WriteFile(testAbs, []byte("AAAA"), 0o644))
 
 			// First upload.
 			stubCreateRunFilesOneFile(mockGQLClient, testRel)
@@ -536,7 +537,7 @@ func TestUploader(t *testing.T) {
 			uploader.(UploaderTesting).FlushSchedulingForTest()
 
 			// Overwrite with same size but different bytes.
-			require.NoError(t, os.WriteFile(testAbs, []byte("BBBB"), 0644))
+			require.NoError(t, os.WriteFile(testAbs, []byte("BBBB"), 0o644))
 
 			// Second Process should schedule reupload (hash differs).
 			stubCreateRunFilesOneFile(mockGQLClient, testRel)

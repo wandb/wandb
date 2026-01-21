@@ -33,7 +33,7 @@ func ErrorFromWBResponse(body []byte) string {
 
 		for _, errorValue := range errorsFieldList {
 			errorMessage := errorFromStringOrMap(errorValue)
-			if len(errorMessage) > 0 {
+			if errorMessage != "" {
 				messages = append(messages, errorMessage)
 			}
 		}

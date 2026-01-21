@@ -86,7 +86,7 @@ func (rcm *RunConfigMetrics) encodeToRunConfigData(
 		encodedMetrics[index] = corelib.ProtoEncodeToDict(record)
 	}()
 
-	if len(metric.Step) > 0 {
+	if metric.Step != "" {
 		// Ensure step has an index.
 		encodedMetrics = rcm.encodeToRunConfigData(
 			metric.Step,

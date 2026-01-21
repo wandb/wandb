@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/hashicorp/go-retryablehttp"
+
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
