@@ -21,7 +21,7 @@ import (
 )
 
 func TestFileStreamUpdates(t *testing.T) {
-	settings := settings.New()
+	s := settings.New()
 	fileStream := filestreamtest.NewFakeFileStream()
 
 	sender := New(Params{
@@ -42,7 +42,7 @@ func TestFileStreamUpdates(t *testing.T) {
 	sender.StreamLogs(&spb.OutputRawRecord{Line: "\x1b[Aline2 - modified\n"})
 	sender.Finish()
 
-	request := fileStream.GetRequest(settings)
+	request := fileStream.GetRequest(s)
 	assert.Equal(t,
 		[]sparselist.Run[string]{
 			{Start: 0, Items: []string{
