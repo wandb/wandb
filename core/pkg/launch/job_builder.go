@@ -749,9 +749,9 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *spb.Record) {
 	j.PartialJobID = &useArtifact.Id
 }
 
-func (j *JobBuilder) MakeFilesAndSchemas() (map[string]any, map[string]any, error) {
-	files := make(map[string]any)
-	file_schemas := make(map[string]any)
+func (j *JobBuilder) MakeFilesAndSchemas() (files, file_schemas map[string]any, err error) {
+	files = make(map[string]any)
+	file_schemas = make(map[string]any)
 	for _, configFile := range j.configFiles {
 		files[configFile.relpath] = j.generateConfigFileSchema(configFile)
 		if configFile.inputSchema != nil {

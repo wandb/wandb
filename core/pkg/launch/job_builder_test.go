@@ -104,33 +104,35 @@ func TestJobBuilderRepo(t *testing.T) {
 		assert.Equal(t, "7085649d0ef73f35aeab6238324d337b", artifact.Digest)
 		assert.Equal(t, []string{"latest"}, artifact.Aliases)
 		for _, content := range artifact.Manifest.Contents {
-			if content.Path == "wandb-job.json" {
-				jobFile, err := os.Open(content.LocalPath)
-				assert.Nil(t, err)
-				defer func() {
-					_ = jobFile.Close()
-				}()
-				assert.Nil(t, err)
-				data := make(map[string]any)
-				err = json.NewDecoder(jobFile).Decode(&data)
-				assert.Nil(t, err)
-				assert.Equal(t, "3.11.2", data["runtime"])
-				assert.Equal(
-					t,
-					"1234567890",
-					data["source"].(map[string]any)["git"].(map[string]any)["commit"],
-				)
-				assert.Equal(
-					t,
-					"example.com",
-					data["source"].(map[string]any)["git"].(map[string]any)["remote"],
-				)
-				assert.Equal(
-					t,
-					[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
-					data["source"].(map[string]any)["entrypoint"],
-				)
+			if content.Path != "wandb-job.json" {
+				continue
 			}
+			jobFile, err := os.Open(content.LocalPath)
+			assert.Nil(t, err)
+			defer func() {
+				_ = jobFile.Close()
+			}()
+			assert.Nil(t, err)
+			data := make(map[string]any)
+			err = json.NewDecoder(jobFile).Decode(&data)
+			assert.Nil(t, err)
+			assert.Equal(t, "3.11.2", data["runtime"])
+			assert.Equal(
+				t,
+				"1234567890",
+				data["source"].(map[string]any)["git"].(map[string]any)["commit"],
+			)
+			assert.Equal(
+				t,
+				"example.com",
+				data["source"].(map[string]any)["git"].(map[string]any)["remote"],
+			)
+			assert.Equal(
+				t,
+				[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
+				data["source"].(map[string]any)["entrypoint"],
+			)
+
 		}
 	})
 
@@ -264,29 +266,31 @@ func TestJobBuilderArtifact(t *testing.T) {
 		assert.Equal(t, "722fa8ba214d734a955c957959f9f098", artifact.Digest)
 		assert.Equal(t, []string{"latest"}, artifact.Aliases)
 		for _, content := range artifact.Manifest.Contents {
-			if content.Path == "wandb-job.json" {
-				jobFile, err := os.Open(content.LocalPath)
-				assert.Nil(t, err)
-				defer func() {
-					_ = jobFile.Close()
-				}()
-				assert.Nil(t, err)
-				data := make(map[string]any)
-				err = json.NewDecoder(jobFile).Decode(&data)
-				assert.Nil(t, err)
-				assert.Equal(t, "3.11.2", data["runtime"])
-				assert.Equal(
-					t,
-					"wandb-artifact://_id/testArtifactId",
-					data["source"].(map[string]any)["artifact"],
-				)
-				assert.Equal(t, "artifact", data["source_type"])
-				assert.Equal(
-					t,
-					[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
-					data["source"].(map[string]any)["entrypoint"],
-				)
+			if content.Path != "wandb-job.json" {
+				continue
 			}
+			jobFile, err := os.Open(content.LocalPath)
+			assert.Nil(t, err)
+			defer func() {
+				_ = jobFile.Close()
+			}()
+			assert.Nil(t, err)
+			data := make(map[string]any)
+			err = json.NewDecoder(jobFile).Decode(&data)
+			assert.Nil(t, err)
+			assert.Equal(t, "3.11.2", data["runtime"])
+			assert.Equal(
+				t,
+				"wandb-artifact://_id/testArtifactId",
+				data["source"].(map[string]any)["artifact"],
+			)
+			assert.Equal(t, "artifact", data["source_type"])
+			assert.Equal(
+				t,
+				[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
+				data["source"].(map[string]any)["entrypoint"],
+			)
+
 		}
 	})
 
@@ -344,29 +348,31 @@ func TestJobBuilderArtifact(t *testing.T) {
 		assert.Equal(t, 2, len(artifact.Manifest.Contents))
 		assert.Equal(t, "9148d47ccbf4feec323d21f2b1d913f6", artifact.Digest)
 		for _, content := range artifact.Manifest.Contents {
-			if content.Path == "wandb-job.json" {
-				jobFile, err := os.Open(content.LocalPath)
-				assert.Nil(t, err)
-				defer func() {
-					_ = jobFile.Close()
-				}()
-				assert.Nil(t, err)
-				data := make(map[string]any)
-				err = json.NewDecoder(jobFile).Decode(&data)
-				assert.Nil(t, err)
-				assert.Equal(t, "3.11.2", data["runtime"])
-				assert.Equal(
-					t,
-					"wandb-artifact://_id/testArtifactId",
-					data["source"].(map[string]any)["artifact"],
-				)
-				assert.Equal(t, "artifact", data["source_type"])
-				assert.Equal(
-					t,
-					[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
-					data["source"].(map[string]any)["entrypoint"],
-				)
+			if content.Path != "wandb-job.json" {
+				continue
 			}
+			jobFile, err := os.Open(content.LocalPath)
+			assert.Nil(t, err)
+			defer func() {
+				_ = jobFile.Close()
+			}()
+			assert.Nil(t, err)
+			data := make(map[string]any)
+			err = json.NewDecoder(jobFile).Decode(&data)
+			assert.Nil(t, err)
+			assert.Equal(t, "3.11.2", data["runtime"])
+			assert.Equal(
+				t,
+				"wandb-artifact://_id/testArtifactId",
+				data["source"].(map[string]any)["artifact"],
+			)
+			assert.Equal(t, "artifact", data["source_type"])
+			assert.Equal(
+				t,
+				[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
+				data["source"].(map[string]any)["entrypoint"],
+			)
+
 		}
 	})
 }
