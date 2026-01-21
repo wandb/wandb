@@ -14,9 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // NeuronMonitorConfig represents the configuration for the neuron-monitor command.
@@ -169,7 +170,7 @@ func (t *Trainium) writeNeuronMonitorConfig(neuronMonitorConfigPath string) erro
 		return fmt.Errorf("failed to marshal config: %v", err)
 	}
 
-	err = os.WriteFile(neuronMonitorConfigPath, jsonData, 0644)
+	err = os.WriteFile(neuronMonitorConfigPath, jsonData, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write config file: %v", err)
 	}
