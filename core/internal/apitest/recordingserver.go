@@ -9,7 +9,7 @@ import (
 )
 
 type RecordingServer struct {
-	sync.Mutex
+	mu sync.Mutex
 	*httptest.Server
 
 	requests []RequestCopy
@@ -17,8 +17,8 @@ type RecordingServer struct {
 
 // All requests recorded by the server.
 func (s *RecordingServer) Requests() []RequestCopy {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return slices.Clone(s.requests)
 }
 
@@ -49,8 +49,8 @@ func NewRecordingServer(opts ...RecordingServerOption) *RecordingServer {
 		func(w http.ResponseWriter, r *http.Request) {
 			body, _ := io.ReadAll(r.Body)
 
-			rs.Lock()
-			defer rs.Unlock()
+			rs.mu.Lock()
+			defer rs.mu.Unlock()
 
 			rs.requests = append(rs.requests,
 				RequestCopy{

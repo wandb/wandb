@@ -21,6 +21,9 @@ linters:
     gocyclo:
       min-complexity: 21
     gocritic:
+      settings:
+        hugeParam:
+          sizeThreshold: 129
       enabled-tags:
         - diagnostic
         - style

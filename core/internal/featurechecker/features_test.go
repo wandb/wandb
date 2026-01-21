@@ -125,7 +125,6 @@ func TestGetFeature_GraphQLError(t *testing.T) {
 		fmt.Errorf("GraphQL Error: Internal Server Error"),
 	)
 
-	// stubServerFeaturesQuery(mockGQL)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
 		mockGQL,
 		observabilitytest.NewTestLogger(t),
