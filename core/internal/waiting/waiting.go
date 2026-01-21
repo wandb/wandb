@@ -94,7 +94,7 @@ func (s *realStopwatch) Reset() {
 	s.startTimeMicros.Store(time.Now().UnixMicro())
 }
 
-func (s *realStopwatch) Wait() (<-chan struct{}, func()) {
+func (s *realStopwatch) Wait() (<-chan struct{}, func()) { //nolint
 	ch := make(chan struct{})
 	cancel := make(chan struct{})
 

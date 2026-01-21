@@ -12,14 +12,14 @@ import (
 
 // Peeker stores HTTP responses for failed requests.
 type Peeker struct {
-	sync.Mutex
+	mu sync.Mutex
 	responses []*spb.HttpResponse
 }
 
 // Read returns the buffered responses and clears the buffer.
 func (p *Peeker) Read() []*spb.HttpResponse {
-	p.Lock()
-	defer p.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	responses := p.responses
 	p.responses = make([]*spb.HttpResponse, 0)
@@ -40,12 +40,12 @@ func (p *Peeker) Peek(_ *http.Request, resp *http.Response) {
 		// We need to read the response body to send it to the user
 		buf, _ := io.ReadAll(resp.Body)
 
-		p.Lock()
+		p.mu.Lock()
 		p.responses = append(p.responses, &spb.HttpResponse{
 			HttpStatusCode:   int32(resp.StatusCode),
 			HttpResponseText: string(buf),
 		})
-		p.Unlock()
+		p.mu.Unlock()
 
 		// Restore the body so it can be read again
 		reader := io.NopCloser(bytes.NewReader(buf))
