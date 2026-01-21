@@ -8,7 +8,7 @@ import (
 
 // FakeStopwatch is a Stopwatch that tests can set to Done manually.
 type FakeStopwatch struct {
-	sync.Mutex
+	mu sync.Mutex
 
 	waitChan    chan struct{}
 	done        bool
@@ -21,8 +21,8 @@ func NewFakeStopwatch() *FakeStopwatch {
 
 // SetDone makes IsDone return true until Reset is called.
 func (fs *FakeStopwatch) SetDone() {
-	fs.Lock()
-	defer fs.Unlock()
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 	fs.done = true
 
 	if fs.waitChan != nil {
@@ -33,8 +33,8 @@ func (fs *FakeStopwatch) SetDone() {
 
 // SetFinallyDone makes IsDone always return true even if Reset is called.
 func (fs *FakeStopwatch) SetDoneForever() {
-	fs.Lock()
-	defer fs.Unlock()
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 	fs.doneForever = true
 
 	if fs.waitChan != nil {
@@ -47,20 +47,20 @@ func (fs *FakeStopwatch) SetDoneForever() {
 var _ waiting.Stopwatch = &FakeStopwatch{}
 
 func (fs *FakeStopwatch) IsDone() bool {
-	fs.Lock()
-	defer fs.Unlock()
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 	return fs.done || fs.doneForever
 }
 
 func (fs *FakeStopwatch) Reset() {
-	fs.Lock()
-	defer fs.Unlock()
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 	fs.done = false
 }
 
 func (fs *FakeStopwatch) Wait() (ch <-chan struct{}, cancel func()) {
-	fs.Lock()
-	defer fs.Unlock()
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 
 	if fs.done || fs.doneForever {
 		return completedDelay(), func() {}
