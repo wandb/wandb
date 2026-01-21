@@ -143,7 +143,7 @@ func (tracker *RateLimitTracker) UpdateEstimates(
 }
 
 // Interpolate from old to new using the smoothing factor.
-func (tracker *RateLimitTracker) interp(o float64, n float64) float64 {
+func (tracker *RateLimitTracker) interp(o, n float64) float64 {
 	// This just results in an exponential moving average.
 	return o*tracker.smoothing + n*(1-tracker.smoothing)
 }

@@ -125,7 +125,7 @@ func (cm *ConfigManager) loadOrCreateConfig() error {
 	// No config file yet, create and save it.
 	if os.IsNotExist(err) {
 		if dir := filepath.Dir(cm.path); dir != "" {
-			_ = os.MkdirAll(dir, 0755)
+			_ = os.MkdirAll(dir, 0o755)
 		}
 		return cm.save()
 	}
@@ -168,12 +168,12 @@ func (cm *ConfigManager) normalizeConfig() {
 	}
 }
 
-func clamp(val, min, max int) int {
-	if val < min {
-		return min
+func clamp(val, minimum, maximum int) int {
+	if val < minimum {
+		return minimum
 	}
-	if val > max {
-		return max
+	if val > maximum {
+		return maximum
 	}
 	return val
 }
@@ -191,7 +191,7 @@ func (cm *ConfigManager) save() error {
 	tempPath := targetPath + ".tmp"
 
 	// Write atomically via temp file + rename.
-	if err := os.WriteFile(tempPath, data, 0644); err != nil {
+	if err := os.WriteFile(tempPath, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write temp config file: %v", err)
 	}
 	if err := os.Rename(tempPath, targetPath); err != nil {

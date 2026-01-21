@@ -45,7 +45,7 @@ func CopyFile(src, dst string) error {
 	}()
 
 	// Create destination directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("unable to create destination directory %s: %w", filepath.Dir(dst), err)
 	}
 
@@ -81,7 +81,7 @@ func CopyFile(src, dst string) error {
 // Returns an error if something goes wrong during the process.
 func CopyReaderToFile(reader io.Reader, dst string) error {
 	// Create destination directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("unable to create destination directory %s: %w", filepath.Dir(dst), err)
 	}
 

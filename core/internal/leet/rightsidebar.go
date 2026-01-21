@@ -106,7 +106,8 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 	}
 
 	if rs.animState.IsAnimating() && !rs.animState.Update(time.Now()) {
-		return rs, rs.animationCmd()
+		cmd := rs.animationCmd()
+		return rs, cmd
 	}
 
 	return rs, nil
