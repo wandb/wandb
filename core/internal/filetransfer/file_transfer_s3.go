@@ -252,7 +252,8 @@ func (ft *S3FileTransfer) getCorrectObjectVersion(
 		if err != nil {
 			return nil, err
 		}
-		for _, version := range versions.Versions {
+		for i := range versions.Versions {
+			version := &versions.Versions[i]
 			if strings.Trim(*version.ETag, "\"") == digest {
 				getObjInput.Key = aws.String(*version.Key)
 				getObjInput.VersionId = version.VersionId
