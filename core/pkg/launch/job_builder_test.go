@@ -107,32 +107,31 @@ func TestJobBuilderRepo(t *testing.T) {
 			if content.Path != "wandb-job.json" {
 				continue
 			}
-			jobFile, err := os.Open(content.LocalPath)
-			assert.Nil(t, err)
-			defer func() {
-				_ = jobFile.Close()
-			}()
-			assert.Nil(t, err)
-			data := make(map[string]any)
-			err = json.NewDecoder(jobFile).Decode(&data)
-			assert.Nil(t, err)
-			assert.Equal(t, "3.11.2", data["runtime"])
-			assert.Equal(
-				t,
-				"1234567890",
-				data["source"].(map[string]any)["git"].(map[string]any)["commit"],
-			)
-			assert.Equal(
-				t,
-				"example.com",
-				data["source"].(map[string]any)["git"].(map[string]any)["remote"],
-			)
-			assert.Equal(
-				t,
-				[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
-				data["source"].(map[string]any)["entrypoint"],
-			)
+			func() {
+				jobFile, err := os.Open(content.LocalPath)
+				assert.Nil(t, err)
+				defer jobFile.Close()
 
+				data := make(map[string]any)
+				err = json.NewDecoder(jobFile).Decode(&data)
+				assert.Nil(t, err)
+				assert.Equal(t, "3.11.2", data["runtime"])
+				assert.Equal(
+					t,
+					"1234567890",
+					data["source"].(map[string]any)["git"].(map[string]any)["commit"],
+				)
+				assert.Equal(
+					t,
+					"example.com",
+					data["source"].(map[string]any)["git"].(map[string]any)["remote"],
+				)
+				assert.Equal(
+					t,
+					[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
+					data["source"].(map[string]any)["entrypoint"],
+				)
+			}()
 		}
 	})
 
@@ -193,34 +192,35 @@ func TestJobBuilderRepo(t *testing.T) {
 			if content.Path != "wandb-job.json" {
 				continue
 			}
-			jobFile, err := os.Open(content.LocalPath)
-			assert.Nil(t, err)
-			defer func() {
-				_ = jobFile.Close()
+			func() {
+				jobFile, err := os.Open(content.LocalPath)
+				assert.Nil(t, err)
+				defer jobFile.Close()
+
+				data := make(map[string]any)
+				err = json.NewDecoder(jobFile).Decode(&data)
+				assert.Nil(t, err)
+				assert.Equal(t, "3.11.2", data["runtime"])
+				assert.Equal(
+					t,
+					"1234567890",
+					data["source"].(map[string]any)["git"].(map[string]any)["commit"],
+				)
+				assert.Equal(
+					t,
+					"example.com",
+					data["source"].(map[string]any)["git"].(map[string]any)["remote"],
+				)
+				assert.Equal(
+					t,
+					[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
+					data["source"].(map[string]any)["entrypoint"],
+				)
 			}()
-			assert.Nil(t, err)
-			data := make(map[string]any)
-			err = json.NewDecoder(jobFile).Decode(&data)
-			assert.Nil(t, err)
-			assert.Equal(t, "3.11.2", data["runtime"])
-			assert.Equal(
-				t,
-				"1234567890",
-				data["source"].(map[string]any)["git"].(map[string]any)["commit"],
-			)
-			assert.Equal(
-				t,
-				"example.com",
-				data["source"].(map[string]any)["git"].(map[string]any)["remote"],
-			)
-			assert.Equal(
-				t,
-				[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
-				data["source"].(map[string]any)["entrypoint"],
-			)
 		}
 	})
 }
+
 func TestJobBuilderArtifact(t *testing.T) {
 	t.Run("Build artifact sourced job", func(t *testing.T) {
 		ctx := context.Background()
@@ -269,28 +269,27 @@ func TestJobBuilderArtifact(t *testing.T) {
 			if content.Path != "wandb-job.json" {
 				continue
 			}
-			jobFile, err := os.Open(content.LocalPath)
-			assert.Nil(t, err)
-			defer func() {
-				_ = jobFile.Close()
-			}()
-			assert.Nil(t, err)
-			data := make(map[string]any)
-			err = json.NewDecoder(jobFile).Decode(&data)
-			assert.Nil(t, err)
-			assert.Equal(t, "3.11.2", data["runtime"])
-			assert.Equal(
-				t,
-				"wandb-artifact://_id/testArtifactId",
-				data["source"].(map[string]any)["artifact"],
-			)
-			assert.Equal(t, "artifact", data["source_type"])
-			assert.Equal(
-				t,
-				[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
-				data["source"].(map[string]any)["entrypoint"],
-			)
+			func() {
+				jobFile, err := os.Open(content.LocalPath)
+				assert.Nil(t, err)
+				defer jobFile.Close()
 
+				data := make(map[string]any)
+				err = json.NewDecoder(jobFile).Decode(&data)
+				assert.Nil(t, err)
+				assert.Equal(t, "3.11.2", data["runtime"])
+				assert.Equal(
+					t,
+					"wandb-artifact://_id/testArtifactId",
+					data["source"].(map[string]any)["artifact"],
+				)
+				assert.Equal(t, "artifact", data["source_type"])
+				assert.Equal(
+					t,
+					[]interface{}([]interface{}{"python3.11", "/path/to/train.py"}),
+					data["source"].(map[string]any)["entrypoint"],
+				)
+			}()
 		}
 	})
 
@@ -351,28 +350,27 @@ func TestJobBuilderArtifact(t *testing.T) {
 			if content.Path != "wandb-job.json" {
 				continue
 			}
-			jobFile, err := os.Open(content.LocalPath)
-			assert.Nil(t, err)
-			defer func() {
-				_ = jobFile.Close()
-			}()
-			assert.Nil(t, err)
-			data := make(map[string]any)
-			err = json.NewDecoder(jobFile).Decode(&data)
-			assert.Nil(t, err)
-			assert.Equal(t, "3.11.2", data["runtime"])
-			assert.Equal(
-				t,
-				"wandb-artifact://_id/testArtifactId",
-				data["source"].(map[string]any)["artifact"],
-			)
-			assert.Equal(t, "artifact", data["source_type"])
-			assert.Equal(
-				t,
-				[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
-				data["source"].(map[string]any)["entrypoint"],
-			)
+			func() {
+				jobFile, err := os.Open(content.LocalPath)
+				assert.Nil(t, err)
+				defer jobFile.Close()
 
+				data := make(map[string]any)
+				err = json.NewDecoder(jobFile).Decode(&data)
+				assert.Nil(t, err)
+				assert.Equal(t, "3.11.2", data["runtime"])
+				assert.Equal(
+					t,
+					"wandb-artifact://_id/testArtifactId",
+					data["source"].(map[string]any)["artifact"],
+				)
+				assert.Equal(t, "artifact", data["source_type"])
+				assert.Equal(
+					t,
+					[]interface{}([]interface{}{"python3.11", "Untitled.ipynb"}),
+					data["source"].(map[string]any)["entrypoint"],
+				)
+			}()
 		}
 	})
 }
@@ -417,13 +415,14 @@ func TestJobBuilderImage(t *testing.T) {
 		assert.Equal(t, "8336203a7709a4dec20754b94e6869d2", artifact.Digest)
 		assert.Equal(t, []string{"testTag", "latest"}, artifact.Aliases)
 		for _, content := range artifact.Manifest.Contents {
-			if content.Path == "wandb-job.json" {
+			if content.Path != "wandb-job.json" {
+				continue
+			}
+			func() {
 				jobFile, err := os.Open(content.LocalPath)
 				assert.Nil(t, err)
-				defer func() {
-					_ = jobFile.Close()
-				}()
-				assert.Nil(t, err)
+				defer jobFile.Close()
+
 				data := make(map[string]any)
 				err = json.NewDecoder(jobFile).Decode(&data)
 				assert.Nil(t, err)
@@ -434,7 +433,7 @@ func TestJobBuilderImage(t *testing.T) {
 					"testImage:testTag",
 					data["source"].(map[string]any)["image"],
 				)
-			}
+			}()
 		}
 	})
 }
@@ -862,7 +861,7 @@ func TestWandbConfigParameters(t *testing.T) {
 
 	syncDir := filepath.Join(os.TempDir(), "test")
 	fdir := filepath.Join(syncDir, "files")
-	err := os.MkdirAll(fdir, 0777)
+	err := os.MkdirAll(fdir, 0o777)
 	assert.Nil(t, err)
 	writeRequirements(t, fdir)
 	writeDiffFile(t, fdir)
@@ -957,7 +956,7 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 
 	syncDir := filepath.Join(os.TempDir(), "test")
 	fdir := filepath.Join(syncDir, "files")
-	err := os.MkdirAll(fdir, 0777)
+	err := os.MkdirAll(fdir, 0o777)
 	assert.Nil(t, err)
 	writeRequirements(t, fdir)
 	writeDiffFile(t, fdir)
@@ -1058,13 +1057,13 @@ func TestConfigFileParameters(t *testing.T) {
 	}
 	syncDir := filepath.Join(os.TempDir(), "test")
 	fdir := filepath.Join(syncDir, "files")
-	err := os.MkdirAll(fdir, 0777)
+	err := os.MkdirAll(fdir, 0o777)
 	assert.Nil(t, err)
 	writeRequirements(t, fdir)
 	writeDiffFile(t, fdir)
 	writeWandbMetadata(t, fdir, metadata)
 	configDir := filepath.Join(fdir, LAUNCH_MANAGED_CONFIGS_DIR)
-	err = os.Mkdir(configDir, 0777)
+	err = os.Mkdir(configDir, 0o777)
 	assert.Nil(t, err)
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
@@ -1142,13 +1141,13 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 	}
 	syncDir := filepath.Join(os.TempDir(), "test")
 	fdir := filepath.Join(syncDir, "files")
-	err := os.MkdirAll(fdir, 0777)
+	err := os.MkdirAll(fdir, 0o777)
 	assert.Nil(t, err)
 	writeRequirements(t, fdir)
 	writeDiffFile(t, fdir)
 	writeWandbMetadata(t, fdir, metadata)
 	configDir := filepath.Join(fdir, LAUNCH_MANAGED_CONFIGS_DIR)
-	err = os.Mkdir(configDir, 0777)
+	err = os.Mkdir(configDir, 0o777)
 	assert.Nil(t, err)
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
