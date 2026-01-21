@@ -11,7 +11,7 @@ import (
 
 // A fake implementation of FileStream.
 type FakeFileStream struct {
-	mu sync.Mutex
+	mu      sync.Mutex
 	updates []filestream.Update
 }
 

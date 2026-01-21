@@ -20,7 +20,7 @@ type ResponderEntry struct {
 type Responders map[string]Responder
 
 type Dispatcher struct {
-	mu sync.RWMutex
+	mu         sync.RWMutex
 	responders Responders
 	logger     *observability.CoreLogger
 }
