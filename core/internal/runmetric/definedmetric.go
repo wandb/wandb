@@ -49,7 +49,7 @@ func (m definedMetric) With(
 	m.SyncStep = m.SyncStep || record.GetOptions().GetStepSync()
 	m.IsHidden = m.IsHidden || record.GetOptions().GetHidden()
 
-	if len(record.StepMetric) > 0 {
+	if record.StepMetric != "" {
 		m.Step = record.StepMetric
 	}
 
@@ -80,7 +80,7 @@ func (m definedMetric) With(
 		m.MetricGoal = metricGoalMinimize
 	}
 
-	if len(record.Name) > 0 {
+	if record.Name != "" {
 		m.IsExplicit = true
 	}
 

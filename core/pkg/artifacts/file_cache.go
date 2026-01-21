@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	defaultDirPermissions  = 0777 // read/write/execute for all users.
-	defaultFilePermissions = 0666 // read/write for all users.
+	defaultDirPermissions  = 0o777 // read/write/execute for all users.
+	defaultFilePermissions = 0o666 // read/write for all users.
 
 	maxFileCacheIOTasks = 16
 )
@@ -114,15 +114,15 @@ func (c *FileCache) Link(b64md5, ref, etag string) error {
 
 // AddFileAndCheckDigest copies a file into the cache. If a digest is provided, it also
 // verifies that the file's MD5 hash matches the digest.
-func (c *FileCache) AddFileAndCheckDigest(path string, digest string) error {
+func (c *FileCache) AddFileAndCheckDigest(path, digest string) error {
 	return addFileAndCheckDigest(c, path, digest)
 }
 
-func (c *HashOnlyCache) AddFileAndCheckDigest(path string, digest string) error {
+func (c *HashOnlyCache) AddFileAndCheckDigest(path, digest string) error {
 	return addFileAndCheckDigest(c, path, digest)
 }
 
-func addFileAndCheckDigest(c Cache, path string, digest string) error {
+func addFileAndCheckDigest(c Cache, path, digest string) error {
 	b64md5, err := c.AddFile(path)
 	if err != nil {
 		return err

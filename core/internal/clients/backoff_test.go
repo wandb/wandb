@@ -25,8 +25,10 @@ func TestExponentialBackoffWithJitter_NonHTTP429(t *testing.T) {
 		expectedMin = maximum
 	}
 
-	assert.GreaterOrEqual(t, backoff, expectedMin, "Backoff should be greater than or equal to min")
-	assert.LessOrEqual(t, backoff, maximum, "Backoff should be less than or equal to calculated max")
+	assert.GreaterOrEqual(
+		t, backoff, expectedMin, "Backoff should be greater than or equal to min")
+	assert.LessOrEqual(
+		t, backoff, maximum, "Backoff should be less than or equal to calculated max")
 }
 
 func TestExponentialBackoffWithJitter_HTTP429(t *testing.T) {
