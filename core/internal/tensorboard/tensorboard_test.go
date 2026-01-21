@@ -51,11 +51,11 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 	if opts.SlashSyncDir != "" {
 		settingsProto.SyncDir = wrapperspb.String(toPath(opts.SlashSyncDir))
 	}
-	settings := settings.From(settingsProto)
+	s := settings.From(settingsProto)
 
 	factory := tensorboard.TBHandlerFactory{
 		Logger:   observabilitytest.NewTestLogger(t),
-		Settings: settings,
+		Settings: s,
 	}
 	handler := factory.New(runWork, fileReadDelay)
 

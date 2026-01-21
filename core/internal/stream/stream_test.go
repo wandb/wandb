@@ -2,7 +2,6 @@ package stream_test
 
 import (
 	"net/http"
-	"os"
 	"testing"
 
 	"github.com/wandb/wandb/core/internal/stream"
@@ -58,12 +57,8 @@ func TestProxyFn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set environment variables for the test
 			for env, value := range tt.envProxy {
-				_ = os.Setenv(env, value)
-				defer func(env string) {
-					_ = os.Unsetenv(env)
-				}(env)
+				t.Setenv(env, value)
 			}
 
 			req, err := http.NewRequest("GET", tt.requestURL, http.NoBody)

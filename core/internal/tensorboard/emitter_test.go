@@ -113,10 +113,10 @@ func TestChartModifiesConfig(t *testing.T) {
 }
 
 func TestTableWritesToFile(t *testing.T) {
-	settings := settings.From(&spb.Settings{
+	s := settings.From(&spb.Settings{
 		SyncDir: wrapperspb.String(t.TempDir()),
 	})
-	emitter := tensorboard.NewTFEmitter(settings)
+	emitter := tensorboard.NewTFEmitter(s)
 	table := wbvalue.Table{
 		ColumnLabels: []string{"a", "b"},
 		Rows:         [][]any{{1, 2}, {3, 4}},
@@ -136,7 +136,7 @@ func TestTableWritesToFile(t *testing.T) {
 		`media/table/[a-z0-9]{32}\.table\.json`,
 		filepath.ToSlash(filesRecord.Files[0].Path))
 	assert.FileExists(t,
-		filepath.Join(settings.GetFilesDir(), filesRecord.Files[0].Path))
+		filepath.Join(s.GetFilesDir(), filesRecord.Files[0].Path))
 }
 
 func TestTableUpdatesHistory(t *testing.T) {

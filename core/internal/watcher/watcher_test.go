@@ -148,9 +148,9 @@ func TestWatcher(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "file.txt")
 		writeFile(t, file, "")
 
-		watcher := newTestWatcher()
-		finishWithDeadline(t, watcher)
-		err := watcher.Watch(file, func() {})
+		w := newTestWatcher()
+		finishWithDeadline(t, w)
+		err := w.Watch(file, func() {})
 
 		require.ErrorContains(t, err, "tried to call Watch() after Finish()")
 	})
