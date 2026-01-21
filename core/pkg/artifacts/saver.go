@@ -465,7 +465,7 @@ func (as *ArtifactSaver) batchFileDataRetriever(
 
 func (as *ArtifactSaver) nextBatch(
 	fileSpecs []gql.CreateArtifactFileSpecInput,
-) (batch, fs []gql.CreateArtifactFileSpecInput) {
+) ([]gql.CreateArtifactFileSpecInput, []gql.CreateArtifactFileSpecInput) {
 	batchSize := min(as.batchSize(), len(fileSpecs))
 	return fileSpecs[:batchSize], fileSpecs[batchSize:]
 }
