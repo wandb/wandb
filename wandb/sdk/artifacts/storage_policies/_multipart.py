@@ -130,6 +130,18 @@ def multipart_download(
             bytes_range = f"{start}-" if (end is None) else f"{start}-{end}"
             headers = {"Range": f"bytes={bytes_range}"}
             with session.get(url=url, headers=headers, stream=True) as rsp:
+                if not rsp.ok:
+                    # Read at most 500 bytes from the response body for logging
+                    error_body = rsp.content[:500] if rsp.content else b""
+                    try:
+                        error_text = error_body.decode("utf-8", errors="replace")
+                    except Exception:
+                        error_text = repr(error_body)
+                    logger.warning(
+                        f"Multipart download failed with status {rsp.status_code}: {error_text}"
+                    )
+                    rsp.raise_for_status()
+
                 offset = start
                 for chunk in rsp.iter_content(chunk_size=RSP_CHUNK_SIZE):
                     if ctx.cancel.is_set():
