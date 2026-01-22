@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import math
+import random
 import threading
+import time
 from concurrent.futures import FIRST_EXCEPTION, Executor, wait
 from dataclasses import dataclass, field
 from queue import Queue
@@ -180,6 +182,15 @@ def multipart_download(
                                 f"Download got {status_code} on attempt {attempt + 1}, refreshing URL"
                             )
                         url_provider.invalidate()
+
+                        # Exponential backoff with jitter before retry
+                        base_delay = 0.5  # 500ms base
+                        max_jitter = 0.5  # up to 500ms jitter
+                        delay = base_delay * (2**attempt) + random.uniform(
+                            0, max_jitter
+                        )
+                        time.sleep(delay)
+
                         current_url = url_provider.get_url()
                         continue  # Retry with new URL
                     raise  # Re-raise if not retryable or max retries exceeded

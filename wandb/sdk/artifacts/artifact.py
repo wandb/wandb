@@ -2228,7 +2228,13 @@ class Artifact:
         if self._client is None:
             raise RuntimeError("Client not initialized")
 
-        query = gql(GET_ARTIFACT_MEMBERSHIP_FILES_GQL)
+        # Conditionally omit totalCount for servers that don't support it
+        omit_fields = (
+            None
+            if server_supports(self._client, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+            else {"totalCount"}
+        )
+        query = gql_compat(GET_ARTIFACT_MEMBERSHIP_FILES_GQL, omit_fields=omit_fields)
         gql_vars = {
             "entity": self.entity,
             "project": self.project,

@@ -1,4 +1,4 @@
-"""Thread-safe URL provider for multipart downloads with TTL-based caching."""
+"""Thread-safe URL provider for multipart downloads with on-demand refresh."""
 
 from __future__ import annotations
 
@@ -8,17 +8,17 @@ from typing import Callable
 
 
 class SharedUrlProvider:
-    """Thread-safe URL provider with TTL-based caching.
+    """Thread-safe URL provider with on-demand refresh.
 
     When multiple threads need to refresh an expired URL, this class ensures
     that recently-fetched URLs are reused rather than making redundant API calls.
 
     Design choices:
-    - TTL (time-to-live): How long a fetched URL is considered "fresh enough" to reuse.
-      Default 5 seconds - if a URL was fetched within the last 5 seconds, reuse it.
-    - No strict single-flight: Multiple threads MAY fetch concurrently during the
-      refresh window, but only the most recent result is kept. This is simpler than
-      full single-flight coordination and sufficient for our use case.
+    - On-demand refresh: URLs are only refreshed when explicitly invalidated
+      (e.g., after a 401/403 error), not proactively based on TTL.
+    - TTL for deduplication: When invalidated, multiple threads may try to refresh
+      simultaneously. The TTL prevents redundant fetches by reusing a URL that was
+      just fetched by another thread.
     - Thread-safe via lock: All state mutations are protected by a lock.
     """
 
@@ -28,40 +28,53 @@ class SharedUrlProvider:
         Args:
             fetch_fn: Callable that fetches a fresh URL (e.g., GraphQL API call).
                      This function should be idempotent and thread-safe.
-            ttl_seconds: How long a fetched URL is considered fresh. Threads that
-                        need a URL within this window will reuse the cached one.
+            ttl_seconds: After invalidation, how long to reuse a freshly-fetched URL
+                        before allowing another fetch. This prevents redundant API
+                        calls when multiple threads hit 401/403 simultaneously.
         """
         self._fetch_fn = fetch_fn
         self._ttl = ttl_seconds
         self._lock = threading.Lock()
         self._url: str | None = None
         self._fetched_at: float = 0  # monotonic timestamp
+        self._invalidated: bool = False
 
     def get_url(self) -> str:
-        """Get the current URL, fetching a fresh one if needed.
+        """Get the current URL, fetching a fresh one only if invalidated.
 
         Returns:
-            The URL to use for download. May be cached if recently fetched.
+            The URL to use for download.
         """
         now = time.monotonic()
 
-        # Fast path: check if cached URL is still fresh
         with self._lock:
-            if self._url and (now - self._fetched_at) < self._ttl:
+            # If we have a valid URL and it hasn't been invalidated, return it
+            if self._url and not self._invalidated:
                 return self._url
 
-        # Slow path: fetch a fresh URL
-        # Note: Multiple threads may reach here simultaneously during the refresh
-        # window. This is acceptable - we just use whichever fetch completes last.
-        url = self._fetch_fn()
-        fetch_time = time.monotonic()
+            # If invalidated but another thread just fetched, reuse that
+            if self._url and self._invalidated and (now - self._fetched_at) < self._ttl:
+                return self._url
 
+            # Need to fetch - mark that we're about to fetch
+            needs_fetch = True
+
+        if needs_fetch:
+            # Fetch outside the lock to avoid blocking other threads
+            url = self._fetch_fn()
+            fetch_time = time.monotonic()
+
+            with self._lock:
+                # Only update if our fetch is more recent than what's cached
+                if fetch_time > self._fetched_at:
+                    self._url = url
+                    self._fetched_at = fetch_time
+                    self._invalidated = False
+                return self._url or url
+
+        # Should not reach here, but satisfy type checker
         with self._lock:
-            # Only update if our fetch is more recent than what's cached
-            if fetch_time > self._fetched_at:
-                self._url = url
-                self._fetched_at = fetch_time
-            return self._url or url
+            return self._url or ""
 
     def invalidate(self) -> None:
         """Mark the cached URL as invalid, forcing next get_url() to fetch fresh.
@@ -69,7 +82,9 @@ class SharedUrlProvider:
         Call this when a download fails with 401/403, indicating URL expiration.
         """
         with self._lock:
-            self._fetched_at = 0  # Force refresh on next get_url()
+            self._invalidated = True
+            # Reset fetched_at so TTL check fails until a new URL is fetched
+            self._fetched_at = 0
 
     def set_initial_url(self, url: str) -> None:
         """Set the initial URL (e.g., from batch-fetched URLs).
@@ -81,3 +96,4 @@ class SharedUrlProvider:
             if not self._url:  # Only set if not already set
                 self._url = url
                 self._fetched_at = time.monotonic()
+                self._invalidated = False
