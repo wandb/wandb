@@ -31,8 +31,9 @@ func New(s *settings.Settings) *WandbAPI {
 	return &WandbAPI{
 		semaphore:            make(chan struct{}, maxConcurrency),
 		settings:             s,
-		runHistoryApiHandler: NewRunHistoryAPIHandler(s),
-	}
+		runHistoryApiHandler: runHistoryApiHandler,
+		sentryClient:         sentryClient,
+	}, nil
 }
 
 // HandleRequest handles an API request and returns an API response,
