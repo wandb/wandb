@@ -884,6 +884,47 @@ class Run(Attrs):
         """Persist changes to the run object to the W&B backend."""
         self.update()
 
+    @normalize_exceptions
+    def update_state(self, state: str) -> bool:
+        """Update the state of a run to allow resuming.
+
+        Allows transitioning runs from 'failed' or 'crashed' to 'pending'.
+
+        Args:
+            state: The new state. Currently only "pending" is supported.
+
+        Returns:
+            True if the state was successfully updated.
+
+        Raises:
+            wandb.Error: If the state transition is not allowed.
+        """
+        mutation = gql(
+            """
+            mutation UpdateRunState($input: UpdateRunStateInput!) {
+                updateRunState(input: $input) {
+                    success
+                }
+            }
+            """
+        )
+
+        result = self.client.execute(
+            mutation,
+            variable_values={
+                "input": {
+                    "id": self.storage_id,
+                    "state": state,
+                }
+            },
+        )
+
+        if result.get("updateRunState", {}).get("success"):
+            self._attrs["state"] = state
+            self._state = state
+            return True
+        return False
+
     @property
     def json_config(self) -> str:
         """Return the run config as a JSON string.
