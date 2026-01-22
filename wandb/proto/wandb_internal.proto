@@ -196,6 +196,7 @@ message ErrorInfo {
 message RunExitRecord {
   int32 exit_code = 1;
   int32 runtime = 2;
+  bool marked_preempting = 3;
   _RecordInfo _info = 200;
 }
 

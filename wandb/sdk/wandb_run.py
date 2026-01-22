@@ -642,6 +642,7 @@ class Run:
 
         self._exit_code = None
         self._exit_result = None
+        self._marked_preempting = False
 
         self._used_artifact_slots: dict[str, str] = {}
 
@@ -2716,7 +2717,10 @@ class Run:
         assert self._backend and self._backend.interface
 
         if self._settings.x_update_finish_state:
-            exit_handle = self._backend.interface.deliver_exit(self._exit_code)
+            exit_handle = self._backend.interface.deliver_exit(
+                self._exit_code,
+                marked_preempting=self._marked_preempting,
+            )
         else:
             exit_handle = self._backend.interface.deliver_finish_without_exit()
 
@@ -3658,6 +3662,7 @@ class Run:
 
         Also tells the internal process to immediately report this to server.
         """
+        self._marked_preempting = True
         if self._backend and self._backend.interface:
             self._backend.interface.publish_preempting()
 

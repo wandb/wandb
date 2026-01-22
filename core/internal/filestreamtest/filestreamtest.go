@@ -60,7 +60,7 @@ func (fs *FakeFileStream) Start(
 ) {
 }
 
-func (fs *FakeFileStream) FinishWithExit(int32) {}
+func (fs *FakeFileStream) FinishWithExit(int32, bool) {}
 func (fs *FakeFileStream) FinishWithoutExit()   {}
 
 func (fs *FakeFileStream) StreamUpdate(update filestream.Update) {

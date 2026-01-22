@@ -649,8 +649,10 @@ func (s *Sender) finishRunSync() {
 func (s *Sender) finishFileStream() {
 	switch {
 	case s.exitRecord != nil:
+		exit := s.exitRecord.GetExit()
 		s.fileStream.FinishWithExit(
-			s.exitRecord.GetExit().GetExitCode(),
+			exit.GetExitCode(),
+			exit.GetMarkedPreempting(),
 		)
 	case s.finishWithoutExitRecord != nil:
 		s.fileStream.FinishWithoutExit()

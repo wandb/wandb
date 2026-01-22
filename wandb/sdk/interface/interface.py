@@ -828,14 +828,19 @@ class InterfaceBase(abc.ABC):
     def _publish_alert(self, alert: pb.AlertRecord) -> None:
         raise NotImplementedError
 
-    def _make_exit(self, exit_code: int | None) -> pb.RunExitRecord:
+    def _make_exit(
+        self, exit_code: int | None, marked_preempting: bool = False
+    ) -> pb.RunExitRecord:
         exit = pb.RunExitRecord()
         if exit_code is not None:
             exit.exit_code = exit_code
+        exit.marked_preempting = marked_preempting
         return exit
 
-    def publish_exit(self, exit_code: int | None) -> None:
-        exit_data = self._make_exit(exit_code)
+    def publish_exit(
+        self, exit_code: int | None, marked_preempting: bool = False
+    ) -> None:
+        exit_data = self._make_exit(exit_code, marked_preempting)
         self._publish_exit(exit_data)
 
     @abc.abstractmethod
@@ -1033,8 +1038,10 @@ class InterfaceBase(abc.ABC):
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_exit(self, exit_code: int | None) -> MailboxHandle[pb.Result]:
-        exit_data = self._make_exit(exit_code)
+    def deliver_exit(
+        self, exit_code: int | None, marked_preempting: bool = False
+    ) -> MailboxHandle[pb.Result]:
+        exit_data = self._make_exit(exit_code, marked_preempting)
         return self._deliver_exit(exit_data)
 
     @abc.abstractmethod
