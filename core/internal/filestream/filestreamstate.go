@@ -80,7 +80,7 @@ func (s *FileStreamState) IsAtSizeLimit(request *FileStreamRequest) bool {
 	// Use the last summary size to approximate the next.
 	// It is too expensive to serialize the summary every time and too complex
 	// to track its size incrementally.
-	if !request.SummaryUpdates.IsEmpty() || len(s.UnsentSummary) > 0 {
+	if !request.SummaryUpdates.IsEmpty() || s.UnsentSummary != "" {
 		approxSize += s.LastRunSummarySize
 		if approxSize >= s.MaxRequestSizeBytes {
 			return true
@@ -215,7 +215,7 @@ func (s *FileStreamState) popSummary(
 		}
 	}
 
-	if len(s.UnsentSummary) == 0 {
+	if s.UnsentSummary == "" {
 		return
 	}
 

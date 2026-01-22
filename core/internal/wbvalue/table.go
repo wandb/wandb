@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/wandb/simplejsonext"
+
 	"github.com/wandb/wandb/core/internal/paths"
 )
 

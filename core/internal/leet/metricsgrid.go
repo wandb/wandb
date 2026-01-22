@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -44,7 +45,7 @@ type MetricsGrid struct {
 	focus *Focus // focus.Row/Col only meaningful relative to currentPage
 
 	// Filter state.
-	filter Filter
+	filter *Filter
 
 	// Stable color assignment.
 	colorOfTitle map[string]lipgloss.AdaptiveColor
@@ -68,6 +69,7 @@ func NewMetricsGrid(
 		filtered:     make([]*EpochLineChart, 0),
 		currentPage:  make([][]*EpochLineChart, gridRows),
 		focus:        focus,
+		filter:       NewFilter(),
 		logger:       logger,
 		colorOfTitle: make(map[string]lipgloss.AdaptiveColor),
 	}
@@ -206,7 +208,8 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 
 		// Stable color per title (no reshuffling when new charts arrive).
 		col := mg.colorForNoLock(chart.Title())
-		chart.SetGraphStyle(lipgloss.NewStyle().Foreground(col))
+		style := lipgloss.NewStyle().Foreground(col)
+		chart.SetGraphStyle(&style)
 	}
 
 	// Ensure filtered mirrors all when filter is empty.

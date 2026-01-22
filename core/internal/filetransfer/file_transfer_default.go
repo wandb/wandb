@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
+
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/wboperation"

@@ -4,10 +4,11 @@ import (
 	"fmt"
 
 	"github.com/wandb/simplejsonext"
+	"gopkg.in/yaml.v3"
+
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"gopkg.in/yaml.v3"
 )
 
 type Format int

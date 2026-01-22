@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
@@ -348,7 +349,7 @@ func TestAzureFileTransfer_Upload(t *testing.T) {
 
 	// Creating a file to be uploaded
 	filename := "test-upload-file.txt"
-	err := os.WriteFile(filename, contentExpected, 0644)
+	err := os.WriteFile(filename, contentExpected, 0o644)
 	assert.NoError(t, err)
 	defer func() {
 		_ = os.Remove(filename)
@@ -427,7 +428,7 @@ func TestAzureFileTransfer_UploadClientError(t *testing.T) {
 
 	// Creating a file to be uploaded
 	filename := "test-upload-file.txt"
-	err := os.WriteFile(filename, contentExpected, 0644)
+	err := os.WriteFile(filename, contentExpected, 0o644)
 	assert.NoError(t, err)
 	defer func() {
 		_ = os.Remove(filename)

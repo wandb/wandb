@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/namedgoroutines"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/wandb/wandb/core/internal/namedgoroutines"
 )
 
 func TestDifferentKeys_Concurrent(t *testing.T) {

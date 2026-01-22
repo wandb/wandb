@@ -393,6 +393,17 @@ func (hub *Hub) GetTraceparent() string {
 	return fmt.Sprintf("%s-%s", scope.propagationContext.TraceID, scope.propagationContext.SpanID)
 }
 
+// GetTraceparentW3C returns the current traceparent string in W3C format.
+// This is intended for propagation to downstream services that expect the W3C header.
+func (hub *Hub) GetTraceparentW3C() string {
+	scope := hub.Scope()
+	if scope.span != nil {
+		return scope.span.ToTraceparent()
+	}
+
+	return fmt.Sprintf("00-%s-%s-00", scope.propagationContext.TraceID, scope.propagationContext.SpanID)
+}
+
 // GetBaggage returns the current Sentry baggage string, to be used as a HTTP header value
 // or HTML meta tag value.
 // This function is context aware, as in it either returns the baggage based

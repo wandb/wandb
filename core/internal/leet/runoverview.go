@@ -11,11 +11,14 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+const runOverviewHeader = "Run Overview"
+
 // RunState indicates the current state of the run.
 type RunState int32
 
 const (
-	RunStateRunning RunState = iota
+	RunStateUnknown RunState = iota
+	RunStateRunning
 	RunStateFinished
 	RunStateFailed
 	RunStateCrashed
@@ -44,7 +47,22 @@ func NewRunOverview() *RunOverview {
 	return &RunOverview{
 		runConfig:  runconfig.New(),
 		runSummary: runsummary.New(),
-		runState:   RunStateRunning,
+	}
+}
+
+// StateString returns a string representation from the data model.
+func (ro *RunOverview) StateString() string {
+	switch ro.State() {
+	case RunStateRunning:
+		return "Running"
+	case RunStateFinished:
+		return "Finished"
+	case RunStateFailed:
+		return "Failed"
+	case RunStateCrashed:
+		return "Error"
+	default:
+		return "Unknown"
 	}
 }
 
@@ -53,6 +71,7 @@ func (ro *RunOverview) ProcessRunMsg(msg RunMsg) {
 	ro.runID = msg.ID
 	ro.displayName = msg.DisplayName
 	ro.project = msg.Project
+	ro.runState = RunStateRunning
 
 	if msg.Config != nil {
 		ro.runConfig.ApplyChangeRecord(msg.Config, func(err error) {})

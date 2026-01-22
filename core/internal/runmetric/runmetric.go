@@ -34,7 +34,7 @@ func (mh *MetricHandler) Exists(key string) bool {
 
 // ProcessRecord updates metric definitions.
 func (mh *MetricHandler) ProcessRecord(record *spb.MetricRecord) error {
-	if len(record.StepMetric) > 0 {
+	if record.StepMetric != "" {
 		if _, ok := mh.latestStep[record.StepMetric]; !ok {
 			mh.latestStep[record.StepMetric] = 0
 		}
@@ -43,13 +43,13 @@ func (mh *MetricHandler) ProcessRecord(record *spb.MetricRecord) error {
 	var metricByKey map[string]definedMetric
 	var key string
 	switch {
-	case len(record.Name) > 0:
+	case record.Name != "":
 		metricByKey = mh.definedMetrics
 		key = record.Name
-	case len(record.GlobName) > 0:
+	case record.GlobName != "":
 		metricByKey = mh.globMetrics
 		key = record.GlobName
-	case len(record.StepMetric) > 0:
+	case record.StepMetric != "":
 		// This is an explicit X axis; nothing to do.
 		return nil
 	default:
@@ -79,7 +79,7 @@ func (mh *MetricHandler) UpdateSummary(
 		return
 	}
 
-	if len(name) == 0 {
+	if name == "" {
 		return
 	}
 
@@ -98,7 +98,7 @@ func (mh *MetricHandler) UpdateMetrics(
 	history *runhistory.RunHistory,
 ) []*spb.MetricRecord {
 	for key := range mh.latestStep {
-		if len(key) == 0 {
+		if key == "" {
 			continue
 		}
 		keyLabels := strings.Split(key, ".")

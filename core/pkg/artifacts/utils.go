@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
+
 	"github.com/wandb/wandb/core/internal/gql"
 )
 

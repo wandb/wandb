@@ -9,6 +9,7 @@ import re
 import shutil
 import socket
 import sys
+import traceback
 from datetime import datetime
 
 # Optional and Union are used for type hinting instead of | because
@@ -27,6 +28,7 @@ from wandb import env, util
 from wandb._pydantic import (
     IS_PYDANTIC_V2,
     AliasChoices,
+    ValidationError,
     computed_field,
     field_validator,
     model_validator,
@@ -915,7 +917,7 @@ class Settings(BaseModel, validate_assignment=True):
         def validate_mutual_exclusion_of_branching_args(self) -> Self:
             """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
 
-            <!-- lazydoc-ignore-classmethod: internal -->
+            <!-- lazydoc-ignore: internal -->
             """
             if (
                 sum(
@@ -1799,38 +1801,54 @@ class Settings(BaseModel, validate_assignment=True):
     def update_from_system_settings(self) -> None:
         """Load settings from the settings files.
 
+        If settings files contain invalid settings, prints and suppresses
+        the error.
+
         <!-- lazydoc-ignore: internal -->
         """
         system_settings = self.read_system_settings()
 
-        if not self.quiet and (sources := system_settings.sources):
-            parts = ["Loaded settings from"]
-            for source in sources:
-                parts.append(f"  {source}")
-            wandb.termlog("\n".join(parts))
+        if len(system_settings.sources) == 0:
+            return
+        elif len(system_settings.sources) == 1:
+            source_string = str(system_settings.sources[0])
+        else:
+            source_string = "\n" + "\n".join(
+                f"  {source}" for source in system_settings.sources
+            )
 
-        value: object  # Can be transformed arbitrarily.
-        for key, value in system_settings.all().items():
-            if key == "ignore_globs":
-                value = value.split(",")
+        # Print at the start so that users can diagnose uncaught exceptions.
+        if not self.quiet:
+            printed_sources = True
+            wandb.termlog(f"Loading settings from {source_string}")
+        else:
+            printed_sources = False
 
-            elif key == "anonymous":
-                wandb.termwarn(
-                    "Deprecated setting 'anonymous' has no effect and will be"
-                    + " removed in a future version of wandb."
-                    + " Please delete it manually or by running `wandb login`"
-                    + " to avoid errors.",
-                    repeat=False,
-                )
-                value = deprecation.UNSET
+        try:
+            parsed_settings = _parse_system_settings(system_settings)
+        except Exception as e:
+            if not printed_sources:
+                wandb.termerror(f"Failed to load settings from {source_string}")
 
-            elif key in ("settings_system", "root_dir"):
-                wandb.termwarn(
-                    f"Ignoring setting {key!r} which is not allowed in a settings file."
-                    + " Please delete it manually to avoid errors in the future."
-                )
+            if isinstance(e, ValidationError):
+                # Pydantic ValidationErrors have detailed messages that we can
+                # print without a stack trace.
+                wandb.termerror(str(e))
 
-            setattr(self, key, value)
+            else:
+                # For all other errors, we need to dump a stack trace to make
+                # sure they're debuggable.
+                tb = traceback.format_exception(type(e), e, e.__traceback__)
+                wandb.termerror("".join(tb))
+
+            return
+
+        # We parse and set in different steps so that we do not partially
+        # apply a broken settings file.
+        #
+        # Note that this runs validation functions a second time, but we expect
+        # them to succeed.
+        self.update_from_settings(parsed_settings)
 
     def update_from_env_vars(self, environ: Dict[str, Any]):
         """Update settings from environment variables.
@@ -2223,3 +2241,49 @@ class Settings(BaseModel, validate_assignment=True):
             os.path.join(self.x_jupyter_root, program)
         )
         self.program_relpath = program
+
+
+def _parse_system_settings(
+    system_settings: settings_file.SettingsFiles,
+) -> Settings:
+    """Validate settings from a settings file.
+
+    Returns:
+        A validated Settings object.
+
+    Raises:
+        ValidationError: on invalid data.
+        Exception: arbitrary errors can occur when constructing Settings.
+    """
+    fields: dict[str, Any] = dict()
+
+    value: object  # Can be transformed arbitrarily.
+    for key, value in system_settings.all().items():
+        if key == "ignore_globs":
+            fields[key] = value.split(",")
+
+        elif key == "anonymous":
+            wandb.termwarn(
+                "Deprecated setting 'anonymous' has no effect and will be"
+                + " removed in a future version of wandb."
+                + " Please delete it manually or by running `wandb login`"
+                + " to avoid errors.",
+                repeat=False,
+            )
+            fields[key] = deprecation.UNSET
+
+        elif key in ("settings_system", "root_dir"):
+            wandb.termwarn(
+                f"Ignoring setting {key!r} which is not allowed in a settings file."
+                + " Please delete it manually to avoid errors in the future."
+            )
+
+        else:
+            fields[key] = value
+
+    # NOTE: Field validators must raise ValueError for Pydantic to wrap them
+    # in a ValidationError. Other kinds of errors will bubble up unaltered.
+    #
+    # Unfortunately, some validators return a UsageError, which has special
+    # handling in the CLI and may require care to change.
+    return Settings(**fields)

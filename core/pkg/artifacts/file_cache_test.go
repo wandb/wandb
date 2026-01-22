@@ -16,11 +16,10 @@ func setupTestEnvironment(t *testing.T) (*FileCache, func()) {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "wandb_test")
 	require.NoError(t, err)
-	_ = os.Setenv("WANDB_CACHE_DIR", dir)
+	t.Setenv("WANDB_CACHE_DIR", dir)
 
 	cleanup := func() {
 		_ = os.RemoveAll(dir)
-		_ = os.Unsetenv("WANDB_CACHE_DIR")
 	}
 
 	fc := NewFileCache(UserCacheDir())
@@ -31,7 +30,7 @@ func setupTestEnvironment(t *testing.T) (*FileCache, func()) {
 
 func TestNewFileCache(t *testing.T) {
 	_, cleanup := setupTestEnvironment(t)
-	defer cleanup()
+	defer cleanup() //nolint
 }
 
 func TestFileCache_Write(t *testing.T) {

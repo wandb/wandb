@@ -12,6 +12,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -19,10 +20,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/pprof"
 	"github.com/wandb/wandb/core/internal/processlib"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/version"
@@ -170,6 +174,9 @@ func leetMain(args []string) int {
 	disableAnalytics := fs.Bool("no-observability", false,
 		"Disables observability features such as metrics and logging analytics.")
 
+	pprofAddr := fs.String("pprof", "",
+		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
+
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
 A terminal UI for viewing your W&B runs locally.
@@ -189,12 +196,24 @@ Flags:
 		fs.PrintDefaults()
 	}
 
-	err := fs.Parse(args)
-	if err == flag.ErrHelp {
-		return exitCodeSuccess
-	}
-	if err != nil {
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return exitCodeSuccess
+		}
 		return exitCodeErrorArgs
+	}
+
+	pprofStop, err := pprof.StartServer(*pprofAddr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "pprof:", err)
+		return exitCodeErrorArgs
+	}
+	if pprofStop != nil {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_ = pprofStop(ctx)
+		}()
 	}
 
 	// Configure Sentry reporting.
@@ -215,7 +234,7 @@ Flags:
 		loggerFile, err := os.OpenFile(
 			"wandb-leet.debug.log",
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
-			0644,
+			0o644,
 		)
 		if err != nil {
 			fmt.Println("fatal:", err)

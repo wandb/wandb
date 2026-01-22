@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayers"
 )
@@ -48,13 +49,10 @@ type RetryableClient interface {
 	Do(*retryablehttp.Request) (*http.Response, error)
 }
 
-// clientImpl implements the Client interface.
+// clientImpl implements the RetryableClient interface.
 type clientImpl struct {
-	baseURL *url.URL
-
 	retryableHTTP RetryableClient // underlying HTTP client
-
-	logger *slog.Logger
+	logger        *slog.Logger
 }
 
 type ClientOptions struct {
@@ -197,7 +195,6 @@ func NewClient(opts ClientOptions) RetryableClient {
 			))
 
 	return &clientImpl{
-		baseURL:       opts.BaseURL,
 		retryableHTTP: retryableHTTP,
 		logger:        opts.Logger,
 	}

@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,8 @@ from wandb import Settings
 from wandb.errors import UsageError
 from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
 from wandb.sdk.lib.run_moment import RunMoment
+
+from tests.fixtures.mock_wandb_log import MockWandbLog
 
 is_pydantic_v1 = int(PYDANTIC_VERSION[0]) == 1
 
@@ -604,3 +607,94 @@ def test_program_relpath_windows(root_dir, expected_result):
 def test_run_id_validation(restricted_chars):
     with pytest.raises(UsageError):
         Settings(run_id=f"test{restricted_chars}")
+
+
+def test_reads_system_settings(
+    tmp_path: pathlib.Path,
+    mock_wandb_log: MockWandbLog,
+):
+    root_dir = tmp_path / "system-settings-test-root"
+    wandb_dir = root_dir / "wandb"
+    wandb_dir.mkdir(parents=True)
+    settings_file = wandb_dir / "settings"
+    settings_file.write_text("""
+        [default]
+        base_url = https://test-url
+        project = my-project
+    """)
+    settings = Settings(
+        root_dir=str(root_dir),
+        base_url="https://initial-url",
+        project="initial-project",
+    )
+
+    settings.update_from_system_settings()
+
+    assert settings.base_url == "https://test-url"
+    assert settings.project == "my-project"
+    mock_wandb_log.assert_logged_re(
+        rf"^Loading settings from {re.escape(str(settings_file))}$",
+    )
+
+
+def test_invalid_system_settings_not_applied(tmp_path: pathlib.Path):
+    root_dir = tmp_path / "system-settings-test-root"
+    wandb_dir = root_dir / "wandb"
+    wandb_dir.mkdir(parents=True)
+    settings_file = wandb_dir / "settings"
+    settings_file.write_text("""
+        [default]
+        base_url = bad-url
+        project = new-project
+    """)
+    settings = Settings(
+        root_dir=str(root_dir),
+        base_url="https://initial-url",
+        project="initial-project",
+    )
+
+    settings.update_from_system_settings()
+
+    assert settings.base_url == "https://initial-url"
+    assert settings.project == "initial-project"
+
+
+@pytest.mark.parametrize("quiet", (False, True))
+@pytest.mark.parametrize(
+    "field,field_valid,field_invalid",
+    (
+        ("project", "initial-project", "slashes/not/allowed"),
+        ("base_url", "https://initial-url", "invalid-url"),
+    ),
+)
+def test_reports_invalid_system_settings(
+    quiet: bool,
+    field: str,
+    field_valid: object,
+    field_invalid: object,
+    tmp_path: pathlib.Path,
+    mock_wandb_log: MockWandbLog,
+):
+    root_dir = tmp_path / "system-settings-test-root"
+    wandb_dir = root_dir / "wandb"
+    wandb_dir.mkdir(parents=True)
+    settings_file = wandb_dir / "settings"
+    settings_file.write_text(f"""
+        [default]
+        {field} = {field_invalid}
+    """)
+    settings = Settings(root_dir=str(root_dir), quiet=quiet)
+    setattr(settings, field, field_valid)
+
+    settings.update_from_system_settings()
+
+    assert getattr(settings, field) == field_valid
+    mock_wandb_log.assert_errored(str(field_invalid))
+    if not quiet:
+        mock_wandb_log.assert_logged_re(
+            rf"^Loading settings from {re.escape(str(settings_file))}$",
+        )
+    else:
+        mock_wandb_log.assert_errored_re(
+            rf"^Failed to load settings from {re.escape(str(settings_file))}$",
+        )

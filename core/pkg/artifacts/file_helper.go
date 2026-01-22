@@ -14,7 +14,7 @@ import (
 // the size of the file, and an error if something goes wrong during the process.
 func WriteJSONToTempFileWithMetadata(
 	data any,
-) (filename string, digest string, size int64, err error) {
+) (filename, digest string, size int64, err error) {
 	// Create a temporary file
 	f, err := os.CreateTemp("", "tmpfile-")
 	if err != nil {

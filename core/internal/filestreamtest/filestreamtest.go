@@ -11,7 +11,7 @@ import (
 
 // A fake implementation of FileStream.
 type FakeFileStream struct {
-	sync.Mutex
+	mu      sync.Mutex
 	updates []filestream.Update
 }
 
@@ -23,14 +23,14 @@ func NewFakeFileStream() *FakeFileStream {
 
 // GetUpdates returns all updates passed to `StreamUpdate`.
 func (fs *FakeFileStream) GetUpdates() []filestream.Update {
-	fs.Lock()
-	defer fs.Unlock()
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 	return slices.Clone(fs.updates)
 }
 
 // GetRequest returns a request accumulated from applying all updates.
 func (fs *FakeFileStream) GetRequest(
-	settings *settings.Settings,
+	s *settings.Settings,
 ) *filestream.FileStreamRequest {
 	fullRequest := &filestream.FileStreamRequest{}
 
@@ -40,7 +40,7 @@ func (fs *FakeFileStream) GetRequest(
 				fullRequest.Merge(request)
 			},
 
-			Settings: settings,
+			Settings: s,
 			Logger:   observability.NewNoOpLogger(),
 			Printer:  observability.NewPrinter(),
 		})
@@ -64,8 +64,8 @@ func (fs *FakeFileStream) FinishWithExit(int32) {}
 func (fs *FakeFileStream) FinishWithoutExit()   {}
 
 func (fs *FakeFileStream) StreamUpdate(update filestream.Update) {
-	fs.Lock()
-	defer fs.Unlock()
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 
 	fs.updates = append(fs.updates, update)
 }

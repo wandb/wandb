@@ -590,7 +590,7 @@ func NewWriterExt(w io.Writer, algo CRCAlgo, version byte) *Writer {
 	}
 
 	// W&B header: identifier.
-	copy(writer.buf[0:4], []byte(wandbHeaderIdent))
+	copy(writer.buf[0:4], wandbHeaderIdent)
 
 	// W&B header: little-endian encoding of the magic number.
 	writer.buf[4] = wandbHeaderMagic & 0x00FF

@@ -101,7 +101,7 @@ func deserializeConfig(path string) (*Config, error) {
 }
 
 // Checks if a given ConfigPath has a given prefix.
-func pathHasPrefix(path ConfigPath, prefix ConfigPath) bool {
+func pathHasPrefix(path, prefix ConfigPath) bool {
 	if len(path) < len(prefix) {
 		return false
 	}

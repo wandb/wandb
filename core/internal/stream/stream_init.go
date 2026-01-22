@@ -9,6 +9,8 @@ import (
 	"net/url"
 
 	"github.com/Khan/genqlient/graphql"
+	"golang.org/x/time/rate"
+
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -16,7 +18,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
-	"golang.org/x/time/rate"
 )
 
 // BaseURLFromSettings extracts the W&B server URL from W&B settings.
@@ -24,13 +25,13 @@ import (
 // It returns nil if offline.
 func BaseURLFromSettings(
 	logger *observability.CoreLogger,
-	settings *settings.Settings,
+	s *settings.Settings,
 ) api.WBBaseURL {
-	if settings.IsOffline() {
+	if s.IsOffline() {
 		return nil
 	}
 
-	baseURL, err := url.Parse(settings.GetBaseURL())
+	baseURL, err := url.Parse(s.GetBaseURL())
 	if err != nil {
 		logger.CaptureFatalAndPanic(
 			fmt.Errorf("stream_init: BaseURLFromSettings: %v", err))
@@ -42,9 +43,9 @@ func BaseURLFromSettings(
 // CredentialsFromSettings creates a CredentialProvider based on settings.
 func CredentialsFromSettings(
 	logger *observability.CoreLogger,
-	settings *settings.Settings,
+	s *settings.Settings,
 ) api.CredentialProvider {
-	credentialProvider, err := api.NewCredentialProvider(settings, logger.Logger)
+	credentialProvider, err := api.NewCredentialProvider(s, logger.Logger)
 
 	if err != nil {
 		logger.CaptureFatalAndPanic(
@@ -67,7 +68,7 @@ func CredentialsFromSettings(
 //
 // The default environment proxy settings are read from the environment variables
 // HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
-func ProxyFn(httpProxy string, httpsProxy string) func(req *http.Request) (*url.URL, error) {
+func ProxyFn(httpProxy, httpsProxy string) func(req *http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
 		if req.URL.Scheme == "http" && httpProxy != "" {
 			proxyURLParsed, err := url.Parse(httpProxy)
@@ -94,9 +95,9 @@ func NewGraphQLClient(
 	credentialProvider api.CredentialProvider,
 	logger *observability.CoreLogger,
 	peeker *observability.Peeker,
-	settings *settings.Settings,
+	s *settings.Settings,
 ) graphql.Client {
-	if settings.IsOffline() {
+	if s.IsOffline() {
 		return nil
 	}
 
@@ -112,20 +113,20 @@ func NewGraphQLClient(
 	// sure that the username setting is populated correctly. Leaving this as is
 	// for now just to avoid breakage in the service account feature.
 	graphqlHeaders := map[string]string{
-		"X-WANDB-USERNAME":   settings.GetUserName(),
-		"X-WANDB-USER-EMAIL": settings.GetEmail(),
+		"X-WANDB-USERNAME":   s.GetUserName(),
+		"X-WANDB-USER-EMAIL": s.GetEmail(),
 	}
-	maps.Copy(graphqlHeaders, settings.GetExtraHTTPHeaders())
+	maps.Copy(graphqlHeaders, s.GetExtraHTTPHeaders())
 	// This header is used to indicate to the backend that the run is in shared
 	// mode to prevent a race condition when two UpsertRun requests are made
 	// simultaneously for the same run ID in shared mode.
-	if settings.IsSharedMode() {
+	if s.IsSharedMode() {
 		graphqlHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
 		graphqlHeaders["X-WANDB-CLIENT-ID"] = string(clientID)
 	}
 	// When enabled, this header instructs the backend to compute the derived summary
 	// using history updates, instead of relying on the SDK to calculate and send it.
-	if settings.IsEnableServerSideDerivedSummary() {
+	if s.IsEnableServerSideDerivedSummary() {
 		graphqlHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
 	}
 
@@ -138,26 +139,26 @@ func NewGraphQLClient(
 		NonRetryTimeout:    api.DefaultNonRetryTimeout,
 		ExtraHeaders:       graphqlHeaders,
 		NetworkPeeker:      peeker,
-		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
-		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
+		Proxy:              ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
+		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 		CredentialProvider: credentialProvider,
 		Logger:             logger.Logger,
 	}
-	if retryMax := settings.GetGraphQLMaxRetries(); retryMax > 0 {
+	if retryMax := s.GetGraphQLMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
 	}
-	if retryWaitMin := settings.GetGraphQLRetryWaitMin(); retryWaitMin > 0 {
+	if retryWaitMin := s.GetGraphQLRetryWaitMin(); retryWaitMin > 0 {
 		opts.RetryWaitMin = retryWaitMin
 	}
-	if retryWaitMax := settings.GetGraphQLRetryWaitMax(); retryWaitMax > 0 {
+	if retryWaitMax := s.GetGraphQLRetryWaitMax(); retryWaitMax > 0 {
 		opts.RetryWaitMax = retryWaitMax
 	}
-	if timeout := settings.GetGraphQLTimeout(); timeout > 0 {
+	if timeout := s.GetGraphQLTimeout(); timeout > 0 {
 		opts.NonRetryTimeout = timeout
 	}
 
 	httpClient := api.NewClient(opts)
-	endpoint := fmt.Sprintf("%s/graphql", settings.GetBaseURL())
+	endpoint := fmt.Sprintf("%s/graphql", s.GetBaseURL())
 
 	return graphql.NewClient(endpoint, api.AsStandardClient(httpClient))
 }
@@ -169,19 +170,19 @@ func NewFileStream(
 	credentialProvider api.CredentialProvider,
 	logger *observability.CoreLogger,
 	peeker api.Peeker,
-	settings *settings.Settings,
+	s *settings.Settings,
 ) filestream.FileStream {
-	if settings.IsOffline() {
+	if s.IsOffline() {
 		return nil
 	}
 
 	fileStreamHeaders := map[string]string{}
-	maps.Copy(fileStreamHeaders, settings.GetExtraHTTPHeaders())
-	if settings.IsSharedMode() {
+	maps.Copy(fileStreamHeaders, s.GetExtraHTTPHeaders())
+	if s.IsSharedMode() {
 		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
 		fileStreamHeaders["X-WANDB-ASYNC-CLIENT-ID"] = string(clientID)
 	}
-	if settings.IsEnableServerSideDerivedSummary() {
+	if s.IsEnableServerSideDerivedSummary() {
 		fileStreamHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
 	}
 
@@ -194,28 +195,28 @@ func NewFileStream(
 		NonRetryTimeout:    filestream.DefaultNonRetryTimeout,
 		ExtraHeaders:       fileStreamHeaders,
 		NetworkPeeker:      peeker,
-		Proxy:              ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
-		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
+		Proxy:              ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
+		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 		CredentialProvider: credentialProvider,
 		Logger:             logger.Logger,
 	}
-	if retryMax := settings.GetFileStreamMaxRetries(); retryMax > 0 {
+	if retryMax := s.GetFileStreamMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
 	}
-	if retryWaitMin := settings.GetFileStreamRetryWaitMin(); retryWaitMin > 0 {
+	if retryWaitMin := s.GetFileStreamRetryWaitMin(); retryWaitMin > 0 {
 		opts.RetryWaitMin = retryWaitMin
 	}
-	if retryWaitMax := settings.GetFileStreamRetryWaitMax(); retryWaitMax > 0 {
+	if retryWaitMax := s.GetFileStreamRetryWaitMax(); retryWaitMax > 0 {
 		opts.RetryWaitMax = retryWaitMax
 	}
-	if timeout := settings.GetFileStreamTimeout(); timeout > 0 {
+	if timeout := s.GetFileStreamTimeout(); timeout > 0 {
 		opts.NonRetryTimeout = timeout
 	}
 
 	fileStreamRetryClient := api.NewClient(opts)
 
 	var transmitRateLimit *rate.Limiter
-	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {
+	if txInterval := s.GetFileStreamTransmitInterval(); txInterval > 0 {
 		transmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
 	}
 
@@ -230,9 +231,9 @@ func NewFileTransferManager(
 	baseURL api.WBBaseURL,
 	fileTransferStats filetransfer.FileTransferStats,
 	logger *observability.CoreLogger,
-	settings *settings.Settings,
+	s *settings.Settings,
 ) filetransfer.FileTransferManager {
-	if settings.IsOffline() {
+	if s.IsOffline() {
 		return nil
 	}
 
@@ -246,25 +247,25 @@ func NewFileTransferManager(
 		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
 		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
 
-		Proxy: ProxyFn(settings.GetHTTPProxy(), settings.GetHTTPSProxy()),
+		Proxy: ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
 
-		InsecureDisableSSL: settings.IsInsecureDisableSSL(),
+		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 
-		ExtraHeaders: settings.GetExtraHTTPHeaders(),
+		ExtraHeaders: s.GetExtraHTTPHeaders(),
 
 		CredentialProvider: api.NoopCredentialProvider{},
 	}
 
-	if retryMax := settings.GetFileTransferMaxRetries(); retryMax > 0 {
+	if retryMax := s.GetFileTransferMaxRetries(); retryMax > 0 {
 		httpOpts.RetryMax = int(retryMax)
 	}
-	if retryWaitMin := settings.GetFileTransferRetryWaitMin(); retryWaitMin > 0 {
+	if retryWaitMin := s.GetFileTransferRetryWaitMin(); retryWaitMin > 0 {
 		httpOpts.RetryWaitMin = retryWaitMin
 	}
-	if retryWaitMax := settings.GetFileTransferRetryWaitMax(); retryWaitMax > 0 {
+	if retryWaitMax := s.GetFileTransferRetryWaitMax(); retryWaitMax > 0 {
 		httpOpts.RetryWaitMax = retryWaitMax
 	}
-	if timeout := settings.GetFileTransferTimeout(); timeout > 0 {
+	if timeout := s.GetFileTransferTimeout(); timeout > 0 {
 		httpOpts.NonRetryTimeout = timeout
 	}
 

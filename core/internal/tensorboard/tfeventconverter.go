@@ -103,7 +103,7 @@ func (h *TFEventConverter) rememberPluginName(
 
 // withNamespace prefixes the key with the namespace, if there is one.
 func (h *TFEventConverter) withNamespace(key string) (string, error) {
-	if len(key) == 0 {
+	if key == "" {
 		return "", errors.New("empty key")
 	}
 

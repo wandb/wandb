@@ -46,7 +46,10 @@ def _wandb_file_path(path: str | None) -> str:
     return wandb_files[0]
 
 
-def launch(path: str | None) -> Never:
+def launch(
+    path: str | None,
+    pprof: str,
+) -> Never:
     get_sentry().configure_scope(process_context="leet")
 
     wandb_file = _wandb_file_path(path)
@@ -61,6 +64,9 @@ def launch(path: str | None) -> Never:
 
         if is_debug(default="False"):
             args.extend(["--log-level", "-4"])
+
+        if pprof:
+            args.extend(["--pprof", pprof])
 
         args.append(wandb_file)
 

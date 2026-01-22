@@ -44,7 +44,7 @@ from .beta import beta
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = old_core.wandb_dir(env.get_dir())
-if not os.path.exists(_wandb_dir):
+if not os.path.exists(_wandb_dir) or not os.access(_wandb_dir, os.W_OK):
     _wandb_dir = tempfile.gettempdir()
 
 try:

@@ -6,14 +6,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/wbvalue"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func localFlushPartialHistory(items []*spb.HistoryItem) *spb.Record {
@@ -45,7 +46,7 @@ func localConfigUpdate(items []*spb.ConfigItem) *spb.Record {
 	}
 }
 
-func assertProtoEqual(t *testing.T, expected proto.Message, actual proto.Message) {
+func assertProtoEqual(t *testing.T, expected, actual proto.Message) {
 	assert.True(t,
 		proto.Equal(expected, actual),
 		"Value is\n\t%v\nbut expected\n\t%v", actual, expected)
@@ -112,10 +113,10 @@ func TestChartModifiesConfig(t *testing.T) {
 }
 
 func TestTableWritesToFile(t *testing.T) {
-	settings := settings.From(&spb.Settings{
+	s := settings.From(&spb.Settings{
 		SyncDir: wrapperspb.String(t.TempDir()),
 	})
-	emitter := tensorboard.NewTFEmitter(settings)
+	emitter := tensorboard.NewTFEmitter(s)
 	table := wbvalue.Table{
 		ColumnLabels: []string{"a", "b"},
 		Rows:         [][]any{{1, 2}, {3, 4}},
@@ -135,7 +136,7 @@ func TestTableWritesToFile(t *testing.T) {
 		`media/table/[a-z0-9]{32}\.table\.json`,
 		filepath.ToSlash(filesRecord.Files[0].Path))
 	assert.FileExists(t,
-		filepath.Join(settings.GetFilesDir(), filesRecord.Files[0].Path))
+		filepath.Join(s.GetFilesDir(), filesRecord.Files[0].Path))
 }
 
 func TestTableUpdatesHistory(t *testing.T) {
@@ -163,10 +164,10 @@ func TestTableUpdatesHistory(t *testing.T) {
 }
 
 func TestEmitImages(t *testing.T) {
-	settings := settings.From(&spb.Settings{
+	s := settings.From(&spb.Settings{
 		SyncDir: wrapperspb.String(t.TempDir()),
 	})
-	emitter := tensorboard.NewTFEmitter(settings)
+	emitter := tensorboard.NewTFEmitter(s)
 	require.NoError(t,
 		emitter.EmitImages(
 			pathtree.PathOf("my", "image"),
@@ -198,6 +199,6 @@ func TestEmitImages(t *testing.T) {
 		assert.Regexp(t,
 			`media/images/[a-z0-9]{32}\.png`,
 			filepath.ToSlash(file.Path))
-		assert.FileExists(t, filepath.Join(settings.GetFilesDir(), file.Path))
+		assert.FileExists(t, filepath.Join(s.GetFilesDir(), file.Path))
 	}
 }

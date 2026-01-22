@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	git "github.com/go-git/go-git/v5"
+
 	"github.com/wandb/wandb/core/internal/observability"
 )
 

@@ -17,7 +17,7 @@ type Header struct {
 
 // ScanWBRecords is a split function for a [bufio.Scanner] that returns
 // the bytes corresponding to incoming Record protos.
-func ScanWBRecords(data []byte, _ bool) (int, []byte, error) {
+func ScanWBRecords(data []byte, _ bool) (tokenEnd int, token []byte, err error) {
 	if len(data) < wbHeaderLength {
 		return 0, nil, nil
 	}
@@ -48,13 +48,13 @@ func ScanWBRecords(data []byte, _ bool) (int, []byte, error) {
 	if tokenEnd64 > uint64(math.MaxInt) {
 		return 0, nil, errors.New("data too long, got integer overflow")
 	}
-	tokenEnd := int(tokenEnd64)
+	tokenEnd = int(tokenEnd64)
 
 	if len(data) < tokenEnd {
 		// 'data' does not yet contain the entire token.
 		return 0, nil, nil
 	}
 
-	token := data[wbHeaderLength:tokenEnd]
+	token = data[wbHeaderLength:tokenEnd]
 	return tokenEnd, token, nil
 }

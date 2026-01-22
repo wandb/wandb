@@ -117,7 +117,7 @@ func getStorageProvider(ref string, fts *FileTransfers) (ArtifactFileTransfer, e
 func parseCloudReference(
 	reference string,
 	expectedScheme string,
-) (string, string, error) {
+) (bucketName, objectName string, err error) {
 	uriParts, err := url.Parse(reference)
 	if err != nil {
 		return "", "", err
@@ -126,7 +126,7 @@ func parseCloudReference(
 		err := fmt.Errorf("invalid %s URI %s", expectedScheme, reference)
 		return "", "", err
 	}
-	bucketName := uriParts.Host
-	objectName := strings.TrimPrefix(uriParts.Path, "/")
+	bucketName = uriParts.Host
+	objectName = strings.TrimPrefix(uriParts.Path, "/")
 	return bucketName, objectName, nil
 }

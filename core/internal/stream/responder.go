@@ -20,14 +20,13 @@ type ResponderEntry struct {
 type Responders map[string]Responder
 
 type Dispatcher struct {
-	sync.RWMutex
+	mu         sync.RWMutex
 	responders Responders
 	logger     *observability.CoreLogger
 }
 
 func NewDispatcher(logger *observability.CoreLogger) *Dispatcher {
 	return &Dispatcher{
-		RWMutex:    sync.RWMutex{},
 		logger:     logger,
 		responders: make(Responders),
 	}
@@ -35,8 +34,8 @@ func NewDispatcher(logger *observability.CoreLogger) *Dispatcher {
 
 // AddResponders adds the given responders to the stream's dispatcher.
 func (d *Dispatcher) AddResponders(entries ...ResponderEntry) {
-	d.Lock()
-	defer d.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	if d.responders == nil {
 		d.responders = make(map[string]Responder)
@@ -62,9 +61,9 @@ func (d *Dispatcher) handleRespond(result *spb.Result) {
 		return
 	}
 
-	d.RLock()
+	d.mu.RLock()
 	responder, ok := d.responders[responderID]
-	d.RUnlock()
+	d.mu.RUnlock()
 
 	if ok {
 		responder.Respond(&spb.ServerResponse{
