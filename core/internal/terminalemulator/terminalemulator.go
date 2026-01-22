@@ -56,8 +56,8 @@ func NewTerminal(
 // Write sends input to the terminal.
 func (t *Terminal) Write(input string) {
 	for _, char := range input {
-		switch {
-		case len(t.escapeSequence) == 0:
+		switch t.escapeSequence {
+		case "":
 			switch char {
 			default:
 				t.putChar(char)
@@ -69,7 +69,7 @@ func (t *Terminal) Write(input string) {
 				t.escapeSequence = string(char)
 			}
 
-		case t.escapeSequence == "\x1b":
+		case "\x1b":
 			switch char {
 			case '[':
 				t.escapeSequence = "\x1b["
@@ -78,7 +78,7 @@ func (t *Terminal) Write(input string) {
 				t.putChar(char)
 			}
 
-		case t.escapeSequence == "\x1b[":
+		case "\x1b[":
 			switch char {
 			case 'A':
 				t.cursorUp()

@@ -9,10 +9,11 @@ import (
 	"runtime"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/observability"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -123,7 +124,7 @@ type hashWorkerTask struct {
 
 // splitHashTasks distributes parts evenly among workers for parallel processing.
 // If parts cannot be divided evenly, extra parts are distributed to earlier workers.
-func splitHashTasks(numParts int, numWorkers int) []hashWorkerTask {
+func splitHashTasks(numParts, numWorkers int) []hashWorkerTask {
 	partsPerWorker := numParts / numWorkers
 	workersWithOneMorePart := numParts % numWorkers
 

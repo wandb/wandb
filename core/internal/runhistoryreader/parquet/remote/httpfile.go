@@ -26,7 +26,7 @@ func getObjectSize(
 	client *http.Client,
 	url string,
 ) (int64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, http.NoBody)
 	if err != nil {
 		return -1, err
 	}
@@ -94,7 +94,7 @@ func (o *HttpFileReader) ReadAt(p []byte, off int64) (int, error) {
 	start := off
 	end := min(off+int64(len(p)), o.fileSize)
 
-	req, err := http.NewRequestWithContext(o.ctx, http.MethodGet, o.url, nil)
+	req, err := http.NewRequestWithContext(o.ctx, http.MethodGet, o.url, http.NoBody)
 	if err != nil {
 		return 0, err
 	}

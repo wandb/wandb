@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -207,7 +208,8 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 
 		// Stable color per title (no reshuffling when new charts arrive).
 		col := mg.colorForNoLock(chart.Title())
-		chart.SetGraphStyle(lipgloss.NewStyle().Foreground(col))
+		style := lipgloss.NewStyle().Foreground(col)
+		chart.SetGraphStyle(&style)
 	}
 
 	// Ensure filtered mirrors all when filter is empty.

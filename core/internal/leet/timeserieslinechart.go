@@ -34,7 +34,7 @@ type TimeSeriesLineChartParams struct {
 	Now           time.Time
 }
 
-func NewTimeSeriesLineChart(params TimeSeriesLineChartParams) *TimeSeriesLineChart {
+func NewTimeSeriesLineChart(params *TimeSeriesLineChartParams) *TimeSeriesLineChart {
 	graphStyle := lipgloss.NewStyle().Foreground(params.BaseColor)
 
 	// Show the most recent 10 minutes (slight look-back).
@@ -194,4 +194,6 @@ func (c *TimeSeriesLineChart) Title() string { return c.def.Title() }
 func (c *TimeSeriesLineChart) LastUpdate() time.Time { return c.lastUpdate }
 
 // ValueBounds returns the observed [min,max] values tracked for auto-ranging.
-func (c *TimeSeriesLineChart) ValueBounds() (float64, float64) { return c.minValue, c.maxValue }
+func (c *TimeSeriesLineChart) ValueBounds() (minValue, maxValue float64) {
+	return c.minValue, c.maxValue
+}

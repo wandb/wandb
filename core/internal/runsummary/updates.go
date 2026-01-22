@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/wandb/simplejsonext"
+
 	"github.com/wandb/wandb/core/internal/pathtree"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
@@ -104,12 +105,12 @@ func NewStream(
 	recordParserFactory *RecordParserFactory,
 	senderFactory *SenderFactory,
 	sentry *sentry_ext.Client,
-	settings *settings.Settings,
+	s *settings.Settings,
 	runHandle *runhandle.RunHandle,
 	tbHandlerFactory *tensorboard.TBHandlerFactory,
 	writerFactory *WriterFactory,
 ) *Stream {
-	symlinkDebugCore(settings, string(debugCorePath))
+	symlinkDebugCore(s, string(debugCorePath))
 
 	runWork := runwork.New(BufferSize, logger)
 	tbHandler := tbHandlerFactory.New(
@@ -118,7 +119,7 @@ func NewStream(
 	)
 	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
 
-	s := &Stream{
+	stream := &Stream{
 		runWork:            runWork,
 		runHandle:          runHandle,
 		operations:         operations,
@@ -126,7 +127,7 @@ func NewStream(
 		graphqlClientOrNil: graphqlClientOrNil,
 		logger:             logger,
 		loggerFile:         loggerFile,
-		settings:           settings,
+		settings:           s,
 		recordParser:       recordParser,
 		handler:            handlerFactory.New(runWork),
 		writerFactory:      writerFactory,
@@ -136,10 +137,10 @@ func NewStream(
 		clientID:           clientID,
 	}
 
-	s.dispatcher = NewDispatcher(logger)
+	stream.dispatcher = NewDispatcher(logger)
 
-	logger.Info("stream: created new stream", "id", s.settings.GetRunID())
-	return s
+	logger.Info("stream: created new stream", "id", stream.settings.GetRunID())
+	return stream
 }
 
 // AddResponders adds the given responders to the stream's dispatcher.

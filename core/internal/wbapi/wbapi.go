@@ -29,13 +29,13 @@ type WandbAPI struct {
 }
 
 func NewWandbAPI(
-	settings *settings.Settings,
+	s *settings.Settings,
 	sentryClient *sentry_ext.Client,
 ) *WandbAPI {
 	return &WandbAPI{
 		semaphore:            make(chan struct{}, maxConcurrency),
-		settings:             settings,
-		runHistoryApiHandler: NewRunHistoryAPIHandler(settings, sentryClient),
+		settings:             s,
+		runHistoryApiHandler: NewRunHistoryAPIHandler(s, sentryClient),
 		sentryClient:         sentryClient,
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/wandb/simplejsonext"
+
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 )

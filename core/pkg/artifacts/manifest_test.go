@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -186,13 +187,13 @@ func TestManifest_WriteToFile(t *testing.T) {
 	}
 
 	filename, digest, size, err := manifest.WriteToFile()
+	defer func() {
+		_ = os.Remove(filename)
+	}()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, filename)
 	assert.NotEmpty(t, digest)
 	assert.NotZero(t, size)
-	defer func() {
-		_ = os.Remove(filename)
-	}()
 }
 
 func TestManifest_GetManifestEntryFromArtifactFilePath(t *testing.T) {

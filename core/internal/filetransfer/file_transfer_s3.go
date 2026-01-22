@@ -11,9 +11,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
-	"golang.org/x/sync/errgroup"
 )
 
 type S3Client interface {
@@ -251,7 +252,8 @@ func (ft *S3FileTransfer) getCorrectObjectVersion(
 		if err != nil {
 			return nil, err
 		}
-		for _, version := range versions.Versions {
+		for i := range versions.Versions {
+			version := &versions.Versions[i]
 			if strings.Trim(*version.ETag, "\"") == digest {
 				getObjInput.Key = aws.String(*version.Key)
 				getObjInput.VersionId = version.VersionId
@@ -308,6 +310,6 @@ func (ft *S3FileTransfer) downloadFile(
 	return fileutil.CopyReaderToFile(object.Body, localPath)
 }
 
-func (ft *S3FileTransfer) formatDownloadError(context string, err error) error {
-	return fmt.Errorf("S3FileTransfer: Download: %s: %v", context, err)
+func (ft *S3FileTransfer) formatDownloadError(ctx string, err error) error {
+	return fmt.Errorf("S3FileTransfer: Download: %s: %v", ctx, err)
 }

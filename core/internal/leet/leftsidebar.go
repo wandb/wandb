@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -90,9 +91,9 @@ func (s *LeftSidebar) Update(msg tea.Msg) (*LeftSidebar, tea.Cmd) {
 
 	// Handle animation.
 	if s.animState.IsAnimating() {
-		complete := s.animState.Update(time.Now())
-		if !complete {
-			return s, s.animationCmd()
+		if complete := s.animState.Update(time.Now()); !complete {
+			cmd := s.animationCmd()
+			return s, cmd
 		}
 	}
 
@@ -308,7 +309,7 @@ func (s *LeftSidebar) buildSectionLines(contentWidth int) []string {
 }
 
 // renderSection renders a single section.
-func (s *LeftSidebar) renderSection(idx int, width int) string {
+func (s *LeftSidebar) renderSection(idx, width int) string {
 	section := &s.sections[idx]
 
 	if len(section.FilteredItems) == 0 || section.Height == 0 {

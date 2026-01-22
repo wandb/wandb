@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/httplayers"
 	"golang.org/x/time/rate"
+
+	"github.com/wandb/wandb/core/internal/httplayers"
 )
 
 // rateLimitWrapper adds dynamic rate limiting to an HTTP request.

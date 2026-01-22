@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -134,9 +135,6 @@ func makeOutput(record *spb.Record) data {
 		}
 		items := map[string]string{}
 		for _, item := range history.Item {
-			// if strings.HasPrefix(item.Key, "_") {
-			// 	continue
-			// }
 			items[strings.Join(item.NestedKey, ".")] = item.ValueJson
 		}
 		return data{

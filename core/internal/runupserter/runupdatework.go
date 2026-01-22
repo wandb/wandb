@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -14,7 +16,6 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/proto"
 )
 
 const (

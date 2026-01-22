@@ -22,7 +22,7 @@ import (
 // duration is >= max.
 // The jitter is at most 25% of the calculated duration.
 func ExponentialBackoffWithJitter(
-	min, max time.Duration,
+	minimum, maximum time.Duration,
 	attemptNum int,
 	resp *http.Response,
 ) time.Duration {
@@ -43,14 +43,14 @@ func ExponentialBackoffWithJitter(
 		}
 	}
 
-	sleep := SecondsToDuration(math.Pow(2, float64(attemptNum)) * DurationToSeconds(min))
+	sleep := SecondsToDuration(math.Pow(2, float64(attemptNum)) * DurationToSeconds(minimum))
 
 	// Add jitter to the general backoff calculation
 	sleep = addJitter(sleep)
 
-	if sleep > max {
+	if sleep > maximum {
 		// at this point we've hit the max backoff, so just return that
-		sleep = max
+		sleep = maximum
 	}
 	return sleep
 }

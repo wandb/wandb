@@ -13,9 +13,10 @@ import (
 	"sync"
 	"time"
 
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type GPUResourceManagerRef int

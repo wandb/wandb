@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
@@ -124,7 +125,6 @@ func TestGetFeature_GraphQLError(t *testing.T) {
 		fmt.Errorf("GraphQL Error: Internal Server Error"),
 	)
 
-	// stubServerFeaturesQuery(mockGQL)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
 		mockGQL,
 		observabilitytest.NewTestLogger(t),

@@ -11,7 +11,7 @@ import (
 
 // FakeWatcher is a Watcher implementation that can be used in tests.
 type FakeWatcher struct {
-	sync.Mutex
+	mu sync.Mutex
 
 	handlers map[string]func(string)
 }
@@ -26,10 +26,10 @@ func NewFakeWatcher() *FakeWatcher {
 
 // OnChange invokes the change callback registered for the path, if any.
 func (w *FakeWatcher) OnChange(path string) {
-	w.Lock()
+	w.mu.Lock()
 	handler := w.handlers[path]
 	parentHandler := w.handlers[filepath.Dir(path)]
-	w.Unlock()
+	w.mu.Unlock()
 
 	if handler != nil {
 		handler(path)
@@ -40,8 +40,8 @@ func (w *FakeWatcher) OnChange(path string) {
 
 // IsWatching reports whether a callback is registered for the path.
 func (w *FakeWatcher) IsWatching(path string) bool {
-	w.Lock()
-	defer w.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	return w.handlers[w.toAbs(path)] != nil
 }
@@ -55,8 +55,8 @@ func (w *FakeWatcher) WatchDir(path string, callback func(string)) error {
 }
 
 func (w *FakeWatcher) watchFileOrDir(path string, callback func(string)) error {
-	w.Lock()
-	defer w.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	// Raise an error for non-existent paths like the real implementation.
 	_, err := os.Stat(path)

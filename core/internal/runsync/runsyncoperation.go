@@ -6,10 +6,11 @@ import (
 	"slices"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"golang.org/x/sync/errgroup"
 )
 
 // RunSyncOperationFactory creates RunSyncOperations.
@@ -57,8 +58,8 @@ func (f *RunSyncOperationFactory) New(
 			continue
 		}
 
-		settings := MakeSyncSettings(globalSettings, userPath)
-		factory := InjectRunSyncerFactory(settings, op.logger)
+		s := MakeSyncSettings(globalSettings, userPath)
+		factory := InjectRunSyncerFactory(s, op.logger)
 		op.syncers = append(op.syncers,
 			factory.New(path, ToDisplayPath(userPath, cwd), updates, live))
 	}

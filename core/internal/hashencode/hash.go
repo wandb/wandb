@@ -63,7 +63,7 @@ func ComputeReaderHexMD5(reader io.Reader) (string, error) {
 // Returns true if the file matches the hash or false if there is no match or
 // if there is an error (e.g., file is missing, can't be read, or hash doesn't
 // match).
-func VerifyFileB64MD5(path string, b64md5 string) bool {
+func VerifyFileB64MD5(path, b64md5 string) bool {
 	actual, err := ComputeFileB64MD5(path)
 	if err != nil {
 		return false

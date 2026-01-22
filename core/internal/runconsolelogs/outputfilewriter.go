@@ -8,12 +8,13 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/sparselist"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -203,7 +204,7 @@ func (w *outputFileWriter) createNewChunk() error {
 
 	// 6 = read, write permissions for the user.
 	// 4 = read-only for "group" and "other".
-	chunk, err := CreateLineFile(fullPath, 0644)
+	chunk, err := CreateLineFile(fullPath, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to create chunk file: %v", err)
 	}

@@ -20,8 +20,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
-	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 const (
@@ -407,7 +408,7 @@ func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error
 func (ft *AzureFileTransfer) getBlob(
 	blobInfo ParsedBlobInfo,
 	task *ReferenceArtifactDownloadTask,
-) (string, string, error) {
+) (blobName, versionId string, err error) {
 	blobClient := ft.blobClient
 	if ft.blobClient == nil {
 		client, err := setupBlobClient(task)
@@ -434,7 +435,7 @@ func (ft *AzureFileTransfer) getBlob(
 	}
 
 	// Otherwise, find the correct blob version
-	blobName, versionId, err := ft.getCorrectBlobVersion(blobInfo, task)
+	blobName, versionId, err = ft.getCorrectBlobVersion(blobInfo, task)
 	if err != nil {
 		return "", "", err
 	}
@@ -446,7 +447,7 @@ func (ft *AzureFileTransfer) getBlob(
 func (ft *AzureFileTransfer) getCorrectBlobVersion(
 	blobInfo ParsedBlobInfo,
 	task *ReferenceArtifactDownloadTask,
-) (string, string, error) {
+) (blobName, versionId string, err error) {
 	containerUrl := fmt.Sprintf("%s/%s", blobInfo.AccountUrl, blobInfo.Container)
 	containerClient, err := ft.containerClients.LoadOrStore(containerUrl, setupContainerClient)
 	if err != nil {
@@ -564,7 +565,7 @@ func (ft *AzureFileTransfer) downloadBlobToFile(
 	localPath string,
 ) error {
 	// Create or open a local file where we can download the blob
-	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 		return fmt.Errorf(
 			"unable to create destination directory %s: %w",
 			filepath.Dir(localPath),

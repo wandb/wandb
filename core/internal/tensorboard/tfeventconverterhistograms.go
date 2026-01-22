@@ -165,9 +165,8 @@ func emitHistogram(
 // and the bin edge distribution.
 func reduceHistogram(
 	desiredBins int,
-	oldEdges []float64,
-	oldWeights []float64,
-) (newEdges []float64, newWeights []float64, err error) {
+	oldEdges, oldWeights []float64,
+) (newEdges, newWeights []float64, err error) {
 	// There are many array accesses that are safe but only
 	// due to non-obvious arithmetic reasons, so catch all
 	// panics just in case.
