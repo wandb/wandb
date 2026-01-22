@@ -19,7 +19,6 @@ jobs:
           cache-dependency-path: core/go.sum
       - name: Setup and run prek hooks
         run: |
-          go version
           curl -LsSf https://astral.sh/uv/install.sh | sh
           uv tool install prek
           prek run --hook-stage pre-push --all-files --skip go-generate-graphql
