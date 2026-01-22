@@ -17,8 +17,8 @@ jobs:
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
-      - uses: j178/prek-action@v1
-        with:
-          extra_args: --hook-stage pre-push --all-files
-        env:
-          SKIP: go-generate-graphql
+      - name: Setup and run prek hooks
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          uv tool install prek
+          prek run --hook-stage pre-push --all-files --skip go-generate-graphql

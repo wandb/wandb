@@ -8,7 +8,7 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.25.5"
+    default: "1.25.6"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
