@@ -302,7 +302,7 @@ var (
 	leftSidebarHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(colorSubheading).
-				MarginBottom(1)
+				MarginBottom(0)
 	RightBorder = lipgloss.Border{
 		Top:         string(unicodeSpace),
 		Bottom:      string(unicodeSpace),

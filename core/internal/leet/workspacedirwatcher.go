@@ -143,10 +143,8 @@ func (w *Workspace) preloadRunOverview(runKeys []string) {
 						Project:     rr.Run.Project,
 						Config:      rr.Run.Config,
 					}
-					w.roMu.Lock()
-					w.runOverview[runKey] = NewRunOverview()
-					w.runOverview[runKey].ProcessRunMsg(rm)
-					w.roMu.Unlock()
+					ro := w.getOrCreateRunOverview(runKey)
+					ro.ProcessRunMsg(rm)
 				}
 			}
 			return nil

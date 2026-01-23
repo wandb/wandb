@@ -30,10 +30,9 @@ type Workspace struct {
 	selectedRuns map[string]bool // runDirName -> selected
 	pinnedRun    string          // runDirName or ""
 
-	// Preload basic run metadata from the run record for each run.
-	runOverview map[string]*RunOverview
-	roMu        sync.RWMutex
-
+	// Run overview for each run keyed by run path.
+	runOverview        map[string]*RunOverview
+	roMu               sync.RWMutex
 	runOverviewSidebar *RunOverviewSidebar
 
 	// TODO: mark live runs upon selection.

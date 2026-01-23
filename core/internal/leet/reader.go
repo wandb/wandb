@@ -98,7 +98,7 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 		msgs = append(msgs, r.ConcatenateHistory(histories))
 	}
 	if len(summaries) > 0 {
-		msgs = append(msgs, ConcatenateSummary(summaries))
+		msgs = append(msgs, r.ConcatenateSummary(summaries))
 	}
 
 	if r.exitSeen {
@@ -140,8 +140,9 @@ func (r *WandbReader) ConcatenateHistory(messages []HistoryMsg) HistoryMsg {
 // ConcatenateHistory merges a slice of SummaryMsg into a single SummaryMsg.
 //
 // Assumes that the summary messages are ordered.
-func ConcatenateSummary(messages []SummaryMsg) SummaryMsg {
+func (r *WandbReader) ConcatenateSummary(messages []SummaryMsg) SummaryMsg {
 	s := SummaryMsg{
+		RunPath: r.runPath,
 		Summary: make([]*spb.SummaryRecord, 0),
 	}
 
@@ -222,6 +223,7 @@ func (r *WandbReader) recordToMsg(record *spb.Record) tea.Msg {
 
 	case *spb.Record_Run:
 		return RunMsg{
+			RunPath:     r.runPath,
 			ID:          rec.Run.GetRunId(),
 			DisplayName: rec.Run.GetDisplayName(),
 			Project:     rec.Run.GetProject(),
@@ -230,11 +232,11 @@ func (r *WandbReader) recordToMsg(record *spb.Record) tea.Msg {
 	case *spb.Record_History:
 		return ParseHistory(r.runPath, rec.History)
 	case *spb.Record_Stats:
-		return ParseStats(rec.Stats)
+		return ParseStats(r.runPath, rec.Stats)
 	case *spb.Record_Summary:
-		return SummaryMsg{Summary: []*spb.SummaryRecord{rec.Summary}}
+		return SummaryMsg{RunPath: r.runPath, Summary: []*spb.SummaryRecord{rec.Summary}}
 	case *spb.Record_Environment:
-		return SystemInfoMsg{Record: rec.Environment}
+		return SystemInfoMsg{RunPath: r.runPath, Record: rec.Environment}
 	default:
 		return nil
 	}
@@ -289,7 +291,7 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 }
 
 // ParseStats extracts metrics from a stats record.
-func ParseStats(stats *spb.StatsRecord) tea.Msg {
+func ParseStats(runPath string, stats *spb.StatsRecord) tea.Msg {
 	if stats == nil {
 		return nil
 	}
@@ -316,7 +318,7 @@ func ParseStats(stats *spb.StatsRecord) tea.Msg {
 	}
 
 	if len(metrics) > 0 {
-		return StatsMsg{Timestamp: timestamp, Metrics: metrics}
+		return StatsMsg{RunPath: runPath, Timestamp: timestamp, Metrics: metrics}
 	}
 	return nil
 }

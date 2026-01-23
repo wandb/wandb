@@ -242,22 +242,39 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 	return nil
 }
 
+func (w *Workspace) getOrCreateRunOverview(runKey string) *RunOverview {
+	if _, ok := w.runOverview[runKey]; !ok {
+		w.roMu.Lock()
+		w.runOverview[runKey] = NewRunOverview()
+		w.roMu.Unlock()
+	}
+	return w.runOverview[runKey]
+}
+
 // handleWorkspaceRecord updates per‑run and metrics state for an individual record.
 func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 	switch m := msg.(type) {
 	case RunMsg:
+		ro := w.getOrCreateRunOverview(run.key)
+		ro.ProcessRunMsg(m)
+
 		run.state = RunStateRunning
 
 	case HistoryMsg:
-		if w.metricsGrid != nil {
-			w.metricsGrid.ProcessHistory(m)
-			if w.pinnedRun != "" {
-				w.refreshPinnedRun()
-			}
+		w.metricsGrid.ProcessHistory(m)
+		if w.pinnedRun != "" {
+			w.refreshPinnedRun()
 		}
 		if w.anyRunRunning() {
 			w.heartbeatMgr.Reset(w.anyRunRunning)
 		}
+	case SystemInfoMsg:
+		ro := w.getOrCreateRunOverview(run.key)
+		ro.ProcessSystemInfoMsg(m.Record)
+
+	case SummaryMsg:
+		ro := w.getOrCreateRunOverview(run.key)
+		ro.ProcessSummaryMsg(m.Summary)
 
 	case FileCompleteMsg:
 		switch m.ExitCode {
