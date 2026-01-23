@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,8 +31,15 @@ type Workspace struct {
 
 	// Run overview for each run keyed by run path.
 	runOverview        map[string]*RunOverview
-	roMu               sync.RWMutex
 	runOverviewSidebar *RunOverviewSidebar
+
+	// Run overview preload pipeline for unselected runs.
+	//
+	// Bubble Tea best practice: async work returns tea.Msg; model state is mutated
+	// only inside Update(). These fields implement a bounded-concurrency queue.
+	runOverviewPreloadPending   map[string]struct{} // queued or in-flight
+	runOverviewPreloadQueue     []string            // FIFO
+	runOverviewPreloadsInFlight int
 
 	// TODO: mark live runs upon selection.
 
@@ -88,20 +94,21 @@ func NewWorkspace(
 	return &Workspace{
 		runsAnimState: NewAnimationState(true, SidebarMinWidth),
 		// runOverviewAnimState: runOverviewAnimState,
-		wandbDir:           wandbDir,
-		config:             cfg,
-		keyMap:             buildKeyMap(WorkspaceKeyBindings()),
-		logger:             logger,
-		runs:               runs,
-		runOverview:        make(map[string]*RunOverview),
-		runOverviewSidebar: NewRunOverviewSidebar(runOverviewAnimState, NewRunOverview(), SidebarSideRight),
-		selectedRuns:       make(map[string]bool),
-		focus:              focus,
-		metricsGrid:        NewMetricsGrid(cfg, focus, logger),
-		runsByKey:          make(map[string]*workspaceRun),
-		liveChan:           ch,
-		heartbeatMgr:       NewHeartbeatManager(hbInterval, ch, logger),
-		filter:             NewFilter(),
+		wandbDir:                  wandbDir,
+		config:                    cfg,
+		keyMap:                    buildKeyMap(WorkspaceKeyBindings()),
+		logger:                    logger,
+		runs:                      runs,
+		runOverview:               make(map[string]*RunOverview),
+		runOverviewSidebar:        NewRunOverviewSidebar(runOverviewAnimState, NewRunOverview(), SidebarSideRight),
+		runOverviewPreloadPending: make(map[string]struct{}),
+		selectedRuns:              make(map[string]bool),
+		focus:                     focus,
+		metricsGrid:               NewMetricsGrid(cfg, focus, logger),
+		runsByKey:                 make(map[string]*workspaceRun),
+		liveChan:                  ch,
+		heartbeatMgr:              NewHeartbeatManager(hbInterval, ch, logger),
+		filter:                    NewFilter(),
 	}
 }
 
@@ -153,6 +160,9 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 	case WorkspaceRunDirsMsg:
 		return w.handleWorkspaceRunDirs(t)
+
+	case WorkspaceRunOverviewPreloadedMsg:
+		return w.handleWorkspaceRunOverviewPreloaded(t)
 
 	case WorkspaceChunkedBatchMsg:
 		return w.handleWorkspaceChunkedBatch(t)

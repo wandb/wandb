@@ -243,12 +243,13 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 }
 
 func (w *Workspace) getOrCreateRunOverview(runKey string) *RunOverview {
-	if _, ok := w.runOverview[runKey]; !ok {
-		w.roMu.Lock()
-		w.runOverview[runKey] = NewRunOverview()
-		w.roMu.Unlock()
+	ro := w.runOverview[runKey]
+	if ro != nil {
+		return ro
 	}
-	return w.runOverview[runKey]
+	ro = NewRunOverview()
+	w.runOverview[runKey] = ro
+	return ro
 }
 
 // handleWorkspaceRecord updates per‑run and metrics state for an individual record.

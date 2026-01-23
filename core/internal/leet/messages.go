@@ -127,3 +127,12 @@ type WorkspaceRunDirsMsg struct {
 	RunKeys []string
 	Err     error
 }
+
+// WorkspaceRunOverviewPreloadedMsg is emitted when the workspace finishes
+// preloading the Run record for a run (used to populate the overview sidebar
+// for runs that haven't been selected/streamed yet).
+type WorkspaceRunOverviewPreloadedMsg struct {
+	RunKey string
+	Run    RunMsg
+	Err    error
+}

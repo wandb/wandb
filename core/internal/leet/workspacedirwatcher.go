@@ -1,15 +1,15 @@
 package leet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -24,6 +24,8 @@ const (
 	// maxConcurrentPreloads limits the number of concurrent run record preloads.
 	maxConcurrentPreloads = 4
 )
+
+var errRunRecordNotFound = errors.New("run record not found")
 
 func (w *Workspace) pollWandbDirCmd(delay time.Duration) tea.Cmd {
 	wandbDir := w.wandbDir
@@ -94,62 +96,118 @@ func parseRunDirTimestamp(name string) time.Time {
 }
 
 func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
+	pollCmd := w.pollWandbDirCmd(wandbDirPollInterval)
+
 	if msg.Err != nil {
 		w.logger.CaptureError(fmt.Errorf("workspace: wandb dir scan: %v", msg.Err))
-		return w.pollWandbDirCmd(wandbDirPollInterval)
+		return pollCmd
 	}
 
 	if !w.runKeysEqual(msg.RunKeys) {
 		w.applyRunKeys(msg.RunKeys)
-		// preload run overview data in the background.
-		go w.preloadRunOverview(msg.RunKeys)
 	}
+	// Enqueue missing run overviews (even if the run list is unchanged).
+	// This makes new run overviews eventually consistent even if the .wandb file
+	// wasn't readable on the first scan.
+	w.enqueueMissingRunOverviews(msg.RunKeys)
 
-	return w.pollWandbDirCmd(wandbDirPollInterval)
+	startCmd := w.startRunOverviewPreloadsCmd()
+	if startCmd == nil {
+		return pollCmd
+	}
+	return tea.Batch(pollCmd, startCmd)
 }
 
-func (w *Workspace) preloadRunOverview(runKeys []string) {
-	group := &errgroup.Group{}
-	group.SetLimit(maxConcurrentPreloads)
-
+// enqueueMissingRunOverviews queues runs that don't yet have overview state and
+// aren't already queued/in-flight.
+func (w *Workspace) enqueueMissingRunOverviews(runKeys []string) {
 	for _, runKey := range runKeys {
-		w.roMu.RLock()
 		if _, ok := w.runOverview[runKey]; ok {
 			continue
 		}
-		w.roMu.RUnlock()
+		if _, ok := w.runOverviewPreloadPending[runKey]; ok {
+			continue
+		}
+		w.runOverviewPreloadPending[runKey] = struct{}{}
+		w.runOverviewPreloadQueue = append(w.runOverviewPreloadQueue, runKey)
+	}
+}
 
-		group.Go(func() error {
-			wandbFile := w.runWandbFile(runKey)
-			if wandbFile == "" {
-				return nil
-			}
-			reader, err := NewWandbReader(wandbFile, w.logger)
+// startRunOverviewPreloadsCmd starts as many overview preloads as allowed by the
+// concurrency limit and returns a batch cmd. It is safe to call repeatedly.
+func (w *Workspace) startRunOverviewPreloadsCmd() tea.Cmd {
+	available := maxConcurrentPreloads - w.runOverviewPreloadsInFlight
+	if available <= 0 || len(w.runOverviewPreloadQueue) == 0 {
+		return nil
+	}
+	if available > len(w.runOverviewPreloadQueue) {
+		available = len(w.runOverviewPreloadQueue)
+	}
+
+	cmds := make([]tea.Cmd, 0, available)
+	for range available {
+		runKey := w.runOverviewPreloadQueue[0]
+		w.runOverviewPreloadQueue = w.runOverviewPreloadQueue[1:]
+		w.runOverviewPreloadsInFlight++
+		cmds = append(cmds, w.preloadRunOverviewCmd(runKey))
+	}
+	return tea.Batch(cmds...)
+}
+
+// preloadRunOverviewCmd reads up to maxRecordsToScan records looking for the Run record.
+// It returns a completion msg (success or failure) so the queue can make progress.
+func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
+	wandbFile := w.runWandbFile(runKey)
+	logger := w.logger
+
+	return func() tea.Msg {
+		if runKey == "" || wandbFile == "" {
+			return WorkspaceRunOverviewPreloadedMsg{
+				RunKey: runKey, Err: errRunRecordNotFound}
+		}
+
+		reader, err := NewWandbReader(wandbFile, logger)
+		if err != nil {
+			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
+		}
+		defer reader.Close()
+
+		for range maxRecordsToScan {
+			msg, err := reader.ReadNext()
 			if err != nil {
-				return nil
-			}
-			for range maxRecordsToScan {
-				record, err := reader.store.Read()
-				if err != nil {
+				if errors.Is(err, io.EOF) {
 					break
 				}
-				if record == nil {
-					continue
-				}
-				if rr, ok := record.RecordType.(*spb.Record_Run); ok && rr.Run != nil {
-					rm := RunMsg{
-						ID:          rr.Run.RunId,
-						DisplayName: rr.Run.DisplayName,
-						Project:     rr.Run.Project,
-						Config:      rr.Run.Config,
-					}
-					ro := w.getOrCreateRunOverview(runKey)
-					ro.ProcessRunMsg(rm)
-				}
+				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
 			}
-			return nil
-		})
+			if rm, ok := msg.(RunMsg); ok && rm.ID != "" {
+				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: rm}
+			}
+		}
+
+		return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: errRunRecordNotFound}
 	}
+}
+
+func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
+	msg WorkspaceRunOverviewPreloadedMsg,
+) tea.Cmd {
+	if w.runOverviewPreloadsInFlight > 0 {
+		w.runOverviewPreloadsInFlight--
+	}
+	delete(w.runOverviewPreloadPending, msg.RunKey)
+
+	if msg.Err == nil && msg.Run.ID != "" {
+		ro := w.getOrCreateRunOverview(msg.RunKey)
+		ro.ProcessRunMsg(msg.Run)
+	} else if msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err) {
+		// Best-effort logging for unexpected failures; avoid spamming for
+		// "file not ready yet" or missing run records.
+		w.logger.CaptureError(fmt.Errorf("workspace: preload run overview for %s: %v", msg.RunKey, msg.Err))
+	}
+
+	// Keep draining the queue.
+	return w.startRunOverviewPreloadsCmd()
 }
 
 func (w *Workspace) runKeysEqual(runKeys []string) bool {
@@ -174,6 +232,19 @@ func (w *Workspace) applyRunKeys(runKeys []string) {
 	present := make(map[string]struct{}, len(runKeys))
 	for _, key := range runKeys {
 		present[key] = struct{}{}
+	}
+
+	// Drop queued (not in-flight) overview preloads for runs that disappeared.
+	if len(w.runOverviewPreloadQueue) > 0 {
+		kept := w.runOverviewPreloadQueue[:0]
+		for _, key := range w.runOverviewPreloadQueue {
+			if _, ok := present[key]; ok {
+				kept = append(kept, key)
+				continue
+			}
+			delete(w.runOverviewPreloadPending, key)
+		}
+		w.runOverviewPreloadQueue = kept
 	}
 
 	// If the pinned run disappeared, clear it.
