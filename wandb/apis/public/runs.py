@@ -897,7 +897,7 @@ class Run(Attrs):
             `True` if the state was successfully updated.
 
         Raises:
-            wandb.Error: If the state transition is not allowed.
+            `wandb.Error`: If the run is not in a terminal failure state or the requested state transition is not allowed.
         """
         mutation = gql(
             """
