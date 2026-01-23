@@ -894,7 +894,7 @@ class Run(Attrs):
             state: The target run state. Only `"pending"` is supported.
 
         Returns:
-            True if the state was successfully updated.
+            `True` if the state was successfully updated.
 
         Raises:
             wandb.Error: If the state transition is not allowed.
