@@ -5,6 +5,7 @@ from pprint import pformat as pf
 from typing import Any, Dict, List, Optional
 
 import wandb
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps.scheduler import LOG_PREFIX, RunState, Scheduler, SweepRun
 
 _logger = logging.getLogger(__name__)
@@ -68,11 +69,18 @@ class SweepScheduler(Scheduler):
                 _run_states[run_id] = True
 
         _logger.debug(f"Sending states: \n{pf(_run_states)}\n")
-        commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
-            agent_id=self._workers[worker_id].agent_id,
-            metrics={},
-            run_states=_run_states,
-        )
+        try:
+            commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
+                agent_id=self._workers[worker_id].agent_id,
+                metrics={},
+                run_states=_run_states,
+            )
+        except SweepNotFoundError:
+            wandb.termerror(
+                f"{LOG_PREFIX}Sweep was deleted or agent was not found. Stopping sweep."
+            )
+            self.stop_sweep()
+            return []
         _logger.debug(f"AgentHeartbeat commands: \n{pf(commands)}\n")
 
         return commands
