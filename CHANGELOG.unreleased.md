@@ -21,3 +21,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - After `wandb login --host <invalid-url>`, using `wandb login --host <valid-url>` works as usual (@timoffex in https://github.com/wandb/wandb/pull/11207)
   - Regression introduced in 0.24.0
+- Sweep agents now exit gracefully when the sweep is deleted, instead of running indefinitely with repeated 404 errors (@domphan-wandb in https://github.com/wandb/wandb/pull/11226)
