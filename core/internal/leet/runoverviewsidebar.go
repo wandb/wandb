@@ -8,7 +8,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+type SidebarSide int
+
+const (
+	SidebarLeft SidebarSide = iota
+	SidebarRight
 )
 
 const (
@@ -17,11 +23,11 @@ const (
 	sidebarHeaderLines = 7
 )
 
-// LeftSidebar stores and displays run metadata.
+// RunOverviewSidebar stores and displays run metadata.
 //
 // It handles presentation concerns: sections, filtering, navigation, layout, and rendering.
 // All data processing is delegated to the RunOverview model.
-type LeftSidebar struct {
+type RunOverviewSidebar struct {
 	animState   *AnimationState
 	runOverview *RunOverview
 
@@ -37,7 +43,10 @@ type LeftSidebar struct {
 	height int
 }
 
-func NewLeftSidebar(config *ConfigManager) *LeftSidebar {
+func NewRunOverviewSidebar(
+	config *ConfigManager,
+	runOverview *RunOverview,
+) *RunOverviewSidebar {
 	animState := NewAnimationState(config.LeftSidebarVisible(), SidebarMinWidth)
 
 	es := PagedList{Title: "Environment", Active: true}
@@ -47,9 +56,9 @@ func NewLeftSidebar(config *ConfigManager) *LeftSidebar {
 	ss := PagedList{Title: "Summary"}
 	ss.SetItemsPerPage(20)
 
-	return &LeftSidebar{
+	return &RunOverviewSidebar{
 		animState:     animState,
-		runOverview:   NewRunOverview(),
+		runOverview:   runOverview,
 		sections:      []PagedList{es, cs, ss},
 		activeSection: 0,
 		filter:        NewFilter(),
@@ -57,7 +66,7 @@ func NewLeftSidebar(config *ConfigManager) *LeftSidebar {
 }
 
 // Toggle toggles the sidebar between expanded and collapsed states.
-func (s *LeftSidebar) Toggle() {
+func (s *RunOverviewSidebar) Toggle() {
 	s.animState.Toggle()
 
 	if s.animState.IsExpanding() {
@@ -66,7 +75,7 @@ func (s *LeftSidebar) Toggle() {
 }
 
 // Update handles animation and input updates for the sidebar.
-func (s *LeftSidebar) Update(msg tea.Msg) (*LeftSidebar, tea.Cmd) {
+func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) {
 	// Handle key input only when expanded.
 	// TODO: hook up with keybindings.
 	if s.animState.IsExpanded() {
@@ -100,7 +109,7 @@ func (s *LeftSidebar) Update(msg tea.Msg) (*LeftSidebar, tea.Cmd) {
 }
 
 // View renders the sidebar.
-func (s *LeftSidebar) View(height int) string {
+func (s *RunOverviewSidebar) View(height int) string {
 	if s.animState.Width() <= 0 {
 		return ""
 	}
@@ -131,83 +140,10 @@ func (s *LeftSidebar) View(height int) string {
 		Render(styledContent)
 }
 
-// ProcessRunMsg delegates to the data model and updates UI.
-func (s *LeftSidebar) ProcessRunMsg(msg RunMsg) {
-	s.runOverview.ProcessRunMsg(msg)
-	s.updateSections()
-}
-
-// ProcessSystemInfoMsg delegates to the data model and updates UI.
-func (s *LeftSidebar) ProcessSystemInfoMsg(record *spb.EnvironmentRecord) {
-	s.runOverview.ProcessSystemInfoMsg(record)
-	s.updateSections()
-}
-
-// ProcessSummaryMsg delegates to the data model and updates UI.
-func (s *LeftSidebar) ProcessSummaryMsg(summary []*spb.SummaryRecord) {
-	s.runOverview.ProcessSummaryMsg(summary)
-	s.updateSections()
-}
-
-// SetRunState delegates to the data model.
-func (s *LeftSidebar) SetRunState(state RunState) {
-	s.runOverview.SetRunState(state)
-}
-
-// UpdateDimensions updates the sidebar dimensions based on terminal width
-// and the visibility of the right sidebar.
-func (s *LeftSidebar) UpdateDimensions(terminalWidth int, rightSidebarVisible bool) {
-	var calculatedWidth int
-
-	if rightSidebarVisible {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
-	} else {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
-	}
-
-	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
-	s.animState.SetExpandedWidth(expandedWidth)
-}
-
-// Width returns the current width of the sidebar.
-func (s *LeftSidebar) Width() int {
-	return s.animState.Width()
-}
-
-// IsVisible returns true if the sidebar is visible.
-func (s *LeftSidebar) IsVisible() bool {
-	return s.animState.IsVisible()
-}
-
-// IsAnimating returns true if the sidebar is currently animating.
-func (s *LeftSidebar) IsAnimating() bool {
-	return s.animState.IsAnimating()
-}
-
-// SelectedItem returns the currently selected key-value pair.
-func (s *LeftSidebar) SelectedItem() (key, value string) {
-	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
-		return "", ""
-	}
-
-	section := &s.sections[s.activeSection]
-	if len(section.FilteredItems) == 0 {
-		return "", ""
-	}
-
-	startIdx := section.CurrentPage() * section.ItemsPerPage()
-	itemIdx := startIdx + section.CurrentLine()
-
-	if itemIdx >= 0 && itemIdx < len(section.FilteredItems) {
-		item := section.FilteredItems[itemIdx]
-		return item.Key, item.Value
-	}
-
-	return "", ""
-}
-
-// updateSections pulls data from the model and updates UI sections.
-func (s *LeftSidebar) updateSections() {
+// Sync synchronizes section view with the s.runOverview.
+//
+// It pulls data from the model and updates UI sections.
+func (s *RunOverviewSidebar) Sync() {
 	var selectedKey string
 	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
 		selectedKey, _ = s.SelectedItem()
@@ -234,8 +170,60 @@ func (s *LeftSidebar) updateSections() {
 	}
 }
 
+// UpdateDimensions updates the sidebar dimensions based on terminal width
+// and the visibility of the right sidebar.
+func (s *RunOverviewSidebar) UpdateDimensions(terminalWidth int, rightSidebarVisible bool) {
+	var calculatedWidth int
+
+	if rightSidebarVisible {
+		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
+	} else {
+		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
+	}
+
+	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
+	s.animState.SetExpandedWidth(expandedWidth)
+}
+
+// Width returns the current width of the sidebar.
+func (s *RunOverviewSidebar) Width() int {
+	return s.animState.Width()
+}
+
+// IsVisible returns true if the sidebar is visible.
+func (s *RunOverviewSidebar) IsVisible() bool {
+	return s.animState.IsVisible()
+}
+
+// IsAnimating returns true if the sidebar is currently animating.
+func (s *RunOverviewSidebar) IsAnimating() bool {
+	return s.animState.IsAnimating()
+}
+
+// SelectedItem returns the currently selected key-value pair.
+func (s *RunOverviewSidebar) SelectedItem() (key, value string) {
+	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
+		return "", ""
+	}
+
+	section := &s.sections[s.activeSection]
+	if len(section.FilteredItems) == 0 {
+		return "", ""
+	}
+
+	startIdx := section.CurrentPage() * section.ItemsPerPage()
+	itemIdx := startIdx + section.CurrentLine()
+
+	if itemIdx >= 0 && itemIdx < len(section.FilteredItems) {
+		item := section.FilteredItems[itemIdx]
+		return item.Key, item.Value
+	}
+
+	return "", ""
+}
+
 // animationCmd returns a command to continue the animation on section toggle.
-func (s *LeftSidebar) animationCmd() tea.Cmd {
+func (s *RunOverviewSidebar) animationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
 		return LeftSidebarAnimationMsg{}
 	})
@@ -253,7 +241,7 @@ func truncateValue(value string, maxWidth int) string {
 }
 
 // buildHeaderLines builds the header section from the data model.
-func (s *LeftSidebar) buildHeaderLines() []string {
+func (s *RunOverviewSidebar) buildHeaderLines() []string {
 	lines := make([]string, 0, sidebarHeaderLines)
 
 	// Title.
@@ -284,7 +272,7 @@ func (s *LeftSidebar) buildHeaderLines() []string {
 }
 
 // buildSectionLines builds all section content lines.
-func (s *LeftSidebar) buildSectionLines(contentWidth int) []string {
+func (s *RunOverviewSidebar) buildSectionLines(contentWidth int) []string {
 	var lines []string
 
 	for i := range s.sections {
@@ -307,7 +295,7 @@ func (s *LeftSidebar) buildSectionLines(contentWidth int) []string {
 }
 
 // renderSection renders a single section.
-func (s *LeftSidebar) renderSection(idx int, width int) string {
+func (s *RunOverviewSidebar) renderSection(idx int, width int) string {
 	section := &s.sections[idx]
 
 	if len(section.FilteredItems) == 0 || section.Height == 0 {
@@ -327,7 +315,7 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 }
 
 // renderSectionHeader renders the section title with pagination info.
-func (s *LeftSidebar) renderSectionHeader(section *PagedList) string {
+func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList) string {
 	titleStyle := leftSidebarSectionStyle
 	if section.Active {
 		titleStyle = leftSidebarSectionHeaderStyle
@@ -346,7 +334,7 @@ func (s *LeftSidebar) renderSectionHeader(section *PagedList) string {
 }
 
 // buildSectionInfo builds the pagination/count info string for a section.
-func (s *LeftSidebar) buildSectionInfo(
+func (s *RunOverviewSidebar) buildSectionInfo(
 	section *PagedList,
 	totalItems, filteredItems, startIdx, endIdx int,
 ) string {
@@ -367,7 +355,7 @@ func (s *LeftSidebar) buildSectionInfo(
 }
 
 // renderSectionItems renders the items for a section.
-func (s *LeftSidebar) renderSectionItems(section *PagedList, width int) []string {
+func (s *RunOverviewSidebar) renderSectionItems(section *PagedList, width int) []string {
 	maxKeyWidth := int(float64(width) * leftSidebarKeyWidthRatio)
 	maxValueWidth := width - maxKeyWidth - 1
 
@@ -397,7 +385,7 @@ func (s *LeftSidebar) renderSectionItems(section *PagedList, width int) []string
 }
 
 // renderItem renders a single key-value item.
-func (s *LeftSidebar) renderItem(
+func (s *RunOverviewSidebar) renderItem(
 	item KeyValuePair,
 	posInPage int,
 	section *PagedList,
@@ -421,7 +409,7 @@ func (s *LeftSidebar) renderItem(
 }
 
 // hasNextVisibleSection returns true if there's another visible section after idx.
-func (s *LeftSidebar) hasNextVisibleSection(idx int) bool {
+func (s *RunOverviewSidebar) hasNextVisibleSection(idx int) bool {
 	for j := idx + 1; j < len(s.sections); j++ {
 		if s.sections[j].Height > 0 {
 			return true

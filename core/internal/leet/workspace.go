@@ -85,7 +85,7 @@ func NewWorkspace(
 	// TODO: make sidebar visibility configurable.
 	return &Workspace{
 		runsAnimState:        NewAnimationState(true, SidebarMinWidth),
-		runOverviewAnimState: NewAnimationState(false, SidebarMinWidth),
+		runOverviewAnimState: NewAnimationState(true, SidebarMinWidth),
 		wandbDir:             wandbDir,
 		config:               cfg,
 		keyMap:               buildKeyMap(WorkspaceKeyBindings()),

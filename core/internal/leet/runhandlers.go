@@ -19,7 +19,8 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 	switch msg := msg.(type) {
 	case RunMsg:
 		r.logger.Debug("model: processing RunMsg")
-		r.leftSidebar.ProcessRunMsg(msg)
+		r.runOverview.ProcessRunMsg(msg)
+		r.leftSidebar.Sync()
 		r.runState = RunStateRunning
 		r.isLoading = false
 		return r, nil
@@ -41,12 +42,14 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 
 	case SystemInfoMsg:
 		r.logger.Debug("model: processing SystemInfoMsg")
-		r.leftSidebar.ProcessSystemInfoMsg(msg.Record)
+		r.runOverview.ProcessSystemInfoMsg(msg.Record)
+		r.leftSidebar.Sync()
 		return r, nil
 
 	case SummaryMsg:
 		r.logger.Debug("model: processing SummaryMsg")
-		r.leftSidebar.ProcessSummaryMsg(msg.Summary)
+		r.runOverview.ProcessSummaryMsg(msg.Summary)
+		r.leftSidebar.Sync()
 		return r, nil
 
 	case FileCompleteMsg:
@@ -57,7 +60,8 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		default:
 			r.runState = RunStateFailed
 		}
-		r.leftSidebar.SetRunState(r.runState)
+		r.runOverview.SetRunState(r.runState)
+		r.leftSidebar.Sync()
 
 		r.logger.Debug("model: stopping heartbeats and finishing watcher")
 		r.heartbeatMgr.Stop()
@@ -68,7 +72,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 	case ErrorMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
 		r.runState = RunStateFailed
-		r.leftSidebar.SetRunState(r.runState)
+		r.runOverview.SetRunState(r.runState)
 		r.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
 		r.heartbeatMgr.Stop()
 		r.watcherMgr.Finish()

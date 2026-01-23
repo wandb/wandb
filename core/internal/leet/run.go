@@ -51,7 +51,8 @@ type Run struct {
 
 	// UI components.
 	metricsGrid  *MetricsGrid
-	leftSidebar  *LeftSidebar
+	runOverview  *RunOverview
+	leftSidebar  *RunOverviewSidebar
 	rightSidebar *RightSidebar
 
 	// Sidebar animation synchronization.
@@ -89,6 +90,8 @@ func NewRun(
 	focus := NewFocus()
 	ch := make(chan tea.Msg, 4096)
 
+	ro := NewRunOverview()
+
 	return &Run{
 		config:       cfg,
 		keyMap:       buildKeyMap(RunKeyBindings()),
@@ -96,7 +99,8 @@ func NewRun(
 		isLoading:    true,
 		runPath:      runPath,
 		metricsGrid:  NewMetricsGrid(cfg, focus, logger),
-		leftSidebar:  NewLeftSidebar(cfg),
+		runOverview:  ro,
+		leftSidebar:  NewRunOverviewSidebar(cfg, ro),
 		rightSidebar: NewRightSidebar(cfg, focus, logger),
 		watcherMgr:   NewWatcherManager(ch, logger),
 		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, ch, logger),

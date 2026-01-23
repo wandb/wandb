@@ -8,17 +8,17 @@ import (
 )
 
 // EnterFilterMode activates filter mode (draft initialized from applied).
-func (s *LeftSidebar) EnterFilterMode() {
+func (s *RunOverviewSidebar) EnterFilterMode() {
 	s.filter.Activate()
 }
 
 // UpdateFilterDraft updates the in‑progress filter text (for live preview).
-func (s *LeftSidebar) UpdateFilterDraft(msg tea.KeyMsg) {
+func (s *RunOverviewSidebar) UpdateFilterDraft(msg tea.KeyMsg) {
 	s.filter.UpdateDraft(msg)
 }
 
 // ExitFilterMode exits filter input mode and optionally applies the filter.
-func (s *LeftSidebar) ExitFilterMode(apply bool) {
+func (s *RunOverviewSidebar) ExitFilterMode(apply bool) {
 	if apply {
 		s.filter.Commit()
 	} else {
@@ -29,42 +29,42 @@ func (s *LeftSidebar) ExitFilterMode(apply bool) {
 }
 
 // ClearFilter removes any applied/draft filter and restores all items.
-func (s *LeftSidebar) ClearFilter() {
+func (s *RunOverviewSidebar) ClearFilter() {
 	s.filter.Clear()
 	s.ApplyFilter()
 	s.updateSectionHeights()
 }
 
 // ToggleFilterMatchMode flips regex <-> glob and reapplies the live preview.
-func (s *LeftSidebar) ToggleFilterMatchMode() {
+func (s *RunOverviewSidebar) ToggleFilterMatchMode() {
 	s.filter.ToggleMode()
 	s.ApplyFilter()
 	s.updateSectionHeights()
 }
 
 // IsFilterMode reports whether we are currently typing a filter.
-func (s *LeftSidebar) IsFilterMode() bool {
+func (s *RunOverviewSidebar) IsFilterMode() bool {
 	return s.filter.IsActive()
 }
 
 // FilterMode exposes the current filter match mode.
-func (s *LeftSidebar) FilterMode() FilterMatchMode {
+func (s *RunOverviewSidebar) FilterMode() FilterMatchMode {
 	return s.filter.Mode()
 }
 
 // FilterQuery returns the currently effective query (applied if set, else draft).
-func (s *LeftSidebar) FilterQuery() string {
+func (s *RunOverviewSidebar) FilterQuery() string {
 	return s.filter.Query()
 }
 
 // IsFiltering returns true if an applied (non‑empty) filter exists.
-func (s *LeftSidebar) IsFiltering() bool {
+func (s *RunOverviewSidebar) IsFiltering() bool {
 	return s.filter.Query() != ""
 }
 
 // ApplyFilter recomputes FilteredItems for each section based on the current matcher.
 // Also auto‑focuses the section with most matches while the query is non‑empty.
-func (s *LeftSidebar) ApplyFilter() {
+func (s *RunOverviewSidebar) ApplyFilter() {
 	matcher := s.filter.Matcher()
 
 	for i := range s.sections {
@@ -90,7 +90,7 @@ func (s *LeftSidebar) ApplyFilter() {
 // focusBestMatchSection focuses the section that has the most filter matches.
 // Ties are resolved by keeping the current active section.
 // No-ops if no section has matches.
-func (s *LeftSidebar) focusBestMatchSection() {
+func (s *RunOverviewSidebar) focusBestMatchSection() {
 	best := s.activeSection
 	max := 0
 
@@ -108,7 +108,7 @@ func (s *LeftSidebar) focusBestMatchSection() {
 }
 
 // FilterInfo returns a compact, human‑readable per‑section match summary for the status bar.
-func (s *LeftSidebar) FilterInfo() string {
+func (s *RunOverviewSidebar) FilterInfo() string {
 	// Only show during input or with an active filter.
 	if !s.IsFilterMode() && s.FilterQuery() == "" {
 		return ""
