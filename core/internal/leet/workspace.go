@@ -134,7 +134,7 @@ func (w *Workspace) Init() tea.Cmd {
 func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	switch t := msg.(type) {
 	case tea.WindowSizeMsg:
-		w.updateDimensions(t.Width, t.Height)
+		w.handleWindowResize(t.Width, t.Height)
 
 	case tea.KeyMsg:
 		return w.handleKeyMsg(t)
@@ -171,22 +171,28 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (w *Workspace) handleRunsAnimation() tea.Cmd {
-	done := w.runsAnimState.Update(time.Now())
-	l := w.computeViewports()
-	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
-	if !done {
+	layout := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	if w.runsAnimState.IsAnimating() && !w.runsAnimState.Update(time.Now()) {
 		return w.runsAnimationCmd()
 	}
+
+	w.runOverviewSidebar.UpdateDimensions(w.width, w.runsAnimState.IsVisible())
+
 	return nil
 }
 
 func (w *Workspace) handleRunOverviewAnimation() tea.Cmd {
-	done := w.runOverviewSidebar.animState.Update(time.Now())
-	l := w.computeViewports()
-	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
-	if !done {
+	layout := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	if w.runOverviewSidebar.IsAnimating() && !w.runOverviewSidebar.animState.Update(time.Now()) {
 		return w.runOverviewAnimationCmd()
 	}
+
+	w.updateLeftSidebarDimensions(w.runOverviewSidebar.IsVisible())
+
 	return nil
 }
 
@@ -574,30 +580,28 @@ func (w *Workspace) IsFiltering() bool {
 	return false
 }
 
-// updateSidebarWidths updates both sidebars' expanded widths based on their
-// visibility states.
-func (w *Workspace) updateSidebarWidths(leftVisible, rightVisible bool) {
-	bothVisible := leftVisible && rightVisible
+func (w *Workspace) updateLeftSidebarDimensions(rightSidebarVisible bool) {
+	var calculatedWidth int
 
-	// Left (runs) sidebar.
-	leftRatio := SidebarWidthRatio
-	if bothVisible {
-		leftRatio = SidebarWidthRatioBoth
+	if rightSidebarVisible {
+		calculatedWidth = int(float64(w.width) * SidebarWidthRatioBoth)
+	} else {
+		calculatedWidth = int(float64(w.width) * SidebarWidthRatio)
 	}
-	w.runsAnimState.SetExpandedWidth(
-		clamp(int(float64(w.width)*leftRatio), SidebarMinWidth, SidebarMaxWidth),
-	)
 
-	// Right (overview) sidebar.
-	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
+	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
+	w.runsAnimState.SetExpandedWidth(expandedWidth)
 }
 
-func (w *Workspace) updateDimensions(width, height int) {
+// handleWindowResize handles window resize messages.
+func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
-	w.updateSidebarWidths(w.runsAnimState.IsVisible(), w.runOverviewSidebar.IsVisible())
 
-	l := w.computeViewports()
-	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
+	w.updateLeftSidebarDimensions(w.runOverviewSidebar.IsVisible())
+	w.runOverviewSidebar.UpdateDimensions(w.width, w.runsAnimState.IsVisible())
+
+	layout := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 }
 
 // computeViewports returns (leftW, contentW, rightW, contentH).

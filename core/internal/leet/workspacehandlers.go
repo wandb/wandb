@@ -373,17 +373,27 @@ func (w *Workspace) handleQuit(msg tea.KeyMsg) tea.Cmd {
 
 func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
 	leftWillBeVisible := !w.runsAnimState.IsVisible()
-	w.updateSidebarWidths(leftWillBeVisible, w.runOverviewSidebar.IsVisible())
 
+	w.updateLeftSidebarDimensions(w.runOverviewSidebar.IsVisible())
+	w.runOverviewSidebar.UpdateDimensions(w.width, leftWillBeVisible)
 	w.runsAnimState.Toggle()
+
+	layout := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
 	return w.runsAnimationCmd()
 }
 
 func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
 	rightWillBeVisible := !w.runOverviewSidebar.IsVisible()
-	w.updateSidebarWidths(w.runsAnimState.IsVisible(), rightWillBeVisible)
 
+	w.runOverviewSidebar.UpdateDimensions(w.width, w.runsAnimState.IsVisible())
+	w.updateLeftSidebarDimensions(rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
+
+	layout := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
 	return w.runOverviewAnimationCmd()
 }
 
