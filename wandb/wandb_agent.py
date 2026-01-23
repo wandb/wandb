@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import wandb
 from wandb import util
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk import wandb_login
 from wandb.sdk.lib import config_util, ipython
 
@@ -359,7 +360,14 @@ class Agent:
                     self._running = False
                     continue
 
-                commands = self._api.agent_heartbeat(agent_id, {}, run_status)
+                try:
+                    commands = self._api.agent_heartbeat(agent_id, {}, run_status)
+                except SweepNotFoundError:
+                    wandb.termerror(
+                        "Sweep was deleted or agent was not found. Stopping sweep."
+                    )
+                    self._running = False
+                    break
 
                 # TODO: send _server_responses
                 self._server_responses = []
