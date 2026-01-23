@@ -886,7 +886,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def update_state(self, state: str) -> bool:
-        """Update the state of a run to allow resuming.
+        """Update the state of a run.
 
         Allows transitioning runs from 'failed' or 'crashed' to 'pending'.
 
