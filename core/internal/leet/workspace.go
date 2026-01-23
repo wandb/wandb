@@ -441,20 +441,20 @@ func (w *Workspace) renderRunOverview() string {
 	if ro, ok := w.runOverview[curKey]; ok {
 		if ro.State() != RunStateUnknown {
 			lines = append(lines,
-				leftSidebarKeyStyle.Render("State: ")+
-					leftSidebarValueStyle.Render(ro.StateString()))
+				runOverviewSidebarKeyStyle.Render("State: ")+
+					runOverviewSidebarValueStyle.Render(ro.StateString()))
 		}
 		if id := ro.ID(); id != "" {
 			lines = append(lines,
-				leftSidebarKeyStyle.Render("ID: ")+leftSidebarValueStyle.Render(id))
+				runOverviewSidebarKeyStyle.Render("ID: ")+runOverviewSidebarValueStyle.Render(id))
 		}
 		if name := ro.DisplayName(); name != "" {
 			lines = append(lines,
-				leftSidebarKeyStyle.Render("Name: ")+leftSidebarValueStyle.Render(name))
+				runOverviewSidebarKeyStyle.Render("Name: ")+runOverviewSidebarValueStyle.Render(name))
 		}
 		if project := ro.Project(); project != "" {
 			lines = append(lines,
-				leftSidebarKeyStyle.Render("Project: ")+leftSidebarValueStyle.Render(project))
+				runOverviewSidebarKeyStyle.Render("Project: ")+runOverviewSidebarValueStyle.Render(project))
 		}
 	}
 
@@ -695,7 +695,7 @@ func (w *Workspace) syncRunsPage() (startIdx, endIdx int) {
 
 // renderRunsListHeader renders "Runs [X‑Y of N]" (or "[N items]" for single‑page).
 func (w *Workspace) renderRunsListHeader(startIdx, endIdx int) string {
-	title := leftSidebarSectionHeaderStyle.Render("Runs")
+	title := runOverviewSidebarSectionHeaderStyle.Render("Runs")
 
 	total := len(w.runs.FilteredItems)
 	info := ""

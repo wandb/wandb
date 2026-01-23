@@ -41,7 +41,7 @@ const (
 	leftSidebarContentPadding = 4
 
 	// Key/value column width ratio.
-	leftSidebarKeyWidthRatio = 0.4 // 40% of available width for keys
+	sidebarKeyWidthRatio = 0.4 // 40% of available width for keys
 
 	// Sidebar content padding (accounts for borders and internal spacing).
 	rightSidebarContentPadding = 3
@@ -285,6 +285,14 @@ var (
 		Padding(0, StatusBarPadding)
 )
 
+// Run overview styles.
+var (
+	runOverviewSidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
+	runOverviewSidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
+	runOverviewSidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
+	runOverviewSidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
+)
+
 // Left sidebar styles.
 var (
 	leftSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
@@ -295,11 +303,7 @@ var (
 				Bold(true).
 				Foreground(colorSubheading).
 				MarginBottom(1)
-	leftSidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
-	leftSidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
-	leftSidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
-	leftSidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
-	RightBorder                   = lipgloss.Border{
+	RightBorder = lipgloss.Border{
 		Top:         string(unicodeSpace),
 		Bottom:      string(unicodeSpace),
 		Left:        "",

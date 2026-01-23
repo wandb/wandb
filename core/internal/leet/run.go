@@ -100,7 +100,7 @@ func NewRun(
 		runPath:      runPath,
 		metricsGrid:  NewMetricsGrid(cfg, focus, logger),
 		runOverview:  ro,
-		leftSidebar:  NewRunOverviewSidebar(cfg, ro),
+		leftSidebar:  NewRunOverviewSidebar(cfg, ro, SidebarSideLeft),
 		rightSidebar: NewRightSidebar(cfg, focus, logger),
 		watcherMgr:   NewWatcherManager(ch, logger),
 		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, ch, logger),

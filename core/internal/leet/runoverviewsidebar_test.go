@@ -20,7 +20,7 @@ func TestSidebarFilter_AppliesAndClears(t *testing.T) {
 		observability.NewNoOpLogger(),
 	)
 	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(cfg, ro)
+	s := leet.NewRunOverviewSidebar(cfg, ro, leet.SidebarSideLeft)
 
 	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
@@ -51,7 +51,7 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 		observability.NewNoOpLogger(),
 	)
 	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(cfg, ro)
+	s := leet.NewRunOverviewSidebar(cfg, ro, leet.SidebarSideLeft)
 
 	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
@@ -74,7 +74,7 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 		observability.NewNoOpLogger(),
 	)
 	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(cfg, ro)
+	s := leet.NewRunOverviewSidebar(cfg, ro, leet.SidebarSideLeft)
 
 	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
@@ -118,7 +118,7 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 	)
 	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(cfg, ro)
+	s := leet.NewRunOverviewSidebar(cfg, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
 
 	ro.ProcessRunMsg(leet.RunMsg{
@@ -169,7 +169,7 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 	)
 	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(cfg, ro)
+	s := leet.NewRunOverviewSidebar(cfg, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
 
 	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
@@ -228,7 +228,7 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 	)
 	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(cfg, ro)
+	s := leet.NewRunOverviewSidebar(cfg, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
 
 	ro.ProcessRunMsg(leet.RunMsg{
@@ -273,7 +273,7 @@ func TestSidebar_TruncateValue(t *testing.T) {
 	)
 	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(cfg, ro)
+	s := leet.NewRunOverviewSidebar(cfg, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
 
 	long := strings.Repeat("x", 200)
@@ -304,7 +304,7 @@ func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
 		observability.NewNoOpLogger(),
 	)
 	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(cfg, ro)
+	s := leet.NewRunOverviewSidebar(cfg, ro, leet.SidebarSideLeft)
 
 	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
@@ -353,7 +353,7 @@ func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
 	)
 	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
 	ro := leet.NewRunOverview()
-	s := leet.NewRunOverviewSidebar(cfg, ro)
+	s := leet.NewRunOverviewSidebar(cfg, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
 
 	// Make enough config items to have multiple pages at small height.

@@ -13,8 +13,9 @@ import (
 type SidebarSide int
 
 const (
-	SidebarLeft SidebarSide = iota
-	SidebarRight
+	SidebarSideUndefined SidebarSide = iota
+	SidebarSideLeft
+	SidebarSideRight
 )
 
 const (
@@ -39,15 +40,24 @@ type RunOverviewSidebar struct {
 	// Filter state.
 	filter *Filter
 
-	// Dimensions.
+	// Placement and dimensions.
+	side   SidebarSide
 	height int
 }
 
 func NewRunOverviewSidebar(
 	config *ConfigManager,
 	runOverview *RunOverview,
+	side SidebarSide,
 ) *RunOverviewSidebar {
-	animState := NewAnimationState(config.LeftSidebarVisible(), SidebarMinWidth)
+	initiallyVisible := false
+	switch side {
+	case SidebarSideLeft:
+		initiallyVisible = config.LeftSidebarVisible()
+	case SidebarSideRight:
+		initiallyVisible = config.RightSidebarVisible()
+	}
+	animState := NewAnimationState(initiallyVisible, SidebarMinWidth)
 
 	es := PagedList{Title: "Environment", Active: true}
 	es.SetItemsPerPage(10)
@@ -62,6 +72,7 @@ func NewRunOverviewSidebar(
 		sections:      []PagedList{es, cs, ss},
 		activeSection: 0,
 		filter:        NewFilter(),
+		side:          side,
 	}
 }
 
@@ -108,6 +119,46 @@ func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) 
 	return s, nil
 }
 
+func (s *RunOverviewSidebar) contentPadding() int {
+	switch s.side {
+	case SidebarSideLeft:
+		return leftSidebarContentPadding
+	case SidebarSideRight:
+		return rightSidebarContentPadding
+	}
+	return 0
+}
+
+func (s *RunOverviewSidebar) style() lipgloss.Style {
+	switch s.side {
+	case SidebarSideLeft:
+		return leftSidebarStyle
+	case SidebarSideRight:
+		return rightSidebarStyle
+	}
+	return lipgloss.NewStyle()
+}
+
+func (s *RunOverviewSidebar) borderStyle() lipgloss.Style {
+	switch s.side {
+	case SidebarSideLeft:
+		return leftSidebarBorderStyle
+	case SidebarSideRight:
+		return rightSidebarBorderStyle
+	}
+	return lipgloss.NewStyle()
+}
+
+func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
+	switch s.side {
+	case SidebarSideLeft:
+		return leftSidebarHeaderStyle
+	case SidebarSideRight:
+		return rightSidebarHeaderStyle
+	}
+	return lipgloss.NewStyle()
+}
+
 // View renders the sidebar.
 func (s *RunOverviewSidebar) View(height int) string {
 	if s.animState.Width() <= 0 {
@@ -119,20 +170,20 @@ func (s *RunOverviewSidebar) View(height int) string {
 
 	headerLines := s.buildHeaderLines()
 
-	contentWidth := s.animState.Width() - leftSidebarContentPadding
+	contentWidth := s.animState.Width() - s.contentPadding()
 	sectionLines := s.buildSectionLines(contentWidth)
 
 	allLines := slices.Concat(headerLines, sectionLines)
 	content := strings.Join(allLines, "\n")
 
-	styledContent := leftSidebarStyle.
+	styledContent := s.style().
 		Width(s.animState.Width()).
 		Height(height + 1).
 		MaxWidth(s.animState.Width()).
 		MaxHeight(height + 1).
 		Render(content)
 
-	return leftSidebarBorderStyle.
+	return s.borderStyle().
 		Width(s.animState.Width() - 2).
 		Height(height + 2).
 		MaxWidth(s.animState.Width()).
@@ -225,7 +276,13 @@ func (s *RunOverviewSidebar) SelectedItem() (key, value string) {
 // animationCmd returns a command to continue the animation on section toggle.
 func (s *RunOverviewSidebar) animationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
-		return LeftSidebarAnimationMsg{}
+		switch s.side {
+		case SidebarSideLeft:
+			return LeftSidebarAnimationMsg{}
+		case SidebarSideRight:
+			return RightSidebarAnimationMsg{}
+		}
+		return nil
 	})
 }
 
@@ -245,24 +302,24 @@ func (s *RunOverviewSidebar) buildHeaderLines() []string {
 	lines := make([]string, 0, sidebarHeaderLines)
 
 	// Title.
-	lines = append(lines, leftSidebarHeaderStyle.Render(runOverviewHeader))
+	lines = append(lines, s.headerStyle().Render(runOverviewHeader))
 
 	if s.runOverview.State() != RunStateUnknown {
 		lines = append(lines,
-			leftSidebarKeyStyle.Render("State: ")+
-				leftSidebarValueStyle.Render(s.runOverview.StateString()))
+			runOverviewSidebarKeyStyle.Render("State: ")+
+				runOverviewSidebarValueStyle.Render(s.runOverview.StateString()))
 	}
 	if id := s.runOverview.ID(); id != "" {
 		lines = append(lines,
-			leftSidebarKeyStyle.Render("ID: ")+leftSidebarValueStyle.Render(id))
+			runOverviewSidebarKeyStyle.Render("ID: ")+runOverviewSidebarValueStyle.Render(id))
 	}
 	if name := s.runOverview.DisplayName(); name != "" {
 		lines = append(lines,
-			leftSidebarKeyStyle.Render("Name: ")+leftSidebarValueStyle.Render(name))
+			runOverviewSidebarKeyStyle.Render("Name: ")+runOverviewSidebarValueStyle.Render(name))
 	}
 	if project := s.runOverview.Project(); project != "" {
 		lines = append(lines,
-			leftSidebarKeyStyle.Render("Project: ")+leftSidebarValueStyle.Render(project))
+			runOverviewSidebarKeyStyle.Render("Project: ")+runOverviewSidebarValueStyle.Render(project))
 	}
 
 	// Blank separator line.
@@ -316,9 +373,9 @@ func (s *RunOverviewSidebar) renderSection(idx int, width int) string {
 
 // renderSectionHeader renders the section title with pagination info.
 func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList) string {
-	titleStyle := leftSidebarSectionStyle
+	titleStyle := runOverviewSidebarSectionStyle
 	if section.Active {
-		titleStyle = leftSidebarSectionHeaderStyle
+		titleStyle = runOverviewSidebarSectionHeaderStyle
 	}
 
 	totalItems := len(section.Items)
@@ -356,7 +413,7 @@ func (s *RunOverviewSidebar) buildSectionInfo(
 
 // renderSectionItems renders the items for a section.
 func (s *RunOverviewSidebar) renderSectionItems(section *PagedList, width int) []string {
-	maxKeyWidth := int(float64(width) * leftSidebarKeyWidthRatio)
+	maxKeyWidth := int(float64(width) * sidebarKeyWidthRatio)
 	maxValueWidth := width - maxKeyWidth - 1
 
 	itemCount := len(section.FilteredItems)
@@ -391,8 +448,8 @@ func (s *RunOverviewSidebar) renderItem(
 	section *PagedList,
 	maxKeyWidth, maxValueWidth int,
 ) string {
-	keyStyle := leftSidebarKeyStyle
-	valueStyle := leftSidebarValueStyle
+	keyStyle := runOverviewSidebarKeyStyle
+	valueStyle := runOverviewSidebarValueStyle
 
 	// Highlight selected item.
 	if section.Active && posInPage == section.CurrentLine() {
