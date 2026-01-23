@@ -8,6 +8,10 @@ class SchedulerError(Exception):
     """Raised when a known error occurs with wandb sweep scheduler."""
 
 
+class SweepNotFoundError(Exception):
+    """Raised when a sweep is not found, typically because it was deleted."""
+
+
 def _import_sweep_scheduler() -> Any:
     from .scheduler_sweep import SweepScheduler
 
@@ -34,4 +38,6 @@ def load_scheduler(scheduler_type: str) -> Any:
 
 __all__ = [
     "load_scheduler",
+    "SchedulerError",
+    "SweepNotFoundError",
 ]
