@@ -891,7 +891,7 @@ class Run(Attrs):
         Allows transitioning runs from 'failed' or 'crashed' to 'pending'.
 
         Args:
-            state: The new state. Currently only "pending" is supported.
+            state: The target run state. Only `"pending"` is supported.
 
         Returns:
             True if the state was successfully updated.
