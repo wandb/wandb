@@ -181,10 +181,12 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (w *Workspace) handleRunsAnimation() tea.Cmd {
+	w.runsAnimState.Update(time.Now())
+
 	layout := w.computeViewports()
 	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
-	if w.runsAnimState.IsAnimating() && !w.runsAnimState.Update(time.Now()) {
+	if w.runsAnimState.IsAnimating() {
 		return w.runsAnimationCmd()
 	}
 
@@ -194,10 +196,12 @@ func (w *Workspace) handleRunsAnimation() tea.Cmd {
 }
 
 func (w *Workspace) handleRunOverviewAnimation() tea.Cmd {
+	w.runOverviewSidebar.animState.Update(time.Now())
+
 	layout := w.computeViewports()
 	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
-	if w.runOverviewSidebar.IsAnimating() && !w.runOverviewSidebar.animState.Update(time.Now()) {
+	if w.runOverviewSidebar.IsAnimating() {
 		return w.runOverviewAnimationCmd()
 	}
 
@@ -408,7 +412,7 @@ func (w *Workspace) renderRunsList() string {
 
 	sidebarW := w.runsAnimState.Width()
 	sidebarH := max(w.height-StatusBarHeight, 0)
-	if sidebarW <= 0 || sidebarH <= 0 {
+	if sidebarW <= 1 || sidebarH <= 1 {
 		return ""
 	}
 	contentWidth := max(sidebarW-leftSidebarContentPadding, 1)
