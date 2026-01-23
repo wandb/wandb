@@ -22,9 +22,8 @@ type Workspace struct {
 	config *ConfigManager
 	keyMap map[string]func(*Workspace, tea.KeyMsg) tea.Cmd
 
-	// Sidebar animation state.
-	runsAnimState        *AnimationState
-	runOverviewAnimState *AnimationState
+	// Runs sidebar animation state.
+	runsAnimState *AnimationState
 
 	// runs is the run selector.
 	runs         PagedList
@@ -34,6 +33,8 @@ type Workspace struct {
 	// Preload basic run metadata from the run record for each run.
 	runOverview map[string]*RunOverview
 	roMu        sync.RWMutex
+
+	runOverviewSidebar *RunOverviewSidebar
 
 	// TODO: mark live runs upon selection.
 
@@ -82,23 +83,26 @@ func NewWorkspace(
 	hbInterval := cfg.HeartbeatInterval()
 	logger.Info(fmt.Sprintf("workspace: heartbeat interval set to %v", hbInterval))
 
+	runOverviewAnimState := NewAnimationState(true, SidebarMinWidth)
+
 	// TODO: make sidebar visibility configurable.
 	return &Workspace{
-		runsAnimState:        NewAnimationState(true, SidebarMinWidth),
-		runOverviewAnimState: NewAnimationState(true, SidebarMinWidth),
-		wandbDir:             wandbDir,
-		config:               cfg,
-		keyMap:               buildKeyMap(WorkspaceKeyBindings()),
-		logger:               logger,
-		runs:                 runs,
-		runOverview:          make(map[string]*RunOverview),
-		selectedRuns:         make(map[string]bool),
-		focus:                focus,
-		metricsGrid:          NewMetricsGrid(cfg, focus, logger),
-		runsByKey:            make(map[string]*workspaceRun),
-		liveChan:             ch,
-		heartbeatMgr:         NewHeartbeatManager(hbInterval, ch, logger),
-		filter:               NewFilter(),
+		runsAnimState: NewAnimationState(true, SidebarMinWidth),
+		// runOverviewAnimState: runOverviewAnimState,
+		wandbDir:           wandbDir,
+		config:             cfg,
+		keyMap:             buildKeyMap(WorkspaceKeyBindings()),
+		logger:             logger,
+		runs:               runs,
+		runOverview:        make(map[string]*RunOverview),
+		runOverviewSidebar: NewRunOverviewSidebar(runOverviewAnimState, NewRunOverview(), SidebarSideRight),
+		selectedRuns:       make(map[string]bool),
+		focus:              focus,
+		metricsGrid:        NewMetricsGrid(cfg, focus, logger),
+		runsByKey:          make(map[string]*workspaceRun),
+		liveChan:           ch,
+		heartbeatMgr:       NewHeartbeatManager(hbInterval, ch, logger),
+		filter:             NewFilter(),
 	}
 }
 
@@ -178,7 +182,7 @@ func (w *Workspace) handleRunsAnimation() tea.Cmd {
 }
 
 func (w *Workspace) handleRunOverviewAnimation() tea.Cmd {
-	done := w.runOverviewAnimState.Update(time.Now())
+	done := w.runOverviewSidebar.animState.Update(time.Now())
 	l := w.computeViewports()
 	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
 	if !done {
@@ -218,8 +222,8 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	// Clicks in the right sidebar area clear focus and are ignored for now.
-	if w.runOverviewAnimState.IsVisible() {
-		rightStart := w.width - w.runOverviewAnimState.Width()
+	if w.runOverviewSidebar.IsVisible() {
+		rightStart := w.width - w.runOverviewSidebar.Width()
 		if msg.X >= rightStart {
 			w.metricsGrid.clearFocus()
 			return nil
@@ -246,8 +250,8 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	rightOffset := 0
-	if w.runOverviewAnimState.IsVisible() {
-		rightOffset = w.runOverviewAnimState.Width()
+	if w.runOverviewSidebar.IsVisible() {
+		rightOffset = w.runOverviewSidebar.Width()
 	}
 
 	adjustedX := msg.X - leftOffset - gridPaddingX
@@ -302,7 +306,7 @@ func (w *Workspace) View() string {
 
 	cols = append(cols, w.renderMetrics())
 
-	if w.runOverviewAnimState.IsVisible() {
+	if w.runOverviewSidebar.IsVisible() {
 		cols = append(cols, w.renderRunOverview())
 	}
 
@@ -421,59 +425,23 @@ func (w *Workspace) renderRunsList() string {
 }
 
 func (w *Workspace) renderRunOverview() string {
-	sidebarW := w.runOverviewAnimState.Width()
-	sidebarH := max(w.height-StatusBarHeight, 0)
-	if sidebarW <= 0 || sidebarH <= 0 {
-		return ""
-	}
-
-	lines := make([]string, 0)
-
-	// Title.
-	lines = append(lines, rightSidebarHeaderStyle.Render(runOverviewHeader))
-	lines = append(lines, "")
-
 	curKey := ""
 	if cur, ok := w.runs.CurrentItem(); ok {
 		curKey = cur.Key
 	}
 
-	if ro, ok := w.runOverview[curKey]; ok {
-		if ro.State() != RunStateUnknown {
-			lines = append(lines,
-				runOverviewSidebarKeyStyle.Render("State: ")+
-					runOverviewSidebarValueStyle.Render(ro.StateString()))
-		}
-		if id := ro.ID(); id != "" {
-			lines = append(lines,
-				runOverviewSidebarKeyStyle.Render("ID: ")+runOverviewSidebarValueStyle.Render(id))
-		}
-		if name := ro.DisplayName(); name != "" {
-			lines = append(lines,
-				runOverviewSidebarKeyStyle.Render("Name: ")+runOverviewSidebarValueStyle.Render(name))
-		}
-		if project := ro.Project(); project != "" {
-			lines = append(lines,
-				runOverviewSidebarKeyStyle.Render("Project: ")+runOverviewSidebarValueStyle.Render(project))
-		}
-	}
+	ro := w.runOverview[curKey]
+	w.runOverviewSidebar.SetRunOverview(ro)
+	w.runOverviewSidebar.Sync()
 
-	innerW := max(sidebarW-rightSidebarContentPadding, 0)
+	sidebarH := max(w.height-StatusBarHeight, 0)
 	innerH := max(sidebarH-workspaceTopMarginLines, 0)
 
-	styledContent := rightSidebarStyle.
-		Width(innerW).
-		Height(innerH).
-		MaxWidth(innerW).
-		MaxHeight(innerH).
-		Render(strings.Join(lines, "\n"))
-
-	boxed := rightSidebarBorderStyle.Render(styledContent)
-	return lipgloss.Place(sidebarW, sidebarH, lipgloss.Left, lipgloss.Top, boxed)
+	return w.runOverviewSidebar.View(innerH)
 }
 
 func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Width()-w.runOverviewAnimState.Width(), 0)
+	contentWidth := max(w.width-w.runsAnimState.Width()-w.runOverviewSidebar.Width(), 0)
 	contentHeight := max(w.height-StatusBarHeight, 0)
 
 	if contentWidth <= 0 || contentHeight <= 0 {
@@ -622,18 +590,12 @@ func (w *Workspace) updateSidebarWidths(leftVisible, rightVisible bool) {
 	)
 
 	// Right (overview) sidebar.
-	rightRatio := SidebarWidthRatio
-	if bothVisible {
-		rightRatio = SidebarWidthRatioBoth
-	}
-	w.runOverviewAnimState.SetExpandedWidth(
-		clamp(int(float64(w.width)*rightRatio), SidebarMinWidth, SidebarMaxWidth),
-	)
+	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
 }
 
 func (w *Workspace) updateDimensions(width, height int) {
 	w.SetSize(width, height)
-	w.updateSidebarWidths(w.runsAnimState.IsVisible(), w.runOverviewAnimState.IsVisible())
+	w.updateSidebarWidths(w.runsAnimState.IsVisible(), w.runOverviewSidebar.IsVisible())
 
 	l := w.computeViewports()
 	w.metricsGrid.UpdateDimensions(l.mainContentAreaWidth, l.height)
@@ -641,7 +603,7 @@ func (w *Workspace) updateDimensions(width, height int) {
 
 // computeViewports returns (leftW, contentW, rightW, contentH).
 func (w *Workspace) computeViewports() Layout {
-	leftW, rightW := w.runsAnimState.Width(), w.runOverviewAnimState.Width()
+	leftW, rightW := w.runsAnimState.Width(), w.runOverviewSidebar.Width()
 
 	contentW := max(w.width-leftW-rightW, 1)
 	contentH := max(w.height-StatusBarHeight, 1)

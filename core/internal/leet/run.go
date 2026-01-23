@@ -91,6 +91,7 @@ func NewRun(
 	ch := make(chan tea.Msg, 4096)
 
 	ro := NewRunOverview()
+	runOverviewAnimState := NewAnimationState(cfg.LeftSidebarVisible(), SidebarMinWidth)
 
 	return &Run{
 		config:       cfg,
@@ -100,7 +101,7 @@ func NewRun(
 		runPath:      runPath,
 		metricsGrid:  NewMetricsGrid(cfg, focus, logger),
 		runOverview:  ro,
-		leftSidebar:  NewRunOverviewSidebar(cfg, ro, SidebarSideLeft),
+		leftSidebar:  NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
 		rightSidebar: NewRightSidebar(cfg, focus, logger),
 		watcherMgr:   NewWatcherManager(ch, logger),
 		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, ch, logger),

@@ -46,19 +46,10 @@ type RunOverviewSidebar struct {
 }
 
 func NewRunOverviewSidebar(
-	config *ConfigManager,
+	animState *AnimationState,
 	runOverview *RunOverview,
 	side SidebarSide,
 ) *RunOverviewSidebar {
-	initiallyVisible := false
-	switch side {
-	case SidebarSideLeft:
-		initiallyVisible = config.LeftSidebarVisible()
-	case SidebarSideRight:
-		initiallyVisible = config.RightSidebarVisible()
-	}
-	animState := NewAnimationState(initiallyVisible, SidebarMinWidth)
-
 	es := PagedList{Title: "Environment", Active: true}
 	es.SetItemsPerPage(10)
 	cs := PagedList{Title: "Config"}
@@ -166,15 +157,23 @@ func (s *RunOverviewSidebar) View(height int) string {
 	}
 
 	s.height = height
-	s.updateSectionHeights()
 
-	headerLines := s.buildHeaderLines()
+	lines := make([]string, 0)
 
-	contentWidth := s.animState.Width() - s.contentPadding()
-	sectionLines := s.buildSectionLines(contentWidth)
+	lines = append(lines, s.headerStyle().Render(runOverviewHeader))
 
-	allLines := slices.Concat(headerLines, sectionLines)
-	content := strings.Join(allLines, "\n")
+	if s.runOverview != nil {
+		headerLines := s.buildHeaderLines()
+		contentWidth := s.animState.Width() - s.contentPadding()
+		s.updateSectionHeights()
+		sectionLines := s.buildSectionLines(contentWidth)
+
+		lines = slices.Concat(lines, headerLines, sectionLines)
+	} else {
+		lines = append(lines, "No data.")
+	}
+
+	content := strings.Join(lines, "\n")
 
 	styledContent := s.style().
 		Width(s.animState.Width()).
@@ -191,10 +190,18 @@ func (s *RunOverviewSidebar) View(height int) string {
 		Render(styledContent)
 }
 
+func (s *RunOverviewSidebar) SetRunOverview(ro *RunOverview) {
+	s.runOverview = ro
+}
+
 // Sync synchronizes section view with the s.runOverview.
 //
 // It pulls data from the model and updates UI sections.
 func (s *RunOverviewSidebar) Sync() {
+	if s.runOverview == nil {
+		return
+	}
+
 	var selectedKey string
 	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
 		selectedKey, _ = s.SelectedItem()
@@ -222,11 +229,11 @@ func (s *RunOverviewSidebar) Sync() {
 }
 
 // UpdateDimensions updates the sidebar dimensions based on terminal width
-// and the visibility of the right sidebar.
-func (s *RunOverviewSidebar) UpdateDimensions(terminalWidth int, rightSidebarVisible bool) {
+// and the visibility of the sidebar on the opposite side.
+func (s *RunOverviewSidebar) UpdateDimensions(terminalWidth int, oppositeSidebarVisible bool) {
 	var calculatedWidth int
 
-	if rightSidebarVisible {
+	if oppositeSidebarVisible {
 		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
 	} else {
 		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
@@ -299,10 +306,7 @@ func truncateValue(value string, maxWidth int) string {
 
 // buildHeaderLines builds the header section from the data model.
 func (s *RunOverviewSidebar) buildHeaderLines() []string {
-	lines := make([]string, 0, sidebarHeaderLines)
-
-	// Title.
-	lines = append(lines, s.headerStyle().Render(runOverviewHeader))
+	lines := make([]string, 0, 5)
 
 	if s.runOverview.State() != RunStateUnknown {
 		lines = append(lines,
