@@ -1,3 +1,12 @@
+// These tests mock Rust FFI calls by creating Go-allocated memory and converting
+// pointers to uintptr. The race detector's checkptr instrumentation correctly
+// identifies this as potentially unsafe (Go's GC can move memory, invalidating
+// the uintptr). Since the real production code uses actual Rust-allocated memory
+// (which doesn't move), this is only a limitation of the test mock, not the
+// production code. These tests are excluded when building with -race.
+
+//go:build !race
+
 package runhistoryreader
 
 import (
@@ -41,9 +50,17 @@ func (m *mockIPCDataStore) store(data []byte) (uintptr, uintptr) {
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 	m.ipcData = append(m.ipcData, dataCopy)
-	// Return pointer to the first byte of the copied data
-	// We return the same pointer for both VecPtr and DataPtr in our mock
-	ptr := uintptr(unsafe.Pointer(&dataCopy[0]))
+
+	if len(dataCopy) == 0 {
+		// Return null pointer for empty data
+		return 0, 0
+	}
+
+	// Get pointer to the stored data
+	// Note: This works without race detector because we keep the slice alive
+	// in m.ipcData. With race detector, this file is excluded via build tag.
+	storedSlice := m.ipcData[len(m.ipcData)-1]
+	ptr := uintptr(unsafe.Pointer(&storedSlice[0]))
 	return ptr, ptr
 }
 
@@ -73,6 +90,9 @@ func createMockRustArrowWrapper(
 	dataStore := newMockIPCDataStore()
 	nextReaderID := uintptr(1000)
 	readerToDataset := make(map[uintptr][]map[string]any)
+	// Store allocated pointers so they don't get garbage collected
+	allocatedPointers := make([]*uintptr, 0)
+	assignedDatasets := make(map[uintptr]bool)
 
 	// If no datasets provided, create empty IPC stream once for efficiency
 	var emptyVecPtr, emptyDataPtr uintptr
@@ -87,8 +107,10 @@ func createMockRustArrowWrapper(
 		func(filePath *byte, columnNames **byte, numColumns int) unsafe.Pointer {
 			// If no datasets, return simple marker
 			if len(datasetMap) == 0 {
-				//nolint:govet // pointer memory is managed in the rust wrapper library
-				return unsafe.Pointer(uintptr(1))
+				id := new(uintptr)
+				*id = 1
+				allocatedPointers = append(allocatedPointers, id)
+				return unsafe.Pointer(id)
 			}
 
 			// Assign this reader a unique ID and map it to its dataset
@@ -97,15 +119,18 @@ func createMockRustArrowWrapper(
 
 			// Map datasets to readers in order of creation
 			for datasetID, dataset := range datasetMap {
-				if _, exists := readerToDataset[datasetID]; !exists {
+				if !assignedDatasets[datasetID] {
 					readerToDataset[readerID] = dataset
-					delete(datasetMap, datasetID)
+					assignedDatasets[datasetID] = true
 					break
 				}
 			}
 
-			//nolint:govet // pointer memory is managed in the rust wrapper library
-			return unsafe.Pointer(readerID)
+			// Allocate memory for the reader ID to return a valid pointer
+			id := new(uintptr)
+			*id = readerID
+			allocatedPointers = append(allocatedPointers, id)
+			return unsafe.Pointer(id)
 		},
 		func(readerPtr unsafe.Pointer, minStep float64, maxStep float64, outResult *ffi.StepScanResult) *byte {
 			// If no datasets, return pre-computed empty result
@@ -117,7 +142,7 @@ func createMockRustArrowWrapper(
 				return nil
 			}
 
-			readerID := uintptr(readerPtr)
+			readerID := *(*uintptr)(readerPtr)
 			dataset, ok := readerToDataset[readerID]
 			if !ok {
 				// Return empty if we don't have data for this reader
