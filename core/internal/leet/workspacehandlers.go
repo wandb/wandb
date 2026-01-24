@@ -284,6 +284,8 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 		default:
 			run.state = RunStateFailed
 		}
+		ro := w.getOrCreateRunOverview(run.key)
+		ro.SetRunState(run.state)
 		// No more updates expected for this run; stop its watcher.
 		w.stopWatcher(run)
 

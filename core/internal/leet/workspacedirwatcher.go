@@ -200,6 +200,8 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 	if msg.Err == nil && msg.Run.ID != "" {
 		ro := w.getOrCreateRunOverview(msg.RunKey)
 		ro.ProcessRunMsg(msg.Run)
+		// We don't know the final state of this run after a pre-load.
+		ro.SetRunState(RunStateUnknown)
 	} else if msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err) {
 		// Best-effort logging for unexpected failures; avoid spamming for
 		// "file not ready yet" or missing run records.
