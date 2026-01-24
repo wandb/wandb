@@ -768,3 +768,73 @@ def test_validate_schema(mocker, mock_wandb_log, schema, expected):
         assert e in warns
     if not expected:
         assert not warns
+
+
+def test_prepare_schema_strict_mode_dict():
+    """Test that _prepare_schema with strict=True adds validation constraints to dict schemas."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "batch_size": {"type": "integer"},
+            "learning_rate": {"type": "number"},
+        },
+    }
+
+    result = _prepare_schema(schema, strict=True)
+
+    assert result["additionalProperties"] is False
+    assert set(result["required"]) == {"batch_size", "learning_rate"}
+
+
+def test_prepare_schema_non_strict_mode_dict():
+    """Test that _prepare_schema with strict=False doesn't add validation constraints."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "batch_size": {"type": "integer"},
+            "learning_rate": {"type": "number"},
+        },
+    }
+
+    result = _prepare_schema(schema, strict=False)
+
+    assert "additionalProperties" not in result
+    assert "required" not in result
+
+
+def test_prepare_schema_strict_mode_pydantic():
+    """Test that _prepare_schema with strict=True adds additionalProperties to Pydantic schemas."""
+
+    class Config(BaseModel):
+        batch_size: int
+        learning_rate: float
+
+    result = _prepare_schema(Config, strict=True)
+
+    assert set(result["required"]) == {"batch_size", "learning_rate"}
+    assert result["additionalProperties"] is False
+
+
+def test_prepare_schema_strict_mode_nested():
+    """Test that strict mode applies recursively to nested objects."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "trainer": {
+                "type": "object",
+                "properties": {
+                    "batch_size": {"type": "integer"},
+                    "learning_rate": {"type": "number"},
+                },
+            }
+        },
+    }
+
+    result = _prepare_schema(schema, strict=True)
+
+    assert result["additionalProperties"] is False
+    assert result["required"] == ["trainer"]
+
+    trainer = result["properties"]["trainer"]
+    assert trainer["additionalProperties"] is False
+    assert set(trainer["required"]) == {"batch_size", "learning_rate"}

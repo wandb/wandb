@@ -171,27 +171,73 @@ def _replace_refs_and_allofs(schema: dict, defs: Optional[dict]) -> dict:
     return ret
 
 
-def _prepare_schema(schema: Any) -> dict:
+def _ensure_strict_validation(schema: dict) -> dict:
+    """Add strict validation constraints to a JSON schema.
+
+    Recursively adds the following to all object-type schemas:
+    1. "additionalProperties": false to reject unknown properties
+    2. "required" array listing all properties if not already present
+    """
+    if not isinstance(schema, dict):
+        return schema
+    
+    # If this is an object type, add strict validation
+    if schema.get("type") == "object":
+        # Add additionalProperties: false to reject unknown properties
+        if "additionalProperties" not in schema:
+            schema["additionalProperties"] = False
+        
+        # Add required array if not present and properties exist
+        # This makes all properties required by default for dict-based schemas
+        if "properties" in schema and "required" not in schema:
+            schema["required"] = list(schema["properties"].keys())
+    
+    # Recursively process nested schemas
+    if "properties" in schema and isinstance(schema["properties"], dict):
+        for prop_name, prop_schema in schema["properties"].items():
+            if isinstance(prop_schema, dict):
+                schema["properties"][prop_name] = _ensure_strict_validation(prop_schema)
+    
+    # Process items in arrays
+    if "items" in schema and isinstance(schema["items"], dict):
+        schema["items"] = _ensure_strict_validation(schema["items"])
+    
+    return schema
+
+
+def _prepare_schema(schema: Any, strict: bool = False) -> dict:
     """Prepare a schema for validation.
 
     This function prepares a schema for validation by:
-    1. Converting a Pydantic model instance or class to a dict
-    2. Replacing $ref with their associated definition in defs
-    3. Removing any "allOf" lists that only have one item, "lifting" the item up
+    1. Converting a Pydantic model to JSON Schema (if applicable)
+    2. Replacing $ref with their associated definitions
+    3. Removing single-item "allOf" lists, "lifting" the item up
+    4. Adding strict validation constraints (if strict=True)
 
     We support both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
     or the BaseModel class itself (e.g. schema=MySchema)
     """
+    # Convert Pydantic models to JSON Schema
     if hasattr(schema, "model_json_schema") and callable(
         schema.model_json_schema  # type: ignore
     ):
         schema = schema.model_json_schema()
+    
     if not isinstance(schema, dict):
         raise LaunchError(
             "schema must be a dict, Pydantic model instance, or Pydantic model class."
         )
+    
+    # Process JSON Schema: resolve references and simplify structure
     defs = schema.pop("$defs", None)
-    return _replace_refs_and_allofs(schema, defs)
+    processed_schema = _replace_refs_and_allofs(schema, defs)
+    
+    # Apply strict validation constraints if requested
+    # This makes dict-based schemas behave like Pydantic models with extra='forbid'
+    if strict:
+        return _ensure_strict_validation(processed_schema)
+    else:
+        return processed_schema
 
 
 def _validate_schema(schema: dict) -> None:
@@ -211,6 +257,7 @@ def handle_config_file_input(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
     schema: Optional[Any] = None,
+    strict: bool = False,
 ):
     """Declare an overridable configuration file for a launch job.
 
@@ -220,6 +267,13 @@ def handle_config_file_input(
 
     If there is no active run, the configuration file is staged and sent when a
     run is created.
+
+    Args:
+        path: Path to the configuration file
+        include: Config paths to include
+        exclude: Config paths to exclude
+        schema: Schema (dict or Pydantic model) for validation
+        strict: If True, reject unknown properties and require all fields (default: False)
     """
     config_path_is_valid(path)
     override_file(path)
@@ -233,7 +287,7 @@ def handle_config_file_input(
         dest,
     )
     if schema:
-        schema = _prepare_schema(schema)
+        schema = _prepare_schema(schema, strict=strict)
         _validate_schema(schema)
     arguments = JobInputArguments(
         include=include,
@@ -253,6 +307,7 @@ def handle_run_config_input(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
     schema: Optional[Any] = None,
+    strict: bool = False,
 ):
     """Declare wandb.config as an overridable configuration for a launch job.
 
@@ -261,9 +316,15 @@ def handle_run_config_input(
 
     If there is no active run, the include and exclude paths are staged and sent
     when a run is created.
+
+    Args:
+        include: Config paths to include
+        exclude: Config paths to exclude
+        schema: Schema (dict or Pydantic model) for validation
+        strict: If True, reject unknown properties and require all fields (default: False)
     """
     if schema:
-        schema = _prepare_schema(schema)
+        schema = _prepare_schema(schema, strict=strict)
         _validate_schema(schema)
     arguments = JobInputArguments(
         include=include,
