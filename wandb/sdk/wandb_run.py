@@ -3363,6 +3363,7 @@ class Run:
         if not self._settings._offline:
             overrides["entity"] = self._settings.entity or ""
             overrides["project"] = self._settings.project or ""
+            overrides["base_url"] = self._settings.base_url
 
         self._cached_public_api = public.Api(overrides, api_key=self._settings.api_key)
         return self._cached_public_api
