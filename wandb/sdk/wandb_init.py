@@ -1580,7 +1580,12 @@ def init(  # noqa: C901
             run = wi.init(run_settings, run_config, run_printer)
 
             # Set up automatic Weave integration if Weave is installed
-            weave.setup(run_settings.entity, run_settings.project)
+            weave.setup(
+                run_settings.entity,
+                run_settings.project,
+                run_settings.base_url,
+                run_settings._offline,
+            )
 
             return run
 
