@@ -28,10 +28,6 @@ const (
 var errRunRecordNotFound = errors.New("run record not found")
 
 // runOverviewPreloader implements a bounded-concurrency FIFO queue with dedupe.
-//
-// Invariants:
-// - pending = queued ∪ inFlight
-// - items are enqueued at most once while pending
 type runOverviewPreloader struct {
 	pending     map[string]struct{} // queued or in-flight
 	inFlight    map[string]struct{}
