@@ -991,6 +991,42 @@ func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationC
 	return v.Entity
 }
 
+// RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayload includes the requested fields of the GraphQL type RefreshMultipartUploadUrlsPayload.
+type RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayload struct {
+	UploadUrlParts []RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayloadUploadUrlPartsUploadUrlPart `json:"uploadUrlParts"`
+}
+
+// GetUploadUrlParts returns RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayload.UploadUrlParts, and is useful for accessing the field via an interface.
+func (v *RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayload) GetUploadUrlParts() []RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayloadUploadUrlPartsUploadUrlPart {
+	return v.UploadUrlParts
+}
+
+// RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayloadUploadUrlPartsUploadUrlPart includes the requested fields of the GraphQL type UploadUrlPart.
+type RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayloadUploadUrlPartsUploadUrlPart struct {
+	PartNumber int64  `json:"partNumber"`
+	UploadUrl  string `json:"uploadUrl"`
+}
+
+// GetPartNumber returns RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayloadUploadUrlPartsUploadUrlPart.PartNumber, and is useful for accessing the field via an interface.
+func (v *RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayloadUploadUrlPartsUploadUrlPart) GetPartNumber() int64 {
+	return v.PartNumber
+}
+
+// GetUploadUrl returns RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayloadUploadUrlPartsUploadUrlPart.UploadUrl, and is useful for accessing the field via an interface.
+func (v *RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayloadUploadUrlPartsUploadUrlPart) GetUploadUrl() string {
+	return v.UploadUrl
+}
+
+// RefreshMultipartUploadUrlsResponse is returned by RefreshMultipartUploadUrls on success.
+type RefreshMultipartUploadUrlsResponse struct {
+	RefreshMultipartUploadUrls *RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayload `json:"refreshMultipartUploadUrls"`
+}
+
+// GetRefreshMultipartUploadUrls returns RefreshMultipartUploadUrlsResponse.RefreshMultipartUploadUrls, and is useful for accessing the field via an interface.
+func (v *RefreshMultipartUploadUrlsResponse) GetRefreshMultipartUploadUrls() *RefreshMultipartUploadUrlsRefreshMultipartUploadUrlsRefreshMultipartUploadUrlsPayload {
+	return v.RefreshMultipartUploadUrls
+}
+
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
 	RewindRun *RewindRunRewindRunRewindRunPayload `json:"rewindRun"`
@@ -1996,6 +2032,28 @@ type __OrganizationCoreWeaveOrganizationIDInput struct {
 // GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
 
+// __RefreshMultipartUploadUrlsInput is used internally by genqlient
+type __RefreshMultipartUploadUrlsInput struct {
+	ArtifactID       string             `json:"artifactID"`
+	UploadID         string             `json:"uploadID"`
+	StoragePath      string             `json:"storagePath"`
+	UploadPartsInput []UploadPartsInput `json:"uploadPartsInput"`
+}
+
+// GetArtifactID returns __RefreshMultipartUploadUrlsInput.ArtifactID, and is useful for accessing the field via an interface.
+func (v *__RefreshMultipartUploadUrlsInput) GetArtifactID() string { return v.ArtifactID }
+
+// GetUploadID returns __RefreshMultipartUploadUrlsInput.UploadID, and is useful for accessing the field via an interface.
+func (v *__RefreshMultipartUploadUrlsInput) GetUploadID() string { return v.UploadID }
+
+// GetStoragePath returns __RefreshMultipartUploadUrlsInput.StoragePath, and is useful for accessing the field via an interface.
+func (v *__RefreshMultipartUploadUrlsInput) GetStoragePath() string { return v.StoragePath }
+
+// GetUploadPartsInput returns __RefreshMultipartUploadUrlsInput.UploadPartsInput, and is useful for accessing the field via an interface.
+func (v *__RefreshMultipartUploadUrlsInput) GetUploadPartsInput() []UploadPartsInput {
+	return v.UploadPartsInput
+}
+
 // __RewindRunInput is used internally by genqlient
 type __RewindRunInput struct {
 	RunName     string  `json:"runName"`
@@ -2913,6 +2971,49 @@ func OrganizationCoreWeaveOrganizationID(
 	}
 
 	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by RefreshMultipartUploadUrls.
+const RefreshMultipartUploadUrls_Operation = `
+mutation RefreshMultipartUploadUrls ($artifactID: ID!, $uploadID: String!, $storagePath: String!, $uploadPartsInput: [UploadPartsInput!]!) {
+	refreshMultipartUploadUrls(input: {artifactID:$artifactID,uploadID:$uploadID,storagePath:$storagePath,uploadPartsInput:$uploadPartsInput}) {
+		uploadUrlParts {
+			partNumber
+			uploadUrl
+		}
+	}
+}
+`
+
+func RefreshMultipartUploadUrls(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	artifactID string,
+	uploadID string,
+	storagePath string,
+	uploadPartsInput []UploadPartsInput,
+) (data_ *RefreshMultipartUploadUrlsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "RefreshMultipartUploadUrls",
+		Query:  RefreshMultipartUploadUrls_Operation,
+		Variables: &__RefreshMultipartUploadUrlsInput{
+			ArtifactID:       artifactID,
+			UploadID:         uploadID,
+			StoragePath:      storagePath,
+			UploadPartsInput: uploadPartsInput,
+		},
+	}
+
+	data_ = &RefreshMultipartUploadUrlsResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

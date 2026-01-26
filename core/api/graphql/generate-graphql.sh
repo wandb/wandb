@@ -8,20 +8,24 @@ BASE=$(dirname $(dirname $(dirname $(readlink -f $0))))
 # go to the graphql dir
 cd $BASE/api/graphql
 
+# TODO: We should update the sh file to allow copy from local core dir
+# this makes development with both server and sdk a lot easier
 # get the commit hash
-COMMIT_HASH=$(cat schemas/commit.hash.txt)
+# COMMIT_HASH=$(cat schemas/commit.hash.txt)
 
-# clean up the core dir
-rm -rf core
+# # clean up the core dir
+# rm -rf core
 
-echo "[INFO] Downloading latest schema for commit hash: $COMMIT_HASH"
-# download the latest schema
-git clone -n --depth=1 --filter=tree:0 https://github.com/wandb/core
-cd core
-git checkout $COMMIT_HASH services/gorilla/schema.graphql
-mv services/gorilla/schema.graphql $BASE/api/graphql/schemas/schema-latest.graphql
-cd ..
-rm -rf core
+# echo "[INFO] Downloading latest schema for commit hash: $COMMIT_HASH"
+# # download the latest schema
+# git clone -n --depth=1 --filter=tree:0 https://github.com/wandb/core
+# cd core
+# git checkout $COMMIT_HASH services/gorilla/schema.graphql
+# mv services/gorilla/schema.graphql $BASE/api/graphql/schemas/schema-latest.graphql
+# cd ..
+# rm -rf core
+
+cp $BASE/../../core/services/gorilla/schema.graphql $BASE/api/graphql/schemas/schema-latest.graphql
 
 # generate graphql go code
 if ! go run $BASE/cmd/generate_gql genqlient.yaml; then

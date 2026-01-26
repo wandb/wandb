@@ -502,6 +502,8 @@ func (as *ArtifactSaver) uploadMultipart(
 	fileInfo serverFileResponse,
 	partData []gql.UploadPartsInput,
 ) uploadResult {
+	const maxRefreshRetries = 3
+
 	statInfo, err := os.Stat(path)
 	if err != nil {
 		return uploadResult{name: fileInfo.name, err: err}
@@ -513,85 +515,160 @@ func (as *ArtifactSaver) uploadMultipart(
 		task       *filetransfer.DefaultUploadTask
 	}
 
-	wg := sync.WaitGroup{}
-	partResponses := make(chan partResponse, len(partData))
-	// TODO: add mid-upload cancel.
-
 	contentType := getContentType(fileInfo.uploadHeaders)
 
 	// Record start time for network upload phase
 	uploadStartTime := time.Now()
 
-	partInfo := fileInfo.multipartUploadInfo
-	for i, part := range partInfo {
-		suboperation := wboperation.Get(as.ctx).Subtask(
-			fmt.Sprintf(
-				"%s (%d/%d)",
-				fileInfo.name, i+1, len(partInfo),
-			))
-		task := newUploadTask(fileInfo, path)
-		task.Context = suboperation.Context(as.ctx)
-		task.Url = part.UploadUrl
-		task.Offset = int64(i) * chunkSize
-		remainingSize := statInfo.Size() - task.Offset
-		task.Size = min(remainingSize, chunkSize)
-		b64md5, err := hashencode.HexToB64(partData[i].HexMD5)
-		if err != nil {
-			return uploadResult{name: fileInfo.name, err: err}
-		}
-		task.Headers = []string{
-			"Content-Md5:" + b64md5,
-			"Content-Length:" + strconv.FormatInt(task.Size, 10),
-			"Content-Type:" + contentType,
-		}
-		task.OnComplete = func() {
-			suboperation.Finish()
-			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: task}
-			wg.Done()
-		}
-		wg.Add(1)
-		as.fileTransferManager.AddTask(task)
+	// Build a map from part number to current URL (mutable for refresh)
+	partURLs := make(map[int64]string)
+	for _, part := range fileInfo.multipartUploadInfo {
+		partURLs[part.PartNumber] = part.UploadUrl
 	}
 
-	go func() {
-		wg.Wait()
-		close(partResponses)
-	}()
+	// Track which parts still need to be uploaded
+	pendingParts := make(map[int64]bool)
+	for _, pd := range partData {
+		pendingParts[pd.PartNumber] = true
+	}
 
+	// Track completed part ETags
 	partEtags := make([]gql.UploadPartsInput, len(partData))
 
-	for t := range partResponses {
-		err := t.task.Err
-		if err != nil {
-			return uploadResult{name: fileInfo.name, err: err}
+	refreshAttempts := 0
+
+	for len(pendingParts) > 0 {
+		wg := sync.WaitGroup{}
+		partResponses := make(chan partResponse, len(pendingParts))
+
+		// Upload all pending parts
+		for _, pd := range partData {
+			if !pendingParts[pd.PartNumber] {
+				continue
+			}
+
+			partIdx := int(pd.PartNumber - 1)
+			suboperation := wboperation.Get(as.ctx).Subtask(
+				fmt.Sprintf(
+					"%s (%d/%d)",
+					fileInfo.name, pd.PartNumber, len(partData),
+				))
+			task := newUploadTask(fileInfo, path)
+			task.Context = suboperation.Context(as.ctx)
+			task.Url = partURLs[pd.PartNumber]
+			task.Offset = int64(partIdx) * chunkSize
+			remainingSize := statInfo.Size() - task.Offset
+			task.Size = min(remainingSize, chunkSize)
+
+			b64md5, err := hashencode.HexToB64(pd.HexMD5)
+			if err != nil {
+				return uploadResult{name: fileInfo.name, err: err}
+			}
+			task.Headers = []string{
+				"Content-Md5:" + b64md5,
+				"Content-Length:" + strconv.FormatInt(task.Size, 10),
+				"Content-Type:" + contentType,
+			}
+
+			localPartNum := pd.PartNumber
+			task.OnComplete = func() {
+				suboperation.Finish()
+				partResponses <- partResponse{partNumber: localPartNum, task: task}
+				wg.Done()
+			}
+			wg.Add(1)
+			as.fileTransferManager.AddTask(task)
 		}
-		if t.task.Response == nil {
-			err = fmt.Errorf("no response in task %v", t.task.Name)
-			return uploadResult{name: fileInfo.name, err: err}
-		}
-		etag := ""
-		if t.task.Response != nil {
-			etag = t.task.Response.Header.Get("ETag")
+
+		go func() {
+			wg.Wait()
+			close(partResponses)
+		}()
+
+		// Collect results and identify expired URL failures
+		var expiredParts []gql.UploadPartsInput
+
+		for t := range partResponses {
+			if t.task.Err != nil {
+				if isExpiredURLError(t.task.Err) {
+					// Find the partData entry for this part
+					for _, pd := range partData {
+						if pd.PartNumber == t.partNumber {
+							expiredParts = append(expiredParts, pd)
+							break
+						}
+					}
+					as.logger.Warn("Part upload failed due to expired URL",
+						"fileName", fileInfo.name,
+						"partNumber", t.partNumber,
+						"attempt", refreshAttempts+1,
+						"error", t.task.Err,
+					)
+					continue
+				}
+				// Non-recoverable error - fail immediately
+				return uploadResult{name: fileInfo.name, err: t.task.Err}
+			}
+
+			// Validate response
+			if t.task.Response == nil {
+				err = fmt.Errorf("no response in task %v", t.task.Name)
+				return uploadResult{name: fileInfo.name, err: err}
+			}
+
+			etag := t.task.Response.Header.Get("ETag")
 			if etag == "" {
 				err = fmt.Errorf("no ETag in response %v", t.task.Response.Header)
 				return uploadResult{name: fileInfo.name, err: err}
 			}
+
+			// Part numbers should be unique values from 1 to len(partData).
+			if t.partNumber < 1 || t.partNumber > int64(len(partData)) {
+				err = fmt.Errorf("invalid part number: %d", t.partNumber)
+				return uploadResult{name: fileInfo.name, err: err}
+			}
+			if partEtags[t.partNumber-1].PartNumber != 0 {
+				err = fmt.Errorf("duplicate part number: %d", t.partNumber)
+				return uploadResult{name: fileInfo.name, err: err}
+			}
+
+			// Record successful upload
+			delete(pendingParts, t.partNumber)
+			partEtags[t.partNumber-1] = gql.UploadPartsInput{
+				PartNumber: t.partNumber,
+				HexMD5:     etag,
+			}
 		}
-		// Part numbers should be unique values from 1 to len(partData).
-		if t.partNumber < 1 || t.partNumber > int64(len(partData)) {
-			err = fmt.Errorf("invalid part number: %d", t.partNumber)
-			return uploadResult{name: fileInfo.name, err: err}
-		}
-		if partEtags[t.partNumber-1].PartNumber != 0 {
-			err = fmt.Errorf("duplicate part number: %d", t.partNumber)
-			return uploadResult{name: fileInfo.name, err: err}
-		}
-		partEtags[t.partNumber-1] = gql.UploadPartsInput{
-			PartNumber: t.partNumber,
-			HexMD5:     etag,
+
+		// If we have expired parts, refresh and retry
+		if len(expiredParts) > 0 {
+			refreshAttempts++
+			if refreshAttempts > maxRefreshRetries {
+				return uploadResult{
+					name: fileInfo.name,
+					err:  fmt.Errorf("exceeded max refresh retries (%d) for expired URLs", maxRefreshRetries),
+				}
+			}
+
+			as.logger.Info("Refreshing URLs for expired parts",
+				"fileName", fileInfo.name,
+				"numExpiredParts", len(expiredParts),
+				"attempt", refreshAttempts,
+			)
+
+			refreshedURLs, err := as.refreshMultipartURLs(fileInfo, expiredParts)
+			if err != nil {
+				return uploadResult{name: fileInfo.name, err: err}
+			}
+
+			// Update partURLs with refreshed URLs
+			for partNum, newURL := range refreshedURLs {
+				partURLs[partNum] = newURL
+			}
 		}
 	}
 
+	// Complete the multipart upload
 	_, err = gql.CompleteMultipartUploadArtifact(
 		as.ctx, as.graphqlClient, gql.CompleteMultipartActionComplete, partEtags,
 		fileInfo.birthArtifactID, *fileInfo.storagePath, fileInfo.uploadID,
@@ -607,6 +684,7 @@ func (as *ArtifactSaver) uploadMultipart(
 		"numParts", len(partData),
 		"fileSize", statInfo.Size(),
 		"chunkSize", chunkSize,
+		"refreshAttempts", refreshAttempts,
 	)
 
 	return uploadResult{name: fileInfo.name, err: err}
@@ -619,6 +697,75 @@ func getContentType(headers []string) string {
 		}
 	}
 	return ""
+}
+
+// isExpiredURLError checks if an error indicates an expired presigned URL.
+// This typically manifests as HTTP 403 Forbidden or 400 Bad Request with
+// signature-related error messages from cloud storage providers.
+func isExpiredURLError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+
+	// Common patterns for expired URL errors:
+	// - AWS S3: "Request has expired", "ExpiredToken", "SignatureDoesNotMatch"
+	// - GCS: "Expired", "Invalid signature"
+	// - Azure: "AuthenticationFailed", "Signature expired"
+	expiredPatterns := []string{
+		"expired",
+		"signatureerror",
+		"signaturedoesnotmatch",
+		"authenticationfailed",
+		"accessdenied",
+		"request has expired",
+		"invalid signature",
+	}
+
+	// Check for HTTP 403 or 400 status codes with signature-related messages
+	if strings.Contains(errStr, "403") || strings.Contains(errStr, "400") {
+		for _, pattern := range expiredPatterns {
+			if strings.Contains(errStr, pattern) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// refreshMultipartURLs calls the backend to get fresh presigned URLs for failed parts.
+func (as *ArtifactSaver) refreshMultipartURLs(
+	fileInfo serverFileResponse,
+	failedParts []gql.UploadPartsInput,
+) (map[int64]string, error) {
+	if fileInfo.storagePath == nil {
+		return nil, fmt.Errorf("storagePath is nil, cannot refresh URLs")
+	}
+
+	as.logger.Info("Refreshing multipart upload URLs",
+		"fileName", fileInfo.name,
+		"artifactID", fileInfo.birthArtifactID,
+		"numFailedParts", len(failedParts),
+	)
+
+	response, err := gql.RefreshMultipartUploadUrls(
+		as.ctx,
+		as.graphqlClient,
+		fileInfo.birthArtifactID,
+		fileInfo.uploadID,
+		*fileInfo.storagePath,
+		failedParts,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to refresh multipart upload URLs: %w", err)
+	}
+
+	urlMap := make(map[int64]string)
+	for _, part := range response.RefreshMultipartUploadUrls.UploadUrlParts {
+		urlMap[part.PartNumber] = part.UploadUrl
+	}
+	return urlMap, nil
 }
 
 func (as *ArtifactSaver) cacheEntry(entry ManifestEntry) {

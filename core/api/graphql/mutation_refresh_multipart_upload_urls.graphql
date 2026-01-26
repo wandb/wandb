@@ -1,0 +1,20 @@
+mutation RefreshMultipartUploadUrls(
+  $artifactID: ID!
+  $uploadID: String!
+  $storagePath: String!
+  $uploadPartsInput: [UploadPartsInput!]!
+) {
+  refreshMultipartUploadUrls(
+    input: {
+      artifactID: $artifactID
+      uploadID: $uploadID
+      storagePath: $storagePath
+      uploadPartsInput: $uploadPartsInput
+    }
+  ) {
+    uploadUrlParts {
+      partNumber
+      uploadUrl
+    }
+  }
+}
