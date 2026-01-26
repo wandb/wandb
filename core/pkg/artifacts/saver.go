@@ -497,6 +497,42 @@ func newUploadTask(
 	}
 }
 
+// partUploadResponse holds the result of processing a single part upload task.
+type partUploadResponse struct {
+	partNumber int64
+	task       *filetransfer.DefaultUploadTask
+}
+
+// processPartResponse validates a completed part upload and extracts the ETag.
+// Returns the ETag on success, or an error if validation fails.
+// Returns empty string with nil error if the part failed due to an expired URL.
+func processPartResponse(
+	t partUploadResponse,
+	numParts int,
+) (etag string, isExpired bool, err error) {
+	if t.task.Err != nil {
+		if isExpiredURLError(t.task.Err) {
+			return "", true, nil
+		}
+		return "", false, t.task.Err
+	}
+
+	if t.task.Response == nil {
+		return "", false, fmt.Errorf("no response in task %v", t.task.Name)
+	}
+
+	etag = t.task.Response.Header.Get("ETag")
+	if etag == "" {
+		return "", false, fmt.Errorf("no ETag in response %v", t.task.Response.Header)
+	}
+
+	if t.partNumber < 1 || t.partNumber > int64(numParts) {
+		return "", false, fmt.Errorf("invalid part number: %d", t.partNumber)
+	}
+
+	return etag, false, nil
+}
+
 func (as *ArtifactSaver) uploadMultipart(
 	path string,
 	fileInfo serverFileResponse,
@@ -509,12 +545,6 @@ func (as *ArtifactSaver) uploadMultipart(
 		return uploadResult{name: fileInfo.name, err: err}
 	}
 	chunkSize := getChunkSize(statInfo.Size())
-
-	type partResponse struct {
-		partNumber int64
-		task       *filetransfer.DefaultUploadTask
-	}
-
 	contentType := getContentType(fileInfo.uploadHeaders)
 
 	// Record start time for network upload phase
@@ -539,7 +569,7 @@ func (as *ArtifactSaver) uploadMultipart(
 
 	for len(pendingParts) > 0 {
 		wg := sync.WaitGroup{}
-		partResponses := make(chan partResponse, len(pendingParts))
+		partResponses := make(chan partUploadResponse, len(pendingParts))
 
 		// Upload all pending parts
 		for _, pd := range partData {
@@ -549,16 +579,13 @@ func (as *ArtifactSaver) uploadMultipart(
 
 			partIdx := int(pd.PartNumber - 1)
 			suboperation := wboperation.Get(as.ctx).Subtask(
-				fmt.Sprintf(
-					"%s (%d/%d)",
-					fileInfo.name, pd.PartNumber, len(partData),
-				))
+				fmt.Sprintf("%s (%d/%d)", fileInfo.name, pd.PartNumber, len(partData)),
+			)
 			task := newUploadTask(fileInfo, path)
 			task.Context = suboperation.Context(as.ctx)
 			task.Url = partURLs[pd.PartNumber]
 			task.Offset = int64(partIdx) * chunkSize
-			remainingSize := statInfo.Size() - task.Offset
-			task.Size = min(remainingSize, chunkSize)
+			task.Size = min(statInfo.Size()-task.Offset, chunkSize)
 
 			b64md5, err := hashencode.HexToB64(pd.HexMD5)
 			if err != nil {
@@ -573,7 +600,7 @@ func (as *ArtifactSaver) uploadMultipart(
 			localPartNum := pd.PartNumber
 			task.OnComplete = func() {
 				suboperation.Finish()
-				partResponses <- partResponse{partNumber: localPartNum, task: task}
+				partResponses <- partUploadResponse{partNumber: localPartNum, task: task}
 				wg.Done()
 			}
 			wg.Add(1)
@@ -589,50 +616,33 @@ func (as *ArtifactSaver) uploadMultipart(
 		var expiredParts []gql.UploadPartsInput
 
 		for t := range partResponses {
-			if t.task.Err != nil {
-				if isExpiredURLError(t.task.Err) {
-					// Find the partData entry for this part
-					for _, pd := range partData {
-						if pd.PartNumber == t.partNumber {
-							expiredParts = append(expiredParts, pd)
-							break
-						}
+			etag, isExpired, err := processPartResponse(t, len(partData))
+			if err != nil {
+				return uploadResult{name: fileInfo.name, err: err}
+			}
+			if isExpired {
+				for _, pd := range partData {
+					if pd.PartNumber == t.partNumber {
+						expiredParts = append(expiredParts, pd)
+						break
 					}
-					as.logger.Warn("Part upload failed due to expired URL",
-						"fileName", fileInfo.name,
-						"partNumber", t.partNumber,
-						"attempt", refreshAttempts+1,
-						"error", t.task.Err,
-					)
-					continue
 				}
-				// Non-recoverable error - fail immediately
-				return uploadResult{name: fileInfo.name, err: t.task.Err}
+				as.logger.Warn("Part upload failed due to expired URL",
+					"fileName", fileInfo.name,
+					"partNumber", t.partNumber,
+					"attempt", refreshAttempts+1,
+					"error", t.task.Err,
+				)
+				continue
 			}
 
-			// Validate response
-			if t.task.Response == nil {
-				err = fmt.Errorf("no response in task %v", t.task.Name)
-				return uploadResult{name: fileInfo.name, err: err}
-			}
-
-			etag := t.task.Response.Header.Get("ETag")
-			if etag == "" {
-				err = fmt.Errorf("no ETag in response %v", t.task.Response.Header)
-				return uploadResult{name: fileInfo.name, err: err}
-			}
-
-			// Part numbers should be unique values from 1 to len(partData).
-			if t.partNumber < 1 || t.partNumber > int64(len(partData)) {
-				err = fmt.Errorf("invalid part number: %d", t.partNumber)
-				return uploadResult{name: fileInfo.name, err: err}
-			}
 			if partEtags[t.partNumber-1].PartNumber != 0 {
-				err = fmt.Errorf("duplicate part number: %d", t.partNumber)
-				return uploadResult{name: fileInfo.name, err: err}
+				return uploadResult{
+					name: fileInfo.name,
+					err:  fmt.Errorf("duplicate part number: %d", t.partNumber),
+				}
 			}
 
-			// Record successful upload
 			delete(pendingParts, t.partNumber)
 			partEtags[t.partNumber-1] = gql.UploadPartsInput{
 				PartNumber: t.partNumber,
@@ -646,7 +656,10 @@ func (as *ArtifactSaver) uploadMultipart(
 			if refreshAttempts > maxRefreshRetries {
 				return uploadResult{
 					name: fileInfo.name,
-					err:  fmt.Errorf("exceeded max refresh retries (%d) for expired URLs", maxRefreshRetries),
+					err: fmt.Errorf(
+						"exceeded max refresh retries (%d) for expired URLs",
+						maxRefreshRetries,
+					),
 				}
 			}
 
@@ -661,7 +674,6 @@ func (as *ArtifactSaver) uploadMultipart(
 				return uploadResult{name: fileInfo.name, err: err}
 			}
 
-			// Update partURLs with refreshed URLs
 			for partNum, newURL := range refreshedURLs {
 				partURLs[partNum] = newURL
 			}

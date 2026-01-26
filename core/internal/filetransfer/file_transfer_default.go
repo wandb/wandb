@@ -8,6 +8,8 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 
@@ -26,6 +28,10 @@ type DefaultFileTransfer struct {
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
+
+	// sleptOffsets tracks which offsets have already been slept on (for testing)
+	sleptOffsets map[int64]bool
+	sleptMutex   sync.Mutex
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
@@ -38,6 +44,7 @@ func NewDefaultFileTransfer(
 		logger:            logger,
 		client:            client,
 		fileTransferStats: fileTransferStats,
+		sleptOffsets:      make(map[int64]bool),
 	}
 	return fileTransfer
 }
@@ -49,6 +56,19 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		"path", task.Path,
 		"url", task.Url,
 	)
+
+	// FIXME: sleep only once per offset to trigger expired URL for testing
+	if os.Getenv("WANDB_UPLOAD_SLEEP") == "true" {
+		ft.sleptMutex.Lock()
+		if !ft.sleptOffsets[task.Offset] {
+			ft.sleptOffsets[task.Offset] = true
+			ft.sleptMutex.Unlock()
+			ft.logger.Info("sleeping for 70 seconds to trigger expired url", "offset", task.Offset)
+			time.Sleep(70 * time.Second)
+		} else {
+			ft.sleptMutex.Unlock()
+		}
+	}
 
 	// open the file for reading and defer closing it
 	file, err := os.Open(task.Path)
