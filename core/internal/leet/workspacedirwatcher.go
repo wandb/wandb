@@ -205,7 +205,8 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 	} else if msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err) {
 		// Best-effort logging for unexpected failures; avoid spamming for
 		// "file not ready yet" or missing run records.
-		w.logger.CaptureError(fmt.Errorf("workspace: preload run overview for %s: %v", msg.RunKey, msg.Err))
+		err := fmt.Errorf("workspace: preload run overview for %s: %v", msg.RunKey, msg.Err)
+		w.logger.CaptureError(err)
 	}
 
 	// Keep draining the queue.
