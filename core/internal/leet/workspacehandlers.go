@@ -377,7 +377,18 @@ func (w *Workspace) handleQuit(msg tea.KeyMsg) tea.Cmd {
 func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
 	leftWillBeVisible := !w.runsAnimState.IsVisible()
 
-	w.updateLeftSidebarDimensions(w.runOverviewSidebar.IsVisible())
+	rightIsVisible := w.runOverviewSidebar.IsVisible()
+
+	switch {
+	case leftWillBeVisible && !rightIsVisible:
+		w.runs.Active = true
+	case !leftWillBeVisible && rightIsVisible:
+		w.runs.Active = false
+	case !leftWillBeVisible && w.runs.Active:
+		w.runs.Active = false
+	}
+
+	w.updateLeftSidebarDimensions(rightIsVisible)
 	w.runOverviewSidebar.UpdateDimensions(w.width, leftWillBeVisible)
 	w.runsAnimState.Toggle()
 
@@ -389,8 +400,18 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
 
 func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
 	rightWillBeVisible := !w.runOverviewSidebar.IsVisible()
+	leftIsVisible := w.runsAnimState.IsVisible()
 
-	w.runOverviewSidebar.UpdateDimensions(w.width, w.runsAnimState.IsVisible())
+	switch {
+	case rightWillBeVisible && !leftIsVisible:
+		w.runs.Active = false
+	case !rightWillBeVisible && leftIsVisible:
+		w.runs.Active = true
+	case !rightWillBeVisible && !w.runs.Active:
+		w.runs.Active = true
+	}
+
+	w.runOverviewSidebar.UpdateDimensions(w.width, leftIsVisible)
 	w.updateLeftSidebarDimensions(rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
 
@@ -477,29 +498,125 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleRunsVerticalNav(msg tea.KeyMsg) tea.Cmd {
-	if !w.runSelectorActive() {
-		return nil
-	}
-
-	switch msg.String() {
-	case "up":
-		w.runs.Up()
-	case "down":
-		w.runs.Down()
+	switch {
+	case w.runSelectorActive():
+		switch msg.String() {
+		case "up":
+			w.runs.Up()
+		case "down":
+			w.runs.Down()
+		}
+	case w.runOverviewActive():
+		switch msg.String() {
+		case "up":
+			w.runOverviewSidebar.navigateUp()
+		case "down":
+			w.runOverviewSidebar.navigateDown()
+		}
 	}
 	return nil
 }
 
-func (w *Workspace) handleRunsPageNav(msg tea.KeyMsg) tea.Cmd {
-	if !w.runSelectorActive() {
+func (w *Workspace) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
+	direction := 1
+	if msg.Type == tea.KeyShiftTab {
+		direction = -1
+	}
+
+	runsExpanded := w.runsAnimState.IsExpanded()
+	overviewExpanded := w.runOverviewSidebar.animState.IsExpanded()
+
+	if w.runs.Active {
+		if !overviewExpanded {
+			return nil
+		}
+
+		w.runs.Active = false
+
+		if direction == 1 {
+			w.runOverviewSidebar.selectFirstAvailableItem()
+			return nil
+		}
+
+		_, last := w.runOverviewSectionBounds()
+		if last != -1 {
+			w.runOverviewSidebar.setActiveSection(last)
+			return nil
+		}
+
+		w.runOverviewSidebar.selectFirstAvailableItem()
 		return nil
 	}
 
-	switch msg.String() {
-	case "left":
-		w.runs.PageUp()
-	case "right":
-		w.runs.PageDown()
+	// Overview sidebar is focused.
+	if !overviewExpanded {
+		// Can't keep focus on a hidden/collapsed sidebar.
+		w.runs.Active = true
+		return nil
+	}
+	if !runsExpanded {
+		// With no runs sidebar, keep cycling within the overview sections.
+		w.runOverviewSidebar.navigateSection(direction)
+		return nil
+	}
+
+	first, last := w.runOverviewSectionBounds()
+	if first == -1 || last == -1 {
+		// No navigable sections; return focus to the runs list.
+		w.runs.Active = true
+		return nil
+	}
+
+	if direction == 1 && w.runOverviewSidebar.activeSection == last {
+		w.runs.Active = true
+		return nil
+	}
+	if direction == -1 && w.runOverviewSidebar.activeSection == first {
+		w.runs.Active = true
+		return nil
+	}
+
+	w.runOverviewSidebar.navigateSection(direction)
+	return nil
+}
+
+// runOverviewSectionBounds returns the first and last sections with at least one
+// visible item. If none exist, returns (-1, -1).
+func (w *Workspace) runOverviewSectionBounds() (first, last int) {
+	first, last = -1, -1
+	if w.runOverviewSidebar == nil {
+		return first, last
+	}
+
+	for i := range w.runOverviewSidebar.sections {
+		section := &w.runOverviewSidebar.sections[i]
+		if section.ItemsPerPage() == 0 || len(section.FilteredItems) == 0 {
+			continue
+		}
+		if first == -1 {
+			first = i
+		}
+		last = i
+	}
+	return first, last
+}
+
+func (w *Workspace) handleRunsPageNav(msg tea.KeyMsg) tea.Cmd {
+	switch {
+	case w.runSelectorActive():
+		switch msg.String() {
+		case "left":
+			w.runs.PageUp()
+		case "right":
+			w.runs.PageDown()
+		}
+	case w.runOverviewActive():
+		switch msg.String() {
+		case "left":
+			w.runOverviewSidebar.navigatePageUp()
+		case "right":
+			w.runOverviewSidebar.navigatePageDown()
+		}
 	}
 	return nil
 }
@@ -513,8 +630,18 @@ func (w *Workspace) handleRunsHome(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (w *Workspace) runSelectorActive() bool {
-	if w.runsAnimState == nil || !w.runsAnimState.IsExpanded() {
+	if !w.runs.Active {
+		return false
+	}
+	if !w.runsAnimState.IsVisible() {
 		return false
 	}
 	return len(w.runs.FilteredItems) > 0
+}
+
+func (w *Workspace) runOverviewActive() bool {
+	if w.runs.Active {
+		return false
+	}
+	return w.runOverviewSidebar.animState.IsVisible()
 }

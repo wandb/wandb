@@ -710,7 +710,11 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			style = oddRunStyle
 		}
 		if idxOnPage == selectedLine {
-			style = selectedRunStyle
+			if w.runs.Active {
+				style = selectedRunStyle
+			} else {
+				style = selectedRunInactiveStyle
+			}
 		}
 
 		// TODO: Stable mapping for consistent colors: refactor and clean up.

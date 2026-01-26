@@ -202,6 +202,30 @@ var colorSchemes = map[string][]lipgloss.AdaptiveColor{
 		lipgloss.AdaptiveColor{Light: "#D19038", Dark: "#FBC36B"},
 		lipgloss.AdaptiveColor{Light: "#D59C1C", Dark: "#FFCF4F"},
 	},
+	"blush-tide": { // Pink-teal gradient
+		lipgloss.AdaptiveColor{Light: "#D94F8C", Dark: "#F9A7CC"},
+		lipgloss.AdaptiveColor{Light: "#CA60AC", Dark: "#EEB3E0"},
+		lipgloss.AdaptiveColor{Light: "#B96FC4", Dark: "#E4BFEE"},
+		lipgloss.AdaptiveColor{Light: "#A77DD4", Dark: "#DBC9F7"},
+		lipgloss.AdaptiveColor{Light: "#9489DF", Dark: "#D5D3FC"},
+		lipgloss.AdaptiveColor{Light: "#8095E5", Dark: "#D1DCFE"},
+		lipgloss.AdaptiveColor{Light: "#6AA1E6", Dark: "#D0E5FF"},
+		lipgloss.AdaptiveColor{Light: "#50ACE2", Dark: "#D3ECFE"},
+		lipgloss.AdaptiveColor{Light: "#33B6D9", Dark: "#D8F2FC"},
+		lipgloss.AdaptiveColor{Light: "#10BFCC", Dark: "#E1F7FA"}, // == teal450
+	},
+	"gilded-lagoon": { // Golden-teal gradient
+		lipgloss.AdaptiveColor{Light: "#D59C1C", Dark: "#FFCF4F"},
+		lipgloss.AdaptiveColor{Light: "#C2A636", Dark: "#EADB74"},
+		lipgloss.AdaptiveColor{Light: "#AFAD4C", Dark: "#DAE492"},
+		lipgloss.AdaptiveColor{Light: "#9CB35F", Dark: "#CFEBAB"},
+		lipgloss.AdaptiveColor{Light: "#8AB872", Dark: "#C8EFC0"},
+		lipgloss.AdaptiveColor{Light: "#77BB83", Dark: "#C5F3D2"},
+		lipgloss.AdaptiveColor{Light: "#62BE95", Dark: "#C7F5E1"},
+		lipgloss.AdaptiveColor{Light: "#4CBFA6", Dark: "#CDF6ED"},
+		lipgloss.AdaptiveColor{Light: "#32C0B9", Dark: "#D5F7F5"},
+		lipgloss.AdaptiveColor{Light: "#10BFCC", Dark: "#E1F7FA"}, // == teal450
+	},
 	"wandb-vibe-10": {
 		lipgloss.AdaptiveColor{Light: "#B1B4B9", Dark: "#B1B4B9"},
 		lipgloss.AdaptiveColor{Light: "#58D3DB", Dark: "#58D3DB"},
@@ -371,7 +395,13 @@ var (
 		Light: "#FCBC32",
 	}
 
-	evenRunStyle     = lipgloss.NewStyle()
-	oddRunStyle      = lipgloss.NewStyle().Background(colorOddRunStyle)
-	selectedRunStyle = lipgloss.NewStyle().Background(colorSelectedRunStyle)
+	colorSelectedRunInactiveStyle = lipgloss.AdaptiveColor{
+		Light: "#F5D28A",
+		Dark:  "#6B5200",
+	}
+
+	evenRunStyle             = lipgloss.NewStyle()
+	oddRunStyle              = lipgloss.NewStyle().Background(colorOddRunStyle)
+	selectedRunStyle         = lipgloss.NewStyle().Background(colorSelectedRunStyle)
+	selectedRunInactiveStyle = lipgloss.NewStyle().Background(colorSelectedRunInactiveStyle)
 )

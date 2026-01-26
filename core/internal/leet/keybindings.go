@@ -248,16 +248,21 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			},
 		},
 		{
-			Name: "Runs Sidebar (when sidebar open)",
+			Name: "Sidebars (when open)",
 			Bindings: []KeyBinding[Workspace]{
 				{
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Cycle focus between runs and overview sections",
+					Handler:     (*Workspace).handleSidebarTabNav,
+				},
+				{
 					Keys:        []string{"up", "down"},
-					Description: "Navigate runs list",
+					Description: "Navigate focused sidebar list",
 					Handler:     (*Workspace).handleRunsVerticalNav,
 				},
 				{
 					Keys:        []string{"left", "right"},
-					Description: "Navigate pages in runs list",
+					Description: "Navigate pages in focused sidebar list",
 					Handler:     (*Workspace).handleRunsPageNav,
 				},
 				{
