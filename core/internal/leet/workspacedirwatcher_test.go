@@ -54,7 +54,8 @@ func TestWorkspace_SelectAndPinRuns_StateTransitions(t *testing.T) {
 	w.Update(tea.KeyMsg{Type: tea.KeySpace})
 	require.Equal(t, 2, w.TestSelectedRunCount())
 	require.True(t, w.TestIsRunSelected(run2))
-	require.Equal(t, run1, w.TestPinnedRun(), "auto-pin stays on first selection until explicitly pinned")
+	require.Equal(t, run1, w.TestPinnedRun(),
+		"auto-pin stays on first selection until explicitly pinned")
 
 	// Pin the second run.
 	w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
