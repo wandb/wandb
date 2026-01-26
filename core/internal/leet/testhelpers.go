@@ -108,3 +108,41 @@ func (mg *MetricsGrid) TestChartAt(row, col int) *EpochLineChart {
 func (mg *MetricsGrid) TestSyncInspectActive() bool {
 	return mg.syncInspectActive
 }
+
+// ---- Workspace test helpers ----
+
+func (w *Workspace) TestSelectedRunCount() int {
+	return len(w.selectedRuns)
+}
+
+func (w *Workspace) TestIsRunSelected(runKey string) bool {
+	return w.selectedRuns[runKey]
+}
+
+func (w *Workspace) TestPinnedRun() string {
+	return w.pinnedRun
+}
+
+func (w *Workspace) TestCurrentRunKey() string {
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return ""
+	}
+	return cur.Key
+}
+
+func (w *Workspace) TestRunOverviewPreloadsInFlight() int {
+	return len(w.overviewPreloader.inFlight)
+}
+
+func (w *Workspace) TestRunOverviewPreloadQueueLen() int {
+	return len(w.overviewPreloader.queue)
+}
+
+func (w *Workspace) TestRunOverviewID(runKey string) string {
+	ro := w.runOverview[runKey]
+	if ro == nil {
+		return ""
+	}
+	return ro.runID
+}

@@ -137,3 +137,11 @@ type WorkspaceRunOverviewPreloadedMsg struct {
 	Run    RunMsg
 	Err    error
 }
+
+// WorkspaceInitErrMsg is emitted when a workspace run reader failed to initialize.
+// This keeps errors keyed to the specific run so the workspace can recover cleanly.
+type WorkspaceInitErrMsg struct {
+	RunKey  string
+	RunPath string
+	Err     error
+}

@@ -2,6 +2,7 @@ package leet
 
 import (
 	"fmt"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -20,7 +21,11 @@ func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
 	return func() tea.Msg {
 		reader, err := NewWandbReader(runPath, w.logger)
 		if err != nil {
-			return ErrorMsg{Err: err}
+			return WorkspaceInitErrMsg{
+				RunKey:  runKey,
+				RunPath: runPath,
+				Err:     err,
+			}
 		}
 		return WorkspaceInitMsg{
 			RunKey:  runKey,
@@ -28,6 +33,21 @@ func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
 			Reader:  reader,
 		}
 	}
+}
+
+func (w *Workspace) handleWorkspaceInitErr(msg WorkspaceInitErrMsg) tea.Cmd {
+	// Revert selection state so we don't get stuck with "selected but never loads".
+	if msg.RunKey != "" {
+		w.dropRun(msg.RunKey)
+	}
+
+	if msg.Err != nil && !os.IsNotExist(msg.Err) {
+		w.logger.CaptureError(fmt.Errorf(
+			"workspace: init reader for %s (%s): %v",
+			msg.RunKey, msg.RunPath, msg.Err,
+		))
+	}
+	return nil
 }
 
 // readAllChunkCmd reads a bounded chunk of records for the given workspace run.
@@ -487,10 +507,16 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyMsg) tea.Cmd {
 	// Preserve existing behavior: pinning should select the run if it's not selected,
 	// so its series exists and can be promoted/drawn.
 	if !w.selectedRuns[runKey] {
-		if cmd := w.toggleRunSelected(runKey); cmd != nil {
-			w.togglePin(runKey)
-			return cmd
+		cmd := w.toggleRunSelected(runKey)
+		if cmd == nil {
+			return nil
 		}
+		// toggleRunSelected may auto-pin when pinnedRun was empty.
+		// Only toggle if we still need to pin.
+		if w.pinnedRun != runKey {
+			w.togglePin(runKey)
+		}
+		return cmd
 	}
 
 	w.togglePin(runKey)

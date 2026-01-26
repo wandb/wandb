@@ -27,18 +27,92 @@ const (
 
 var errRunRecordNotFound = errors.New("run record not found")
 
+// runOverviewPreloader implements a bounded-concurrency FIFO queue with dedupe.
+//
+// Invariants:
+// - pending = queued ∪ inFlight
+// - items are enqueued at most once while pending
+type runOverviewPreloader struct {
+	pending     map[string]struct{} // queued or in-flight
+	inFlight    map[string]struct{}
+	queue       []string // FIFO of queued (not in-flight)
+	maxInFlight int
+}
+
+func newRunOverviewPreloader(maxInFlight int) runOverviewPreloader {
+	if maxInFlight <= 0 {
+		maxInFlight = 1
+	}
+	return runOverviewPreloader{
+		pending:     make(map[string]struct{}),
+		inFlight:    make(map[string]struct{}),
+		maxInFlight: maxInFlight,
+	}
+}
+
+func (p *runOverviewPreloader) Enqueue(runKey string) {
+	if runKey == "" {
+		return
+	}
+	if _, ok := p.pending[runKey]; ok {
+		return
+	}
+	p.pending[runKey] = struct{}{}
+	p.queue = append(p.queue, runKey)
+}
+
+func (p *runOverviewPreloader) DropQueuedNotPresent(present map[string]struct{}) {
+	if len(p.queue) == 0 {
+		return
+	}
+	kept := p.queue[:0]
+	for _, key := range p.queue {
+		if _, ok := present[key]; ok {
+			kept = append(kept, key)
+			continue
+		}
+		delete(p.pending, key)
+	}
+	p.queue = kept
+}
+
+func (p *runOverviewPreloader) DequeueStartable() []string {
+	available := p.maxInFlight - len(p.inFlight)
+	if available <= 0 || len(p.queue) == 0 {
+		return nil
+	}
+	n := available
+	if n > len(p.queue) {
+		n = len(p.queue)
+	}
+
+	keys := make([]string, 0, n)
+	for range n {
+		runKey := p.queue[0]
+		p.queue = p.queue[1:]
+		p.inFlight[runKey] = struct{}{}
+		keys = append(keys, runKey)
+	}
+	return keys
+}
+
+func (p *runOverviewPreloader) MarkDone(runKey string) {
+	delete(p.inFlight, runKey)
+	delete(p.pending, runKey)
+}
+
 func (w *Workspace) pollWandbDirCmd(delay time.Duration) tea.Cmd {
 	wandbDir := w.wandbDir
 	if delay < 0 {
 		delay = 0
 	}
 	return tea.Tick(delay, func(time.Time) tea.Msg {
-		runKeys, err := scanWandbRunDirs(wandbDir)
+		runKeys, err := ScanWandbRunDirs(wandbDir)
 		return WorkspaceRunDirsMsg{RunKeys: runKeys, Err: err}
 	})
 }
 
-func scanWandbRunDirs(wandbDir string) ([]string, error) {
+func ScanWandbRunDirs(wandbDir string) ([]string, error) {
 	if wandbDir == "" {
 		return nil, nil
 	}
@@ -51,7 +125,7 @@ func scanWandbRunDirs(wandbDir string) ([]string, error) {
 	runKeys := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		name := entry.Name()
-		if !strings.HasPrefix(name, "run") && !strings.HasPrefix(name, "offline-run") {
+		if !strings.HasPrefix(name, "run-") && !strings.HasPrefix(name, "offline-run-") {
 			continue
 		}
 		runKeys = append(runKeys, name)
@@ -125,30 +199,19 @@ func (w *Workspace) enqueueMissingRunOverviews(runKeys []string) {
 		if _, ok := w.runOverview[runKey]; ok {
 			continue
 		}
-		if _, ok := w.runOverviewPreloadPending[runKey]; ok {
-			continue
-		}
-		w.runOverviewPreloadPending[runKey] = struct{}{}
-		w.runOverviewPreloadQueue = append(w.runOverviewPreloadQueue, runKey)
+		w.overviewPreloader.Enqueue(runKey)
 	}
 }
 
 // startRunOverviewPreloadsCmd starts as many overview preloads as allowed by the
 // concurrency limit and returns a batch cmd. It is safe to call repeatedly.
 func (w *Workspace) startRunOverviewPreloadsCmd() tea.Cmd {
-	available := maxConcurrentPreloads - w.runOverviewPreloadsInFlight
-	if available <= 0 || len(w.runOverviewPreloadQueue) == 0 {
+	runKeys := w.overviewPreloader.DequeueStartable()
+	if len(runKeys) == 0 {
 		return nil
 	}
-	if available > len(w.runOverviewPreloadQueue) {
-		available = len(w.runOverviewPreloadQueue)
-	}
-
-	cmds := make([]tea.Cmd, 0, available)
-	for range available {
-		runKey := w.runOverviewPreloadQueue[0]
-		w.runOverviewPreloadQueue = w.runOverviewPreloadQueue[1:]
-		w.runOverviewPreloadsInFlight++
+	cmds := make([]tea.Cmd, 0, len(runKeys))
+	for _, runKey := range runKeys {
 		cmds = append(cmds, w.preloadRunOverviewCmd(runKey))
 	}
 	return tea.Batch(cmds...)
@@ -192,10 +255,7 @@ func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
 func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 	msg WorkspaceRunOverviewPreloadedMsg,
 ) tea.Cmd {
-	if w.runOverviewPreloadsInFlight > 0 {
-		w.runOverviewPreloadsInFlight--
-	}
-	delete(w.runOverviewPreloadPending, msg.RunKey)
+	w.overviewPreloader.MarkDone(msg.RunKey)
 
 	if msg.Err == nil && msg.Run.ID != "" {
 		ro := w.getOrCreateRunOverview(msg.RunKey)
@@ -238,17 +298,7 @@ func (w *Workspace) applyRunKeys(runKeys []string) {
 	}
 
 	// Drop queued (not in-flight) overview preloads for runs that disappeared.
-	if len(w.runOverviewPreloadQueue) > 0 {
-		kept := w.runOverviewPreloadQueue[:0]
-		for _, key := range w.runOverviewPreloadQueue {
-			if _, ok := present[key]; ok {
-				kept = append(kept, key)
-				continue
-			}
-			delete(w.runOverviewPreloadPending, key)
-		}
-		w.runOverviewPreloadQueue = kept
-	}
+	w.overviewPreloader.DropQueuedNotPresent(present)
 
 	// If the pinned run disappeared, clear it.
 	if w.pinnedRun != "" {

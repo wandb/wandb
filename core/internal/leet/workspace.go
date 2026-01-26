@@ -35,12 +35,7 @@ type Workspace struct {
 	runOverviewSidebar *RunOverviewSidebar
 
 	// Run overview preload pipeline for unselected runs.
-	//
-	// Bubble Tea best practice: async work returns tea.Msg; model state is mutated
-	// only inside Update(). These fields implement a bounded-concurrency queue.
-	runOverviewPreloadPending   map[string]struct{} // queued or in-flight
-	runOverviewPreloadQueue     []string            // FIFO
-	runOverviewPreloadsInFlight int
+	overviewPreloader runOverviewPreloader
 
 	// TODO: mark live runs upon selection.
 
@@ -102,14 +97,14 @@ func NewWorkspace(
 		runOverview:   make(map[string]*RunOverview),
 		runOverviewSidebar: NewRunOverviewSidebar(
 			runOverviewAnimState, NewRunOverview(), SidebarSideRight),
-		runOverviewPreloadPending: make(map[string]struct{}),
-		selectedRuns:              make(map[string]bool),
-		focus:                     focus,
-		metricsGrid:               NewMetricsGrid(cfg, focus, logger),
-		runsByKey:                 make(map[string]*workspaceRun),
-		liveChan:                  ch,
-		heartbeatMgr:              NewHeartbeatManager(hbInterval, ch, logger),
-		filter:                    NewFilter(),
+		overviewPreloader: newRunOverviewPreloader(maxConcurrentPreloads),
+		selectedRuns:      make(map[string]bool),
+		focus:             focus,
+		metricsGrid:       NewMetricsGrid(cfg, focus, logger),
+		runsByKey:         make(map[string]*workspaceRun),
+		liveChan:          ch,
+		heartbeatMgr:      NewHeartbeatManager(hbInterval, ch, logger),
+		filter:            NewFilter(),
 	}
 }
 
@@ -158,6 +153,9 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 	case WorkspaceInitMsg:
 		return w.handleWorkspaceInit(t)
+
+	case WorkspaceInitErrMsg:
+		return w.handleWorkspaceInitErr(t)
 
 	case WorkspaceRunDirsMsg:
 		return w.handleWorkspaceRunDirs(t)
@@ -347,16 +345,20 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		return nil
 	}
 
+	// Resolve the run file before mutating selection state so we don't end up
+	// "selected but unloadable" if the key can't be mapped to a .wandb file.
+	wandbFile := w.runWandbFile(runKey)
+	if wandbFile == "" {
+		err := fmt.Errorf("workspace: unable to resolve .wandb file for run key %q", runKey)
+		w.logger.CaptureError(err)
+		return nil
+	}
+
 	w.selectedRuns[runKey] = true
 	if w.pinnedRun == "" {
 		w.pinnedRun = runKey
 	}
 
-	// Always (re)initialize the reader + metrics for this run.
-	wandbFile := w.runWandbFile(runKey)
-	if wandbFile == "" {
-		return nil
-	}
 	return w.initReaderCmd(runKey, wandbFile)
 }
 
