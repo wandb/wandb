@@ -402,7 +402,7 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 			&c.Canvas,
 			canvas.Point{X: startX, Y: 0},
 			patterns,
-			style,
+			&style,
 		)
 	} else {
 		graph.DrawBraillePatterns(
@@ -418,7 +418,7 @@ func DrawBraillePatternsOccluded(
 	m *canvas.Model,
 	p canvas.Point,
 	b [][]rune,
-	s lipgloss.Style,
+	s *lipgloss.Style,
 ) {
 	for y, row := range b {
 		for x, r := range row {
@@ -438,13 +438,13 @@ func DrawBraillePatternsOccluded(
 // which keeps multi-series plots visually clean.
 //
 // Does nothing if r is runes.Null or r is not a braille pattern.
-func DrawBrailleRune(m *canvas.Model, p canvas.Point, r rune, s lipgloss.Style) {
+func DrawBrailleRune(m *canvas.Model, p canvas.Point, r rune, s *lipgloss.Style) {
 	if r == runes.Null || !runes.IsBraillePattern(r) {
 		return
 	}
 
 	// Opaque write: later series overwrite earlier ones in this cell.
-	m.SetCell(p, canvas.NewCellWithStyle(r, s))
+	m.SetCell(p, canvas.NewCellWithStyle(r, *s))
 }
 
 // drawInspectionOverlay renders the vertical crosshair line and the (x, y)
