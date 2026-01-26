@@ -16,8 +16,8 @@ func TestScanWandbRunDirs_FiltersAndSorts(t *testing.T) {
 
 	// Valid run dirs (note: sorted newest-first by timestamp).
 	want := []string{
-		"offline-run-20240102_000000-bbb",
 		"run-20240101_000000-aaa",
+		"offline-run-20240102_000000-bbb",
 		"run-20231231_235959-ccc",
 	}
 	for _, name := range want {
