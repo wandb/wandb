@@ -885,7 +885,7 @@ class Run(Attrs):
         self.update()
 
     @normalize_exceptions
-    def update_state(self, state: str) -> bool:
+    def update_state(self, state: Literal["pending"]) -> bool:
         """Update the state of a run.
 
         Allows transitioning runs from 'failed' or 'crashed' to 'pending'.
