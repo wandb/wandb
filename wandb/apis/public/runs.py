@@ -897,7 +897,8 @@ class Run(Attrs):
             `True` if the state was successfully updated.
 
         Raises:
-            `wandb.Error`: If the run is not in a terminal failure state or the requested state transition is not allowed.
+            `wandb.Error`: If the requested state transition is not allowed, or the server
+                does not support this operation.
         """
         mutation = gql(
             """
@@ -909,15 +910,24 @@ class Run(Attrs):
             """
         )
 
-        result = self.client.execute(
-            mutation,
-            variable_values={
-                "input": {
-                    "id": self.storage_id,
-                    "state": state,
-                }
-            },
-        )
+        try:
+            result = self.client.execute(
+                mutation,
+                variable_values={
+                    "input": {
+                        "id": self.storage_id,
+                        "state": state,
+                    }
+                },
+            )
+        except Exception as e:
+            if "UpdateRunStateInput" in str(e):
+                raise wandb.Error(
+                    "The server does not support the update_state operation. "
+                    "Please ensure your W&B server is updated to a version that "
+                    "supports run state transitions."
+                ) from e
+            raise
 
         if result.get("updateRunState", {}).get("success"):
             self._attrs["state"] = state
