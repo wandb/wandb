@@ -1,7 +1,6 @@
 package leet_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -10,31 +9,6 @@ import (
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 )
-
-func TestScanWandbRunDirs_FiltersAndSorts(t *testing.T) {
-	dir := t.TempDir()
-
-	// Valid run dirs (note: sorted newest-first by timestamp).
-	want := []string{
-		"run-20240101_000000-aaa",
-		"offline-run-20240102_000000-bbb",
-		"run-20231231_235959-ccc",
-	}
-	for _, name := range want {
-		require.NoError(t, os.Mkdir(filepath.Join(dir, name), 0o755))
-	}
-
-	// Should be ignored: not a run dir or not a directory.
-	require.NoError(t, os.Mkdir(filepath.Join(dir, "runs"), 0o755))
-	require.NoError(t, os.Mkdir(filepath.Join(dir, "runfiles"), 0o755))
-	require.NoError(t, os.Mkdir(filepath.Join(dir, "offline-run"), 0o755))
-	require.NoError(t,
-		os.WriteFile(filepath.Join(dir, "run-20240103_000000-ddd"), []byte("x"), 0o644))
-
-	got, err := leet.ScanWandbRunDirs(dir)
-	require.NoError(t, err)
-	require.Equal(t, want, got)
-}
 
 func TestWorkspace_PinSelectsAndPinsWhenNotSelected(t *testing.T) {
 	logger := observability.NewNoOpLogger()

@@ -81,10 +81,7 @@ func (p *runOverviewPreloader) DequeueStartable() []string {
 	if available <= 0 || len(p.queue) == 0 {
 		return nil
 	}
-	n := available
-	if n > len(p.queue) {
-		n = len(p.queue)
-	}
+	n := min(available, len(p.queue))
 
 	keys := make([]string, 0, n)
 	for range n {
@@ -107,12 +104,12 @@ func (w *Workspace) pollWandbDirCmd(delay time.Duration) tea.Cmd {
 		delay = 0
 	}
 	return tea.Tick(delay, func(time.Time) tea.Msg {
-		runKeys, err := ScanWandbRunDirs(wandbDir)
+		runKeys, err := scanWandbRunDirs(wandbDir)
 		return WorkspaceRunDirsMsg{RunKeys: runKeys, Err: err}
 	})
 }
 
-func ScanWandbRunDirs(wandbDir string) ([]string, error) {
+func scanWandbRunDirs(wandbDir string) ([]string, error) {
 	if wandbDir == "" {
 		return nil, nil
 	}
