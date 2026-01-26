@@ -542,7 +542,8 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 	}
 
 	// Render each legend row: colored block(s) + space + "X: Y".
-	for i, entry := range entries {
+	for i := range len(entries) {
+		entry := entries[i] // avoids copying 600 bytes on each iteration
 		y := legendYStart + i
 		x := legendX
 

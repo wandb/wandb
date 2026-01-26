@@ -206,11 +206,8 @@ func (mg *MetricsGrid) sortChartsNoLock() {
 	for _, chart := range mg.all {
 		mg.byTitle[chart.Title()] = chart
 
-		// TODO? In single-run view, use different colors?
 		// Stable color per title (no reshuffling when new charts arrive).
 		mg.colorForNoLock(chart.Title())
-		// col := mg.colorForNoLock(chart.Title())
-		// chart.SetGraphStyle(lipgloss.NewStyle().Foreground(col))
 	}
 
 	// Ensure filtered mirrors all when filter is empty.

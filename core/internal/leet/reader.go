@@ -62,9 +62,7 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 	hitEOF := false
 
 	for recordCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
-		// start := time.Now()
 		record, err := r.store.Read()
-		// r.store.logger.Debug(fmt.Sprintf("perf: r.store.Read() took %s", time.Since(start)))
 		if err != nil {
 			break
 		}

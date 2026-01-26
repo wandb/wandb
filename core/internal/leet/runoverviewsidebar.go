@@ -323,7 +323,8 @@ func (s *RunOverviewSidebar) buildHeaderLines() []string {
 	}
 	if project := s.runOverview.Project(); project != "" {
 		lines = append(lines,
-			runOverviewSidebarKeyStyle.Render("Project: ")+runOverviewSidebarValueStyle.Render(project))
+			runOverviewSidebarKeyStyle.Render("Project: ")+
+				runOverviewSidebarValueStyle.Render(project))
 	}
 
 	// Blank separator line.

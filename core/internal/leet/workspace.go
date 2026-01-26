@@ -93,14 +93,15 @@ func NewWorkspace(
 
 	// TODO: make sidebar visibility configurable.
 	return &Workspace{
-		runsAnimState:             NewAnimationState(true, SidebarMinWidth),
-		wandbDir:                  wandbDir,
-		config:                    cfg,
-		keyMap:                    buildKeyMap(WorkspaceKeyBindings()),
-		logger:                    logger,
-		runs:                      runs,
-		runOverview:               make(map[string]*RunOverview),
-		runOverviewSidebar:        NewRunOverviewSidebar(runOverviewAnimState, NewRunOverview(), SidebarSideRight),
+		runsAnimState: NewAnimationState(true, SidebarMinWidth),
+		wandbDir:      wandbDir,
+		config:        cfg,
+		keyMap:        buildKeyMap(WorkspaceKeyBindings()),
+		logger:        logger,
+		runs:          runs,
+		runOverview:   make(map[string]*RunOverview),
+		runOverviewSidebar: NewRunOverviewSidebar(
+			runOverviewAnimState, NewRunOverview(), SidebarSideRight),
 		runOverviewPreloadPending: make(map[string]struct{}),
 		selectedRuns:              make(map[string]bool),
 		focus:                     focus,
