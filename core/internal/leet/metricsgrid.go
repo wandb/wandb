@@ -117,7 +117,6 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 	needsSort := false
 
 	mg.mu.Lock()
-	// var wg sync.WaitGroup
 
 	for name, data := range metrics {
 		chart, exists := mg.byTitle[name]
@@ -131,9 +130,6 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 				mg.logger.Debug(fmt.Sprintf("metricsgrid: created %d charts", len(mg.all)))
 			}
 		}
-		// wg.Go(func() {
-		// 	chart.AddData(msg.RunPath, data)
-		// })
 		chart.AddData(msg.RunPath, data)
 	}
 

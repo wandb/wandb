@@ -113,11 +113,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.mode {
 		case viewModeWorkspace:
 			if keyMsg.Type == tea.KeyEnter && !awaitingUserInput {
-				return m, m.enterRunView()
+				cmd := m.enterRunView()
+				return m, cmd
 			}
 		case viewModeRun:
 			if keyMsg.Type == tea.KeyEsc && !awaitingUserInput {
-				return m, m.exitRunView()
+				cmd := m.exitRunView()
+				return m, cmd
 			}
 		}
 	}

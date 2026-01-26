@@ -334,10 +334,6 @@ func (c *EpochLineChart) Draw() {
 		c.dirty = false
 		return
 	}
-	// if !c.hasData() {
-	// 	c.dirty = false
-	// 	return
-	// }
 
 	startX := 0
 	if c.YStep() > 0 {
