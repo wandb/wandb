@@ -56,14 +56,20 @@ except KeyError:
 
 _wandb_log_path = os.path.join(_wandb_dir, f"debug-cli.{_username}.log")
 
-logging.basicConfig(
-    filename=_wandb_log_path,
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+_logger_handler = logging.FileHandler(_wandb_log_path)
+_logger_handler.setLevel(logging.INFO)
+_logger_handler.setFormatter(
+    logging.Formatter(
+        fmt="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 )
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+
 logger = logging.getLogger("wandb")
+
+# The wandb logger does not forward messages to the root handler.
+logger.addHandler(_logger_handler)
+logging.root.addHandler(_logger_handler)
 
 _HAS_DOCKER = bool(shutil.which("docker"))
 _HAS_NVIDIA_DOCKER = bool(shutil.which("nvidia-docker"))
