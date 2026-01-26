@@ -433,9 +433,12 @@ def test_prints_status_updates(
     tmp_path: pathlib.Path,
     emulated_terminal: EmulatedTerminal,
 ):
+    async def cancel_noop(id: str) -> None:
+        _ = id
+
     wandb_file = tmp_path / "run-test-progress.wandb"
     singleton = wandb_setup.singleton()
-    mailbox = Mailbox(singleton.asyncer)
+    mailbox = Mailbox(singleton.asyncer, cancel_noop)
 
     async def simulate_service(tester: _Tester):
         await tester.respond_init_sync(id="sync-test")
