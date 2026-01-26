@@ -9,10 +9,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestOpenDebugSyncLogFile(t *testing.T) {
@@ -25,11 +26,11 @@ func TestOpenDebugSyncLogFile(t *testing.T) {
 
 		// Test that OpenDebugSyncLogFile creates the directory.
 		wandbDir := filepath.Join(t.TempDir(), "my-dir", "wandb")
-		settings := settings.From(&spb.Settings{
+		s := settings.From(&spb.Settings{
 			WandbDir: wrapperspb.String(wandbDir),
 		})
 
-		file, err := runsync.OpenDebugSyncLogFile(settings)
+		file, err := runsync.OpenDebugSyncLogFile(s)
 		require.NoError(t, err)
 		require.NotNil(t, file)
 		file.Close()

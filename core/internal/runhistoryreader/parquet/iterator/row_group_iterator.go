@@ -116,7 +116,6 @@ func (t *RowGroupIterator) Next() (bool, error) {
 		}
 	}
 
-RowSearch:
 	for {
 		for _, c := range t.columns {
 			if !c.Iterator.Next() {
@@ -129,12 +128,12 @@ RowSearch:
 			return false, err
 		}
 		if !validRow {
-			continue RowSearch
+			continue
 		}
 
 		hasAllColumns := t.checkRowHasAllColumns()
 		if !hasAllColumns {
-			continue RowSearch
+			continue
 		}
 
 		return true, nil

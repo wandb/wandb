@@ -15,8 +15,9 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 var (
@@ -200,7 +201,6 @@ func (s *System) processAndDescendants(ctx context.Context, pid int32) ([]*proce
 		case <-ctx.Done():
 			return out, nil
 		default:
-			// continue processing
 		}
 
 		currProc := queue[0]

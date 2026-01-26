@@ -77,7 +77,7 @@ func (f *Filter) ToggleMode() {
 func (f *Filter) UpdateDraft(msg tea.KeyMsg) {
 	switch msg.Type {
 	case tea.KeyBackspace:
-		if len(f.draft) > 0 {
+		if f.draft != "" {
 			f.draft = f.draft[:len(f.draft)-1]
 		}
 	case tea.KeySpace:

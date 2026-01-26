@@ -47,7 +47,7 @@ func GetLoggerPath() (*os.File, error) {
 }
 
 // GetLoggerPathFS function with FileSystem parameter
-func GetLoggerPathFS(fs FileSystem) (fs.File, error) {
+func GetLoggerPathFS(f FileSystem) (fs.File, error) {
 	// TODO: replace with a setting during client rewrite
 	dir := os.Getenv("WANDB_CACHE_DIR")
 	if dir == "" {
@@ -66,11 +66,11 @@ func GetLoggerPathFS(fs FileSystem) (fs.File, error) {
 	timestamp := time.Now().Format("20060102_150405")
 	path := filepath.Join(dir, "wandb", "logs", fmt.Sprintf("core-debug-%s.log", timestamp))
 
-	if err := fs.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := f.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("error creating log directory: %s", err)
 	}
 
-	file, err := fs.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	file, err := f.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 	if err != nil {
 		return nil, fmt.Errorf("error opening log file: %s", err)
 	}

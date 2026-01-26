@@ -180,7 +180,7 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 	return contents, nil
 }
 
-func (m *Manifest) WriteToFile() (filename string, digest string, size int64, rerr error) {
+func (m *Manifest) WriteToFile() (filename, digest string, size int64, rerr error) {
 	return WriteJSONToTempFileWithMetadata(m)
 }
 

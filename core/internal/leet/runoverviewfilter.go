@@ -92,16 +92,16 @@ func (s *RunOverviewSidebar) ApplyFilter() {
 // No-ops if no section has matches.
 func (s *RunOverviewSidebar) focusBestMatchSection() {
 	best := s.activeSection
-	max := 0
+	maximum := 0
 
 	for i := range s.sections {
-		if m := len(s.sections[i].FilteredItems); m > max {
-			max = m
+		if m := len(s.sections[i].FilteredItems); m > maximum {
+			maximum = m
 			best = i
 		}
 	}
 
-	if max == 0 || best == s.activeSection {
+	if maximum == 0 || best == s.activeSection {
 		return
 	}
 	s.setActiveSection(best) // centralizes deactivation + cursor/page reset

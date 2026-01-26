@@ -3,26 +3,40 @@ version: "2"
 run:
   timeout: 5m
 
-linters:
+formatters:
   enable:
     - gofmt
+    - golines
     - goimports
+  settings:
+    goimports:
+      local-prefixes: github.com/wandb/wandb
+
+linters:
+  enable:
     - govet
     - gocritic
     - gocyclo
-
-linters-settings:
-  gocyclo:
-    min-complexity: 21
-  goimports:
-    local-prefixes: github.com/wandb/wandb
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
+  settings:
+    gocyclo:
+      min-complexity: 21
+    gocritic:
+      settings:
+        hugeParam:
+          sizeThreshold: 129
+      disabled-checks:
+        - unnamedResult
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+  exclusions:
+    # https://golangci-lint.run/usage/false-positives/#preset-std-error-handling
+    presets:
+      - std-error-handling
 
 issues:
+  max-issues-per-linter: 1000
   exclude-dirs:
     - vendor
   exclude-files:

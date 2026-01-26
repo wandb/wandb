@@ -9,6 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -16,8 +19,6 @@ import (
 	"github.com/wandb/wandb/core/internal/streamtest"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"go.uber.org/mock/gomock"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type testFixtures struct {
@@ -291,7 +292,7 @@ func Test_CorruptFileError(t *testing.T) {
 	// Add data to the file that doesn't follow the LevelDB format.
 	wandbFile, err := os.OpenFile(x.TransactionLog, os.O_APPEND|os.O_WRONLY, 0)
 	require.NoError(t, err)
-	_, err = wandbFile.Write([]byte("incorrect"))
+	_, err = wandbFile.WriteString("incorrect")
 	require.NoError(t, err)
 	require.NoError(t, wandbFile.Close())
 

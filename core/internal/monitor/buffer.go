@@ -5,8 +5,9 @@ import (
 	"sync"
 
 	"github.com/wandb/simplejsonext"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // Measurement represents a single metric measurement with a timestamp and value.

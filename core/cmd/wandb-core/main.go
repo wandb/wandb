@@ -23,6 +23,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pprof"
@@ -234,7 +235,7 @@ Flags:
 		loggerFile, err := os.OpenFile(
 			"wandb-leet.debug.log",
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
-			0644,
+			0o644,
 		)
 		if err != nil {
 			fmt.Println("fatal:", err)

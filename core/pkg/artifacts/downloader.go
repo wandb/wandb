@@ -15,6 +15,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
+
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -210,7 +211,7 @@ func (ad *ArtifactDownloader) addEntriesToBatch(
 	manifest Manifest,
 	manifestEntriesCopy map[string]ManifestEntry,
 	nameToScheduledTime map[string]time.Time,
-) ([]ManifestEntry, int, bool, error) {
+) (entries []ManifestEntry, numSkipped int, hasNextPage bool, err error) {
 	curBatchSize, numSkipped := 0, 0
 	var entriesToFetch []gql.ArtifactManifestEntryInput
 	for filePath, entry := range manifestEntriesCopy {
@@ -236,7 +237,7 @@ func (ad *ArtifactDownloader) addEntriesToBatch(
 			break
 		}
 	}
-	entries := []ManifestEntry{}
+	entries = []ManifestEntry{}
 	if len(entriesToFetch) > 0 {
 		var err error
 		entries, err = ad.getBatchEntriesWithFileUrls(
@@ -250,7 +251,7 @@ func (ad *ArtifactDownloader) addEntriesToBatch(
 			return nil, 0, false, err
 		}
 	}
-	hasNextPage := len(manifestEntriesCopy) > 0
+	hasNextPage = len(manifestEntriesCopy) > 0
 	return entries, numSkipped, hasNextPage, nil
 }
 
@@ -264,11 +265,11 @@ func (ad *ArtifactDownloader) addEntriesToBatchLegacy(
 	manifestEntriesCopy map[string]ManifestEntry,
 	nameToScheduledTime map[string]time.Time,
 	cursor *string,
-) ([]ManifestEntry, int, bool, *string, error) {
+) (entries []ManifestEntry, numSkipped int, hasNextPage bool, cur *string, err error) {
 	batchSize := BATCH_SIZE
-	numSkipped := 0
+	numSkipped = 0
 	now := time.Now()
-	entries := []ManifestEntry{}
+	entries = []ManifestEntry{}
 	response, err := gql.ArtifactFileURLs(
 		ad.Ctx,
 		ad.GraphqlClient,
@@ -279,7 +280,7 @@ func (ad *ArtifactDownloader) addEntriesToBatchLegacy(
 	if err != nil {
 		return nil, 0, false, nil, err
 	}
-	hasNextPage := response.Artifact.Files.PageInfo.HasNextPage
+	hasNextPage = response.Artifact.Files.PageInfo.HasNextPage
 	cursor = response.Artifact.Files.PageInfo.EndCursor
 	for _, edge := range response.GetArtifact().GetFiles().Edges {
 		filePath := edge.GetNode().Name

@@ -23,19 +23,19 @@ type CredentialProvider httplayers.HTTPWrapper
 // settings. Settings for JWT authentication are prioritized above API key
 // authentication.
 func NewCredentialProvider(
-	settings *settings.Settings,
+	s *settings.Settings,
 	logger *slog.Logger,
 ) (CredentialProvider, error) {
-	if settings.GetIdentityTokenFile() != "" {
+	if s.GetIdentityTokenFile() != "" {
 		return NewOAuth2CredentialProvider(
-			settings.GetBaseURL(),
-			settings.GetIdentityTokenFile(),
-			settings.GetCredentialsFile(),
+			s.GetBaseURL(),
+			s.GetIdentityTokenFile(),
+			s.GetCredentialsFile(),
 			logger,
 		)
 	}
 
-	if apiKey := settings.GetAPIKey(); apiKey != "" {
+	if apiKey := s.GetAPIKey(); apiKey != "" {
 		return &apiKeyCredentialProvider{apiKey: apiKey}, nil
 	}
 
@@ -286,7 +286,7 @@ func (c *oauth2CredentialProvider) trySaveCredentialsToFile(credentials Credenti
 		c.logger.Warn("failed to update credentials file", "error", err.Error())
 		return
 	}
-	err = os.WriteFile(c.credentialsFilePath, file, 0600)
+	err = os.WriteFile(c.credentialsFilePath, file, 0o600)
 	if err != nil {
 		c.logger.Warn("failed to write credentials file", "error", err.Error())
 	}

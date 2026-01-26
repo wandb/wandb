@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wandb/wandb/core/internal/sampler"
 )
 
@@ -13,27 +14,27 @@ func getTestRandom() *rand.Rand {
 }
 
 func TestFewerThanKItems(t *testing.T) {
-	sampler := sampler.NewReservoirSampler[int](getTestRandom(), 5)
+	s := sampler.NewReservoirSampler[int](getTestRandom(), 5)
 
 	for i := range 5 {
-		sampler.Add(i)
+		s.Add(i)
 	}
 
-	assert.Equal(t, []int{0, 1, 2, 3, 4}, sampler.Sample())
+	assert.Equal(t, []int{0, 1, 2, 3, 4}, s.Sample())
 }
 
 func TestSamplingLooksCorrect(t *testing.T) {
-	sampler := sampler.NewReservoirSampler[int](getTestRandom(), 5)
+	s := sampler.NewReservoirSampler[int](getTestRandom(), 5)
 
 	for i := range 100 {
-		sampler.Add(i)
+		s.Add(i)
 	}
 
 	// A nice, random-looking sample, in the correct order.
 	//
 	// This test needs to be updated when the implementation changes.
 	// Make sure the output is reasonable.
-	assert.Equal(t, []int{14, 54, 58, 75, 97}, sampler.Sample())
+	assert.Equal(t, []int{14, 54, 58, 75, 97}, s.Sample())
 }
 
 func TestSamplesAreUniform(t *testing.T) {
@@ -43,16 +44,16 @@ func TestSamplesAreUniform(t *testing.T) {
 	// a sample of 10 values from the range [0, 99], we expect each value to
 	// occur in a sample about 10,000 times.
 
-	rand := getTestRandom()
+	r := getTestRandom()
 	freq := make([]int, 100)
 
 	// Run trials and see how often each number is sampled.
 	for range 100000 {
-		sampler := sampler.NewReservoirSampler[int](rand, 10)
+		s := sampler.NewReservoirSampler[int](r, 10)
 		for i := range 100 {
-			sampler.Add(i)
+			s.Add(i)
 		}
-		for _, x := range sampler.Sample() {
+		for _, x := range s.Sample() {
 			freq[x]++
 		}
 	}

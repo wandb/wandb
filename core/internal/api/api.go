@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayers"
 )

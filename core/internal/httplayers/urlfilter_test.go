@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/httplayerstest"
 )
@@ -34,7 +35,7 @@ func TestURLFilter(t *testing.T) {
 			filterURL, err := url.Parse(tc.filterURL)
 			require.NoError(t, err)
 
-			request, err := http.NewRequest(http.MethodGet, tc.requestURL, nil)
+			request, err := http.NewRequest(http.MethodGet, tc.requestURL, http.NoBody)
 			require.NoError(t, err)
 
 			filteredWrapper := httplayerstest.NewHTTPWrapperRecorder()

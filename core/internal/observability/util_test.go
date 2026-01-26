@@ -25,14 +25,14 @@ func (afs AferoFs) OpenFile(name string, flag int, perm os.FileMode) (fs.File, e
 }
 
 func TestGetLoggerPath(t *testing.T) {
-	fs := AferoFs{Afs: afero.NewMemMapFs()}
+	afs := AferoFs{Afs: afero.NewMemMapFs()}
 
 	_ = os.Setenv("WANDB_CACHE_DIR", "/tmp/wandb")
 	defer func() {
 		_ = os.Unsetenv("WANDB_CACHE_DIR")
 	}()
 
-	file, err := observability.GetLoggerPathFS(fs)
+	file, err := observability.GetLoggerPathFS(afs)
 	assert.NoError(t, err)
 	assert.NotNil(t, file)
 
@@ -41,21 +41,21 @@ func TestGetLoggerPath(t *testing.T) {
 	assert.True(t, ok, "File should be of type afero.File")
 
 	// Assert file was created
-	_, err = fs.Afs.Stat(aferoFile.Name())
+	_, err = afs.Afs.Stat(aferoFile.Name())
 	assert.NoError(t, err)
 
 	_ = aferoFile.Close()
 }
 
 func TestGetLoggerPath_MkdirFail(t *testing.T) {
-	fs := AferoFs{Afs: afero.NewReadOnlyFs(afero.NewMemMapFs())}
+	afs := AferoFs{Afs: afero.NewReadOnlyFs(afero.NewMemMapFs())}
 
 	_ = os.Setenv("WANDB_CACHE_DIR", "/tmp/wandb")
 	defer func() {
 		_ = os.Unsetenv("WANDB_CACHE_DIR")
 	}()
 
-	_, err := observability.GetLoggerPathFS(fs)
+	_, err := observability.GetLoggerPathFS(afs)
 	assert.Error(t, err, "Expected an error when failing to create a directory")
 }
 
@@ -63,18 +63,18 @@ type FailOpenFileFs struct {
 	afero.Fs
 }
 
-func (fs FailOpenFileFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+func (fofs FailOpenFileFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
 	return nil, fmt.Errorf("simulated open file error")
 }
 
 func TestGetLoggerPath_OpenFileFail(t *testing.T) {
-	fs := AferoFs{Afs: FailOpenFileFs{afero.NewMemMapFs()}}
+	afs := AferoFs{Afs: FailOpenFileFs{afero.NewMemMapFs()}}
 
 	_ = os.Setenv("WANDB_CACHE_DIR", "/tmp/wandb")
 	defer func() {
 		_ = os.Unsetenv("WANDB_CACHE_DIR")
 	}()
 
-	_, err := observability.GetLoggerPathFS(fs)
+	_, err := observability.GetLoggerPathFS(afs)
 	assert.Error(t, err, "Expected an error when failing to open a file")
 }

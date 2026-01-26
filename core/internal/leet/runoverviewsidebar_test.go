@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/require"
+
 	leet "github.com/wandb/wandb/core/internal/leet"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )

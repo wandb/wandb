@@ -13,6 +13,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
+
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
@@ -200,7 +201,7 @@ func (h *HistoryReader) downloadRunHistoryFile(
 	downloadDir string,
 	fileName string,
 ) error {
-	err := os.MkdirAll(downloadDir, 0755)
+	err := os.MkdirAll(downloadDir, 0o755)
 	if err != nil {
 		return err
 	}

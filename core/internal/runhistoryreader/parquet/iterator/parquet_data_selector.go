@@ -29,7 +29,7 @@ type SelectedColumns struct {
 func SelectColumns(
 	indexKey string,
 	keys []string,
-	schema *schema.Schema,
+	schm *schema.Schema,
 	selectAll bool,
 ) (*SelectedColumns, error) {
 	var requestedColumns map[string]struct{}
@@ -40,10 +40,10 @@ func SelectColumns(
 	}
 
 	if selectAll {
-		requestedColumns = make(map[string]struct{}, schema.NumColumns())
-		columnIndices = make([]int, 0, schema.NumColumns())
-		for i := 0; i < schema.NumColumns(); i++ {
-			col := schema.Column(i)
+		requestedColumns = make(map[string]struct{}, schm.NumColumns())
+		columnIndices = make([]int, 0, schm.NumColumns())
+		for i := 0; i < schm.NumColumns(); i++ {
+			col := schm.Column(i)
 			requestedColumns[col.ColumnPath()[0]] = struct{}{}
 			columnIndices = append(columnIndices, i)
 		}
@@ -52,10 +52,10 @@ func SelectColumns(
 		columnIndices = make([]int, 0, len(keys)+1)
 
 		requestedColumns[indexKey] = struct{}{}
-		columnIndices = append(columnIndices, schema.ColumnIndexByName(indexKey))
+		columnIndices = append(columnIndices, schm.ColumnIndexByName(indexKey))
 
 		for _, key := range keys {
-			colIndex := schema.ColumnIndexByName(key)
+			colIndex := schm.ColumnIndexByName(key)
 			if colIndex < 0 {
 				return nil, fmt.Errorf(
 					"column %s selected but not found",
@@ -72,7 +72,7 @@ func SelectColumns(
 	}
 
 	return &SelectedColumns{
-		schema:           schema,
+		schema:           schm,
 		requestedColumns: requestedColumns,
 		selectAll:        selectAll,
 		columnIndices:    columnIndices,
@@ -126,10 +126,10 @@ func (sr *SelectedRowsRange) GetRowGroupIndices() ([]int, error) {
 	var rowGroupIndices []int
 
 	// filter row groups that are outside of the requested step range
-	metadata := sr.parquetFileReader.ParquetReader().MetaData()
-	for i := 0; i < len(metadata.RowGroups); i++ {
+	md := sr.parquetFileReader.ParquetReader().MetaData()
+	for i := 0; i < len(md.RowGroups); i++ {
 		fileMinValue, fileMaxValue, err := getColumnRangeFromStats(
-			metadata,
+			md,
 			i,
 			sr.indexKey,
 		)
@@ -189,7 +189,7 @@ func getColumnRangeFromStats(
 	meta *metadata.FileMetaData,
 	rowGroupIndex int,
 	columnName string,
-) (minValue float64, maxValue float64, err error) {
+) (minValue, maxValue float64, err error) {
 	minValue = -1
 	maxValue = -1
 	if rowGroupIndex < 0 || rowGroupIndex >= len(meta.RowGroups) {

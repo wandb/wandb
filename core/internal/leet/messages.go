@@ -2,6 +2,7 @@ package leet
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 

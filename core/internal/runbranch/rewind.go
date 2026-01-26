@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Khan/genqlient/graphql"
+
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/nullify"

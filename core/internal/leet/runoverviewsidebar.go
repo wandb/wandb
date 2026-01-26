@@ -101,9 +101,9 @@ func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) 
 
 	// Handle animation.
 	if s.animState.IsAnimating() {
-		complete := s.animState.Update(time.Now())
-		if !complete {
-			return s, s.animationCmd()
+		if complete := s.animState.Update(time.Now()); !complete {
+			cmd := s.animationCmd()
+			return s, cmd
 		}
 	}
 
@@ -356,7 +356,7 @@ func (s *RunOverviewSidebar) buildSectionLines(contentWidth int) []string {
 }
 
 // renderSection renders a single section.
-func (s *RunOverviewSidebar) renderSection(idx int, width int) string {
+func (s *RunOverviewSidebar) renderSection(idx, width int) string {
 	section := &s.sections[idx]
 
 	if len(section.FilteredItems) == 0 || section.Height == 0 {

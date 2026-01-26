@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"cloud.google.com/go/storage"
+
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 )

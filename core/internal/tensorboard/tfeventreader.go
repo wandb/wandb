@@ -9,10 +9,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"gocloud.dev/blob"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 )
 
 // maxChecksumErrorDuration is the timeframe within which we expect transient

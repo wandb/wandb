@@ -11,6 +11,8 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/simplejsonext"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -26,7 +28,6 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/proto"
 )
 
 // RunUpserter manages and syncs info about a run that's usually set on init and

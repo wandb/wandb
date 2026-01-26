@@ -5,10 +5,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/time/rate"
+
 	. "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/waiting"
-	"golang.org/x/time/rate"
 )
 
 func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {

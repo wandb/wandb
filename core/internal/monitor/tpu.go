@@ -9,12 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandb/wandb/core/internal/monitor/tpuproto"
-	"github.com/wandb/wandb/core/internal/observability"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/local"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/wandb/wandb/core/internal/monitor/tpuproto"
+	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // TPUMetricName represents a TPU metric name for querying on the gRPC server exposed by the TPU runtime.
@@ -205,7 +206,7 @@ func (t *TPU) Close() {
 
 // getLocalTPUChips scans the PCI devices to detect local TPU chips and
 // returns the most common chip type and the total count.
-func getLocalTPUChips() (TPUChip, int) {
+func getLocalTPUChips() (TPUChip, int) { //nolint
 	devices, err := filepath.Glob("/sys/bus/pci/devices/*")
 	if err != nil {
 		return TPUChip{}, 0

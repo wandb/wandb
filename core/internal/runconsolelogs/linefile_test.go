@@ -7,15 +7,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/sparselist"
 )
 
 func TestCreateLineFile_TruncatesExistingFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "out.txt")
-	require.NoError(t, os.WriteFile(path, []byte("content\n"), 0644))
+	require.NoError(t, os.WriteFile(path, []byte("content\n"), 0o644))
 
-	_, err := runconsolelogs.CreateLineFile(path, 0644)
+	_, err := runconsolelogs.CreateLineFile(path, 0o644)
 
 	assert.NoError(t, err)
 	content, err := os.ReadFile(path)
@@ -25,7 +26,7 @@ func TestCreateLineFile_TruncatesExistingFile(t *testing.T) {
 
 func TestUpdateLines(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "out.txt")
-	file, err := runconsolelogs.CreateLineFile(path, 0644)
+	file, err := runconsolelogs.CreateLineFile(path, 0o644)
 	require.NoError(t, err)
 
 	// TEST: Append new lines.

@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Khan/genqlient/graphql"
+
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -24,8 +25,9 @@ import (
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/wbapi"
 
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -364,14 +366,14 @@ func (nc *Connection) handleIncomingRequests() {
 // from the client. It creates a new stream, associates it with the connection.
 // Also starts the stream and adds the connection as a responder to the stream.
 func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
-	settings := settings.From(msg.GetSettings())
+	s := settings.From(msg.GetSettings())
 
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("handleInformInit: received", "streamId", streamId, "id", nc.id)
 
 	// if we are in offline mode, we don't want to send any data to sentry
 	var sentryClient *sentry_ext.Client
-	if settings.IsOffline() {
+	if s.IsOffline() {
 		sentryClient = sentry_ext.New(sentry_ext.Params{Disabled: true})
 	} else {
 		sentryClient = nc.sentryClient
@@ -383,7 +385,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		stream.DebugCorePath(nc.loggerPath),
 		nc.logLevel,
 		nc.sentryClient,
-		settings,
+		s,
 	)
 	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	strm.Start()
@@ -632,8 +634,8 @@ func (nc *Connection) handleSyncStatus(
 }
 
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
-	settings := settings.From(request.GetSettings())
-	nc.wbapi = wbapi.NewWandbAPI(settings, nc.sentryClient)
+	s := settings.From(request.GetSettings())
+	nc.wbapi = wbapi.NewWandbAPI(s, nc.sentryClient)
 	nc.Respond(&spb.ServerResponse{
 		RequestId: id,
 		ServerResponseType: &spb.ServerResponse_ApiInitResponse{

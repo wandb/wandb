@@ -36,7 +36,7 @@ func listenInTempDir(
 // The directory's default permissions (0o700) mean the socket will be
 // accessible only by programs running as the same user. wandb-core runs as
 // the user of the Python process that started it.
-func makeUniqueDir(dir string, namePattern string) (string, error) {
+func makeUniqueDir(dir, namePattern string) (string, error) {
 	return os.MkdirTemp(dir, namePattern)
 }
 

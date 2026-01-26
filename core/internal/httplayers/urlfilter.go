@@ -13,12 +13,12 @@ import (
 //
 // Requests must have the exact same scheme, hostname and port as the given
 // URL. Request paths must be prefixed with the given URL's path.
-func LimitTo(url *url.URL, wrapper HTTPWrapper) HTTPWrapper {
-	if url == nil {
+func LimitTo(u *url.URL, wrapper HTTPWrapper) HTTPWrapper {
+	if u == nil {
 		return wrapper
 	}
 
-	return urlFilteredWrapper{url, wrapper}
+	return urlFilteredWrapper{u, wrapper}
 }
 
 type urlFilteredWrapper struct {

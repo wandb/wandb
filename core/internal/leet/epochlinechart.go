@@ -742,7 +742,7 @@ func TruncateTitle(title string, maxWidth int) string {
 }
 
 // SetGraphStyle swaps the style used for drawing.
-func (c *EpochLineChart) SetGraphStyle(s lipgloss.Style) {
+func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
 	if len(c.order) == 0 {
 		return
 	}
