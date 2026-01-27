@@ -4,18 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"math"
-	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
+	"github.com/hashicorp/go-retryablehttp"
 
-	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/remote"
@@ -25,7 +23,7 @@ import (
 type HistoryReader struct {
 	entity        string
 	graphqlClient graphql.Client
-	httpClient    *http.Client
+	httpClient    *retryablehttp.Client
 	project       string
 	runId         string
 
@@ -36,8 +34,6 @@ type HistoryReader struct {
 	// Stores the minimum step where live (not yet exported) data starts.
 	// This is used to determine if we need to query the W&B backend for data.
 	minLiveStep int64
-
-	filePaths []string
 }
 
 // New returns a new HistoryReader.
@@ -47,7 +43,7 @@ func New(
 	project string,
 	runId string,
 	graphqlClient graphql.Client,
-	httpClient *http.Client,
+	httpClient *retryablehttp.Client,
 	keys []string,
 	useCache bool,
 ) (*HistoryReader, error) {
@@ -170,65 +166,6 @@ func (h *HistoryReader) getParquetHistory(
 	}
 }
 
-// getRunHistoryFileUrls gets URLs
-// that can be used to download a run's history files.
-//
-// The order of the URLs returned is not guaranteed
-// to be the same order as the order the run history partitions were created in.
-func (h *HistoryReader) getRunHistoryFileUrlsWithLiveSteps(
-	ctx context.Context,
-) (signedUrls []string, liveData []any, err error) {
-	response, err := gql.RunParquetHistory(
-		ctx,
-		h.graphqlClient,
-		h.entity,
-		h.project,
-		h.runId,
-		[]string{iterator.StepKey},
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if response.GetProject() == nil || response.GetProject().GetRun() == nil {
-		return nil, nil, fmt.Errorf("no parquet history found for run %s", h.runId)
-	}
-
-	liveData = response.GetProject().GetRun().GetParquetHistory().LiveData
-	signedUrls = response.GetProject().GetRun().GetParquetHistory().ParquetUrls
-	return signedUrls, liveData, nil
-}
-
-func (h *HistoryReader) downloadRunHistoryFile(
-	fileUrl string,
-	downloadDir string,
-	fileName string,
-) error {
-	err := os.MkdirAll(downloadDir, 0o755)
-	if err != nil {
-		return err
-	}
-
-	file, err := os.Create(filepath.Join(downloadDir, fileName))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	resp, err := h.httpClient.Get(fileUrl)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	_, err = io.Copy(file, resp.Body)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // initParquetFiles creates a parquet file reader
 // for each of the run's history files.
 //
@@ -258,7 +195,7 @@ func (h *HistoryReader) initParquetFiles(
 	}
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
 	}
@@ -270,7 +207,6 @@ func (h *HistoryReader) initParquetFiles(
 		parquetFilePath := filepath.Join(dir, fileName)
 
 		if _, err := os.Stat(parquetFilePath); useCache && err == nil {
-			h.filePaths = append(h.filePaths, parquetFilePath)
 			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
 			if err != nil {
 				return err
@@ -280,16 +216,15 @@ func (h *HistoryReader) initParquetFiles(
 			// It is faster to download the entire parquet file
 			// and process it locally.
 			err = parquet.DownloadRunHistoryFile(
+				ctx,
 				h.httpClient,
 				url,
-				dir,
-				fileName,
+				parquetFilePath,
 			)
 			if err != nil {
 				return err
 			}
 
-			h.filePaths = append(h.filePaths, parquetFilePath)
 			parquetFile, err = parquet.LocalParquetFile(parquetFilePath, true)
 			if err != nil {
 				return err

@@ -3,6 +3,7 @@ package wbapi
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -62,6 +63,10 @@ func NewRunHistoryAPIHandler(
 	httpClient.RetryWaitMin = s.GetFileTransferRetryWaitMin()
 	httpClient.RetryWaitMax = s.GetFileTransferRetryWaitMax()
 	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
+	httpClient.Logger = observability.NewCoreLogger(
+		slog.Default(),
+		nil,
+	)
 
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,
@@ -293,7 +298,7 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
 		}
 	}
 
-	err = os.MkdirAll(request.DownloadDir, 0755)
+	err = os.MkdirAll(request.DownloadDir, 0o755)
 	if err != nil {
 		return &spb.ApiResponse{
 			Response: &spb.ApiResponse_ApiErrorResponse{
