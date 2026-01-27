@@ -40,6 +40,11 @@ message ServerInitSyncRequest {
 
   // A new job type to set for all runs being synced.
   string new_job_type = 8;
+
+  // A map from old tag names to new ones.
+  //
+  // Mapping a tag to an empty string deletes it.
+  map<string, string> tag_replacements = 9;
 }
 
 // Indicates a sync operation is ready.
