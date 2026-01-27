@@ -31,6 +31,35 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
+_REGISTRY_IMPORT_DEPRECATION_MSG = (
+    "Importing 'Registry' from 'wandb.apis.public.registries' is deprecated "
+    "and will not be supported in a future release. "
+    "Please import 'Registry' from 'wandb.registries' instead. "
+)
+
+
+def __getattr__(name: str) -> Any:
+    """Emit a DeprecationWarning if `Registry` is imported from this namespace."""
+    if name == "Registry":
+        import warnings
+
+        from wandb.registries import Registry
+
+        # NOTE: stacklevel=3 should point to the actual import statement:
+        # - 1 = this function
+        # - 2 = module-level code
+        # - 3 = the import statement
+        warnings.warn(
+            _REGISTRY_IMPORT_DEPRECATION_MSG, DeprecationWarning, stacklevel=3
+        )
+        return Registry
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# # Emit warning when the module is imported
+# _emit_deprecation_warning()
+
+
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     """A lazy iterator of `Registry` objects."""
 
@@ -111,9 +140,8 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             raise ValueError("Unexpected response data") from e
 
     def _convert(self, node: RegistryFragment) -> Registry:
+        from wandb.registries import Registry
         from wandb.sdk.artifacts._validators import remove_registry_prefix
-
-        from .registry import Registry
 
         return Registry(
             client=self.client,

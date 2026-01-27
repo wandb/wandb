@@ -65,6 +65,7 @@ from wandb.apis.public.jobs import (
 )
 from wandb.apis.public.projects import Project, Projects, Sweeps
 from wandb.apis.public.query_generator import QueryGenerator
+from wandb.apis.public.registries import Registries
 from wandb.apis.public.reports import (
     BetaReport,
     PanelMetricsHelper,
@@ -75,4 +76,4 @@ from wandb.apis.public.runs import RUN_FRAGMENT, Run, Runs
 from wandb.apis.public.sweeps import Sweep
 from wandb.apis.public.teams import Member, Team
 from wandb.apis.public.users import User
-from wandb.registries import Registries, Registry
+from wandb.registries import Registry

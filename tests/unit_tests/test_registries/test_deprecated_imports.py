@@ -14,8 +14,8 @@ from pytest import mark, warns
 def test_legacy_registry_import_emits_warning() -> None:
     """Importing Registry from deprecated path emits DeprecationWarning."""
     with warns(DeprecationWarning):
-        from wandb.apis.public.registries import (  # noqa: F401
-            Registry as LegacyRegistry,
+        from wandb.apis.public.registries import (
+            Registry as LegacyRegistry,  # noqa: F401
         )
 
 

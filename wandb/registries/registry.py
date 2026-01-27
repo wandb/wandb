@@ -9,6 +9,7 @@ from wandb_gql import gql
 import wandb
 from wandb._analytics import tracked
 from wandb._strutils import nameof
+from wandb.apis.public.registries import Collections, Versions
 from wandb.apis.public.teams import Team
 from wandb.apis.public.users import User
 from wandb.proto import wandb_internal_pb2 as pb
@@ -28,7 +29,6 @@ from ._utils import (
     fetch_org_entity_from_organization,
     prepare_artifact_types_input,
 )
-from .registries_search import Collections, Versions
 
 if TYPE_CHECKING:
     from wandb.apis.public.api import RetryingClient
