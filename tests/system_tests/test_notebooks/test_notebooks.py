@@ -155,7 +155,7 @@ def test_notebook_not_exists(mocked_ipython, user, capsys):
 
 
 def test_mocked_notebook_html_default(user, run_id, mocked_ipython):
-    wandb.load_ipython_extension(mocked_ipython)
+    wandb.jupyter._load_ipython_extension(mocked_ipython)
     mocked_ipython.register_magics.assert_called_with(wandb.jupyter.WandBMagics)
     with wandb.init(id=run_id) as run:
         run.log({"acc": 99, "loss": 0})
