@@ -37,6 +37,9 @@ message ServerInitSyncRequest {
 
   // A new ID to use for all paths being synced.
   string new_run_id = 5;
+
+  // A new job type to set for all runs being synced.
+  string new_job_type = 8;
 }
 
 // Indicates a sync operation is ready.

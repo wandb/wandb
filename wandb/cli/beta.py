@@ -96,6 +96,11 @@ def leet(
     """,
 )
 @click.option(
+    "--job-type",
+    default="",
+    help="A job type override for all runs being synced.",
+)
+@click.option(
     "--skip-synced/--no-skip-synced",
     is_flag=True,
     default=True,
@@ -131,6 +136,7 @@ def sync(
     entity: str,
     project: str,
     run_id: str,
+    job_type: str,
     skip_synced: bool,
     dry_run: bool,
     verbose: bool,
@@ -165,6 +171,7 @@ def sync(
         entity=entity,
         project=project,
         run_id=run_id,
+        job_type=job_type,
         dry_run=dry_run,
         skip_synced=skip_synced,
         verbose=verbose,

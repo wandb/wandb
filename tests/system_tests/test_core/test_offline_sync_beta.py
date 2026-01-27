@@ -129,8 +129,9 @@ class _Tester:
         entity: str,
         project: str,
         run_id: str,
+        job_type: str,
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
-        _, _, _, _, _, _, _ = paths, settings, cwd, live, entity, project, run_id
+        _ = paths, settings, cwd, live, entity, project, run_id, job_type
         return await self._make_handle(
             self._init_sync_addrs,
             lambda r: r.init_sync_response,
@@ -297,6 +298,24 @@ def test_sync_to_other_path(
 
         assert len(history) == 1
         assert history[0]["x"] == 1
+
+
+def test_sync_overrides(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    with wandb.init(mode="offline", job_type="job") as run:
+        pass
+
+    runner.invoke(
+        cli.beta,
+        f"sync --job-type job-override {run.settings.sync_dir}",
+    )
+
+    with wandb_backend_spy.freeze() as snapshot:
+        job_type = snapshot.job_type(run_id=run.id)
+
+        assert job_type == "job-override"
 
 
 @pytest.mark.parametrize("skip_synced", (True, False))
@@ -476,6 +495,7 @@ def test_prints_status_updates(
                     entity="",
                     project="",
                     run_id="",
+                    job_type="",
                     settings=wandb.Settings(),
                     printer=new_printer(),
                     parallelism=1,
