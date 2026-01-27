@@ -147,15 +147,21 @@ def sync(
 
     For example, to sync all runs in a directory:
 
-        wandb beta sync ./wandb
+    ```shell
+    wandb beta sync ./wandb
+    ```
 
     To sync a specific run:
 
-        wandb beta sync ./wandb/run-20250813_124246-n67z9ude
+    ```shell
+    wandb beta sync ./wandb/run-20250813_124246-n67z9ude
+    ```
 
     Or equivalently:
 
-        wandb beta sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
+    ```shell
+    wandb beta sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
+    ```
     """
     from . import beta_sync
 

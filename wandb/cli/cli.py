@@ -555,11 +555,15 @@ def sync(
 
     To sync a specific run:
 
-        wandb sync ./wandb/run-20250813_124246-n67z9ude
+    ```shell
+    wandb sync ./wandb/run-20250813_124246-n67z9ude
+    ```
 
     Or equivalently:
 
-        wandb sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
+    ```shell
+    wandb sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
+    ```
     """
     api = _get_cling_api()
     if not api.is_authenticated:
