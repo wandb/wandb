@@ -25,7 +25,7 @@ from wandb.sdk.lib import filesystem
 logger = logging.getLogger(__name__)
 
 
-ipython_magics_registered = False
+_ipython_magics_registered = False
 
 
 def display_if_magic_is_used(run: wandb.Run) -> bool:
