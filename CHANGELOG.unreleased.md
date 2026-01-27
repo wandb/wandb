@@ -19,7 +19,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Deprecated
 
-- Importing from `wandb.apis.public.registries` is deprecated; use `wandb.registries` instead (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11161)
+- Importing `Registry` from `wandb.apis.public.registries` is deprecated.  Import from `wandb.registries`, or just `wandb`, instead (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11161)
 
 ### Changed
 
