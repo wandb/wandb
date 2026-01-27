@@ -25,9 +25,6 @@ from wandb.sdk.lib import filesystem
 logger = logging.getLogger(__name__)
 
 
-_ipython_magics_registered = False
-
-
 def display_if_magic_is_used(run: wandb.Run) -> bool:
     """Display a run's page if the cell has the %%wandb cell magic.
 
@@ -498,14 +495,11 @@ class Notebook:
 
 def _load_ipython_extension(ipython):
     """Best-effort auto-registration of W&B magics in notebook contexts."""
-    global _ipython_magics_registered
-
-    if _ipython_magics_registered or ipython is None:
+    if ipython is None:
         return
 
     try:
         ipython.register_magics(WandBMagics)
-        _ipython_magics_registered = True
     except Exception:
         logger.debug("Failed to register IPython magics.", exc_info=True)
         return
