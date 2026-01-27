@@ -74,39 +74,51 @@ def _resolve_path(path: str | None) -> LaunchConfig:
     _fatal(f"Path does not exist: {resolved}")
 
 
-def launch(
-    path: str | None,
-    pprof: str,
-) -> Never:
+def _base_args() -> list[str]:
+    """Build the common base arguments for wandb-core leet commands."""
+    args = [get_core_path(), "leet"]
+
+    if not error_reporting_enabled():
+        args.append("--no-observability")
+
+    if is_debug(default="False"):
+        args.extend(["--log-level", "-4"])
+
+    return args
+
+
+def _run_core(args: list[str]) -> Never:
+    """Run wandb-core with the given arguments and exit with its return code."""
+    try:
+        result = subprocess.run(args, env=os.environ, close_fds=True)
+        sys.exit(result.returncode)
+    except Exception as e:
+        get_sentry().reraise(e)
+
+
+def launch(path: str | None, pprof: str) -> Never:
+    """Launch the LEET TUI."""
     get_sentry().configure_scope(process_context="leet")
 
     config = _resolve_path(path)
+    args = _base_args()
 
-    try:
-        core_path = get_core_path()
+    if config.run_file:
+        args.extend(["--run-file", config.run_file])
 
-        args = [core_path, "leet"]
+    if pprof:
+        args.extend(["--pprof", pprof])
 
-        if not error_reporting_enabled():
-            args.append("--no-observability")
+    args.append(config.wandb_dir)
 
-        if is_debug(default="False"):
-            args.extend(["--log-level", "-4"])
+    _run_core(args)
 
-        if config.run_file:
-            args.extend(["--run-file", config.run_file])
 
-        if pprof:
-            args.extend(["--pprof", pprof])
+def launch_config() -> Never:
+    """Launch the LEET configuration editor."""
+    get_sentry().configure_scope(process_context="leet-config")
 
-        args.append(config.wandb_dir)
+    args = _base_args()
+    args.append("--config")
 
-        result = subprocess.run(
-            args,
-            env=os.environ,
-            close_fds=True,
-        )
-        sys.exit(result.returncode)
-
-    except Exception as e:
-        get_sentry().reraise(e)
+    _run_core(args)

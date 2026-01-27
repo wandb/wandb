@@ -262,10 +262,17 @@ var colorSchemes = map[string][]lipgloss.AdaptiveColor{
 	},
 }
 
-// GraphColors returns the colors for the current color scheme.
-func GraphColors() []lipgloss.AdaptiveColor {
+// GraphColors returns the palette for the requested scheme.
+//
+// If the scheme is unknown, it falls back to DefaultColorScheme.
+func GraphColors(scheme string) []lipgloss.AdaptiveColor {
+	if colors, ok := colorSchemes[scheme]; ok {
+		return colors
+	}
 	return colorSchemes[DefaultColorScheme]
 }
+
+var errorStyle = lipgloss.NewStyle()
 
 // Metrics grid styles.
 var (

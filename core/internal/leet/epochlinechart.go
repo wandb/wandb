@@ -33,16 +33,19 @@ const (
 var cache, _ = lru.New(128)
 
 func mapStringToIndex(s string, sliceLen int) int {
-	if idx, ok := cache.Get(s); ok {
-		return idx.(int)
+	if sliceLen <= 0 {
+		return 0
+	}
+	if sum, ok := cache.Get(s); ok {
+		return int(sum.(uint32) % uint32(sliceLen))
 	}
 
 	h := fnv.New32a()
-	h.Write([]byte(s))
-	idx := int(h.Sum32() % uint32(sliceLen))
+	_, _ = h.Write([]byte(s))
+	sum := h.Sum32()
 
-	cache.Add(s, idx)
-	return idx
+	cache.Add(s, sum)
+	return int(sum % uint32(sliceLen))
 }
 
 // Series stores the raw samples in arrival order.
@@ -56,7 +59,7 @@ type Series struct {
 	style atomic.Value // stores lipgloss.Style
 }
 
-func NewSeries(name string) *Series {
+func NewSeries(name string, palette []lipgloss.AdaptiveColor) *Series {
 	md := MetricData{
 		X: make([]float64, 0, initDataSliceCap),
 		Y: make([]float64, 0, initDataSliceCap),
@@ -64,10 +67,12 @@ func NewSeries(name string) *Series {
 
 	s := Series{MetricData: md}
 
-	graphColors := GraphColors()
+	if len(palette) == 0 {
+		palette = GraphColors(DefaultColorScheme)
+	}
 	// Stable mapping for consistent colors.
-	i := mapStringToIndex(name, len(graphColors))
-	graphStyle := lipgloss.NewStyle().Foreground(graphColors[i])
+	i := mapStringToIndex(name, len(palette))
+	graphStyle := lipgloss.NewStyle().Foreground(palette[i])
 	s.style.Store(graphStyle)
 
 	return &s
@@ -80,6 +85,9 @@ type EpochLineChart struct {
 
 	data  map[string]*Series
 	order []string
+
+	// palette is used when creating new series for this chart.
+	palette []lipgloss.AdaptiveColor
 
 	// opaqueCompositing controls whether braille pattern combination is opaque.
 	//
@@ -131,6 +139,7 @@ func NewEpochLineChart(title string) *EpochLineChart {
 		data:              make(map[string]*Series),
 		opaqueCompositing: true, // TODO: make this configurable
 		title:             title,
+		palette:           GraphColors(DefaultColorScheme),
 		xMin:              math.Inf(1),
 		xMax:              math.Inf(-1),
 		yMin:              math.Inf(1),
@@ -142,13 +151,20 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	return chart
 }
 
+func (c *EpochLineChart) SetPalette(colors []lipgloss.AdaptiveColor) {
+	if len(colors) == 0 {
+		colors = GraphColors(DefaultColorScheme)
+	}
+	c.palette = colors
+}
+
 // AddData adds a set of new (x, y) data points (x is commonly _step).
 //
 // X values should be appended in non-decreasing order for efficient rendering.
 func (c *EpochLineChart) AddData(key string, data MetricData) {
 	s, ok := c.data[key]
 	if !ok {
-		s = NewSeries(key)
+		s = NewSeries(key, c.palette)
 		c.data[key] = s
 		c.order = append(c.order, key)
 	}
@@ -746,7 +762,7 @@ func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
 
 	// use topmost (pinned)
 	if series, ok := c.data[c.order[len(c.order)-1]]; ok {
-		series.style.Store(s)
+		series.style.Store(*s)
 	}
 }
 

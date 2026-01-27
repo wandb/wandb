@@ -33,8 +33,9 @@ const (
 	ColorModePerPlot   = "per_plot"   // Each chart gets next color
 	ColorModePerSeries = "per_series" // All charts use base color, multi-series differentiate
 
-	// DefaultColorScheme = "sunset-glow"
-	DefaultColorScheme = "wandb-vibe-10"
+	DefaultColorScheme        = "wandb-vibe-10"
+	DefaultPerPlotColorScheme = "sunset-glow"
+	DefaultSingleRunColorMode = ColorModePerSeries
 
 	DefaultSystemColorScheme = "wandb-vibe-10"
 	DefaultSystemColorMode   = ColorModePerSeries
@@ -53,6 +54,11 @@ type Config struct {
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme"`
 
+	// PerPlotColorScheme is the color scheme to use for main metrics
+	// in single-run view when SingleRunColorMode is per_plot.
+	// Gradient palettes work well here.
+	PerPlotColorScheme string `json:"per_plot_color_scheme"`
+
 	// SystemColorScheme is the color scheme for system metrics charts.
 	SystemColorScheme string `json:"system_color_scheme"`
 
@@ -60,6 +66,11 @@ type Config struct {
 	// "per_plot": each chart gets next color from palette
 	// "per_series": all single-series charts use base color, multi-series differentiate
 	SystemColorMode string `json:"system_color_mode"`
+
+	// SingleRunColorMode controls how charts are colored in single-run view:
+	//  - per_series: stably-mapped run-id color for all charts
+	//  - per_plot: each chart gets the next color from the palette (nice with gradients)
+	SingleRunColorMode string `json:"single_run_color_mode"`
 
 	// Heartbeat interval in seconds for live runs.
 	//
@@ -104,6 +115,8 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Cols: DefaultSystemGridCols,
 			},
 			ColorScheme:         DefaultColorScheme,
+			PerPlotColorScheme:  DefaultPerPlotColorScheme,
+			SingleRunColorMode:  DefaultSingleRunColorMode,
 			SystemColorScheme:   DefaultSystemColorScheme,
 			SystemColorMode:     DefaultSystemColorMode,
 			HeartbeatInterval:   DefaultHeartbeatInterval,
@@ -155,6 +168,10 @@ func (cm *ConfigManager) normalizeConfig() {
 		cm.config.ColorScheme = DefaultColorScheme
 	}
 
+	if _, ok := colorSchemes[cm.config.PerPlotColorScheme]; !ok {
+		cm.config.PerPlotColorScheme = DefaultPerPlotColorScheme
+	}
+
 	if _, ok := colorSchemes[cm.config.SystemColorScheme]; !ok {
 		cm.config.SystemColorScheme = DefaultSystemColorScheme
 	}
@@ -162,6 +179,11 @@ func (cm *ConfigManager) normalizeConfig() {
 	if cm.config.SystemColorMode != ColorModePerPlot &&
 		cm.config.SystemColorMode != ColorModePerSeries {
 		cm.config.SystemColorMode = DefaultSystemColorMode
+	}
+
+	if cm.config.SingleRunColorMode != ColorModePerPlot &&
+		cm.config.SingleRunColorMode != ColorModePerSeries {
+		cm.config.SingleRunColorMode = DefaultSingleRunColorMode
 	}
 
 	if cm.config.HeartbeatInterval <= 0 {
@@ -264,11 +286,70 @@ func (cm *ConfigManager) SetSystemCols(cols int) error {
 	return cm.save()
 }
 
+// Path returns the on-disk config path.
+func (cm *ConfigManager) Path() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.path
+}
+
+// Snapshot returns a copy of the current config.
+func (cm *ConfigManager) Snapshot() Config {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config
+}
+
 // ColorScheme returns the current color scheme.
 func (cm *ConfigManager) ColorScheme() string {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.config.ColorScheme
+}
+
+func (cm *ConfigManager) SetColorScheme(scheme string) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %q", scheme)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.ColorScheme = scheme
+	return cm.save()
+}
+
+func (cm *ConfigManager) PerPlotColorScheme() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.PerPlotColorScheme
+}
+
+func (cm *ConfigManager) SetPerPlotColorScheme(scheme string) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %q", scheme)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.PerPlotColorScheme = scheme
+	return cm.save()
+}
+
+func (cm *ConfigManager) SingleRunColorMode() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SingleRunColorMode
+}
+
+func (cm *ConfigManager) SetSingleRunColorMode(mode string) error {
+	if mode != ColorModePerPlot && mode != ColorModePerSeries {
+		return fmt.Errorf(
+			"single_run_color_mode must be %q or %q, got %q",
+			ColorModePerPlot, ColorModePerSeries, mode,
+		)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SingleRunColorMode = mode
+	return cm.save()
 }
 
 // SystemColorScheme returns the color scheme for system metrics.
@@ -401,6 +482,15 @@ func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
 	}
 
 	return "", err
+}
+
+// SetConfig replaces the full config (validated) and persists it.
+func (cm *ConfigManager) SetConfig(cfg Config) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config = cfg
+	cm.normalizeConfig()
+	return cm.save()
 }
 
 // GridConfigStatus returns the status message to display when awaiting grid config input.

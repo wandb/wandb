@@ -726,7 +726,7 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 		runID := extractRunID(runKey)
 		runPath := filepath.Join(w.wandbDir, runKey, "run-"+runID+".wandb")
 
-		graphColors := GraphColors()
+		graphColors := GraphColors(w.config.ColorScheme())
 		colorIdx := mapStringToIndex(runPath, len(graphColors))
 
 		isSelected := w.selectedRuns[runKey]

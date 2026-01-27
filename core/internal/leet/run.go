@@ -94,13 +94,16 @@ func NewRun(
 	ro := NewRunOverview()
 	runOverviewAnimState := NewAnimationState(cfg.LeftSidebarVisible(), SidebarMinWidth)
 
+	metricsGrid := NewMetricsGrid(cfg, focus, logger)
+	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
+
 	return &Run{
 		config:       cfg,
 		keyMap:       buildKeyMap(RunKeyBindings()),
 		focus:        focus,
 		isLoading:    true,
 		runPath:      runPath,
-		metricsGrid:  NewMetricsGrid(cfg, focus, logger),
+		metricsGrid:  metricsGrid,
 		runOverview:  ro,
 		leftSidebar:  NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
 		rightSidebar: NewRightSidebar(cfg, focus, logger),
