@@ -11,13 +11,13 @@ from wandb_gql import gql
 from wandb._analytics import tracked
 from wandb._pydantic import to_json
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
-
-from ._utils import ensure_registry_prefix_on_names
+from wandb.registries._utils import ensure_registry_prefix_on_names
 
 if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
     from wandb.apis.public import ArtifactCollection, RetryingClient
+    from wandb.registries import Registry
     from wandb.sdk.artifacts._generated import (
         ArtifactMembershipFragment,
         RegistryCollectionFragment,
@@ -29,8 +29,6 @@ if TYPE_CHECKING:
         RegistryConnection,
     )
     from wandb.sdk.artifacts.artifact import Artifact
-
-    from .registry import Registry
 
 
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
