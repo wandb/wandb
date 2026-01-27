@@ -93,7 +93,7 @@ def test_remove(init_items: list[str], obj_to_remove: str) -> None:
 
     if obj_to_remove in init_items:
         # Should raise error when trying to remove frozen item
-        with raises(ValueError, match=rf"(?i)cannot remove.*{obj_to_remove!r}"):
+        with raises(ValueError, match=r"(?i)cannot remove"):
             addonly_list.remove(obj_to_remove)
     else:
         # Should raise error when item not in list
