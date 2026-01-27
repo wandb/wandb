@@ -1828,6 +1828,8 @@ class Api:
         registry.save()
         ```
         """
+        from wandb.registries import Registry
+
         if not server_supports(self.client, pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "api.registry() is not enabled on this wandb server version. "
@@ -1885,6 +1887,8 @@ class Api:
         )
         ```
         """
+        from wandb.registries import Registry
+
         if not server_supports(
             self.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
