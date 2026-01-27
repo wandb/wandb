@@ -30,17 +30,12 @@ type ExtraWork interface {
 	// channel is closed.
 	AddWorkOrCancel(done <-chan struct{}, work Work)
 
-	// BeforeEndCtx is a context that's cancelled when no additional work
-	// may be performed for the run.
+	// BeforeEndCtx is cancelled when the run is finished or aborted.
 	//
-	// All components should provide a "Finish" method that blocks until
-	// all work completes, and that method should be invoked at the
-	// appropriate time during run shutdown (that is, in the Sender "defer"
-	// state machine).
-	//
-	// As a safety mechanism, this should be the base context for all network
-	// operations to ensure they get cancelled if the component's Finish()
-	// is not invoked. The resulting cancellation error should be captured.
+	// This should be the base context for all network operations as part
+	// of a run. This stops network requests early when the run is aborted,
+	// and it cleans up any stray requests after a run is considered fully
+	// uploaded.
 	BeforeEndCtx() context.Context
 }
 
@@ -51,14 +46,21 @@ type RunWork interface {
 	// Chan returns the channel of work for the run.
 	Chan() <-chan Work
 
+	// Abort indicates the run is no longer needed and should clean up.
+	//
+	// This cancels the run's context, causing any current or future upload
+	// operations to fail immediately.
+	//
+	// SetDone and Close still need to be called. In practice, this means an
+	// Exit record must be generated after a call to Abort to trigger SetDone.
+	Abort()
+
 	// SetDone indicates that the run is done, unblocking Close().
 	//
 	// It does not close the channel or cancel any work.
 	SetDone()
 
-	// Close cancels any ongoing work and closes the output channel.
-	//
-	// This blocks until SetDone() is called.
+	// Close blocks until SetDone() is called and closes the output channel.
 	//
 	// It is safe to call concurrently or multiple times.
 	Close()
@@ -191,6 +193,10 @@ func (rw *runWork) BeforeEndCtx() context.Context {
 
 func (rw *runWork) Chan() <-chan Work {
 	return rw.internalWork
+}
+
+func (rw *runWork) Abort() {
+	rw.endCtxCancel()
 }
 
 func (rw *runWork) SetDone() {

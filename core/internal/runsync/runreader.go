@@ -112,6 +112,10 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
 	r.logger.Info("runsync: starting to read", "path", r.path)
 
+	// Abort any async work on cancellation.
+	cancelAbort := context.AfterFunc(ctx, r.runWork.Abort)
+	defer cancelAbort() // must run after closeRunWork()
+
 	defer r.closeRunWork()
 
 	reader, err := r.open()
@@ -134,7 +138,7 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
 			return err
 		}
 
-		r.parseAndAddWork(ctx, record)
+		r.parseAndAddWork(record)
 
 		switch {
 		case record.GetExit() != nil:
@@ -143,7 +147,7 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
 			// The RunStart request is required to come after a Run record,
 			// but its contents are irrelevant when syncing. It causes
 			// the Sender to start FileStream.
-			r.parseAndAddWork(ctx,
+			r.parseAndAddWork(
 				&spb.Record{RecordType: &spb.Record_Request{
 					Request: &spb.Request{RequestType: &spb.Request_RunStart{
 						RunStart: &spb.RunStartRequest{},
@@ -157,20 +161,17 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
 func (r *RunReader) closeRunWork() {
 	if !r.seenExit {
 		r.logger.Warn(
-			"runsync: no exit record in file, using exit code 1 (failed)",
+			"runsync: no exit record encountered, using exit code 1 (failed)",
 			"path", r.path)
 
-		exitRecord := &spb.Record{
-			RecordType: &spb.Record_Exit{
-				Exit: &spb.RunExitRecord{
-					ExitCode: 1,
+		r.parseAndAddWork(
+			&spb.Record{
+				RecordType: &spb.Record_Exit{
+					Exit: &spb.RunExitRecord{
+						ExitCode: 1,
+					},
 				},
-			},
-		}
-
-		// NOTE: This is not cancellable, because we rely on it to happen
-		// on cancellation.
-		r.runWork.AddWork(r.recordParser.Parse(exitRecord))
+			})
 	}
 
 	r.runWork.Close()
@@ -253,11 +254,15 @@ func (r *RunReader) nextUpdatedRecord(
 }
 
 // parseAndAddWork parses the record and pushes it to RunWork.
-func (r *RunReader) parseAndAddWork(ctx context.Context, record *spb.Record) {
+func (r *RunReader) parseAndAddWork(record *spb.Record) {
 	work := r.recordParser.Parse(record)
 
 	wg := &sync.WaitGroup{}
-	work.Schedule(wg, func() { r.runWork.AddWorkOrCancel(ctx.Done(), work) })
+
+	// NOTE: Don't use AddWorkOrCancel to avoid setting seenExit for
+	// an Exit record that was never sent. We rely on RunWork.Abort()
+	// quickly unblocking the pipeline if the operation is cancelled.
+	work.Schedule(wg, func() { r.runWork.AddWork(work) })
 
 	// We always process records in reading order.
 	wg.Wait()

@@ -2,7 +2,6 @@ package filestream
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -140,7 +139,7 @@ func (fs *fileStream) send(
 	defer op.Finish()
 
 	req, err := retryablehttp.NewRequestWithContext(
-		op.Context(context.Background()),
+		op.Context(fs.beforeRunEndCtx),
 		http.MethodPost,
 		fs.baseURL.JoinPath(fs.path).String(),
 		bytes.NewReader(jsonData),

@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
 )
@@ -164,6 +165,7 @@ func NewGraphQLClient(
 }
 
 func NewFileStream(
+	extraWork runwork.ExtraWork,
 	factory *filestream.FileStreamFactory,
 	baseURL api.WBBaseURL,
 	clientID sharedmode.ClientID,
@@ -222,6 +224,7 @@ func NewFileStream(
 
 	return factory.New(
 		fileStreamRetryClient,
+		extraWork.BeforeEndCtx(),
 		/*heartbeatStopwatch=*/ nil,
 		transmitRateLimit,
 	)

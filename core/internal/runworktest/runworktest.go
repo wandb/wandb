@@ -83,6 +83,10 @@ func (w *FakeRunWork) Chan() <-chan runwork.Work {
 	panic("FakeRunWork.Chan() is not implemented")
 }
 
+func (w *FakeRunWork) Abort() {
+	w.rw.Abort()
+}
+
 func (w *FakeRunWork) SetDone() {
 	w.rw.SetDone()
 }
