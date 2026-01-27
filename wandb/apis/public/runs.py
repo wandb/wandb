@@ -928,7 +928,7 @@ class Run(Attrs):
                     "Please ensure your W&B server is updated to a version that "
                     "supports run state transitions."
                 ) from e
-            if "transition" in error_msg.lower() or "invalid" in error_msg.lower():
+            if "invalid state transition" in error_msg.lower():
                 raise wandb.Error(
                     f"Invalid state transition: cannot change run from '{self.state}' "
                     f"to '{state}'. Only runs in 'failed' or 'crashed' state can be "
