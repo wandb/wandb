@@ -101,6 +101,11 @@ def leet(
     help="A job type override for all runs being synced.",
 )
 @click.option(
+    "--replace-tags",
+    default="",
+    help="Rename tags using the format 'old1=new1,old2=new2'.",
+)
+@click.option(
     "--skip-synced/--no-skip-synced",
     is_flag=True,
     default=True,
@@ -137,6 +142,7 @@ def sync(
     project: str,
     run_id: str,
     job_type: str,
+    replace_tags: str,
     skip_synced: bool,
     dry_run: bool,
     verbose: bool,
@@ -172,6 +178,7 @@ def sync(
         project=project,
         run_id=run_id,
         job_type=job_type,
+        replace_tags=replace_tags,
         dry_run=dry_run,
         skip_synced=skip_synced,
         verbose=verbose,
