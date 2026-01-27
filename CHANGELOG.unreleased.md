@@ -21,3 +21,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - After `wandb login --host <invalid-url>`, using `wandb login --host <valid-url>` works as usual (@timoffex in https://github.com/wandb/wandb/pull/11207)
   - Regression introduced in 0.24.0
+- `wandb beta sync` correctly loads credentials (@timoffex in https://github.com/wandb/wandb/pull/11231)
+  - Regression introduced in 0.24.0
+  - Caused `wandb beta sync` to get stuck on `Syncing...`
