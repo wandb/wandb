@@ -921,11 +921,18 @@ class Run(Attrs):
                 },
             )
         except Exception as e:
-            if "UpdateRunStateInput" in str(e):
+            error_msg = str(e)
+            if "UpdateRunStateInput" in error_msg or "updateRunState" in error_msg:
                 raise wandb.Error(
                     "The server does not support the update_state operation. "
                     "Please ensure your W&B server is updated to a version that "
                     "supports run state transitions."
+                ) from e
+            if "transition" in error_msg.lower() or "invalid" in error_msg.lower():
+                raise wandb.Error(
+                    f"Invalid state transition: cannot change run from '{self.state}' "
+                    f"to '{state}'. Only runs in 'failed' or 'crashed' state can be "
+                    "transitioned to 'pending'."
                 ) from e
             raise
 
