@@ -13,7 +13,7 @@ from wandb.cli import beta_sync, cli
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_sync_pb2
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import asyncio_compat
+from wandb.sdk.lib import asyncio_compat, wbauth
 from wandb.sdk.lib.printer import new_printer
 from wandb.sdk.mailbox.mailbox import Mailbox
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
@@ -180,11 +180,17 @@ def skip_asyncio_sleep(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(beta_sync, "_SLEEP", do_nothing)
 
 
+def _unauthenticate_for_test() -> None:
+    """Clear auth to verify that syncing explicitly authenticates."""
+    wbauth.unauthenticate_session(update_settings=True)
+
+
 def test_syncs_run(
     tmp_path: pathlib.Path,
     wandb_backend_spy: WandbBackendSpy,
     runner: CliRunner,
 ):
+    _unauthenticate_for_test()
     test_file = tmp_path / "test_file.txt"
     test_file.touch()
 
