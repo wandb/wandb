@@ -13,7 +13,7 @@ import wandb
 from wandb.errors import term
 from wandb.proto.wandb_sync_pb2 import ServerSyncResponse
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import asyncio_compat
+from wandb.sdk.lib import asyncio_compat, wbauth
 from wandb.sdk.lib.printer import Printer, new_printer
 from wandb.sdk.lib.progress import progress_printer
 from wandb.sdk.lib.service.service_connection import ServiceConnection
@@ -86,6 +86,15 @@ def sync(
     _print_sorted_paths(wandb_files, verbose=verbose, root=cwd)
 
     if ask_for_confirmation and not term.confirm("Sync the listed runs?"):
+        return
+
+    # Authenticate the session. This updates the singleton settings credentials.
+    if not wbauth.authenticate_session(
+        host=singleton.settings.base_url,
+        source="wandb sync",
+        no_offline=True,
+    ):
+        term.termlog("Not authenticated.")
         return
 
     service = singleton.ensure_service()
