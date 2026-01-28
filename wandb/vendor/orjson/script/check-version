@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+# Copyright ijl (2025)
+
+from pathlib import Path
+
+import tomllib
+
+cargo_doc = tomllib.loads(Path("Cargo.toml").read_text(encoding="utf-8"))
+pyproject_doc = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+
+cargo_version = cargo_doc["package"]["version"]
+pyproject_version = pyproject_doc["project"]["version"]
+
+print(f"Cargo.toml version: {cargo_version}")
+print(f"pyproject.toml version: {pyproject_version}")
+
+assert cargo_version == pyproject_version

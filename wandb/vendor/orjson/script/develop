@@ -1,0 +1,26 @@
+#!/bin/sh -e
+
+rm -f target/wheels/*
+
+export UNSAFE_PYO3_BUILD_FREE_THREADED=1
+export UNSAFE_PYO3_SKIP_VERSION_CHECK=1
+
+mkdir -p .cargo
+cp ci/config.toml .cargo/config.toml
+
+export CC="${CC:-clang}"
+export LD="${LD:-lld}"
+export TARGET="${TARGET:-x86_64-unknown-linux-gnu}"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}"
+
+echo "CC: ${CC}, LD: ${LD}, LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
+
+export CFLAGS="-O2 -fstrict-aliasing -fno-plt -emit-llvm"
+export LDFLAGS="-fuse-ld=${LD} -Wl,-plugin-opt=also-emit-llvm -Wl,--as-needed -Wl,-zrelro,-znow"
+export RUSTFLAGS="-Z unstable-options -C panic=immediate-abort -C linker=${CC} -C link-arg=-fuse-ld=${LD} -C linker-plugin-lto -C link-arg=-Wl,-zrelro,-znow -Z mir-opt-level=4 -Z threads=8"
+
+rm -f ${CARGO_TARGET_DIR}/wheels/*.whl
+
+maturin build --target="${TARGET}" "$@"
+
+uv pip install --link-mode=copy ${CARGO_TARGET_DIR}/wheels/*.whl

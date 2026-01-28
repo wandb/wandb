@@ -16,6 +16,16 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from core import hatch as hatch_core
 from gpu_stats import hatch as hatch_gpu_stats
 
+sys.path.pop(0)
+
+sys.path.insert(
+    0,
+    str(pathlib.Path(__file__).parent / "wandb" / "vendor" / "orjson"),
+)
+import hatch as hatch_orjson
+
+sys.path.pop(0)
+
 # Necessary inputs for releases.
 _WANDB_RELEASE_COMMIT = "WANDB_RELEASE_COMMIT"
 
@@ -25,6 +35,7 @@ _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 
 # Other build options.
 _WANDB_BUILD_SKIP_GPU_STATS = "WANDB_BUILD_SKIP_GPU_STATS"
+_WANDB_BUILD_SKIP_ORJSON = "WANDB_BUILD_SKIP_ORJSON"
 _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 
 
@@ -41,6 +52,8 @@ class CustomBuildHook(BuildHookInterface):
         artifacts.extend(self._build_wandb_core())
         if self._include_gpu_stats():
             artifacts.extend(self._build_gpu_stats())
+        if self._include_orjson():
+            artifacts.extend(self._build_orjson())
 
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
@@ -75,6 +88,13 @@ class CustomBuildHook(BuildHookInterface):
     def _include_gpu_stats(self) -> bool:
         """Returns whether we should produce a wheel with gpu_stats."""
         return not _get_env_bool(_WANDB_BUILD_SKIP_GPU_STATS, default=False)
+
+    def _include_orjson(self) -> bool:
+        """Returns whether we should produce a wheel with vendored orjson."""
+        # orjson requires Python 3.9+, skip on older versions
+        if sys.version_info < (3, 9):
+            return False
+        return not _get_env_bool(_WANDB_BUILD_SKIP_ORJSON, default=False)
 
     def _get_and_require_cargo_binary(self) -> pathlib.Path:
         cargo = shutil.which("cargo")
@@ -196,6 +216,18 @@ class CustomBuildHook(BuildHookInterface):
             goos=goos,
             goarch=goarch,
         )
+
+    def _build_orjson(self) -> List[str]:
+        """Build the vendored orjson library."""
+        output = pathlib.Path("wandb", "vendor", "orjson")
+
+        self.app.display_waiting("Building vendored orjson library...")
+        artifacts = hatch_orjson.build_orjson(
+            cargo_binary=self._get_and_require_cargo_binary(),
+            output_path=output,
+        )
+
+        return [artifact.as_posix() for artifact in artifacts]
 
 
 def _get_env_bool(name: str, default: bool) -> bool:

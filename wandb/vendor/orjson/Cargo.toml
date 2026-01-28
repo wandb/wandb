@@ -1,0 +1,85 @@
+[package]
+name = "orjson"
+version = "3.11.5"
+authors = ["ijl <ijl@mailbox.org>"]
+description = "Fast, correct Python JSON library supporting dataclasses, datetimes, and numpy"
+repository = "https://github.com/ijl/orjson"
+edition = "2024"
+resolver = "3"
+rust-version = "1.85"
+license = "Apache-2.0 OR MIT"
+keywords = ["fast", "json", "dataclass", "dataclasses", "datetime", "rfc", "8259", "3339"]
+include = [
+    "Cargo.toml",
+    "CHANGELOG.md",
+    "include/yyjson",
+    "LICENSE-APACHE",
+    "LICENSE-MIT",
+    "pyproject.toml",
+    "README.md",
+    "src",
+    "test/*.py",
+    "test/requirements.txt",
+]
+
+[lib]
+name = "orjson"
+crate-type = ["cdylib"]
+
+[features]
+default = []
+
+# Avoid bundling libgcc on musl.
+unwind = ["unwinding"]
+
+# Features detected by build.rs. Do not specify.
+avx512 = []
+cold_path = []
+generic_simd = []
+inline_int = []
+optimize = []
+
+[dependencies]
+associative-cache = { version = "2", default-features = false }
+bytes = { version = "1", default-features = false }
+bytecount = { version = "^0.6.7", default-features = false, features = ["runtime-dispatch-simd"] }
+encoding_rs = { version = "0.8", default-features = false }
+half = { version = "2", default-features = false }
+itoa = { version = "1", default-features = false }
+itoap = { version = "1", default-features = false, features = ["std", "simd"] }
+jiff = { version = "^0.2", default-features = false }
+once_cell = { version = "1", default-features = false, features = ["alloc", "race"] }
+pyo3-ffi = { version = "0.27", default-features = false }
+ryu = { version = "1", default-features = false }
+serde = { version = "1", default-features = false }
+serde_json = { version = "1", default-features = false, features = ["std"] }
+simdutf8 = { version = "0.1", default-features = false, features = ["std", "public_imp", "aarch64_neon"] }
+smallvec = { version = "^1.11", default-features = false, features = ["union", "write"] }
+unwinding = { version = "=0.2.8", default-features = false, features = ["unwinder"], optional = true }
+uuid = { version = "1", default-features = false }
+xxhash-rust = { version = "^0.8", default-features = false, features = ["xxh3"] }
+
+[build-dependencies]
+cc = { version = "1" }
+pyo3-build-config = { version = "0.27" }
+version_check = { version = "0.9" }
+
+[profile.dev]
+codegen-units = 1
+debug = 2
+debug-assertions = true
+incremental = false
+lto = "off"
+opt-level = 3
+overflow-checks = true
+
+[profile.release]
+codegen-units = 1
+debug = false
+incremental = false
+lto = "fat"
+opt-level = 3
+panic = "abort"
+
+[profile.release.build-override]
+opt-level = 0

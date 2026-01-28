@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+# Copyright ijl (2018-2025)
+
+import sys
+import traceback
+from concurrent.futures import ThreadPoolExecutor
+from operator import itemgetter
+from threading import get_ident
+
+import orjson
+
+DATA = sorted(
+    [
+        {
+            "id": i,
+            "name": "90as90ji0123ioj2390as90as90",
+            "body": "哈哈89asu89as😊89as9as90jas-😋0apjzxiojzx89hq23n",
+            "score": 901290129.1,
+            "bool": True,
+            "int": 9832,
+            "none": None,
+        }
+        for i in range(10)
+    ],
+    key=itemgetter("id"),
+)
+
+
+STATUS = 0
+
+TEST_MESSAGE = "thread test running..."
+
+sys.stdout.write(TEST_MESSAGE)
+sys.stdout.flush()
+
+
+def test_func(n):
+    try:
+        assert sorted(orjson.loads(orjson.dumps(DATA)), key=itemgetter("id")) == DATA
+    except Exception:
+        traceback.print_exc()
+        print(f"thread {get_ident()}: {n} dumps, loads ERROR")
+
+
+with ThreadPoolExecutor(max_workers=4) as executor:
+    executor.map(test_func, range(50000), chunksize=1000)
+    executor.shutdown(wait=True)
+
+
+if STATUS == 0:
+    sys.stdout.write(f"\r{TEST_MESSAGE} ok\n")
+else:
+    sys.stdout.write(f"\r{TEST_MESSAGE} error\n")
+
+
+sys.exit(STATUS)
