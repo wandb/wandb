@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 from wandb.errors import AuthenticationError
 
@@ -12,7 +13,7 @@ DEFAULT_WANDB_CREDENTIALS_FILE = Path(
 _expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 
 
-def access_token(base_url: str, token_file: Path, credentials_file: Path) -> str:
+def access_token(base_url: str, token_file: Optional[Path], credentials_file: Path) -> str:
     """Retrieve an access token from the credentials file.
 
     If no access token exists, create a new one by exchanging the identity
@@ -20,14 +21,24 @@ def access_token(base_url: str, token_file: Path, credentials_file: Path) -> str
 
     Args:
         base_url (str): The base URL of the server
-        token_file (pathlib.Path): The path to the file containing the
-        identity token
+        token_file (pathlib.Path | None): The path to the file containing the
+        identity token, or None if checking for pre-stored tokens only
         credentials_file (pathlib.Path): The path to file used to save
         temporary access tokens
 
     Returns:
         str: The access token
     """
+    # If token_file is None, only check for existing stored tokens
+    # (used by device auth which stores tokens directly)
+    if token_file is None:
+        if not credentials_file.exists():
+            raise AuthenticationError("No credentials file found")
+        data = _get_stored_credentials(base_url, credentials_file)
+        if not data:
+            raise AuthenticationError("No stored access token found")
+        return data["access_token"]
+
     if not credentials_file.exists():
         _write_credentials_file(base_url, token_file, credentials_file)
 
@@ -139,3 +150,71 @@ def _create_access_token(base_url: str, token_file: Path) -> dict:
     del resp_json["expires_in"]
 
     return resp_json
+
+
+def _get_stored_credentials(base_url: str, credentials_file: Path) -> Optional[dict]:
+    """Get stored credentials from the credentials file without exchange.
+
+    Args:
+        base_url (str): The base URL of the server
+        credentials_file (pathlib.Path): The path to file containing credentials
+
+    Returns:
+        dict | None: The credentials if found and not expired, None otherwise
+    """
+    try:
+        with open(credentials_file) as file:
+            data = json.load(file)
+            if "credentials" not in data or base_url not in data["credentials"]:
+                return None
+
+            creds = data["credentials"][base_url]
+
+            # Check if expired
+            if "expires_at" in creds:
+                expires_at = datetime.strptime(creds["expires_at"], _expires_at_fmt)
+                if expires_at <= datetime.utcnow():
+                    return None
+
+            return creds
+    except (json.JSONDecodeError, KeyError, FileNotFoundError):
+        return None
+
+
+def write_device_auth_token(base_url: str, access_token: str, credentials_file: Path, expires_in_days: int = 365) -> None:
+    """Write a device auth access token directly to the credentials file.
+
+    Device auth returns a ready-to-use access token that doesn't need exchange.
+
+    Args:
+        base_url (str): The base URL of the server
+        access_token (str): The access token from device authorization
+        credentials_file (pathlib.Path): The path to file to save credentials
+        expires_in_days (int): Number of days until token expires (default 365)
+    """
+    credentials_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load existing credentials if any
+    data = {"credentials": {}}
+    if credentials_file.exists():
+        try:
+            with open(credentials_file) as f:
+                data = json.load(f)
+                if "credentials" not in data:
+                    data["credentials"] = {}
+        except (json.JSONDecodeError, KeyError):
+            data = {"credentials": {}}
+
+    # Store the access token with expiration
+    expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
+    data["credentials"][base_url] = {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_at": expires_at.strftime(_expires_at_fmt),
+    }
+
+    with open(credentials_file, "w") as f:
+        json.dump(data, f, indent=4)
+
+    # Set file permissions to be read/write by owner only
+    os.chmod(credentials_file, 0o600)

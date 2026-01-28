@@ -12,6 +12,7 @@ from wandb.errors import AuthenticationError, term
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import settings_file, wbauth
 from wandb.sdk.lib.deprecation import UNSET, DoNotSet
+from wandb.sdk.lib.wbauth import device_auth
 
 from ..apis import InternalApi
 
@@ -25,6 +26,7 @@ def login(
     verify: bool = False,
     referrer: str | None = None,
     anonymous: DoNotSet = UNSET,
+    device_auth: bool = False,
 ) -> bool:
     """Log into W&B.
 
@@ -64,6 +66,7 @@ def login(
         verify: Verify the credentials with the W&B server and raise an
             AuthenticationError on failure.
         referrer: The referrer to use in the URL login request for analytics.
+        device_auth: If true, use device authorization flow (browser-based).
 
     Returns:
         bool: If `key` is configured.
@@ -106,6 +109,7 @@ def login(
         timeout=timeout,
         verify=verify,
         referrer=referrer or "models",
+        device_auth=device_auth,
     )
     return logged_in
 
@@ -142,6 +146,7 @@ def _login(
     referrer: str = "models",
     update_api_key: bool = True,
     _silent: bool | None = None,
+    device_auth: bool = False,
 ) -> tuple[bool, str | None]:
     """Log in to W&B.
 
@@ -151,6 +156,7 @@ def _login(
         update_api_key: If true and an explicit API key is given, it will be
             saved to the .netrc file.
         _silent: If true, will not print any messages to the console.
+        device_auth: If true, use device authorization flow (browser-based).
 
     Returns:
         A pair (is_successful, key).
@@ -175,7 +181,14 @@ def _login(
         )
         return False, None
 
-    if key:
+    if device_auth:
+        # Use device authorization flow
+        auth = _use_device_auth(
+            host=host,
+            settings=settings,
+            update_api_key=update_api_key,
+        )
+    elif key:
         auth = _use_explicit_key(
             key,
             host=host,
@@ -206,6 +219,69 @@ def _login(
         return True, auth.api_key
     else:
         return True, None
+
+
+def _use_device_auth(
+    *,
+    host: str,
+    settings: wandb.Settings,
+    update_api_key: bool,
+) -> wbauth.Auth | None:
+    """Log in using device authorization flow.
+
+    Device auth returns an OAuth access token that should be used with
+    Bearer authentication, not as an API key.
+
+    Args:
+        host: The W&B server host.
+        settings: The wandb settings.
+        update_api_key: If true, save the access token to credentials file.
+
+    Returns:
+        Auth object if successful, None otherwise.
+    """
+    from wandb.sdk.lib.wbauth.host_url import HostUrl
+    from wandb.sdk.lib import credentials
+    from pathlib import Path
+
+    host_url = HostUrl(host)
+    access_token = device_auth.authenticate_with_device_flow(host_url)
+
+    if not access_token:
+        return None
+
+    # Device auth returns an OAuth access token for Bearer authentication
+    # Store it in credentials file (not .netrc like API keys)
+    if update_api_key:
+        try:
+            credentials_file = Path(str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE))
+            credentials.write_device_auth_token(
+                base_url=host,
+                access_token=access_token,
+                credentials_file=credentials_file,
+                expires_in_days=365,  # Matches backend token expiration
+            )
+            term.termlog(f"Credentials saved to {credentials_file}")
+        except Exception as e:
+            wandb.termwarn(f"Failed to save credentials: {e}")
+
+    # Create a dummy identity token file so the SDK recognizes this as
+    # Bearer auth (not API key auth). The actual token is read from credentials.json
+    # by the modified access_token property.
+    import tempfile
+    token_file = Path(tempfile.mktemp(prefix="wandb_device_auth_", suffix=".token"))
+    token_file.write_text("device-auth-marker")  # Placeholder, not actually used
+
+    # Set env var so SDK uses Bearer authentication
+    import os
+    from wandb import env as wandb_env
+    os.environ[wandb_env.IDENTITY_TOKEN_FILE] = str(token_file)
+
+    # Return AuthIdentityTokenFile which triggers Bearer auth flow
+    auth = wbauth.AuthIdentityTokenFile(host=host, path=str(token_file))
+    wbauth.use_explicit_auth(auth, source="wandb.login(device_auth=True)")
+
+    return auth
 
 
 def _use_explicit_key(

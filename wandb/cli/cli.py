@@ -266,8 +266,14 @@ def projects(entity, display=True):
     is_flag=True,
     help="Verify login credentials",
 )
+@click.option(
+    "--device-auth",
+    default=False,
+    is_flag=True,
+    help="Use device authorization flow (browser-based authentication)",
+)
 @display_error
-def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+def login(key, host, cloud, relogin, anonymously, verify, device_auth, no_offline=False):
     """Verify and store your API key for authentication with W&B services.
 
     By default, only store credentials locally without verifying them with W&B.
@@ -308,6 +314,7 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
         relogin=relogin,
         verify=verify,
         referrer="models",
+        device_auth=device_auth,
     )
 
 

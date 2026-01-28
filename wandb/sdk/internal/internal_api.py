@@ -440,10 +440,9 @@ class Api:
     def access_token(self) -> str | None:
         """Retrieves an access token for authentication.
 
-        This function attempts to exchange an identity token for a temporary
-        access token from the server, and save it to the credentials file.
-        It uses the path to the identity token as defined in the environment
-        variables. If the environment variable is not set, it returns None.
+        This function first checks for pre-stored access tokens (from device auth),
+        then attempts to exchange an identity token for a temporary access token
+        from the server, and save it to the credentials file.
 
         Returns:
             str | None: The access token if available, otherwise None if
@@ -451,6 +450,22 @@ class Api:
         Raises:
             AuthenticationError: If the path to the identity token is not found.
         """
+        base_url = self.settings("base_url")
+        credentials_file = env.get_credentials_file(
+            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), self._environ
+        )
+
+        # First, check for pre-stored access tokens (e.g., from device auth)
+        # These don't require identity token exchange
+        try:
+            token = credentials.access_token(base_url, None, credentials_file)
+            if token:
+                return token
+        except AuthenticationError:
+            # No pre-stored token, continue to identity token flow
+            pass
+
+        # Fall back to identity token exchange flow
         token_file_str = self._environ.get(env.IDENTITY_TOKEN_FILE)
         if not token_file_str:
             return None
@@ -459,10 +474,6 @@ class Api:
         if not token_file.exists():
             raise AuthenticationError(f"Identity token file not found: {token_file}")
 
-        base_url = self.settings("base_url")
-        credentials_file = env.get_credentials_file(
-            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), self._environ
-        )
         return credentials.access_token(base_url, token_file, credentials_file)
 
     @property
