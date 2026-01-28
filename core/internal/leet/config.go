@@ -46,47 +46,47 @@ const (
 // Config stores the application configuration.
 type Config struct {
 	// MetricsGrid is the dimensions for the main metrics chart grid.
-	MetricsGrid GridConfig `json:"metrics_grid"`
+	MetricsGrid GridConfig `json:"metrics_grid" leet:"desc=main metrics grid"`
 
 	// SystemGrid is the dimensions for the system metrics chart grid.
-	SystemGrid GridConfig `json:"system_grid"`
+	SystemGrid GridConfig `json:"system_grid" leet:"desc=system metrics grid"`
 
 	// ColorScheme is the color scheme to display the main metrics.
-	ColorScheme string `json:"color_scheme"`
+	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
 
 	// PerPlotColorScheme is the color scheme to use for main metrics
 	// in single-run view when SingleRunColorMode is per_plot.
 	// Gradient palettes work well here.
-	PerPlotColorScheme string `json:"per_plot_color_scheme"`
+	PerPlotColorScheme string `json:"per_plot_color_scheme" leet:"label=Per-plot color scheme,desc=Palette for single-run view in per-plot mode. Gradients look nice here.,options=colorSchemes"`
 
 	// SystemColorScheme is the color scheme for system metrics charts.
-	SystemColorScheme string `json:"system_color_scheme"`
+	SystemColorScheme string `json:"system_color_scheme" leet:"desc=Palette for system charts.,options=colorSchemes"`
 
 	// SystemColorMode determines color assignment strategy.
 	// "per_plot": each chart gets next color from palette
 	// "per_series": all single-series charts use base color, multi-series differentiate
-	SystemColorMode string `json:"system_color_mode"`
+	SystemColorMode string `json:"system_color_mode" leet:"desc=Color system charts per plot or per series.,options=colorModes"`
 
 	// SingleRunColorMode controls how charts are colored in single-run view:
 	//  - per_series: stably-mapped run-id color for all charts
 	//  - per_plot: each chart gets the next color from the palette (nice with gradients)
-	SingleRunColorMode string `json:"single_run_color_mode"`
+	SingleRunColorMode string `json:"single_run_color_mode" leet:"label=Single-run color mode,desc=Color single-run charts per plot or use stable run-id color for all charts.,options=colorModes"`
 
 	// Heartbeat interval in seconds for live runs.
 	//
 	// Heartbeats are used to trigger .wandb file read attempts if no file watcher
 	// events have been seen for a long time for a live file.
-	HeartbeatInterval int `json:"heartbeat_interval_seconds"`
+	HeartbeatInterval int `json:"heartbeat_interval_seconds" leet:"label=Heartbeat interval (sec),desc=Polling heartbeat for live runs.,min=1"`
 
 	// Sidebar visibility states.
-	LeftSidebarVisible  bool `json:"left_sidebar_visible"`
-	RightSidebarVisible bool `json:"right_sidebar_visible"`
+	LeftSidebarVisible  bool `json:"left_sidebar_visible" leet:"desc=Show left sidebar in single run view by default."`
+	RightSidebarVisible bool `json:"right_sidebar_visible" leet:"desc=Show right sidebar in single run view by default."`
 }
 
 // GridConfig represents grid dimensions.
 type GridConfig struct {
-	Rows int `json:"rows"`
-	Cols int `json:"cols"`
+	Rows int `json:"rows" leet:"min=1,max=9"`
+	Cols int `json:"cols" leet:"min=1,max=9"`
 }
 
 // ConfigManager manages application configuration with thread-safe access
