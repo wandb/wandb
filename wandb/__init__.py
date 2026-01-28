@@ -153,14 +153,10 @@ def set_trace():
     pdb.set_trace()
 
 
-def load_ipython_extension(ipython):
-    ipython.register_magics(wandb.jupyter.WandBMagics)
-
-
 if wandb_sdk.lib.ipython.in_notebook():
     from IPython import get_ipython  # type: ignore[import-not-found]
 
-    load_ipython_extension(get_ipython())
+    jupyter._load_ipython_extension(get_ipython())
 
 
 if "dev" in __version__:

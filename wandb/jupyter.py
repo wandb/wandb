@@ -491,3 +491,15 @@ class Notebook:
         except (OSError, validator.NotebookValidationError):
             wandb.termerror("Unable to save notebook session history.")
             logger.exception("Unable to save notebook session history.")
+
+
+def _load_ipython_extension(ipython):
+    """Best-effort auto-registration of W&B magics in notebook contexts."""
+    if ipython is None:
+        return
+
+    try:
+        ipython.register_magics(WandBMagics)
+    except Exception:
+        logger.debug("Failed to register IPython magics.", exc_info=True)
+        return
