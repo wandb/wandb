@@ -4,9 +4,9 @@ import os
 from typing import TYPE_CHECKING, Callable, Iterator
 
 from pytest import fixture, mark
-from wandb import Api
-from wandb.apis.public import Registry, Team, User
-from wandb.apis.public.registries._members import MemberKind
+from wandb import Api, Registry
+from wandb.apis.public import Team, User
+from wandb.registries._members import MemberKind
 
 if TYPE_CHECKING:
     from tests.system_tests.backend_fixtures import BackendFixtureFactory

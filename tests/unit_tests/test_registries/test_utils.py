@@ -1,5 +1,5 @@
 import pytest
-from wandb.apis.public.registries._utils import (
+from wandb.registries._utils import (
     ensure_registry_prefix_on_names,
     prepare_artifact_types_input,
 )

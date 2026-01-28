@@ -3,12 +3,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import PositiveInt
-from typing_extensions import Self, assert_never
+from typing_extensions import Self
 from wandb_gql import gql
 
 import wandb
 from wandb._analytics import tracked
 from wandb._strutils import nameof
+from wandb.apis.public.registries import Collections, Versions
 from wandb.apis.public.teams import Team
 from wandb.apis.public.users import User
 from wandb.proto import wandb_internal_pb2 as pb
@@ -28,7 +29,6 @@ from ._utils import (
     fetch_org_entity_from_organization,
     prepare_artifact_types_input,
 )
-from .registries_search import Collections, Versions
 
 if TYPE_CHECKING:
     from wandb.apis.public.api import RetryingClient
@@ -57,7 +57,7 @@ class Registry:
         if attrs is None:
             # FIXME: This is awkward and bypasses validation which seems shaky.
             # Reconsider the init signature of `Registry` so this isn't necessary?
-            draft = RegistryData.model_construct(
+            draft = RegistryData.model_construct(  # type: ignore[call-arg]  # This is deliberate to populate the model with partial data
                 organization=organization, entity=entity, name=name
             )
             self._saved = draft
@@ -157,8 +157,8 @@ class Registry:
         return self._current.created_at
 
     @property
-    def updated_at(self) -> str:
-        """Timestamp of when the registry was last updated."""
+    def updated_at(self) -> str | None:
+        """Timestamp of when the registry was last updated, if available."""
         return self._current.updated_at
 
     @property
@@ -176,7 +176,7 @@ class Registry:
                 - "restricted": Only invited members via the UI can access this registry.
                   Public sharing is disabled.
         """
-        return self._current.visibility.name
+        return self._current.visibility.name  # type: ignore[return-value]  # mypy doesn't infer the Literal values from the enum
 
     @visibility.setter
     def visibility(self, value: Literal["organization", "restricted"]):
@@ -189,7 +189,7 @@ class Registry:
                 - "restricted": Only invited members via the UI can access this registry.
                   Public sharing is disabled.
         """
-        self._current.visibility = value
+        self._current.visibility = value  # type: ignore[assignment]  # delegate to Pydantic for validation
 
     @tracked
     def collections(
@@ -648,14 +648,14 @@ class Registry:
             )
             result_cls = UpdateTeamRegistryRole
         else:
-            assert_never(id_.kind)
+            msg = f"Unexpected member kind: {id_.kind!r}"
+            raise ValueError(msg)
 
         gql_vars = {"input": gql_input.model_dump()}
         data = self.client.execute(gql_op, variable_values=gql_vars)
         result = result_cls.model_validate(data).result
 
         if not (result and result.success):
-            raise ValueError(
-                f"Failed to update member {member!r} role to {role!r} in registry {self.name!r}"
-            )
+            msg = f"Failed to update member {member!r} role to {role!r} in registry {self.name!r}"
+            raise ValueError(msg)
         return self

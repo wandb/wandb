@@ -33,8 +33,6 @@ from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.registries import Registries, Registry
-from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
@@ -45,6 +43,7 @@ from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.registries._utils import fetch_org_entity_from_organization
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -64,6 +63,7 @@ if TYPE_CHECKING:
         WebhookIntegration,
     )
     from wandb.automations._utils import WriteAutomationsKwargs
+    from wandb.registries import Registry
     from wandb.sdk.artifacts.artifact import Artifact
 
     from .artifacts import (
@@ -73,6 +73,7 @@ if TYPE_CHECKING:
         ArtifactType,
         ArtifactTypes,
     )
+    from .registries import Registries
     from .teams import Team
     from .users import User
 
@@ -1785,6 +1786,8 @@ class Api:
         )
         ```
         """
+        from wandb.apis.public.registries import Registries
+
         if not server_supports(self.client, pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "Registry search API is not enabled on this wandb server version. "
@@ -1825,6 +1828,8 @@ class Api:
         registry.save()
         ```
         """
+        from wandb.registries import Registry
+
         if not server_supports(self.client, pb.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "api.registry() is not enabled on this wandb server version. "
@@ -1882,6 +1887,8 @@ class Api:
         )
         ```
         """
+        from wandb.registries import Registry
+
         if not server_supports(
             self.client, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):

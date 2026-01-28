@@ -14,7 +14,7 @@ from hypothesis.strategies import (
     text,
 )
 from pytest import raises
-from wandb.apis.public.registries._freezable_list import FreezableList
+from wandb.registries._freezable_list import FreezableList
 
 T = TypeVar("T")
 
@@ -59,7 +59,7 @@ def test_init_with_iterable(init_items: Iterable[str]) -> None:
         assert a == b
 
     # Check the frozen and draft items under the hood, even though they're not publicly exposed
-    assert tuple(addonly_list._frozen) == tuple(normal_list)
+    assert tuple(addonly_list._saved) == tuple(normal_list)
     assert tuple(addonly_list._draft) == ()
 
 
@@ -93,7 +93,7 @@ def test_remove(init_items: list[str], obj_to_remove: str) -> None:
 
     if obj_to_remove in init_items:
         # Should raise error when trying to remove frozen item
-        with raises(ValueError, match="Cannot remove item from frozen list"):
+        with raises(ValueError, match=r"(?i)cannot remove"):
             addonly_list.remove(obj_to_remove)
     else:
         # Should raise error when item not in list
@@ -120,7 +120,7 @@ def test_freeze(init_items: list[str], draft_objs: list[str]) -> None:
         if obj not in expected_frozen_seq:
             expected_frozen_seq.append(obj)
 
-    assert tuple(addonly_list._frozen) == tuple(expected_frozen_seq)
+    assert tuple(addonly_list._saved) == tuple(expected_frozen_seq)
     assert tuple(addonly_list._draft) == ()
 
 
@@ -166,7 +166,7 @@ def test_setitem(items: list[str], idx: int, value: str) -> None:
 
     elif -frozen_size <= idx < frozen_size:  # In bounds
         # Should raise error when trying to modify frozen item
-        with raises(ValueError, match="Cannot assign to saved item"):
+        with raises(ValueError, match=r"(?i)cannot assign"):
             addonly_list[idx] = value
     else:  # Out of bounds
         with raises(IndexError):
@@ -185,7 +185,7 @@ def test_delitem(items: list[str], idx: int) -> None:
 
     if -frozen_size <= idx < frozen_size:  # In bounds
         # Should raise error when trying to delete frozen item
-        with raises(ValueError, match="Cannot delete saved item"):
+        with raises(ValueError, match=r"(?i)cannot delete"):
             del addonly_list[idx]
     else:  # Out of bounds
         with raises(IndexError):
@@ -211,7 +211,7 @@ def test_insert(init_items: list[str], index: int, value: str) -> None:
     # In bounds, all items frozen:
     # Should raise error when trying to insert new items between/before frozen ones
     elif -frozen_size <= index < frozen_size:
-        with raises(IndexError, match="Cannot insert into the frozen list"):
+        with raises(IndexError, match=r"(?i)cannot insert"):
             addonly_list.insert(index, value)
 
         assert value not in addonly_list._draft
@@ -220,7 +220,7 @@ def test_insert(init_items: list[str], index: int, value: str) -> None:
     # Negative out of bounds, frozen items exist:
     # Should raise error when trying to insert new items before frozen ones
     elif (index < -frozen_size) and init_items:
-        with raises(IndexError, match="Cannot insert into the frozen list"):
+        with raises(IndexError, match=r"(?i)cannot insert"):
             addonly_list.insert(index, value)
 
         assert value not in addonly_list._draft

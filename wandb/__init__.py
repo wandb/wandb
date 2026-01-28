@@ -80,6 +80,8 @@ from wandb.sdk.wandb_run import Run
 # Artifact import types
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 
+# Registry import types
+from wandb.registries import Registry
 
 # globals
 Api = PublicApi
@@ -206,4 +208,5 @@ __all__ = (
     "unwatch",
     "plot_table",
     "Run",
+    "Registry",
 )

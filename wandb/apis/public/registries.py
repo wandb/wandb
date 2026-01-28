@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import PositiveInt, ValidationError
@@ -10,15 +9,15 @@ from typing_extensions import override
 from wandb_gql import gql
 
 from wandb._analytics import tracked
+from wandb._pydantic import to_json
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
-
-from ._utils import ensure_registry_prefix_on_names
+from wandb.registries._utils import ensure_registry_prefix_on_names
 
 if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
     from wandb.apis.public import ArtifactCollection, RetryingClient
-    from wandb.apis.public.registries.registry import Registry
+    from wandb.registries import Registry
     from wandb.sdk.artifacts._generated import (
         ArtifactMembershipFragment,
         RegistryCollectionFragment,
@@ -32,10 +31,39 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
+_REGISTRY_IMPORT_DEPRECATION_MSG = (
+    "Importing 'Registry' from 'wandb.apis.public.registries' is deprecated "
+    "and will not be supported in a future release. "
+    "Please import 'Registry' from 'wandb.registries' instead. "
+)
+
+
+def __getattr__(name: str) -> Any:
+    """Emit a DeprecationWarning if `Registry` is imported from this namespace."""
+    if name == "Registry":
+        import warnings
+
+        from wandb.registries import Registry
+
+        # NOTE: stacklevel=3 should point to the actual import statement:
+        # - 1 = this function
+        # - 2 = module-level code
+        # - 3 = the import statement
+        warnings.warn(
+            _REGISTRY_IMPORT_DEPRECATION_MSG, DeprecationWarning, stacklevel=3
+        )
+        return Registry
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# # Emit warning when the module is imported
+# _emit_deprecation_warning()
+
+
 class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     """A lazy iterator of `Registry` objects."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[Document | None] = None  # type: ignore[misc]
     last_response: RegistryConnection | None
 
     def __init__(
@@ -50,11 +78,10 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
             type(self).QUERY = gql(FETCH_REGISTRIES_GQL)
 
-        self.client = client
         self.organization = organization
         self.filter = ensure_registry_prefix_on_names(filter or {})
 
-        variables = {"organization": organization, "filters": json.dumps(self.filter)}
+        variables = {"organization": organization, "filters": to_json(self.filter)}
         super().__init__(client, variables=variables, per_page=per_page)
 
     def __next__(self):
@@ -85,7 +112,6 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             client=self.client,
             organization=self.organization,
             registry_filter=self.filter,
-            collection_filter=None,
             artifact_filter=filter,
             per_page=per_page,
         )
@@ -104,9 +130,8 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = FetchRegistries.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
-            raise ValueError(
-                f"Organization {self.organization!r} not found. Please verify the organization name is correct."
-            )
+            msg = f"Organization {self.organization!r} not found. Please verify the organization name is correct."
+            raise ValueError(msg)
 
         try:
             conn = org_entity.projects
@@ -115,7 +140,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             raise ValueError("Unexpected response data") from e
 
     def _convert(self, node: RegistryFragment) -> Registry:
-        from wandb.apis.public.registries.registry import Registry
+        from wandb.registries import Registry
         from wandb.sdk.artifacts._validators import remove_registry_prefix
 
         return Registry(
@@ -132,7 +157,7 @@ class Collections(
 ):
     """An lazy iterator of `ArtifactCollection` objects in a Registry."""
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[Document | None] = None  # type: ignore[misc]
     last_response: RegistryCollectionConnection | None
 
     def __init__(
@@ -148,14 +173,13 @@ class Collections(
 
             type(self).QUERY = gql(REGISTRY_COLLECTIONS_GQL)
 
-        self.client = client
         self.organization = organization
         self.registry_filter = registry_filter
-        self.collection_filter = collection_filter or {}
+        self.collection_filter = collection_filter
 
         variables = {
-            "registryFilter": json.dumps(f) if (f := registry_filter) else None,
-            "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
+            "registryFilter": to_json(f) if (f := registry_filter) else None,
+            "collectionFilter": to_json(f) if (f := collection_filter) else None,
             "organization": organization,
             "perPage": per_page,
         }
@@ -190,9 +214,8 @@ class Collections(
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = RegistryCollections.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
-            raise ValueError(
-                f"Organization {self.organization!r} not found. Please verify the organization name is correct."
-            )
+            msg = f"Organization {self.organization!r} not found. Please verify the organization name is correct."
+            raise ValueError(msg)
 
         try:
             conn = org_entity.artifact_collections
@@ -226,7 +249,7 @@ class Collections(
 class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
     """An lazy iterator of `Artifact` objects in a Registry."""
 
-    QUERY: Document  # Must be set per-instance
+    QUERY: ClassVar[Document | None] = None  # type: ignore[misc]
     last_response: ArtifactMembershipConnection | None
 
     def __init__(
@@ -238,20 +261,20 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         artifact_filter: dict[str, Any] | None = None,
         per_page: PositiveInt = 100,
     ):
-        from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import REGISTRY_VERSIONS_GQL
 
-        self.QUERY = gql(REGISTRY_VERSIONS_GQL)
+            type(self).QUERY = gql(REGISTRY_VERSIONS_GQL)
 
-        self.client = client
         self.organization = organization
         self.registry_filter = registry_filter
         self.collection_filter = collection_filter
-        self.artifact_filter = artifact_filter or {}
+        self.artifact_filter = artifact_filter
 
         variables = {
-            "registryFilter": json.dumps(f) if (f := registry_filter) else None,
-            "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
-            "artifactFilter": json.dumps(f) if (f := artifact_filter) else None,
+            "registryFilter": to_json(f) if (f := registry_filter) else None,
+            "collectionFilter": to_json(f) if (f := collection_filter) else None,
+            "artifactFilter": to_json(f) if (f := artifact_filter) else None,
             "organization": organization,
         }
         super().__init__(client, variables=variables, per_page=per_page)
@@ -279,9 +302,8 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = RegistryVersions.model_validate(data)
         if not ((org := result.organization) and (org_entity := org.org_entity)):
-            raise ValueError(
-                f"Organization {self.organization!r} not found. Please verify the organization name is correct."
-            )
+            msg = f"Organization {self.organization!r} not found. Please verify the organization name is correct."
+            raise ValueError(msg)
 
         try:
             conn = org_entity.artifact_memberships

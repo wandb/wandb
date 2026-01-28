@@ -1,18 +1,18 @@
-import pytest
-from wandb.apis.public.registries._freezable_list import FreezableList
+from pytest import fixture, mark, raises
+from wandb.registries._freezable_list import FreezableList
 
 
-@pytest.fixture
+@fixture
 def empty_list() -> FreezableList[str]:
     return FreezableList[str]()
 
 
-@pytest.fixture
+@fixture
 def list_2_frozen() -> FreezableList[str]:
     return FreezableList[str](["frozen_one", "frozen_two", "frozen_three"])
 
 
-@pytest.fixture
+@fixture
 def list_2_drafts() -> FreezableList[str]:
     fl = FreezableList[str]()
     fl.append("draft_one")
@@ -20,7 +20,7 @@ def list_2_drafts() -> FreezableList[str]:
     return fl
 
 
-@pytest.fixture
+@fixture
 def list_3_frozen_and_2_drafts() -> FreezableList[str]:
     fl = FreezableList[str](["frozen_one", "frozen_two", "frozen_three"])
     fl.append("draft_one")
@@ -32,7 +32,7 @@ def test_init_empty():
     fl = FreezableList[str]()
     assert list(fl) == []
     assert len(fl) == 0
-    assert fl._frozen == ()
+    assert fl._saved == ()
     assert fl._draft == []
 
 
@@ -41,7 +41,7 @@ def test_init_with_iterable():
     fl = FreezableList[str](initial_items)
     assert list(fl) == initial_items
     assert len(fl) == len(initial_items)
-    assert fl._frozen == tuple(initial_items)
+    assert fl._saved == tuple(initial_items)
     assert fl._draft == []
 
 
@@ -49,13 +49,13 @@ def test_append(empty_list: FreezableList[str]):
     empty_list.append("new_item1")
     assert list(empty_list) == ["new_item1"]
     assert len(empty_list) == 1
-    assert empty_list._frozen == ()
+    assert empty_list._saved == ()
     assert empty_list._draft == ["new_item1"]
 
     empty_list.append("new_item2")
     assert list(empty_list) == ["new_item1", "new_item2"]
     assert len(empty_list) == 2
-    assert empty_list._frozen == ()
+    assert empty_list._saved == ()
     assert empty_list._draft == ["new_item1", "new_item2"]
 
 
@@ -94,8 +94,8 @@ def test_freeze_with_duplicates_between_draft_and_frozen(
     ]
     list_3_frozen_and_2_drafts.freeze()
     # Only non-duplicate ("new_item") should be added to frozen
-    assert list_3_frozen_and_2_drafts._frozen == tuple(
-        list_3_frozen_and_2_drafts._frozen
+    assert list_3_frozen_and_2_drafts._saved == tuple(
+        list_3_frozen_and_2_drafts._saved
     ) + tuple(list_3_frozen_and_2_drafts._draft)
     assert list_3_frozen_and_2_drafts._draft == []
 
@@ -112,9 +112,9 @@ def test_remove_from_draft(list_3_frozen_and_2_drafts: FreezableList[str]):
 
 
 def test_remove_errors(list_3_frozen_and_2_drafts: FreezableList[str]):
-    with pytest.raises(ValueError):  # list.remove raises ValueError
+    with raises(ValueError):  # list.remove raises ValueError
         list_3_frozen_and_2_drafts.remove("non_existent")
-    with pytest.raises(ValueError, match="Cannot remove item from frozen list"):
+    with raises(ValueError, match=r"(?i)cannot remove"):
         list_3_frozen_and_2_drafts.remove("frozen_one")
 
 
@@ -145,9 +145,9 @@ def test_getitem_int(list_3_frozen_and_2_drafts: FreezableList[str]):
 
 def test_getitem_int_out_of_bounds(list_3_frozen_and_2_drafts: FreezableList[str]):
     list_len = len(list_3_frozen_and_2_drafts)
-    with pytest.raises(IndexError):
+    with raises(IndexError):
         _ = list_3_frozen_and_2_drafts[list_len]
-    with pytest.raises(IndexError):
+    with raises(IndexError):
         _ = list_3_frozen_and_2_drafts[-list_len - 1]
 
 
@@ -223,15 +223,13 @@ def test_setitem_duplicate(list_3_frozen_and_2_drafts: FreezableList[str]):
 
 def test_setitem_errors(list_3_frozen_and_2_drafts: FreezableList[str]):
     fl = list_3_frozen_and_2_drafts
-    with pytest.raises(IndexError):
+    with raises(IndexError):
         fl[5] = "error_val"
-    with pytest.raises(IndexError):
+    with raises(IndexError):
         fl[-6] = "error_val2"
-    with pytest.raises(ValueError, match="Cannot assign to saved item at index 1"):
+    with raises(ValueError, match=rf"(?i)cannot assign.*{1!r}"):
         fl[1] = "frozen_update"
-    with pytest.raises(
-        TypeError, match="'FreezableList' does not support slice assignment"
-    ):
+    with raises(TypeError, match=r"(?i)does not support slice assignment"):
         fl[1:3] = ["new1", "new2"]
 
 
@@ -251,17 +249,15 @@ def test_delitem_draft(list_3_frozen_and_2_drafts: FreezableList[str]):
 def test_delitem_errors(list_3_frozen_and_2_drafts: FreezableList[str]):
     list_len = len(list_3_frozen_and_2_drafts)
     fl = list_3_frozen_and_2_drafts
-    with pytest.raises(ValueError, match="Cannot delete saved item at index 0"):
+    with raises(ValueError, match=rf"(?i)cannot delete.*{0!r}"):
         del fl[0]
-    with pytest.raises(ValueError, match="Cannot delete saved item at index -5"):
+    with raises(ValueError, match=rf"(?i)cannot delete.*{-list_len!r}"):
         del fl[-list_len]
-    with pytest.raises(IndexError):
+    with raises(IndexError):
         del fl[list_len]
-    with pytest.raises(IndexError):
+    with raises(IndexError):
         del fl[-list_len - 1]
-    with pytest.raises(
-        TypeError, match="'FreezableList' does not support slice deletion"
-    ):
+    with raises(TypeError, match=r"(?i)does not support slice deletion"):
         del fl[3:]
 
 
@@ -342,7 +338,7 @@ def test_insert_duplicate(list_3_frozen_and_2_drafts: FreezableList[str]):
     assert len(list_3_frozen_and_2_drafts) == len_before
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "index_type",
     [
         "start_frozen",  # Beginning of frozen
@@ -356,9 +352,9 @@ def test_insert_into_frozen_raises(
     if index_type == "start_frozen":
         invalid_index = 0
     elif index_type == "end_frozen":
-        invalid_index = len(list_3_frozen_and_2_drafts._frozen) - 1
+        invalid_index = len(list_3_frozen_and_2_drafts._saved) - 1
     elif index_type == "negative_frozen":
         invalid_index = -len(list_3_frozen_and_2_drafts)  # Index for "frozen_one"
 
-    with pytest.raises(IndexError, match="Cannot insert into the frozen list"):
+    with raises(IndexError, match=r"(?i)cannot insert"):
         list_3_frozen_and_2_drafts.insert(invalid_index, "invalid_insert")

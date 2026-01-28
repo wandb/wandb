@@ -13,6 +13,14 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- The Registry API is now defined in the `wandb.registries` namespace. For conveninence, `Registry` is now also a top-level package import, e.g. `from wandb import Registry`. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11161)
+
+### Deprecated
+
+- Importing `Registry` from `wandb.apis.public.registries` is deprecated.  Import from `wandb.registries`, or just `wandb`, instead (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11161)
+
 ### Changed
 
 - When a settings file (such as `./wandb/settings` or `~/.config/wandb/settings`) contains an invalid setting, all settings files are ignored and an error is printed (@timoffex in https://github.com/wandb/wandb/pull/11207)

@@ -5,9 +5,8 @@ from unittest.mock import patch
 
 import wandb
 from pytest import fixture, mark, param, raises
-from wandb import Api, Artifact
+from wandb import Api, Artifact, Registry
 from wandb._strutils import b64decode_ascii
-from wandb.apis.public.registries.registry import Registry
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 
@@ -326,7 +325,7 @@ def test_create_registry_invalid_registry_name(default_organization, api: Api):
 
 
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
-@patch("wandb.apis.public.registries.registry.wandb.termlog")
+@patch("wandb.termlog")
 def test_edit_registry_name(mock_termlog, default_organization, api: Api):
     registry_name = "test"
     registry = api.create_registry(
