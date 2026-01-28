@@ -55,21 +55,24 @@ except KeyError:
     _username = str(os.getuid())
 
 _wandb_log_path = os.path.join(_wandb_dir, f"debug-cli.{_username}.log")
-
-_logger_handler = logging.FileHandler(_wandb_log_path)
-_logger_handler.setLevel(logging.INFO)
-_logger_handler.setFormatter(
-    logging.Formatter(
-        fmt="%(asctime)s %(levelname)s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-)
-
 logger = logging.getLogger("wandb")
 
-# The wandb logger does not forward messages to the root handler.
-logger.addHandler(_logger_handler)
-logging.root.addHandler(_logger_handler)
+
+def _setup_logger() -> None:
+    """Set up logging to the wandb/debug-cli.user.log file."""
+    logger_handler = logging.FileHandler(_wandb_log_path)
+    logger_handler.setLevel(logging.INFO)
+    logger_handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s %(levelname)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+
+    # The wandb logger does not forward messages to the root handler.
+    logger.addHandler(logger_handler)
+    logging.root.addHandler(logger_handler)
+
 
 _HAS_DOCKER = bool(shutil.which("docker"))
 _HAS_NVIDIA_DOCKER = bool(shutil.which("nvidia-docker"))
@@ -215,6 +218,8 @@ class RunGroup(click.Group):
 @click.version_option(version=wandb.__version__)
 @click.pass_context
 def cli(ctx):
+    _setup_logger()
+
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
