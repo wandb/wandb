@@ -30,12 +30,20 @@ message ServerApiInitResponse {
 message ApiResponse {
   oneof response {
     ReadRunHistoryResponse read_run_history_response = 1;
+    DownloadRunHistoryResponse download_run_history_response = 3;
+
     ApiErrorResponse api_error_response = 2;
   }
 }
 
 message ApiErrorResponse {
   string message = 1;
+  optional ErrorType error_type = 2;
+}
+
+enum ErrorType {
+  UNKNOWN_ERROR = 0;
+  INCOMPLETE_RUN_HISTORY_ERROR = 1;
 }
 
 // Start of Scan run history
@@ -45,6 +53,7 @@ message ReadRunHistoryRequest {
     ScanRunHistoryInit scan_run_history_init = 1;
     ScanRunHistory scan_run_history = 2;
     ScanRunHistoryCleanup scan_run_history_cleanup = 3;
+    DownloadRunHistory download_run_history = 4;
   }
 }
 
@@ -53,6 +62,7 @@ message ReadRunHistoryResponse {
     ScanRunHistoryInitResponse scan_run_history_init = 1;
     RunHistoryResponse run_history = 2;
     ScanRunHistoryCleanupResponse scan_run_history_cleanup = 3;
+    DownloadRunHistoryResponse download_run_history = 4;
   }
 }
 
@@ -104,3 +114,37 @@ message ScanRunHistoryCleanup {
 message ScanRunHistoryCleanupResponse {}
 
 // End of Scan run history
+
+// Download run history
+
+// A request to download a run's history exports.
+message DownloadRunHistory {
+  // The entity who owns the run.
+  string entity = 1;
+  // The project that the run belongs to.
+  string project = 2;
+  // The ID of the run.
+  string run_id = 3;
+
+  // The directory to store the downloaded history files within.
+  string download_dir = 4;
+
+  // Whether to require the complete history to be downloaded.
+  // If the run contains data that has not been exported to parquet files yet,
+  // the run history will be considered incomplete.
+  bool require_complete_history = 5;
+}
+
+// A response to a DownloadRunHistory request.
+message DownloadRunHistoryResponse {
+  // The list of file names that were downloaded.
+  // Each value is the full path to the downloaded file.
+  repeated string file_names = 1;
+
+  // Whether the run contains data that has not been exported to parquet files yet.
+  bool contains_live_data = 2;
+}
+
+// IncompleteRunHistoryError is an error that is returned when the run history
+// has live data that has not been exported to parquet files yet.
+message IncompleteRunHistoryError {}

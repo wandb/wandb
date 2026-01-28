@@ -42,10 +42,11 @@ var mapTypesToStr = map[attribute.Type]AttrType{
 }
 
 type sentryLogger struct {
-	ctx        context.Context
-	client     *Client
-	attributes map[string]Attribute
-	mu         sync.RWMutex
+	ctx               context.Context
+	client            *Client
+	attributes        map[string]Attribute
+	defaultAttributes map[string]Attribute
+	mu                sync.RWMutex
 }
 
 type logEntry struct {
@@ -58,7 +59,7 @@ type logEntry struct {
 }
 
 // NewLogger returns a Logger that emits logs to Sentry. If logging is turned off, all logs get discarded.
-func NewLogger(ctx context.Context) Logger {
+func NewLogger(ctx context.Context) Logger { // nolint: dupl
 	var hub *Hub
 	hub = GetHubFromContext(ctx)
 	if hub == nil {
@@ -67,11 +68,33 @@ func NewLogger(ctx context.Context) Logger {
 
 	client := hub.Client()
 	if client != nil && client.options.EnableLogs {
+		// Build default attrs
+		serverAddr := client.options.ServerName
+		if serverAddr == "" {
+			serverAddr, _ = os.Hostname()
+		}
+
+		defaults := map[string]string{
+			"sentry.release":        client.options.Release,
+			"sentry.environment":    client.options.Environment,
+			"sentry.server.address": serverAddr,
+			"sentry.sdk.name":       client.sdkIdentifier,
+			"sentry.sdk.version":    client.sdkVersion,
+		}
+
+		defaultAttrs := make(map[string]Attribute)
+		for k, v := range defaults {
+			if v != "" {
+				defaultAttrs[k] = Attribute{Value: v, Type: AttributeString}
+			}
+		}
+
 		return &sentryLogger{
-			ctx:        ctx,
-			client:     client,
-			attributes: make(map[string]Attribute),
-			mu:         sync.RWMutex{},
+			ctx:               ctx,
+			client:            client,
+			attributes:        make(map[string]Attribute),
+			defaultAttributes: defaultAttrs,
+			mu:                sync.RWMutex{},
 		}
 	}
 
@@ -89,51 +112,18 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	if message == "" {
 		return
 	}
-	var traceID TraceID
-	var spanID SpanID
-	var span *Span
-	var user User
 
-	span = SpanFromContext(ctx)
-	if span == nil {
-		span = SpanFromContext(l.ctx)
-	}
-	hub := GetHubFromContext(ctx)
-	if hub == nil {
-		hub = GetHubFromContext(l.ctx)
-	}
-	if hub == nil {
-		hub = CurrentHub()
-	}
+	scope, traceID, spanID := resolveScopeAndTrace(ctx, l.ctx)
 
-	scope := hub.Scope()
-	if scope != nil {
-		scope.mu.Lock()
-		// Use span from hub only as last resort
-		if span == nil {
-			span = scope.span
-		}
-		if span != nil {
-			traceID = span.TraceID
-			spanID = span.SpanID
-		} else {
-			traceID = scope.propagationContext.TraceID
-		}
-		user = scope.user
-		scope.mu.Unlock()
-	}
+	// Pre-allocate with capacity hint to avoid map growth reallocations
+	estimatedCap := len(l.defaultAttributes) + len(entryAttrs) + len(args) + 8 // scope ~3 + instance ~5
+	attrs := make(map[string]Attribute, estimatedCap)
 
-	attrs := map[string]Attribute{}
-	if len(args) > 0 {
-		attrs["sentry.message.template"] = Attribute{
-			Value: message, Type: AttributeString,
-		}
-		for i, p := range args {
-			attrs[fmt.Sprintf("sentry.message.parameters.%d", i)] = Attribute{
-				Value: fmt.Sprintf("%+v", p), Type: AttributeString,
-			}
-		}
+	// attribute precedence: default -> scope -> instance (from SetAttrs) -> entry-specific
+	for k, v := range l.defaultAttributes {
+		attrs[k] = v
 	}
+	scope.populateAttrs(attrs)
 
 	l.mu.RLock()
 	for k, v := range l.attributes {
@@ -144,34 +134,16 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	for k, v := range entryAttrs {
 		attrs[k] = v
 	}
-	if release := l.client.options.Release; release != "" {
-		attrs["sentry.release"] = Attribute{Value: release, Type: AttributeString}
-	}
-	if environment := l.client.options.Environment; environment != "" {
-		attrs["sentry.environment"] = Attribute{Value: environment, Type: AttributeString}
-	}
-	if serverName := l.client.options.ServerName; serverName != "" {
-		attrs["sentry.server.address"] = Attribute{Value: serverName, Type: AttributeString}
-	} else if serverAddr, err := os.Hostname(); err == nil {
-		attrs["sentry.server.address"] = Attribute{Value: serverAddr, Type: AttributeString}
-	}
 
-	if !user.IsEmpty() {
-		if user.ID != "" {
-			attrs["user.id"] = Attribute{Value: user.ID, Type: AttributeString}
+	if len(args) > 0 {
+		attrs["sentry.message.template"] = Attribute{
+			Value: message, Type: AttributeString,
 		}
-		if user.Name != "" {
-			attrs["user.name"] = Attribute{Value: user.Name, Type: AttributeString}
+		for i, p := range args {
+			attrs[fmt.Sprintf("sentry.message.parameters.%d", i)] = Attribute{
+				Value: fmt.Sprintf("%+v", p), Type: AttributeString,
+			}
 		}
-		if user.Email != "" {
-			attrs["user.email"] = Attribute{Value: user.Email, Type: AttributeString}
-		}
-	}
-	if sdkIdentifier := l.client.sdkIdentifier; sdkIdentifier != "" {
-		attrs["sentry.sdk.name"] = Attribute{Value: sdkIdentifier, Type: AttributeString}
-	}
-	if sdkVersion := l.client.sdkVersion; sdkVersion != "" {
-		attrs["sentry.sdk.version"] = Attribute{Value: sdkVersion, Type: AttributeString}
 	}
 
 	log := &Log{
@@ -184,19 +156,7 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 		Attributes: attrs,
 	}
 
-	if l.client.options.BeforeSendLog != nil {
-		log = l.client.options.BeforeSendLog(log)
-	}
-
-	if log != nil {
-		if l.client.telemetryBuffer != nil {
-			if !l.client.telemetryBuffer.Add(log) {
-				debuglog.Print("Dropping event: log buffer full or category missing")
-			}
-		} else if l.client.batchLogger != nil {
-			l.client.batchLogger.logCh <- *log
-		}
-	}
+	l.client.captureLog(log, scope)
 
 	if l.client.options.Debug {
 		debuglog.Printf(message, args...)
