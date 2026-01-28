@@ -187,13 +187,13 @@ func walkConfigFields(
 				desc = defaultDescription(fieldJSONPath, groupDesc, label)
 			}
 
-			min := 0
+			minimum := 0
 			if tag.hasMin {
-				min = tag.min
+				minimum = tag.min
 			}
-			max := 0
+			maximum := 0
 			if tag.hasMax {
-				max = tag.max
+				maximum = tag.max
 			}
 			idx := cloneIndex(fieldIndex)
 
@@ -208,8 +208,8 @@ func walkConfigFields(
 				setInt: func(c *Config, v int) {
 					reflect.ValueOf(c).Elem().FieldByIndex(idx).SetInt(int64(v))
 				},
-				min: min,
-				max: max,
+				min: minimum,
+				max: maximum,
 			})
 
 		case reflect.String:
@@ -325,7 +325,7 @@ func defaultDescription(jsonPath []string, groupDesc, label string) string {
 	return ""
 }
 
-func appendIndex(prefix []int, suffix []int) []int {
+func appendIndex(prefix, suffix []int) []int {
 	out := make([]int, 0, len(prefix)+len(suffix))
 	out = append(out, prefix...)
 	out = append(out, suffix...)
