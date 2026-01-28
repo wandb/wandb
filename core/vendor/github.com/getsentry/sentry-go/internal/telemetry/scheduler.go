@@ -12,7 +12,7 @@ import (
 
 // Scheduler implements a weighted round-robin scheduler for processing buffered events.
 type Scheduler struct {
-	buffers   map[ratelimit.Category]Storage[protocol.EnvelopeItemConvertible]
+	buffers   map[ratelimit.Category]Buffer[protocol.TelemetryItem]
 	transport protocol.TelemetryTransport
 	dsn       *protocol.Dsn
 	sdkInfo   *protocol.SdkInfo
@@ -31,7 +31,7 @@ type Scheduler struct {
 }
 
 func NewScheduler(
-	buffers map[ratelimit.Category]Storage[protocol.EnvelopeItemConvertible],
+	buffers map[ratelimit.Category]Buffer[protocol.TelemetryItem],
 	transport protocol.TelemetryTransport,
 	dsn *protocol.Dsn,
 	sdkInfo *protocol.SdkInfo,
@@ -109,7 +109,7 @@ func (s *Scheduler) Signal() {
 	s.cond.Signal()
 }
 
-func (s *Scheduler) Add(item protocol.EnvelopeItemConvertible) bool {
+func (s *Scheduler) Add(item protocol.TelemetryItem) bool {
 	category := item.GetCategory()
 	buffer, exists := s.buffers[category]
 	if !exists {
@@ -185,7 +185,7 @@ func (s *Scheduler) processNextBatch() {
 	priority := s.currentCycle[s.cyclePos]
 	s.cyclePos = (s.cyclePos + 1) % len(s.currentCycle)
 
-	var bufferToProcess Storage[protocol.EnvelopeItemConvertible]
+	var bufferToProcess Buffer[protocol.TelemetryItem]
 	var categoryToProcess ratelimit.Category
 	for category, buffer := range s.buffers {
 		if buffer.Priority() == priority && buffer.IsReadyToFlush() {
@@ -200,8 +200,8 @@ func (s *Scheduler) processNextBatch() {
 	}
 }
 
-func (s *Scheduler) processItems(buffer Storage[protocol.EnvelopeItemConvertible], category ratelimit.Category, force bool) {
-	var items []protocol.EnvelopeItemConvertible
+func (s *Scheduler) processItems(buffer Buffer[protocol.TelemetryItem], category ratelimit.Category, force bool) {
+	var items []protocol.TelemetryItem
 
 	if force {
 		items = buffer.Drain()
@@ -232,11 +232,33 @@ func (s *Scheduler) processItems(buffer Storage[protocol.EnvelopeItemConvertible
 			debuglog.Printf("error sending envelope: %v", err)
 		}
 		return
+	case ratelimit.CategoryTraceMetric:
+		metrics := protocol.Metrics(items)
+		header := &protocol.EnvelopeHeader{EventID: protocol.GenerateEventID(), SentAt: time.Now(), Sdk: s.sdkInfo}
+		if s.dsn != nil {
+			header.Dsn = s.dsn.String()
+		}
+		envelope := protocol.NewEnvelope(header)
+		item, err := metrics.ToEnvelopeItem()
+		if err != nil {
+			debuglog.Printf("error creating trace metric batch envelope item: %v", err)
+			return
+		}
+		envelope.AddItem(item)
+		if err := s.transport.SendEnvelope(envelope); err != nil {
+			debuglog.Printf("error sending envelope: %v", err)
+		}
+		return
 	default:
 		// if the buffers are properly configured, buffer.PollIfReady should return a single item for every category
 		// other than logs. We still iterate over the items just in case, because we don't want to send broken envelopes.
 		for _, it := range items {
-			s.sendItem(it)
+			convertible, ok := it.(protocol.EnvelopeItemConvertible)
+			if !ok {
+				debuglog.Printf("item does not implement EnvelopeItemConvertible: %T", it)
+				continue
+			}
+			s.sendItem(convertible)
 		}
 	}
 }

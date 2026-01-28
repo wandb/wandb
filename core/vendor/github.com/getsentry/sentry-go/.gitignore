@@ -12,3 +12,6 @@ TODO.md
 # IDE system files
 .idea
 .vscode
+
+# Local Claude Code settings that should not be committed
+.claude/settings.local.json
