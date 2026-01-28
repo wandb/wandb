@@ -7,12 +7,9 @@ import (
 	"github.com/getsentry/sentry-go/internal/ratelimit"
 )
 
-// EnvelopeItemConvertible represents any type that can be converted to a Sentry envelope item.
-// This interface allows the telemetry buffers to work with items that can be batched together.
-type EnvelopeItemConvertible interface {
-	// ToEnvelopeItem converts the item to a Sentry envelope item.
-	ToEnvelopeItem() (*EnvelopeItem, error)
-
+// TelemetryItem represents any telemetry data that can be stored in buffers and sent to Sentry.
+// This is the base interface that all telemetry items must implement.
+type TelemetryItem interface {
 	// GetCategory returns the rate limit category for this item.
 	GetCategory() ratelimit.Category
 
@@ -24,6 +21,14 @@ type EnvelopeItemConvertible interface {
 
 	// GetDynamicSamplingContext returns trace context for the envelope header.
 	GetDynamicSamplingContext() map[string]string
+}
+
+// EnvelopeItemConvertible represents items that can be converted directly to envelope items.
+type EnvelopeItemConvertible interface {
+	TelemetryItem
+
+	// ToEnvelopeItem converts the item to a Sentry envelope item.
+	ToEnvelopeItem() (*EnvelopeItem, error)
 }
 
 // TelemetryTransport represents the envelope-first transport interface.

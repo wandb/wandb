@@ -14,6 +14,7 @@ import (
 	"github.com/getsentry/sentry-go/internal/ratelimit"
 )
 
+const errorType = ""
 const eventType = "event"
 const transactionType = "transaction"
 const checkInType = "check_in"
@@ -24,6 +25,14 @@ var logEvent = struct {
 }{
 	"log",
 	"application/vnd.sentry.items.log+json",
+}
+
+var traceMetricEvent = struct {
+	Type        string
+	ContentType string
+}{
+	"trace_metric",
+	"application/vnd.sentry.items.trace-metric+json",
 }
 
 // Level marks the severity of the event.
@@ -139,6 +148,60 @@ type LogEntry interface {
 	Emit(args ...interface{})
 	// Emitf emits the LogEntry using a format string and arguments.
 	Emitf(format string, args ...interface{})
+}
+
+// Meter provides an interface for recording metrics.
+type Meter interface {
+	// WithCtx returns a new Meter that uses the given context for trace/span association.
+	WithCtx(ctx context.Context) Meter
+	// SetAttributes allows attaching parameters to the meter using the attribute API.
+	// These attributes will be included in all subsequent metrics.
+	SetAttributes(attrs ...attribute.Builder)
+	// Count records a count metric.
+	Count(name string, count int64, opts ...MeterOption)
+	// Gauge records a gauge metric.
+	Gauge(name string, value float64, opts ...MeterOption)
+	// Distribution records a distribution metric.
+	Distribution(name string, sample float64, opts ...MeterOption)
+}
+
+// MeterOption configures a metric recording call.
+type MeterOption func(*meterOptions)
+
+type meterOptions struct {
+	unit       string
+	scope      *Scope
+	attributes map[string]Attribute
+}
+
+// WithUnit sets the unit for the metric (e.g., "millisecond", "byte").
+func WithUnit(unit string) MeterOption {
+	return func(o *meterOptions) {
+		o.unit = unit
+	}
+}
+
+// WithScopeOverride sets a custom scope for the metric, overriding the default scope from the hub.
+func WithScopeOverride(scope *Scope) MeterOption {
+	return func(o *meterOptions) {
+		o.scope = scope
+	}
+}
+
+// WithAttributes sets attributes for the metric.
+func WithAttributes(attrs ...attribute.Builder) MeterOption {
+	return func(o *meterOptions) {
+		if o.attributes == nil {
+			o.attributes = make(map[string]Attribute)
+		}
+		for _, attr := range attrs {
+			t, ok := mapTypesToStr[attr.Value.Type()]
+			if !ok || t == "" {
+				continue
+			}
+			o.attributes[attr.Key] = Attribute{Value: attr.Value.AsInterface(), Type: t}
+		}
+	}
 }
 
 // Attachment allows associating files with your events to aid in investigation.
@@ -396,7 +459,10 @@ type Event struct {
 	MonitorConfig *MonitorConfig `json:"monitor_config,omitempty"`
 
 	// The fields below are only relevant for logs
-	Logs []Log `json:"items,omitempty"`
+	Logs []Log `json:"-"`
+
+	// The fields below are only relevant for metrics
+	Metrics []Metric `json:"-"`
 
 	// The fields below are not part of the final JSON payload.
 
@@ -419,78 +485,6 @@ func (e *Event) SetException(exception error, maxErrorDepth int) {
 	}
 
 	e.Exception = exceptions
-}
-
-// ToEnvelope converts the Event to a Sentry envelope.
-// This includes the event data and any attachments as separate envelope items.
-func (e *Event) ToEnvelope(dsn *protocol.Dsn) (*protocol.Envelope, error) {
-	return e.ToEnvelopeWithTime(dsn, time.Now())
-}
-
-// ToEnvelopeWithTime converts the Event to a Sentry envelope with a specific sentAt time.
-// This is primarily useful for testing with predictable timestamps.
-func (e *Event) ToEnvelopeWithTime(dsn *protocol.Dsn, sentAt time.Time) (*protocol.Envelope, error) {
-	// Create envelope header with trace context
-	trace := make(map[string]string)
-	if dsc := e.sdkMetaData.dsc; dsc.HasEntries() {
-		for k, v := range dsc.Entries {
-			trace[k] = v
-		}
-	}
-
-	header := &protocol.EnvelopeHeader{
-		EventID: string(e.EventID),
-		SentAt:  sentAt,
-		Trace:   trace,
-	}
-
-	if dsn != nil {
-		header.Dsn = dsn.String()
-	}
-
-	header.Sdk = &e.Sdk
-
-	envelope := protocol.NewEnvelope(header)
-
-	eventBody, err := json.Marshal(e)
-	if err != nil {
-		// Try fallback: remove problematic fields and retry
-		e.Breadcrumbs = nil
-		e.Contexts = nil
-		e.Extra = map[string]interface{}{
-			"info": fmt.Sprintf("Could not encode original event as JSON. "+
-				"Succeeded by removing Breadcrumbs, Contexts and Extra. "+
-				"Please verify the data you attach to the scope. "+
-				"Error: %s", err),
-		}
-
-		eventBody, err = json.Marshal(e)
-		if err != nil {
-			return nil, fmt.Errorf("event could not be marshaled even with fallback: %w", err)
-		}
-
-		DebugLogger.Printf("Event marshaling succeeded with fallback after removing problematic fields")
-	}
-
-	var mainItem *protocol.EnvelopeItem
-	switch e.Type {
-	case transactionType:
-		mainItem = protocol.NewEnvelopeItem(protocol.EnvelopeItemTypeTransaction, eventBody)
-	case checkInType:
-		mainItem = protocol.NewEnvelopeItem(protocol.EnvelopeItemTypeCheckIn, eventBody)
-	case logEvent.Type:
-		mainItem = protocol.NewLogItem(len(e.Logs), eventBody)
-	default:
-		mainItem = protocol.NewEnvelopeItem(protocol.EnvelopeItemTypeEvent, eventBody)
-	}
-
-	envelope.AddItem(mainItem)
-	for _, attachment := range e.Attachments {
-		attachmentItem := protocol.NewAttachmentItem(attachment.Filename, attachment.ContentType, attachment.Payload)
-		envelope.AddItem(attachmentItem)
-	}
-
-	return envelope, nil
 }
 
 // ToEnvelopeItem converts the Event to a Sentry envelope item.
@@ -524,6 +518,8 @@ func (e *Event) ToEnvelopeItem() (*protocol.EnvelopeItem, error) {
 		item = protocol.NewEnvelopeItem(protocol.EnvelopeItemTypeCheckIn, eventBody)
 	case logEvent.Type:
 		item = protocol.NewLogItem(len(e.Logs), eventBody)
+	case traceMetricEvent.Type:
+		item = protocol.NewTraceMetricItem(len(e.Metrics), eventBody)
 	default:
 		item = protocol.NewEnvelopeItem(protocol.EnvelopeItemTypeEvent, eventBody)
 	}
@@ -586,6 +582,33 @@ func (e *Event) defaultMarshalJSON() ([]byte, error) {
 	// event aliases Event to allow calling json.Marshal without an infinite
 	// loop. It preserves all fields while none of the attached methods.
 	type event Event
+
+	// metrics and logs should be serialized under the same `items` json field.
+	if e.Type == logEvent.Type {
+		type logEvent struct {
+			*event
+			Items           []Log           `json:"items,omitempty"`
+			Type            json.RawMessage `json:"type,omitempty"`
+			Timestamp       json.RawMessage `json:"timestamp,omitempty"`
+			StartTime       json.RawMessage `json:"start_timestamp,omitempty"`
+			Spans           json.RawMessage `json:"spans,omitempty"`
+			TransactionInfo json.RawMessage `json:"transaction_info,omitempty"`
+		}
+		return json.Marshal(logEvent{event: (*event)(e), Items: e.Logs})
+	}
+
+	if e.Type == traceMetricEvent.Type {
+		type metricEvent struct {
+			*event
+			Items           []Metric        `json:"items,omitempty"`
+			Type            json.RawMessage `json:"type,omitempty"`
+			Timestamp       json.RawMessage `json:"timestamp,omitempty"`
+			StartTime       json.RawMessage `json:"start_timestamp,omitempty"`
+			Spans           json.RawMessage `json:"spans,omitempty"`
+			TransactionInfo json.RawMessage `json:"transaction_info,omitempty"`
+		}
+		return json.Marshal(metricEvent{event: (*event)(e), Items: e.Metrics})
+	}
 
 	// errorEvent is like Event with shadowed fields for customizing JSON
 	// marshaling.
@@ -679,7 +702,7 @@ func (e *Event) checkInMarshalJSON() ([]byte, error) {
 
 func (e *Event) toCategory() ratelimit.Category {
 	switch e.Type {
-	case "":
+	case errorType:
 		return ratelimit.CategoryError
 	case transactionType:
 		return ratelimit.CategoryTransaction
@@ -687,6 +710,8 @@ func (e *Event) toCategory() ratelimit.Category {
 		return ratelimit.CategoryLog
 	case checkInType:
 		return ratelimit.CategoryMonitor
+	case traceMetricEvent.Type:
+		return ratelimit.CategoryTraceMetric
 	default:
 		return ratelimit.CategoryUnknown
 	}
@@ -732,21 +757,6 @@ type Log struct {
 	Attributes map[string]Attribute `json:"attributes,omitempty"`
 }
 
-// ToEnvelopeItem converts the Log to a Sentry envelope item for batching.
-func (l *Log) ToEnvelopeItem() (*protocol.EnvelopeItem, error) {
-	logData, err := json.Marshal(l)
-	if err != nil {
-		return nil, err
-	}
-
-	return &protocol.EnvelopeItem{
-		Header: &protocol.EnvelopeItemHeader{
-			Type: protocol.EnvelopeItemTypeLog,
-		},
-		Payload: logData,
-	}, nil
-}
-
 // GetCategory returns the rate limit category for logs.
 func (l *Log) GetCategory() ratelimit.Category {
 	return ratelimit.CategoryLog
@@ -782,7 +792,7 @@ type Attribute struct {
 	Type  AttrType `json:"type"`
 }
 
-// MarshalJSON is a custom implementation that skips SpanID and timestamp when empty.
+// MarshalJSON converts a Log to JSON that skips SpanID and timestamp when zero.
 func (l *Log) MarshalJSON() ([]byte, error) {
 	type log Log
 
@@ -809,4 +819,125 @@ func (l *Log) MarshalJSON() ([]byte, error) {
 		SpanID:    spanID,
 		Timestamp: ts,
 	})
+}
+
+type MetricType string
+
+const (
+	MetricTypeInvalid      MetricType = ""
+	MetricTypeCounter      MetricType = "counter"
+	MetricTypeGauge        MetricType = "gauge"
+	MetricTypeDistribution MetricType = "distribution"
+)
+
+type Metric struct {
+	Timestamp  time.Time            `json:"timestamp"`
+	TraceID    TraceID              `json:"trace_id"`
+	SpanID     SpanID               `json:"span_id,omitempty"`
+	Type       MetricType           `json:"type"`
+	Name       string               `json:"name"`
+	Value      MetricValue          `json:"value"`
+	Unit       string               `json:"unit,omitempty"`
+	Attributes map[string]Attribute `json:"attributes,omitempty"`
+}
+
+// MarshalJSON converts a Metric to JSON that skips SpanID and timestamp when zero.
+func (m *Metric) MarshalJSON() ([]byte, error) {
+	type metric Metric
+
+	var spanID string
+	if m.SpanID != zeroSpanID {
+		spanID = m.SpanID.String()
+	}
+
+	var ts json.RawMessage
+	if !m.Timestamp.IsZero() {
+		b, err := m.Timestamp.MarshalJSON()
+		if err != nil {
+			return nil, err
+		}
+		ts = b
+	}
+
+	return json.Marshal(struct {
+		*metric
+		SpanID    string          `json:"span_id,omitempty"`
+		Timestamp json.RawMessage `json:"timestamp,omitempty"`
+	}{
+		metric:    (*metric)(m),
+		SpanID:    spanID,
+		Timestamp: ts,
+	})
+}
+
+// GetCategory returns the rate limit category for metrics.
+func (m *Metric) GetCategory() ratelimit.Category {
+	return ratelimit.CategoryTraceMetric
+}
+
+// GetEventID returns empty string (event ID set when batching).
+func (m *Metric) GetEventID() string {
+	return ""
+}
+
+// GetSdkInfo returns nil (SDK info set when batching).
+func (m *Metric) GetSdkInfo() *protocol.SdkInfo {
+	return nil
+}
+
+// GetDynamicSamplingContext returns nil (trace context set when batching).
+func (m *Metric) GetDynamicSamplingContext() map[string]string {
+	return nil
+}
+
+// MetricValue stores metric values with full precision.
+// It supports int64 (for counters) and float64 (for gauges and distributions).
+type MetricValue struct {
+	value attribute.Value
+}
+
+// Int64MetricValue creates a MetricValue from an int64.
+// Used for counter metrics to preserve full int64 precision.
+func Int64MetricValue(v int64) MetricValue {
+	return MetricValue{value: attribute.Int64Value(v)}
+}
+
+// Float64MetricValue creates a MetricValue from a float64.
+// Used for gauge and distribution metrics.
+func Float64MetricValue(v float64) MetricValue {
+	return MetricValue{value: attribute.Float64Value(v)}
+}
+
+// Type returns the type of the stored value (attribute.INT64 or attribute.FLOAT64).
+func (v MetricValue) Type() attribute.Type {
+	return v.value.Type()
+}
+
+// Int64 returns the value as int64 if it holds an int64.
+// The second return value indicates whether the type matched.
+func (v MetricValue) Int64() (int64, bool) {
+	if v.value.Type() == attribute.INT64 {
+		return v.value.AsInt64(), true
+	}
+	return 0, false
+}
+
+// Float64 returns the value as float64 if it holds a float64.
+// The second return value indicates whether the type matched.
+func (v MetricValue) Float64() (float64, bool) {
+	if v.value.Type() == attribute.FLOAT64 {
+		return v.value.AsFloat64(), true
+	}
+	return 0, false
+}
+
+// AsInterface returns the value as int64 or float64.
+// Use type assertion or type switch to handle the result.
+func (v MetricValue) AsInterface() any {
+	return v.value.AsInterface()
+}
+
+// MarshalJSON serializes the value as a bare number.
+func (v MetricValue) MarshalJSON() ([]byte, error) {
+	return json.Marshal(v.value.AsInterface())
 }

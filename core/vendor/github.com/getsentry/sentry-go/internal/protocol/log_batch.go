@@ -14,17 +14,17 @@ type LogAttribute struct {
 
 // Logs is a container for multiple log items which knows how to convert
 // itself into a single batched log envelope item.
-type Logs []EnvelopeItemConvertible
+type Logs []TelemetryItem
 
 func (ls Logs) ToEnvelopeItem() (*EnvelopeItem, error) {
 	// Convert each log to its JSON representation
 	items := make([]json.RawMessage, 0, len(ls))
 	for _, log := range ls {
-		envItem, err := log.ToEnvelopeItem()
+		logPayload, err := json.Marshal(log)
 		if err != nil {
 			continue
 		}
-		items = append(items, envItem.Payload)
+		items = append(items, logPayload)
 	}
 
 	if len(items) == 0 {

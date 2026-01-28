@@ -334,6 +334,54 @@ def test_run_delete(wandb_backend_spy):
     assert delete_spy.requests[1].variables["deleteArtifacts"]
 
 
+def test_run_update_state_success(wandb_backend_spy):
+    """Test successful state transition to pending."""
+    gql = wandb_backend_spy.gql
+    update_state_spy = gql.Capture()
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpdateRunState"),
+        gql.Constant(content={"data": {"updateRunState": {"success": True}}}),
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpdateRunState"),
+        update_state_spy,
+    )
+
+    seed_run = Api().create_run()
+    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    run._attrs["state"] = "failed"
+    run._state = "failed"
+
+    result = run.update_state("pending")
+
+    assert result is True
+    assert run.state == "pending"
+    assert update_state_spy.total_calls == 1
+    assert update_state_spy.requests[0].variables["input"]["state"] == "pending"
+    assert update_state_spy.requests[0].variables["input"]["id"] == run.storage_id
+
+
+def test_run_update_state_failure(wandb_backend_spy):
+    """Test that update_state returns False when server rejects transition."""
+    gql = wandb_backend_spy.gql
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpdateRunState"),
+        gql.Constant(content={"data": {"updateRunState": {"success": False}}}),
+    )
+
+    seed_run = Api().create_run()
+    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    run._attrs["state"] = "running"
+    run._state = "running"
+
+    result = run.update_state("pending")
+
+    assert result is False
+    assert run.state == "running"
+
+
 def test_run_file_direct(
     user,
     stub_run_gql_once,

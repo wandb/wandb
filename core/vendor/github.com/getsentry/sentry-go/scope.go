@@ -2,6 +2,7 @@ package sentry
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"sync"
@@ -493,4 +494,86 @@ func cloneContext(c Context) Context {
 		res[k] = v
 	}
 	return res
+}
+
+func (scope *Scope) populateAttrs(attrs map[string]Attribute) {
+	if scope == nil {
+		return
+	}
+
+	scope.mu.RLock()
+	defer scope.mu.RUnlock()
+
+	// Add user-related attributes
+	if !scope.user.IsEmpty() {
+		if scope.user.ID != "" {
+			attrs["user.id"] = Attribute{Value: scope.user.ID, Type: AttributeString}
+		}
+		if scope.user.Name != "" {
+			attrs["user.name"] = Attribute{Value: scope.user.Name, Type: AttributeString}
+		}
+		if scope.user.Email != "" {
+			attrs["user.email"] = Attribute{Value: scope.user.Email, Type: AttributeString}
+		}
+	}
+
+	// In the future, add scope.attributes here
+	// for k, v := range scope.attributes {
+	//     attrs[k] = v
+	// }
+}
+
+// resolveScopeAndTrace resolves scope, trace ID, and span ID from the given contexts.
+//
+// The resolution order follows a most-specific-to-least-specific pattern:
+//  1. Check for span directly in contexts (SpanFromContext) - this is the most specific
+//     source as it represents a span explicitly attached to the current operation's context
+//  2. Check for hub in contexts (GetHubFromContext) - provides access to scope which may
+//     contain a span, but this is less specific than a directly attached span
+//  3. Fall back to CurrentHub() - the global hub as a last resort
+//
+// This ordering ensures we always use the most contextually relevant tracing information.
+// For example, if a specific span is active for an operation, we use that span's trace/span IDs
+// rather than accidentally using a different span that might be set on the hub's scope.
+func resolveScopeAndTrace(ctxs ...context.Context) (scope *Scope, traceID TraceID, spanID SpanID) {
+	var span *Span
+	var hub *Hub
+
+	for _, ctx := range ctxs {
+		if ctx == nil {
+			continue
+		}
+		if span = SpanFromContext(ctx); span != nil {
+			break
+		}
+	}
+
+	for _, ctx := range ctxs {
+		if ctx == nil {
+			continue
+		}
+		if hub = GetHubFromContext(ctx); hub != nil {
+			break
+		}
+	}
+	if hub == nil {
+		hub = CurrentHub()
+	}
+
+	scope = hub.Scope()
+	if scope != nil {
+		scope.mu.RLock()
+		if span == nil {
+			span = scope.span
+		}
+		if span != nil {
+			traceID = span.TraceID
+			spanID = span.SpanID
+		} else {
+			traceID = scope.propagationContext.TraceID
+		}
+		scope.mu.RUnlock()
+	}
+
+	return scope, traceID, spanID
 }

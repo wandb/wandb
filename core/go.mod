@@ -17,7 +17,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20251023181713-f594ac034d6b
-	github.com/getsentry/sentry-go v0.41.0
+	github.com/getsentry/sentry-go v0.42.0
 	github.com/go-git/go-git/v5 v5.16.4
 	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.16.0

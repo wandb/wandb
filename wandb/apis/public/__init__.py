@@ -8,11 +8,13 @@ __all__ = (
     "Artifacts",
     "ArtifactType",
     "ArtifactTypes",
+    "DownloadHistoryResult",
     "RunArtifacts",
     "Automations",
     "File",
     "Files",
     "HistoryScan",  # doc:exclude
+    "IncompleteRunHistoryError",
     "SampledHistoryScan",  # doc:exclude
     "SlackIntegrations",  # doc:exclude
     "WebhookIntegrations",  # doc:exclude
@@ -72,7 +74,13 @@ from wandb.apis.public.reports import (
     PythonMongoishQueryGenerator,
     Reports,
 )
-from wandb.apis.public.runs import RUN_FRAGMENT, Run, Runs
+from wandb.apis.public.runs import (
+    RUN_FRAGMENT,
+    DownloadHistoryResult,
+    IncompleteRunHistoryError,
+    Run,
+    Runs,
+)
 from wandb.apis.public.sweeps import Sweep
 from wandb.apis.public.teams import Member, Team
 from wandb.apis.public.users import User

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -141,7 +142,11 @@ func createNoContentLengthServer(t *testing.T) *httptest.Server {
 
 func TestGetObjectSize(t *testing.T) {
 	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := retryablehttp.NewClient()
+	client.HTTPClient.Timeout = 1 * time.Second
+	client.RetryMax = 1
+	client.RetryWaitMin = 1 * time.Millisecond
+	client.RetryWaitMax = 10 * time.Millisecond
 
 	t.Run("successful HEAD request", func(t *testing.T) {
 		server := createTestServer(t)
@@ -174,7 +179,7 @@ func TestGetObjectSize(t *testing.T) {
 		assert.Contains(
 			t,
 			err.Error(),
-			"failed to get object size with status code: 500",
+			"giving up after 2 attempt(s)",
 		)
 
 		// When server returns error status without Content-Length, it should return -1
@@ -209,7 +214,8 @@ func TestGetObjectSize(t *testing.T) {
 
 func TestNewHttpFileReader(t *testing.T) {
 	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := retryablehttp.NewClient()
+	client.HTTPClient.Timeout = 10 * time.Second
 
 	t.Run("successful creation", func(t *testing.T) {
 		server := createTestServer(t)
@@ -238,7 +244,8 @@ func TestNewHttpFileReader(t *testing.T) {
 
 func TestHttpFileReader_ReadAt(t *testing.T) {
 	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := retryablehttp.NewClient()
+	client.HTTPClient.Timeout = 10 * time.Second
 	server := createTestServer(t)
 	defer server.Close()
 
@@ -296,7 +303,8 @@ func TestHttpFileReader_ReadAt(t *testing.T) {
 
 func TestHttpFileReader_Seek(t *testing.T) {
 	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := retryablehttp.NewClient()
+	client.HTTPClient.Timeout = 10 * time.Second
 	server := createTestServer(t)
 	defer server.Close()
 
@@ -391,7 +399,11 @@ func TestHttpFileReader_Seek(t *testing.T) {
 
 func TestHttpFileReader_ServerErrors(t *testing.T) {
 	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := retryablehttp.NewClient()
+	client.HTTPClient.Timeout = 5 * time.Second
+	client.RetryMax = 2
+	client.RetryWaitMin = 1 * time.Millisecond
+	client.RetryWaitMax = 10 * time.Millisecond
 
 	t.Run("server returns error on range request", func(t *testing.T) {
 		// Create a server that returns errors for GET requests
@@ -420,13 +432,13 @@ func TestHttpFileReader_ServerErrors(t *testing.T) {
 		assert.Contains(
 			t,
 			err.Error(),
-			"failed to read with status code: 500",
+			"giving up after 3 attempt(s)",
 		)
 		assert.Equal(t, 0, n)
 	})
 
 	t.Run("context timeout during read", func(t *testing.T) {
-		// Create a slow server
+		// Create a slow server that delays longer than the context timeout
 		server := httptest.NewServer(http.HandlerFunc(func(
 			responseWriter http.ResponseWriter,
 			request *http.Request,
@@ -436,23 +448,26 @@ func TestHttpFileReader_ServerErrors(t *testing.T) {
 				responseWriter.Header().Set("Content-Length", strconv.Itoa(len(mockFileContent)))
 				responseWriter.WriteHeader(http.StatusOK)
 			default:
-				time.Sleep(200 * time.Millisecond)
-				responseWriter.WriteHeader(http.StatusInternalServerError)
+				// Sleep longer than the context timeout to ensure context cancellation
+				time.Sleep(500 * time.Millisecond)
+				responseWriter.WriteHeader(http.StatusOK)
 				_, err := responseWriter.Write(mockFileContent)
 				require.NoError(t, err)
 			}
 		}))
 		defer server.Close()
 
+		// Create a client with retries disabled for this test
+		testClient := retryablehttp.NewClient()
+		testClient.HTTPClient.Timeout = 10 * time.Second
+		testClient.RetryMax = 0 // Disable retries to test context timeout directly
+
 		// Create reader with short timeout context
 		timeoutCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 		defer cancel()
 
-		reader, err := NewHttpFileReader(timeoutCtx, client, server.URL)
+		reader, err := NewHttpFileReader(timeoutCtx, testClient, server.URL)
 		require.NoError(t, err)
-
-		httpReader := reader.(*HttpFileReader)
-		httpReader.ctx = timeoutCtx
 
 		buffer := make([]byte, 10)
 		_, err = reader.ReadAt(buffer, 0)

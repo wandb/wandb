@@ -1,5 +1,8 @@
-minVersion: 0.35.0
-changelogPolicy: simple
+minVersion: 2.14.0
+changelog:
+  policy: auto
+versioning:
+  policy: auto
 artifactProvider:
   name: none
 targets:
