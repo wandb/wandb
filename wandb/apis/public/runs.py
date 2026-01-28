@@ -884,6 +884,64 @@ class Run(Attrs):
         """Persist changes to the run object to the W&B backend."""
         self.update()
 
+    @normalize_exceptions
+    def update_state(self, state: Literal["pending"]) -> bool:
+        """Update the state of a run.
+
+        Allows transitioning runs from 'failed' or 'crashed' to 'pending'.
+
+        Args:
+            state: The target run state. Only `"pending"` is supported.
+
+        Returns:
+            `True` if the state was successfully updated.
+
+        Raises:
+            `wandb.Error`: If the requested state transition is not allowed, or the server
+                does not support this operation.
+        """
+        mutation = gql(
+            """
+            mutation UpdateRunState($input: UpdateRunStateInput!) {
+                updateRunState(input: $input) {
+                    success
+                }
+            }
+            """
+        )
+
+        try:
+            result = self.client.execute(
+                mutation,
+                variable_values={
+                    "input": {
+                        "id": self.storage_id,
+                        "state": state,
+                    }
+                },
+            )
+        except Exception as e:
+            error_msg = str(e)
+            if "UpdateRunStateInput" in error_msg or "updateRunState" in error_msg:
+                raise wandb.Error(
+                    "The server does not support the update_state operation. "
+                    "Please ensure your W&B server is updated to a version that "
+                    "supports run state transitions."
+                ) from e
+            if "invalid state transition" in error_msg.lower():
+                raise wandb.Error(
+                    f"Invalid state transition: cannot change run from '{self.state}' "
+                    f"to '{state}'. Only runs in 'failed' or 'crashed' state can be "
+                    "transitioned to 'pending'."
+                ) from e
+            raise
+
+        if result.get("updateRunState", {}).get("success"):
+            self._attrs["state"] = state
+            self._state = state
+            return True
+        return False
+
     @property
     def json_config(self) -> str:
         """Return the run config as a JSON string.
