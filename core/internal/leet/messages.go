@@ -58,9 +58,9 @@ type ErrorMsg struct {
 	Err error
 }
 
-// InitMsg contains the initialized reader.
+// InitMsg contains the initialized history source.
 type InitMsg struct {
-	Reader *WandbReader
+	Source HistorySource
 }
 
 // BatchedRecordsMsg contains all messages read during a batch read.

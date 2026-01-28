@@ -205,9 +205,9 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 
 	// Process initial reader
 	model, _ = model.Update(leet.InitMsg{
-		Reader: func() *leet.WandbReader {
-			r, _ := leet.NewWandbReader(path, logger)
-			return r
+		Source: func() *leet.LevelDBHistorySource {
+			s, _ := leet.NewLevelDBHistorySource(path, logger)
+			return s
 		}(),
 	})
 
@@ -324,9 +324,9 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 
 	// Initialize
 	model, _ = model.Update(leet.InitMsg{
-		Reader: func() *leet.WandbReader {
-			r, _ := leet.NewWandbReader(path, logger)
-			return r
+		Source: func() *leet.LevelDBHistorySource {
+			s, _ := leet.NewLevelDBHistorySource(path, logger)
+			return s
 		}(),
 	})
 

@@ -47,7 +47,7 @@ type Run struct {
 	liveRunning atomic.Bool
 
 	// Data reader.
-	reader *WandbReader
+	historyource HistorySource
 
 	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
@@ -121,9 +121,11 @@ func NewRun(
 // Implements tea.Model.Init.
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
+	source := InitializeLevelDBHistorySource(r.runPath, r.logger)
+
 	return tea.Batch(
 		windowTitleCmd(),
-		InitializeReader(r.runPath, r.logger),
+		source,
 		r.watcherMgr.WaitForMsg,
 	)
 }
