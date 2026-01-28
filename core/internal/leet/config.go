@@ -79,7 +79,7 @@ type Config struct {
 	HeartbeatInterval int `json:"heartbeat_interval_seconds" leet:"label=Heartbeat interval (sec),desc=Polling heartbeat for live runs.,min=1"`
 
 	// Sidebar visibility states.
-	LeftSidebarVisible  bool `json:"left_sidebar_visible" leet:"desc=Show left sidebar in single run view by default."`
+	LeftSidebarVisible  bool `json:"left_sidebar_visible"  leet:"desc=Show left sidebar in single run view by default."`
 	RightSidebarVisible bool `json:"right_sidebar_visible" leet:"desc=Show right sidebar in single run view by default."`
 }
 

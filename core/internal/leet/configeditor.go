@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -399,8 +400,9 @@ func (m *ConfigEditor) renderTable(width int) string {
 	var lines []string
 	lines = append(lines, headerLine)
 
-	for i, f := range m.fields {
-		val := fieldValue(f, m.draft)
+	for i := range m.fields {
+		f := m.fields[i]
+		val := fieldValue(&f, m.draft)
 		val = truncateRight(val, valW)
 
 		line := lipgloss.JoinHorizontal(
@@ -484,8 +486,7 @@ func (m *ConfigEditor) renderIntEditor(width int) string {
 		fmt.Sprintf("> %s", m.intE.input),
 	)
 	if m.intE.err != "" {
-		lines = append(lines, "")
-		lines = append(lines, errorStyle.Render(m.intE.err))
+		lines = append(lines, "", errorStyle.Render(m.intE.err))
 	}
 
 	box := lipgloss.NewStyle().
@@ -506,7 +507,7 @@ func availableColorSchemes() []string {
 	return names
 }
 
-func fieldValue(f configField, c Config) string {
+func fieldValue(f *configField, c Config) string {
 	switch f.Kind {
 	case fieldBool:
 		return strconv.FormatBool(f.getBool(c))
