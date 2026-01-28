@@ -23,8 +23,12 @@ def asyncer():
         asyncer.join()
 
 
+async def _cancel_noop(id: str) -> None:
+    _ = id
+
+
 def test_delivered_returns_immediately(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request1 = spb.ServerRequest()
     request2 = spb.ServerRequest()
     handle1 = mailbox.require_response(request1)
@@ -45,7 +49,7 @@ def test_delivered_returns_immediately(asyncer):
 
 
 def test_wait_all_same_handle_ok(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request = spb.ServerRequest()
     handle = mailbox.require_response(request)
     response = spb.ServerResponse(request_id=request.request_id)
@@ -61,8 +65,11 @@ def test_wait_all_same_handle_ok(asyncer):
 
 
 def test_abandoned_raises_immediately(asyncer):
-    handle = mb.Mailbox(asyncer).require_response(spb.ServerRequest())
-    handle.abandon()
+    handle = mb.Mailbox(
+        asyncer,
+        _cancel_noop,
+    ).require_response(spb.ServerRequest())
+    handle.cancel()
 
     with pytest.raises(mb.HandleAbandonedError):
         mb.wait_with_progress(
@@ -73,7 +80,7 @@ def test_abandoned_raises_immediately(asyncer):
 
 
 def test_runs_and_cancels_display_callback(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request = spb.ServerRequest()
     handle = mailbox.require_response(request)
     response = spb.ServerResponse(request_id=request.request_id)
@@ -98,7 +105,10 @@ def test_runs_and_cancels_display_callback(asyncer):
 
 
 def test_times_out(asyncer):
-    handle = mb.Mailbox(asyncer).require_response(spb.ServerRequest())
+    handle = mb.Mailbox(
+        asyncer,
+        _cancel_noop,
+    ).require_response(spb.ServerRequest())
 
     with pytest.raises(TimeoutError):
         mb.wait_with_progress(

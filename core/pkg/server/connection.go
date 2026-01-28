@@ -59,6 +59,9 @@ type Connection struct {
 	// connLifetimeCtx is cancelled when the connection should be closed.
 	connLifetimeCtx context.Context
 
+	// requestCanceller manages cancellable requests.
+	requestCanceller *RequestCanceller
+
 	// stopServer signals the server to shut down, which also closes all
 	// connections.
 	stopServer context.CancelFunc
@@ -113,6 +116,7 @@ func NewConnection(
 ) *Connection {
 	return &Connection{
 		connLifetimeCtx:    serverLifetimeCtx,
+		requestCanceller:   NewRequestCanceller(),
 		stopServer:         stopServer,
 		streamMux:          params.StreamMux,
 		runSyncManager:     params.RunSyncManager,
@@ -316,8 +320,10 @@ func (nc *Connection) handleIncomingRequests() {
 		slog.Debug("handleIncomingRequests: processing message", "msg", msg, "id", nc.id)
 
 		switch x := msg.ServerRequestType.(type) {
+		case *spb.ServerRequest_Cancel:
+			nc.handleCancel(x.Cancel)
 		case *spb.ServerRequest_Authenticate:
-			nc.handleAuthenticate(x.Authenticate)
+			nc.handleAuthenticate(msg.RequestId, x.Authenticate)
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
 		case *spb.ServerRequest_InformAttach:
@@ -358,6 +364,14 @@ func (nc *Connection) handleIncomingRequests() {
 	}
 
 	slog.Debug("handleIncomingRequests: finished", "id", nc.id)
+}
+
+// handleCancel cancels the work of a previous server request.
+func (nc *Connection) handleCancel(msg *spb.ServerCancelRequest) {
+	slog.Info("connection: cancelling request",
+		"id", nc.id,
+		"requestId", msg.RequestId)
+	nc.requestCanceller.Cancel(msg.RequestId)
 }
 
 // handleInformInit handles the initialization of a new stream by the client.
@@ -452,10 +466,16 @@ func (nc *Connection) handleInformAttach(
 //
 // Note: This function will be deprecated once the Public API workflow
 // in wandb-core is implemented.
-func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
+func (nc *Connection) handleAuthenticate(
+	id string,
+	msg *spb.ServerAuthenticateRequest,
+) {
 	slog.Debug("handleAuthenticate: received", "id", nc.id)
 
-	response := nc.handleAuthenticateImpl(msg)
+	ctx, cancel := nc.requestCanceller.Context(id)
+	defer cancel()
+
+	response := nc.handleAuthenticateImpl(ctx, msg)
 	response.XInfo = msg.XInfo
 
 	nc.Respond(&spb.ServerResponse{
@@ -466,6 +486,7 @@ func (nc *Connection) handleAuthenticate(msg *spb.ServerAuthenticateRequest) {
 }
 
 func (nc *Connection) handleAuthenticateImpl(
+	ctx context.Context,
 	msg *spb.ServerAuthenticateRequest,
 ) *spb.ServerAuthenticateResponse {
 	baseURL, err := url.Parse(msg.BaseUrl)
@@ -496,7 +517,7 @@ func (nc *Connection) handleAuthenticateImpl(
 		api.AsStandardClient(apiClient),
 	)
 
-	data, err := gql.Viewer(context.Background(), graphqlClient)
+	data, err := gql.Viewer(ctx, graphqlClient)
 	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
 		return &spb.ServerAuthenticateResponse{
 			ErrorStatus: "Invalid credentials",
@@ -698,7 +719,6 @@ func (nc *Connection) Close() {
 // The response is then processed and sent to the client by the `processOutgoingData`
 // function.
 func (nc *Connection) Respond(resp *spb.ServerResponse) {
-
 	// Check if the connection has already been closed
 	if nc.closed.Load() {
 		// TODO: this is a bit of a hack, we should probably handle this better

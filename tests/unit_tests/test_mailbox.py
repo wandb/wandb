@@ -47,8 +47,12 @@ def asyncer():
         asyncer.join()
 
 
+async def _cancel_noop(id: str) -> None:
+    _ = id
+
+
 def test_wait_already_delivered(any_timeout, asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request = spb.ServerRequest()
     handle = mailbox.require_response(request)
     response = spb.ServerResponse(request_id=request.request_id)
@@ -60,16 +64,16 @@ def test_wait_already_delivered(any_timeout, asyncer):
 
 
 def test_wait_abandoned(any_timeout, asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     handle = mailbox.require_response(spb.ServerRequest())
 
-    handle.abandon()
+    handle.cancel()
     with pytest.raises(mb.HandleAbandonedError):
         handle.wait_or(timeout=any_timeout)
 
 
 def test_wait_timeout(immediate_timeout, asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     handle = mailbox.require_response(spb.ServerRequest())
 
     with pytest.raises(TimeoutError):
@@ -77,7 +81,7 @@ def test_wait_timeout(immediate_timeout, asyncer):
 
 
 def test_wait_invalid_timeout(invalid_timeout, asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     handle = mailbox.require_response(spb.ServerRequest())
 
     with pytest.raises(ValueError, match="Timeout must be finite or None."):
@@ -86,7 +90,7 @@ def test_wait_invalid_timeout(invalid_timeout, asyncer):
 
 @pytest.mark.parametrize("kind", ["deliver", "abandon"])
 def test_unblocks_wait_async(kind, asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request = spb.ServerRequest()
     handle = mailbox.require_response(request)
     response = spb.ServerResponse(request_id=request.request_id)
@@ -114,12 +118,12 @@ def test_unblocks_wait_async(kind, asyncer):
         asyncer.run(lambda: mailbox.deliver(response))
         asyncer.run(lambda: wait_event(delivered))
     else:
-        handle.abandon()
+        handle.cancel()
         asyncer.run(lambda: wait_event(abandoned))
 
 
 def test_require_response_sets_address(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request = spb.ServerRequest()
     mailbox.require_response(request)
 
@@ -127,7 +131,7 @@ def test_require_response_sets_address(asyncer):
 
 
 def test_require_response_sets_mailbox_slot(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     record = pb.Record()
     mailbox.require_response(record)
 
@@ -135,7 +139,7 @@ def test_require_response_sets_mailbox_slot(asyncer):
 
 
 def test_require_response__record_publish(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request = spb.ServerRequest()
     request.record_publish.exit.exit_code = 0
     mailbox.require_response(request)
@@ -145,7 +149,7 @@ def test_require_response__record_publish(asyncer):
 
 
 def test_require_response__record_communicate(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request = spb.ServerRequest()
     request.record_communicate.exit.exit_code = 0
     mailbox.require_response(request)
@@ -155,7 +159,7 @@ def test_require_response__record_communicate(asyncer):
 
 
 def test_require_response_raises_if_address_is_set(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request = spb.ServerRequest()
     mailbox.require_response(request)
 
@@ -164,7 +168,7 @@ def test_require_response_raises_if_address_is_set(asyncer):
 
 
 def test_require_response_raises_if_mailbox_slot_is_set(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     record = pb.Record()
     mailbox.require_response(record)
 
@@ -173,7 +177,7 @@ def test_require_response_raises_if_mailbox_slot_is_set(asyncer):
 
 
 def test_require_response_raises_if_closed(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     mailbox.close()
 
     with pytest.raises(mb.MailboxClosedError):
@@ -181,7 +185,7 @@ def test_require_response_raises_if_closed(asyncer):
 
 
 def test_deliver_unknown_address(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     response = spb.ServerResponse()
     response.request_id = "unknown"
 
@@ -190,7 +194,7 @@ def test_deliver_unknown_address(asyncer):
 
 
 def test_deliver_no_address(wandb_caplog, asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
 
     asyncer.run(lambda: mailbox.deliver(spb.ServerResponse()))
 
@@ -198,7 +202,7 @@ def test_deliver_no_address(wandb_caplog, asyncer):
 
 
 def test_deliver_after_abandon(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request = spb.ServerRequest()
     handle = mailbox.require_response(request)
     assert isinstance(handle, MailboxResponseHandle)
@@ -215,7 +219,7 @@ def test_deliver_after_abandon(asyncer):
 
 
 def test_deliver_twice_raises_error(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     request = spb.ServerRequest()
     handle = mailbox.require_response(request)
     assert isinstance(handle, MailboxResponseHandle)
@@ -234,7 +238,7 @@ def test_deliver_twice_raises_error(asyncer):
 
 
 def test_close_abandons_handles(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mailbox = mb.Mailbox(asyncer, _cancel_noop)
     handle1 = mailbox.require_response(spb.ServerRequest())
     handle2 = mailbox.require_response(spb.ServerRequest())
 
@@ -247,13 +251,13 @@ def test_close_abandons_handles(asyncer):
 
 
 def test_cancel_abandons_handle(asyncer):
-    mailbox = mb.Mailbox(asyncer)
+    mock_cancel = unittest.mock.MagicMock()
+    mailbox = mb.Mailbox(asyncer, mock_cancel)
     request = spb.ServerRequest()
     handle = mailbox.require_response(request)
-    iface_mock = unittest.mock.Mock()
 
-    handle.cancel(iface_mock)
+    handle.cancel()
 
-    iface_mock.publish_cancel.assert_called_once_with(request.request_id)
     with pytest.raises(HandleAbandonedError):
         handle.wait_or(timeout=1)
+    mock_cancel.assert_called_once_with(request.request_id)
