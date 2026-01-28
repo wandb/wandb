@@ -8,42 +8,42 @@ import (
 	"github.com/getsentry/sentry-go/internal/ratelimit"
 )
 
-// Buffer is the top-level buffer that wraps the scheduler and category buffers.
-type Buffer struct {
+// Processor is the top-level object that wraps the scheduler and buffers.
+type Processor struct {
 	scheduler *Scheduler
 }
 
-// NewBuffer creates a new Buffer with the given configuration.
-func NewBuffer(
-	storage map[ratelimit.Category]Storage[protocol.EnvelopeItemConvertible],
+// NewProcessor creates a new Processor with the given configuration.
+func NewProcessor(
+	buffers map[ratelimit.Category]Buffer[protocol.TelemetryItem],
 	transport protocol.TelemetryTransport,
 	dsn *protocol.Dsn,
 	sdkInfo *protocol.SdkInfo,
-) *Buffer {
-	scheduler := NewScheduler(storage, transport, dsn, sdkInfo)
+) *Processor {
+	scheduler := NewScheduler(buffers, transport, dsn, sdkInfo)
 	scheduler.Start()
 
-	return &Buffer{
+	return &Processor{
 		scheduler: scheduler,
 	}
 }
 
-// Add adds an EnvelopeItemConvertible to the appropriate buffer based on its category.
-func (b *Buffer) Add(item protocol.EnvelopeItemConvertible) bool {
+// Add adds a TelemetryItem to the appropriate buffer based on its category.
+func (b *Processor) Add(item protocol.TelemetryItem) bool {
 	return b.scheduler.Add(item)
 }
 
 // Flush forces all buffers to flush within the given timeout.
-func (b *Buffer) Flush(timeout time.Duration) bool {
+func (b *Processor) Flush(timeout time.Duration) bool {
 	return b.scheduler.Flush(timeout)
 }
 
 // FlushWithContext flushes with a custom context for cancellation.
-func (b *Buffer) FlushWithContext(ctx context.Context) bool {
+func (b *Processor) FlushWithContext(ctx context.Context) bool {
 	return b.scheduler.FlushWithContext(ctx)
 }
 
 // Close stops the buffer, flushes remaining data, and releases resources.
-func (b *Buffer) Close(timeout time.Duration) {
+func (b *Processor) Close(timeout time.Duration) {
 	b.scheduler.Stop(timeout)
 }

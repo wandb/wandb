@@ -4,8 +4,8 @@ import (
 	"github.com/getsentry/sentry-go/internal/ratelimit"
 )
 
-// Storage defines the common interface for all buffer storage implementations.
-type Storage[T any] interface {
+// Buffer defines the common interface for all buffer implementations.
+type Buffer[T any] interface {
 	// Core operations
 	Offer(item T) bool
 	Poll() (T, bool)
