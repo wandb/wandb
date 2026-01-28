@@ -257,8 +257,8 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) cleanup() {
-	if r.reader != nil {
-		r.reader.Close()
+	if r.historySource != nil {
+		r.historySource.Close()
 	}
 	if r.heartbeatMgr != nil {
 		r.heartbeatMgr.Stop()
@@ -541,10 +541,10 @@ func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.C
 // handleInit handles InitMsg (reader ready).
 func (r *Run) handleInit(msg InitMsg) []tea.Cmd {
 	r.logger.Debug("model: InitMsg received, reader initialized")
-	r.reader = msg.Reader
+	r.historySource = msg.Source
 	r.loadStartTime = time.Now()
 
-	return []tea.Cmd{ReadAllRecordsChunked(r.reader)}
+	return []tea.Cmd{ReadAllRecordsChunked(r.historySource)}
 }
 
 // handleChunkedBatch handles boot-load chunked batches.
