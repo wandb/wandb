@@ -21,15 +21,15 @@ func TestWorkspace_PinSelectsAndPinsWhenNotSelected(t *testing.T) {
 	run1 := "run-20250731_170606-iazb7i1k"
 	w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1}})
 
-	require.Equal(t, 1, w.TestSelectedRunCount()) // autoselect
+	require.Equal(t, 1, w.TestSelectedRunCount()) // autoselect and pin
 	require.Equal(t, run1, w.TestPinnedRun())
 
-	// Pin should select + pin (regression test for select-then-unpin bug).
+	// Unpin.
 	w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
 
 	require.Equal(t, 1, w.TestSelectedRunCount())
 	require.True(t, w.TestIsRunSelected(run1))
-	require.Equal(t, run1, w.TestPinnedRun())
+	require.Equal(t, "", w.TestPinnedRun())
 }
 
 func TestWorkspace_SelectAndPinRuns_StateTransitions(t *testing.T) {
