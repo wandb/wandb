@@ -1,0 +1,12 @@
+query QueryRunConfigSummary(
+    $entity: String!,
+    $project: String!,
+    $run: String!,
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $run) {
+            displayName
+            summaryMetrics
+        }
+    }
+}
