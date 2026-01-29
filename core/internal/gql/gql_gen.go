@@ -991,6 +991,34 @@ func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationC
 	return v.Entity
 }
 
+// QueryRunConfigSummaryProject includes the requested fields of the GraphQL type Project.
+type QueryRunConfigSummaryProject struct {
+	Run *QueryRunConfigSummaryProjectRun `json:"run"`
+}
+
+// GetRun returns QueryRunConfigSummaryProject.Run, and is useful for accessing the field via an interface.
+func (v *QueryRunConfigSummaryProject) GetRun() *QueryRunConfigSummaryProjectRun { return v.Run }
+
+// QueryRunConfigSummaryProjectRun includes the requested fields of the GraphQL type Run.
+type QueryRunConfigSummaryProjectRun struct {
+	DisplayName    *string `json:"displayName"`
+	SummaryMetrics *string `json:"summaryMetrics"`
+}
+
+// GetDisplayName returns QueryRunConfigSummaryProjectRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *QueryRunConfigSummaryProjectRun) GetDisplayName() *string { return v.DisplayName }
+
+// GetSummaryMetrics returns QueryRunConfigSummaryProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *QueryRunConfigSummaryProjectRun) GetSummaryMetrics() *string { return v.SummaryMetrics }
+
+// QueryRunConfigSummaryResponse is returned by QueryRunConfigSummary on success.
+type QueryRunConfigSummaryResponse struct {
+	Project *QueryRunConfigSummaryProject `json:"project"`
+}
+
+// GetProject returns QueryRunConfigSummaryResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryRunConfigSummaryResponse) GetProject() *QueryRunConfigSummaryProject { return v.Project }
+
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
 	RewindRun *RewindRunRewindRunRewindRunPayload `json:"rewindRun"`
@@ -1996,6 +2024,22 @@ type __OrganizationCoreWeaveOrganizationIDInput struct {
 // GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
 
+// __QueryRunConfigSummaryInput is used internally by genqlient
+type __QueryRunConfigSummaryInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Run     string `json:"run"`
+}
+
+// GetEntity returns __QueryRunConfigSummaryInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryRunConfigSummaryInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryRunConfigSummaryInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryRunConfigSummaryInput) GetProject() string { return v.Project }
+
+// GetRun returns __QueryRunConfigSummaryInput.Run, and is useful for accessing the field via an interface.
+func (v *__QueryRunConfigSummaryInput) GetRun() string { return v.Run }
+
 // __RewindRunInput is used internally by genqlient
 type __RewindRunInput struct {
 	RunName     string  `json:"runName"`
@@ -2913,6 +2957,47 @@ func OrganizationCoreWeaveOrganizationID(
 	}
 
 	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by QueryRunConfigSummary.
+const QueryRunConfigSummary_Operation = `
+query QueryRunConfigSummary ($entity: String!, $project: String!, $run: String!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			displayName
+			summaryMetrics
+		}
+	}
+}
+`
+
+func QueryRunConfigSummary(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+) (data_ *QueryRunConfigSummaryResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryRunConfigSummary",
+		Query:  QueryRunConfigSummary_Operation,
+		Variables: &__QueryRunConfigSummaryInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+		},
+	}
+
+	data_ = &QueryRunConfigSummaryResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

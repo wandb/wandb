@@ -197,14 +197,17 @@ func leetMain(args []string) int {
 A terminal UI for viewing your W&B runs locally.
 
 Usage:
-  wandb-core leet [flags] <wandb-directory>
+  wandb-core leet [flags] <wandb-file/wandb-run-path>
 
 Arguments:
-  <wandb-directory>  Path to the wandb directory containing run folders.
+  <wandb-file/wandb-run-path> Path to the .wandb file of a W&B run or a W&B run path.
+		When a run path is prefixed with "wandb://", the run metrics are read from the W&B backend.
+		Example:
+		  /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb
+		  wandb://wandbUser/wandbProject/run-1234567890
 
 Options:
   -h, --help         Show this help message
-
 Flags:
 `)
 		fs.PrintDefaults()
