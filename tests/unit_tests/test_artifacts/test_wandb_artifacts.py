@@ -25,6 +25,7 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     multipart_download,
     should_multipart_download,
 )
+from wandb.sdk.artifacts.storage_policies._url_provider import SharedUrlProvider
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
 if TYPE_CHECKING:
@@ -558,10 +559,19 @@ def test_artifact_multipart_download_network_error():
 
     file = CountOnlyFile()
     opener = MockOpener(file)
+    url_provider = SharedUrlProvider(
+        initial_url="https://invalid.com",
+        fetch_fn=lambda: "https://invalid.com",
+        ttl_seconds=5.0,
+    )
     with pytest.raises(requests.exceptions.ConnectionError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
-                executor, session, "https://invalid.com", 4 * 1024 * 1024 * 1024, opener
+                executor,
+                session,
+                4 * 1024 * 1024 * 1024,
+                opener,
+                url_provider,
             )
     assert file.seek_count == 0
     assert file.write_count == 0
@@ -573,6 +583,8 @@ def test_artifact_multipart_download_disk_error():
             raise ValueError("I/O operation on closed file")
 
     class MockResponse:
+        status_code = 200
+
         def raise_for_status(self):
             pass
 
@@ -597,15 +609,213 @@ def test_artifact_multipart_download_disk_error():
 
     file = ThrowFile()
     opener = MockOpener(file)
+    url_provider = SharedUrlProvider(
+        initial_url="https://mocked.com",
+        fetch_fn=lambda: "https://mocked.com",
+        ttl_seconds=5.0,
+    )
     with pytest.raises(ValueError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
                 session,
-                "https://mocked.com",
                 500 * 1024 * 1024,  # 500MB should have 5 parts
                 opener,
+                url_provider,
             )
     # After first get call has errors, reamining get call should return without making the call.
     # It can be 5 depends on underlying environment,e.g. it fails on winodws from time to time.
     assert session.get_count <= 5
+
+
+class TestSharedUrlProvider:
+    """Unit tests for SharedUrlProvider."""
+
+    def test_get_url_returns_initial_url(self):
+        """Test that get_url returns the initial URL when not invalidated."""
+        fetch_fn = Mock(return_value="https://example.com/refreshed")
+        provider = SharedUrlProvider(
+            initial_url="https://example.com/initial",
+            fetch_fn=fetch_fn,
+            ttl_seconds=5.0,
+        )
+
+        url = provider.get_url()
+
+        assert url == "https://example.com/initial"
+        fetch_fn.assert_not_called()  # Should not fetch since we have initial URL
+
+    def test_get_url_caches_within_ttl(self):
+        """Test that URLs are cached and fetch_fn is not called repeatedly."""
+        fetch_fn = Mock(return_value="https://example.com/refreshed")
+        provider = SharedUrlProvider(
+            initial_url="https://example.com/initial",
+            fetch_fn=fetch_fn,
+            ttl_seconds=5.0,
+        )
+
+        # Multiple calls should return cached URL
+        url1 = provider.get_url()
+        url2 = provider.get_url()
+
+        assert url1 == url2 == "https://example.com/initial"
+        fetch_fn.assert_not_called()  # Never fetched since initial URL is valid
+
+    def test_invalidate_forces_refresh(self):
+        """Test that invalidate forces the next get_url to fetch."""
+        call_count = 0
+
+        def fetch_fn():
+            nonlocal call_count
+            call_count += 1
+            return f"https://example.com/url{call_count}"
+
+        provider = SharedUrlProvider(
+            initial_url="https://example.com/initial",
+            fetch_fn=fetch_fn,
+            ttl_seconds=5.0,
+        )
+
+        url1 = provider.get_url()
+        assert url1 == "https://example.com/initial"
+        assert call_count == 0  # Haven't fetched yet
+
+        provider.invalidate()
+        url2 = provider.get_url()
+
+        assert url2 == "https://example.com/url1"
+        assert call_count == 1
+
+
+def test_artifact_multipart_download_retries_on_403():
+    """Test that multipart download retries with fresh URL on 403."""
+    request_count = 0
+
+    class MockResponse:
+        def __init__(self, status_code: int):
+            self.status_code = status_code
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise requests.HTTPError(response=self)
+
+        def iter_content(self, chunk_size: int = 1024):
+            return [b"test data"]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            pass
+
+    class MockSession:
+        def get(self, url: str, headers: dict = None, stream: bool = False):
+            nonlocal request_count
+            request_count += 1
+            # First request returns 403, subsequent requests succeed
+            if request_count == 1:
+                return MockResponse(status_code=403)
+            return MockResponse(status_code=206)
+
+    refresh_count = 0
+
+    def fetch_fresh_url():
+        nonlocal refresh_count
+        refresh_count += 1
+        return "https://example.com/new-url"
+
+    url_provider = SharedUrlProvider(
+        initial_url="https://example.com/initial-url",
+        fetch_fn=fetch_fresh_url,
+        ttl_seconds=5.0,
+    )
+
+    class CountingFile(IO):
+        def __init__(self):
+            self.write_count = 0
+
+        def seek(self, offset: int, whence: int = 0) -> int:
+            return offset
+
+        def write(self, s: AnyStr) -> int:
+            self.write_count += 1
+            return len(s)
+
+    file = CountingFile()
+    opener = MockOpener(file)
+    session = MockSession()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        multipart_download(
+            executor,
+            session,
+            100,  # Small size for single chunk
+            opener,
+            url_provider,
+            part_size=100,
+        )
+
+    # Should have retried after 403
+    assert request_count == 2
+    # Should have refreshed URL after 403
+    assert refresh_count == 1
+    # Should have written data
+    assert file.write_count > 0
+
+
+def test_artifact_multipart_download_max_retries_exceeded():
+    """Test that max retries are respected."""
+
+    class MockResponse:
+        status_code = 403
+
+        def raise_for_status(self):
+            raise requests.HTTPError(response=self)
+
+        def iter_content(self, chunk_size: int = 1024):
+            return []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            pass
+
+    request_count = 0
+
+    class MockSession:
+        def get(self, url: str, headers: dict = None, stream: bool = False):
+            nonlocal request_count
+            request_count += 1
+            return MockResponse()  # Always return 403
+
+    url_provider = SharedUrlProvider(
+        initial_url="https://example.com/url",
+        fetch_fn=lambda: "https://example.com/new-url",
+        ttl_seconds=0.01,
+    )
+
+    class CountingFile(IO):
+        def seek(self, offset: int, whence: int = 0) -> int:
+            return offset
+
+        def write(self, s: AnyStr) -> int:
+            return len(s)
+
+    file = CountingFile()
+    opener = MockOpener(file)
+    session = MockSession()
+
+    with pytest.raises(requests.HTTPError):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            multipart_download(
+                executor,
+                session,
+                100,
+                opener,
+                url_provider,
+                part_size=100,
+            )
+
+    # Should have tried 4 times (1 initial + 3 retries)
+    assert request_count == 4
