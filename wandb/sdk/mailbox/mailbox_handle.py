@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING, Callable, Generic
+from typing import Callable, Generic
 
 from typing_extensions import TypeVar, override
 
 from wandb.sdk.lib import asyncio_manager
-
-# Necessary to break an import loop.
-if TYPE_CHECKING:
-    from wandb.sdk.interface import interface
-
 
 _T = TypeVar("_T")
 _S = TypeVar("_S")
@@ -47,24 +42,13 @@ class MailboxHandle(abc.ABC, Generic[_T]):
         return _MailboxMappedHandle(self, fn)
 
     @abc.abstractmethod
-    def abandon(self) -> None:
-        """Abandon the handle, indicating it will not receive a response.
-
-        This may not happen immediately: it is possible for an existing
-        call to `wait_async` to complete successfully after this method returns.
-        """
-
-    @abc.abstractmethod
-    def cancel(self, iface: interface.InterfaceBase) -> None:
+    def cancel(self) -> None:
         """Cancel the handle, requesting any associated work to not complete.
 
-        It is an error to call this from an async function.
+        Any calls to `wait_or` or `wait_async` will raise `HandleAbandonedError`
+        if they aren't resolved within a short time.
 
-        This automatically abandons the handle, as a response is no longer
-        guaranteed.
-
-        Args:
-            iface: The interface on which to publish the cancel request.
+        Cancellation is best-effort. Most exceptions are logged and suppressed.
         """
 
     @abc.abstractmethod
@@ -72,6 +56,8 @@ class MailboxHandle(abc.ABC, Generic[_T]):
         """Wait for a response or a timeout.
 
         It is an error to call this from an async function.
+        On error, including KeyboardInterrupt or a timeout,
+        the handle cancels itself.
 
         Args:
             timeout: A finite number of seconds or None to never time out.
@@ -91,6 +77,8 @@ class MailboxHandle(abc.ABC, Generic[_T]):
         """Wait for a response or timeout.
 
         This must run in an `asyncio` event loop.
+        On error, including asyncio cancellation, KeyboardInterrupt or
+        a timeout, the handle cancels itself.
 
         Args:
             timeout: A finite number of seconds or None to never time out.
@@ -117,12 +105,8 @@ class _MailboxMappedHandle(Generic[_S], MailboxHandle[_S]):
         self._fn = fn
 
     @override
-    def abandon(self) -> None:
-        self._handle.abandon()
-
-    @override
-    def cancel(self, iface: interface.InterfaceBase) -> None:
-        self._handle.cancel(iface)
+    def cancel(self) -> None:
+        self._handle.cancel()
 
     @override
     def wait_or(self, *, timeout: float | None) -> _S:

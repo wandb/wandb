@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package wandb_internal;
 
+import "wandb/proto/wandb_api.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_settings.proto";
 import "wandb/proto/wandb_sync.proto";
-import "wandb/proto/wandb_api.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
@@ -76,6 +76,15 @@ message ServerInformTeardownRequest {
 
 message ServerInformTeardownResponse {}
 
+// Cancels a previously sent ServerRequest.
+//
+// This indicates that a response is no longer needed and that the associated
+// work can be cancelled. This request receives no response.
+message ServerCancelRequest {
+  // The ID of a previously-sent request to cancel.
+  string request_id = 1;
+}
+
 /*
  * ServerRequest, ServerResponse: used in sock server
  */
@@ -93,6 +102,8 @@ message ServerRequest {
   string request_id = 10;
 
   oneof server_request_type {
+    ServerCancelRequest cancel = 16;
+
     Record record_publish = 1;
     Record record_communicate = 2;
     ServerInformInitRequest inform_init = 3;

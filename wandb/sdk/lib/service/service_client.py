@@ -26,7 +26,7 @@ class ServiceClient:
     ) -> None:
         self._reader = reader
         self._writer = writer
-        self._mailbox = Mailbox(asyncer)
+        self._mailbox = Mailbox(asyncer, self._cancel_request)
         asyncer.run_soon(
             self._forward_responses,
             daemon=True,
@@ -62,6 +62,20 @@ class ServiceClient:
         self._writer.write(data)
 
         await self._writer.drain()
+
+    async def _cancel_request(self, id: str, /) -> None:
+        """Cancel a request by ID.
+
+        Args:
+            id: The request_id of a previously-sent ServerRequest.
+        """
+        await self.publish(
+            spb.ServerRequest(
+                cancel=spb.ServerCancelRequest(
+                    request_id=id,
+                )
+            )
+        )
 
     async def close(self) -> None:
         """Flush and close the socket."""
