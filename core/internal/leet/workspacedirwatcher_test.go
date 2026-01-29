@@ -16,11 +16,12 @@ func TestWorkspace_PinSelectsAndPinsWhenNotSelected(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	require.Equal(t, 0, w.TestSelectedRunCount())
 
 	run1 := "run-20250731_170606-iazb7i1k"
 	w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1}})
 
-	require.Equal(t, 0, w.TestSelectedRunCount())
+	require.Equal(t, 1, w.TestSelectedRunCount()) // autoselect
 	require.Equal(t, "", w.TestPinnedRun())
 
 	// Pin should select + pin (regression test for select-then-unpin bug).
@@ -41,8 +42,7 @@ func TestWorkspace_SelectAndPinRuns_StateTransitions(t *testing.T) {
 	run2 := "run-20250731_170607-zzzzzzzz"
 	w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
 
-	// Select first run.
-	w.Update(tea.KeyMsg{Type: tea.KeySpace})
+	// First run is autoselected.
 	require.Equal(t, 1, w.TestSelectedRunCount())
 	require.True(t, w.TestIsRunSelected(run1))
 	require.Equal(t, run1, w.TestPinnedRun())
