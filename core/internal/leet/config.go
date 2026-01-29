@@ -523,10 +523,10 @@ func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
 }
 
 // SetConfig replaces the full config (validated) and persists it.
-func (cm *ConfigManager) SetConfig(cfg Config) error {
+func (cm *ConfigManager) SetConfig(cfg *Config) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-	cm.config = cfg
+	cm.config = *cfg
 	cm.normalizeConfig()
 	return cm.save()
 }

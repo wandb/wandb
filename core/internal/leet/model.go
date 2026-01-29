@@ -313,8 +313,7 @@ func wandbFileFromLatestRunLink(wandbDir string) (string, error) {
 	}
 
 	latestWandbFile := runWandbFile(wandbDir, resolvedLatestRunPath)
-	info, err = os.Stat(latestRunPath)
-	if err != nil {
+	if _, err = os.Stat(latestWandbFile); err != nil {
 		return "", err
 	}
 

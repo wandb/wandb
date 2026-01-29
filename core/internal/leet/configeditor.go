@@ -169,7 +169,7 @@ func (m *ConfigEditor) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Quit
 	case "s", "ctrl+s":
-		if err := m.cfg.SetConfig(m.draft); err != nil {
+		if err := m.cfg.SetConfig(&m.draft); err != nil {
 			m.status = fmt.Sprintf("Save failed: %v", err)
 			return m, nil
 		}
@@ -402,7 +402,7 @@ func (m *ConfigEditor) renderTable(width int) string {
 
 	for i := range m.fields {
 		f := m.fields[i]
-		val := fieldValue(&f, m.draft)
+		val := fieldValue(&f, &m.draft)
 		val = truncateRight(val, valW)
 
 		line := lipgloss.JoinHorizontal(
@@ -507,14 +507,14 @@ func availableColorSchemes() []string {
 	return names
 }
 
-func fieldValue(f *configField, c Config) string {
+func fieldValue(f *configField, c *Config) string {
 	switch f.Kind {
 	case fieldBool:
-		return strconv.FormatBool(f.getBool(c))
+		return strconv.FormatBool(f.getBool(*c))
 	case fieldInt:
-		return strconv.Itoa(f.getInt(c))
+		return strconv.Itoa(f.getInt(*c))
 	case fieldEnum:
-		return f.getEnum(c)
+		return f.getEnum(*c)
 	default:
 		return ""
 	}
