@@ -8,15 +8,19 @@ import threading
 from concurrent.futures import FIRST_EXCEPTION, Executor, wait
 from dataclasses import dataclass, field
 from queue import Queue
-from typing import TYPE_CHECKING, Any, Final, Iterator, Union
+from typing import IO, TYPE_CHECKING, Any, Final, Iterator, Union
 
+import requests
 from typing_extensions import TypeAlias, TypeIs, final
 
 from wandb import env
 from wandb.sdk.artifacts.artifact_file_cache import Opener
+from wandb.sdk.lib import retry
 
 if TYPE_CHECKING:
     from requests import Session
+
+    from ._url_provider import SharedUrlProvider
 
 logger = logging.getLogger(__name__)
 
@@ -94,80 +98,150 @@ def scan_chunks(path: str, chunk_size: int) -> Iterator[bytes]:
 
 
 @dataclass
-class MultipartDownloadContext:
+class _DownloadContext:
+    """Shared state for multipart download threads."""
+
     q: Queue[QueuedChunk]
     cancel: threading.Event = field(default_factory=threading.Event)
+
+
+def _download_chunk_with_retry(
+    session: Session,
+    url_provider: SharedUrlProvider,
+    ctx: _DownloadContext,
+    start: int,
+    end: int | None,
+) -> None:
+    """Download a single chunk with retry logic for expired URLs.
+
+    Args:
+        session: HTTP session for making requests.
+        url_provider: Provider for getting/refreshing presigned URLs.
+        ctx: Shared download context with queue and cancel event.
+        start: Start byte offset (inclusive).
+        end: End byte offset (inclusive), or None for end of file.
+    """
+    if ctx.cancel.is_set():
+        return
+
+    # https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
+    # Start and end are both inclusive. Example: "bytes=0-499".
+    bytes_range = f"{start}-" if (end is None) else f"{start}-{end}"
+    headers = {"Range": f"bytes={bytes_range}"}
+
+    # Track current URL in a container so check_retry_fn can update it
+    url_container = {"url": url_provider.get_url()}
+
+    def check_retry_fn(e: Exception) -> bool:
+        """Check if we should retry this exception and refresh URL if needed."""
+        if not isinstance(e, requests.HTTPError):
+            return False
+
+        status_code = getattr(e.response, "status_code", None)
+        if status_code in (401, 403):
+            # URL likely expired, invalidate and get fresh URL
+            if env.is_debug():
+                logger.debug(f"Download got {status_code}, refreshing URL for retry")
+            url_provider.invalidate()
+            url_container["url"] = url_provider.get_url()
+            return True  # Retry this error
+
+        return False  # Don't retry other errors
+
+    def attempt_download() -> None:
+        """Single download attempt."""
+        with session.get(url=url_container["url"], headers=headers, stream=True) as rsp:
+            rsp.raise_for_status()
+
+            offset = start
+            for chunk in rsp.iter_content(chunk_size=RSP_CHUNK_SIZE):
+                if ctx.cancel.is_set():
+                    return
+                ctx.q.put(ChunkContent(offset=offset, data=chunk))
+                offset += len(chunk)
+
+    # Use common retry logic with exponential backoff
+    retrier = retry.Retry(
+        attempt_download,
+        num_retries=3,
+        check_retry_fn=check_retry_fn,
+        retryable_exceptions=(requests.HTTPError,),
+        error_prefix="Multipart download chunk error",
+    )
+    retrier(retry_sleep_base=0.5)  # 500ms base delay with exponential backoff
+
+
+def _write_chunks(ctx: _DownloadContext, file: IO[bytes]) -> None:
+    """Write downloaded chunks to file.
+
+    Args:
+        ctx: Shared download context with queue and cancel event.
+        file: File handle to write to.
+    """
+    # Process chunks until cancelled or END_CHUNK sentinel received
+    while not (ctx.cancel.is_set() or is_end_chunk(chunk := ctx.q.get())):
+        try:
+            # NOTE: Seek works without pre-allocating the file on disk.
+            # It automatically creates a sparse file, e.g. ls -hl would show
+            # a bigger size compared to du -sh * because downloading different
+            # chunks is not a sequential write.
+            # See https://man7.org/linux/man-pages/man2/lseek.2.html
+            file.seek(chunk.offset)
+            file.write(chunk.data)
+        except Exception as e:
+            if env.is_debug():
+                logger.debug(f"Error writing chunk to file: {e}")
+            ctx.cancel.set()
+            raise
 
 
 def multipart_download(
     executor: Executor,
     session: Session,
-    url: str,
     size: int,
     cached_open: Opener,
+    url_provider: SharedUrlProvider,
     part_size: int = MULTI_DEFAULT_PART_SIZE,
-):
+) -> None:
     """Download file as multiple parts in parallel.
 
-    Only one thread for writing to file. Each part run one http request in one thread.
-    HTTP response chunk of a file part is sent to the writer thread via a queue.
+    Uses one thread for writing to file. Each part runs one HTTP request in one thread.
+    HTTP response chunks are sent to the writer thread via a queue.
+
+    Args:
+        executor: Thread pool executor for parallel downloads.
+        session: HTTP session for making requests.
+        size: Total file size in bytes.
+        cached_open: Opener function for writing to cache.
+        url_provider: SharedUrlProvider for getting/refreshing presigned URLs.
+                     Chunks will retry with fresh URLs on 401/403.
+        part_size: Size of each download part in bytes.
     """
-    # ------------------------------------------------------------------------------
-    # Shared between threads
-    ctx = MultipartDownloadContext(q=Queue(maxsize=500))
+    ctx = _DownloadContext(q=Queue(maxsize=500))
 
     # Put cache_open at top so we remove the tmp file when there is network error.
     with cached_open("wb") as f:
+        # Start writer thread first
+        write_future = executor.submit(_write_chunks, ctx, f)
 
-        def download_chunk(start: int, end: int | None = None) -> None:
-            # Error from another thread, no need to start
-            if ctx.cancel.is_set():
-                return
-
-            # https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
-            # Start and end are both inclusive. An empty end uses the actual end
-            # of the file. Example string: "bytes=0-499".
-            bytes_range = f"{start}-" if (end is None) else f"{start}-{end}"
-            headers = {"Range": f"bytes={bytes_range}"}
-            with session.get(url=url, headers=headers, stream=True) as rsp:
-                offset = start
-                for chunk in rsp.iter_content(chunk_size=RSP_CHUNK_SIZE):
-                    if ctx.cancel.is_set():
-                        return
-                    ctx.q.put(ChunkContent(offset=offset, data=chunk))
-                    offset += len(chunk)
-
-        def write_chunks() -> None:
-            # If all chunks are written or there's an error in another thread, shutdown
-            while not (ctx.cancel.is_set() or is_end_chunk(chunk := ctx.q.get())):
-                try:
-                    # NOTE: Seek works without pre allocating the file on disk.
-                    # It automatically creates a sparse file, e.g. ls -hl would show
-                    # a bigger size compared to du -sh * because downloading different
-                    # chunks is not a sequential write.
-                    # See https://man7.org/linux/man-pages/man2/lseek.2.html
-                    f.seek(chunk.offset)
-                    f.write(chunk.data)
-
-                except Exception as e:
-                    if env.is_debug():
-                        logger.debug(f"Error writing chunk to file: {e}")
-                    ctx.cancel.set()
-                    raise
-
-        # Start writer thread first.
-        write_future = executor.submit(write_chunks)
-
-        # Start download threads for each chunk.
+        # Start download threads for each chunk
         download_futures = set()
         for start in range(0, size, part_size):
             # https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
-            # Start and end are both inclusive. An empty end uses the actual end
-            # of the file. Example string: "bytes=0-499".
+            # Start and end are both inclusive. None for end uses actual end of file.
             end = end if (end := (start + part_size - 1)) < size else None
-            download_futures.add(executor.submit(download_chunk, start=start, end=end))
+            download_futures.add(
+                executor.submit(
+                    _download_chunk_with_retry,
+                    session,
+                    url_provider,
+                    ctx,
+                    start,
+                    end,
+                )
+            )
 
-        # Wait for download
+        # Wait for downloads and handle errors
         done, not_done = wait(download_futures, return_when=FIRST_EXCEPTION)
         try:
             for fut in done:
@@ -177,11 +251,9 @@ def multipart_download(
                 logger.debug(f"Error downloading file: {e}")
             ctx.cancel.set()
 
-            # Cancel any pending futures.  Note:
-            # - `Future.cancel()` does NOT stop the future if it's running, which is why
-            #   there's a separate `threading.Event` to ensure cooperative cancellation.
-            # - Once Python 3.8 support is dropped, replace these `fut.cancel()`
-            #   calls with `Executor.shutdown(cancel_futures=True)`.
+            # Cancel any pending futures.
+            # Note: Future.cancel() does NOT stop running futures, which is why
+            # there's a separate threading.Event for cooperative cancellation.
             for fut in not_done:
                 fut.cancel()
             raise

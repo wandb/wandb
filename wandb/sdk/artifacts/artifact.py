@@ -2208,6 +2208,55 @@ class Artifact:
             self._fetch_file_urls_decorated = self._build_fetch_file_urls_wrapper()
         return self._fetch_file_urls_decorated(cursor, per_page)
 
+    def _fetch_single_file_url(self, file_name: str) -> str | None:
+        """Fetch a fresh presigned URL for a single file.
+
+        Used when a URL expires during download and needs to be refreshed.
+        Reuses the existing GraphQL infrastructure with fileNames filter.
+
+        Args:
+            file_name: The file name/path within the artifact manifest.
+
+        Returns:
+            The presigned URL for the file, or None if not found.
+        """
+        from ._generated import (
+            GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
+            GetArtifactMembershipFiles,
+        )
+
+        if self._client is None:
+            raise RuntimeError("Client not initialized")
+
+        # Conditionally omit totalCount for servers that don't support it
+        omit_fields = (
+            None
+            if server_supports(self._client, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+            else {"totalCount"}
+        )
+        query = gql_compat(GET_ARTIFACT_MEMBERSHIP_FILES_GQL, omit_fields=omit_fields)
+        gql_vars = {
+            "entity": self.entity,
+            "project": self.project,
+            "collection": self.name.split(":")[0],
+            "alias": self.version,
+            "fileNames": [file_name],
+            "perPage": 1,
+        }
+        data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+        result = GetArtifactMembershipFiles.model_validate(data)
+
+        if not (
+            (project := result.project)
+            and (collection := project.artifact_collection)
+            and (membership := collection.artifact_membership)
+            and (files := membership.files)
+            and files.edges
+            and (node := files.edges[0].node)
+        ):
+            return None
+        return node.direct_url
+
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
         """Replace the specified root directory with the contents of the artifact.
