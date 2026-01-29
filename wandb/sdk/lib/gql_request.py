@@ -16,6 +16,21 @@ from wandb_graphql.language.printer import print_ast
 from wandb._analytics import tracked_func
 
 
+class BearerAuth:
+    """Callable auth handler for Bearer token authentication.
+    
+    Example:
+        >>> session = GraphQLSession(auth=BearerAuth(jwt_token))
+    """
+    
+    def __init__(self, token: str) -> None:
+        self.token = token
+    
+    def __call__(self, r):
+        r.headers["Authorization"] = f"Bearer {self.token}"
+        return r
+
+
 class GraphQLSession(HTTPTransport):
     def __init__(
         self,

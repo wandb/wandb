@@ -18,6 +18,7 @@ import logging
 import os
 import urllib
 from http import HTTPStatus
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
 
 from pydantic import ValidationError
@@ -41,7 +42,7 @@ from wandb.apis.public.utils import (
     gql_compat,
     parse_org_from_registry_path,
 )
-from wandb.errors import UsageError
+from wandb.errors import AuthenticationError, UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
@@ -51,7 +52,7 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
-from wandb.sdk.lib.gql_request import GraphQLSession
+from wandb.sdk.lib.gql_request import BearerAuth, GraphQLSession
 
 if TYPE_CHECKING:
     from wandb.automations import (
@@ -192,14 +193,22 @@ class Api:
         if api_key:
             self.api_key = api_key
         else:
-            self.api_key = self._load_api_key(
+            auth = self._load_auth(base_url=self.settings["base_url"])
+            if isinstance(auth, wbauth.AuthApiKey):
+                self.api_key = auth.api_key
+            elif isinstance(auth, wbauth.AuthIdentityTokenFile):
+                # JWT auth - api_key is None, will use access_token property
+                self.api_key = None
+            else:
+                raise UsageError(f"Unsupported auth type: {type(auth)}")
+
+        # Verify login for API key auth
+        # For JWT auth, verification happens during token exchange
+        if self.api_key:
+            wandb_login._verify_login(
+                key=self.api_key,
                 base_url=self.settings["base_url"],
             )
-
-        wandb_login._verify_login(
-            key=self.api_key,
-            base_url=self.settings["base_url"],
-        )
 
         self._viewer = None
         self._projects = {}
@@ -211,18 +220,29 @@ class Api:
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
         )
+
+        if api_key:
+            auth = ("api", api_key)
+        elif self.access_token is not None:
+            auth = BearerAuth(self.access_token)
+        else:
+            auth = ("api", self.api_key or "")
+
+        base_url = self.settings["base_url"]
+        
         self._base_client = Client(
             transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
                     "Use-Admin-Privileges": "true",
+                    "Origin": base_url,  # PROBABLY CAN REMOVE BUT NEEDED THIS TO HIT PROD LOCALLY
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
-                auth=("api", self.api_key),
-                url="{}/graphql".format(self.settings["base_url"]),
+                auth=auth,
+                url="{}/graphql".format(base_url),
                 proxies=proxies,
             )
         )
@@ -246,8 +266,8 @@ class Api:
         self._service = singleton.ensure_service()
         self._service.api_init_request(self._settings.to_proto())
 
-    def _load_api_key(self, base_url: str) -> str:
-        """Load or prompt for an API key."""
+    def _load_auth(self, base_url: str) -> wbauth.Auth:
+        """Load or prompt for authentication credentials."""
         auth = wbauth.authenticate_session(
             host=base_url,
             source="wandb.Api()",
@@ -256,17 +276,35 @@ class Api:
         )
 
         if not auth:
-            raise UsageError("No API key configured. Use `wandb login` to log in.")
-        if not isinstance(auth, wbauth.AuthApiKey):
-            message = (
-                "wandb.Api() can only use API key authentication, but you have"
-                " another form of credentials configured."
-                " Check if you have set WANDB_IDENTITY_TOKEN_FILE."
-                f" Current credentials: {auth}"
-            )
-            raise UsageError(message)
+            raise UsageError("No authentication configured. Use `wandb login` to log in.")
 
-        return auth.api_key
+        return auth
+
+    @property
+    def access_token(self) -> str | None:
+        """Retrieves an access token for JWT authentication.
+
+        Returns:
+            str | None: The access token if JWT auth is configured, otherwise None.
+            
+        Raises:
+            AuthenticationError: If the identity token file is not found.
+        """
+        from wandb.sdk.lib import credentials
+        
+        token_file_str = os.environ.get(env.IDENTITY_TOKEN_FILE)
+        if not token_file_str:
+            return None
+
+        token_file = Path(token_file_str)
+        if not token_file.exists():
+            raise AuthenticationError(f"Identity token file not found: {token_file}")
+
+        base_url = self.settings["base_url"]
+        credentials_file = env.get_credentials_file(
+            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), os.environ
+        )
+        return credentials.access_token(base_url, token_file, Path(credentials_file))
 
     def _configure_sentry(self) -> None:
         if not env.error_reporting_enabled():
