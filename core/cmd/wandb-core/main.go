@@ -368,6 +368,7 @@ Usage:
   wandb-core leet --inspect [--run-file <wandb-file>] [<wandb-directory>]
   wandb-core leet --config
   wandb-core leet --symon [flags]
+  wandb-core leet [flags] <wandb-file/wandb-run-path>
 
 Arguments:
   <wandb-directory>  Path to the wandb directory containing run folders.
