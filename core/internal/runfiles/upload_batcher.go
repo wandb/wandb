@@ -9,7 +9,13 @@ import (
 
 // uploadBatcher helps batch many simultaneous upload operations.
 type uploadBatcher struct {
-	sync.Mutex
+	mu sync.Mutex
+
+	// uploadMu is held to cut and upload a batch.
+	uploadMu sync.Mutex
+
+	// done is closed when Wait is called to stop batching.
+	done chan struct{}
 
 	// Wait group for Add-ed files to get uploaded.
 	addWG *sync.WaitGroup
@@ -36,6 +42,7 @@ func newUploadBatcher(
 	}
 
 	return &uploadBatcher{
+		done:     make(chan struct{}),
 		addWG:    &sync.WaitGroup{},
 		runPaths: make(map[paths.RelativePath]struct{}),
 
@@ -51,8 +58,8 @@ func (b *uploadBatcher) Add(runPaths []paths.RelativePath) {
 		return
 	}
 
-	b.Lock()
-	defer b.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	for _, runPath := range runPaths {
 		b.runPaths[runPath] = struct{}{}
@@ -64,11 +71,25 @@ func (b *uploadBatcher) Add(runPaths []paths.RelativePath) {
 		b.addWG.Add(1)
 		go func() {
 			defer b.addWG.Done()
-			delay, _ := b.delay.Wait()
-			<-delay
+
+			delay, cancelDelay := b.delay.Wait()
+
+			select {
+			case <-delay:
+			case <-b.done:
+				cancelDelay()
+			}
+
 			b.uploadBatch()
 		}()
 	}
+}
+
+// Close stops batching and flushes any Add calls.
+//
+// Unlike Wait, it may only be called once.
+func (b *uploadBatcher) Close() {
+	close(b.done)
 }
 
 // Wait blocks until all files from previous Add calls are uploaded.
@@ -77,11 +98,16 @@ func (b *uploadBatcher) Wait() {
 }
 
 func (b *uploadBatcher) uploadBatch() {
-	b.Lock()
+	// Block and keep batching until the previous batch goes through.
+	b.uploadMu.Lock()
+	defer b.uploadMu.Unlock()
+
+	// Cut the batch.
+	b.mu.Lock()
 	b.isQueued = false
 	runPathsSet := b.runPaths
 	b.runPaths = make(map[paths.RelativePath]struct{})
-	b.Unlock()
+	b.mu.Unlock()
 
 	runPaths := make([]paths.RelativePath, 0, len(runPathsSet))
 	for runPath := range runPathsSet {
