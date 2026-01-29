@@ -146,14 +146,26 @@ class WandbStoragePolicy(StoragePolicy):
             if executor and (size := manifest_entry.size):
                 # Create URL provider with GraphQL-based refresh callback
                 def fetch_fresh_url() -> str:
-                    fresh_url = artifact._fetch_single_file_url(
-                        str(manifest_entry.path)
+                    from wandb.apis.public.artifacts import ArtifactFiles
+
+                    if artifact._client is None:
+                        raise RuntimeError("Client not initialized")
+
+                    files = ArtifactFiles(
+                        artifact._client,
+                        artifact,
+                        names=[str(manifest_entry.path)],
+                        per_page=1,
                     )
-                    if fresh_url is None:
+
+                    try:
+                        file = next(iter(files))
+                    except StopIteration:
                         raise ValueError(
                             f"Failed to fetch URL for file: {manifest_entry.path}"
                         )
-                    return fresh_url
+                    else:
+                        return file.direct_url
 
                 url_provider = SharedUrlProvider(
                     initial_url=url,
