@@ -93,7 +93,7 @@ class _DownloadStatusWatcher:
     async def _wait_then_mark_done(self) -> None:
         api_request = apb.ApiRequest(
             read_run_history_request=apb.ReadRunHistoryRequest(
-                download_run_history_start=apb.DownloadRunHistoryStart(
+                download_run_history=apb.DownloadRunHistory(
                     request_id=self.request_id,
                 )
             )
@@ -104,11 +104,11 @@ class _DownloadStatusWatcher:
 
         downloaded_files = [
             pathlib.Path(file_name)
-            for file_name in response.read_run_history_response.download_run_history_start.downloaded_files
+            for file_name in response.read_run_history_response.download_run_history.downloaded_files
         ]
         errors = {
             pathlib.Path(file_name): error_message
-            for file_name, error_message in response.read_run_history_response.download_run_history_start.errors.items()
+            for file_name, error_message in response.read_run_history_response.download_run_history.errors.items()
         }
 
         self.download_result = DownloadHistoryResult(
