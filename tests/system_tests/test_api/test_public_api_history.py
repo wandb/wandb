@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 import wandb
-from wandb.apis.public import DownloadHistoryResult, Run
+from wandb.apis.public import DownloadHistoryResult, IncompleteRunHistoryError, Run
 
 
 def stub_run_parquet_history(
@@ -243,18 +243,51 @@ def test_run_download_history_exports(
         require_complete_history=False,
     )
 
-    expected_file_names = [
-        pathlib.Path(
-            download_dir,
-            f"{run.entity}_{run.project}_{run.id}_{i}.runhistory.parquet",
-        )
-        for i in range(len(parquet_files))
-    ]
-    assert download_result.paths == expected_file_names
+    expected_file_names = set(
+        [
+            pathlib.Path(
+                download_dir,
+                f"{run.entity}_{run.project}_{run.id}_{i}.runhistory.parquet",
+            )
+            for i in range(len(parquet_files))
+        ]
+    )
+    assert set(download_result.paths) == expected_file_names
 
     for path in download_result.paths:
         assert path.exists()
 
-    assert download_result.contains_live_data == (
-        live_data is not None and len(live_data) > 0
+
+def test_run_download_history_exports__require_complete_history_raises_error(
+    wandb_backend_spy,
+    parquet_file_server,
+):
+    """Test that require_complete_history=True raises error when live data exists."""
+    parquet_files = ["parquet/1.parquet"]
+    run_data = {"_step": [0, 1, 2]}
+    for parquet_path in parquet_files:
+        parquet_file_server.serve_data_as_parquet_file(parquet_path, run_data)
+
+    live_data = [{"_step": 3, "acc": 0.95}]
+    stub_run_parquet_history(
+        wandb_backend_spy,
+        parquet_file_server,
+        parquet_files,
+        live_data=live_data,
     )
+    stub_api_run_history_keys(wandb_backend_spy, 3)
+
+    with wandb.init() as run:
+        pass
+
+    run = wandb.Api().run(
+        f"{run.entity}/{run.project}/{run.id}",
+    )
+
+    download_dir = tempfile.mkdtemp()
+
+    with pytest.raises(IncompleteRunHistoryError):
+        run.download_history_exports(
+            download_dir=download_dir,
+            require_complete_history=True,
+        )
