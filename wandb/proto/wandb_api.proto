@@ -55,7 +55,7 @@ message ReadRunHistoryRequest {
     ScanRunHistoryCleanup scan_run_history_cleanup = 3;
 
     DownloadRunHistoryInit download_run_history_init = 4;
-    DownloadRunHistoryStart download_run_history_start = 5;
+    DownloadRunHistory download_run_history = 5;
     DownloadRunHistoryStatus download_run_history_status = 6;
   }
 }
@@ -67,7 +67,7 @@ message ReadRunHistoryResponse {
     ScanRunHistoryCleanupResponse scan_run_history_cleanup = 3;
 
     DownloadRunHistoryInitResponse download_run_history_init = 4;
-    DownloadRunHistoryStartResponse download_run_history_start = 5;
+    DownloadRunHistoryResponse download_run_history = 5;
     DownloadRunHistoryStatusResponse download_run_history_status = 6;
   }
 }
@@ -152,13 +152,13 @@ message DownloadRunHistoryInitResponse {
 }
 
 // A request to start a download operation for a run's history exports.
-message DownloadRunHistoryStart {
+message DownloadRunHistory {
   // The request id of the download operation.
   int32 request_id = 1;
 }
 
 // A response to a DownloadRunHistoryStart request.
-message DownloadRunHistoryStartResponse {
+message DownloadRunHistoryResponse {
   // Files that have been successfully downloaded.
   repeated string downloaded_files = 1;
 

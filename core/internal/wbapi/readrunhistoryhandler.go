@@ -94,8 +94,8 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 		return f.handleScanRunHistoryCleanup(request.GetScanRunHistoryCleanup())
 	case *spb.ReadRunHistoryRequest_DownloadRunHistoryInit:
 		return f.handleDownloadRunHistoryInit(request.GetDownloadRunHistoryInit())
-	case *spb.ReadRunHistoryRequest_DownloadRunHistoryStart:
-		return f.handleDownloadRunHistoryStart(request.GetDownloadRunHistoryStart())
+	case *spb.ReadRunHistoryRequest_DownloadRunHistory:
+		return f.handleDownloadRunHistory(request.GetDownloadRunHistory())
 	case *spb.ReadRunHistoryRequest_DownloadRunHistoryStatus:
 		return f.handleDownloadRunHistoryStatus(request.GetDownloadRunHistoryStatus())
 	}
@@ -352,8 +352,8 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistoryInit(
 }
 
 // handleDownloadRunHistory handles a request to download a run's history.
-func (f *RunHistoryAPIHandler) handleDownloadRunHistoryStart(
-	request *spb.DownloadRunHistoryStart,
+func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
+	request *spb.DownloadRunHistory,
 ) *spb.ApiResponse {
 	downloadOperation, ok := f.downloadOperations[request.GetRequestId()]
 	if !ok || downloadOperation == nil {
@@ -376,8 +376,8 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistoryStart(
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_ReadRunHistoryResponse{
 			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
-				Response: &spb.ReadRunHistoryResponse_DownloadRunHistoryStart{
-					DownloadRunHistoryStart: &spb.DownloadRunHistoryStartResponse{
+				Response: &spb.ReadRunHistoryResponse_DownloadRunHistory{
+					DownloadRunHistory: &spb.DownloadRunHistoryResponse{
 						DownloadedFiles: downloadedFiles,
 						Errors:          errorsMap,
 					},
