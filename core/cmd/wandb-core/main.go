@@ -340,6 +340,7 @@ Usage:
   wandb-core leet [flags] <wandb-directory>
   wandb-core leet --config
   wandb-core leet --symon [flags]
+  wandb-core leet [flags] <wandb-file/wandb-run-path>
 
 Arguments:
   <wandb-file> Path to the .wandb file of a W&B run or a W&B run path.
