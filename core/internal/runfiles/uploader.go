@@ -229,6 +229,7 @@ func (u *uploader) Finish() {
 	u.stateMu.Unlock()
 
 	// Flush any remaining upload batches.
+	u.uploadBatcher.Close()
 	u.uploadBatcher.Wait()
 
 	// Wait for all upload tasks to get scheduled.
