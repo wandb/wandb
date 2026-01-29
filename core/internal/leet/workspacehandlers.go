@@ -3,6 +3,7 @@ package leet
 import (
 	"fmt"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -27,7 +28,7 @@ func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
 				Err:     err,
 			}
 		}
-		return WorkspaceInitMsg{
+		return WorkspaceRunInitMsg{
 			RunKey:  runKey,
 			RunPath: runPath,
 			Reader:  reader,
@@ -182,8 +183,143 @@ func (w *Workspace) stopWatcher(run *workspaceRun) {
 	run.watcher = nil
 }
 
-// handleWorkspaceInit stores the reader and starts the initial load for the run.
-func (w *Workspace) handleWorkspaceInit(msg WorkspaceInitMsg) tea.Cmd {
+func (w *Workspace) handleRunsAnimation() tea.Cmd {
+	w.runsAnimState.Update(time.Now())
+
+	layout := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	if w.runsAnimState.IsAnimating() {
+		return w.runsAnimationCmd()
+	}
+
+	w.runOverviewSidebar.UpdateDimensions(w.width, w.runsAnimState.IsVisible())
+
+	return nil
+}
+
+func (w *Workspace) handleRunOverviewAnimation() tea.Cmd {
+	w.runOverviewSidebar.animState.Update(time.Now())
+
+	layout := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	if w.runOverviewSidebar.IsAnimating() {
+		return w.runOverviewAnimationCmd()
+	}
+
+	w.updateLeftSidebarDimensions(w.runOverviewSidebar.IsVisible())
+
+	return nil
+}
+
+func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
+	// Filter mode takes priority.
+	if w.metricsGrid != nil && w.metricsGrid.IsFilterMode() {
+		w.metricsGrid.handleMetricsFilterKey(msg)
+		return nil
+	}
+
+	// Grid config capture takes priority.
+	if w.config != nil && w.config.IsAwaitingGridConfig() {
+		if w.metricsGrid != nil {
+			w.metricsGrid.handleGridConfigNumberKey(msg, w.computeViewports())
+		}
+		return nil
+	}
+
+	// Dispatch via key map.
+	if handler, ok := w.keyMap[normalizeKey(msg.String())]; ok {
+		return handler(w, msg)
+	}
+	return nil
+}
+
+func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	// TODO: If the sidebar is visible and the click is inside it, we can
+	// later allow click‑to‑select runs. For now, just clear metrics focus.
+	if w.runsAnimState.IsVisible() && msg.X < w.runsAnimState.Width() {
+		w.metricsGrid.clearFocus()
+		return nil
+	}
+
+	// Clicks in the right sidebar area clear focus and are ignored for now.
+	if w.runOverviewSidebar.IsVisible() {
+		rightStart := w.width - w.runOverviewSidebar.Width()
+		if msg.X >= rightStart {
+			w.metricsGrid.clearFocus()
+			return nil
+		}
+	}
+
+	return w.handleMetricsMouse(msg)
+}
+
+func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
+	if w.metricsGrid == nil {
+		return nil
+	}
+
+	const (
+		gridPaddingX = 1
+		gridPaddingY = 1
+		headerOffset = 1 // metrics header lines
+	)
+
+	leftOffset := 0
+	if w.runsAnimState.IsVisible() {
+		leftOffset = w.runsAnimState.Width()
+	}
+
+	rightOffset := 0
+	if w.runOverviewSidebar.IsVisible() {
+		rightOffset = w.runOverviewSidebar.Width()
+	}
+
+	adjustedX := msg.X - leftOffset - gridPaddingX
+	adjustedY := msg.Y - gridPaddingY - headerOffset
+	if adjustedX < 0 || adjustedY < 0 {
+		return nil
+	}
+
+	contentWidth := max(w.width-leftOffset-rightOffset, 0)
+	contentHeight := max(w.height-StatusBarHeight, 0)
+	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
+
+	row := adjustedY / dims.CellHWithPadding
+	col := adjustedX / dims.CellWWithPadding
+
+	me := tea.MouseEvent(msg)
+
+	switch me.Button {
+	case tea.MouseButtonLeft:
+		if me.Action == tea.MouseActionPress {
+			w.metricsGrid.HandleClick(row, col)
+		}
+	case tea.MouseButtonRight:
+		// Holding Alt activates synchronised inspection across all charts
+		// visible on the current page.
+		alt := tea.MouseEvent(msg).Alt
+
+		switch me.Action {
+		case tea.MouseActionPress:
+			w.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
+		case tea.MouseActionRelease:
+			w.metricsGrid.EndInspection()
+		case tea.MouseActionMotion:
+			w.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+		}
+	case tea.MouseButtonWheelUp:
+		w.metricsGrid.HandleWheel(adjustedX, row, col, dims, true)
+	case tea.MouseButtonWheelDown:
+		w.metricsGrid.HandleWheel(adjustedX, row, col, dims, false)
+	}
+
+	return nil
+}
+
+// handleWorkspaceRunInit stores the reader and starts the initial load for the run.
+func (w *Workspace) handleWorkspaceRunInit(msg WorkspaceRunInitMsg) tea.Cmd {
 	if msg.Reader == nil || msg.RunKey == "" {
 		return nil
 	}
@@ -377,7 +513,6 @@ func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.
 func (w *Workspace) handleQuit(msg tea.KeyMsg) tea.Cmd {
 	w.logger.Debug("workspace: quit requested")
 
-	// Best-effort cleanup. Process is exiting anyway, but this keeps things tidy.
 	if w.heartbeatMgr != nil {
 		w.heartbeatMgr.Stop()
 	}
@@ -482,6 +617,33 @@ func (w *Workspace) handleConfigMetricsRows(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
+	if runKey == "" {
+		return nil
+	}
+
+	if _, selected := w.selectedRuns[runKey]; selected {
+		w.dropRun(runKey)
+		return nil
+	}
+
+	// Resolve the run file before mutating selection state so we don't end up
+	// "selected but unloadable" if the key can't be mapped to a .wandb file.
+	wandbFile := runWandbFile(w.wandbDir, runKey)
+	if wandbFile == "" {
+		err := fmt.Errorf("workspace: unable to resolve .wandb file for run key %q", runKey)
+		w.logger.CaptureError(err)
+		return nil
+	}
+
+	w.selectedRuns[runKey] = true
+	if w.pinnedRun == "" {
+		w.pinnedRun = runKey
+	}
+
+	return w.initReaderCmd(runKey, wandbFile)
+}
+
 func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyMsg) tea.Cmd {
 	if !w.runSelectorActive() {
 		return nil
@@ -491,6 +653,28 @@ func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	return w.toggleRunSelected(cur.Key)
+}
+
+func (w *Workspace) togglePin(runKey string) {
+	if runKey == "" {
+		return
+	}
+
+	if w.pinnedRun == runKey {
+		// Unpin but keep selection unchanged.
+		w.pinnedRun = ""
+		if w.metricsGrid != nil {
+			w.metricsGrid.drawVisible()
+		}
+		return
+	}
+
+	w.pinnedRun = runKey
+
+	if w.metricsGrid != nil {
+		w.refreshPinnedRun()
+		w.metricsGrid.drawVisible()
+	}
 }
 
 func (w *Workspace) handlePinRunKey(msg tea.KeyMsg) tea.Cmd {

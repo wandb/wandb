@@ -92,8 +92,8 @@ type WorkspaceRunsAnimationMsg struct{}
 // WorkspaceOverviewAnimationMsg drives animation for the workspace right sidebar.
 type WorkspaceRunOverviewAnimationMsg struct{}
 
-// WorkspaceInitMsg is emitted when a workspace run reader has been initialized.
-type WorkspaceInitMsg struct {
+// WorkspaceRunInitMsg is emitted when a workspace run reader has been initialized.
+type WorkspaceRunInitMsg struct {
 	RunKey  string
 	RunPath string
 	Reader  *WandbReader

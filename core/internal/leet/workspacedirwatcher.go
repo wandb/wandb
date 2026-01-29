@@ -170,8 +170,12 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 		return pollCmd
 	}
 
+	var selectLatestCmd tea.Cmd
 	if !w.runKeysEqual(msg.RunKeys) {
 		w.applyRunKeys(msg.RunKeys)
+		// Auto-select the latest run on initial workspace load.
+		w.autoSelectLatestRunOnLoad.Do(
+			func() { selectLatestCmd = w.toggleRunSelected(msg.RunKeys[0]) })
 	}
 	// Enqueue missing run overviews (even if the run list is unchanged).
 	// This makes new run overviews eventually consistent even if the .wandb file
@@ -182,7 +186,7 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 	if startCmd == nil {
 		return pollCmd
 	}
-	return tea.Batch(pollCmd, startCmd)
+	return tea.Batch(pollCmd, startCmd, selectLatestCmd)
 }
 
 // enqueueMissingRunOverviews queues runs that don't yet have overview state and
@@ -213,7 +217,7 @@ func (w *Workspace) startRunOverviewPreloadsCmd() tea.Cmd {
 // preloadRunOverviewCmd reads up to maxRecordsToScan records looking for the Run record.
 // It returns a completion msg (success or failure) so the queue can make progress.
 func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
-	wandbFile := w.runWandbFile(runKey)
+	wandbFile := runWandbFile(w.wandbDir, runKey)
 	logger := w.logger
 
 	return func() tea.Msg {

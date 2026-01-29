@@ -41,10 +41,21 @@ const (
 	DefaultSystemColorMode   = ColorModePerSeries
 
 	DefaultHeartbeatInterval = 15 // seconds
+
+	// Startup modes control what LEET does when launched without a specified run path
+	// (i.e. `wandb beta leet` with no PATH).
+	StartupModeWorkspaceLatest = "workspace_latest"  // Load workspace view and select latest run
+	StartupModeSingleRunLatest = "single_run_latest" // Load latest run in the single-run view
+	DefaultStartupMode         = StartupModeWorkspaceLatest
 )
 
 // Config stores the application configuration.
 type Config struct {
+	// StartupMode controls what happens when LEET is launched without --run-file.
+	//  - workspace_latest: open workspace and auto-select the latest run
+	//  - single_run_latest: open the latest run directly in single-run view
+	StartupMode string `json:"startup_mode" leet:"label=Startup mode,desc=Initial view when launched without a run path.,options=startupModes"`
+
 	// MetricsGrid is the dimensions for the main metrics chart grid.
 	MetricsGrid GridConfig `json:"metrics_grid" leet:"desc=main metrics grid"`
 
@@ -78,7 +89,7 @@ type Config struct {
 	// events have been seen for a long time for a live file.
 	HeartbeatInterval int `json:"heartbeat_interval_seconds" leet:"label=Heartbeat interval (sec),desc=Polling heartbeat for live runs.,min=1"`
 
-	// Sidebar visibility states.
+	// Single-run view sidebar visibility states.
 	LeftSidebarVisible  bool `json:"left_sidebar_visible"  leet:"desc=Show left sidebar in single run view by default."`
 	RightSidebarVisible bool `json:"right_sidebar_visible" leet:"desc=Show right sidebar in single run view by default."`
 }
@@ -114,6 +125,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Rows: DefaultSystemGridRows,
 				Cols: DefaultSystemGridCols,
 			},
+			StartupMode:         DefaultStartupMode,
 			ColorScheme:         DefaultColorScheme,
 			PerPlotColorScheme:  DefaultPerPlotColorScheme,
 			SingleRunColorMode:  DefaultSingleRunColorMode,
@@ -188,6 +200,11 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if cm.config.HeartbeatInterval <= 0 {
 		cm.config.HeartbeatInterval = DefaultHeartbeatInterval
+	}
+
+	if cm.config.StartupMode != StartupModeWorkspaceLatest &&
+		cm.config.StartupMode != StartupModeSingleRunLatest {
+		cm.config.StartupMode = DefaultStartupMode
 	}
 }
 
@@ -298,6 +315,27 @@ func (cm *ConfigManager) Snapshot() Config {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.config
+}
+
+// StartupMode returns the configured startup mode.
+func (cm *ConfigManager) StartupMode() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.StartupMode
+}
+
+// SetStartupMode sets the startup mode and persists it.
+func (cm *ConfigManager) SetStartupMode(mode string) error {
+	if mode != StartupModeWorkspaceLatest && mode != StartupModeSingleRunLatest {
+		return fmt.Errorf(
+			"startup_mode must be %q or %q, got %q",
+			StartupModeWorkspaceLatest, StartupModeSingleRunLatest, mode,
+		)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.StartupMode = mode
+	return cm.save()
 }
 
 // ColorScheme returns the current color scheme.

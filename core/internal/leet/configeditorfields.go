@@ -94,6 +94,9 @@ func buildConfigEditorFieldsFromType(t reflect.Type) []configField {
 		"colorModes": func() []string {
 			return []string{ColorModePerSeries, ColorModePerPlot}
 		},
+		"startupModes": func() []string {
+			return []string{StartupModeWorkspaceLatest, StartupModeSingleRunLatest}
+		},
 	}
 
 	var out []configField

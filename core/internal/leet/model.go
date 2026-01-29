@@ -1,6 +1,11 @@
 package leet
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -14,6 +19,8 @@ const (
 	viewModeWorkspace
 	viewModeRun
 )
+
+const latestRunLinkName = "latest-run"
 
 type Model struct {
 	mode      viewMode
@@ -38,6 +45,16 @@ type ModelParams struct {
 func NewModel(params ModelParams) *Model {
 	if params.Config == nil {
 		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
+	}
+
+	if params.RunFile == "" && params.Config.StartupMode() == StartupModeSingleRunLatest {
+		latest, err := wandbFileFromLatestRunLink(params.WandbDir)
+		if err != nil {
+			params.Logger.Error(fmt.Sprintf("model: failed to find latest run: %v", err))
+		}
+		if latest != "" {
+			params.RunFile = latest
+		}
 	}
 
 	m := &Model{
@@ -256,4 +273,50 @@ func (m *Model) exitRunView() tea.Cmd {
 
 	m.mode = viewModeWorkspace
 	return nil
+}
+
+// extractRunID extracts the run ID from a folder name.
+//
+// "run-20250731_170606-iazb7i1k" -> "iazb7i1k"
+// "offline-run-20250731_170606-abc123" -> "abc123"
+func extractRunID(folderName string) string {
+	lastHyphen := strings.LastIndex(folderName, "-")
+	if lastHyphen == -1 || lastHyphen == len(folderName)-1 {
+		return ""
+	}
+	return folderName[lastHyphen+1:]
+}
+
+// runWandbFile returns the full path to the .wandb file for the given run folder.
+func runWandbFile(wandbDir, runDir string) string {
+	runID := extractRunID(runDir)
+	if runID == "" {
+		return ""
+	}
+	return filepath.Join(wandbDir, runDir, "run-"+runID+".wandb")
+}
+
+func wandbFileFromLatestRunLink(wandbDir string) (string, error) {
+	latestRunPath, err := filepath.Abs(filepath.Join(wandbDir, latestRunLinkName))
+	if err != nil {
+		return "", err
+	}
+
+	info, err := os.Stat(latestRunPath) // follows symlinks
+	if err != nil || !info.IsDir() {
+		return "", err
+	}
+
+	resolvedLatestRunPath, err := os.Readlink(latestRunPath)
+	if err != nil {
+		return "", err
+	}
+
+	latestWandbFile := runWandbFile(wandbDir, resolvedLatestRunPath)
+	info, err = os.Stat(latestRunPath)
+	if err != nil {
+		return "", err
+	}
+
+	return latestWandbFile, nil
 }
