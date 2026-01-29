@@ -281,10 +281,6 @@ class Api:
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
 
-        # Setup authentication for GraphQL client
-        # Supports both API key (Basic auth) and JWT (Bearer token)
-        # Determine authentication method:
-        #   Basic auth for API keys, BearerAuth for JWT tokens
         api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
