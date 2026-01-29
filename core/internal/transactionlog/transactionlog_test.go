@@ -238,3 +238,43 @@ func Test_EOF(t *testing.T) {
 		doTest(t, dataNoLastChunk, io.ErrUnexpectedEOF)
 	})
 }
+
+func Test_ReadVerifiesHeader(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+	require.NoError(t, os.WriteFile(path, []byte("invalid header"), 0o644))
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
+	_, err = reader.Read()
+	reader.Close()
+
+	assert.ErrorContains(t, err, "invalid W&B identifier")
+}
+
+func Test_ReadAfterSeek_SkipsVerifyingHeader(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+
+	// Write an invalid 32KiB block followed by a valid empty chunk.
+	// The first 32KiB should be ignored after seeking past them.
+	data := make([]byte, 32*1024+7)
+	for i := range 32 * 1024 {
+		data[i] = byte(i % 256)
+	}
+	data[32*1024+0] = 0x1b // checksum for zero-length chunk
+	data[32*1024+1] = 0xdf
+	data[32*1024+2] = 0x05
+	data[32*1024+3] = 0xa5
+	data[32*1024+4] = 0 // chunk length 0
+	data[32*1024+5] = 0
+	data[32*1024+6] = 1 // full chunk
+	require.NoError(t, os.WriteFile(path, data, 0o644))
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
+	defer reader.Close()
+	require.NoError(t, reader.SeekRecord(32*1024))
+	record, err := reader.Read()
+
+	assert.NoError(t, err)
+	assert.EqualExportedValues(t, &spb.Record{}, record)
+}
