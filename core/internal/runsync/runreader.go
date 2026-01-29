@@ -1,6 +1,7 @@
 package runsync
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -65,7 +66,7 @@ func (f *RunReaderFactory) New(
 }
 
 // ExtractRunInfo reads and returns basic run information.
-func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
+func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 	r.logger.Info("runsync: getting info", "path", r.path)
 
 	reader, err := r.open()
@@ -75,7 +76,13 @@ func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
 	defer reader.Close()
 
 	for {
-		record, err := r.nextUpdatedRecord(reader, true /*retryEOF*/)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		record, err := r.nextUpdatedRecord(ctx, reader, true /*retryEOF*/)
 
 		if err != nil {
 			return nil, &SyncError{
@@ -102,7 +109,7 @@ func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
 //
 // Closes RunWork at the end, even on error. If there was no Exit record,
 // creates one with an exit code of 1.
-func (r *RunReader) ProcessTransactionLog() error {
+func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
 	r.logger.Info("runsync: starting to read", "path", r.path)
 
 	defer r.closeRunWork()
@@ -114,7 +121,7 @@ func (r *RunReader) ProcessTransactionLog() error {
 	defer reader.Close()
 
 	for {
-		record, err := r.nextUpdatedRecord(reader, !r.seenExit /*retryEOF*/)
+		record, err := r.nextUpdatedRecord(ctx, reader, !r.seenExit /*retryEOF*/)
 
 		if errors.Is(err, io.EOF) {
 			r.logger.Info("runsync: done reading", "path", r.path)
@@ -127,7 +134,7 @@ func (r *RunReader) ProcessTransactionLog() error {
 			return err
 		}
 
-		r.parseAndAddWork(record)
+		r.parseAndAddWork(ctx, record)
 
 		switch {
 		case record.GetExit() != nil:
@@ -136,7 +143,7 @@ func (r *RunReader) ProcessTransactionLog() error {
 			// The RunStart request is required to come after a Run record,
 			// but its contents are irrelevant when syncing. It causes
 			// the Sender to start FileStream.
-			r.parseAndAddWork(
+			r.parseAndAddWork(ctx,
 				&spb.Record{RecordType: &spb.Record_Request{
 					Request: &spb.Request{RequestType: &spb.Request_RunStart{
 						RunStart: &spb.RunStartRequest{},
@@ -161,6 +168,8 @@ func (r *RunReader) closeRunWork() {
 			},
 		}
 
+		// NOTE: This is not cancellable, because we rely on it to happen
+		// on cancellation.
 		r.runWork.AddWork(r.recordParser.Parse(exitRecord))
 	}
 
@@ -199,6 +208,7 @@ func (r *RunReader) open() (*transactionlog.Reader, error) {
 //
 // Retries ErrUnexpectedEOF in live mode, and also EOF if retryEOF is true.
 func (r *RunReader) nextUpdatedRecord(
+	ctx context.Context,
 	reader *transactionlog.Reader,
 	retryEOF bool,
 ) (record *spb.Record, err error) {
@@ -219,8 +229,17 @@ func (r *RunReader) nextUpdatedRecord(
 				return nil, fmt.Errorf("failed to seek: %v", err)
 			}
 
+			select {
+			case <-ctx.Done():
+				// NOTE: We don't wrap the original error with errors.Join(...)
+				// because the caller interprets errors. An EOF that we stopped
+				// retrying because of cancellation should not be treated like
+				// a normal EOF.
+				return nil, ctx.Err()
+
 			// TODO: Use FS event mechanisms when available instead of polling.
-			time.Sleep(time.Second)
+			case <-time.After(time.Second):
+			}
 			record, err = reader.Read()
 		}
 	}
@@ -234,11 +253,11 @@ func (r *RunReader) nextUpdatedRecord(
 }
 
 // parseAndAddWork parses the record and pushes it to RunWork.
-func (r *RunReader) parseAndAddWork(record *spb.Record) {
+func (r *RunReader) parseAndAddWork(ctx context.Context, record *spb.Record) {
 	work := r.recordParser.Parse(record)
 
 	wg := &sync.WaitGroup{}
-	work.Schedule(wg, func() { r.runWork.AddWork(work) })
+	work.Schedule(wg, func() { r.runWork.AddWorkOrCancel(ctx.Done(), work) })
 
 	// We always process records in reading order.
 	wg.Wait()

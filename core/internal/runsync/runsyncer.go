@@ -1,6 +1,7 @@
 package runsync
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -98,8 +99,8 @@ func (f *RunSyncerFactory) New(
 }
 
 // Init loads basic information about the run being synced.
-func (rs *RunSyncer) Init() (*RunInfo, error) {
-	runInfo, err := rs.runReader.ExtractRunInfo()
+func (rs *RunSyncer) Init(ctx context.Context) (*RunInfo, error) {
+	runInfo, err := rs.runReader.ExtractRunInfo(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -112,18 +113,18 @@ func (rs *RunSyncer) Init() (*RunInfo, error) {
 }
 
 // Sync uploads the .wandb file.
-func (rs *RunSyncer) Sync() error {
+func (rs *RunSyncer) Sync(ctx context.Context) error {
 	g := &errgroup.Group{}
 
 	// Print the run's URL once we know it.
 	g.Go(func() error {
-		ctx := rs.runWork.BeforeEndCtx()
-
 		select {
 		case <-rs.runHandle.Ready():
 			rs.printRunURL()
-		case <-ctx.Done():
+		case <-rs.runWork.BeforeEndCtx().Done():
 			rs.logger.Error("runsync: didn't print run URL, handle never became ready")
+		case <-ctx.Done():
+			// Cancelled, do nothing.
 		}
 
 		return nil
@@ -133,7 +134,9 @@ func (rs *RunSyncer) Sync() error {
 	//
 	// NOTE: Closes RunWork even on error, and creates an Exit record if
 	// necessary, so the Sender is guaranteed to terminate.
-	g.Go(rs.runReader.ProcessTransactionLog)
+	g.Go(func() error {
+		return rs.runReader.ProcessTransactionLog(ctx)
+	})
 
 	// This ends after an Exit record is emitted and RunWork is closed.
 	g.Go(func() error {
