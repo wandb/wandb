@@ -2278,10 +2278,7 @@ class Artifact:
         Returns:
             The presigned URL for the file, or None if not found.
         """
-        from ._generated import (
-            GetArtifactFiles,
-            GetArtifactMembershipFiles,
-        )
+        from ._generated import GetArtifactFiles, GetArtifactMembershipFiles
 
         if self._client is None:
             raise RuntimeError("Client not initialized")

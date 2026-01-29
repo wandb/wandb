@@ -802,97 +802,52 @@ def test_storage_policy_storage_region_not_available():
             art.wait()
 
 
-def test_artifact_download_retries_on_expired_url(user: str, api: Api, tmp_path: Path):
-    """Test that artifact download retries with a fresh URL when the presigned URL expires.
+@responses.activate()
+def test_artifact_download_retries_on_expired_url_multipart(
+    user: str, api: Api, tmp_path: Path
+):
+    # Let graphql and manifest json (also stored on S3) passthrough.
+    responses.add_passthru(re.compile(r".*graphql.*"))
+    responses.add_passthru(re.compile(r".*wandb_manifest\.json.*"))
 
-    This test verifies the retry mechanism for expired URLs:
-    1. Creates and logs an artifact with a test file
-    2. Uses responses library to return 403 on first storage download attempt
-    3. Verifies the retry mechanism fetches a fresh URL and succeeds
-    """
-    import urllib3
+    all_s3_requests = []
 
-    # Create and log an artifact with a test file
+    def s3_request_callback(request):
+        all_s3_requests.append(request.url)
+
+        if len(all_s3_requests) == 1:
+            return (403, {}, b"AccessDenied: Request has expired")
+        else:
+            return (200, {}, b"test data for retry")
+
+    # manifest json is not stored under wandb_artifacts/, only the file blobs are.
+    responses.add_callback(
+        responses.GET,
+        re.compile(r".*wandb_artifacts/.*"),
+        callback=s3_request_callback,
+    )
+
     file_path = tmp_path / "test.txt"
     file_path.write_text("test data for retry")
     project = "test"
 
     with wandb.init(entity=user, project=project) as run:
-        art = Artifact("test-retry-expired-url", type="dataset")
+        art = Artifact("test-retry-expired-download-url", type="dataset")
         art.add_file(file_path)
         run.log_artifact(art)
         art.wait()
 
-    # Clear the artifact file cache to force a fresh download
-    cache = get_artifact_file_cache()
-    cache.cleanup(target_size=0)
+    art = api.artifact(f"{user}/{project}/test-retry-expired-download-url:latest")
+    # NOTE: We need to use multipart=True to avoid triggering non multipart's retry
+    # logic, which is using the `aritifactsV2` handler to redirect to presigned url
+    # instead of calling graphql to get the download url (directUrl).
+    download_path = art.download(skip_cache=True, multipart=True)
 
-    # Track state for the callback
-    first_file_request_failed = {"value": False}
-    all_requests: list[str] = []
-
-    # Create a urllib3 pool manager for making real requests (bypasses responses mock)
-    http = urllib3.PoolManager()
-
-    def storage_callback(request):
-        """Callback for storage URLs - returns 403 on first file download attempt."""
-        url = request.url
-        all_requests.append(url)
-
-        # Always let manifest requests pass through
-        if "wandb_manifest" in url:
-            # Make a real request using urllib3 (bypasses responses mock)
-            real_response = http.request("GET", url, headers=dict(request.headers))
-            return (
-                real_response.status,
-                dict(real_response.headers),
-                real_response.data,
-            )
-
-        # For file downloads: fail the first one, pass through subsequent ones
-        if not first_file_request_failed["value"]:
-            first_file_request_failed["value"] = True
-            return (403, {}, b"AccessDenied: Request has expired")
-
-        # Subsequent file requests - make real request using urllib3
-        real_response = http.request("GET", url, headers=dict(request.headers))
-        return (
-            real_response.status,
-            dict(real_response.headers),
-            real_response.data,
-        )
-
-    # Download with responses intercepting storage URLs
-    with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
-        # Pass through GraphQL requests to real server
-        rsps.add_passthru(re.compile(r".*graphql.*"))
-
-        # Intercept all storage URLs with callback (storage URLs contain port number
-        # like :32772 or :32773 for minio in test environment)
-        rsps.add_callback(
-            responses.GET,
-            re.compile(r".*:\d{5}/.*"),  # Match URLs with 5-digit ports (test storage)
-            callback=storage_callback,
-        )
-
-        # Download should succeed after retry with fresh URL
-        art = api.artifact(f"{user}/{project}/test-retry-expired-url:latest")
-        download_path = tmp_path / "downloaded"
-        art.download(root=str(download_path))
-
-    # Verify the file was downloaded correctly
-    downloaded_file = download_path / "test.txt"
-    assert downloaded_file.exists()
+    downloaded_file = Path(download_path) / "test.txt"
+    assert downloaded_file.exists(), f"File not found at {downloaded_file}"
     assert downloaded_file.read_text() == "test data for retry"
 
-    # Verify that we failed the first request and then succeeded
-    assert first_file_request_failed["value"], (
-        f"Expected first file request to be failed. Requests: {all_requests}"
-    )
-
-    # Verify that at least 2 storage requests were made (failed + successful)
-    file_requests = [r for r in all_requests if "wandb_manifest" not in r]
-    assert len(file_requests) >= 2, (
-        f"Expected at least 2 file download attempts (initial + retry), "
-        f"but got {len(file_requests)}. Requests: {all_requests}"
+    assert len(all_s3_requests) == 2, (
+        f"Expected at least 2 calls (initial + retry), got {len(all_s3_requests)}. "
+        f"Requests: {all_s3_requests}"
     )
