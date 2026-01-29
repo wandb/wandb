@@ -158,7 +158,6 @@ class WandbStoragePolicy(StoragePolicy):
                 url_provider = SharedUrlProvider(
                     initial_url=url,
                     fetch_fn=fetch_fresh_url,
-                    ttl_seconds=5.0,
                 )
 
                 multipart_download(

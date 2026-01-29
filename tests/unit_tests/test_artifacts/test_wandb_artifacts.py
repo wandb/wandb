@@ -614,7 +614,6 @@ def test_artifact_multipart_download_network_error():
     url_provider = SharedUrlProvider(
         initial_url="https://invalid.com",
         fetch_fn=lambda: "https://invalid.com",
-        ttl_seconds=5.0,
     )
     with pytest.raises(requests.exceptions.ConnectionError):
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -640,7 +639,6 @@ def test_artifact_multipart_download_disk_error():
     url_provider = SharedUrlProvider(
         initial_url="https://mocked.com",
         fetch_fn=lambda: "https://mocked.com",
-        ttl_seconds=5.0,
     )
     with pytest.raises(ValueError):
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -662,7 +660,6 @@ class TestSharedUrlProvider:
         provider = SharedUrlProvider(
             initial_url="https://example.com/initial",
             fetch_fn=fetch_fn,
-            ttl_seconds=5.0,
         )
 
         url = provider.get_url()
@@ -670,12 +667,11 @@ class TestSharedUrlProvider:
         assert url == "https://example.com/initial"
         fetch_fn.assert_not_called()
 
-    def test_get_url_caches_within_ttl(self):
+    def test_get_url_caches_until_invalidated(self):
         fetch_fn = Mock(return_value="https://example.com/refreshed")
         provider = SharedUrlProvider(
             initial_url="https://example.com/initial",
             fetch_fn=fetch_fn,
-            ttl_seconds=5.0,
         )
 
         url1 = provider.get_url()
@@ -695,7 +691,6 @@ class TestSharedUrlProvider:
         provider = SharedUrlProvider(
             initial_url="https://example.com/initial",
             fetch_fn=fetch_fn,
-            ttl_seconds=5.0,
         )
 
         url1 = provider.get_url()
@@ -727,7 +722,6 @@ def test_artifact_multipart_download_retries_on_403():
     url_provider = SharedUrlProvider(
         initial_url="https://example.com/initial-url",
         fetch_fn=fetch_fresh_url,
-        ttl_seconds=5.0,
     )
 
     file = MockFile()
@@ -757,7 +751,6 @@ def test_artifact_multipart_download_max_retries_exceeded():
     url_provider = SharedUrlProvider(
         initial_url="https://example.com/url",
         fetch_fn=lambda: "https://example.com/new-url",
-        ttl_seconds=0.01,
     )
 
     file = MockFile()
