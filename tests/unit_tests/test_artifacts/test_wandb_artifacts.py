@@ -3,23 +3,14 @@ import queue
 import shutil
 import unittest.mock as mock
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
 from pathlib import Path
 from string import ascii_letters, digits
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    AnyStr,
-    Callable,
-    ContextManager,
-    Mapping,
-    Optional,
-)
+from typing import TYPE_CHECKING, Any, Mapping, Optional
 from unittest.mock import Mock
 
 import pytest
 import requests
+import responses
 from hypothesis import given
 from hypothesis.strategies import from_regex, text
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
@@ -532,76 +523,6 @@ def test_artifact_multipart_download_threshold():
     assert should_multipart_download(5070 * mb, override=False) is False
 
 
-class MockOpener:
-    """Wrap a file as a Opener."""
-
-    def __init__(self, file: IO):
-        self.file = file
-
-    def __call__(self, mode: str = "r") -> ContextManager[IO]:
-        @contextmanager
-        def _fake_context():
-            yield self.file
-
-        return _fake_context()
-
-
-class MockFile(IO):
-    """Mock file that tracks write/seek operations."""
-
-    def __init__(self):
-        self.write_count = 0
-        self.seek_count = 0
-
-    def seek(self, offset: int, whence: int = 0) -> int:
-        self.seek_count += 1
-        return offset
-
-    def write(self, s: AnyStr) -> int:
-        self.write_count += 1
-        return len(s)
-
-
-class ThrowingMockFile(IO):
-    """Mock file that raises ValueError on seek."""
-
-    def seek(self, offset: int, whence: int = 0) -> int:
-        raise ValueError("I/O operation on closed file")
-
-
-class MockHttpResponse:
-    """Configurable mock HTTP response."""
-
-    def __init__(self, status_code: int = 200, content: bytes = b"test data"):
-        self.status_code = status_code
-        self._content = content
-
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise requests.HTTPError(response=self)
-
-    def iter_content(self, chunk_size: int = 1024):
-        return [self._content]
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        pass
-
-
-class MockHttpSession:
-    """Configurable mock HTTP session."""
-
-    def __init__(self, response_factory: Callable[[int], MockHttpResponse] = None):
-        self.get_count = 0
-        self._response_factory = response_factory or (lambda _: MockHttpResponse())
-
-    def get(self, url: str, headers: dict = None, stream: bool = False):
-        self.get_count += 1
-        return self._response_factory(self.get_count)
-
-
 def test_artifact_multipart_download_network_error():
     # Disable retries and backoff to avoid timeout in test
     session = requests.Session()
@@ -609,8 +530,7 @@ def test_artifact_multipart_download_network_error():
     session.mount("http://", adapter)
     session.mount("https://", adapter)
 
-    file = MockFile()
-    opener = MockOpener(file)
+    opener = mock.mock_open()
     url_provider = SharedUrlProvider(
         initial_url="https://invalid.com",
         fetch_fn=lambda: "https://invalid.com",
@@ -624,34 +544,35 @@ def test_artifact_multipart_download_network_error():
                 opener,
                 url_provider,
             )
-    assert file.seek_count == 0
-    assert file.write_count == 0
+    opener.return_value.seek.assert_not_called()
 
 
+@responses.activate()
 def test_artifact_multipart_download_disk_error():
-    def response_factory(_count: int) -> MockHttpResponse:
-        return MockHttpResponse(status_code=200, content=b"test")
-
-    session = MockHttpSession(response_factory=response_factory)
-
-    file = ThrowingMockFile()
-    opener = MockOpener(file)
-    url_provider = SharedUrlProvider(
-        initial_url="https://mocked.com",
-        fetch_fn=lambda: "https://mocked.com",
+    resp = responses.get(
+        "http://s3.com/file",
+        body=b"test",
+        status=200,
     )
-    with pytest.raises(ValueError):
+
+    opener = mock.mock_open()
+    opener.return_value.write.side_effect = OSError("I/O operation on closed file")
+    url_provider = SharedUrlProvider(
+        initial_url="https://s3.com/file",
+        fetch_fn=lambda: "https://s3.com/file",
+    )
+    with pytest.raises(OSError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
-                session,
+                requests.Session(),
                 500 * 1024 * 1024,  # 500MB should have 5 parts
                 opener,
                 url_provider,
             )
-    # After first get call has errors, reamining get call should return without making the call.
-    # It can be 5 depends on underlying environment,e.g. it fails on winodws from time to time.
-    assert session.get_count <= 5
+    # After first get call has errors, remaining get calls should return without making the call.
+    # It can be 5 depending on underlying environment, e.g. it fails on windows from time to time.
+    assert resp.call_count <= 5
 
 
 class TestSharedUrlProvider:
@@ -681,12 +602,7 @@ class TestSharedUrlProvider:
         fetch_fn.assert_not_called()
 
     def test_invalidate_forces_refresh(self):
-        call_count = 0
-
-        def fetch_fn():
-            nonlocal call_count
-            call_count += 1
-            return f"https://example.com/url{call_count}"
+        fetch_fn = Mock(return_value="https://example.com/url1")
 
         provider = SharedUrlProvider(
             initial_url="https://example.com/initial",
@@ -695,76 +611,75 @@ class TestSharedUrlProvider:
 
         url1 = provider.get_url()
         assert url1 == "https://example.com/initial"
-        assert call_count == 0
+        assert fetch_fn.call_count == 0
 
         provider.invalidate()
         url2 = provider.get_url()
 
         assert url2 == "https://example.com/url1"
-        assert call_count == 1
+        assert fetch_fn.call_count == 1
 
 
-def test_artifact_multipart_download_retries_on_403():
-    def response_factory(count: int) -> MockHttpResponse:
-        if count == 1:
-            return MockHttpResponse(status_code=403)
-        return MockHttpResponse(status_code=206)
-
-    session = MockHttpSession(response_factory=response_factory)
-
-    refresh_count = 0
-
-    def fetch_fresh_url():
-        nonlocal refresh_count
-        refresh_count += 1
-        return "https://example.com/new-url"
-
-    url_provider = SharedUrlProvider(
-        initial_url="https://example.com/initial-url",
-        fetch_fn=fetch_fresh_url,
+@responses.activate()
+def test_artifact_multipart_download_retries():
+    rsp1 = responses.get(
+        "https://s3.com/file/t1",
+        body=b"should be some 403 related error message",
+        status=403,
+    )
+    rsp2 = responses.get(
+        "https://s3.com/file/t2",
+        body=b"test",
+        status=200,
     )
 
-    file = MockFile()
-    opener = MockOpener(file)
+    fetch_fn = Mock(return_value="https://s3.com/file/t2")
+    url_provider = SharedUrlProvider(
+        initial_url="https://s3.com/file/t1",
+        fetch_fn=fetch_fn,
+    )
+
+    opener = mock.mock_open()
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         multipart_download(
             executor,
-            session,
+            requests.Session(),
             100,
             opener,
             url_provider,
             part_size=100,
         )
 
-    assert session.get_count == 2
-    assert refresh_count == 1
-    assert file.write_count > 0
+    assert fetch_fn.call_count == 1  # fetched new url once
+    assert rsp1.call_count == 1
+    assert rsp2.call_count == 1
 
 
+@responses.activate()
 def test_artifact_multipart_download_max_retries_exceeded():
-    def response_factory(_count: int) -> MockHttpResponse:
-        return MockHttpResponse(status_code=403, content=b"")
-
-    session = MockHttpSession(response_factory=response_factory)
-
-    url_provider = SharedUrlProvider(
-        initial_url="https://example.com/url",
-        fetch_fn=lambda: "https://example.com/new-url",
+    resp = responses.get(
+        "https://s3.com/file",
+        body=b"test",
+        status=403,
     )
 
-    file = MockFile()
-    opener = MockOpener(file)
+    url_provider = SharedUrlProvider(
+        initial_url="https://s3.com/file",
+        fetch_fn=lambda: "https://s3.com/file",
+    )
+
+    opener = mock.mock_open()
 
     with pytest.raises(requests.HTTPError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
-                session,
+                requests.Session(),
                 100,
                 opener,
                 url_provider,
                 part_size=100,
             )
 
-    assert session.get_count == 4  # 1 initial + 3 retries
+    assert resp.call_count == 4  # 1 initial + 3 retries
