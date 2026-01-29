@@ -1,0 +1,284 @@
+package leet
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+type LevelDBHistorySource struct {
+	// store is a W&B LevelDB-style transaction log that may be actively written.
+	store *LiveStore
+
+	// exitSeen is true if the exit record has been seen.
+	exitSeen bool
+
+	// exitCode is the exit code of the run if the exit record has been seen.
+	exitCode int32
+}
+
+func NewLevelDBHistorySource(
+	runPath string,
+	logger *observability.CoreLogger,
+) (*LevelDBHistorySource, error) {
+	store, err := NewLiveStore(runPath, logger)
+	if err != nil {
+		return nil, err
+	}
+	return &LevelDBHistorySource{store: store}, nil
+}
+
+// InitializeLevelDBHistorySource returns a tea.Cmd that initializes a
+// LevelDBHistorySource for the given run path.
+func InitializeLevelDBHistorySource(
+	runPath string,
+	logger *observability.CoreLogger,
+) tea.Cmd {
+	return func() tea.Msg {
+		source, err := NewLevelDBHistorySource(runPath, logger)
+		if err != nil {
+			return ErrorMsg{
+				Err: fmt.Errorf(
+					"leveldbhistory: failed to create live store: %v",
+					err,
+				),
+			}
+		}
+
+		return InitMsg{Source: source}
+	}
+}
+
+// Read implements HistorySource.Read.
+func (s *LevelDBHistorySource) Read(
+	chunkSize int,
+	maxTimePerChunk time.Duration,
+) (tea.Msg, error) {
+	if s == nil {
+		return func() tea.Msg { return nil }, nil
+	}
+
+	if s.store == nil {
+		return ChunkedBatchMsg{
+			Msgs:    []tea.Msg{},
+			HasMore: false,
+		}, nil
+	}
+
+	var msgs []tea.Msg
+	var histories []HistoryMsg
+	var summaries []SummaryMsg
+	recordCount := 0
+	startTime := time.Now()
+	var err error
+
+	for recordCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
+		record, readErr := s.store.Read()
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) && s.exitSeen {
+				err = io.EOF
+			} else {
+				err = readErr
+			}
+			break
+		}
+		if record == nil {
+			continue
+		}
+
+		// Handle exit record first to avoid double FileComplete.
+		if exit, ok := record.RecordType.(*spb.Record_Exit); ok && exit.Exit != nil {
+			s.exitSeen = true
+			s.exitCode = exit.Exit.GetExitCode()
+			break
+		}
+
+		if msg := s.recordToMsg(record); msg != nil {
+			switch m := msg.(type) {
+			case HistoryMsg:
+				histories = append(histories, m)
+			case SummaryMsg:
+				summaries = append(summaries, m)
+			default:
+				msgs = append(msgs, msg)
+			}
+			recordCount++
+		}
+	}
+
+	if len(histories) > 0 {
+		msgs = append(msgs, concatenateHistory(histories))
+	}
+	if len(summaries) > 0 {
+		msgs = append(msgs, concatenateSummary(summaries))
+	}
+
+	if s.exitSeen {
+		msgs = append(msgs, FileCompleteMsg{ExitCode: s.exitCode})
+	}
+
+	// Determine if there's more to read,
+	// i.e. whether we have records and didn't hit EOF, there might be more.
+	hasMore := !s.exitSeen && recordCount > 0
+
+	return ChunkedBatchMsg{
+		Msgs:     msgs,
+		HasMore:  hasMore,
+		Progress: recordCount,
+	}, err
+}
+
+// recordToMsg converts a record to the appropriate message type.
+func (s *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
+	switch rec := record.RecordType.(type) {
+	case *spb.Record_Run:
+		return RunMsg{
+			ID:          rec.Run.GetRunId(),
+			DisplayName: rec.Run.GetDisplayName(),
+			Project:     rec.Run.GetProject(),
+			Config:      rec.Run.GetConfig(),
+		}
+	case *spb.Record_History:
+		return ParseHistory(rec.History)
+	case *spb.Record_Stats:
+		return ParseStats(rec.Stats)
+	case *spb.Record_Summary:
+		return SummaryMsg{Summary: []*spb.SummaryRecord{rec.Summary}}
+	case *spb.Record_Environment:
+		return SystemInfoMsg{Record: rec.Environment}
+	default:
+		return nil
+	}
+}
+
+func (s *LevelDBHistorySource) Close() {
+	if s.store != nil {
+		s.store.Close()
+	}
+}
+
+// concatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
+//
+// Assumes that the history messages are ordered.
+func concatenateHistory(messages []HistoryMsg) HistoryMsg {
+	h := HistoryMsg{
+		Metrics: make(map[string]MetricData),
+	}
+
+	for _, msg := range messages {
+		for metricName, data := range msg.Metrics {
+			existing := h.Metrics[metricName]
+			h.Metrics[metricName] = MetricData{
+				X: slices.Concat(existing.X, data.X),
+				Y: slices.Concat(existing.Y, data.Y),
+			}
+		}
+	}
+
+	return h
+}
+
+// concatenateSummary merges a slice of SummaryMsg into a single SummaryMsg.
+//
+// Assumes that the summary messages are ordered.
+func concatenateSummary(messages []SummaryMsg) SummaryMsg {
+	s := SummaryMsg{
+		Summary: make([]*spb.SummaryRecord, 0),
+	}
+
+	for _, msg := range messages {
+		s.Summary = append(s.Summary, msg.Summary...)
+	}
+
+	return s
+}
+
+// ParseHistory extracts metrics from a history record.
+func ParseHistory(history *spb.HistoryRecord) tea.Msg {
+	if history == nil {
+		return nil
+	}
+	var step int
+	values := make(map[string]float64, len(history.GetItem()))
+
+	for _, item := range history.GetItem() {
+		key := strings.Join(item.GetNestedKey(), ".")
+		if key == "" {
+			key = item.GetKey()
+		}
+		if key == "" {
+			continue
+		}
+
+		v := item.ValueJson
+		if n := len(v); n >= 2 && v[0] == '"' && v[n-1] == '"' {
+			v = v[1 : n-1]
+		}
+
+		if key == "_step" {
+			if s, err := strconv.Atoi(v); err == nil {
+				step = s
+			}
+			continue
+		}
+		if strings.HasPrefix(key, "_") {
+			continue
+		}
+		if val, err := strconv.ParseFloat(v, 64); err == nil {
+			values[key] = val
+		}
+	}
+
+	if len(values) == 0 {
+		return nil
+	}
+
+	x := float64(step)
+	metrics := make(map[string]MetricData, len(values))
+	for k, y := range values {
+		metrics[k] = MetricData{X: []float64{x}, Y: []float64{y}}
+	}
+	return HistoryMsg{Metrics: metrics}
+}
+
+// ParseStats extracts metrics from a stats record.
+func ParseStats(stats *spb.StatsRecord) tea.Msg {
+	if stats == nil {
+		return nil
+	}
+
+	metrics := make(map[string]float64, len(stats.Item))
+	var timestamp int64
+
+	if stats.Timestamp != nil {
+		timestamp = stats.Timestamp.Seconds
+	}
+
+	for _, item := range stats.Item {
+		if item == nil {
+			continue
+		}
+
+		v := item.ValueJson
+		if n := len(v); n >= 2 && v[0] == '"' && v[n-1] == '"' {
+			v = v[1 : n-1]
+		}
+		if value, err := strconv.ParseFloat(v, 64); err == nil {
+			metrics[item.Key] = value
+		}
+	}
+
+	if len(metrics) > 0 {
+		return StatsMsg{Timestamp: timestamp, Metrics: metrics}
+	}
+	return nil
+}

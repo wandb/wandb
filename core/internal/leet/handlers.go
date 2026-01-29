@@ -232,8 +232,8 @@ func (m *Model) handleToggleHelp(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 func (m *Model) handleQuit(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	m.logger.Debug("model: quit requested")
-	if m.reader != nil {
-		m.reader.Close()
+	if m.historySource != nil {
+		m.historySource.Close()
 	}
 	m.heartbeatMgr.Stop()
 	if m.watcherMgr.IsStarted() {
@@ -246,8 +246,8 @@ func (m *Model) handleQuit(msg tea.KeyMsg) (*Model, tea.Cmd) {
 func (m *Model) handleRestart(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	m.shouldRestart = true
 	m.logger.Debug("model: restart requested")
-	if m.reader != nil {
-		m.reader.Close()
+	if m.historySource != nil {
+		m.historySource.Close()
 	}
 	m.heartbeatMgr.Stop()
 	if m.watcherMgr.IsStarted() {
@@ -510,10 +510,11 @@ func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea
 // handleInit handles InitMsg (reader ready).
 func (m *Model) handleInit(msg InitMsg) []tea.Cmd {
 	m.logger.Debug("model: InitMsg received, reader initialized")
-	m.reader = msg.Reader
+	m.historySource = msg.Source
 	m.loadStartTime = time.Now()
 
-	return []tea.Cmd{ReadAllRecordsChunked(m.reader)}
+	msgs := ReadAllRecordsChunked(m.historySource)
+	return []tea.Cmd{msgs}
 }
 
 // handleChunkedBatch handles boot-load chunked batches.
@@ -529,7 +530,7 @@ func (m *Model) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	cmds := m.handleRecordsBatch(msg.Msgs, false)
 
 	if msg.HasMore {
-		cmds = append(cmds, ReadAllRecordsChunked(m.reader))
+		cmds = append(cmds, ReadAllRecordsChunked(m.historySource))
 		return cmds
 	}
 
@@ -549,7 +550,7 @@ func (m *Model) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 func (m *Model) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := m.handleRecordsBatch(msg.Msgs, true)
-	cmds = append(cmds, ReadAvailableRecords(m.reader))
+	cmds = append(cmds, ReadAvailableRecords(m.historySource))
 	return cmds
 }
 
@@ -558,7 +559,7 @@ func (m *Model) handleHeartbeat() []tea.Cmd {
 	m.logger.Debug("model: processing HeartbeatMsg")
 	m.heartbeatMgr.Reset(m.isRunning)
 	return []tea.Cmd{
-		ReadAvailableRecords(m.reader),
+		ReadAvailableRecords(m.historySource),
 		m.watcherMgr.WaitForMsg,
 	}
 }
@@ -567,7 +568,7 @@ func (m *Model) handleHeartbeat() []tea.Cmd {
 func (m *Model) handleFileChange() []tea.Cmd {
 	m.heartbeatMgr.Reset(m.isRunning)
 	return []tea.Cmd{
-		ReadAvailableRecords(m.reader),
+		ReadAvailableRecords(m.historySource),
 		m.watcherMgr.WaitForMsg,
 	}
 }

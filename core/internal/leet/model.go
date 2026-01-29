@@ -39,8 +39,8 @@ type Model struct {
 	// successfully loaded from the transaction log.
 	isLoading bool
 
-	// Data reader.
-	reader *WandbReader
+	// historySource is the HistorySource to read run history data from.
+	historySource HistorySource
 
 	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
@@ -75,7 +75,11 @@ type Model struct {
 	logger *observability.CoreLogger
 }
 
-func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogger) *Model {
+func NewModel(
+	runPath string,
+	cfg *ConfigManager,
+	logger *observability.CoreLogger,
+) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
 
 	if cfg == nil {
@@ -112,10 +116,12 @@ func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogg
 //
 // Implements tea.Model.Init.
 func (m *Model) Init() tea.Cmd {
+	source := InitializeLevelDBHistorySource(m.runPath, m.logger)
+
 	m.logger.Debug("model: Init called")
 	return tea.Batch(
 		windowTitleCmd(),
-		InitializeReader(m.runPath, m.logger),
+		source,
 		m.watcherMgr.WaitForMsg,
 	)
 }

@@ -43,7 +43,7 @@ def _wandb_file_path(path: str | None) -> str:
     elif len(wandb_files) > 1:
         _fatal(f"Found multiple .wandb files in {wandb_run_path}.")
 
-    return wandb_files[0]
+    return str(wandb_files[0])
 
 
 def launch(

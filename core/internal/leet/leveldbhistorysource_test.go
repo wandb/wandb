@@ -5,6 +5,7 @@ import (
 	"io"
 	"path/filepath"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,10 @@ import (
 // Verifies the missing-file path in NewWandbReader. reader.go
 // returns a descriptive error when the file doesn't exist.
 func TestNewWandbReader_MissingFile(t *testing.T) {
-	_, err := leet.NewWandbReader("no/such/file.wandb", observability.NewNoOpLogger())
+	_, err := leet.NewLevelDBHistorySource(
+		"no/such/file.wandb",
+		observability.NewNoOpLogger(),
+	)
 	require.Error(t, err)
 }
 
@@ -54,10 +58,10 @@ func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	require.NoError(t, err)
 	_ = w.Close()
 
-	r, err := leet.NewWandbReader(path, observability.NewNoOpLogger())
+	s, err := leet.NewLevelDBHistorySource(path, observability.NewNoOpLogger())
 	require.NoError(t, err)
 
-	cmd := leet.ReadAllRecordsChunked(r)
+	cmd := leet.ReadAllRecordsChunked(s)
 	msg := cmd()
 	batch, ok := msg.(leet.ChunkedBatchMsg)
 	require.True(t, ok)
@@ -142,7 +146,7 @@ func TestReadNext_MultipleRecordTypes(t *testing.T) {
 	w.Close()
 
 	// Read back using ReadNext
-	reader, err := leet.NewWandbReader(path, observability.NewNoOpLogger())
+	reader, err := leet.NewLevelDBHistorySource(path, observability.NewNoOpLogger())
 	require.NoError(t, err)
 	defer reader.Close()
 
@@ -199,14 +203,25 @@ func TestReadNext_MultipleRecordTypes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		msg, err := reader.ReadNext()
+		chunkedBatchMsg, err := reader.Read(1, 100*time.Millisecond)
 		require.NoError(t, err, "%s: ReadNext error", tt.name)
+		require.NotNil(t, chunkedBatchMsg, "%s: ReadNext returned nil message", tt.name)
+		require.IsType(
+			t,
+			leet.ChunkedBatchMsg{},
+			chunkedBatchMsg,
+			"%s: ReadNext returned wrong type",
+			tt.name,
+		)
+		assert.Equal(t, 1, len(chunkedBatchMsg.(leet.ChunkedBatchMsg).Msgs))
+
+		msg := chunkedBatchMsg.(leet.ChunkedBatchMsg).Msgs[0]
 		require.NotNil(t, msg, "%s: ReadNext returned nil message", tt.name)
 		tt.validate(msg)
 	}
 
 	// After exit record, should get EOF
-	_, err = reader.ReadNext()
+	_, err = reader.Read(1, 100*time.Millisecond)
 	require.ErrorIs(t, err, io.EOF)
 }
 
@@ -268,22 +283,22 @@ func TestReadAvailableRecords_BatchProcessing(t *testing.T) {
 	}
 	w.Close()
 
-	reader, err := leet.NewWandbReader(path, observability.NewNoOpLogger())
+	s, err := leet.NewLevelDBHistorySource(path, observability.NewNoOpLogger())
 	require.NoError(t, err)
-	defer reader.Close()
+	defer s.Close()
 
 	// Test ReadAvailableRecords batching
-	cmd := leet.ReadAvailableRecords(reader)
+	cmd := leet.ReadAvailableRecords(s)
 	msg := cmd()
 
-	batchMsg, ok := msg.(leet.BatchedRecordsMsg)
-	require.True(t, ok, "expected BatchedRecordsMsg, got %T", msg)
+	chunkedBatchMsg, ok := msg.(leet.ChunkedBatchMsg)
+	require.True(t, ok, "expected ChunkedBatchMsg, got %T", msg)
 
 	// Should have read multiple records in batch
-	require.NotEmpty(t, batchMsg.Msgs)
+	require.NotEmpty(t, chunkedBatchMsg.Msgs)
 
 	// Verify first few messages
-	for i, subMsg := range batchMsg.Msgs {
+	for i, subMsg := range chunkedBatchMsg.Msgs {
 		if i >= 3 {
 			break // Just check first few
 		}
@@ -295,15 +310,19 @@ func TestReadAvailableRecords_BatchProcessing(t *testing.T) {
 	// Test reading when no more data available
 	// First consume all remaining data
 	for {
-		cmd = leet.ReadAvailableRecords(reader)
-		msg = cmd()
-		if msg == nil {
+		cmd = leet.ReadAvailableRecords(s)
+		chunkedBatchMsg, ok := cmd().(leet.ChunkedBatchMsg)
+		require.True(t, ok, "expected ChunkedBatchMsg, got %T", cmd())
+
+		if !chunkedBatchMsg.HasMore {
 			break // No more data
 		}
 	}
 
 	// Now verify returns nil when no data
-	cmd = leet.ReadAvailableRecords(reader)
-	msg = cmd()
-	require.Nil(t, msg)
+	cmd = leet.ReadAvailableRecords(s)
+	chunkedBatchMsg, ok = cmd().(leet.ChunkedBatchMsg)
+	require.True(t, ok, "expected ChunkedBatchMsg, got %T", cmd())
+	require.False(t, chunkedBatchMsg.HasMore)
+	require.Equal(t, 0, len(chunkedBatchMsg.Msgs))
 }
