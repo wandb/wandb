@@ -1,6 +1,7 @@
 package runsync_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,7 @@ func Test_DoSync_NotPrepped(t *testing.T) {
 	m := runsync.NewRunSyncManager()
 	request := &spb.ServerSyncRequest{Id: "bad-id"}
 
-	response := m.DoSync(request)
+	response := m.DoSync(context.Background(), request)
 
 	assert.Len(t, response.Messages, 1)
 	assert.Equal(t,
