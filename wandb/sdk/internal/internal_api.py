@@ -44,7 +44,7 @@ from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
-from wandb.sdk.lib.gql_request import GraphQLSession
+from wandb.sdk.lib.gql_request import BearerAuth, GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import credentials, retry
@@ -281,12 +281,15 @@ class Api:
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
 
-        auth = None
+        # Setup authentication for GraphQL client
+        # Supports both API key (Basic auth) and JWT (Bearer token)
+        # Determine authentication method:
+        #   Basic auth for API keys, BearerAuth for JWT tokens
         api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
         elif self.access_token is not None:
-            self._extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
+            auth = BearerAuth(self.access_token)
         else:
             auth = ("api", self.api_key or "")
 
