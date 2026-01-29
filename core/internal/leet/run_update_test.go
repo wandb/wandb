@@ -20,10 +20,10 @@ import (
 func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewModel("dummy", cfg, logger)
+	var m tea.Model = leet.NewRun("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
 
-	model := m.(*leet.Model)
+	model := m.(*leet.Run)
 	model.TestHandleRecordMsg(leet.RunMsg{
 		ID:          "run_123",
 		DisplayName: "cool-run",
@@ -48,7 +48,7 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 func TestFocus_Clicks_SetClear(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewModel("dummy", cfg, logger)
+	var m tea.Model = leet.NewRun("dummy", cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 	d := map[string]leet.MetricData{
@@ -63,7 +63,7 @@ func TestFocus_Clicks_SetClear(t *testing.T) {
 	}
 	m, _ = m.Update(leet.HistoryMsg{Metrics: d})
 
-	model := m.(*leet.Model)
+	model := m.(*leet.Run)
 	model.TestSetMainChartFocus(0, 0)
 	fs := model.TestFocusState()
 	require.Equal(t, leet.FocusMainChart, fs.Type)
@@ -84,7 +84,7 @@ func TestFocus_Clicks_SetClear(t *testing.T) {
 func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewModel("dummy", cfg, logger)
+	var m tea.Model = leet.NewRun("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 
 	// Enter overview filter mode
@@ -97,7 +97,7 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
-	model := m.(*leet.Model)
+	model := m.(*leet.Run)
 	require.True(t, model.TestSidebarIsFiltering())
 	require.Equal(t, "acc", model.TestSidebarFilterQuery())
 
@@ -114,12 +114,12 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewModel("dummy", cfg, logger)
+	var m tea.Model = leet.NewRun("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 50})
 
 	// Toggle left sidebar
 	m, _ = m.Update(tea.KeyMsg{Runes: []rune{'['}, Type: tea.KeyRunes})
-	model := m.(*leet.Model)
+	model := m.(*leet.Run)
 
 	// Force complete the animation
 	ls := model.TestGetLeftSidebar()
@@ -187,7 +187,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 	w.Close()
 
 	// Create model
-	m := leet.NewModel(path, cfg, logger)
+	m := leet.NewRun(path, cfg, logger)
 
 	// Track heartbeat messages
 	heartbeatCount := 0
@@ -227,7 +227,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 	})
 
 	// Verify model is in running state
-	concreteModel := model.(*leet.Model)
+	concreteModel := model.(*leet.Run)
 	require.Equal(t, leet.RunStateRunning, concreteModel.TestRunState())
 
 	// Write more data in background to simulate live run
@@ -317,7 +317,7 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	w.Close()
 
 	// Create model
-	m := leet.NewModel(path, cfg, logger)
+	m := leet.NewRun(path, cfg, logger)
 
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
@@ -362,14 +362,14 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	require.True(t, heartbeatReceived, "heartbeat not processed initially")
 
 	// Verify model still in good state
-	concreteModel := model.(*leet.Model)
+	concreteModel := model.(*leet.Run)
 	require.Equal(t, leet.RunStateRunning, concreteModel.TestRunState())
 }
 
 func TestReload_WhileLoading_DoesNotCrash(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewModel("dummy", cfg, logger)
+	var m tea.Model = leet.NewRun("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Trigger a reload (Alt+r).
@@ -388,7 +388,7 @@ func TestReload_WhileLoading_DoesNotCrash(t *testing.T) {
 
 func TestModel_HandleMouseMsg(t *testing.T) {
 	// Helper to create a fresh model with data
-	setupModel := func(t *testing.T) *leet.Model {
+	setupModel := func(t *testing.T) *leet.Run {
 		logger := observability.NewNoOpLogger()
 		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
@@ -399,7 +399,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		require.NoError(t, cfg.SetLeftSidebarVisible(true))
 		require.NoError(t, cfg.SetRightSidebarVisible(true))
 
-		m := leet.NewModel("dummy", cfg, logger)
+		m := leet.NewRun("dummy", cfg, logger)
 
 		var model tea.Model = m
 		model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
@@ -440,26 +440,26 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		})
 
 		// Force a render to ensure sidebars are drawn
-		_ = model.(*leet.Model).View()
+		_ = model.(*leet.Run).View()
 
-		return model.(*leet.Model)
+		return model.(*leet.Run)
 	}
 
 	tests := []struct {
 		name   string
-		setup  func(*leet.Model)
+		setup  func(*leet.Run)
 		events []tea.MouseMsg
-		verify func(*testing.T, *leet.Model)
+		verify func(*testing.T, *leet.Run)
 	}{
 		{
 			name: "click_in_left_sidebar_clears_all_focus",
-			setup: func(m *leet.Model) {
+			setup: func(m *leet.Run) {
 				m.TestSetMainChartFocus(0, 0)
 			},
 			events: []tea.MouseMsg{
 				{X: 10, Y: 10, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
 			},
-			verify: func(t *testing.T, m *leet.Model) {
+			verify: func(t *testing.T, m *leet.Run) {
 				require.Equal(t, leet.FocusNone, m.TestFocusState().Type)
 			},
 		},
@@ -468,7 +468,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 			events: []tea.MouseMsg{
 				{X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
 			},
-			verify: func(t *testing.T, m *leet.Model) {
+			verify: func(t *testing.T, m *leet.Run) {
 				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
 
 				// Send second click to same position
@@ -487,7 +487,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 				// Click well inside the right sidebar area
 				{X: 110, Y: 10, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
 			},
-			verify: func(t *testing.T, m *leet.Model) {
+			verify: func(t *testing.T, m *leet.Run) {
 				fs := m.TestFocusState()
 				require.Equal(t, leet.FocusSystemChart, fs.Type)
 				require.NotEmpty(t, fs.Title)
@@ -500,32 +500,32 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 				{X: 60, Y: 25, Button: tea.MouseButtonWheelDown},
 				{X: 60, Y: 25, Button: tea.MouseButtonWheelUp},
 			},
-			verify: func(t *testing.T, m *leet.Model) {
+			verify: func(t *testing.T, m *leet.Run) {
 				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
 			},
 		},
 		{
 			name: "mouse_release_ignored",
-			setup: func(m *leet.Model) {
+			setup: func(m *leet.Run) {
 				m.TestSetMainChartFocus(0, 0)
 			},
 			events: []tea.MouseMsg{
 				{X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease},
 			},
-			verify: func(t *testing.T, m *leet.Model) {
+			verify: func(t *testing.T, m *leet.Run) {
 				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
 			},
 		},
 		{
 			name: "wheel_on_unfocused_chart_focuses_it",
-			setup: func(m *leet.Model) {
+			setup: func(m *leet.Run) {
 				// Ensure no initial focus
 				m.TestClearMainChartFocus()
 			},
 			events: []tea.MouseMsg{
 				{X: 60, Y: 25, Button: tea.MouseButtonWheelUp},
 			},
-			verify: func(t *testing.T, m *leet.Model) {
+			verify: func(t *testing.T, m *leet.Run) {
 				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
 			},
 		},

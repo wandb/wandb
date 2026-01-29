@@ -33,48 +33,71 @@ const (
 	ColorModePerPlot   = "per_plot"   // Each chart gets next color
 	ColorModePerSeries = "per_series" // All charts use base color, multi-series differentiate
 
-	DefaultColorScheme = "sunset-glow"
+	DefaultColorScheme        = "wandb-vibe-10"
+	DefaultPerPlotColorScheme = "sunset-glow"
+	DefaultSingleRunColorMode = ColorModePerSeries
 
 	DefaultSystemColorScheme = "wandb-vibe-10"
 	DefaultSystemColorMode   = ColorModePerSeries
 
 	DefaultHeartbeatInterval = 15 // seconds
+
+	// Startup modes control what LEET does when launched without a specified run path
+	// (i.e. `wandb beta leet` with no PATH).
+	StartupModeWorkspaceLatest = "workspace_latest"  // Load workspace view and select latest run
+	StartupModeSingleRunLatest = "single_run_latest" // Load latest run in the single-run view
+	DefaultStartupMode         = StartupModeWorkspaceLatest
 )
 
 // Config stores the application configuration.
 type Config struct {
+	// StartupMode controls what happens when LEET is launched without --run-file.
+	//  - workspace_latest: open workspace and auto-select the latest run
+	//  - single_run_latest: open the latest run directly in single-run view
+	StartupMode string `json:"startup_mode" leet:"label=Startup mode,desc=Initial view when launched without a run path.,options=startupModes"`
+
 	// MetricsGrid is the dimensions for the main metrics chart grid.
-	MetricsGrid GridConfig `json:"metrics_grid"`
+	MetricsGrid GridConfig `json:"metrics_grid" leet:"desc=main metrics grid"`
 
 	// SystemGrid is the dimensions for the system metrics chart grid.
-	SystemGrid GridConfig `json:"system_grid"`
+	SystemGrid GridConfig `json:"system_grid" leet:"desc=system metrics grid"`
 
 	// ColorScheme is the color scheme to display the main metrics.
-	ColorScheme string `json:"color_scheme"`
+	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
+
+	// PerPlotColorScheme is the color scheme to use for main metrics
+	// in single-run view when SingleRunColorMode is per_plot.
+	// Gradient palettes work well here.
+	PerPlotColorScheme string `json:"per_plot_color_scheme" leet:"label=Per-plot color scheme,desc=Palette for single-run view in per-plot mode. Gradients look nice here.,options=colorSchemes"`
 
 	// SystemColorScheme is the color scheme for system metrics charts.
-	SystemColorScheme string `json:"system_color_scheme"`
+	SystemColorScheme string `json:"system_color_scheme" leet:"desc=Palette for system charts.,options=colorSchemes"`
 
 	// SystemColorMode determines color assignment strategy.
 	// "per_plot": each chart gets next color from palette
 	// "per_series": all single-series charts use base color, multi-series differentiate
-	SystemColorMode string `json:"system_color_mode"`
+	SystemColorMode string `json:"system_color_mode" leet:"desc=Color system charts per plot or per series.,options=colorModes"`
+
+	// SingleRunColorMode controls how charts are colored in single-run view:
+	//  - per_series: stably-mapped run-id color for all charts
+	//  - per_plot: each chart gets the next color from the palette (nice with gradients)
+	SingleRunColorMode string `json:"single_run_color_mode" leet:"label=Single-run color mode,desc=Color single-run charts per plot or use stable run-id color for all charts.,options=colorModes"`
 
 	// Heartbeat interval in seconds for live runs.
 	//
 	// Heartbeats are used to trigger .wandb file read attempts if no file watcher
 	// events have been seen for a long time for a live file.
-	HeartbeatInterval int `json:"heartbeat_interval_seconds"`
+	HeartbeatInterval int `json:"heartbeat_interval_seconds" leet:"label=Heartbeat interval (sec),desc=Polling heartbeat for live runs.,min=1"`
 
-	// Sidebar visibility states.
-	LeftSidebarVisible  bool `json:"left_sidebar_visible"`
-	RightSidebarVisible bool `json:"right_sidebar_visible"`
+	// Single-run view sidebar visibility states.
+	LeftSidebarVisible  bool `json:"left_sidebar_visible"  leet:"desc=Show left sidebar in single run view by default."`
+	RightSidebarVisible bool `json:"right_sidebar_visible" leet:"desc=Show right sidebar in single run view by default."`
 }
 
 // GridConfig represents grid dimensions.
 type GridConfig struct {
-	Rows int `json:"rows"`
-	Cols int `json:"cols"`
+	Rows int `json:"rows" leet:"min=1,max=9"`
+	Cols int `json:"cols" leet:"min=1,max=9"`
 }
 
 // ConfigManager manages application configuration with thread-safe access
@@ -102,7 +125,10 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Rows: DefaultSystemGridRows,
 				Cols: DefaultSystemGridCols,
 			},
+			StartupMode:         DefaultStartupMode,
 			ColorScheme:         DefaultColorScheme,
+			PerPlotColorScheme:  DefaultPerPlotColorScheme,
+			SingleRunColorMode:  DefaultSingleRunColorMode,
 			SystemColorScheme:   DefaultSystemColorScheme,
 			SystemColorMode:     DefaultSystemColorMode,
 			HeartbeatInterval:   DefaultHeartbeatInterval,
@@ -154,6 +180,10 @@ func (cm *ConfigManager) normalizeConfig() {
 		cm.config.ColorScheme = DefaultColorScheme
 	}
 
+	if _, ok := colorSchemes[cm.config.PerPlotColorScheme]; !ok {
+		cm.config.PerPlotColorScheme = DefaultPerPlotColorScheme
+	}
+
 	if _, ok := colorSchemes[cm.config.SystemColorScheme]; !ok {
 		cm.config.SystemColorScheme = DefaultSystemColorScheme
 	}
@@ -163,8 +193,18 @@ func (cm *ConfigManager) normalizeConfig() {
 		cm.config.SystemColorMode = DefaultSystemColorMode
 	}
 
+	if cm.config.SingleRunColorMode != ColorModePerPlot &&
+		cm.config.SingleRunColorMode != ColorModePerSeries {
+		cm.config.SingleRunColorMode = DefaultSingleRunColorMode
+	}
+
 	if cm.config.HeartbeatInterval <= 0 {
 		cm.config.HeartbeatInterval = DefaultHeartbeatInterval
+	}
+
+	if cm.config.StartupMode != StartupModeWorkspaceLatest &&
+		cm.config.StartupMode != StartupModeSingleRunLatest {
+		cm.config.StartupMode = DefaultStartupMode
 	}
 }
 
@@ -263,11 +303,91 @@ func (cm *ConfigManager) SetSystemCols(cols int) error {
 	return cm.save()
 }
 
+// Path returns the on-disk config path.
+func (cm *ConfigManager) Path() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.path
+}
+
+// Snapshot returns a copy of the current config.
+func (cm *ConfigManager) Snapshot() Config {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config
+}
+
+// StartupMode returns the configured startup mode.
+func (cm *ConfigManager) StartupMode() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.StartupMode
+}
+
+// SetStartupMode sets the startup mode and persists it.
+func (cm *ConfigManager) SetStartupMode(mode string) error {
+	if mode != StartupModeWorkspaceLatest && mode != StartupModeSingleRunLatest {
+		return fmt.Errorf(
+			"startup_mode must be %q or %q, got %q",
+			StartupModeWorkspaceLatest, StartupModeSingleRunLatest, mode,
+		)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.StartupMode = mode
+	return cm.save()
+}
+
 // ColorScheme returns the current color scheme.
 func (cm *ConfigManager) ColorScheme() string {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.config.ColorScheme
+}
+
+func (cm *ConfigManager) SetColorScheme(scheme string) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %q", scheme)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.ColorScheme = scheme
+	return cm.save()
+}
+
+func (cm *ConfigManager) PerPlotColorScheme() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.PerPlotColorScheme
+}
+
+func (cm *ConfigManager) SetPerPlotColorScheme(scheme string) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %q", scheme)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.PerPlotColorScheme = scheme
+	return cm.save()
+}
+
+func (cm *ConfigManager) SingleRunColorMode() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SingleRunColorMode
+}
+
+func (cm *ConfigManager) SetSingleRunColorMode(mode string) error {
+	if mode != ColorModePerPlot && mode != ColorModePerSeries {
+		return fmt.Errorf(
+			"single_run_color_mode must be %q or %q, got %q",
+			ColorModePerPlot, ColorModePerSeries, mode,
+		)
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SingleRunColorMode = mode
+	return cm.save()
 }
 
 // SystemColorScheme returns the color scheme for system metrics.
@@ -400,6 +520,15 @@ func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
 	}
 
 	return "", err
+}
+
+// SetConfig replaces the full config (validated) and persists it.
+func (cm *ConfigManager) SetConfig(cfg *Config) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config = *cfg
+	cm.normalizeConfig()
+	return cm.save()
 }
 
 // GridConfigStatus returns the status message to display when awaiting grid config input.
