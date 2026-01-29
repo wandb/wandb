@@ -251,9 +251,11 @@ def multipart_download(
                 logger.debug(f"Error downloading file: {e}")
             ctx.cancel.set()
 
-            # Cancel any pending futures.
-            # Note: Future.cancel() does NOT stop running futures, which is why
-            # there's a separate threading.Event for cooperative cancellation.
+            # Cancel any pending futures.  Note:
+            # - `Future.cancel()` does NOT stop the future if it's running, which is why
+            #   there's a separate `threading.Event` to ensure cooperative cancellation.
+            # - Once Python 3.8 support is dropped, replace these `fut.cancel()`
+            #   calls with `Executor.shutdown(cancel_futures=True)`.
             for fut in not_done:
                 fut.cancel()
             raise

@@ -6,7 +6,16 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from string import ascii_letters, digits
-from typing import IO, TYPE_CHECKING, Any, AnyStr, ContextManager, Mapping, Optional
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    AnyStr,
+    Callable,
+    ContextManager,
+    Mapping,
+    Optional,
+)
 from unittest.mock import Mock
 
 import pytest
@@ -537,6 +546,62 @@ class MockOpener:
         return _fake_context()
 
 
+class MockFile(IO):
+    """Mock file that tracks write/seek operations."""
+
+    def __init__(self):
+        self.write_count = 0
+        self.seek_count = 0
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        self.seek_count += 1
+        return offset
+
+    def write(self, s: AnyStr) -> int:
+        self.write_count += 1
+        return len(s)
+
+
+class ThrowingMockFile(IO):
+    """Mock file that raises ValueError on seek."""
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        raise ValueError("I/O operation on closed file")
+
+
+class MockHttpResponse:
+    """Configurable mock HTTP response."""
+
+    def __init__(self, status_code: int = 200, content: bytes = b"test data"):
+        self.status_code = status_code
+        self._content = content
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError(response=self)
+
+    def iter_content(self, chunk_size: int = 1024):
+        return [self._content]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
+
+class MockHttpSession:
+    """Configurable mock HTTP session."""
+
+    def __init__(self, response_factory: Callable[[int], MockHttpResponse] = None):
+        self.get_count = 0
+        self._response_factory = response_factory or (lambda _: MockHttpResponse())
+
+    def get(self, url: str, headers: dict = None, stream: bool = False):
+        self.get_count += 1
+        return self._response_factory(self.get_count)
+
+
 def test_artifact_multipart_download_network_error():
     # Disable retries and backoff to avoid timeout in test
     session = requests.Session()
@@ -544,20 +609,7 @@ def test_artifact_multipart_download_network_error():
     session.mount("http://", adapter)
     session.mount("https://", adapter)
 
-    class CountOnlyFile(IO):
-        def __init__(self):
-            self.write_count = 0
-            self.seek_count = 0
-
-        def seek(self, offset: int, whence: int = 0) -> int:
-            self.seek_count += 1
-            return offset
-
-        def write(self, s: AnyStr) -> int:
-            self.write_count += 1
-            return len(s)
-
-    file = CountOnlyFile()
+    file = MockFile()
     opener = MockOpener(file)
     url_provider = SharedUrlProvider(
         initial_url="https://invalid.com",
@@ -578,36 +630,12 @@ def test_artifact_multipart_download_network_error():
 
 
 def test_artifact_multipart_download_disk_error():
-    class ThrowFile(IO):
-        def seek(self, offset: int, whence: int = 0) -> int:
-            raise ValueError("I/O operation on closed file")
+    def response_factory(_count: int) -> MockHttpResponse:
+        return MockHttpResponse(status_code=200, content=b"test")
 
-    class MockResponse:
-        status_code = 200
+    session = MockHttpSession(response_factory=response_factory)
 
-        def raise_for_status(self):
-            pass
-
-        def iter_content(self, chunk_size: int = 1024):
-            return [b"test"]
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            pass
-
-    class MockSession:
-        def __init__(self):
-            self.get_count = 0
-
-        def get(self, url: str, stream: bool = False, headers: dict = None):
-            self.get_count += 1
-            return MockResponse()
-
-    session = MockSession()
-
-    file = ThrowFile()
+    file = ThrowingMockFile()
     opener = MockOpener(file)
     url_provider = SharedUrlProvider(
         initial_url="https://mocked.com",
@@ -629,10 +657,7 @@ def test_artifact_multipart_download_disk_error():
 
 
 class TestSharedUrlProvider:
-    """Unit tests for SharedUrlProvider."""
-
     def test_get_url_returns_initial_url(self):
-        """Test that get_url returns the initial URL when not invalidated."""
         fetch_fn = Mock(return_value="https://example.com/refreshed")
         provider = SharedUrlProvider(
             initial_url="https://example.com/initial",
@@ -643,10 +668,9 @@ class TestSharedUrlProvider:
         url = provider.get_url()
 
         assert url == "https://example.com/initial"
-        fetch_fn.assert_not_called()  # Should not fetch since we have initial URL
+        fetch_fn.assert_not_called()
 
     def test_get_url_caches_within_ttl(self):
-        """Test that URLs are cached and fetch_fn is not called repeatedly."""
         fetch_fn = Mock(return_value="https://example.com/refreshed")
         provider = SharedUrlProvider(
             initial_url="https://example.com/initial",
@@ -654,15 +678,13 @@ class TestSharedUrlProvider:
             ttl_seconds=5.0,
         )
 
-        # Multiple calls should return cached URL
         url1 = provider.get_url()
         url2 = provider.get_url()
 
         assert url1 == url2 == "https://example.com/initial"
-        fetch_fn.assert_not_called()  # Never fetched since initial URL is valid
+        fetch_fn.assert_not_called()
 
     def test_invalidate_forces_refresh(self):
-        """Test that invalidate forces the next get_url to fetch."""
         call_count = 0
 
         def fetch_fn():
@@ -678,7 +700,7 @@ class TestSharedUrlProvider:
 
         url1 = provider.get_url()
         assert url1 == "https://example.com/initial"
-        assert call_count == 0  # Haven't fetched yet
+        assert call_count == 0
 
         provider.invalidate()
         url2 = provider.get_url()
@@ -688,34 +710,12 @@ class TestSharedUrlProvider:
 
 
 def test_artifact_multipart_download_retries_on_403():
-    """Test that multipart download retries with fresh URL on 403."""
-    request_count = 0
+    def response_factory(count: int) -> MockHttpResponse:
+        if count == 1:
+            return MockHttpResponse(status_code=403)
+        return MockHttpResponse(status_code=206)
 
-    class MockResponse:
-        def __init__(self, status_code: int):
-            self.status_code = status_code
-
-        def raise_for_status(self):
-            if self.status_code >= 400:
-                raise requests.HTTPError(response=self)
-
-        def iter_content(self, chunk_size: int = 1024):
-            return [b"test data"]
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            pass
-
-    class MockSession:
-        def get(self, url: str, headers: dict = None, stream: bool = False):
-            nonlocal request_count
-            request_count += 1
-            # First request returns 403, subsequent requests succeed
-            if request_count == 1:
-                return MockResponse(status_code=403)
-            return MockResponse(status_code=206)
+    session = MockHttpSession(response_factory=response_factory)
 
     refresh_count = 0
 
@@ -730,64 +730,29 @@ def test_artifact_multipart_download_retries_on_403():
         ttl_seconds=5.0,
     )
 
-    class CountingFile(IO):
-        def __init__(self):
-            self.write_count = 0
-
-        def seek(self, offset: int, whence: int = 0) -> int:
-            return offset
-
-        def write(self, s: AnyStr) -> int:
-            self.write_count += 1
-            return len(s)
-
-    file = CountingFile()
+    file = MockFile()
     opener = MockOpener(file)
-    session = MockSession()
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         multipart_download(
             executor,
             session,
-            100,  # Small size for single chunk
+            100,
             opener,
             url_provider,
             part_size=100,
         )
 
-    # Should have retried after 403
-    assert request_count == 2
-    # Should have refreshed URL after 403
+    assert session.get_count == 2
     assert refresh_count == 1
-    # Should have written data
     assert file.write_count > 0
 
 
 def test_artifact_multipart_download_max_retries_exceeded():
-    """Test that max retries are respected."""
+    def response_factory(_count: int) -> MockHttpResponse:
+        return MockHttpResponse(status_code=403, content=b"")
 
-    class MockResponse:
-        status_code = 403
-
-        def raise_for_status(self):
-            raise requests.HTTPError(response=self)
-
-        def iter_content(self, chunk_size: int = 1024):
-            return []
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            pass
-
-    request_count = 0
-
-    class MockSession:
-        def get(self, url: str, headers: dict = None, stream: bool = False):
-            nonlocal request_count
-            request_count += 1
-            return MockResponse()  # Always return 403
+    session = MockHttpSession(response_factory=response_factory)
 
     url_provider = SharedUrlProvider(
         initial_url="https://example.com/url",
@@ -795,16 +760,8 @@ def test_artifact_multipart_download_max_retries_exceeded():
         ttl_seconds=0.01,
     )
 
-    class CountingFile(IO):
-        def seek(self, offset: int, whence: int = 0) -> int:
-            return offset
-
-        def write(self, s: AnyStr) -> int:
-            return len(s)
-
-    file = CountingFile()
+    file = MockFile()
     opener = MockOpener(file)
-    session = MockSession()
 
     with pytest.raises(requests.HTTPError):
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -817,5 +774,4 @@ def test_artifact_multipart_download_max_retries_exceeded():
                 part_size=100,
             )
 
-    # Should have tried 4 times (1 initial + 3 retries)
-    assert request_count == 4
+    assert session.get_count == 4  # 1 initial + 3 retries
