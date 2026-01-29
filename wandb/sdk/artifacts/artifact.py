@@ -2208,6 +2208,64 @@ class Artifact:
             self._fetch_file_urls_decorated = self._build_fetch_file_urls_wrapper()
         return self._fetch_file_urls_decorated(cursor, per_page)
 
+    def _build_files_query_config(
+        self, file_names: Sequence[str] | None = None
+    ) -> tuple[Any, dict, bool]:
+        """Build query config for fetching artifact file information.
+
+        This method centralizes the logic for building GraphQL queries to fetch
+        artifact file data, supporting both the new membership-based query path
+        and the legacy query path for older servers.
+
+        Args:
+            file_names: Optional list of file names to filter by.
+
+        Returns:
+            A tuple of (query_document, variables, uses_membership) where:
+            - query_document: The compiled GraphQL query document.
+            - variables: The variables dict to pass to the query.
+            - uses_membership: True if using the membership query path, False for legacy.
+        """
+        from ._generated import (
+            GET_ARTIFACT_FILES_GQL,
+            GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
+        )
+
+        if self._client is None:
+            raise RuntimeError("Client not initialized")
+
+        uses_membership = server_supports(
+            self._client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+        )
+
+        if uses_membership:
+            query_str = GET_ARTIFACT_MEMBERSHIP_FILES_GQL
+            variables = {
+                "entity": self.entity,
+                "project": self.project,
+                "collection": self.name.split(":")[0],
+                "alias": self.version,
+                "fileNames": list(file_names) if file_names else None,
+            }
+        else:
+            query_str = GET_ARTIFACT_FILES_GQL
+            variables = {
+                "entity": self.source_entity,
+                "project": self.source_project,
+                "name": self.source_name,
+                "type": self.type,
+                "fileNames": list(file_names) if file_names else None,
+            }
+
+        omit_fields = (
+            None
+            if server_supports(self._client, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+            else {"totalCount"}
+        )
+        query = gql_compat(query_str, omit_fields=omit_fields)
+
+        return query, variables, uses_membership
+
     def _fetch_single_file_url(self, file_name: str) -> str | None:
         """Fetch a fresh presigned URL for a single file.
 
@@ -2221,41 +2279,44 @@ class Artifact:
             The presigned URL for the file, or None if not found.
         """
         from ._generated import (
-            GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
+            GetArtifactFiles,
             GetArtifactMembershipFiles,
         )
 
         if self._client is None:
             raise RuntimeError("Client not initialized")
 
-        # Conditionally omit totalCount for servers that don't support it
-        omit_fields = (
-            None
-            if server_supports(self._client, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
-            else {"totalCount"}
+        query, variables, uses_membership = self._build_files_query_config(
+            file_names=[file_name]
         )
-        query = gql_compat(GET_ARTIFACT_MEMBERSHIP_FILES_GQL, omit_fields=omit_fields)
-        gql_vars = {
-            "entity": self.entity,
-            "project": self.project,
-            "collection": self.name.split(":")[0],
-            "alias": self.version,
-            "fileNames": [file_name],
-            "perPage": 1,
-        }
-        data = self._client.execute(query, variable_values=gql_vars, timeout=60)
-        result = GetArtifactMembershipFiles.model_validate(data)
+        variables["perPage"] = 1
 
-        if not (
-            (project := result.project)
-            and (collection := project.artifact_collection)
-            and (membership := collection.artifact_membership)
-            and (files := membership.files)
-            and files.edges
-            and (node := files.edges[0].node)
-        ):
-            return None
-        return node.direct_url
+        data = self._client.execute(query, variable_values=variables, timeout=60)
+
+        if uses_membership:
+            result = GetArtifactMembershipFiles.model_validate(data)
+            if not (
+                (project := result.project)
+                and (collection := project.artifact_collection)
+                and (membership := collection.artifact_membership)
+                and (files := membership.files)
+                and files.edges
+                and (node := files.edges[0].node)
+            ):
+                return None
+            return node.direct_url
+        else:
+            result = GetArtifactFiles.model_validate(data)
+            if not (
+                (project := result.project)
+                and (artifact_type := project.artifact_type)
+                and (art := artifact_type.artifact)
+                and (files := art.files)
+                and files.edges
+                and (node := files.edges[0].node)
+            ):
+                return None
+            return node.direct_url
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:

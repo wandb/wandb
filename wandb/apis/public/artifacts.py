@@ -31,13 +31,11 @@ from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 from wandb.errors.term import termlog
-from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
 from .files import File
-from .utils import gql_compat
 
 if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
@@ -860,42 +858,13 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         names: Sequence[str] | None = None,
         per_page: int = 50,
     ):
-        from wandb.sdk.artifacts._generated import (
-            GET_ARTIFACT_FILES_GQL,
-            GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
-        )
-        from wandb.sdk.artifacts._gqlutils import server_supports
-
-        self.query_via_membership = server_supports(
-            client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
+        query, variables, self.query_via_membership = (
+            artifact._build_files_query_config(
+                file_names=list(names) if names else None
+            )
         )
         self.artifact = artifact
-
-        if self.query_via_membership:
-            query_str = GET_ARTIFACT_MEMBERSHIP_FILES_GQL
-            variables = {
-                "entity": artifact.entity,
-                "project": artifact.project,
-                "collection": artifact.name.split(":")[0],
-                "alias": artifact.version,
-                "fileNames": names,
-            }
-        else:
-            query_str = GET_ARTIFACT_FILES_GQL
-            variables = {
-                "entity": artifact.source_entity,
-                "project": artifact.source_project,
-                "name": artifact.source_name,
-                "type": artifact.type,
-                "fileNames": names,
-            }
-
-        omit_fields = (
-            None
-            if server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
-            else {"totalCount"}
-        )
-        self.QUERY = gql_compat(query_str, omit_fields=omit_fields)
+        self.QUERY = query
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override

@@ -12,6 +12,7 @@ from operator import itemgetter
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
+import requests
 from typing_extensions import assert_never
 
 from wandb.errors.term import termwarn
