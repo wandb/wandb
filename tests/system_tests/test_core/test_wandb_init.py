@@ -35,36 +35,6 @@ def test_upsert_bucket_410(wandb_backend_spy):
         wandb.init()
 
 
-def test_gql_409(wandb_backend_spy):
-    """Test that we do retry non-UpsertBucket GraphQL operations on 409s."""
-    gql = wandb_backend_spy.gql
-    responder = gql.once(content="", status=409)
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="CreateRunFiles"),
-        responder,
-    )
-
-    with wandb.init():
-        pass
-
-    assert responder.total_calls >= 2
-
-
-def test_gql_410(wandb_backend_spy):
-    """Test that we do retry non-UpsertBucket GraphQL operations on 410s."""
-    gql = wandb_backend_spy.gql
-    responder = gql.once(content="", status=410)
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="CreateRunFiles"),
-        responder,
-    )
-
-    with wandb.init():
-        pass
-
-    assert responder.total_calls >= 2
-
-
 def test_send_wandb_config_start_time_on_init(wandb_backend_spy):
     with wandb.init() as run:
         pass

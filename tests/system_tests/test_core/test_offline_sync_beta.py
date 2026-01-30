@@ -13,7 +13,7 @@ from wandb.cli import beta_sync, cli
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_sync_pb2
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import asyncio_compat
+from wandb.sdk.lib import asyncio_compat, wbauth
 from wandb.sdk.lib.printer import new_printer
 from wandb.sdk.mailbox.mailbox import Mailbox
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
@@ -123,14 +123,9 @@ class _Tester:
         self,
         paths: set[pathlib.Path],
         settings: wandb.Settings,
-        *,
-        cwd: pathlib.Path | None,
-        live: bool,
-        entity: str,
-        project: str,
-        run_id: str,
+        **kwargs: object,
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
-        _, _, _, _, _, _, _ = paths, settings, cwd, live, entity, project, run_id
+        _ = paths, settings, kwargs
         return await self._make_handle(
             self._init_sync_addrs,
             lambda r: r.init_sync_response,
@@ -180,11 +175,17 @@ def skip_asyncio_sleep(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(beta_sync, "_SLEEP", do_nothing)
 
 
+def _unauthenticate_for_test() -> None:
+    """Clear auth to verify that syncing explicitly authenticates."""
+    wbauth.unauthenticate_session(update_settings=True)
+
+
 def test_syncs_run(
     tmp_path: pathlib.Path,
     wandb_backend_spy: WandbBackendSpy,
     runner: CliRunner,
 ):
+    _unauthenticate_for_test()
     test_file = tmp_path / "test_file.txt"
     test_file.touch()
 
@@ -291,6 +292,29 @@ def test_sync_to_other_path(
 
         assert len(history) == 1
         assert history[0]["x"] == 1
+
+
+def test_sync_overrides(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    with wandb.init(
+        mode="offline",
+        job_type="job",
+        tags=("old1", "old2", "delete"),
+    ) as run:
+        pass
+
+    runner.invoke(
+        cli.beta,
+        f"sync {run.settings.sync_dir}"
+        + " --job-type job-override"
+        + " --replace-tags old1=new1,old2=new2,delete=",
+    )
+
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.job_type(run_id=run.id) == "job-override"
+        assert snapshot.tags(run_id=run.id) == ["new1", "new2"]
 
 
 @pytest.mark.parametrize("skip_synced", (True, False))
@@ -427,9 +451,12 @@ def test_prints_status_updates(
     tmp_path: pathlib.Path,
     emulated_terminal: EmulatedTerminal,
 ):
+    async def cancel_noop(id: str) -> None:
+        _ = id
+
     wandb_file = tmp_path / "run-test-progress.wandb"
     singleton = wandb_setup.singleton()
-    mailbox = Mailbox(singleton.asyncer)
+    mailbox = Mailbox(singleton.asyncer, cancel_noop)
 
     async def simulate_service(tester: _Tester):
         await tester.respond_init_sync(id="sync-test")
@@ -467,6 +494,8 @@ def test_prints_status_updates(
                     entity="",
                     project="",
                     run_id="",
+                    job_type="",
+                    tag_replacements={},
                     settings=wandb.Settings(),
                     printer=new_printer(),
                     parallelism=1,

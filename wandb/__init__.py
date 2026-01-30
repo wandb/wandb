@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.24.1.dev1"
+__version__ = "0.24.2.dev1"
 
 
 from wandb.errors import Error
@@ -153,14 +153,10 @@ def set_trace():
     pdb.set_trace()
 
 
-def load_ipython_extension(ipython):
-    ipython.register_magics(wandb.jupyter.WandBMagics)
-
-
 if wandb_sdk.lib.ipython.in_notebook():
     from IPython import get_ipython  # type: ignore[import-not-found]
 
-    load_ipython_extension(get_ipython())
+    jupyter._load_ipython_extension(get_ipython())
 
 
 if "dev" in __version__:

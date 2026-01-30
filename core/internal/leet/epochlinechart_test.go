@@ -157,3 +157,70 @@ func TestTruncateTitle(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatXAxisTick(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    float64
+		maxWidth int
+		want     string
+	}{
+		// Special values
+		{"zero", 0, 0, "0"},
+		{"NaN", math.NaN(), 0, ""},
+		{"positive infinity", math.Inf(1), 0, ""},
+		{"negative infinity", math.Inf(-1), 0, ""},
+
+		// Small integers (no suffix)
+		{"one", 1, 0, "1"},
+		{"small", 42, 0, "42"},
+		{"hundred", 100, 0, "100"},
+		{"max before k", 999, 0, "999"},
+
+		// Thousands (k)
+		{"exactly 1k", 1000, 0, "1k"},
+		{"1.5k", 1500, 0, "1.5k"},
+		{"fractional k", 1234, 0, "1.23k"},
+		{"large k", 50000, 0, "50k"},
+		{"max k", 999000, 0, "999k"},
+		{"high precision k", 999600, 0, "999.6k"},
+
+		// Millions (M)
+		{"exactly 1M", 1e6, 0, "1M"},
+		{"1.2M", 1.2e6, 0, "1.2M"},
+		{"fractional M", 1234567, 0, "1.23M"},
+		{"high precision M", 999.95e6, 0, "999.95M"},
+
+		// Billions (G)
+		{"exactly 1G", 1e9, 0, "1G"},
+		{"2.5G", 2.5e9, 0, "2.5G"},
+
+		// Trillions (T)
+		{"exactly 1T", 1e12, 0, "1T"},
+
+		// Negative values
+		{"negative small", -42, 0, "-42"},
+		{"negative k", -1500, 0, "-1.5k"},
+		{"negative M", -1.2e6, 0, "-1.2M"},
+
+		// Boundary bump: rounding at 2 decimals produces "1000"
+		{"999.9996k bumps to M", 999999.6, 0, "1M"},
+		{"999.9996M bumps to G", 999999.6e3, 0, "1G"},
+
+		// Width constraints
+		{"width forces fewer decimals", 1234, 4, "1.2k"},
+		{"width forces integer", 1234, 3, "1k"},
+		{"width allows full precision", 1234, 10, "1.23k"},
+		{"negative with width", -1234, 5, "-1.2k"},
+
+		// Width-constrained bump: reduction to 0 decimals triggers bump
+		{"width causes bump", 999600, 4, "1M"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := leet.FormatXAxisTick(tt.value, tt.maxWidth)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

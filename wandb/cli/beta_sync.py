@@ -13,7 +13,7 @@ import wandb
 from wandb.errors import term
 from wandb.proto.wandb_sync_pb2 import ServerSyncResponse
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import asyncio_compat
+from wandb.sdk.lib import asyncio_compat, wbauth
 from wandb.sdk.lib.printer import Printer, new_printer
 from wandb.sdk.lib.progress import progress_printer
 from wandb.sdk.lib.service.service_connection import ServiceConnection
@@ -31,6 +31,8 @@ def sync(
     entity: str,
     project: str,
     run_id: str,
+    job_type: str,
+    replace_tags: str,
     dry_run: bool,
     skip_synced: bool,
     verbose: bool,
@@ -44,6 +46,9 @@ def sync(
         entity: The entity override for all paths, or an empty string.
         project: The project override for all paths, or an empty string.
         run_id: The run ID override for all paths, or an empty string.
+        job_type: An override for the job type for all runs, or an empty string.
+        replace_tags: A string in the form 'old1=new1,old2=new2' that defines
+            how to rename run tags.
         paths: One or more .wandb files, run directories containing
             .wandb files, and wandb directories containing run directories.
         dry_run: If true, just prints what it would do and exits.
@@ -52,6 +57,8 @@ def sync(
         verbose: Verbose mode for printing more info.
         parallelism: Max number of runs to sync at a time.
     """
+    tag_replacements = _parse_replace_tags(replace_tags)
+
     singleton = wandb_setup.singleton()
 
     try:
@@ -88,6 +95,15 @@ def sync(
     if ask_for_confirmation and not term.confirm("Sync the listed runs?"):
         return
 
+    # Authenticate the session. This updates the singleton settings credentials.
+    if not wbauth.authenticate_session(
+        host=singleton.settings.base_url,
+        source="wandb sync",
+        no_offline=True,
+    ):
+        term.termlog("Not authenticated.")
+        return
+
     service = singleton.ensure_service()
     printer = new_printer()
     singleton.asyncer.run(
@@ -99,11 +115,32 @@ def sync(
             entity=entity,
             project=project,
             run_id=run_id,
+            job_type=job_type,
+            tag_replacements=tag_replacements,
             settings=singleton.settings,
             printer=printer,
             parallelism=parallelism,
         )
     )
+
+
+def _parse_replace_tags(replace_tags: str) -> dict[str, str]:
+    """Parse the --replace-tags argument to wandb sync."""
+    if not replace_tags:
+        return {}
+
+    tag_replacements: dict[str, str] = {}
+
+    for pair in replace_tags.split(","):
+        if "=" not in pair:
+            raise ValueError(
+                f"Invalid --replace-tags format: {pair}. Expected 'old=new'."
+            )
+
+        old_tag, new_tag = pair.split("=", 1)
+        tag_replacements[old_tag.strip()] = new_tag.strip()
+
+    return tag_replacements
 
 
 def _to_unique_files(
@@ -145,6 +182,8 @@ async def _do_sync(
     entity: str,
     project: str,
     run_id: str,
+    job_type: str,
+    tag_replacements: dict[str, str],
     settings: wandb.Settings,
     printer: Printer,
     parallelism: int,
@@ -161,6 +200,8 @@ async def _do_sync(
         entity=entity,
         project=project,
         run_id=run_id,
+        job_type=job_type,
+        tag_replacements=tag_replacements,
     )
     init_result = await init_handle.wait_async(timeout=5)
 

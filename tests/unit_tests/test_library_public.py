@@ -51,7 +51,6 @@ SYMBOLS_ROOT_SDK = {
     "controller",
     "sweep",
     "mark_preempting",
-    "load_ipython_extension",
     "require",
     "profiler",
 }

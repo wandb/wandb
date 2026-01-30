@@ -137,6 +137,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	var fileStream fs.FileStream
 	if !f.Settings.IsOffline() {
 		fileStream = NewFileStream(
+			runWork,
 			f.FileStreamFactory,
 			f.BaseURL,
 			f.ClientID,
@@ -150,7 +151,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	var runfilesUploader runfiles.Uploader
 	if !f.Settings.IsOffline() {
 		runfilesUploader = f.RunfilesUploaderFactory.New(
-			/*batchDelay=*/ waiting.NewDelay(50*time.Millisecond),
+			/*batchDelay=*/ waiting.NewDelay(5*time.Second),
 			runWork,
 			fileStream,
 		)

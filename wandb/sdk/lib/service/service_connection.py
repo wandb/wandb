@@ -25,6 +25,14 @@ class WandbAttachFailedError(Exception):
 class WandbApiFailedError(Exception):
     """Failed to execute an API request to wandb-core."""
 
+    def __init__(
+        self,
+        message: str,
+        response: wandb_api_pb2.ApiErrorResponse | None = None,
+    ):
+        super().__init__(message)
+        self.response = response
+
 
 def connect_to_service(
     asyncer: asyncio_manager.AsyncioManager,
@@ -121,6 +129,8 @@ class ServiceConnection:
         entity: str,
         project: str,
         run_id: str,
+        job_type: str,
+        tag_replacements: dict[str, str],
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
         """Send a ServerInitSyncRequest."""
         init_sync = wandb_sync_pb2.ServerInitSyncRequest(
@@ -131,6 +141,8 @@ class ServiceConnection:
             new_entity=entity,
             new_project=project,
             new_run_id=run_id,
+            new_job_type=job_type,
+            tag_replacements=tag_replacements,
         )
         request = spb.ServerRequest(init_sync=init_sync)
 
@@ -211,7 +223,10 @@ class ServiceConnection:
 
         api_response = response.api_response
         if api_response.HasField("api_error_response"):
-            raise Exception(api_response.api_error_response.message)
+            raise WandbApiFailedError(
+                api_response.api_error_response.message,
+                api_response.api_error_response,
+            )
         return api_response
 
     def api_publish(self, api_request: wandb_api_pb2.ApiRequest) -> None:
