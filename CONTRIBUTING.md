@@ -266,13 +266,6 @@ If you just want to run a specific hook, for example formating your code, you co
 prek run ruff-format --all-files --hook-stage pre-push
 ```
 
-To format Go code:
-
-```shell
-cd core
-golangci-lint fmt
-```
-
 ### Auto-Generating Code
 
 #### Building protocol buffers
