@@ -130,6 +130,7 @@ class ServiceConnection:
         project: str,
         run_id: str,
         job_type: str,
+        tag_replacements: dict[str, str],
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
         """Send a ServerInitSyncRequest."""
         init_sync = wandb_sync_pb2.ServerInitSyncRequest(
@@ -141,6 +142,7 @@ class ServiceConnection:
             new_project=project,
             new_run_id=run_id,
             new_job_type=job_type,
+            tag_replacements=tag_replacements,
         )
         request = spb.ServerRequest(init_sync=init_sync)
 
