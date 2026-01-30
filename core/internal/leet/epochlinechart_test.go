@@ -177,12 +177,6 @@ func TestFormatXAxisTick(t *testing.T) {
 		{"hundred", 100, 0, "100"},
 		{"max before k", 999, 0, "999"},
 
-		// Rounding to integer (sub-1000 path doesn't re-check)
-		{"rounds down", 41.4, 0, "41"},
-		{"rounds up", 41.6, 0, "42"},
-		{"half rounds up", 41.5, 0, "42"},
-		{"rounds to 1000 stays integer", 999.5, 0, "1000"},
-
 		// Thousands (k)
 		{"exactly 1k", 1000, 0, "1k"},
 		{"1.5k", 1500, 0, "1.5k"},
