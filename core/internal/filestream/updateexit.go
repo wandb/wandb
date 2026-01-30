@@ -4,15 +4,15 @@ package filestream
 //
 // This should be the last update to filestream.
 type ExitUpdate struct {
-	ExitCode         int32
-	MarkedPreempting bool
+	ExitCode   int32
+	Preempting bool
 }
 
 func (u *ExitUpdate) Apply(ctx UpdateContext) error {
 	ctx.MakeRequest(&FileStreamRequest{
 		Complete:   true,
 		ExitCode:   u.ExitCode,
-		Preempting: u.MarkedPreempting,
+		Preempting: u.Preempting,
 	})
 
 	return nil

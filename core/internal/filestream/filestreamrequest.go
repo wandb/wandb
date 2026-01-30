@@ -39,13 +39,15 @@ type FileStreamRequest struct {
 	// storage system.
 	UploadedFiles map[string]struct{}
 
-	// Preempting is whether the script is about to yield the processor.
+	// For Sweeps: Preempting is whether the script is about to yield the
+	// processor.
 	//
-	// This happens on certain machines where a run can be suspended
-	// indefinitely to free up resources, but resumed later. During
-	// this time, the run can't send any heartbeats to the backend,
-	// so we send a preempting signal to tell it that the run isn't
-	// dead and send more updates later.
+	// If set when Complete is false, marks the run as preempting, such
+	// that it will get enqueued for next agent to claim if it later exits with
+	// a non-zero exit code or times out.
+	//
+	// If set when Complete is true, indicates that backend should enqueue the
+	// run now for the next agent to claim if the exit code is non-zero.
 	Preempting bool
 
 	// Complete is whether the run has been marked as finished.

@@ -650,11 +650,11 @@ class RunExitRecord(google.protobuf.message.Message):
 
     EXIT_CODE_FIELD_NUMBER: builtins.int
     RUNTIME_FIELD_NUMBER: builtins.int
-    MARKED_PREEMPTING_FIELD_NUMBER: builtins.int
+    PREEMPTING_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     exit_code: builtins.int
     runtime: builtins.int
-    marked_preempting: builtins.bool
+    preempting: builtins.bool
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -662,11 +662,11 @@ class RunExitRecord(google.protobuf.message.Message):
         *,
         exit_code: builtins.int = ...,
         runtime: builtins.int = ...,
-        marked_preempting: builtins.bool = ...,
+        preempting: builtins.bool = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "exit_code", b"exit_code", "marked_preempting", b"marked_preempting", "runtime", b"runtime"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["_info", b"_info", "exit_code", b"exit_code", "preempting", b"preempting", "runtime", b"runtime"]) -> None: ...
 
 global___RunExitRecord = RunExitRecord
 

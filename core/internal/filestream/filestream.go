@@ -74,7 +74,7 @@ type FileStream interface {
 
 	// FinishWithExit marks the run as complete and blocks until all
 	// uploads finish.
-	FinishWithExit(exitCode int32, markedPreempting bool)
+	FinishWithExit(exitCode int32, preempting bool)
 
 	// FinishWithoutExit blocks until all uploads finish but does not
 	// mark the run as complete.
@@ -226,10 +226,10 @@ func (fs *fileStream) StreamUpdate(update Update) {
 	}
 }
 
-func (fs *fileStream) FinishWithExit(exitCode int32, markedPreempting bool) {
+func (fs *fileStream) FinishWithExit(exitCode int32, preempting bool) {
 	fs.StreamUpdate(&ExitUpdate{
-		ExitCode:         exitCode,
-		MarkedPreempting: markedPreempting,
+		ExitCode:   exitCode,
+		Preempting: preempting,
 	})
 	fs.FinishWithoutExit()
 }

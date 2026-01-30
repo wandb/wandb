@@ -155,10 +155,9 @@ func (cl CollectLoop) shouldSendASAP(
 	switch {
 	// Send the "pre-empting" state immediately.
 	//
-	// This state indicates that the process may be about to yield the
-	// CPU for an unknown amount of time, and we want to let the backend
-	// know ASAP.
-	case request.Preempting:
+	// Preempting without Complete indicates that the process may be about to
+	// yield resources, and we want to let the backend know ASAP.
+	case request.Preempting && !request.Complete:
 		return true
 
 	// If we've accumulated a request of the maximum size, send it immediately.

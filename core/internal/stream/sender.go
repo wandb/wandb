@@ -652,7 +652,7 @@ func (s *Sender) finishFileStream() {
 		exit := s.exitRecord.GetExit()
 		s.fileStream.FinishWithExit(
 			exit.GetExitCode(),
-			exit.GetMarkedPreempting(),
+			exit.GetPreempting(),
 		)
 	case s.finishWithoutExitRecord != nil:
 		s.fileStream.FinishWithoutExit()

@@ -924,7 +924,7 @@ pub struct RunExitRecord {
     #[prost(int32, tag = "2")]
     pub runtime: i32,
     #[prost(bool, tag = "3")]
-    pub marked_preempting: bool,
+    pub preempting: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
