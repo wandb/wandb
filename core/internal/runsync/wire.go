@@ -4,7 +4,6 @@ package runsync
 
 import (
 	"github.com/google/wire"
-
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
