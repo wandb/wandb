@@ -3,6 +3,7 @@ package leet
 import (
 	"math"
 	"strconv"
+	"strings"
 )
 
 // formatSigFigs formats the float with 'prec' significant digits.
@@ -157,4 +158,74 @@ func formatRateDecimal(bps float64) string {
 	default:
 		return formatSigFigs(bps, 3) + "B/s"
 	}
+}
+
+var scales = []struct {
+	factor float64
+	suffix string
+}{
+	{1e3, "k"},
+	{1e6, "M"},
+	{1e9, "B"},
+	{1e12, "T"},
+	{1e15, "P"},
+	{1e18, "E"},
+}
+
+func FormatXAxisTick(v float64, maxWidth int) string {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return ""
+	}
+	if v == 0 {
+		return "0"
+	}
+
+	sign := ""
+	if v < 0 {
+		sign = "-"
+		v = -v
+	}
+
+	// Only display integers for values < 1000.
+	if v < 1000 {
+		return sign + strconv.FormatInt(int64(math.Round(v)), 10)
+	}
+
+	// Pick a scale so scaled is roughly in [1, 1000).
+	idx := 0
+	for idx+1 < len(scales) && v >= scales[idx+1].factor {
+		idx++
+	}
+
+scale:
+	for {
+		s := scales[idx]
+		scaled := v / s.factor
+
+		for decimals := 2; decimals >= 0; decimals-- {
+			num := trimTrailingZeros(strconv.FormatFloat(scaled, 'f', decimals, 64))
+
+			// Rounding crossed into next tier (e.g., 999.6k -> 1000k); bump suffix.
+			if num == "1000" && idx+1 < len(scales) {
+				idx++
+				continue scale
+			}
+
+			out := sign + num + s.suffix
+			if maxWidth <= 0 || len(out) <= maxWidth {
+				return out
+			}
+		}
+
+		// Nothing fit; return minimum precision anyway.
+		return sign + trimTrailingZeros(strconv.FormatFloat(scaled, 'f', 0, 64)) + s.suffix
+	}
+}
+
+func trimTrailingZeros(s string) string {
+	if dot := strings.IndexByte(s, '.'); dot != -1 {
+		s = strings.TrimRight(s, "0")
+		s = strings.TrimSuffix(s, ".")
+	}
+	return s
 }

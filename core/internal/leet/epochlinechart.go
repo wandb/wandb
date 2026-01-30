@@ -25,6 +25,9 @@ const (
 	parkedCanvasSize = 1
 
 	initDataSliceCap = 256
+
+	// The number of steps when drawing axis values.
+	epochChartXSteps, epochChartYSteps = 4, 5
 )
 
 // EpochLineChart is a custom line chart for epoch-based data.
@@ -80,11 +83,8 @@ func NewEpochLineChart(title string) *EpochLineChart {
 
 	chart := &EpochLineChart{
 		Model: linechart.New(parkedCanvasSize, parkedCanvasSize, 0, defaultMaxX, 0, defaultMaxY,
-			linechart.WithXYSteps(4, 5),
+			linechart.WithXYSteps(epochChartXSteps, epochChartYSteps),
 			linechart.WithAutoXRange(),
-			linechart.WithYLabelFormatter(func(i int, v float64) string {
-				return UnitScalar.Format(v)
-			}),
 		),
 		xData: make([]float64, 0, initDataSliceCap),
 		yData: make([]float64, 0, initDataSliceCap),
@@ -98,7 +98,32 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
 
+	chart.XLabelFormatter = func(_ int, v float64) string {
+		return FormatXAxisTick(v, chart.maxXLabelWidth())
+	}
+	chart.YLabelFormatter = func(_ int, v float64) string {
+		return UnitScalar.Format(v)
+	}
+
 	return chart
+}
+
+// maxXLabelWidth computes maximum X axis label width based on available space.
+func (c *EpochLineChart) maxXLabelWidth() int {
+	w := c.GraphWidth()
+	if w <= 0 {
+		return 0
+	}
+
+	// Approx spacing between ticks. With XSteps=N there are typically N intervals.
+	per := w / epochChartXSteps
+	if per > 1 {
+		per-- // leave one column slack so labels collide less often
+	}
+	if per < 1 {
+		return 1
+	}
+	return per
 }
 
 // AddData adds a set of new (x, y) data points (x is commonly _step).
