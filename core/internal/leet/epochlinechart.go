@@ -132,6 +132,9 @@ func NewEpochLineChart(title string) *EpochLineChart {
 		Model: linechart.New(parkedCanvasSize, parkedCanvasSize, 0, defaultMaxX, 0, defaultMaxY,
 			linechart.WithXYSteps(4, 5),
 			linechart.WithAutoXRange(),
+			linechart.WithXLabelFormatter(func(i int, v float64) string {
+				return UnitScalar.Format(v) // TODO: consider using SI-suffixed ints instead.
+			}),
 			linechart.WithYLabelFormatter(func(i int, v float64) string {
 				return UnitScalar.Format(v)
 			}),
