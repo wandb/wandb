@@ -21,3 +21,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - After `wandb login --host <invalid-url>`, using `wandb login --host <valid-url>` works as usual (@timoffex in https://github.com/wandb/wandb/pull/11207)
   - Regression introduced in 0.24.0
+- Fixes a race condition where preempted Sweeps runs sometimes did not result in run being queued for the next agent request to pick up. (@kelu-wandb in https://github.com/wandb/wandb/pull/11256)
