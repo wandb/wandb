@@ -1,5 +1,7 @@
 import json
+from pathlib import Path
 import sys
+from pathlib import Path
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -13,7 +15,7 @@ from wandb.apis.public import runs
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
-from wandb.sdk.lib import wbauth
+from wandb.sdk.lib import credentials, wbauth
 
 
 @pytest.fixture(autouse=True)
@@ -331,3 +333,36 @@ def test_project_load__raises_error(monkeypatch):
 
     with pytest.raises(ValueError):
         project._load()
+
+
+@pytest.mark.usefixtures("skip_verify_login")
+def test_access_token_property(monkeypatch: pytest.MonkeyPatch, tmp_path):
+    
+    token_file = tmp_path / "token.jwt"
+    token_file.write_text("test.jwt.token")
+    monkeypatch.setenv("WANDB_IDENTITY_TOKEN_FILE", str(token_file))
+    
+    mock_auth = wbauth.AuthIdentityTokenFile(
+        host="https://custom.wandb.ai",
+        path=str(token_file),
+    )
+    
+    called_with = {}
+    
+    def mock_access_token(base_url, token_file_path, credentials_file):
+        called_with["base_url"] = base_url
+        called_with["token_file"] = token_file_path
+        called_with["credentials_file"] = credentials_file
+        return "test_access_token_12345"
+    
+    monkeypatch.setattr(credentials, "access_token", mock_access_token)
+    
+    with mock.patch.object(wbauth, "authenticate_session", return_value=mock_auth):
+        api = Api()
+        token = api.access_token
+        
+        assert token == "test_access_token_12345"
+        
+        # Should use auth object's properties
+        assert called_with["base_url"] == "https://custom.wandb.ai"
+        assert called_with["token_file"] == Path(str(token_file))
