@@ -1,8 +1,10 @@
 import pathlib
 import textwrap
+from unittest.mock import Mock
 
 import pytest
 from wandb.errors import AuthenticationError
+from wandb.sdk.lib.gql_request import BearerAuth
 from wandb.sdk.lib.wbauth import (
     AuthApiKey,
     AuthIdentityTokenFile,
@@ -132,3 +134,20 @@ def test_reads_netrc(
     mock_wandb_log.assert_logged(
         f"[test] Loaded credentials for https://example.com from {netrc}"
     )
+
+
+def test_bearer_auth_has_proper_headers():
+    token = "test.token"
+    auth = BearerAuth(token)
+
+    request = Mock()
+    request.headers = {
+        "User-Agent": "wandb-client",
+        "Content-Type": "application/json",
+    }
+
+    auth(request)
+
+    assert request.headers["User-Agent"] == "wandb-client"
+    assert request.headers["Content-Type"] == "application/json"
+    assert request.headers["Authorization"] == f"Bearer {token}"

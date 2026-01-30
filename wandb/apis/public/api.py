@@ -221,9 +221,7 @@ class Api:
             os.environ.get("WANDB__PROXIES", "{}")
         )
 
-        if api_key:
-            auth = ("api", api_key)
-        elif self.access_token is not None:
+        if self.access_token is not None:
             auth = BearerAuth(self.access_token)
         else:
             auth = ("api", self.api_key or "")
