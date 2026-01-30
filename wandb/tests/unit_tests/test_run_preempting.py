@@ -1,8 +1,5 @@
 """Unit tests for run preempting functionality."""
 
-import pytest
-import wandb
-
 
 def test_mark_preempting_sets_flag(mock_run):
     """Verify mark_preempting() sets the _marked_preempting flag."""
@@ -38,7 +35,9 @@ def test_multiple_mark_preempting_calls(mock_run):
     assert run._marked_preempting is True
 
 
-def test_mark_preempting_before_finish_with_exit_code(mock_run, parse_records, record_q):
+def test_mark_preempting_before_finish_with_exit_code(
+    mock_run, parse_records, record_q
+):
     """Verify marked_preempting flag is sent with exit code."""
     run = mock_run()
 
