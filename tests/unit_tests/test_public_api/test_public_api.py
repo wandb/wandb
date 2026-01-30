@@ -238,11 +238,12 @@ def test_initialize_api_uses_explicit_key(
         source="test",
     )
 
-    api = Api(api_key="test-api-key", overrides={"base_url": "https://test-url"})
+    key = "test-api-key"*8
+    api = Api(api_key=key, overrides={"base_url": "https://test-url"})
 
-    assert api.api_key == "test-api-key"
+    assert api.api_key == key
     mock_verify_login.assert_called_once_with(
-        key="test-api-key",
+        key=key,
         base_url="https://test-url",
     )
 
