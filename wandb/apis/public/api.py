@@ -225,6 +225,7 @@ class Api:
             os.environ.get("WANDB__PROXIES", "{}")
         )
 
+        session_auth: tuple[str, str] | Callable
         if isinstance(self._auth, wbauth.AuthIdentityTokenFile):
             session_auth = BearerAuth(self.access_token)
         else:

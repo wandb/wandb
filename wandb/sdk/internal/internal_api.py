@@ -281,6 +281,7 @@ class Api:
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
 
+        auth: tuple[str, str] | Callable
         api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
