@@ -17,9 +17,7 @@ from wandb._analytics import tracked_func
 
 
 class BearerAuth:
-    """Callable auth handler for Bearer token authentication.
-    
-    Example:
+    """Callable auth handler for Bearer token authentication, e.g.:
         >>> session = GraphQLSession(auth=BearerAuth(jwt_token))
     """
     def __init__(self, token: str) -> None:
