@@ -40,8 +40,9 @@ type Reader struct {
 	// that Read from the same position.
 	lastReadOffset int64
 
-	// headerValid is whether the W&B header has been verified.
-	headerValid bool
+	// needsToVerifyHeader is true if the reader is positioned at start and
+	// the W&B header is yet to be successfully verified.
+	needsToVerifyHeader bool
 }
 
 // OpenReader opens a .wandb file for reading.
@@ -78,10 +79,11 @@ func NewReader(
 	reader := leveldb.NewReaderExt(source, leveldb.CRCAlgoIEEE)
 
 	return &Reader{
-		reader:  reader,
-		source:  source,
-		logger:  logger,
-		bufPool: sync.Pool{New: func() any { return new(bytes.Buffer) }},
+		reader:              reader,
+		source:              source,
+		logger:              logger,
+		bufPool:             sync.Pool{New: func() any { return new(bytes.Buffer) }},
+		needsToVerifyHeader: true,
 	}, nil
 }
 
@@ -89,6 +91,7 @@ func NewReader(
 //
 // The offset should have come from a writer's LastRecordOffset().
 func (r *Reader) SeekRecord(offset int64) error {
+	r.needsToVerifyHeader = false // May not be at the start anymore.
 	return r.reader.SeekRecord(offset)
 }
 
@@ -146,7 +149,7 @@ func (r *Reader) Read() (*spb.Record, error) {
 // verifyWBHeaderBeforeFirstRead verifies the W&B header if it hasn't yet been
 // verified.
 func (r *Reader) verifyWBHeaderBeforeFirstRead() error {
-	if r.headerValid {
+	if !r.needsToVerifyHeader {
 		return nil
 	}
 
@@ -154,7 +157,7 @@ func (r *Reader) verifyWBHeaderBeforeFirstRead() error {
 		return fmt.Errorf("transactionlog: bad header: %w", err)
 	}
 
-	r.headerValid = true
+	r.needsToVerifyHeader = false
 	return nil
 }
 
