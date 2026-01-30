@@ -28,6 +28,9 @@ ignore:
   - "tools"
   - "tests"
 
+  # Test helpers
+  - "core/internal/*test"
+
 coverage:
   precision: 2
   round: down
