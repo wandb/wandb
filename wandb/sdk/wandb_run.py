@@ -217,7 +217,7 @@ class RunStatusChecker:
     ):
         with lock:
             if handle:
-                handle.abandon()
+                handle.cancel()
 
     def _loop_check_status(
         self,

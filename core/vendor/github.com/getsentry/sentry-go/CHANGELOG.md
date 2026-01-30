@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.42.0
+
+### Breaking Changes 🛠
+
+- refactor Telemetry Processor to use TelemetryItem instead of ItemConvertible by @giortzisg in [#1180](https://github.com/getsentry/sentry-go/pull/1180)
+  - remove ToEnvelopeItem from single log items
+  - rename TelemetryBuffer to Telemetry Processor to adhere to spec
+  - remove unsed ToEnvelopeItem(dsn) from Event.
+
+### New Features ✨
+
+- Add metric support by @aldy505 in [#1151](https://github.com/getsentry/sentry-go/pull/1151)
+  - support for three metric methods (counter, gauge, distribution)
+  - custom metric units
+  - unexport batchlogger
+
+### Internal Changes 🔧
+
+#### Release
+
+- Fix changelog-preview permissions by @BYK in [#1181](https://github.com/getsentry/sentry-go/pull/1181)
+- Switch from action-prepare-release to Craft by @BYK in [#1167](https://github.com/getsentry/sentry-go/pull/1167)
+
+#### Other
+
+- (repo) Add Claude Code settings with basic permissions by @philipphofmann in [#1175](https://github.com/getsentry/sentry-go/pull/1175)
+- Update release and changelog-preview workflows by @giortzisg in [#1177](https://github.com/getsentry/sentry-go/pull/1177)
+- Bump echo to 4.10.1 by @giortzisg in [#1174](https://github.com/getsentry/sentry-go/pull/1174)
+
 ## 0.41.0
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.41.0.

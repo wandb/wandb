@@ -292,13 +292,17 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
       - name: Set up latest Go
         uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
 
       - name: Install wandb from TestPyPI with --no-binary
         run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           python -m pip install \
             --no-binary wandb \
             --extra-index-url https://test.pypi.org/simple/ \

@@ -18,10 +18,11 @@ import (
 type savedFile struct {
 	sync.Mutex
 
-	fs         filestream.FileStream
-	ftm        filetransfer.FileTransferManager
-	logger     *observability.CoreLogger
-	operations *wboperation.WandbOperations
+	beforeRunEndCtx context.Context
+	fs              filestream.FileStream
+	ftm             filetransfer.FileTransferManager
+	logger          *observability.CoreLogger
+	operations      *wboperation.WandbOperations
 
 	// The path to the actual file.
 	realPath string
@@ -56,6 +57,7 @@ type savedFile struct {
 }
 
 func newSavedFile(
+	beforeRunEndCtx context.Context,
 	fs filestream.FileStream,
 	ftm filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
@@ -64,12 +66,13 @@ func newSavedFile(
 	runPath paths.RelativePath,
 ) *savedFile {
 	return &savedFile{
-		fs:         fs,
-		ftm:        ftm,
-		logger:     logger,
-		operations: operations,
-		realPath:   realPath,
-		runPath:    runPath,
+		beforeRunEndCtx: beforeRunEndCtx,
+		fs:              fs,
+		ftm:             ftm,
+		logger:          logger,
+		operations:      operations,
+		realPath:        realPath,
+		runPath:         runPath,
 
 		wg: &sync.WaitGroup{},
 	}
@@ -124,7 +127,7 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 	op := f.operations.New(fmt.Sprintf("uploading %s", string(f.runPath)))
 
 	task := &filetransfer.DefaultUploadTask{
-		Context:  op.Context(context.Background()),
+		Context:  op.Context(f.beforeRunEndCtx),
 		FileKind: f.category,
 		Path:     f.realPath,
 		Name:     string(f.runPath),
