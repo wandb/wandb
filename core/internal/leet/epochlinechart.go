@@ -28,6 +28,9 @@ const (
 	parkedCanvasSize = 1
 
 	initDataSliceCap = 256
+
+	// The number of steps when drawing axis values.
+	epochChartXSteps, epochChartYSteps = 4, 5
 )
 
 var cache, _ = lru.New(128)
@@ -130,17 +133,11 @@ type EpochLineChart struct {
 func NewEpochLineChart(title string) *EpochLineChart {
 	chart := &EpochLineChart{
 		Model: linechart.New(parkedCanvasSize, parkedCanvasSize, 0, defaultMaxX, 0, defaultMaxY,
-			linechart.WithXYSteps(4, 5),
+			linechart.WithXYSteps(epochChartXSteps, epochChartYSteps),
 			linechart.WithAutoXRange(),
-			linechart.WithXLabelFormatter(func(i int, v float64) string {
-				return UnitScalar.Format(v) // TODO: consider using SI-suffixed ints instead.
-			}),
-			linechart.WithYLabelFormatter(func(i int, v float64) string {
-				return UnitScalar.Format(v)
-			}),
 		),
 		data:              make(map[string]*Series),
-		opaqueCompositing: true, // TODO: make this configurable
+		opaqueCompositing: true, // TODO: make this configurable?
 		title:             title,
 		palette:           GraphColors(DefaultColorScheme),
 		xMin:              math.Inf(1),
@@ -151,7 +148,31 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
 
+	chart.XLabelFormatter = func(_ int, v float64) string {
+		return FormatXAxisTick(v, chart.maxXLabelWidth())
+	}
+	chart.YLabelFormatter = func(_ int, v float64) string {
+		return UnitScalar.Format(v)
+	}
+
 	return chart
+}
+
+func (c *EpochLineChart) maxXLabelWidth() int {
+	w := c.GraphWidth()
+	if w <= 0 {
+		return 0
+	}
+
+	// Approx spacing between ticks. With XSteps=N there are typically N intervals.
+	per := w / epochChartXSteps
+	if per > 1 {
+		per-- // leave one column slack so labels collide less often
+	}
+	if per < 1 {
+		return 1
+	}
+	return per
 }
 
 func (c *EpochLineChart) SetPalette(colors []lipgloss.AdaptiveColor) {
@@ -691,8 +712,8 @@ func (c *EpochLineChart) Resize(width, height int) {
 		return
 	}
 	c.Model.Resize(width, height)
-	c.dirty = true
 	c.updateRanges()
+	c.dirty = true
 }
 
 // Park minimizes the chart's canvas to reduce memory usage when the chart
