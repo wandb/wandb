@@ -282,3 +282,37 @@ def test_update_finish_state(wandb_backend_spy, update_finish_state):
 
     with wandb_backend_spy.freeze() as snapshot:
         assert snapshot.completed(run_id=run.id) is update_finish_state
+
+
+def test_finish_with_exit_code_success(wandb_backend_spy):
+    """Test finish with exit_code=0 without preempting."""
+    with wandb.init() as run:
+        run.log({"metric": 1})
+        run.finish(exit_code=0)
+
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.exit_code(run_id=run.id) == 0
+        assert snapshot.preempting(run_id=run.id) is False
+
+
+def test_finish_with_exit_code_failure(wandb_backend_spy):
+    """Test finish with non-zero exit code without preempting."""
+    with wandb.init() as run:
+        run.log({"metric": 1})
+        run.finish(exit_code=1)
+
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.exit_code(run_id=run.id) == 1
+        assert snapshot.preempting(run_id=run.id) is False
+
+
+def test_mark_preempting_then_finish(wandb_backend_spy):
+    """Test that mark_preempting flag is sent when finishing."""
+    with wandb.init() as run:
+        run.log({"metric": 1})
+        run.mark_preempting()
+        run.finish(exit_code=1)
+
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.exit_code(run_id=run.id) == 1
+        assert snapshot.preempting(run_id=run.id) is True

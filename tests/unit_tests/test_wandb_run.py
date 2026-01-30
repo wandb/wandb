@@ -178,6 +178,20 @@ def test_numpy_high_precision_float_downcasting(mock_run, parse_records, record_
     assert history[0]["this"] == "0.0"
 
 
+def test_mark_preempting(mock_run, parse_records, record_q):
+    run = mock_run()
+    run.log(dict(this=1))
+    run.log(dict(that=2))
+    run.mark_preempting()
+
+    parsed = parse_records(record_q)
+
+    assert len(parsed.records) == 3
+
+    assert len(parsed.preempting) == 1
+    assert parsed.records[-1].HasField("preempting")
+
+
 def test_run_pub_config(mock_run, record_q, parse_records):
     run = mock_run()
     run.config.t = 1
@@ -259,56 +273,6 @@ def test_run_deepcopy():
     run = wandb_run.Run(settings=s, config=c)
     run2 = copy.deepcopy(run)
     assert id(run) == id(run2)
-
-
-def test_finish_success(mock_run, parse_records, record_q):
-    """Baseline test: finish with exit_code=0 sends exit record without preempting."""
-    run = mock_run()
-    run.finish(exit_code=0)
-
-    parsed = parse_records(record_q)
-
-    exit_records = list(parsed["exit"])
-    assert len(exit_records) == 1
-    assert exit_records[0].exit_code == 0
-    assert exit_records[0].preempting is False
-
-
-def test_finish_failure(mock_run, parse_records, record_q):
-    """Baseline test: finish with non-zero exit code sends exit record without preempting."""
-    run = mock_run()
-    run.finish(exit_code=1)
-
-    parsed = parse_records(record_q)
-
-    exit_records = list(parsed["exit"])
-    assert len(exit_records) == 1
-    assert exit_records[0].exit_code == 1
-    assert exit_records[0].preempting is False
-
-
-def test_mark_preempting(mock_run, parse_records, record_q):
-    run = mock_run()
-    run.mark_preempting()
-
-    parsed = parse_records(record_q)
-
-    assert len(parsed.preempting) == 1
-    assert parsed.records[-1].HasField("preempting")
-
-
-def test_mark_preempting_then_finish(mock_run, parse_records, record_q):
-    """Verify exit record has preempting flag set when mark_preempting is called."""
-    run = mock_run()
-    run.mark_preempting()
-    run.finish(exit_code=1)
-
-    parsed = parse_records(record_q)
-
-    exit_records = list(parsed["exit"])
-    assert len(exit_records) == 1
-    assert exit_records[0].preempting is True
-    assert exit_records[0].exit_code == 1
 
 
 @pytest.mark.parametrize(

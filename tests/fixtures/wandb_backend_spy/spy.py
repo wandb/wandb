@@ -236,6 +236,7 @@ class WandbBackendSpy:
             run = self._runs.setdefault(entity, project, run_id, _RunData())
 
             run._was_ever_preempting |= request.get("preempting", False)
+            run._preempting = request.get("preempting", False)
             run._uploaded_files |= set(request.get("uploaded", []))
             run._completed = request.get("complete", False)
             run._exit_code = request.get("exitcode")
@@ -448,6 +449,11 @@ class WandbBackendSnapshot:
         spy = self._assert_valid()
         return spy._runs.get(run_id)._sweep_name
 
+    def preempting(self, *, run_id: str) -> bool:
+        """Returns the latest preempting value for the run."""
+        spy = self._assert_valid()
+        return spy._runs.get(run_id)._preempting
+
     def was_ever_preempting(self, *, run_id: str) -> bool:
         """Returns whether the run was ever marked 'preempting'."""
         spy = self._assert_valid()
@@ -548,6 +554,7 @@ class _Runs:
 class _RunData:
     def __init__(self) -> None:
         # See docs on WandbBackendSnapshot methods.
+        self._preempting = False
         self._was_ever_preempting = False
         self._uploaded_files: set[str] = set()
         self._file_stream_files: dict[str, dict[int, str]] = {}
