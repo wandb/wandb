@@ -22,7 +22,6 @@ class BearerAuth:
     Example:
         >>> session = GraphQLSession(auth=BearerAuth(jwt_token))
     """
-    
     def __init__(self, token: str) -> None:
         self.token = token
     
