@@ -197,9 +197,9 @@ func TestFormatXAxisTick(t *testing.T) {
 		{"fractional M", 1234567, 0, "1.23M"},
 		{"high precision M", 999.95e6, 0, "999.95M"},
 
-		// Billions (B)
-		{"exactly 1B", 1e9, 0, "1B"},
-		{"2.5B", 2.5e9, 0, "2.5B"},
+		// Billions (G)
+		{"exactly 1G", 1e9, 0, "1G"},
+		{"2.5G", 2.5e9, 0, "2.5G"},
 
 		// Trillions (T)
 		{"exactly 1T", 1e12, 0, "1T"},
@@ -211,7 +211,7 @@ func TestFormatXAxisTick(t *testing.T) {
 
 		// Boundary bump: rounding at 2 decimals produces "1000"
 		{"999.9996k bumps to M", 999999.6, 0, "1M"},
-		{"999.9996M bumps to B", 999999.6e3, 0, "1B"},
+		{"999.9996M bumps to G", 999999.6e3, 0, "1G"},
 
 		// Width constraints
 		{"width forces fewer decimals", 1234, 4, "1.2k"},
