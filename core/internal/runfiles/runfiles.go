@@ -76,6 +76,7 @@ type UploaderFactory struct {
 //
 // batchDelay is how long to wait to batch upload operations. Uploads scheduled
 // within this duration of each other are combined into a single GraphQL call.
+// It also affects how often "live" files are reuploaded.
 func (f *UploaderFactory) New(
 	batchDelay waiting.Delay,
 	extraWork runwork.ExtraWork,
