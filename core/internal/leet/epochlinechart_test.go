@@ -177,23 +177,25 @@ func TestFormatXAxisTick(t *testing.T) {
 		{"hundred", 100, 0, "100"},
 		{"max before k", 999, 0, "999"},
 
-		// Rounding to integer
+		// Rounding to integer (sub-1000 path doesn't re-check)
 		{"rounds down", 41.4, 0, "41"},
 		{"rounds up", 41.6, 0, "42"},
 		{"half rounds up", 41.5, 0, "42"},
+		{"rounds to 1000 stays integer", 999.5, 0, "1000"},
 
 		// Thousands (k)
 		{"exactly 1k", 1000, 0, "1k"},
 		{"1.5k", 1500, 0, "1.5k"},
 		{"fractional k", 1234, 0, "1.23k"},
-		{"rounds to 1k", 999.5, 0, "1k"},
 		{"large k", 50000, 0, "50k"},
 		{"max k", 999000, 0, "999k"},
+		{"high precision k", 999600, 0, "999.6k"},
 
 		// Millions (M)
 		{"exactly 1M", 1e6, 0, "1M"},
 		{"1.2M", 1.2e6, 0, "1.2M"},
 		{"fractional M", 1234567, 0, "1.23M"},
+		{"high precision M", 999.95e6, 0, "999.95M"},
 
 		// Billions (B)
 		{"exactly 1B", 1e9, 0, "1B"},
@@ -207,15 +209,18 @@ func TestFormatXAxisTick(t *testing.T) {
 		{"negative k", -1500, 0, "-1.5k"},
 		{"negative M", -1.2e6, 0, "-1.2M"},
 
-		// Boundary bump: rounding causes suffix upgrade
-		{"999.6k bumps to M", 999600, 0, "1M"},
-		{"999.95M bumps to B", 999.95e6, 0, "1B"},
+		// Boundary bump: rounding at 2 decimals produces "1000"
+		{"999.9996k bumps to M", 999999.6, 0, "1M"},
+		{"999.9996M bumps to B", 999999.6e3, 0, "1B"},
 
 		// Width constraints
 		{"width forces fewer decimals", 1234, 4, "1.2k"},
 		{"width forces integer", 1234, 3, "1k"},
 		{"width allows full precision", 1234, 10, "1.23k"},
 		{"negative with width", -1234, 5, "-1.2k"},
+
+		// Width-constrained bump: reduction to 0 decimals triggers bump
+		{"width causes bump", 999600, 4, "1M"},
 	}
 
 	for _, tt := range tests {
