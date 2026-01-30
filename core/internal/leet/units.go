@@ -179,7 +179,15 @@ var scales = []struct {
 
 // FormatXAxisTick returns human-friendly representation of an X axis tick value.
 //
-// Uses SI metric prefixes.
+// Uses SI metric prefixes, up to two decimal places, and trims trailing zeros.
+//
+// Examples assume maxWidth of 5.
+//
+//	42.0 -> "42"
+//	1234 -> "1.23k"
+//	-1234 -> "-1.2k"
+//	50000 -> "50k"
+//	1234567 -> "1.23M"
 func FormatXAxisTick(v float64, maxWidth int) string {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return ""
