@@ -28,9 +28,6 @@ const (
 	parkedCanvasSize = 1
 
 	initDataSliceCap = 256
-
-	// The number of steps when drawing axis values.
-	epochChartXSteps, epochChartYSteps = 4, 5
 )
 
 var cache, _ = lru.New(128)
@@ -133,7 +130,7 @@ type EpochLineChart struct {
 func NewEpochLineChart(title string) *EpochLineChart {
 	chart := &EpochLineChart{
 		Model: linechart.New(parkedCanvasSize, parkedCanvasSize, 0, defaultMaxX, 0, defaultMaxY,
-			linechart.WithXYSteps(epochChartXSteps, epochChartYSteps),
+			linechart.WithXYSteps(4, 5), // The default number of ticks when drawing axis values.
 			linechart.WithAutoXRange(),
 		),
 		data:              make(map[string]*Series),
@@ -165,7 +162,7 @@ func (c *EpochLineChart) maxXLabelWidth() int {
 	}
 
 	// Approx spacing between ticks. With XSteps=N there are typically N intervals.
-	per := w / epochChartXSteps
+	per := w / c.XStep()
 	if per > 1 {
 		per-- // leave one column slack so labels collide less often
 	}
