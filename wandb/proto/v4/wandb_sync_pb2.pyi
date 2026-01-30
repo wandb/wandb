@@ -37,6 +37,7 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
     NEW_ENTITY_FIELD_NUMBER: builtins.int
     NEW_PROJECT_FIELD_NUMBER: builtins.int
     NEW_RUN_ID_FIELD_NUMBER: builtins.int
+    NEW_JOB_TYPE_FIELD_NUMBER: builtins.int
     @property
     def path(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
         """Paths to the .wandb files to upload.
@@ -60,6 +61,8 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
     """An updated project to use for all paths being synced."""
     new_run_id: builtins.str
     """A new ID to use for all paths being synced."""
+    new_job_type: builtins.str
+    """A new job type to set for all runs being synced."""
     def __init__(
         self,
         *,
@@ -70,9 +73,10 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
         new_entity: builtins.str = ...,
         new_project: builtins.str = ...,
         new_run_id: builtins.str = ...,
+        new_job_type: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["cwd", b"cwd", "live", b"live", "new_entity", b"new_entity", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["cwd", b"cwd", "live", b"live", "new_entity", b"new_entity", "new_job_type", b"new_job_type", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings"]) -> None: ...
 
 global___ServerInitSyncRequest = ServerInitSyncRequest
 
