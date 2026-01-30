@@ -113,7 +113,7 @@ func (c *EpochLineChart) maxXLabelWidth() int {
 	}
 
 	// Approx spacing between ticks. With XSteps=N there are typically N intervals.
-	per := w / c.Model.XStep()
+	per := w / c.XStep()
 	if per > 1 {
 		per-- // leave one column slack so labels collide less often
 	}
