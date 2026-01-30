@@ -191,24 +191,28 @@ class Api:
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
         if api_key:
-            self.api_key = api_key
+            self._auth = wbauth.AuthApiKey(
+                host=self.settings["base_url"],
+                api_key=api_key,
+            )
         else:
-            auth = self._load_auth(base_url=self.settings["base_url"])
-            if isinstance(auth, wbauth.AuthApiKey):
-                self.api_key = auth.api_key
-            elif isinstance(auth, wbauth.AuthIdentityTokenFile):
-                # JWT auth - api_key is None, will use access_token property
-                self.api_key = None
-            else:
-                raise UsageError(f"Unsupported auth type: {type(auth)}")
+            self._auth = self._load_auth(base_url=self.settings["base_url"])
 
-        # Verify login for API key auth
+        if not isinstance(self._auth, (wbauth.AuthApiKey, wbauth.AuthIdentityTokenFile)):
+            raise UsageError(f"Unsupported auth type: {type(self._auth)}")
+
+        base_url = str(self._auth.host.url)
+        
+        # For API key auth, verify login
         # For JWT auth, verification happens during token exchange
-        if self.api_key:
+        if isinstance(self._auth, wbauth.AuthApiKey):
+            self.api_key = self._auth.api_key
             wandb_login._verify_login(
                 key=self.api_key,
-                base_url=self.settings["base_url"],
+                base_url=base_url,
             )
+        else:
+            self.api_key = None
 
         self._viewer = None
         self._projects = {}
@@ -221,26 +225,23 @@ class Api:
             os.environ.get("WANDB__PROXIES", "{}")
         )
 
-        if self.access_token is not None:
-            auth = BearerAuth(self.access_token)
+        if isinstance(self._auth, wbauth.AuthIdentityTokenFile):
+            session_auth = BearerAuth(self.access_token)
         else:
-            auth = ("api", self.api_key or "")
-
-        base_url = self.settings["base_url"]
+            session_auth = ("api", self.api_key or "")
         
         self._base_client = Client(
             transport=GraphQLSession(
+                url="{}/graphql".format(base_url),
+                auth=session_auth,
                 headers={
                     "User-Agent": self.user_agent,
                     "Use-Admin-Privileges": "true",
-                    "Origin": base_url,  # PROBABLY CAN REMOVE BUT NEEDED THIS TO HIT PROD LOCALLY
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
-                auth=auth,
-                url="{}/graphql".format(base_url),
                 proxies=proxies,
             )
         )
@@ -284,21 +285,15 @@ class Api:
 
         Returns:
             str | None: The access token if JWT auth is configured, otherwise None.
-            
-        Raises:
-            AuthenticationError: If the identity token file is not found.
         """
+        if not isinstance(self._auth, wbauth.AuthIdentityTokenFile):
+            return None
+        
         from wandb.sdk.lib import credentials
         
-        token_file_str = os.environ.get(env.IDENTITY_TOKEN_FILE)
-        if not token_file_str:
-            return None
-
-        token_file = Path(token_file_str)
-        if not token_file.exists():
-            raise AuthenticationError(f"Identity token file not found: {token_file}")
-
-        base_url = self.settings["base_url"]
+        token_file = self._auth.path
+        base_url = str(self._auth.host.url)
+        
         credentials_file = env.get_credentials_file(
             str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), os.environ
         )
