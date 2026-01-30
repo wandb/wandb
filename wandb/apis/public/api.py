@@ -232,8 +232,6 @@ class Api:
         
         self._base_client = Client(
             transport=GraphQLSession(
-                url="{}/graphql".format(base_url),
-                auth=session_auth,
                 headers={
                     "User-Agent": self.user_agent,
                     "Use-Admin-Privileges": "true",
@@ -242,6 +240,8 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
+                auth=session_auth,
+                url="{}/graphql".format(base_url),
                 proxies=proxies,
             )
         )
