@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
-from typing import TYPE_CHECKING
+from typing import Awaitable, Callable
 
 from typing_extensions import override
 
@@ -11,9 +12,7 @@ from wandb.sdk.lib import asyncio_manager
 
 from .mailbox_handle import HandleAbandonedError, MailboxHandle
 
-# Necessary to break an import loop.
-if TYPE_CHECKING:
-    from wandb.sdk.interface import interface
+_logger = logging.getLogger(__name__)
 
 
 class MailboxResponseHandle(MailboxHandle[spb.ServerResponse]):
@@ -24,10 +23,12 @@ class MailboxResponseHandle(MailboxHandle[spb.ServerResponse]):
         address: str,
         *,
         asyncer: asyncio_manager.AsyncioManager,
+        cancel: Callable[[str], Awaitable[None]],
     ) -> None:
         super().__init__(asyncer)
 
         self._address = address
+        self._cancel_fn = cancel
 
         self._abandoned = False
         self._response: spb.ServerResponse | None = None
@@ -51,12 +52,30 @@ class MailboxResponseHandle(MailboxHandle[spb.ServerResponse]):
         self._done_event.set()
 
     @override
-    def cancel(self, iface: interface.InterfaceBase) -> None:
-        iface.publish_cancel(self._address)
-        self.abandon()
+    def cancel(self) -> None:
+        # Cancel on a best-effort basis and ignore exceptions.
+        async def impl() -> None:
+            try:
+                await self._cancel_fn(self._address)
+            except Exception:
+                _logger.exception("Failed to cancel request %r", self._address)
 
-    @override
+        try:
+            self.abandon()
+            self.asyncer.run_soon(impl)
+        except Exception:
+            _logger.exception(
+                "Failed to abandon and cancel request %r",
+                self._address,
+            )
+
     def abandon(self) -> None:
+        """Indicate the handle will not receive a response.
+
+        This causes any code blocked on `wait_or` or `wait_async` to raise
+        a `HandleAbandonedError` after a short time.
+        """
+
         async def impl() -> None:
             self._abandoned = True
 
@@ -87,9 +106,14 @@ class MailboxResponseHandle(MailboxHandle[spb.ServerResponse]):
             elif self._abandoned:
                 raise HandleAbandonedError()
             else:
+                self.cancel()
                 raise TimeoutError(
                     f"Timed out waiting for response on {self._address}"
                 ) from e
+
+        except:
+            self.cancel()
+            raise
 
         else:
             if self._response:

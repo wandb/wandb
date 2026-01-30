@@ -4,6 +4,7 @@ import logging
 import secrets
 import string
 import threading
+from typing import Awaitable, Callable
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
@@ -28,8 +29,20 @@ class Mailbox:
     service process becomes unreachable.
     """
 
-    def __init__(self, asyncer: asyncio_manager.AsyncioManager) -> None:
+    def __init__(
+        self,
+        asyncer: asyncio_manager.AsyncioManager,
+        cancel: Callable[[str], Awaitable[None]],
+    ) -> None:
+        """Create a mailbox.
+
+        Args:
+            asyncer: Asyncio runner for scheduling async operations.
+            cancel: A callback that can be used to cancel a request by ID.
+        """
         self._asyncer = asyncer
+        self._cancel = cancel
+
         self._handles: dict[str, MailboxResponseHandle] = {}
         self._handles_lock = threading.Lock()
         self._closed = False
@@ -75,7 +88,11 @@ class Mailbox:
             if self._closed:
                 raise MailboxClosedError()
 
-            handle = MailboxResponseHandle(address, asyncer=self._asyncer)
+            handle = MailboxResponseHandle(
+                address,
+                asyncer=self._asyncer,
+                cancel=self._cancel,
+            )
             self._handles[address] = handle
 
         return handle

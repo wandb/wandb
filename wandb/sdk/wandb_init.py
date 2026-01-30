@@ -1016,16 +1016,14 @@ class _WandbInit:
                 )
 
         except TimeoutError:
-            run_init_handle.cancel(backend.interface)
-
             # This may either be an issue with the W&B server (a CommError)
             # or a bug in the SDK (an Error). We cannot distinguish between
             # the two causes here.
             raise CommError(
                 f"Run initialization has timed out after {timeout} sec."
-                " Please try increasing the timeout with the `init_timeout`"
-                " setting: `wandb.init(settings=wandb.Settings(init_timeout=120))`."
-            )
+                + " Please try increasing the timeout with the `init_timeout`"
+                + " setting: `wandb.init(settings=wandb.Settings(init_timeout=120))`."
+            ) from None
 
         assert result.run_result
 
