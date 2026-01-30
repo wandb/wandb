@@ -164,14 +164,30 @@ var scales = []struct {
 	factor float64
 	suffix string
 }{
+	{1e-6, "μ"},
+	{1e-3, "m"},
+	{1.0, ""},
 	{1e3, "k"},
 	{1e6, "M"},
-	{1e9, "B"},
+	{1e9, "G"},
 	{1e12, "T"},
 	{1e15, "P"},
 	{1e18, "E"},
+	{1e21, "Z"},
+	{1e24, "Y"},
 }
 
+// FormatXAxisTick returns human-friendly representation of an X axis tick value.
+//
+// Uses SI metric prefixes, up to two decimal places, and trims trailing zeros.
+//
+// Examples assume maxWidth of 5.
+//
+//	42.0 -> "42"
+//	1234 -> "1.23k"
+//	-1234 -> "-1.2k"
+//	50000 -> "50k"
+//	1234567 -> "1.23M"
 func FormatXAxisTick(v float64, maxWidth int) string {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return ""
@@ -184,11 +200,6 @@ func FormatXAxisTick(v float64, maxWidth int) string {
 	if v < 0 {
 		sign = "-"
 		v = -v
-	}
-
-	// Only display integers for values < 1000.
-	if v < 1000 {
-		return sign + strconv.FormatInt(int64(math.Round(v)), 10)
 	}
 
 	// Pick a scale so scaled is roughly in [1, 1000).

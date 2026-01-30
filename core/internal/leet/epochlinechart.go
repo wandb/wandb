@@ -230,6 +230,7 @@ func (c *EpochLineChart) updateRanges() {
 
 	// X domain.
 	// Round up the observed max X to a "nice" domain for axis display.
+	dataXMin := c.xMin
 	dataXMax := c.xMax
 	if !isFinite(dataXMax) {
 		dataXMax = 0
@@ -248,7 +249,7 @@ func (c *EpochLineChart) updateRanges() {
 	c.SetViewYRange(newYMin, newYMax)
 
 	// Always ensure X range covers the nice domain; only alter view if not zoomed.
-	c.SetXRange(0, niceMax)
+	c.SetXRange(dataXMin, niceMax)
 	if !c.isZoomed {
 		viewMin := c.xMin
 		if !isFinite(viewMin) {
