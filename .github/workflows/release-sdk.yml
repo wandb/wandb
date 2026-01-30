@@ -296,6 +296,9 @@ jobs:
 
       - name: Set up latest Go
         uses: actions/setup-go@v6
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
 
       - name: Install wandb from TestPyPI with --no-binary
         run: |
