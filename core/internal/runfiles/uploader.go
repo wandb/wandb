@@ -229,6 +229,7 @@ func (u *uploader) Finish() {
 	u.stateMu.Unlock()
 
 	// Flush any remaining upload batches.
+	u.uploadBatcher.Close()
 	u.uploadBatcher.Wait()
 
 	// Wait for all upload tasks to get scheduled.
@@ -251,6 +252,7 @@ func (u *uploader) FlushSchedulingForTest() {
 func (u *uploader) knownFile(runPath paths.RelativePath) *savedFile {
 	if u.knownFiles[runPath] == nil {
 		u.knownFiles[runPath] = newSavedFile(
+			u.extraWork.BeforeEndCtx(),
 			u.fs,
 			u.ftm,
 			u.logger,
