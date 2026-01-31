@@ -155,6 +155,7 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	return chart
 }
 
+// maxXLabelWidth computes maximum X axis label width based on available space.
 func (c *EpochLineChart) maxXLabelWidth() int {
 	w := c.GraphWidth()
 	if w <= 0 {
