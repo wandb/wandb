@@ -47,7 +47,7 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 from wandb.sdk.lib.gql_request import BearerAuth, GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import credentials, retry
+from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from . import context
 from .progress import Progress
