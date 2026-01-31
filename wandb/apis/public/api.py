@@ -226,12 +226,6 @@ class Api:
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
         )
-
-        session_auth: tuple[str, str] | Callable
-        if isinstance(self._auth, wbauth.AuthIdentityTokenFile):
-            session_auth = BearerAuth(self.access_token)
-        else:
-            session_auth = ("api", self.api_key or "")
         
         self._base_client = Client(
             transport=GraphQLSession(
