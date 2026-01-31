@@ -423,12 +423,11 @@ class Api:
     def api_key(self) -> str | None:
         from wandb.sdk.lib import wbauth
 
-        if (  #
+        if (
             (auth := wbauth.session_credentials(host=self.api_url))
             and isinstance(auth, wbauth.AuthApiKey)
         ):
             return auth.api_key
-
         return (
             os.getenv(env.API_KEY)
             or wbauth.read_netrc_auth(host=self.api_url)
@@ -459,11 +458,11 @@ class Api:
         if not token_file.exists():
             raise AuthenticationError(f"Identity token file not found: {token_file}")
 
-        base_url = self.settings("base_url")
-        credentials_file = env.get_credentials_file(
-            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), self._environ
+        auth = wbauth.AuthIdentityTokenFile(
+            host=self.settings("base_url"),
+            path=str(token_file),
         )
-        return credentials.access_token(base_url, token_file, credentials_file)
+        return auth.get_access_token(self._environ)
 
     @property
     def api_url(self) -> str:
