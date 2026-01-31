@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import os
 import pathlib
 
 from typing_extensions import final, override
 
+from wandb import env as wandb_env
 from wandb.errors import AuthenticationError
+from wandb.sdk.lib import credentials
 
 from . import validation
 from .host_url import HostUrl
@@ -84,6 +87,15 @@ class AuthIdentityTokenFile(Auth):
     def path(self) -> pathlib.Path:
         """Path to a file storing a JWT identity token."""
         return self._identity_token_file
+
+    def get_access_token(self) -> str:
+        base_url = str(self.host.url)
+        token_file = self.path
+        credentials_file = wandb_env.get_credentials_file(
+            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), os.environ
+        )
+        
+        return credentials.access_token(base_url, token_file, pathlib.Path(credentials_file))
 
 
 @dataclasses.dataclass(frozen=True)
