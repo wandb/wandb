@@ -226,7 +226,6 @@ class Api:
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
         )
-        
         self._base_client = Client(
             transport=GraphQLSession(
                 headers={
