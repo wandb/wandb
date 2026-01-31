@@ -277,18 +277,7 @@ class Api:
 
     @property
     def access_token(self) -> str | None:
-        if not isinstance(self._auth, wbauth.AuthIdentityTokenFile):
-            return None
-        
-        from wandb.sdk.lib import credentials
-        
-        token_file = self._auth.path
-        base_url = str(self._auth.host.url)
-        
-        credentials_file = env.get_credentials_file(
-            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), os.environ
-        )
-        return credentials.access_token(base_url, token_file, Path(credentials_file))
+        return self._auth.get_access_token()
 
     def _configure_sentry(self) -> None:
         if not env.error_reporting_enabled():
