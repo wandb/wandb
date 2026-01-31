@@ -6,6 +6,7 @@ The only substantial change is to reuse a requests.Session object.
 
 from __future__ import annotations
 
+from requests.auth import AuthBase
 from typing import Any, Callable
 
 from wandb_gql.transport.http import HTTPTransport
@@ -16,10 +17,7 @@ from wandb_graphql.language.printer import print_ast
 from wandb._analytics import tracked_func
 
 
-class BearerAuth:
-    """Callable auth handler for Bearer token authentication, e.g.:
-        >>> session = GraphQLSession(auth=BearerAuth(token))
-    """
+class BearerAuth(AuthBase):
     def __init__(self, token: str) -> None:
         self.token = token
     
