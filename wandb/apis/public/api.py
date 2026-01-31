@@ -198,21 +198,23 @@ class Api:
         else:
             self._auth = self._load_auth(base_url=self.settings["base_url"])
 
-        if not isinstance(self._auth, (wbauth.AuthApiKey, wbauth.AuthIdentityTokenFile)):
-            raise UsageError(f"Unsupported auth type: {type(self._auth)}")
-
         base_url = str(self._auth.host.url)
+        session_auth: tuple[str, str] | Callable
         
         # For API key auth, verify login
         # For JWT auth, verification happens during token exchange
         if isinstance(self._auth, wbauth.AuthApiKey):
             self.api_key = self._auth.api_key
+            session_auth = ("api", self.api_key or "")
             wandb_login._verify_login(
                 key=self.api_key,
                 base_url=base_url,
             )
+        elif isinstance(self._auth, wbauth.AuthIdentityTokenFile):
+            self.api_key = None        
+            session_auth = BearerAuth(self.access_token)
         else:
-            self.api_key = None
+            raise UsageError(f"Unsupported auth type: {type(self._auth)}")
 
         self._viewer = None
         self._projects = {}
