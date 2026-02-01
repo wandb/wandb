@@ -146,7 +146,6 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-
 // Update handles incoming events and updates the model accordingly.
 //
 // Implements tea.Model.Update.
