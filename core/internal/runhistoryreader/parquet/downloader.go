@@ -12,6 +12,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -65,7 +66,7 @@ func GetSignedUrlsWithLiveSteps(
 // calling this function.
 func DownloadRunHistoryFile(
 	ctx context.Context,
-	httpClient *retryablehttp.Client,
+	httpClient api.RetryableClient,
 	fileUrl string,
 	filePath string,
 ) (err error) {

@@ -2,7 +2,11 @@
 package settings
 
 import (
+	"bufio"
+	"os"
+	"os/user"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +36,55 @@ func New() *Settings {
 // Parses the Settings proto into a Settings object.
 func From(proto *spb.Settings) *Settings {
 	return &Settings{Proto: proto}
+}
+
+// LoadSettings loads W&B settings from the users settings and environment variables.
+//
+// It first reads the system settings file,
+// then it updates the settings from the environment variables.
+func LoadSettings() (*Settings, error) {
+	systemSettings, err := readSettingsFile()
+	if err != nil {
+		return nil, err
+	}
+
+	settingsProto := &spb.Settings{
+		BaseUrl: wrapperspb.String("https://api.wandb.ai"),
+	}
+
+	for key, value := range systemSettings {
+		switch key {
+		case "api_key":
+			settingsProto.ApiKey = wrapperspb.String(value)
+		case "base_url":
+			settingsProto.BaseUrl = wrapperspb.String(value)
+		}
+	}
+
+	updateApiKeyFromNetrc(settingsProto)
+	updateSettingsFromEnvironment(settingsProto)
+
+	return From(settingsProto), nil
+}
+
+// updateSettingsFromEnvironment updates the provided settings proto
+// with values from the users environment variables.
+func updateSettingsFromEnvironment(settingsProto *spb.Settings) {
+	if apiKey := os.Getenv("WANDB_API_KEY"); apiKey != "" {
+		settingsProto.ApiKey = wrapperspb.String(apiKey)
+	}
+	if baseURL := os.Getenv("WANDB_BASE_URL"); baseURL != "" {
+		settingsProto.BaseUrl = wrapperspb.String(baseURL)
+	}
+}
+
+// updateApiKeyFromNetrc updates the provided settings proto
+// with the API key from the user's netrc file.
+func updateApiKeyFromNetrc(settingsProto *spb.Settings) {
+	apiKey, _ := readNetrcAPIKey(settingsProto.BaseUrl.GetValue())
+	if apiKey != "" {
+		settingsProto.ApiKey = wrapperspb.String(apiKey)
+	}
 }
 
 // The W&B API key.
@@ -625,4 +678,112 @@ func (s *Settings) UpdateStatsCoreWeaveMetadataEndpoint(endpoint string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Proto.XStatsCoreweaveMetadataEndpoint = &wrapperspb.StringValue{Value: endpoint}
+}
+
+// readSettingsFile reads W&B settings from the settings file.
+//
+// The settings file is an INI-formatted file located at:
+//   - WANDB_CONFIG_DIR/settings (if WANDB_CONFIG_DIR is set), or
+//   - ~/.config/wandb/settings (default)
+//
+// Returns a map of setting keys to values. If the file doesn't exist or
+// cannot be read, returns an empty map (not an error).
+func readSettingsFile() (map[string]string, error) {
+	settingsPath := getSettingsFilePath()
+	if settingsPath == "" {
+		return make(map[string]string), nil
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
+		return make(map[string]string), nil
+	}
+
+	// Read the file
+	file, err := os.Open(settingsPath)
+	if err != nil {
+		// Don't treat read errors as fatal - just return empty settings
+		return make(map[string]string), nil
+	}
+	defer file.Close()
+
+	settings := make(map[string]string)
+	scanner := bufio.NewScanner(file)
+	inDefaultSection := false
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+
+		// Check for section headers
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			sectionName := strings.Trim(line, "[]")
+			inDefaultSection = (sectionName == "default")
+			continue
+		}
+
+		// Only parse key-value pairs in the [default] section
+		if !inDefaultSection {
+			continue
+		}
+
+		// Parse key = value pairs
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			settings[key] = value
+		}
+
+	}
+
+	if err := scanner.Err(); err != nil {
+		return make(map[string]string), nil
+	}
+
+	return settings, nil
+}
+
+// getSettingsFilePath returns the path to the W&B settings file.
+//
+// It checks the following locations in order:
+//  1. WANDB_CONFIG_DIR/settings if WANDB_CONFIG_DIR is set
+//  2. ~/.config/wandb/settings (default)
+func getSettingsFilePath() string {
+	if configDir := os.Getenv("WANDB_CONFIG_DIR"); configDir != "" {
+		return filepath.Join(expandHome(configDir), "settings")
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	return filepath.Join(homeDir, ".config", "wandb", "settings")
+}
+
+// expandHome expands ~ in file paths to the user's home directory.
+func expandHome(path string) string {
+	if !strings.HasPrefix(path, "~") {
+		return path
+	}
+
+	usr, err := user.Current()
+	if err != nil {
+		return path
+	}
+
+	if len(path) == 1 {
+		return usr.HomeDir
+	}
+
+	if path[1] == '/' || path[1] == '\\' {
+		return filepath.Join(usr.HomeDir, path[2:])
+	}
+
+	return path
 }
