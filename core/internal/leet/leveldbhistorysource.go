@@ -61,6 +61,7 @@ func InitializeLevelDBHistorySource(
 		return InitMsg{Source: source}
 	}
 }
+
 // Read implements HistorySource.Read.
 func (hs *LevelDBHistorySource) Read(
 	chunkSize int,
