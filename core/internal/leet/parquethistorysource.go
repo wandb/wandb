@@ -11,7 +11,9 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/wandb/simplejsonext"
+
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -43,6 +45,25 @@ type RunInfo struct {
 	displayName string
 }
 
+// NewRunInfo creates a new RunInfo.
+//
+// Exported for testing.
+func NewRunInfo(
+	entity string,
+	project string,
+	runId string,
+	runSummary map[string]any,
+	displayName string,
+) *RunInfo {
+	return &RunInfo{
+		entity:      entity,
+		project:     project,
+		runId:       runId,
+		runSummary:  runSummary,
+		displayName: displayName,
+	}
+}
+
 type ParquetHistorySource struct {
 	logger *observability.CoreLogger
 
@@ -63,58 +84,33 @@ type ParquetHistorySource struct {
 //
 // A run path is a string in the format of "wandb://<entity>/<project>/<runId>".
 func NewParquetHistorySource(
-	runPath string,
+	entity string,
+	project string,
+	runId string,
+	graphqlClient graphql.Client,
+	httpClient api.RetryableClient,
+	runInfo *RunInfo,
 	logger *observability.CoreLogger,
 ) (*ParquetHistorySource, error) {
-	entity, project, runId := splitRunPath(runPath)
-
-	s, err := settings.LoadFromEnvironment("")
-	if err != nil {
-		return nil, err
-	}
-
-	graphqlClient := initGraphQLClient(s, logger)
-	baseURL := stream.BaseURLFromSettings(
-		logger,
-		s,
-	)
-	httpClient := api.NewClient(api.ClientOptions{
-		BaseURL:         baseURL,
-		RetryMax:        3,
-		RetryWaitMin:    1 * time.Second,
-		RetryWaitMax:    10 * time.Second,
-		NonRetryTimeout: 10 * time.Second,
-		Logger:          logger.Logger,
-	})
-	runInfo, err := loadRunInfo(
-		graphqlClient,
-		entity,
-		project,
-		runId,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	runhistoryreader, err := runhistoryreader.New(
+	historyReader, err := runhistoryreader.New(
 		context.Background(),
 		entity,
 		project,
 		runId,
 		graphqlClient,
 		httpClient,
-		[]string{}, /* keys */
-		false,       /* useCache */
+		[]string{}, // keys
+		false,      // useCache
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ParquetHistorySource{
-		logger: logger,
-		currentStep: 0,
-		runInfo: runInfo,
-		runhistoryreader: runhistoryreader,
+		logger:           logger,
+		currentStep:      0,
+		runInfo:          runInfo,
+		runhistoryreader: historyReader,
 	}, nil
 }
 
@@ -127,7 +123,42 @@ func InitializeParquetHistorySource(
 	logger *observability.CoreLogger,
 ) tea.Cmd {
 	return func() tea.Msg {
-		source, err := NewParquetHistorySource(runPath, logger)
+		entity, project, runId := splitRunPath(runPath)
+
+		s, err := settings.LoadSettings()
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
+
+		graphqlClient := initGraphQLClient(s, logger)
+		httpClient := api.NewClient(api.ClientOptions{
+			BaseURL:            stream.BaseURLFromSettings(logger, s),
+			RetryMax:           3,
+			RetryWaitMin:       1 * time.Second,
+			RetryWaitMax:       10 * time.Second,
+			NonRetryTimeout:    10 * time.Second,
+			CredentialProvider: stream.CredentialsFromSettings(logger, s),
+			Logger:             logger.Logger,
+		})
+		runInfo, err := loadRunInfo(
+			graphqlClient,
+			entity,
+			project,
+			runId,
+		)
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
+
+		source, err := NewParquetHistorySource(
+			entity,
+			project,
+			runId,
+			graphqlClient,
+			httpClient,
+			runInfo,
+			logger,
+		)
 		if err != nil {
 			return ErrorMsg{Err: err}
 		}
@@ -153,13 +184,17 @@ func (s *ParquetHistorySource) Read(
 	numMsgs := 0
 
 	if s.currentStep == 0 {
-		msgs = append(msgs, s.processRunSummary())
-		msgs = append(msgs, RunMsg{
-			ID:          s.runInfo.runId,
-			Project:     s.runInfo.project,
-			DisplayName: s.runInfo.displayName,
-			Config:      nil,
-		})
+		if s.runInfo != nil {
+			msgs = append(msgs,
+				RunMsg{
+					ID:          s.runInfo.runId,
+					Project:     s.runInfo.project,
+					DisplayName: s.runInfo.displayName,
+					Config:      nil,
+				},
+				s.processRunSummary(),
+			)
+		}
 	}
 
 	for time.Since(startTime) < maxTimePerChunk && numMsgs < chunkSize {
@@ -173,20 +208,23 @@ func (s *ParquetHistorySource) Read(
 		}
 
 		s.currentStep += int64(len(historySteps))
-		historyMsg := parseHistory(historySteps, s.logger)
+		historyMsg := ParseParquetHistorySteps(historySteps, s.logger)
 		histories = append(histories, historyMsg)
 		numMsgs += len(historySteps)
 
 		if len(historySteps) == 0 {
 			hasMore = false
 			s.readerDone = true
-			msgs = append(msgs, FileCompleteMsg{ExitCode: 0})
 			break
 		}
 	}
 
 	if len(histories) > 0 {
 		msgs = append(msgs, concatenateHistory(histories))
+	}
+
+	if !hasMore {
+		msgs = append(msgs, FileCompleteMsg{ExitCode: 0})
 	}
 
 	return ChunkedBatchMsg{
@@ -201,8 +239,8 @@ func (s *ParquetHistorySource) Close() {
 	s.runhistoryreader.Release()
 }
 
-// parseHistory converts a list of iterator.KeyValueList to a HistoryMsg.
-func parseHistory(
+// ParseParquetHistorySteps converts a list of iterator.KeyValueList to a HistoryMsg.
+func ParseParquetHistorySteps(
 	historySteps []iterator.KeyValueList,
 	logger *observability.CoreLogger,
 ) HistoryMsg {
@@ -222,13 +260,17 @@ func parseHistory(
 		}
 
 		for _, keyValue := range historyStep {
+			if keyValue.Key == iterator.StepKey {
+				continue
+			}
+
 			existing := h.Metrics[keyValue.Key]
 			var value float64
-			switch keyValue.Value.(type) {
+			switch v := keyValue.Value.(type) {
 			case float64:
-				value = keyValue.Value.(float64)
+				value = v
 			case int64:
-				value = float64(keyValue.Value.(int64))
+				value = float64(v)
 			default:
 				logger.Warn(
 					"parquet history source: got unexpected value type",
@@ -250,11 +292,11 @@ func parseHistory(
 func getStepFromMetricsList(historySteps iterator.KeyValueList) (float64, error) {
 	for _, historyStep := range historySteps {
 		if historyStep.Key == iterator.StepKey {
-			switch historyStep.Value.(type) {
+			switch v := historyStep.Value.(type) {
 			case float64:
-				return historyStep.Value.(float64), nil
+				return v, nil
 			case int64:
-				return float64(historyStep.Value.(int64)), nil
+				return float64(v), nil
 			default:
 				return -1.0, fmt.Errorf(
 					"unexpected value type: %T",
@@ -269,15 +311,17 @@ func getStepFromMetricsList(historySteps iterator.KeyValueList) (float64, error)
 // processRunSummary converts the run's summary from the backend to a SummaryMsg.
 func (s *ParquetHistorySource) processRunSummary() tea.Msg {
 	summaryItems := make([]*spb.SummaryItem, 0)
-	for key, value := range s.runInfo.runSummary {
-		valueString, err := simplejsonext.MarshalToString(value)
-		if err != nil {
-			return ErrorMsg{Err: err}
+	if s.runInfo != nil {
+		for key, value := range s.runInfo.runSummary {
+			valueString, err := simplejsonext.MarshalToString(value)
+			if err != nil {
+				return ErrorMsg{Err: err}
+			}
+			summaryItems = append(summaryItems, &spb.SummaryItem{
+				Key:       key,
+				ValueJson: valueString,
+			})
 		}
-		summaryItems = append(summaryItems, &spb.SummaryItem{
-			Key:   key,
-			ValueJson: valueString,
-		})
 	}
 
 	return SummaryMsg{
@@ -295,7 +339,7 @@ func (s *ParquetHistorySource) processRunSummary() tea.Msg {
 // or optionally in the format of "wandb://<entity>/<project>/runs/<runId>".
 func splitRunPath(
 	runPath string,
-) (entity string, project string, runId string) {
+) (entity, project, runId string) {
 	runPath = strings.TrimPrefix(runPath, "wandb://")
 
 	runPath = strings.ReplaceAll(runPath, "/runs/", "/")
@@ -369,9 +413,9 @@ func loadRunInfo(
 
 	return &RunInfo{
 		displayName: *displayName,
-		entity: entity,
-		project: project,
-		runId: runId,
-		runSummary: runSummaryJson,
+		entity:      entity,
+		project:     project,
+		runId:       runId,
+		runSummary:  runSummaryJson,
 	}, nil
 }
