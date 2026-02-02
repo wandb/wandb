@@ -57,6 +57,10 @@ type Series struct {
 	// style is the foreground style used to render the series line/dots.
 	// Swapped atomically because drawing happens off the grid lock.
 	style atomic.Value // stores lipgloss.Style
+
+	// Precomputed bounds for O(1) chart-level aggregation.
+	xMin, xMax float64
+	yMin, yMax float64
 }
 
 func NewSeries(name string, palette []lipgloss.AdaptiveColor) *Series {
@@ -65,7 +69,13 @@ func NewSeries(name string, palette []lipgloss.AdaptiveColor) *Series {
 		Y: make([]float64, 0, initDataSliceCap),
 	}
 
-	s := Series{MetricData: md}
+	s := Series{
+		MetricData: md,
+		xMin:       math.Inf(1),
+		xMax:       math.Inf(-1),
+		yMin:       math.Inf(1),
+		yMax:       math.Inf(-1),
+	}
 
 	if len(palette) == 0 {
 		palette = GraphColors(DefaultColorScheme)
@@ -78,6 +88,26 @@ func NewSeries(name string, palette []lipgloss.AdaptiveColor) *Series {
 	return &s
 }
 
+// updateBounds extends the series bounds with the given data batch.
+func (s *Series) updateBounds(xs, ys []float64) {
+	if len(xs) == 0 || len(ys) == 0 {
+		return
+	}
+
+	xMin, xMax := slices.Min(xs), slices.Max(xs)
+	yMin, yMax := slices.Min(ys), slices.Max(ys)
+
+	s.xMin = min(s.xMin, xMin)
+	s.xMax = max(s.xMax, xMax)
+	s.yMin = min(s.yMin, yMin)
+	s.yMax = max(s.yMax, yMax)
+}
+
+// Bounds returns the series' precomputed bounds.
+func (s *Series) Bounds() (xMin, xMax, yMin, yMax float64) {
+	return s.xMin, s.xMax, s.yMin, s.yMax
+}
+
 // EpochLineChart is a custom line chart for epoch-based data.
 type EpochLineChart struct {
 	// Embedded ntcharts line chart backend (canvas, axes, ranges).
@@ -88,14 +118,6 @@ type EpochLineChart struct {
 
 	// palette is used when creating new series for this chart.
 	palette []lipgloss.AdaptiveColor
-
-	// opaqueCompositing controls whether braille pattern combination is opaque.
-	//
-	// ntcharts' default is to merge braille patterns already on the canvas
-	// with the new one, which can lead to color "spilling".
-	//
-	// TODO: implement the same for time-series plots.
-	opaqueCompositing bool
 
 	// focused indicates whether this chart is focused in the grid.
 	focused bool
@@ -133,14 +155,13 @@ func NewEpochLineChart(title string) *EpochLineChart {
 			linechart.WithXYSteps(4, 5), // The default number of ticks when drawing axis values.
 			linechart.WithAutoXRange(),
 		),
-		data:              make(map[string]*Series),
-		opaqueCompositing: true, // TODO: make this configurable?
-		title:             title,
-		palette:           GraphColors(DefaultColorScheme),
-		xMin:              math.Inf(1),
-		xMax:              math.Inf(-1),
-		yMin:              math.Inf(1),
-		yMax:              math.Inf(-1),
+		data:    make(map[string]*Series),
+		title:   title,
+		palette: GraphColors(DefaultColorScheme),
+		xMin:    math.Inf(1),
+		xMax:    math.Inf(-1),
+		yMin:    math.Inf(1),
+		yMax:    math.Inf(-1),
 	}
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
@@ -199,13 +220,13 @@ func (c *EpochLineChart) AddData(key string, data MetricData) {
 	s.X = append(s.X, data.X...)
 	s.Y = append(s.Y, data.Y...)
 
-	xMin, xMax := slices.Min(data.X), slices.Max(data.X)
-	yMin, yMax := slices.Min(data.Y), slices.Max(data.Y)
-
-	c.yMin = math.Min(c.yMin, yMin)
-	c.yMax = math.Max(c.yMax, yMax)
-	c.xMin = math.Min(c.xMin, xMin)
-	c.xMax = math.Max(c.xMax, xMax)
+	// Update series-level bounds and extend chart-level bounds.
+	s.updateBounds(data.X, data.Y)
+	xMin, xMax, yMin, yMax := s.Bounds()
+	c.xMin = min(c.xMin, xMin)
+	c.xMax = max(c.xMax, xMax)
+	c.yMin = min(c.yMin, yMin)
+	c.yMax = max(c.yMax, yMax)
 
 	c.updateRanges()
 	c.dirty = true
@@ -436,23 +457,21 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 	patterns := bGrid.BraillePatterns()
 	style := s.style.Load().(lipgloss.Style)
 
-	if c.opaqueCompositing {
-		DrawBraillePatternsOccluded(
-			&c.Canvas,
-			canvas.Point{X: startX, Y: 0},
-			patterns,
-			&style,
-		)
-	} else {
-		graph.DrawBraillePatterns(
-			&c.Canvas,
-			canvas.Point{X: startX, Y: 0},
-			patterns,
-			style,
-		)
-	}
+	DrawBraillePatternsOccluded(
+		&c.Canvas,
+		canvas.Point{X: startX, Y: 0},
+		patterns,
+		&style,
+	)
 }
 
+// DrawBraillePatternsOccluded draws braille runes from a [][]rune
+// representing a 2D grid of Braille Pattern runes combining series in an opaque way.
+//
+// ntcharts' default (graph.DrawBraillePatterns) is to merge braille patterns
+// already on the canvas with the new one, which can lead to color "spilling".
+//
+// TODO: implement the same for time-series plots.
 func DrawBraillePatternsOccluded(
 	m *canvas.Model,
 	p canvas.Point,
@@ -614,12 +633,13 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 }
 
 // Binary-search utility over monotonic xData.
-func (c *EpochLineChart) findNearestDataPoint(mouseX int) (dataX, dataY float64, idx int, ok bool) {
+func (c *EpochLineChart) findNearestDataPoint(mouseX int) (
+	dataX, dataY float64, idx int, ok bool) {
 	if len(c.order) == 0 {
 		return
 	}
 
-	// use topmost
+	// use the topmost series.
 	s, ok := c.data[c.order[len(c.order)-1]]
 	if !ok {
 		return 0, 0, -1, false
@@ -812,7 +832,10 @@ func (c *EpochLineChart) RemoveSeries(key string) {
 	c.dirty = true
 }
 
-// TODO: instead, keep and use x/y min/max per series.
+// recomputeBounds aggregates bounds from all chart series.
+//
+// This is O(n) in the number of series (not data points) because each
+// series tracks its own bounds.
 func (c *EpochLineChart) recomputeBounds() {
 	// Reset to "no data" sentinels.
 	c.xMin = math.Inf(1)
@@ -824,21 +847,11 @@ func (c *EpochLineChart) recomputeBounds() {
 		if len(s.X) == 0 || len(s.Y) == 0 {
 			continue
 		}
-		xMin, xMax := slices.Min(s.X), slices.Max(s.X)
-		yMin, yMax := slices.Min(s.Y), slices.Max(s.Y)
-
-		if xMin < c.xMin {
-			c.xMin = xMin
-		}
-		if xMax > c.xMax {
-			c.xMax = xMax
-		}
-		if yMin < c.yMin {
-			c.yMin = yMin
-		}
-		if yMax > c.yMax {
-			c.yMax = yMax
-		}
+		xMin, xMax, yMin, yMax := s.Bounds()
+		c.xMin = min(c.xMin, xMin)
+		c.xMax = max(c.xMax, xMax)
+		c.yMin = min(c.yMin, yMin)
+		c.yMax = max(c.yMax, yMax)
 	}
 }
 
@@ -1024,4 +1037,9 @@ func (c *EpochLineChart) PromoteSeriesToTop(key string) {
 	// Move the series to the end.
 	c.order = append(append(c.order[:idx], c.order[idx+1:]...), key)
 	c.dirty = true
+}
+
+// SeriesKeys returns the current draw order of series keys.
+func (c *EpochLineChart) SeriesKeys() []string {
+	return slices.Clone(c.order)
 }
