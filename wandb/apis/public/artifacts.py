@@ -295,9 +295,9 @@ class ArtifactCollections(
         per_page: int = 50,
     ):
         if self.QUERY is None:
-            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+            from wandb.sdk.artifacts._generated import ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL
 
-            type(self).QUERY = gql(PROJECT_ARTIFACT_COLLECTIONS_GQL)
+            type(self).QUERY = gql(ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL)
 
         self.entity = entity
         self.project = project
@@ -308,11 +308,11 @@ class ArtifactCollections(
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
-        from wandb.sdk.artifacts._generated import ProjectArtifactCollections
+        from wandb.sdk.artifacts._generated import ArtifactTypeArtifactCollections
         from wandb.sdk.artifacts._models.pagination import ArtifactCollectionConnection
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = ProjectArtifactCollections.model_validate(data)
+        result = ArtifactTypeArtifactCollections.model_validate(data)
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not (

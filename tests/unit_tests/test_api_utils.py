@@ -275,7 +275,7 @@ def test_gql_compat_omits_unused_fragments():
 def test_gql_compat_rename_fields():
     orig_query_str = dedent(
         """\
-        query ProjectArtifactCollections(
+        query ArtifactTypeArtifactCollections(
             $entityName: String!,
             $projectName: String!,
             $artifactTypeName: String!
@@ -297,7 +297,7 @@ def test_gql_compat_rename_fields():
     )
     expected_query_str = dedent(
         """\
-        query ProjectArtifactCollections(
+        query ArtifactTypeArtifactCollections(
             $entityName: String!,
             $projectName: String!,
             $artifactTypeName: String!
