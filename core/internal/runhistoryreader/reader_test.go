@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,9 +25,11 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/ipc"
 	"github.com/apache/arrow-go/v18/arrow/memory"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
@@ -356,13 +359,19 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 		map[uintptr][]map[string]any{1: data},
 	)
 
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
 	reader, err := New(
 		ctx,
 		"test-entity",
 		"test-project",
 		"test-run-id",
 		mockGQL,
-		retryablehttp.NewClient(),
+		api.NewClient(api.ClientOptions{
+			BaseURL:            serverURL,
+			CredentialProvider: api.NoopCredentialProvider{},
+		}),
 		[]string{},
 		true,
 		rustArrowWrapper,
