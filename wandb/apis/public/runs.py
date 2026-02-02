@@ -686,12 +686,12 @@ class Run(Attrs):
         run_name = "my-pending-run"
 
         run = Run.create(
-                api=api,
-                project="project",
-                entity="entity",
-                state="pending",
-                run_id=run_name,
-            )
+            api=api,
+            project="project",
+            entity="entity",
+            state="pending",
+            run_id=run_name,
+        )
         ```
         """
         api._sentry.message("Invoking Run.create", level="info")
