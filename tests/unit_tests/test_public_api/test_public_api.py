@@ -342,7 +342,7 @@ def test_access_token_property(monkeypatch: pytest.MonkeyPatch, tmp_path):
     monkeypatch.setenv("WANDB_IDENTITY_TOKEN_FILE", str(token_file))
     
     mock_auth = wbauth.AuthIdentityTokenFile(
-        host="https://custom.wandb.ai",
+        host="https://custom.notwandb.ai",
         path=str(token_file),
     )
     
@@ -363,5 +363,5 @@ def test_access_token_property(monkeypatch: pytest.MonkeyPatch, tmp_path):
         assert token == "test_access_token_12345"
         
         # Should use auth object's properties
-        assert called_with["base_url"] == "https://custom.wandb.ai"
+        assert called_with["base_url"] == "https://custom.notwandb.ai"
         assert called_with["token_file"] == Path(str(token_file))
