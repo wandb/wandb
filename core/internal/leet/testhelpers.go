@@ -93,6 +93,10 @@ func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {
 	return c.inspection.MouseX, c.inspection.Active
 }
 
+func (c *EpochLineChart) TestBounds() (xMin, xMax, yMin, yMax float64) {
+	return c.xMin, c.xMax, c.yMin, c.yMax
+}
+
 // TestChartAt returns the chart at (row, col) on the current page (or nil).
 func (mg *MetricsGrid) TestChartAt(row, col int) *EpochLineChart {
 	mg.mu.RLock()
