@@ -12,3 +12,7 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- Fetch new presigned download url after expiration when downloading large artifact files (larger than 2GB). (@pingleiwandb in https://github.com/wandb/wandb/pull/11242)
