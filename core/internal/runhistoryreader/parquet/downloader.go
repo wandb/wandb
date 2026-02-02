@@ -12,12 +12,8 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
 
-	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
-	"github.com/wandb/wandb/core/internal/wboperation"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // GetSignedUrlsWithLiveSteps retrieves signed URLs for downloading a run's
@@ -38,7 +34,7 @@ func GetSignedUrlsWithLiveSteps(
 		entity,
 		project,
 		runId,
-		[]string{iterator.StepKey},
+		[]string{StepKey},
 	)
 	if err != nil {
 		return nil, nil, err
@@ -65,7 +61,7 @@ func GetSignedUrlsWithLiveSteps(
 // calling this function.
 func DownloadRunHistoryFile(
 	ctx context.Context,
-	httpClient *retryablehttp.Client,
+	httpClient api.RetryableClient,
 	fileUrl string,
 	filePath string,
 ) (err error) {
@@ -109,7 +105,7 @@ func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {
 		if !ok {
 			return nil, fmt.Errorf("expected LiveData to be map[string]any")
 		}
-		step, ok := liveDataMap[iterator.StepKey]
+		step, ok := liveDataMap[StepKey]
 		if !ok {
 			return nil, fmt.Errorf("expected LiveData to contain step key")
 		}
