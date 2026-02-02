@@ -81,8 +81,8 @@ func updateSettingsFromEnvironment(settingsProto *spb.Settings) {
 // updateApiKeyFromNetrc updates the provided settings proto
 // with the API key from the user's netrc file.
 func updateApiKeyFromNetrc(settingsProto *spb.Settings) {
-	apiKey, _ := readNetrcAPIKey(settingsProto.BaseUrl.GetValue())
-	if apiKey != "" {
+	apiKey, err := readNetrcAPIKey(settingsProto.BaseUrl.GetValue())
+	if err == nil && apiKey != "" {
 		settingsProto.ApiKey = wrapperspb.String(apiKey)
 	}
 }
@@ -738,7 +738,6 @@ func readSettingsFile() (map[string]string, error) {
 			value := strings.TrimSpace(parts[1])
 			settings[key] = value
 		}
-
 	}
 
 	if err := scanner.Err(); err != nil {

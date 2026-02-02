@@ -23,7 +23,7 @@ const (
 // Implementations:
 //   - LevelDBHistorySource: Reads from a LevelDB-style .wandb transaction log
 //   - ParquetHistorySource: Reads from a run's exported parquet history files.
-//   - The files are downloaded from the W&B backend.
+//     The files are downloaded from the W&B backend.
 //
 // The Read method returns a ChunkedBatchMsg containing processed records,
 // and may return io.EOF when the stream is complete.

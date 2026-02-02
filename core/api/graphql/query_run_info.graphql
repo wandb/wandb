@@ -1,4 +1,4 @@
-query QueryRunConfigSummary(
+query QueryRunInfo(
     $entity: String!,
     $project: String!,
     $run: String!,

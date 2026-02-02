@@ -41,7 +41,6 @@ func readNetrcAPIKey(baseURL string) (string, error) {
 
 	scanner := bufio.NewScanner(file)
 	var currentMachine string
-	var password string
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -60,8 +59,7 @@ func readNetrcAPIKey(baseURL string) (string, error) {
 				}
 			case "password":
 				if i+1 < len(fields) && currentMachine == host {
-					password = fields[i+1]
-					return password, nil
+					return fields[i+1], nil
 				}
 				i++
 			case "login":
