@@ -420,8 +420,7 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 	ctx := t.Context()
 	tempDir := t.TempDir()
-	os.Setenv("WANDB_CACHE_DIR", tempDir)
-	defer os.Unsetenv("WANDB_CACHE_DIR")
+	t.Setenv("WANDB_CACHE_DIR", tempDir)
 
 	columns := []columnDef{
 		{name: "_step", colType: "int64"},
