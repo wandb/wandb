@@ -24,7 +24,7 @@ const (
 	defaultMaxX              = 20
 	defaultMaxY              = 1
 
-	// Minimal canvas size for parked charts
+	// Minimal canvas size for parked charts.
 	parkedCanvasSize = 1
 
 	initDataSliceCap = 256
@@ -49,16 +49,20 @@ func mapStringToIndex(s string, sliceLen int) int {
 }
 
 // Series stores the raw samples in arrival order.
+//
+// Series is not safe for concurrent use. Callers must synchronize access
+// externally (e.g., via the owning EpochLineChart or grid-level locks).
 type Series struct {
-	// MetricData.X is currently `_step` (monotonic, non‑decreasing),
-	// which is used by Draw to efficiently binary‑search the visible window.
+	// X and Y hold the raw data points. X is typically `_step` (monotonic,
+	// non-decreasing), enabling efficient binary search during rendering.
 	MetricData
 
 	// style is the foreground style used to render the series line/dots.
-	// Swapped atomically because drawing happens off the grid lock.
+	// Stored atomically because Draw may run concurrently with style updates.
 	style atomic.Value // stores lipgloss.Style
 
 	// Precomputed bounds for O(1) chart-level aggregation.
+	// Updated incrementally by updateBounds.
 	xMin, xMax float64
 	yMin, yMax float64
 }
@@ -80,7 +84,7 @@ func NewSeries(name string, palette []lipgloss.AdaptiveColor) *Series {
 	if len(palette) == 0 {
 		palette = GraphColors(DefaultColorScheme)
 	}
-	// Stable mapping for consistent colors.
+	// Stable mapping for consistent colors across sessions.
 	i := mapStringToIndex(name, len(palette))
 	graphStyle := lipgloss.NewStyle().Foreground(palette[i])
 	s.style.Store(graphStyle)
@@ -108,44 +112,56 @@ func (s *Series) Bounds() (xMin, xMax, yMin, yMax float64) {
 	return s.xMin, s.xMax, s.yMin, s.yMax
 }
 
-// EpochLineChart is a custom line chart for epoch-based data.
+// EpochLineChart is a line chart for epoch/step-based ML training data.
+//
+// It supports multiple series rendered with opaque compositing (painter's
+// algorithm), where the last series in draw order appears on top.
+//
+// EpochLineChart is generally NOT safe for concurrent use.
+// Draw may be called concurrently with style updates (SetGraphStyle, SetPalette)
+// because styles use atomic.Value. External synchronization (e.g., grid-level
+// mutex) is required for all other concurrent access patterns.
 type EpochLineChart struct {
-	// Embedded ntcharts line chart backend (canvas, axes, ranges).
+	// Model is the embedded ntcharts line chart backend providing canvas,
+	// axes, coordinate transforms, and range management.
 	linechart.Model
 
-	data  map[string]*Series
+	// data maps series keys to their data.
+	data map[string]*Series
+
+	// order defines the draw order: series are rendered in slice order,
+	// so the last element appears visually on top.
 	order []string
 
-	// palette is used when creating new series for this chart.
+	// palette provides colors for new series added to this chart.
 	palette []lipgloss.AdaptiveColor
 
-	// focused indicates whether this chart is focused in the grid.
+	// focused indicates whether this chart has input focus in the grid.
 	focused bool
 
-	// title is the metric name shown in the chart header and used for sorting and lookups.
+	// title is the metric name shown in the chart header.
 	title string
 
-	// dirty marks the chart as needing a redraw.
+	// dirty marks the chart as needing a redraw on the next DrawIfNeeded call.
 	dirty bool
 
-	// isZoomed is set after the user adjusts the X view via HandleZoom.
-	//
-	// When true, updateRanges will not auto‑reset the X view.
+	// isZoomed is set after user adjusts the X view via HandleZoom.
+	// When true, updateRanges preserves the user's X view instead of auto-fitting.
 	isZoomed bool
 
-	// userViewMinX/userViewMaxX hold the last user‑selected X view range so
-	// intent can be preserved across updates.
+	// userViewMinX/userViewMaxX preserve the user's zoom selection across
+	// data updates when isZoomed is true.
 	userViewMinX, userViewMaxX float64
 
-	// xMin/xMax track the observed X bounds of the data.
-	//
-	// Used to set the axis domain and to clamp/anchor zooming near the tail.
+	// xMin/xMax are the observed X bounds across all series.
+	// Used for axis domain and zoom clamping.
 	xMin, xMax float64
 
-	// yMin/yMax are the observed Y bounds used to compute padded Y axes.
+	// yMin/yMax are the observed Y bounds across all series.
+	// Used to compute padded Y axis ranges.
 	yMin, yMax float64
 
-	// inspection holds the chart overlay state.
+	// inspection holds crosshair overlay state for data inspection mode.
 	inspection ChartInspection
 }
 
@@ -176,6 +192,15 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	return chart
 }
 
+// topSeries returns the topmost series (last in draw order), or nil if empty.
+// The topmost series is used for inspection snapping and data point queries.
+func (c *EpochLineChart) topSeries() *Series {
+	if len(c.order) == 0 {
+		return nil
+	}
+	return c.data[c.order[len(c.order)-1]]
+}
+
 // maxXLabelWidth computes maximum X axis label width based on available space.
 func (c *EpochLineChart) maxXLabelWidth() int {
 	w := c.GraphWidth()
@@ -194,6 +219,8 @@ func (c *EpochLineChart) maxXLabelWidth() int {
 	return per
 }
 
+// SetPalette updates the color palette for new series.
+// Existing series retain their current colors.
 func (c *EpochLineChart) SetPalette(colors []lipgloss.AdaptiveColor) {
 	if len(colors) == 0 {
 		colors = GraphColors(DefaultColorScheme)
@@ -201,9 +228,10 @@ func (c *EpochLineChart) SetPalette(colors []lipgloss.AdaptiveColor) {
 	c.palette = colors
 }
 
-// AddData adds a set of new (x, y) data points (x is commonly _step).
+// AddData appends (x, y) points to the named series, creating it if needed.
 //
 // X values should be appended in non-decreasing order for efficient rendering.
+// Empty data is a no-op.
 func (c *EpochLineChart) AddData(key string, data MetricData) {
 	s, ok := c.data[key]
 	if !ok {
@@ -215,24 +243,25 @@ func (c *EpochLineChart) AddData(key string, data MetricData) {
 	if len(data.X) == 0 || len(data.Y) == 0 {
 		return
 	}
-	// Amortized linear growth. Do not use slices.Concat, it results
-	// in O(n²) allocations blowing up memory footprint.
+
+	// Amortized linear growth. Do not use slices.Concat as it causes
+	// O(n^2) allocations that blow up memory footprint.
 	s.X = append(s.X, data.X...)
 	s.Y = append(s.Y, data.Y...)
 
 	// Update series-level bounds and extend chart-level bounds.
 	s.updateBounds(data.X, data.Y)
-	xMin, xMax, yMin, yMax := s.Bounds()
-	c.xMin = min(c.xMin, xMin)
-	c.xMax = max(c.xMax, xMax)
-	c.yMin = min(c.yMin, yMin)
-	c.yMax = max(c.yMax, yMax)
+	sxMin, sxMax, syMin, syMax := s.Bounds()
+	c.xMin = min(c.xMin, sxMin)
+	c.xMax = max(c.xMax, sxMax)
+	c.yMin = min(c.yMin, syMin)
+	c.yMax = max(c.yMax, syMax)
 
 	c.updateRanges()
 	c.dirty = true
 }
 
-// updateRanges updates the chart ranges based on current data.
+// updateRanges recomputes axis ranges from current bounds.
 func (c *EpochLineChart) updateRanges() {
 	if c.SeriesCount() == 0 {
 		return
@@ -250,8 +279,7 @@ func (c *EpochLineChart) updateRanges() {
 		newYMin = 0
 	}
 
-	// X domain.
-	// Round up the observed max X to a "nice" domain for axis display.
+	// X domain: round up to a "nice" value for axis display.
 	dataXMin := c.xMin
 	dataXMax := c.xMax
 	if !isFinite(dataXMax) {
@@ -266,7 +294,6 @@ func (c *EpochLineChart) updateRanges() {
 		niceMax = float64(((int(math.Ceil(niceMax)) + 9) / 10) * 10)
 	}
 
-	// Update axis ranges
 	c.SetYRange(newYMin, newYMax)
 	c.SetViewYRange(newYMin, newYMax)
 
@@ -288,7 +315,7 @@ func (c *EpochLineChart) updateRanges() {
 	}
 }
 
-// calculatePadding determines appropriate padding for the Y axis
+// calculatePadding determines appropriate padding for the Y axis.
 func (c *EpochLineChart) calculatePadding(valueRange float64) float64 {
 	if valueRange == 0 {
 		absValue := math.Abs(c.yMax)
@@ -318,17 +345,10 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 		return
 	}
 
-	// Calculate the step position under the mouse
 	mouseProportion := float64(mouseX) / float64(c.GraphWidth())
-	// Clamp to [0, 1].
-	if mouseProportion < 0 {
-		mouseProportion = 0
-	} else if mouseProportion > 1 {
-		mouseProportion = 1
-	}
+	mouseProportion = max(0, min(1, mouseProportion))
 	stepUnderMouse := viewMin + mouseProportion*viewRange
 
-	// Calculate new range
 	var newRange float64
 	if direction == "in" {
 		newRange = viewRange * (1 - defaultZoomFactor)
@@ -336,46 +356,30 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 		newRange = viewRange * (1 + defaultZoomFactor)
 	}
 
-	// Clamp zoom levels
-	if newRange < minZoomRange {
-		newRange = minZoomRange
-	}
-	// Don't allow ranges larger than the domain
-	if newRange > c.MaxX()-c.MinX() {
-		newRange = c.MaxX() - c.MinX()
-	}
+	newRange = max(minZoomRange, min(newRange, c.MaxX()-c.MinX()))
 
-	// Calculate new bounds keeping mouse position stable
 	newMin := stepUnderMouse - newRange*mouseProportion
 	newMax := stepUnderMouse + newRange*(1-mouseProportion)
 
-	// Only apply tail nudge when zooming in AND mouse is at the far right
+	// Tail anchor: when zooming in at far right, keep the data tail visible.
 	if direction == "in" && mouseProportion >= tailAnchorMouseThreshold && isFinite(c.xMax) {
-		// Check if we're losing the tail
-		rightPad := c.pixelEpsX(newRange) * 2 // Small padding for the last data point
+		rightPad := c.pixelEpsX(newRange) * 2
 		if newMax < c.xMax-rightPad {
-			// Adjust to include the tail
 			shift := (c.xMax + rightPad) - newMax
 			newMin += shift
 			newMax += shift
 		}
 	}
 
-	// Final clamp to domain [MinX .. MaxX]
+	// Clamp to domain.
 	domMin, domMax := c.MinX(), c.MaxX()
 	if newMin < domMin {
 		newMin = domMin
-		newMax = newMin + newRange
-		if newMax > domMax {
-			newMax = domMax
-		}
+		newMax = min(newMin+newRange, domMax)
 	}
 	if newMax > domMax {
 		newMax = domMax
-		newMin = newMax - newRange
-		if newMin < domMin {
-			newMin = domMin
-		}
+		newMin = max(newMax-newRange, domMin)
 	}
 
 	c.SetViewXRange(newMin, newMax)
@@ -457,56 +461,33 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 	patterns := bGrid.BraillePatterns()
 	style := s.style.Load().(lipgloss.Style)
 
-	DrawBraillePatternsOccluded(
-		&c.Canvas,
-		canvas.Point{X: startX, Y: 0},
-		patterns,
-		&style,
-	)
+	drawBraillePatternsOccluded(&c.Canvas, canvas.Point{X: startX, Y: 0}, patterns, &style)
 }
 
-// DrawBraillePatternsOccluded draws braille runes from a [][]rune
-// representing a 2D grid of Braille Pattern runes combining series in an opaque way.
+// drawBraillePatternsOccluded draws braille runes with opaque compositing.
 //
-// ntcharts' default (graph.DrawBraillePatterns) is to merge braille patterns
-// already on the canvas with the new one, which can lead to color "spilling".
-//
-// TODO: implement the same for time-series plots.
-func DrawBraillePatternsOccluded(
-	m *canvas.Model,
-	p canvas.Point,
-	b [][]rune,
-	s *lipgloss.Style,
-) {
+// Unlike ntcharts' graph.DrawBraillePatterns which merges patterns, this
+// replaces existing cells entirely. This prevents color "spilling" when
+// multiple series overlap.
+func drawBraillePatternsOccluded(m *canvas.Model, p canvas.Point, b [][]rune, s *lipgloss.Style) {
 	for y, row := range b {
 		for x, r := range row {
 			if r != runes.BrailleBlockOffset {
-				DrawBrailleRune(m, p.Add(canvas.Point{X: x, Y: y}), r, s)
+				drawBrailleRune(m, p.Add(canvas.Point{X: x, Y: y}), r, s)
 			}
 		}
 	}
 }
 
-// DrawBrailleRune draws a braille rune onto the canvas at the given (X,Y)
-// coordinate using the provided style.
-//
-// If a braille rune is already present at that location, it is replaced.
-// This makes braille-based charts composited in "painter's algorithm" order:
-// the most recently drawn series wins when multiple series overlap,
-// which keeps multi-series plots visually clean.
-//
-// Does nothing if r is runes.Null or r is not a braille pattern.
-func DrawBrailleRune(m *canvas.Model, p canvas.Point, r rune, s *lipgloss.Style) {
+// drawBrailleRune draws a single braille rune, replacing any existing content.
+func drawBrailleRune(m *canvas.Model, p canvas.Point, r rune, s *lipgloss.Style) {
 	if r == runes.Null || !runes.IsBraillePattern(r) {
 		return
 	}
-
-	// Opaque write: later series overwrite earlier ones in this cell.
 	m.SetCell(p, canvas.NewCellWithStyle(r, *s))
 }
 
-// drawInspectionOverlay renders the vertical crosshair line and the (x, y)
-// legends beside it when inspection mode is active.
+// drawInspectionOverlay renders the data inspection legend.
 func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 	if !c.inspection.Active || c.GraphWidth() <= 0 || c.GraphHeight() <= 0 {
 		return
@@ -515,7 +496,7 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 	// Hairline X in canvas coordinates.
 	canvasX := graphStartX + c.inspection.MouseX
 
-	// Vertical hairline across the graph area.
+	// Vertical hairline.
 	for y := 0; y < c.GraphHeight(); y++ {
 		c.Canvas.SetCell(
 			canvas.Point{X: canvasX, Y: y},
@@ -539,7 +520,7 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 	entries := make([]legendEntry, 0, len(c.order))
 	maxLabelWidth := 0
 
-	// Build entries in *render order*: topmost series first (last in c.order).
+	// Build entries in render order: topmost series first (last in c.order).
 	for i := len(c.order) - 1; i >= 0; i-- {
 		key := c.order[i]
 		s, ok := c.data[key]
@@ -560,8 +541,6 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 		}
 
 		seriesStyle := s.style.Load().(lipgloss.Style)
-		// Inherit background and base text styling from the inspection legend style
-		// but keep the series' foreground color for the block.
 		blockStyle := seriesStyle.Inherit(inspectionLegendStyle)
 
 		entries = append(entries, legendEntry{
@@ -607,61 +586,42 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 
 		// Colored block (tied to series color).
 		for _, r := range entry.blockRunes {
-			c.Canvas.SetCell(
-				canvas.Point{X: x, Y: y},
-				canvas.NewCellWithStyle(r, entry.blockStyle),
-			)
+			c.Canvas.SetCell(canvas.Point{X: x, Y: y}, canvas.NewCellWithStyle(r, entry.blockStyle))
 			x++
 		}
 
-		// Space between block and text, styled as legend.
-		c.Canvas.SetCell(
-			canvas.Point{X: x, Y: y},
-			canvas.NewCellWithStyle(' ', inspectionLegendStyle),
-		)
+		c.Canvas.SetCell(canvas.Point{X: x, Y: y}, canvas.NewCellWithStyle(' ', inspectionLegendStyle))
 		x++
 
-		// "X: Y" text.
 		for _, ch := range entry.labelRunes {
-			c.Canvas.SetCell(
-				canvas.Point{X: x, Y: y},
-				canvas.NewCellWithStyle(ch, inspectionLegendStyle),
-			)
+			c.Canvas.SetCell(canvas.Point{X: x, Y: y}, canvas.NewCellWithStyle(ch, inspectionLegendStyle))
 			x++
 		}
 	}
 }
 
-// Binary-search utility over monotonic xData.
-func (c *EpochLineChart) findNearestDataPoint(mouseX int) (
-	dataX, dataY float64, idx int, ok bool) {
-	if len(c.order) == 0 {
-		return
-	}
-
-	// use the topmost series.
-	s, ok := c.data[c.order[len(c.order)-1]]
-	if !ok {
+// findNearestDataPoint returns the data point nearest to mouseX in the topmost series.
+func (c *EpochLineChart) findNearestDataPoint(mouseX int) (dataX, dataY float64, idx int, ok bool) {
+	s := c.topSeries()
+	if s == nil || len(s.X) == 0 || c.GraphWidth() <= 0 {
 		return 0, 0, -1, false
 	}
 
-	if len(s.X) == 0 || c.GraphWidth() <= 0 {
-		return 0, 0, -1, false
-	}
 	xRange := c.ViewMaxX() - c.ViewMinX()
 	if xRange <= 0 {
 		return 0, 0, -1, false
 	}
-	targetX := c.ViewMinX() + (float64(mouseX)/float64(c.GraphWidth()))*xRange
 
+	targetX := c.ViewMinX() + (float64(mouseX)/float64(c.GraphWidth()))*xRange
 	bestIdx := nearestIndexForX(s.X, targetX)
 	if bestIdx < 0 {
 		return 0, 0, -1, false
 	}
+
 	return s.X[bestIdx], s.Y[bestIdx], bestIdx, true
 }
 
-// pixelEpsX returns ~1 horizontal pixel in X units for the current graph.
+// pixelEpsX returns approximately 1 horizontal pixel in X data units.
 func (c *EpochLineChart) pixelEpsX(xRange float64) float64 {
 	if c.GraphWidth() <= 0 || xRange <= 0 {
 		return 0
@@ -680,7 +640,6 @@ func drawLine(bGrid *graph.BrailleGrid, p1, p2 canvas.Point) {
 	if p1.X > p2.X {
 		sx = -1
 	}
-
 	sy := 1
 	if p1.Y > p2.Y {
 		sy = -1
@@ -691,11 +650,9 @@ func drawLine(bGrid *graph.BrailleGrid, p1, p2 canvas.Point) {
 
 	for {
 		bGrid.Set(canvas.Point{X: x, Y: y})
-
 		if x == p2.X && y == p2.Y {
 			break
 		}
-
 		e2 := 2 * err
 		if e2 > -dy {
 			err -= dy
@@ -708,7 +665,7 @@ func drawLine(bGrid *graph.BrailleGrid, p1, p2 canvas.Point) {
 	}
 }
 
-// DrawIfNeeded only draws if the chart is marked as dirty.
+// DrawIfNeeded draws only if the chart is marked dirty.
 func (c *EpochLineChart) DrawIfNeeded() {
 	if c.dirty {
 		c.Draw()
@@ -720,7 +677,7 @@ func (c *EpochLineChart) Title() string {
 	return c.title
 }
 
-// SetFocused sets the focused state.
+// SetFocused sets the chart's focus state.
 func (c *EpochLineChart) SetFocused(focused bool) {
 	c.focused = focused
 }
@@ -735,11 +692,7 @@ func (c *EpochLineChart) Resize(width, height int) {
 	c.dirty = true
 }
 
-// Park minimizes the chart's canvas to reduce memory usage when the chart
-// is not visible on screen (e.g., scrolled out of view in a grid).
-//
-// A parked chart retains its data and can be restored by calling Resize
-// with the desired dimensions before the next Draw.
+// Park minimizes canvas memory for off-screen charts.
 func (c *EpochLineChart) Park() {
 	c.Resize(parkedCanvasSize, parkedCanvasSize)
 }
@@ -748,15 +701,12 @@ func isFinite(f float64) bool {
 	return !math.IsNaN(f) && !math.IsInf(f, 0)
 }
 
-// TruncateTitle truncates a title to fit within maxWidth, adding ellipsis if needed.
+// TruncateTitle truncates a title to fit maxWidth, adding ellipsis if needed.
 func TruncateTitle(title string, maxWidth int) string {
 	if lipgloss.Width(title) <= maxWidth {
 		return title
 	}
-
-	// Account for ellipsis width (3 chars)
 	if maxWidth <= 3 {
-		// Not enough space even for ellipsis
 		return "..."
 	}
 
@@ -765,7 +715,6 @@ func TruncateTitle(title string, maxWidth int) string {
 	// Try to break at a separator for cleaner truncation
 	separators := []string{"/", "_", ".", "-", ":"}
 
-	// Find the best truncation point.
 	bestTruncateAt := 0
 	for i := range title {
 		if lipgloss.Width(title[:i]) > availableWidth {
@@ -774,7 +723,6 @@ func TruncateTitle(title string, maxWidth int) string {
 		bestTruncateAt = i
 	}
 
-	// If we have a reasonable amount of text, look for a separator.
 	if bestTruncateAt > availableWidth/2 {
 		// Look for a separator near the truncation point for cleaner break
 		for _, sep := range separators {
@@ -786,7 +734,6 @@ func TruncateTitle(title string, maxWidth int) string {
 		}
 	}
 
-	// Safety checks.
 	if bestTruncateAt <= 0 {
 		bestTruncateAt = 1
 	}
@@ -797,32 +744,28 @@ func TruncateTitle(title string, maxWidth int) string {
 	return title[:bestTruncateAt] + "..."
 }
 
-// SetGraphStyle swaps the style used for drawing.
+// SetGraphStyle sets the style for the topmost series.
 func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
-	if len(c.order) == 0 {
-		return
-	}
-
-	// use topmost (pinned)
-	if series, ok := c.data[c.order[len(c.order)-1]]; ok {
-		series.style.Store(*s)
+	if top := c.topSeries(); top != nil {
+		top.style.Store(*s)
 	}
 }
 
+// SeriesCount returns the number of series in the chart.
 func (c *EpochLineChart) SeriesCount() int {
 	return len(c.data)
 }
 
+// RemoveSeries removes a series by key and recomputes bounds.
 func (c *EpochLineChart) RemoveSeries(key string) {
 	if _, ok := c.data[key]; !ok {
 		return
 	}
 	delete(c.data, key)
 
-	// Remove from draw order.
 	for i, k := range c.order {
 		if k == key {
-			c.order = append(c.order[:i], c.order[i+1:]...)
+			c.order = slices.Delete(c.order, i, i+1)
 			break
 		}
 	}
@@ -832,12 +775,9 @@ func (c *EpochLineChart) RemoveSeries(key string) {
 	c.dirty = true
 }
 
-// recomputeBounds aggregates bounds from all chart series.
-//
-// This is O(n) in the number of series (not data points) because each
-// series tracks its own bounds.
+// recomputeBounds aggregates bounds from all series.
+// O(n) in number of series, not data points.
 func (c *EpochLineChart) recomputeBounds() {
-	// Reset to "no data" sentinels.
 	c.xMin = math.Inf(1)
 	c.xMax = math.Inf(-1)
 	c.yMin = math.Inf(1)
@@ -855,8 +795,7 @@ func (c *EpochLineChart) recomputeBounds() {
 	}
 }
 
-// ChartInspection holds state for the crosshair overlay displayed during
-// right-click inspection.
+// ChartInspection holds crosshair overlay state.
 type ChartInspection struct {
 	// Active indicates whether inspection mode is on.
 	Active bool
@@ -866,17 +805,14 @@ type ChartInspection struct {
 	DataX, DataY float64
 }
 
-// nearestIndexForX returns the index of the sample in xs that is closest to targetX.
-// xs must be non-decreasing.
-//
-// Returns -1 if input slice is empty
+// nearestIndexForX returns the index closest to targetX in a sorted slice.
+// Returns -1 if xs is empty.
 func nearestIndexForX(xs []float64, targetX float64) int {
 	if len(xs) == 0 {
 		return -1
 	}
 	j := sort.SearchFloat64s(xs, targetX)
 
-	// Inspect the nearest values to find the best match.
 	bestIdx := -1
 	bestDist := math.Inf(1)
 	for _, i := range []int{j - 1, j, j + 1} {
@@ -890,21 +826,10 @@ func nearestIndexForX(xs []float64, targetX float64) int {
 	return bestIdx
 }
 
-// snapInspectionToDataX finds the nearest sample to targetX, updates the
-// inspection (DataX, DataY) and snaps the hairline MouseX to the sample's
-// exact x-position in the current view.
+// snapInspectionToDataX snaps the crosshair to the nearest sample.
 func (c *EpochLineChart) snapInspectionToDataX(targetX float64) {
-	if len(c.order) == 0 {
-		return
-	}
-
-	// use topmost
-	s, ok := c.data[c.order[len(c.order)-1]]
-	if !ok {
-		return
-	}
-
-	if !c.inspection.Active || c.GraphWidth() <= 0 || len(s.X) == 0 {
+	s := c.topSeries()
+	if s == nil || !c.inspection.Active || c.GraphWidth() <= 0 || len(s.X) == 0 {
 		return
 	}
 
@@ -925,34 +850,21 @@ func (c *EpochLineChart) snapInspectionToDataX(targetX float64) {
 	mouseXFrac := (c.inspection.DataX - c.ViewMinX()) / xRange
 	mouseX := int(math.Round(mouseXFrac * float64(c.GraphWidth())))
 	c.inspection.MouseX = max(0, min(c.GraphWidth()-1, mouseX))
-
-	// Need a redraw.
 	c.dirty = true
 }
 
-// InspectAtDataX turns inspection on and positions the crosshair/legend
-// at the sample nearest to targetX (in data coordinates), snapping the
-// hairline to the sample's exact X.
+// InspectAtDataX activates inspection at the sample nearest to targetX.
 func (c *EpochLineChart) InspectAtDataX(targetX float64) {
-	if len(c.order) == 0 {
-		return
-	}
-
-	// use topmost
-	s, ok := c.data[c.order[len(c.order)-1]]
-	if !ok {
-		return
-	}
-
-	if len(s.X) == 0 || c.GraphWidth() <= 0 {
+	s := c.topSeries()
+	if s == nil || len(s.X) == 0 || c.GraphWidth() <= 0 {
 		return
 	}
 	c.inspection.Active = true
 	c.snapInspectionToDataX(targetX)
 }
 
-// refreshInspectionAfterViewChange keeps the hairline aligned with the same DataX
-// after the X view/domain changed (e.g., new data expands the domain).
+// refreshInspectionAfterViewChange keeps the crosshair on the same DataX
+// after view/domain changes.
 func (c *EpochLineChart) refreshInspectionAfterViewChange() {
 	if !c.inspection.Active {
 		return
@@ -960,27 +872,17 @@ func (c *EpochLineChart) refreshInspectionAfterViewChange() {
 	c.snapInspectionToDataX(c.inspection.DataX)
 }
 
-// StartInspection begins inspection mode at the given graph-local mouse X.
+// StartInspection begins inspection at the given mouse X position.
 func (c *EpochLineChart) StartInspection(mouseX int) {
-	if len(c.order) == 0 {
-		return
-	}
-
-	// use topmost
-	s, ok := c.data[c.order[len(c.order)-1]]
-	if !ok {
-		return
-	}
-
-	if len(s.X) == 0 || c.GraphWidth() <= 0 {
+	s := c.topSeries()
+	if s == nil || len(s.X) == 0 || c.GraphWidth() <= 0 {
 		return
 	}
 	c.inspection.Active = true
 	c.UpdateInspection(mouseX)
 }
 
-// UpdateInspection updates the crosshair position and snaps to the nearest
-// data point based on the current mouse X position.
+// UpdateInspection moves the crosshair to a new mouse X position.
 func (c *EpochLineChart) UpdateInspection(mouseX int) {
 	if !c.inspection.Active || c.GraphWidth() <= 0 {
 		return
@@ -988,7 +890,6 @@ func (c *EpochLineChart) UpdateInspection(mouseX int) {
 	// Clamp to the drawable graph area.
 	c.inspection.MouseX = max(0, min(c.GraphWidth()-1, mouseX))
 
-	// Resolve the data point under the mouse, then reuse the unified snap logic.
 	if dataX, _, _, ok := c.findNearestDataPoint(mouseX); ok {
 		c.snapInspectionToDataX(dataX)
 	}
@@ -1001,45 +902,34 @@ func (c *EpochLineChart) EndInspection() {
 	c.dirty = true
 }
 
-// IsInspecting reports whether inspection is active for this chart.
-func (c *EpochLineChart) IsInspecting() bool { return c.inspection.Active }
+// IsInspecting reports whether inspection is active.
+func (c *EpochLineChart) IsInspecting() bool {
+	return c.inspection.Active
+}
 
-// InspectionData returns the coordinates of the currently inspected point
-// and whether inspection is active.
-//
-// Used for cross-chart synchronization.
+// InspectionData returns the inspected point's coordinates.
 func (c *EpochLineChart) InspectionData() (x, y float64, active bool) {
 	return c.inspection.DataX, c.inspection.DataY, c.inspection.Active
 }
 
-// PromoteSeriesToTop moves the given series key to the end of the draw order,
-// so it is drawn last (visually on top) while preserving relative order of
-// the other series.
+// PromoteSeriesToTop moves a series to the end of draw order (visually on top).
 func (c *EpochLineChart) PromoteSeriesToTop(key string) {
 	if key == "" || len(c.order) == 0 {
 		return
 	}
 
-	// Find the series in the current order.
-	idx := -1
-	for i, k := range c.order {
-		if k == key {
-			idx = i
-			break
-		}
-	}
-
-	// Not present or already last.
+	idx := slices.Index(c.order, key)
 	if idx == -1 || idx == len(c.order)-1 {
 		return
 	}
 
-	// Move the series to the end.
-	c.order = append(append(c.order[:idx], c.order[idx+1:]...), key)
+	c.order = slices.Delete(c.order, idx, idx+1)
+	c.order = append(c.order, key)
 	c.dirty = true
 }
 
-// SeriesKeys returns the current draw order of series keys.
-func (c *EpochLineChart) SeriesKeys() []string {
+// DrawOrder returns the series keys in their current draw order.
+// Series are rendered in this order; the last appears on top.
+func (c *EpochLineChart) DrawOrder() []string {
 	return slices.Clone(c.order)
 }
