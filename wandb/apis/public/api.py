@@ -1411,13 +1411,13 @@ class Api:
         """Return an `Artifacts` collection.
 
         Args:
-        type_name: The type of artifacts to fetch.
-        name: The artifact's collection name. Optionally append the
-            entity that logged the artifact as a prefix followed by
-            a forward slash.
-        per_page: Sets the page size for query pagination. Usually
-            there is no reason to change this.
-        tags: Only return artifacts with all of these tags.
+            type_name: The type of artifacts to fetch.
+            name: The artifact's collection name. Optionally append the
+                entity that logged the artifact as a prefix followed by
+                a forward slash.
+            per_page: Sets the page size for query pagination. Usually
+                there is no reason to change this.
+            tags: Only return artifacts with all of these tags.
 
         Returns:
             An iterable `Artifacts` object.
