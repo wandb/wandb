@@ -991,33 +991,33 @@ func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationC
 	return v.Entity
 }
 
-// QueryRunConfigSummaryProject includes the requested fields of the GraphQL type Project.
-type QueryRunConfigSummaryProject struct {
-	Run *QueryRunConfigSummaryProjectRun `json:"run"`
+// QueryRunInfoProject includes the requested fields of the GraphQL type Project.
+type QueryRunInfoProject struct {
+	Run *QueryRunInfoProjectRun `json:"run"`
 }
 
-// GetRun returns QueryRunConfigSummaryProject.Run, and is useful for accessing the field via an interface.
-func (v *QueryRunConfigSummaryProject) GetRun() *QueryRunConfigSummaryProjectRun { return v.Run }
+// GetRun returns QueryRunInfoProject.Run, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProject) GetRun() *QueryRunInfoProjectRun { return v.Run }
 
-// QueryRunConfigSummaryProjectRun includes the requested fields of the GraphQL type Run.
-type QueryRunConfigSummaryProjectRun struct {
+// QueryRunInfoProjectRun includes the requested fields of the GraphQL type Run.
+type QueryRunInfoProjectRun struct {
 	DisplayName    *string `json:"displayName"`
 	SummaryMetrics *string `json:"summaryMetrics"`
 }
 
-// GetDisplayName returns QueryRunConfigSummaryProjectRun.DisplayName, and is useful for accessing the field via an interface.
-func (v *QueryRunConfigSummaryProjectRun) GetDisplayName() *string { return v.DisplayName }
+// GetDisplayName returns QueryRunInfoProjectRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetDisplayName() *string { return v.DisplayName }
 
-// GetSummaryMetrics returns QueryRunConfigSummaryProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
-func (v *QueryRunConfigSummaryProjectRun) GetSummaryMetrics() *string { return v.SummaryMetrics }
+// GetSummaryMetrics returns QueryRunInfoProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetSummaryMetrics() *string { return v.SummaryMetrics }
 
-// QueryRunConfigSummaryResponse is returned by QueryRunConfigSummary on success.
-type QueryRunConfigSummaryResponse struct {
-	Project *QueryRunConfigSummaryProject `json:"project"`
+// QueryRunInfoResponse is returned by QueryRunInfo on success.
+type QueryRunInfoResponse struct {
+	Project *QueryRunInfoProject `json:"project"`
 }
 
-// GetProject returns QueryRunConfigSummaryResponse.Project, and is useful for accessing the field via an interface.
-func (v *QueryRunConfigSummaryResponse) GetProject() *QueryRunConfigSummaryProject { return v.Project }
+// GetProject returns QueryRunInfoResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoResponse) GetProject() *QueryRunInfoProject { return v.Project }
 
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
@@ -2024,21 +2024,21 @@ type __OrganizationCoreWeaveOrganizationIDInput struct {
 // GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
 
-// __QueryRunConfigSummaryInput is used internally by genqlient
-type __QueryRunConfigSummaryInput struct {
+// __QueryRunInfoInput is used internally by genqlient
+type __QueryRunInfoInput struct {
 	Entity  string `json:"entity"`
 	Project string `json:"project"`
 	Run     string `json:"run"`
 }
 
-// GetEntity returns __QueryRunConfigSummaryInput.Entity, and is useful for accessing the field via an interface.
-func (v *__QueryRunConfigSummaryInput) GetEntity() string { return v.Entity }
+// GetEntity returns __QueryRunInfoInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetEntity() string { return v.Entity }
 
-// GetProject returns __QueryRunConfigSummaryInput.Project, and is useful for accessing the field via an interface.
-func (v *__QueryRunConfigSummaryInput) GetProject() string { return v.Project }
+// GetProject returns __QueryRunInfoInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetProject() string { return v.Project }
 
-// GetRun returns __QueryRunConfigSummaryInput.Run, and is useful for accessing the field via an interface.
-func (v *__QueryRunConfigSummaryInput) GetRun() string { return v.Run }
+// GetRun returns __QueryRunInfoInput.Run, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetRun() string { return v.Run }
 
 // __RewindRunInput is used internally by genqlient
 type __RewindRunInput struct {
@@ -2968,9 +2968,9 @@ func OrganizationCoreWeaveOrganizationID(
 	return data_, err_
 }
 
-// The query executed by QueryRunConfigSummary.
-const QueryRunConfigSummary_Operation = `
-query QueryRunConfigSummary ($entity: String!, $project: String!, $run: String!) {
+// The query executed by QueryRunInfo.
+const QueryRunInfo_Operation = `
+query QueryRunInfo ($entity: String!, $project: String!, $run: String!) {
 	project(name: $project, entityName: $entity) {
 		run(name: $run) {
 			displayName
@@ -2980,24 +2980,24 @@ query QueryRunConfigSummary ($entity: String!, $project: String!, $run: String!)
 }
 `
 
-func QueryRunConfigSummary(
+func QueryRunInfo(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	entity string,
 	project string,
 	run string,
-) (data_ *QueryRunConfigSummaryResponse, err_ error) {
+) (data_ *QueryRunInfoResponse, err_ error) {
 	req_ := &graphql.Request{
-		OpName: "QueryRunConfigSummary",
-		Query:  QueryRunConfigSummary_Operation,
-		Variables: &__QueryRunConfigSummaryInput{
+		OpName: "QueryRunInfo",
+		Query:  QueryRunInfo_Operation,
+		Variables: &__QueryRunInfoInput{
 			Entity:  entity,
 			Project: project,
 			Run:     run,
 		},
 	}
 
-	data_ = &QueryRunConfigSummaryResponse{}
+	data_ = &QueryRunInfoResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

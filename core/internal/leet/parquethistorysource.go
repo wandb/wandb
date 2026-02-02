@@ -123,7 +123,7 @@ func InitializeParquetHistorySource(
 	logger *observability.CoreLogger,
 ) tea.Cmd {
 	return func() tea.Msg {
-		entity, project, runId := splitRunPath(runPath)
+		entity, project, runId := parseRemoteRunPath(runPath)
 
 		s, err := settings.LoadSettings()
 		if err != nil {
@@ -333,11 +333,11 @@ func (s *ParquetHistorySource) processRunSummary() tea.Msg {
 	}
 }
 
-// splitRunPath splits a run path into entity, project, and run id.
+// parseRemoteRunPath parses a run path into entity, project, and run id.
 //
 // A run path is a string in the format of "wandb://<entity>/<project>/<runId>".
-// or optionally in the format of "wandb://<entity>/<project>/runs/<runId>".
-func splitRunPath(
+// or alternatively in the format of "wandb://<entity>/<project>/runs/<runId>".
+func parseRemoteRunPath(
 	runPath string,
 ) (entity, project, runId string) {
 	runPath = strings.TrimPrefix(runPath, "wandb://")
@@ -389,7 +389,7 @@ func loadRunInfo(
 	project string,
 	runId string,
 ) (*RunInfo, error) {
-	response, err := gql.QueryRunConfigSummary(
+	response, err := gql.QueryRunInfo(
 		context.Background(),
 		graphqlClient,
 		entity,
