@@ -96,9 +96,10 @@ def scan_chunks(path: str, chunk_size: int) -> Iterator[bytes]:
 
 
 @dataclass
-class _DownloadContext:
+class MultipartDownloadContext:
     """Shared state for multipart download threads."""
 
+    session: Session
     q: Queue[QueuedChunk]
     cancel: threading.Event = field(default_factory=threading.Event)
 
@@ -123,16 +124,14 @@ class _DownloadContext:
 
 
 def _download_chunk_with_retry(
-    session: Session,
-    ctx: _DownloadContext,
+    ctx: MultipartDownloadContext,
     start: int,
     end: int | None,
 ) -> None:
     """Download a single chunk with retry logic for expired URLs.
 
     Args:
-        session: HTTP session for making requests.
-        ctx: Shared download context with queue, cancel event, and URL state.
+        ctx: Shared download context with session, queue, cancel event, and URL state.
         start: Start byte offset (inclusive).
         end: End byte offset (inclusive), or None for end of file.
     """
@@ -161,7 +160,7 @@ def _download_chunk_with_retry(
 
     def attempt_download() -> None:
         """Single download attempt."""
-        with session.get(url=ctx.get_url(), headers=headers, stream=True) as rsp:
+        with ctx.session.get(url=ctx.get_url(), headers=headers, stream=True) as rsp:
             rsp.raise_for_status()
 
             offset = start
@@ -182,7 +181,7 @@ def _download_chunk_with_retry(
     retrier(retry_sleep_base=0.5)  # 500ms base delay with exponential backoff
 
 
-def _write_chunks(ctx: _DownloadContext, file: IO[bytes]) -> None:
+def _write_chunks(ctx: MultipartDownloadContext, file: IO[bytes]) -> None:
     """Write downloaded chunks to file.
 
     Args:
@@ -229,7 +228,8 @@ def multipart_download(
         fetch_fn: Callable that fetches a fresh URL when the current one expires.
         part_size: Size of each download part in bytes.
     """
-    ctx = _DownloadContext(
+    ctx = MultipartDownloadContext(
+        session=session,
         q=Queue(maxsize=500),
         _url=initial_url,
         _url_fetch_fn=fetch_fn,
@@ -249,7 +249,6 @@ def multipart_download(
             download_futures.add(
                 executor.submit(
                     _download_chunk_with_retry,
-                    session,
                     ctx,
                     start,
                     end,
