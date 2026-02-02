@@ -336,7 +336,20 @@ def test_project_load__raises_error(monkeypatch):
 
 @pytest.mark.usefixtures("skip_verify_login")
 def test_access_token_property(monkeypatch: pytest.MonkeyPatch, tmp_path):
+    """Test access_token property for both API key and JWT authentication."""
+    # Test 1: API key auth returns None
+    with mock.patch.object(
+        wbauth,
+        "authenticate_session",
+        return_value=wbauth.AuthApiKey(
+            host="https://api.wandb.ai",
+            api_key="x" * 40,
+        ),
+    ):
+        api = Api()
+        assert api.access_token is None
     
+    # Test 2: JWT auth returns access token and uses auth object properties
     token_file = tmp_path / "token.jwt"
     token_file.write_text("test.jwt.token")
     monkeypatch.setenv("WANDB_IDENTITY_TOKEN_FILE", str(token_file))
@@ -361,7 +374,5 @@ def test_access_token_property(monkeypatch: pytest.MonkeyPatch, tmp_path):
         token = api.access_token
         
         assert token == "test_access_token_12345"
-        
-        # Should use auth object's properties
         assert called_with["base_url"] == "https://custom.bdnaw.ai"
         assert called_with["token_file"] == Path(str(token_file))

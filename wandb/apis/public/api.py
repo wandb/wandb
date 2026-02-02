@@ -277,6 +277,14 @@ class Api:
 
     @property
     def access_token(self) -> str | None:
+        """Retrieves an access token for JWT authentication.
+        
+        Returns:
+            str | None: The access token if JWT auth is configured, otherwise None.
+        """
+        if not isinstance(self._auth, wbauth.AuthIdentityTokenFile):
+            return None
+        
         return self._auth.get_access_token()
 
     def _configure_sentry(self) -> None:

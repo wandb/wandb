@@ -88,11 +88,14 @@ class AuthIdentityTokenFile(Auth):
         """Path to a file storing a JWT identity token."""
         return self._identity_token_file
 
-    def get_access_token(self) -> str:
+    def get_access_token(self, env: dict | None = None) -> str:
+        if env is None:
+            env = os.environ
+        
         base_url = str(self.host.url)
         token_file = self.path
         credentials_file = wandb_env.get_credentials_file(
-            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), os.environ
+            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), env
         )
         
         return credentials.access_token(base_url, token_file, pathlib.Path(credentials_file))

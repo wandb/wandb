@@ -47,7 +47,7 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 from wandb.sdk.lib.gql_request import BearerAuth, GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import retry
+from ..lib import credentials, retry, wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from . import context
 from .progress import Progress
@@ -296,6 +296,8 @@ class Api:
 
         self.client = Client(
             transport=GraphQLSession(
+                url=f"{self.settings('base_url')}/graphql",
+                auth=auth,
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
@@ -306,8 +308,6 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
-                auth=auth,
-                url=f"{self.settings('base_url')}/graphql",
                 proxies=proxies,
             )
         )
@@ -423,11 +423,12 @@ class Api:
     def api_key(self) -> str | None:
         from wandb.sdk.lib import wbauth
 
-        if (
+        if (  #
             (auth := wbauth.session_credentials(host=self.api_url))
             and isinstance(auth, wbauth.AuthApiKey)
         ):
             return auth.api_key
+
         return (
             os.getenv(env.API_KEY)
             or wbauth.read_netrc_auth(host=self.api_url)
@@ -450,6 +451,12 @@ class Api:
         Raises:
             AuthenticationError: If the path to the identity token is not found.
         """
+        if (
+            (auth := wbauth.session_credentials(host=self.api_url))
+            and isinstance(auth, wbauth.AuthIdentityTokenFile)
+        ):
+            return auth.get_access_token(self._environ)
+
         token_file_str = self._environ.get(env.IDENTITY_TOKEN_FILE)
         if not token_file_str:
             return None
