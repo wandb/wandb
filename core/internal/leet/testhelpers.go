@@ -108,3 +108,8 @@ func (mg *MetricsGrid) TestChartAt(row, col int) *EpochLineChart {
 func (mg *MetricsGrid) TestSyncInspectActive() bool {
 	return mg.syncInspectActive
 }
+
+// TestBounds exposes the chart's current bounds for testing.
+func (c *EpochLineChart) TestBounds() (xMin, xMax, yMin, yMax float64) {
+	return c.xMin, c.xMax, c.yMin, c.yMax
+}
