@@ -630,7 +630,10 @@ func (nc *Connection) handleSync(
 	go func() {
 		defer wg.Done()
 
-		response := nc.runSyncManager.DoSync(request)
+		ctx, cancel := nc.requestCanceller.Context(id)
+		defer cancel()
+
+		response := nc.runSyncManager.DoSync(ctx, request)
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,
 			ServerResponseType: &spb.ServerResponse_SyncResponse{

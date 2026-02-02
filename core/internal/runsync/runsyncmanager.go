@@ -1,6 +1,7 @@
 package runsync
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -48,6 +49,7 @@ func (m *RunSyncManager) InitSync(
 
 // DoSync starts a sync operation and blocks until it completes.
 func (m *RunSyncManager) DoSync(
+	ctx context.Context,
 	request *spb.ServerSyncRequest,
 ) *spb.ServerSyncResponse {
 	m.mu.Lock()
@@ -68,7 +70,7 @@ func (m *RunSyncManager) DoSync(
 		}}}
 	}
 
-	response := op.Do(int(request.GetParallelism()))
+	response := op.Do(ctx, int(request.GetParallelism()))
 
 	m.mu.Lock()
 	delete(m.ongoingSyncOps, request.Id)

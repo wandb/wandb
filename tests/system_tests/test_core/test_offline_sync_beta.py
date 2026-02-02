@@ -123,14 +123,9 @@ class _Tester:
         self,
         paths: set[pathlib.Path],
         settings: wandb.Settings,
-        *,
-        cwd: pathlib.Path | None,
-        live: bool,
-        entity: str,
-        project: str,
-        run_id: str,
+        **kwargs: object,
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
-        _, _, _, _, _, _, _ = paths, settings, cwd, live, entity, project, run_id
+        _ = paths, settings, kwargs
         return await self._make_handle(
             self._init_sync_addrs,
             lambda r: r.init_sync_response,
@@ -297,6 +292,29 @@ def test_sync_to_other_path(
 
         assert len(history) == 1
         assert history[0]["x"] == 1
+
+
+def test_sync_overrides(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    with wandb.init(
+        mode="offline",
+        job_type="job",
+        tags=("old1", "old2", "delete"),
+    ) as run:
+        pass
+
+    runner.invoke(
+        cli.beta,
+        f"sync {run.settings.sync_dir}"
+        + " --job-type job-override"
+        + " --replace-tags old1=new1,old2=new2,delete=",
+    )
+
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.job_type(run_id=run.id) == "job-override"
+        assert snapshot.tags(run_id=run.id) == ["new1", "new2"]
 
 
 @pytest.mark.parametrize("skip_synced", (True, False))
@@ -476,6 +494,8 @@ def test_prints_status_updates(
                     entity="",
                     project="",
                     run_id="",
+                    job_type="",
+                    tag_replacements={},
                     settings=wandb.Settings(),
                     printer=new_printer(),
                     parallelism=1,
