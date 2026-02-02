@@ -1525,7 +1525,7 @@ class Api:
                 match the type of the fetched artifact.
 
         Examples:
-        In the proceeding code snippets "entity", "project", "artifact",
+        In the following code snippets "entity", "project", "artifact",
         "version", and "alias" are placeholders for your W&B entity, name
         of the project the artifact is in, the name of the artifact,
         and artifact's version, respectively.
