@@ -25,7 +25,6 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     multipart_download,
     should_multipart_download,
 )
-from wandb.sdk.artifacts.storage_policies._url_provider import SharedUrlProvider
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
 if TYPE_CHECKING:
@@ -531,10 +530,6 @@ def test_artifact_multipart_download_network_error():
     session.mount("https://", adapter)
 
     opener = mock.mock_open()
-    url_provider = SharedUrlProvider(
-        initial_url="https://invalid.com",
-        fetch_fn=lambda: "https://invalid.com",
-    )
     with pytest.raises(requests.exceptions.ConnectionError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
@@ -542,7 +537,8 @@ def test_artifact_multipart_download_network_error():
                 session,
                 4 * 1024 * 1024 * 1024,
                 opener,
-                url_provider,
+                initial_url="https://invalid.com",
+                fetch_fn=lambda: "https://invalid.com",
             )
     opener.return_value.seek.assert_not_called()
 
@@ -557,10 +553,6 @@ def test_artifact_multipart_download_disk_error():
 
     opener = mock.mock_open()
     opener.return_value.write.side_effect = OSError("I/O operation on closed file")
-    url_provider = SharedUrlProvider(
-        initial_url="https://s3.com/file",
-        fetch_fn=lambda: "https://s3.com/file",
-    )
     with pytest.raises(OSError):
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
@@ -568,56 +560,12 @@ def test_artifact_multipart_download_disk_error():
                 requests.Session(),
                 500 * 1024 * 1024,  # 500MB should have 5 parts
                 opener,
-                url_provider,
+                initial_url="https://s3.com/file",
+                fetch_fn=lambda: "https://s3.com/file",
             )
     # After first get call has errors, remaining get calls should return without making the call.
     # It can be 5 depending on underlying environment, e.g. it fails on windows from time to time.
     assert resp.call_count <= 5
-
-
-class TestSharedUrlProvider:
-    def test_get_url_returns_initial_url(self):
-        fetch_fn = Mock(return_value="https://example.com/refreshed")
-        provider = SharedUrlProvider(
-            initial_url="https://example.com/initial",
-            fetch_fn=fetch_fn,
-        )
-
-        url = provider.get_url()
-
-        assert url == "https://example.com/initial"
-        fetch_fn.assert_not_called()
-
-    def test_get_url_caches_until_invalidated(self):
-        fetch_fn = Mock(return_value="https://example.com/refreshed")
-        provider = SharedUrlProvider(
-            initial_url="https://example.com/initial",
-            fetch_fn=fetch_fn,
-        )
-
-        url1 = provider.get_url()
-        url2 = provider.get_url()
-
-        assert url1 == url2 == "https://example.com/initial"
-        fetch_fn.assert_not_called()
-
-    def test_invalidate_forces_refresh(self):
-        fetch_fn = Mock(return_value="https://example.com/url1")
-
-        provider = SharedUrlProvider(
-            initial_url="https://example.com/initial",
-            fetch_fn=fetch_fn,
-        )
-
-        url1 = provider.get_url()
-        assert url1 == "https://example.com/initial"
-        assert fetch_fn.call_count == 0
-
-        provider.invalidate()
-        url2 = provider.get_url()
-
-        assert url2 == "https://example.com/url1"
-        assert fetch_fn.call_count == 1
 
 
 @responses.activate()
@@ -634,10 +582,6 @@ def test_artifact_multipart_download_retries():
     )
 
     fetch_fn = Mock(return_value="https://s3.com/file/t2")
-    url_provider = SharedUrlProvider(
-        initial_url="https://s3.com/file/t1",
-        fetch_fn=fetch_fn,
-    )
 
     opener = mock.mock_open()
 
@@ -647,7 +591,8 @@ def test_artifact_multipart_download_retries():
             requests.Session(),
             100,
             opener,
-            url_provider,
+            initial_url="https://s3.com/file/t1",
+            fetch_fn=fetch_fn,
             part_size=100,
         )
 
@@ -664,11 +609,6 @@ def test_artifact_multipart_download_max_retries_exceeded():
         status=403,
     )
 
-    url_provider = SharedUrlProvider(
-        initial_url="https://s3.com/file",
-        fetch_fn=lambda: "https://s3.com/file",
-    )
-
     opener = mock.mock_open()
 
     with pytest.raises(requests.HTTPError):
@@ -678,7 +618,8 @@ def test_artifact_multipart_download_max_retries_exceeded():
                 requests.Session(),
                 100,
                 opener,
-                url_provider,
+                initial_url="https://s3.com/file",
+                fetch_fn=lambda: "https://s3.com/file",
                 part_size=100,
             )
 

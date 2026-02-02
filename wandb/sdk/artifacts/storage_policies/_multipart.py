@@ -8,7 +8,7 @@ import threading
 from concurrent.futures import FIRST_EXCEPTION, Executor, wait
 from dataclasses import dataclass, field
 from queue import Queue
-from typing import IO, TYPE_CHECKING, Any, Final, Iterator, Union
+from typing import IO, TYPE_CHECKING, Any, Callable, Final, Iterator, Union
 
 import requests
 from typing_extensions import TypeAlias, TypeIs, final
@@ -19,8 +19,6 @@ from wandb.sdk.lib import retry
 
 if TYPE_CHECKING:
     from requests import Session
-
-    from ._url_provider import SharedUrlProvider
 
 logger = logging.getLogger(__name__)
 
@@ -104,10 +102,28 @@ class _DownloadContext:
     q: Queue[QueuedChunk]
     cancel: threading.Event = field(default_factory=threading.Event)
 
+    # URL state management (thread-safe)
+    _url_lock: threading.Lock = field(default_factory=threading.Lock)
+    _url: str = ""
+    _url_invalidated: bool = False
+    _url_fetch_fn: Callable[[], str] | None = None
+
+    def get_url(self) -> str:
+        """Get the current URL, fetching a fresh one only if invalidated."""
+        with self._url_lock:
+            if self._url_invalidated and self._url_fetch_fn:
+                self._url = self._url_fetch_fn()
+                self._url_invalidated = False
+            return self._url
+
+    def invalidate_url(self) -> None:
+        """Mark the cached URL as invalid, forcing next get_url() to fetch fresh."""
+        with self._url_lock:
+            self._url_invalidated = True
+
 
 def _download_chunk_with_retry(
     session: Session,
-    url_provider: SharedUrlProvider,
     ctx: _DownloadContext,
     start: int,
     end: int | None,
@@ -116,8 +132,7 @@ def _download_chunk_with_retry(
 
     Args:
         session: HTTP session for making requests.
-        url_provider: Provider for getting/refreshing presigned URLs.
-        ctx: Shared download context with queue and cancel event.
+        ctx: Shared download context with queue, cancel event, and URL state.
         start: Start byte offset (inclusive).
         end: End byte offset (inclusive), or None for end of file.
     """
@@ -129,9 +144,6 @@ def _download_chunk_with_retry(
     bytes_range = f"{start}-" if (end is None) else f"{start}-{end}"
     headers = {"Range": f"bytes={bytes_range}"}
 
-    # Track current URL in a container so check_retry_fn can update it
-    url_container = {"url": url_provider.get_url()}
-
     def check_retry_fn(e: Exception) -> bool:
         """Check if we should retry this exception and refresh URL if needed."""
         if not isinstance(e, requests.HTTPError):
@@ -139,18 +151,17 @@ def _download_chunk_with_retry(
 
         status_code = getattr(e.response, "status_code", None)
         if status_code in (401, 403):
-            # URL likely expired, invalidate and get fresh URL
+            # URL likely expired, invalidate so next get_url() fetches fresh
             if env.is_debug():
                 logger.debug(f"Download got {status_code}, refreshing URL for retry")
-            url_provider.invalidate()
-            url_container["url"] = url_provider.get_url()
+            ctx.invalidate_url()
             return True  # Retry this error
 
         return False  # Don't retry other errors
 
     def attempt_download() -> None:
         """Single download attempt."""
-        with session.get(url=url_container["url"], headers=headers, stream=True) as rsp:
+        with session.get(url=ctx.get_url(), headers=headers, stream=True) as rsp:
             rsp.raise_for_status()
 
             offset = start
@@ -200,7 +211,8 @@ def multipart_download(
     session: Session,
     size: int,
     cached_open: Opener,
-    url_provider: SharedUrlProvider,
+    initial_url: str,
+    fetch_fn: Callable[[], str],
     part_size: int = MULTI_DEFAULT_PART_SIZE,
 ) -> None:
     """Download file as multiple parts in parallel.
@@ -213,11 +225,15 @@ def multipart_download(
         session: HTTP session for making requests.
         size: Total file size in bytes.
         cached_open: Opener function for writing to cache.
-        url_provider: SharedUrlProvider for getting/refreshing presigned URLs.
-                     Chunks will retry with fresh URLs on 401/403.
+        initial_url: The initial presigned URL for downloading.
+        fetch_fn: Callable that fetches a fresh URL when the current one expires.
         part_size: Size of each download part in bytes.
     """
-    ctx = _DownloadContext(q=Queue(maxsize=500))
+    ctx = _DownloadContext(
+        q=Queue(maxsize=500),
+        _url=initial_url,
+        _url_fetch_fn=fetch_fn,
+    )
 
     # Put cache_open at top so we remove the tmp file when there is network error.
     with cached_open("wb") as f:
@@ -234,7 +250,6 @@ def multipart_download(
                 executor.submit(
                     _download_chunk_with_retry,
                     session,
-                    url_provider,
                     ctx,
                     start,
                     end,

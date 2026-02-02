@@ -42,7 +42,6 @@ from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 from ._factories import make_http_session, make_storage_handlers
-from ._url_provider import SharedUrlProvider
 
 if TYPE_CHECKING:
     import requests
@@ -167,17 +166,13 @@ class WandbStoragePolicy(StoragePolicy):
                     else:
                         return file.direct_url
 
-                url_provider = SharedUrlProvider(
-                    initial_url=url,
-                    fetch_fn=fetch_fresh_url,
-                )
-
                 multipart_download(
                     executor,
                     self._session,
                     size,
                     cache_open,
-                    url_provider=url_provider,
+                    initial_url=url,
+                    fetch_fn=fetch_fresh_url,
                 )
                 return path
 
