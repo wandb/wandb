@@ -90,7 +90,7 @@ func (h *HistoryReader) getLiveDataForSpecificKeys(
 	minStep int64,
 	maxStep int64,
 ) ([]parquet.KeyValueList, error) {
-	h.keys = append(h.keys, StepKey)
+	h.keys = append(h.keys, parquet.StepKey)
 
 	spec := map[string]any{
 		"keys":    h.keys,
@@ -164,7 +164,7 @@ func convertHistoryRowToKeyValueList(
 
 		// In some cases the backend returns the step as a float64,
 		// so we need to convert it to an int64.
-		if key == StepKey {
+		if key == parquet.StepKey {
 			if valAsFloat, ok := val.(float64); ok {
 				val = int64(valAsFloat)
 			}
