@@ -586,15 +586,24 @@ func (c *EpochLineChart) drawInspectionOverlay(graphStartX int) {
 
 		// Colored block (tied to series color).
 		for _, r := range entry.blockRunes {
-			c.Canvas.SetCell(canvas.Point{X: x, Y: y}, canvas.NewCellWithStyle(r, entry.blockStyle))
+			c.Canvas.SetCell(
+				canvas.Point{X: x, Y: y},
+				canvas.NewCellWithStyle(r, entry.blockStyle),
+			)
 			x++
 		}
 
-		c.Canvas.SetCell(canvas.Point{X: x, Y: y}, canvas.NewCellWithStyle(' ', inspectionLegendStyle))
+		c.Canvas.SetCell(
+			canvas.Point{X: x, Y: y},
+			canvas.NewCellWithStyle(' ', inspectionLegendStyle),
+		)
 		x++
 
 		for _, ch := range entry.labelRunes {
-			c.Canvas.SetCell(canvas.Point{X: x, Y: y}, canvas.NewCellWithStyle(ch, inspectionLegendStyle))
+			c.Canvas.SetCell(
+				canvas.Point{X: x, Y: y},
+				canvas.NewCellWithStyle(ch, inspectionLegendStyle),
+			)
 			x++
 		}
 	}
