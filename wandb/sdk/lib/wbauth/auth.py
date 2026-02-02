@@ -4,6 +4,7 @@ import abc
 import dataclasses
 import os
 import pathlib
+from typing import Mapping
 
 from typing_extensions import final, override
 
@@ -88,7 +89,7 @@ class AuthIdentityTokenFile(Auth):
         """Path to a file storing a JWT identity token."""
         return self._identity_token_file
 
-    def get_access_token(self, env: dict | None = None) -> str:
+    def get_access_token(self, env: Mapping[str, str] | None = None) -> str:
         if env is None:
             env = os.environ
         
