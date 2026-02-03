@@ -43,7 +43,6 @@ fn test_http_file_reader_length() {
 // range requests. The simple test server may not handle concurrent requests well.
 // In production, HttpFileReader works correctly with real HTTP servers.
 #[test]
-#[ignore] // Flaky test server - works in production
 fn test_http_file_reader_read_at() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test.bin");
@@ -174,7 +173,6 @@ fn test_http_file_reader_read_buffering() {
 // range requests. The simple test server may not handle concurrent requests well.
 // In production, HttpFileReader works correctly with real HTTP servers.
 #[test]
-#[ignore] // Flaky test server - works in production
 fn test_http_file_reader_seek() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test.bin");
@@ -254,7 +252,6 @@ fn test_http_file_reader_seek_invalid() {
 // range requests. The simple test server may not handle concurrent requests well.
 // In production, HttpFileReader works correctly with real HTTP servers.
 #[test]
-#[ignore] // Flaky test server - works in production
 fn test_http_file_reader_get_bytes() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test.bin");
@@ -277,7 +274,6 @@ fn test_http_file_reader_get_bytes() {
 // range requests. The simple test server may not handle concurrent requests well.
 // In production, HttpFileReader works correctly with real HTTP servers.
 #[test]
-#[ignore] // Flaky test server - works in production
 fn test_http_file_reader_get_read() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test.bin");

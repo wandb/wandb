@@ -448,6 +448,22 @@ jobs:
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
       - codecov/upload: { flags: unit }
 
+  unit-tests-rust:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            sudo apt-get update
+      - install_rust
+      - run:
+          name: Run Rust tests for parquet-rust-wrapper
+          command: |
+            cd parquet-rust-wrapper
+            cargo test --verbose
+
   # Download the local-testcontainer image corresponding to the latest server release
   # and store it in wandb-client-cicd/images/local-testcontainer.
   # No-op if already stored.
@@ -494,6 +510,11 @@ workflows:
       # Unit tests with Go on Linux
       #
       - unit-tests-go
+
+      #
+      # Unit tests with Rust on Linux
+      #
+      - unit-tests-rust
 
       #
       # Unit tests with pytest on Linux

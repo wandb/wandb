@@ -18,7 +18,7 @@ pub struct ReaderHandle {
     current_batch_row_offset: usize, // The row offset within the current batch
     current_batch: Option<RecordBatch>, // The current record batch being read
     file_path: String,            // The file path of the parquet file
-    last_step_returned: f64,      // Track the last step value we returned
+    last_step_returned: i64,      // Track the last step value we returned
     reader_exhausted: bool,       // Track if reader reached end of file
 }
 
@@ -155,7 +155,7 @@ fn create_reader_internal(
         current_batch_row_offset: 0,
         file_path: file_path.to_string(),
         column_names: column_names.map(|names| names.to_vec()),
-        last_step_returned: -1.0,
+        last_step_returned: -1,
         reader_exhausted: false,
     };
 
@@ -173,7 +173,7 @@ impl ReaderHandle {
         )?;
 
         self.reader = new_reader.reader;
-        self.last_step_returned = -1.0;
+        self.last_step_returned = -1;
         self.reader_exhausted = false;
         self.current_batch = None;
         self.current_batch_row_offset = 0;
@@ -215,8 +215,8 @@ pub struct StepScanResult {
 #[no_mangle]
 pub unsafe extern "C" fn reader_scan_step_range(
     reader_ptr: *mut ReaderHandle,
-    min_step: f64,
-    max_step: f64,
+    min_step: i64,
+    max_step: i64,
     out_result: *mut StepScanResult,
 ) -> *const libc::c_char {
     if reader_ptr.is_null() {
@@ -243,7 +243,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
     let mut buffer = Vec::new();
 
     let mut total_rows_returned = 0;
-    let mut actual_max_step_returned: Option<f64> = None;
+    let mut actual_max_step_returned: Option<i64> = None;
 
     // Read batches and process row by row
     // Collecting the rows that fall within the step range
@@ -284,15 +284,15 @@ pub unsafe extern "C" fn reader_scan_step_range(
         };
         let step_column = batch.column(step_col_idx);
 
-        // Get step values as f64, supporting multiple numeric types
+        // Get step values as i64, supporting multiple numeric types
         // Steps can be stored as Float64, Int64, Int32, etc.
-        let step_values: Vec<Option<f64>> = if let Some(arr) = step_column.as_any().downcast_ref::<Float64Array>() {
+        let step_values: Vec<Option<i64>> = if let Some(arr) = step_column.as_any().downcast_ref::<Float64Array>() {
             (0..batch.num_rows())
-                .map(|i| if arr.is_null(i) { None } else { Some(arr.value(i)) })
+                .map(|i| if arr.is_null(i) { None } else { Some(arr.value(i) as i64) })
                 .collect()
         } else if let Some(arr) = step_column.as_any().downcast_ref::<Int64Array>() {
             (0..batch.num_rows())
-                .map(|i| if arr.is_null(i) { None } else { Some(arr.value(i) as f64) })
+                .map(|i| if arr.is_null(i) { None } else { Some(arr.value(i)) })
                 .collect()
         } else {
             return error_to_c_string(&format!(
@@ -300,6 +300,9 @@ pub unsafe extern "C" fn reader_scan_step_range(
                 STEP_COLUMN_NAME
             ));
         };
+
+        // // Check if we need to cast the step column from Float64 to Int64 for consistent output
+        // let needs_step_cast = step_column.as_any().downcast_ref::<Float64Array>().is_some();
 
         // Filter rows that fall within the step range, using a filter mask.
         let mut filter_mask_vec = vec![false; batch.num_rows()];

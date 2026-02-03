@@ -36,7 +36,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistoryreader/runhistoryreadertest"
 )
 
-// mockIPCDataStore keeps IPC data alive during test execution
 // It stores the actual byte slices so the pointers remain valid
 type mockIPCDataStore struct {
 	ipcData [][]byte
@@ -333,6 +332,15 @@ func mockGraphQLWithParquetUrls(urls []string) *gqlmock.MockClient {
 func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 	ctx := t.Context()
 	tempDir := t.TempDir()
+	originalCacheDir := os.Getenv("WANDB_CACHE_DIR")
+	os.Setenv("WANDB_CACHE_DIR", tempDir)
+	defer func() {
+		if originalCacheDir == "" {
+			os.Unsetenv("WANDB_CACHE_DIR")
+		} else {
+			os.Setenv("WANDB_CACHE_DIR", originalCacheDir)
+		}
+	}()
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
