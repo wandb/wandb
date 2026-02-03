@@ -61,17 +61,6 @@ class Auth(abc.ABC):
         return repr(self)
 
 
-class _ApiKeyAuth(requests.auth.AuthBase):
-    """Requests auth handler for API key authentication."""
-
-    def __init__(self, api_key: str) -> None:
-        self._api_key = api_key
-
-    def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
-        r.headers["Authorization"] = requests.auth._basic_auth_str("api", self._api_key)
-        return r
-
-
 @final
 class AuthApiKey(Auth):
     """An API key for connecting to a W&B server."""
@@ -109,7 +98,7 @@ class AuthApiKey(Auth):
             Basic auth using "api" as the username and the API key
             as the password.
         """
-        return _ApiKeyAuth(self._api_key)
+        return requests.auth.HTTPBasicAuth("api", self._api_key)
 
 
 class _IdentityTokenAuth(requests.auth.AuthBase):

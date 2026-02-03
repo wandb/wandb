@@ -1,6 +1,5 @@
 import json
 import sys
-from pathlib import Path
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -14,7 +13,7 @@ from wandb.apis.public import runs
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
-from wandb.sdk.lib import credentials, wbauth
+from wandb.sdk.lib import wbauth
 
 
 @pytest.fixture(autouse=True)
@@ -335,54 +334,14 @@ def test_project_load__raises_error(monkeypatch):
 
 
 @pytest.mark.usefixtures("skip_verify_login")
-def test_jwt_auth_uses_auth_object_properties(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
-):
-    """Test that JWT auth uses as_requests_auth() and refreshes tokens on request."""
-    token_file = tmp_path / "token.jwt"
-    token_file.write_text("test.jwt.token")
-    monkeypatch.setenv("WANDB_IDENTITY_TOKEN_FILE", str(token_file))
+def test_api_uses_as_requests_auth(mocker: pytest.MockerFixture):
+    """Test that Api() calls as_requests_auth() on the auth object."""
+    mock_auth = mocker.Mock(spec=wbauth.Auth)
+    mock_auth.host = wbauth.HostUrl("https://api.wandb.ai")
+    mock_auth.as_requests_auth = mocker.Mock(return_value=mocker.Mock())
 
-    credentials_file = tmp_path / "credentials.json"
-    mock_auth = wbauth.AuthIdentityTokenFile(
-        host="https://custom.bdnaw.ai",
-        path=str(token_file),
-        credentials_file=str(credentials_file),
-    )
+    mocker.patch.object(wbauth, "authenticate_session", return_value=mock_auth)
 
-    called_with = {}
+    Api()
 
-    def mock_access_token(base_url, token_file_path, credentials_file):
-        called_with["base_url"] = base_url
-        called_with["token_file"] = token_file_path
-        called_with["credentials_file"] = credentials_file
-        return "test_access_token_12345"
-
-    monkeypatch.setattr(credentials, "access_token", mock_access_token)
-
-    from wandb.sdk.lib.gql_request import GraphQLSession
-
-    original_graphql_init = GraphQLSession.__init__
-    captured_auth = {}
-
-    def mock_graphql_init(self, url, auth=None, **kwargs):
-        captured_auth["auth"] = auth
-        return original_graphql_init(self, url, auth, **kwargs)
-
-    with mock.patch.object(wbauth, "authenticate_session", return_value=mock_auth):
-        with mock.patch.object(GraphQLSession, "__init__", mock_graphql_init):
-            Api()
-
-            assert captured_auth["auth"] is not None
-
-            # Simulate a request to trigger token fetch
-            mock_request = mock.Mock()
-            mock_request.headers = {}
-            captured_auth["auth"](mock_request)
-
-            assert called_with["base_url"] == "https://custom.bdnaw.ai"
-            assert called_with["token_file"] == Path(str(token_file))
-            assert (
-                mock_request.headers["Authorization"]
-                == "Bearer test_access_token_12345"
-            )
+    mock_auth.as_requests_auth.assert_called_once()

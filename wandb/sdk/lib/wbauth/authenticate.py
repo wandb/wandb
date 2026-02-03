@@ -61,6 +61,7 @@ def _locked_set_session_auth(
     elif isinstance(auth, AuthIdentityTokenFile):
         settings.api_key = None
         settings.identity_token_file = str(auth.path)
+        settings.credentials_file = str(auth.credentials_path)
         settings.base_url = str(auth.host)
 
     else:
