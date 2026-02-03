@@ -147,7 +147,9 @@ def webhook(
     name = make_name("test-webhook")
     entity = api.default_entity
     yield make_webhook_integration(
-        name=name, entity=entity, url="https://example.com/webhook"
+        name=name,
+        entity=entity,
+        url="https://example.com/webhook",
     )
 
 

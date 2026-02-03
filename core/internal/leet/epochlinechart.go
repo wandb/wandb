@@ -80,11 +80,8 @@ func NewEpochLineChart(title string) *EpochLineChart {
 
 	chart := &EpochLineChart{
 		Model: linechart.New(parkedCanvasSize, parkedCanvasSize, 0, defaultMaxX, 0, defaultMaxY,
-			linechart.WithXYSteps(4, 5),
+			linechart.WithXYSteps(4, 5), // The default number of ticks when drawing axis values.
 			linechart.WithAutoXRange(),
-			linechart.WithYLabelFormatter(func(i int, v float64) string {
-				return UnitScalar.Format(v)
-			}),
 		),
 		xData: make([]float64, 0, initDataSliceCap),
 		yData: make([]float64, 0, initDataSliceCap),
@@ -98,7 +95,32 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
 
+	chart.XLabelFormatter = func(_ int, v float64) string {
+		return FormatXAxisTick(v, chart.maxXLabelWidth())
+	}
+	chart.YLabelFormatter = func(_ int, v float64) string {
+		return UnitScalar.Format(v)
+	}
+
 	return chart
+}
+
+// maxXLabelWidth computes maximum X axis label width based on available space.
+func (c *EpochLineChart) maxXLabelWidth() int {
+	w := c.GraphWidth()
+	if w <= 0 {
+		return 0
+	}
+
+	// Approx spacing between ticks. With XSteps=N there are typically N intervals.
+	per := w / c.XStep()
+	if per > 1 {
+		per-- // leave one column slack so labels collide less often
+	}
+	if per < 1 {
+		return 1
+	}
+	return per
 }
 
 // AddData adds a set of new (x, y) data points (x is commonly _step).
@@ -140,6 +162,7 @@ func (c *EpochLineChart) updateRanges() {
 
 	// X domain.
 	// Round up the observed max X to a "nice" domain for axis display.
+	dataXMin := c.xMin
 	dataXMax := c.xMax
 	if !isFinite(dataXMax) {
 		dataXMax = 0
@@ -158,7 +181,7 @@ func (c *EpochLineChart) updateRanges() {
 	c.SetViewYRange(newYMin, newYMax)
 
 	// Always ensure X range covers the nice domain; only alter view if not zoomed.
-	c.SetXRange(0, niceMax)
+	c.SetXRange(dataXMin, niceMax)
 	if !c.isZoomed {
 		viewMin := c.xMin
 		if !isFinite(viewMin) {

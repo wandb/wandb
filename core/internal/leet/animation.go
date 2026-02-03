@@ -1,9 +1,14 @@
 package leet
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // AnimationState manages a sidebar's animated width.
 type AnimationState struct {
+	mu sync.RWMutex
+
 	// currentWidth is the current rendered width (px/cols).
 	currentWidth int
 
@@ -30,11 +35,13 @@ func NewAnimationState(expanded bool, expandedWidth int) *AnimationState {
 //
 // No-op while animating to match current model gating semantics.
 func (a *AnimationState) Toggle() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	a.animationStartTime = time.Now()
 
 	if a.targetWidth == 0 {
 		a.targetWidth = a.expandedWidth
-
 	} else {
 		a.targetWidth = 0
 	}
@@ -43,7 +50,10 @@ func (a *AnimationState) Toggle() {
 // Update advances the animation given a wall-clock time and returns
 // whether the animation is complete.
 func (a *AnimationState) Update(now time.Time) bool {
-	if !a.IsAnimating() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.currentWidth == a.targetWidth {
 		return true
 	}
 	elapsed := now.Sub(a.animationStartTime)
@@ -54,7 +64,7 @@ func (a *AnimationState) Update(now time.Time) bool {
 		return true
 	}
 
-	if a.IsExpanding() {
+	if a.currentWidth < a.targetWidth {
 		a.currentWidth = int(easeOutCubic(progress) * float64(a.expandedWidth))
 	} else {
 		a.currentWidth = int((1 - easeOutCubic(progress)) * float64(a.expandedWidth))
@@ -65,8 +75,10 @@ func (a *AnimationState) Update(now time.Time) bool {
 
 // SetExpandedWidth updates the desired expanded width.
 func (a *AnimationState) SetExpandedWidth(width int) {
-	// Capture state before mutating fields so IsExpanded() is meaningful.
-	wasExpanded := a.IsExpanded()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	wasExpanded := a.targetWidth > 0 && a.currentWidth == a.targetWidth
 
 	a.expandedWidth = width
 	if a.targetWidth > 0 {
@@ -79,25 +91,51 @@ func (a *AnimationState) SetExpandedWidth(width int) {
 }
 
 // Width returns the current width.
-func (a *AnimationState) Width() int { return a.currentWidth }
+func (a *AnimationState) Width() int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.currentWidth
+}
 
 // IsAnimating reports whether currentWidth != targetWidth.
-func (a *AnimationState) IsAnimating() bool { return a.currentWidth != a.targetWidth }
+func (a *AnimationState) IsAnimating() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.currentWidth != a.targetWidth
+}
 
 // IsVisible returns true if any width is visible on screen.
-func (a *AnimationState) IsVisible() bool { return a.currentWidth > 0 }
+func (a *AnimationState) IsVisible() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.currentWidth > 0
+}
 
 // IsExpanded returns true if we're stably at expanded width.
-func (a *AnimationState) IsExpanded() bool { return a.targetWidth > 0 && !a.IsAnimating() }
+func (a *AnimationState) IsExpanded() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.targetWidth > 0 && (a.currentWidth == a.targetWidth)
+}
 
 // IsCollapsed returns true if we're stably collapsed.
 func (a *AnimationState) IsCollapsed() bool {
-	return a.targetWidth == 0 && a.currentWidth == 0 && !a.IsAnimating()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.targetWidth == 0 && a.currentWidth == 0
 }
 
 // IsExpanding/IsCollapsing are derived from the direction to the target.
-func (a *AnimationState) IsExpanding() bool  { return a.currentWidth < a.targetWidth }
-func (a *AnimationState) IsCollapsing() bool { return a.currentWidth > a.targetWidth }
+func (a *AnimationState) IsExpanding() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.currentWidth < a.targetWidth
+}
+func (a *AnimationState) IsCollapsing() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.currentWidth > a.targetWidth
+}
 
 // easeOutCubic maps t c [0, 1] -> [0, 1] with deceleration near the end.
 //

@@ -809,38 +809,80 @@ class Api:
             return entity, path
         return parts
 
-    def _parse_path(self, path):
+    def _parse_path(self, path: str) -> tuple[str, str, str]:
         """Parse url, filepath, or docker paths.
 
         Allows paths in the following formats:
-        - url: entity/project/runs/id
-        - path: entity/project/id
-        - docker: entity/project:id
+        - entity/project/runs/id (URL)
+        - entity/project/id
+        - entity/project:id (Docker style)
+        - project/id
+        - project:id
+        - id (cannot contain colons)
 
-        Entity is optional and will fall back to the current logged-in user.
+        The path may also start with /runs/ or /sweeps/.
+
+        Returns:
+            A tuple with the extracted (entity, project, id).
+
+        Raises:
+            ValueError: If the path is in an invalid format or is missing
+                an entity that is not otherwise provided.
         """
-        project = self.settings["project"] or "uncategorized"
-        entity = self.settings["entity"] or self.default_entity
-        parts = (
-            path.replace("/runs/", "/").replace("/sweeps/", "/").strip("/ ").split("/")
-        )
-        if ":" in parts[-1]:
-            id = parts[-1].split(":")[-1]
-            parts[-1] = parts[-1].split(":")[0]
-        elif parts[-1]:
-            id = parts[-1]
-        if len(parts) == 1 and project != "uncategorized":
-            pass
-        elif len(parts) > 1:
-            project = parts[1]
-            if entity and id == project:
-                project = parts[0]
+        # NOTE: This may result in a GQL call. Ideally we'd only access
+        # `self.default_entity` lazily, but changing this requires care as it
+        # changes when `self._default_entity` is cached and could impact other
+        # code.
+        entity: str | None = self.settings["entity"] or self.default_entity
+        project: str | None = self.settings["project"]
+        id: str | None = None
+
+        input_path = path
+        path = path.replace("/runs/", "/")
+        path = path.replace("/sweeps/", "/")
+        path = path.strip("/ ")  # slashes and spaces
+
+        parts = path.split("/")
+
+        # "entity/project/runs/id"
+        if len(parts) == 4 and parts[2] == "runs":
+            entity, project, id = parts[0], parts[1], parts[3]
+
+        # "entity/project/id"
+        elif len(parts) == 3:
+            entity, project, id = parts[0], parts[1], parts[2]
+
+        elif len(parts) == 2:
+            # "entity/project:id"
+            if ":" in parts[1]:
+                entity = parts[0]
+                project, id = parts[1].split(":", maxsplit=1)
+
+            # "project/id"
             else:
-                entity = parts[0]
-            if len(parts) == 3:
-                entity = parts[0]
-        else:
-            project = parts[0]
+                project, id = parts[0], parts[1]
+
+        elif len(parts) == 1 and parts[0]:  # Don't match the empty string.
+            # "project:id"
+            if ":" in parts[0]:
+                project, id = parts[0].split(":", maxsplit=1)
+
+            # "id"
+            else:
+                id = parts[0]
+
+        # Ignore whitespace.
+        entity = entity and entity.strip()
+        project = project and project.strip()
+        id = id and id.strip()
+
+        if not entity:
+            raise ValueError(f"Invalid path: {input_path!r} (missing entity)")
+        if not project:
+            raise ValueError(f"Invalid path: {input_path!r} (missing project)")
+        if not id:
+            raise ValueError(f"Invalid path: {input_path!r}")
+
         return entity, project, id
 
     @overload
