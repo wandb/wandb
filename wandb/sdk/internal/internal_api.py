@@ -47,7 +47,7 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import retry, wbauth
+from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from . import context
 from .progress import Progress
@@ -451,11 +451,6 @@ class Api:
         Raises:
             AuthenticationError: If the path to the identity token is not found.
         """
-        if (auth := wbauth.session_credentials(host=self.api_url)) and isinstance(
-            auth, wbauth.AuthIdentityTokenFile
-        ):
-            return auth.fetch_access_token()
-
         token_file_str = self._environ.get(env.IDENTITY_TOKEN_FILE)
         if not token_file_str:
             return None
