@@ -357,7 +357,5 @@ def test_jwt_auth_uses_auth_object_properties(monkeypatch: pytest.MonkeyPatch, t
     monkeypatch.setattr(credentials, "access_token", mock_access_token)
     
     with mock.patch.object(wbauth, "authenticate_session", return_value=mock_auth):
-        api = Api()
-        
         assert called_with["base_url"] == "https://custom.bdnaw.ai"
         assert called_with["token_file"] == Path(str(token_file))
