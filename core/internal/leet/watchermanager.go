@@ -17,7 +17,6 @@ type WatcherManager struct {
 	logger  *observability.CoreLogger
 }
 
-// NewWatcherManager creates a new watcher manager.
 func NewWatcherManager(
 	outChan chan tea.Msg,
 	logger *observability.CoreLogger,
