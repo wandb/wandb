@@ -96,6 +96,20 @@ repos:
         language: script
         description: "Runs `go test`"
         require_serial: true
+      - id: rust-unit-tests
+        name: rust-unit-tests
+        entry: core/scripts/pre-commit-hooks/run-rust-unit-tests.sh
+        files: 'parquet-rust-wrapper/.*\.rs$'
+        language: script
+        description: "Runs `cargo test`"
+        require_serial: true
+      - id: rust-build
+        name: rust-build
+        entry: core/scripts/pre-commit-hooks/run-rust-build.sh
+        files: 'parquet-rust-wrapper/.*\.rs$'
+        language: script
+        description: "Runs `cargo build`"
+        require_serial: true
       - id: go-build
         name: go-build
         entry: core/scripts/pre-commit-hooks/run-go-build.sh
