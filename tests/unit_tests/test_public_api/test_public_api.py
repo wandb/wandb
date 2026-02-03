@@ -4,6 +4,8 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
+from pytest_mock import MockerFixture
+
 import wandb
 from requests import HTTPError
 from wandb import Api
@@ -334,7 +336,7 @@ def test_project_load__raises_error(monkeypatch):
 
 
 @pytest.mark.usefixtures("skip_verify_login")
-def test_api_uses_as_requests_auth(mocker: pytest.MockerFixture):
+def test_api_uses_as_requests_auth(mocker: MockerFixture):
     """Test that Api() calls as_requests_auth() on the auth object."""
     mock_auth = mocker.Mock(spec=wbauth.Auth)
     mock_auth.host = wbauth.HostUrl("https://api.wandb.ai")
