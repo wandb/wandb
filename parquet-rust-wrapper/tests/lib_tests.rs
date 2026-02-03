@@ -1,4 +1,4 @@
-use arrow::array::{Float64Array, Int64Array, RecordBatch, StringArray};
+use arrow::array::{Int64Array, RecordBatch, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::reader::StreamReader;
 use arrow_rs_wrapper::*;
@@ -14,7 +14,7 @@ mod common;
 const STEP_COLUMN_NAME: &str = "_step";
 
 /// Helper function to read IPC stream and extract step values
-fn read_step_values_from_result(result: &StepScanResult) -> Vec<f64> {
+fn read_step_values_from_result(result: &StepScanResult) -> Vec<i64> {
     let data_slice = unsafe {
         std::slice::from_raw_parts(
             result.data_ptr as *const u8,
@@ -30,7 +30,7 @@ fn read_step_values_from_result(result: &StepScanResult) -> Vec<f64> {
         let step_col = batch
             .column(batch.schema().index_of(STEP_COLUMN_NAME).unwrap())
             .as_any()
-            .downcast_ref::<Float64Array>()
+            .downcast_ref::<Int64Array>()
             .unwrap();
 
         for i in 0..batch.num_rows() {
@@ -42,7 +42,7 @@ fn read_step_values_from_result(result: &StepScanResult) -> Vec<f64> {
 }
 
 /// Helper function to read IPC stream and extract all column values
-fn read_all_columns_from_result(result: &StepScanResult) -> (Vec<f64>, Vec<i64>, Vec<String>) {
+fn read_all_columns_from_result(result: &StepScanResult) -> (Vec<i64>, Vec<i64>, Vec<String>) {
     let data_slice = unsafe {
         std::slice::from_raw_parts(
             result.data_ptr as *const u8,
@@ -61,7 +61,7 @@ fn read_all_columns_from_result(result: &StepScanResult) -> (Vec<f64>, Vec<i64>,
         let step_col = batch
             .column(batch.schema().index_of("_step").unwrap())
             .as_any()
-            .downcast_ref::<Float64Array>()
+            .downcast_ref::<Int64Array>()
             .unwrap();
 
         let value_col = batch
@@ -89,7 +89,7 @@ fn read_all_columns_from_result(result: &StepScanResult) -> (Vec<f64>, Vec<i64>,
 /// Helper function to create a test parquet file with step column
 fn create_test_parquet_file(path: &str, num_rows: usize) -> std::io::Result<()> {
     let schema = Arc::new(Schema::new(vec![
-        Field::new(STEP_COLUMN_NAME, DataType::Float64, false),
+        Field::new(STEP_COLUMN_NAME, DataType::Int64, false),
         Field::new("value", DataType::Int64, false),
         Field::new("name", DataType::Utf8, false),
     ]));
@@ -100,7 +100,7 @@ fn create_test_parquet_file(path: &str, num_rows: usize) -> std::io::Result<()> 
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     // Create a batch with sequential step values
-    let step_values: Vec<f64> = (0..num_rows).map(|i| i as f64).collect();
+    let step_values: Vec<i64> = (0..num_rows).map(|i| i as i64).collect();
     let int_values: Vec<i64> = (0..num_rows).map(|i| (i * 10) as i64).collect();
     let string_values: Vec<&str> = (0..num_rows)
         .map(|i| if i % 2 == 0 { "even" } else { "odd" })
@@ -109,7 +109,7 @@ fn create_test_parquet_file(path: &str, num_rows: usize) -> std::io::Result<()> 
     let batch = RecordBatch::try_new(
         schema,
         vec![
-            Arc::new(Float64Array::from(step_values)),
+            Arc::new(Int64Array::from(step_values)),
             Arc::new(Int64Array::from(int_values)),
             Arc::new(StringArray::from(string_values)),
         ],
@@ -203,8 +203,8 @@ fn test_reader_scan_step_range() {
     let error = unsafe {
         reader_scan_step_range(
             reader_ptr,
-            10.0, // min step
-            20.0, // max step
+            10, // min step
+            20, // max step
             &mut result,
         )
     };
@@ -224,7 +224,7 @@ fn test_reader_scan_step_range() {
     assert_eq!(step_values.len(), 10);
     assert_eq!(
         step_values,
-        vec![10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0]
+        vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     );
     assert_eq!(
         int_values,
@@ -284,8 +284,8 @@ fn test_reader_scan_step_range_with_columns_subset() {
     let error = unsafe {
         reader_scan_step_range(
             reader_ptr,
-            10.0, // min step
-            20.0, // max step
+            10, // min step
+            20, // max step
             &mut result,
         )
     };
@@ -317,7 +317,7 @@ fn test_reader_scan_step_range_with_columns_subset() {
         let step_col = batch
             .column(batch.schema().index_of("_step").unwrap())
             .as_any()
-            .downcast_ref::<Float64Array>()
+            .downcast_ref::<Int64Array>()
             .unwrap();
 
         let value_col = batch
@@ -334,7 +334,7 @@ fn test_reader_scan_step_range_with_columns_subset() {
     assert_eq!(step_values.len(), 10);
     assert_eq!(
         step_values,
-        vec![10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0]
+        vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     );
     assert_eq!(
         int_values,
@@ -370,7 +370,7 @@ fn test_reader_scan_step_range_sequential_calls() {
         data_len: 0,
         num_rows_returned: 0,
     };
-    let error1 = unsafe { reader_scan_step_range(reader_ptr, 0.0, 10.0, &mut result1) };
+    let error1 = unsafe { reader_scan_step_range(reader_ptr, 0, 10, &mut result1) };
     assert!(error1.is_null());
     assert_eq!(result1.num_rows_returned, 10);
 
@@ -378,7 +378,7 @@ fn test_reader_scan_step_range_sequential_calls() {
     let step_values_1 = read_step_values_from_result(&result1);
     assert_eq!(
         step_values_1,
-        vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
 
     // Second call: scan steps 10-20 (should continue from where we left off)
@@ -388,7 +388,7 @@ fn test_reader_scan_step_range_sequential_calls() {
         data_len: 0,
         num_rows_returned: 0,
     };
-    let error2 = unsafe { reader_scan_step_range(reader_ptr, 10.0, 20.0, &mut result2) };
+    let error2 = unsafe { reader_scan_step_range(reader_ptr, 10, 20, &mut result2) };
     assert!(error2.is_null());
     assert_eq!(result2.num_rows_returned, 10);
 
@@ -396,7 +396,7 @@ fn test_reader_scan_step_range_sequential_calls() {
     let step_values_2 = read_step_values_from_result(&result2);
     assert_eq!(
         step_values_2,
-        vec![10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0],
+        vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
     );
 
     // Cleanup
@@ -428,13 +428,13 @@ fn test_reader_scan_step_range_backwards() {
         data_len: 0,
         num_rows_returned: 0,
     };
-    let error1 = unsafe { reader_scan_step_range(reader_ptr, 50.0, 60.0, &mut result1) };
+    let error1 = unsafe { reader_scan_step_range(reader_ptr, 50, 60, &mut result1) };
     assert!(error1.is_null());
     assert_eq!(result1.num_rows_returned, 10);
     let step_values_1 = read_step_values_from_result(&result1);
     assert_eq!(
         step_values_1,
-        vec![50.0, 51.0, 52.0, 53.0, 54.0, 55.0, 56.0, 57.0, 58.0, 59.0],
+        vec![50, 51, 52, 53, 54, 55, 56, 57, 58, 59],
     );
 
     let mut result2 = StepScanResult {
@@ -443,13 +443,13 @@ fn test_reader_scan_step_range_backwards() {
         data_len: 0,
         num_rows_returned: 0,
     };
-    let error2 = unsafe { reader_scan_step_range(reader_ptr, 10.0, 20.0, &mut result2) };
+    let error2 = unsafe { reader_scan_step_range(reader_ptr, 10, 20, &mut result2) };
     assert!(error2.is_null());
     assert_eq!(result2.num_rows_returned, 10);
 
     // Verify we got the correct steps after going backwards
     let step_values_2 = read_step_values_from_result(&result2);
-    assert_eq!(step_values_2, vec![10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0]);
+    assert_eq!(step_values_2, vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
 
     // Cleanup
     unsafe {
@@ -482,7 +482,7 @@ fn test_reader_scan_step_range_empty_result() {
     };
 
     // Scan beyond available data
-    let error = unsafe { reader_scan_step_range(reader_ptr, 200.0, 300.0, &mut result) };
+    let error = unsafe { reader_scan_step_range(reader_ptr, 200, 300, &mut result) };
     assert!(error.is_null());
 
     // Should return 0 rows
@@ -504,7 +504,7 @@ fn test_reader_scan_step_range_null_pointer() {
         num_rows_returned: 0,
     };
 
-    let error = unsafe { reader_scan_step_range(std::ptr::null_mut(), 0.0, 10.0, &mut result) };
+    let error = unsafe { reader_scan_step_range(std::ptr::null_mut(), 0, 10, &mut result) };
     assert!(!error.is_null());
 
     // Cleanup error string
@@ -544,8 +544,8 @@ fn test_reader_scan_step_range_http() {
     let error = unsafe {
         reader_scan_step_range(
             reader_ptr,
-            25.0,
-            35.0,
+            25,
+            35,
             &mut result,
         )
     };
@@ -558,7 +558,7 @@ fn test_reader_scan_step_range_http() {
     assert_eq!(step_values.len(), 10);
     assert_eq!(
         step_values,
-        vec![25.0, 26.0, 27.0, 28.0, 29.0, 30.0, 31.0, 32.0, 33.0, 34.0]
+        vec![25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
     );
     assert_eq!(
         int_values,
@@ -581,8 +581,8 @@ fn test_reader_scan_step_range_http() {
     let error2 = unsafe {
         reader_scan_step_range(
             reader_ptr,
-            35.0,
-            45.0,
+            35,
+            45,
             &mut result2,
         )
     };
@@ -591,7 +591,7 @@ fn test_reader_scan_step_range_http() {
     let step_values_2 = read_step_values_from_result(&result2);
     assert_eq!(
         step_values_2,
-        vec![35.0, 36.0, 37.0, 38.0, 39.0, 40.0, 41.0, 42.0, 43.0, 44.0]
+        vec![35, 36, 37, 38, 39, 40, 41, 42, 43, 44]
     );
 
     // Cleanup
@@ -635,8 +635,8 @@ fn test_reader_scan_step_range_http_with_columns_subset() {
     let error = unsafe {
         reader_scan_step_range(
             reader_ptr,
-            15.0,
-            25.0,
+            15,
+            25,
             &mut result,
         )
     };
@@ -666,7 +666,7 @@ fn test_reader_scan_step_range_http_with_columns_subset() {
         let step_col = batch
             .column(batch.schema().index_of("_step").unwrap())
             .as_any()
-            .downcast_ref::<Float64Array>()
+            .downcast_ref::<Int64Array>()
             .unwrap();
 
         let value_col = batch
@@ -684,7 +684,7 @@ fn test_reader_scan_step_range_http_with_columns_subset() {
     assert_eq!(step_values.len(), 10);
     assert_eq!(
         step_values,
-        vec![15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0]
+        vec![15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
     );
     assert_eq!(
         int_values,
@@ -765,8 +765,8 @@ fn test_reader_scan_with_int64_step_column() {
     let error = unsafe {
         reader_scan_step_range(
             reader_ptr,
-            10.0, // min step
-            20.0, // max step
+            10, // min step
+            20, // max step
             &mut result,
         )
     };
@@ -786,7 +786,7 @@ fn test_reader_scan_with_int64_step_column() {
     assert_eq!(step_values.len(), 10);
     assert_eq!(
         step_values,
-        vec![10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0]
+        vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     );
     assert_eq!(
         int_values,
