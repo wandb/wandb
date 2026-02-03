@@ -13,7 +13,6 @@ from wandb_gql.transport.http import HTTPTransport
 from wandb_graphql.execution import ExecutionResult
 from wandb_graphql.language import ast
 from wandb_graphql.language.printer import print_ast
-
 from wandb._analytics import tracked_func
 
 

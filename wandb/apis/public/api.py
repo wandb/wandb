@@ -18,7 +18,6 @@ import logging
 import os
 import urllib
 from http import HTTPStatus
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
 
 from pydantic import ValidationError
@@ -42,7 +41,7 @@ from wandb.apis.public.utils import (
     gql_compat,
     parse_org_from_registry_path,
 )
-from wandb.errors import AuthenticationError, UsageError
+from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
