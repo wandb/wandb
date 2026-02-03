@@ -146,7 +146,11 @@ def webhook(
     """A "registered" webhook integration for automation system tests."""
     name = make_name("test-webhook")
     entity = api.default_entity
-    yield make_webhook_integration(name=name, entity=entity, url="fake-url")
+    yield make_webhook_integration(
+        name=name,
+        entity=entity,
+        url="https://example.com/webhook",
+    )
 
 
 # ---------------------------------------------------------------------------
