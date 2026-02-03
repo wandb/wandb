@@ -47,8 +47,8 @@ type RustArrowWrapper struct {
 	// The error string must be freed using freeString when the result is no longer needed
 	scanStepRange func(
 		readerPtr unsafe.Pointer,
-		minStep float64,
-		maxStep float64,
+		minStep int64,
+		maxStep int64,
 		outResult *StepScanResult,
 	) *byte
 
@@ -101,8 +101,8 @@ func NewRustArrowWrapper() (*RustArrowWrapper, error) {
 	purego.RegisterLibFunc(&freeIpcStream, rustLib, "free_ipc_stream")
 	var scanStepRange func(
 		readerPtr unsafe.Pointer,
-		minStep float64,
-		maxStep float64,
+		minStep int64,
+		maxStep int64,
 		outResult *StepScanResult,
 	) *byte
 	purego.RegisterLibFunc(&scanStepRange, rustLib, "reader_scan_step_range")
@@ -126,8 +126,8 @@ func RustArrowWrapperTester(
 	) unsafe.Pointer,
 	scanStepRange func(
 		readerPtr unsafe.Pointer,
-		minStep float64,
-		maxStep float64,
+		minStep int64,
+		maxStep int64,
 		outResult *StepScanResult,
 	) *byte,
 ) *RustArrowWrapper {
@@ -183,14 +183,11 @@ func (r *RustArrowReader) ScanStepRange(
 	minStep int64,
 	maxStep int64,
 ) ([]parquet.KeyValueList, error) {
-	minStepFloat := float64(minStep)
-	maxStepFloat := float64(maxStep)
-
 	var scanResult StepScanResult
 	errCStr := r.rustArrowWrapper.scanStepRange(
 		r.reader,
-		minStepFloat,
-		maxStepFloat,
+		minStep,
+		maxStep,
 		&scanResult,
 	)
 
