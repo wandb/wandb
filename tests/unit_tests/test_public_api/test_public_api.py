@@ -4,10 +4,9 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
+import wandb
 from pytest_mock import MockerFixture
 from requests import HTTPError
-
-import wandb
 from wandb import Api
 from wandb.apis import internal
 from wandb.apis._generated import ProjectFragment
