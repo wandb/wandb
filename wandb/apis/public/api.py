@@ -211,7 +211,12 @@ class Api:
             )
         elif isinstance(self._auth, wbauth.AuthIdentityTokenFile):
             self.api_key = None
-            session_auth = BearerAuth(self._auth.get_access_token())
+            credentials_path = pathlib.Path(
+                wandb_setup.singleton().settings.credentials_file
+            )
+            session_auth = BearerAuth(
+                self._auth.fetch_access_token(credentials_path)
+            )
         else:
             raise UsageError(f"Unsupported auth type: {type(self._auth)}")
 

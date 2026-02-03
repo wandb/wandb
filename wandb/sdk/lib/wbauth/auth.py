@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import abc
 import dataclasses
-import os
 import pathlib
-from typing import MutableMapping
 
 from typing_extensions import final, override
 
-from wandb import env as wandb_env
 from wandb.errors import AuthenticationError
 from wandb.sdk.lib import credentials
 
@@ -89,19 +86,37 @@ class AuthIdentityTokenFile(Auth):
         """Path to a file storing a JWT identity token."""
         return self._identity_token_file
 
-    def get_access_token(self, env: MutableMapping[str, str] | None = None) -> str:
-        if env is None:
-            env = os.environ
+    def fetch_access_token(self, credentials_path: pathlib.Path) -> str:
+        """Fetch an access token for authenticating with the W&B server.
 
+        Retrieves a valid access token from the credentials file. If no token
+        exists or the existing token has expired, exchanges the identity token
+        (JWT) from the configured token file for a new access token from the
+        server and caches it in the credentials file.
+
+        This method is used for OIDC-based authentication flows where a
+        service account or workload identity provides a JWT that can be
+        exchanged for a W&B access token.
+
+        Args:
+            credentials_path: The path to the credentials file used to cache
+                access tokens. This file stores tokens keyed by server URL and
+                includes expiration metadata to enable automatic refresh.
+
+        Returns:
+            A valid access token string that can be used for Bearer authentication
+            with the W&B API.
+
+        Raises:
+            FileNotFoundError: If the identity token file does not exist.
+            OSError: If there is an error reading the identity token file.
+            AuthenticationError: If the server rejects the identity token or
+                fails to provide an access token.
+        """
         base_url = str(self.host.url)
         token_file = self.path
-        credentials_file = wandb_env.get_credentials_file(
-            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), env
-        )
 
-        return credentials.access_token(
-            base_url, token_file, pathlib.Path(credentials_file)
-        )
+        return credentials.access_token(base_url, token_file, credentials_path)
 
 
 @dataclasses.dataclass(frozen=True)

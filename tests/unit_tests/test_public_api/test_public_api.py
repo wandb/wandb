@@ -339,7 +339,7 @@ def test_project_load__raises_error(monkeypatch):
 def test_jwt_auth_uses_auth_object_properties(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ):
-    """Test that JWT auth calls get_access_token and uses auth object properties."""
+    """Test that JWT auth calls fetch_access_token and uses auth object properties."""
     token_file = tmp_path / "token.jwt"
     token_file.write_text("test.jwt.token")
     monkeypatch.setenv("WANDB_IDENTITY_TOKEN_FILE", str(token_file))
