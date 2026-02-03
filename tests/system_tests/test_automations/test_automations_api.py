@@ -67,7 +67,9 @@ def test_fetch_webhook_integrations(
     # Create multiple webhook integrations
     created_hooks = [
         make_webhook_integration(
-            name=make_name("test-webhook"), entity=api.default_entity, url="https://example.com/webhook"
+            name=make_name("test-webhook"),
+            entity=api.default_entity,
+            url="https://example.com/webhook",
         )
         for _ in range(3)
     ]
