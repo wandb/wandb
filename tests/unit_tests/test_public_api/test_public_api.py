@@ -15,7 +15,6 @@ from wandb.errors import UsageError
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.lib import credentials, wbauth
-from wandb.sdk.lib.gql_request import BearerAuth
 
 
 @pytest.fixture(autouse=True)
@@ -339,14 +338,16 @@ def test_project_load__raises_error(monkeypatch):
 def test_jwt_auth_uses_auth_object_properties(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ):
-    """Test that JWT auth calls fetch_access_token and uses auth object properties."""
+    """Test that JWT auth uses as_requests_auth() and refreshes tokens on request."""
     token_file = tmp_path / "token.jwt"
     token_file.write_text("test.jwt.token")
     monkeypatch.setenv("WANDB_IDENTITY_TOKEN_FILE", str(token_file))
 
+    credentials_file = tmp_path / "credentials.json"
     mock_auth = wbauth.AuthIdentityTokenFile(
         host="https://custom.bdnaw.ai",
         path=str(token_file),
+        credentials_file=str(credentials_file),
     )
 
     called_with = {}
@@ -372,15 +373,15 @@ def test_jwt_auth_uses_auth_object_properties(
         with mock.patch.object(GraphQLSession, "__init__", mock_graphql_init):
             Api()
 
-            assert called_with["base_url"] == "https://custom.bdnaw.ai"
-            assert called_with["token_file"] == Path(str(token_file))
+            assert captured_auth["auth"] is not None
 
-            assert isinstance(captured_auth["auth"], BearerAuth)
-            assert captured_auth["auth"].token == "test_access_token_12345"
-
+            # Simulate a request to trigger token fetch
             mock_request = mock.Mock()
             mock_request.headers = {}
             captured_auth["auth"](mock_request)
+
+            assert called_with["base_url"] == "https://custom.bdnaw.ai"
+            assert called_with["token_file"] == Path(str(token_file))
             assert (
                 mock_request.headers["Authorization"]
                 == "Bearer test_access_token_12345"

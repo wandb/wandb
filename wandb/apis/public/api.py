@@ -51,7 +51,7 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
-from wandb.sdk.lib.gql_request import BearerAuth, GraphQLSession
+from wandb.sdk.lib.gql_request import GraphQLSession
 
 if TYPE_CHECKING:
     from wandb.automations import (
@@ -198,27 +198,19 @@ class Api:
             self._auth = self._load_auth(base_url=self.settings["base_url"])
 
         base_url = str(self._auth.host.url)
-        session_auth: tuple[str, str] | Callable
 
-        # For API key auth, verify login
-        # For JWT auth, verification happens during token exchange
+        # Set api_key for backward compatibility and verify login for API key auth
         if isinstance(self._auth, wbauth.AuthApiKey):
             self.api_key = self._auth.api_key
-            session_auth = ("api", self.api_key or "")
             wandb_login._verify_login(
                 key=self.api_key,
                 base_url=base_url,
             )
-        elif isinstance(self._auth, wbauth.AuthIdentityTokenFile):
-            self.api_key = None
-            credentials_path = pathlib.Path(
-                wandb_setup.singleton().settings.credentials_file
-            )
-            session_auth = BearerAuth(
-                self._auth.fetch_access_token(credentials_path)
-            )
         else:
-            raise UsageError(f"Unsupported auth type: {type(self._auth)}")
+            self.api_key = None
+
+        # Use as_requests_auth() for automatic auth handling and token refresh
+        session_auth = self._auth.as_requests_auth()
 
         self._viewer = None
         self._projects = {}

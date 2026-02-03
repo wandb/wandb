@@ -454,8 +454,7 @@ class Api:
         if (auth := wbauth.session_credentials(host=self.api_url)) and isinstance(
             auth, wbauth.AuthIdentityTokenFile
         ):
-            credentials_path = Path(wandb_setup.singleton().settings.credentials_file)
-            return auth.fetch_access_token(credentials_path)
+            return auth.fetch_access_token()
 
         token_file_str = self._environ.get(env.IDENTITY_TOKEN_FILE)
         if not token_file_str:
@@ -468,9 +467,9 @@ class Api:
         auth = wbauth.AuthIdentityTokenFile(
             host=self.settings("base_url"),
             path=str(token_file),
+            credentials_file=wandb_setup.singleton().settings.credentials_file,
         )
-        credentials_path = Path(wandb_setup.singleton().settings.credentials_file)
-        return auth.fetch_access_token(credentials_path)
+        return auth.fetch_access_token()
 
     @property
     def api_url(self) -> str:

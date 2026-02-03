@@ -225,7 +225,11 @@ def _try_env_auth(*, host: HostUrl) -> AuthWithSource | None:
 
     elif identity_token_file:
         return AuthWithSource(
-            auth=AuthIdentityTokenFile(host=host, path=identity_token_file),
+            auth=AuthIdentityTokenFile(
+                host=host,
+                path=identity_token_file,
+                credentials_file=wandb_setup.singleton().settings.credentials_file,
+            ),
             source=env.IDENTITY_TOKEN_FILE,
         )
 
