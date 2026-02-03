@@ -62,7 +62,13 @@ def stub_api_run_history_keys(wandb_backend_spy, last_step: int):
     )
 
 
-def test_run_beta_scan_history(wandb_backend_spy, parquet_file_server):
+def test_run_beta_scan_history(
+    wandb_backend_spy,
+    parquet_file_server,
+    monkeypatch,
+):
+    monkeypatch.setenv("WANDB_CACHE_DIR", tempfile.mkdtemp())
+
     # Create in-memory parquet file with run data
     # and serve it over HTTP.
     parquet_data_path = "parquet/1.parquet"
@@ -95,7 +101,10 @@ def test_run_beta_scan_history(wandb_backend_spy, parquet_file_server):
 def test_run_beta_scan_history__iter_resets(
     wandb_backend_spy,
     parquet_file_server,
+    monkeypatch,
 ):
+    monkeypatch.setenv("WANDB_CACHE_DIR", tempfile.mkdtemp())
+
     # Create sample parquet data with history metrics
     parquet_data_path = "parquet/1.parquet"
     run_data = {
@@ -144,7 +153,10 @@ def test_run_beta_scan_history__iter_resets(
 def test_run_beta_scan_history__exits_on_run_max_step(
     wandb_backend_spy,
     parquet_file_server,
+    monkeypatch,
 ):
+    monkeypatch.setenv("WANDB_CACHE_DIR", tempfile.mkdtemp())
+
     # Create sample parquet data with history metrics
     parquet_data_path = "parquet/1.parquet"
     run_data = {
@@ -176,7 +188,10 @@ def test_run_beta_scan_history__exits_on_run_max_step(
 def test_run_beta_scan_history__exits_on_requested_max_step(
     wandb_backend_spy,
     parquet_file_server,
+    monkeypatch,
 ):
+    monkeypatch.setenv("WANDB_CACHE_DIR", tempfile.mkdtemp())
+
     # Create sample parquet data with history metrics
     parquet_data_path = "parquet/1.parquet"
     run_data = {
@@ -215,10 +230,13 @@ def test_run_beta_scan_history__exits_on_requested_max_step(
 def test_run_download_history_exports(
     wandb_backend_spy,
     parquet_file_server,
+    monkeypatch,
     parquet_files,
     live_data,
 ):
     """Test downloading history exports with different configurations."""
+    monkeypatch.setenv("WANDB_CACHE_DIR", tempfile.mkdtemp())
+
     # Create sample parquet data with history metrics
     run_data = {"_step": [0, 1, 2]}
     for parquet_path in parquet_files:
