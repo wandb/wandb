@@ -197,7 +197,7 @@ class Api:
         else:
             self._auth = self._load_auth(base_url=self.settings["base_url"])
 
-        base_url = str(self._auth.host.url)
+        base_url = self._auth.host.url
 
         if isinstance(self._auth, wbauth.AuthApiKey):
             self.api_key = self._auth.api_key
