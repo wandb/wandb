@@ -993,7 +993,7 @@ class TestJWTAuth:
         token_file.write_text("test.jwt.token")
 
         mocker.patch(
-            "wandb.sdk.internal.internal_api.credentials.access_token",
+            "wandb.sdk.lib.wbauth.AuthIdentityTokenFile.fetch_access_token",
             return_value="test_access_token_12345",
         )
 
@@ -1011,8 +1011,8 @@ class TestJWTAuth:
         token_file = tmp_path / "token.jwt"
         token_file.write_text("test.jwt.token")
 
-        access_token_mock = mocker.patch(
-            "wandb.sdk.internal.internal_api.credentials.access_token",
+        fetch_mock = mocker.patch(
+            "wandb.sdk.lib.wbauth.AuthIdentityTokenFile.fetch_access_token",
             return_value="test_access_token",
         )
 
@@ -1022,7 +1022,7 @@ class TestJWTAuth:
             environ=environ,
         )
 
-        access_token_mock.assert_not_called()
+        fetch_mock.assert_not_called()
         assert api.client.transport.session.auth == ("api", "a" * 40)
 
     def test_access_token_returns_none_without_token_file(self):
@@ -1033,7 +1033,5 @@ class TestJWTAuth:
         missing_file = tmp_path / "nonexistent.jwt"
         environ = {"WANDB_IDENTITY_TOKEN_FILE": str(missing_file)}
 
-        api = internal.InternalApi(environ=environ)
-
         with pytest.raises(wandb.errors.AuthenticationError, match="not found"):
-            _ = api.access_token
+            internal.InternalApi(environ=environ)
