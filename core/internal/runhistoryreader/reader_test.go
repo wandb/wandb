@@ -134,7 +134,12 @@ func createMockRustArrowWrapper(
 			allocatedPointers = append(allocatedPointers, id)
 			return unsafe.Pointer(id)
 		},
-		func(readerPtr unsafe.Pointer, minStep float64, maxStep float64, outResult *ffi.StepScanResult) *byte {
+		func(
+			readerPtr unsafe.Pointer,
+			minStep int64,
+			maxStep int64,
+			outResult *ffi.StepScanResult,
+		) *byte {
 			// If no datasets, return pre-computed empty result
 			if len(readerToDataset) == 0 {
 				outResult.VecPtr = emptyVecPtr
@@ -161,7 +166,7 @@ func createMockRustArrowWrapper(
 			filteredData := []map[string]any{}
 			for _, row := range dataset {
 				step := row["_step"].(int64)
-				if float64(step) >= minStep && float64(step) < maxStep {
+				if step >= minStep && step < maxStep {
 					filteredData = append(filteredData, row)
 				}
 			}
