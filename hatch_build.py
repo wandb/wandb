@@ -19,7 +19,7 @@ from gpu_stats import hatch as hatch_gpu_stats
 
 # Import arrow-rs-wrapper hatch module dynamically
 _arrow_rs_wrapper_hatch_path = (
-    pathlib.Path(__file__).parent / "experimental" / "arrow-rs-wrapper" / "hatch.py"
+    pathlib.Path(__file__).parent / "parquet-rust-wrapper" / "hatch.py"
 )
 _spec = importlib.util.spec_from_file_location(
     "hatch_arrow_rs_wrapper", _arrow_rs_wrapper_hatch_path
