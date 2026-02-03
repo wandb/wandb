@@ -212,7 +212,7 @@ class Api:
             )
         elif isinstance(self._auth, wbauth.AuthIdentityTokenFile):
             self.api_key = None        
-            session_auth = BearerAuth(self.access_token)
+            session_auth = BearerAuth(self._auth.get_access_token())
         else:
             raise UsageError(f"Unsupported auth type: {type(self._auth)}")
 
@@ -274,18 +274,6 @@ class Api:
             raise UsageError("No authentication configured. Use `wandb login` to log in.")
 
         return auth
-
-    @property
-    def access_token(self) -> str | None:
-        """Retrieves an access token for JWT authentication.
-        
-        Returns:
-            str | None: The access token if JWT auth is configured, otherwise None.
-        """
-        if not isinstance(self._auth, wbauth.AuthIdentityTokenFile):
-            return None
-        
-        return self._auth.get_access_token()
 
     def _configure_sentry(self) -> None:
         if not env.error_reporting_enabled():
