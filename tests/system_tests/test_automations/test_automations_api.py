@@ -67,7 +67,9 @@ def test_fetch_webhook_integrations(
     # Create multiple webhook integrations
     created_hooks = [
         make_webhook_integration(
-            name=make_name("test-webhook"), entity=api.default_entity, url="fake-url"
+            name=make_name("test-webhook"),
+            entity=api.default_entity,
+            url="https://example.com/webhook",
         )
         for _ in range(3)
     ]
@@ -96,7 +98,7 @@ def test_fetch_slack_integrations(
     make_webhook_integration(
         name=make_name("test-webhook"),
         entity=api.default_entity,
-        url="fake-url",
+        url="https://example.com/webhook",
     )
 
     # Fetch the slack integrations (for now there won't be any)
