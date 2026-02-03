@@ -20,7 +20,7 @@ from wandb._analytics import tracked_func
 class BearerAuth(AuthBase):
     def __init__(self, token: str) -> None:
         self.token = token
-    
+
     def __call__(self, r):
         r.headers["Authorization"] = f"Bearer {self.token}"
         return r

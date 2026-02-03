@@ -451,9 +451,8 @@ class Api:
         Raises:
             AuthenticationError: If the path to the identity token is not found.
         """
-        if (
-            (auth := wbauth.session_credentials(host=self.api_url))
-            and isinstance(auth, wbauth.AuthIdentityTokenFile)
+        if (auth := wbauth.session_credentials(host=self.api_url)) and isinstance(
+            auth, wbauth.AuthIdentityTokenFile
         ):
             return auth.get_access_token(self._environ)
 

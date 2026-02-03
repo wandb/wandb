@@ -200,7 +200,7 @@ class Api:
 
         base_url = str(self._auth.host.url)
         session_auth: tuple[str, str] | Callable
-        
+
         # For API key auth, verify login
         # For JWT auth, verification happens during token exchange
         if isinstance(self._auth, wbauth.AuthApiKey):
@@ -211,7 +211,7 @@ class Api:
                 base_url=base_url,
             )
         elif isinstance(self._auth, wbauth.AuthIdentityTokenFile):
-            self.api_key = None        
+            self.api_key = None
             session_auth = BearerAuth(self._auth.get_access_token())
         else:
             raise UsageError(f"Unsupported auth type: {type(self._auth)}")
@@ -271,7 +271,9 @@ class Api:
         )
 
         if not auth:
-            raise UsageError("No authentication configured. Use `wandb login` to log in.")
+            raise UsageError(
+                "No authentication configured. Use `wandb login` to log in."
+            )
 
         return auth
 
