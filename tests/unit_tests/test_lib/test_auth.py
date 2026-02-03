@@ -4,7 +4,6 @@ from unittest.mock import Mock
 
 import pytest
 from wandb.errors import AuthenticationError
-from wandb.sdk.lib.gql_request import BearerAuth
 from wandb.sdk.lib.wbauth import (
     AuthApiKey,
     AuthIdentityTokenFile,
@@ -136,18 +135,43 @@ def test_reads_netrc(
     )
 
 
-def test_bearer_auth_has_proper_headers():
-    token = "test.token"
-    auth = BearerAuth(token)
+def test_api_key_as_requests_auth():
+    auth = AuthApiKey(host="https://test", api_key="test" * 10)
+    requests_auth = auth.as_requests_auth()
 
     request = Mock()
-    request.headers = {
-        "User-Agent": "wandb-client",
-        "Content-Type": "application/json",
-    }
+    request.headers = {}
 
-    auth(request)
+    requests_auth(request)
 
-    assert request.headers["User-Agent"] == "wandb-client"
-    assert request.headers["Content-Type"] == "application/json"
-    assert request.headers["Authorization"] == f"Bearer {token}"
+    assert "Authorization" in request.headers
+    assert request.headers["Authorization"].startswith("Basic ")
+
+
+def test_identity_token_as_requests_auth(tmp_path: pathlib.Path, monkeypatch):
+    token_file = tmp_path / "token.jwt"
+    token_file.write_text("test.jwt.token")
+    credentials_file = tmp_path / "credentials.json"
+
+    auth = AuthIdentityTokenFile(
+        host="https://test",
+        path=str(token_file),
+        credentials_file=str(credentials_file),
+    )
+
+    # Mock credentials.access_token to return a test token
+    from wandb.sdk.lib import credentials
+    monkeypatch.setattr(
+        credentials,
+        "access_token",
+        lambda base_url, token_path, creds_path: "test_access_token",
+    )
+
+    requests_auth = auth.as_requests_auth()
+
+    request = Mock()
+    request.headers = {}
+
+    requests_auth(request)
+
+    assert request.headers["Authorization"] == "Bearer test_access_token"
