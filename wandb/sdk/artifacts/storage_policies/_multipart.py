@@ -123,12 +123,12 @@ class MultipartDownloadContext:
             self._url_invalidated = True
 
 
-def _download_chunk_with_retry(
+def _download_chunk_with_refresh(
     ctx: MultipartDownloadContext,
     start: int,
     end: int | None,
 ) -> None:
-    """Download a single chunk with retry logic for expired URLs.
+    """Download a single chunk with refresh logic for expired presigned URLs.
 
     Args:
         ctx: Shared download context with session, queue, cancel event, and URL state.
@@ -148,18 +148,20 @@ def _download_chunk_with_retry(
         if not isinstance(e, requests.HTTPError):
             return False
 
+        # Only retry 401 and 403 because they are from expired presigned url.
+        # and not handled by existing retry strategy in make_http_session.
+        # Retry logic in make_http_session uses same url and cannot handle
+        # expired urls unless caller refresh and uses a new url.
         status_code = getattr(e.response, "status_code", None)
         if status_code in (401, 403):
             # URL likely expired, invalidate so next get_url() fetches fresh
             if env.is_debug():
                 logger.debug(f"Download got {status_code}, refreshing URL for retry")
             ctx.invalidate_url()
-            return True  # Retry this error
-
-        return False  # Don't retry other errors
+            return True
+        return False
 
     def attempt_download() -> None:
-        """Single download attempt."""
         with ctx.session.get(url=ctx.get_url(), headers=headers, stream=True) as rsp:
             rsp.raise_for_status()
 
@@ -176,9 +178,9 @@ def _download_chunk_with_retry(
         num_retries=3,
         check_retry_fn=check_retry_fn,
         retryable_exceptions=(requests.HTTPError,),
-        error_prefix="Multipart download chunk error",
+        error_prefix="Multipart download chunk url expired",
     )
-    retrier(retry_sleep_base=0.5)  # 500ms base delay with exponential backoff
+    retrier(retry_sleep_base=0.5)
 
 
 def _write_chunks(ctx: MultipartDownloadContext, file: IO[bytes]) -> None:
@@ -248,7 +250,7 @@ def multipart_download(
             end = end if (end := (start + part_size - 1)) < size else None
             download_futures.add(
                 executor.submit(
-                    _download_chunk_with_retry,
+                    _download_chunk_with_refresh,
                     ctx,
                     start,
                     end,

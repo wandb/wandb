@@ -803,8 +803,10 @@ def test_storage_policy_storage_region_not_available():
 
 
 @responses.activate()
-def test_artifact_download_retries_on_expired_url_multipart(
-    user: str, api: Api, tmp_path: Path
+def test_artifact_multipart_download_refresh_presigned_url(
+    user: str,
+    api: Api,
+    tmp_path: Path,
 ):
     # Let graphql and manifest json (also stored on S3) passthrough.
     responses.add_passthru(re.compile(r".*graphql.*"))
@@ -817,6 +819,8 @@ def test_artifact_download_retries_on_expired_url_multipart(
 
         if len(all_s3_requests) == 1:
             return (403, {}, b"AccessDenied: Request has expired")
+        if len(all_s3_requests) == 2:
+            return (500, {}, b"500 retry the same url without refresh")
         else:
             return (200, {}, b"test data for retry")
 
@@ -847,7 +851,7 @@ def test_artifact_download_retries_on_expired_url_multipart(
     assert downloaded_file.exists(), f"File not found at {downloaded_file}"
     assert downloaded_file.read_text() == "test data for retry"
 
-    assert len(all_s3_requests) == 2, (
-        f"Expected at least 2 calls (initial + retry), got {len(all_s3_requests)}. "
+    assert len(all_s3_requests) == 3, (
+        f"Expected 3 calls (initial 403 + refresh URL then 500 + built-in retry 200), got {len(all_s3_requests)}. "
         f"Requests: {all_s3_requests}"
     )

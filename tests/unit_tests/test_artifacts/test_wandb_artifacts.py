@@ -21,6 +21,7 @@ from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
+from wandb.sdk.artifacts.storage_policies._factories import make_http_session
 from wandb.sdk.artifacts.storage_policies._multipart import (
     multipart_download,
     should_multipart_download,
@@ -569,13 +570,39 @@ def test_artifact_multipart_download_disk_error():
 
 
 @responses.activate()
-def test_artifact_multipart_download_retries():
+def test_artifact_multipart_download_refresh_presigned_url():
+    # S3 returns 403 when presigned url expires. Built-in retry (via make_http_session)
+    # handles transient errors like 408/500 by retrying the same url, but can't help with
+    # expired urls. The refresh layer handles 403 and fetches a new presigned url.
+    #
+    # Test flow:
+    #   Request t1 (expired)
+    #       │
+    #       v
+    #      403 ──> fetch_fn() gets new URL t2
+    #                   │
+    #                   v
+    #             Request t2
+    #                   │
+    #                   v
+    #                  500 ──> built-in retry
+    #                              │
+    #                              v
+    #                        Request t2
+    #                              │
+    #                              v
+    #                             200 ✓
     rsp1 = responses.get(
         "https://s3.com/file/t1",
         body=b"should be some 403 related error message",
         status=403,
     )
     rsp2 = responses.get(
+        "https://s3.com/file/t2",
+        body=b"500 retry the same url without refresh",
+        status=500,
+    )
+    rsp3 = responses.get(
         "https://s3.com/file/t2",
         body=b"test",
         status=200,
@@ -588,7 +615,7 @@ def test_artifact_multipart_download_retries():
     with ThreadPoolExecutor(max_workers=2) as executor:
         multipart_download(
             executor,
-            requests.Session(),
+            make_http_session(),
             100,
             opener,
             initial_url="https://s3.com/file/t1",
@@ -599,10 +626,11 @@ def test_artifact_multipart_download_retries():
     assert fetch_fn.call_count == 1  # fetched new url once
     assert rsp1.call_count == 1
     assert rsp2.call_count == 1
+    assert rsp3.call_count == 1
 
 
 @responses.activate()
-def test_artifact_multipart_download_max_retries_exceeded():
+def test_artifact_multipart_download_max_refresh_attempts_exceeded():
     resp = responses.get(
         "https://s3.com/file",
         body=b"test",
@@ -615,7 +643,7 @@ def test_artifact_multipart_download_max_retries_exceeded():
         with ThreadPoolExecutor(max_workers=2) as executor:
             multipart_download(
                 executor,
-                requests.Session(),
+                make_http_session(),
                 100,
                 opener,
                 initial_url="https://s3.com/file",

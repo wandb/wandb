@@ -15,4 +15,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- Fetch new presigned download url after expiration when downloading large artifact files (larger than 2GB). (@pingleiwandb in https://github.com/wandb/wandb/pull/11242)
+- Refresh presigned download url when it expires during artifact file downloads. (@pingleiwandb in https://github.com/wandb/wandb/pull/11242)
