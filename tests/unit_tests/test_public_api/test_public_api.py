@@ -5,9 +5,9 @@ from unittest.mock import MagicMock
 
 import pytest
 from pytest_mock import MockerFixture
+from requests import HTTPError
 
 import wandb
-from requests import HTTPError
 from wandb import Api
 from wandb.apis import internal
 from wandb.apis._generated import ProjectFragment
