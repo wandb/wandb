@@ -103,13 +103,6 @@ repos:
         language: script
         description: "Runs `cargo test`"
         require_serial: true
-      - id: rust-build
-        name: rust-build
-        entry: core/scripts/pre-commit-hooks/run-rust-build.sh
-        files: 'parquet-rust-wrapper/.*\.rs$'
-        language: script
-        description: "Runs `cargo build`"
-        require_serial: true
       - id: go-build
         name: go-build
         entry: core/scripts/pre-commit-hooks/run-go-build.sh

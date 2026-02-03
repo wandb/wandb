@@ -36,7 +36,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistoryreader/runhistoryreadertest"
 )
 
-// mockIPCDataStore keeps IPC data alive during test execution
 // It stores the actual byte slices so the pointers remain valid
 type mockIPCDataStore struct {
 	ipcData [][]byte
