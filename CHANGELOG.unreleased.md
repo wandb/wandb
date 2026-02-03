@@ -14,4 +14,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ## Unreleased
 
 ### Added
-- Added support for Federated Auth (JWT based auth) in the Public Api
+- wandb.Api() now supports Federated Auth (JWT based authentication)
