@@ -16,7 +16,6 @@ from wandb_graphql.language.printer import print_ast
 from wandb._analytics import tracked_func
 
 
-
 class GraphQLSession(HTTPTransport):
     def __init__(
         self,

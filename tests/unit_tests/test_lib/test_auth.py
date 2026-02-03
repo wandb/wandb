@@ -161,6 +161,7 @@ def test_identity_token_as_requests_auth(tmp_path: pathlib.Path, monkeypatch):
 
     # Mock credentials.access_token to return a test token
     from wandb.sdk.lib import credentials
+
     monkeypatch.setattr(
         credentials,
         "access_token",
