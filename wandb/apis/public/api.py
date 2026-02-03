@@ -199,7 +199,6 @@ class Api:
 
         base_url = str(self._auth.host.url)
 
-        # Set api_key for backward compatibility and verify login for API key auth
         if isinstance(self._auth, wbauth.AuthApiKey):
             self.api_key = self._auth.api_key
             wandb_login._verify_login(
@@ -209,7 +208,6 @@ class Api:
         else:
             self.api_key = None
 
-        # Use as_requests_auth() for automatic auth handling and token refresh
         session_auth = self._auth.as_requests_auth()
 
         self._viewer = None
