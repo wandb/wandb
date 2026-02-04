@@ -33,6 +33,7 @@ from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
@@ -236,10 +237,19 @@ class ArtifactType:
         return self._attrs.name
 
     @normalize_exceptions
-    def collections(self, per_page: int = 50) -> ArtifactCollections:
+    def collections(
+        self,
+        filters: Mapping[str, Any] | None = None,
+        order: str | None = None,
+        per_page: int = 50,
+    ) -> ArtifactCollections:
         """Get all artifact collections associated with this artifact type.
 
         Args:
+            filters (dict): Optional mapping of filters to apply to the query.
+            order (str): Optional string to specify the order of the results.
+                If you prepend order with a + order is ascending (default).
+                If you prepend order with a - order is descending.
             per_page (int): The number of artifact collections to fetch per page.
                 Default is 50.
         """
@@ -247,7 +257,10 @@ class ArtifactType:
             self.client,
             entity=self.entity,
             project=self.project,
+            filters=filters,
+            order=order,
             type_name=self.type,
+            per_page=per_page,
         )
 
     def collection(self, name: str) -> ArtifactCollection:
@@ -292,17 +305,37 @@ class ArtifactCollections(
         entity: str,
         project: str,
         type_name: str,
+        filters: Mapping[str, Any] | None = None,
+        order: str | None = None,
         per_page: int = 50,
     ):
         if self.QUERY is None:
-            from wandb.sdk.artifacts._generated import ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL
+            from wandb.sdk.artifacts._generated import (
+                ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL,
+            )
 
             type(self).QUERY = gql(ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL)
+
+        if order is not None and not server_supports(
+            client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
+        ):
+            raise RuntimeError(
+                "Custom ordering of artifact collections is not supported on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
 
         self.entity = entity
         self.project = project
         self.type_name = type_name
-        variables = {"entity": entity, "project": project, "type": type_name}
+        self.filters = filters
+        self.order = order
+        variables = {
+            "entity": entity,
+            "project": project,
+            "type": type_name,
+            "order": order,
+            "filters": json.dumps(filters),
+        }
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
@@ -432,6 +465,11 @@ class ArtifactCollection:
     def created_at(self) -> str:
         """The creation date of the artifact collection."""
         return self._saved.created_at
+
+    @property
+    def updated_at(self) -> str | None:
+        """The date at which the artifact collection was last updated."""
+        return self._saved.updated_at
 
     def load(
         self, entity: str, project: str, type_: str, name: str
@@ -585,6 +623,7 @@ class ArtifactCollection:
         self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
         self._saved.name = self._current.name
         self._saved.description = self._current.description
+        self._saved.updated_at = self._current.updated_at
 
     def _update_sequence_type(self) -> None:
         from wandb.sdk.artifacts._generated import (

@@ -91,6 +91,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  updatedAt
   project {
     ...ProjectInfoFragment
   }
@@ -136,6 +137,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  updatedAt
   project {
     ...ProjectInfoFragment
   }
@@ -181,6 +183,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  updatedAt
   project {
     ...ProjectInfoFragment
   }
@@ -235,10 +238,15 @@ mutation DeleteArtifactCollectionTags($input: DeleteArtifactCollectionTagAssignm
 """
 
 ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL = """
-query ArtifactTypeArtifactCollections($entity: String!, $project: String!, $type: String!, $cursor: String, $perPage: Int) {
+query ArtifactTypeArtifactCollections($entity: String!, $project: String!, $type: String!, $cursor: String, $perPage: Int, $filters: JSONString, $order: String) {
   project(entityName: $entity, name: $project) {
     artifactType(name: $type) {
-      artifactCollections(after: $cursor, first: $perPage) {
+      artifactCollections(
+        after: $cursor
+        first: $perPage
+        filters: $filters
+        order: $order
+      ) {
         totalCount
         pageInfo {
           ...PageInfoFragment
@@ -260,6 +268,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  updatedAt
   project {
     ...ProjectInfoFragment
   }
@@ -313,6 +322,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  updatedAt
   project {
     ...ProjectInfoFragment
   }
