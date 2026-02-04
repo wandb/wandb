@@ -28,8 +28,6 @@ class User(Attrs):
     team memberships. The `create` class method can be used to create a new
     user.
 
-    Some operations require admin privileges.
-
     Args:
         client: The GraphQL client to use for network operations.
         attrs: A subset of the User type in the GraphQL schema.
@@ -64,7 +62,7 @@ class User(Attrs):
         Returns:
             A `User` object.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         from wandb.apis._generated import (
             CREATE_USER_FROM_ADMIN_GQL,
@@ -80,8 +78,9 @@ class User(Attrs):
     def api_keys(self) -> list[str]:
         """Names of the user's API keys.
 
-        These are just API key names, *not* the full secrets, and they cannot be
-        used like API keys.
+        This property returns the names of the the API keys, *not* the secret
+        associated with the key. The name of the key cannot be used as an API
+        key.
 
         The list is empty if the user has no API keys or if API keys have not
         been loaded.
@@ -104,8 +103,10 @@ class User(Attrs):
     def delete_api_key(self, api_key: str) -> bool:
         """Delete a user's API key.
 
+        Only the owner of the key or an admin can delete it.
+
         Args:
-            api_key: The name of the API key to delete. This should be one of
+            api_key: The name of the API key to delete. Use one of
                 the names returned by the `api_keys` property.
 
         Returns:
