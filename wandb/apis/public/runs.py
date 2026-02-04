@@ -651,7 +651,49 @@ class Run(Attrs):
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
     ) -> Self:
-        """Create a run for the given project."""
+        """Create a run for the given project.
+
+        For most use cases, use `wandb.init()`. `wandb.init()` provides more robust
+        logic for creating and updating runs. `wandb.apis.public.Run.create`
+        is intended for specific scenarios such as creating runs in
+        a "pending" state for jobs that may be unschedulable
+        (for example, in a Kubernetes cluster with insufficient GPUs or high
+        contention). These pending runs can later be resumed and tracked by W&B.
+
+        Runs created with this method have limited functionality. Calling
+        `update()` on a run created this way may not work as expected.
+
+        Args:
+            api: The W&B API instance.
+            run_id: Optional run ID. If not provided, a random ID will be generated.
+            project: Optional project name. Defaults to the project in API settings
+                or "uncategorized".
+            entity: Optional entity (user or team) name.
+            state: Initial state of the run. Use "pending" for runs that will be
+                resumed later, or "running" for immediate execution.
+
+        Returns:
+            A Run object representing the created run.
+
+        Example:
+        Creating a pending run for later execution
+
+        ```python
+        import wandb
+
+        api = wandb.Api()
+
+        run_name = "my-pending-run"
+
+        run = Run.create(
+            api=api,
+            project="project",
+            entity="entity",
+            state="pending",
+            run_id=run_name,
+        )
+        ```
+        """
         api._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
