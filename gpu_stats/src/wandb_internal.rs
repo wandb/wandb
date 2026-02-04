@@ -2947,6 +2947,8 @@ pub enum ServerFeature {
     ArtifactMembershipInLinkArtifactResponse = 14,
     /// Indicates that the server supports returning the total file count in a file connection.
     TotalCountInFileConnection = 15,
+    /// Indicates that the server supports filtering artifact collections when querying on a project
+    ArtifactCollectionsFilteringSorting = 16,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2983,6 +2985,9 @@ impl ServerFeature {
                 "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE"
             }
             Self::TotalCountInFileConnection => "TOTAL_COUNT_IN_FILE_CONNECTION",
+            Self::ArtifactCollectionsFilteringSorting => {
+                "ARTIFACT_COLLECTIONS_FILTERING_SORTING"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3018,6 +3023,9 @@ impl ServerFeature {
                 Some(Self::ArtifactMembershipInLinkArtifactResponse)
             }
             "TOTAL_COUNT_IN_FILE_CONNECTION" => Some(Self::TotalCountInFileConnection),
+            "ARTIFACT_COLLECTIONS_FILTERING_SORTING" => {
+                Some(Self::ArtifactCollectionsFilteringSorting)
+            }
             _ => None,
         }
     }
