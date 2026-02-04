@@ -1,5 +1,6 @@
 import pathlib
 import textwrap
+from unittest.mock import Mock
 
 import pytest
 from wandb.errors import AuthenticationError
@@ -132,3 +133,46 @@ def test_reads_netrc(
     mock_wandb_log.assert_logged(
         f"[test] Loaded credentials for https://example.com from {netrc}"
     )
+
+
+def test_api_key_as_requests_auth():
+    auth = AuthApiKey(host="https://test", api_key="test" * 10)
+    requests_auth = auth.as_requests_auth()
+
+    request = Mock()
+    request.headers = {}
+
+    requests_auth(request)
+
+    assert "Authorization" in request.headers
+    assert request.headers["Authorization"].startswith("Basic ")
+
+
+def test_identity_token_as_requests_auth(tmp_path: pathlib.Path, monkeypatch):
+    token_file = tmp_path / "token.jwt"
+    token_file.write_text("test.jwt.token")
+    credentials_file = tmp_path / "credentials.json"
+
+    auth = AuthIdentityTokenFile(
+        host="https://test",
+        path=str(token_file),
+        credentials_file=str(credentials_file),
+    )
+
+    # Mock credentials.access_token to return a test token
+    from wandb.sdk.lib import credentials
+
+    monkeypatch.setattr(
+        credentials,
+        "access_token",
+        lambda base_url, token_path, creds_path: "test_access_token",
+    )
+
+    requests_auth = auth.as_requests_auth()
+
+    request = Mock()
+    request.headers = {}
+
+    requests_auth(request)
+
+    assert request.headers["Authorization"] == "Bearer test_access_token"

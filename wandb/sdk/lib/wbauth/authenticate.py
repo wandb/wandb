@@ -61,6 +61,7 @@ def _locked_set_session_auth(
     elif isinstance(auth, AuthIdentityTokenFile):
         settings.api_key = None
         settings.identity_token_file = str(auth.path)
+        settings.credentials_file = str(auth.credentials_path)
         settings.base_url = str(auth.host)
 
     else:
@@ -225,7 +226,11 @@ def _try_env_auth(*, host: HostUrl) -> AuthWithSource | None:
 
     elif identity_token_file:
         return AuthWithSource(
-            auth=AuthIdentityTokenFile(host=host, path=identity_token_file),
+            auth=AuthIdentityTokenFile(
+                host=host,
+                path=identity_token_file,
+                credentials_file=wandb_setup.singleton().settings.credentials_file,
+            ),
             source=env.IDENTITY_TOKEN_FILE,
         )
 
