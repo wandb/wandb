@@ -10,7 +10,7 @@ import (
 // Iterate using the Next method, and get the width of the current grapheme
 // using the Width method.
 type Graphemes[T stringish.Interface] struct {
-	iter    graphemes.Iterator[T]
+	iter    *graphemes.Iterator[T]
 	options Options
 }
 

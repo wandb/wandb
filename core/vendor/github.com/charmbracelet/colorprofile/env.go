@@ -83,8 +83,8 @@ func colorProfile(isatty bool, env environ) (p Profile) {
 	}
 
 	if envNoColor(env) && isatty {
-		if p > Ascii {
-			p = Ascii
+		if p > ASCII {
+			p = ASCII
 		}
 		return //nolint:nakedret
 	}
