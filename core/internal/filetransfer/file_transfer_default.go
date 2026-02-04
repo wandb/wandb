@@ -190,16 +190,15 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 
 	progressWriter := NewProgressWriter(
 		file,
-		size,
-		func(processed, total int64) {
+		func(processed int64) {
 			if task.ProgressCallback != nil {
-				task.ProgressCallback(int(processed), int(total))
+				task.ProgressCallback(int(processed), int(size))
 			}
 
 			if size == 0 {
 				progress.SetBytesDone(int(processed))
 			} else {
-				progress.SetBytesOfTotal(int(processed), int(total))
+				progress.SetBytesOfTotal(int(processed), int(size))
 			}
 		},
 	)
