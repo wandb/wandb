@@ -190,16 +190,25 @@ class Api:
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
         if api_key:
-            self.api_key = api_key
-        else:
-            self.api_key = self._load_api_key(
-                base_url=self.settings["base_url"],
+            self._auth = wbauth.AuthApiKey(
+                host=self.settings["base_url"],
+                api_key=api_key,
             )
+        else:
+            self._auth = self._load_auth(base_url=self.settings["base_url"])
 
-        wandb_login._verify_login(
-            key=self.api_key,
-            base_url=self.settings["base_url"],
-        )
+        base_url = self._auth.host.url
+
+        if isinstance(self._auth, wbauth.AuthApiKey):
+            self.api_key = self._auth.api_key
+            wandb_login._verify_login(
+                key=self.api_key,
+                base_url=base_url,
+            )
+        else:
+            self.api_key = None
+
+        session_auth = self._auth.as_requests_auth()
 
         self._viewer = None
         self._projects = {}
@@ -221,8 +230,8 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
-                auth=("api", self.api_key),
-                url="{}/graphql".format(self.settings["base_url"]),
+                auth=session_auth,
+                url="{}/graphql".format(base_url),
                 proxies=proxies,
             )
         )
@@ -246,8 +255,8 @@ class Api:
         self._service = singleton.ensure_service()
         self._service.api_init_request(self._settings.to_proto())
 
-    def _load_api_key(self, base_url: str) -> str:
-        """Load or prompt for an API key."""
+    def _load_auth(self, base_url: str) -> wbauth.Auth:
+        """Load or prompt for authentication credentials."""
         auth = wbauth.authenticate_session(
             host=base_url,
             source="wandb.Api()",
@@ -256,17 +265,11 @@ class Api:
         )
 
         if not auth:
-            raise UsageError("No API key configured. Use `wandb login` to log in.")
-        if not isinstance(auth, wbauth.AuthApiKey):
-            message = (
-                "wandb.Api() can only use API key authentication, but you have"
-                " another form of credentials configured."
-                " Check if you have set WANDB_IDENTITY_TOKEN_FILE."
-                f" Current credentials: {auth}"
+            raise UsageError(
+                "No authentication configured. Use `wandb login` to log in."
             )
-            raise UsageError(message)
 
-        return auth.api_key
+        return auth
 
     def _configure_sentry(self) -> None:
         if not env.error_reporting_enabled():

@@ -47,7 +47,7 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import credentials, retry
+from ..lib import retry, wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from . import context
 from .progress import Progress
@@ -459,11 +459,12 @@ class Api:
         if not token_file.exists():
             raise AuthenticationError(f"Identity token file not found: {token_file}")
 
-        base_url = self.settings("base_url")
-        credentials_file = env.get_credentials_file(
-            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), self._environ
+        auth = wbauth.AuthIdentityTokenFile(
+            host=self.settings("base_url"),
+            path=str(token_file),
+            credentials_file=wandb_setup.singleton().settings.credentials_file,
         )
-        return credentials.access_token(base_url, token_file, credentials_file)
+        return auth.fetch_access_token()
 
     @property
     def api_url(self) -> str:

@@ -983,3 +983,55 @@ def test_construct_use_artifact_query_without_used_as():
     # Verify usedAs is still in variables but not in query
     assert "usedAs" in variables
     assert "usedAs:" not in query_str
+
+
+class TestJWTAuth:
+    def test_jwt_auth_sets_bearer_header(
+        self, tmp_path: pathlib.Path, mocker: MockerFixture
+    ):
+        token_file = tmp_path / "token.jwt"
+        token_file.write_text("test.jwt.token")
+
+        mocker.patch(
+            "wandb.sdk.lib.wbauth.AuthIdentityTokenFile.fetch_access_token",
+            return_value="test_access_token_12345",
+        )
+
+        environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
+        api = internal.InternalApi(environ=environ)
+
+        assert "Authorization" in api._extra_http_headers
+        assert (
+            api._extra_http_headers["Authorization"] == "Bearer test_access_token_12345"
+        )
+
+    def test_api_key_takes_precedence_over_jwt(
+        self, tmp_path: pathlib.Path, mocker: MockerFixture
+    ):
+        token_file = tmp_path / "token.jwt"
+        token_file.write_text("test.jwt.token")
+
+        fetch_mock = mocker.patch(
+            "wandb.sdk.lib.wbauth.AuthIdentityTokenFile.fetch_access_token",
+            return_value="test_access_token",
+        )
+
+        environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
+        api = internal.InternalApi(
+            default_settings={"api_key": "a" * 40},
+            environ=environ,
+        )
+
+        fetch_mock.assert_not_called()
+        assert api.client.transport.session.auth == ("api", "a" * 40)
+
+    def test_access_token_returns_none_without_token_file(self):
+        api = internal.InternalApi(environ={})
+        assert api.access_token is None
+
+    def test_access_token_raises_for_missing_file(self, tmp_path: pathlib.Path):
+        missing_file = tmp_path / "nonexistent.jwt"
+        environ = {"WANDB_IDENTITY_TOKEN_FILE": str(missing_file)}
+
+        with pytest.raises(wandb.errors.AuthenticationError, match="not found"):
+            internal.InternalApi(environ=environ)
