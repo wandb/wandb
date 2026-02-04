@@ -11,21 +11,20 @@ import (
 
 // WatcherManager manages file watching for live runs.
 type WatcherManager struct {
-	watcher     watcher.Watcher
-	started     bool
-	watcherChan chan tea.Msg
-	logger      *observability.CoreLogger
+	watcher watcher.Watcher
+	started bool
+	outChan chan tea.Msg
+	logger  *observability.CoreLogger
 }
 
-// NewWatcherManager creates a new watcher manager.
 func NewWatcherManager(
-	watcherChan chan tea.Msg,
+	outChan chan tea.Msg,
 	logger *observability.CoreLogger,
 ) *WatcherManager {
 	return &WatcherManager{
-		watcher:     watcher.New(watcher.Params{Logger: logger}),
-		watcherChan: watcherChan,
-		logger:      logger,
+		watcher: watcher.New(watcher.Params{Logger: logger}),
+		outChan: outChan,
+		logger:  logger,
 	}
 }
 
@@ -41,10 +40,10 @@ func (wm *WatcherManager) Start(runPath string) error {
 		wm.logger.Debug(fmt.Sprintf("watcher: file changed: %s", runPath))
 
 		select {
-		case wm.watcherChan <- FileChangedMsg{}:
+		case wm.outChan <- FileChangedMsg{}:
 			wm.logger.Debug("watcher: FileChangedMsg sent")
 		default:
-			wm.logger.CaptureWarn("watcher: watcherChan full, dropping FileChangedMsg")
+			wm.logger.CaptureWarn("watcher: outChan full, dropping FileChangedMsg")
 		}
 	})
 
@@ -67,6 +66,12 @@ func (wm *WatcherManager) Finish() {
 	wm.logger.Debug("watcher: finishing")
 	wm.watcher.Finish()
 	wm.started = false
+
+	// Unblock any pending WaitForMsg calls.
+	select {
+	case wm.outChan <- nil:
+	default:
+	}
 }
 
 // IsStarted returns whether the watcher is started.
@@ -77,7 +82,7 @@ func (wm *WatcherManager) IsStarted() bool {
 // WaitForMsg waits for watcher messages.
 func (wm *WatcherManager) WaitForMsg() tea.Msg {
 	wm.logger.Debug("watcher: waiting for message...")
-	msg := <-wm.watcherChan
+	msg := <-wm.outChan
 	if msg != nil {
 		wm.logger.Debug(fmt.Sprintf("watcher: received message: %T", msg))
 	}
