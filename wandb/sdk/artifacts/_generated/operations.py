@@ -1661,6 +1661,7 @@ fragment RegistryCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  updatedAt
   project {
     ...ProjectInfoFragment
   }
