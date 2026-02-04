@@ -70,8 +70,37 @@ def test_artifact_type(api: Api):
     assert atype.name == "dataset"
     col = atype.collection("mnist")
     assert col.name == "mnist"
+
+
+@mark.usefixtures("sample_data")
+def test_artifact_type_collections(api: Api):
+    atype = api.artifact_type("dataset")
+
+    # creating a new artifact
+    artifact_name = "another-collection"
+    artifact = wandb.Artifact(name=artifact_name, type="dataset")
+    with artifact.new_file("file.txt") as f:
+        f.write("test")
+    artifact.save()
+    artifact.wait()
+
     cols = atype.collections()
-    assert cols[0].name == "mnist"
+    assert len(cols) == 2
+    assert (cols[0].name == "mnist" and cols[1].name == "another-collection") or (
+        cols[0].name == "another-collection" and cols[1].name == "mnist"
+    )
+    cols = atype.collections(filters={"name": "mnist"})
+    assert len(cols) == 1 and cols[0].name == "mnist"
+    if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+        cols = atype.collections(order="name")
+        assert len(cols) == 2
+        assert cols[0].name == "another-collection" and cols[1].name == "mnist"
+    else:
+        with raises(
+            CommError,
+            match="Custom ordering of artifact collections is not supported on this wandb server version.",
+        ):
+            atype.collections(order="name")
 
 
 @mark.usefixtures("sample_data")
