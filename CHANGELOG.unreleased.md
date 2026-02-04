@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - wandb.Api() now supports Federated Auth (JWT based authentication). (@ryanbuccellato in https://github.com/wandb/wandb/pull/11243)
+- `ArtifactType.collections()` now supports filtering and ordering of collections. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11268)
 
 ### Fixed
 
