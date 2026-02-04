@@ -112,6 +112,7 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
             description="This is a fake artifact collection.",
             aliases={"edges": []},
             createdAt="2021-01-01T00:00:00Z",
+            updatedAt="2021-01-01T00:00:00Z",
             tags={"edges": []},
         ),
     )
