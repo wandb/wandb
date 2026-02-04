@@ -1001,8 +1001,9 @@ func (v *QueryRunInfoProject) GetRun() *QueryRunInfoProjectRun { return v.Run }
 
 // QueryRunInfoProjectRun includes the requested fields of the GraphQL type Run.
 type QueryRunInfoProjectRun struct {
-	DisplayName    *string `json:"displayName"`
-	SummaryMetrics *string `json:"summaryMetrics"`
+	DisplayName    *string  `json:"displayName"`
+	SummaryMetrics *string  `json:"summaryMetrics"`
+	Events         []string `json:"events"`
 }
 
 // GetDisplayName returns QueryRunInfoProjectRun.DisplayName, and is useful for accessing the field via an interface.
@@ -1010,6 +1011,9 @@ func (v *QueryRunInfoProjectRun) GetDisplayName() *string { return v.DisplayName
 
 // GetSummaryMetrics returns QueryRunInfoProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
 func (v *QueryRunInfoProjectRun) GetSummaryMetrics() *string { return v.SummaryMetrics }
+
+// GetEvents returns QueryRunInfoProjectRun.Events, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetEvents() []string { return v.Events }
 
 // QueryRunInfoResponse is returned by QueryRunInfo on success.
 type QueryRunInfoResponse struct {
@@ -2975,6 +2979,7 @@ query QueryRunInfo ($entity: String!, $project: String!, $run: String!) {
 		run(name: $run) {
 			displayName
 			summaryMetrics
+			events
 		}
 	}
 }

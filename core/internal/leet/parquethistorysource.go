@@ -145,6 +145,7 @@ func InitializeParquetHistorySource(
 			entity,
 			project,
 			runId,
+			logger,
 		)
 		if err != nil {
 			return ErrorMsg{Err: err}
@@ -388,6 +389,7 @@ func loadRunInfo(
 	entity string,
 	project string,
 	runId string,
+	logger *observability.CoreLogger,
 ) (*RunInfo, error) {
 	response, err := gql.QueryRunInfo(
 		context.Background(),
@@ -399,6 +401,7 @@ func loadRunInfo(
 	if err != nil {
 		return nil, err
 	}
+	logger.Debug("run info", "response", response)
 
 	displayName := response.Project.Run.DisplayName
 
