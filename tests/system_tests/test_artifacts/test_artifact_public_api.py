@@ -89,16 +89,22 @@ def test_artifact_type_collections(api: Api):
     assert (cols[0].name == "mnist" and cols[1].name == "another-collection") or (
         cols[0].name == "another-collection" and cols[1].name == "mnist"
     )
-    cols = atype.collections(filters={"name": "mnist"})
-    assert len(cols) == 1 and cols[0].name == "mnist"
+
     if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+        cols = atype.collections(filters={"name": "mnist"})
+        assert len(cols) == 1 and cols[0].name == "mnist"
         cols = atype.collections(order="name")
         assert len(cols) == 2
         assert cols[0].name == "another-collection" and cols[1].name == "mnist"
     else:
         with raises(
             CommError,
-            match="Custom ordering of artifact collections is not supported on this wandb server version.",
+            match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
+        ):
+            atype.collections(filters={"name": "mnist"})
+        with raises(
+            CommError,
+            match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
         ):
             atype.collections(order="name")
 

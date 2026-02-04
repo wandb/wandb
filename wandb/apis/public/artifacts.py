@@ -316,11 +316,11 @@ class ArtifactCollections(
 
             type(self).QUERY = gql(ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL)
 
-        if order is not None and not server_supports(
+        if (order is not None or filters is not None) and not server_supports(
             client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
         ):
             raise RuntimeError(
-                "Custom ordering of artifact collections is not supported on this wandb server version. "
+                "Filtering and ordering of artifact collections is not supported on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
