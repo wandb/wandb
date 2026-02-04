@@ -527,20 +527,16 @@ global___DownloadRunHistoryStatus = DownloadRunHistoryStatus
 class DownloadRunHistoryStatusResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    COMPLETED_FIELD_NUMBER: builtins.int
     OPERATION_STATS_FIELD_NUMBER: builtins.int
-    completed: builtins.bool
-    """Whether the download operation has completed."""
     @property
     def operation_stats(self) -> wandb.proto.wandb_internal_pb2.OperationStats:
         """Operation stats for progress display."""
     def __init__(
         self,
         *,
-        completed: builtins.bool = ...,
         operation_stats: wandb.proto.wandb_internal_pb2.OperationStats | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["operation_stats", b"operation_stats"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["completed", b"completed", "operation_stats", b"operation_stats"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["operation_stats", b"operation_stats"]) -> None: ...
 
 global___DownloadRunHistoryStatusResponse = DownloadRunHistoryStatusResponse

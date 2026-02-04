@@ -406,9 +406,6 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistoryStatus(
 	}
 
 	downloadStatus := downloadOperation.GetDownloadStatus()
-	if downloadStatus.Completed {
-		delete(f.downloadOperations, requestId)
-	}
 
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_ReadRunHistoryResponse{

@@ -55,6 +55,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.proto import wandb_api_pb2 as apb
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib import ipython, json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -1634,7 +1635,7 @@ class Run(Attrs):
                 incomplete history.
         """
         if self._api is None:
-            self._api = public.Api()
+            self._api: public.Api = public.Api()
 
         init_download_request = apb.DownloadRunHistoryInit(
             entity=self.entity,
@@ -1655,7 +1656,6 @@ class Run(Attrs):
         except WandbApiFailedError as e:
             if (
                 e.response is not None
-                and e.response.error_type is not None
                 and e.response.error_type == apb.ErrorType.INCOMPLETE_RUN_HISTORY_ERROR
             ):
                 raise runhistory.IncompleteRunHistoryError() from None
@@ -1663,9 +1663,6 @@ class Run(Attrs):
                 raise WandbApiFailedError("Failed to download history") from e
 
         contains_live_data = response.read_run_history_response.download_run_history_init.contains_live_data
-        if require_complete_history and contains_live_data:
-            raise runhistory.IncompleteRunHistoryError()
-
         request_id = (
             response.read_run_history_response.download_run_history_init.request_id
         )

@@ -177,9 +177,6 @@ message DownloadRunHistoryStatus {
 }
 
 message DownloadRunHistoryStatusResponse {
-  // Whether the download operation has completed.
-  bool completed = 1;
-
   // Operation stats for progress display.
-  wandb_internal.OperationStats operation_stats = 2;
+  wandb_internal.OperationStats operation_stats = 1;
 }

@@ -32,11 +32,11 @@ func NewProgressWriter(
 // Write implements io.Writer.Write.
 func (pw *ProgressWriter) Write(p []byte) (n int, err error) {
 	n, err = pw.destination.Write(p)
+	pw.written += int64(n)
 	if err != nil {
 		return n, err
 	}
 
-	pw.written += int64(n)
 	if pw.callback != nil {
 		pw.callback(pw.written, pw.len)
 	}

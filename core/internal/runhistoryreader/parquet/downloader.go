@@ -141,43 +141,34 @@ func GetFileSize(
 // RunHistoryDownloadOperation is a download operation
 // for managing and tracking the download of a run's history file(s).
 type RunHistoryDownloadOperation struct {
-	ctx context.Context
+	mu sync.Mutex
 
-	// fileTransferManager is used to manage the download tasks of the files.
-	fileTransferManager filetransfer.FileTransferManager
+	// entity is the entity that owns the run.
+	entity string
 
-	// tasks is the list of download tasks for the files.
-	tasks []*filetransfer.DefaultDownloadTask
+	// project is the project that the run belongs to.
+	project string
+
+	// runId is the ID of the run.
+	runId string
+
+	// downloadDir is the directory to store the downloaded history files within.
+	downloadDir string
+
+	// httpClient is the HTTP client to use for the download.
+	httpClient *retryablehttp.Client
+
+	// signedUrls is the list of signed URLs for the files to download.
+	signedUrls []string
+
+	// operations is the operations tracking the download.
+	operations *wboperation.WandbOperations
 
 	// filesDownloaded is the list of files that have been downloaded successfully.
 	filesDownloaded []string
 
 	// filesErrored is the map of files that have raised an error during the download.
 	filesErrored map[string]error
-
-	// numberOfFiles is the total number of files to download.
-	numberOfFiles int
-
-	// completed is a flag indicating if the download is complete.
-	completed bool
-
-	// operations is the operations tracking the download.
-	operations *wboperation.WandbOperations
-
-	// parentOperation is the parent operation tracking the download.
-	parentOperation *wboperation.WandbOperation
-
-	// totalBytes is the total number of bytes to download.
-	totalBytes int64
-
-	// downloadedBytes is the total number of bytes downloaded so far.
-	downloadedBytes int64
-
-	// fileDownloadedBytes is the map of files to
-	// the number of bytes that have been downloaded successfully.
-	fileDownloadedBytes map[string]int64
-
-	mu sync.Mutex
 }
 
 func NewRunHistoryDownloadOperation(
@@ -189,54 +180,21 @@ func NewRunHistoryDownloadOperation(
 	downloadDir string,
 	signedUrls []string,
 ) (*RunHistoryDownloadOperation, error) {
-	operations := wboperation.NewOperations()
-	parentOp := operations.New("Downloading run history")
-
-	fileTransferStats := filetransfer.NewFileTransferStats()
-	fileTransfers := filetransfer.NewFileTransfers(
-		httpClient,
-		observability.NewNoOpLogger(),
-		fileTransferStats,
-	)
-	fileTransferManager := filetransfer.NewFileTransferManager(
-		filetransfer.FileTransferManagerOptions{
-			Logger:            observability.NewNoOpLogger(),
-			FileTransfers:     fileTransfers,
-			FileTransferStats: fileTransferStats,
-		},
-	)
 
 	numberOfFiles := len(signedUrls)
 
 	downloadOperation := &RunHistoryDownloadOperation{
-		ctx:                 ctx,
-		fileTransferManager: fileTransferManager,
-		operations:          operations,
-		parentOperation:     parentOp,
-
-		numberOfFiles: numberOfFiles,
-
-		downloadedBytes:     0,
-		fileDownloadedBytes: make(map[string]int64, numberOfFiles),
-
-		completed: false,
 		mu:        sync.Mutex{},
 
+		entity: entity,
+		project: project,
+		runId: runId,
+		downloadDir: downloadDir,
+		httpClient: httpClient,
+		signedUrls: signedUrls,
+		operations: wboperation.NewOperations(),
 		filesDownloaded: make([]string, 0, numberOfFiles),
 		filesErrored:    make(map[string]error, numberOfFiles),
-	}
-
-	err := downloadOperation.createDownloadTasks(
-		ctx,
-		signedUrls,
-		entity,
-		project,
-		runId,
-		downloadDir,
-		httpClient,
-	)
-	if err != nil {
-		return nil, err
 	}
 
 	return downloadOperation, nil
@@ -244,33 +202,28 @@ func NewRunHistoryDownloadOperation(
 
 func (d *RunHistoryDownloadOperation) createDownloadTasks(
 	ctx context.Context,
-	signedUrls []string,
-	entity string,
-	project string,
-	runId string,
-	downloadDir string,
-	httpClient *retryablehttp.Client,
-) error {
-	tasks := make([]*filetransfer.DefaultDownloadTask, 0, len(signedUrls))
+	operation *wboperation.WandbOperation,
+) ([]*filetransfer.DefaultDownloadTask, error) {
+	tasks := make([]*filetransfer.DefaultDownloadTask, 0, len(d.signedUrls))
 	totalBytes := int64(0)
 
-	for i, url := range signedUrls {
+	for i, url := range d.signedUrls {
 		fileName := fmt.Sprintf(
 			"%s_%s_%s_%d.runhistory.parquet",
-			entity,
-			project,
-			runId,
+			d.entity,
+			d.project,
+			d.runId,
 			i,
 		)
-		filePath := filepath.Join(downloadDir, fileName)
-		fileSize, err := GetFileSize(url, httpClient)
+		filePath := filepath.Join(d.downloadDir, fileName)
+		fileSize, err := GetFileSize(url, d.httpClient)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		totalBytes += fileSize
 
-		fileOp := d.parentOperation.Subtask(fileName)
+		fileOp := operation.Subtask(fileName)
 		task := &filetransfer.DefaultDownloadTask{
 			FileKind: filetransfer.RunFileKindMedia,
 			Path:     filePath,
@@ -289,28 +242,46 @@ func (d *RunHistoryDownloadOperation) createDownloadTasks(
 			} else {
 				d.filesDownloaded = append(d.filesDownloaded, filePath)
 			}
-
-			if len(d.filesDownloaded)+len(d.filesErrored) == d.numberOfFiles {
-				d.completed = true
-				d.parentOperation.Finish()
-			}
 		}
 
 		tasks = append(tasks, task)
 	}
 
-	d.tasks = tasks
-	d.totalBytes = totalBytes
-
-	return nil
+	return tasks, nil
 }
 
 // StartDownloads begins all the download tasks for the files.
 func (d *RunHistoryDownloadOperation) StartDownloads() ([]string, map[string]error) {
-	for _, task := range d.tasks {
-		d.fileTransferManager.AddTask(task)
+	parentOperation := d.operations.New("Downloading run history")
+	operationCtx := parentOperation.Context(context.Background())
+	defer parentOperation.Finish()
+
+	fileTransferStats := filetransfer.NewFileTransferStats()
+	fileTransfers := filetransfer.NewFileTransfers(
+		d.httpClient,
+		observability.NewNoOpLogger(),
+		fileTransferStats,
+	)
+	fileTransferManager := filetransfer.NewFileTransferManager(
+		filetransfer.FileTransferManagerOptions{
+			Logger:            observability.NewNoOpLogger(),
+			FileTransfers:     fileTransfers,
+			FileTransferStats: fileTransferStats,
+		},
+	)
+
+	tasks, err := d.createDownloadTasks(operationCtx, parentOperation)
+	if err != nil {
+		return nil, map[string]error{
+			"error": err,
+		}
 	}
-	d.fileTransferManager.Close()
+
+	for _, task := range tasks {
+		fileTransferManager.AddTask(task)
+	}
+	fileTransferManager.Close()
+
 	return d.filesDownloaded, d.filesErrored
 }
 
@@ -329,7 +300,6 @@ func (d *RunHistoryDownloadOperation) GetDownloadStatus() *spb.DownloadRunHistor
 	copy(downloadedFiles, d.filesDownloaded)
 
 	return &spb.DownloadRunHistoryStatusResponse{
-		Completed:      d.completed,
 		OperationStats: d.operations.ToProto(),
 	}
 }
