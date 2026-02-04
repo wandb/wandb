@@ -14,7 +14,6 @@ import (
 	"github.com/NimbleMarkets/ntcharts/canvas/runes"
 	"github.com/NimbleMarkets/ntcharts/linechart"
 	"github.com/charmbracelet/lipgloss"
-	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -30,22 +29,17 @@ const (
 	initDataSliceCap = 256
 )
 
-var cache, _ = lru.New(128)
-
-func mapStringToIndex(s string, sliceLen int) int {
-	if sliceLen <= 0 {
+// colorIndex returns a deterministic palette index for the given name.
+func colorIndex(name string, paletteLen int) int {
+	if paletteLen <= 0 {
 		return 0
-	}
-	if sum, ok := cache.Get(s); ok {
-		return int(sum.(uint32) % uint32(sliceLen))
 	}
 
 	h := fnv.New32a()
-	_, _ = h.Write([]byte(s))
+	_, _ = h.Write([]byte(name))
 	sum := h.Sum32()
 
-	cache.Add(s, sum)
-	return int(sum % uint32(sliceLen))
+	return int(sum % uint32(paletteLen))
 }
 
 // Series stores the raw samples in arrival order.
@@ -85,7 +79,7 @@ func NewSeries(name string, palette []lipgloss.AdaptiveColor) *Series {
 		palette = GraphColors(DefaultColorScheme)
 	}
 	// Stable mapping for consistent colors across sessions.
-	i := mapStringToIndex(name, len(palette))
+	i := colorIndex(name, len(palette))
 	graphStyle := lipgloss.NewStyle().Foreground(palette[i])
 	s.style.Store(graphStyle)
 
