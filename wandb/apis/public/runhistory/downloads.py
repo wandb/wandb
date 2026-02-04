@@ -41,21 +41,7 @@ class DownloadHistoryResult:
     errors: dict[pathlib.Path, str] | None = None
 
 
-def wait_for_download(
-    api: public.Api,
-    request_id: int,
-    contains_live_data: bool,
-) -> DownloadHistoryResult:
-    return wandb_setup.singleton().asyncer.run(
-        lambda: _watch_download_status(
-            api=api,
-            request_id=request_id,
-            contains_live_data=contains_live_data,
-        )
-    )
-
-
-async def _watch_download_status(
+async def wait_for_download_with_progress(
     api: public.Api,
     request_id: int,
     contains_live_data: bool,
@@ -99,7 +85,8 @@ class _DownloadStatusWatcher:
             )
         )
 
-        handle = await self.api._send_api_request_async(api_request)
+        handle = await wandb_setup.singleton().ensure_service().api_request_async(api_request)
+        # handle = await self.api._send_api_request_async(api_request)
         response = await handle.wait_async(timeout=None)
 
         downloaded_files = [

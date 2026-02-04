@@ -1666,4 +1666,10 @@ class Run(Attrs):
         request_id = (
             response.read_run_history_response.download_run_history_init.request_id
         )
-        return runhistory.wait_for_download(self._api, request_id, contains_live_data)
+        return wandb_setup.singleton().asyncer.run(
+            lambda: runhistory.wait_for_download_with_progress(
+                self._api,
+                request_id,
+                contains_live_data,
+            )
+        )
