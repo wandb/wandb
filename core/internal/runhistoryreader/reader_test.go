@@ -19,20 +19,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
 )
 
-func setEnv(t *testing.T, key, value string) {
-	t.Helper()
-	originalValue := os.Getenv(key)
-	os.Setenv(key, value)
-
-	t.Cleanup(func() {
-		if originalValue == "" {
-			os.Unsetenv(key)
-		} else {
-			os.Setenv(key, originalValue)
-		}
-	})
-}
-
 func respondWithParquetContent(
 	t *testing.T,
 	parquetContent []byte,
@@ -101,7 +87,7 @@ func mockGraphQLWithParquetUrls(urls []string) *gqlmock.MockClient {
 func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 	ctx := t.Context()
 	tempDir := t.TempDir()
-	setEnv(t, "WANDB_CACHE_DIR", tempDir)
+	t.Setenv("WANDB_CACHE_DIR", tempDir)
 
 	schema := arrow.NewSchema(
 		[]arrow.Field{
@@ -233,7 +219,7 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 	ctx := t.Context()
 	tempDir := t.TempDir()
-	setEnv(t, "WANDB_CACHE_DIR", tempDir)
+	t.Setenv("WANDB_CACHE_DIR", tempDir)
 
 	schema := arrow.NewSchema(
 		[]arrow.Field{

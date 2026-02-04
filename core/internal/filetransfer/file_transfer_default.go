@@ -1,7 +1,6 @@
 package filetransfer
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -203,7 +202,7 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		},
 	)
 	_, err = io.Copy(progressWriter, resp.Body)
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err != nil {
 		return err
 	}
 	return nil
