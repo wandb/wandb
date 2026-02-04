@@ -85,7 +85,11 @@ class _DownloadStatusWatcher:
             )
         )
 
-        handle = await wandb_setup.singleton().ensure_service().api_request_async(api_request)
+        handle = (
+            await wandb_setup.singleton()
+            .ensure_service()
+            .api_request_async(api_request)
+        )
         # handle = await self.api._send_api_request_async(api_request)
         response = await handle.wait_async(timeout=None)
 

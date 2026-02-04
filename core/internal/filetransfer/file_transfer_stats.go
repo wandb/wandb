@@ -30,10 +30,11 @@ type fileTransferStats struct {
 
 	done *atomic.Bool
 
-	uploadStatsByPath map[string]FileUploadInfo
+	statsByPath map[string]FileUploadInfo
 
 	uploadedBytes *atomic.Int64
 	totalBytes    *atomic.Int64
+
 	wandbCount    *atomic.Int32
 	mediaCount    *atomic.Int32
 	artifactCount *atomic.Int32
@@ -44,10 +45,11 @@ func NewFileTransferStats() FileTransferStats {
 	return &fileTransferStats{
 		done: &atomic.Bool{},
 
-		uploadStatsByPath: make(map[string]FileUploadInfo),
+		statsByPath: make(map[string]FileUploadInfo),
 
 		uploadedBytes: &atomic.Int64{},
 		totalBytes:    &atomic.Int64{},
+
 		wandbCount:    &atomic.Int32{},
 		mediaCount:    &atomic.Int32{},
 		artifactCount: &atomic.Int32{},
@@ -96,26 +98,15 @@ type FileUploadInfo struct {
 	TotalBytes int64
 }
 
-type FileDownloadInfo struct {
-	// The local path to the file being downloaded.
-	Path string
-
-	// The number of bytes downloaded so far.
-	DownloadedBytes int64
-
-	// The total number of bytes being downloaded.
-	TotalBytes int64
-}
-
 func (fts *fileTransferStats) UpdateUploadStats(newInfo FileUploadInfo) {
 	fts.Lock()
 	defer fts.Unlock()
 
-	if oldInfo, ok := fts.uploadStatsByPath[newInfo.Path]; ok {
+	if oldInfo, ok := fts.statsByPath[newInfo.Path]; ok {
 		fts.addStats(oldInfo, -1)
 	}
 
-	fts.uploadStatsByPath[newInfo.Path] = newInfo
+	fts.statsByPath[newInfo.Path] = newInfo
 	fts.addStats(newInfo, 1)
 }
 

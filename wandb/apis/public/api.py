@@ -304,7 +304,7 @@ class Api:
         Creates the backend service attribute if it has not been created yet.
 
         TODO: remove this helper function once all requests are routed through wandb-core.
-        The backend service should be created and initalized
+        The backend service should be created and initialized
         during the instantiation of the Api object.
         """
         if self._service is None:

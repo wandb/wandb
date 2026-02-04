@@ -52,8 +52,6 @@ func (p *WandbAPI) HandleRequest(
 	p.semaphore <- struct{}{}
 	defer func() { <-p.semaphore }()
 
-	// TODO: Implement request handling logic.
-	// For now respond with a place holder response.
 	if _, ok := request.Request.(*spb.ApiRequest_ReadRunHistoryRequest); ok {
 		return p.runHistoryApiHandler.HandleRequest(
 			request.GetReadRunHistoryRequest(),

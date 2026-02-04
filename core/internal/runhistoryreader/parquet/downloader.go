@@ -184,15 +184,14 @@ func NewRunHistoryDownloadOperation(
 	numberOfFiles := len(signedUrls)
 
 	downloadOperation := &RunHistoryDownloadOperation{
-		mu:        sync.Mutex{},
-
-		entity: entity,
-		project: project,
-		runId: runId,
-		downloadDir: downloadDir,
-		httpClient: httpClient,
-		signedUrls: signedUrls,
-		operations: wboperation.NewOperations(),
+		mu:              sync.Mutex{},
+		entity:          entity,
+		project:         project,
+		runId:           runId,
+		downloadDir:     downloadDir,
+		httpClient:      httpClient,
+		signedUrls:      signedUrls,
+		operations:      wboperation.NewOperations(),
 		filesDownloaded: make([]string, 0, numberOfFiles),
 		filesErrored:    make(map[string]error, numberOfFiles),
 	}
