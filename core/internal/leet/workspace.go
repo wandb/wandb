@@ -529,7 +529,7 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 		idxOnPage := i - startIdx
 		item := w.runs.FilteredItems[i]
 
-		// Determine row style
+		// Determine row style.
 		style := evenRunStyle
 		if idxOnPage%2 == 1 {
 			style = oddRunStyle
@@ -553,13 +553,12 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 		isSelected := w.selectedRuns[runKey]
 		isPinned := w.pinnedRun == runKey
 
-		// Determine marker
-		mark := " "
+		mark := "○"
 		if isSelected {
 			mark = "●"
 		}
 		if isPinned {
-			mark = "▶" // ✪ ◎ ▲ ▶ ◉ ▬ ◆ ▣ ■
+			mark = "→" // ✪ ◎ ▲ ▶ ◉ ▬ ◆ ▣ ■ → ○ ●
 		}
 
 		// Render prefix without background
@@ -567,7 +566,10 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 		prefixWidth := lipgloss.Width(prefix)
 
 		// Apply subtle muting to unselected/unpinned runs
-		nameStyle := style
+		nameStyle := style.Foreground(colorItemValue)
+		if idxOnPage == selectedLine {
+			nameStyle = nameStyle.Foreground(colorDark)
+		}
 		if !isSelected && !isPinned {
 			nameStyle = nameStyle.Foreground(colorText)
 		}

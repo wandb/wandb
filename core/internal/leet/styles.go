@@ -1,10 +1,69 @@
 package leet
 
 import (
+	"fmt"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
+
+// Terminal background detection (cached).
+var (
+	termBgOnce     sync.Once
+	termBgR        uint8
+	termBgG        uint8
+	termBgB        uint8
+	termBgDetected bool
+)
+
+// initTerminalBg queries the terminal for its background color (once).
+func initTerminalBg() {
+	termBgOnce.Do(func() {
+		output := termenv.NewOutput(os.Stdout)
+		bg := output.BackgroundColor()
+		if bg == nil {
+			return
+		}
+
+		// termenv.RGBColor is a string type like "#RRGGBB"
+		if rgb, ok := bg.(termenv.RGBColor); ok {
+			var r, g, b uint8
+			_, err := fmt.Sscanf(string(rgb), "#%02x%02x%02x", &r, &g, &b)
+			if err == nil {
+				termBgR, termBgG, termBgB = r, g, b
+				termBgDetected = true
+			}
+		}
+	})
+}
+
+// darkenRGB returns a hex color that is amount (0.0-1.0) darker.
+func darkenRGB(r, g, b uint8, amount float64) lipgloss.Color {
+	factor := 1.0 - amount
+	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x",
+		uint8(float64(r)*factor),
+		uint8(float64(g)*factor),
+		uint8(float64(b)*factor),
+	))
+}
+
+// getOddRunStyleColor returns a color 5% darker than the terminal background.
+func getOddRunStyleColor() lipgloss.TerminalColor {
+	initTerminalBg()
+
+	if termBgDetected {
+		return darkenRGB(termBgR, termBgG, termBgB, 0.05)
+	}
+
+	// Fallback when detection fails
+	return lipgloss.AdaptiveColor{
+		Light: "#d0d0d0",
+		Dark:  "#1c1c1c",
+	}
+}
 
 // Immutable UI constants.
 const (
@@ -107,6 +166,8 @@ var (
 		Light: "#949494",
 		Dark:  "#444444",
 	}
+
+	colorDark = lipgloss.Color("#171717")
 
 	// Color for layout elements when they're highlighted or focused.
 	colorLayoutHighlight = teal450
@@ -227,38 +288,38 @@ var colorSchemes = map[string][]lipgloss.AdaptiveColor{
 		lipgloss.AdaptiveColor{Light: "#10BFCC", Dark: "#E1F7FA"}, // == teal450
 	},
 	"wandb-vibe-10": {
-		lipgloss.AdaptiveColor{Light: "#B1B4B9", Dark: "#B1B4B9"},
-		lipgloss.AdaptiveColor{Light: "#58D3DB", Dark: "#58D3DB"},
-		lipgloss.AdaptiveColor{Light: "#5ED6A4", Dark: "#5ED6A4"},
-		lipgloss.AdaptiveColor{Light: "#FCA36F", Dark: "#FCA36F"},
-		lipgloss.AdaptiveColor{Light: "#FF7A88", Dark: "#FF7A88"},
-		lipgloss.AdaptiveColor{Light: "#7DB1FA", Dark: "#7DB1FA"},
-		lipgloss.AdaptiveColor{Light: "#BBE06B", Dark: "#BBE06B"},
-		lipgloss.AdaptiveColor{Light: "#FFCF4D", Dark: "#FFCF4D"},
-		lipgloss.AdaptiveColor{Light: "#E180FF", Dark: "#E180FF"},
-		lipgloss.AdaptiveColor{Light: "#B199FF", Dark: "#B199FF"},
+		lipgloss.AdaptiveColor{Light: "#8A8D91", Dark: "#B1B4B9"},
+		lipgloss.AdaptiveColor{Light: "#3DBAC4", Dark: "#58D3DB"},
+		lipgloss.AdaptiveColor{Light: "#42B88A", Dark: "#5ED6A4"},
+		lipgloss.AdaptiveColor{Light: "#E07040", Dark: "#FCA36F"},
+		lipgloss.AdaptiveColor{Light: "#E85565", Dark: "#FF7A88"},
+		lipgloss.AdaptiveColor{Light: "#5A96E0", Dark: "#7DB1FA"},
+		lipgloss.AdaptiveColor{Light: "#9AC24A", Dark: "#BBE06B"},
+		lipgloss.AdaptiveColor{Light: "#E0AD20", Dark: "#FFCF4D"},
+		lipgloss.AdaptiveColor{Light: "#C85EE8", Dark: "#E180FF"},
+		lipgloss.AdaptiveColor{Light: "#9475E8", Dark: "#B199FF"},
 	},
 	"wandb-vibe-20": {
-		lipgloss.AdaptiveColor{Light: "#D4D5D9", Dark: "#D4D5D9"},
-		lipgloss.AdaptiveColor{Light: "#565C66", Dark: "#565C66"},
-		lipgloss.AdaptiveColor{Light: "#A9EDF2", Dark: "#A9EDF2"},
-		lipgloss.AdaptiveColor{Light: "#038194", Dark: "#038194"},
-		lipgloss.AdaptiveColor{Light: "#A1F0CB", Dark: "#A1F0CB"},
-		lipgloss.AdaptiveColor{Light: "#00875A", Dark: "#00875A"},
-		lipgloss.AdaptiveColor{Light: "#FFCFB2", Dark: "#FFCFB2"},
-		lipgloss.AdaptiveColor{Light: "#C2562F", Dark: "#C2562F"},
-		lipgloss.AdaptiveColor{Light: "#FFC7CA", Dark: "#FFC7CA"},
-		lipgloss.AdaptiveColor{Light: "#CC2944", Dark: "#CC2944"},
-		lipgloss.AdaptiveColor{Light: "#BDD9FF", Dark: "#BDD9FF"},
-		lipgloss.AdaptiveColor{Light: "#1F59C4", Dark: "#1F59C4"},
-		lipgloss.AdaptiveColor{Light: "#D0ED9D", Dark: "#D0ED9D"},
-		lipgloss.AdaptiveColor{Light: "#5F8A2D", Dark: "#5F8A2D"},
-		lipgloss.AdaptiveColor{Light: "#FFE49E", Dark: "#FFE49E"},
-		lipgloss.AdaptiveColor{Light: "#B8740F", Dark: "#B8740F"},
-		lipgloss.AdaptiveColor{Light: "#EFC2FC", Dark: "#EFC2FC"},
-		lipgloss.AdaptiveColor{Light: "#9E36C2", Dark: "#9E36C2"},
-		lipgloss.AdaptiveColor{Light: "#D6C9FF", Dark: "#D6C9FF"},
-		lipgloss.AdaptiveColor{Light: "#6645D1", Dark: "#6645D1"},
+		lipgloss.AdaptiveColor{Light: "#AEAFB3", Dark: "#D4D5D9"},
+		lipgloss.AdaptiveColor{Light: "#454B54", Dark: "#565C66"},
+		lipgloss.AdaptiveColor{Light: "#7AD4DB", Dark: "#A9EDF2"},
+		lipgloss.AdaptiveColor{Light: "#04707F", Dark: "#038194"},
+		lipgloss.AdaptiveColor{Light: "#6DDBA8", Dark: "#A1F0CB"},
+		lipgloss.AdaptiveColor{Light: "#00704A", Dark: "#00875A"},
+		lipgloss.AdaptiveColor{Light: "#EAB08A", Dark: "#FFCFB2"},
+		lipgloss.AdaptiveColor{Light: "#A84728", Dark: "#C2562F"},
+		lipgloss.AdaptiveColor{Light: "#EAA0A5", Dark: "#FFC7CA"},
+		lipgloss.AdaptiveColor{Light: "#B82038", Dark: "#CC2944"},
+		lipgloss.AdaptiveColor{Light: "#8FBDE8", Dark: "#BDD9FF"},
+		lipgloss.AdaptiveColor{Light: "#2850A8", Dark: "#1F59C4"},
+		lipgloss.AdaptiveColor{Light: "#B0D470", Dark: "#D0ED9D"},
+		lipgloss.AdaptiveColor{Light: "#4E7424", Dark: "#5F8A2D"},
+		lipgloss.AdaptiveColor{Light: "#EAC860", Dark: "#FFE49E"},
+		lipgloss.AdaptiveColor{Light: "#9A5E10", Dark: "#B8740F"},
+		lipgloss.AdaptiveColor{Light: "#D99DE8", Dark: "#EFC2FC"},
+		lipgloss.AdaptiveColor{Light: "#8528A8", Dark: "#9E36C2"},
+		lipgloss.AdaptiveColor{Light: "#B8A8E8", Dark: "#D6C9FF"},
+		lipgloss.AdaptiveColor{Light: "#5538B0", Dark: "#6645D1"},
 	},
 }
 
@@ -394,10 +455,6 @@ var (
 	workspaceHeaderLines    = 1
 	runsSidebarBorderCols   = 2
 
-	colorOddRunStyle = lipgloss.AdaptiveColor{
-		Light: "#d0d0d0",
-		Dark:  "#1c1c1c",
-	}
 	colorSelectedRunStyle = lipgloss.AdaptiveColor{
 		Dark:  "#FCBC32",
 		Light: "#FCBC32",
@@ -409,7 +466,7 @@ var (
 	}
 
 	evenRunStyle             = lipgloss.NewStyle()
-	oddRunStyle              = lipgloss.NewStyle().Background(colorOddRunStyle)
+	oddRunStyle              = lipgloss.NewStyle().Background(getOddRunStyleColor())
 	selectedRunStyle         = lipgloss.NewStyle().Background(colorSelectedRunStyle)
 	selectedRunInactiveStyle = lipgloss.NewStyle().Background(colorSelectedRunInactiveStyle)
 )
