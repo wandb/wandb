@@ -36,6 +36,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries, Registry
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
+from wandb.apis.public.service_api import ServiceAPI
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
@@ -44,7 +45,6 @@ from wandb.apis.public.utils import (
 )
 from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name, server_supports
@@ -53,7 +53,6 @@ from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.gql_request import GraphQLSession
-from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 if TYPE_CHECKING:
     from wandb.automations import (
@@ -241,21 +240,10 @@ class Api:
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
 
-        self._backend: wandb.sdk.backend.backend.Backend | None = None
-        self._service = None
-
-    def _start_backend_service(self):
-        """Starts the backend service and initializes resources to enable handling API requests."""
-        from wandb.sdk import wandb_setup
-
-        self._stream_id = str(runid.generate_id())
-        singleton = wandb_setup.singleton()
-        self._settings = singleton.settings.model_copy()
-        self._settings.base_url = self.settings["base_url"]
-        self._settings.silent = True
-
-        self._service = singleton.ensure_service()
-        self._service.api_init_request(self._settings.to_proto())
+        settings = wandb_setup.singleton().settings.model_copy()
+        settings.base_url = base_url
+        settings.api_key = self.api_key or ""
+        self._service_api = ServiceAPI(settings=settings)
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""
@@ -294,42 +282,6 @@ class Api:
                 "email": email,
             },
         )
-
-    def _send_api_request(
-        self,
-        request: ApiRequest,
-        timeout: float | None = None,
-    ) -> ApiResponse:
-        """Sends an API request to the backend service.
-
-        Creates the backend service attribute if it has not been created yet.
-
-        TODO: remove this helper function once all requests are routed through wandb-core.
-        The backend service should be created and initialized
-        during the instantiation of the Api object.
-        """
-        if self._service is None:
-            self._start_backend_service()
-
-        assert self._service is not None
-        return self._service.api_request(request, timeout=timeout)
-
-    async def _send_api_request_async(
-        self,
-        request: ApiRequest,
-        timeout: float | None = None,
-    ) -> MailboxHandle[ApiResponse]:
-        """Sends an API request to the backend service asynchronously.
-
-        Args:
-            request: The API request to send.
-            timeout: The timeout for the request.
-        """
-        if self._service is None:
-            self._start_backend_service()
-
-        assert self._service is not None
-        return await self._service.api_request_async(request)
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -1222,7 +1174,7 @@ class Api:
             self.client,
             entity,
             project,
-            api=self,
+            service_api=self._service_api,
             filters=filters,
             order=order,
             per_page=per_page,
@@ -1251,7 +1203,7 @@ class Api:
                 entity,
                 project,
                 run_id,
-                api=self,
+                service_api=self._service_api,
                 lazy=False,
             )
         return self._runs[path]

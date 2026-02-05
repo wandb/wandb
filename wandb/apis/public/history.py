@@ -21,12 +21,13 @@ from typing_extensions import Self, TypeAlias
 from wandb_gql import gql
 
 from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.public.service_api import ServiceAPI
 from wandb.proto import wandb_api_pb2 as pb
 from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 if TYPE_CHECKING:
     from . import runs
-    from .api import Api, RetryingClient
+    from .api import RetryingClient
 
 _RowDict: TypeAlias = dict[str, Any]
 """Type alias for a single history row as a dict."""
@@ -40,7 +41,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
 
     def __init__(
         self,
-        api: Api,
+        service_api: ServiceAPI,
         run: runs.Run,
         min_step: int,
         max_step: int,
@@ -53,7 +54,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         self.max_step = max_step
         self.keys = keys
         self.page_size = page_size
-        self._api = api
+        self._service_api = service_api
 
         # Tell wandb-core to initialize resources to scan the run's history.
         scan_run_history_init = pb.ScanRunHistoryInit(
@@ -69,7 +70,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         api_request = pb.ApiRequest(
             read_run_history_request=scan_run_history_init_request
         )
-        response: pb.ApiResponse = self._api._send_api_request(api_request)
+        response: pb.ApiResponse = self._service_api.send_api_request(api_request)
 
         self._scan_request_id = (
             response.read_run_history_response.scan_run_history_init.request_id
@@ -88,7 +89,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         weakref.finalize(
             self,
             self.cleanup,
-            self._api,
+            self._service_api,
             self._scan_request_id,
         )
 
@@ -122,7 +123,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         )
         api_request = pb.ApiRequest(read_run_history_request=read_run_history_request)
 
-        response: pb.ApiResponse = self._api._send_api_request(api_request)
+        response: pb.ApiResponse = self._service_api.send_api_request(api_request)
         run_history: pb.RunHistoryResponse = (
             response.read_run_history_response.run_history
         )
@@ -139,7 +140,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         }
 
     @staticmethod
-    def cleanup(api: Api, request_id: int) -> None:
+    def cleanup(service_api: ServiceAPI, request_id: int) -> None:
         scan_run_history_cleanup = pb.ScanRunHistoryCleanup(
             request_id=request_id,
         )
@@ -148,7 +149,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         )
 
         with contextlib.suppress(ConnectionResetError, MailboxClosedError):
-            api._send_api_request(
+            service_api.send_api_request(
                 pb.ApiRequest(read_run_history_request=scan_run_history_cleanup_request)
             )
 
