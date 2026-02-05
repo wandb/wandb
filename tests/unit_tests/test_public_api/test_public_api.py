@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
+from pytest_mock import MockerFixture
 from requests import HTTPError
 from wandb import Api
 from wandb.apis import internal
@@ -292,11 +293,12 @@ def test_initialize_api_uses_explicit_key(
         source="test",
     )
 
-    api = Api(api_key="test-api-key", overrides={"base_url": "https://test-url"})
+    key = "test-api-key" * 8
+    api = Api(api_key=key, overrides={"base_url": "https://test-url"})
 
-    assert api.api_key == "test-api-key"
+    assert api.api_key == key
     mock_verify_login.assert_called_once_with(
-        key="test-api-key",
+        key=key,
         base_url="https://test-url",
     )
 
@@ -384,3 +386,17 @@ def test_project_load__raises_error(monkeypatch):
 
     with pytest.raises(ValueError):
         project._load()
+
+
+@pytest.mark.usefixtures("skip_verify_login")
+def test_api_uses_as_requests_auth(mocker: MockerFixture):
+    """Test that Api() calls as_requests_auth() on the auth object."""
+    mock_auth = mocker.Mock(spec=wbauth.Auth)
+    mock_auth.host = wbauth.HostUrl("https://api.wandb.ai")
+    mock_auth.as_requests_auth = mocker.Mock(return_value=mocker.Mock())
+
+    mocker.patch.object(wbauth, "authenticate_session", return_value=mock_auth)
+
+    Api()
+
+    mock_auth.as_requests_auth.assert_called_once()
