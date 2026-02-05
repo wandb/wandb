@@ -15,7 +15,6 @@ else:
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
-@typing_extensions.final
 class TelemetryRecord(google.protobuf.message.Message):
     """
     Telemetry
@@ -80,7 +79,6 @@ class TelemetryRecord(google.protobuf.message.Message):
 
 global___TelemetryRecord = TelemetryRecord
 
-@typing_extensions.final
 class TelemetryResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -90,7 +88,6 @@ class TelemetryResult(google.protobuf.message.Message):
 
 global___TelemetryResult = TelemetryResult
 
-@typing_extensions.final
 class Imports(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -402,7 +399,6 @@ class Imports(google.protobuf.message.Message):
 
 global___Imports = Imports
 
-@typing_extensions.final
 class Feature(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -696,7 +692,6 @@ class Feature(google.protobuf.message.Message):
 
 global___Feature = Feature
 
-@typing_extensions.final
 class Env(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -748,7 +743,6 @@ class Env(google.protobuf.message.Message):
 
 global___Env = Env
 
-@typing_extensions.final
 class Labels(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -772,7 +766,6 @@ class Labels(google.protobuf.message.Message):
 
 global___Labels = Labels
 
-@typing_extensions.final
 class Deprecated(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -888,7 +881,6 @@ class Deprecated(google.protobuf.message.Message):
 
 global___Deprecated = Deprecated
 
-@typing_extensions.final
 class Issues(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
