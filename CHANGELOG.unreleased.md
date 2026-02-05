@@ -13,6 +13,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- `owner` property on `wandb.apis.public.Project` to access the project owner's user information. (@jacobromero in https://github.com/wandb/wandb/pull/11278)
+
 ### Fixed
 
 - Sweep agents now exit gracefully when the sweep is deleted, instead of running indefinitely with repeated 404 errors (@domphan-wandb in https://github.com/wandb/wandb/pull/11226)
