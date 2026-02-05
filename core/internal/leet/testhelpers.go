@@ -93,6 +93,7 @@ func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {
 	return c.inspection.MouseX, c.inspection.Active
 }
 
+// TestBounds exposes the chart's current bounds for testing.
 func (c *EpochLineChart) TestBounds() (xMin, xMax, yMin, yMax float64) {
 	return c.xMin, c.xMax, c.yMin, c.yMax
 }

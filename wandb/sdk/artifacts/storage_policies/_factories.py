@@ -37,6 +37,9 @@ def make_http_session() -> Session:
     HTTP_RETRY_STRATEGY: Final[Retry] = Retry(  # noqa: N806
         backoff_factor=1,
         total=16,
+        # 401, 403 are not retried because expired presigned url
+        # requires calling graphql to get a new url. Upper layer such as
+        # _download_chunk_with_refresh in _multipart handles refresh.
         status_forcelist=(308, 408, 409, 429, 500, 502, 503, 504),
     )
 

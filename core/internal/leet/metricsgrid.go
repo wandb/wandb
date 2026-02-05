@@ -160,8 +160,6 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 		chart.AddData(msg.RunPath, data)
 	}
 
-	// wg.Wait()
-
 	// Keep ordering, colors, maps and filtered set in sync.
 	if needsSort {
 		mg.sortChartsNoLock()  // re-sorts + assigns stable colors

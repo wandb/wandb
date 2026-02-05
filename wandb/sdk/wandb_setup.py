@@ -501,6 +501,7 @@ def _maybe_update_credentials(settings: Settings) -> None:
             wbauth.AuthIdentityTokenFile(
                 host=wbauth.HostUrl(settings.base_url, app_url=settings.app_url),
                 path=settings.identity_token_file,
+                credentials_file=settings.credentials_file,
             ),
             source="wandb.setup()",
         )
