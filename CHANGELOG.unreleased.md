@@ -12,3 +12,7 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Added
+- Add Flax models support for `wandb.watch` (@flferretti in https://github.com/wandb/wandb/pull/)
+
