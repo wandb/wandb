@@ -456,18 +456,22 @@ func (s *RunOverviewSidebar) renderItem(
 	keyStyle := runOverviewSidebarKeyStyle
 	valueStyle := runOverviewSidebarValueStyle
 
-	// Highlight selected item.
-	if section.Active && posInPage == section.CurrentLine() {
-		keyStyle = keyStyle.Background(colorSelected)
-		valueStyle = valueStyle.Background(colorSelected)
+	isHighlighted := section.Active && posInPage == section.CurrentLine()
+	if isHighlighted {
+		keyStyle = runOverviewSidebarHighlightedItem
+		valueStyle = runOverviewSidebarHighlightedItem
 	}
 
 	key := truncateValue(item.Key, maxKeyWidth)
 	value := truncateValue(item.Value, maxValueWidth)
 
-	return fmt.Sprintf("%s %s",
-		keyStyle.Width(maxKeyWidth).Render(key),
-		valueStyle.Render(value))
+	renderedKey := keyStyle.Width(maxKeyWidth).Render(key)
+
+	if isHighlighted {
+		gap := runOverviewSidebarHighlightedItem.Render(" ")
+		return renderedKey + gap + valueStyle.Width(maxValueWidth).Render(value)
+	}
+	return renderedKey + " " + valueStyle.Render(value)
 }
 
 // hasNextVisibleSection returns true if there's another visible section after idx.

@@ -277,6 +277,16 @@ func (w *Workspace) renderRunOverview() string {
 	w.runOverviewSidebar.SetRunOverview(ro)
 	w.runOverviewSidebar.Sync()
 
+	// Manage section activation based on which sidebar has keyboard focus.
+	// When the run selector owns focus, show overview data without any
+	// highlighted row. When the overview owns focus, ensure at least one
+	// section is active so the user can navigate.
+	if w.runs.Active {
+		w.runOverviewSidebar.deactivateAllSections()
+	} else if !w.runOverviewSidebar.hasActiveSection() {
+		w.runOverviewSidebar.selectFirstAvailableItem()
+	}
+
 	sidebarH := max(w.height-StatusBarHeight, 0)
 	innerH := max(sidebarH-workspaceTopMarginLines, 0)
 
@@ -558,7 +568,7 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			mark = "●"
 		}
 		if isPinned {
-			mark = "→" // ✪ ◎ ▲ ▶ ◉ ▬ ◆ ▣ ■ → ○ ●
+			mark = "■" // ✪ ◎ ▲ ▶ ◉ ▬ ◆ ▣ ■ → ○ ●
 		}
 
 		// Render prefix without background

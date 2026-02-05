@@ -381,9 +381,11 @@ var (
 var (
 	runOverviewSidebarSectionHeaderStyle = lipgloss.
 						NewStyle().Bold(true).Foreground(colorSubheading)
-	runOverviewSidebarSectionStyle = lipgloss.NewStyle().Foreground(colorText).Bold(true)
-	runOverviewSidebarKeyStyle     = lipgloss.NewStyle().Foreground(colorItemKey)
-	runOverviewSidebarValueStyle   = lipgloss.NewStyle().Foreground(colorItemValue)
+	runOverviewSidebarSectionStyle    = lipgloss.NewStyle().Foreground(colorText).Bold(true)
+	runOverviewSidebarKeyStyle        = lipgloss.NewStyle().Foreground(colorItemKey)
+	runOverviewSidebarValueStyle      = lipgloss.NewStyle().Foreground(colorItemValue)
+	runOverviewSidebarHighlightedItem = lipgloss.NewStyle().
+						Foreground(colorDark).Background(colorSelectedRunStyle)
 )
 
 // Left sidebar styles.

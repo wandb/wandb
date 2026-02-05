@@ -762,6 +762,7 @@ func (w *Workspace) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
 	if !overviewExpanded {
 		// Can't keep focus on a hidden/collapsed sidebar.
 		w.runs.Active = true
+		w.runOverviewSidebar.deactivateAllSections()
 		return nil
 	}
 	if !runsExpanded {
@@ -774,15 +775,18 @@ func (w *Workspace) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
 	if first == -1 || last == -1 {
 		// No navigable sections; return focus to the runs list.
 		w.runs.Active = true
+		w.runOverviewSidebar.deactivateAllSections()
 		return nil
 	}
 
 	if direction == 1 && w.runOverviewSidebar.activeSection == last {
 		w.runs.Active = true
+		w.runOverviewSidebar.deactivateAllSections()
 		return nil
 	}
 	if direction == -1 && w.runOverviewSidebar.activeSection == first {
 		w.runs.Active = true
+		w.runOverviewSidebar.deactivateAllSections()
 		return nil
 	}
 
