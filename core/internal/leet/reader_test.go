@@ -31,7 +31,7 @@ func TestParseHistory_StepAndMetrics(t *testing.T) {
 		{NestedKey: []string{"loss"}, ValueJson: "0.5"},
 		{NestedKey: []string{"_runtime"}, ValueJson: "1.2"},
 	}}
-	msg := leet.ParseHistory(h).(leet.HistoryMsg)
+	msg := leet.ParseHistory("/some/run/path", h).(leet.HistoryMsg)
 	require.Equal(t, 2.0, msg.Metrics["loss"].X[0])
 	require.Equal(t, 0.5, msg.Metrics["loss"].Y[0])
 }
@@ -223,7 +223,7 @@ func TestParseStats_ComplexMetrics(t *testing.T) {
 		},
 	}
 
-	msg := leet.ParseStats(stats).(leet.StatsMsg)
+	msg := leet.ParseStats("/some/run/path", stats).(leet.StatsMsg)
 
 	// Verify timestamp
 	require.Equal(t, int64(1234567890), msg.Timestamp)

@@ -11,6 +11,16 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.24.2] - 2026-02-04
+
+### Added
+
+- wandb.Api() now supports Federated Auth (JWT based authentication). (@ryanbuccellato in https://github.com/wandb/wandb/pull/11243)
+
+### Fixed
+
+- Refresh presigned download url when it expires during artifact file downloads. (@pingleiwandb in https://github.com/wandb/wandb/pull/11242)
+
 ## [0.24.1] - 2026-01-29
 
 ### Notable Changes

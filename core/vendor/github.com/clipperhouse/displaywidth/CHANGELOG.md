@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.9.0]
+
+[Compare](https://github.com/clipperhouse/displaywidth/compare/v0.8.0...v0.9.0)
+
+### Changed
+- Unicode 17 support: East Asian Width and emoji data updated to Unicode 17.0.0. (#18)
+- Upgraded uax29 dependency to v2.5.0 (Unicode 17 grapheme segmentation).
+
+## [0.8.0]
+
+[Compare](https://github.com/clipperhouse/displaywidth/compare/v0.7.0...v0.8.0)
+
+### Changed
+- Performance: ASCII fast path that applies to any run of printable
+  ASCII. 2x-10x faster for ASCII text vs v0.7.0. (#16)
+- Upgraded uax29 dependency to v2.4.0 for Unicode 16 support. Text that includes
+  Indic_Conjunct_Break may segment differently (and more correctly). (#15)
+
+## [0.7.0]
+
+[Compare](https://github.com/clipperhouse/displaywidth/compare/v0.6.2...v0.7.0)
+
+### Added
+- New `TruncateString` and `TruncateBytes` methods to truncate strings to a
+  maximum display width, with optional tail (like an ellipsis). (#13)
+
+## [0.6.2]
+
+[Compare](https://github.com/clipperhouse/displaywidth/compare/v0.6.1...v0.6.2)
+
+### Changed
+- Internal: reduced property categories for simpler trie.
+
 ## [0.6.1]
 
 [Compare](https://github.com/clipperhouse/displaywidth/compare/v0.6.0...v0.6.1)
@@ -19,7 +52,7 @@
 widths of grapheme clusters.
 
 ### Changed
-- Added ASCII fast paths
+- Fast ASCII lookups
 
 ## [0.5.0]
 

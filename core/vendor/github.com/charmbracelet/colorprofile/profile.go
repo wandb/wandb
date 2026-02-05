@@ -11,10 +11,12 @@ import (
 type Profile byte
 
 const (
+	// Unknown is a profile that represents the absence of a profile.
+	Unknown Profile = iota
 	// NoTTY is a profile with no terminal support.
-	NoTTY Profile = iota
-	// Ascii is a profile with no color support.
-	Ascii //nolint:revive
+	NoTTY
+	// ASCII is a profile with no color support.
+	ASCII
 	// ANSI is a profile with 16 colors (4-bit).
 	ANSI
 	// ANSI256 is a profile with 256 colors (8-bit).
@@ -22,6 +24,9 @@ const (
 	// TrueColor is a profile with 16 million colors (24-bit).
 	TrueColor
 )
+
+// Ascii is an alias for the [ASCII] profile for backwards compatibility.
+const Ascii = ASCII //nolint:revive
 
 // String returns the string representation of a Profile.
 func (p Profile) String() string {
@@ -32,12 +37,13 @@ func (p Profile) String() string {
 		return "ANSI256"
 	case ANSI:
 		return "ANSI"
-	case Ascii:
+	case ASCII:
 		return "Ascii"
 	case NoTTY:
 		return "NoTTY"
+	default:
+		return "Unknown"
 	}
-	return "Unknown"
 }
 
 var (
@@ -50,7 +56,7 @@ var (
 
 // Convert transforms a given Color to a Color supported within the Profile.
 func (p Profile) Convert(c color.Color) (cc color.Color) {
-	if p <= Ascii {
+	if p <= ASCII {
 		return nil
 	}
 	if p == TrueColor {
@@ -90,11 +96,13 @@ func (p Profile) Convert(c color.Color) (cc color.Color) {
 		return c
 
 	default:
-		if p == ANSI256 {
+		switch p {
+		case ANSI256:
 			return ansi.Convert256(c)
-		} else if p == ANSI {
+		case ANSI:
 			return ansi.Convert16(c)
+		default:
+			return c
 		}
-		return c
 	}
 }

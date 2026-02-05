@@ -89,7 +89,7 @@ func (m *Model) handleRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	defer timeit(m.logger, "Model.handleHistoryMsg")()
 	// Route to the grid; it handles sorting/filtering/pagination/focus itself.
-	shouldDraw := m.metricsGrid.ProcessHistory(msg.Metrics)
+	shouldDraw := m.metricsGrid.ProcessHistory(msg)
 	if shouldDraw && !m.suppressDraw {
 		m.metricsGrid.drawVisible()
 	}
