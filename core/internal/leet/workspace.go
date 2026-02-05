@@ -64,6 +64,15 @@ type Workspace struct {
 	width, height int
 }
 
+// workspaceRun holds per‑run state for the workspace multi‑run view.
+type workspaceRun struct {
+	key       string
+	wandbPath string
+	reader    *WandbReader
+	watcher   *WatcherManager
+	state     RunState
+}
+
 func NewWorkspace(
 	wandbDir string,
 	cfg *ConfigManager,
@@ -205,6 +214,114 @@ func (w *Workspace) View() string {
 	return lipgloss.Place(w.width, w.height, lipgloss.Left, lipgloss.Top, fullView)
 }
 
+// IsFiltering reports whether any workspace-level filter UI is active.
+func (w *Workspace) IsFiltering() bool {
+	return w.metricsGrid.IsFilterMode() || w.filter.IsActive()
+}
+
+// SelectedRunWandbFile returns the full path to the .wandb file for the selected run.
+//
+// Returns empty string if no run is selected.
+func (w *Workspace) SelectedRunWandbFile() string {
+	total := len(w.runs.FilteredItems)
+	if total == 0 {
+		return ""
+	}
+
+	startIdx := w.runs.CurrentPage() * w.runs.ItemsPerPage()
+	idx := startIdx + w.runs.CurrentLine()
+	if idx < 0 || idx >= total {
+		return ""
+	}
+
+	return runWandbFile(w.wandbDir, w.runs.FilteredItems[idx].Key)
+}
+
+// ---- Layout & Sidebar Helpers ----
+
+// recalculateLayout recomputes viewports and pushes dimensions to the metrics
+// grid. Call after any change that affects available content area (sidebar
+// toggle, window resize, animation tick).
+func (w *Workspace) recalculateLayout() {
+	layout := w.computeViewports()
+	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+}
+
+// computeViewports returns the computed layout dimensions.
+func (w *Workspace) computeViewports() Layout {
+	leftW, rightW := w.runsAnimState.Width(), w.runOverviewSidebar.Width()
+
+	contentW := max(w.width-leftW-rightW, 1)
+	contentH := max(w.height-StatusBarHeight, 1)
+
+	return Layout{leftW, contentW, rightW, contentH}
+}
+
+// updateSidebarDimensions tells both sidebars to recalculate their expanded
+// widths given the post-toggle visibility of each side.
+func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
+	var leftWidth int
+	if rightVisible {
+		leftWidth = int(float64(w.width) * SidebarWidthRatioBoth)
+	} else {
+		leftWidth = int(float64(w.width) * SidebarWidthRatio)
+	}
+	w.runsAnimState.SetExpandedWidth(clamp(leftWidth, SidebarMinWidth, SidebarMaxWidth))
+	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
+}
+
+// resolveSidebarFocus ensures runs.Active reflects which sidebar should
+// receive keyboard input after a visibility change.
+//
+// Rules:
+//   - Exactly one sidebar visible → that sidebar gets focus.
+//   - Both hidden → default to runs focus.
+//   - Both visible → keep current focus.
+func (w *Workspace) resolveSidebarFocus(leftVisible, rightVisible bool) {
+	switch {
+	case leftVisible && !rightVisible:
+		w.runs.Active = true
+	case !leftVisible && rightVisible:
+		w.runs.Active = false
+	case !leftVisible && !rightVisible:
+		w.runs.Active = true
+		// Both visible: preserve current focus.
+	}
+}
+
+// handleWindowResize handles window resize messages.
+func (w *Workspace) handleWindowResize(width, height int) {
+	w.SetSize(width, height)
+	w.updateSidebarDimensions(w.runsAnimState.IsVisible(), w.runOverviewSidebar.IsVisible())
+	w.recalculateLayout()
+}
+
+// runsAnimationCmd returns a command to continue the animation on section toggle.
+func (w *Workspace) runsAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
+		return WorkspaceRunsAnimationMsg{}
+	})
+}
+
+// runOverviewAnimationCmd returns a command to continue the animation on section toggle.
+func (w *Workspace) runOverviewAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
+		return WorkspaceRunOverviewAnimationMsg{}
+	})
+}
+
+// ---- Run State Helpers ----
+
+// anyRunRunning reports whether any selected run is currently live.
+func (w *Workspace) anyRunRunning() bool {
+	for key, run := range w.runsByKey {
+		if run != nil && run.state == RunStateRunning && w.selectedRuns[key] {
+			return true
+		}
+	}
+	return false
+}
+
 func (w *Workspace) dropRun(runKey string) {
 	delete(w.selectedRuns, runKey)
 
@@ -215,7 +332,7 @@ func (w *Workspace) dropRun(runKey string) {
 
 	run, ok := w.runsByKey[runKey]
 	if ok && run != nil {
-		if w.metricsGrid != nil && run.wandbPath != "" {
+		if run.wandbPath != "" {
 			w.metricsGrid.RemoveSeries(run.wandbPath)
 		}
 		w.stopWatcher(run)
@@ -230,6 +347,43 @@ func (w *Workspace) dropRun(runKey string) {
 		w.heartbeatMgr.Stop()
 	}
 }
+
+// getOrCreateRunOverview returns the RunOverview for the given key, creating one if needed.
+func (w *Workspace) getOrCreateRunOverview(runKey string) *RunOverview {
+	ro := w.runOverview[runKey]
+	if ro != nil {
+		return ro
+	}
+	ro = NewRunOverview()
+	w.runOverview[runKey] = ro
+	return ro
+}
+
+// refreshPinnedRun ensures the pinned run (if any) is drawn on top in all charts.
+func (w *Workspace) refreshPinnedRun() {
+	if w.pinnedRun == "" {
+		return
+	}
+	run, ok := w.runsByKey[w.pinnedRun]
+	if !ok || run == nil || run.wandbPath == "" {
+		return
+	}
+	w.metricsGrid.PromoteSeriesToTop(run.wandbPath)
+}
+
+// ---- Focus Query Helpers ----
+
+func (w *Workspace) runSelectorActive() bool {
+	return w.runs.Active &&
+		w.runsAnimState.IsVisible() &&
+		len(w.runs.FilteredItems) > 0
+}
+
+func (w *Workspace) runOverviewActive() bool {
+	return !w.runs.Active && w.runOverviewSidebar.animState.IsVisible()
+}
+
+// ---- Rendering ----
 
 func (w *Workspace) renderRunsList() string {
 	startIdx, endIdx := w.syncRunsPage()
@@ -302,7 +456,7 @@ func (w *Workspace) renderMetrics() string {
 	}
 
 	// No runs selected: show the logo + spherical cow without any header.
-	if len(w.selectedRuns) == 0 || w.metricsGrid == nil {
+	if len(w.selectedRuns) == 0 {
 		artStyle := lipgloss.NewStyle().
 			Foreground(colorHeading).
 			Bold(true)
@@ -346,7 +500,7 @@ func (w *Workspace) renderStatusBar() string {
 
 func (w *Workspace) buildStatusText() string {
 	// Metrics filter input mode has top priority.
-	if w.metricsGrid != nil && w.metricsGrid.IsFilterMode() {
+	if w.metricsGrid.IsFilterMode() {
 		return w.buildMetricsFilterStatus()
 	}
 
@@ -360,9 +514,6 @@ func (w *Workspace) buildStatusText() string {
 }
 
 func (w *Workspace) buildMetricsFilterStatus() string {
-	if w.metricsGrid == nil {
-		return ""
-	}
 	return fmt.Sprintf(
 		"Filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
 		w.metricsGrid.FilterMode().String(),
@@ -378,7 +529,7 @@ func (w *Workspace) buildMetricsFilterStatus() string {
 func (w *Workspace) buildActiveStatus() string {
 	var parts []string
 
-	if w.metricsGrid != nil && w.metricsGrid.IsFiltering() {
+	if w.metricsGrid.IsFiltering() {
 		parts = append(parts, fmt.Sprintf(
 			"Filter (%s): %q [%d/%d] (/ to change, ctrl+l to clear)",
 			w.metricsGrid.FilterMode().String(),
@@ -391,11 +542,7 @@ func (w *Workspace) buildActiveStatus() string {
 	totalRuns := len(w.runs.Items)
 	if totalRuns > 0 {
 		selected := len(w.selectedRuns)
-		if selected == 0 {
-			parts = append(parts, fmt.Sprintf("Runs: 0/%d selected", totalRuns))
-		} else {
-			parts = append(parts, fmt.Sprintf("Runs: %d/%d selected", selected, totalRuns))
-		}
+		parts = append(parts, fmt.Sprintf("Runs: %d/%d selected", selected, totalRuns))
 	}
 
 	if w.pinnedRun != "" {
@@ -415,65 +562,6 @@ func (w *Workspace) buildHelpText() string {
 		return ""
 	}
 	return "h: help"
-}
-
-// IsFiltering reports whether any workspace-level filter UI is active.
-func (w *Workspace) IsFiltering() bool {
-	if w.metricsGrid != nil && w.metricsGrid.IsFilterMode() {
-		return true
-	}
-	if w.filter.IsActive() {
-		return true
-	}
-	return false
-}
-
-func (w *Workspace) updateLeftSidebarDimensions(rightSidebarVisible bool) {
-	var calculatedWidth int
-
-	if rightSidebarVisible {
-		calculatedWidth = int(float64(w.width) * SidebarWidthRatioBoth)
-	} else {
-		calculatedWidth = int(float64(w.width) * SidebarWidthRatio)
-	}
-
-	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
-	w.runsAnimState.SetExpandedWidth(expandedWidth)
-}
-
-// handleWindowResize handles window resize messages.
-func (w *Workspace) handleWindowResize(width, height int) {
-	w.SetSize(width, height)
-
-	w.updateLeftSidebarDimensions(w.runOverviewSidebar.IsVisible())
-	w.runOverviewSidebar.UpdateDimensions(w.width, w.runsAnimState.IsVisible())
-
-	layout := w.computeViewports()
-	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
-}
-
-// computeViewports returns (leftW, contentW, rightW, contentH).
-func (w *Workspace) computeViewports() Layout {
-	leftW, rightW := w.runsAnimState.Width(), w.runOverviewSidebar.Width()
-
-	contentW := max(w.width-leftW-rightW, 1)
-	contentH := max(w.height-StatusBarHeight, 1)
-
-	return Layout{leftW, contentW, rightW, contentH}
-}
-
-// runsAnimationCmd returns a command to continue the animation on section toggle.
-func (w *Workspace) runsAnimationCmd() tea.Cmd {
-	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
-		return WorkspaceRunsAnimationMsg{}
-	})
-}
-
-// runOverviewAnimationCmd returns a command to continue the animation on section toggle.
-func (w *Workspace) runOverviewAnimationCmd() tea.Cmd {
-	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
-		return WorkspaceRunOverviewAnimationMsg{}
-	})
 }
 
 // syncRunsPage clamps the SectionView page/line against the current item set
@@ -568,7 +656,7 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			mark = "●"
 		}
 		if isPinned {
-			mark = "■" // ✪ ◎ ▲ ▶ ◉ ▬ ◆ ▣ ■ → ○ ●
+			mark = "▶" // ✪ ◎ ▲ ▶ ◉ ▬ ◆ ▣ ■ → ○ ●
 		}
 
 		// Render prefix without background
@@ -596,34 +684,4 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 	}
 
 	return lines
-}
-
-// SelectedRunWandbFile returns the full path to the .wandb file for the selected run.
-//
-// Returns empty string if no run is selected.
-func (w *Workspace) SelectedRunWandbFile() string {
-	total := len(w.runs.FilteredItems)
-	if total == 0 {
-		return ""
-	}
-
-	startIdx := w.runs.CurrentPage() * w.runs.ItemsPerPage()
-	idx := startIdx + w.runs.CurrentLine()
-	if idx < 0 || idx >= total {
-		return ""
-	}
-
-	return runWandbFile(w.wandbDir, w.runs.FilteredItems[idx].Key)
-}
-
-// refreshPinnedRun ensures the pinned run (if any) is drawn on top in all charts.
-func (w *Workspace) refreshPinnedRun() {
-	if w.metricsGrid == nil || w.pinnedRun == "" {
-		return
-	}
-	run, ok := w.runsByKey[w.pinnedRun]
-	if !ok || run == nil || run.wandbPath == "" {
-		return
-	}
-	w.metricsGrid.PromoteSeriesToTop(run.wandbPath)
 }
