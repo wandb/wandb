@@ -40,7 +40,8 @@ func TestMetricsGridFilter_ApplyAndClear(t *testing.T) {
 			Y: []float64{0.69},
 		},
 	}
-	grid.ProcessHistory(d)
+	m := leet.HistoryMsg{Metrics: d}
+	grid.ProcessHistory(m)
 
 	dims := grid.CalculateChartDimensions(w, h)
 
@@ -75,7 +76,8 @@ func TestMetricsGridFilter_NewChartsRespectActiveFilter(t *testing.T) {
 			Y: []float64{0.5},
 		},
 	}
-	grid.ProcessHistory(d)
+	m := leet.HistoryMsg{Metrics: d}
+	grid.ProcessHistory(m)
 	dims := grid.CalculateChartDimensions(w, h)
 
 	grid.EnterFilterMode()
@@ -97,7 +99,8 @@ func TestMetricsGridFilter_NewChartsRespectActiveFilter(t *testing.T) {
 			Y: []float64{0.6},
 		},
 	}
-	grid.ProcessHistory(d)
+	m = leet.HistoryMsg{Metrics: d}
+	grid.ProcessHistory(m)
 
 	out = grid.View(dims)
 	require.Contains(t, out, "val/loss")
@@ -121,7 +124,8 @@ func TestMetricsGridFilter_SwitchFilter(t *testing.T) {
 			Y: []float64{0.65},
 		},
 	}
-	grid.ProcessHistory(d)
+	m := leet.HistoryMsg{Metrics: d}
+	grid.ProcessHistory(m)
 	dims := grid.CalculateChartDimensions(w, h)
 
 	grid.EnterFilterMode()
@@ -201,7 +205,8 @@ func TestMetricsGridFilter_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w, h := 240, 80
 			grid := newMetricsGrid(t, 2, 2, w, h, nil)
-			grid.ProcessHistory(tt.metrics)
+			m := leet.HistoryMsg{Metrics: tt.metrics}
+			grid.ProcessHistory(m)
 			dims := grid.CalculateChartDimensions(w, h)
 
 			// Switch to glob match mode (defaults to regex).
@@ -224,12 +229,13 @@ func TestMetricsGridFilter_EdgeCases(t *testing.T) {
 func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 	w, h := 240, 80
 	grid := newMetricsGrid(t, 2, 2, w, h, nil)
-	grid.ProcessHistory(map[string]leet.MetricData{
+	m := leet.HistoryMsg{Metrics: map[string]leet.MetricData{
 		"loss":        {X: []float64{0}, Y: []float64{1}},
 		"acc":         {X: []float64{0}, Y: []float64{2}},
 		"val/acc":     {X: []float64{0}, Y: []float64{3}},
 		"unrelated/x": {X: []float64{0}, Y: []float64{4}},
-	})
+	}}
+	grid.ProcessHistory(m)
 	dims := grid.CalculateChartDimensions(w, h)
 
 	// Start typing "lo", then cancel (Esc behavior).
@@ -249,9 +255,10 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	grid.ProcessHistory(map[string]leet.MetricData{
+	m = leet.HistoryMsg{Metrics: map[string]leet.MetricData{
 		"val/loss": {X: []float64{1}, Y: []float64{5}},
-	})
+	}}
+	grid.ProcessHistory(m)
 	grid.ExitFilterMode(true)
 
 	view = grid.View(dims)
@@ -264,20 +271,22 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 func TestMetricsGridFilter_ConcurrentApplyAndUpdate_NoDeadlock(t *testing.T) {
 	w, h := 140, 60
 	grid := newMetricsGrid(t, 2, 2, w, h, nil)
-	grid.ProcessHistory(map[string]leet.MetricData{
+	m := leet.HistoryMsg{Metrics: map[string]leet.MetricData{
 		"train/loss": {X: []float64{1}, Y: []float64{0.5}},
 		"accuracy":   {X: []float64{1}, Y: []float64{0.8}},
-	})
+	}}
+	grid.ProcessHistory(m)
 	var wg sync.WaitGroup
 
 	wg.Go(func() {
 		for i := range 50 {
-			grid.ProcessHistory(map[string]leet.MetricData{
+			m = leet.HistoryMsg{Metrics: map[string]leet.MetricData{
 				"metric_" + fmt.Sprint('a'+(i%3)): {
 					X: []float64{float64(2 + i)},
 					Y: []float64{float64(i) * 0.1},
 				},
-			})
+			}}
+			grid.ProcessHistory(m)
 		}
 	})
 
@@ -307,7 +316,8 @@ func TestMetricsGrid_RegexFilter(t *testing.T) {
 		"val/loss":   {X: []float64{1}, Y: []float64{0.6}},
 		"train/acc":  {X: []float64{1}, Y: []float64{0.9}},
 	}
-	grid.ProcessHistory(d)
+	m := leet.HistoryMsg{Metrics: d}
+	grid.ProcessHistory(m)
 	dims := grid.CalculateChartDimensions(w, h)
 
 	// Default mode is regex. Filter for "ends with loss".

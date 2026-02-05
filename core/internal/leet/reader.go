@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 
 // WandbReader handles reading records from a W&B LevelDB-style transaction log (.wandb file).
 type WandbReader struct {
+	runPath string
 	// store is a W&B LevelDB-style transaction log that may be actively written.
 	store *LiveStore
 	// exitSeen indicates whether an ExitRecord has been seen.
@@ -37,7 +37,7 @@ func NewWandbReader(runPath string, logger *observability.CoreLogger) (*WandbRea
 		return nil, fmt.Errorf("reader: failed to create live store: %v", err)
 	}
 
-	return &WandbReader{store: store}, nil
+	return &WandbReader{runPath: runPath, store: store}, nil
 }
 
 // ReadAllRecordsChunked reads all available records in chunks
@@ -62,9 +62,7 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 	hitEOF := false
 
 	for recordCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
-		start := time.Now()
 		record, err := r.store.Read()
-		r.store.logger.Debug(fmt.Sprintf("perf: r.store.Read() took %s", time.Since(start)))
 		if err != nil {
 			break
 		}
@@ -96,10 +94,10 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 
 	// Consolidate history and summary.
 	if len(histories) > 0 {
-		msgs = append(msgs, ConcatenateHistory(histories))
+		msgs = append(msgs, r.ConcatenateHistory(histories))
 	}
 	if len(summaries) > 0 {
-		msgs = append(msgs, ConcatenateSummary(summaries))
+		msgs = append(msgs, r.ConcatenateSummary(summaries))
 	}
 
 	if r.exitSeen {
@@ -120,18 +118,18 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 // ConcatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
 //
 // Assumes that the history messages are ordered.
-func ConcatenateHistory(messages []HistoryMsg) HistoryMsg {
+func (r *WandbReader) ConcatenateHistory(messages []HistoryMsg) HistoryMsg {
 	h := HistoryMsg{
+		RunPath: r.runPath,
 		Metrics: make(map[string]MetricData),
 	}
 
 	for _, msg := range messages {
 		for metricName, data := range msg.Metrics {
 			existing := h.Metrics[metricName]
-			h.Metrics[metricName] = MetricData{
-				X: slices.Concat(existing.X, data.X),
-				Y: slices.Concat(existing.Y, data.Y),
-			}
+			existing.X = append(existing.X, data.X...)
+			existing.Y = append(existing.Y, data.Y...)
+			h.Metrics[metricName] = existing
 		}
 	}
 
@@ -141,8 +139,9 @@ func ConcatenateHistory(messages []HistoryMsg) HistoryMsg {
 // ConcatenateHistory merges a slice of SummaryMsg into a single SummaryMsg.
 //
 // Assumes that the summary messages are ordered.
-func ConcatenateSummary(messages []SummaryMsg) SummaryMsg {
+func (r *WandbReader) ConcatenateSummary(messages []SummaryMsg) SummaryMsg {
 	s := SummaryMsg{
+		RunPath: r.runPath,
 		Summary: make([]*spb.SummaryRecord, 0),
 	}
 
@@ -223,26 +222,27 @@ func (r *WandbReader) recordToMsg(record *spb.Record) tea.Msg {
 
 	case *spb.Record_Run:
 		return RunMsg{
+			RunPath:     r.runPath,
 			ID:          rec.Run.GetRunId(),
 			DisplayName: rec.Run.GetDisplayName(),
 			Project:     rec.Run.GetProject(),
 			Config:      rec.Run.GetConfig(),
 		}
 	case *spb.Record_History:
-		return ParseHistory(rec.History)
+		return ParseHistory(r.runPath, rec.History)
 	case *spb.Record_Stats:
-		return ParseStats(rec.Stats)
+		return ParseStats(r.runPath, rec.Stats)
 	case *spb.Record_Summary:
-		return SummaryMsg{Summary: []*spb.SummaryRecord{rec.Summary}}
+		return SummaryMsg{RunPath: r.runPath, Summary: []*spb.SummaryRecord{rec.Summary}}
 	case *spb.Record_Environment:
-		return SystemInfoMsg{Record: rec.Environment}
+		return SystemInfoMsg{RunPath: r.runPath, Record: rec.Environment}
 	default:
 		return nil
 	}
 }
 
 // ParseHistory extracts metrics from a history record.
-func ParseHistory(history *spb.HistoryRecord) tea.Msg {
+func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 	if history == nil {
 		return nil
 	}
@@ -281,16 +281,16 @@ func ParseHistory(history *spb.HistoryRecord) tea.Msg {
 		return nil
 	}
 
-	x := float64(step)
+	x := []float64{float64(step)}
 	metrics := make(map[string]MetricData, len(values))
 	for k, y := range values {
-		metrics[k] = MetricData{X: []float64{x}, Y: []float64{y}}
+		metrics[k] = MetricData{X: x, Y: []float64{y}}
 	}
-	return HistoryMsg{Metrics: metrics}
+	return HistoryMsg{RunPath: runPath, Metrics: metrics}
 }
 
 // ParseStats extracts metrics from a stats record.
-func ParseStats(stats *spb.StatsRecord) tea.Msg {
+func ParseStats(runPath string, stats *spb.StatsRecord) tea.Msg {
 	if stats == nil {
 		return nil
 	}
@@ -317,7 +317,7 @@ func ParseStats(stats *spb.StatsRecord) tea.Msg {
 	}
 
 	if len(metrics) > 0 {
-		return StatsMsg{Timestamp: timestamp, Metrics: metrics}
+		return StatsMsg{RunPath: runPath, Timestamp: timestamp, Metrics: metrics}
 	}
 	return nil
 }

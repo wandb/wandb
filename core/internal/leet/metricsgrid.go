@@ -103,7 +103,8 @@ func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) G
 // creating charts as needed, resorting, reapplying filters, and reloading the page.
 // It preserves focus on the previously focused chart when possible.
 // Returns true if there was anything to draw.
-func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
+func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
+	metrics := msg.Metrics
 	if len(metrics) == 0 {
 		return false
 	}
@@ -114,7 +115,6 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 	needsSort := false
 
 	mg.mu.Lock()
-	var wg sync.WaitGroup
 
 	for name, data := range metrics {
 		chart, exists := mg.byTitle[name]
@@ -128,12 +128,8 @@ func (mg *MetricsGrid) ProcessHistory(metrics map[string]MetricData) bool {
 				mg.logger.Debug(fmt.Sprintf("metricsgrid: created %d charts", len(mg.all)))
 			}
 		}
-		wg.Go(func() {
-			chart.AddData(data)
-		})
+		chart.AddData(msg.RunPath, data)
 	}
-
-	wg.Wait()
 
 	// Keep ordering, colors, maps and filtered set in sync.
 	if needsSort {
@@ -187,7 +183,7 @@ func (mg *MetricsGrid) colorForNoLock(title string) lipgloss.AdaptiveColor {
 	if c, ok := mg.colorOfTitle[title]; ok {
 		return c
 	}
-	palette := GraphColors()
+	palette := GraphColors(DefaultColorScheme)
 	c := palette[mg.nextColorIdx%len(palette)]
 	mg.colorOfTitle[title] = c
 	mg.nextColorIdx++
