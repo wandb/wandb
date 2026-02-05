@@ -86,9 +86,8 @@ def test_artifact_type_collections(api: Api):
 
     cols = atype.collections()
     assert len(cols) == 2
-    assert (cols[0].name == "mnist" and cols[1].name == "another-collection") or (
-        cols[0].name == "another-collection" and cols[1].name == "mnist"
-    )
+    names = {c.name for c in cols}
+    assert names == {"mnist", "another-collection"}
 
     if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
         cols = atype.collections(filters={"name": "mnist"})

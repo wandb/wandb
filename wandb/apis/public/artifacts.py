@@ -250,6 +250,7 @@ class ArtifactType:
             order (str): Optional string to specify the order of the results.
                 If you prepend order with a + order is ascending (default).
                 If you prepend order with a - order is descending.
+                The default order is the collection ID in descending order.
             per_page (int): The number of artifact collections to fetch per page.
                 Default is 50.
         """

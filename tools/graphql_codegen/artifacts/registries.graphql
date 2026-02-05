@@ -159,7 +159,7 @@ mutation UpsertRegistry($input: UpsertModelInput!) {
 }
 
 mutation DeleteRegistry($id: String!) {
-  deleteModel(input: {id: $id}) {
+  deleteModel(input: { id: $id }) {
     success
   }
 }
