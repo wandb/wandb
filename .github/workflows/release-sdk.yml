@@ -294,10 +294,18 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Checkout only go files for dependency installation
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            core/go.mod
+            core/go.sum
+
       - name: Set up latest Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.6'
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
 
       - name: Install wandb from TestPyPI with --no-binary
         run: |
