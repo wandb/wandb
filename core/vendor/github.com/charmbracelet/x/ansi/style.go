@@ -504,6 +504,8 @@ const (
 // See: https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_(Select_Graphic_Rendition)_parameters
 func foregroundColorString(c Color) string {
 	switch c := c.(type) {
+	case nil:
+		return attrDefaultForegroundColor
 	case BasicColor:
 		// 3-bit or 4-bit ANSI foreground
 		// "3<n>" or "9<n>" where n is the color number from 0 to 7
@@ -562,6 +564,8 @@ func foregroundColorString(c Color) string {
 // See: https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_(Select_Graphic_Rendition)_parameters
 func backgroundColorString(c Color) string {
 	switch c := c.(type) {
+	case nil:
+		return attrDefaultBackgroundColor
 	case BasicColor:
 		// 3-bit or 4-bit ANSI foreground
 		// "4<n>" or "10<n>" where n is the color number from 0 to 7
@@ -620,6 +624,8 @@ func backgroundColorString(c Color) string {
 // See: https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_(Select_Graphic_Rendition)_parameters
 func underlineColorString(c Color) string {
 	switch c := c.(type) {
+	case nil:
+		return attrDefaultUnderlineColor
 	// NOTE: we can't use 3-bit and 4-bit ANSI color codes with underline
 	// color, use 256-color instead.
 	//
