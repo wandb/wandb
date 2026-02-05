@@ -1,66 +1,84 @@
 from __future__ import annotations
 
 import contextlib
-from typing import Any, Iterator
+import threading
+from typing import Iterator
+from unittest.mock import Mock
 
 import pytest
-import wandb
 from wandb.sdk.lib import printer, printer_asyncio
-from wandb.sdk.lib.printer import _PrinterTerm
 
 
-class MockDynamicTextPrinter(_PrinterTerm):
-    """Test printer that captures text set through dynamic text."""
+class _Tester:
+    """Helper to test run_async_with_spinner."""
 
-    def __init__(self) -> None:
-        super().__init__(settings=wandb.Settings())
-        self._captured_text: list[str] = []
+    def __init__(self, loading_symbol: str) -> None:
+        self._printed = threading.Event()
 
-    @property
-    def captured_text(self) -> list[str]:
-        return self._captured_text
+        def mark_printed(*_) -> None:
+            self._printed.set()
+
+        self._mock_dynamic_text = Mock(spec=printer.DynamicText)
+        self._mock_dynamic_text.set_text.side_effect = mark_printed
+
+        self._mock_printer = Mock(spec=printer.Printer)
+        self._mock_printer.dynamic_text.side_effect = self._dynamic_text
+        self._mock_printer.loading_symbol.return_value = loading_symbol
 
     @contextlib.contextmanager
-    def dynamic_text(self) -> Iterator[printer.DynamicText | None]:
-        class TestDynamicText(printer.DynamicText):
-            def __init__(self, printer: MockDynamicTextPrinter) -> None:
-                self._printer = printer
+    def _dynamic_text(self) -> Iterator[printer.DynamicText]:
+        """Fake implementation of Printer.dynamic_text."""
+        yield self._mock_dynamic_text
 
-            def set_text(self, text: str) -> None:
-                self._printer._captured_text.append(text)
+    @property
+    def printer(self) -> printer.Printer:
+        """The mock printer to use in the test."""
+        return self._mock_printer
 
-        yield TestDynamicText(self)
+    @property
+    def mock_set_text(self) -> Mock:
+        """The mock set_text() on the DynamicText object."""
+        return self._mock_dynamic_text.set_text
+
+    def wait_until_set_text(self) -> None:
+        """Block until set_text() is called at least once.
+
+        Necessary since the function passed to `run_async_with_spinner` races
+        with the code that prints the text.
+        """
+        if not self._printed.wait(timeout=1):
+            raise TimeoutError
 
 
 def test_run_async_with_spinner():
-    test_printer = MockDynamicTextPrinter()
+    tester = _Tester(loading_symbol="***")
 
     def slow_func() -> int:
+        tester.wait_until_set_text()
         return 42
 
     result = printer_asyncio.run_async_with_spinner(
-        test_printer,
+        tester.printer,
         "Loading",
         slow_func,
     )
 
     assert result == 42
-    assert len(test_printer.captured_text) > 0
-    assert all("Loading" in text for text in test_printer.captured_text)
+    tester.mock_set_text.assert_called_with("*** Loading")
 
 
 def test_run_async_with_spinner_exception():
-    test_printer = MockDynamicTextPrinter()
+    tester = _Tester(loading_symbol="***")
 
-    def failing_func() -> Any:
+    def failing_func() -> None:
+        tester.wait_until_set_text()
         raise ValueError("Test error")
 
     with pytest.raises(ValueError, match="Test error"):
         printer_asyncio.run_async_with_spinner(
-            test_printer,
+            tester.printer,
             "Loading",
             failing_func,
         )
 
-    assert len(test_printer.captured_text) > 0
-    assert all("Loading" in text for text in test_printer.captured_text)
+    tester.mock_set_text.assert_called_with("*** Loading")
