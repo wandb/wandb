@@ -44,6 +44,7 @@ scikit-learn
 torch
 torchvision
 jax[cpu]
+flax
 lightning
 # As of 2025/10/08, ray wheels for python>=3.13 are not available for Windows.
 ray[air,tune]; sys_platform != 'win32'

@@ -1208,10 +1208,11 @@ def watch(
 def unwatch(
     models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
 ) -> None:
-    """Remove pytorch model topology, gradient and parameter hooks.
+    """Remove model topology, gradient and parameter hooks.
 
     Args:
-        models: Optional list of pytorch models that have had watch called on them.
+        models: Optional list of models that have had watch called on them.
+            Can be PyTorch (torch.nn.Module) or Flax (flax.linen.Module) models.
     """
     ...
 

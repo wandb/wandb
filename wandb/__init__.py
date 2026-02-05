@@ -50,6 +50,7 @@ from wandb.errors import CommError, UsageError
 from wandb.sdk.lib import preinit as _preinit
 from wandb.sdk.lib import lazyloader as _lazyloader
 
+from wandb.integration.flax import wandb_flax
 from wandb.integration.torch import wandb_torch
 
 from wandb.sdk.data_types._private import _cleanup_media_tmp_dir

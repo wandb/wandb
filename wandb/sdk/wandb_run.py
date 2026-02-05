@@ -29,6 +29,7 @@ from wandb import trigger
 from wandb.analytics import get_sentry
 from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
+from wandb.integration.flax import wandb_flax
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_internal_pb2 import (
@@ -625,6 +626,7 @@ class Run:
         self._printer = printer.new_printer(settings)
 
         self._torch_history: wandb_torch.TorchHistory | None = None  # type: ignore
+        self._flax_history: wandb_flax.FlaxHistory | None = None
 
         self._backend = None
         self._internal_run_interface = None
@@ -812,6 +814,12 @@ class Run:
         if self._torch_history is None:
             self._torch_history = wandb_torch.TorchHistory()  # type: ignore
         return self._torch_history
+
+    @property
+    def _flax(self) -> wandb_flax.FlaxHistory:  # type: ignore
+        if self._flax_history is None:
+            self._flax_history = wandb_flax.FlaxHistory()  # type: ignore
+        return self._flax_history
 
     @property
     @_log_to_run
@@ -2028,6 +2036,14 @@ class Run:
             ValueError: If invalid data is passed.
 
         """
+        # Log any captured gradients/params from JAX hooks
+        if hasattr(self, "_flax") and self._flax is not None:
+            try:
+                self._flax.log_captured()
+            except Exception:
+                # Silently ignore if flax not configured
+                pass
+
         if step is not None:
             with telemetry.context(run=self) as tel:
                 tel.feature.set_step_log = True
@@ -2952,10 +2968,11 @@ class Run:
     def unwatch(
         self, models: torch.nn.Module | Sequence[torch.nn.Module] | None = None
     ) -> None:
-        """Remove pytorch model topology, gradient and parameter hooks.
+        """Remove model topology, gradient and parameter hooks.
 
         Args:
-            models: Optional list of pytorch models that have had watch called on them.
+            models: Optional list of models that have had watch called on them.
+                Can be PyTorch (torch.nn.Module) or Flax (flax.linen.Module) models.
         """
         wandb.sdk._unwatch(self, models=models)
 
