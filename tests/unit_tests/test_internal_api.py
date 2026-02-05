@@ -17,12 +17,12 @@ from pytest_mock import MockerFixture
 from responses import RequestsMock
 from wandb.apis import internal
 from wandb.errors import CommError
-from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
     _OrgNames,
 )
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib import retry
 
 from .test_retry import MockTime, mock_time  # noqa: F401

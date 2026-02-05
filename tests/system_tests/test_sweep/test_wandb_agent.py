@@ -188,3 +188,18 @@ def test_agent_process_forwards_signals_end_to_end(tmp_path):
     assert result.returncode == 0, f"stderr:\n{result.stderr}"
     assert marker.exists()
     assert marker.read_text().strip() == str(int(signal.SIGTERM))
+
+
+def test_agent_cli_exit_code_on_sweep_not_found(runner, user):
+    """CLI agent returns exit code 1 when sweep doesn't exist."""
+    from wandb.cli import cli
+
+    # Use a non-existent sweep ID - the API will return 404
+    fake_sweep_id = "nonexistent12"
+
+    result = runner.invoke(cli.agent, [fake_sweep_id])
+
+    assert result.exit_code == 1, (
+        f"Expected exit code 1 for non-existent sweep, got {result.exit_code}. "
+        f"output:\n{result.output}"
+    )

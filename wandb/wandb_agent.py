@@ -15,7 +15,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 import wandb
 from wandb import util
-from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk import wandb_login
 from wandb.sdk.lib import config_util, ipython
 
@@ -314,6 +313,7 @@ class Agent:
                         and poll_result > 0
                     ):
                         self._failed += 1
+                        # TODO: raise an exception
                         if self.is_flapping():
                             logger.error(
                                 "Detected %i failed runs in the first %i seconds, shutting down.",
@@ -325,6 +325,7 @@ class Agent:
                             )
                             self._running = False
                             break
+                        # TODO: raise an exception
                         if self.is_failing():
                             logger.error(
                                 "Detected %i failed runs in a row, shutting down.",
@@ -360,14 +361,7 @@ class Agent:
                     self._running = False
                     continue
 
-                try:
-                    commands = self._api.agent_heartbeat(agent_id, {}, run_status)
-                except SweepNotFoundError:
-                    wandb.termerror(
-                        "Sweep was deleted or agent was not found. Stopping sweep."
-                    )
-                    self._running = False
-                    break
+                commands = self._api.agent_heartbeat(agent_id, {}, run_status)
 
                 # TODO: send _server_responses
                 self._server_responses = []
