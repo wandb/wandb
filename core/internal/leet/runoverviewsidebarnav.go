@@ -316,23 +316,6 @@ func (s *RunOverviewSidebar) tryRestoreInSection(key string) bool {
 	return false
 }
 
-// deactivateAllSections marks all sections as inactive, removing row highlights.
-func (s *RunOverviewSidebar) deactivateAllSections() {
-	for i := range s.sections {
-		s.sections[i].Active = false
-	}
-}
-
-// hasActiveSection reports whether any section is currently active.
-func (s *RunOverviewSidebar) hasActiveSection() bool {
-	for i := range s.sections {
-		if s.sections[i].Active {
-			return true
-		}
-	}
-	return false
-}
-
 // setActiveSection changes the active section and resets navigation state.
 func (s *RunOverviewSidebar) setActiveSection(idx int) {
 	// Deactivate all sections.

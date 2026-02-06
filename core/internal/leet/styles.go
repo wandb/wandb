@@ -130,10 +130,6 @@ var (
 		Light: "#262626",
 		Dark:  "#d0d0d0",
 	}
-	colorSelected = lipgloss.AdaptiveColor{
-		Light: "#c6c6c6",
-		Dark:  "#444444",
-	}
 )
 
 // ASCII art for the loading screen and the help page.
@@ -286,11 +282,7 @@ var (
 				Bold(true).
 				Foreground(colorSubheading).
 				MarginBottom(1)
-	leftSidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
-	leftSidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
-	leftSidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
-	leftSidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
-	RightBorder                   = lipgloss.Border{
+	RightBorder = lipgloss.Border{
 		Top:         string(unicodeSpace),
 		Bottom:      string(unicodeSpace),
 		Left:        "",
