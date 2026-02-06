@@ -1,4 +1,5 @@
 import dataclasses
+import importlib.util
 import os
 import pathlib
 import platform
@@ -16,6 +17,16 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from core import hatch as hatch_core
 from gpu_stats import hatch as hatch_gpu_stats
 
+# Import arrow-rs-wrapper hatch module dynamically
+_arrow_rs_wrapper_hatch_path = (
+    pathlib.Path(__file__).parent / "parquet-rust-wrapper" / "hatch.py"
+)
+_spec = importlib.util.spec_from_file_location(
+    "hatch_arrow_rs_wrapper", _arrow_rs_wrapper_hatch_path
+)
+hatch_arrow_rs_wrapper = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(hatch_arrow_rs_wrapper)
+
 # Necessary inputs for releases.
 _WANDB_RELEASE_COMMIT = "WANDB_RELEASE_COMMIT"
 
@@ -25,6 +36,7 @@ _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 
 # Other build options.
 _WANDB_BUILD_SKIP_GPU_STATS = "WANDB_BUILD_SKIP_GPU_STATS"
+_WANDB_BUILD_SKIP_ARROW_RS_WRAPPER = "WANDB_BUILD_SKIP_ARROW_RS_WRAPPER"
 _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 
 
@@ -33,14 +45,33 @@ class CustomBuildHook(BuildHookInterface):
     def initialize(self, version: str, build_data: Dict[str, Any]) -> None:
         if self.target_name == "wheel":
             self._prepare_wheel(build_data)
+        elif self.target_name == "editable":
+            self._prepare_editable(build_data)
 
     def _prepare_wheel(self, build_data: Dict[str, Any]) -> None:
         build_data["tag"] = f"py3-none-{self._get_platform_tag()}"
 
         artifacts: list[str] = build_data["artifacts"]
         artifacts.extend(self._build_wandb_core())
+        artifacts.extend(self._build_arrow_rs_wrapper())
         if self._include_gpu_stats():
             artifacts.extend(self._build_gpu_stats())
+
+    def _prepare_editable(self, build_data: Dict[str, Any]) -> None:
+        """Build native extensions for editable installs.
+
+        For editable installs, we need to build the native extensions and place
+        them in the source tree so they can be found at runtime.
+        """
+        # Build wandb-core and place it in wandb/bin
+        self._build_wandb_core()
+
+        # Build arrow-rs-wrapper
+        self._build_arrow_rs_wrapper()
+
+        # Build gpu_stats if not skipped
+        if self._include_gpu_stats():
+            self._build_gpu_stats()
 
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
@@ -79,6 +110,13 @@ class CustomBuildHook(BuildHookInterface):
     def _get_and_require_cargo_binary(self) -> pathlib.Path:
         cargo = shutil.which("cargo")
 
+        # If not in PATH, try the standard Rust installation location
+        if not cargo:
+            home = pathlib.Path.home()
+            cargo_path = home / ".cargo" / "bin" / "cargo"
+            if cargo_path.exists():
+                cargo = str(cargo_path)
+
         if not cargo:
             self.app.abort(
                 "Did not find the 'cargo' binary. You need Rust to build wandb"
@@ -97,6 +135,29 @@ class CustomBuildHook(BuildHookInterface):
         hatch_gpu_stats.build_gpu_stats(
             cargo_binary=self._get_and_require_cargo_binary(),
             output_path=output,
+        )
+
+        return [output.as_posix()]
+
+    def _build_arrow_rs_wrapper(self) -> List[str]:
+        """Build the arrow-rs-wrapper dynamic library."""
+        plat = self._target_platform()
+
+        if plat.goos == "windows":
+            lib_name = "rust_parquet_ffi.dll"
+        elif plat.goos == "darwin":
+            lib_name = "librust_parquet_ffi.dylib"
+        else:
+            lib_name = "librust_parquet_ffi.so"
+
+        output = pathlib.Path("wandb", "bin", lib_name)
+
+        self.app.display_waiting("Building arrow-rs-wrapper Rust library...")
+        hatch_arrow_rs_wrapper.build_arrow_rs_wrapper(
+            cargo_binary=self._get_and_require_cargo_binary(),
+            output_path=output,
+            target_system=plat.goos,
+            target_arch=plat.goarch,
         )
 
         return [output.as_posix()]

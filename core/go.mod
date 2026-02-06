@@ -17,6 +17,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20251023181713-f594ac034d6b
+	github.com/ebitengine/purego v0.9.1
 	github.com/getsentry/sentry-go v0.42.0
 	github.com/go-git/go-git/v5 v5.16.4
 	github.com/google/wire v0.7.0
@@ -97,7 +98,6 @@ require (
 	github.com/cncf/xds/go v0.0.0-20251110193048-8bfbf64dc13e // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.0 // indirect

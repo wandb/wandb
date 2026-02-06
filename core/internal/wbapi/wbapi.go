@@ -31,13 +31,18 @@ type WandbAPI struct {
 func NewWandbAPI(
 	s *settings.Settings,
 	sentryClient *sentry_ext.Client,
-) *WandbAPI {
+) (*WandbAPI, error) {
+	runHistoryApiHandler, err := NewRunHistoryAPIHandler(s, sentryClient)
+	if err != nil {
+		return nil, err
+	}
+
 	return &WandbAPI{
 		semaphore:            make(chan struct{}, maxConcurrency),
 		settings:             s,
-		runHistoryApiHandler: NewRunHistoryAPIHandler(s, sentryClient),
+		runHistoryApiHandler: runHistoryApiHandler,
 		sentryClient:         sentryClient,
-	}
+	}, nil
 }
 
 // HandleRequest handles an API request and returns an API response,

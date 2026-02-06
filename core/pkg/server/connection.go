@@ -659,7 +659,20 @@ func (nc *Connection) handleSyncStatus(
 
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
-	nc.wbapi = wbapi.NewWandbAPI(s, nc.sentryClient)
+	wb, err := wbapi.NewWandbAPI(s, nc.sentryClient)
+	if err != nil {
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_ApiInitResponse{
+				ApiInitResponse: &spb.ServerApiInitResponse{
+					ErrorMessage: err.Error(),
+				},
+			},
+		})
+		return
+	}
+
+	nc.wbapi = wb
 	nc.Respond(&spb.ServerResponse{
 		RequestId: id,
 		ServerResponseType: &spb.ServerResponse_ApiInitResponse{

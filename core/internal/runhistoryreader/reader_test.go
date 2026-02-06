@@ -1,23 +1,273 @@
+// These tests mock Rust FFI calls by creating Go-allocated memory and converting
+// pointers to uintptr. The race detector's checkptr instrumentation correctly
+// identifies this as potentially unsafe (Go's GC can move memory, invalidating
+// the uintptr). Since the real production code uses actual Rust-allocated memory
+// (which doesn't move), this is only a limitation of the test mock, not the
+// production code. These tests are excluded when building with -race.
+
+//go:build !race
+
 package runhistoryreader
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
+	"unsafe"
 
 	"github.com/apache/arrow-go/v18/arrow"
+	"github.com/apache/arrow-go/v18/arrow/array"
+	"github.com/apache/arrow-go/v18/arrow/ipc"
+	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gqlmock"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
-	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/runhistoryreadertest"
 )
+
+// It stores the actual byte slices so the pointers remain valid
+type mockIPCDataStore struct {
+	ipcData [][]byte
+}
+
+func newMockIPCDataStore() *mockIPCDataStore {
+	return &mockIPCDataStore{
+		ipcData: make([][]byte, 0),
+	}
+}
+
+func (m *mockIPCDataStore) store(data []byte) (uintptr, uintptr) {
+	// Make a copy of the data to ensure it's not moved by GC
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
+	m.ipcData = append(m.ipcData, dataCopy)
+
+	if len(dataCopy) == 0 {
+		// Return null pointer for empty data
+		return 0, 0
+	}
+
+	// Get pointer to the stored data
+	// Note: This works without race detector because we keep the slice alive
+	// in m.ipcData. With race detector, this file is excluded via build tag.
+	storedSlice := m.ipcData[len(m.ipcData)-1]
+	ptr := uintptr(unsafe.Pointer(&storedSlice[0]))
+	return ptr, ptr
+}
+
+// createMockRustArrowWrapper creates a mock wrapper that returns data based on the provided schema and datasets.
+// If schema is nil, uses a default empty schema with just _step column.
+// If datasets is nil or empty, returns empty results (useful for tests that only use live data).
+// datasets is a slice where each element is the data for one file, in the order files are created.
+func createMockRustArrowWrapper(
+	t *testing.T,
+	schema *arrow.Schema,
+	datasetMap map[uintptr][]map[string]any,
+) *ffi.RustArrowWrapper {
+	if t != nil {
+		t.Helper()
+	}
+
+	// Use default empty schema if none provided
+	if schema == nil {
+		schema = arrow.NewSchema(
+			[]arrow.Field{
+				{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
+			},
+			nil,
+		)
+	}
+
+	dataStore := newMockIPCDataStore()
+	nextReaderID := uintptr(1000)
+	readerToDataset := make(map[uintptr][]map[string]any)
+	// Store allocated pointers so they don't get garbage collected
+	allocatedPointers := make([]*uintptr, 0)
+	assignedDatasets := make(map[uintptr]bool)
+
+	// If no datasets provided, create empty IPC stream once for efficiency
+	var emptyVecPtr, emptyDataPtr uintptr
+	var emptyIPCLen uint64
+	if len(datasetMap) == 0 {
+		emptyIPC := createArrowIPCStream(t, schema, []map[string]any{})
+		emptyVecPtr, emptyDataPtr = dataStore.store(emptyIPC)
+		emptyIPCLen = uint64(len(emptyIPC))
+	}
+
+	return ffi.RustArrowWrapperTester(
+		func(filePath *byte, columnNames **byte, numColumns int) unsafe.Pointer {
+			// If no datasets, return simple marker
+			if len(datasetMap) == 0 {
+				id := new(uintptr)
+				*id = 1
+				allocatedPointers = append(allocatedPointers, id)
+				return unsafe.Pointer(id)
+			}
+
+			// Assign this reader a unique ID and map it to its dataset
+			readerID := nextReaderID
+			nextReaderID += 100
+
+			// Map datasets to readers in order of creation
+			for datasetID, dataset := range datasetMap {
+				if !assignedDatasets[datasetID] {
+					readerToDataset[readerID] = dataset
+					assignedDatasets[datasetID] = true
+					break
+				}
+			}
+
+			// Allocate memory for the reader ID to return a valid pointer
+			id := new(uintptr)
+			*id = readerID
+			allocatedPointers = append(allocatedPointers, id)
+			return unsafe.Pointer(id)
+		},
+		func(
+			readerPtr unsafe.Pointer,
+			minStep int64,
+			maxStep int64,
+			outResult *ffi.StepScanResult,
+		) *byte {
+			// If no datasets, return pre-computed empty result
+			if len(readerToDataset) == 0 {
+				outResult.VecPtr = emptyVecPtr
+				outResult.DataPtr = emptyDataPtr
+				outResult.DataLen = emptyIPCLen
+				outResult.NumRowsReturned = 0
+				return nil
+			}
+
+			readerID := *(*uintptr)(readerPtr)
+			dataset, ok := readerToDataset[readerID]
+			if !ok {
+				// Return empty if we don't have data for this reader
+				emptyIPC := createArrowIPCStream(t, schema, []map[string]any{})
+				vecPtr, dataPtr := dataStore.store(emptyIPC)
+				outResult.VecPtr = vecPtr
+				outResult.DataPtr = dataPtr
+				outResult.DataLen = uint64(len(emptyIPC))
+				outResult.NumRowsReturned = 0
+				return nil
+			}
+
+			// Filter data based on step range (exclusive of maxStep)
+			filteredData := []map[string]any{}
+			for _, row := range dataset {
+				step := row["_step"].(int64)
+				if step >= minStep && step < maxStep {
+					filteredData = append(filteredData, row)
+				}
+			}
+
+			// Generate Arrow IPC stream from filtered data
+			ipcBytes := createArrowIPCStream(t, schema, filteredData)
+			vecPtr, dataPtr := dataStore.store(ipcBytes)
+
+			outResult.VecPtr = vecPtr
+			outResult.DataPtr = dataPtr
+			outResult.DataLen = uint64(len(ipcBytes))
+			outResult.NumRowsReturned = uint64(len(filteredData))
+
+			return nil
+		},
+	)
+}
+
+// createArrowIPCStream creates an Arrow IPC stream from the given schema and data
+// This is used to mock the output from the Rust FFI functions
+func createArrowIPCStream(
+	t *testing.T,
+	schema *arrow.Schema,
+	data []map[string]any,
+) []byte {
+	if t != nil {
+		t.Helper()
+	}
+
+	// Create builders for each field
+	builders := make([]array.Builder, 0, schema.NumFields())
+	for _, field := range schema.Fields() {
+		var builder array.Builder
+		switch field.Type {
+		case arrow.PrimitiveTypes.Int64:
+			builder = array.NewInt64Builder(memory.DefaultAllocator)
+		case arrow.PrimitiveTypes.Float64:
+			builder = array.NewFloat64Builder(memory.DefaultAllocator)
+		default:
+			if t != nil {
+				t.Fatalf("unsupported type: %v", field.Type)
+			}
+			panic(fmt.Sprintf("unsupported type: %v", field.Type))
+		}
+		builders = append(builders, builder)
+	}
+	defer func() {
+		for _, b := range builders {
+			b.Release()
+		}
+	}()
+
+	// Populate builders with data
+	for _, row := range data {
+		for i, field := range schema.Fields() {
+			value := row[field.Name]
+			switch b := builders[i].(type) {
+			case *array.Int64Builder:
+				b.Append(value.(int64))
+			case *array.Float64Builder:
+				b.Append(value.(float64))
+			}
+		}
+	}
+
+	// Create arrays from builders
+	arrays := make([]arrow.Array, 0, len(builders))
+	for _, builder := range builders {
+		arrays = append(arrays, builder.NewArray())
+	}
+	defer func() {
+		for _, arr := range arrays {
+			arr.Release()
+		}
+	}()
+
+	// Create record batch
+	numRows := int64(len(data))
+	record := array.NewRecordBatch(schema, arrays, numRows)
+	defer record.Release()
+
+	// Write to IPC stream
+	var buf bytes.Buffer
+	writer := ipc.NewWriter(
+		&buf,
+		ipc.WithSchema(schema),
+		ipc.WithAllocator(memory.DefaultAllocator),
+	)
+	defer writer.Close()
+
+	err := writer.Write(record)
+	if err != nil {
+		if t != nil {
+			require.NoError(t, err)
+		} else {
+			panic(fmt.Sprintf("failed to write IPC: %v", err))
+		}
+	}
+
+	return buf.Bytes()
+}
 
 func respondWithParquetContent(
 	t *testing.T,
@@ -87,6 +337,15 @@ func mockGraphQLWithParquetUrls(urls []string) *gqlmock.MockClient {
 func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 	ctx := t.Context()
 	tempDir := t.TempDir()
+	originalCacheDir := os.Getenv("WANDB_CACHE_DIR")
+	os.Setenv("WANDB_CACHE_DIR", tempDir)
+	defer func() {
+		if originalCacheDir == "" {
+			os.Unsetenv("WANDB_CACHE_DIR")
+		} else {
+			os.Setenv("WANDB_CACHE_DIR", originalCacheDir)
+		}
+	}()
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
@@ -100,22 +359,35 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 		{"_step": int64(2), "metric1": 3.0},
 	}
 	parquetFilePath := filepath.Join(tempDir, "test.parquet")
-	iteratortest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+	runhistoryreadertest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
 	parquetContent, err := os.ReadFile(parquetFilePath)
 	require.NoError(t, err)
 	server := createHttpServer(t, respondWithParquetContent(t, parquetContent))
 	mockGQL := mockGraphQLWithParquetUrls(
 		[]string{server.URL + "/test.parquet"},
 	)
+	rustArrowWrapper := createMockRustArrowWrapper(
+		t,
+		schema,
+		map[uintptr][]map[string]any{1: data},
+	)
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
 	reader, err := New(
 		ctx,
 		"test-entity",
 		"test-project",
 		"test-run-id",
 		mockGQL,
-		retryablehttp.NewClient(),
+		api.NewClient(api.ClientOptions{
+			BaseURL:            serverURL,
+			CredentialProvider: api.NoopCredentialProvider{},
+		}),
 		[]string{},
 		true,
+		rustArrowWrapper,
 	)
 	require.NoError(t, err)
 
@@ -123,7 +395,7 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, results, 3)
-	expectedResults := []iterator.KeyValueList{
+	expectedResults := []parquet.KeyValueList{
 		{
 			{Key: "_step", Value: int64(0)},
 			{Key: "metric1", Value: 1.0},
@@ -169,7 +441,7 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 	servers := make([]*httptest.Server, 2)
 	for i, data := range [][]map[string]any{data1, data2} {
 		parquetFilePath := filepath.Join(tempDir, fmt.Sprintf("test%d.parquet", i))
-		iteratortest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+		runhistoryreadertest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
 
 		parquetContent, err := os.ReadFile(parquetFilePath)
 		require.NoError(t, err)
@@ -182,6 +454,10 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 		servers[0].URL + "/test1.parquet",
 		servers[1].URL + "/test2.parquet",
 	})
+	rustWrapper := createMockRustArrowWrapper(t, schema, map[uintptr][]map[string]any{
+		1: data1,
+		2: data2,
+	})
 
 	reader, err := New(
 		ctx,
@@ -192,6 +468,7 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{},
 		true,
+		rustWrapper,
 	)
 	require.NoError(t, err)
 
@@ -199,7 +476,7 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Len(t, results, 2)
-	expectedResults := []iterator.KeyValueList{
+	expectedResults := []parquet.KeyValueList{
 		{
 			{Key: "_step", Value: int64(1)},
 			{Key: "metric1", Value: 1.0},
@@ -209,6 +486,7 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 			{Key: "metric1", Value: 3.0},
 		},
 	}
+	fmt.Println("results", results)
 	for i, result := range results {
 		assert.ElementsMatch(t, expectedResults[i], result, "Result %d doesn't match expected", i)
 	}
@@ -231,13 +509,31 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 		{"_step": int64(2), "metric1": 3.0, "metric2": 30.0},
 	}
 	parquetFilePath := filepath.Join(tempDir, "test.parquet")
-	iteratortest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+	runhistoryreadertest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
 	parquetContent, err := os.ReadFile(parquetFilePath)
 	require.NoError(t, err)
 	server := createHttpServer(t, respondWithParquetContent(t, parquetContent))
 	mockGQL := mockGraphQLWithParquetUrls([]string{
 		server.URL + "/test.parquet",
 	})
+	filteredSchema := arrow.NewSchema(
+		[]arrow.Field{
+			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
+			{Name: "metric1", Type: arrow.PrimitiveTypes.Float64},
+		},
+		nil,
+	)
+	filteredData := []map[string]any{
+		{"_step": int64(0), "metric1": 1.0},
+		{"_step": int64(1), "metric1": 2.0},
+		{"_step": int64(2), "metric1": 3.0},
+	}
+	rustWrapper := createMockRustArrowWrapper(
+		t,
+		filteredSchema,
+		map[uintptr][]map[string]any{1: filteredData},
+	)
+
 	reader, err := New(
 		ctx,
 		"test-entity",
@@ -247,6 +543,7 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{"metric1"},
 		true,
+		rustWrapper,
 	)
 	require.NoError(t, err)
 
@@ -254,7 +551,7 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, results, 3)
-	expectedResults := []iterator.KeyValueList{
+	expectedResults := []parquet.KeyValueList{
 		{
 			{Key: "_step", Value: int64(0)},
 			{Key: "metric1", Value: 1.0},
@@ -319,6 +616,7 @@ func TestHistoryReader_GetHistorySteps_AllLiveData(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{},
 		true,
+		createMockRustArrowWrapper(nil, nil, nil),
 	)
 	require.NoError(t, err)
 
@@ -326,11 +624,11 @@ func TestHistoryReader_GetHistorySteps_AllLiveData(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, results, 2)
-	assert.ElementsMatch(t, results[0], iterator.KeyValueList{
+	assert.ElementsMatch(t, results[0], parquet.KeyValueList{
 		{Key: "_step", Value: int64(0)},
 		{Key: "metric1", Value: 1.0},
 	})
-	assert.ElementsMatch(t, results[1], iterator.KeyValueList{
+	assert.ElementsMatch(t, results[1], parquet.KeyValueList{
 		{Key: "_step", Value: int64(1)},
 		{Key: "metric1", Value: 2.0},
 	})
@@ -384,6 +682,7 @@ func TestHistoryReader_GetHistorySteps_AllLiveData_WithKeys(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{"metric1"},
 		true,
+		createMockRustArrowWrapper(nil, nil, nil),
 	)
 	require.NoError(t, err)
 
@@ -391,11 +690,11 @@ func TestHistoryReader_GetHistorySteps_AllLiveData_WithKeys(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, results, 2)
-	assert.ElementsMatch(t, results[0], iterator.KeyValueList{
+	assert.ElementsMatch(t, results[0], parquet.KeyValueList{
 		{Key: "_step", Value: int64(0)},
 		{Key: "metric1", Value: 1.0},
 	})
-	assert.ElementsMatch(t, results[1], iterator.KeyValueList{
+	assert.ElementsMatch(t, results[1], parquet.KeyValueList{
 		{Key: "_step", Value: int64(1)},
 		{Key: "metric1", Value: 2.0},
 	})
@@ -420,7 +719,7 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 		{"_step": int64(0), "metric1": 1.0},
 	}
 	parquetFilePath := filepath.Join(tempDir, "test.parquet")
-	iteratortest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+	runhistoryreadertest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
 	parquetContent, err := os.ReadFile(parquetFilePath)
 	require.NoError(t, err)
 	server := createHttpServer(t, respondWithParquetContent(t, parquetContent))
@@ -457,6 +756,11 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 			}
 		}`,
 	)
+	rustWrapper := createMockRustArrowWrapper(
+		t,
+		schema,
+		map[uintptr][]map[string]any{1: data},
+	)
 
 	reader, err := New(
 		ctx,
@@ -467,6 +771,7 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{},
 		true,
+		rustWrapper,
 	)
 	require.NoError(t, err)
 
@@ -475,11 +780,11 @@ func TestHistoryReader_GetHistorySteps_MixedParquetAndLiveData(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, results, 2)
-	assert.ElementsMatch(t, results[0], iterator.KeyValueList{
+	assert.ElementsMatch(t, results[0], parquet.KeyValueList{
 		{Key: "_step", Value: int64(0)},
 		{Key: "metric1", Value: 1.0},
 	})
-	assert.ElementsMatch(t, results[1], iterator.KeyValueList{
+	assert.ElementsMatch(t, results[1], parquet.KeyValueList{
 		{Key: "_step", Value: int64(1)},
 		{Key: "metric1", Value: 2.0},
 	})
@@ -513,6 +818,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnInvalidLiveData(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{},
 		false,
+		createMockRustArrowWrapper(nil, nil, nil),
 	)
 	assert.ErrorContains(t, err, "expected LiveData to be map[string]any")
 }
@@ -545,6 +851,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnMissingStepKey(t *testing.T) {
 		retryablehttp.NewClient(),
 		[]string{},
 		false,
+		createMockRustArrowWrapper(nil, nil, nil),
 	)
 	assert.ErrorContains(t, err, "expected LiveData to contain step key")
 }
@@ -577,6 +884,7 @@ func TestHistoryReader_GetHistorySteps_NoPanicOnNonConvertibleStepValue(t *testi
 		retryablehttp.NewClient(),
 		[]string{},
 		false,
+		createMockRustArrowWrapper(nil, nil, nil),
 	)
 	assert.ErrorContains(t, err, "expected step to be float64")
 }
@@ -629,6 +937,7 @@ func TestHistoryReader_GetHistorySteps_ConvertsStepValueToInt(t *testing.T) {
 				retryablehttp.NewClient(),
 				[]string{},
 				false,
+				createMockRustArrowWrapper(nil, nil, nil),
 			)
 			assert.NoError(t, err)
 		})
