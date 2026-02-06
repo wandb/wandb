@@ -199,15 +199,24 @@ class ServiceConnection:
         handle = await self._client.deliver(request)
         return handle.map(lambda r: r.sync_status_response)
 
+    async def api_request_async(
+        self,
+        api_request: wandb_api_pb2.ApiRequest,
+    ) -> MailboxHandle[wandb_api_pb2.ApiResponse]:
+        """Send an ApiRequest and return a handle to the response."""
+        request = spb.ServerRequest()
+        request.api_request.CopyFrom(api_request)
+
+        handle = await self._client.deliver(request)
+        return handle.map(lambda r: r.api_response)
+
     def api_request(
         self,
         api_request: wandb_api_pb2.ApiRequest,
         timeout: float | None = None,
     ) -> wandb_api_pb2.ApiResponse:
         """Send an ApiRequest and wait for a response."""
-        request = spb.ServerRequest()
-        request.api_request.CopyFrom(api_request)
-        handle = self._asyncer.run(lambda: self._client.deliver(request))
+        handle = self._asyncer.run(lambda: self.api_request_async(api_request))
         try:
             response = handle.wait_or(timeout=timeout)
         except (MailboxClosedError, HandleAbandonedError):
@@ -221,13 +230,12 @@ class ServiceConnection:
                 + " the service process is busy and did not respond in time.",
             ) from None
 
-        api_response = response.api_response
-        if api_response.HasField("api_error_response"):
+        if response.HasField("api_error_response"):
             raise WandbApiFailedError(
-                api_response.api_error_response.message,
-                api_response.api_error_response,
+                response.api_error_response.message,
+                response.api_error_response,
             )
-        return api_response
+        return response
 
     def api_publish(self, api_request: wandb_api_pb2.ApiRequest) -> None:
         """Publish an ApiRequest without waiting for a response."""

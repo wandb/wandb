@@ -313,6 +313,7 @@ class Agent:
                         and poll_result > 0
                     ):
                         self._failed += 1
+                        # TODO: raise an exception
                         if self.is_flapping():
                             logger.error(
                                 "Detected %i failed runs in the first %i seconds, shutting down.",
@@ -324,6 +325,7 @@ class Agent:
                             )
                             self._running = False
                             break
+                        # TODO: raise an exception
                         if self.is_failing():
                             logger.error(
                                 "Detected %i failed runs in a row, shutting down.",

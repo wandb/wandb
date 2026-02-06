@@ -35,6 +35,7 @@ from wandb.sdk.internal.internal_api import Api as SDKInternalApi
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
@@ -1758,13 +1759,18 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
         api = _get_cling_api(reset=True)
 
     wandb.termlog("Starting wandb agent 🕵️")
-    wandb_agent.agent(
-        sweep_id,
-        entity=entity,
-        project=project,
-        count=count,
-        forward_signals=forward_signals,
-    )
+    try:
+        wandb_agent.agent(
+            sweep_id,
+            entity=entity,
+            project=project,
+            count=count,
+            forward_signals=forward_signals,
+        )
+    # TODO: handle other errors with correct exit codes
+    except SweepNotFoundError:
+        wandb.termerror("Sweep was deleted or agent was not found. Stopping agent.")
+        sys.exit(1)
 
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
