@@ -77,7 +77,7 @@ const (
 	MinMetricChartHeight = 4
 	ChartBorderSize      = 2
 	ChartTitleHeight     = 1
-	ChartHeaderHeight    = 2
+	ChartHeaderHeight    = 1
 )
 
 // Default grid sizes
@@ -341,7 +341,7 @@ var (
 
 	navInfoStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
-	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(1).MarginBottom(0)
+	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(0).MarginBottom(0)
 
 	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginRight(1)
 )
@@ -393,7 +393,8 @@ var (
 	leftSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
 	leftSidebarBorderStyle = lipgloss.NewStyle().
 				Border(RightBorder).
-				BorderForeground(colorLayout)
+				BorderForeground(colorLayout).
+				BorderTop(false)
 	leftSidebarHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(colorSubheading).
@@ -407,14 +408,16 @@ var (
 		TopRight:    string(unicodeSpace),
 		BottomLeft:  string(unicodeSpace),
 		BottomRight: string(unicodeSpace),
-		// BottomRight: string(boxLightVertical),
 	}
 )
 
 // Right sidebar styles.
 var (
 	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
-	rightSidebarBorderStyle = lipgloss.NewStyle().Border(LeftBorder).BorderForeground(colorLayout)
+	rightSidebarBorderStyle = lipgloss.NewStyle().
+				Border(LeftBorder).
+				BorderForeground(colorLayout).
+				BorderTop(false)
 	rightSidebarHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(colorSubheading).
@@ -453,7 +456,7 @@ var (
 
 // Workspace view mode styles.
 var (
-	workspaceTopMarginLines = 2
+	workspaceTopMarginLines = 1
 	workspaceHeaderLines    = 1
 	runsSidebarBorderCols   = 2
 

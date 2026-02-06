@@ -289,7 +289,7 @@ func (r *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth i
 	var parts []string
 
 	if leftWidth > 0 {
-		leftView := r.leftSidebar.View(r.height - StatusBarHeight - 2)
+		leftView := r.leftSidebar.View(r.height - StatusBarHeight - 1)
 		parts = append(parts, leftView)
 	}
 

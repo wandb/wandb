@@ -3,7 +3,6 @@ package leet
 import (
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,7 +20,7 @@ const (
 const (
 	// Sidebar header lines (title + state + ID + name + project + blank line).
 	// TODO: replace with len(LeftSidebar.buildHeaderLines())
-	sidebarHeaderLines = 7
+	sidebarHeaderLines = 6
 )
 
 // RunOverviewSidebar stores and displays run metadata.
@@ -173,20 +172,20 @@ func (s *RunOverviewSidebar) View(height int) string {
 		lines = append(lines, "No data.")
 	}
 
-	content := strings.Join(lines, "\n")
+	content := lipgloss.JoinVertical(lipgloss.Top, lines...)
 
 	styledContent := s.style().
 		Width(s.animState.Width()).
-		Height(height + 1).
+		Height(height).
 		MaxWidth(s.animState.Width()).
-		MaxHeight(height + 1).
+		MaxHeight(height).
 		Render(content)
 
 	return s.borderStyle().
 		Width(s.animState.Width() - 2).
-		Height(height + 2).
+		Height(height + 1).
 		MaxWidth(s.animState.Width()).
-		MaxHeight(height + 2).
+		MaxHeight(height + 1).
 		Render(styledContent)
 }
 
@@ -373,7 +372,7 @@ func (s *RunOverviewSidebar) renderSection(idx, width int) string {
 	itemLines := s.renderSectionItems(section, width)
 	lines = append(lines, itemLines...)
 
-	return strings.Join(lines, "\n")
+	return lipgloss.JoinVertical(lipgloss.Top, lines...)
 }
 
 // renderSectionHeader renders the section title with pagination info.

@@ -417,7 +417,7 @@ func (w *Workspace) renderRunsList() string {
 		MaxHeight(innerH).
 		Render(content)
 
-	boxed := leftSidebarBorderStyle.Render(styledContent)
+	boxed := leftSidebarBorderStyle.Height(innerH + 1).MaxHeight(innerH + 1).Render(styledContent)
 	return lipgloss.Place(sidebarW, sidebarH, lipgloss.Left, lipgloss.Top, boxed)
 }
 
