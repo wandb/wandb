@@ -46,7 +46,7 @@ func (m *Model) TestSidebarFilterQuery() string {
 }
 
 // TestGetLeftSidebar returns the left sidebar for testing
-func (m *Model) TestGetLeftSidebar() *LeftSidebar {
+func (m *Model) TestGetLeftSidebar() *RunOverviewSidebar {
 	return m.leftSidebar
 }
 
@@ -71,7 +71,7 @@ func (m *Model) TestClearMainChartFocus() {
 }
 
 // TestForceExpand forces the sidebar to expanded state without animation
-func (s *LeftSidebar) TestForceExpand() {
+func (s *RunOverviewSidebar) TestForceExpand() {
 	s.animState.currentWidth = s.animState.expandedWidth
 	s.animState.targetWidth = s.animState.expandedWidth
 	s.animState.animationStartTime = time.Now().Add(-AnimationDuration)

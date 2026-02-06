@@ -41,7 +41,7 @@ const (
 	leftSidebarContentPadding = 4
 
 	// Key/value column width ratio.
-	leftSidebarKeyWidthRatio = 0.4 // 40% of available width for keys
+	sidebarKeyWidthRatio = 0.4 // 40% of available width for keys
 
 	// Sidebar content padding (accounts for borders and internal spacing).
 	rightSidebarContentPadding = 3
@@ -90,17 +90,25 @@ var (
 	}
 
 	// Main text color that appears the most frequently on the screen.
-	colorText = lipgloss.Color("245")
+	colorText = lipgloss.AdaptiveColor{
+		Light: "#8a8a8a", // ANSI color 245
+		Dark:  "#8a8a8a",
+	}
 
 	// Color for extra or parenthetical text or information.
 	// Axis lines in charts.
-	colorSubtle = lipgloss.Color("240")
+	colorSubtle = lipgloss.AdaptiveColor{
+		Light: "#585858", // ANSI color 240
+		Dark:  "#585858",
+	}
 
 	// Color for layout elements, like borders and separator lines.
 	colorLayout = lipgloss.AdaptiveColor{
 		Light: "#949494",
 		Dark:  "#444444",
 	}
+
+	colorDark = lipgloss.Color("#171717")
 
 	// Color for layout elements when they're highlighted or focused.
 	colorLayoutHighlight = teal450
@@ -250,6 +258,22 @@ var (
 		Foreground(moon900).
 		Background(colorLayoutHighlight).
 		Padding(0, StatusBarPadding)
+)
+
+// Run overview styles.
+var (
+	colorSelectedRunStyle = lipgloss.AdaptiveColor{
+		Dark:  "#FCBC32",
+		Light: "#FCBC32",
+	}
+
+	runOverviewSidebarSectionHeaderStyle = lipgloss.
+						NewStyle().Bold(true).Foreground(colorSubheading)
+	runOverviewSidebarSectionStyle    = lipgloss.NewStyle().Foreground(colorText).Bold(true)
+	runOverviewSidebarKeyStyle        = lipgloss.NewStyle().Foreground(colorItemKey)
+	runOverviewSidebarValueStyle      = lipgloss.NewStyle().Foreground(colorItemValue)
+	runOverviewSidebarHighlightedItem = lipgloss.NewStyle().
+						Foreground(colorDark).Background(colorSelectedRunStyle)
 )
 
 // Left sidebar styles.

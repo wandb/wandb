@@ -53,7 +53,8 @@ type Model struct {
 
 	// UI components.
 	metricsGrid  *MetricsGrid
-	leftSidebar  *LeftSidebar
+	runOverview  *RunOverview
+	leftSidebar  *RunOverviewSidebar
 	rightSidebar *RightSidebar
 	help         *HelpModel
 
@@ -88,6 +89,9 @@ func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogg
 	focus := NewFocus()
 	watcherChan := make(chan tea.Msg, 4096)
 
+	ro := NewRunOverview()
+	runOverviewAnimState := NewAnimationState(cfg.LeftSidebarVisible(), SidebarMinWidth)
+
 	m := &Model{
 		config:       cfg,
 		keyMap:       buildKeyMap(),
@@ -97,7 +101,8 @@ func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogg
 		isLoading:    true,
 		runPath:      runPath,
 		metricsGrid:  NewMetricsGrid(cfg, focus, logger),
-		leftSidebar:  NewLeftSidebar(cfg),
+		runOverview:  ro,
+		leftSidebar:  NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
 		rightSidebar: NewRightSidebar(cfg, focus, logger),
 		watcherMgr:   NewWatcherManager(watcherChan, logger),
 		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, watcherChan, logger),

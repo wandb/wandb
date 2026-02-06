@@ -12,7 +12,7 @@ const (
 )
 
 // updateSectionHeights dynamically allocates heights to sections.
-func (s *LeftSidebar) updateSectionHeights() {
+func (s *RunOverviewSidebar) updateSectionHeights() {
 	if s.height == 0 {
 		return
 	}
@@ -36,7 +36,7 @@ func (s *LeftSidebar) updateSectionHeights() {
 }
 
 // availableHeight returns the height available for sections.
-func (s *LeftSidebar) availableHeight() int {
+func (s *RunOverviewSidebar) availableHeight() int {
 	availableHeight := s.height - sidebarHeaderLines
 
 	activeSections := s.countActiveSections()
@@ -56,7 +56,7 @@ func (s *LeftSidebar) availableHeight() int {
 }
 
 // countActiveSections returns the number of sections with items.
-func (s *LeftSidebar) countActiveSections() int {
+func (s *RunOverviewSidebar) countActiveSections() int {
 	count := 0
 	for i := range s.sections {
 		if len(s.sections[i].FilteredItems) > 0 {
@@ -67,7 +67,7 @@ func (s *LeftSidebar) countActiveSections() int {
 }
 
 // calculateDesiredHeights calculates the desired height for each section.
-func (s *LeftSidebar) calculateDesiredHeights() []int {
+func (s *RunOverviewSidebar) calculateDesiredHeights() []int {
 	maxHeights := []int{
 		sectionMaxHeightEnvironment,
 		sectionMaxHeightConfig,
@@ -93,7 +93,7 @@ func (s *LeftSidebar) calculateDesiredHeights() []int {
 }
 
 // sumDesiredHeights returns the sum of all desired heights.
-func (s *LeftSidebar) sumDesiredHeights(desired []int) int {
+func (s *RunOverviewSidebar) sumDesiredHeights(desired []int) int {
 	total := 0
 	for _, h := range desired {
 		total += h
@@ -102,7 +102,7 @@ func (s *LeftSidebar) sumDesiredHeights(desired []int) int {
 }
 
 // scaleHeightsProportionally scales section heights when total exceeds available.
-func (s *LeftSidebar) scaleHeightsProportionally(desired []int, totalAvailable int) {
+func (s *RunOverviewSidebar) scaleHeightsProportionally(desired []int, totalAvailable int) {
 	totalDesired := s.sumDesiredHeights(desired)
 	scaleFactor := float64(totalAvailable) / float64(totalDesired)
 
@@ -129,14 +129,14 @@ func (s *LeftSidebar) scaleHeightsProportionally(desired []int, totalAvailable i
 }
 
 // allocateDesiredHeights sets each section to its desired height.
-func (s *LeftSidebar) allocateDesiredHeights(desired []int) {
+func (s *RunOverviewSidebar) allocateDesiredHeights(desired []int) {
 	for i := range s.sections {
 		s.sections[i].Height = desired[i]
 	}
 }
 
 // distributeExtraSpace distributes unused space to sections that can use it.
-func (s *LeftSidebar) distributeExtraSpace(totalAvailable, totalDesired int) {
+func (s *RunOverviewSidebar) distributeExtraSpace(totalAvailable, totalDesired int) {
 	maxHeights := []int{
 		sectionMaxHeightEnvironment,
 		sectionMaxHeightConfig,
@@ -167,7 +167,7 @@ func (s *LeftSidebar) distributeExtraSpace(totalAvailable, totalDesired int) {
 }
 
 // allocateRemainder distributes remaining space to the last section with items.
-func (s *LeftSidebar) allocateRemainder(remainder int) {
+func (s *RunOverviewSidebar) allocateRemainder(remainder int) {
 	// Try sections from bottom to top.
 	for i := 2; i >= 0; i-- {
 		if len(s.sections[i].FilteredItems) > 0 && s.sections[i].Height > 0 {
@@ -178,7 +178,7 @@ func (s *LeftSidebar) allocateRemainder(remainder int) {
 }
 
 // updateItemsPerPage updates the items per page for each section.
-func (s *LeftSidebar) updateItemsPerPage() {
+func (s *RunOverviewSidebar) updateItemsPerPage() {
 	for i := range s.sections {
 		if s.sections[i].Height > 0 {
 			// Height includes title line, so items per page is height - 1.
@@ -190,7 +190,7 @@ func (s *LeftSidebar) updateItemsPerPage() {
 }
 
 // navigateUp moves cursor up within the active section.
-func (s *LeftSidebar) navigateUp() {
+func (s *RunOverviewSidebar) navigateUp() {
 	if !s.isValidActiveSection() {
 		return
 	}
@@ -200,7 +200,7 @@ func (s *LeftSidebar) navigateUp() {
 }
 
 // navigateDown moves cursor down within the active section.
-func (s *LeftSidebar) navigateDown() {
+func (s *RunOverviewSidebar) navigateDown() {
 	if !s.isValidActiveSection() {
 		return
 	}
@@ -210,7 +210,7 @@ func (s *LeftSidebar) navigateDown() {
 }
 
 // navigateSection jumps between sections, skipping empty ones.
-func (s *LeftSidebar) navigateSection(direction int) {
+func (s *RunOverviewSidebar) navigateSection(direction int) {
 	if len(s.sections) == 0 {
 		return
 	}
@@ -244,7 +244,7 @@ func (s *LeftSidebar) navigateSection(direction int) {
 }
 
 // navigatePageUp changes page to previous within active section.
-func (s *LeftSidebar) navigatePageUp() {
+func (s *RunOverviewSidebar) navigatePageUp() {
 	if !s.isValidActiveSection() {
 		return
 	}
@@ -254,7 +254,7 @@ func (s *LeftSidebar) navigatePageUp() {
 }
 
 // navigatePageDown changes page to next within active section.
-func (s *LeftSidebar) navigatePageDown() {
+func (s *RunOverviewSidebar) navigatePageDown() {
 	if !s.isValidActiveSection() {
 		return
 	}
@@ -264,7 +264,7 @@ func (s *LeftSidebar) navigatePageDown() {
 }
 
 // selectFirstAvailableItem selects the first item in the first non-empty section.
-func (s *LeftSidebar) selectFirstAvailableItem() {
+func (s *RunOverviewSidebar) selectFirstAvailableItem() {
 	// Find first non-empty section.
 	for i := range s.sections {
 		if len(s.sections[i].FilteredItems) > 0 && s.sections[i].ItemsPerPage() > 0 {
@@ -278,7 +278,7 @@ func (s *LeftSidebar) selectFirstAvailableItem() {
 }
 
 // restoreSelection attempts to restore the previously selected item.
-func (s *LeftSidebar) restoreSelection(previousKey string) {
+func (s *RunOverviewSidebar) restoreSelection(previousKey string) {
 	// Try to find key-only match in current active section.
 	if s.tryRestoreInSection(previousKey) {
 		return
@@ -291,7 +291,7 @@ func (s *LeftSidebar) restoreSelection(previousKey string) {
 // tryRestoreInSection attempts to restore selection in a specific section.
 //
 // Returns true if successful.
-func (s *LeftSidebar) tryRestoreInSection(key string) bool {
+func (s *RunOverviewSidebar) tryRestoreInSection(key string) bool {
 	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return false
 	}
@@ -316,8 +316,25 @@ func (s *LeftSidebar) tryRestoreInSection(key string) bool {
 	return false
 }
 
+// deactivateAllSections marks all sections as inactive, removing row highlights.
+func (s *RunOverviewSidebar) deactivateAllSections() {
+	for i := range s.sections {
+		s.sections[i].Active = false
+	}
+}
+
+// hasActiveSection reports whether any section is currently active.
+func (s *RunOverviewSidebar) hasActiveSection() bool {
+	for i := range s.sections {
+		if s.sections[i].Active {
+			return true
+		}
+	}
+	return false
+}
+
 // setActiveSection changes the active section and resets navigation state.
-func (s *LeftSidebar) setActiveSection(idx int) {
+func (s *RunOverviewSidebar) setActiveSection(idx int) {
 	// Deactivate all sections.
 	for i := range s.sections {
 		s.sections[i].Active = false
@@ -331,6 +348,6 @@ func (s *LeftSidebar) setActiveSection(idx int) {
 }
 
 // isValidActiveSection returns true if the active section index is valid.
-func (s *LeftSidebar) isValidActiveSection() bool {
+func (s *RunOverviewSidebar) isValidActiveSection() bool {
 	return s.activeSection >= 0 && s.activeSection < len(s.sections)
 }
