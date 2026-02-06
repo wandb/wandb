@@ -15,33 +15,57 @@ import wandb
 from .lib import telemetry
 
 if TYPE_CHECKING:
+    import flax  # type: ignore [import-not-found]
     import torch  # type: ignore [import-not-found]
+
+    WatchableModel = (
+        torch.nn.Module
+        | flax.linen.Module
+        | Sequence[torch.nn.Module]
+        | Sequence[flax.linen.Module]
+    )
 
 logger = logging.getLogger("wandb")
 
 _global_watch_idx = 0
 
 
+def _is_flax_module(model) -> bool:
+    """Check if a model is a Flax module."""
+    try:
+        import flax.linen as nn
+
+        if isinstance(model, nn.Module):
+            return True
+    except ImportError:
+        pass
+
+    # Fallback to typename checking
+    typename = wandb.util.get_full_typename(model)
+    return typename.startswith("flax.linen.") or typename.startswith("flax.nn.")
+
+
 def _watch(
     run: wandb.Run,
-    models: torch.nn.Module | Sequence[torch.nn.Module],
+    models: WatchableModel,
     criterion: torch.F | None = None,
     log: Literal["gradients", "parameters", "all"] | None = "gradients",
     log_freq: int = 1000,
     idx: int | None = None,
     log_graph: bool = False,
 ):
-    """Hooks into the given PyTorch model(s) to monitor gradients and the model's computational graph.
+    """Hooks into the given model(s) to monitor gradients and the model's computational graph.
 
-    This function can track parameters, gradients, or both during training. It should be
-    extended to support arbitrary machine learning models in the future.
+    This function can track parameters, gradients, or both during training.
+    Supports PyTorch and Flax models.
 
     Args:
         run (wandb.Run): The run object to log to.
-        models (Union[torch.nn.Module, Sequence[torch.nn.Module]]):
+        models (WatchableModel):
             A single model or a sequence of models to be monitored.
+            Supports PyTorch (torch.nn.Module) and Flax (flax.linen.Module).
         criterion (Optional[torch.F]):
-            The loss function being optimized (optional).
+            The loss function being optimized (optional, PyTorch only).
         log (Optional[Literal["gradients", "parameters", "all"]]):
             Specifies whether to log "gradients", "parameters", or "all".
             Set to None to disable logging. (default="gradients")
@@ -50,15 +74,16 @@ def _watch(
         idx (Optional[int]):
             Index used when tracking multiple models with `wandb.watch`. (default=None)
          log_graph (bool):
-            Whether to log the model's computational graph. (default=False)
+            Whether to log the model's computational graph. (default=False, PyTorch only)
 
     Returns:
-        wandb.Graph:
-            The graph object, which will be populated after the first backward pass.
+        wandb.Graph or None:
+            The graph object for PyTorch models (populated after first backward pass).
+            None for Flax models.
 
     Raises:
         ValueError: If `wandb.init` has not been called.
-        TypeError: If any of the models are not instances of `torch.nn.Module`.
+        TypeError: If any of the models are not supported types.
     """
     global _global_watch_idx
 
@@ -76,14 +101,43 @@ def _watch(
     if not isinstance(models, (tuple, list)):
         models = (models,)
 
+    # Detect model framework
+    is_flax = any(_is_flax_module(model) for model in models)
+
+    if is_flax:
+        # Handle Flax models
+        if log_graph:
+            wandb.termwarn(
+                "log_graph is not supported for Flax models and will be ignored."
+            )
+
+        if len(models) > 1:
+            wandb.termwarn(
+                "Watching multiple Flax models is not fully supported. "
+                "Only the first model will be watched."
+            )
+
+        # Configure Flax watching
+        model = models[0]
+        run._flax.watch(model, log=log, log_freq=log_freq)
+
+        wandb.termlog(
+            "Flax model watch configured. Gradients will be automatically captured from jax.grad() and jax.value_and_grad()."
+        )
+
+        return None
+
+    # Handle PyTorch models
     torch = wandb.util.get_module(
-        "torch", required="wandb.watch only works with pytorch, couldn't import torch."
+        "torch",
+        required="Could not import torch. wandb.watch supports PyTorch and Flax models.",
     )
 
     for model in models:
         if not isinstance(model, torch.nn.Module):
             raise TypeError(
-                f"Expected a pytorch model (torch.nn.Module). Received {type(model)}"
+                f"Expected a PyTorch model (torch.nn.Module) or Flax model (flax.linen.Module). "
+                f"Received {type(model)}"
             )
 
     graphs = []
@@ -119,28 +173,35 @@ def _watch(
     return graphs
 
 
-def _unwatch(
-    run: wandb.Run, models: torch.nn.Module | Sequence[torch.nn.Module] | None = None
-) -> None:
-    """Remove pytorch model topology, gradient and parameter hooks.
+def _unwatch(run: wandb.Run, models: WatchableModel | None = None) -> None:
+    """Remove model topology, gradient and parameter hooks.
 
     Args:
         run (wandb.Run):
             The run object to log to.
-        models (torch.nn.Module | Sequence[torch.nn.Module]):
-            Optional list of pytorch models that have had watch called on them
+        models (WatchableModel):
+            Optional list of models that have had watch called on them.
+            Can be PyTorch or Flax models.
     """
     if models:
         if not isinstance(models, (tuple, list)):
             models = (models,)
-        for model in models:
-            if not hasattr(model, "_wandb_hook_names"):
-                wandb.termwarn(f"{model} model has not been watched")
-            else:
-                for name in model._wandb_hook_names:
-                    run._torch.unhook(name)
-                delattr(model, "_wandb_hook_names")
-                # TODO: we should also remove recursively model._wandb_watch_called
 
+        for model in models:
+            if _is_flax_module(model):
+                # For Flax, we can't track individual models by hooks
+                # Just unwatch everything
+                run._flax.unwatch()
+            else:
+                # PyTorch model
+                if not hasattr(model, "_wandb_hook_names"):
+                    wandb.termwarn(f"{model} model has not been watched")
+                else:
+                    for name in model._wandb_hook_names:
+                        run._torch.unhook(name)
+                    delattr(model, "_wandb_hook_names")
+                    # TODO: we should also remove recursively model._wandb_watch_called
     else:
         run._torch.unhook_all()
+        if hasattr(run, "_flax") and run._flax is not None:
+            run._flax.unwatch()
