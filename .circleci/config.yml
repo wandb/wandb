@@ -411,8 +411,10 @@ jobs:
       - run:
           name: Automatically generate code and check for changes
           command: |
-            nox -vs codegen
-            nox -vs codegen -- --check
+            uv venv .venv-codegen
+            source .venv-codegen/bin/activate
+            uv pip install ruff .
+            python tools/generate-tool.py --generate --check
       - run:
           name: Run mypy and report results
           command: nox -vs mypy-report
