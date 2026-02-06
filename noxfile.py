@@ -547,22 +547,6 @@ def proto_check_go(session: nox.Session) -> None:
     )
 
 
-@nox.session(name="codegen")
-def codegen(session: nox.Session) -> None:
-    session.install("ruff")
-    session.install(".")
-
-    session.run("python", "tools/generate-tool.py", "--generate")
-
-
-@nox.session(name="codegen-check")
-def codegen_check(session: nox.Session) -> None:
-    session.install("ruff")
-    session.install(".")
-
-    session.run("python", "tools/generate-tool.py", "--check")
-
-
 @nox.session(name="mypy-report")
 def mypy_report(session: nox.Session) -> None:
     """Type-check the code with mypy.
