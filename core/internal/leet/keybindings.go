@@ -4,143 +4,149 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// KeyBinding represents a key binding with its handler and metadata.
-type KeyBinding struct {
+// KeyBinding defines a key binding for a particular target type.
+//
+// If Handler is nil, the binding is shown in the help screen but is not dispatched
+// through the key map (useful for documentation-only bindings handled by a child
+// component or a parent model).
+type KeyBinding[T any] struct {
 	Keys        []string
 	Description string
-	Handler     func(*Model, tea.KeyMsg) (*Model, tea.Cmd)
+	Handler     func(*T, tea.KeyMsg) tea.Cmd
 }
 
-// BindingCategory groups related key bindings.
-type BindingCategory struct {
+// BindingCategory groups related key bindings (primarily for help display).
+type BindingCategory[T any] struct {
 	Name     string
-	Bindings []KeyBinding
+	Bindings []KeyBinding[T]
 }
 
-// KeyBindings returns all model-level key bindings organized by category.
-// These are handled by the Model and dispatched via the keyMap.
-func KeyBindings() []BindingCategory {
-	return []BindingCategory{
+// RunKeyBindings returns key bindings relevant to the single-run view.
+func RunKeyBindings() []BindingCategory[Run] {
+	return []BindingCategory[Run]{
 		{
 			Name: "General",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"h", "?"},
 					Description: "Toggle this help screen",
-					Handler:     (*Model).handleToggleHelp,
 				},
 				{
 					Keys:        []string{"q", "ctrl+c"},
 					Description: "Quit",
-					Handler:     (*Model).handleQuit,
+					Handler:     (*Run).handleQuit,
 				},
 				{
 					Keys:        []string{"alt+r"},
 					Description: "Reload run data",
-					Handler:     (*Model).handleRestart,
+					Handler:     (*Run).handleRestart,
+				},
+				{
+					Keys:        []string{"esc"},
+					Description: "Back to workspace (when not filtering/configuring)",
 				},
 			},
 		},
 		{
 			Name: "Panels",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"["},
 					Description: "Toggle left sidebar with run overview",
-					Handler:     (*Model).handleToggleLeftSidebar,
+					Handler:     (*Run).handleToggleLeftSidebar,
 				},
 				{
 					Keys:        []string{"]"},
 					Description: "Toggle right sidebar with system metrics",
-					Handler:     (*Model).handleToggleRightSidebar,
+					Handler:     (*Run).handleToggleRightSidebar,
 				},
 			},
 		},
 		{
 			Name: "Navigation",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"N", "pgup"},
-					Description: "Navigate between chart pages",
-					Handler:     (*Model).handlePrevPage,
+					Description: "Previous chart page",
+					Handler:     (*Run).handlePrevPage,
 				},
 				{
 					Keys:        []string{"n", "pgdown"},
-					Description: "Navigate between chart pages",
-					Handler:     (*Model).handleNextPage,
+					Description: "Next chart page",
+					Handler:     (*Run).handleNextPage,
 				},
 				{
 					Keys:        []string{"alt+N", "alt+pgup"},
-					Description: "Navigate between system metrics pages",
-					Handler:     (*Model).handlePrevSystemPage,
+					Description: "Previous system metrics page",
+					Handler:     (*Run).handlePrevSystemPage,
 				},
 				{
 					Keys:        []string{"alt+n", "alt+pgdown"},
-					Description: "Navigate between system metrics pages",
-					Handler:     (*Model).handleNextSystemPage,
+					Description: "Next system metrics page",
+					Handler:     (*Run).handleNextSystemPage,
 				},
 			},
 		},
 		{
 			Name: "Charts",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",
-					Handler:     (*Model).handleEnterMetricsFilter,
+					Handler:     (*Run).handleEnterMetricsFilter,
 				},
 				{
 					Keys:        []string{"ctrl+l"},
 					Description: "Clear active filter",
-					Handler:     (*Model).handleClearMetricsFilter,
+					Handler:     (*Run).handleClearMetricsFilter,
 				},
 			},
 		},
 		{
 			Name: "Run Overview",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"o"},
 					Description: "Filter overview items",
-					Handler:     (*Model).handleEnterOverviewFilter,
+					Handler:     (*Run).handleEnterOverviewFilter,
 				},
 				{
 					Keys:        []string{"ctrl+k"},
 					Description: "Clear overview filter",
-					Handler:     (*Model).handleClearOverviewFilter,
+					Handler:     (*Run).handleClearOverviewFilter,
 				},
 			},
 		},
 		{
 			Name: "Configuration",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"c"},
 					Description: "Set metrics grid columns",
-					Handler:     (*Model).handleConfigMetricsCols,
+					Handler:     (*Run).handleConfigMetricsCols,
 				},
 				{
 					Keys:        []string{"r"},
 					Description: "Set metrics grid rows",
-					Handler:     (*Model).handleConfigMetricsRows,
+					Handler:     (*Run).handleConfigMetricsRows,
 				},
 				{
 					Keys:        []string{"C"},
 					Description: "Set system grid columns (Shift+c)",
-					Handler:     (*Model).handleConfigSystemCols,
+					Handler:     (*Run).handleConfigSystemCols,
 				},
 				{
 					Keys:        []string{"R"},
 					Description: "Set system grid rows (Shift+r)",
-					Handler:     (*Model).handleConfigSystemRows,
+					Handler:     (*Run).handleConfigSystemRows,
 				},
 			},
 		},
-		// Key bindings below are handled by a component, not the Model.
-		// These are for documentation only and don't have handlers.
+
+		// Documentation-only bindings (handled by subcomponents, not via Run.keyMap).
 		{
 			Name: "Run Overview Navigation (when sidebar open)",
-			Bindings: []KeyBinding{
+			Bindings: []KeyBinding[Run]{
 				{
 					Keys:        []string{"up", "down"},
 					Description: "Navigate items in section",
@@ -155,39 +161,58 @@ func KeyBindings() []BindingCategory {
 				},
 			},
 		},
-		{
-			Name: "Mouse",
-			Bindings: []KeyBinding{
-				{
-					Keys:        []string{"wheel"},
-					Description: "Zoom in/out on focused chart",
-				},
-				{
-					Keys:        []string{"right-click+drag"},
-					Description: "Inspect: show (x, y) at nearest point on a chart",
-				},
-				{
-					Keys:        []string{"alt+right-click+drag"},
-					Description: "Inspect all visible charts in sync",
-				},
-				{
-					Keys:        []string{"shift+drag"},
-					Description: "Select text",
-				},
-			},
-		},
+
+		mouseCategory[Run](),
 	}
 }
 
-// buildKeyMap builds a lookup map from key string to handler.
-func buildKeyMap() map[string]func(*Model, tea.KeyMsg) (*Model, tea.Cmd) {
-	keyMap := make(map[string]func(*Model, tea.KeyMsg) (*Model, tea.Cmd))
-	for _, category := range KeyBindings() {
+// buildKeyMap builds a fast lookup map from key string to handler.
+func buildKeyMap[T any](categories []BindingCategory[T]) map[string]func(*T, tea.KeyMsg) tea.Cmd {
+	keyMap := make(map[string]func(*T, tea.KeyMsg) tea.Cmd)
+	for _, category := range categories {
 		for _, binding := range category.Bindings {
+			if binding.Handler == nil {
+				continue
+			}
 			for _, key := range binding.Keys {
-				keyMap[key] = binding.Handler
+				keyMap[normalizeKey(key)] = binding.Handler
 			}
 		}
 	}
 	return keyMap
+}
+
+// normalizeKey normalizes Bubble Tea's KeyMsg.String() into a stable key used by our maps.
+//
+// Bubble Tea has historically reported space as " " in some situations; we want a
+// help-friendly, explicit key name.
+func normalizeKey(key string) string {
+	if key == " " {
+		return "space"
+	}
+	return key
+}
+
+func mouseCategory[T any]() BindingCategory[T] {
+	return BindingCategory[T]{
+		Name: "Mouse",
+		Bindings: []KeyBinding[T]{
+			{
+				Keys:        []string{"wheel"},
+				Description: "Zoom in/out on focused chart",
+			},
+			{
+				Keys:        []string{"right-click+drag"},
+				Description: "Inspect: show (x, y) at nearest point on a chart",
+			},
+			{
+				Keys:        []string{"alt+right-click+drag"},
+				Description: "Inspect all visible charts in sync",
+			},
+			{
+				Keys:        []string{"shift+drag"},
+				Description: "Select text",
+			},
+		},
+	}
 }
