@@ -259,7 +259,7 @@ Flags:
 
 	// Run the TUI; allow in-process restarts (Alt+R) without re-parsing flags.
 	for {
-		model := leet.NewModel(wandbFile, nil, logger)
+		model := leet.NewRun(wandbFile, nil, logger)
 		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 		finalModel, err := p.Run()
@@ -269,7 +269,7 @@ Flags:
 		}
 
 		// If the model requests a restart, loop again.
-		if m, ok := finalModel.(*leet.Model); ok && m.ShouldRestart() {
+		if m, ok := finalModel.(*leet.Run); ok && m.ShouldRestart() {
 			continue
 		}
 
