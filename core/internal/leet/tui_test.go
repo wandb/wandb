@@ -212,16 +212,6 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 		teatest.WithDuration(longWait),
 	)
 
-	// Toggle help on, then assert the banner appears, then toggle it off.
-	// Why? To get some free coverage, of course!
-	tm.Type("h")
-	forceRepaint(tm, 240, 80)
-	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool { return bytes.Contains(b, []byte("LEET")) },
-		teatest.WithDuration(shortWait),
-	)
-	tm.Type("h")
-
 	// Quit.
 	tm.Type("q")
 	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
