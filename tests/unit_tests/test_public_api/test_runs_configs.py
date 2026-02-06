@@ -1,11 +1,12 @@
 """Tests for Runs.configs() method."""
 
+from __future__ import annotations
+
 from unittest import mock
 
 import pandas as pd
 import polars as pl
 import pytest
-
 from wandb.apis.public.runs import Runs
 
 
@@ -31,29 +32,35 @@ def _make_mock_runs(run_specs: list[tuple[str, dict | None]]):
 
 class TestConfigsDefaultFormat:
     def test_returns_list_of_dicts(self):
-        runs = _make_mock_runs([
-            ("run1", {"lr": 0.01, "epochs": 10}),
-            ("run2", {"lr": 0.001, "epochs": 20}),
-        ])
+        runs = _make_mock_runs(
+            [
+                ("run1", {"lr": 0.01, "epochs": 10}),
+                ("run2", {"lr": 0.001, "epochs": 20}),
+            ]
+        )
         result = Runs.configs(runs, format="default")
         assert isinstance(result, list)
         assert len(result) == 2
 
     def test_includes_run_id(self):
-        runs = _make_mock_runs([
-            ("run1", {"lr": 0.01}),
-        ])
+        runs = _make_mock_runs(
+            [
+                ("run1", {"lr": 0.01}),
+            ]
+        )
         result = Runs.configs(runs, format="default")
         assert result[0]["run_id"] == "run1"
         assert result[0]["lr"] == 0.01
 
     def test_skips_empty_configs(self):
-        runs = _make_mock_runs([
-            ("run1", {"lr": 0.01}),
-            ("run2", {}),
-            ("run3", None),
-            ("run4", {"lr": 0.1}),
-        ])
+        runs = _make_mock_runs(
+            [
+                ("run1", {"lr": 0.01}),
+                ("run2", {}),
+                ("run3", None),
+                ("run4", {"lr": 0.1}),
+            ]
+        )
         result = Runs.configs(runs, format="default")
         assert len(result) == 2
         assert result[0]["run_id"] == "run1"
@@ -65,35 +72,43 @@ class TestConfigsDefaultFormat:
         assert result == []
 
     def test_all_empty_configs(self):
-        runs = _make_mock_runs([
-            ("run1", {}),
-            ("run2", {}),
-        ])
+        runs = _make_mock_runs(
+            [
+                ("run1", {}),
+                ("run2", {}),
+            ]
+        )
         result = Runs.configs(runs, format="default")
         assert result == []
 
 
 class TestConfigsPolarsFormat:
     def test_returns_polars_dataframe(self):
-        runs = _make_mock_runs([
-            ("run1", {"lr": 0.01, "epochs": 10}),
-            ("run2", {"lr": 0.001, "epochs": 20}),
-        ])
+        runs = _make_mock_runs(
+            [
+                ("run1", {"lr": 0.01, "epochs": 10}),
+                ("run2", {"lr": 0.001, "epochs": 20}),
+            ]
+        )
         result = Runs.configs(runs, format="polars")
         assert isinstance(result, pl.DataFrame)
         assert len(result) == 2
 
     def test_columns_sorted(self):
-        runs = _make_mock_runs([
-            ("run1", {"z_param": 1, "a_param": 2, "m_param": 3}),
-        ])
+        runs = _make_mock_runs(
+            [
+                ("run1", {"z_param": 1, "a_param": 2, "m_param": 3}),
+            ]
+        )
         result = Runs.configs(runs, format="polars")
         assert result.columns == ["a_param", "m_param", "run_id", "z_param"]
 
     def test_includes_run_id_column(self):
-        runs = _make_mock_runs([
-            ("abc123", {"lr": 0.01}),
-        ])
+        runs = _make_mock_runs(
+            [
+                ("abc123", {"lr": 0.01}),
+            ]
+        )
         result = Runs.configs(runs, format="polars")
         assert "run_id" in result.columns
         assert result["run_id"].to_list() == ["abc123"]
@@ -106,10 +121,12 @@ class TestConfigsPolarsFormat:
 
     def test_heterogeneous_configs(self):
         """Runs with different config keys produce a DataFrame with all keys."""
-        runs = _make_mock_runs([
-            ("run1", {"lr": 0.01}),
-            ("run2", {"batch_size": 32}),
-        ])
+        runs = _make_mock_runs(
+            [
+                ("run1", {"lr": 0.01}),
+                ("run2", {"batch_size": 32}),
+            ]
+        )
         result = Runs.configs(runs, format="polars")
         assert len(result) == 2
         assert set(result.columns) == {"lr", "batch_size", "run_id"}
@@ -117,17 +134,21 @@ class TestConfigsPolarsFormat:
 
 class TestConfigsPandasFormat:
     def test_returns_pandas_dataframe(self):
-        runs = _make_mock_runs([
-            ("run1", {"lr": 0.01, "epochs": 10}),
-        ])
+        runs = _make_mock_runs(
+            [
+                ("run1", {"lr": 0.01, "epochs": 10}),
+            ]
+        )
         result = Runs.configs(runs, format="pandas")
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 1
 
     def test_columns_sorted(self):
-        runs = _make_mock_runs([
-            ("run1", {"z_param": 1, "a_param": 2}),
-        ])
+        runs = _make_mock_runs(
+            [
+                ("run1", {"z_param": 1, "a_param": 2}),
+            ]
+        )
         result = Runs.configs(runs, format="pandas")
         assert list(result.columns) == ["a_param", "run_id", "z_param"]
 
