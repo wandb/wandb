@@ -409,13 +409,10 @@ jobs:
           name: Ensure proto files were generated
           command: nox -vt proto-check
       - run:
-          name: Automatically generate code
+          name: Automatically generate code and check for changes
           command: |
             nox -vs codegen
-      - run:
-          name: Check for changes in the generated code
-          command: |
-            nox -vs codegen -- --check
+            nox -vs codegen-check
       - run:
           name: Run mypy and report results
           command: nox -vs mypy-report

@@ -552,10 +552,15 @@ def codegen(session: nox.Session) -> None:
     session.install("ruff")
     session.install(".")
 
-    args = session.posargs
-    if not args:
-        args = ["--generate"]
-    session.run("python", "tools/generate-tool.py", *args)
+    session.run("python", "tools/generate-tool.py", "--generate")
+
+
+@nox.session(name="codegen-check")
+def codegen_check(session: nox.Session) -> None:
+    session.install("ruff")
+    session.install(".")
+
+    session.run("python", "tools/generate-tool.py", "--check")
 
 
 @nox.session(name="mypy-report")
