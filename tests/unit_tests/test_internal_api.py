@@ -22,6 +22,7 @@ from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
     _OrgNames,
 )
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib import retry
 
 from .test_retry import MockTime, mock_time  # noqa: F401
@@ -39,6 +40,36 @@ def test_agent_heartbeat_with_no_agent_id_fails():
     a = internal.Api()
     with pytest.raises(ValueError):
         a.agent_heartbeat(None, {}, {})
+
+
+def test_agent_heartbeat_raises_sweep_not_found_on_404():
+    """Test that agent_heartbeat raises SweepNotFoundError on 404."""
+    a = internal.Api()
+
+    mock_response = Mock()
+    mock_response.status_code = 404
+
+    http_error = requests.exceptions.HTTPError()
+    http_error.response = mock_response
+
+    with patch.object(a.api, "gql", side_effect=http_error):
+        with pytest.raises(SweepNotFoundError):
+            a.agent_heartbeat("test-agent-id", {}, {})
+
+
+def test_agent_heartbeat_returns_empty_on_non_404_error():
+    """Test that non-404 HTTP errors return empty list instead of raising."""
+    a = internal.Api()
+
+    mock_response = Mock()
+    mock_response.status_code = 500
+
+    http_error = requests.exceptions.HTTPError()
+    http_error.response = mock_response
+
+    with patch.object(a.api, "gql", side_effect=http_error):
+        result = a.agent_heartbeat("test-agent-id", {}, {})
+        assert result == []
 
 
 def test_get_run_state_invalid_kwargs():

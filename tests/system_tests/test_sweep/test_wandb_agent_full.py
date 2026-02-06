@@ -3,9 +3,11 @@
 import contextlib
 import io
 import pathlib
+from unittest import mock
 
 import wandb
 from wandb.apis.public import Api
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 
 
 def test_agent_basic(user):
@@ -166,3 +168,25 @@ def test_agent_subprocess_with_import_readline(user, monkeypatch):
     history = runs[0].history(pandas=False)
     assert history[0]["got_eof"]
     assert history[0]["test_param"] == 1
+
+
+def test_agent_sweep_deleted(user):
+    """Test that agent exits gracefully when sweep is deleted (404)."""
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"a": {"values": [1, 2, 3]}},
+    }
+
+    sweep_id = wandb.sweep(sweep_config)
+
+    captured_stderr = io.StringIO()
+    with contextlib.redirect_stderr(captured_stderr):
+        with mock.patch(
+            "wandb.sdk.internal.internal_api.Api.agent_heartbeat",
+            side_effect=SweepNotFoundError("Sweep not found"),
+        ):
+            wandb.agent(sweep_id, function=lambda: None, count=1)
+
+    stderr_output = captured_stderr.getvalue()
+    assert "Sweep was deleted or agent was not found" in stderr_output

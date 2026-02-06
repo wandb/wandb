@@ -3133,9 +3133,18 @@ class Api:
             agent_id (str): agent_id
             metrics (dict): system metrics
             run_states (dict): run_id: state mapping
+
         Returns:
             list of commands to execute.
+
+        Raises:
+            SweepNotFoundError: If the server returns a 404, indicating the
+                sweep was likely deleted.
         """
+        import requests
+
+        from wandb.sdk.launch.sweeps import SweepNotFoundError
+
         mutation = gql(
             """
         mutation Heartbeat(
@@ -3170,6 +3179,13 @@ class Api:
                 },
                 timeout=60,
             )
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                raise SweepNotFoundError(
+                    "Sweep not found. The sweep may have been deleted."
+                ) from e
+            logger.exception("Error communicating with W&B.")
+            return []
         except Exception:
             logger.exception("Error communicating with W&B.")
             return []
