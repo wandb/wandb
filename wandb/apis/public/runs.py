@@ -485,6 +485,74 @@ class Runs(SizedPaginator["Run"]):
 
             return combined_df
 
+    @normalize_exceptions
+    def configs(
+        self,
+        format: Literal["default", "pandas", "polars"] = "default",
+    ) -> list[dict[str, Any]] | pd.DataFrame | pl.DataFrame:
+        """Return config parameters for all runs that fit the filters conditions.
+
+        Args:
+            format: Format to return data in, options are "default", "pandas",
+                "polars"
+        Returns:
+            pandas.DataFrame: If `format="pandas"`, returns a `pandas.DataFrame`
+                of run configs.
+            polars.DataFrame: If `format="polars"`, returns a `polars.DataFrame`
+                of run configs.
+            list of dicts: If `format="default"`, returns a list of dicts
+                containing run configs with a `run_id` key.
+        """
+        if format not in ("default", "pandas", "polars"):
+            raise ValueError(
+                f"Invalid format: {format}. Must be one of 'default', 'pandas', 'polars'"
+            )
+
+        configs = []
+
+        if format == "default":
+            for run in self:
+                config_data = run.config
+                if not config_data:
+                    continue
+                config_data["run_id"] = run.id
+                configs.append(config_data)
+            return configs
+
+        if format == "pandas":
+            pd = util.get_module(
+                "pandas", required="Exporting pandas DataFrame requires pandas"
+            )
+            for run in self:
+                config_data = run.config
+                if not config_data:
+                    continue
+                config_data["run_id"] = run.id
+                configs.append(config_data)
+            if not configs:
+                return pd.DataFrame()
+            combined_df = pd.DataFrame.from_records(configs)
+            # sort columns for consistency
+            combined_df = combined_df[(sorted(combined_df.columns))]
+            return combined_df
+
+        if format == "polars":
+            pl = util.get_module(
+                "polars", required="Exporting polars DataFrame requires polars"
+            )
+            for run in self:
+                config_data = run.config
+                if not config_data:
+                    continue
+                config_data["run_id"] = run.id
+                configs.append(config_data)
+            if not configs:
+                return pl.DataFrame()
+            combined_df = pl.from_dicts(configs)
+            # sort columns for consistency
+            combined_df = combined_df.select(sorted(combined_df.columns))
+            return combined_df
+
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {self.entity}/{self.project}>"
 
