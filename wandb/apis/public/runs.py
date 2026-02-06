@@ -532,9 +532,7 @@ class Runs(SizedPaginator["Run"]):
             full = df.join(configs, on="run_id")
             ```
         """
-        pl = util.get_module(
-            "polars", required="scan_histories requires polars"
-        )
+        pl = util.get_module("polars", required="scan_histories requires polars")
 
         cache_path = pathlib.Path(cache_dir)
         cache_path.mkdir(parents=True, exist_ok=True)

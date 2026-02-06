@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from unittest import mock
 
 import polars as pl
-import pytest
-
 from wandb.apis.public.runs import Runs
 
 
@@ -194,7 +191,12 @@ class TestScanHistoriesKeyFilter:
     def test_filters_to_specified_keys(self, tmp_path):
         run = _make_mock_run_with_parquet(
             "run1",
-            {"_step": [0, 1], "loss": [1.0, 0.5], "acc": [0.1, 0.9], "lr": [0.01, 0.01]},
+            {
+                "_step": [0, 1],
+                "loss": [1.0, 0.5],
+                "acc": [0.1, 0.9],
+                "lr": [0.01, 0.01],
+            },
             tmp_path,
         )
         runs = _make_mock_runs([run])
