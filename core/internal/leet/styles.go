@@ -40,13 +40,13 @@ func initTerminalBg() {
 	})
 }
 
-// darkenRGB returns a hex color that is amount (0.0-1.0) darker.
-func darkenRGB(r, g, b uint8, amount float64) lipgloss.Color {
-	factor := 1.0 - amount
+// blendRGB blends (r,g,b) toward (tr,tg,tb) by alpha (0.0–1.0).
+func blendRGB(r, g, b, tr, tg, tb uint8, alpha float64) lipgloss.Color {
+	blend := func(base, target uint8) uint8 {
+		return uint8(float64(base)*(1-alpha) + float64(target)*alpha)
+	}
 	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x",
-		uint8(float64(r)*factor),
-		uint8(float64(g)*factor),
-		uint8(float64(b)*factor),
+		blend(r, tr), blend(g, tg), blend(b, tb),
 	))
 }
 
@@ -55,10 +55,9 @@ func getOddRunStyleColor() lipgloss.TerminalColor {
 	initTerminalBg()
 
 	if termBgDetected {
-		return darkenRGB(termBgR, termBgG, termBgB, 0.05)
+		return blendRGB(termBgR, termBgG, termBgB, 128, 128, 128, 0.05)
 	}
 
-	// Fallback when detection fails
 	return lipgloss.AdaptiveColor{
 		Light: "#d0d0d0",
 		Dark:  "#1c1c1c",
