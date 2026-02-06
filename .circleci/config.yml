@@ -396,7 +396,7 @@ jobs:
 
   code-check:
     docker:
-      - image: "python:3.13"
+      - image: "python:3.10"
     steps:
       - checkout
       - install_go
