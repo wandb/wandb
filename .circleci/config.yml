@@ -413,10 +413,8 @@ jobs:
           command: |
             uv venv .venv-codegen
             source .venv-codegen/bin/activate
-            uv pip install ruff
-            uv pip install .
-            python tools/generate-tool.py --generate
-            python tools/generate-tool.py --check
+            uv pip install ruff .
+            python tools/generate-tool.py --generate --check
       - run:
           name: Run mypy and report results
           command: nox -vs mypy-report
