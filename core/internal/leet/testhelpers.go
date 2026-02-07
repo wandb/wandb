@@ -9,65 +9,65 @@ import (
 )
 
 // TestFocusState returns the current focus state
-func (m *Run) TestFocusState() *Focus {
-	return m.focus
+func (r *Run) TestFocusState() *Focus {
+	return r.focus
 }
 
-func (m *Run) TestRunID() string {
-	return m.leftSidebar.runOverview.runID
+func (r *Run) TestRunID() string {
+	return r.leftSidebar.runOverview.runID
 }
 
-func (m *Run) TestRunDisplayName() string {
-	return m.leftSidebar.runOverview.displayName
+func (r *Run) TestRunDisplayName() string {
+	return r.leftSidebar.runOverview.displayName
 }
 
-func (m *Run) TestRunProject() string {
-	return m.leftSidebar.runOverview.project
+func (r *Run) TestRunProject() string {
+	return r.leftSidebar.runOverview.project
 }
 
 // TestRunState returns the current run state
-func (m *Run) TestRunState() RunState {
-	return m.runState
+func (r *Run) TestRunState() RunState {
+	return r.runState
 }
 
 // TestLeftSidebarVisible returns true if the left sidebar is visible
-func (m *Run) TestLeftSidebarVisible() bool {
-	return m.leftSidebar.IsVisible()
+func (r *Run) TestLeftSidebarVisible() bool {
+	return r.leftSidebar.IsVisible()
 }
 
 // TestSidebarIsFiltering returns true if the sidebar has an active filter
-func (m *Run) TestSidebarIsFiltering() bool {
-	return m.leftSidebar.IsFiltering()
+func (r *Run) TestSidebarIsFiltering() bool {
+	return r.leftSidebar.IsFiltering()
 }
 
 // TestSidebarFilterQuery returns the current sidebar filter query
-func (m *Run) TestSidebarFilterQuery() string {
-	return m.leftSidebar.FilterQuery()
+func (r *Run) TestSidebarFilterQuery() string {
+	return r.leftSidebar.FilterQuery()
 }
 
 // TestGetLeftSidebar returns the left sidebar for testing
-func (m *Run) TestGetLeftSidebar() *RunOverviewSidebar {
-	return m.leftSidebar
+func (r *Run) TestGetLeftSidebar() *RunOverviewSidebar {
+	return r.leftSidebar
 }
 
 // TestHandleRecordMsg processes a record message
-func (m *Run) TestHandleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) {
-	return m.handleRecordMsg(msg)
+func (r *Run) TestHandleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) {
+	return r.handleRecordMsg(msg)
 }
 
 // TestHandleChartGridClick handles a click on the main chart grid
-func (m *Run) TestHandleChartGridClick(row, col int) {
-	m.metricsGrid.HandleClick(row, col)
+func (r *Run) TestHandleChartGridClick(row, col int) {
+	r.metricsGrid.HandleClick(row, col)
 }
 
 // TestSetMainChartFocus sets focus to a main chart
-func (m *Run) TestSetMainChartFocus(row, col int) {
-	m.metricsGrid.setFocus(row, col)
+func (r *Run) TestSetMainChartFocus(row, col int) {
+	r.metricsGrid.setFocus(row, col)
 }
 
 // TestClearMainChartFocus clears focus from main charts
-func (m *Run) TestClearMainChartFocus() {
-	m.metricsGrid.clearFocus()
+func (r *Run) TestClearMainChartFocus() {
+	r.metricsGrid.clearFocus()
 }
 
 // TestForceExpand forces the sidebar to expanded state without animation

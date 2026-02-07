@@ -29,6 +29,28 @@ func (s *PagedList) SetItemsPerPage(n int) {
 		n = 1
 	}
 	s.itemsPerPage = n
+
+	// Clamp currentPage so it stays valid after the page size changes.
+	totalItems := len(s.FilteredItems)
+	if totalItems == 0 {
+		s.currentPage = 0
+		s.currentLine = 0
+		return
+	}
+	totalPages := (totalItems + s.itemsPerPage - 1) / s.itemsPerPage
+	if s.currentPage >= totalPages {
+		s.currentPage = totalPages - 1
+	}
+	// Also clamp currentLine to the items available on the (now‑valid) page.
+	itemsOnPage := s.itemsPerPage
+	if s.currentPage == totalPages-1 {
+		if remainder := totalItems % s.itemsPerPage; remainder != 0 {
+			itemsOnPage = remainder
+		}
+	}
+	if s.currentLine >= itemsOnPage {
+		s.currentLine = itemsOnPage - 1
+	}
 }
 
 // Up navigates to previous item.
