@@ -570,20 +570,18 @@ fragment ArtifactTypeFragment on ArtifactType {
 """
 
 PROJECT_ARTIFACTS_GQL = """
-query ProjectArtifacts($entity: String!, $project: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString, $includeAliases: Boolean = true) {
+query ProjectArtifacts($entity: String!, $project: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $includeAliases: Boolean = true) {
   project(entityName: $entity, name: $project) {
     artifactType(name: $type) {
       artifactCollection(name: $collection) {
         __typename
-        artifacts(after: $cursor, first: $perPage, order: $order, filters: $filters) {
-          totalCount
+        artifactMemberships(after: $cursor, first: $perPage) {
           pageInfo {
             ...PageInfoFragment
           }
           edges {
-            version
             node {
-              ...ArtifactFragment
+              ...ArtifactMembershipFragment
             }
           }
         }
@@ -628,6 +626,21 @@ fragment ArtifactFragment on Artifact {
       ...CollectionInfoFragment
     }
     ...ArtifactAliasFragment
+  }
+}
+
+fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
+  __typename
+  id
+  versionIndex
+  aliases {
+    ...ArtifactAliasFragment
+  }
+  artifactCollection {
+    ...CollectionInfoFragment
+  }
+  artifact {
+    ...ArtifactFragment
   }
 }
 

@@ -6,18 +6,14 @@ collections.
 
 from __future__ import annotations
 
-import json
 from copy import copy
 from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
-    Any,
     ClassVar,
     Collection,
     Iterable,
-    List,
     Literal,
-    Mapping,
     Sequence,
     TypeVar,
 )
@@ -26,7 +22,7 @@ from typing_extensions import override
 from wandb_gql import gql
 
 from wandb._iterutils import always_list
-from wandb._pydantic import Connection, ConnectionWithTotal, Edge
+from wandb._pydantic import Connection, ConnectionWithTotal
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
@@ -47,12 +43,14 @@ if TYPE_CHECKING:
         ArtifactAliasFragment,
         ArtifactCollectionFragment,
         ArtifactFragment,
+        ArtifactMembershipFragment,
         ArtifactTypeFragment,
         FileFragment,
     )
     from wandb.sdk.artifacts._models.pagination import (
         ArtifactCollectionConnection,
         ArtifactFileConnection,
+        ArtifactMembershipConnection,
         ArtifactTypeConnection,
     )
     from wandb.sdk.artifacts.artifact import Artifact
@@ -668,15 +666,7 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
 
-class _ArtifactEdgeGeneric(Edge[TNode]):
-    version: str  # Extra field defined only on VersionedArtifactEdge
-
-
-class _ArtifactConnectionGeneric(ConnectionWithTotal[TNode]):
-    edges: List[_ArtifactEdgeGeneric]  # noqa: UP006
-
-
-class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
+class Artifacts(SizedRelayPaginator["ArtifactMembershipFragment", "Artifact"]):
     """An iterable collection of artifact versions associated with a project.
 
     Optionally pass in filters to narrow down the results based on specific criteria.
@@ -699,7 +689,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     QUERY: Document  # Must be set per-instance
 
     # Loosely-annotated to avoid importing heavy types at module import time.
-    last_response: _ArtifactConnectionGeneric | None
+    last_response: ArtifactMembershipConnection | None
 
     def __init__(
         self,
@@ -708,8 +698,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         project: str,
         collection_name: str,
         type: str,
-        filters: Mapping[str, Any] | None = None,
-        order: str | None = None,
+        *,
         per_page: int = 50,
         tags: str | list[str] | None = None,
     ):
@@ -721,22 +710,19 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.tags = always_list(tags or [])
-        self.order = order
         variables = {
             "entity": self.entity,
             "project": self.project,
-            "order": self.order,
             "type": self.type,
             "collection": self.collection_name,
-            "filters": json.dumps(self.filters),
         }
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import ArtifactFragment, ProjectArtifacts
+        from wandb.sdk.artifacts._generated import ProjectArtifacts
+        from wandb.sdk.artifacts._models.pagination import ArtifactMembershipConnection
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = ProjectArtifacts.model_validate(data)
@@ -746,34 +732,32 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             (proj := result.project)
             and (type_ := proj.artifact_type)
             and (collection := type_.artifact_collection)
-            and (conn := collection.artifacts)
+            and (conn := collection.artifact_memberships)
         ):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = _ArtifactConnectionGeneric[
-            ArtifactFragment
-        ].model_validate(conn)
+        self.last_response = ArtifactMembershipConnection.model_validate(conn)
 
-    # FIXME: For now, we deliberately override the signatures of:
-    # - `_convert()`
-    # - `convert_objects()`
-    # ... since the prior implementation must get `version` from the GQL edge
-    # (i.e. `edge.version`), which lives outside of the GQL node (`edge.node`).
-    #
-    # In the future, we should move to fetching artifacts via (GQL) artifactMemberships,
-    # not (GQL) artifacts, so we don't have to deal with this hack.
     @override
-    def _convert(self, edge: _ArtifactEdgeGeneric[ArtifactFragment]) -> Artifact:
+    def _convert(self, node: ArtifactMembershipFragment) -> Artifact | None:
         from wandb.sdk.artifacts._validators import FullArtifactPath
         from wandb.sdk.artifacts.artifact import Artifact
 
-        return Artifact._from_attrs(
-            path=FullArtifactPath(
-                prefix=self.entity,
-                project=self.project,
-                name=f"{self.collection_name}:{edge.version}",
+        if not (
+            (collection := node.artifact_collection)
+            and (project := collection.project)
+            and node.artifact
+            and (version_idx := node.version_index) is not None
+        ):
+            return None
+
+        return Artifact._from_membership(
+            membership=node,
+            target=FullArtifactPath(
+                prefix=project.entity.name,
+                project=project.name,
+                name=f"{collection.name}:v{version_idx}",
             ),
-            src_art=edge.node,
             client=self.client,
         )
 
@@ -783,9 +767,9 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if (conn := self.last_response) is None:
+        if not (artifacts := super().convert_objects()):
             return []
-        artifacts = (self._convert(edge) for edge in conn.edges if edge.node)
+        # parent method is overridden to maintain this prior client-side tag filtering logic
         required_tags = set(self.tags or [])
         return [art for art in artifacts if required_tags.issubset(art.tags)]
 

@@ -10,7 +10,7 @@ from typing_extensions import Literal
 
 from wandb._pydantic import GQLResult, Typename
 
-from .fragments import ArtifactFragment, PageInfoFragment
+from .fragments import ArtifactMembershipFragment, PageInfoFragment
 
 
 class ProjectArtifacts(GQLResult):
@@ -33,23 +33,29 @@ class ProjectArtifactsProjectArtifactTypeArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
-    artifacts: Optional[ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts]
+    artifact_memberships: ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactMemberships = Field(
+        alias="artifactMemberships"
+    )
 
 
-class ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts(GQLResult):
-    total_count: int = Field(alias="totalCount")
+class ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactMemberships(
+    GQLResult
+):
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges]
+    edges: List[
+        ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactMembershipsEdges
+    ]
 
 
-class ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges(GQLResult):
-    version: str
-    node: ArtifactFragment
+class ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactMembershipsEdges(
+    GQLResult
+):
+    node: Optional[ArtifactMembershipFragment]
 
 
 ProjectArtifacts.model_rebuild()
 ProjectArtifactsProject.model_rebuild()
 ProjectArtifactsProjectArtifactType.model_rebuild()
 ProjectArtifactsProjectArtifactTypeArtifactCollection.model_rebuild()
-ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifacts.model_rebuild()
-ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactsEdges.model_rebuild()
+ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactMemberships.model_rebuild()
+ProjectArtifactsProjectArtifactTypeArtifactCollectionArtifactMembershipsEdges.model_rebuild()
