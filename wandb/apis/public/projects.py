@@ -180,6 +180,19 @@ class Project(Attrs):
         self._is_loaded = True
 
     @property
+    def owner(self) -> public.User:
+        """Returns the project owner as a User object.
+
+        Raises:
+            ValueError: when no user information is found for the project.
+        """
+        if not self._is_loaded:
+            self._load()
+        if "user" not in self._attrs:
+            raise ValueError(f"No user found for project {self.name}")
+        return public.User(self.client, self._attrs["user"])
+
+    @property
     def path(self) -> list[str]:
         """Returns the path of the project. The path is a list containing the
         entity and project name."""

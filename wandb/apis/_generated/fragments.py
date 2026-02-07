@@ -41,31 +41,6 @@ class PageInfoFragment(GQLResult):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class ProjectFragment(GQLResult):
-    typename__: Typename[Literal["Project"]] = "Project"
-    id: GQLId
-    name: str
-    entity_name: str = Field(alias="entityName")
-    created_at: str = Field(alias="createdAt")
-    is_benchmark: bool = Field(alias="isBenchmark")
-
-
-class SweepFragment(GQLResult):
-    typename__: Typename[Literal["Sweep"]] = "Sweep"
-    id: GQLId
-    name: str
-    display_name: Optional[str] = Field(alias="displayName")
-    method: str
-    state: str
-    description: Optional[str]
-    best_loss: Optional[float] = Field(alias="bestLoss")
-    config: str
-    created_at: str = Field(alias="createdAt")
-    updated_at: Optional[str] = Field(alias="updatedAt")
-    run_count: int = Field(alias="runCount")
-    run_count_expected: Optional[int] = Field(alias="runCountExpected")
-
-
 class UserFragment(GQLResult):
     id: GQLId
     name: str
@@ -99,6 +74,32 @@ class UserFragmentTeamsEdgesNode(GQLResult):
     name: str
 
 
+class ProjectFragment(GQLResult):
+    typename__: Typename[Literal["Project"]] = "Project"
+    id: GQLId
+    name: str
+    entity_name: str = Field(alias="entityName")
+    created_at: str = Field(alias="createdAt")
+    is_benchmark: bool = Field(alias="isBenchmark")
+    user: UserFragment
+
+
+class SweepFragment(GQLResult):
+    typename__: Typename[Literal["Sweep"]] = "Sweep"
+    id: GQLId
+    name: str
+    display_name: Optional[str] = Field(alias="displayName")
+    method: str
+    state: str
+    description: Optional[str]
+    best_loss: Optional[float] = Field(alias="bestLoss")
+    config: str
+    created_at: str = Field(alias="createdAt")
+    updated_at: Optional[str] = Field(alias="updatedAt")
+    run_count: int = Field(alias="runCount")
+    run_count_expected: Optional[int] = Field(alias="runCountExpected")
+
+
 class UserInfoFragment(GQLResult):
     id: GQLId
     name: str
@@ -111,13 +112,12 @@ ApiKeyFragment.model_rebuild()
 CreatedProjectFragment.model_rebuild()
 LegacySweepFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
-ProjectFragment.model_rebuild()
-SweepFragment.model_rebuild()
 UserFragment.model_rebuild()
 UserFragmentApiKeys.model_rebuild()
 UserFragmentApiKeysEdges.model_rebuild()
-ApiKeyFragment.model_rebuild()
 UserFragmentTeams.model_rebuild()
 UserFragmentTeamsEdges.model_rebuild()
 UserFragmentTeamsEdgesNode.model_rebuild()
+ProjectFragment.model_rebuild()
+SweepFragment.model_rebuild()
 UserInfoFragment.model_rebuild()

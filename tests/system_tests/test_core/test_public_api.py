@@ -528,6 +528,18 @@ def test_projects(user, wandb_backend_spy):
                             entity_name=user,
                             created_at="2021-01-01T00:00:00Z",
                             is_benchmark=False,
+                            user=UserFragment(
+                                id="123",
+                                name="test-user",
+                                username="test-user",
+                                email="test-user@example.com",
+                                admin=False,
+                                flags="",
+                                entity="test-entity",
+                                deleted_at=None,
+                                api_keys=None,
+                                teams=None,
+                            ),
                         ).model_dump(),
                     }
                     for i in range(num_projects)
@@ -565,6 +577,18 @@ def test_project_get_id(user, wandb_backend_spy):
                         "entityName": "test-entity",
                         "createdAt": "2021-01-01T00:00:00Z",
                         "isBenchmark": False,
+                        "user": {
+                            "id": "123",
+                            "name": "test-user",
+                            "username": "test-user",
+                            "email": "test-user@example.com",
+                            "admin": False,
+                            "flags": "",
+                            "entity": "test-entity",
+                            "deletedAt": None,
+                            "apiKeys": None,
+                            "teams": None,
+                        },
                     },
                 },
             }
@@ -588,6 +612,18 @@ def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend
                         "entityName": "test-entity",
                         "createdAt": "2021-01-01T00:00:00Z",
                         "isBenchmark": False,
+                        "user": {
+                            "id": "123",
+                            "name": "test-user",
+                            "username": "test-user",
+                            "email": "test-user@example.com",
+                            "admin": False,
+                            "flags": "",
+                            "entity": "test-entity",
+                            "deletedAt": None,
+                            "apiKeys": None,
+                            "teams": None,
+                        },
                     },
                 },
             }
@@ -597,6 +633,72 @@ def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend
     with pytest.raises(ValueError):
         project = Api().project(user, "test")
         project.id  # noqa: B018
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_project_get_owner(monkeypatch, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetProject"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        "id": "123",
+                        "name": "test-project",
+                        "entityName": "test-entity",
+                        "createdAt": "2021-01-01T00:00:00Z",
+                        "isBenchmark": False,
+                        "user": {
+                            "id": "123",
+                            "name": "test-user",
+                            "username": "test-user",
+                            "email": "test-user@example.com",
+                            "admin": False,
+                            "flags": "",
+                            "entity": "test-entity",
+                            "deletedAt": None,
+                            "apiKeys": None,
+                            "teams": None,
+                        },
+                    },
+                },
+            }
+        ),
+    )
+
+    api = wandb.Api()
+    project = api.project("test-entity", "test-project")
+
+    assert project.owner.id == "123"
+    assert project.owner.name == "test-user"
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_project_get_owner_does_not_exist_raises_error(monkeypatch, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetProject"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        "id": "123",
+                        "name": "test-project",
+                        "entityName": "test-entity",
+                        "createdAt": "2021-01-01T00:00:00Z",
+                        "isBenchmark": False,
+                    },
+                },
+            }
+        ),
+    )
+
+    api = wandb.Api()
+    project = api.project("test-entity", "test-project")
+
+    with pytest.raises(ValueError):
+        _ = project.owner
 
 
 def test_project_get_sweeps(user, wandb_backend_spy):
