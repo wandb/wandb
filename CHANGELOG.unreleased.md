@@ -20,3 +20,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Sweep agents now exit gracefully when the sweep is deleted, instead of running indefinitely with repeated 404 errors (@domphan-wandb in https://github.com/wandb/wandb/pull/11226)
+- `wandb-core` crashes no longer produce extremely long, repetitive tracebacks in older Python versions (@timoffex in https://github.com/wandb/wandb/pull/11284)
