@@ -19,15 +19,14 @@ CONDA_ENVIRONMENTS_FNAME = "conda-environment.yaml"
 
 
 def is_wandb_file(name: str) -> bool:
-    return (
-        name.startswith("wandb")
-        or name == METADATA_FNAME
-        or name == CONFIG_FNAME
-        or name == REQUIREMENTS_FNAME
-        or name == OUTPUT_FNAME
-        or name == DIFF_FNAME
-        or name == CONDA_ENVIRONMENTS_FNAME
-    )
+    return name in (
+        METADATA_FNAME,
+        CONFIG_FNAME,
+        REQUIREMENTS_FNAME,
+        OUTPUT_FNAME,
+        DIFF_FNAME,
+        CONDA_ENVIRONMENTS_FNAME,
+    ) or name.startswith("wandb")
 
 
 def filtered_dir(

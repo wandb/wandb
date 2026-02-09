@@ -190,6 +190,7 @@ select = [
     "SIM101", # duplicate-isinstance-call
     "SIM102", # collapsible-if
     "SIM103", # needless-bool
+    "SIM109", # compare-with-tuple
 
     # tryceratops
     "TRY004", # type-check-without-type-error
