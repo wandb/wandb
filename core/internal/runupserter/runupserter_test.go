@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runupserter"
+	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/waiting"
@@ -49,24 +50,6 @@ func testParams(t *testing.T) runupserter.RunUpserterParams {
 	}
 }
 
-// fakeUpsertBucketResponseJSON returns a fake UpsertBucket response.
-func fakeUpsertBucketResponseJSON() string {
-	return `{
-		"upsertBucket": {
-			"bucket": {
-				"id": "storage ID",
-				"name": "run ID",
-				"displayName": "display name",
-				"sweepName": "sweep ID",
-				"project": {
-					"name": "project name",
-					"entity": {"name": "entity name"}
-				}
-			}
-		}
-	}`
-}
-
 func TestInitRun_MakesCorrectRequest(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
 	params := testParams(t)
@@ -74,10 +57,7 @@ func TestInitRun_MakesCorrectRequest(t *testing.T) {
 	params.Settings = settings.From(&spb.Settings{
 		Program: wrapperspb.String("program"),
 	})
-	mockClient.StubMatchOnce(
-		gqlmock.WithOpName("UpsertBucket"),
-		fakeUpsertBucketResponseJSON(),
-	)
+	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	upserter, _ := runupserter.InitRun(
 		runRecord(&spb.RunRecord{
@@ -208,10 +188,7 @@ func TestInitRun_Offline(t *testing.T) {
 func TestResume(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
 	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
-	mockClient.StubMatchOnce(
-		gqlmock.WithOpName("UpsertBucket"),
-		fakeUpsertBucketResponseJSON(),
-	)
+	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
@@ -296,12 +273,8 @@ func setupUpdateTest(t *testing.T) variablesForUpdateTest {
 	params.GraphqlClientOrNil = mockClient
 
 	// There will be two upserts: the initial one, and a single update.
-	for range 2 {
-		mockClient.StubMatchOnce(
-			gqlmock.WithOpName("UpsertBucket"),
-			fakeUpsertBucketResponseJSON(),
-		)
-	}
+	runupsertertest.StubUpsertBucket(t, mockClient)
+	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
 

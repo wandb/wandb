@@ -5,7 +5,9 @@ import (
 	"sync/atomic"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // FlowControlBuffer is the FlowControl channel's internal buffer.
@@ -42,7 +44,12 @@ type FlowControlBuffer struct {
 	// It is reset to 0 once Get is called when the channel is empty.
 	backedUpCount atomic.Uint32
 
-	logger *observability.CoreLogger
+	// sentOverflowTelemetry is whether the flow control overflow telemetry
+	// flag has already been set.
+	sentOverflowTelemetry bool
+
+	logger    *observability.CoreLogger
+	runHandle *runhandle.RunHandle
 }
 
 type FlowControlBufferWork struct {
@@ -107,11 +114,13 @@ type FlowControlParams struct {
 func NewFlowControlBuffer(
 	params FlowControlParams,
 	logger *observability.CoreLogger,
+	runHandle *runhandle.RunHandle,
 ) *FlowControlBuffer {
 	return &FlowControlBuffer{
 		data:         make(chan FlowControlBufferItem, params.Limit),
 		inMemorySize: params.InMemorySize,
 		logger:       logger,
+		runHandle:    runHandle,
 	}
 }
 
@@ -136,6 +145,7 @@ func (buf *FlowControlBuffer) Add(work runwork.MaybeSavedWork) {
 		buf.logger.Info(
 			"flowcontrol: backed up, offloading to disk",
 			"recordNumber", work.RecordNumber)
+		buf.setFlowControlOverflowTelemetry()
 	}
 
 	if buf.tryAppendToLastChunk(work) {
@@ -146,6 +156,23 @@ func (buf *FlowControlBuffer) Add(work runwork.MaybeSavedWork) {
 		InitialOffset: work.SavedOffset,
 		InitialNumber: work.RecordNumber,
 		Count:         1,
+	})
+}
+
+// setFlowControlOverflowTelemetry records that the run hit flow control
+// in its telemetry.
+func (buf *FlowControlBuffer) setFlowControlOverflowTelemetry() {
+	// Avoid updating telemetry more than necessary, since each time triggers
+	// a config reupload.
+	if buf.sentOverflowTelemetry {
+		return
+	}
+	buf.sentOverflowTelemetry = true
+
+	buf.runHandle.UpdateTelemetry(&spb.TelemetryRecord{
+		Feature: &spb.Feature{
+			FlowControlOverflow: true,
+		},
 	})
 }
 
