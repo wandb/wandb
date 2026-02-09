@@ -3,8 +3,9 @@ import socket
 import tempfile
 import threading
 import time
+from collections.abc import Generator
 from pathlib import Path
-from typing import Callable, Generator, Tuple
+from typing import Callable
 
 import jupyter_core
 import nbformat
@@ -98,7 +99,7 @@ class JupyterServerManager:
 
             time.sleep(1)
 
-    def create_session(self, notebook_path: str) -> Tuple[str, str]:
+    def create_session(self, notebook_path: str) -> tuple[str, str]:
         """Create a Jupyter session starting a new kernel using the jupyter API.
 
         Args:

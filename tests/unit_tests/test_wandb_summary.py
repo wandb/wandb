@@ -1,31 +1,34 @@
 """summary test."""
 
-from typing import TYPE_CHECKING, Any, Dict, Tuple
+from __future__ import annotations
 
-from wandb import sdk as wandb_sdk
+from typing import TYPE_CHECKING, Any
+
+from typing_extensions import Self
+from wandb.sdk import Summary
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.summary_record import SummaryRecord
 
 
 class MockCallback:
-    # current_dict: t.Dict
-    # summary_record: t.Optional[SummaryRecord]
+    current_dict: dict
+    summary_record: SummaryRecord | None
 
-    def __init__(self, current_dict: Dict) -> None:
+    def __init__(self, current_dict: dict) -> None:
         self.reset(current_dict)
 
-    def reset(self, current_dict: Dict) -> None:
+    def reset(self, current_dict: dict) -> None:
         self.summary_record = None
         self.current_dict = current_dict
 
-    def update_callback(self, summary_record: "SummaryRecord") -> None:
+    def update_callback(self, summary_record: SummaryRecord) -> None:
         self.summary_record = summary_record
 
-    def get_current_summary_callback(self) -> Dict:
+    def get_current_summary_callback(self) -> dict:
         return self.current_dict
 
-    def check_updates(self, key: Tuple[str], value: Any) -> "MockCallback":
+    def check_updates(self, key: tuple[str], value: Any) -> Self:
         assert self.summary_record is not None
 
         for item in self.summary_record.update:
@@ -34,7 +37,7 @@ class MockCallback:
 
         raise AssertionError
 
-    def check_removes(self, key: Tuple[str]) -> "MockCallback":
+    def check_removes(self, key: tuple[str]) -> Self:
         assert self.summary_record is not None
 
         for item in self.summary_record.remove:
@@ -44,11 +47,9 @@ class MockCallback:
         raise AssertionError
 
 
-def create_summary_and_mock(
-    current_dict: Dict,
-) -> Tuple["wandb_sdk.Summary", "MockCallback"]:
+def create_summary_and_mock(current_dict: dict) -> tuple[Summary, MockCallback]:
     m = MockCallback(current_dict)
-    s = wandb_sdk.Summary(
+    s = Summary(
         m.get_current_summary_callback,
     )
     s._set_update_callback(

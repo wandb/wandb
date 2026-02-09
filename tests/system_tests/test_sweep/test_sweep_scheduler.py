@@ -1,7 +1,6 @@
 """Sweep tests."""
 
 import asyncio
-from typing import Dict
 from unittest.mock import Mock, patch
 
 import pytest
@@ -319,7 +318,7 @@ def test_sweep_scheduler_base_run_states(user, monkeypatch):
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
 
     # Mock api.get_run_state() to return crashed and running runs
-    mock_run_states: Dict[str, RunState] = {
+    mock_run_states: dict[str, RunState] = {
         "run1": RunState.CRASHED,
         "run2": RunState.FAILED,
         "run3": RunState.KILLED,

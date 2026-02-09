@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import base64
 import hashlib
 import os
 import pathlib
 import tempfile
+from collections.abc import Mapping, Sequence
 from itertools import chain
 from pathlib import Path
-from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
+from typing import Callable, TypeVar, Union
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -95,7 +98,7 @@ def test_get_run_state_invalid_kwargs():
 )
 def test_download_write_file_fetches_iff_file_checksum_mismatched(
     mock_responses: RequestsMock,
-    existing_contents: Optional[str],
+    existing_contents: str | None,
     expect_download: bool,
 ):
     url = "https://example.com/path/to/file.txt"
@@ -423,7 +426,7 @@ def test_resolve_org_entity_name_with_old_server():
     assert api._resolve_org_entity_name("entity", "org-name-input") == "org-name-input"
 
 
-MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]
+MockResponseOrException = Union[Exception, tuple[int, Mapping[int, int], str]]
 
 
 class TestUploadFile:
@@ -474,7 +477,7 @@ class TestUploadFile:
             mock_responses: RequestsMock,
             example_file: Path,
             response: MockResponseOrException,
-            expected_errtype: Type[Exception],
+            expected_errtype: type[Exception],
         ):
             mock_responses.add_callback(
                 "PUT",
@@ -611,7 +614,7 @@ class TestUploadFile:
         example_file: Path,
         request_headers: Mapping[str, str],
         response,
-        expected_errtype: Type[Exception],
+        expected_errtype: type[Exception],
     ):
         mock_responses.add_callback(
             "PUT", "http://example.com/upload-dst", Mock(return_value=response)
@@ -689,7 +692,7 @@ class TestUploadFile:
             mock_responses: RequestsMock,
             example_file: Path,
             response: MockResponseOrException,
-            expected_errtype: Type[Exception],
+            expected_errtype: type[Exception],
             check_err: Callable[[Exception], bool],
         ):
             mock_responses.add_callback(
