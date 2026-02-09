@@ -243,13 +243,13 @@ class Api:
             "git_remote": default_overrides.get("git_remote", "origin"),
             "ignore_globs": default_overrides.get("ignore_globs", []),
             "base_url": default_overrides.get("base_url", "https://api.wandb.ai"),
-            "root_dir": default_overrides.get("root_dir", None),
-            "api_key": default_overrides.get("api_key", None),
-            "entity": default_overrides.get("entity", None),
-            "organization": default_overrides.get("organization", None),
-            "project": default_overrides.get("project", None),
-            "_extra_http_headers": default_overrides.get("_extra_http_headers", None),
-            "_proxies": default_overrides.get("_proxies", None),
+            "root_dir": default_overrides.get("root_dir"),
+            "api_key": default_overrides.get("api_key"),
+            "entity": default_overrides.get("entity"),
+            "organization": default_overrides.get("organization"),
+            "project": default_overrides.get("project"),
+            "_extra_http_headers": default_overrides.get("_extra_http_headers"),
+            "_proxies": default_overrides.get("_proxies"),
         }
 
         if load_settings:

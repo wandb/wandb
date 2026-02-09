@@ -1240,7 +1240,7 @@ def launch_sweep(
         launch_scheduler=launch_scheduler_with_queue,
         state="PENDING",
         prior_runs=prior_runs,
-        template_variable_values=scheduler_args.get("template_variables", None),
+        template_variable_values=scheduler_args.get("template_variables"),
     )
     sweep_utils.handle_sweep_config_violations(warnings)
     # Log nicely formatted sweep information

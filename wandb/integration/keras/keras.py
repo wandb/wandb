@@ -461,7 +461,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.generator = generator
         self._graph_rendered = False
 
-        data_type = kwargs.get("data_type", None)
+        data_type = kwargs.get("data_type")
         if data_type is not None:
             warn_and_record_deprecation(
                 feature=Deprecated(keras_callback__data_type=True),

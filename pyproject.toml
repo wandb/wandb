@@ -193,6 +193,14 @@ select = [
     "SIM109", # compare-with-tuple
     "SIM110", # reimplemented-builtin
     "SIM118", # in-dict-keys
+    "SIM201", # negate-equal-op
+    "SIM202", # negate-not-equal-op
+    "SIM208", # double-negation
+    "SIM211", # if-expr-with-false-true
+    "SIM401", # if-else-block-instead-of-dict-get
+    "SIM910", # dict-get-with-none-default
+    "SIM911", # zip-dict-keys-and-values
+
 
     # tryceratops
     "TRY004", # type-check-without-type-error

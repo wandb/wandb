@@ -228,9 +228,7 @@ def get_default_entity(api: Api, launch_config: dict[str, Any] | None):
 
 
 def strip_resource_args_and_template_vars(launch_spec: dict[str, Any]) -> None:
-    if launch_spec.get("resource_args", None) and launch_spec.get(
-        "template_variables", None
-    ):
+    if launch_spec.get("resource_args") and launch_spec.get("template_variables"):
         wandb.termwarn(
             "Launch spec contains both resource_args and template_variables, "
             "only one can be set. Using template_variables."
@@ -521,7 +519,7 @@ async def get_kube_context_and_api_client(
     kubernetes: Any,
     resource_args: dict[str, Any],
 ) -> tuple[Any, Any]:
-    config_file = resource_args.get("configFile", None)
+    config_file = resource_args.get("configFile")
     context = None
     if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
         # context only exist in the non-incluster case

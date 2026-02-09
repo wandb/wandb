@@ -1220,11 +1220,9 @@ class JoinedTable(Media):
     def _validate_table_input(table):
         """Helper method to validate that the table input is one of the 3 supported types."""
         return (
-            isinstance(table, str)
-            and table.endswith(".table.json")
+            (isinstance(table, str) and table.endswith(".table.json"))
             or isinstance(table, (Table, PartitionedTable))
-            or hasattr(table, "ref_url")
-            and table.ref_url().endswith(".table.json")
+            or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))
         )
 
     def _ensure_table_in_artifact(self, table, artifact, table_ndx):
@@ -1375,7 +1373,7 @@ def _get_data_from_increments(
             repeat=False,
         )
     data: list[Any] = []
-    increment_num = json_obj.get("increment_num", None)
+    increment_num = json_obj.get("increment_num")
     if increment_num is None:
         return data
 

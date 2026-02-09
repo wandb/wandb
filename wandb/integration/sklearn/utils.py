@@ -79,9 +79,7 @@ def test_types(**kwargs):
             if not sklearn.base.is_regressor(v):
                 wandb.termerror(f"{k} is not a regressor. Please try again.")
                 test_passed = False
-        elif k == "clusterer" and not (
-            getattr(v, "_estimator_type", None) == "clusterer"
-        ):
+        elif k == "clusterer" and getattr(v, "_estimator_type", None) != "clusterer":
             wandb.termerror(f"{k} is not a clusterer. Please try again.")
             test_passed = False
     return test_passed

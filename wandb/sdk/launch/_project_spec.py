@@ -216,9 +216,9 @@ class LaunchProject:
             launch_spec.get("docker", {}),
             launch_spec.get("git", {}),
             launch_spec.get("overrides", {}),
-            launch_spec.get("resource", None),  # type: ignore [arg-type]
+            launch_spec.get("resource"),  # type: ignore [arg-type]
             launch_spec.get("resource_args", {}),
-            launch_spec.get("run_id", None),
+            launch_spec.get("run_id"),
             launch_spec.get("sweep_id", {}),
         )
 

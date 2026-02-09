@@ -460,9 +460,7 @@ class Settings(BaseModel, validate_assignment=True):
     sweep_param_path: Optional[str] = None
     """Path to the sweep parameters configuration."""
 
-    symlink: bool = Field(
-        default_factory=lambda: False if platform.system() == "Windows" else True
-    )
+    symlink: bool = Field(default_factory=lambda: platform.system() != "Windows")
     """Whether to use symlinks (True by default except on Windows)."""
 
     sync_tensorboard: Optional[bool] = None
