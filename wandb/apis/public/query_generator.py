@@ -155,7 +155,7 @@ class QueryGenerator:
             return None  # this covers the case where self.filter_to_mongo returns None.
 
         group_op = None
-        for key in filter.keys():
+        for key in filter:
             # if self.MONGO_TO_GROUP_OP[key]:
             if key in self.MONGO_TO_GROUP_OP:
                 group_op = key

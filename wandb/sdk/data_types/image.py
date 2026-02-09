@@ -335,10 +335,7 @@ class Image(BatchableMedia):
 
         if len(total_classes.keys()) > 0:
             self._classes = Classes(
-                [
-                    {"id": key, "name": total_classes[key]}
-                    for key in total_classes.keys()
-                ]
+                [{"id": key, "name": total_classes[key]} for key in total_classes]
             )
         if self.image is not None:
             self._width, self._height = self.image.size
@@ -945,13 +942,13 @@ class _ImageFileType(_dtypes.Type):
             if hasattr(py_obj, "_boxes") and py_obj._boxes:
                 box_layers = {
                     str(key): set(py_obj._boxes[key]._class_labels.keys())
-                    for key in py_obj._boxes.keys()
+                    for key in py_obj._boxes
                 }
                 box_score_keys = {
                     key
                     for val in py_obj._boxes.values()
                     for box in val._val
-                    for key in box.get("scores", {}).keys()
+                    for key in box.get("scores", {})
                 }
 
             else:
@@ -965,7 +962,7 @@ class _ImageFileType(_dtypes.Type):
                         if hasattr(py_obj._masks[key], "_val")
                         else []
                     )
-                    for key in py_obj._masks.keys()
+                    for key in py_obj._masks
                 }
             else:
                 mask_layers = {}

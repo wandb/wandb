@@ -165,10 +165,7 @@ class Char:
         return self.__class__(**attrs)
 
     def __eq__(self, other):
-        for k in self.__slots__:
-            if self[k] != other[k]:
-                return False
-        return True
+        return all(self[k] == other[k] for k in self.__slots__)
 
 
 _defchar = Char()

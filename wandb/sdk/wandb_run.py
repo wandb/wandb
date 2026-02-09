@@ -1743,7 +1743,7 @@ class Run:
         if not isinstance(data, Mapping):
             raise TypeError("wandb.log must be passed a dictionary")
 
-        if any(not isinstance(key, str) for key in data.keys()):
+        if any(not isinstance(key, str) for key in data):
             raise TypeError("Key values passed to `wandb.log` must be strings.")
 
         self._partial_history_callback(data, step, commit)

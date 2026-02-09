@@ -11,7 +11,7 @@ repos:
     rev: "v0.14.11"
     hooks:
       - id: ruff-check
-        args: [--fix]
+        args: [--fix, --unsafe-fixes]
       - id: ruff-format
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v21.1.8

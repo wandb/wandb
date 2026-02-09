@@ -118,7 +118,7 @@ class Config:
         return str(dict(self))
 
     def keys(self):
-        return [k for k in self._items.keys() if not k.startswith("_")]
+        return [k for k in self._items if not k.startswith("_")]
 
     def _as_dict(self):
         return self._items

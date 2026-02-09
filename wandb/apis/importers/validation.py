@@ -64,10 +64,7 @@ def _compare_artifact_dirs(src_dir, dst_dir) -> list:
 
 def _check_entries_are_downloadable(art):
     entries = _collect_entries(art)
-    for entry in entries:
-        if not _check_entry_is_downloable(entry):
-            return False
-    return True
+    return all(_check_entry_is_downloable(entry) for entry in entries)
 
 
 def _collect_entries(art):

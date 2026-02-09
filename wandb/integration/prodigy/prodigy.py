@@ -75,7 +75,7 @@ def get_schema(list_data_dict, struct, array_dict_types):
         # If the list contains dict objects
         for k, v in item.items():
             # Check if key already exists in template
-            if k not in struct.keys():
+            if k not in struct:
                 if isinstance(v, list):
                     if len(v) > 0 and isinstance(v[0], list):
                         # nested list structure

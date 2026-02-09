@@ -216,7 +216,7 @@ def verify_manifest(
     fails_list: list[str],
 ) -> None:
     try:
-        for key in computed_manifest.keys():
+        for key in computed_manifest:
             assert (
                 computed_manifest[key]["digest"] == downloaded_manifest[key]["digest"]
             )

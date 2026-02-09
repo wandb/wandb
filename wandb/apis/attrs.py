@@ -45,9 +45,9 @@ class Attrs:
         key = self.snake_to_camel(name)
         if key == "user":
             raise AttributeError
-        if key in self._attrs.keys():
+        if key in self._attrs:
             return self._attrs[key]
-        elif name in self._attrs.keys():
+        elif name in self._attrs:
             return self._attrs[name]
         else:
             raise AttributeError(f"{repr(self)!r} object has no attribute {name!r}")

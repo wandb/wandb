@@ -506,7 +506,7 @@ class TBHistory:
 
     def _track_history_dict(self, d: HistoryDict) -> HistoryDict:
         e = {}
-        for k in d.keys():
+        for k in d:
             e[k] = d[k]
             self._step_size += sys.getsizeof(e[k])
         return e
