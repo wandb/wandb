@@ -188,10 +188,6 @@ var (
 		Light: "#262626",
 		Dark:  "#d0d0d0",
 	}
-	colorSelected = lipgloss.AdaptiveColor{
-		Light: "#c6c6c6",
-		Dark:  "#444444",
-	}
 )
 
 // ASCII art for the loading screen and the help page.
@@ -298,8 +294,6 @@ func GraphColors(scheme string) []lipgloss.AdaptiveColor {
 	}
 	return colorSchemes[DefaultColorScheme]
 }
-
-var errorStyle = lipgloss.NewStyle()
 
 // Metrics grid styles.
 var (
