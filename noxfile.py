@@ -75,6 +75,27 @@ def site_packages_dir(session: nox.Session) -> pathlib.Path:
         )
 
 
+def _requirements_file(python_version: str) -> str:
+    """The name of the requirements_dev file for the given Python version.
+
+    Falls back to `requirements_dev.txt` if no version-specific file exists.
+
+    Args:
+        python_version: Python version string, like "3.8", "3.9", "3.13".
+    """
+    # Python 3.8 uses a separate file for macOS due to tensorflow-macos.
+    # From 3.9, all platforms can just install the 'tensorflow' package.
+    if python_version == "3.8" and platform.system() == "Darwin":
+        darwin_file = f"requirements_dev.{python_version}.darwin.txt"
+        if pathlib.Path(darwin_file).exists():
+            return darwin_file
+
+    versioned_file = f"requirements_dev.{python_version}.txt"
+    if pathlib.Path(versioned_file).exists():
+        return versioned_file
+    return "requirements_dev.txt"
+
+
 def get_circleci_splits() -> tuple[int, int]:
     """Returns the test splitting arguments from our CircleCI config.
 
@@ -172,7 +193,7 @@ def unit_tests(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
         # For test_reports:
         "polyfactory",
     )
@@ -198,7 +219,7 @@ def unit_tests_pydantic_v1(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
     )
     # force-downgrade pydantic to v1
     install_timed(session, "pydantic<2")
@@ -222,7 +243,7 @@ def system_tests(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
         "annotated-types",  # for test_reports
     )
 
@@ -252,7 +273,7 @@ def notebook_tests(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
         "nbclient",
         "nbconvert",
         "nbformat",
@@ -287,7 +308,7 @@ def functional_tests(session: nox.Session):
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
     )
 
     run_pytest(
@@ -308,7 +329,7 @@ def experimental_tests(session: nox.Session):
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",
+        _requirements_file(session.python),
     )
 
     run_pytest(
@@ -740,7 +761,7 @@ def combine_test_results(session: nox.Session) -> None:
 def importer_tests(session: nox.Session, importer: str):
     """Run importer tests for wandb->wandb and mlflow->wandb."""
     install_wandb(session)
-    session.install("-r", "requirements_dev.txt")
+    session.install("-r", _requirements_file(session.python))
     if importer == "wandb":
         session.install(".[workspaces]", "pydantic>=2")
     elif importer == "mlflow":
