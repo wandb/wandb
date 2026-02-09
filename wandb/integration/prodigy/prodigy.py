@@ -80,9 +80,7 @@ def get_schema(list_data_dict, struct, array_dict_types):
                     if len(v) > 0 and isinstance(v[0], list):
                         # nested list structure
                         struct[k] = type(v)  # type list
-                    elif len(v) > 0 and not (
-                        isinstance(v[0], list) or isinstance(v[0], dict)
-                    ):
+                    elif len(v) > 0 and not (isinstance(v[0], (list, dict))):
                         # list of singular values
                         struct[k] = type(v)  # type list
                     else:
@@ -107,9 +105,7 @@ def get_schema(list_data_dict, struct, array_dict_types):
                         # if the value in the item is currently None, then update
                         if v is not None:
                             struct[k] = type(v)  # type list
-                    elif len(v) > 0 and not (
-                        isinstance(v[0], list) or isinstance(v[0], dict)
-                    ):
+                    elif len(v) > 0 and not (isinstance(v[0], (list, dict))):
                         # single list with values
                         # if the value in the item is currently None, then update
                         if v is not None:
@@ -163,10 +159,7 @@ def standardize(item, structure, array_dict_types):
                     not (len(item[k]) > 0 and isinstance(item[k][0], list))
                 ) and (
                     not (
-                        len(item[k]) > 0
-                        and not (
-                            isinstance(item[k][0], list) or isinstance(item[k][0], dict)
-                        )
+                        len(item[k]) > 0 and not (isinstance(item[k][0], (list, dict)))
                     )
                 )
                 if condition:

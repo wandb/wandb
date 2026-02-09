@@ -102,7 +102,4 @@ def _check_entry_is_downloable(entry):
     actual_size = resp.headers.get("content-length", -1)
     actual_size = int(actual_size)
 
-    if expected_size == actual_size:
-        return True
-
-    return False
+    return expected_size == actual_size

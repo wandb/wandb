@@ -1507,11 +1507,10 @@ class Settings(BaseModel, validate_assignment=True):
         )
 
         lambda_bootstrap = get_lambda_bootstrap()
-        if not lambda_bootstrap or not hasattr(
-            lambda_bootstrap, "handle_event_request"
-        ):
-            return False
-        return True
+        return not (
+            not lambda_bootstrap
+            or not hasattr(lambda_bootstrap, "handle_event_request")
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

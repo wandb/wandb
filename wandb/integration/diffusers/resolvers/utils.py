@@ -41,9 +41,8 @@ def get_updated_kwargs(
             if generator is not None
             else None
         )
-    if "ip_adapter_image" in kwargs:
-        if kwargs["ip_adapter_image"] is not None:
-            wandb.log({"IP-Adapter-Image": wandb.Image(kwargs["ip_adapter_image"])})
+    if "ip_adapter_image" in kwargs and kwargs["ip_adapter_image"] is not None:
+        wandb.log({"IP-Adapter-Image": wandb.Image(kwargs["ip_adapter_image"])})
     return kwargs
 
 

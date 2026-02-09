@@ -337,9 +337,7 @@ class Event:
         self.created_at = time.time()
 
     def __lt__(self, other: Event) -> bool:
-        if self.event.wall_time < other.event.wall_time:
-            return True
-        return False
+        return self.event.wall_time < other.event.wall_time
 
 
 class TBEventConsumer:

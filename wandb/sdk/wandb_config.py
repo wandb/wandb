@@ -284,14 +284,17 @@ class Config:
         # if the user inserts an artifact into the config
         if not isinstance(val, wandb.Artifact):
             val = json_friendly_val(val)
-        if not allow_val_change:
-            if key in self._items and val != self._items[key]:
-                raise config_util.ConfigError(
-                    f'Attempted to change value of key "{key}" '
-                    f"from {self._items[key]} to {val}\n"
-                    "If you really want to do this, pass"
-                    " allow_val_change=True to config.update()"
-                )
+        if (
+            (not allow_val_change)
+            and (key in self._items)
+            and (val != self._items[key])
+        ):
+            raise config_util.ConfigError(
+                f'Attempted to change value of key "{key}" '
+                f"from {self._items[key]} to {val}\n"
+                "If you really want to do this, pass"
+                " allow_val_change=True to config.update()"
+            )
         return key, val
 
     def _raise_value_error_on_nested_artifact(self, v, nested=False):

@@ -186,6 +186,11 @@ select = [
     "TC005",  # flake8-type-checking
     "RUF100", # unused-noqa
 
+    # flake8-simplify
+    "SIM101", # duplicate-isinstance-call
+    "SIM102", # collapsible-if
+    "SIM103", # needless-bool
+
     # tryceratops
     "TRY004", # type-check-without-type-error
     "TRY201", # verbose-raise

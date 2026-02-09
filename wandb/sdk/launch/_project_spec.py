@@ -328,9 +328,7 @@ class LaunchProject:
         """Checks the source to see if a build is required."""
         if self.job_base_image is not None:
             return False
-        if self.source != LaunchSource.JOB:
-            return True
-        return False
+        return self.source != LaunchSource.JOB
 
     @property
     def docker_image(self) -> str | None:

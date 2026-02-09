@@ -23,9 +23,7 @@ def class_proportions(y_train, y_test, labels):
         class_ids, counts_train, counts_test
     )
 
-    if labels is not None and (
-        isinstance(class_column[0], int) or isinstance(class_column[0], np.integer)
-    ):
+    if labels is not None and isinstance(class_column[0], (int, np.integer)):
         class_column = get_named_labels(labels, class_column)
 
     table = make_table(class_column, dataset_column, count_column)

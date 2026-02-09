@@ -33,10 +33,7 @@ def _can_compute_flops() -> bool:
     """FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1."""
     from packaging.version import parse
 
-    if parse(tf.__version__) >= parse("2.0.0"):
-        return True
-
-    return False
+    return parse(tf.__version__) >= parse("2.0.0")
 
 
 if "keras" in sys.modules:

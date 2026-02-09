@@ -804,9 +804,8 @@ def sanitize_identifiers_for_k8s(root: Any) -> None:
         return
 
     metadata = root.get("metadata")
-    if isinstance(metadata, dict):
-        if name := metadata.get("name"):
-            metadata["name"] = make_k8s_label_safe(str(name))
+    if isinstance(metadata, dict) and (name := metadata.get("name")):
+        metadata["name"] = make_k8s_label_safe(str(name))
 
     for container in yield_containers(root):
         if name := container.get("name"):

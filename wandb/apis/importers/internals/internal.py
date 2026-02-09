@@ -114,15 +114,16 @@ class RecordMaker:
             include_artifacts, config.files, config.media, config.code
         )
 
-        if config.use_artifacts:
-            if (used_artifacts := self.run.used_artifacts()) is not None:
-                for artifact in used_artifacts:
-                    yield self._make_artifact_record(artifact, use_artifact=True)
+        if (
+            config.use_artifacts
+            and (used_artifacts := self.run.used_artifacts()) is not None
+        ):
+            for artifact in used_artifacts:
+                yield self._make_artifact_record(artifact, use_artifact=True)
 
-        if config.log_artifacts:
-            if (artifacts := self.run.artifacts()) is not None:
-                for artifact in artifacts:
-                    yield self._make_artifact_record(artifact)
+        if config.log_artifacts and (artifacts := self.run.artifacts()) is not None:
+            for artifact in artifacts:
+                yield self._make_artifact_record(artifact)
 
         if config.history:
             yield from self._make_history_records()
@@ -130,10 +131,9 @@ class RecordMaker:
         if config.summary:
             yield self._make_summary_record()
 
-        if config.terminal_output:
-            if (lines := self.run.logs()) is not None:
-                for line in lines:
-                    yield self._make_output_record(line)
+        if config.terminal_output and (lines := self.run.logs()) is not None:
+            for line in lines:
+                yield self._make_output_record(line)
 
     def _make_run_record(self) -> pb.Record:
         run = pb.RunRecord()

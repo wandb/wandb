@@ -46,9 +46,8 @@ class Version:
         elif self._major == other._major:
             if self._minor < other._minor:
                 return True
-            elif self._minor == other._minor:
-                if self._patch < other._patch:
-                    return True
+            elif self._minor == other._minor and self._patch < other._patch:
+                return True
         return False
 
     def __eq__(self, other: object) -> bool:
@@ -115,9 +114,8 @@ def get_min_supported_for_source_dict(
     min_seen = None
     for key in source:
         new_ver = SOURCE_KEYS_MIN_SUPPORTED_VERSION.get(key)
-        if new_ver:
-            if min_seen is None or new_ver < min_seen:
-                min_seen = new_ver
+        if new_ver and (min_seen is None or new_ver < min_seen):
+            min_seen = new_ver
     return min_seen
 
 
@@ -369,10 +367,9 @@ class JobBuilder:
     ) -> list[str]:
         # if building a partial job from CLI, overwrite entrypoint and notebook
         # should already be in metadata from create_job
-        if self._partial:
-            if metadata.get("entrypoint"):
-                entrypoint: list[str] = metadata["entrypoint"]
-                return entrypoint
+        if self._partial and metadata.get("entrypoint"):
+            entrypoint: list[str] = metadata["entrypoint"]
+            return entrypoint
         # job is being built from a run
         entrypoint = [os.path.basename(sys.executable), program_relpath]
 
@@ -567,13 +564,14 @@ class JobBuilder:
             name=FROZEN_REQUIREMENTS_FNAME,
         )
 
-        if source_type == "repo":
+        if source_type == "repo" and os.path.exists(
+            os.path.join(self._files_dir, DIFF_FNAME)
+        ):
             # add diff
-            if os.path.exists(os.path.join(self._files_dir, DIFF_FNAME)):
-                artifact.add_file(
-                    os.path.join(self._files_dir, DIFF_FNAME),
-                    name=DIFF_FNAME,
-                )
+            artifact.add_file(
+                os.path.join(self._files_dir, DIFF_FNAME),
+                name=DIFF_FNAME,
+            )
 
         return artifact
 

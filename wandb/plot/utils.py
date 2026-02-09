@@ -146,22 +146,21 @@ def test_types(**kwargs):
             or (k == "x_labels")
             or (k == "y_labels")
             or (k == "matrix_values")
+        ) and not isinstance(
+            v,
+            (
+                Sequence,
+                Iterable,
+                np.ndarray,
+                np.generic,
+                pd.DataFrame,
+                pd.Series,
+                list,
+            ),
         ):
             # FIXME: do this individually
-            if not isinstance(
-                v,
-                (
-                    Sequence,
-                    Iterable,
-                    np.ndarray,
-                    np.generic,
-                    pd.DataFrame,
-                    pd.Series,
-                    list,
-                ),
-            ):
-                wandb.termerror(f"{k} is not an array. Please try again.")
-                test_passed = False
+            wandb.termerror(f"{k} is not an array. Please try again.")
+            test_passed = False
         # check for classifier types
         if k == "model":
             if (not base.is_classifier(v)) and (not base.is_regressor(v)):
@@ -177,8 +176,9 @@ def test_types(**kwargs):
             if not base.is_regressor(v):
                 wandb.termerror(f"{k} is not a regressor. Please try again.")
                 test_passed = False
-        elif k == "clusterer":
-            if not (getattr(v, "_estimator_type", None) == "clusterer"):
-                wandb.termerror(f"{k} is not a clusterer. Please try again.")
-                test_passed = False
+        elif k == "clusterer" and not (
+            getattr(v, "_estimator_type", None) == "clusterer"
+        ):
+            wandb.termerror(f"{k} is not a clusterer. Please try again.")
+            test_passed = False
     return test_passed

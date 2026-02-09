@@ -1119,9 +1119,7 @@ async def maybe_create_imagepull_secret(
         A secret if one was created, otherwise None.
     """
     secret = None
-    if isinstance(registry, LocalRegistry) or isinstance(
-        registry, AzureContainerRegistry
-    ):
+    if isinstance(registry, (LocalRegistry, AzureContainerRegistry)):
         # Secret not required
         return None
     uname, token = await registry.get_username_password()

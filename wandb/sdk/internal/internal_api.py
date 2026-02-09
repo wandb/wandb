@@ -3214,21 +3214,24 @@ class Api:
 
         for parameter_name in config["parameters"]:
             parameter = config["parameters"][parameter_name]
-            if "min" in parameter and "max" in parameter:
-                if "distribution" not in parameter:
-                    if isinstance(parameter["min"], int) and isinstance(
-                        parameter["max"], int
-                    ):
-                        parameter["distribution"] = "int_uniform"
-                    elif isinstance(parameter["min"], float) and isinstance(
-                        parameter["max"], float
-                    ):
-                        parameter["distribution"] = "uniform"
-                    else:
-                        raise ValueError(
-                            f"Parameter {parameter_name} is ambiguous, please specify bounds as both floats (for a float_"
-                            "uniform distribution) or ints (for an int_uniform distribution)."
-                        )
+            if (
+                "min" in parameter
+                and "max" in parameter
+                and "distribution" not in parameter
+            ):
+                if isinstance(parameter["min"], int) and isinstance(
+                    parameter["max"], int
+                ):
+                    parameter["distribution"] = "int_uniform"
+                elif isinstance(parameter["min"], float) and isinstance(
+                    parameter["max"], float
+                ):
+                    parameter["distribution"] = "uniform"
+                else:
+                    raise ValueError(
+                        f"Parameter {parameter_name} is ambiguous, please specify bounds as both floats (for a float_"
+                        "uniform distribution) or ints (for an int_uniform distribution)."
+                    )
         return config
 
     @normalize_exceptions
