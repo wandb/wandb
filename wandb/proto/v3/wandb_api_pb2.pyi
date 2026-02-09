@@ -24,7 +24,7 @@ class _ErrorType:
     ValueType = typing.NewType("ValueType", builtins.int)
     V: typing_extensions.TypeAlias = ValueType
 
-class _ErrorTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ErrorType.ValueType], builtins.type):
+class _ErrorTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ErrorType.ValueType], builtins.type):  # noqa: F821
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
     UNKNOWN_ERROR: _ErrorType.ValueType  # 0
     INCOMPLETE_RUN_HISTORY_ERROR: _ErrorType.ValueType  # 1
@@ -35,7 +35,6 @@ UNKNOWN_ERROR: ErrorType.ValueType  # 0
 INCOMPLETE_RUN_HISTORY_ERROR: ErrorType.ValueType  # 1
 global___ErrorType = ErrorType
 
-@typing_extensions.final
 class ServerApiInitRequest(google.protobuf.message.Message):
     """ServerApiInitRequest instructs the backend process
     to initialize resources to handle ApiRequests.
@@ -58,7 +57,6 @@ class ServerApiInitRequest(google.protobuf.message.Message):
 
 global___ServerApiInitRequest = ServerApiInitRequest
 
-@typing_extensions.final
 class ApiRequest(google.protobuf.message.Message):
     """ApiRequest is a request to the backend process
     to perform an action related to an API call.
@@ -80,7 +78,6 @@ class ApiRequest(google.protobuf.message.Message):
 
 global___ApiRequest = ApiRequest
 
-@typing_extensions.final
 class ServerApiInitResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -95,7 +92,6 @@ class ServerApiInitResponse(google.protobuf.message.Message):
 
 global___ServerApiInitResponse = ServerApiInitResponse
 
-@typing_extensions.final
 class ApiResponse(google.protobuf.message.Message):
     """ApiResponse is a response from the backend process for an ApiRequest."""
 
@@ -119,7 +115,6 @@ class ApiResponse(google.protobuf.message.Message):
 
 global___ApiResponse = ApiResponse
 
-@typing_extensions.final
 class ApiErrorResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -139,7 +134,6 @@ class ApiErrorResponse(google.protobuf.message.Message):
 
 global___ApiErrorResponse = ApiErrorResponse
 
-@typing_extensions.final
 class ReadRunHistoryRequest(google.protobuf.message.Message):
     """Start of Scan run history"""
 
@@ -179,7 +173,6 @@ class ReadRunHistoryRequest(google.protobuf.message.Message):
 
 global___ReadRunHistoryRequest = ReadRunHistoryRequest
 
-@typing_extensions.final
 class ReadRunHistoryResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -217,7 +210,6 @@ class ReadRunHistoryResponse(google.protobuf.message.Message):
 
 global___ReadRunHistoryResponse = ReadRunHistoryResponse
 
-@typing_extensions.final
 class ScanRunHistoryInit(google.protobuf.message.Message):
     """ScanRunHistoryInit is a request to initialize
     a scan over a run's history.
@@ -253,7 +245,6 @@ class ScanRunHistoryInit(google.protobuf.message.Message):
 
 global___ScanRunHistoryInit = ScanRunHistoryInit
 
-@typing_extensions.final
 class ScanRunHistoryInitResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -268,7 +259,6 @@ class ScanRunHistoryInitResponse(google.protobuf.message.Message):
 
 global___ScanRunHistoryInitResponse = ScanRunHistoryInitResponse
 
-@typing_extensions.final
 class ScanRunHistory(google.protobuf.message.Message):
     """ScanRunHistory is a request to scan
     over a portion of a run's history.
@@ -293,7 +283,6 @@ class ScanRunHistory(google.protobuf.message.Message):
 
 global___ScanRunHistory = ScanRunHistory
 
-@typing_extensions.final
 class RunHistoryResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -309,7 +298,6 @@ class RunHistoryResponse(google.protobuf.message.Message):
 
 global___RunHistoryResponse = RunHistoryResponse
 
-@typing_extensions.final
 class HistoryRow(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -325,7 +313,6 @@ class HistoryRow(google.protobuf.message.Message):
 
 global___HistoryRow = HistoryRow
 
-@typing_extensions.final
 class ParquetHistoryItem(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -343,7 +330,6 @@ class ParquetHistoryItem(google.protobuf.message.Message):
 
 global___ParquetHistoryItem = ParquetHistoryItem
 
-@typing_extensions.final
 class ScanRunHistoryCleanup(google.protobuf.message.Message):
     """ScanRunHistoryCleanup is a request to cleanup
     any resources associated with a scan request.
@@ -362,7 +348,6 @@ class ScanRunHistoryCleanup(google.protobuf.message.Message):
 
 global___ScanRunHistoryCleanup = ScanRunHistoryCleanup
 
-@typing_extensions.final
 class ScanRunHistoryCleanupResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -372,7 +357,6 @@ class ScanRunHistoryCleanupResponse(google.protobuf.message.Message):
 
 global___ScanRunHistoryCleanupResponse = ScanRunHistoryCleanupResponse
 
-@typing_extensions.final
 class DownloadRunHistoryInit(google.protobuf.message.Message):
     """Download run history"""
 
@@ -409,7 +393,6 @@ class DownloadRunHistoryInit(google.protobuf.message.Message):
 
 global___DownloadRunHistoryInit = DownloadRunHistoryInit
 
-@typing_extensions.final
 class DownloadRunHistoryInitResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -433,7 +416,6 @@ class DownloadRunHistoryInitResponse(google.protobuf.message.Message):
 
 global___DownloadRunHistoryInitResponse = DownloadRunHistoryInitResponse
 
-@typing_extensions.final
 class DownloadRunHistory(google.protobuf.message.Message):
     """A request to start a download operation for a run's history exports."""
 
@@ -451,13 +433,11 @@ class DownloadRunHistory(google.protobuf.message.Message):
 
 global___DownloadRunHistory = DownloadRunHistory
 
-@typing_extensions.final
 class DownloadRunHistoryResponse(google.protobuf.message.Message):
     """A response to a DownloadRunHistoryStart request."""
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    @typing_extensions.final
     class ErrorsEntry(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -491,7 +471,6 @@ class DownloadRunHistoryResponse(google.protobuf.message.Message):
 
 global___DownloadRunHistoryResponse = DownloadRunHistoryResponse
 
-@typing_extensions.final
 class IncompleteRunHistoryError(google.protobuf.message.Message):
     """IncompleteRunHistoryError is an error that is returned when the run history
     has live data that has not been exported to parquet files yet.
@@ -505,7 +484,6 @@ class IncompleteRunHistoryError(google.protobuf.message.Message):
 
 global___IncompleteRunHistoryError = IncompleteRunHistoryError
 
-@typing_extensions.final
 class DownloadRunHistoryStatus(google.protobuf.message.Message):
     """DownloadRunHistoryStatus requests the status of an ongoing download operation."""
 
@@ -523,7 +501,6 @@ class DownloadRunHistoryStatus(google.protobuf.message.Message):
 
 global___DownloadRunHistoryStatus = DownloadRunHistoryStatus
 
-@typing_extensions.final
 class DownloadRunHistoryStatusResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
