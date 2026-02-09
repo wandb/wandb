@@ -464,7 +464,6 @@ func (w *Workspace) renderMetrics() string {
 		logoContent := lipgloss.JoinVertical(
 			lipgloss.Center,
 			artStyle.Render(wandbArt),
-			artStyle.Render(sphericalCowInAVacuum),
 			artStyle.Render(leetArt),
 		)
 
