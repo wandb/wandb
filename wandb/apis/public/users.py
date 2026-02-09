@@ -22,18 +22,17 @@ if TYPE_CHECKING:
 
 
 class User(Attrs):
-    """A class representing a W&B user with authentication and management capabilities.
+    """A user on a W&B instance.
 
-    This class provides methods to manage W&B users, including creating users,
-    managing API keys, and accessing team memberships. It inherits from Attrs
-    to handle user attributes.
+    This allows managing a user's API keys and accessing information like
+    team memberships. The `create` class method can be used to create a new
+    user.
 
     Args:
-        client: (`wandb.apis.internal.Api`) The client instance to use
-        attrs: (dict) The user attributes
+        client: The GraphQL client to use for network operations.
+        attrs: A subset of the User type in the GraphQL schema.
 
-    Note:
-        Some operations require admin privileges
+    <!-- lazydoc-ignore-init: internal -->
     """
 
     def __init__(self, client: RetryingClient, attrs: MutableMapping[str, Any]):
@@ -43,7 +42,7 @@ class User(Attrs):
 
     @property
     def user_api(self) -> Api | None:
-        """An instance of the api using credentials from the user."""
+        """A `wandb.Api` instance using the user's credentials."""
         if self._user_api is None and self.api_keys:
             self._user_api = wandb.Api(api_key=self.api_keys[0])
         return self._user_api
@@ -52,13 +51,18 @@ class User(Attrs):
     def create(cls, api: Api, email: str, admin: bool = False) -> Self:
         """Create a new user.
 
+        This is an internal method. Use the `create_user()` method of
+        `wandb.Api` instead.
+
         Args:
-            api (`Api`): The api instance to use
-            email (str): The name of the team
-            admin (bool): Whether this user should be a global instance admin
+            api: The API instance to use to create the user.
+            email: The email for the user.
+            admin: Whether this user should be a global instance admin.
 
         Returns:
-            A `User` object
+            A `User` object.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         from wandb.apis._generated import (
             CREATE_USER_FROM_ADMIN_GQL,
@@ -72,11 +76,14 @@ class User(Attrs):
 
     @property
     def api_keys(self) -> list[str]:
-        """List of API key names associated with the user.
+        """Names of the user's API keys.
 
-        Returns:
-            Names of API keys associated with the user. Empty list if user
-            has no API keys or if API key data hasn't been loaded.
+        This property returns the names of the the API keys, *not* the secret
+        associated with the key. The name of the key cannot be used as an API
+        key.
+
+        The list is empty if the user has no API keys or if API keys have not
+        been loaded.
         """
         if self._attrs.get("apiKeys") is None:
             return []
@@ -84,28 +91,26 @@ class User(Attrs):
 
     @property
     def teams(self) -> list[str]:
-        """List of team names that the user is a member of.
+        """Names of the user's teams.
 
-        Returns:
-            Names of teams the user belongs to. Empty list if user has no
-            team memberships or if teams data hasn't been loaded.
+        This is an empty list if the user has no team memberships or if teams
+        data was not loaded.
         """
         if self._attrs.get("teams") is None:
             return []
         return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
 
     def delete_api_key(self, api_key: str) -> bool:
-        """Delete a user's api key.
+        """Delete a user's API key.
+
+        Only the owner of the key or an admin can delete it.
 
         Args:
-            api_key (str): The name of the API key to delete. This should be
-                one of the names returned by the `api_keys` property.
+            api_key: The name of the API key to delete. Use one of
+                the names returned by the `api_keys` property.
 
         Returns:
-            Boolean indicating success
-
-        Raises:
-            ValueError if the api_key couldn't be found
+            True on success, false on failure.
         """
         from requests import HTTPError
 
@@ -120,14 +125,15 @@ class User(Attrs):
         return True
 
     def generate_api_key(self, description: str | None = None) -> str | None:
-        """Generate a new api key.
+        """Generate a new API key.
 
         Args:
-            description (str, optional): A description for the new API key. This can be
+            description: A description for the new API key. This can be
                 used to identify the purpose of the API key.
 
         Returns:
-            The new api key, or None on failure
+            The generated API key (the full secret, not just the name), or
+            None on failure.
         """
         from requests import HTTPError
 

@@ -88,6 +88,17 @@ _is_caused_by_callback = contextvars.ContextVar(
 
 _patch_exception: CannotCaptureConsoleError | None = None
 
+
+def _maybe_raise_patch_exception() -> None:
+    """Raise _patch_exception if it's set."""
+    if _patch_exception:
+        # Each `raise` call modifies the exception's __traceback__, so we must
+        # reset the traceback to reuse the exception.
+        #
+        # See https://bugs.python.org/issue45924 for an example of the problem.
+        raise _patch_exception.with_traceback(None)
+
+
 _next_callback_id: int = 1
 
 _stdout_callbacks: dict[int, _WriteCallback] = {}
@@ -106,10 +117,9 @@ def capture_stdout(callback: _WriteCallback) -> Callable[[], None]:
     Raises:
         CannotCaptureConsoleError: If patching failed on import.
     """
-    with _module_lock:
-        if _patch_exception:
-            raise _patch_exception
+    _maybe_raise_patch_exception()
 
+    with _module_lock:
         return _insert_disposably(
             _stdout_callbacks,
             callback,
@@ -128,10 +138,9 @@ def capture_stderr(callback: _WriteCallback) -> Callable[[], None]:
     Raises:
         CannotCaptureConsoleError: If patching failed on import.
     """
-    with _module_lock:
-        if _patch_exception:
-            raise _patch_exception
+    _maybe_raise_patch_exception()
 
+    with _module_lock:
         return _insert_disposably(
             _stderr_callbacks,
             callback,

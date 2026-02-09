@@ -15,7 +15,7 @@ func TestConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	var m tea.Model = leet.NewModel("dummy", cfg, logger)
+	var m tea.Model = leet.NewRun("dummy", cfg, logger)
 	// Ensure model is sized so internal recomputations run.
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
@@ -65,10 +65,10 @@ func TestConfig_SetLeftSidebarVisible_AffectsModelOnStartup(t *testing.T) {
 	err := cfg.SetLeftSidebarVisible(true)
 	require.NoError(t, err)
 
-	m := leet.NewModel("dummy", cfg, logger)
+	m := leet.NewRun("dummy", cfg, logger)
 	var tm tea.Model = m
 	tm, _ = tm.Update(tea.WindowSizeMsg{Width: 160, Height: 60})
 
-	model := tm.(*leet.Model)
+	model := tm.(*leet.Run)
 	require.True(t, model.TestLeftSidebarVisible())
 }

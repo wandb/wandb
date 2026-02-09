@@ -2,7 +2,6 @@ package leet_test
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -11,28 +10,27 @@ import (
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
-	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestSidebarFilter_AppliesAndClears(t *testing.T) {
-	cfg := leet.NewConfigManager(
-		filepath.Join(t.TempDir(), "config.json"),
-		observability.NewNoOpLogger(),
-	)
-	s := leet.NewLeftSidebar(cfg)
+	as := leet.NewAnimationState(true, 120)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
-	s.ProcessRunMsg(leet.RunMsg{
+	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
 			Update: []*spb.ConfigItem{
 				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
 			},
 		},
 	})
-	s.ProcessSummaryMsg([]*spb.SummaryRecord{
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{
 		{Update: []*spb.SummaryItem{{NestedKey: []string{"acc"}, ValueJson: "0.9"}}},
 	})
-	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{WriterId: "writer-1", Os: "linux"})
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{WriterId: "writer-1", Os: "linux"})
+
+	s.Sync()
 
 	s.EnterFilterMode()
 	typeString(s, "train")
@@ -44,13 +42,11 @@ func TestSidebarFilter_AppliesAndClears(t *testing.T) {
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
-	cfg := leet.NewConfigManager(
-		filepath.Join(t.TempDir(), "config.json"),
-		observability.NewNoOpLogger(),
-	)
-	s := leet.NewLeftSidebar(cfg)
+	as := leet.NewAnimationState(true, 120)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
-	s.ProcessRunMsg(leet.RunMsg{
+	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
 			Update: []*spb.ConfigItem{
 				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
@@ -58,19 +54,19 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 		},
 	})
 
+	s.Sync()
+
 	key, val := s.SelectedItem()
 	require.Equal(t, key, "trainer.epochs")
 	require.Equal(t, val, "10")
 }
 
 func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
-	cfg := leet.NewConfigManager(
-		filepath.Join(t.TempDir(), "config.json"),
-		observability.NewNoOpLogger(),
-	)
-	s := leet.NewLeftSidebar(cfg)
+	as := leet.NewAnimationState(true, 120)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
-	s.ProcessRunMsg(leet.RunMsg{
+	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
 			Update: []*spb.ConfigItem{
 				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
@@ -84,7 +80,9 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 			{NestedKey: []string{"loss"}, ValueJson: "0.5"},
 		},
 	}
-	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
+
+	s.Sync()
 
 	// Live preview on summary, then apply it.
 	s.EnterFilterMode()
@@ -94,7 +92,7 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 	require.Equal(t, "acc", key)
 }
 
-func expandSidebar(t *testing.T, s *leet.LeftSidebar, termWidth int, rightVisible bool) {
+func expandSidebar(t *testing.T, s *leet.RunOverviewSidebar, termWidth int, rightVisible bool) {
 	t.Helper()
 	s.UpdateDimensions(termWidth, rightVisible)
 	s.Toggle()
@@ -104,15 +102,12 @@ func expandSidebar(t *testing.T, s *leet.LeftSidebar, termWidth int, rightVisibl
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
-	cfg := leet.NewConfigManager(
-		filepath.Join(t.TempDir(), "config.json"),
-		observability.NewNoOpLogger(),
-	)
-	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
-	s := leet.NewLeftSidebar(cfg)
+	as := leet.NewAnimationState(false, 120)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
 
-	s.ProcessRunMsg(leet.RunMsg{
+	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
 			Update: []*spb.ConfigItem{
 				{NestedKey: []string{"alpha", "a"}, ValueJson: "1"},
@@ -130,12 +125,14 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 			{NestedKey: []string{"val", "acc"}, ValueJson: "0.88"},
 		},
 	}
-	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
-	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
 		WriterId: "writer-1",
 		Os:       "linux",
 	})
+
+	s.Sync()
 
 	// Small height -> ItemsPerPage=1 -> expect "[1-1 of N]" pagination per section.
 	view := s.View(15)
@@ -152,20 +149,17 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
-	cfg := leet.NewConfigManager(
-		filepath.Join(t.TempDir(), "config.json"),
-		observability.NewNoOpLogger(),
-	)
-	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
-	s := leet.NewLeftSidebar(cfg)
+	as := leet.NewAnimationState(false, 120)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
 
-	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
 		WriterId: "writer-1",
 		Os:       "linux",
 	})
 
-	s.ProcessRunMsg(leet.RunMsg{
+	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
 			Update: []*spb.ConfigItem{
 				{NestedKey: []string{"alpha", "a"}, ValueJson: "1"},
@@ -181,7 +175,9 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 			{NestedKey: []string{"loss"}, ValueJson: "0.1"},
 		},
 	}
-	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
+
+	s.Sync()
 
 	// Start in Environment; Tab to Config (navigateSection).
 	s.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -208,15 +204,12 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 }
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
-	cfg := leet.NewConfigManager(
-		filepath.Join(t.TempDir(), "config.json"),
-		observability.NewNoOpLogger(),
-	)
-	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
-	s := leet.NewLeftSidebar(cfg)
+	as := leet.NewAnimationState(false, 120)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
 
-	s.ProcessRunMsg(leet.RunMsg{
+	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
 			Update: []*spb.ConfigItem{
 				{NestedKey: []string{"alpha", "a"}, ValueJson: "1"},
@@ -230,12 +223,14 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 			{NestedKey: []string{"acc"}, ValueJson: "0.91"},
 		},
 	}
-	s.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{sr})
 
-	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
 		WriterId: "writer-1",
 		Os:       "linux",
 	})
+
+	s.Sync()
 
 	// Apply a filter and verify info shows.
 	s.EnterFilterMode()
@@ -250,17 +245,14 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 }
 
 func TestSidebar_TruncateValue(t *testing.T) {
-	cfg := leet.NewConfigManager(
-		filepath.Join(t.TempDir(), "config.json"),
-		observability.NewNoOpLogger(),
-	)
-	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
-	s := leet.NewLeftSidebar(cfg)
+	as := leet.NewAnimationState(false, 120)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
 
 	long := strings.Repeat("x", 200)
 
-	s.ProcessRunMsg(leet.RunMsg{
+	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
 			Update: []*spb.ConfigItem{
 				{NestedKey: []string{"a", "k"}, ValueJson: `"` + long + `"`},
@@ -268,10 +260,12 @@ func TestSidebar_TruncateValue(t *testing.T) {
 		},
 	})
 
-	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
 		WriterId: "writer-1",
 		Os:       "linux",
 	})
+
+	s.Sync()
 
 	view := s.View(12)
 	require.Contains(t, view, "a.k")
@@ -279,13 +273,11 @@ func TestSidebar_TruncateValue(t *testing.T) {
 }
 
 func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
-	cfg := leet.NewConfigManager(
-		filepath.Join(t.TempDir(), "config.json"),
-		observability.NewNoOpLogger(),
-	)
-	s := leet.NewLeftSidebar(cfg)
+	as := leet.NewAnimationState(true, 120)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
-	s.ProcessRunMsg(leet.RunMsg{
+	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
 			Update: []*spb.ConfigItem{
 				{NestedKey: []string{"train", "loss"}, ValueJson: "0.5"},
@@ -294,6 +286,8 @@ func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
 			},
 		},
 	})
+
+	s.Sync()
 
 	// Default mode is regex — match keys ending with ".loss".
 	s.EnterFilterMode()
@@ -324,12 +318,9 @@ func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
 }
 
 func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
-	cfg := leet.NewConfigManager(
-		filepath.Join(t.TempDir(), "config.json"),
-		observability.NewNoOpLogger(),
-	)
-	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
-	s := leet.NewLeftSidebar(cfg)
+	as := leet.NewAnimationState(false, 40)
+	ro := leet.NewRunOverview()
+	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
 
 	// Make enough config items to have multiple pages at small height.
@@ -340,9 +331,11 @@ func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
 			ValueJson: "x",
 		})
 	}
-	s.ProcessRunMsg(leet.RunMsg{
+	ro.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{Update: updates},
 	})
+
+	s.Sync()
 
 	// Small height -> ItemsPerPage=1, ensure view is built.
 	_ = s.View(15)

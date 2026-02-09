@@ -23,26 +23,22 @@ def run_async_with_spinner(
         The result of func.
     """
 
-    async def _loop_run_with_spinner() -> _T:
-        func_running = asyncio.Event()
-
+    async def loop_run_with_spinner() -> _T:
         async def update_spinner() -> None:
             tick = 0
             with spinner_printer.dynamic_text() as text_area:
-                if text_area:
-                    while not func_running.is_set():
-                        spinner = spinner_printer.loading_symbol(tick)
-                        text_area.set_text(f"{spinner} {text}")
-                        tick += 1
-                        await asyncio.sleep(0.1)
-                else:
+                if not text_area:
                     spinner_printer.display(text)
+                    return
 
-        async with asyncio_compat.open_task_group() as group:
-            group.start_soon(update_spinner())
-            res = await asyncio.get_running_loop().run_in_executor(None, func)
-            func_running.set()
-            return res
+                while True:
+                    spinner = spinner_printer.loading_symbol(tick)
+                    text_area.set_text(f"{spinner} {text}")
+                    tick += 1
+                    await asyncio.sleep(0.1)
+
+        async with asyncio_compat.cancel_on_exit(update_spinner()):
+            return await asyncio.get_running_loop().run_in_executor(None, func)
 
     asyncer = wandb_setup.singleton().asyncer
-    return asyncer.run(_loop_run_with_spinner)
+    return asyncer.run(loop_run_with_spinner)

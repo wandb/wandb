@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -40,6 +39,11 @@ type RunHistoryAPIHandler struct {
 	// It allows us to reuse existing
 	// history readers for subsequent scan requests.
 	scanHistoryReaders map[int32]*runhistoryreader.HistoryReader
+
+	// downloadOperations is a map of request ids to download operations.
+	//
+	// It allows tracking the status of downloads for run history files.
+	downloadOperations map[int32]*parquet.RunHistoryDownloadOperation
 }
 
 func NewRunHistoryAPIHandler(
@@ -74,6 +78,7 @@ func NewRunHistoryAPIHandler(
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
 		sentryClient:       sentryClient,
+		downloadOperations: make(map[int32]*parquet.RunHistoryDownloadOperation),
 	}
 }
 
@@ -87,8 +92,12 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 		return f.handleScanRunHistoryRead(request.GetScanRunHistory())
 	case *spb.ReadRunHistoryRequest_ScanRunHistoryCleanup:
 		return f.handleScanRunHistoryCleanup(request.GetScanRunHistoryCleanup())
+	case *spb.ReadRunHistoryRequest_DownloadRunHistoryInit:
+		return f.handleDownloadRunHistoryInit(request.GetDownloadRunHistoryInit())
 	case *spb.ReadRunHistoryRequest_DownloadRunHistory:
 		return f.handleDownloadRunHistory(request.GetDownloadRunHistory())
+	case *spb.ReadRunHistoryRequest_DownloadRunHistoryStatus:
+		return f.handleDownloadRunHistoryStatus(request.GetDownloadRunHistoryStatus())
 	}
 
 	return nil
@@ -264,10 +273,8 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryCleanup(
 	}
 }
 
-// handleDownloadRunHistory handles a request to download
-// a run's history.
-func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
-	request *spb.DownloadRunHistory,
+func (f *RunHistoryAPIHandler) handleDownloadRunHistoryInit(
+	request *spb.DownloadRunHistoryInit,
 ) *spb.ApiResponse {
 	signedUrls, liveData, err := parquet.GetSignedUrlsWithLiveSteps(
 		context.Background(),
@@ -308,40 +315,104 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
 			},
 		}
 	}
-
-	fileNames := make([]string, 0, len(signedUrls))
-	for i, url := range signedUrls {
-		fileName := fmt.Sprintf(
-			"%s_%s_%s_%d.runhistory.parquet",
-			request.Entity,
-			request.Project,
-			request.RunId,
-			i,
-		)
-		filePath := filepath.Join(request.DownloadDir, fileName)
-		err = parquet.DownloadRunHistoryFile(
-			context.Background(),
-			f.httpClient,
-			url,
-			filePath,
-		)
-		if err != nil {
-			return &spb.ApiResponse{
-				Response: &spb.ApiResponse_ApiErrorResponse{
-					ApiErrorResponse: &spb.ApiErrorResponse{
-						Message: err.Error(),
-					},
+	downloadOperation, err := parquet.NewRunHistoryDownloadOperation(
+		context.Background(),
+		f.httpClient,
+		request.Entity,
+		request.Project,
+		request.RunId,
+		request.DownloadDir,
+		signedUrls,
+	)
+	if err != nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: err.Error(),
 				},
-			}
+			},
 		}
-		fileNames = append(fileNames, fileName)
 	}
 
+	requestId := f.currentRequestId.Add(1)
+	f.downloadOperations[requestId] = downloadOperation
+
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_DownloadRunHistoryResponse{
-			DownloadRunHistoryResponse: &spb.DownloadRunHistoryResponse{
-				FileNames:        fileNames,
-				ContainsLiveData: containsLiveData,
+		Response: &spb.ApiResponse_ReadRunHistoryResponse{
+			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_DownloadRunHistoryInit{
+					DownloadRunHistoryInit: &spb.DownloadRunHistoryInitResponse{
+						RequestId:        requestId,
+						ContainsLiveData: containsLiveData,
+					},
+				},
+			},
+		},
+	}
+}
+
+// handleDownloadRunHistory handles a request to download a run's history.
+func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
+	request *spb.DownloadRunHistory,
+) *spb.ApiResponse {
+	downloadOperation, ok := f.downloadOperations[request.GetRequestId()]
+	if !ok || downloadOperation == nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: "Download operation not found.",
+				},
+			},
+		}
+	}
+
+	downloadedFiles, errors := downloadOperation.StartDownloads()
+	errorsMap := make(map[string]string, len(errors))
+	for file, err := range errors {
+		errorsMap[file] = err.Error()
+	}
+
+	delete(f.downloadOperations, request.GetRequestId())
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_ReadRunHistoryResponse{
+			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_DownloadRunHistory{
+					DownloadRunHistory: &spb.DownloadRunHistoryResponse{
+						DownloadedFiles: downloadedFiles,
+						Errors:          errorsMap,
+					},
+				},
+			},
+		},
+	}
+}
+
+// handleDownloadRunHistoryStatus handles a request
+// to get the status of a download operation.
+func (f *RunHistoryAPIHandler) handleDownloadRunHistoryStatus(
+	request *spb.DownloadRunHistoryStatus,
+) *spb.ApiResponse {
+	requestId := request.GetRequestId()
+
+	downloadOperation, ok := f.downloadOperations[requestId]
+	if !ok || downloadOperation == nil {
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ApiErrorResponse{
+				ApiErrorResponse: &spb.ApiErrorResponse{
+					Message: "Download operation not found.",
+				},
+			},
+		}
+	}
+
+	downloadStatus := downloadOperation.GetDownloadStatus()
+
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_ReadRunHistoryResponse{
+			ReadRunHistoryResponse: &spb.ReadRunHistoryResponse{
+				Response: &spb.ReadRunHistoryResponse_DownloadRunHistoryStatus{
+					DownloadRunHistoryStatus: downloadStatus,
+				},
 			},
 		},
 	}
