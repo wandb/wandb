@@ -35,7 +35,11 @@ func newTestModel(
 ) *teatest.TestModel {
 	t.Helper()
 	logger := observability.NewNoOpLogger()
-	m := leet.NewRun(runPath, cfg, logger)
+	m := leet.NewModel(leet.ModelParams{
+		RunFile: runPath,
+		Config:  cfg,
+		Logger:  logger,
+	})
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(w, h))
 	tm.Send(tea.WindowSizeMsg{Width: w, Height: h})
 	return tm
@@ -211,6 +215,16 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 		func(b []byte) bool { return bytes.Contains(b, []byte("[3]")) },
 		teatest.WithDuration(longWait),
 	)
+
+	// Toggle help on, then assert the banner appears, then toggle it off.
+	// Why? To get some free coverage, of course!
+	tm.Type("h")
+	forceRepaint(tm, 240, 80)
+	teatest.WaitFor(t, tm.Output(),
+		func(b []byte) bool { return bytes.Contains(b, []byte("LEET")) },
+		teatest.WithDuration(shortWait),
+	)
+	tm.Type("h")
 
 	// Quit.
 	tm.Type("q")
