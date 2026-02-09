@@ -81,7 +81,14 @@ func (h *HelpModel) entriesForMode() []HelpEntry {
 		blankLine,
 	}
 
-	entries = append(entries, helpEntriesFromCategories(RunKeyBindings())...)
+	switch h.mode {
+	case viewModeWorkspace:
+		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
+	case viewModeRun:
+		entries = append(entries, helpEntriesFromCategories(RunKeyBindings())...)
+	default:
+		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
+	}
 
 	return entries
 }
