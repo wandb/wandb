@@ -5,14 +5,42 @@ These commands are experimental and may change or be removed in future versions.
 
 from __future__ import annotations
 
+import json
 import pathlib
 from typing import Any
 
 import click
 
+import wandb
 from wandb.analytics import get_sentry
+from wandb.cli.beta_run import (
+    DEFAULT_RUN_IMAGE,
+    EVAL_JOB,
+    SandboxConfigError,
+    _parse_secrets,
+    script_sandbox_path,
+    submit_sandbox_job,
+)
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
+
+_EVAL_IMAGE = "exianwb/inspect_ai_evals:latest"
+
+
+def _require_auth(ctx: click.Context) -> None:
+    """Ensure the user is logged in, prompting login if needed.
+
+    Uses ``ctx.invoke(login)`` for consistency with other CLI commands.
+    """
+    from wandb.cli.cli import _get_cling_api, login
+
+    api = _get_cling_api()
+    if not api.is_authenticated:
+        wandb.termlog("Login to W&B to use this feature")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+        if not api.is_authenticated:
+            raise click.UsageError("Not logged in. Run `wandb login` to authenticate.")
 
 
 class DefaultCommandGroup(click.Group):
@@ -222,3 +250,248 @@ def sync(
         verbose=verbose,
         parallelism=n,
     )
+
+
+@beta.command(
+    context_settings={"ignore_unknown_options": True},
+)
+@click.argument("command", nargs=-1, type=click.UNPROCESSED)
+@click.option("-q", "--queue", required=True, help="Launch queue name.")
+@click.option("--project", default=None, help="W&B project.")
+@click.option("--entity", default=None, help="W&B entity.")
+@click.option(
+    "--entity-name", required=True, help="W&B entity display name (WANDB_ENTITY_NAME)."
+)
+@click.option("-i", "--image", default=None, help="Container image.")
+@click.option(
+    "-e", "--env", multiple=True, help="Environment variable (KEY=VAL). Repeatable."
+)
+@click.option("--resources", default=None, help="Resource requests as JSON.")
+@click.option(
+    "-t", "--timeout", type=int, default=None, help="Max lifetime in seconds."
+)
+@click.option(
+    "-m",
+    "--mount",
+    multiple=True,
+    help=(
+        "File to mount into sandbox (LOCAL[:SANDBOX_PATH]). Repeatable. "
+        "SANDBOX_PATH must be an absolute path."
+    ),
+)
+@click.option("--tag", "tags", multiple=True, help="Tag. Repeatable.")
+@click.option(
+    "--tower-id", "tower_ids", multiple=True, help="Aviato tower ID. Repeatable."
+)
+@click.option(
+    "-s",
+    "--secret",
+    "secrets",
+    multiple=True,
+    help=(
+        "Secret to inject ([DESTINATION_ENV_VAR:]SECRET_KEY_NAME). Repeatable. "
+        "If DESTINATION_ENV_VAR is omitted, SECRET_KEY_NAME is used."
+    ),
+)
+@click.option(
+    "--dry-run", is_flag=True, default=False, help="Print config without submitting."
+)
+@click.pass_context
+def run(
+    ctx: click.Context,
+    command: tuple[str, ...],
+    queue: str,
+    project: str | None,
+    entity: str | None,
+    entity_name: str,
+    image: str | None,
+    env: tuple[str, ...],
+    resources: str | None,
+    timeout: int | None,
+    mount: tuple[str, ...],
+    tags: tuple[str, ...],
+    tower_ids: tuple[str, ...],
+    secrets: tuple[str, ...],
+    dry_run: bool,
+) -> None:
+    """Run a script in a remote sandbox.
+
+    Example: wandb beta run train.py -q my-queue -i pytorch:latest
+    """
+    if not dry_run:
+        _require_auth(ctx)
+
+    if not command:
+        raise click.UsageError(
+            "Missing script path. Usage: wandb beta run SCRIPT [ARGS...]"
+        )
+
+    script = command[0]
+    sandbox_path = script_sandbox_path(script)
+    script_args = list(command[1:])
+
+    try:
+        result = submit_sandbox_job(
+            command="python",
+            args=[sandbox_path, *script_args],
+            image=image or DEFAULT_RUN_IMAGE,
+            env=list(env) or None,
+            secrets=_parse_secrets(list(secrets)) or None,
+            resources=resources,
+            timeout=timeout,
+            script=script,
+            mounts=list(mount) or None,
+            tags=list(tags) or None,
+            tower_ids=list(tower_ids) or None,
+            project=project,
+            entity=entity,
+            entity_name=entity_name,
+            queue=queue,
+            dry_run=dry_run,
+        )
+    except SandboxConfigError as e:
+        raise click.UsageError(str(e)) from e
+
+    if dry_run:
+        click.echo(json.dumps(result, indent=2))
+    elif result is not None:
+        click.echo(f"Queued run: {result}")
+
+
+@beta.command(
+    name="eval",
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+)
+@click.argument("tasks", nargs=-1, required=True)
+@click.option(
+    "-m", "--model", required=True, help="Model to evaluate (e.g. openai/gpt-4)."
+)
+@click.option("--model-base-url", default=None, help="Model API base URL.")
+@click.option("--limit", type=int, default=None, help="Max samples per task.")
+@click.option(
+    "--create-leaderboard",
+    is_flag=True,
+    default=False,
+    help="Publish results to a Weave leaderboard.",
+)
+@click.option("-q", "--queue", required=True, help="Launch queue name.")
+@click.option("--project", default=None, help="W&B project.")
+@click.option("--entity", default=None, help="W&B entity.")
+@click.option(
+    "--entity-name", required=True, help="W&B entity display name (WANDB_ENTITY_NAME)."
+)
+@click.option(
+    "-e", "--env", multiple=True, help="Environment variable (KEY=VAL). Repeatable."
+)
+@click.option("--resources", default=None, help="Resource requests as JSON.")
+@click.option(
+    "-t", "--timeout", type=int, default=None, help="Max lifetime in seconds."
+)
+@click.option(
+    "--tower-id", "tower_ids", multiple=True, help="Aviato tower ID. Repeatable."
+)
+@click.option(
+    "--model-secret",
+    "model_secret_name",
+    default=None,
+    metavar="SECRET_NAME",
+    help=(
+        "Name of the team secret that holds the model API key "
+        "(e.g. OPENAI_API_KEY). Manage secrets in your team settings."
+    ),
+)
+@click.option(
+    "--hf-secret",
+    "hf_secret_name",
+    default=None,
+    metavar="SECRET_NAME",
+    help=(
+        "Name of the team secret that holds a HuggingFace access token "
+        "(e.g. HF_TOKEN). Manage secrets in your team settings."
+    ),
+)
+@click.option(
+    "--scorer-secret",
+    "scorer_secret_name",
+    default=None,
+    metavar="SECRET_NAME",
+    help=(
+        "Name of the team secret that holds the scorer model API key "
+        "(e.g. OPENAI_API_KEY). Manage secrets in your team settings."
+    ),
+)
+@click.option(
+    "--dry-run", is_flag=True, default=False, help="Print config without submitting."
+)
+@click.pass_context
+def eval_cmd(
+    ctx: click.Context,
+    tasks: tuple[str, ...],
+    model: str,
+    model_base_url: str | None,
+    limit: int | None,
+    create_leaderboard: bool,
+    queue: str,
+    project: str | None,
+    entity: str | None,
+    entity_name: str,
+    env: tuple[str, ...],
+    resources: str | None,
+    timeout: int | None,
+    tower_ids: tuple[str, ...],
+    model_secret_name: str | None,
+    hf_secret_name: str | None,
+    scorer_secret_name: str | None,
+    dry_run: bool,
+) -> None:
+    r"""Thin wrapper around ``inspect eval`` that runs in an Aviato sandbox.
+
+    \b
+    Example:
+        wandb beta eval swebench -m openai/gpt-4 -q my-queue
+        wandb beta eval swebench mmlu_pro -m openai/gpt-4 -q q --limit 10
+    """
+    if not dry_run:
+        _require_auth(ctx)
+
+    eval_args: list[str] = ["evals.py", *tasks, "--model", model]
+    if model_base_url:
+        eval_args.extend(["--model-base-url", model_base_url])
+    if limit is not None:
+        eval_args.extend(["--limit", str(limit)])
+    if create_leaderboard:
+        eval_args.append("--create-leaderboard")
+    eval_args.extend(ctx.args or [])
+
+    secrets = {}
+    if model_secret_name:
+        secrets["model_api_key"] = model_secret_name
+    if hf_secret_name:
+        secrets["hf_token"] = hf_secret_name
+    if scorer_secret_name:
+        secrets["scorer_api_key"] = scorer_secret_name
+
+    try:
+        result = submit_sandbox_job(
+            job=EVAL_JOB,
+            command="python3",
+            args=eval_args,
+            image=_EVAL_IMAGE,
+            env=list(env) or None,
+            secrets=secrets or None,
+            resources=resources,
+            timeout=timeout,
+            tower_ids=list(tower_ids) or None,
+            project=project,
+            entity=entity,
+            entity_name=entity_name,
+            queue=queue,
+            dry_run=dry_run,
+        )
+    except SandboxConfigError as e:
+        raise click.UsageError(str(e)) from e
+
+    if dry_run:
+        click.echo(json.dumps(result, indent=2))
+    elif result is not None:
+        click.echo(f"Queued eval run: {result}")
