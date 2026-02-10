@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,6 +31,9 @@ type Workspace struct {
 	runs         PagedList
 	selectedRuns map[string]bool // runDirName -> selected
 	pinnedRun    string          // runDirName or ""
+
+	// hasLiveRuns caches whether any selected run is in RunStateRunning.
+	hasLiveRuns atomic.Bool
 
 	// Run overview for each run keyed by run path.
 	runOverview        map[string]*RunOverview
@@ -322,6 +326,17 @@ func (w *Workspace) anyRunRunning() bool {
 	return false
 }
 
+// syncLiveRunState updates the atomic liveness flag from the authoritative map state.
+//
+// Must be called on the main (Update) goroutine after any change to:
+//   - runsByKey entries (add/remove/state change)
+//   - selectedRuns entries (add/remove)
+//
+// The stored value is read by the HeartbeatManager's timer goroutine.
+func (w *Workspace) syncLiveRunState() {
+	w.hasLiveRuns.Store(w.anyRunRunning())
+}
+
 func (w *Workspace) dropRun(runKey string) {
 	delete(w.selectedRuns, runKey)
 
@@ -342,7 +357,8 @@ func (w *Workspace) dropRun(runKey string) {
 		delete(w.runsByKey, runKey)
 	}
 
-	// If no selected runs remain live, stop heartbeats.
+	w.syncLiveRunState()
+
 	if w.heartbeatMgr != nil && !w.anyRunRunning() {
 		w.heartbeatMgr.Stop()
 	}

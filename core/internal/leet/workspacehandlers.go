@@ -257,7 +257,6 @@ func (w *Workspace) ensureLiveStreaming(run *workspaceRun) tea.Cmd {
 
 	var watcherCmd tea.Cmd
 
-	// Lazily start a watcher for this run.
 	if run.watcher == nil {
 		ch := make(chan tea.Msg, 1) // coalesce notifications for this run
 		run.watcher = NewWatcherManager(ch, w.logger)
@@ -271,9 +270,9 @@ func (w *Workspace) ensureLiveStreaming(run *workspaceRun) tea.Cmd {
 		}
 	}
 
-	// Ensure the shared heartbeat is ticking while we have live runs.
-	if w.heartbeatMgr != nil && w.anyRunRunning() {
-		w.heartbeatMgr.Start(w.anyRunRunning)
+	w.syncLiveRunState()
+	if w.heartbeatMgr != nil && w.hasLiveRuns.Load() {
+		w.heartbeatMgr.Start(w.hasLiveRuns.Load)
 	}
 
 	return watcherCmd
@@ -281,14 +280,21 @@ func (w *Workspace) ensureLiveStreaming(run *workspaceRun) tea.Cmd {
 
 // waitForWatcher blocks until the watcher for the given run emits a change
 // and wraps the low-level FileChangedMsg with the originating run key.
+//
+// The watcher lookup is performed on the calling (Update) goroutine;
+// the returned Cmd only blocks on the watcher's channel.
 func (w *Workspace) waitForWatcher(runKey string) tea.Cmd {
-	return func() tea.Msg {
-		run := w.runsByKey[runKey]
-		if run == nil || run.watcher == nil {
-			return nil
-		}
+	run := w.runsByKey[runKey]
+	if run == nil || run.watcher == nil {
+		return nil
+	}
 
-		if msg := run.watcher.WaitForMsg(); msg != nil {
+	// Capture the watcher pointer on the main goroutine.
+	// The Cmd closure must not reference w.runsByKey.
+	watcher := run.watcher
+
+	return func() tea.Msg {
+		if msg := watcher.WaitForMsg(); msg != nil {
 			if _, ok := msg.(FileChangedMsg); ok {
 				return WorkspaceFileChangedMsg{RunKey: runKey}
 			}
@@ -395,14 +401,15 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 	case RunMsg:
 		w.getOrCreateRunOverview(run.key).ProcessRunMsg(m)
 		run.state = RunStateRunning
+		w.syncLiveRunState()
 
 	case HistoryMsg:
 		w.metricsGrid.ProcessHistory(m)
 		if w.pinnedRun != "" {
 			w.refreshPinnedRun()
 		}
-		if w.anyRunRunning() {
-			w.heartbeatMgr.Reset(w.anyRunRunning)
+		if w.hasLiveRuns.Load() {
+			w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 		}
 
 	case SystemInfoMsg:
@@ -419,6 +426,7 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 			run.state = RunStateFailed
 		}
 		w.getOrCreateRunOverview(run.key).SetRunState(run.state)
+		w.syncLiveRunState()
 
 		// No more updates expected for this run; stop its watcher.
 		w.stopWatcher(run)
@@ -432,12 +440,11 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 func (w *Workspace) handleHeartbeat() tea.Cmd {
 	if !w.anyRunRunning() {
 		w.heartbeatMgr.Stop()
-		// Keep listening for potential future live runs.
 		return w.waitForLiveMsg
 	}
 
-	// Schedule the next heartbeat while we still have live runs.
-	w.heartbeatMgr.Reset(w.anyRunRunning)
+	w.syncLiveRunState()
+	w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 
 	cmds := []tea.Cmd{w.waitForLiveMsg}
 	for key, run := range w.runsByKey {
@@ -464,7 +471,8 @@ func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.
 
 	// Keep the heartbeat as a safety net when we still have live runs.
 	if w.heartbeatMgr != nil && w.anyRunRunning() {
-		w.heartbeatMgr.Reset(w.anyRunRunning)
+		w.syncLiveRunState()
+		w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 	}
 
 	return batchCmds(w.readAvailableCmd(run), watcherCmd)

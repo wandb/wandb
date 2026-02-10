@@ -22,6 +22,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		r.runOverview.ProcessRunMsg(msg)
 		r.leftSidebar.Sync()
 		r.runState = RunStateRunning
+		r.syncLiveRunning()
 		r.isLoading = false
 		return r, nil
 
@@ -60,6 +61,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		default:
 			r.runState = RunStateFailed
 		}
+		r.syncLiveRunning()
 		r.runOverview.SetRunState(r.runState)
 		r.leftSidebar.Sync()
 
@@ -72,6 +74,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 	case ErrorMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
 		r.runState = RunStateFailed
+		r.syncLiveRunning()
 		r.runOverview.SetRunState(r.runState)
 		r.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
 		r.heartbeatMgr.Stop()

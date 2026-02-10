@@ -5,6 +5,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -39,6 +40,11 @@ type Run struct {
 	// Defaults to true and is set to false once a RunRecord is
 	// successfully loaded from the transaction log.
 	isLoading bool
+
+	// liveRunning caches whether the run is in RunStateRunning.
+	//
+	// Written on the main goroutine; read from the HeartbeatManager timer goroutine.
+	liveRunning atomic.Bool
 
 	// Data reader.
 	reader *WandbReader
@@ -319,9 +325,16 @@ func (m *Run) logPanic(context string) {
 	}
 }
 
-// isRunning returns whether the run is currently active.
+// isRunning reports whether the run is live.
+//
+// Safe to call from any goroutine (reads an atomic.Bool).
 func (r *Run) isRunning() bool {
-	return r.runState == RunStateRunning
+	return r.liveRunning.Load()
+}
+
+// syncLiveRunning updates the atomic liveness flag from the authoritative state.
+func (r *Run) syncLiveRunning() {
+	r.liveRunning.Store(r.runState == RunStateRunning)
 }
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen.
