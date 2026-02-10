@@ -31,6 +31,7 @@ __all__ = [
     "GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL",
     "LINK_ARTIFACT_GQL",
     "PROJECT_ARTIFACTS_GQL",
+    "PROJECT_ARTIFACT_COLLECTIONS_GQL",
     "PROJECT_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
@@ -58,6 +59,7 @@ __all__ = [
     "AddArtifactCollectionTags",
     "DeleteArtifactCollectionTags",
     "ArtifactTypeArtifactCollections",
+    "ProjectArtifactCollections",
     "ProjectArtifactCollection",
     "ArtifactCollectionAliases",
     "GetArtifactFiles",
@@ -111,6 +113,7 @@ __all__ = [
     "DeleteProjectMembersInput",
     "LinkArtifactInput",
     "MoveArtifactSequenceInput",
+    "ProjectIconInput",
     "RateLimitsInput",
     "RenameProjectInput",
     "TagInput",
@@ -219,6 +222,7 @@ from .input_types import (
     DeleteProjectMembersInput,
     LinkArtifactInput,
     MoveArtifactSequenceInput,
+    ProjectIconInput,
     RateLimitsInput,
     RenameProjectInput,
     TagInput,
@@ -262,6 +266,7 @@ from .operations import (
     GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
     LINK_ARTIFACT_GQL,
     PROJECT_ARTIFACT_COLLECTION_GQL,
+    PROJECT_ARTIFACT_COLLECTIONS_GQL,
     PROJECT_ARTIFACT_TYPE_GQL,
     PROJECT_ARTIFACT_TYPES_GQL,
     PROJECT_ARTIFACTS_GQL,
@@ -283,6 +288,7 @@ from .operations import (
     UPSERT_REGISTRY_GQL,
 )
 from .project_artifact_collection import ProjectArtifactCollection
+from .project_artifact_collections import ProjectArtifactCollections
 from .project_artifact_type import ProjectArtifactType
 from .project_artifact_types import ProjectArtifactTypes
 from .project_artifacts import ProjectArtifacts

@@ -17,25 +17,30 @@ from .enums import (
 )
 
 
+class CreateFilterTriggerInput(GQLInput):
+    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    description: Optional[str] = None
+    enabled: bool
+    event_filter: str = Field(alias="eventFilter")
+    name: str = Field(max_length=255)
+    scope_id: GQLId = Field(alias="scopeID")
+    scope_type: TriggerScopeType = Field(alias="scopeType")
+    triggered_action_config: TriggeredActionConfig = Field(
+        alias="triggeredActionConfig"
+    )
+    triggered_action_type: TriggeredActionType = Field(alias="triggeredActionType")
+    triggering_event_type: EventTriggeringConditionType = Field(
+        alias="triggeringEventType"
+    )
+
+
 class CreateGenericWebhookIntegrationInput(GQLInput):
-    entity_name: str = Field(alias="entityName")
-    url_endpoint: str = Field(alias="urlEndpoint")
-    name: str = Field(max_length=64, pattern="^[-\\w]+([ ]+[-\\w]+)*$")
-    secret_ref: Optional[str] = Field(alias="secretRef", default=None)
     access_token_ref: Optional[str] = Field(alias="accessTokenRef", default=None)
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
-
-
-class QueueJobActionInput(GQLInput):
-    queue_id: GQLId = Field(alias="queueID")
-    template: str
-
-
-class NotificationActionInput(GQLInput):
-    integration_id: GQLId = Field(alias="integrationID")
-    title: Optional[str] = None
-    message: Optional[str] = None
-    severity: Optional[AlertSeverity] = None
+    entity_name: str = Field(alias="entityName")
+    name: str = Field(max_length=64, pattern="^[-\\w]+([ ]+[-\\w]+)*$")
+    secret_ref: Optional[str] = Field(alias="secretRef", default=None)
+    url_endpoint: str = Field(alias="urlEndpoint")
 
 
 class GenericWebhookActionInput(GQLInput):
@@ -47,58 +52,62 @@ class NoOpTriggeredActionInput(GQLInput):
     no_op: Optional[bool] = Field(alias="noOp", default=None)
 
 
+class NotificationActionInput(GQLInput):
+    integration_id: GQLId = Field(alias="integrationID")
+    message: Optional[str] = None
+    severity: Optional[AlertSeverity] = None
+    title: Optional[str] = None
+
+
+class PushNotificationActionInput(GQLInput):
+    body: Optional[str] = None
+    title: Optional[str] = None
+    user_id: GQLId = Field(alias="userID")
+
+
+class QueueJobActionInput(GQLInput):
+    queue_id: GQLId = Field(alias="queueID")
+    template: str
+
+
 class TriggeredActionConfig(GQLInput):
-    queue_job_action_input: Optional[QueueJobActionInput] = Field(
-        alias="queueJobActionInput", default=None
-    )
-    notification_action_input: Optional[NotificationActionInput] = Field(
-        alias="notificationActionInput", default=None
-    )
     generic_webhook_action_input: Optional[GenericWebhookActionInput] = Field(
         alias="genericWebhookActionInput", default=None
     )
     no_op_action_input: Optional[NoOpTriggeredActionInput] = Field(
         alias="noOpActionInput", default=None
     )
-
-
-class CreateFilterTriggerInput(GQLInput):
-    name: str = Field(max_length=255)
-    description: Optional[str] = None
-    triggering_event_type: EventTriggeringConditionType = Field(
-        alias="triggeringEventType"
+    notification_action_input: Optional[NotificationActionInput] = Field(
+        alias="notificationActionInput", default=None
     )
-    scope_type: TriggerScopeType = Field(alias="scopeType")
-    scope_id: GQLId = Field(alias="scopeID")
-    event_filter: str = Field(alias="eventFilter")
-    triggered_action_type: TriggeredActionType = Field(alias="triggeredActionType")
-    triggered_action_config: TriggeredActionConfig = Field(
-        alias="triggeredActionConfig"
+    push_notification_action_input: Optional[PushNotificationActionInput] = Field(
+        alias="pushNotificationActionInput", default=None
     )
-    enabled: bool
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    queue_job_action_input: Optional[QueueJobActionInput] = Field(
+        alias="queueJobActionInput", default=None
+    )
 
 
 class UpdateFilterTriggerInput(GQLInput):
+    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    description: Optional[str] = None
+    enabled: Optional[bool] = None
+    event_filter: Optional[str] = Field(alias="eventFilter", default=None)
     id: GQLId
     name: Optional[str] = Field(default=None, max_length=255)
-    description: Optional[str] = None
-    triggering_event_type: Optional[EventTriggeringConditionType] = Field(
-        alias="triggeringEventType", default=None
-    )
-    scope_type: Optional[TriggerScopeType] = Field(alias="scopeType", default=None)
     scope_id: Optional[GQLId] = Field(alias="scopeID", default=None)
-    event_filter: Optional[str] = Field(alias="eventFilter", default=None)
-    triggered_action_type: Optional[TriggeredActionType] = Field(
-        alias="triggeredActionType", default=None
-    )
+    scope_type: Optional[TriggerScopeType] = Field(alias="scopeType", default=None)
     triggered_action_config: Optional[TriggeredActionConfig] = Field(
         alias="triggeredActionConfig", default=None
     )
-    enabled: Optional[bool] = None
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+    triggered_action_type: Optional[TriggeredActionType] = Field(
+        alias="triggeredActionType", default=None
+    )
+    triggering_event_type: Optional[EventTriggeringConditionType] = Field(
+        alias="triggeringEventType", default=None
+    )
 
 
-TriggeredActionConfig.model_rebuild()
 CreateFilterTriggerInput.model_rebuild()
+TriggeredActionConfig.model_rebuild()
 UpdateFilterTriggerInput.model_rebuild()
