@@ -129,7 +129,12 @@ def test_shell_command_raises_when_no_shell(mocker):
 @pytest.mark.asyncio
 @pytest.mark.skipif(os.name == "nt", reason="POSIX shell selection test")
 async def test_local_container_runner_uses_sh_when_bash_missing(
-    mock_launch_project, test_settings, mock_pull_docker_image, test_api, mock_popen, mocker
+    mock_launch_project,
+    test_settings,
+    mock_pull_docker_image,
+    test_api,
+    mock_popen,
+    mocker,
 ):
     """Verify runner interface works when bash is unavailable."""
     mocker.patch(
@@ -152,7 +157,12 @@ async def test_local_container_runner_uses_sh_when_bash_missing(
 @pytest.mark.asyncio
 @pytest.mark.skipif(os.name == "nt", reason="POSIX shell selection test")
 async def test_local_container_runner_raises_when_no_compatible_shell(
-    mock_launch_project, test_settings, mock_pull_docker_image, test_api, mock_popen, mocker
+    mock_launch_project,
+    test_settings,
+    mock_pull_docker_image,
+    test_api,
+    mock_popen,
+    mocker,
 ):
     """Verify runner interface provides a clear error without bash/sh."""
     mocker.patch(
