@@ -50,7 +50,7 @@ async-lru==2.0.5
     # via jupyterlab
 async-timeout==5.0.1
     # via aiohttp
-asyncer==0.0.8
+asyncer==0.0.12
     # via dspy
 attrs==25.4.0
     # via
