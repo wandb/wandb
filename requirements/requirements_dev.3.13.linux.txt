@@ -405,7 +405,7 @@ importlib-metadata==8.7.1
     #   opentelemetry-api
 iniconfig==2.3.0
     # via pytest
-ipykernel==7.2.0
+ipykernel==6.31.0
     # via
     #   -r requirements/requirements_dev.txt
     #   jupyter

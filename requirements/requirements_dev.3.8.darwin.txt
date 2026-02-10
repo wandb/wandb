@@ -404,7 +404,7 @@ importlib-resources==6.4.5
     #   matplotlib
 iniconfig==2.1.0
     # via pytest
-ipykernel==6.29.5
+ipykernel==6.31.0
     # via
     #   -r requirements/requirements_dev.txt
     #   jupyter
