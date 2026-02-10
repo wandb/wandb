@@ -229,6 +229,32 @@ class Project(Attrs):
         return public.ArtifactTypes(self.client, self.entity, self.name)
 
     @normalize_exceptions
+    def collections(
+        self,
+        filters: Mapping[str, Any] | None = None,
+        order: str | None = None,
+        per_page: int = 50,
+    ) -> public.ArtifactCollections:
+        """Returns all artifact collections associated with this project.
+
+        Args:
+            filters: Optional mapping of filters to apply to the query.
+            order: Optional string to specify the order of the results.
+                If you prepend order with a + order is ascending (default).
+                If you prepend order with a - order is descending.
+            per_page: The number of artifact collections to fetch per page.
+                Default is 50.
+        """
+        return public.ArtifactCollections(
+            self.client,
+            self.entity,
+            self.name,
+            filters=filters,
+            order=order,
+            per_page=per_page,
+        )
+
+    @normalize_exceptions
     def sweeps(self, per_page: int = 50) -> Sweeps:
         """Return a paginated collection of sweeps in this project.
 
