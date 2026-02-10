@@ -888,7 +888,7 @@ referencing==0.35.1
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-requests==2.32.4
+requests==2.32.5
     # via
     #   -r requirements/requirements_dev.txt
     #   azure-core
