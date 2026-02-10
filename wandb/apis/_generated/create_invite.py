@@ -3,27 +3,25 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult
 
 
 class CreateInvite(GQLResult):
-    result: Optional[CreateInviteResult]
+    result: CreateInviteResult | None
 
 
 class CreateInviteResult(GQLResult):
-    invite: Optional[CreateInviteResultInvite]
+    invite: CreateInviteResultInvite | None
 
 
 class CreateInviteResultInvite(GQLResult):
     id: GQLId
     name: str
-    email: Optional[str]
-    created_at: Optional[str] = Field(alias="createdAt")
-    to_user: Optional[CreateInviteResultInviteToUser] = Field(alias="toUser")
+    email: str | None
+    created_at: str | None = Field(alias="createdAt")
+    to_user: CreateInviteResultInviteToUser | None = Field(alias="toUser")
 
 
 class CreateInviteResultInviteToUser(GQLResult):

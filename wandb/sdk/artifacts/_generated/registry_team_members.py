@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,11 +11,11 @@ from .fragments import TeamRegistryMemberFragment
 
 
 class RegistryTeamMembers(GQLResult):
-    project: Optional[RegistryTeamMembersProject]
+    project: RegistryTeamMembersProject | None
 
 
 class RegistryTeamMembersProject(GQLResult):
-    team_members: List[TeamRegistryMemberFragment] = Field(alias="teamMembers")
+    team_members: list[TeamRegistryMemberFragment] = Field(alias="teamMembers")
 
 
 RegistryTeamMembers.model_rebuild()

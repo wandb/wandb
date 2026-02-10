@@ -6,7 +6,7 @@ For formal specs and definitions, see https://relay.dev/graphql/connections.htm.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Generic, Literal, Optional, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import NonNegativeInt
 
@@ -21,7 +21,7 @@ class PageInfo(GQLResult):
 
     typename__: Literal["PageInfo"] = "PageInfo"
 
-    end_cursor: Optional[str]
+    end_cursor: str | None
     """Opaque token marking the end of this page and the start of the next page."""
 
     has_next_page: bool
@@ -59,7 +59,7 @@ class Connection(GQLResult, Generic[NodeT]):
     page_info: PageInfo
     """Pagination metadata, e.g. `end_cursor`, `has_next_page`."""
 
-    total_count: Optional[NonNegativeInt] = None
+    total_count: NonNegativeInt | None = None
     """Total number of results across all pages, if available."""
 
     def nodes(self) -> Iterator[NodeT]:
@@ -72,7 +72,7 @@ class Connection(GQLResult, Generic[NodeT]):
         return self.page_info.has_next_page
 
     @property
-    def next_cursor(self) -> Optional[str]:
+    def next_cursor(self) -> str | None:
         """The cursor value to pass as the `after` arg in the next page request."""
         return self.page_info.end_cursor
 

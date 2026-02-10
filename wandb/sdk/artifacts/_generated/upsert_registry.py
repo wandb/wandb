@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,12 +11,12 @@ from .fragments import RegistryFragment
 
 
 class UpsertRegistry(GQLResult):
-    upsert_model: Optional[UpsertRegistryUpsertModel] = Field(alias="upsertModel")
+    upsert_model: UpsertRegistryUpsertModel | None = Field(alias="upsertModel")
 
 
 class UpsertRegistryUpsertModel(GQLResult):
-    inserted: Optional[bool]
-    project: Optional[RegistryFragment]
+    inserted: bool | None
+    project: RegistryFragment | None
 
 
 UpsertRegistry.model_rebuild()

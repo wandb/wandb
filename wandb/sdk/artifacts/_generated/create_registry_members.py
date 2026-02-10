@@ -3,13 +3,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 
 class CreateRegistryMembers(GQLResult):
-    result: Optional[CreateRegistryMembersResult]
+    result: CreateRegistryMembersResult | None
 
 
 class CreateRegistryMembersResult(GQLResult):

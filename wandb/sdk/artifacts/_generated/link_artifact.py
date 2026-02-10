@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,12 +11,12 @@ from .fragments import ArtifactMembershipFragment
 
 
 class LinkArtifact(GQLResult):
-    result: Optional[LinkArtifactResult]
+    result: LinkArtifactResult | None
 
 
 class LinkArtifactResult(GQLResult):
-    version_index: Optional[int] = Field(alias="versionIndex")
-    artifact_membership: Optional[ArtifactMembershipFragment] = Field(
+    version_index: int | None = Field(alias="versionIndex")
+    artifact_membership: ArtifactMembershipFragment | None = Field(
         alias="artifactMembership", default=None
     )
 

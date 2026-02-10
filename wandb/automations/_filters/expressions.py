@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Dict, Union
+from typing import Any, Union
 
-from pydantic import ConfigDict, model_serializer
+from pydantic import BaseModel, ConfigDict, model_serializer, model_validator
 from typing_extensions import Self, TypeAlias
 
-from wandb._pydantic import CompatBaseModel, model_validator
 from wandb._strutils import nameof
 
 from .operators import (
@@ -120,15 +119,15 @@ class FilterableField:
     def __ge__(self, other: Any) -> FilterExpr:
         return self.gte(other)
 
-    def __eq__(self, other: Any) -> FilterExpr:
+    def __eq__(self, other: Any) -> FilterExpr:  # type: ignore[override]
         return self.eq(other)
 
-    def __ne__(self, other: Any) -> FilterExpr:
+    def __ne__(self, other: Any) -> FilterExpr:  # type: ignore[override]
         return self.ne(other)
 
 
 # ------------------------------------------------------------------------------
-class FilterExpr(CompatBaseModel, SupportsBitwiseLogicalOps):
+class FilterExpr(BaseModel, SupportsBitwiseLogicalOps):
     """A MongoDB filter expression on a specific field."""
 
     model_config = ConfigDict(
@@ -136,7 +135,7 @@ class FilterExpr(CompatBaseModel, SupportsBitwiseLogicalOps):
     )
 
     field: str
-    op: Union[Op, Dict[str, Any]]
+    op: Op | dict[str, Any]
 
     def __repr__(self) -> str:
         return f"{nameof(type(self))}({self.field!s}: {self.op!r})"
@@ -177,4 +176,4 @@ Nor.model_rebuild()
 Not.model_rebuild()
 
 # for type annotations
-MongoLikeFilter: TypeAlias = Union[Op, FilterExpr, Dict[str, Any]]
+MongoLikeFilter: TypeAlias = Union[Op, FilterExpr, dict[str, Any]]

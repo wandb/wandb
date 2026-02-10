@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,11 +11,11 @@ from .fragments import ArtifactMembershipFragment
 
 
 class ArtifactMembershipByName(GQLResult):
-    project: Optional[ArtifactMembershipByNameProject]
+    project: ArtifactMembershipByNameProject | None
 
 
 class ArtifactMembershipByNameProject(GQLResult):
-    artifact_collection_membership: Optional[ArtifactMembershipFragment] = Field(
+    artifact_collection_membership: ArtifactMembershipFragment | None = Field(
         alias="artifactCollectionMembership"
     )
 

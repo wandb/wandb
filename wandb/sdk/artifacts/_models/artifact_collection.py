@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from typing_extensions import Self
-
-from wandb._pydantic import field_validator
 
 from .base_model import ArtifactsBase
 
@@ -38,7 +36,7 @@ class ArtifactCollectionData(ArtifactsBase):
     type: str
     """The artifact type of this collection."""
 
-    description: Optional[str] = None
+    description: str | None = None
     """The description, if any, for this collection."""
 
     created_at: str = Field(frozen=True)
@@ -50,7 +48,7 @@ class ArtifactCollectionData(ArtifactsBase):
     entity: str = Field(frozen=True)
     """The name of the entity that owns this collection's project."""
 
-    aliases: Optional[Tuple[str, ...]] = Field(default=None, frozen=True)
+    aliases: tuple[str, ...] | None = Field(default=None, frozen=True)
     """All aliases assigned to artifact versions within this collection.
 
     Deliberately immutable since this should be a read-only attribute.
@@ -62,7 +60,7 @@ class ArtifactCollectionData(ArtifactsBase):
         any reason, NOT that aliases are absent in this collection.
     """
 
-    tags: List[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     """The tags assigned to this collection.
 
     Note that this is distinct from tags assigned to individual artifact

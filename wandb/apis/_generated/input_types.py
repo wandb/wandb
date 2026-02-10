@@ -3,52 +3,48 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLInput
 
 
 class UpsertModelInput(GQLInput):
-    name: Optional[str] = Field(default=None, max_length=128)
-    description: Optional[str] = None
-    id: Optional[str] = None
-    framework: Optional[str] = None
-    entity_name: Optional[str] = Field(alias="entityName", default=None)
-    docker_image: Optional[str] = Field(
-        alias="dockerImage", default=None, max_length=512
-    )
-    repo: Optional[str] = Field(default=None, max_length=256)
-    access: Optional[str] = None
-    views: Optional[str] = None
-    is_benchmark: Optional[bool] = Field(alias="isBenchmark", default=None)
-    linked_benchmark: Optional[GQLId] = Field(alias="linkedBenchmark", default=None)
-    is_published: Optional[bool] = Field(alias="isPublished", default=None)
-    owner: Optional[GQLId] = None
-    allow_all_artifact_types_in_registry: Optional[bool] = Field(
+    name: str | None = Field(default=None, max_length=128)
+    description: str | None = None
+    id: str | None = None
+    framework: str | None = None
+    entity_name: str | None = Field(alias="entityName", default=None)
+    docker_image: str | None = Field(alias="dockerImage", default=None, max_length=512)
+    repo: str | None = Field(default=None, max_length=256)
+    access: str | None = None
+    views: str | None = None
+    is_benchmark: bool | None = Field(alias="isBenchmark", default=None)
+    linked_benchmark: GQLId | None = Field(alias="linkedBenchmark", default=None)
+    is_published: bool | None = Field(alias="isPublished", default=None)
+    owner: GQLId | None = None
+    allow_all_artifact_types_in_registry: bool | None = Field(
         alias="allowAllArtifactTypesInRegistry", default=None
     )
-    rate_limits: Optional[RateLimitsInput] = Field(alias="rateLimits", default=None)
-    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
-    artifact_types: Optional[List[ArtifactTypeInput]] = Field(
+    rate_limits: RateLimitsInput | None = Field(alias="rateLimits", default=None)
+    client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
+    artifact_types: list[ArtifactTypeInput] | None = Field(
         alias="artifactTypes", default=None
     )
 
 
 class RateLimitsInput(GQLInput):
-    graphql: Optional[int] = None
-    sdk_graphql: Optional[int] = Field(alias="sdkGraphql", default=None)
-    filestream_count: Optional[int] = Field(alias="filestreamCount", default=None)
-    filestream_size: Optional[int] = Field(alias="filestreamSize", default=None)
-    sdk_graphql_query_seconds: Optional[float] = Field(
+    graphql: int | None = None
+    sdk_graphql: int | None = Field(alias="sdkGraphql", default=None)
+    filestream_count: int | None = Field(alias="filestreamCount", default=None)
+    filestream_size: int | None = Field(alias="filestreamSize", default=None)
+    sdk_graphql_query_seconds: float | None = Field(
         alias="sdkGraphqlQuerySeconds", default=None
     )
 
 
 class ArtifactTypeInput(GQLInput):
     name: str = Field(max_length=128, pattern="^[-\\w]+([ ]*[-.\\w]+)*$")
-    description: Optional[str] = None
+    description: str | None = None
 
 
 UpsertModelInput.model_rebuild()

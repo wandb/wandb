@@ -3,19 +3,17 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
 
 class DeleteRegistry(GQLResult):
-    delete_model: Optional[DeleteRegistryDeleteModel] = Field(alias="deleteModel")
+    delete_model: DeleteRegistryDeleteModel | None = Field(alias="deleteModel")
 
 
 class DeleteRegistryDeleteModel(GQLResult):
-    success: Optional[bool]
+    success: bool | None
 
 
 DeleteRegistry.model_rebuild()

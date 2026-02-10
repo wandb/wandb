@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BeforeValidator, Field
 from typing_extensions import Self, TypeVar, get_args
@@ -82,21 +82,21 @@ class _WebhookIntegrationStub(GQLBase):
 
 class SavedNotificationAction(NotificationActionFields, frozen=False):
     action_type: Literal[ActionType.NOTIFICATION] = ActionType.NOTIFICATION
-    integration: _SlackIntegrationStub
+    integration: _SlackIntegrationStub  # type: ignore[assignment]
 
-    title: Optional[str]
-    message: Optional[str]
-    severity: Optional[AlertSeverity]
+    title: str | None
+    message: str | None
+    severity: AlertSeverity | None
 
 
 class SavedWebhookAction(GenericWebhookActionFields, frozen=False):
     action_type: Literal[ActionType.GENERIC_WEBHOOK] = ActionType.GENERIC_WEBHOOK
-    integration: _WebhookIntegrationStub
+    integration: _WebhookIntegrationStub  # type: ignore[assignment]
 
     # We override the type of the `requestPayload` field since the original GraphQL
     # schema (and generated class) effectively defines it as a string, when we know
     # and need to anticipate the expected structure of the JSON-serialized data.
-    request_payload: Optional[JsonEncoded[dict[str, Any]]] = None  # type: ignore[assignment]
+    request_payload: JsonEncoded[dict[str, Any]] | None = None  # type: ignore[assignment]
 
 
 class SavedNoOpAction(NoOpActionFields, frozen=False):
@@ -181,7 +181,7 @@ class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
     """The ID of the webhook integration that will be used to send the request."""
 
     # overrides the generated field type to parse/serialize JSON strings
-    request_payload: Optional[JsonEncoded[dict[str, Any]]] = Field(  # type: ignore[assignment]
+    request_payload: JsonEncoded[dict[str, Any]] | None = Field(  # type: ignore[assignment]
         default=None, alias="requestPayload"
     )
     """The payload, possibly with template variables, to send in the webhook request."""
@@ -191,7 +191,7 @@ class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
         cls,
         integration: WebhookIntegration,
         *,
-        payload: Optional[JsonEncoded[dict[str, Any]]] = None,
+        payload: JsonEncoded[dict[str, Any]] | None = None,
     ) -> Self:
         """Define a webhook action that sends to the given (webhook) integration."""
         return cls(integration_id=integration.id, request_payload=payload)

@@ -10,7 +10,7 @@ import json
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from copy import copy
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, ClassVar, List, Literal, TypeVar  # noqa: UP035
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar
 
 from typing_extensions import override
 from wandb_gql import gql
@@ -663,7 +663,7 @@ class _ArtifactEdgeGeneric(Edge[TNode]):
 
 
 class _ArtifactConnectionGeneric(ConnectionWithTotal[TNode]):
-    edges: List[_ArtifactEdgeGeneric]  # noqa: UP006
+    edges: list[_ArtifactEdgeGeneric]
 
 
 class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):

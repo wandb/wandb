@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Annotated
 
 from pydantic import Field
 
@@ -25,14 +25,14 @@ class Automation(TriggerFields, frozen=False):
     """The date and time when this automation was created."""
 
     updated_at: Annotated[
-        Optional[datetime], Field(repr=False, frozen=True, alias="updatedAt")
+        datetime | None, Field(repr=False, frozen=True, alias="updatedAt")
     ] = None
     """The date and time when this automation was last updated, if applicable."""
 
     name: str
     """The name of this automation."""
 
-    description: Optional[str]
+    description: str | None
     """An optional description of this automation."""
 
     enabled: bool
@@ -51,21 +51,21 @@ class Automation(TriggerFields, frozen=False):
 class NewAutomation(GQLInput, extra="forbid", validate_default=False):
     """A new automation to be created."""
 
-    name: Optional[str] = None
+    name: str | None = None
     """The name of this automation."""
 
-    description: Optional[str] = None
+    description: str | None = None
     """An optional description of this automation."""
 
-    enabled: Optional[bool] = None
+    enabled: bool | None = None
     """Whether this automation is enabled.  Only enabled automations will trigger."""
 
-    event: Optional[InputEvent] = None
+    event: InputEvent | None = None
     """The event that will trigger this automation."""
 
     # Ensure that the event and its scope are always consistent, if the event is set.
     @property
-    def scope(self) -> Optional[AutomationScope]:
+    def scope(self) -> AutomationScope | None:
         """The scope in which the triggering event must occur."""
         return self.event.scope if self.event else None
 
@@ -75,7 +75,7 @@ class NewAutomation(GQLInput, extra="forbid", validate_default=False):
             raise ValueError("Cannot set `scope` for an automation with no `event`")
         self.event.scope = value
 
-    action: Optional[InputAction] = None
+    action: InputAction | None = None
     """The action that will execute when this automation is triggered."""
 
 

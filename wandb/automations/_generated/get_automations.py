@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import Field
 
 from wandb._pydantic import GQLResult
@@ -13,20 +11,20 @@ from .fragments import PageInfoFields, ProjectTriggersFields
 
 
 class GetAutomations(GQLResult):
-    scope: Optional[GetAutomationsScope]
+    scope: GetAutomationsScope | None
 
 
 class GetAutomationsScope(GQLResult):
-    projects: Optional[GetAutomationsScopeProjects]
+    projects: GetAutomationsScopeProjects | None
 
 
 class GetAutomationsScopeProjects(GQLResult):
     page_info: PageInfoFields = Field(alias="pageInfo")
-    edges: List[GetAutomationsScopeProjectsEdges]
+    edges: list[GetAutomationsScopeProjectsEdges]
 
 
 class GetAutomationsScopeProjectsEdges(GQLResult):
-    node: Optional[ProjectTriggersFields]
+    node: ProjectTriggersFields | None
 
 
 GetAutomations.model_rebuild()

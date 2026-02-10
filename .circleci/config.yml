@@ -514,16 +514,6 @@ workflows:
             parameters:
               python: ["3.9", "3.13"]
 
-      - nox-tests-linux:
-          name: unit-tests-pydantic-v1-linux-<<matrix.python>>
-          session: unit_tests_pydantic_v1
-          codecov_flags: unit
-          parallelism: 2
-
-          matrix:
-            parameters:
-              python: ["3.9", "3.13"]
-
       #
       # Unit tests with pytest on macOS
       #

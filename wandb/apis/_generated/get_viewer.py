@@ -3,15 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import UserFragment
 
 
 class GetViewer(GQLResult):
-    viewer: Optional[UserFragment]
+    viewer: UserFragment | None
 
 
 GetViewer.model_rebuild()

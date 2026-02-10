@@ -3,19 +3,17 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from wandb._pydantic import GQLResult
 
 from .fragments import TagFragment
 
 
 class AddArtifactCollectionTags(GQLResult):
-    result: Optional[AddArtifactCollectionTagsResult]
+    result: AddArtifactCollectionTagsResult | None
 
 
 class AddArtifactCollectionTagsResult(GQLResult):
-    tags: List[TagFragment]
+    tags: list[TagFragment]
 
 
 AddArtifactCollectionTags.model_rebuild()
