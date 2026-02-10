@@ -92,7 +92,7 @@ class GcpEnvironment(AbstractEnvironment):
                 f"Could not create GcpEnvironment from config. Expected type 'gcp' "
                 f"but got '{config.get('type')}'."
             )
-        region = config.get("region", None)
+        region = config.get("region")
         if not region:
             raise LaunchError(
                 "Could not create GcpEnvironment from config. Missing 'region' field."

@@ -1545,7 +1545,7 @@ class Run(Attrs):
         ):
             return -1
         history_keys = response["project"]["run"]["historyKeys"]
-        return history_keys["lastStep"] if "lastStep" in history_keys else -1
+        return history_keys.get("lastStep", -1)
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this run."""

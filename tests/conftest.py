@@ -228,7 +228,7 @@ def env_teardown():
     wandb.teardown()
     yield
     wandb.teardown()
-    if not os.environ.get("CI") == "true":
+    if os.environ.get("CI") != "true":
         # TODO: uncomment this for prod? better make controllable with an env var
         # subprocess.run(["wandb", "server", "stop"])
         pass

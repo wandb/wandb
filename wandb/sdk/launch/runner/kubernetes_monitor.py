@@ -375,9 +375,10 @@ class LaunchKubernetesMonitor:
 
             # If the job is deleted and we haven't seen a terminal state
             # then we will consider the job failed.
-            if event.get("type") == "DELETED":
-                if self._job_states.get(job_name) != Status("finished"):
-                    self._set_status_state(job_name, "failed")
+            if event.get("type") == "DELETED" and self._job_states.get(
+                job_name
+            ) != Status("finished"):
+                self._set_status_state(job_name, "failed")
 
     async def _monitor_crd(
         self, namespace: str, custom_resource: CustomResource

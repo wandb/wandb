@@ -132,10 +132,12 @@ class WandbCallback(BaseCallback):
         wandb.config.setdefaults(d)
 
     def _on_step(self) -> bool:
-        if self.model_save_freq > 0:
-            if self.model_save_path is not None:
-                if self.n_calls % self.model_save_freq == 0:
-                    self.save_model()
+        if (
+            self.model_save_freq > 0
+            and self.model_save_path is not None
+            and self.n_calls % self.model_save_freq == 0
+        ):
+            self.save_model()
         return True
 
     def _on_training_end(self) -> None:

@@ -326,7 +326,7 @@ class AnyType(Type):
     def assign_type(self, wb_type: Type) -> AnyType | InvalidType:
         return (
             self
-            if not (isinstance(wb_type, NoneType) or isinstance(wb_type, InvalidType))
+            if not (isinstance(wb_type, (NoneType, InvalidType)))
             else InvalidType()
         )
 
@@ -445,7 +445,7 @@ class ConstType(Type):
             )
         if is_set or isinstance(val, set):
             is_set = True
-            assert isinstance(val, set) or isinstance(val, list)
+            assert isinstance(val, (set, list))
             val = set(val)
 
         self.params.update({"val": val, "is_set": is_set})
@@ -673,10 +673,7 @@ class ListType(Type):
         exp = super().explain(other, depth)
         gap = "".join(["\t"] * depth)
         if (  # yes, this is a bit verbose, but the mypy typechecker likes it this way
-            isinstance(other, list)
-            or isinstance(other, tuple)
-            or isinstance(other, set)
-            or isinstance(other, frozenset)
+            isinstance(other, (list, tuple, set, frozenset))
         ):
             new_element_type = self.params["element_type"]
             for ndx, obj in enumerate(list(other)):

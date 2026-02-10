@@ -500,11 +500,12 @@ class Object3D(BatchableMedia):
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 
-        if isinstance(run_or_artifact, wandb.Artifact):
-            if self._path is None or not self._path.endswith(".pts.json"):
-                raise ValueError(
-                    "Non-point cloud 3D objects are not yet supported with Artifacts"
-                )
+        if isinstance(run_or_artifact, wandb.Artifact) and (
+            self._path is None or not self._path.endswith(".pts.json")
+        ):
+            raise ValueError(
+                "Non-point cloud 3D objects are not yet supported with Artifacts"
+            )
 
         return json_dict
 

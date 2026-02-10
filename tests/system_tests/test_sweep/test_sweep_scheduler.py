@@ -352,7 +352,7 @@ def test_sweep_scheduler_base_run_states(user, monkeypatch):
             continue
         if not _state.is_alive:
             # Dead runs should be removed from the run dict
-            assert run_id not in _scheduler._runs.keys()
+            assert run_id not in _scheduler._runs
         else:
             assert _scheduler._runs[run_id].state == _state
 

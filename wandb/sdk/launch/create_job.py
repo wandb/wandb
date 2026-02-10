@@ -129,13 +129,12 @@ def _create_job(
         )
         return None, "", []
 
-    if runtime is not None:
-        if not re.match(r"^3\.\d+$", runtime):
-            wandb.termerror(
-                f"Runtime (-r, --runtime) must be a minor version of Python 3, "
-                f"e.g. 3.9 or 3.10, received {runtime}"
-            )
-            return None, "", []
+    if runtime is not None and not re.match(r"^3\.\d+$", runtime):
+        wandb.termerror(
+            f"Runtime (-r, --runtime) must be a minor version of Python 3, "
+            f"e.g. 3.9 or 3.10, received {runtime}"
+        )
+        return None, "", []
     aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
     try:

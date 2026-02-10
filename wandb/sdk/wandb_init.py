@@ -284,10 +284,13 @@ class _WandbInit:
         settings.update_from_settings(init_settings)
 
         # Infer the run ID from SageMaker.
-        if not settings.sagemaker_disable and sagemaker.is_using_sagemaker():
-            if sagemaker.set_run_id(settings):
-                self._logger.info("set run ID and group based on SageMaker")
-                self._telemetry.feature.sagemaker = True
+        if (
+            (not settings.sagemaker_disable)
+            and sagemaker.is_using_sagemaker()
+            and sagemaker.set_run_id(settings)
+        ):
+            self._logger.info("set run ID and group based on SageMaker")
+            self._telemetry.feature.sagemaker = True
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code

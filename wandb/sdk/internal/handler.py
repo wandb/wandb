@@ -259,11 +259,10 @@ class HandleManager:
         best_key: tuple[str, ...] | None = None
         if s.none:
             return False
-        if s.copy:
+        if s.copy and len(kl) > 1:
             # non-key list copy already done in _update_summary
-            if len(kl) > 1:
-                _dict_nested_set(self._consolidated_summary, kl, v)
-                return True
+            _dict_nested_set(self._consolidated_summary, kl, v)
+            return True
         if s.last:
             last_key = tuple(kl + ["last"])
             old_last = self._metric_track.get(last_key)
@@ -338,11 +337,11 @@ class HandleManager:
         goal_max = None
         if d.goal:
             goal_max = d.goal == d.GOAL_MAXIMIZE
-        if self._update_summary_metrics(
-            d.summary, kl=kl, v=v, float_v=float_v, goal_max=goal_max
-        ):
-            return True
-        return False
+        return bool(
+            self._update_summary_metrics(
+                d.summary, kl=kl, v=v, float_v=float_v, goal_max=goal_max
+            )
+        )
 
     def _update_summary_list(
         self,
@@ -421,14 +420,13 @@ class HandleManager:
         if hkey.startswith("_"):
             return None
         for k, mglob in self._metric_globs.items():
-            if k.endswith("*"):
-                if hkey.startswith(k[:-1]):
-                    m = MetricRecord()
-                    m.CopyFrom(mglob)
-                    m.ClearField("glob_name")
-                    m.options.defined = False
-                    m.name = hkey
-                    return m
+            if k.endswith("*") and hkey.startswith(k[:-1]):
+                m = MetricRecord()
+                m.CopyFrom(mglob)
+                m.ClearField("glob_name")
+                m.options.defined = False
+                m.name = hkey
+                return m
         return None
 
     def _history_update_leaf(
@@ -449,12 +447,11 @@ class HandleManager:
             mr.control.local = True  # Dont store this, just send it
             self._handle_defined_metric(mr)
 
-        if m.options.step_sync and m.step_metric:
-            if m.step_metric not in history_dict:
-                copy_key = tuple([m.step_metric])
-                step = self._metric_copy.get(copy_key)
-                if step is not None:
-                    update_history[m.step_metric] = step
+        if m.options.step_sync and m.step_metric and m.step_metric not in history_dict:
+            copy_key = tuple([m.step_metric])
+            step = self._metric_copy.get(copy_key)
+            if step is not None:
+                update_history[m.step_metric] = step
 
     def _history_update_list(
         self,
@@ -502,9 +499,8 @@ class HandleManager:
         history_dict = proto_util.dict_from_proto_list(record.history.item)
 
         # Inject _runtime if it is not present
-        if history_dict is not None:
-            if "_runtime" not in history_dict:
-                self._history_assign_runtime(record.history, history_dict)
+        if history_dict is not None and "_runtime" not in history_dict:
+            self._history_assign_runtime(record.history, history_dict)
 
         self._history_update(record.history, history_dict)
         self._dispatch_record(record)

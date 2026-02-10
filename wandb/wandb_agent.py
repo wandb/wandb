@@ -399,10 +399,7 @@ class Agent:
                         pass  # if process is already dead
 
     def _process_command(self, command):
-        logger.info(
-            "Agent received command: %s"
-            % (command["type"] if "type" in command else "Unknown")
-        )
+        logger.info("Agent received command: {}".format(command.get("type", "Unknown")))
         response = {
             "id": command.get("id"),
             "result": None,
@@ -490,7 +487,7 @@ class Agent:
             sweep_vars["interpreter"] = ["python"]
             sweep_vars["program"] = [command["program"]]
             sweep_vars["args_json_file"] = [json_file]
-            if not platform.system() == "Windows":
+            if platform.system() != "Windows":
                 sweep_vars["env"] = ["/usr/bin/env"]
             command_list = []
             for c in sweep_command:

@@ -167,12 +167,11 @@ class WandbCallback(TrackerCallback):
 
     def on_train_end(self, **kwargs: Any) -> None:
         """Load the best model."""
-        if self.save_model:
+        if self.save_model and self.model_path.is_file():
             # Adapted from fast.ai "SaveModelCallback"
-            if self.model_path.is_file():
-                with self.model_path.open("rb") as model_file:
-                    self.learn.load(model_file, purge=False)
-                    wandb.termlog(f"Loaded best saved model from {self.model_path}")
+            with self.model_path.open("rb") as model_file:
+                self.learn.load(model_file, purge=False)
+                wandb.termlog(f"Loaded best saved model from {self.model_path}")
 
     def _wandb_log_predictions(self) -> None:
         """Log prediction samples."""
