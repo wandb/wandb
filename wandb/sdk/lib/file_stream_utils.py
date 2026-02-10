@@ -1,10 +1,12 @@
 #
-from typing import Any, Dict, Iterable
+
+from collections.abc import Iterable
+from typing import Any
 
 
 def split_files(
-    files: Dict[str, Any], max_bytes: int = 10 * 1024 * 1024
-) -> Iterable[Dict[str, Dict]]:
+    files: dict[str, Any], max_bytes: int = 10 * 1024 * 1024
+) -> Iterable[dict[str, dict]]:
     """Split a file's dict (see `files` arg) into smaller dicts.
 
     Each smaller dict will have at most `MAX_BYTES` size.
@@ -17,7 +19,7 @@ def split_files(
         The key `file_name` can also be mapped to a List [{"offset": int, "content": str}]
     `max_bytes`: max size for chunk in bytes
     """
-    current_volume: Dict[str, Dict] = {}
+    current_volume: dict[str, dict] = {}
     current_size = 0
 
     def _str_size(x):

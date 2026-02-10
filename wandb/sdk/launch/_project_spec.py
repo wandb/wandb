@@ -3,6 +3,8 @@
 Arguments can come from a launch spec or call to wandb launch.
 """
 
+from __future__ import annotations
+
 import enum
 import json
 import logging
@@ -11,7 +13,7 @@ import shlex
 import shutil
 import tempfile
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import wandb
 from wandb.apis.internal import Api
@@ -77,26 +79,26 @@ class LaunchProject:
     # This init is way to long, and there are too many attributes on this sucker.
     def __init__(
         self,
-        uri: Optional[str],
-        job: Optional[str],
+        uri: str | None,
+        job: str | None,
         api: Api,
-        launch_spec: Dict[str, Any],
+        launch_spec: dict[str, Any],
         target_entity: str,
         target_project: str,
-        name: Optional[str],
-        docker_config: Dict[str, Any],
-        git_info: Dict[str, str],
-        overrides: Dict[str, Any],
+        name: str | None,
+        docker_config: dict[str, Any],
+        git_info: dict[str, str],
+        overrides: dict[str, Any],
         resource: str,
-        resource_args: Dict[str, Any],
-        run_id: Optional[str],
-        sweep_id: Optional[str] = None,
+        resource_args: dict[str, Any],
+        run_id: str | None,
+        sweep_id: str | None = None,
     ):
         self.uri = uri
         self.job = job
         if job is not None:
             wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
-        self._job_artifact: Optional[Artifact] = None
+        self._job_artifact: Artifact | None = None
         self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
@@ -111,29 +113,29 @@ class LaunchProject:
         self.resource_args = resource_args_copy
         self.sweep_id = sweep_id
         self.author = launch_spec.get("author")
-        self.python_version: Optional[str] = launch_spec.get("python_version")
-        self._job_dockerfile: Optional[str] = None
-        self._job_build_context: Optional[str] = None
-        self._job_base_image: Optional[str] = None
-        self.accelerator_base_image: Optional[str] = resource_args_build.get(
+        self.python_version: str | None = launch_spec.get("python_version")
+        self._job_dockerfile: str | None = None
+        self._job_build_context: str | None = None
+        self._job_base_image: str | None = None
+        self.accelerator_base_image: str | None = resource_args_build.get(
             "accelerator", {}
         ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
-        self.docker_image: Optional[str] = docker_config.get(
+        self.docker_image: str | None = docker_config.get(
             "docker_image"
         ) or launch_spec.get("image_uri")  # type: ignore [assignment]
         self.docker_user_id = docker_config.get("user_id", 1000)
-        self._entry_point: Optional[EntryPoint] = (
+        self._entry_point: EntryPoint | None = (
             None  # todo: keep multiple entrypoint support?
         )
         self.init_overrides(overrides)
         self.init_source()
         self.init_git(git_info)
-        self.deps_type: Optional[str] = None
-        self._runtime: Optional[str] = None
+        self.deps_type: str | None = None
+        self._runtime: str | None = None
         self.run_id = run_id or generate_id()
-        self._queue_name: Optional[str] = None
-        self._queue_entity: Optional[str] = None
-        self._run_queue_item_id: Optional[str] = None
+        self._queue_name: str | None = None
+        self._queue_entity: str | None = None
+        self._run_queue_item_id: str | None = None
 
     def init_source(self) -> None:
         if self.docker_image is not None:
@@ -162,19 +164,19 @@ class LaunchProject:
             shutil.rmtree(old_dir)
         self.project_dir = new_dir
 
-    def init_git(self, git_info: Dict[str, str]) -> None:
+    def init_git(self, git_info: dict[str, str]) -> None:
         self.git_version = git_info.get("version")
         self.git_repo = git_info.get("repo")
 
-    def init_overrides(self, overrides: Dict[str, Any]) -> None:
+    def init_overrides(self, overrides: dict[str, Any]) -> None:
         """Initialize override attributes for a launch project."""
         self.overrides = overrides
-        self.override_args: List[str] = overrides.get("args", [])
-        self.override_config: Dict[str, Any] = overrides.get("run_config", {})
-        self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
-        self.override_files: Dict[str, Any] = overrides.get("files", {})
-        self.override_entrypoint: Optional[EntryPoint] = None
-        self.override_dockerfile: Optional[str] = overrides.get("dockerfile")
+        self.override_args: list[str] = overrides.get("args", [])
+        self.override_config: dict[str, Any] = overrides.get("run_config", {})
+        self.override_artifacts: dict[str, Any] = overrides.get("artifacts", {})
+        self.override_files: dict[str, Any] = overrides.get("files", {})
+        self.override_entrypoint: EntryPoint | None = None
+        self.override_dockerfile: str | None = overrides.get("dockerfile")
         override_entrypoint = overrides.get("entry_point")
         if override_entrypoint:
             _logger.info("Adding override entry point")
@@ -190,7 +192,7 @@ class LaunchProject:
         return f"{self.uri}"
 
     @classmethod
-    def from_spec(cls, launch_spec: Dict[str, Any], api: Api) -> "LaunchProject":
+    def from_spec(cls, launch_spec: dict[str, Any], api: Api) -> LaunchProject:
         """Constructs a LaunchProject instance using a launch spec.
 
         Arguments:
@@ -200,7 +202,7 @@ class LaunchProject:
         Returns:
             An initialized `LaunchProject` object
         """
-        name: Optional[str] = None
+        name: str | None = None
         if launch_spec.get("name"):
             name = launch_spec["name"]
         return LaunchProject(
@@ -221,15 +223,15 @@ class LaunchProject:
         )
 
     @property
-    def job_dockerfile(self) -> Optional[str]:
+    def job_dockerfile(self) -> str | None:
         return self._job_dockerfile
 
     @property
-    def job_build_context(self) -> Optional[str]:
+    def job_build_context(self) -> str | None:
         return self._job_build_context
 
     @property
-    def job_base_image(self) -> Optional[str]:
+    def job_base_image(self) -> str | None:
         return self._job_base_image
 
     def set_job_dockerfile(self, dockerfile: str) -> None:
@@ -258,7 +260,7 @@ class LaunchProject:
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
     @property
-    def queue_name(self) -> Optional[str]:
+    def queue_name(self) -> str | None:
         return self._queue_name
 
     @queue_name.setter
@@ -266,7 +268,7 @@ class LaunchProject:
         self._queue_name = value
 
     @property
-    def queue_entity(self) -> Optional[str]:
+    def queue_entity(self) -> str | None:
         return self._queue_entity
 
     @queue_entity.setter
@@ -274,14 +276,14 @@ class LaunchProject:
         self._queue_entity = value
 
     @property
-    def run_queue_item_id(self) -> Optional[str]:
+    def run_queue_item_id(self) -> str | None:
         return self._run_queue_item_id
 
     @run_queue_item_id.setter
     def run_queue_item_id(self, value: str) -> None:
         self._run_queue_item_id = value
 
-    def fill_macros(self, image: str) -> Dict[str, Any]:
+    def fill_macros(self, image: str) -> dict[str, Any]:
         """Substitute values for macros in resource arguments.
 
         Certain macros can be used in resource args. These macros allow the
@@ -320,7 +322,7 @@ class LaunchProject:
         result = recursive_macro_sub(self.resource_args, update_dict)
         # recursive_macro_sub given a dict returns a dict with the same keys
         # but with other input types behaves differently. The cast is for mypy.
-        return cast(Dict[str, Any], result)
+        return cast(dict[str, Any], result)
 
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
@@ -331,7 +333,7 @@ class LaunchProject:
         return False
 
     @property
-    def docker_image(self) -> Optional[str]:
+    def docker_image(self) -> str | None:
         """Returns the Docker image associated with this LaunchProject.
 
         This will only be set if an image_uri is being run outside a job.
@@ -356,7 +358,7 @@ class LaunchProject:
         self._docker_image = value
         self._ensure_not_docker_image_and_local_process()
 
-    def get_job_entry_point(self) -> Optional["EntryPoint"]:
+    def get_job_entry_point(self) -> EntryPoint | None:
         """Returns the job entrypoint for the project."""
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we want to support multiple entry points or not
@@ -368,7 +370,7 @@ class LaunchProject:
             return None
         return self._entry_point
 
-    def set_job_entry_point(self, command: List[str]) -> "EntryPoint":
+    def set_job_entry_point(self, command: list[str]) -> EntryPoint:
         """Set job entrypoint for the project."""
         assert self._entry_point is None, (
             "Cannot set entry point twice. Use LaunchProject.override_entrypoint"
@@ -437,7 +439,7 @@ class LaunchProject:
         job.configure_launch_project(self)  # Why is this a method of the job?
         self._job_artifact = job._job_artifact
 
-    def get_env_vars_dict(self, api: Api, max_env_length: int) -> Dict[str, str]:
+    def get_env_vars_dict(self, api: Api, max_env_length: int) -> dict[str, str]:
         """Generate environment variables for the project.
 
         Arguments:
@@ -519,7 +521,7 @@ class LaunchProject:
 class EntryPoint:
     """An entry point into a wandb launch specification."""
 
-    def __init__(self, name: Optional[str], command: List[str]):
+    def __init__(self, name: str | None, command: list[str]):
         self.name = name
         self.command = command
 
@@ -532,7 +534,7 @@ class EntryPoint:
 
 
 def _inject_wandb_config_env_vars(
-    config: Dict[str, Any], env_dict: Dict[str, Any], maximum_env_length: int
+    config: dict[str, Any], env_dict: dict[str, Any], maximum_env_length: int
 ) -> None:
     str_config = json.dumps(config)
     if len(str_config) <= maximum_env_length:
@@ -548,7 +550,7 @@ def _inject_wandb_config_env_vars(
 
 
 def _inject_file_overrides_env_vars(
-    overrides: Dict[str, Any], env_dict: Dict[str, Any], maximum_env_length: int
+    overrides: dict[str, Any], env_dict: dict[str, Any], maximum_env_length: int
 ) -> None:
     str_overrides = json.dumps(overrides)
     if len(str_overrides) <= maximum_env_length:

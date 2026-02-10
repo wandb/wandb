@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import hashlib
 import logging
 import os
 import pathlib
+from collections.abc import Sequence
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
+from typing import TYPE_CHECKING, Any, Union, cast
 from urllib import parse
 
 from packaging.version import parse as parse_version
@@ -36,7 +39,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _warn_on_invalid_data_range(
-    data: "np.ndarray",
+    data: np.ndarray,
     normalize: bool = True,
 ) -> None:
     if not normalize:
@@ -56,7 +59,7 @@ def _warn_on_invalid_data_range(
         )
 
 
-def _guess_and_rescale_to_0_255(data: "np.ndarray") -> "np.ndarray":
+def _guess_and_rescale_to_0_255(data: np.ndarray) -> np.ndarray:
     """Guess the image's format and rescale its values to the range [0, 255].
 
     This is an unfortunate design flaw carried forward for backward
@@ -91,7 +94,7 @@ def _guess_and_rescale_to_0_255(data: "np.ndarray") -> "np.ndarray":
         return data.clip(0, 255).astype(np.uint8)
 
 
-def _convert_to_uint8(data: "np.ndarray") -> "np.ndarray":
+def _convert_to_uint8(data: np.ndarray) -> np.ndarray:
     np = util.get_module(
         "numpy",
         required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
@@ -99,7 +102,7 @@ def _convert_to_uint8(data: "np.ndarray") -> "np.ndarray":
     return data.astype(np.uint8)
 
 
-def _server_accepts_image_filenames(run: "wandb.Run") -> bool:
+def _server_accepts_image_filenames(run: wandb.Run) -> bool:
     if run.offline:
         return True
 
@@ -115,7 +118,7 @@ def _server_accepts_image_filenames(run: "wandb.Run") -> bool:
     return accepts_image_filenames
 
 
-def _server_accepts_artifact_path(run: "wandb.Run") -> bool:
+def _server_accepts_artifact_path(run: wandb.Run) -> bool:
     if run.offline:
         return False
 
@@ -136,27 +139,27 @@ class Image(BatchableMedia):
 
     _log_type = "image-file"
 
-    format: Optional[str]
-    _grouping: Optional[int]
-    _caption: Optional[str]
-    _width: Optional[int]
-    _height: Optional[int]
-    _image: Optional["PILImage"]
-    _classes: Optional["Classes"]
-    _boxes: Optional[Dict[str, "BoundingBoxes2D"]]
-    _masks: Optional[Dict[str, "ImageMask"]]
-    _file_type: Optional[str]
+    format: str | None
+    _grouping: int | None
+    _caption: str | None
+    _width: int | None
+    _height: int | None
+    _image: PILImage | None
+    _classes: Classes | None
+    _boxes: dict[str, BoundingBoxes2D] | None
+    _masks: dict[str, ImageMask] | None
+    _file_type: str | None
 
     def __init__(
         self,
-        data_or_path: "ImageDataOrPathType",
-        mode: Optional[str] = None,
-        caption: Optional[str] = None,
-        grouping: Optional[int] = None,
-        classes: Optional[Union["Classes", Sequence[dict]]] = None,
-        boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
-        masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
-        file_type: Optional[str] = None,
+        data_or_path: ImageDataOrPathType,
+        mode: str | None = None,
+        caption: str | None = None,
+        grouping: int | None = None,
+        classes: Classes | Sequence[dict] | None = None,
+        boxes: dict[str, BoundingBoxes2D] | dict[str, dict] | None = None,
+        masks: dict[str, ImageMask] | dict[str, dict] | None = None,
+        file_type: str | None = None,
         normalize: bool = True,
     ) -> None:
         """Initialize a `wandb.Image` object.
@@ -281,12 +284,12 @@ class Image(BatchableMedia):
 
     def _set_initialization_meta(
         self,
-        grouping: Optional[int] = None,
-        caption: Optional[str] = None,
-        classes: Optional[Union["Classes", Sequence[dict]]] = None,
-        boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
-        masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
-        file_type: Optional[str] = None,
+        grouping: int | None = None,
+        caption: str | None = None,
+        classes: Classes | Sequence[dict] | None = None,
+        boxes: dict[str, BoundingBoxes2D] | dict[str, dict] | None = None,
+        masks: dict[str, ImageMask] | dict[str, dict] | None = None,
+        file_type: str | None = None,
     ) -> None:
         if grouping is not None:
             self._grouping = grouping
@@ -296,7 +299,7 @@ class Image(BatchableMedia):
         if boxes:
             if not isinstance(boxes, dict):
                 raise ValueError('Images "boxes" argument must be a dictionary')
-            boxes_final: Dict[str, BoundingBoxes2D] = {}
+            boxes_final: dict[str, BoundingBoxes2D] = {}
             for key in boxes:
                 box_item = boxes[key]
                 if isinstance(box_item, BoundingBoxes2D):
@@ -310,7 +313,7 @@ class Image(BatchableMedia):
         if masks:
             if not isinstance(masks, dict):
                 raise ValueError('Images "masks" argument must be a dictionary')
-            masks_final: Dict[str, ImageMask] = {}
+            masks_final: dict[str, ImageMask] = {}
             for key in masks:
                 mask_item = masks[key]
                 if isinstance(mask_item, ImageMask):
@@ -341,7 +344,7 @@ class Image(BatchableMedia):
             self._width, self._height = self.image.size
         self._free_ram()
 
-    def _initialize_from_wbimage(self, wbimage: "Image") -> None:
+    def _initialize_from_wbimage(self, wbimage: Image) -> None:
         self._grouping = wbimage._grouping
         self._caption = wbimage._caption
         self._width = wbimage._width
@@ -384,9 +387,9 @@ class Image(BatchableMedia):
 
     def _initialize_from_data(
         self,
-        data: "ImageDataType",
-        mode: Optional[str] = None,
-        file_type: Optional[str] = None,
+        data: ImageDataType,
+        mode: str | None = None,
+        file_type: str | None = None,
         normalize: bool = True,
     ) -> None:
         pil_image = util.get_module(
@@ -444,21 +447,19 @@ class Image(BatchableMedia):
         self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
-    def from_json(
-        cls: Type["Image"], json_obj: dict, source_artifact: "Artifact"
-    ) -> "Image":
+    def from_json(cls: type[Image], json_obj: dict, source_artifact: Artifact) -> Image:
         """Factory method to create an Audio object from a JSON object.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
         """
-        classes: Optional[Classes] = None
+        classes: Classes | None = None
         if json_obj.get("classes") is not None:
             value = source_artifact.get(json_obj["classes"]["path"])
             assert isinstance(value, (type(None), Classes))
             classes = value
 
         masks = json_obj.get("masks")
-        _masks: Optional[Dict[str, ImageMask]] = None
+        _masks: dict[str, ImageMask] | None = None
         if masks:
             _masks = {}
             for key in masks:
@@ -467,7 +468,7 @@ class Image(BatchableMedia):
                 _masks[key]._key = key
 
         boxes = json_obj.get("boxes")
-        _boxes: Optional[Dict[str, BoundingBoxes2D]] = None
+        _boxes: dict[str, BoundingBoxes2D] | None = None
         if boxes:
             _boxes = {}
             for key in boxes:
@@ -484,7 +485,7 @@ class Image(BatchableMedia):
         )
 
     @classmethod
-    def get_media_subdir(cls: Type["Image"]) -> str:
+    def get_media_subdir(cls: type[Image]) -> str:
         """Get media subdirectory.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
@@ -493,11 +494,11 @@ class Image(BatchableMedia):
 
     def bind_to_run(
         self,
-        run: "wandb.Run",
-        key: Union[int, str],
-        step: Union[int, str],
-        id_: Optional[Union[int, str]] = None,
-        ignore_copy_err: Optional[bool] = None,
+        run: wandb.Run,
+        key: int | str,
+        step: int | str,
+        id_: int | str | None = None,
+        ignore_copy_err: bool | None = None,
     ) -> None:
         """Bind this object to a run.
 
@@ -536,7 +537,7 @@ class Image(BatchableMedia):
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
-    def to_json(self, run_or_artifact: Union["wandb.Run", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: wandb.Run | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
         <!-- lazydoc-ignore: internal -->
@@ -592,8 +593,8 @@ class Image(BatchableMedia):
 
     def guess_mode(
         self,
-        data: Union["np.ndarray", "torch.Tensor"],
-        file_type: Optional[str] = None,
+        data: np.ndarray | torch.Tensor,
+        file_type: str | None = None,
     ) -> str:
         """Guess what type of image the np.array is representing.
 
@@ -628,11 +629,11 @@ class Image(BatchableMedia):
 
     @classmethod
     def seq_to_json(
-        cls: Type["Image"],
-        seq: Sequence["BatchableMedia"],
-        run: "wandb.Run",
+        cls: type[Image],
+        seq: Sequence[BatchableMedia],
+        run: wandb.Run,
         key: str,
-        step: Union[int, str],
+        step: int | str,
     ) -> dict:
         """Convert a sequence of Image objects to a JSON representation.
 
@@ -658,7 +659,7 @@ class Image(BatchableMedia):
         width, height = seq[0].image.size  # type: ignore
         format = jsons[0]["format"]
 
-        def size_equals_image(image: "Image") -> bool:
+        def size_equals_image(image: Image) -> bool:
             img_width, img_height = image.image.size  # type: ignore
             return img_width == width and img_height == height
 
@@ -705,17 +706,17 @@ class Image(BatchableMedia):
 
     @classmethod
     def all_masks(
-        cls: Type["Image"],
-        images: Sequence["Image"],
-        run: "wandb.Run",
+        cls: type[Image],
+        images: Sequence[Image],
+        run: wandb.Run,
         run_key: str,
-        step: Union[int, str],
-    ) -> Union[List[Optional[dict]], bool]:
+        step: int | str,
+    ) -> list[dict | None] | bool:
         """Collect all masks from a list of images.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
         """
-        all_mask_groups: List[Optional[dict]] = []
+        all_mask_groups: list[dict | None] = []
         for image in images:
             if image._masks:
                 mask_group = {}
@@ -732,17 +733,17 @@ class Image(BatchableMedia):
 
     @classmethod
     def all_boxes(
-        cls: Type["Image"],
-        images: Sequence["Image"],
-        run: "wandb.Run",
+        cls: type[Image],
+        images: Sequence[Image],
+        run: wandb.Run,
         run_key: str,
-        step: Union[int, str],
-    ) -> Union[List[Optional[dict]], bool]:
+        step: int | str,
+    ) -> list[dict | None] | bool:
         """Collect all boxes from a list of images.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
         """
-        all_box_groups: List[Optional[dict]] = []
+        all_box_groups: list[dict | None] = []
         for image in images:
             if image._boxes:
                 box_group = {}
@@ -759,8 +760,8 @@ class Image(BatchableMedia):
 
     @classmethod
     def all_captions(
-        cls: Type["Image"], images: Sequence["Media"]
-    ) -> Union[bool, Sequence[Optional[str]]]:
+        cls: type[Image], images: Sequence[Media]
+    ) -> bool | Sequence[str | None]:
         """Get captions from a list of images.
 
         "<!-- lazydoc-ignore-classmethod: internal -->
@@ -794,7 +795,7 @@ class Image(BatchableMedia):
                 and self._classes == other._classes
             )
 
-    def to_data_array(self) -> List[Any]:
+    def to_data_array(self) -> list[Any]:
         """Convert to data array.
 
         <!-- lazydoc-ignore: internal -->
@@ -812,7 +813,7 @@ class Image(BatchableMedia):
             self._image = None
 
     @property
-    def image(self) -> Optional["PILImage"]:
+    def image(self) -> PILImage | None:
         if self._image is None:
             if self._path is not None and not self.path_is_reference(self._path):
                 pil_image = util.get_module(

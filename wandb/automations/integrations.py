@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Union
+from typing import Annotated, Union
 
 from pydantic import Field, TypeAdapter
-from typing_extensions import Annotated
 
 from ._generated import SlackIntegrationFields, WebhookIntegrationFields
 

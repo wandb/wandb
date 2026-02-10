@@ -14,21 +14,20 @@ import stat
 import tempfile
 import time
 from collections import deque
+from collections.abc import Iterator, Sequence
 from concurrent.futures import Executor, ThreadPoolExecutor, as_completed
 from copy import copy
 from dataclasses import asdict, replace
 from datetime import timedelta
 from itertools import filterfalse
 from pathlib import Path, PurePosixPath
-from typing import (
+from typing import (  # noqa: UP035 (can't use `type` - shadows `Artifact.type`)
     IO,
     TYPE_CHECKING,
     Any,
     Callable,
     Final,
-    Iterator,
     Literal,
-    Sequence,
     Type,
 )
 from urllib.parse import quote, urljoin, urlparse
@@ -99,7 +98,7 @@ from wandb_gql import gql  # noqa: E402
 reset_path()
 
 if TYPE_CHECKING:
-    from typing import Iterable
+    from collections.abc import Iterable
 
     from wandb.apis.public import RetryingClient
 

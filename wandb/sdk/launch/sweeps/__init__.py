@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 log = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ def _import_sweep_scheduler() -> Any:
     return SweepScheduler
 
 
-_WANDB_SCHEDULERS: Dict[str, Callable] = {
+_WANDB_SCHEDULERS: dict[str, Callable] = {
     "wandb": _import_sweep_scheduler,
 }
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import binascii
 import codecs
@@ -5,7 +7,7 @@ import datetime
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
 from wandb import util
@@ -221,9 +223,7 @@ class Table(Media):
         dtype=None,
         optional=True,
         allow_mixed_types=False,
-        log_mode: Optional[
-            Literal["IMMUTABLE", "MUTABLE", "INCREMENTAL"]
-        ] = "IMMUTABLE",
+        log_mode: Literal["IMMUTABLE", "MUTABLE", "INCREMENTAL"] | None = "IMMUTABLE",
     ):
         """Initializes a Table object.
 
@@ -351,7 +351,7 @@ class Table(Media):
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
 
-    def _load_incremental_table_state_from_resumed_run(self, run: "LocalRun", key: str):
+    def _load_incremental_table_state_from_resumed_run(self, run: LocalRun, key: str):
         """Handle updating incremental table state for resumed runs.
 
         This method is called when a run is resumed and there are previous
@@ -396,7 +396,7 @@ class Table(Media):
         self._increment_num = last_increment_num + 1
         self._previous_increments_paths = previous_increments_paths
 
-    def _set_incremental_table_run_target(self, run: "LocalRun") -> None:
+    def _set_incremental_table_run_target(self, run: LocalRun) -> None:
         """Associate a Run object with this incremental Table.
 
         A Table object in incremental mode can only be logged to a single Run.
@@ -620,7 +620,7 @@ class Table(Media):
         return os.path.join("media", "table")
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact: "artifact.Artifact"):
+    def from_json(cls, json_obj, source_artifact: artifact.Artifact):
         """Deserialize JSON object into it's class representation.
 
         <!-- lazydoc-ignore-classmethod: internal -->
@@ -1359,8 +1359,8 @@ _dtypes.TypeRegistry.add(_ForeignIndexType)
 
 
 def _get_data_from_increments(
-    json_obj: Dict[str, Any], source_artifact: "artifact.Artifact"
-) -> List[Any]:
+    json_obj: dict[str, Any], source_artifact: artifact.Artifact
+) -> list[Any]:
     """Get data from incremental table artifacts.
 
     Args:
@@ -1378,14 +1378,14 @@ def _get_data_from_increments(
             ),
             repeat=False,
         )
-    data: List[Any] = []
+    data: list[Any] = []
     increment_num = json_obj.get("increment_num", None)
     if increment_num is None:
         return data
 
     # Sort by increment number first, then by timestamp if present
     # Format of name is: "{incr_num}-{timestamp_ms}.{key}.table.json"
-    def get_sort_key(key: str) -> Tuple[int, int]:
+    def get_sort_key(key: str) -> tuple[int, int]:
         try:
             parts = key.split(".")
             increment_parts = parts[0].split("-")
@@ -1424,12 +1424,12 @@ def _get_data_from_increments(
 
 
 def _process_table_row(
-    row: List[Any],
-    timestamp_column_indices: Set[_dtypes.TimestampType],
-    np_deserialized_columns: Dict[int, Any],
-    source_artifact: "artifact.Artifact",
+    row: list[Any],
+    timestamp_column_indices: set[_dtypes.TimestampType],
+    np_deserialized_columns: dict[int, Any],
+    source_artifact: artifact.Artifact,
     row_idx: int,
-) -> List[Any]:
+) -> list[Any]:
     """Convert special columns in a table row to Python types.
 
     Processes a single row of table data by converting timestamp values to

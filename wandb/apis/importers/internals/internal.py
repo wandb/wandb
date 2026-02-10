@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import json
 import logging
 import math
 import os
 import queue
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional
+from typing import Any
 
 import numpy as np
 from tenacity import retry, stop_after_attempt, wait_random_exponential
@@ -81,8 +84,8 @@ class RecordMaker:
 
     def make_artifacts_only_records(
         self,
-        artifacts: Optional[Iterable[Artifact]] = None,
-        used_artifacts: Optional[Iterable[Artifact]] = None,
+        artifacts: Iterable[Artifact] | None = None,
+        used_artifacts: Iterable[Artifact] | None = None,
     ) -> Iterable[pb.Record]:
         """Only make records required to upload artifacts.
 
@@ -304,7 +307,7 @@ class RecordMaker:
 
 
 def _make_settings(
-    root_dir: str, settings_override: Optional[Dict[str, Any]] = None
+    root_dir: str, settings_override: dict[str, Any] | None = None
 ) -> SettingsStatic:
     _settings_override = coalesce(settings_override, {})
 
@@ -329,11 +332,11 @@ def _make_settings(
 def send_run(
     run: ImporterRun,
     *,
-    extra_arts: Optional[Iterable[Artifact]] = None,
-    extra_used_arts: Optional[Iterable[Artifact]] = None,
-    config: Optional[SendManagerConfig] = None,
-    overrides: Optional[Dict[str, Any]] = None,
-    settings_override: Optional[Dict[str, Any]] = None,
+    extra_arts: Iterable[Artifact] | None = None,
+    extra_used_arts: Iterable[Artifact] | None = None,
+    config: SendManagerConfig | None = None,
+    overrides: dict[str, Any] | None = None,
+    settings_override: dict[str, Any] | None = None,
 ) -> None:
     if config is None:
         config = SendManagerConfig()

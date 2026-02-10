@@ -6,7 +6,6 @@ import os
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
-from wandb._strutils import removeprefix
 from wandb.apis import PublicApi
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -68,7 +67,7 @@ class WBArtifactHandler(StorageHandler):
         # Parse the reference path and download the artifact if needed
         parsed = urlparse(manifest_entry.ref)
         artifact_id = hex_to_b64_id(parsed.netloc)
-        artifact_file_path = removeprefix(str(parsed.path), "/")
+        artifact_file_path = str(parsed.path).removeprefix("/")
 
         dep_artifact = Artifact._from_id(artifact_id, self.client.client)
         assert dep_artifact is not None
@@ -106,7 +105,7 @@ class WBArtifactHandler(StorageHandler):
         curr_path: URIStr | FilePathStr | None = path
         while curr_path and (parsed := urlparse(curr_path)).scheme == self._scheme:
             artifact_id = hex_to_b64_id(parsed.netloc)
-            artifact_file_path = removeprefix(parsed.path, "/")
+            artifact_file_path = parsed.path.removeprefix("/")
 
             target_artifact = Artifact._from_id(artifact_id, self.client.client)
             assert target_artifact is not None

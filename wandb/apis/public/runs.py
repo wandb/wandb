@@ -40,7 +40,8 @@ import pathlib
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Collection, Iterator, Literal, Mapping
+from collections.abc import Collection, Iterator, Mapping
+from typing import TYPE_CHECKING, Any, Literal
 
 from wandb_gql import gql
 

@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Final, Literal, Optional, Union, overload
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    Final,
+    Literal,
+    Optional,
+    Union,
+    overload,
+)
 
 from pydantic import (
     Field,
@@ -11,7 +20,7 @@ from pydantic import (
     StrictInt,
     field_validator,
 )
-from typing_extensions import Annotated, TypeAlias, override
+from typing_extensions import TypeAlias, override
 
 from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum

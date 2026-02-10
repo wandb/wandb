@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import abc
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from tensorflow.keras.callbacks import Callback  # type: ignore
 
@@ -80,8 +82,8 @@ class WandbEvalCallback(Callback, abc.ABC):
 
     def __init__(
         self,
-        data_table_columns: List[str],
-        pred_table_columns: List[str],
+        data_table_columns: list[str],
+        pred_table_columns: list[str],
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -98,7 +100,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         self.data_table_columns = data_table_columns
         self.pred_table_columns = pred_table_columns
 
-    def on_train_begin(self, logs: Optional[Dict[str, float]] = None) -> None:
+    def on_train_begin(self, logs: dict[str, float] | None = None) -> None:
         # Initialize the data_table
         self.init_data_table(column_names=self.data_table_columns)
         # Log the ground truth data
@@ -106,7 +108,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         # Log the data_table as W&B Artifacts
         self.log_data_table()
 
-    def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, float]] = None) -> None:
+    def on_epoch_end(self, epoch: int, logs: dict[str, float] | None = None) -> None:
         # Initialize the pred_table
         self.init_pred_table(column_names=self.pred_table_columns)
         # Log the model prediction
@@ -115,7 +117,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         self.log_pred_table()
 
     @abc.abstractmethod
-    def add_ground_truth(self, logs: Optional[Dict[str, float]] = None) -> None:
+    def add_ground_truth(self, logs: dict[str, float] | None = None) -> None:
         """Add ground truth data to `data_table`.
 
         Use this method to write the logic for adding validation/training data to
@@ -132,7 +134,7 @@ class WandbEvalCallback(Callback, abc.ABC):
 
     @abc.abstractmethod
     def add_model_predictions(
-        self, epoch: int, logs: Optional[Dict[str, float]] = None
+        self, epoch: int, logs: dict[str, float] | None = None
     ) -> None:
         """Add a prediction from a model to `pred_table`.
 
@@ -154,7 +156,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         """
         raise NotImplementedError(f"{self.__class__.__name__}.add_model_predictions")
 
-    def init_data_table(self, column_names: List[str]) -> None:
+    def init_data_table(self, column_names: list[str]) -> None:
         """Initialize the W&B Tables for validation data.
 
         Call this method `on_train_begin` or equivalent hook. This is followed by adding
@@ -165,7 +167,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         """
         self.data_table = wandb.Table(columns=column_names, allow_mixed_types=True)
 
-    def init_pred_table(self, column_names: List[str]) -> None:
+    def init_pred_table(self, column_names: list[str]) -> None:
         """Initialize the W&B Tables for model evaluation.
 
         Call this method `on_epoch_end` or equivalent hook. This is followed by adding
@@ -208,7 +210,7 @@ class WandbEvalCallback(Callback, abc.ABC):
         self,
         type: str = "evaluation",
         table_name: str = "eval_data",
-        aliases: Optional[List[str]] = None,
+        aliases: list[str] | None = None,
     ) -> None:
         """Log the W&B Tables for model evaluation.
 

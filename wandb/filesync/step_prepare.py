@@ -1,20 +1,12 @@
 """Batching file prepare requests to our API."""
 
+from __future__ import annotations
+
 import queue
 import threading
 import time
-from typing import (
-    TYPE_CHECKING,
-    Callable,
-    Dict,
-    List,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Callable, NamedTuple, Union
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import (
@@ -26,8 +18,8 @@ if TYPE_CHECKING:
 
 # Request for a file to be prepared.
 class RequestPrepare(NamedTuple):
-    file_spec: "CreateArtifactFileSpecInput"
-    response_channel: "queue.Queue[ResponsePrepare]"
+    file_spec: CreateArtifactFileSpecInput
+    response_channel: queue.Queue[ResponsePrepare]
 
 
 class RequestFinish(NamedTuple):
@@ -36,11 +28,11 @@ class RequestFinish(NamedTuple):
 
 class ResponsePrepare(NamedTuple):
     birth_artifact_id: str
-    upload_url: Optional[str]
+    upload_url: str | None
     upload_headers: Sequence[str]
-    upload_id: Optional[str]
-    storage_path: Optional[str]
-    multipart_upload_urls: Optional[Dict[int, str]]
+    upload_id: str | None
+    storage_path: str | None
+    multipart_upload_urls: dict[int, str] | None
 
 
 Request = Union[RequestPrepare, RequestFinish]
@@ -51,12 +43,12 @@ def _clamp(x: float, low: float, high: float) -> float:
 
 
 def gather_batch(
-    request_queue: "queue.Queue[Request]",
+    request_queue: queue.Queue[Request],
     batch_time: float,
     inter_event_time: float,
     max_batch_size: int,
     clock: Callable[[], float] = time.monotonic,
-) -> Tuple[bool, Sequence[RequestPrepare]]:
+) -> tuple[bool, Sequence[RequestPrepare]]:
     batch_start_time = clock()
     remaining_time = batch_time
 
@@ -64,7 +56,7 @@ def gather_batch(
     if isinstance(first_request, RequestFinish):
         return True, []
 
-    batch: List[RequestPrepare] = [first_request]
+    batch: list[RequestPrepare] = [first_request]
 
     while remaining_time > 0 and len(batch) < max_batch_size:
         try:
@@ -87,7 +79,7 @@ def gather_batch(
     return False, batch
 
 
-def prepare_response(response: "CreateArtifactFilesResponseFile") -> ResponsePrepare:
+def prepare_response(response: CreateArtifactFilesResponseFile) -> ResponsePrepare:
     multipart_resp = response.get("uploadMultipartUrls")
     part_list = multipart_resp["uploadUrlParts"] if multipart_resp else []
     multipart_parts = {u["partNumber"]: u["uploadUrl"] for u in part_list} or None
@@ -111,11 +103,11 @@ class StepPrepare:
 
     def __init__(
         self,
-        api: "Api",
+        api: Api,
         batch_time: float,
         inter_event_time: float,
         max_batch_size: int,
-        request_queue: Optional["queue.Queue[Request]"] = None,
+        request_queue: queue.Queue[Request] | None = None,
     ) -> None:
         self._api = api
         self._inter_event_time = inter_event_time
@@ -146,7 +138,7 @@ class StepPrepare:
 
     def _prepare_batch(
         self, batch: Sequence[RequestPrepare]
-    ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
+    ) -> Mapping[str, CreateArtifactFilesResponseFile]:
         """Execute the prepareFiles API call.
 
         Args:
@@ -159,8 +151,8 @@ class StepPrepare:
         return self._api.create_artifact_files([req.file_spec for req in batch])
 
     def prepare(
-        self, file_spec: "CreateArtifactFileSpecInput"
-    ) -> "queue.Queue[ResponsePrepare]":
+        self, file_spec: CreateArtifactFileSpecInput
+    ) -> queue.Queue[ResponsePrepare]:
         response_queue: queue.Queue[ResponsePrepare] = queue.Queue()
         self._request_queue.put(RequestPrepare(file_spec, response_queue))
         return response_queue

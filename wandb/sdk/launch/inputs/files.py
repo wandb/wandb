@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 
@@ -132,7 +132,7 @@ def _read_config_file(path: str) -> Any:
         raise LaunchError(f"Unsupported file extension: {ext}")
 
 
-def _update_dict(target: Dict, source: Dict) -> None:
+def _update_dict(target: dict, source: dict) -> None:
     """Update a dictionary with the contents of another dictionary.
 
     Args:

@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import os
 import string
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks  # type: ignore
@@ -76,8 +78,8 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         save_best_only: bool = False,
         save_weights_only: bool = False,
         mode: Mode = "auto",
-        save_freq: Union[SaveStrategy, int] = "epoch",
-        initial_value_threshold: Optional[float] = None,
+        save_freq: SaveStrategy | int = "epoch",
+        initial_value_threshold: float | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -104,10 +106,10 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         if self.save_best_only:
             self._check_filepath()
 
-        self._is_old_tf_keras_version: Optional[bool] = None
+        self._is_old_tf_keras_version: bool | None = None
 
     def on_train_batch_end(
-        self, batch: int, logs: Optional[Dict[str, float]] = None
+        self, batch: int, logs: dict[str, float] | None = None
     ) -> None:
         if self._should_save_on_batch(batch):
             if self.is_old_tf_keras_version:
@@ -124,7 +126,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             aliases = ["latest", f"epoch_{self._current_epoch}_batch_{batch}"]
             self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
-    def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, float]] = None) -> None:
+    def on_epoch_end(self, epoch: int, logs: dict[str, float] | None = None) -> None:
         super().on_epoch_end(epoch, logs)
         # Check if model checkpoint is created at the end of epoch.
         if self.save_freq == "epoch":
@@ -138,7 +140,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             self._log_ckpt_as_artifact(filepath, aliases=aliases)
 
     def _log_ckpt_as_artifact(
-        self, filepath: str, aliases: Optional[List[str]] = None
+        self, filepath: str, aliases: list[str] | None = None
     ) -> None:
         """Log model checkpoint as  W&B Artifact."""
         try:
@@ -173,7 +175,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             )
 
     @property
-    def is_old_tf_keras_version(self) -> Optional[bool]:
+    def is_old_tf_keras_version(self) -> bool | None:
         if self._is_old_tf_keras_version is None:
             from packaging.version import parse
 

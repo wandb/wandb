@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import datetime
 import getpass
@@ -13,7 +15,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import click
 import yaml
@@ -106,10 +108,10 @@ class ClickWandbException(ClickException):
 
 
 def parse_service_config(
-    ctx: Optional[click.Context],
-    param: Optional[click.Parameter],
-    value: Optional[Tuple[str, ...]],
-) -> Dict[str, str]:
+    ctx: click.Context | None,
+    param: click.Parameter | None,
+    value: tuple[str, ...] | None,
+) -> dict[str, str]:
     """Parse service configurations in format serviceName=policy."""
     if not value:
         return {}
@@ -725,7 +727,7 @@ def sync(
         _summary()
 
 
-def _parse_sync_replace_tags(replace_tags: str) -> Optional[Dict[str, str]]:
+def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
     """Parse replace_tags string into a dictionary.
 
     Args:
@@ -1081,16 +1083,16 @@ def launch_sweep(
 
     parsed_user_config = sweep_utils.load_launch_sweep_config(config)
     # Rip special keys out of config, store in scheduler run_config
-    launch_args: Dict[str, Any] = parsed_user_config.pop("launch", {})
-    scheduler_args: Dict[str, Any] = parsed_user_config.pop("scheduler", {})
-    settings: Dict[str, Any] = scheduler_args.pop("settings", {})
+    launch_args: dict[str, Any] = parsed_user_config.pop("launch", {})
+    scheduler_args: dict[str, Any] = parsed_user_config.pop("scheduler", {})
+    settings: dict[str, Any] = scheduler_args.pop("settings", {})
 
-    scheduler_job: Optional[str] = scheduler_args.get("job")
+    scheduler_job: str | None = scheduler_args.get("job")
     if scheduler_job:
         wandb.termwarn(
             "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
         )
-    queue: Optional[str] = queue or launch_args.get("queue")
+    queue: str | None = queue or launch_args.get("queue")
 
     sweep_config, sweep_obj_id = None, None
     if not resume_id:

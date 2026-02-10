@@ -1,6 +1,8 @@
 """NoOp builder implementation."""
 
-from typing import Any, Dict, Optional
+from __future__ import annotations
+
+from typing import Any
 
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -18,7 +20,7 @@ class NoOpBuilder(AbstractBuilder):
 
     def __init__(
         self,
-        builder_config: Dict[str, Any],
+        builder_config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
     ) -> None:
@@ -33,7 +35,7 @@ class NoOpBuilder(AbstractBuilder):
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
         verify: bool = True,
-    ) -> "AbstractBuilder":
+    ) -> AbstractBuilder:
         """Create a noop builder from a config."""
         return cls(config, environment, registry)
 
@@ -45,7 +47,7 @@ class NoOpBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
+        job_tracker: JobAndRunStatusTracker | None = None,
     ) -> str:
         """Build the image.
 

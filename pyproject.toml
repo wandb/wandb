@@ -172,6 +172,7 @@ docstring-code-format = true
 [tool.ruff.lint]
 select = [
     "F",      # Pyflakes
+    "FA",     # flake8-future-annotations
     "E",      # pycodestyle Error
     "W",      # pycodestyle Warning
     "B",      # flake8-bugbear
@@ -181,6 +182,8 @@ select = [
     "C90",    # mccabe
     "UP",     # pyupgrade
     "T20",    # flake8-print
+    "TC004",  # flake8-type-checking
+    "TC005",  # flake8-type-checking
     "RUF100", # unused-noqa
 
     # tryceratops
@@ -202,12 +205,6 @@ ignore = [
     "D105", # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
     "D106", # Allow missing docstrings in nested classes.
     "D107", # Allow missing docstrings in __init__ methods.
-
-    # NEW PYTHON 3.9 ERRORS: Temporarily silence new ruff errors from dropping python 3.8.
-    # TODO: Remove these in separate follow-up PRs.
-    "UP006",
-    "UP035",
-    "RUF100",
 ]
 
 [tool.ruff.lint.mccabe]
@@ -271,8 +268,8 @@ ignore-decorators = [
 
 # TODO: Fix UP006, UP007, UP045 in wandb_run.py, then remove ignores here.
 "wandb/__init__.py" = ["I001"]
-"wandb/__init__.pyi" = ["UP006", "UP007", "UP045", "W505"]
-"wandb/__init__.template.pyi" = ["UP006", "UP007", "UP045", "D415", "N999"]
+"wandb/__init__.pyi" = ["UP006", "UP007", "UP035", "UP045", "W505"]
+"wandb/__init__.template.pyi" = ["UP006", "UP007", "UP035", "UP045", "D415", "N999"]
 
 # TODO: Use f-strings in wandb/apis/public/ for GraphQL statements.
 #   To preserve GraphQL syntax highlighting, add #graphql at the start of
@@ -348,16 +345,17 @@ ignore-decorators = [
     # - if `eval_type_backport` is installed, with pydantic < 2.0
     # - if `eval_type_backport` is not installed, with pydantic < 2.6
     "UP007",
+    "UP035",
     "UP045",
 ]
 
 # Pydantic code requires an older style for type annotations.
-"wandb/sdk/wandb_settings.py" = ["UP006", "UP007", "UP045"]
-"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP045"]
-"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP045"]
-"wandb/automations/**" = ["UP006", "UP007", "UP045"]
-"wandb/sdk/artifacts/_models/**" = ["UP006", "UP007", "UP045"]
-"wandb/_pydantic/**" = ["UP006", "UP007", "UP045"]
+"wandb/sdk/wandb_settings.py" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/automations/**" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/sdk/artifacts/_models/**" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/_pydantic/**" = ["UP006", "UP007", "UP035", "UP045"]
 
 # TODO: Remove the landfill/ directory.
 "landfill/**" = ["F405", "N806", "D415"]

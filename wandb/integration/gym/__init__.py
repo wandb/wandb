@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 import re
-import sys
-from typing import Literal, Optional
+from typing import Literal
 
 import wandb
 import wandb.util
 
-_gym_version_lt_0_26: Optional[bool] = None
-_gymnasium_version_lt_1_0_0: Optional[bool] = None
+_gym_version_lt_0_26: bool | None = None
+_gymnasium_version_lt_1_0_0: bool | None = None
 
 _required_error_msg = (
     "Couldn't import the gymnasium python package, install with `pip install gymnasium`"
@@ -19,7 +20,7 @@ def monitor():
 
     Supports both gym and gymnasium.
     """
-    gym_lib: Optional[GymLib] = None
+    gym_lib: GymLib | None = None
 
     # gym is not maintained anymore, gymnasium is the drop-in replacement - prefer it
     if wandb.util.get_module("gymnasium") is not None:

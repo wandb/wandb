@@ -1,7 +1,9 @@
 """Implementation of AzureContainerRegistry class."""
 
+from __future__ import annotations
+
 import re
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.errors import LaunchError
@@ -31,9 +33,9 @@ class AzureContainerRegistry(AbstractRegistry):
 
     def __init__(
         self,
-        uri: Optional[str] = None,
-        registry_name: Optional[str] = None,
-        repo_name: Optional[str] = None,
+        uri: str | None = None,
+        registry_name: str | None = None,
+        repo_name: str | None = None,
     ):
         """Initialize an AzureContainerRegistry."""
         if uri is not None:
@@ -64,7 +66,7 @@ class AzureContainerRegistry(AbstractRegistry):
     def from_config(
         cls,
         config: dict,
-    ) -> "AzureContainerRegistry":
+    ) -> AzureContainerRegistry:
         """Create an AzureContainerRegistry from a config dict.
 
         Args:
@@ -87,7 +89,7 @@ class AzureContainerRegistry(AbstractRegistry):
             uri=uri,
         )
 
-    async def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> tuple[str, str]:
         """Get username and password for container registry."""
         raise NotImplementedError
 

@@ -2,9 +2,11 @@
 #
 # Contains common utility functions that enable
 # logging datasets and predictions to wandb.
+from __future__ import annotations
+
 import sys
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable
 
 import wandb
 
@@ -23,25 +25,25 @@ class ValidationDataLogger:
     practices.
     """
 
-    validation_inputs: Union[Sequence, Dict[str, Sequence]]
-    validation_targets: Optional[Union[Sequence, Dict[str, Sequence]]]
-    validation_indexes: List["_TableIndex"]
-    prediction_row_processor: Optional[Callable]
-    class_labels_table: Optional["wandb.Table"]
+    validation_inputs: Sequence | dict[str, Sequence]
+    validation_targets: Sequence | dict[str, Sequence] | None
+    validation_indexes: list[_TableIndex]
+    prediction_row_processor: Callable | None
+    class_labels_table: wandb.Table | None
     infer_missing_processors: bool
 
     def __init__(
         self,
-        inputs: Union[Sequence, Dict[str, Sequence]],
-        targets: Optional[Union[Sequence, Dict[str, Sequence]]] = None,
-        indexes: Optional[List["_TableIndex"]] = None,
-        validation_row_processor: Optional[Callable] = None,
-        prediction_row_processor: Optional[Callable] = None,
+        inputs: Sequence | dict[str, Sequence],
+        targets: Sequence | dict[str, Sequence] | None = None,
+        indexes: list[_TableIndex] | None = None,
+        validation_row_processor: Callable | None = None,
+        prediction_row_processor: Callable | None = None,
         input_col_name: str = "input",
         target_col_name: str = "target",
         table_name: str = "wb_validation_data",
         artifact_type: str = "validation_dataset",
-        class_labels: Optional[List[str]] = None,
+        class_labels: list[str] | None = None,
         infer_missing_processors: bool = True,
     ) -> None:
         """Initialize a new ValidationDataLogger.
@@ -84,7 +86,7 @@ class ValidationDataLogger:
             infer_missing_processors: Determines if processors are inferred if
                 they are missing. Defaults to True.
         """
-        class_labels_table: Optional[wandb.Table]
+        class_labels_table: wandb.Table | None
         if isinstance(class_labels, list) and len(class_labels) > 0:
             class_labels_table = wandb.Table(
                 columns=["label"], data=[[label] for label in class_labels]
@@ -140,9 +142,7 @@ class ValidationDataLogger:
         self.local_validation_artifact = local_validation_artifact
         self.input_col_name = input_col_name
 
-    def make_predictions(
-        self, predict_fn: Callable
-    ) -> Union[Sequence, Dict[str, Sequence]]:
+    def make_predictions(self, predict_fn: Callable) -> Sequence | dict[str, Sequence]:
         """Produce predictions by passing `validation_inputs` to `predict_fn`.
 
         Args:
@@ -156,7 +156,7 @@ class ValidationDataLogger:
 
     def log_predictions(
         self,
-        predictions: Union[Sequence, Dict[str, Sequence]],
+        predictions: Sequence | dict[str, Sequence],
         prediction_col_name: str = "output",
         val_ndx_col_name: str = "val_row",
         table_name: str = "validation_predictions",
@@ -204,9 +204,9 @@ class ValidationDataLogger:
         return pred_table
 
 
-def _make_example(data: Any) -> Optional[Union[Dict, Sequence, Any]]:
+def _make_example(data: Any) -> dict | Sequence | Any | None:
     """Used to make an example input, target, or output."""
-    example: Optional[Union[Dict, Sequence, Any]]
+    example: dict | Sequence | Any | None
 
     if isinstance(data, dict):
         example = {}
@@ -220,7 +220,7 @@ def _make_example(data: Any) -> Optional[Union[Dict, Sequence, Any]]:
     return example
 
 
-def _get_example_shape(example: Union[Sequence, Any]):
+def _get_example_shape(example: Sequence | Any):
     """Get the shape of an object if applicable."""
     shape = []
     if not isinstance(example, str) and hasattr(example, "__len__"):
@@ -244,17 +244,17 @@ def _bind(lambda_fn: Callable, **closure_kwargs: Any) -> Callable:
 
 
 def _infer_single_example_keyed_processor(
-    example: Union[Sequence, Any],
-    class_labels_table: Optional["wandb.Table"] = None,
-    possible_base_example: Optional[Union[Sequence, Any]] = None,
-) -> Dict[str, Callable]:
+    example: Sequence | Any,
+    class_labels_table: wandb.Table | None = None,
+    possible_base_example: Sequence | Any | None = None,
+) -> dict[str, Callable]:
     """Infers a processor from a single example.
 
     Infers a processor from a single example with optional class_labels_table
     and base_example. Base example is useful for cases such as segmentation masks
     """
     shape = _get_example_shape(example)
-    processors: Dict[str, Callable] = {}
+    processors: dict[str, Callable] = {}
     if (
         class_labels_table is not None
         and len(shape) == 1
@@ -348,9 +348,9 @@ def _infer_single_example_keyed_processor(
 
 
 def _infer_validation_row_processor(
-    example_input: Union[Dict, Sequence],
-    example_target: Union[Dict, Sequence, Any],
-    class_labels_table: Optional["wandb.Table"] = None,
+    example_input: dict | Sequence,
+    example_target: dict | Sequence | Any,
+    class_labels_table: wandb.Table | None = None,
     input_col_name: str = "input",
     target_col_name: str = "target",
 ) -> Callable:
@@ -425,9 +425,9 @@ def _infer_validation_row_processor(
 
 
 def _infer_prediction_row_processor(
-    example_prediction: Union[Dict, Sequence],
-    example_input: Union[Dict, Sequence],
-    class_labels_table: Optional["wandb.Table"] = None,
+    example_prediction: dict | Sequence,
+    example_input: dict | Sequence,
+    class_labels_table: wandb.Table | None = None,
     input_col_name: str = "input",
     output_col_name: str = "output",
 ) -> Callable:

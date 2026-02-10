@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
-from typing import Any, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +50,7 @@ try:
                     kwargs["cls"] = cls
                 json.dump(obj, fp, **kwargs)
 
-        def loads(obj: Union[str, bytes]) -> Any:
+        def loads(obj: str | bytes) -> Any:
             """Wrapper for orjson.loads."""
             try:
                 decoded = orjson.loads(obj)

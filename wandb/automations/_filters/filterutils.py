@@ -6,8 +6,8 @@ don't expose as instnace methods on filter types for now.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from functools import singledispatch
-from typing import Iterator
 
 from .expressions import FilterExpr, MongoLikeFilter
 from .operators import (

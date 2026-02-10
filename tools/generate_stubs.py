@@ -35,14 +35,15 @@ Note:
     file are up to date before running this script.
 """
 
+from __future__ import annotations
+
 import ast
 import re
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional
 
 
-def extract_docstring(file_path: Path, location: str) -> Optional[str]:
+def extract_docstring(file_path: Path, location: str) -> str | None:
     """Extract the docstring for a given function or method from a source file.
 
     Args:
@@ -74,7 +75,7 @@ def extract_docstring(file_path: Path, location: str) -> Optional[str]:
     return None
 
 
-def extract_functions_from_template(template_content: str) -> Dict[str, str]:
+def extract_functions_from_template(template_content: str) -> dict[str, str]:
     """Extracts function names and their source information from the template.
 
     Args:

@@ -28,22 +28,14 @@ import threading
 import time
 import types
 import urllib
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from gzip import GzipFile
 from importlib import import_module
 from sys import getsizeof
 from types import ModuleType
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Callable,
-    Iterable,
-    Mapping,
-    Sequence,
-    TextIO,
-    Union,
-)
+from typing import IO, TYPE_CHECKING, Callable, TextIO, Union
 
 from typing_extensions import Any, Generator, TypeGuard, TypeVar, deprecated
 

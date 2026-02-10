@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from enum import Enum
 from functools import singledispatchmethod
-from typing import Iterable, Literal, Union
+from typing import Literal, Union
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 

@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from wandb.apis.internal import Api
 from wandb.errors import CommError
@@ -18,12 +19,12 @@ class JobAndRunStatusTracker:
     run_queue_item_id: str
     queue: str
     saver: RunQueueItemFileSaver
-    run_id: Optional[str] = None
-    project: Optional[str] = None
-    entity: Optional[str] = None
-    run: Optional[AbstractRun] = None
+    run_id: str | None = None
+    project: str | None = None
+    entity: str | None = None
+    run: AbstractRun | None = None
     failed_to_start: bool = False
-    completed_status: Optional[str] = None
+    completed_status: str | None = None
     is_scheduler: bool = False
     err_stage: str = "agent"
 

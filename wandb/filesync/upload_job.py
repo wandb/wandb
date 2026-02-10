@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import logging
 import os
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import wandb
 from wandb.analytics import get_sentry
@@ -17,17 +19,17 @@ logger = logging.getLogger(__name__)
 class UploadJob:
     def __init__(
         self,
-        stats: "stats.Stats",
-        api: "internal_api.Api",
-        file_stream: "file_stream.FileStreamApi",
+        stats: stats.Stats,
+        api: internal_api.Api,
+        file_stream: file_stream.FileStreamApi,
         silent: bool,
         save_name: LogicalPath,
-        path: "dir_watcher.PathStr",
-        artifact_id: Optional[str],
-        md5: Optional[str],
+        path: dir_watcher.PathStr,
+        artifact_id: str | None,
+        md5: str | None,
         copied: bool,
-        save_fn: Optional["step_upload.SaveFn"],
-        digest: Optional[str],
+        save_fn: step_upload.SaveFn | None,
+        digest: str | None,
     ) -> None:
         """A file uploader.
 

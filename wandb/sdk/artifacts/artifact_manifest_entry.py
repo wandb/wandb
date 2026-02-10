@@ -1,7 +1,7 @@
 """Artifact manifest entry."""
 
 # Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
-# ruff: noqa: UP006, UP007, UP045
+# ruff: noqa: UP006, UP007, UP035, UP045
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ import logging
 import os
 from contextlib import suppress
 from os.path import getsize
-from typing import TYPE_CHECKING, Any, Dict, Final, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Any, Dict, Final, Optional, Union
 from urllib.parse import urlparse
 
 from pydantic import Field, NonNegativeInt
-from typing_extensions import Annotated, Self
+from typing_extensions import Self
 
 from wandb._pydantic import field_validator, model_validator
 from wandb._strutils import nameof

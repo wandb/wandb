@@ -1,8 +1,10 @@
 """Scheduler for classic wandb Sweeps."""
 
+from __future__ import annotations
+
 import logging
 from pprint import pformat as pf
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import wandb
 from wandb.sdk.launch.sweeps import SweepNotFoundError
@@ -21,7 +23,7 @@ class SweepScheduler(Scheduler):
     ):
         super().__init__(*args, **kwargs)
 
-    def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
+    def _get_next_sweep_run(self, worker_id: int) -> SweepRun | None:
         """Called by the main scheduler execution loop.
 
         Expected to return a properly formatted SweepRun if the scheduler
@@ -30,7 +32,7 @@ class SweepScheduler(Scheduler):
         FAILED: self.fail_sweep()
         STOPPED: self.stop_sweep()
         """
-        commands: List[Dict[str, Any]] = self._get_sweep_commands(worker_id)
+        commands: list[dict[str, Any]] = self._get_sweep_commands(worker_id)
         for command in commands:
             # The command "type" can be one of "run", "resume", "stop", "exit"
             _type = command.get("type")
@@ -41,7 +43,7 @@ class SweepScheduler(Scheduler):
             if _type not in ["run", "resume"]:
                 self.fail_sweep(f"AgentHeartbeat unknown command: {_type}")
 
-            _run_id: Optional[str] = command.get("run_id")
+            _run_id: str | None = command.get("run_id")
             if not _run_id:
                 self.fail_sweep(f"No run id in agent heartbeat: {command}")
                 return None
@@ -59,10 +61,10 @@ class SweepScheduler(Scheduler):
             )
         return None
 
-    def _get_sweep_commands(self, worker_id: int) -> List[Dict[str, Any]]:
+    def _get_sweep_commands(self, worker_id: int) -> list[dict[str, Any]]:
         """Helper to receive sweep command from backend."""
         # AgentHeartbeat wants a Dict of runs which are running or queued
-        _run_states: Dict[str, bool] = {}
+        _run_states: dict[str, bool] = {}
         for run_id, run in self._yield_runs():
             # Filter out runs that are from a different worker thread
             if run.worker_id == worker_id and run.state.is_alive:
@@ -70,7 +72,7 @@ class SweepScheduler(Scheduler):
 
         _logger.debug(f"Sending states: \n{pf(_run_states)}\n")
         try:
-            commands: List[Dict[str, Any]] = self._api.agent_heartbeat(
+            commands: list[dict[str, Any]] = self._api.agent_heartbeat(
                 agent_id=self._workers[worker_id].agent_id,
                 metrics={},
                 run_states=_run_states,

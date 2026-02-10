@@ -1,7 +1,8 @@
 """config."""
 
+from __future__ import annotations
+
 import logging
-from typing import Optional
 
 import wandb
 from wandb.util import (
@@ -257,7 +258,7 @@ class Config:
         self,
         config_dict,
         allow_val_change=None,
-        ignore_keys: Optional[set] = None,
+        ignore_keys: set | None = None,
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)

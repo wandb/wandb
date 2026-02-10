@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import codecs
 import os
-from typing import TYPE_CHECKING, Sequence, Type, Union
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Union
 
 from wandb import util
 from wandb.sdk.lib import runid
@@ -37,8 +40,8 @@ class Plotly(Media):
 
     @classmethod
     def make_plot_media(
-        cls: Type["Plotly"], val: Union["plotly.Figure", "matplotlib.artist.Artist"]
-    ) -> Union[Image, "Plotly"]:
+        cls: type[Plotly], val: plotly.Figure | matplotlib.artist.Artist
+    ) -> Image | Plotly:
         """Create a Plotly object from a Plotly figure or a matplotlib artist.
 
         <!-- lazydoc-ignore-classmethod: internal -->
@@ -49,7 +52,7 @@ class Plotly(Media):
             val = util.matplotlib_to_plotly(val)
         return cls(val)
 
-    def __init__(self, val: Union["plotly.Figure", "matplotlib.artist.Artist"]):
+    def __init__(self, val: plotly.Figure | matplotlib.artist.Artist):
         """Initialize a Plotly object.
 
         Args:
@@ -78,14 +81,14 @@ class Plotly(Media):
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
 
     @classmethod
-    def get_media_subdir(cls: Type["Plotly"]) -> str:
+    def get_media_subdir(cls: type[Plotly]) -> str:
         """Returns the media subdirectory for Plotly plots.
 
         <!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "plotly")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Convert the Plotly object to a JSON representation.
 
         <!-- lazydoc-ignore: internal -->

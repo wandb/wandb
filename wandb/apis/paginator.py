@@ -1,18 +1,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    Generic,
-    Iterable,
-    Iterator,
-    Mapping,
-    Sized,
-    TypeVar,
-    overload,
-)
+from collections.abc import Iterable, Iterator, Mapping, Sized
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
 
 import wandb
 from wandb._strutils import nameof
