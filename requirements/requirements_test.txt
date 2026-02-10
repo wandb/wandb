@@ -20,7 +20,7 @@ numpy~=2.3; python_version >= '3.11'
 pandas~=1.3; python_version < '3.11'
 numpy~=1.24; python_version < '3.11'
 
-coverage[toml]~=7.6
+coverage[toml]~=7.10
 
 pyte~=0.8.1  # Terminal emulator for testing interactions with the terminal.
 
