@@ -1,7 +1,6 @@
 import json
 import subprocess
 import sys
-from typing import List
 
 import pytest
 import wandb
@@ -10,7 +9,7 @@ from wandb.apis.public import Api
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
-def _run_cmd_check_msg(cmd: List[str], assert_str: str) -> None:
+def _run_cmd_check_msg(cmd: list[str], assert_str: str) -> None:
     """Helper for asserting a statement is in logs."""
     out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
     assert assert_str in out.decode("utf-8")

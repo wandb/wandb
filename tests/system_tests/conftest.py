@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Generator, Iterator
 from dataclasses import dataclass
-from typing import Callable, Generator, Iterator
+from typing import Callable
 
 import pytest
 

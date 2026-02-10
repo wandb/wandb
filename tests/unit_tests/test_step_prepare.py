@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import concurrent.futures
 import dataclasses
 import queue
 import threading
-from typing import TYPE_CHECKING, Iterable, Mapping, Tuple
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING
 from unittest.mock import Mock, call
 
 import pytest
@@ -22,7 +25,7 @@ if TYPE_CHECKING:
     )
 
 
-def simple_file_spec(name: str) -> "CreateArtifactFileSpecInput":
+def simple_file_spec(name: str) -> CreateArtifactFileSpecInput:
     return {
         "name": name,
         "artifactID": "some-artifact-id",
@@ -36,7 +39,7 @@ def simple_request_prepare(name: str) -> RequestPrepare:
 
 def mock_create_artifact_files_result(
     names: Iterable[str],
-) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
+) -> Mapping[str, CreateArtifactFilesResponseFile]:
     return {
         name: {
             "id": f"file-id-{name}",
@@ -69,7 +72,7 @@ class MockRequestQueue(Mock):
     def __init__(
         self,
         clock: MockClock,
-        schedule: Iterable[Tuple[float, Request]],
+        schedule: Iterable[tuple[float, Request]],
     ):
         super().__init__(
             get=Mock(wraps=self._get),
@@ -251,7 +254,7 @@ class TestStepPrepare:
     @staticmethod
     def _bg_prepare(
         step_prepare: StepPrepare, *args, **kwargs
-    ) -> "concurrent.futures.Future[ResponsePrepare]":
+    ) -> concurrent.futures.Future[ResponsePrepare]:
         """Starts prepare running in the background."""
         enqueued = threading.Event()
         future = concurrent.futures.Future()

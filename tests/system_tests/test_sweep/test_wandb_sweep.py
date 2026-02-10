@@ -2,7 +2,7 @@
 
 import json
 import sys
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 import wandb
@@ -10,12 +10,12 @@ import wandb.apis
 from wandb.cli import cli
 
 # Sweep configs used for testing
-SWEEP_CONFIG_GRID: Dict[str, Any] = {
+SWEEP_CONFIG_GRID: dict[str, Any] = {
     "name": "mock-sweep-grid",
     "method": "grid",
     "parameters": {"param1": {"values": [1, 2, 3]}},
 }
-SWEEP_CONFIG_GRID_HYPERBAND: Dict[str, Any] = {
+SWEEP_CONFIG_GRID_HYPERBAND: dict[str, Any] = {
     "name": "mock-sweep-grid-hyperband",
     "method": "grid",
     "early_terminate": {
@@ -27,7 +27,7 @@ SWEEP_CONFIG_GRID_HYPERBAND: Dict[str, Any] = {
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [1, 2, 3]}},
 }
-SWEEP_CONFIG_GRID_NESTED: Dict[str, Any] = {
+SWEEP_CONFIG_GRID_NESTED: dict[str, Any] = {
     "name": "mock-sweep-grid",
     "method": "grid",
     "parameters": {
@@ -40,14 +40,14 @@ SWEEP_CONFIG_GRID_NESTED: Dict[str, Any] = {
         },
     },
 }
-SWEEP_CONFIG_BAYES: Dict[str, Any] = {
+SWEEP_CONFIG_BAYES: dict[str, Any] = {
     "name": "mock-sweep-bayes",
     "command": ["echo", "hello world"],
     "method": "bayes",
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [1, 2, 3]}},
 }
-SWEEP_CONFIG_BAYES_PROBABILITIES: Dict[str, Any] = {
+SWEEP_CONFIG_BAYES_PROBABILITIES: dict[str, Any] = {
     "name": "mock-sweep-bayes",
     "method": "bayes",
     "metric": {"name": "metric1", "goal": "maximize"},
@@ -56,7 +56,7 @@ SWEEP_CONFIG_BAYES_PROBABILITIES: Dict[str, Any] = {
         "param2": {"values": [1, 2, 3], "probabilities": [0.1, 0.2, 0.1]},
     },
 }
-SWEEP_CONFIG_BAYES_DISTRIBUTION: Dict[str, Any] = {
+SWEEP_CONFIG_BAYES_DISTRIBUTION: dict[str, Any] = {
     "name": "mock-sweep-bayes",
     "method": "bayes",
     "metric": {"name": "metric1", "goal": "maximize"},
@@ -64,7 +64,7 @@ SWEEP_CONFIG_BAYES_DISTRIBUTION: Dict[str, Any] = {
         "param1": {"distribution": "normal", "mu": 100, "sigma": 10},
     },
 }
-SWEEP_CONFIG_BAYES_DISTRIBUTION_NESTED: Dict[str, Any] = {
+SWEEP_CONFIG_BAYES_DISTRIBUTION_NESTED: dict[str, Any] = {
     "name": "mock-sweep-bayes",
     "method": "bayes",
     "metric": {"name": "metric1", "goal": "maximize"},
@@ -77,7 +77,7 @@ SWEEP_CONFIG_BAYES_DISTRIBUTION_NESTED: Dict[str, Any] = {
         },
     },
 }
-SWEEP_CONFIG_BAYES_TARGET: Dict[str, Any] = {
+SWEEP_CONFIG_BAYES_TARGET: dict[str, Any] = {
     "name": "mock-sweep-bayes",
     "method": "bayes",
     "metric": {"name": "metric1", "goal": "maximize", "target": 0.99},
@@ -85,32 +85,32 @@ SWEEP_CONFIG_BAYES_TARGET: Dict[str, Any] = {
         "param1": {"distribution": "normal", "mu": 100, "sigma": 10},
     },
 }
-SWEEP_CONFIG_RANDOM: Dict[str, Any] = {
+SWEEP_CONFIG_RANDOM: dict[str, Any] = {
     "name": "mock-sweep-random",
     "method": "random",
     "parameters": {"param1": {"values": [1, 2, 3]}},
 }
-SWEEP_CONFIG_BAYES_NONES: Dict[str, Any] = {
+SWEEP_CONFIG_BAYES_NONES: dict[str, Any] = {
     "name": "mock-sweep-bayes-with-none",
     "method": "bayes",
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [None, 1, 2, 3]}, "param2": {"value": None}},
 }
-SWEEP_CONFIG_NO_NAME: Dict[str, Any] = {
+SWEEP_CONFIG_NO_NAME: dict[str, Any] = {
     "method": "random",
     "parameters": {"param1": {"values": [1, 2, 3]}},
 }
 
 
 # Minimal list of valid sweep configs
-VALID_SWEEP_CONFIGS_MINIMAL: List[Dict[str, Any]] = [
+VALID_SWEEP_CONFIGS_MINIMAL: list[dict[str, Any]] = [
     SWEEP_CONFIG_BAYES,
     SWEEP_CONFIG_RANDOM,
     SWEEP_CONFIG_GRID_HYPERBAND,
     SWEEP_CONFIG_GRID_NESTED,
 ]
 # All valid sweep configs, be careful as this will slow down tests
-VALID_SWEEP_CONFIGS_ALL: List[Dict[str, Any]] = [
+VALID_SWEEP_CONFIGS_ALL: list[dict[str, Any]] = [
     SWEEP_CONFIG_RANDOM,
     SWEEP_CONFIG_BAYES,
     # TODO: Probabilities seem to error out?
