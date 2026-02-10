@@ -835,7 +835,7 @@ pytest-split==0.10.0
     # via -r requirements/requirements_test.txt
 pytest-timeout==2.4.0
     # via -r requirements/requirements_test.txt
-pytest-xdist==3.6.1
+pytest-xdist==3.8.0
     # via -r requirements/requirements_test.txt
 python-dateutil==2.9.0.post0
     # via
