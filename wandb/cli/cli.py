@@ -258,14 +258,80 @@ def projects(entity, display=True):
     return projects
 
 
-@cli.command(context_settings=CONTEXT)
+@cli.command(
+    context_settings=CONTEXT,
+    help="""Authenticate your machine with W&B.
+
+    Store an API key locally for authenticating with W&B services.
+    By default, credentials are stored without server-side verification.
+
+    If no API key is provided as an argument, the command looks for
+    credentials in the following order:
+
+    1. The WANDB_API_KEY environment variable
+    2. The api_key setting in a system or workspace settings file
+    3. The .netrc file (~/.netrc, ~/_netrc, or the NETRC env var path)
+    4. An interactive prompt (if a TTY is available)
+
+    For self-hosted or dedicated cloud deployments, specify the server
+    URL with --host, or set the WANDB_BASE_URL environment variable.
+
+    Examples:
+
+    Log in interactively (prompts for API key)
+
+    ```bash
+    wandb login
+    ```
+
+    Log in with an explicit API key
+
+    ```bash
+    wandb login YOUR_API_KEY
+    ```
+
+    Log in and verify the API key is valid
+
+    ```bash
+    wandb login --verify
+    ```
+
+    Log in to the W&B public cloud instead of a configured self-hosted instance
+
+    ```bash
+    wandb login --cloud
+    ```
+
+    Log in to a self-hosted W&B instance
+
+    ```bash
+    wandb login --host https://my-wandb-server.example.com
+    ```
+
+    Force a new login prompt even if already authenticated
+
+    ```bash
+    wandb login --relogin
+    ```
+    """,
+)
 @click.argument("key", nargs=-1)
-@click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
 @click.option(
-    "--host", "--base-url", default=None, help="Login to a specific instance of W&B"
+    "--cloud",
+    is_flag=True,
+    help="Log in to the W&B public cloud (https://api.wandb.ai). Mutually exclusive with --host.",
 )
 @click.option(
-    "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
+    "--host",
+    "--base-url",
+    default=None,
+    help="Log in to a specific W&B server instance by URL.",
+)
+@click.option(
+    "--relogin",
+    default=None,
+    is_flag=True,
+    help="Force a new login prompt, ignoring any existing credentials.",
 )
 @click.option(
     "--anonymously",
@@ -278,20 +344,10 @@ def projects(entity, display=True):
     "--verify/--no-verify",
     default=False,
     is_flag=True,
-    help="Verify login credentials",
+    help="Verify the API key with the W&B server after storing it.",
 )
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
-    """Verify and store your API key for authentication with W&B services.
-
-    By default, only store credentials locally without verifying them with W&B.
-    To verify credentials, set `--verify=True`.
-
-    For server deployments (dedicated cloud or customer-managed instances),
-    specify the host URL using the `--host` flag. You can also set environment
-    variables `WANDB_BASE_URL` and `WANDB_API_KEY` instead of running
-    the `login` command with host parameters.
-    """
     # TODO: handle no_offline
     if anonymously:
         wandb.termwarn(
@@ -326,18 +382,42 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Configure a directory with Weights & Biases"
+    context_settings=CONTEXT, help="""Initialize or update W&B configuration for the current directory.
+    
+    Set a project and entity, create local W&B settings, and
+    prepare the directory for experiment tracking.
+
+    Examples:
+
+    Initialize W&B configuration for the current directory
+
+    ```bash
+    wandb init --project PROJECT_NAME --entity TEAM_ENTITY
+    ```
+
+    Set the W&B mode to offline
+
+    ```bash
+    wandb init --mode offline
+    ```
+
+    Reset existing W&B configuration for the current directory
+
+    ```bash
+    wandb init --reset
+    ```
+    """
 )
-@click.option("--project", "-p", help="The project to use.")
-@click.option("--entity", "-e", help="The entity to scope the project to.")
+@click.option("--project", "-p", help="Set the project name.")
+@click.option("--entity", "-e", help="Set the entity to scope the project to.")
 # TODO(jhr): Enable these with settings rework
 # @click.option("--setting", "-s", help="enable an arbitrary setting.", multiple=True)
 # @click.option('--show', is_flag=True, help="Show settings")
-@click.option("--reset", is_flag=True, help="Reset settings")
+@click.option("--reset", is_flag=True, help="Reset existing W&B configuration for the directory.")
 @click.option(
     "--mode",
     "-m",
-    help=' Can be "online", "offline" or "disabled". Defaults to online.',
+    help="Set the W&B mode. One of 'online', 'offline', or 'disabled'.",
 )
 @click.pass_context
 @display_error
@@ -2592,7 +2672,7 @@ def cleanup(target_size, remove_temp):
     wandb.termlog(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
-@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
+@cli.command(context_settings=CONTEXT, help="Pull files from W&B")
 @click.argument("run", envvar=env.RUN_ID)
 @click.option(
     "--project", "-p", envvar=env.PROJECT, help="The project you want to download."
