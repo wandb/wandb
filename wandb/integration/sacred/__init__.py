@@ -74,7 +74,7 @@ class WandbObserver(RunObserver):
                 )  # transform single result to tuple so that both single & multiple results use same code
 
             for i, r in enumerate(result):
-                if isinstance(r, float) or isinstance(r, int):
+                if isinstance(r, (float, int)):
                     wandb.log({f"result_{i}": float(r)})
                 elif isinstance(r, dict):
                     wandb.log(r)

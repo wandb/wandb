@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Dict, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
@@ -614,7 +615,7 @@ class DiffusersMultiModalPipelineResolver:
     def __call__(
         self,
         args: Sequence[Any],
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
         response: Response,
         start_time: float,
         time_elapsed: float,
@@ -674,7 +675,7 @@ class DiffusersMultiModalPipelineResolver:
             logger.warning(e)
         return None
 
-    def get_output_images(self, response: Response) -> List:
+    def get_output_images(self, response: Response) -> list:
         """Unpack the generated images, audio, video, etc. from the Diffusion Pipeline's response.
 
         Args:
@@ -700,7 +701,7 @@ class DiffusersMultiModalPipelineResolver:
             ):
                 return response.audios
 
-    def log_media(self, image: Any, loggable_kwarg_chunks: List, idx: int) -> None:
+    def log_media(self, image: Any, loggable_kwarg_chunks: list, idx: int) -> None:
         """Log the generated images, audio, video, etc. from the Diffusion Pipeline's response along with an optional caption to a media panel in the run.
 
         Args:
@@ -775,7 +776,7 @@ class DiffusersMultiModalPipelineResolver:
                 )
 
     def add_data_to_table(
-        self, image: Any, loggable_kwarg_chunks: List, idx: int
+        self, image: Any, loggable_kwarg_chunks: list, idx: int
     ) -> None:
         """Populate the row of the `wandb.Table`.
 
@@ -814,8 +815,8 @@ class DiffusersMultiModalPipelineResolver:
         self.wandb_table.add_data(*table_row)
 
     def prepare_loggable_dict(
-        self, pipeline: Any, response: Response, kwargs: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, pipeline: Any, response: Response, kwargs: dict[str, Any]
+    ) -> dict[str, Any]:
         """Prepare the loggable dictionary, which is the packed data as a dictionary for logging to wandb, None if an exception occurred.
 
         Args:

@@ -36,10 +36,11 @@ Examples:
     ```
 """
 
+from __future__ import annotations
+
 import random
-import sys
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import fastai
 from fastai.callbacks import TrackerCallback
@@ -79,13 +80,13 @@ class WandbCallback(TrackerCallback):
 
     def __init__(
         self,
-        learn: "fastai.basic_train.Learner",
-        log: Optional[Literal["gradients", "parameters", "all"]] = "gradients",
+        learn: fastai.basic_train.Learner,
+        log: Literal["gradients", "parameters", "all"] | None = "gradients",
         save_model: bool = True,
-        monitor: Optional[str] = None,
+        monitor: str | None = None,
         mode: Literal["auto", "min", "max"] = "auto",
-        input_type: Optional[Literal["images"]] = None,
-        validation_data: Optional[list] = None,
+        input_type: Literal["images"] | None = None,
+        validation_data: list | None = None,
         predictions: int = 36,
         seed: int = 12345,
     ) -> None:
@@ -166,12 +167,11 @@ class WandbCallback(TrackerCallback):
 
     def on_train_end(self, **kwargs: Any) -> None:
         """Load the best model."""
-        if self.save_model:
+        if self.save_model and self.model_path.is_file():
             # Adapted from fast.ai "SaveModelCallback"
-            if self.model_path.is_file():
-                with self.model_path.open("rb") as model_file:
-                    self.learn.load(model_file, purge=False)
-                    wandb.termlog(f"Loaded best saved model from {self.model_path}")
+            with self.model_path.open("rb") as model_file:
+                self.learn.load(model_file, purge=False)
+                wandb.termlog(f"Loaded best saved model from {self.model_path}")
 
     def _wandb_log_predictions(self) -> None:
         """Log prediction samples."""

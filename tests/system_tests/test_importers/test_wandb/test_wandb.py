@@ -103,7 +103,7 @@ def test_import_artifact_sequences(
 
             # Down to the individual manifest entries
             assert src_art.manifest.entries.keys() == dst_art.manifest.entries.keys()
-            for name in src_art.manifest.entries.keys():
+            for name in src_art.manifest.entries:
                 src_entry = src_art.manifest.entries[name]
                 dst_entry = dst_art.manifest.entries[name]
 

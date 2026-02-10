@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import asyncio
 import pprint
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import wandb
 import wandb.apis.public as public
@@ -21,10 +23,10 @@ from ._project_spec import LaunchProject
 def push_to_queue(
     api: Api,
     queue_name: str,
-    launch_spec: Dict[str, Any],
-    template_variables: Optional[dict],
+    launch_spec: dict[str, Any],
+    template_variables: dict | None,
     project_queue: str,
-    priority: Optional[int] = None,
+    priority: int | None = None,
 ) -> Any:
     return api.push_to_run_queue(
         queue_name, launch_spec, template_variables, project_queue, priority
@@ -32,27 +34,27 @@ def push_to_queue(
 
 
 def launch_add(
-    uri: Optional[str] = None,
-    job: Optional[str] = None,
-    config: Optional[Dict[str, Any]] = None,
-    template_variables: Optional[Dict[str, Union[float, int, str]]] = None,
-    project: Optional[str] = None,
-    entity: Optional[str] = None,
-    queue_name: Optional[str] = None,
-    resource: Optional[str] = None,
-    entry_point: Optional[List[str]] = None,
-    name: Optional[str] = None,
-    version: Optional[str] = None,
-    docker_image: Optional[str] = None,
-    project_queue: Optional[str] = None,
-    resource_args: Optional[Dict[str, Any]] = None,
-    run_id: Optional[str] = None,
-    build: Optional[bool] = False,
-    repository: Optional[str] = None,
-    sweep_id: Optional[str] = None,
-    author: Optional[str] = None,
-    priority: Optional[int] = None,
-) -> "public.QueuedRun":
+    uri: str | None = None,
+    job: str | None = None,
+    config: dict[str, Any] | None = None,
+    template_variables: dict[str, float | int | str] | None = None,
+    project: str | None = None,
+    entity: str | None = None,
+    queue_name: str | None = None,
+    resource: str | None = None,
+    entry_point: list[str] | None = None,
+    name: str | None = None,
+    version: str | None = None,
+    docker_image: str | None = None,
+    project_queue: str | None = None,
+    resource_args: dict[str, Any] | None = None,
+    run_id: str | None = None,
+    build: bool | None = False,
+    repository: str | None = None,
+    sweep_id: str | None = None,
+    author: str | None = None,
+    priority: int | None = None,
+) -> public.QueuedRun:
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
     Arguments:
@@ -133,26 +135,26 @@ def launch_add(
 
 def _launch_add(
     api: Api,
-    job: Optional[str],
-    config: Optional[Dict[str, Any]],
-    template_variables: Optional[dict],
-    project: Optional[str],
-    entity: Optional[str],
-    queue_name: Optional[str],
-    resource: Optional[str],
-    entry_point: Optional[List[str]],
-    name: Optional[str],
-    version: Optional[str],
-    docker_image: Optional[str],
-    project_queue: Optional[str],
-    resource_args: Optional[Dict[str, Any]] = None,
-    run_id: Optional[str] = None,
-    build: Optional[bool] = False,
-    repository: Optional[str] = None,
-    sweep_id: Optional[str] = None,
-    author: Optional[str] = None,
-    priority: Optional[int] = None,
-) -> "public.QueuedRun":
+    job: str | None,
+    config: dict[str, Any] | None,
+    template_variables: dict | None,
+    project: str | None,
+    entity: str | None,
+    queue_name: str | None,
+    resource: str | None,
+    entry_point: list[str] | None,
+    name: str | None,
+    version: str | None,
+    docker_image: str | None,
+    project_queue: str | None,
+    resource_args: dict[str, Any] | None = None,
+    run_id: str | None = None,
+    build: bool | None = False,
+    repository: str | None = None,
+    sweep_id: str | None = None,
+    author: str | None = None,
+    priority: int | None = None,
+) -> public.QueuedRun:
     launch_spec = construct_launch_spec(
         None,
         job,

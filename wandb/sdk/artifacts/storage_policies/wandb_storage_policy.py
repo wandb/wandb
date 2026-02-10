@@ -130,6 +130,8 @@ class WandbStoragePolicy(StoragePolicy):
                 closed when the artifact download completes. If this is `None`,
                 download the file serially.
         """
+        from requests import HTTPError
+
         if dest_path is not None:
             self._cache._override_cache_path = dest_path
 
@@ -172,7 +174,7 @@ class WandbStoragePolicy(StoragePolicy):
             # Serial download
             try:
                 response = self._session.get(url, stream=True)
-            except requests.HTTPError:
+            except HTTPError:
                 # Signed URL might have expired, fall back to fetching it one by one.
                 manifest_entry._download_url = None
 

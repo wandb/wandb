@@ -4,7 +4,6 @@ import colorsys
 import contextlib
 import dataclasses
 import enum
-import gzip
 import importlib
 import importlib.util
 import itertools
@@ -29,21 +28,14 @@ import threading
 import time
 import types
 import urllib
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
+from gzip import GzipFile
 from importlib import import_module
 from sys import getsizeof
 from types import ModuleType
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Callable,
-    Iterable,
-    Mapping,
-    Sequence,
-    TextIO,
-    Union,
-)
+from typing import IO, TYPE_CHECKING, Callable, TextIO, Union
 
 from typing_extensions import Any, Generator, TypeGuard, TypeVar, deprecated
 
@@ -412,9 +404,11 @@ def make_tarfile(
             tar.add(source_dir, arcname=archive_name, filter=_filter_timestamps)
         # When gzipping the tar, don't include the tar's filename or modification time in the
         # zipped archive (see https://docs.python.org/3/library/gzip.html#gzip.GzipFile)
-        with gzip.GzipFile(
-            filename="", fileobj=open(output_filename, "wb"), mode="wb", mtime=0
-        ) as gzipped_tar, open(unzipped_filename, "rb") as tar_file:
+        with (
+            open(output_filename, "wb") as out_file,
+            GzipFile(filename="", fileobj=out_file, mode="wb", mtime=0) as gzipped_tar,
+            open(unzipped_filename, "rb") as tar_file,
+        ):
             gzipped_tar.write(tar_file.read())
     finally:
         os.close(descriptor)
@@ -520,23 +514,19 @@ def ensure_matplotlib_figure(obj: Any) -> Any:
         if len(position) != 2:
             raise ValueError("position should be 2-tuple")
         position_type, amount = position  # type: ignore
-        if position_type == "outward" and amount == 0:
-            return True
-        else:
-            return False
+        return bool(position_type == "outward" and amount == 0)
 
     Spine.is_frame_like = is_frame_like
 
     if obj == matplotlib.pyplot:
         obj = obj.gcf()
-    elif not isinstance(obj, Figure):
-        if hasattr(obj, "figure"):
-            obj = obj.figure
-            # Some matplotlib objects have a figure function
-            if not isinstance(obj, Figure):
-                raise ValueError(
-                    "Only matplotlib.pyplot or matplotlib.pyplot.Figure objects are accepted."
-                )
+    elif (not isinstance(obj, Figure)) and hasattr(obj, "figure"):
+        obj = obj.figure
+        # Some matplotlib objects have a figure function
+        if not isinstance(obj, Figure):
+            raise ValueError(
+                "Only matplotlib.pyplot or matplotlib.pyplot.Figure objects are accepted."
+            )
     return obj
 
 
@@ -1027,9 +1017,12 @@ def check_retry_conflict(e: Any) -> bool | None:
 
     if hasattr(e, "exception"):
         e = e.exception
-    if isinstance(e, HTTPError) and e.response is not None:
-        if e.response.status_code == 409:
-            return True
+    if (
+        isinstance(e, HTTPError)
+        and e.response is not None
+        and e.response.status_code == 409
+    ):
+        return True
     return None
 
 

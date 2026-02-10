@@ -4,11 +4,12 @@ import filecmp
 import os
 import shutil
 import unittest.mock
+from collections.abc import Iterator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Callable, Iterator, Mapping
+from typing import Callable
 from urllib.parse import quote
 
 import numpy as np

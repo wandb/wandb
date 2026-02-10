@@ -4,7 +4,7 @@ import os
 import pathlib
 import subprocess
 import time
-from typing import Sequence
+from collections.abc import Sequence
 
 import click
 import pytest

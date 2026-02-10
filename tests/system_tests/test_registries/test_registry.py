@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Callable, Iterator
+from collections.abc import Iterator
+from typing import Callable
 from unittest.mock import patch
 
 import wandb

@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import functools
 import queue
 import shutil
 import unittest.mock as mock
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from string import ascii_letters, digits
-from typing import TYPE_CHECKING, Any, Mapping, Optional
+from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
 import pytest
@@ -41,8 +44,8 @@ if TYPE_CHECKING:
             artifact_manifest_id: str,
             entry_path: str,
             entry_digest: str,
-            entry_local_path: Optional[Path] = None,
-            preparer: Optional[StepPrepare] = None,
+            entry_local_path: Path | None = None,
+            preparer: StepPrepare | None = None,
         ) -> bool:
             pass
 
@@ -70,7 +73,7 @@ def dummy_response_prepare(spec):
     )
 
 
-def mock_prepare(spec: "CreateArtifactFileSpecInput") -> ResponsePrepare:
+def mock_prepare(spec: CreateArtifactFileSpecInput) -> ResponsePrepare:
     return singleton_queue(dummy_response_prepare(spec))
 
 
@@ -95,8 +98,8 @@ class TestStoreFile:
         artifact_manifest_id: str = "my-artifact-manifest-id",
         entry_path: str = "my-path",
         entry_digest: str = "my-digest",
-        entry_local_path: Optional[Path] = None,
-        preparer: Optional[StepPrepare] = None,
+        entry_local_path: Path | None = None,
+        preparer: StepPrepare | None = None,
     ) -> Mapping[str, Any]:
         if preparer is None:
             preparer = mock_preparer()
@@ -121,7 +124,7 @@ class TestStoreFile:
         return request.param
 
     @pytest.fixture
-    def store_file(self) -> "StoreFileFixture":
+    def store_file(self) -> StoreFileFixture:
         """Fixture to run prepare and return the result.
 
         Example usage:
@@ -145,12 +148,12 @@ class TestStoreFile:
             complete_multipart_upload_artifact=complete_multipart_upload_artifact,
         )
 
-    def test_smoke(self, store_file: "StoreFileFixture", api, example_file: Path):
+    def test_smoke(self, store_file: StoreFileFixture, api, example_file: Path):
         store_file(WandbStoragePolicy(api=api), entry_local_path=example_file)
         api.upload_file_retry.assert_called_once()
 
     def test_uploads_to_prepared_url(
-        self, store_file: "StoreFileFixture", api, example_file: Path
+        self, store_file: StoreFileFixture, api, example_file: Path
     ):
         preparer = mock_preparer(
             prepare=lambda spec: singleton_queue(
@@ -167,7 +170,7 @@ class TestStoreFile:
         assert api.upload_file_retry.call_args[0][0] == "https://wandb-test/dst"
 
     def test_passes_prepared_headers_to_upload(
-        self, store_file: "StoreFileFixture", api, example_file: Path
+        self, store_file: StoreFileFixture, api, example_file: Path
     ):
         preparer = mock_preparer(
             prepare=lambda spec: singleton_queue(
@@ -194,10 +197,10 @@ class TestStoreFile:
     )
     def test_skips_upload_if_no_prepared_url(
         self,
-        store_file: "StoreFileFixture",
+        store_file: StoreFileFixture,
         api,
         example_file: Path,
-        upload_url: Optional[str],
+        upload_url: str | None,
         expect_upload: bool,
         expect_deduped: bool,
     ):
@@ -225,7 +228,7 @@ class TestStoreFile:
     )
     def test_skips_upload_if_no_local_path(
         self,
-        store_file: "StoreFileFixture",
+        store_file: StoreFileFixture,
         api,
         example_file: Path,
         has_local_path: bool,
@@ -247,11 +250,11 @@ class TestStoreFile:
     @pytest.mark.parametrize("err", [None, Exception("some error")])
     def test_caches_result_on_success(
         self,
-        store_file: "StoreFileFixture",
+        store_file: StoreFileFixture,
         api,
         example_file: Path,
         artifact_file_cache: ArtifactFileCache,
-        err: Optional[Exception],
+        err: Exception | None,
     ):
         size = example_file.stat().st_size
 
@@ -314,8 +317,8 @@ class TestStoreFile:
         mock_s3_multipart_file_upload,
         api,
         example_file: Path,
-        upload_url: Optional[str],
-        multipart_upload_urls: Optional[dict],
+        upload_url: str | None,
+        multipart_upload_urls: dict | None,
         expect_multipart_upload: bool,
         expect_single_upload: bool,
         expect_deduped: bool,

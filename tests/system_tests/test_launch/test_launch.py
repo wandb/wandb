@@ -74,8 +74,9 @@ async def test_launch_incorrect_backend(runner, user, monkeypatch):
 
 
 def test_launch_multi_run(runner, user):
-    with runner.isolated_filesystem(), mock.patch.dict(
-        "os.environ", {"WANDB_RUN_ID": "test", "WANDB_LAUNCH": "true"}
+    with (
+        runner.isolated_filesystem(),
+        mock.patch.dict("os.environ", {"WANDB_RUN_ID": "test", "WANDB_LAUNCH": "true"}),
     ):
         with wandb.init() as run1:
             pass
@@ -103,13 +104,16 @@ def test_launch_wandb_init_launch_envs(
     user,
 ):
     queue = "test-queue-name"
-    with runner.isolated_filesystem(), mock.patch.dict(
-        "os.environ",
-        {
-            "WANDB_LAUNCH_QUEUE_NAME": queue,
-            "WANDB_LAUNCH_QUEUE_ENTITY": user,
-            "WANDB_LAUNCH_TRACE_ID": "test123",
-        },
+    with (
+        runner.isolated_filesystem(),
+        mock.patch.dict(
+            "os.environ",
+            {
+                "WANDB_LAUNCH_QUEUE_NAME": queue,
+                "WANDB_LAUNCH_QUEUE_ENTITY": user,
+                "WANDB_LAUNCH_TRACE_ID": "test123",
+            },
+        ),
     ):
         with wandb.init() as run:
             run.log({"test": 1})

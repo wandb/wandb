@@ -3,10 +3,9 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import Field
-from typing_extensions import Literal
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
@@ -81,7 +80,7 @@ class ProjectFragment(GQLResult):
     entity_name: str = Field(alias="entityName")
     created_at: str = Field(alias="createdAt")
     is_benchmark: bool = Field(alias="isBenchmark")
-    user: UserFragment
+    user: Optional[UserFragment]
 
 
 class SweepFragment(GQLResult):
@@ -115,9 +114,11 @@ PageInfoFragment.model_rebuild()
 UserFragment.model_rebuild()
 UserFragmentApiKeys.model_rebuild()
 UserFragmentApiKeysEdges.model_rebuild()
+ApiKeyFragment.model_rebuild()
 UserFragmentTeams.model_rebuild()
 UserFragmentTeamsEdges.model_rebuild()
 UserFragmentTeamsEdgesNode.model_rebuild()
 ProjectFragment.model_rebuild()
+UserFragment.model_rebuild()
 SweepFragment.model_rebuild()
 UserInfoFragment.model_rebuild()

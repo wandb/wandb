@@ -1,7 +1,7 @@
 import contextlib
 import logging
 import pathlib
-from typing import Iterator
+from collections.abc import Iterator
 
 from wandb.sdk.lib import wb_logging
 

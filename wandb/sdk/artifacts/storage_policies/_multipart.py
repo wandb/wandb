@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 import math
 import threading
+from collections.abc import Iterator
 from concurrent.futures import FIRST_EXCEPTION, Executor, wait
 from dataclasses import dataclass, field
 from queue import Queue
-from typing import IO, TYPE_CHECKING, Any, Callable, Final, Iterator, Union
+from typing import IO, TYPE_CHECKING, Any, Callable, Final, Union
 
 import requests
 from typing_extensions import TypeAlias, TypeIs, final

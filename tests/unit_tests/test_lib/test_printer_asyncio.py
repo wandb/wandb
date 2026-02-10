@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import threading
-from typing import Iterator
+from collections.abc import Iterator
 from unittest.mock import Mock
 
 import pytest

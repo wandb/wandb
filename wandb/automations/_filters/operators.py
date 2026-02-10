@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import TYPE_CHECKING, Any, Iterable, Tuple, TypeVar, Union
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any, Tuple, TypeVar, Union
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from typing_extensions import Self, TypeAlias, get_args, override

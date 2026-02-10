@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing_extensions import Self
 
 from wandb.docker import is_docker_installed
 from wandb.sdk.launch.utils import docker_image_exists
@@ -11,7 +11,7 @@ class AnonynmousRegistry(AbstractRegistry):
         """Initialize the registry."""
         self.uri = uri
 
-    async def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> tuple[str, str]:
         """Get the username and password for the registry."""
         raise NotImplementedError("Anonymous registry does not require authentication")
 
@@ -25,5 +25,5 @@ class AnonynmousRegistry(AbstractRegistry):
         return docker_image_exists(image_uri)
 
     @classmethod
-    def from_config(cls, config: dict) -> "AbstractRegistry":
+    def from_config(cls, config: dict) -> Self:
         return cls(uri=config["uri"])

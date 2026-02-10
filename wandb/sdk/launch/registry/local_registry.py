@@ -1,7 +1,8 @@
 """Local registry implementation."""
 
 import logging
-from typing import Tuple
+
+from typing_extensions import Self
 
 from wandb.docker import is_docker_installed
 from wandb.sdk.launch.errors import LaunchError
@@ -25,7 +26,7 @@ class LocalRegistry(AbstractRegistry):
     def from_config(
         cls,
         config: dict,
-    ) -> "LocalRegistry":
+    ) -> Self:
         """Create a local registry from a config.
 
         Arguments:
@@ -40,7 +41,7 @@ class LocalRegistry(AbstractRegistry):
     async def verify(self) -> None:
         """Verify the local registry by doing nothing."""
 
-    async def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> tuple[str, str]:
         """Get the username and password of the local registry."""
         raise LaunchError("Attempted to get username and password for LocalRegistry.")
 

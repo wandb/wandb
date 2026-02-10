@@ -747,7 +747,7 @@ def test_table_slice_reference_artifact(
             assert len(d1[ndx]) == len(d2[ndx])
             for i in range(len(d1[ndx])):
                 eq = d1[ndx][i] == d2[ndx][i]
-                if isinstance(eq, list) or isinstance(eq, np.ndarray):
+                if isinstance(eq, (list, np.ndarray)):
                     assert np.all(eq)
                 else:
                     assert eq

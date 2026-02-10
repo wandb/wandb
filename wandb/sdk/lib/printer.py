@@ -7,7 +7,8 @@ import contextlib
 import itertools
 import platform
 import sys
-from typing import Callable, Iterator
+from collections.abc import Iterator
+from typing import Callable
 
 import click
 from typing_extensions import override

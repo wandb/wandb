@@ -12,8 +12,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+from collections.abc import MutableMapping
 from pathlib import Path
-from typing import MutableMapping
 
 import platformdirs
 
@@ -483,7 +483,7 @@ def disable_git(env: MutableMapping | None = None) -> bool:
         env = os.environ
     val = env.get(DISABLE_GIT, default="False")
     if isinstance(val, str):
-        val = False if val.lower() == "false" else True
+        val = val.lower() != "false"
     return val
 
 

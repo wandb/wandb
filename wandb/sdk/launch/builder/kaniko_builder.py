@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import base64
 import copy
@@ -9,7 +11,7 @@ import tarfile
 import tempfile
 import time
 import traceback
-from typing import Any, Dict, Optional
+from typing import Any
 
 import wandb
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
@@ -71,7 +73,7 @@ def get_pod_name_safe(job: client.V1Job):
 
 
 async def _wait_for_completion(
-    batch_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
+    batch_client: client.BatchV1Api, job_name: str, deadline_secs: int | None = None
 ) -> bool:
     start_time = time.time()
     while True:
@@ -95,8 +97,8 @@ class KanikoBuilder(AbstractBuilder):
 
     build_job_name: str
     build_context_store: str
-    secret_name: Optional[str]
-    secret_key: Optional[str]
+    secret_name: str | None
+    secret_key: str | None
     image: str
 
     def __init__(
@@ -108,7 +110,7 @@ class KanikoBuilder(AbstractBuilder):
         secret_name: str = "",
         secret_key: str = "",
         image: str = "gcr.io/kaniko-project/executor:v1.11.0",
-        config: Optional[dict] = None,
+        config: dict | None = None,
     ):
         """Initialize a KanikoBuilder.
 
@@ -139,7 +141,7 @@ class KanikoBuilder(AbstractBuilder):
         registry: AbstractRegistry,
         verify: bool = True,
         login: bool = True,
-    ) -> "AbstractBuilder":
+    ) -> AbstractBuilder:
         """Create a KanikoBuilder from a config dict.
 
         Arguments:
@@ -157,15 +159,14 @@ class KanikoBuilder(AbstractBuilder):
                 "Builder config must include 'type':'kaniko' to create a KanikoBuilder."
             )
         build_context_store = config.get("build-context-store", "")
-        if build_context_store is None:
-            if not PVC_MOUNT_PATH:
-                raise LaunchError(
-                    "You must specify a build context store for kaniko builds. "
-                    "You can set builder.build-context-store in your agent config "
-                    "to a valid s3, gcs, or azure blog storage URI. Or, configure "
-                    "a persistent volume claim through the agent helm chart: "
-                    "https://github.com/wandb/helm-charts/tree/main/charts/launch-agent"
-                )
+        if build_context_store is None and not PVC_MOUNT_PATH:
+            raise LaunchError(
+                "You must specify a build context store for kaniko builds. "
+                "You can set builder.build-context-store in your agent config "
+                "to a valid s3, gcs, or azure blog storage URI. Or, configure "
+                "a persistent volume claim through the agent helm chart: "
+                "https://github.com/wandb/helm-charts/tree/main/charts/launch-agent"
+            )
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
         secret_name = config.get("secret-name", "")
         secret_key = config.get("secret-key", "")
@@ -259,7 +260,7 @@ class KanikoBuilder(AbstractBuilder):
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
+        job_tracker: JobAndRunStatusTracker | None = None,
     ) -> str:
         await self.verify()
 
@@ -388,7 +389,7 @@ class KanikoBuilder(AbstractBuilder):
         build_context_path: str,
         core_client: client.CoreV1Api,
         api_client,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         job = copy.deepcopy(self.kaniko_config)
         job_metadata = job.get("metadata", {})
         job_labels = job_metadata.get("labels", {})

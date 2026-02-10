@@ -35,22 +35,15 @@ Note:
     file are up to date before running this script.
 """
 
+from __future__ import annotations
+
 import ast
 import re
 import subprocess
-import sys
 from pathlib import Path
-from typing import Dict, Optional
-
-if sys.version_info >= (3, 9):
-    unparse = ast.unparse
-else:
-    import astunparse
-
-    unparse = astunparse.unparse
 
 
-def extract_docstring(file_path: Path, location: str) -> Optional[str]:
+def extract_docstring(file_path: Path, location: str) -> str | None:
     """Extract the docstring for a given function or method from a source file.
 
     Args:
@@ -82,7 +75,7 @@ def extract_docstring(file_path: Path, location: str) -> Optional[str]:
     return None
 
 
-def extract_functions_from_template(template_content: str) -> Dict[str, str]:
+def extract_functions_from_template(template_content: str) -> dict[str, str]:
     """Extracts function names and their source information from the template.
 
     Args:
@@ -227,8 +220,8 @@ def verify_signatures(wandb_root: Path, generated_stub: str, template: str) -> i
                 source_args.defaults,
             )
 
-        source_sig = unparse(source_args)
-        output_sig = unparse(output_func.args)
+        source_sig = ast.unparse(source_args)
+        output_sig = ast.unparse(output_func.args)
 
         if source_sig != output_sig:
             print(f"Signature mismatch for '{func_name}':")

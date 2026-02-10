@@ -13,8 +13,9 @@ def test_run_use_job_env_var(runner, wandb_backend_spy, user):
     art_name = "job-my-test-image"
     artifact_name = f"{user}/uncategorized/{art_name}"
     artifact_env = json.dumps({"_wandb_job": f"{artifact_name}:latest"})
-    with runner.isolated_filesystem(), mock.patch.dict(
-        "os.environ", WANDB_ARTIFACTS=artifact_env
+    with (
+        runner.isolated_filesystem(),
+        mock.patch.dict("os.environ", WANDB_ARTIFACTS=artifact_env),
     ):
         artifact = InternalArtifact(name=art_name, type=job_builder.JOB_ARTIFACT_TYPE)
         filename = "file1.txt"
@@ -48,7 +49,7 @@ def test_run_in_launch_context_with_multi_config_env_var(runner, monkeypatch, us
     with runner.isolated_filesystem():
         config_env_vars = {}
         _inject_wandb_config_env_vars({"epochs": 10}, config_env_vars, 5)
-        for k in config_env_vars.keys():
+        for k in config_env_vars:
             monkeypatch.setenv(k, config_env_vars[k])
         settings = wandb.Settings(launch=True)
         run = wandb.init(settings=settings, config={"epochs": 2, "lr": 0.004})

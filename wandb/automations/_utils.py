@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Collection, Final, Optional, Protocol, TypedDict
+from collections.abc import Collection
+from typing import Annotated, Any, Final, Optional, Protocol, TypedDict
 
 from pydantic import Field
-from typing_extensions import Annotated, Self, Unpack
+from typing_extensions import Self, Unpack
 
 from wandb._pydantic import GQLId, GQLInput, computed_field, model_validator, to_json
 

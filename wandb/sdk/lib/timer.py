@@ -1,6 +1,8 @@
 import time
 from typing import Any
 
+from typing_extensions import Self
+
 
 class Timer:
     def __init__(self) -> None:
@@ -8,7 +10,7 @@ class Timer:
         self.start: float = time.perf_counter()
         self.stop: float = self.start
 
-    def __enter__(self) -> "Timer":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *args: Any) -> None:

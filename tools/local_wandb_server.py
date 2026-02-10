@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Iterator
+from collections.abc import Iterator
 
 import click
 import filelock

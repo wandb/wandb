@@ -8,10 +8,12 @@ and manual backports of later patches up to 1.15.0 in the wrapt repository
 (with slight modifications).
 """
 
+from __future__ import annotations
+
 import sys
 import threading
 from importlib.util import find_spec
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable
 
 # The dictionary registering any post import hooks to be triggered once
 # the target module has been imported. Once a module has been imported
@@ -19,7 +21,7 @@ from typing import Any, Callable, Dict, Optional, Union
 # module will be truncated but the list left in the dictionary. This
 # acts as a flag to indicate that the module had already been imported.
 
-_post_import_hooks: Dict = {}
+_post_import_hooks: dict = {}
 _post_import_hooks_init: bool = False
 _post_import_hooks_lock = threading.RLock()
 
@@ -44,9 +46,7 @@ def _create_import_hook_from_string(name: str) -> Callable:
     return import_hook
 
 
-def register_post_import_hook(
-    hook: Union[str, Callable], hook_id: str, name: str
-) -> None:
+def register_post_import_hook(hook: str | Callable, hook_id: str, name: str) -> None:
     # Create a deferred import hook if hook is a string name rather than
     # a callable function.
 
@@ -80,7 +80,7 @@ def register_post_import_hook(
         hook(module)
 
 
-def unregister_post_import_hook(name: str, hook_id: Optional[str]) -> None:
+def unregister_post_import_hook(name: str, hook_id: str | None) -> None:
     # Remove the import hook if it has been registered.
     with _post_import_hooks_lock:
         hooks = _post_import_hooks.get(name)
@@ -185,13 +185,13 @@ class _ImportHookChainedLoader:
 
 class ImportHookFinder:
     def __init__(self) -> None:
-        self.in_progress: Dict = {}
+        self.in_progress: dict = {}
 
     def find_module(  # type: ignore
         self,
         fullname: str,
-        path: Optional[str] = None,
-    ) -> Optional["_ImportHookChainedLoader"]:
+        path: str | None = None,
+    ) -> _ImportHookChainedLoader | None:
         # If the module being imported is not one we have registered
         # post import hooks for, we can return immediately. We will
         # take no further part in the importing of this module.
@@ -231,7 +231,7 @@ class ImportHookFinder:
             del self.in_progress[fullname]
 
     def find_spec(
-        self, fullname: str, path: Optional[str] = None, target: Any = None
+        self, fullname: str, path: str | None = None, target: Any = None
     ) -> Any:
         # Since Python 3.4, you are meant to implement find_spec() method
         # instead of find_module() and since Python 3.10 you get deprecation

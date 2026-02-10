@@ -1,6 +1,7 @@
 # Unreleased changes
 
-Add here any changes made in a PR that are relevant to end users. Allowed sections:
+Add here any changes made in a PR that are relevant to end users. Allowed
+sections:
 
 - Added - for new features.
 - Changed - for changes in existing functionality.
@@ -13,10 +14,18 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Notable Changes
+
+This version drops support for Python 3.8.
+
 ### Added
 
 - `owner` property on `wandb.apis.public.Project` to access the project owner's user information. (@jacobromero in https://github.com/wandb/wandb/pull/11278)
 - `ArtifactType.collections()` now supports filtering and ordering of collections. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11268)
+
+### Changed
+
+- Python 3.8 is no longer supported (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11198, https://github.com/wandb/wandb/pull/11290, https://github.com/wandb/wandb/pull/11164)
 
 ### Fixed
 

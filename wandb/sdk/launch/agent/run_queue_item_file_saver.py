@@ -1,7 +1,9 @@
 """Implementation of the run queue item file saver class."""
 
+from __future__ import annotations
+
 import os
-from typing import List, Literal, Optional
+from typing import Literal
 
 import wandb
 
@@ -11,7 +13,7 @@ FileSubtypes = Literal["warning", "error"]
 class RunQueueItemFileSaver:
     def __init__(
         self,
-        agent_run: Optional["wandb.Run"],
+        agent_run: wandb.Run | None,
         run_queue_item_id: str,
     ):
         self.run_queue_item_id = run_queue_item_id
@@ -19,7 +21,7 @@ class RunQueueItemFileSaver:
 
     def save_contents(
         self, contents: str, fname: str, file_sub_type: FileSubtypes
-    ) -> Optional[List[str]]:
+    ) -> list[str] | None:
         if not isinstance(self.run, wandb.Run):
             wandb.termwarn("Not saving file contents because agent has no run")
             return None

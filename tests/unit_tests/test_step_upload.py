@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 import concurrent.futures
 import queue
 import random
 import threading
 import time
+from collections.abc import Iterable, MutableSequence
 from pathlib import Path
-from typing import Any, Callable, Iterable, MutableSequence, Optional
+from typing import Any, Callable
 from unittest.mock import DEFAULT, Mock
 
 import pytest
@@ -49,7 +52,7 @@ def make_tmp_file(tmp_path: Path) -> Path:
 
 def make_step_upload(
     **kwargs: Any,
-) -> "StepUpload":
+) -> StepUpload:
     return StepUpload(
         **{
             "api": make_api(),
@@ -125,7 +128,7 @@ class UploadBlockingMockApi(Mock):
         self.mock_upload_file_waiters: MutableSequence[Callable[[], None]] = []
         self.mock_upload_started = threading.Condition()
 
-    def wait_for_upload(self, timeout: float) -> Optional[Callable[[], None]]:
+    def wait_for_upload(self, timeout: float) -> Callable[[], None] | None:
         with self.mock_upload_started:
             if not self.mock_upload_started.wait_for(
                 lambda: len(self.mock_upload_file_waiters) > 0,
@@ -401,7 +404,7 @@ class TestUpload:
         def test_updates_on_failure(
             self,
             tmp_path: Path,
-            save_fn: Optional[Callable[[int, int], None]],
+            save_fn: Callable[[int, int], None] | None,
         ):
             f = make_tmp_file(tmp_path)
 

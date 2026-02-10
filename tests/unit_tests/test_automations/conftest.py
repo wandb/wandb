@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from functools import lru_cache
+from functools import cache
 from typing import Union
 from unittest.mock import Mock
 
@@ -153,7 +153,7 @@ def valid_input_actions() -> list[ActionType]:
 
 
 # Invalid (event, scope) combinations that should be skipped
-@lru_cache(maxsize=None)
+@cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),

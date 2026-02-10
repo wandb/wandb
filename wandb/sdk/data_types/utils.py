@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import datetime
 import logging
 import os
+from collections.abc import Sequence
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
+from typing import TYPE_CHECKING, Union, cast
 
 import wandb
 from wandb import util
@@ -32,10 +35,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def history_dict_to_json(
-    run: Optional["LocalRun"],
+    run: LocalRun | None,
     payload: dict,
-    step: Optional[int] = None,
-    ignore_copy_err: Optional[bool] = None,
+    step: int | None = None,
+    ignore_copy_err: bool | None = None,
 ) -> dict:
     # Converts a History row dict's elements so they're friendly for JSON serialization.
 
@@ -60,12 +63,12 @@ def history_dict_to_json(
 
 # TODO: refine this
 def val_to_json(
-    run: Optional["LocalRun"],
+    run: LocalRun | None,
     key: str,
-    val: "ValToJsonType",
-    namespace: Optional[Union[str, int]] = None,
-    ignore_copy_err: Optional[bool] = None,
-) -> Union[Sequence, dict]:
+    val: ValToJsonType,
+    namespace: str | int | None = None,
+    ignore_copy_err: bool | None = None,
+) -> Sequence | dict:
     # Converts a wandb datatype to its JSON representation.
     if namespace is None:
         raise ValueError(
@@ -168,7 +171,7 @@ def val_to_json(
     return converted  # type: ignore
 
 
-def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
+def _log_table_artifact(val: Media, key: str, run: LocalRun) -> None:
     """Log a table to the run based on the table type and logging mode.
 
     Creates and logs a `run_table` type for Table, PartitionedTable, and
@@ -202,7 +205,7 @@ def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
     run.log_artifact(art)
 
 
-def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
+def _prune_max_seq(seq: Sequence[BatchableMedia]) -> Sequence[BatchableMedia]:
     # If media type has a max respect it
     items = seq
     if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):

@@ -1,5 +1,4 @@
 import random
-from typing import List
 
 import pytest
 from wandb.docker import DockerError
@@ -119,20 +118,20 @@ def test_recursive_macro_sub():
     assert result == desired
 
 
-REQUIREMENT_FILE_BASIC: List[str] = [
+REQUIREMENT_FILE_BASIC: list[str] = [
     "package-one==1.0.0",
     "# This is a comment in requirements.txt",
     "package-two",
     "package-three>1.0.0",
 ]
 
-REQUIREMENT_FILE_BASIC_2: List[str] = [
+REQUIREMENT_FILE_BASIC_2: list[str] = [
     "package-one==2.0.0",
     "package-two>=1.0.0",
     "package-three==0.0.9",
 ]
 
-REQUIREMENT_FILE_GIT: List[str] = [
+REQUIREMENT_FILE_GIT: list[str] = [
     "package-one==1.9.4",
     "git+https://github.com/path/to/package-two@41b95ec#egg=package-two",
 ]
