@@ -20,7 +20,7 @@ ENV WANDB_BUILD_SKIP_GPU_STATS=true
 ARG REF="main"
 RUN pip3 install --upgrade pip \
     && pip3 uninstall -y setuptools \
-    && pip3 install --no-cache-dir "git+https://github.com/wandb/wandb.git@$REF#egg=wandb[launch]"
+    && pip3 install --no-cache-dir "wandb[launch] @ git+https://github.com/wandb/wandb.git@$REF"
 
 # Set up user
 RUN adduser -D -s /bin/sh -u 1000 -G root launch_agent
