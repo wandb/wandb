@@ -295,7 +295,9 @@ class _WandbInit:
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
         if not settings._offline and not settings._noop:
-            user_settings = self._wl._load_user_settings()
+            user_settings = self._wl._load_user_settings(
+                entity=settings.entity,
+            )
             if user_settings is not None:
                 settings.update_from_dict(user_settings)
 

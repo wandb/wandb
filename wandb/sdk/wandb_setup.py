@@ -328,15 +328,35 @@ class _WandbSetup:
 
         return self._server.viewer
 
-    def _load_user_settings(self) -> dict[str, Any] | None:
-        # offline?
+    def _load_user_settings(self, entity: str | None = None) -> dict[str, Any] | None:
+        """Load user/org settings from the server.
+
+        Args:
+            entity: When provided, query the code-saving policy for this
+                specific entity rather than relying on the Viewer flags
+                (which are scoped to the user's *default* entity).
+        """
         if self._server is None:
             return None
 
-        flags = self._server._flags
-        user_settings = dict()
-        if "code_saving_enabled" in flags:
-            user_settings["save_code"] = flags["code_saving_enabled"]
+        user_settings: dict[str, Any] = {}
+
+        # Determine code-saving policy.  Prefer entity-scoped lookup when
+        # an entity is known; fall back to the Viewer flags otherwise.
+        code_saving: bool | None = None
+        if entity:
+            try:
+                code_saving = self._server._api.entity_code_saving_enabled(
+                    entity,
+                )
+            except Exception:
+                code_saving = None
+
+        if code_saving is None:
+            code_saving = self._server._flags.get("code_saving_enabled")
+
+        if code_saving is not None:
+            user_settings["save_code"] = code_saving
 
         email = self.viewer.get("email", None)
         if email:

@@ -178,6 +178,9 @@ class Api:
     def entity_is_team(self, *args, **kwargs):
         return self.api.entity_is_team(*args, **kwargs)
 
+    def entity_code_saving_enabled(self, *args, **kwargs):
+        return self.api.entity_code_saving_enabled(*args, **kwargs)
+
     def get_project_run_queues(self, *args, **kwargs):
         return self.api.get_project_run_queues(*args, **kwargs)
 
