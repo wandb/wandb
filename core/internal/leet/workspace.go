@@ -420,7 +420,7 @@ func (w *Workspace) renderRunsList() string {
 	lines := w.renderRunLines(contentWidth)
 
 	if len(lines) == 0 {
-		lines = []string{"(no runs found)"}
+		lines = []string{"No runs found."}
 	}
 
 	contentLines := make([]string, 0, 1+len(lines))
