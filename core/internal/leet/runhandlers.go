@@ -245,14 +245,6 @@ func (r *Run) handleQuit(msg tea.KeyMsg) tea.Cmd {
 	return tea.Quit
 }
 
-func (r *Run) handleRestart(msg tea.KeyMsg) tea.Cmd {
-	r.logger.Debug("model: restart requested")
-	r.shouldRestart = true
-
-	r.cleanup()
-	return tea.Quit
-}
-
 // beginAnimating tries to acquire the one-shot animation token.
 //
 // Returns true if the caller owns the token and may initiate an animation.

@@ -31,6 +31,9 @@ type Model struct {
 
 	help *HelpModel
 
+	// Restart flag.
+	shouldRestart bool
+
 	config *ConfigManager
 	logger *observability.CoreLogger
 }
@@ -101,6 +104,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	if handled, cmd := m.handleRestart(msg); handled {
+		return m, cmd
+	}
+
 	// Snapshot input state before sub-models see this key.
 	awaitingUserInput := m.isAwaitingUserInput()
 
@@ -163,8 +170,7 @@ func (m *Model) View() string {
 }
 
 func (m *Model) ShouldRestart() bool {
-	// TODO: wire this up.
-	return false
+	return m.shouldRestart
 }
 
 func (m *Model) isAwaitingUserInput() bool {
@@ -220,6 +226,19 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 			updated, cmd := m.help.Update(msg)
 			m.help = updated
 			return true, cmd
+		}
+	}
+	return false, nil
+}
+
+func (m *Model) handleRestart(msg tea.Msg) (bool, tea.Cmd) {
+	// Toggle on 'h' / '?'
+	if km, ok := msg.(tea.KeyMsg); ok {
+		if km.String() == "alt+r" {
+			m.logger.Debug("model: restart requested")
+			m.shouldRestart = true
+
+			return true, tea.Quit
 		}
 	}
 	return false, nil

@@ -38,8 +38,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"alt+r"},
-					Description: "Reload run data",
-					Handler:     (*Run).handleRestart,
+					Description: "Restart LEET",
 				},
 				{
 					Keys:        []string{"esc"},
@@ -180,6 +179,10 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"q", "ctrl+c"},
 					Description: "Quit",
 					Handler:     (*Workspace).handleQuit,
+				},
+				{
+					Keys:        []string{"alt+r"},
+					Description: "Restart LEET",
 				},
 				{
 					Keys:        []string{"enter"},

@@ -70,9 +70,6 @@ type Run struct {
 	recordsLoaded int
 	loadStartTime time.Time
 
-	// Restart flag.
-	shouldRestart bool
-
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
 
@@ -307,11 +304,6 @@ func (r *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth i
 	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
-}
-
-// ShouldRestart reports whether the user requested a full restart.
-func (r *Run) ShouldRestart() bool {
-	return r.shouldRestart
 }
 
 // logPanic logs panics to the logger before re-panicking.
