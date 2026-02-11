@@ -32,10 +32,11 @@ func initTerminalBg() {
 		if rgb, ok := bg.(termenv.RGBColor); ok {
 			var r, g, b uint8
 			_, err := fmt.Sscanf(string(rgb), "#%02x%02x%02x", &r, &g, &b)
-			if err == nil {
-				termBgR, termBgG, termBgB = r, g, b
-				termBgDetected = true
+			if err != nil {
+				return
 			}
+			termBgR, termBgG, termBgB = r, g, b
+			termBgDetected = true
 		}
 	})
 }
