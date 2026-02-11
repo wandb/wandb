@@ -331,15 +331,12 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	// Keep the viewport simple and stable for assertions.
 	require.NoError(t, cfg.SetStartupMode(leet.StartupModeWorkspaceLatest))
 	require.NoError(t, cfg.SetMetricsRows(1))
 	require.NoError(t, cfg.SetMetricsCols(1))
 
 	wandbDir := t.TempDir()
 
-	// Names intentionally follow the expected wandb run dir format so sorting is deterministic.
-	// parseRunDirTimestamp sorts descending, so *_010102 is considered newer than *_010101.
 	newestRunKey := "run-20260209_010102-newest"
 	olderRunKey := "run-20260209_010101-older"
 
@@ -357,7 +354,7 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 		[]string{
 			"Runs: 1/2 selected",
 			"Pinned: " + newestRunKey,
-			"▶ " + newestRunKey,
+			leet.PinnedRunMark + " " + newestRunKey,
 			"loss",
 		},
 		nil,
@@ -374,8 +371,8 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 		[]string{
 			"Runs: 2/2 selected",
 			"Pinned: " + newestRunKey,
-			"▶ " + newestRunKey,
-			"● " + olderRunKey,
+			leet.PinnedRunMark + " " + newestRunKey,
+			leet.SelectedRunMark + " " + olderRunKey,
 			"loss",
 		},
 		nil,
@@ -391,8 +388,8 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 		[]string{
 			"Runs: 2/2 selected",
 			"Pinned: " + olderRunKey,
-			"▶ " + olderRunKey,
-			"● " + newestRunKey,
+			leet.PinnedRunMark + " " + olderRunKey,
+			leet.SelectedRunMark + " " + newestRunKey,
 			"loss",
 		},
 		nil,
@@ -408,8 +405,8 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 		[]string{
 			"Runs: 1/2 selected",
 			"Pinned: " + olderRunKey,
-			"▶ " + olderRunKey,
-			"○ " + newestRunKey,
+			leet.PinnedRunMark + " " + olderRunKey,
+			leet.RunMark + " " + newestRunKey,
 			"loss",
 		},
 		nil,

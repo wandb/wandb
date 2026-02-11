@@ -14,6 +14,12 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+const (
+	RunMark         = "○"
+	SelectedRunMark = "●"
+	PinnedRunMark   = "▶" // ✪ ◎ ▲ ▶ ◉ ▬ ◆ ▣ ■ → ○ ●
+)
+
 // Workspace is the multi‑run view.
 //
 // Implements tea.Model.
@@ -666,12 +672,12 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 		isSelected := w.selectedRuns[runKey]
 		isPinned := w.pinnedRun == runKey
 
-		mark := "○"
+		mark := RunMark
 		if isSelected {
-			mark = "●"
+			mark = SelectedRunMark
 		}
 		if isPinned {
-			mark = "▶" // ✪ ◎ ▲ ▶ ◉ ▬ ◆ ▣ ■ → ○ ●
+			mark = PinnedRunMark
 		}
 
 		// Render prefix without background
