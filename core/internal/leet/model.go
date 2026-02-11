@@ -12,39 +12,85 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+// viewMode represents which top-level view is active.
 type viewMode int
 
 const (
 	viewModeUndefined viewMode = iota
+
+	// viewModeWorkspace displays the multi-run workspace with a run
+	// selector, run overview sidebar, and an overlay metrics grid showing
+	// data from all selected runs.
 	viewModeWorkspace
+
+	// viewModeRun displays a single run's metrics, overview sidebar,
+	// system metrics sidebar, and detailed chart interactions.
 	viewModeRun
 )
 
+// latestRunLinkName is the conventional symlink name that wandb creates to
+// point at the most recently started run directory.
 const latestRunLinkName = "latest-run"
 
+// Model is the top-level app model.
+//
+// It owns the workspace (always present) and optionally a single-run detail
+// view. The help overlay is shared across both modes.
+//
+// Implements tea.Model.
 type Model struct {
-	mode      viewMode
-	workspace *Workspace
-	run       *Run
+	// mode tracks which sub-model currently owns the screen and user input.
+	mode viewMode
 
+	// workspace is the multi-run view. It is created at startup and kept
+	// alive for the entire session so its watchers and heartbeats continue
+	// streaming data in the background while the user is in single-run view.
+	workspace *Workspace
+
+	// run is the single-run detail view. It is nil when the user is in
+	// workspace mode and created on-demand when they press Enter on a run.
+	run *Run
+
+	// width and height cache the latest terminal dimensions for layout.
 	width, height int
 
+	// help is the full-screen help overlay, shared across both modes.
 	help *HelpModel
 
-	// Restart flag.
+	// shouldRestart is the restart flag.
 	shouldRestart bool
 
+	// config is the shared application configuration (grid sizes, color
+	// schemes, sidebar visibility, etc.).
 	config *ConfigManager
+
 	logger *observability.CoreLogger
 }
 
 type ModelParams struct {
+	// WandbDir is the path to the wandb directory (typically "./wandb")
+	// that contains run directories and the "latest-run" symlink.
 	WandbDir string
-	RunFile  string
-	Config   *ConfigManager
-	Logger   *observability.CoreLogger
+
+	// RunFile, if non-empty, LEET launches directly into the single-run
+	// view for the specified .wandb file. When empty, LEET starts in
+	// Config.StartupMode.
+	RunFile string
+
+	Config *ConfigManager
+	Logger *observability.CoreLogger
 }
 
+// NewModel creates and returns the top-level Model.
+//
+// Startup behavior depends on the combination of RunFile and Config.StartupMode:
+//
+//   - RunFile is set → start in single-run view for that file.
+//   - RunFile is empty + StartupModeSingleRunLatest → resolve the "latest-run"
+//     symlink and start in single-run view.
+//   - RunFile is empty + StartupModeWorkspaceLatest (default) → start in
+//     workspace view; the workspace will auto-select the latest run once
+//     the directory poll completes.
 func NewModel(params ModelParams) *Model {
 	if params.Config == nil {
 		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
@@ -68,7 +114,6 @@ func NewModel(params ModelParams) *Model {
 		logger:    params.Logger,
 	}
 
-	// If a run file is specified, start in single-run mode.
 	if params.RunFile != "" {
 		m.run = NewRun(params.RunFile, params.Config, params.Logger)
 		m.mode = viewModeRun
@@ -77,6 +122,11 @@ func NewModel(params ModelParams) *Model {
 	return m
 }
 
+// Init returns the initial commands for the top-level model.
+//
+// The workspace is always initialized (directory polling, heartbeat listener)
+// regardless of the starting mode. If starting in single-run mode, the run's
+// reader and watcher commands are also started.
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{windowTitleCmd()}
 
@@ -94,6 +144,9 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// Update handles incoming events and updates the model accordingly.
+//
+// Implements tea.Model.Update.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = wsMsg.Width, wsMsg.Height
@@ -151,6 +204,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+// View renders the UI based on the data in the model.
+//
+// Implements tea.Model.View.
 func (m *Model) View() string {
 	if m.help.IsActive() {
 		return m.renderHelpScreen()
@@ -160,33 +216,46 @@ func (m *Model) View() string {
 	case viewModeWorkspace:
 		return m.workspace.View()
 	case viewModeRun:
-		if m.run != nil {
-			return m.run.View()
-		}
-		return ""
+		return m.run.View()
 	default:
 		return ""
 	}
 }
 
+// ShouldRestart reports whether the application should perform a full restart.
 func (m *Model) ShouldRestart() bool {
 	return m.shouldRestart
 }
 
+// --------------------------------------------------------------------
+// Input state helpers
+// --------------------------------------------------------------------
+
+// isAwaitingUserInput reports whether any sub-component is capturing
+// free-form keyboard input (filter text, grid config digit, etc.).
+//
+// When true, global key bindings like Enter (mode switch) and h (help
+// toggle) must be suppressed so keystrokes reach the active input.
 func (m *Model) isAwaitingUserInput() bool {
 	if m.config != nil && m.config.IsAwaitingGridConfig() {
 		return true
 	}
 	switch m.mode {
 	case viewModeWorkspace:
-		return m.workspace != nil && m.workspace.IsFiltering()
+		return m.workspace.IsFiltering()
 	case viewModeRun:
-		return m.run != nil && m.run.IsFiltering()
+		return m.run.IsFiltering()
 	default:
 		return false
 	}
 }
 
+// isUserInputMsg reports whether msg originates from direct user interaction.
+//
+// Used to gate which messages reach the workspace while the user is in
+// single-run mode: user input goes exclusively to the run, while data
+// messages (file changes, heartbeats, batched records) are forwarded to
+// the workspace to keep its background state current.
 func isUserInputMsg(msg tea.Msg) bool {
 	switch msg.(type) {
 	case tea.KeyMsg, tea.MouseMsg:
@@ -196,17 +265,14 @@ func isUserInputMsg(msg tea.Msg) bool {
 	}
 }
 
+// --------------------------------------------------------------------
+// Mode transitions
+// --------------------------------------------------------------------
+
 // handleHelp centralizes help toggle and routing while active.
 func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
-	switch m.mode {
-	case viewModeWorkspace:
-		if m.workspace.IsFiltering() {
-			return false, nil
-		}
-	case viewModeRun:
-		if m.run.IsFiltering() {
-			return false, nil
-		}
+	if m.isAwaitingUserInput() {
+		return false, nil
 	}
 
 	// Toggle on 'h' / '?'
@@ -249,15 +315,13 @@ func (m *Model) renderHelpScreen() string {
 	helpView := m.help.View()
 
 	helpText := "h: help"
-	spaceForHelp := max(max(m.width-2*StatusBarPadding, 0), 0)
+	spaceForHelp := max(m.width-2*StatusBarPadding, 0)
 	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
-
-	fullStatus := rightAligned
 
 	statusBar := statusBarStyle.
 		Width(m.width).
 		MaxWidth(m.width).
-		Render(fullStatus)
+		Render(rightAligned)
 
 	content := lipgloss.JoinVertical(lipgloss.Left, helpView, statusBar)
 	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
@@ -293,6 +357,10 @@ func (m *Model) exitRunView() tea.Cmd {
 	m.mode = viewModeWorkspace
 	return nil
 }
+
+// --------------------------------------------------------------------
+// Path resolution utilities
+// --------------------------------------------------------------------
 
 // extractRunID extracts the run ID from a folder name.
 //

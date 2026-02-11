@@ -38,7 +38,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"alt+r"},
-					Description: "Restart LEET",
+					Description: "Restart",
 				},
 				{
 					Keys:        []string{"esc"},
