@@ -288,3 +288,47 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 	require.False(t, chA.IsInspecting())
 	require.False(t, chB.IsInspecting())
 }
+
+func TestMetricsGrid_MultiSeries_PromoteAndRemoveSeries_PrunesEmptyCharts(t *testing.T) {
+	w, h := 200, 24
+	grid := newMetricsGrid(t, 1, 1, w, h, nil)
+
+	// Two different series keys simulate two different runs.
+	const runA = "/wandb/runA.wandb"
+	const runB = "/wandb/runB.wandb"
+
+	created := grid.ProcessHistory(leet.HistoryMsg{
+		RunPath: runA,
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1}, Y: []float64{1.0}},
+		},
+	})
+	require.True(t, created)
+
+	created = grid.ProcessHistory(leet.HistoryMsg{
+		RunPath: runB,
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1}, Y: []float64{2.0}},
+		},
+	})
+	require.True(t, created)
+
+	ch := grid.TestChartAt(0, 0)
+	require.NotNil(t, ch)
+	require.Equal(t, 2, ch.SeriesCount())
+	require.Equal(t, []string{runA, runB}, ch.DrawOrder(), "expected insertion order by default")
+
+	// Promote runA to top; order should end with runA (topmost).
+	grid.PromoteSeriesToTop(runA)
+	require.Equal(t, []string{runB, runA}, ch.DrawOrder())
+
+	// Remove runB: chart remains but is now single-series.
+	grid.RemoveSeries(runB)
+	require.Equal(t, 1, ch.SeriesCount())
+	require.Equal(t, []string{runA}, ch.DrawOrder())
+
+	// Remove runA: chart should be pruned entirely from the grid.
+	grid.RemoveSeries(runA)
+	require.Equal(t, 0, grid.ChartCount())
+	require.Nil(t, grid.TestChartAt(0, 0), "expected chart removed after last series removed")
+}

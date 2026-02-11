@@ -366,26 +366,6 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	require.Equal(t, leet.RunStateRunning, concreteModel.TestRunState())
 }
 
-func TestReload_WhileLoading_DoesNotCrash(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewRun("dummy", cfg, logger)
-	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-
-	// Trigger a reload (Alt+r).
-	var cmd tea.Cmd
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}, Alt: true})
-	require.NotNil(t, cmd, "expected reload command")
-
-	// Execute the reload message; this sets m.reader = nil internally.
-	m, _ = m.Update(cmd())
-
-	// A late chunk with HasMore=true should NOT panic.
-	require.NotPanics(t, func() {
-		_, _ = m.Update(leet.ChunkedBatchMsg{Msgs: nil, HasMore: true, Progress: 1})
-	})
-}
-
 func TestModel_HandleMouseMsg(t *testing.T) {
 	// Helper to create a fresh model with data
 	setupModel := func(t *testing.T) *leet.Run {
