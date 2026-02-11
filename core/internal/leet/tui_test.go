@@ -346,6 +346,12 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 	const W, H = 240, 60
 	tm := newWorkspaceTestModel(t, cfg, wandbDir, W, H)
 
+	// Toggle sidebars.
+	tm.Type("[")
+	tm.Type("[")
+	tm.Type("]")
+	tm.Type("]")
+
 	// Track width bumps so forceRepaint always changes layout (teatest output consumption).
 	repaintW := W
 
@@ -359,6 +365,23 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 		},
 		nil,
 	)
+
+	// Exercise filtering codepath.
+	tm.Type("/")
+	tm.Type("l")
+	tm.Type("o")
+	tm.Type("s")
+	tm.Type("s")
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+	waitForPlainOutput(t, tm,
+		[]string{
+			"Filter",
+			"loss",
+			"[1/1]",
+		},
+		nil,
+	)
+	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlL})
 
 	// 2) Select the older run (down + space). Expect multi-series overlay.
 	tm.Send(tea.KeyMsg{Type: tea.KeyDown})
@@ -411,6 +434,12 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 		},
 		nil,
 	)
+
+	// Exercise navigation.
+	tm.Send(tea.KeyMsg{Type: tea.KeyLeft})
+	tm.Send(tea.KeyMsg{Type: tea.KeyRight})
+	tm.Send(tea.KeyMsg{Type: tea.KeyTab})
+	tm.Send(tea.KeyMsg{Type: tea.KeyTab})
 
 	// Quit.
 	tm.Type("q")
