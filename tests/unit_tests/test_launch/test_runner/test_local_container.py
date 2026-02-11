@@ -150,8 +150,10 @@ async def test_local_container_runner_uses_sh_when_bash_missing(
     await runner.run(mock_launch_project, image_uri)
 
     command = mock_popen.call_args[0][0]
+    assert len(command) == 3, "Expected [shell, '-c', command]"
     assert os.path.basename(command[0]) == "sh"
     assert command[1] == "-c"
+    assert "echo hello world" in command[2]
 
 
 @pytest.mark.asyncio
