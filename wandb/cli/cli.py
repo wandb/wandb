@@ -3068,9 +3068,26 @@ def off(ctx):
     ctx.invoke(offline)
 
 
-@cli.command("status", help="Show configuration settings")
+@cli.command(
+    "status",
+    help="""Display the current W&B configuration settings.
+
+    Print all active W&B settings as formatted JSON, including the
+    base URL, API key, project, entity, and other resolved values.
+
+    Examples:
+
+    Show current settings
+
+    ```bash
+    wandb status
+    ```
+    """,
+)
 @click.option(
-    "--settings/--no-settings", help="Show the current settings", default=True
+    "--settings/--no-settings",
+    help="Display the current settings.",
+    default=True,
 )
 def status(settings):
     api = _get_cling_api()
