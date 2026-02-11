@@ -215,14 +215,12 @@ class Scheduler(ABC):
 
     @property
     def is_alive(self) -> bool:
-        if self.state in [
+        return self.state not in [
             SchedulerState.COMPLETED,
             SchedulerState.FAILED,
             SchedulerState.STOPPED,
             SchedulerState.CANCELLED,
-        ]:
-            return False
-        return True
+        ]
 
     @property
     def at_runcap(self) -> bool:
@@ -425,11 +423,8 @@ class Scheduler(ABC):
                 wandb.termerror(f"{LOG_PREFIX}{traceback.format_exc()}")
                 return False
             return True
-        elif self._kwargs.get("image_uri"):
-            # TODO(gst): check docker existence? Use registry in launch config?
-            return True
-        else:
-            return False
+        # TODO(gst): check docker existence? Use registry in launch config?
+        return bool(self._kwargs.get("image_uri"))
 
     async def _register_agents(self) -> None:
         tasks = []

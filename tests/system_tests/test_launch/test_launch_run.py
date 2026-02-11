@@ -49,7 +49,7 @@ def test_run_in_launch_context_with_multi_config_env_var(runner, monkeypatch, us
     with runner.isolated_filesystem():
         config_env_vars = {}
         _inject_wandb_config_env_vars({"epochs": 10}, config_env_vars, 5)
-        for k in config_env_vars.keys():
+        for k in config_env_vars:
             monkeypatch.setenv(k, config_env_vars[k])
         settings = wandb.Settings(launch=True)
         run = wandb.init(settings=settings, config={"epochs": 2, "lr": 0.004})

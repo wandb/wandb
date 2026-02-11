@@ -460,9 +460,7 @@ class Settings(BaseModel, validate_assignment=True):
     sweep_param_path: Optional[str] = None
     """Path to the sweep parameters configuration."""
 
-    symlink: bool = Field(
-        default_factory=lambda: False if platform.system() == "Windows" else True
-    )
+    symlink: bool = Field(default_factory=lambda: platform.system() != "Windows")
     """Whether to use symlinks (True by default except on Windows)."""
 
     sync_tensorboard: Optional[bool] = None
@@ -1507,11 +1505,10 @@ class Settings(BaseModel, validate_assignment=True):
         )
 
         lambda_bootstrap = get_lambda_bootstrap()
-        if not lambda_bootstrap or not hasattr(
-            lambda_bootstrap, "handle_event_request"
-        ):
-            return False
-        return True
+        return not (
+            not lambda_bootstrap
+            or not hasattr(lambda_bootstrap, "handle_event_request")
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

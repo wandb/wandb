@@ -49,7 +49,7 @@ class MlflowRun:
 
     def metrics(self) -> Iterable[dict[str, float]]:
         d: dict[int, dict[str, float]] = defaultdict(dict)
-        for k in self.run.data.metrics.keys():
+        for k in self.run.data.metrics:
             metric = self.mlflow_client.get_metric_history(self.run.info.run_id, k)
             for item in metric:
                 d[item.step][item.key] = item.value

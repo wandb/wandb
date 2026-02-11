@@ -608,16 +608,18 @@ class LaunchAgent:
                             file_saver = RunQueueItemFileSaver(
                                 self._wandb_run, job["runQueueItemId"]
                             )
-                            if self._is_scheduler_job(job.get("runSpec", {})):
+                            if (
+                                self._is_scheduler_job(job.get("runSpec", {}))
+                                and self.num_running_schedulers >= self._max_schedulers
+                            ):
                                 # If job is a scheduler, and we are already at the cap, ignore,
                                 #    don't ack, and it will be pushed back onto the queue in 1 min
-                                if self.num_running_schedulers >= self._max_schedulers:
-                                    wandb.termwarn(
-                                        f"{LOG_PREFIX}Agent already running the maximum number "
-                                        f"of sweep schedulers: {self._max_schedulers}. To set "
-                                        "this value use `max_schedulers` key in the agent config"
-                                    )
-                                    continue
+                                wandb.termwarn(
+                                    f"{LOG_PREFIX}Agent already running the maximum number "
+                                    f"of sweep schedulers: {self._max_schedulers}. To set "
+                                    "this value use `max_schedulers` key in the agent config"
+                                )
+                                continue
                             await self.run_job(job, queue, file_saver)
                         except Exception as e:
                             wandb.termerror(
@@ -768,14 +770,17 @@ class LaunchAgent:
         while self._jobs_event.is_set():
             # If run has failed to start before timeout, kill it
             state = (await run.get_status()).state
-            if state == "starting" and RUN_START_TIMEOUT > 0:
-                if time.time() - start_time > RUN_START_TIMEOUT:
-                    await run.cancel()
-                    raise LaunchError(
-                        f"Run failed to start within {RUN_START_TIMEOUT} seconds. "
-                        "If you want to increase this timeout, set WANDB_LAUNCH_START_TIMEOUT "
-                        "to a larger value."
-                    )
+            if (
+                state == "starting"
+                and RUN_START_TIMEOUT > 0
+                and time.time() - start_time > RUN_START_TIMEOUT
+            ):
+                await run.cancel()
+                raise LaunchError(
+                    f"Run failed to start within {RUN_START_TIMEOUT} seconds. "
+                    "If you want to increase this timeout, set WANDB_LAUNCH_START_TIMEOUT "
+                    "to a larger value."
+                )
             if await self._check_run_finished(job_tracker, launch_spec):
                 return
             if await job_tracker.check_wandb_run_stopped(self._api):
@@ -821,9 +826,7 @@ class LaunchAgent:
         # so if there is no run, either the run hasn't started yet
         # or it has failed
         if job_tracker.run is None:
-            if job_tracker.failed_to_start:
-                return True
-            return False
+            return bool(job_tracker.failed_to_start)
 
         known_error = False
         try:

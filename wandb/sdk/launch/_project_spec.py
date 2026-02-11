@@ -216,9 +216,9 @@ class LaunchProject:
             launch_spec.get("docker", {}),
             launch_spec.get("git", {}),
             launch_spec.get("overrides", {}),
-            launch_spec.get("resource", None),  # type: ignore [arg-type]
+            launch_spec.get("resource"),  # type: ignore [arg-type]
             launch_spec.get("resource_args", {}),
-            launch_spec.get("run_id", None),
+            launch_spec.get("run_id"),
             launch_spec.get("sweep_id", {}),
         )
 
@@ -328,9 +328,7 @@ class LaunchProject:
         """Checks the source to see if a build is required."""
         if self.job_base_image is not None:
             return False
-        if self.source != LaunchSource.JOB:
-            return True
-        return False
+        return self.source != LaunchSource.JOB
 
     @property
     def docker_image(self) -> str | None:

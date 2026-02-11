@@ -58,9 +58,7 @@ class _PrimaryKeyType(_dtypes.Type):
     legacy_names = ["wandb.TablePrimaryKey"]
 
     def assign_type(self, wb_type=None):
-        if isinstance(wb_type, _dtypes.StringType) or isinstance(
-            wb_type, _PrimaryKeyType
-        ):
+        if isinstance(wb_type, (_dtypes.StringType, _PrimaryKeyType)):
             return self
         return _dtypes.InvalidType()
 
@@ -871,9 +869,7 @@ class Table(Media):
         for t in c_types:
             if isinstance(c_types[t], _PrimaryKeyType):
                 _pk_col = t
-            elif isinstance(c_types[t], _ForeignKeyType) or isinstance(
-                c_types[t], _ForeignIndexType
-            ):
+            elif isinstance(c_types[t], (_ForeignKeyType, _ForeignIndexType)):
                 _fk_cols.add(t)
 
         # If there are updates to perform, safely update them
@@ -1225,14 +1221,13 @@ class JoinedTable(Media):
         """Helper method to validate that the table input is one of the 3 supported types."""
         return (
             (isinstance(table, str) and table.endswith(".table.json"))
-            or isinstance(table, Table)
-            or isinstance(table, PartitionedTable)
+            or isinstance(table, (Table, PartitionedTable))
             or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))
         )
 
     def _ensure_table_in_artifact(self, table, artifact, table_ndx):
         """Helper method to add the table to the incoming artifact. Returns the path."""
-        if isinstance(table, Table) or isinstance(table, PartitionedTable):
+        if isinstance(table, (Table, PartitionedTable)):
             table_name = f"t{table_ndx}_{str(id(self))}"
             if (
                 table._artifact_source is not None
@@ -1315,8 +1310,7 @@ class _TableType(_dtypes.Type):
         if isinstance(column_types, dict):
             column_types = _dtypes.TypedDictType(column_types)
         elif not (
-            isinstance(column_types, _dtypes.TypedDictType)
-            or isinstance(column_types, _dtypes.UnknownType)
+            isinstance(column_types, (_dtypes.TypedDictType, _dtypes.UnknownType))
         ):
             raise TypeError("column_types must be a dict or TypedDictType")
 
@@ -1379,7 +1373,7 @@ def _get_data_from_increments(
             repeat=False,
         )
     data: list[Any] = []
-    increment_num = json_obj.get("increment_num", None)
+    increment_num = json_obj.get("increment_num")
     if increment_num is None:
         return data
 

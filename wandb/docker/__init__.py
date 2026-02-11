@@ -89,13 +89,11 @@ def is_docker_installed() -> bool:
             ["docker", "--version"],
             capture_output=True,
         )
-        if result.returncode == 0:
-            return True
-        else:
-            return False
     except FileNotFoundError:
         # If docker command is not found
         return False
+    else:
+        return result.returncode == 0
 
 
 def build(
@@ -119,9 +117,7 @@ def build(
 def should_add_load_argument(platform: str | None) -> bool:
     # the load option does not work when multiple platforms are specified:
     # https://github.com/docker/buildx/issues/59
-    if platform is None or (platform and "," not in platform):
-        return True
-    return False
+    return bool(platform is None or platform and "," not in platform)
 
 
 def run_command_live_output(args: list[Any]) -> str:

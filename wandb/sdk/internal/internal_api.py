@@ -243,13 +243,13 @@ class Api:
             "git_remote": default_overrides.get("git_remote", "origin"),
             "ignore_globs": default_overrides.get("ignore_globs", []),
             "base_url": default_overrides.get("base_url", "https://api.wandb.ai"),
-            "root_dir": default_overrides.get("root_dir", None),
-            "api_key": default_overrides.get("api_key", None),
-            "entity": default_overrides.get("entity", None),
-            "organization": default_overrides.get("organization", None),
-            "project": default_overrides.get("project", None),
-            "_extra_http_headers": default_overrides.get("_extra_http_headers", None),
-            "_proxies": default_overrides.get("_proxies", None),
+            "root_dir": default_overrides.get("root_dir"),
+            "api_key": default_overrides.get("api_key"),
+            "entity": default_overrides.get("entity"),
+            "organization": default_overrides.get("organization"),
+            "project": default_overrides.get("project"),
+            "_extra_http_headers": default_overrides.get("_extra_http_headers"),
+            "_proxies": default_overrides.get("_proxies"),
         }
 
         if load_settings:
@@ -3214,21 +3214,24 @@ class Api:
 
         for parameter_name in config["parameters"]:
             parameter = config["parameters"][parameter_name]
-            if "min" in parameter and "max" in parameter:
-                if "distribution" not in parameter:
-                    if isinstance(parameter["min"], int) and isinstance(
-                        parameter["max"], int
-                    ):
-                        parameter["distribution"] = "int_uniform"
-                    elif isinstance(parameter["min"], float) and isinstance(
-                        parameter["max"], float
-                    ):
-                        parameter["distribution"] = "uniform"
-                    else:
-                        raise ValueError(
-                            f"Parameter {parameter_name} is ambiguous, please specify bounds as both floats (for a float_"
-                            "uniform distribution) or ints (for an int_uniform distribution)."
-                        )
+            if (
+                "min" in parameter
+                and "max" in parameter
+                and "distribution" not in parameter
+            ):
+                if isinstance(parameter["min"], int) and isinstance(
+                    parameter["max"], int
+                ):
+                    parameter["distribution"] = "int_uniform"
+                elif isinstance(parameter["min"], float) and isinstance(
+                    parameter["max"], float
+                ):
+                    parameter["distribution"] = "uniform"
+                else:
+                    raise ValueError(
+                        f"Parameter {parameter_name} is ambiguous, please specify bounds as both floats (for a float_"
+                        "uniform distribution) or ints (for an int_uniform distribution)."
+                    )
         return config
 
     @normalize_exceptions

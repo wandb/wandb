@@ -12,9 +12,3 @@ updates:
       interval: daily
     reviewers:
       - wandb/sdk-team
-  - package-ecosystem: pip
-    directory: /
-    schedule:
-      interval: daily
-    reviewers:
-      - wandb/sdk-team

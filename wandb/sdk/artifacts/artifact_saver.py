@@ -264,13 +264,12 @@ class ArtifactSaver:
     def _resolve_client_id_manifest_references(self) -> None:
         for entry_path in self._manifest.entries:
             entry = self._manifest.entries[entry_path]
-            if entry.ref is not None:
-                if entry.ref.startswith("wandb-client-artifact:"):
-                    client_id = util.host_from_path(entry.ref)
-                    artifact_file_path = util.uri_from_path(entry.ref)
-                    artifact_id = self._api._resolve_client_id(client_id)
-                    if artifact_id is None:
-                        raise RuntimeError(f"Could not resolve client id {client_id}")
-                    entry.ref = URIStr(
-                        f"wandb-artifact://{b64_to_hex_id(B64MD5(artifact_id))}/{artifact_file_path}"
-                    )
+            if entry.ref is not None and entry.ref.startswith("wandb-client-artifact:"):
+                client_id = util.host_from_path(entry.ref)
+                artifact_file_path = util.uri_from_path(entry.ref)
+                artifact_id = self._api._resolve_client_id(client_id)
+                if artifact_id is None:
+                    raise RuntimeError(f"Could not resolve client id {client_id}")
+                entry.ref = URIStr(
+                    f"wandb-artifact://{b64_to_hex_id(B64MD5(artifact_id))}/{artifact_file_path}"
+                )

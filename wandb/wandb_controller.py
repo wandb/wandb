@@ -196,9 +196,7 @@ class _WandbController:
 
         if isinstance(sweep_id_or_config, str):
             self._sweep_id = sweep_id_or_config
-        elif isinstance(sweep_id_or_config, dict) or isinstance(
-            sweep_id_or_config, sweeps.SweepConfig
-        ):
+        elif isinstance(sweep_id_or_config, (dict, sweeps.SweepConfig)):
             self._create = sweeps.SweepConfig(sweep_id_or_config)
 
             # check for custom search and or stopping functions
@@ -442,9 +440,8 @@ class _WandbController:
         _sweep_runs: list[sweeps.SweepRun] = []
         for r in sweep_obj["runs"]:
             rr = r.copy()
-            if "summaryMetrics" in rr:
-                if rr["summaryMetrics"]:
-                    rr["summaryMetrics"] = json.loads(rr["summaryMetrics"])
+            if "summaryMetrics" in rr and rr["summaryMetrics"]:
+                rr["summaryMetrics"] = json.loads(rr["summaryMetrics"])
             if "config" not in rr:
                 raise ValueError("sweep object is missing config")
             rr["config"] = json.loads(rr["config"])
@@ -559,16 +556,14 @@ class _WandbController:
     def done(self) -> bool:
         self._start_if_not_started()
         state = self._sweep_obj.get("state")
-        if state in [
+        return state not in [
             s.upper()
             for s in (
                 sweeps.RunState.preempting.value,
                 SWEEP_INITIAL_RUN_STATE.value,
                 sweeps.RunState.running.value,
             )
-        ]:
-            return False
-        return True
+        ]
 
     def _search(self) -> sweeps.SweepRun | None:
         search = self._custom_search or sweeps.next_run

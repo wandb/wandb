@@ -1240,7 +1240,7 @@ def launch_sweep(
         launch_scheduler=launch_scheduler_with_queue,
         state="PENDING",
         prior_runs=prior_runs,
-        template_variable_values=scheduler_args.get("template_variables", None),
+        template_variable_values=scheduler_args.get("template_variables"),
     )
     sweep_utils.handle_sweep_config_violations(warnings)
     # Log nicely formatted sweep information
@@ -2220,12 +2220,11 @@ def docker(
         exit(0)
 
     existing = wandb.docker.shell(["ps", "-f", f"ancestor={resolved_image}", "-q"])
-    if existing:
-        if click.confirm(
-            "Found running container with the same image, do you want to attach?"
-        ):
-            subprocess.call(["docker", "attach", existing.split("\n")[0]])
-            exit(0)
+    if existing and click.confirm(
+        "Found running container with the same image, do you want to attach?"
+    ):
+        subprocess.call(["docker", "attach", existing.split("\n")[0]])
+        exit(0)
     cwd = os.getcwd()
     command = [
         "docker",

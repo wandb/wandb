@@ -261,9 +261,8 @@ def wandb_log(
         if inspect.isclass(func):
             cls = func
             for attr in cls.__dict__:
-                if callable(getattr(cls, attr)):
-                    if not hasattr(attr, "_base_func"):
-                        setattr(cls, attr, decorator(getattr(cls, attr)))
+                if callable(getattr(cls, attr)) and not hasattr(attr, "_base_func"):
+                    setattr(cls, attr, decorator(getattr(cls, attr)))
             return cls
 
         # prefer the earliest decoration (i.e. method decoration overrides class decoration)

@@ -337,9 +337,7 @@ class Event:
         self.created_at = time.time()
 
     def __lt__(self, other: Event) -> bool:
-        if self.event.wall_time < other.event.wall_time:
-            return True
-        return False
+        return self.event.wall_time < other.event.wall_time
 
 
 class TBEventConsumer:
@@ -508,7 +506,7 @@ class TBHistory:
 
     def _track_history_dict(self, d: HistoryDict) -> HistoryDict:
         e = {}
-        for k in d.keys():
+        for k in d:
             e[k] = d[k]
             self._step_size += sys.getsizeof(e[k])
         return e

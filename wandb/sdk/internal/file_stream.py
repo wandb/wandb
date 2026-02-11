@@ -530,8 +530,9 @@ class FileStreamApi:
                 )
             )
 
-        if uploaded_list:
-            if isinstance(
+        return not (
+            uploaded_list
+            and isinstance(
                 request_with_retry(
                     self._client.post,
                     self._endpoint,
@@ -543,9 +544,8 @@ class FileStreamApi:
                     },
                 ),
                 Exception,
-            ):
-                return False
-        return True
+            )
+        )
 
     def stream_file(self, path: str) -> None:
         name = path.split("/")[-1]
@@ -624,20 +624,17 @@ def request_with_retry(
             requests.exceptions.HTTPError,
             requests.exceptions.Timeout,
         ) as e:
-            if isinstance(e, requests.exceptions.HTTPError):
+            if isinstance(e, requests.exceptions.HTTPError) and (
+                e.response is not None
+                and e.response.status_code in {400, 403, 404, 409}
+            ):
                 # Non-retriable HTTP errors.
                 #
                 # We retry 500s just to be cautious, and because the back end
                 # returns them when there are infrastructure issues. If retrying
                 # some request winds up being problematic, we'll change the
                 # back end to indicate that it shouldn't be retried.
-                if e.response is not None and e.response.status_code in {
-                    400,
-                    403,
-                    404,
-                    409,
-                }:
-                    return e
+                return e
 
             if retry_count == max_retries:
                 return e
