@@ -541,72 +541,160 @@ def init(ctx, project, entity, reset, mode):
     )
 
 
-@cli.command(context_settings=CONTEXT)
+@cli.command(
+    context_settings=CONTEXT,
+    help="""Upload local W&B run data to the cloud.
+
+    Sync offline or incomplete runs from the local wandb directory to
+    the W&B server. If PATH is provided, sync runs at that path. If no
+    path is given, search for a ./wandb directory, then a wandb/
+    subdirectory.
+
+    Run without arguments to print a summary of synced and unsynced
+    runs without uploading anything.
+
+    When syncing a specific path, include TensorBoard event files
+    by default. When using --sync-all, disable TensorBoard by
+    default (use --sync-tensorboard to enable it).
+
+    PATH is a .wandb file or a run directory containing a .wandb file.
+
+    Examples:
+
+    Show a summary of local runs and their sync status
+
+    ```bash
+    wandb sync
+    ```
+
+    Sync a specific run by its directory
+
+    ```bash
+    wandb sync ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID
+    ```
+
+    Sync a specific run by its .wandb filepath
+
+    ```bash
+    wandb sync ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb
+    ```
+
+    Sync all unsynced runs in the local wandb directory
+
+    ```bash
+    wandb sync --sync-all
+    ```
+
+    Sync a run to a specific project and entity
+
+    ```bash
+    wandb sync --project PROJECT_NAME --entity ENTITY ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb
+    ```
+
+    Delete local data for runs that have already been synced
+
+    ```bash
+    wandb sync --clean
+    ```
+
+    Delete synced runs older than 48 hours without a confirmation prompt
+
+    ```bash
+    wandb sync --clean --clean-old-hours 48 --clean-force
+    ```
+    """,
+)
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
 @click.option("--view", is_flag=True, default=False, help="View runs", hidden=True)
 @click.option("--verbose", is_flag=True, default=False, help="Verbose", hidden=True)
-@click.option("--id", "run_id", help="The run you want to upload to.")
-@click.option("--project", "-p", help="The project you want to upload to.")
-@click.option("--entity", "-e", help="The entity to scope to.")
+@click.option("--id", "run_id", help="Upload to an existing run with this ID.")
+@click.option("--project", "-p", help="The project to upload the run to.")
+@click.option("--entity", "-e", help="The entity to scope the project to.")
 @click.option(
     "--job_type",
     "job_type",
-    help="Specifies the type of run for grouping related runs together.",
+    help="Set the job type for grouping related runs together.",
 )
 @click.option(
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
     default=None,
-    help="Stream tfevent files to wandb.",
+    help="Sync TensorBoard tfevent files. On by default for specific paths, off for --sync-all.",
 )
-@click.option("--include-globs", help="Comma separated list of globs to include.")
-@click.option("--exclude-globs", help="Comma separated list of globs to exclude.")
+@click.option(
+    "--include-globs",
+    help="Comma-separated list of glob patterns to filter which runs to include.",
+)
+@click.option(
+    "--exclude-globs",
+    help="Comma-separated list of glob patterns to filter which runs to exclude.",
+)
 @click.option(
     "--include-online/--no-include-online",
     is_flag=True,
     default=None,
-    help="Include online runs",
+    help="Include runs that were created in online mode.",
 )
 @click.option(
     "--include-offline/--no-include-offline",
     is_flag=True,
     default=None,
-    help="Include offline runs",
+    help="Include runs that were created in offline mode.",
 )
 @click.option(
     "--include-synced/--no-include-synced",
     is_flag=True,
     default=None,
-    help="Include synced runs",
+    help="Include runs that have already been synced.",
 )
 @click.option(
     "--mark-synced/--no-mark-synced",
     is_flag=True,
     default=True,
-    help="Mark runs as synced",
+    help="Mark runs as synced after uploading. Enabled by default.",
 )
-@click.option("--sync-all", is_flag=True, default=False, help="Sync all runs")
-@click.option("--clean", is_flag=True, default=False, help="Delete synced runs")
+@click.option(
+    "--sync-all",
+    is_flag=True,
+    default=False,
+    help="Sync all unsynced runs found in the local wandb directory.",
+)
+@click.option(
+    "--clean",
+    is_flag=True,
+    default=False,
+    help="Delete local run data for runs that have already been synced.",
+)
 @click.option(
     "--clean-old-hours",
     default=24,
-    help="Delete runs created before this many hours. To be used alongside --clean flag.",
+    help="Only delete synced runs older than this many hours. Use with --clean.",
     type=int,
 )
 @click.option(
     "--clean-force",
     is_flag=True,
     default=False,
-    help="Clean without confirmation prompt.",
+    help="Skip the confirmation prompt when using --clean.",
 )
 @click.option("--ignore", hidden=True)
-@click.option("--show", default=5, help="Number of runs to show")
-@click.option("--append", is_flag=True, default=False, help="Append run")
-@click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
+@click.option("--show", default=5, help="Number of runs to display in the summary.")
+@click.option(
+    "--append",
+    is_flag=True,
+    default=False,
+    help="Append data to an existing run instead of creating a new one.",
+)
+@click.option(
+    "--skip-console",
+    is_flag=True,
+    default=False,
+    help="Skip uploading console logs.",
+)
 @click.option(
     "--replace-tags",
-    help="Replace tags in the format 'old_tag1=new_tag1,old_tag2=new_tag2'",
+    help="Rename tags during sync. Format: 'old_tag1=new_tag1,old_tag2=new_tag2'.",
 )
 @display_error
 def sync(
@@ -635,20 +723,6 @@ def sync(
     skip_console=None,
     replace_tags=None,
 ):
-    """Synchronize W&B run data to the cloud.
-
-    If PATH is provided, sync runs found at the given path. If a path
-    is not specified, search for `./wandb` first, then search for a
-    `wandb/` subdirectory.
-
-    To sync a specific run:
-
-        wandb sync ./wandb/run-20250813_124246-n67z9ude
-
-    Or equivalently:
-
-        wandb sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
-    """
     api = _get_cling_api()
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to sync runs")
