@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observability/wberrors"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
@@ -158,4 +159,51 @@ func TestLoggerHierarchy(t *testing.T) {
 		// slog only includes the attrs passed to With().
 		"attr": "attr-value",
 	}, logRecords[1])
+}
+
+func TestWBErrors(t *testing.T) {
+	baseLogger, logs, sentry := observabilitytest.NewSentryTestLogger(t)
+
+	baseLogger.With(
+		[]any{"base-attr", "base-attr"},
+		map[string]string{
+			"base-tag":  "base-tag",
+			"error-key": "base-value", // overwritten
+		},
+	).CaptureError(
+		wberrors.Newf("my error").
+			Attr(slog.String("error-key", "error-value")).
+			Fingerprint("error-fingerprint"),
+	)
+
+	sentryEvents := sentry.Events()
+	require.Len(t, sentryEvents, 1)
+	assert.Equal(t, map[string]string{
+		"base-attr": "base-attr",
+		"base-tag":  "base-tag",
+		"error-key": "error-value",
+	}, sentryEvents[0].Tags)
+	assert.Equal(t,
+		[]string{"{{ default }}", "error-fingerprint"},
+		sentryEvents[0].Fingerprint,
+	)
+
+	logRecords := observabilitytest.ExtractLogs(t, logs)
+	require.Len(t, logRecords, 1)
+	assert.Equal(t, map[string]string{
+		"level":     "ERROR",
+		"msg":       "my error",
+		"base-attr": "base-attr",
+		"error-key": "error-value",
+	}, logRecords[0])
+}
+
+func TestWBErrorsSkipSentry(t *testing.T) {
+	logger, _, sentry := observabilitytest.NewSentryTestLogger(t)
+
+	logger.CaptureError(wberrors.Newf("error 1").SkipSentryIf(true))
+	logger.CaptureError(wberrors.Newf("error 2").SkipSentryIf(false))
+	logger.CaptureError(wberrors.Newf("error 3").SkipSentryIf(true))
+
+	assert.Len(t, sentry.Events(), 1)
 }

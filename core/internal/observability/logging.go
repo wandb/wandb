@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+
+	"github.com/wandb/wandb/core/internal/observability/wberrors"
 )
 
 type Tags map[string]string
@@ -114,15 +116,33 @@ func (cl *CoreLogger) With(
 	}
 }
 
+// withErrorAttrs appends any wberrors attrs from the error to the slog args.
+func withErrorAttrs(err error, args []any) []any {
+	attrs := wberrors.Attrs(err)
+	if len(attrs) == 0 {
+		return args
+	}
+
+	result := make([]any, len(args), len(args)+len(attrs))
+	copy(result, args)
+	for _, attr := range attrs {
+		result = append(result, attr)
+	}
+	return result
+}
+
 // CaptureError logs an error and sends it to Sentry.
 func (cl *CoreLogger) CaptureError(err error, args ...any) {
-	cl.Error(err.Error(), args...)
+	cl.Error(err.Error(), withErrorAttrs(err, args)...)
 	cl.captureException(err, args...)
 }
 
 // CaptureFatal logs a fatal error and sends it to Sentry.
 func (cl *CoreLogger) CaptureFatal(err error, args ...any) {
-	cl.Log(context.Background(), LevelFatal, err.Error(), args...)
+	cl.Log(
+		context.Background(), LevelFatal, err.Error(),
+		withErrorAttrs(err, args)...,
+	)
 	cl.captureException(err, args...)
 }
 
@@ -136,7 +156,10 @@ func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
 
 	// Log panics to debug-core.log as well. This helps debugging if there are
 	// multiple active debug files.
-	slog.Log(context.Background(), LevelFatal, err.Error(), args...)
+	slog.Log(
+		context.Background(), LevelFatal, err.Error(),
+		withErrorAttrs(err, args)...,
+	)
 
 	// Try to finish uploads to Sentry before re-panicking.
 	if cl.sentryCtx != nil {
@@ -166,12 +189,22 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 
 // captureException uploads an error to Sentry if possible and allowed.
 func (cl *CoreLogger) captureException(err error, args ...any) {
-	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
+	if cl.sentryCtx == nil ||
+		wberrors.SkipSentry(err) ||
+		!cl.captureRateLimiter.AllowCapture(err.Error()) {
 		return
 	}
 
 	cl.sentryCtx.WithScope(func(hub *sentry.Hub) {
 		hub.Scope().SetTags(cl.withArgs(args...))
+		hub.Scope().SetTags(wberrors.Tags(err))
+
+		if fp := wberrors.ExtraFingerprint(err); len(fp) > 0 {
+			hub.Scope().SetFingerprint(
+				append([]string{"{{ default }}"}, fp...),
+			)
+		}
+
 		hub.CaptureException(err)
 	})
 }
