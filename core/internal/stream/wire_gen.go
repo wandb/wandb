@@ -38,13 +38,14 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	peeker := &observability.Peeker{}
 	client := NewGraphQLClient(wbBaseURL, clientID, credentialProvider, coreLogger, peeker, settings2)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(client, coreLogger)
+	runHandle := runhandle.New()
 	flowControlFactory := &FlowControlFactory{
-		Logger: coreLogger,
+		Logger:    coreLogger,
+		RunHandle: runHandle,
 	}
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	mailboxMailbox := mailbox.New()
 	wandbOperations := wboperation.NewOperations()
-	runHandle := runhandle.New()
 	systemMonitorFactory := &monitor.SystemMonitorFactory{
 		Logger:             coreLogger,
 		RunHandle:          runHandle,

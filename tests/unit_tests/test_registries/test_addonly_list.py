@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Iterable
 from itertools import tee, zip_longest
-from typing import Iterable, TypeVar
+from typing import TypeVar
 
 from hypothesis import given
 from hypothesis.strategies import (

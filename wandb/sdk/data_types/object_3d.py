@@ -1,21 +1,12 @@
+from __future__ import annotations
+
 import codecs
 import itertools
 import json
 import os
 import pathlib
-from typing import (
-    TYPE_CHECKING,
-    ClassVar,
-    Literal,
-    Optional,
-    Sequence,
-    Set,
-    TextIO,
-    Tuple,
-    Type,
-    TypedDict,
-    Union,
-)
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, ClassVar, Literal, TextIO, TypedDict, Union
 
 import wandb
 from wandb import util
@@ -43,17 +34,17 @@ if TYPE_CHECKING:  # pragma: no cover
         "stl",
         "pts.json",
     ]
-    Point3D = Tuple[numeric, numeric, numeric]
-    Point3DWithCategory = Tuple[numeric, numeric, numeric, numeric]
-    Point3DWithColors = Tuple[numeric, numeric, numeric, numeric, numeric, numeric]
+    Point3D = tuple[numeric, numeric, numeric]
+    Point3DWithCategory = tuple[numeric, numeric, numeric, numeric]
+    Point3DWithColors = tuple[numeric, numeric, numeric, numeric, numeric, numeric]
     Point = Union[Point3D, Point3DWithCategory, Point3DWithColors]
     PointCloudType = Literal["lidar/beta"]
-    RGBColor = Tuple[numeric, numeric, numeric]
+    RGBColor = tuple[numeric, numeric, numeric]
 
-    Quaternion = Tuple[numeric, numeric, numeric, numeric]
+    Quaternion = tuple[numeric, numeric, numeric, numeric]
 
     class Box3D(TypedDict):
-        corners: Tuple[
+        corners: tuple[
             Point3D,
             Point3D,
             Point3D,
@@ -63,9 +54,9 @@ if TYPE_CHECKING:  # pragma: no cover
             Point3D,
             Point3D,
         ]
-        label: Optional[str]
+        label: str | None
         color: RGBColor
-        score: Optional[numeric]
+        score: numeric | None
 
     class Vector3D(TypedDict):
         start: Sequence[Point3D]
@@ -76,13 +67,13 @@ if TYPE_CHECKING:  # pragma: no cover
         target: Sequence[Point3D]
 
 
-def _install_numpy_error() -> "wandb.Error":
+def _install_numpy_error() -> wandb.Error:
     return wandb.Error(
         "wandb.Object3D requires NumPy. To get it, run 'pip install numpy'."
     )
 
 
-def _normalize_vec(x: "np.ndarray") -> "np.ndarray":
+def _normalize_vec(x: np.ndarray) -> np.ndarray:
     """Normalizes a non-zero 1-dimensional array."""
     try:
         import numpy as np
@@ -101,7 +92,7 @@ def _normalize_vec(x: "np.ndarray") -> "np.ndarray":
     return x / np.linalg.norm(x)
 
 
-def _quaternion_to_rotation(quaternion: "np.ndarray") -> "np.ndarray":
+def _quaternion_to_rotation(quaternion: np.ndarray) -> np.ndarray:
     """Returns the rotation matrix corresponding to a non-zero quaternion.
 
     The corresponding rotation matrix transforms column vectors by
@@ -131,13 +122,13 @@ def _quaternion_to_rotation(quaternion: "np.ndarray") -> "np.ndarray":
 
 def box3d(
     *,
-    center: "npt.ArrayLike",
-    size: "npt.ArrayLike",
-    orientation: "npt.ArrayLike",
-    color: "RGBColor",
-    label: "Optional[str]" = None,
-    score: "Optional[numeric]" = None,
-) -> "Box3D":
+    center: npt.ArrayLike,
+    size: npt.ArrayLike,
+    orientation: npt.ArrayLike,
+    color: RGBColor,
+    label: str | None = None,
+    score: numeric | None = None,
+) -> Box3D:
     """A 3D bounding box. The box is specified by its center, size and orientation.
 
     Args:
@@ -252,7 +243,7 @@ def box3d(
 class Object3D(BatchableMedia):
     """W&B class for 3D point clouds."""
 
-    SUPPORTED_TYPES: ClassVar[Set[str]] = {
+    SUPPORTED_TYPES: ClassVar[set[str]] = {
         "obj",
         "gltf",
         "glb",
@@ -260,14 +251,14 @@ class Object3D(BatchableMedia):
         "stl",
         "pts.json",
     }
-    SUPPORTED_POINT_CLOUD_TYPES: ClassVar[Set[str]] = {"lidar/beta"}
+    SUPPORTED_POINT_CLOUD_TYPES: ClassVar[set[str]] = {"lidar/beta"}
     _log_type: ClassVar[str] = "object3D-file"
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", str, pathlib.Path, "TextIO", dict],
-        caption: Optional[str] = None,
-        **kwargs: Optional[Union[str, "FileFormat3D"]],
+        data_or_path: np.ndarray | str | pathlib.Path | TextIO | dict,
+        caption: str | None = None,
+        **kwargs: str | FileFormat3D | None,
     ) -> None:
         """Creates a W&B Object3D object.
 
@@ -403,9 +394,9 @@ class Object3D(BatchableMedia):
     @classmethod
     def from_file(
         cls,
-        data_or_path: Union["TextIO", str],
-        file_type: Optional["FileFormat3D"] = None,
-    ) -> "Object3D":
+        data_or_path: TextIO | str,
+        file_type: FileFormat3D | None = None,
+    ) -> Object3D:
         """Initializes Object3D from a file or stream.
 
         Args:
@@ -422,7 +413,7 @@ class Object3D(BatchableMedia):
         return cls(data_or_path, file_type=file_type)
 
     @classmethod
-    def from_numpy(cls, data: "np.ndarray") -> "Object3D":
+    def from_numpy(cls, data: np.ndarray) -> Object3D:
         """Initializes Object3D from a numpy array.
 
         Args:
@@ -458,12 +449,12 @@ class Object3D(BatchableMedia):
     @classmethod
     def from_point_cloud(
         cls,
-        points: Sequence["Point"],
-        boxes: Sequence["Box3D"],
-        vectors: Optional[Sequence["Vector3D"]] = None,
-        point_cloud_type: "PointCloudType" = "lidar/beta",
+        points: Sequence[Point],
+        boxes: Sequence[Box3D],
+        vectors: Sequence[Vector3D] | None = None,
+        point_cloud_type: PointCloudType = "lidar/beta",
         # camera: Optional[Camera] = None,
-    ) -> "Object3D":
+    ) -> Object3D:
         """Initializes Object3D from a python object.
 
         Args:
@@ -494,14 +485,14 @@ class Object3D(BatchableMedia):
         return cls(data)
 
     @classmethod
-    def get_media_subdir(cls: Type["Object3D"]) -> str:
+    def get_media_subdir(cls: type[Object3D]) -> str:
         """Get media subdirectory.
 
         <!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "object3D")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
         <!-- lazydoc-ignore: internal -->
@@ -509,21 +500,22 @@ class Object3D(BatchableMedia):
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 
-        if isinstance(run_or_artifact, wandb.Artifact):
-            if self._path is None or not self._path.endswith(".pts.json"):
-                raise ValueError(
-                    "Non-point cloud 3D objects are not yet supported with Artifacts"
-                )
+        if isinstance(run_or_artifact, wandb.Artifact) and (
+            self._path is None or not self._path.endswith(".pts.json")
+        ):
+            raise ValueError(
+                "Non-point cloud 3D objects are not yet supported with Artifacts"
+            )
 
         return json_dict
 
     @classmethod
     def seq_to_json(
-        cls: Type["Object3D"],
-        seq: Sequence["BatchableMedia"],
-        run: "LocalRun",
+        cls: type[Object3D],
+        seq: Sequence[BatchableMedia],
+        run: LocalRun,
         key: str,
-        step: Union[int, str],
+        step: int | str,
     ) -> dict:
         """Convert a sequence of Audio objects to a JSON representation.
 

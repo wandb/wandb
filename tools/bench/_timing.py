@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
+from __future__ import annotations
+
 import csv
 import dataclasses
 import time
-from typing import List, Optional
 
 
 @dataclasses.dataclass(frozen=True)
@@ -13,7 +14,7 @@ class FunctionTiming:
 
 
 def timeit(
-    timings: List[FunctionTiming],
+    timings: list[FunctionTiming],
 ):
     """Timing decorator.
 
@@ -36,8 +37,8 @@ def timeit(
 
 def write(
     fname: str,
-    timings: List[FunctionTiming],
-    prefix_list: Optional[List] = None,
+    timings: list[FunctionTiming],
+    prefix_list: list | None = None,
 ):
     """Appends timing data to the file.
 

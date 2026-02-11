@@ -1,10 +1,9 @@
 """Implementation of AzureEnvironment class."""
 
-from typing import Tuple
-
 from azure.core.exceptions import HttpResponseError  # type: ignore
 from azure.identity import DefaultAzureCredential  # type: ignore
 from azure.storage.blob import BlobClient, BlobServiceClient  # type: ignore
+from typing_extensions import Self
 
 from ..errors import LaunchError
 from ..utils import AZURE_BLOB_REGEX
@@ -20,7 +19,7 @@ class AzureEnvironment(AbstractEnvironment):
         """Initialize an AzureEnvironment."""
 
     @classmethod
-    def from_config(cls, config: dict, verify: bool = True) -> "AzureEnvironment":
+    def from_config(cls, config: dict, verify: bool = True) -> Self:
         """Create an AzureEnvironment from a config dict."""
         return cls()
 
@@ -90,7 +89,7 @@ class AzureEnvironment(AbstractEnvironment):
         self.get_credentials()
 
     @staticmethod
-    def parse_uri(uri: str) -> Tuple[str, str, str]:
+    def parse_uri(uri: str) -> tuple[str, str, str]:
         """Parse an Azure blob storage URI into a storage account and container.
 
         Args:

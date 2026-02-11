@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import asyncio
 import datetime
@@ -7,7 +9,8 @@ import os
 import random
 import threading
 import time
-from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
+from collections.abc import Awaitable
+from typing import Any, Callable, Generic, TypeVar
 
 import wandb
 import wandb.errors
@@ -34,7 +37,7 @@ class TransientError(Exception):
     """
 
     def __init__(
-        self, msg: Optional[str] = None, exc: Optional[BaseException] = None
+        self, msg: str | None = None, exc: BaseException | None = None
     ) -> None:
         super().__init__(msg)
         self.message = msg
@@ -56,13 +59,13 @@ class Retry(Generic[_R]):
     def __init__(
         self,
         call_fn: Callable[..., _R],
-        retry_timedelta: Optional[datetime.timedelta] = None,
-        retry_cancel_event: Optional[threading.Event] = None,
-        num_retries: Optional[int] = None,
+        retry_timedelta: datetime.timedelta | None = None,
+        retry_cancel_event: threading.Event | None = None,
+        num_retries: int | None = None,
         check_retry_fn: CheckRetryFnType = lambda e: True,
-        retryable_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
+        retryable_exceptions: tuple[type[Exception], ...] | None = None,
         error_prefix: str = "Network error",
-        retry_callback: Optional[Callable[[int, str], Any]] = None,
+        retry_callback: Callable[[int, str], Any] | None = None,
     ) -> None:
         self._call_fn = call_fn
         self._check_retry_fn = check_retry_fn
@@ -80,7 +83,7 @@ class Retry(Generic[_R]):
         self._num_iter = 0
 
     def _sleep_check_cancelled(
-        self, wait_seconds: float, cancel_event: Optional[threading.Event]
+        self, wait_seconds: float, cancel_event: threading.Event | None
     ) -> bool:
         if not cancel_event:
             SLEEP_FN(wait_seconds)
@@ -96,11 +99,11 @@ class Retry(Generic[_R]):
     def __call__(
         self,
         *args: Any,
-        num_retries: Optional[int] = None,
-        retry_timedelta: Optional[datetime.timedelta] = None,
-        retry_sleep_base: Optional[float] = None,
-        retry_cancel_event: Optional[threading.Event] = None,
-        check_retry_fn: Optional[CheckRetryFnType] = None,
+        num_retries: int | None = None,
+        retry_timedelta: datetime.timedelta | None = None,
+        retry_sleep_base: float | None = None,
+        retry_cancel_event: threading.Event | None = None,
+        check_retry_fn: CheckRetryFnType | None = None,
         **kwargs: Any,
     ) -> _R:
         """Call the wrapped function, with retries.
@@ -232,7 +235,7 @@ class _RetryLoop:
         timeout: datetime.timedelta,
         initial_sleep: float,
         max_sleep: float,
-        cancel_event: Optional[threading.Event],
+        cancel_event: threading.Event | None,
         retry_check: CheckRetryFnType,
     ) -> None:
         """Start a new call of a Retry instance.
@@ -262,7 +265,7 @@ class _RetryLoop:
         self._cancel_event = cancel_event
 
         self._retry_check = retry_check
-        self._last_custom_timeout: Optional[datetime.datetime] = None
+        self._last_custom_timeout: datetime.datetime | None = None
 
     def should_retry(self, exception: Exception) -> bool:
         """Returns whether an exception should be retried."""
@@ -338,8 +341,8 @@ class ExponentialBackoff(Backoff):
         self,
         initial_sleep: datetime.timedelta,
         max_sleep: datetime.timedelta,
-        max_retries: Optional[int] = None,
-        timeout_at: Optional[datetime.datetime] = None,
+        max_retries: int | None = None,
+        timeout_at: datetime.datetime | None = None,
     ) -> None:
         self._next_sleep = min(max_sleep, initial_sleep)
         self._max_sleep = max_sleep
@@ -380,7 +383,7 @@ async def retry_async(
     backoff: Backoff,
     fn: Callable[..., Awaitable[_R]],
     *args: Any,
-    on_exc: Optional[Callable[[Exception], None]] = None,
+    on_exc: Callable[[Exception], None] | None = None,
     **kwargs: Any,
 ) -> _R:
     """Call `fn` repeatedly until either it succeeds, or `backoff` decides we should give up.

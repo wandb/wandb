@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Annotated, Optional
 
 from pydantic import Field
-from typing_extensions import Annotated
 
 from wandb._pydantic import GQLId, GQLInput
 

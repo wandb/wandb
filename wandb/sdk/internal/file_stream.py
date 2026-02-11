@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import itertools
 import json
@@ -9,26 +11,14 @@ import sys
 import threading
 import time
 from types import TracebackType
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    NamedTuple,
-    Optional,
-    Set,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple
 
 if TYPE_CHECKING:
     from typing import TypedDict
 
     class ProcessedChunk(TypedDict):
         offset: int
-        content: List[str]
+        content: list[str]
 
     class ProcessedBinaryChunk(TypedDict):
         offset: int
@@ -59,8 +49,8 @@ class DefaultFilePolicy:
         self.has_debug_log = False
 
     def process_chunks(
-        self, chunks: List[Chunk]
-    ) -> Union[bool, "ProcessedChunk", "ProcessedBinaryChunk", List["ProcessedChunk"]]:
+        self, chunks: list[Chunk]
+    ) -> bool | ProcessedChunk | ProcessedBinaryChunk | list[ProcessedChunk]:
         chunk_id = self._chunk_id
         self._chunk_id += len(chunks)
         return {"offset": chunk_id, "content": [c.data for c in chunks]}
@@ -82,7 +72,7 @@ class DefaultFilePolicy:
 
 
 class JsonlFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedChunk":
+    def process_chunks(self, chunks: list[Chunk]) -> ProcessedChunk:
         chunk_id = self._chunk_id
         # TODO: chunk_id is getting reset on each request...
         self._chunk_id += len(chunks)
@@ -103,7 +93,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
 
 
 class SummaryFilePolicy(DefaultFilePolicy):
-    def process_chunks(self, chunks: List[Chunk]) -> Union[bool, "ProcessedChunk"]:
+    def process_chunks(self, chunks: list[Chunk]) -> bool | ProcessedChunk:
         data = chunks[-1].data
         if len(data) > util.MAX_LINE_BYTES:
             msg = f"Summary data exceeds maximum size of {util.to_human_size(util.MAX_LINE_BYTES)}. Dropping it."
@@ -127,8 +117,8 @@ class StreamCRState:
     """
 
     found_cr: bool
-    cr: Optional[int]
-    last_normal: Optional[int]
+    cr: int | None
+    last_normal: int | None
 
     def __init__(self) -> None:
         self.found_cr = False
@@ -159,7 +149,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         self.stdout = StreamCRState()
 
     @staticmethod
-    def get_consecutive_offsets(console: Dict[int, str]) -> List[List[int]]:
+    def get_consecutive_offsets(console: dict[int, str]) -> list[list[int]]:
         """Compress consecutive line numbers into an interval.
 
         Args:
@@ -175,7 +165,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
             [(2, 5), (10, 11), (20, 20)]
         """
         offsets = sorted(list(console.keys()))
-        intervals: List = []
+        intervals: list = []
         for i, num in enumerate(offsets):
             if i == 0:
                 intervals.append([num, num])
@@ -188,7 +178,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         return intervals
 
     @staticmethod
-    def split_chunk(chunk: Chunk) -> Tuple[str, str]:
+    def split_chunk(chunk: Chunk) -> tuple[str, str]:
         r"""Split chunks.
 
         Args:
@@ -222,7 +212,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest
 
-    def process_chunks(self, chunks: List[Chunk]) -> List["ProcessedChunk"]:
+    def process_chunks(self, chunks: list[Chunk]) -> list[ProcessedChunk]:
         r"""Process chunks.
 
         Args:
@@ -318,20 +308,19 @@ class FileStreamApi:
 
     def __init__(
         self,
-        api: "internal_api.Api",
+        api: internal_api.Api,
         run_id: str,
         start_time: float,
         timeout: float = 0,
-        settings: Optional[dict] = None,
+        settings: dict | None = None,
     ) -> None:
         settings = settings or dict()
         # NOTE: exc_info is set in thread_except_body context and readable by calling threads
-        self._exc_info: Optional[
-            Union[
-                Tuple[Type[BaseException], BaseException, TracebackType],
-                Tuple[None, None, None],
-            ]
-        ] = None
+        self._exc_info: (
+            tuple[type[BaseException], BaseException, TracebackType]
+            | tuple[None, None, None]
+            | None
+        ) = None
         self._settings = settings
         self._api = api
         self._run_id = run_id
@@ -344,7 +333,7 @@ class FileStreamApi:
         self._client.headers.update(api.client.transport.headers or {})
         self._client.cookies.update(api.client.transport.cookies or {})  # type: ignore[no-untyped-call]
         self._client.proxies.update(api.client.transport.session.proxies or {})
-        self._file_policies: Dict[str, DefaultFilePolicy] = {}
+        self._file_policies: dict[str, DefaultFilePolicy] = {}
         self._dropped_chunks: int = 0
         self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
@@ -369,24 +358,22 @@ class FileStreamApi:
         self._thread.start()
 
     def set_default_file_policy(
-        self, filename: str, file_policy: "DefaultFilePolicy"
+        self, filename: str, file_policy: DefaultFilePolicy
     ) -> None:
         """Set an upload policy for a file unless one has already been set."""
         if filename not in self._file_policies:
             self._file_policies[filename] = file_policy
 
-    def set_file_policy(self, filename: str, file_policy: "DefaultFilePolicy") -> None:
+    def set_file_policy(self, filename: str, file_policy: DefaultFilePolicy) -> None:
         self._file_policies[filename] = file_policy
 
     @property
-    def heartbeat_seconds(self) -> Union[int, float]:
+    def heartbeat_seconds(self) -> int | float:
         # Defaults to 30
-        heartbeat_seconds: Union[int, float] = self._api.dynamic_settings[
-            "heartbeat_seconds"
-        ]
+        heartbeat_seconds: int | float = self._api.dynamic_settings["heartbeat_seconds"]
         return heartbeat_seconds
 
-    def rate_limit_seconds(self) -> Union[int, float]:
+    def rate_limit_seconds(self) -> int | float:
         run_time = time.time() - self._start_time
         if run_time < 60:
             return max(1.0, self.heartbeat_seconds / 15)
@@ -395,7 +382,7 @@ class FileStreamApi:
         else:
             return max(5.0, self.heartbeat_seconds)
 
-    def _read_queue(self) -> List:
+    def _read_queue(self) -> list:
         # called from the push thread (_thread_body), this does an initial read
         # that'll block for up to rate_limit_seconds. Then it tries to read
         # as much out of the queue as it can. We do this because the http post
@@ -413,8 +400,8 @@ class FileStreamApi:
         posted_data_time = time.time()
         posted_anything_time = time.time()
         ready_chunks = []
-        uploaded: Set[str] = set()
-        finished: Optional[FileStreamApi.Finish] = None
+        uploaded: set[str] = set()
+        finished: FileStreamApi.Finish | None = None
         while finished is None:
             items = self._read_queue()
             for item in items:
@@ -497,7 +484,7 @@ class FileStreamApi:
             get_sentry().exception(exc_info)
             raise
 
-    def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
+    def _handle_response(self, response: Exception | requests.Response) -> None:
         """Log dropped chunks and updates dynamic settings."""
         if isinstance(response, Exception):
             wandb.termerror(
@@ -506,7 +493,7 @@ class FileStreamApi:
             logger.exception(f"dropped chunk {response}")
             self._dropped_chunks += 1
         else:
-            parsed: Optional[dict] = None
+            parsed: dict | None = None
             try:
                 parsed = response.json()
             except Exception:
@@ -516,7 +503,7 @@ class FileStreamApi:
                 if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
 
-    def _send(self, chunks: List[Chunk], uploaded: Optional[Set[str]] = None) -> bool:
+    def _send(self, chunks: list[Chunk], uploaded: set[str] | None = None) -> bool:
         uploaded_list = list(uploaded or [])
         # create files dict. dict of <filename: chunks> pairs where chunks are a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
@@ -543,8 +530,9 @@ class FileStreamApi:
                 )
             )
 
-        if uploaded_list:
-            if isinstance(
+        return not (
+            uploaded_list
+            and isinstance(
                 request_with_retry(
                     self._client.post,
                     self._endpoint,
@@ -556,9 +544,8 @@ class FileStreamApi:
                     },
                 ),
                 Exception,
-            ):
-                return False
-        return True
+            )
+        )
 
     def stream_file(self, path: str) -> None:
         name = path.split("/")[-1]
@@ -613,7 +600,7 @@ def request_with_retry(
     func: Callable,
     *args: Any,
     **kwargs: Any,
-) -> Union["requests.Response", "requests.RequestException"]:
+) -> requests.Response | requests.RequestException:
     """Perform a requests http call, retrying with exponential backoff.
 
     Args:
@@ -624,7 +611,7 @@ def request_with_retry(
         **kwargs:    passed through to func
     """
     max_retries: int = kwargs.pop("max_retries", 30)
-    retry_callback: Optional[Callable] = kwargs.pop("retry_callback", None)
+    retry_callback: Callable | None = kwargs.pop("retry_callback", None)
     sleep = 2
     retry_count = 0
     while True:
@@ -637,20 +624,17 @@ def request_with_retry(
             requests.exceptions.HTTPError,
             requests.exceptions.Timeout,
         ) as e:
-            if isinstance(e, requests.exceptions.HTTPError):
+            if isinstance(e, requests.exceptions.HTTPError) and (
+                e.response is not None
+                and e.response.status_code in {400, 403, 404, 409}
+            ):
                 # Non-retriable HTTP errors.
                 #
                 # We retry 500s just to be cautious, and because the back end
                 # returns them when there are infrastructure issues. If retrying
                 # some request winds up being problematic, we'll change the
                 # back end to indicate that it shouldn't be retried.
-                if e.response is not None and e.response.status_code in {
-                    400,
-                    403,
-                    404,
-                    409,
-                }:
-                    return e
+                return e
 
             if retry_count == max_retries:
                 return e

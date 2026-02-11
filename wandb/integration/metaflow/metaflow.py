@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import inspect
 import pickle
 from functools import wraps
 from pathlib import Path
-from typing import Optional, Union
 
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
@@ -62,10 +63,10 @@ class ArtifactProxy:
 
 def _track_scalar(
     name: str,
-    data: Union[dict, list, set, str, int, float, bool],
+    data: dict | list | set | str | int | float | bool,
     run,
     testing: bool = False,
-) -> Optional[str]:
+) -> str | None:
     if testing:
         return "scalar"
 
@@ -78,7 +79,7 @@ def _track_path(
     data: Path,
     run,
     testing: bool = False,
-) -> Optional[str]:
+) -> str | None:
     if testing:
         return "Path"
 
@@ -97,7 +98,7 @@ def _track_generic(
     data,
     run,
     testing: bool = False,
-) -> Optional[str]:
+) -> str | None:
     if testing:
         return "generic"
 
@@ -115,9 +116,9 @@ def wandb_track(
     datasets: bool = False,
     models: bool = False,
     others: bool = False,
-    run: Optional[wandb.Run] = None,
+    run: wandb.Run | None = None,
     testing: bool = False,
-) -> Optional[str]:
+) -> str | None:
     """Track data as wandb artifacts based on type and flags."""
     # Check for pandas DataFrame
     if data_pandas and data_pandas.is_dataframe(data) and datasets:
@@ -155,7 +156,7 @@ def wandb_use(
     others: bool = False,
     run=None,
     testing: bool = False,
-) -> Optional[str]:
+) -> str | None:
     """Use wandb artifacts based on data type and flags."""
     # Skip scalar types - nothing to use
     if isinstance(data, (dict, list, set, str, int, float, bool)):
@@ -199,7 +200,7 @@ def _use_path(
     data: Path,
     run,
     testing: bool = False,
-) -> Optional[str]:
+) -> str | None:
     if testing:
         return "datasets"
 
@@ -213,7 +214,7 @@ def _use_generic(
     data,
     run,
     testing: bool = False,
-) -> Optional[str]:
+) -> str | None:
     if testing:
         return "others"
 
@@ -232,7 +233,7 @@ def wandb_log(
     datasets: bool = False,
     models: bool = False,
     others: bool = False,
-    settings: Optional[wandb.Settings] = None,
+    settings: wandb.Settings | None = None,
 ):
     """Automatically log parameters and artifacts to W&B.
 
@@ -260,9 +261,8 @@ def wandb_log(
         if inspect.isclass(func):
             cls = func
             for attr in cls.__dict__:
-                if callable(getattr(cls, attr)):
-                    if not hasattr(attr, "_base_func"):
-                        setattr(cls, attr, decorator(getattr(cls, attr)))
+                if callable(getattr(cls, attr)) and not hasattr(attr, "_base_func"):
+                    setattr(cls, attr, decorator(getattr(cls, attr)))
             return cls
 
         # prefer the earliest decoration (i.e. method decoration overrides class decoration)

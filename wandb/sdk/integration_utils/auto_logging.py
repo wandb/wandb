@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import asyncio
 import functools
 import inspect
 import logging
-from typing import Any, Dict, Optional, Protocol, Sequence, TypeVar
+from collections.abc import Sequence
+from typing import Any, Optional, Protocol, TypeVar
 
 import wandb.sdk
 import wandb.util
@@ -12,7 +15,7 @@ from wandb.sdk.lib.timer import Timer
 logger = logging.getLogger(__name__)
 
 
-AutologInitArgs = Optional[Dict[str, Any]]
+AutologInitArgs = Optional[dict[str, Any]]
 
 
 K = TypeVar("K", bound=str)
@@ -22,20 +25,18 @@ V = TypeVar("V")
 class Response(Protocol[K, V]):
     def __getitem__(self, key: K) -> V: ...  # pragma: no cover
 
-    def get(
-        self, key: K, default: Optional[V] = None
-    ) -> Optional[V]: ...  # pragma: no cover
+    def get(self, key: K, default: V | None = None) -> V | None: ...  # pragma: no cover
 
 
 class ArgumentResponseResolver(Protocol):
     def __call__(
         self,
         args: Sequence[Any],
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
         response: Response,
         start_time: float,
         time_elapsed: float,
-    ) -> Optional[Dict[str, Any]]: ...  # pragma: no cover
+    ) -> dict[str, Any] | None: ...  # pragma: no cover
 
 
 class PatchAPI:
@@ -51,7 +52,7 @@ class PatchAPI:
         # api library name, e.g. "cohere" or "openai" or "transformers"
         self._api = None
         # dictionary of original methods
-        self.original_methods: Dict[str, Any] = {}
+        self.original_methods: dict[str, Any] = {}
         # list of symbols to patch, e.g. ["Client.generate", "Edit.create"] or ["Pipeline.__call__"]
         self.symbols = symbols
         # resolver callable to convert args/response into a dictionary of wandb media objects or metrics
@@ -71,7 +72,7 @@ class PatchAPI:
             )
         return self._api
 
-    def patch(self, run: "wandb.Run") -> None:
+    def patch(self, run: wandb.Run) -> None:
         """Patches the API to log media or metrics to W&B."""
         for symbol in self.symbols:
             # split on dots, e.g. "Client.generate" -> ["Client", "generate"]
@@ -153,7 +154,7 @@ class AutologAPI:
         name: str,
         symbols: Sequence[str],
         resolver: ArgumentResponseResolver,
-        telemetry_feature: Optional[str] = None,
+        telemetry_feature: str | None = None,
     ) -> None:
         """Autolog API calls to W&B."""
         self._telemetry_feature = telemetry_feature
@@ -163,7 +164,7 @@ class AutologAPI:
             resolver=resolver,
         )
         self._name = self._patch_api.name
-        self._run: Optional[wandb.Run] = None
+        self._run: wandb.Run | None = None
         self.__run_created_by_autolog: bool = False
 
     @property

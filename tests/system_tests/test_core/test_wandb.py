@@ -47,19 +47,23 @@ def mock_sagemaker():
 
         return magic
 
-    with unittest.mock.patch.dict(
-        os.environ,
-        {
-            "TRAINING_JOB_NAME": "sage",
-            "CURRENT_HOST": "maker",
-        },
-    ), unittest.mock.patch(
-        "wandb.util.os.path.exists",
-        exists,
-    ), unittest.mock.patch(
-        "builtins.open",
-        magic_factory(open),
-        create=True,
+    with (
+        unittest.mock.patch.dict(
+            os.environ,
+            {
+                "TRAINING_JOB_NAME": "sage",
+                "CURRENT_HOST": "maker",
+            },
+        ),
+        unittest.mock.patch(
+            "wandb.util.os.path.exists",
+            exists,
+        ),
+        unittest.mock.patch(
+            "builtins.open",
+            magic_factory(open),
+            create=True,
+        ),
     ):
         yield
 
@@ -446,7 +450,7 @@ def test_log_step_committed_same_dropped(wandb_backend_spy):
 
         # filter all the columns that don't start with `_`
         for value in history.values():
-            items = [k for k in value.keys() if not k.startswith("_")]
+            items = [k for k in value if not k.startswith("_")]
             assert len(items) == 1
 
 

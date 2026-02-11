@@ -1,7 +1,8 @@
 """Abstract base class for registries."""
 
 from abc import ABC, abstractmethod
-from typing import Tuple
+
+from typing_extensions import Self
 
 
 class AbstractRegistry(ABC):
@@ -9,7 +10,7 @@ class AbstractRegistry(ABC):
 
     uri: str
 
-    async def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> tuple[str, str]:
         """Get the username and password for the registry.
 
         Returns:
@@ -43,6 +44,6 @@ class AbstractRegistry(ABC):
     def from_config(
         cls,
         config: dict,
-    ) -> "AbstractRegistry":
+    ) -> Self:
         """Create a registry from a config."""
         raise NotImplementedError

@@ -11,8 +11,9 @@ import re
 import shutil
 import tempfile
 import threading
+from collections.abc import Generator, Iterable
 from pathlib import Path, PurePath
-from typing import IO, Any, BinaryIO, Generator, Iterable, Literal, NewType, TypedDict
+from typing import IO, Any, BinaryIO, Literal, NewType, TypedDict
 
 from wandb.sdk.lib.paths import StrPath
 from wandb.sdk.wandb_settings import Settings

@@ -1,5 +1,7 @@
 """dir_watcher tests."""
 
+from __future__ import annotations
+
 import os
 import tempfile
 import time
@@ -81,7 +83,7 @@ def test_dirwatcher_update_policy_on_nonexistent_file_calls_file_changed_when_fi
     tempdir: Path,
     file_pusher: FilePusher,
     dir_watcher: DirWatcher,
-    policy: "PolicyName",
+    policy: PolicyName,
     expect_called: bool,
 ):
     f = tempdir / "my-file.txt"

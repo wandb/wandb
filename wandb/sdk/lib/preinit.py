@@ -1,10 +1,12 @@
-from typing import Any, Callable, Optional
+from __future__ import annotations
+
+from typing import Any, Callable
 
 import wandb
 
 
 class PreInitObject:
-    def __init__(self, name: str, destination: Optional[Any] = None) -> None:
+    def __init__(self, name: str, destination: Any | None = None) -> None:
         self._name = name
 
         if destination is not None:
@@ -30,7 +32,7 @@ class PreInitObject:
 
 
 def PreInitCallable(  # noqa: N802
-    name: str, destination: Optional[Any] = None
+    name: str, destination: Any | None = None
 ) -> Callable:
     def preinit_wrapper(*args: Any, **kwargs: Any) -> Any:
         raise wandb.Error(f"You must call wandb.init() before {name}()")

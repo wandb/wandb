@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Tuple
+from __future__ import annotations
 
 import cv2
 import numpy as np
@@ -24,7 +24,7 @@ def instance_mask_to_semantic_mask(instance_mask, class_indices):
     return semantic_mask
 
 
-def get_boxes_and_masks(result: Results) -> Tuple[Dict, Dict, Dict]:
+def get_boxes_and_masks(result: Results) -> tuple[dict, dict, dict]:
     boxes = result.boxes.xywh.long().numpy()
     classes = result.boxes.cls.long().numpy()
     confidence = result.boxes.conf.numpy()
@@ -76,8 +76,8 @@ def get_boxes_and_masks(result: Results) -> Tuple[Dict, Dict, Dict]:
 
 
 def plot_mask_predictions(
-    result: Results, model_name: str, table: Optional[wandb.Table] = None
-) -> Tuple[wandb.Image, Dict, Dict, Dict]:
+    result: Results, model_name: str, table: wandb.Table | None = None
+) -> tuple[wandb.Image, dict, dict, dict]:
     result = result.to("cpu")
     boxes, masks, mean_confidence_map = get_boxes_and_masks(result)
     image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes, masks=masks)
@@ -93,7 +93,7 @@ def plot_mask_predictions(
     return image, masks, boxes["predictions"], mean_confidence_map
 
 
-def structure_prompts_and_image(image: np.array, prompt: Dict) -> Dict:
+def structure_prompts_and_image(image: np.array, prompt: dict) -> dict:
     wb_box_data = []
     if prompt["bboxes"] is not None:
         wb_box_data.append(
@@ -123,7 +123,7 @@ def structure_prompts_and_image(image: np.array, prompt: Dict) -> Dict:
 
 
 def plot_sam_predictions(
-    result: Results, prompt: Dict, table: wandb.Table
+    result: Results, prompt: dict, table: wandb.Table
 ) -> wandb.Table:
     result = result.to("cpu")
     image = result.orig_img[:, :, ::-1]
@@ -149,7 +149,7 @@ def plot_segmentation_validation_results(
     predictor: SegmentationPredictor,
     table: wandb.Table,
     max_validation_batches: int,
-    epoch: Optional[int] = None,
+    epoch: int | None = None,
 ):
     data_idx = 0
     num_dataloader_batches = len(dataloader.dataset) // dataloader.batch_size

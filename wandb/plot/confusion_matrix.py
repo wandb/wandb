@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence, TypeVar
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, TypeVar
 
 import wandb
 from wandb import util

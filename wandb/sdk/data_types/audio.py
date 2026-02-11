@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import hashlib
 import os
 import pathlib
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 from wandb import util
 from wandb.sdk.lib import filesystem, runid
@@ -21,14 +23,9 @@ class Audio(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union[
-            str,
-            pathlib.Path,
-            list,
-            "np.ndarray",
-        ],
-        sample_rate: Optional[int] = None,
-        caption: Optional[str] = None,
+        data_or_path: str | pathlib.Path | list | np.ndarray,
+        sample_rate: int | None = None,
+        caption: str | None = None,
     ):
         """Accept a path to an audio file or a numpy array of audio data.
 
@@ -88,7 +85,7 @@ class Audio(BatchableMedia):
         )
 
     def bind_to_run(
-        self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
+        self, run, key, step, id_=None, ignore_copy_err: bool | None = None
     ):
         """Bind this object to a run.
 

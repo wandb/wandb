@@ -6,8 +6,8 @@ import asyncio
 import contextlib
 import pathlib
 import time
+from collections.abc import Iterable, Iterator
 from itertools import filterfalse
-from typing import Iterable, Iterator
 
 import wandb
 from wandb.errors import term

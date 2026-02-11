@@ -1,8 +1,8 @@
 #
 # From pysparklines (BSD License): https://pypi.python.org/pypi/pysparklines
+from __future__ import annotations
 
 import math
-from typing import List, Union
 
 spark_chars = "▁▂▃▄▅▆▇█"
 
@@ -12,7 +12,7 @@ def isfinite(f):
     return not (math.isinf(f) or math.isnan(f))
 
 
-def sparkify(series: List[Union[float, int]]) -> str:
+def sparkify(series: list[float | int]) -> str:
     """Convert <series> to a sparkline string.
 
     Example:

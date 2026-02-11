@@ -4,9 +4,10 @@ import abc
 import gzip
 import logging
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from secrets import token_hex
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any
 
 from wandb import termwarn
 from wandb.proto import wandb_internal_pb2 as pb

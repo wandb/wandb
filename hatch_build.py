@@ -6,7 +6,7 @@ import re
 import shutil
 import sys
 import sysconfig
-from typing import Any, Dict, List
+from typing import Any
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 from typing_extensions import override
@@ -30,11 +30,11 @@ _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 
 class CustomBuildHook(BuildHookInterface):
     @override
-    def initialize(self, version: str, build_data: Dict[str, Any]) -> None:
+    def initialize(self, version: str, build_data: dict[str, Any]) -> None:
         if self.target_name == "wheel":
             self._prepare_wheel(build_data)
 
-    def _prepare_wheel(self, build_data: Dict[str, Any]) -> None:
+    def _prepare_wheel(self, build_data: dict[str, Any]) -> None:
         build_data["tag"] = f"py3-none-{self._get_platform_tag()}"
 
         artifacts: list[str] = build_data["artifacts"]
@@ -88,7 +88,7 @@ class CustomBuildHook(BuildHookInterface):
 
         return pathlib.Path(cargo)
 
-    def _build_gpu_stats(self) -> List[str]:
+    def _build_gpu_stats(self) -> list[str]:
         output = pathlib.Path("wandb", "bin", "gpu_stats")
         if self._target_platform().goos == "windows":
             output = output.with_suffix(".exe")
@@ -115,7 +115,7 @@ class CustomBuildHook(BuildHookInterface):
         except Exception:
             return ""
 
-    def _build_wandb_core(self) -> List[str]:
+    def _build_wandb_core(self) -> list[str]:
         output = pathlib.Path("wandb", "bin", "wandb-core")
 
         with_coverage = _get_env_bool(_WANDB_BUILD_COVERAGE, default=False)

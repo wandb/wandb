@@ -49,9 +49,11 @@ model.learn(
 ```
 """
 
+from __future__ import annotations
+
 import logging
 import os
-from typing import Literal, Optional
+from typing import Literal
 
 from stable_baselines3.common.callbacks import BaseCallback  # type: ignore
 
@@ -81,10 +83,10 @@ class WandbCallback(BaseCallback):
     def __init__(
         self,
         verbose: int = 0,
-        model_save_path: Optional[str] = None,
+        model_save_path: str | None = None,
         model_save_freq: int = 0,
         gradient_save_freq: int = 0,
-        log: Optional[Literal["gradients", "parameters", "all"]] = "all",
+        log: Literal["gradients", "parameters", "all"] | None = "all",
     ) -> None:
         super().__init__(verbose)
         if wandb.run is None:
@@ -130,10 +132,12 @@ class WandbCallback(BaseCallback):
         wandb.config.setdefaults(d)
 
     def _on_step(self) -> bool:
-        if self.model_save_freq > 0:
-            if self.model_save_path is not None:
-                if self.n_calls % self.model_save_freq == 0:
-                    self.save_model()
+        if (
+            self.model_save_freq > 0
+            and self.model_save_path is not None
+            and self.n_calls % self.model_save_freq == 0
+        ):
+            self.save_model()
         return True
 
     def _on_training_end(self) -> None:

@@ -123,13 +123,17 @@ commands:
   local-wandb-server-deps:
     description: |
       Installs dependencies for the connect-to-local-testcontainer commands.
+    parameters:
+      python: { type: string }
     steps:
       - run:
           name: Upgrade pip and uv
           command: python -m pip install -U pip uv
       - run:
           name: Install tool dependencies
-          command: uv pip install --system -r requirements_dev.txt
+          command: |
+            uv pip install --system \
+              -r requirements/requirements_dev.<<parameters.python>>.linux.txt
 
   connect-to-local-testcontainer:
     description: Make tests use a running local-testcontainer.
@@ -318,14 +322,14 @@ jobs:
           condition:
             equal: ["local-testcontainer", <<parameters.executor_name>>]
           steps:
-            - local-wandb-server-deps
+            - local-wandb-server-deps: { python: <<parameters.python>> }
             - connect-to-local-testcontainer
       - when:
           condition:
             equal:
               ["local-testcontainer-importers", <<parameters.executor_name>>]
           steps:
-            - local-wandb-server-deps
+            - local-wandb-server-deps: { python: <<parameters.python>> }
             - connect-to-local-testcontainer
             - connect-to-local-testcontainer-importers
 
@@ -508,7 +512,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       - nox-tests-linux:
           name: unit-tests-pydantic-v1-linux-<<matrix.python>>
@@ -518,7 +522,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       #
       # Unit tests with pytest on macOS
@@ -570,7 +574,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       - nox-tests-linux:
           name: system-tests-min-server-version-linux-<<matrix.python>>
@@ -602,7 +606,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.13"]
+              python: ["3.9", "3.13"]
 
       #
       # Functional tests with pytest on Linux

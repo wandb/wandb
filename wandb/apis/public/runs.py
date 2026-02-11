@@ -40,7 +40,8 @@ import pathlib
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Collection, Iterator, Literal, Mapping
+from collections.abc import Collection, Iterator, Mapping
+from typing import TYPE_CHECKING, Any, Literal
 
 from wandb_gql import gql
 
@@ -1544,7 +1545,7 @@ class Run(Attrs):
         ):
             return -1
         history_keys = response["project"]["run"]["historyKeys"]
-        return history_keys["lastStep"] if "lastStep" in history_keys else -1
+        return history_keys.get("lastStep", -1)
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this run."""

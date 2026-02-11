@@ -1,4 +1,4 @@
-from typing import Iterator
+from collections.abc import Iterator
 
 import pytest
 from wandb.proto import wandb_internal_pb2 as pb

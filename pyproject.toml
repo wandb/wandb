@@ -9,13 +9,12 @@ description = "A CLI and library for interacting with the Weights & Biases API."
 authors = [{ name = "Weights & Biases", email = "support@wandb.com" }]
 readme = "package_readme.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "Click>=8.0.1",
     "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "sentry-sdk>=2.0.0",
-    "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<7; python_version < '3.9' and sys_platform == 'linux'",
     "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<7; python_version == '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; python_version > '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; sys_platform != 'linux'",
@@ -33,7 +32,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -166,7 +164,7 @@ extend-exclude = [
     "wandb/vendor/**",
     "wandb/proto/**",
 ]
-target-version = "py38"
+target-version = "py39"
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -174,6 +172,7 @@ docstring-code-format = true
 [tool.ruff.lint]
 select = [
     "F",      # Pyflakes
+    "FA",     # flake8-future-annotations
     "E",      # pycodestyle Error
     "W",      # pycodestyle Warning
     "B",      # flake8-bugbear
@@ -183,7 +182,25 @@ select = [
     "C90",    # mccabe
     "UP",     # pyupgrade
     "T20",    # flake8-print
+    "TC004",  # flake8-type-checking
+    "TC005",  # flake8-type-checking
     "RUF100", # unused-noqa
+
+    # flake8-simplify
+    "SIM101", # duplicate-isinstance-call
+    "SIM102", # collapsible-if
+    "SIM103", # needless-bool
+    "SIM109", # compare-with-tuple
+    "SIM110", # reimplemented-builtin
+    "SIM118", # in-dict-keys
+    "SIM201", # negate-equal-op
+    "SIM202", # negate-not-equal-op
+    "SIM208", # double-negation
+    "SIM211", # if-expr-with-false-true
+    "SIM401", # if-else-block-instead-of-dict-get
+    "SIM910", # dict-get-with-none-default
+    "SIM911", # zip-dict-keys-and-values
+
 
     # tryceratops
     "TRY004", # type-check-without-type-error
@@ -267,8 +284,8 @@ ignore-decorators = [
 
 # TODO: Fix UP006, UP007, UP045 in wandb_run.py, then remove ignores here.
 "wandb/__init__.py" = ["I001"]
-"wandb/__init__.pyi" = ["UP006", "UP007", "UP045", "W505"]
-"wandb/__init__.template.pyi" = ["UP006", "UP007", "UP045", "D415", "N999"]
+"wandb/__init__.pyi" = ["UP006", "UP007", "UP035", "UP045", "W505"]
+"wandb/__init__.template.pyi" = ["UP006", "UP007", "UP035", "UP045", "D415", "N999"]
 
 # TODO: Use f-strings in wandb/apis/public/ for GraphQL statements.
 #   To preserve GraphQL syntax highlighting, add #graphql at the start of
@@ -340,17 +357,21 @@ ignore-decorators = [
     # Pydantic versions.
     "UP006",
 
-    # The `X | Y` syntax can cause issues with pydantic < 2.6
+    # The `X | Y` syntax can cause issues with older python + pydantic versions:
+    # - if `eval_type_backport` is installed, with pydantic < 2.0
+    # - if `eval_type_backport` is not installed, with pydantic < 2.6
     "UP007",
+    "UP035",
     "UP045",
 ]
 
 # Pydantic code requires an older style for type annotations.
-"wandb/sdk/wandb_settings.py" = ["UP006", "UP007", "UP045"]
-"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP045"]
-"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP045"]
-"wandb/automations/**" = ["UP006", "UP007", "UP045"]
-"wandb/sdk/artifacts/_models/**" = ["UP006", "UP007", "UP045"]
+"wandb/sdk/wandb_settings.py" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/automations/**" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/sdk/artifacts/_models/**" = ["UP006", "UP007", "UP035", "UP045"]
+"wandb/_pydantic/**" = ["UP006", "UP007", "UP035", "UP045"]
 
 # TODO: Remove the landfill/ directory.
 "landfill/**" = ["F405", "N806", "D415"]
@@ -475,7 +496,7 @@ ignore_missing_imports = true
 
 
 [tool.basedpyright]
-pythonVersion = "3.8"
+pythonVersion = "3.9"
 pythonPlatform = "All"
 
 # We use implicit string concatenation quite a lot, so don't yell too loud.

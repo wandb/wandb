@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
@@ -32,7 +34,7 @@ class VertexSubmittedRun(AbstractRun):
         # numeric ID of the custom training job
         return self._job.name  # type: ignore
 
-    async def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> str | None:
         # TODO: implement
         return None
 
@@ -78,7 +80,7 @@ class VertexRunner(AbstractRunner):
     def __init__(
         self,
         api: Api,
-        backend_config: Dict[str, Any],
+        backend_config: dict[str, Any],
         environment: GcpEnvironment,
         registry: AbstractRegistry,
     ) -> None:
@@ -89,7 +91,7 @@ class VertexRunner(AbstractRunner):
 
     async def run(
         self, launch_project: LaunchProject, image_uri: str
-    ) -> Optional[AbstractRun]:
+    ) -> AbstractRun | None:
         """Run a Vertex job."""
         full_resource_args = launch_project.fill_macros(image_uri)
         resource_args = full_resource_args.get("vertex")
@@ -165,8 +167,8 @@ class VertexRunner(AbstractRunner):
 
 async def launch_vertex_job(
     launch_project: LaunchProject,
-    spec_args: Dict[str, Any],
-    run_args: Dict[str, Any],
+    spec_args: dict[str, Any],
+    run_args: dict[str, Any],
     environment: GcpEnvironment,
     synchronous: bool = False,
 ) -> VertexSubmittedRun:

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, Coroutine, List, TypeVar, cast
+from collections.abc import Coroutine
+from typing import Any, Callable, TypeVar, cast
 
 from wandb.sdk.lib import asyncio_compat
 
@@ -97,4 +98,4 @@ async def _wait_handles_async(
             task_group.start_soon(wait_single(index))
 
     # NOTE: `list` is not subscriptable until Python 3.10, so we use List.
-    return cast(List[_T], results)
+    return cast(list[_T], results)

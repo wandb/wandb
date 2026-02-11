@@ -4,13 +4,15 @@ This class defines the interface that the W&B launch runner uses to manage the l
 of runs launched in different environments (e.g. runs launched locally or in a cluster).
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import shutil
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
 import wandb
 from wandb.apis.internal import Api
@@ -34,11 +36,11 @@ State = Literal[
 
 
 class Status:
-    def __init__(self, state: "State" = "unknown", messages: List[str] = None):  # type: ignore
+    def __init__(self, state: State = "unknown", messages: list[str] = None):  # type: ignore
         self.state = state
         self.messages = messages or []
 
-    def __repr__(self) -> "State":
+    def __repr__(self) -> State:
         return self.state
 
     def __str__(self) -> str:
@@ -74,12 +76,12 @@ class AbstractRun(ABC):
         return self._status
 
     @abstractmethod
-    async def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> str | None:
         """Return the logs associated with the run."""
 
     def _run_cmd(
-        self, cmd: List[str], output_only: Optional[bool] = False
-    ) -> Optional[Union["subprocess.Popen[bytes]", bytes]]:
+        self, cmd: list[str], output_only: bool | None = False
+    ) -> subprocess.Popen[bytes] | bytes | None:
         """Run the command and returns a popen object or the stdout of the command.
 
         Arguments:
@@ -119,7 +121,7 @@ class AbstractRun(ABC):
 
     @property
     @abstractmethod
-    def id(self) -> Optional[str]:
+    def id(self) -> str | None:
         pass
 
 
@@ -136,7 +138,7 @@ class AbstractRunner(ABC):
     def __init__(
         self,
         api: Api,
-        backend_config: Dict[str, Any],
+        backend_config: dict[str, Any],
     ) -> None:
         self._api = api
         self.backend_config = backend_config
@@ -146,7 +148,7 @@ class AbstractRunner(ABC):
     def find_executable(
         self,
         cmd: str,
-    ) -> Union[str, None]:
+    ) -> str | None:
         """Cross platform utility for checking if a program is available."""
         return shutil.which(cmd)
 
@@ -171,7 +173,7 @@ class AbstractRunner(ABC):
         self,
         launch_project: LaunchProject,
         image_uri: str,
-    ) -> Optional[AbstractRun]:
+    ) -> AbstractRun | None:
         """Submit an LaunchProject to be run.
 
         Returns a SubmittedRun object to track the execution

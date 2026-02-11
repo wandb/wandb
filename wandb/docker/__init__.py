@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
 import shutil
 import subprocess
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from wandb.docker import names
 from wandb.errors import Error
@@ -14,10 +16,10 @@ class DockerError(Error):
 
     def __init__(
         self,
-        command_launched: List[str],
+        command_launched: list[str],
         return_code: int,
-        stdout: Optional[bytes] = None,
-        stderr: Optional[bytes] = None,
+        stdout: bytes | None = None,
+        stderr: bytes | None = None,
     ) -> None:
         command_launched_str = " ".join(command_launched)
         error_msg = (
@@ -47,7 +49,7 @@ entrypoint = os.path.join(
 log = logging.getLogger(__name__)
 
 
-def shell(cmd: List[str]) -> Optional[str]:
+def shell(cmd: list[str]) -> str | None:
     """Simple wrapper for calling docker,.
 
     returning None on error and the output on success
@@ -87,17 +89,15 @@ def is_docker_installed() -> bool:
             ["docker", "--version"],
             capture_output=True,
         )
-        if result.returncode == 0:
-            return True
-        else:
-            return False
     except FileNotFoundError:
         # If docker command is not found
         return False
+    else:
+        return result.returncode == 0
 
 
 def build(
-    tags: List[str], file: str, context_path: str, platform: Optional[str] = None
+    tags: list[str], file: str, context_path: str, platform: str | None = None
 ) -> str:
     use_buildx = is_buildx_installed()
     command = ["buildx", "build"] if use_buildx else ["build"]
@@ -114,15 +114,13 @@ def build(
     return stdout
 
 
-def should_add_load_argument(platform: Optional[str]) -> bool:
+def should_add_load_argument(platform: str | None) -> bool:
     # the load option does not work when multiple platforms are specified:
     # https://github.com/docker/buildx/issues/59
-    if platform is None or (platform and "," not in platform):
-        return True
-    return False
+    return bool(platform is None or platform and "," not in platform)
 
 
-def run_command_live_output(args: List[Any]) -> str:
+def run_command_live_output(args: list[Any]) -> str:
     with subprocess.Popen(
         args,
         stdout=subprocess.PIPE,
@@ -152,20 +150,20 @@ def run_command_live_output(args: List[Any]) -> str:
 
 
 def run(
-    args: List[Any],
+    args: list[Any],
     capture_stdout: bool = True,
     capture_stderr: bool = True,
-    input: Optional[bytes] = None,
+    input: bytes | None = None,
     return_stderr: bool = False,
-    env: Optional[Dict[str, str]] = None,
-) -> Union[str, Tuple[str, str]]:
+    env: dict[str, str] | None = None,
+) -> str | tuple[str, str]:
     args = [str(x) for x in args]
     subprocess_env = dict(os.environ)
     subprocess_env.update(env or {})
     if args[1] == "buildx":
         subprocess_env["DOCKER_CLI_EXPERIMENTAL"] = "enabled"
-    stdout_dest: Optional[int] = subprocess.PIPE if capture_stdout else None
-    stderr_dest: Optional[int] = subprocess.PIPE if capture_stderr else None
+    stdout_dest: int | None = subprocess.PIPE if capture_stdout else None
+    stderr_dest: int | None = subprocess.PIPE if capture_stderr else None
 
     completed_process = subprocess.run(
         args, input=input, stdout=stdout_dest, stderr=stderr_dest, env=subprocess_env
@@ -187,7 +185,7 @@ def run(
         return _post_process_stream(completed_process.stdout)
 
 
-def _post_process_stream(stream: Optional[bytes]) -> str:
+def _post_process_stream(stream: bytes | None) -> str:
     if stream is None:
         return ""
     decoded_stream = stream.decode()
@@ -203,7 +201,7 @@ def default_image(gpu: bool = False) -> str:
     return f"wandb/deepo:{tag}"
 
 
-def parse_repository_tag(repo_name: str) -> Tuple[str, Optional[str]]:
+def parse_repository_tag(repo_name: str) -> tuple[str, str | None]:
     parts = repo_name.rsplit("@", 1)
     if len(parts) == 2:
         return parts[0], parts[1]
@@ -213,7 +211,7 @@ def parse_repository_tag(repo_name: str) -> Tuple[str, Optional[str]]:
     return repo_name, None
 
 
-def parse(image_name: str) -> Tuple[str, str, str]:
+def parse(image_name: str) -> tuple[str, str, str]:
     repository, tag = parse_repository_tag(image_name)
     registry, repo_name = names.resolve_repository_name(repository)
     if registry == "docker.io":
@@ -221,7 +219,7 @@ def parse(image_name: str) -> Tuple[str, str, str]:
     return registry, repo_name, (tag or "latest")
 
 
-def image_id_from_registry(image_name: str) -> Optional[str]:
+def image_id_from_registry(image_name: str) -> str | None:
     """Query the image manifest to get its full ID including the digest.
 
     Args:
@@ -236,7 +234,7 @@ def image_id_from_registry(image_name: str) -> Optional[str]:
     return shell([*inspect_cmd, *format_args])
 
 
-def image_id(image_name: str) -> Optional[str]:
+def image_id(image_name: str) -> str | None:
     """Retrieve the image id from the local docker daemon or remote registry."""
     if "@sha256:" in image_name:
         return image_name
@@ -258,17 +256,17 @@ def get_image_uid(image_name: str) -> int:
     return int(image_uid) if image_uid else -1
 
 
-def push(image: str, tag: str) -> Optional[str]:
+def push(image: str, tag: str) -> str | None:
     """Push an image to a remote registry."""
     return shell(["push", f"{image}:{tag}"])
 
 
-def login(username: str, password: str, registry: str) -> Optional[str]:
+def login(username: str, password: str, registry: str) -> str | None:
     """Login to a registry."""
     return shell(["login", "--username", username, "--password", password, registry])
 
 
-def tag(image_name: str, tag: str) -> Optional[str]:
+def tag(image_name: str, tag: str) -> str | None:
     """Tag an image."""
     return shell(["tag", image_name, tag])
 
