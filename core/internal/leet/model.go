@@ -17,14 +17,7 @@ type viewMode int
 
 const (
 	viewModeUndefined viewMode = iota
-
-	// viewModeWorkspace displays the multi-run workspace with a run
-	// selector, run overview sidebar, and an overlay metrics grid showing
-	// data from all selected runs.
 	viewModeWorkspace
-
-	// viewModeRun displays a single run's metrics, overview sidebar,
-	// system metrics sidebar, and detailed chart interactions.
 	viewModeRun
 )
 
