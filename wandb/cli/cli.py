@@ -2875,21 +2875,79 @@ def pull(run, project, entity):
 
 @cli.command(
     context_settings=CONTEXT,
-    help="Restore code, config and docker state for a run. Retrieves code from latest commit if code was not saved with `wandb.save()` or `wandb.init(save_code=True)`.",
+    help="""Restore the code, config, and Docker state from a previous run.
+
+    Recreate the environment of a previous W&B run so you can
+    reproduce it. Run this command from the same git repository
+    as the original run, unless you pass the --no-git flag.
+
+    Restore in three steps:
+
+    1. Git — Check out the original commit on a new branch (wandb/RUN_ID),
+       fetch and apply any saved diff patch, and fall back to an upstream
+       commit if the original commit cannot be found.
+    2. Config — Write the run config to wandb/config.yaml.
+    3. Docker — If the run used Docker, start the same image with the
+       original command.
+
+    Accept run in any of these formats:
+
+    - RUN_ID
+    - PROJECT:RUN_ID
+    - ENTITY/PROJECT:RUN_ID
+    - ENTITY/PROJECT/RUN_ID
+
+    Examples:
+
+    Restore a run by ID
+
+    ```bash
+    wandb restore RUN_ID
+    ```
+
+    Restore a run from a specific project and entity
+
+    ```bash
+    wandb restore ENTITY/PROJECT:RUN_ID
+    ```
+
+    Restore only config and Docker state, skip git checkout
+
+    ```bash
+    wandb restore --no-git RUN_ID
+    ```
+
+    Restore in detached HEAD mode instead of creating a branch
+
+    ```bash
+    wandb restore --no-branch RUN_ID
+    ```
+    """,
 )
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
-@click.option("--no-git", is_flag=True, default=False, help="Don't restore git state")
+@click.option(
+    "--no-git",
+    is_flag=True,
+    default=False,
+    help="Skip git restoration. Only restore config and Docker state.",
+)
 @click.option(
     "--branch/--no-branch",
     default=True,
-    help="Whether to create a branch or checkout detached",
+    help="Create a wandb/RUN_ID branch or check out the commit in detached HEAD mode.",
 )
 @click.option(
-    "--project", "-p", envvar=env.PROJECT, help="The project you wish to upload to."
+    "--project",
+    "-p",
+    envvar=env.PROJECT,
+    help="Specify the project to look up the run in.",
 )
 @click.option(
-    "--entity", "-e", envvar=env.ENTITY, help="The entity to scope the listing to."
+    "--entity",
+    "-e",
+    envvar=env.ENTITY,
+    help="Specify the entity to scope the run lookup to.",
 )
 @display_error
 def restore(ctx, run, no_git, branch, project, entity):
