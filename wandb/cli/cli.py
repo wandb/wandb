@@ -606,15 +606,15 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
-@click.option("--view", is_flag=True, default=False, help="View runs", hidden=True)
-@click.option("--verbose", is_flag=True, default=False, help="Verbose", hidden=True)
-@click.option("--id", "run_id", help="Upload to an existing run with this ID.")
-@click.option("--project", "-p", help="The project to upload the run to.")
-@click.option("--entity", "-e", help="The entity to scope the project to.")
+@click.option("--view", is_flag=True, default=False, help="View runs.", hidden=True)
+@click.option("--verbose", is_flag=True, default=False, help="Enable verbose output.", hidden=True)
+@click.option("--id", "run_id", help="Upload to an existing run ID.")
+@click.option("--project", "-p", help="Set the project to upload the run to.")
+@click.option("--entity", "-e", help="Set the entity to scope the project to.")
 @click.option(
     "--job_type",
     "job_type",
-    help="Set the job type for grouping related runs together.",
+    help="Set the job type to group related runs.",
 )
 @click.option(
     "--sync-tensorboard/--no-sync-tensorboard",
@@ -624,67 +624,67 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option(
     "--include-globs",
-    help="Comma-separated list of glob patterns to filter which runs to include.",
+    help="Include only runs matching these glob patterns (comma-separated).",
 )
 @click.option(
     "--exclude-globs",
-    help="Comma-separated list of glob patterns to filter which runs to exclude.",
+    help="Exclude runs matching these glob patterns (comma-separated).",
 )
 @click.option(
     "--include-online/--no-include-online",
     is_flag=True,
     default=None,
-    help="Include runs that were created in online mode.",
+    help="Include runs created in online mode.",
 )
 @click.option(
     "--include-offline/--no-include-offline",
     is_flag=True,
     default=None,
-    help="Include runs that were created in offline mode.",
+    help="Include runs created in offline mode.",
 )
 @click.option(
     "--include-synced/--no-include-synced",
     is_flag=True,
     default=None,
-    help="Include runs that have already been synced.",
+    help="Include runs that are already synced.",
 )
 @click.option(
     "--mark-synced/--no-mark-synced",
     is_flag=True,
     default=True,
-    help="Mark runs as synced after uploading. Enabled by default.",
+    help="Mark runs as synced after upload.",
 )
 @click.option(
     "--sync-all",
     is_flag=True,
     default=False,
-    help="Sync all unsynced runs found in the local wandb directory.",
+    help="Sync all unsynced runs in the local wandb directory.",
 )
 @click.option(
     "--clean",
     is_flag=True,
     default=False,
-    help="Delete local run data for runs that have already been synced.",
+    help="Delete local data for runs that are already synced.",
 )
 @click.option(
     "--clean-old-hours",
     default=24,
-    help="Only delete synced runs older than this many hours. Use with --clean.",
+    help="Delete only synced runs older than this many hours (use with --clean).",
     type=int,
 )
 @click.option(
     "--clean-force",
     is_flag=True,
     default=False,
-    help="Skip the confirmation prompt when using --clean.",
+    help="Skip the confirmation prompt if --clean is specified.",
 )
 @click.option("--ignore", hidden=True)
-@click.option("--show", default=5, help="Number of runs to display in the summary.")
+@click.option("--show", default=5, help="Set the number of runs to show in the summary.")
 @click.option(
     "--append",
     is_flag=True,
     default=False,
-    help="Append data to an existing run instead of creating a new one.",
+    help="Append data to an existing run instead of creating a new run.",
 )
 @click.option(
     "--skip-console",
@@ -694,7 +694,7 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option(
     "--replace-tags",
-    help="Rename tags during sync. Format: 'old_tag1=new_tag1,old_tag2=new_tag2'.",
+    help="Rename tags during sync. Use 'old=new' pairs separated by commas.",
 )
 @display_error
 def sync(
@@ -908,53 +908,137 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
 
 @cli.command(
     context_settings=CONTEXT,
-    help="Initialize a hyperparameter sweep. Search for hyperparameters that optimizes a cost function of a machine learning model by testing various combinations.",
+    help="""Create, update, or manage a hyperparameter sweep.
+    
+    Provide a YAML config file to create a sweep. Define the search
+    strategy, parameters, and metric to optimize in the config.
+    Register the sweep with the W&B server and print the sweep ID
+    and a command to start an agent.
+    
+    Provide a sweep ID (or full path entity/project/sweep_id) with a
+    state flag (--stop, --cancel, --pause, or --resume) to manage
+    an existing sweep.
+
+    Examples:
+
+    Create a new sweep from a YAML config file
+
+    ```bash
+    wandb sweep sweep_config.yaml
+    ```
+
+    Create a sweep in a specific project and team
+
+    ```bash
+    wandb sweep -p PROJECT_NAME -e ENTITY sweep_config.yaml
+    ```
+
+    Update an existing sweep's configuration
+
+    ```bash
+    wandb sweep --update SWEEP_ID sweep_config.yaml
+    ```
+
+    Stop a sweep
+
+    ```bash
+    wandb sweep --stop ENTITY/PROJECT_NAME/SWEEP_ID
+    ```
+
+    Cancel a sweep
+
+    ```bash
+    wandb sweep --cancel SWEEP_ID
+    ```
+
+    Pause and later resume a sweep
+
+    ```bash
+    wandb sweep --pause SWEEP_ID
+    wandb sweep --resume SWEEP_ID
+    ```
+
+    Create a sweep with a local controller
+
+    ```bash
+    wandb sweep --controller sweep_config.yaml
+    ```
+
+    Attach existing runs to a new sweep
+
+    ```bash
+    wandb sweep -R RUN_ID_1 -R RUN_ID_2 sweep_config.yaml
+    ```
+    """,
 )
 @click.option(
     "--project",
     "-p",
     default=None,
-    help="""The name of the project where W&B runs created from the sweep are sent to. If the project is not specified, the run is sent to a project labeled Uncategorized.""",
+    help="Set the project for sweep runs. Use 'Uncategorized' if not set.",
 )
 @click.option(
     "--entity",
     "-e",
     default=None,
-    help="""The username or team name where you want to send W&B runs created by the sweep to. Ensure that the entity you specify already exists. If you don't specify an entity, the run will be sent to your default entity, which is usually your username.""",
+    help="Set the entity for sweep. Use the current user's default entity if not set.",
 )
-@click.option("--controller", is_flag=True, default=False, help="Run local controller")
-@click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
+@click.option(
+    "--controller",
+    is_flag=True,
+    default=False,
+    help="Start a local sweep controller after creating the sweep.",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Display verbose output."
+)
 @click.option(
     "--name",
     default=None,
-    help="The name of the sweep. The sweep ID is used if no name is specified.",
+    help="Set a display name for the sweep. Use the sweep ID if not specified.",
 )
-@click.option("--program", default=None, help="Set sweep program")
-@click.option("--settings", default=None, help="Set sweep settings", hidden=True)
-@click.option("--update", default=None, help="Update pending sweep")
+@click.option(
+    "--program",
+    default=None,
+    help="Override the training program specified in the sweep config.",
+)
+@click.option(
+    "--settings",
+    default=None,
+    help="Set sweep settings",
+    hidden=True
+)
+@click.option(
+    "--update",
+    default=None,
+    help="Update an existing sweep configuration. Pass the sweep ID.",
+)
 @click.option(
     "--stop",
     is_flag=True,
     default=False,
-    help="Finish a sweep to stop running new runs and let currently running runs finish.",
+    help="Stop a sweep. Let active runs finish but do not start new runs.",
 )
 @click.option(
     "--cancel",
     is_flag=True,
     default=False,
-    help="Cancel a sweep to kill all running runs and stop running new runs.",
+    help="Cancel a sweep. Kill active runs and stop starting new ones.",
 )
 @click.option(
     "--pause",
     is_flag=True,
     default=False,
-    help="Pause a sweep to temporarily stop running new runs.",
+    help="Pause a sweep. Temporarily stop starting new runs.",
 )
 @click.option(
     "--resume",
     is_flag=True,
     default=False,
-    help="Resume a sweep to continue running new runs.",
+    help="Resume a paused sweep.",
 )
 @click.option(
     "--prior_run",
@@ -962,7 +1046,7 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
     "prior_runs",
     multiple=True,
     default=None,
-    help="ID of an existing run to add to this sweep",
+    help="Attach an existing run to this sweep by ID. Specify multiple times to attach multiple runs."
 )
 @click.argument("config_yaml_or_sweep_id")
 @click.pass_context
@@ -3071,7 +3155,7 @@ def enabled(service):
     ```
 """,
 )
-@click.option("--host", default=None, help="Target a specific W&B instance URL. Defaults to the currently configured base_url.")
+@click.option("--host", default=None, help="Target a specific W&B instance URL. Default to configured base URL.")
 def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
