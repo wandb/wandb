@@ -31,8 +31,7 @@ func initTerminalBg() {
 		// termenv.RGBColor is a string type like "#RRGGBB"
 		if rgb, ok := bg.(termenv.RGBColor); ok {
 			var r, g, b uint8
-			_, err := fmt.Sscanf(string(rgb), "#%02x%02x%02x", &r, &g, &b)
-			if err != nil {
+			if _, err := fmt.Sscanf(string(rgb), "#%02x%02x%02x", &r, &g, &b); err != nil {
 				return
 			}
 			termBgR, termBgG, termBgB = r, g, b
