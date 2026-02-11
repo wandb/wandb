@@ -3032,36 +3032,46 @@ def enabled(service):
 
 @cli.command(
     context_settings=CONTEXT,
-    help="""Checks and verifies local instance of W&B. W&B checks for:
+    help="""Run integration checks against a self-hosted W&B instance.
 
-    Checks that the host is not `api.wandb.ai` (host check).
+    Validate that a self-hosted or dedicated cloud W&B deployment is configured
+    and operating correctly. Do not run this command against the public W&B
+    cloud at `api.wandb.ai`.
 
-    Verifies if the user is logged in correctly using the provided API key (login check).
+    The following checks are run in order:
+    1. Host check - Verify the host is not `api.wandb.ai`.
+    2. Login check - Verify the API key authenticates successfully.
+    3. Secure requests check - Verify requests use HTTPS.
+    4. Large payload check - Verify the instance handles large payloads (~10MB).
+    5. Secure requests check - Verify signed URL requests use HTTPS.
+    6. CORS configuration - Verify the object store allows GET and PUT requests
+        from the W&B instance.
+    7. W&B version - Verify the installed W&B package is compatible with the instance.
+    8. Run check - Log metrics, save files, and download files to verify runs
+        are recorded and accessible.
+    9. Artifact check - Save and download artifacts to verify artifact storage
+        and retrieval work correctly.
+    10. Sweeps check - Create and execute a random sweep to verify the sweep
+        system functions correctly.
 
-    Checks that requests are made over HTTPS (secure requests).
+    Exits with code 1 if any critical check fails.
 
-    Validates the CORS (Cross-Origin Resource Sharing) configuration of the
-    object store (CORS configuration).
+    Examples:
 
-    Logs metrics, saves, and downloads files to check if runs are correctly
-    recorded and accessible (run check).
+    Verify the currently configured W&B instance.
 
-    Saves and downloads artifacts to verify that the artifact storage and
-    retrieval system is working as expected (artifact check).
+    ```bash
+    wandb verify --host https://my-wandb-instance.com
+    ```
 
-    Tests the GraphQL endpoint by uploading a file to ensure it can handle
-    signed URL uploads (GraphQL PUT check).
+    Verify a specific self-hosted instance.
 
-    Checks the ability to send large payloads through the proxy (large payload check).
-
-    Verifies that the installed version of the W&B package is up-to-date and
-    compatible with the server (W&B version check).
-
-    Creates and executes a sweep to ensure that sweep functionality is
-    working correctly (sweeps check).
+    ```bash
+    wandb verify --host https://my-wandb-server.example.com 
+    ```
 """,
 )
-@click.option("--host", default=None, help="Test a specific instance of W&B")
+@click.option("--host", default=None, help="Target a specific W&B instance URL. Defaults to the currently configured base_url.")
 def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
