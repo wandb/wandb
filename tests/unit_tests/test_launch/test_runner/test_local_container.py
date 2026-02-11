@@ -126,6 +126,14 @@ def test_shell_command_raises_when_no_shell(mocker):
         local_container._shell_command("echo hello")
 
 
+def test_shell_command_uses_cmd_on_windows(mocker):
+    mocker.patch("wandb.sdk.launch.runner.local_container.os.name", "nt")
+    mock_which = mocker.patch("wandb.sdk.launch.runner.local_container.shutil.which")
+
+    assert local_container._shell_command("echo hello") == ["cmd", "/C", "echo hello"]
+    mock_which.assert_not_called()
+
+
 @pytest.mark.asyncio
 @pytest.mark.skipif(os.name == "nt", reason="POSIX shell selection test")
 async def test_local_container_runner_uses_sh_when_bash_missing(
