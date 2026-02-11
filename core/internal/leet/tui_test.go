@@ -403,7 +403,6 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 	tm.Send(tea.KeyMsg{Type: tea.KeySpace})
 
 	forceRepaint(tm, repaintW, H)
-	repaintW++
 
 	waitForPlainOutput(t, tm,
 		[]string{
