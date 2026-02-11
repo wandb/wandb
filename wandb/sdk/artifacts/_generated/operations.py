@@ -32,6 +32,7 @@ __all__ = [
     "GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL",
     "LINK_ARTIFACT_GQL",
     "PROJECT_ARTIFACTS_GQL",
+    "PROJECT_ARTIFACT_COLLECTIONS_GQL",
     "PROJECT_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
@@ -256,6 +257,71 @@ query ArtifactTypeArtifactCollections($entity: String!, $project: String!, $type
             __typename
             ...ArtifactCollectionFragment
           }
+        }
+      }
+    }
+  }
+}
+
+fragment ArtifactCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  updatedAt
+  project {
+    ...ProjectInfoFragment
+  }
+  type: defaultArtifactType {
+    name
+  }
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
+fragment ProjectInfoFragment on Project {
+  name
+  entity {
+    name
+  }
+}
+
+fragment TagFragment on Tag {
+  __typename
+  id
+  name
+}
+"""
+
+PROJECT_ARTIFACT_COLLECTIONS_GQL = """
+query ProjectArtifactCollections($entity: String!, $project: String!, $cursor: String, $perPage: Int, $filters: JSONString, $order: String) {
+  project(entityName: $entity, name: $project) {
+    artifactCollections(
+      after: $cursor
+      first: $perPage
+      filters: $filters
+      order: $order
+    ) {
+      totalCount
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          __typename
+          ...ArtifactCollectionFragment
         }
       }
     }
