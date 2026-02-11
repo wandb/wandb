@@ -115,6 +115,40 @@ def test_artifact_types(api: Api):
 
 
 @mark.usefixtures("sample_data")
+def test_project_collections(api: Api):
+    # creating a new artifact
+    artifact_name = "another-collection"
+    artifact = wandb.Artifact(name=artifact_name, type="different-type")
+    with artifact.new_file("file.txt") as f:
+        f.write("test")
+    artifact.save()
+    artifact.wait()
+
+    project_name = artifact.project
+    project = api.project(project_name)
+
+    if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+        # fetching all collections in the project
+        cols = project.collections()
+        assert len(cols) == 2
+        names = {c.name for c in cols}
+        assert names == {"mnist", artifact_name}
+
+        # fetching collections with filters/ordering
+        cols = project.collections(filters={"name": "mnist"})
+        assert len(cols) == 1 and cols[0].name == "mnist"
+        cols = project.collections(order="name")
+        assert len(cols) == 2
+        assert cols[0].name == "another-collection" and cols[1].name == "mnist"
+    else:
+        with raises(
+            CommError,
+            match="Fetching artifact collections by project is not supported on this wandb server version.",
+        ):
+            project.collections(filters={"name": "mnist"})
+
+
+@mark.usefixtures("sample_data")
 def test_artifact_get_path(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
     assert art.type == "dataset"
