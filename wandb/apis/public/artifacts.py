@@ -282,6 +282,10 @@ class ArtifactCollections(
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact collections.
         type_name: The name of the artifact type for which to fetch collections.
+        filters: Optional mapping of filters to apply to the query.
+        order: Optional string to specify the order of the results.
+            If you prepend order with a + order is ascending (default).
+            If you prepend order with a - order is descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
 
     <!-- lazydoc-ignore-init: internal -->
