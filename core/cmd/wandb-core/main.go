@@ -40,6 +40,14 @@ const (
 	exitCodeSuccess       = 0 // normal exit
 	exitCodeErrorInternal = 1 // some error occurred
 	exitCodeErrorArgs     = 2 // incorrect command-line flags
+
+	// exitCodeSignal is used when the program shuts down due to a signal.
+	//
+	// A common convention is to use 128 plus the signal number, but Go's
+	// signal package does not provide the standard integer numbers associated
+	// with the signal, so for simplicity, we return 128.
+	// See https://github.com/golang/go/issues/30328.
+	exitCodeSignal = 128
 )
 
 func main() {
@@ -136,14 +144,9 @@ func serviceMain() int {
 		defer func() { _ = file.Close() }()
 	}
 
-	// Graceful shutdown on SIGINT/SIGTERM.
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-c
-		slog.Info("main: received shutdown signal", "signal", sig)
-		os.Exit(0)
-	}()
+	// Record certain signals in the log file for debugging.
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
 	srv := server.NewServer(
 		server.ServerParams{
@@ -156,12 +159,22 @@ func serviceMain() int {
 			SentryClient:        sentryClient,
 		},
 	)
+	srvCh := make(chan error, 1)
+	go func() { srvCh <- srv.Serve(*portFilename) }()
 
-	if err := srv.Serve(*portFilename); err != nil {
-		slog.Error("main: Serve() returned error", "error", err)
-		return exitCodeErrorInternal
+	select {
+	case err := <-srvCh:
+		if err != nil {
+			slog.Error("main: Serve() returned error", "error", err)
+			return exitCodeErrorInternal
+		} else {
+			return exitCodeSuccess
+		}
+
+	case sig := <-signalCh:
+		slog.Info("main: received shutdown signal", "signal", sig)
+		return exitCodeSignal
 	}
-	return exitCodeSuccess
 }
 
 // leetMain runs the TUI subcommand.
