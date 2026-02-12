@@ -259,39 +259,45 @@ def test_model_dump_methods_with_json_fields():
     assert json.loads(rt_json) == obj.model_dump(round_trip=True)
 
 
-def test_field_constraints_on_list_fields():
-    class ListFields(CompatBaseModel):
-        required_list: List[int] = Field(min_length=1, max_length=3)
-        optional_list: Optional[List[str]] = Field(
-            default=None, min_length=1, max_length=3
-        )
+class Item(CompatBaseModel):
+    val: int
 
+
+class ListFields(CompatBaseModel):
+    required_list: List[Item] = Field(min_length=1, max_length=3)
+    optional_list: Optional[List[Item]] = Field(
+        default=None, min_length=1, max_length=3
+    )
+
+
+def test_field_constraints_on_list_fields():
     # Valid values
-    valid_model1 = ListFields(required_list=[1, 2, 3])
-    assert valid_model1.required_list == [1, 2, 3]
+    valid_model1 = ListFields(required_list=[Item(val=1), Item(val=2), Item(val=3)])
+    assert valid_model1.required_list == [Item(val=1), Item(val=2), Item(val=3)]
     assert valid_model1.optional_list is None
 
-    valid_model2 = ListFields(required_list=[1, 2, 3], optional_list=None)
-    assert valid_model2.required_list == [1, 2, 3]
+    valid_model2 = ListFields(
+        required_list=[Item(val=1), Item(val=2), Item(val=3)], optional_list=None
+    )
+    assert valid_model2.required_list == [Item(val=1), Item(val=2), Item(val=3)]
     assert valid_model2.optional_list is None
 
-    valid_model3 = ListFields(required_list=[1], optional_list=["hello"])
-    assert valid_model3.required_list == [1]
-    assert valid_model3.optional_list == ["hello"]
+    valid_model3 = ListFields(
+        required_list=[Item(val=1)], optional_list=[Item(val=123)]
+    )
+    assert valid_model3.required_list == [Item(val=1)]
+    assert valid_model3.optional_list == [Item(val=123)]
 
-    # Invalid values
-    with raises(ValidationError):
-        # required too short
-        ListFields(required_list=[])
-    with raises(ValidationError):
-        # required too long
-        ListFields(required_list=[1, 2, 3, 4])
-    with raises(ValidationError):
-        # required ok; optional too short
-        ListFields(required_list=[1, 2, 3], optional_list=[])
-    with raises(ValidationError):
-        # required ok; optional too long
-        ListFields(required_list=[1], optional_list=["hello", "world", "foo", "bar"])
+    # Invalid values are deliberately NOT tested here.
+    #
+    # Unfortunately, we cannot support runtime validation of list length
+    # constraints in Pydantic v1 due to issues with deferred type annotations
+    # via `from __future__ import annotations`.
+    #
+    # See: https://github.com/pydantic/pydantic/issues/3745
+    #
+    # We only check that the class DEFINITION (above) does not raise an error
+    # when the model builds (e.g. at import time).
 
 
 def test_field_constraints_on_str_fields():
