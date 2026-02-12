@@ -36,6 +36,7 @@ __all__ = [
     "DeleteApiKey",
     "GenerateApiKey",
     "ArtifactTypeInput",
+    "ProjectIconInput",
     "RateLimitsInput",
     "UpsertModelInput",
     "ApiKeyFragment",
@@ -73,7 +74,12 @@ from .get_sweep_legacy import GetSweepLegacy
 from .get_sweeps import GetSweeps
 from .get_team_entity import GetTeamEntity
 from .get_viewer import GetViewer
-from .input_types import ArtifactTypeInput, RateLimitsInput, UpsertModelInput
+from .input_types import (
+    ArtifactTypeInput,
+    ProjectIconInput,
+    RateLimitsInput,
+    UpsertModelInput,
+)
 from .operations import (
     CREATE_INVITE_GQL,
     CREATE_PROJECT_GQL,
