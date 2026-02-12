@@ -122,19 +122,13 @@ func (cl *CoreLogger) With(args ...any) *CoreLogger {
 // CaptureError logs an error and sends it to Sentry.
 func (cl *CoreLogger) CaptureError(err error, args ...any) {
 	cl.Error(err.Error(), args...)
-
-	if cl.sentry != nil && cl.captureRateLimiter.AllowCapture(err.Error()) {
-		cl.sentry.CaptureException(err, cl.withArgs(args...))
-	}
+	cl.captureException(err, args...)
 }
 
 // CaptureFatal logs a fatal error and sends it to Sentry.
 func (cl *CoreLogger) CaptureFatal(err error, args ...any) {
 	cl.Log(context.Background(), LevelFatal, err.Error(), args...)
-
-	if cl.sentry != nil && cl.captureRateLimiter.AllowCapture(err.Error()) {
-		cl.sentry.CaptureException(err, cl.withArgs(args...))
-	}
+	cl.captureException(err, args...)
 }
 
 // CaptureFatalAndPanic logs a fatal error, sends it to Sentry and panics.
@@ -148,19 +142,31 @@ func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
 // CaptureWarn logs a warning and sends it to Sentry.
 func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 	cl.Warn(msg, args...)
-
-	if cl.sentry != nil && cl.captureRateLimiter.AllowCapture(msg) {
-		cl.sentry.CaptureMessage(msg, cl.withArgs(args...))
-	}
+	cl.captureMessage(msg, args...)
 }
 
 // CaptureInfo logs an info message and sends it to Sentry.
 func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 	cl.Info(msg, args...)
+	cl.captureMessage(msg, args...)
+}
 
-	if cl.sentry != nil && cl.captureRateLimiter.AllowCapture(msg) {
-		cl.sentry.CaptureMessage(msg, cl.withArgs(args...))
+// captureException uploads an error to Sentry if possible and allowed.
+func (cl *CoreLogger) captureException(err error, args ...any) {
+	if cl.sentry == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
+		return
 	}
+
+	cl.sentry.CaptureException(err, cl.withArgs(args...))
+}
+
+// captureException uploads a message to Sentry if possible and allowed.
+func (cl *CoreLogger) captureMessage(msg string, args ...any) {
+	if cl.sentry == nil || !cl.captureRateLimiter.AllowCapture(msg) {
+		return
+	}
+
+	cl.sentry.CaptureMessage(msg, cl.withArgs(args...))
 }
 
 // Reraise reports panics to Sentry.
