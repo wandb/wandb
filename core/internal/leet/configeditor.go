@@ -522,6 +522,7 @@ func (m *ConfigEditor) renderTable(width int) string {
 			line = lipgloss.NewStyle().
 				Width(width).
 				Background(colorSelected).
+				Foreground(colorDark).
 				Render(line)
 		}
 		lines = append(lines, line)

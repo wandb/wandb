@@ -189,9 +189,10 @@ var (
 		Dark:  "#d0d0d0",
 	}
 
+	// Color used for the selected line in lists.
 	colorSelected = lipgloss.AdaptiveColor{
-		Light: "#c6c6c6",
-		Dark:  "#444444",
+		Dark:  "#FCBC32",
+		Light: "#FCBC32",
 	}
 )
 
@@ -352,7 +353,7 @@ var (
 	runOverviewSidebarKeyStyle        = lipgloss.NewStyle().Foreground(colorItemKey)
 	runOverviewSidebarValueStyle      = lipgloss.NewStyle().Foreground(colorItemValue)
 	runOverviewSidebarHighlightedItem = lipgloss.NewStyle().
-						Foreground(colorDark).Background(colorSelectedRunStyle)
+						Foreground(colorDark).Background(colorSelected)
 )
 
 // Left sidebar styles.
@@ -427,11 +428,6 @@ var (
 	workspaceHeaderLines    = 1
 	runsSidebarBorderCols   = 2
 
-	colorSelectedRunStyle = lipgloss.AdaptiveColor{
-		Dark:  "#FCBC32",
-		Light: "#FCBC32",
-	}
-
 	colorSelectedRunInactiveStyle = lipgloss.AdaptiveColor{
 		Light: "#F5D28A",
 		Dark:  "#6B5200",
@@ -439,6 +435,6 @@ var (
 
 	evenRunStyle             = lipgloss.NewStyle()
 	oddRunStyle              = lipgloss.NewStyle().Background(getOddRunStyleColor())
-	selectedRunStyle         = lipgloss.NewStyle().Background(colorSelectedRunStyle)
+	selectedRunStyle         = lipgloss.NewStyle().Background(colorSelected)
 	selectedRunInactiveStyle = lipgloss.NewStyle().Background(colorSelectedRunInactiveStyle)
 )
