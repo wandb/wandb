@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !pqarrow_read_only
+//go:build !parquet_read_only
 
 package pqarrow
 
@@ -118,26 +118,6 @@ func (fw *FileWriter) NewBufferedRowGroup() {
 	fw.colIdx = 0
 }
 
-// TotalCompressedBytes returns the total number of bytes after compression
-// that have been written to the file so far. It includes all the closed row groups
-// and the current row group.
-func (fw *FileWriter) TotalCompressedBytes() int64 {
-	if fw.wr != nil {
-		return fw.wr.TotalCompressedBytes()
-	}
-	return 0
-}
-
-// TotalBytesWritten returns the total number of bytes
-// that have been written to the file so far. It includes all the closed row groups
-// and the current row group.
-func (fw *FileWriter) TotalBytesWritten() int64 {
-	if fw.wr != nil {
-		return fw.wr.TotalBytesWritten()
-	}
-	return 0
-}
-
 // RowGroupTotalCompressedBytes returns the total number of bytes after compression
 // that have been written to the current row group so far.
 func (fw *FileWriter) RowGroupTotalCompressedBytes() int64 {
@@ -186,13 +166,13 @@ func (fw *FileWriter) NumRows() int {
 //
 // More memory is utilized compared to Write as the whole row group data is kept in memory before it's written
 // since Parquet files must have an entire column written before writing the next column.
-func (fw *FileWriter) WriteBuffered(rec arrow.RecordBatch) error {
+func (fw *FileWriter) WriteBuffered(rec arrow.Record) error {
 	if !rec.Schema().Equal(fw.schema) {
 		return fmt.Errorf("record schema does not match writer's. \nrecord: %s\nwriter: %s", rec.Schema(), fw.schema)
 	}
 
 	var (
-		recList []arrow.RecordBatch
+		recList []arrow.Record
 		maxRows = fw.wr.Properties().MaxRowGroupLength()
 		curRows int
 		err     error
@@ -206,9 +186,9 @@ func (fw *FileWriter) WriteBuffered(rec arrow.RecordBatch) error {
 	}
 
 	if int64(curRows)+rec.NumRows() <= maxRows {
-		recList = []arrow.RecordBatch{rec}
+		recList = []arrow.Record{rec}
 	} else {
-		recList = []arrow.RecordBatch{rec.NewSlice(0, maxRows-int64(curRows))}
+		recList = []arrow.Record{rec.NewSlice(0, maxRows-int64(curRows))}
 		defer recList[0].Release()
 		for offset := maxRows - int64(curRows); offset < rec.NumRows(); offset += maxRows {
 			s := rec.NewSlice(offset, offset+utils.Min(maxRows, rec.NumRows()-offset))
@@ -240,22 +220,22 @@ func (fw *FileWriter) WriteBuffered(rec arrow.RecordBatch) error {
 // Performance-wise Write might be more favorable than WriteBuffered if you're dealing with:
 // * a highly-restricted memory environment
 // * very large records with lots of rows (potentially close to the max row group length)
-func (fw *FileWriter) Write(rec arrow.RecordBatch) error {
+func (fw *FileWriter) Write(rec arrow.Record) error {
 	if !rec.Schema().Equal(fw.schema) {
 		return fmt.Errorf("record schema does not match writer's. \nrecord: %s\nwriter: %s", rec.Schema(), fw.schema)
 	}
 
-	var recList []arrow.RecordBatch
+	var recList []arrow.Record
 	rowgroupLen := fw.wr.Properties().MaxRowGroupLength()
 	if rec.NumRows() > rowgroupLen {
-		recList = make([]arrow.RecordBatch, 0)
+		recList = make([]arrow.Record, 0)
 		for offset := int64(0); offset < rec.NumRows(); offset += rowgroupLen {
 			s := rec.NewSlice(offset, offset+utils.Min(rowgroupLen, rec.NumRows()-offset))
 			defer s.Release()
 			recList = append(recList, s)
 		}
 	} else {
-		recList = []arrow.RecordBatch{rec}
+		recList = []arrow.Record{rec}
 	}
 
 	for _, r := range recList {
