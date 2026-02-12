@@ -23,6 +23,7 @@ This version drops support for Python 3.8.
 - Multi-run workspace experience in W&B LEET TUI (`wandb beta leet` command). (@dmitryduev in https://github.com/wandb/wandb/pull/11299)
 - Config editor for W&B LEET TUI (`wandb beta leet config` command). (@dmitryduev in https://github.com/wandb/wandb/pull/11327)
 - `owner` property on `wandb.apis.public.Project` to access the project owner's user information. (@jacobromero in https://github.com/wandb/wandb/pull/11278)
+- `Files.download_all` function to download all files for a run retrieved from `wandb.Api.run()` (@jacobromero in https://github.com/wandb/wandb/pull/11332)
 
 ### Changed
 
