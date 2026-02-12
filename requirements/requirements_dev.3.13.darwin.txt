@@ -13,10 +13,12 @@ aiohttp-cors==0.8.1
     # via ray
 aiosignal==1.4.0
     # via aiohttp
-alembic==1.18.3
+alembic==1.18.4
     # via
     #   mlflow
     #   optuna
+annotated-doc==0.0.4
+    # via typer
 annotated-types==0.7.0
     # via pydantic
 anyio==4.12.1
@@ -51,16 +53,16 @@ attrs==25.4.0
     #   referencing
 autoflake==2.3.1
     # via ariadne-codegen
-awscli==1.44.35
+awscli==1.44.38
     # via wandb
 azure-containerregistry==1.2.0
     # via wandb
-azure-core==1.38.0
+azure-core==1.38.1
     # via
     #   azure-containerregistry
     #   azure-identity
     #   azure-storage-blob
-azure-identity==1.25.1
+azure-identity==1.25.2
     # via wandb
 azure-storage-blob==12.28.0
     # via wandb
@@ -76,12 +78,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.8.2
     # via -r requirements/requirements_dev.txt
-boto3==1.42.45
+boto3==1.42.48
     # via
     #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
-botocore==1.42.45
+botocore==1.42.48
     # via
     #   -r requirements/requirements_dev.txt
     #   awscli
@@ -121,7 +123,7 @@ click==8.3.1
     #   litellm
     #   mlflow-skinny
     #   ray
-    #   typer-slim
+    #   typer
     #   uvicorn
     #   wandb
 cloudpickle==3.1.2
@@ -149,7 +151,7 @@ coverage==7.13.4
     # via
     #   -r requirements/requirements_test.txt
     #   pytest-cov
-cryptography==46.0.4
+cryptography==46.0.5
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -159,7 +161,7 @@ cryptography==46.0.4
     #   pyjwt
 cycler==0.12.1
     # via matplotlib
-databricks-sdk==0.85.0
+databricks-sdk==0.88.0
     # via
     #   mlflow-skinny
     #   mlflow-tracing
@@ -204,7 +206,7 @@ fastjsonschema==2.21.2
     # via nbformat
 fastuuid==0.14.0
     # via litellm
-filelock==3.20.3
+filelock==3.21.1
     # via
     #   -r requirements/requirements_dev.txt
     #   huggingface-hub
@@ -268,9 +270,9 @@ google-cloud-aiplatform==1.115.0
     # via
     #   -r requirements/requirements_dev.txt
     #   wandb
-google-cloud-artifact-registry==1.19.0
+google-cloud-artifact-registry==1.20.0
     # via wandb
-google-cloud-bigquery==3.40.0
+google-cloud-bigquery==3.40.1
     # via google-cloud-aiplatform
 google-cloud-compute==1.43.0
     # via wandb
@@ -354,7 +356,7 @@ huey==2.6.0
     # via mlflow
 huggingface-hub==1.4.1
     # via tokenizers
-hypothesis==6.151.5
+hypothesis==6.151.6
     # via
     #   -r requirements/requirements_test.txt
     #   hypothesis-fspaths
@@ -483,7 +485,7 @@ jupyter-server==2.17.0
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.5.3
+jupyterlab==4.5.4
     # via
     #   jupyter
     #   notebook
@@ -512,10 +514,12 @@ lightning-utilities==0.15.2
     #   lightning
     #   pytorch-lightning
     #   torchmetrics
-litellm==1.81.9
+litellm==1.81.10
     # via dspy
 mako==1.3.10
     # via alembic
+markdown-it-py==4.0.0
+    # via rich
 markupsafe==3.0.3
     # via
     #   jinja2
@@ -532,7 +536,9 @@ matplotlib-inline==0.2.1
     # via
     #   ipykernel
     #   ipython
-metaflow==2.15.21
+mdurl==0.1.2
+    # via markdown-it-py
+metaflow==2.19.19
     # via -r requirements/requirements_dev.txt
 mistune==3.2.0
     # via nbconvert
@@ -626,7 +632,7 @@ numpy==2.3.5
     #   xgboost
 oauthlib==3.3.1
     # via requests-oauthlib
-openai==2.18.0
+openai==2.20.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -713,7 +719,7 @@ pathspec==1.0.4
     # via black
 pexpect==4.9.0
     # via ipython
-pillow==12.1.0
+pillow==12.1.1
     # via
     #   -r requirements/requirements_dev.txt
     #   bokeh
@@ -721,7 +727,7 @@ pillow==12.1.0
     #   matplotlib
     #   rdkit
     #   torchvision
-platformdirs==4.5.1
+platformdirs==4.7.0
     # via
     #   black
     #   jupyter-core
@@ -834,6 +840,7 @@ pygments==2.19.2
     #   jupyter-console
     #   nbconvert
     #   pytest
+    #   rich
 pyjwt==2.11.0
     # via msal
 pyparsing==3.3.2
@@ -961,6 +968,8 @@ rfc3986-validator==0.1.1
     #   jupyter-events
 rfc3987-syntax==1.1.0
     # via jsonschema
+rich==14.3.2
+    # via typer
 rpds-py==0.30.0
     # via
     #   jsonschema
@@ -1000,7 +1009,9 @@ setuptools==82.0.0
 shapely==2.1.2
     # via google-cloud-aiplatform
 shellingham==1.5.4
-    # via huggingface-hub
+    # via
+    #   huggingface-hub
+    #   typer
 six==1.17.0
     # via
     #   catboost
@@ -1114,7 +1125,9 @@ traitlets==5.14.3
     #   nbclient
     #   nbconvert
     #   nbformat
-typer-slim==0.21.1
+typer==0.23.0
+    # via typer-slim
+typer-slim==0.23.0
     # via huggingface-hub
 types-pyyaml==6.0.12.20250915
     # via responses
@@ -1144,7 +1157,6 @@ typing-extensions==4.15.0
     #   pytorch-lightning
     #   sqlalchemy
     #   torch
-    #   typer-slim
     #   typing-inspection
     #   wandb
 typing-inspection==0.4.2
@@ -1207,7 +1219,7 @@ widgetsnbextension==4.0.15
     # via ipywidgets
 wrapt==2.1.1
     # via smart-open
-xgboost==3.1.3
+xgboost==3.2.0
     # via -r requirements/requirements_dev.txt
 xxhash==3.6.0
     # via dspy
