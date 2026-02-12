@@ -1,5 +1,7 @@
 package graphemes
 
+import "unicode/utf8"
+
 // FromString returns an iterator for the grapheme clusters in the input string.
 // Iterate while Next() is true, and access the grapheme via Value().
 func FromString(s string) *Iterator[string] {
@@ -25,11 +27,20 @@ type Iterator[T ~string | ~[]byte] struct {
 	data  T
 	pos   int
 	start int
+	// AnsiEscapeSequences treats ANSI escape sequences (ECMA-48) as single grapheme
+	// clusters when true. Default is false.
+	AnsiEscapeSequences bool
 }
 
 var (
 	splitFuncString = splitFunc[string]
 	splitFuncBytes  = splitFunc[[]byte]
+)
+
+const (
+	esc = 0x1B
+	cr  = 0x0D
+	bel = 0x07
 )
 
 // Next advances the iterator to the next grapheme cluster.
@@ -40,12 +51,18 @@ func (iter *Iterator[T]) Next() bool {
 	}
 	iter.start = iter.pos
 
-	// ASCII hot path: if current byte is printable ASCII and
-	// next byte is also ASCII (or end of data), return single byte
+	if iter.AnsiEscapeSequences && iter.data[iter.pos] == esc {
+		if a := ansiEscapeLength(iter.data[iter.pos:]); a > 0 {
+			iter.pos += a
+			return true
+		}
+	}
+
+	// ASCII hot path: any ASCII is one grapheme when next byte is ASCII or end.
+	// Fall through on CR so splitfunc can handle CR+LF as a single cluster.
 	b := iter.data[iter.pos]
-	if b >= 0x20 && b < 0x7F {
-		// If next byte is non-ASCII, it could be a combining mark
-		if iter.pos+1 >= len(iter.data) || iter.data[iter.pos+1] < 0x80 {
+	if b < utf8.RuneSelf && b != cr {
+		if iter.pos+1 >= len(iter.data) || iter.data[iter.pos+1] < utf8.RuneSelf {
 			iter.pos++
 			return true
 		}

@@ -35,7 +35,18 @@ func (cr *{{.Name}}ColumnChunkReader) Skip(nvalues int64) (int64, error) {
   return nvalues, err
 }
 
-// ReadBatch reads batchSize values from the column.
+{{- if .isByteArray}}
+// ReadBatchInPage and ReadBatch are used to read batchSize values from the column, currently they are 
+// used in test. The former one only reads values from the same page, and might be shallow copies of the
+// underlying page data, while the latter one reads across multiple pages to fill the batch and values
+// have been cloned. User should choose the appropriate one based on their use cases. For example, if user
+// only needs to read and process values one by one, ReadBatchInPage is more efficient. Otherwise, if user
+// want to cache the values for later use, ReadBatch is more suitable.
+{{- else}}
+// ReadBatchInPage and ReadBatch are used to read batchSize values from the column, currently they are 
+// used in test. The former one only reads values from the same page, while the latter one reads across
+// multiple pages to fill the batch.
+{{end}}
 //
 // Returns error if values is not at least big enough to hold the number of values that will be read.
 //
@@ -44,9 +55,23 @@ func (cr *{{.Name}}ColumnChunkReader) Skip(nvalues int64) (int64, error) {
 //
 // total is the number of rows that were read, valuesRead is the actual number of physical values
 // that were read excluding nulls
+func (cr *{{.Name}}ColumnChunkReader) ReadBatchInPage(batchSize int64, values []{{.name}}, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
+  return cr.readBatchInPage(batchSize, 0, defLvls, repLvls, func(start, len int64) (int, error) {
+    return cr.curDecoder.(encoding.{{.Name}}Decoder).Decode(values[start:start+len])
+  })
+}
+
 func (cr *{{.Name}}ColumnChunkReader) ReadBatch(batchSize int64, values []{{.name}}, defLvls, repLvls []int16) (total int64, valuesRead int, err error) {
   return cr.readBatch(batchSize, defLvls, repLvls, func(start, len int64) (int, error) {
-    return cr.curDecoder.(encoding.{{.Name}}Decoder).Decode(values[start:start+len])
+{{- if .isByteArray}}
+    n, err := cr.curDecoder.(encoding.{{.Name}}Decoder).Decode(values[start:start+len])
+    if err == nil {
+      cloneByteArray(values[start : start+len])
+    }
+    return n, err
+{{- else}}
+    return cr.curDecoder.(encoding.{{.Name}}Decoder).Decode(values[start : start+len])
+{{- end}}
   })
 }
 {{end}}
