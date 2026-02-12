@@ -267,7 +267,7 @@ func (sm *SystemMonitor) GetState() int32 {
 func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 	sm.logger.Debug("monitor: probing execution environment")
 
-	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &spb.EnvironmentRecord{
+	environmentRecord := &spb.EnvironmentRecord{
 		Os:            sm.settings.GetOS(),
 		Python:        sm.settings.GetPython(),
 		Host:          sm.settings.GetHostProcessorName(),
@@ -285,7 +285,18 @@ func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 		Git:           sm.git,
 
 		WriterId: string(sm.writerID),
-	}}}
+	}
+
+	return &spb.Record{
+		RecordType: &spb.Record_Environment{Environment: environmentRecord},
+
+		// Set AlwaysSend to true to ensure the wandb-metadata.json file
+		// is created.
+		//
+		// TODO: Get rid of AlwaysSend and let the Sender handle offline mode
+		//   to decouple how a record is created from how it's processed.
+		Control: &spb.Control{AlwaysSend: true},
+	}
 }
 
 // probeResources gathers system information from all resources and merges their metadata.
@@ -335,7 +346,16 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 		e.GpuType = sm.settings.GetStatsGpuType()
 	}
 
-	return &spb.Record{RecordType: &spb.Record_Environment{Environment: e}}
+	return &spb.Record{
+		RecordType: &spb.Record_Environment{Environment: e},
+
+		// Set AlwaysSend to true to ensure the wandb-metadata.json file
+		// is created.
+		//
+		// TODO: Get rid of AlwaysSend and let the Sender handle offline mode
+		//   to decouple how a record is created from how it's processed.
+		Control: &spb.Control{AlwaysSend: true},
+	}
 }
 
 // Start begins resource monitoring.

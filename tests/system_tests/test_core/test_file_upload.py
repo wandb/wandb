@@ -1,32 +1,70 @@
+from __future__ import annotations
+
+import pathlib
 import platform
 
 import pytest
 import wandb
 
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
+
+# Special W&B files created and uploaded by a primary node.
+_WANDB_FILES_PRIMARY = (
+    "wandb-metadata.json",
+    "wandb-summary.json",
+    "output.log",
+    "config.yaml",
+    "requirements.txt",
+)
+
+# Special W&B files created and uploaded by a non-primary node.
+#
+# A run in "shared" mode is written to by multiple nodes (machines, processes,
+# etc.) simultaneously. To avoid nodes overwriting each others' data, a single
+# user-designated "primary" node uploads special files.
+_WANDB_FILES_NOT_PRIMARY = ("output.log",)
+
 
 @pytest.mark.parametrize(
     "x_primary, files",
-    [
-        (
-            True,
-            {
-                "wandb-metadata.json",
-                "wandb-summary.json",
-                "output.log",
-                "config.yaml",
-                "requirements.txt",
-            },
-        ),
-        (False, {"output.log"}),
-    ],
+    (
+        (True, _WANDB_FILES_PRIMARY),
+        (False, _WANDB_FILES_NOT_PRIMARY),
+    ),
 )
-def test_upload_wandb_files(wandb_backend_spy, x_primary, files):
+def test_creates_and_uploads_wandb_files(
+    x_primary: bool,
+    files: tuple[str, ...],
+    wandb_backend_spy: WandbBackendSpy,
+):
     with wandb.init(settings=wandb.Settings(x_primary=x_primary)) as run:
         print("SWEET")
 
+    for file in files:
+        assert pathlib.Path(run.dir, file).exists()
     with wandb_backend_spy.freeze() as snapshot:
-        uploaded_files = set(snapshot.uploaded_files(run_id=run.id))
-        assert files == uploaded_files
+        assert set(files) == set(snapshot.uploaded_files(run_id=run.id))
+
+
+@pytest.mark.parametrize(
+    "x_primary, files",
+    (
+        (True, _WANDB_FILES_PRIMARY),
+        (False, _WANDB_FILES_NOT_PRIMARY),
+    ),
+)
+def test_creates_wandb_files_when_offline(
+    x_primary: bool,
+    files: tuple[str, ...],
+):
+    with wandb.init(
+        mode="offline",
+        settings=wandb.Settings(x_primary=x_primary),
+    ) as run:
+        print("SWEET")
+
+    for file in files:
+        assert pathlib.Path(run.dir, file).exists()
 
 
 @pytest.mark.parametrize(

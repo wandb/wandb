@@ -76,6 +76,12 @@ class InterfaceShared(InterfaceBase, abc.ABC):
     ) -> None:
         rec = pb.Record()
         rec.output_raw.CopyFrom(outdata)
+
+        # Required to ensure the output.log file is written in offline mode.
+        #
+        # TODO: Make this decision in wandb-core, NOT in the client code.
+        rec.control.always_send = True
+
         self._publish(rec, nowait=nowait)
 
     def _publish_cancel(self, cancel: pb.CancelRequest) -> None:

@@ -687,10 +687,6 @@ func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
 }
 
 func (s *Sender) uploadMetadataFile() {
-	if s.runfilesUploader == nil {
-		return
-	}
-
 	if !s.settings.IsPrimary() {
 		return
 	}
@@ -708,13 +704,12 @@ func (s *Sender) uploadMetadataFile() {
 		return
 	}
 
-	if err := s.scheduleFileUpload(
+	if err := s.writeAndUploadFile(
 		environment,
 		MetaFileName,
 		filetransfer.RunFileKindWandb,
 	); err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run's %s file: %v", MetaFileName, err))
+		s.logger.CaptureError(fmt.Errorf("sender: uploadMetadataFile: %v", err))
 	}
 }
 
@@ -806,10 +801,6 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 }
 
 func (s *Sender) uploadSummaryFile() {
-	if s.runfilesUploader == nil {
-		return
-	}
-
 	if !s.settings.IsPrimary() {
 		return
 	}
@@ -821,21 +812,16 @@ func (s *Sender) uploadSummaryFile() {
 		return
 	}
 
-	if err := s.scheduleFileUpload(
+	if err := s.writeAndUploadFile(
 		summary,
 		SummaryFileName,
 		filetransfer.RunFileKindWandb,
 	); err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run summary: %v", err))
+		s.logger.CaptureError(fmt.Errorf("sender: uploadSummaryFile: %v", err))
 	}
 }
 
 func (s *Sender) uploadConfigFile() {
-	if s.runfilesUploader == nil {
-		return
-	}
-
 	if !s.settings.IsPrimary() {
 		return
 	}
@@ -853,27 +839,38 @@ func (s *Sender) uploadConfigFile() {
 		return
 	}
 
-	if err := s.scheduleFileUpload(
+	if err := s.writeAndUploadFile(
 		config,
 		ConfigFileName,
 		filetransfer.RunFileKindWandb,
 	); err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run config: %v", err))
+		s.logger.CaptureError(fmt.Errorf("sender: uploadConfigFile: %v", err))
 	}
 }
 
-// scheduleFileUpload creates and uploads a run file.
+// writeAndUploadFile writes a file in the run's files directory and schedules
+// it to upload.
 //
-// The file is created in the run's files directory and uploaded
-// asynchronously.
-func (s *Sender) scheduleFileUpload(
+// runPathStr is the file path relative to the run's files directory.
+// If the file exists, its contents are overwritten.
+//
+// This schedules an asynchronous upload without waiting for it to complete.
+// An upload is not scheduled in offline mode.
+func (s *Sender) writeAndUploadFile(
 	content []byte,
 	runPathStr string,
 	fileKind filetransfer.RunFileKind,
 ) error {
-	if s.runfilesUploader == nil {
-		return errors.New("runfilesUploader is nil")
+	if err := os.WriteFile(
+		filepath.Join(s.settings.GetFilesDir(), runPathStr),
+		content,
+		0o644,
+	); err != nil {
+		return fmt.Errorf("failed to write %s: %v", runPathStr, err)
+	}
+
+	if s.runfilesUploader == nil { // offline mode
+		return nil
 	}
 
 	maybeRunPath, err := paths.Relative(runPathStr)
@@ -881,17 +878,6 @@ func (s *Sender) scheduleFileUpload(
 		return err
 	}
 	runPath := *maybeRunPath
-
-	if err := os.WriteFile(
-		filepath.Join(
-			s.settings.GetFilesDir(),
-			string(runPath),
-		),
-		content,
-		0o644,
-	); err != nil {
-		return err
-	}
 
 	s.runfilesUploader.UploadNow(runPath, fileKind)
 	return nil
