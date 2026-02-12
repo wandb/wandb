@@ -2,8 +2,10 @@ package observability
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 )
@@ -47,10 +49,11 @@ type CoreLogger struct {
 	*slog.Logger
 	baseTags Tags
 	sentry   *sentry_ext.Client
+
+	captureRateLimiter *CaptureRateLimiter
 }
 
 func NewCoreLogger(logger *slog.Logger, params *CoreLoggerParams) *CoreLogger {
-
 	if params == nil {
 		params = &CoreLoggerParams{}
 	}
@@ -62,10 +65,25 @@ func NewCoreLogger(logger *slog.Logger, params *CoreLoggerParams) *CoreLogger {
 		tags[key] = value
 	}
 
+	const captureRateLimiterCacheSize = 100
+	const captureMinDuration = 5 * time.Minute
+	captureRateLimiter, err := NewCaptureRateLimiter(
+		captureRateLimiterCacheSize,
+		captureMinDuration,
+	)
+
+	if err != nil {
+		// Shouldn't happen. If it does, a nil captureRateLimiter will be
+		// used (and won't panic).
+		logger.Error(fmt.Sprintf(
+			"observability: couldn't make CaptureRateLimiter: %v", err))
+	}
+
 	return &CoreLogger{
-		Logger:   logger.With(args...),
-		sentry:   params.Sentry,
-		baseTags: tags,
+		Logger:             logger.With(args...),
+		sentry:             params.Sentry,
+		baseTags:           tags,
+		captureRateLimiter: captureRateLimiter,
 	}
 }
 
@@ -105,7 +123,7 @@ func (cl *CoreLogger) With(args ...any) *CoreLogger {
 func (cl *CoreLogger) CaptureError(err error, args ...any) {
 	cl.Error(err.Error(), args...)
 
-	if cl.sentry != nil {
+	if cl.sentry != nil && cl.captureRateLimiter.AllowCapture(err.Error()) {
 		cl.sentry.CaptureException(err, cl.withArgs(args...))
 	}
 }
@@ -114,7 +132,7 @@ func (cl *CoreLogger) CaptureError(err error, args ...any) {
 func (cl *CoreLogger) CaptureFatal(err error, args ...any) {
 	cl.Log(context.Background(), LevelFatal, err.Error(), args...)
 
-	if cl.sentry != nil {
+	if cl.sentry != nil && cl.captureRateLimiter.AllowCapture(err.Error()) {
 		cl.sentry.CaptureException(err, cl.withArgs(args...))
 	}
 }
@@ -131,7 +149,7 @@ func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
 func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 	cl.Warn(msg, args...)
 
-	if cl.sentry != nil {
+	if cl.sentry != nil && cl.captureRateLimiter.AllowCapture(msg) {
 		cl.sentry.CaptureMessage(msg, cl.withArgs(args...))
 	}
 }
@@ -140,7 +158,7 @@ func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 	cl.Info(msg, args...)
 
-	if cl.sentry != nil {
+	if cl.sentry != nil && cl.captureRateLimiter.AllowCapture(msg) {
 		cl.sentry.CaptureMessage(msg, cl.withArgs(args...))
 	}
 }
@@ -152,6 +170,7 @@ func (cl *CoreLogger) Reraise(args ...any) {
 	}
 
 	if err := recover(); err != nil {
+		// No point in rate-limiting panics as they are very unlikely to spam.
 		cl.sentry.Reraise(err, cl.withArgs(args...))
 	}
 }
