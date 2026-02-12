@@ -32,3 +32,5 @@ This version drops support for Python 3.8.
 
 - Sweep agents now exit gracefully when the sweep is deleted, instead of running indefinitely with repeated 404 errors (@domphan-wandb in https://github.com/wandb/wandb/pull/11226)
 - `wandb-core` crashes no longer produce extremely long, repetitive tracebacks in older Python versions (@timoffex in https://github.com/wandb/wandb/pull/11284)
+- TensorBoard sync no longer stops after 1 MB of data (@timoffex in https://github.com/wandb/wandb/pull/11334)
+  - Regression introduced in 0.24.0

@@ -353,7 +353,7 @@ func (s *TFEventReader) readFromCurrent(
 			ctx,
 			s.currentFile,
 			s.currentOffset,
-			int64(readSize),
+			-1, // read to end of blob
 			nil,
 		)
 
