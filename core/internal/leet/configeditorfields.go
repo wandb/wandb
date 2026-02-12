@@ -15,9 +15,25 @@ var (
 
 // buildConfigEditorFields returns the config editor schema.
 //
-// The schema is derived from the Config struct itself (json + leet struct tags),
-// so adding a new supported field to Config automatically adds it to the editor
-// without touching this code.
+// The schema is derived from the Config struct (and nested structs) by inspecting
+// `json` and `leet` struct tags.
+//
+// The `leet` tag supports the following comma-separated settings:
+//
+//   - `-`               Skip this field entirely.
+//   - `label=<string>`  Override the auto-generated label.
+//   - `desc=<string>`   Description shown in the editor footer.
+//   - `min=<int>`       Minimum value for ints (default 0).
+//   - `max=<int>`       Maximum value for ints (default 0 which means "no max").
+//   - `options=<name>`  Marks a string field as an enum and names the options
+//     provider. Only a small set of providers is supported
+//     (see buildConfigEditorFieldsFromType).
+//
+// Notes:
+//   - Only exported fields with a non-empty json tag name are considered.
+//   - Struct fields are traversed recursively. A struct field's `leet:"desc=..."`
+//     is treated as a *group description* for child fields to support good default
+//     descriptions for shared leaf types (e.g. GridConfig rows/cols).
 func buildConfigEditorFields() []configField {
 	configEditorFieldsOnce.Do(func() {
 		configEditorFieldsCached = buildConfigEditorFieldsFromType(reflect.TypeOf(Config{}))
@@ -82,6 +98,7 @@ func parseLeetTag(raw string) leetTag {
 				t.max = n
 				t.hasMax = true
 			}
+		default:
 			// Unknown keys are ignored (forward-compatible).
 		}
 	}

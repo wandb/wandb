@@ -13,12 +13,29 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+const (
+	quitConfirmStatusBrowse = "Unsaved changes — press q/esc/ctrl+c again to discard, or s to save & quit."
+	quitConfirmStatusEdit   = "Unsaved changes — press q/ctrl+c again to discard, or Esc to keep editing."
+)
+
 type ConfigEditorParams struct {
 	Config *ConfigManager
 	Logger *observability.CoreLogger
 }
 
-// ConfigEditor is a standalone Bubble Tea model for editing leet config.
+// ConfigEditor is a standalone Bubble Tea model for editing LEET config.
+//
+// The editor schema is derived from the Config struct itself. Supported field
+// types are bool, int, and string enums (string fields must declare an enum
+// provider via `leet:"options=<provider>"`).
+//
+// Key bindings (browse mode):
+//   - ↑/↓: select setting
+//   - Enter: edit
+//   - ←/→: adjust (toggle bool, bump int, cycle enum)
+//   - Space: toggle bool (otherwise acts like Enter)
+//   - s / ctrl+s: save and quit
+//   - q / esc / ctrl+c: quit (prompts if there are unsaved changes)
 //
 // Implements tea.Model.
 type ConfigEditor struct {
@@ -55,13 +72,17 @@ func NewConfigEditor(params ConfigEditorParams) *ConfigEditor {
 	}
 
 	orig := cfg.Snapshot()
+	fields := buildConfigEditorFields()
+	if len(fields) == 0 {
+		logger.Error("config editor: no editable config fields found")
+	}
 
 	return &ConfigEditor{
 		cfg:      cfg,
 		logger:   logger,
 		original: orig,
 		draft:    orig,
-		fields:   buildConfigEditorFields(),
+		fields:   fields,
 		selected: 0,
 		mode:     modeBrowse,
 	}
@@ -125,6 +146,7 @@ func (m *ConfigEditor) dirty() bool {
 	return m.draft != m.original
 }
 
+// Implements tea.Model.Update.
 func (m *ConfigEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -132,9 +154,23 @@ func (m *ConfigEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 	case tea.KeyMsg:
-		// Any key other than quit/save clears quit confirmation.
-		if msg.String() != "q" && msg.String() != "esc" {
+		key := msg.String()
+
+		// Global quit keys.
+		if key == "ctrl+c" || key == "q" || (key == "esc" && m.mode == modeBrowse) {
+			return m.handleQuit()
+		}
+
+		// Save & quit only from browse mode. (In edit modes, Enter applies changes;
+		// this avoids the surprising behavior of saving a half-edited int input.)
+		if m.mode == modeBrowse && (key == "s" || key == "ctrl+s") {
+			return m.handleSave()
+		}
+
+		// Any other key cancels quit confirmation.
+		if m.confirmQuit {
 			m.confirmQuit = false
+			m.status = ""
 		}
 
 		switch m.mode {
@@ -152,28 +188,34 @@ func (m *ConfigEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
+func (m *ConfigEditor) handleQuit() (tea.Model, tea.Cmd) {
+	if m.dirty() && !m.confirmQuit {
+		m.confirmQuit = true
+		if m.mode == modeBrowse {
+			m.status = quitConfirmStatusBrowse
+		} else {
+			m.status = quitConfirmStatusEdit
+		}
+		return m, nil
+	}
+	return m, tea.Quit
+}
+
+func (m *ConfigEditor) handleSave() (tea.Model, tea.Cmd) {
+	if err := m.cfg.SetConfig(&m.draft); err != nil {
+		m.logger.Error(fmt.Sprintf("config editor: save failed: %v", err))
+		m.status = fmt.Sprintf("Save failed: %v", err)
+		return m, nil
+	}
+	return m, tea.Quit
+}
+
 func (m *ConfigEditor) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if len(m.fields) == 0 {
+		return m, nil
+	}
+
 	switch msg.String() {
-	case "ctrl+c":
-		if m.dirty() && !m.confirmQuit {
-			m.confirmQuit = true
-			m.status = "Unsaved changes — press q again to discard, or s to save & quit."
-			return m, nil
-		}
-		return m, tea.Quit
-	case "q", "esc":
-		if m.dirty() && !m.confirmQuit {
-			m.confirmQuit = true
-			m.status = "Unsaved changes — press q again to discard, or s to save & quit."
-			return m, nil
-		}
-		return m, tea.Quit
-	case "s", "ctrl+s":
-		if err := m.cfg.SetConfig(&m.draft); err != nil {
-			m.status = fmt.Sprintf("Save failed: %v", err)
-			return m, nil
-		}
-		return m, tea.Quit
 	case "up", "k":
 		if m.selected > 0 {
 			m.selected--
@@ -194,7 +236,7 @@ func (m *ConfigEditor) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.activateSelected()
 	case " ":
 		// Space toggles bools; otherwise acts like enter.
-		f := m.fields[m.selected]
+		f := &m.fields[m.selected]
 		if f.Kind == fieldBool {
 			cur := f.getBool(m.draft)
 			f.setBool(&m.draft, !cur)
@@ -207,7 +249,7 @@ func (m *ConfigEditor) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ConfigEditor) activateSelected() (tea.Model, tea.Cmd) {
-	f := m.fields[m.selected]
+	f := &m.fields[m.selected]
 	switch f.Kind {
 	case fieldBool:
 		cur := f.getBool(m.draft)
@@ -241,7 +283,11 @@ func (m *ConfigEditor) activateSelected() (tea.Model, tea.Cmd) {
 }
 
 func (m *ConfigEditor) bumpSelected(delta int) {
-	f := m.fields[m.selected]
+	if len(m.fields) == 0 {
+		return
+	}
+
+	f := &m.fields[m.selected]
 	switch f.Kind {
 	case fieldEnum:
 		opts := f.options
@@ -276,6 +322,11 @@ func (m *ConfigEditor) updateEnumSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.enum = enumSelectState{}
 		return m, nil
 	case "enter":
+		if m.enum.fieldIndex < 0 || m.enum.fieldIndex >= len(m.fields) {
+			m.mode = modeBrowse
+			m.enum = enumSelectState{}
+			return m, nil
+		}
 		f := m.fields[m.enum.fieldIndex]
 		if m.enum.index >= 0 && m.enum.index < len(m.enum.options) {
 			f.setEnum(&m.draft, m.enum.options[m.enum.index])
@@ -305,6 +356,11 @@ func (m *ConfigEditor) updateIntEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.intE = intEditState{}
 		return m, nil
 	case "enter":
+		if m.intE.fieldIndex < 0 || m.intE.fieldIndex >= len(m.fields) {
+			m.mode = modeBrowse
+			m.intE = intEditState{}
+			return m, nil
+		}
 		f := m.fields[m.intE.fieldIndex]
 		raw := strings.TrimSpace(m.intE.input)
 		val, err := strconv.Atoi(raw)
@@ -382,8 +438,7 @@ func (m *ConfigEditor) renderTable(width int) string {
 	// Column widths.
 	maxLabel := 0
 	for i := range m.fields {
-		f := m.fields[i] // avoids copying 144 bytes on each iteration.
-		if lw := lipgloss.Width(f.Label); lw > maxLabel {
+		if lw := lipgloss.Width(m.fields[i].Label); lw > maxLabel {
 			maxLabel = lw
 		}
 	}
@@ -400,9 +455,14 @@ func (m *ConfigEditor) renderTable(width int) string {
 	var lines []string
 	lines = append(lines, headerLine)
 
+	if len(m.fields) == 0 {
+		lines = append(lines, navInfoStyle.Width(width).Render("No editable config fields found."))
+		return strings.Join(lines, "\n")
+	}
+
 	for i := range m.fields {
-		f := m.fields[i]
-		val := fieldValue(&f, &m.draft)
+		f := &m.fields[i]
+		val := fieldValue(f, &m.draft)
 		val = truncateRight(val, valW)
 
 		line := lipgloss.JoinHorizontal(
@@ -431,11 +491,13 @@ func (m *ConfigEditor) renderFooter(width int) string {
 		parts = append(parts, statusBarStyle.Width(width).Render(m.status))
 	}
 
-	f := m.fields[m.selected]
-	desc := fmt.Sprintf("%s  (%s)", f.Description, f.JSONKey)
-	parts = append(parts, navInfoStyle.Width(width).Render(desc))
+	if len(m.fields) > 0 && m.selected >= 0 && m.selected < len(m.fields) {
+		f := m.fields[m.selected]
+		desc := fmt.Sprintf("%s  (%s)", f.Description, f.JSONKey)
+		parts = append(parts, navInfoStyle.Width(width).Render(desc))
+	}
 
-	help := "↑/↓ select • Enter edit • ←/→ adjust • s save & quit • q quit"
+	help := "↑/↓ select • Enter edit • ←/→ adjust • s save & quit • q/esc/ctrl+c quit"
 	parts = append(parts, navInfoStyle.Width(width).Render(help))
 
 	return strings.Join(parts, "\n")
