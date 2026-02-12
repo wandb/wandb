@@ -71,7 +71,7 @@ def leet(ctx: click.Context) -> None:
 
 
 @leet.command()
-@click.argument("path", nargs=1, type=click.Path(exists=True), required=False)
+@click.argument("path", nargs=1, type=click.STRING, required=False)
 @click.option(
     "--pprof",
     default="",

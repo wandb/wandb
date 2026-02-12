@@ -21,6 +21,9 @@ const (
 	// in a .wandb file.
 	maxRecordsToScan = 10
 
+	// maxRecordsToScanTimeout is the maximum time to read the records.
+	maxRecordsToScanTimeout = 100 * time.Millisecond
+
 	// maxConcurrentPreloads limits the number of concurrent run record preloads.
 	maxConcurrentPreloads = 4
 )
@@ -226,23 +229,20 @@ func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
 				RunKey: runKey, Err: errRunRecordNotFound}
 		}
 
-		reader, err := NewWandbReader(wandbFile, logger)
+		reader, err := NewLevelDBHistorySource(wandbFile, logger)
 		if err != nil {
 			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
 		}
 		defer reader.Close()
 
-		for range maxRecordsToScan {
-			msg, err := reader.ReadNext()
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
+		msg, err := reader.Read(maxRecordsToScan, maxRecordsToScanTimeout)
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
 				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
 			}
-			if rm, ok := msg.(RunMsg); ok && rm.ID != "" {
-				return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: rm}
-			}
+		}
+		if rm, ok := msg.(RunMsg); ok && rm.ID != "" {
+			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: rm}
 		}
 
 		return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: errRunRecordNotFound}
