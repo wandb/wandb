@@ -149,11 +149,25 @@ class GCSHandler(StorageHandler):
         checksum: bool = True,
         max_objects: int | None = None,
     ) -> list[ArtifactManifestEntry]:
+        # google-cloud-storage is optional dependency that requires
+        # pip install wandb[gcp]. Importing these modules at top of file
+        # breaks users doing pip install wandb without [gcp].
+        from google.api_core.exceptions import (  # type: ignore[import-not-found]
+            GoogleAPICallError,
+        )
+        from google.auth.exceptions import (  # type: ignore[import-not-found]
+            GoogleAuthError,
+        )
+
         client = self.init_gcs()
 
         # After parsing any query params / fragments for additional context,
         # such as version identifiers, pare down the path to just the bucket
         # and key.
+        # For example: gs://my-bucket/my_object.pb#2
+        # - bucket: my-bucket
+        # - key: my_object.pb
+        # - version: 2
         gcs_path = _GCSPath.from_uri(path)
         path = f"{self._scheme}://{gcs_path.bucket}/{gcs_path.key}"
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
@@ -164,29 +178,66 @@ class GCSHandler(StorageHandler):
             ]
 
         bucket = client.bucket(gcs_path.bucket)
-        obj = bucket.get_blob(gcs_path.key, generation=gcs_path.version)
-        if (obj is None) and (gcs_path.version is not None):
-            raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
 
-        # HNS buckets store directory markers as blobs, so check the blob name
-        # to see if it represents a directory.
-        with TimedIf(multi := ((obj is None) or obj.name.endswith("/"))):
-            if multi:
-                termlog(
-                    f"Generating checksum for up to {max_objects} objects with prefix {gcs_path.key!r}... ",
-                    newline=False,
-                )
-                objects = bucket.list_blobs(
-                    prefix=gcs_path.key, max_results=max_objects
-                )
-            else:
-                objects = [obj]
+        # Try list_blobs first. Fallback to get_blob for backward compatibility.
+        # Using get_blob is a valid use case for public buckets.
+        # anonymous credentials on public buckets only allows get_blob without list_blobs.
+        #
+        # For our system test, the error comes from anonymous credentials:
+        # google.auth.exceptions.InvalidOperation:
+        # Anonymous credentials cannot be refreshed
+        # For blob client, all the exceptions on operations are based on:
+        # google.api_core.exceptions.GoogleAPICallError
+        #
+        # The fallback can lead to unnessary retries when user does not
+        # have either get or list permission. The performance penalty is limited
+        # because _store_path_via_get only get at most one file.
+        try:
+            return self._store_path_via_list(bucket, gcs_path, path, name, max_objects)
+        except (GoogleAuthError, GoogleAPICallError) as e:
+            logger.warning(f"list_blobs failed, falling back to get_blob: {e}")
+            return self._store_path_via_get(bucket, gcs_path, path, name)
+
+    def _store_path_via_list(
+        self,
+        bucket: storage.Bucket,
+        gcs_path: _GCSPath,
+        path: str,
+        name: StrPath | None,
+        max_objects: int,
+    ) -> list[ArtifactManifestEntry]:
+        with TimedIf(enabled=True):
+            # Return different versions as blobs if user specified a version
+            # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_list_blobs
+            objects = bucket.list_blobs(
+                prefix=gcs_path.key,
+                max_results=max_objects,
+                versions=gcs_path.version is not None,
+            )
 
             entries = [
-                self._entry_from_obj(obj, path, name, prefix=gcs_path.key, multi=multi)
+                self._entry_from_obj(obj, gcs_path, name)
                 for obj in objects
-                if obj and not obj.name.endswith("/")
+                if obj
+                # Skip folder
+                and not obj.name.endswith("/")
+                # When version specified, require exact key match (old get_blob behavior)
+                # to avoid matching file that only matches the prefix.
+                and (
+                    gcs_path.version is None
+                    or (
+                        str(obj.generation) == gcs_path.version
+                        and obj.name == gcs_path.key
+                    )
+                )
             ]
+
+        if len(entries) > 1:
+            termlog(f"Added {len(entries)} objects with prefix {gcs_path.key!r}")
+
+        # Error if versioned object doesn't exist
+        if gcs_path.version is not None and len(entries) == 0:
+            raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
 
         if len(entries) > max_objects:
             raise ValueError(
@@ -195,54 +246,103 @@ class GCSHandler(StorageHandler):
 
         return entries
 
+    def _store_path_via_get(
+        self,
+        bucket: storage.Bucket,
+        gcs_path: _GCSPath,
+        path: str,
+        name: StrPath | None,
+    ) -> list[ArtifactManifestEntry]:
+        # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.bucket.Bucket#google_cloud_storage_bucket_Bucket_get_blob
+        generation = int(gcs_path.version) if gcs_path.version is not None else None
+        obj = bucket.get_blob(gcs_path.key, generation=generation)
+
+        if obj is None and gcs_path.version is not None:
+            raise ValueError(f"Object does not exist: {path}#{gcs_path.version}")
+
+        if obj is None:
+            # Object doesn't exist or it is a folder.
+            # We cannot list files because we already called list_blobs
+            # before get_blob in _store_path_via_list.
+            return []
+
+        # Filter out directory markers with empty blob
+        if obj.name and obj.name.endswith("/"):
+            return []
+
+        # Single object found
+        return [self._entry_from_obj(obj, gcs_path, name)]
+
     def _entry_from_obj(
         self,
         obj: storage.Blob,
-        path: str,
+        gcs_path: _GCSPath,
         name: StrPath | None = None,
-        prefix: str = "",
-        multi: bool = False,
     ) -> ArtifactManifestEntry:
         """Create an ArtifactManifestEntry from a GCS object.
 
         Args:
-            obj: The GCS object
-            path: The GCS-style path (e.g.: "gs://bucket/file.txt")
+            obj: GCS Blob
+            gcs_path: parsed from add_reference, bucket, key and version
             name: The user assigned name, or None if not specified
-            prefix: The prefix to add (will be the same as `path` for directories)
-            multi: Whether or not this is a multi-object add.
         """
-        uri = _GCSPath.from_uri(path)
+        # e.g. my_folder/my_object.pb
+        if obj.name is None:
+            raise ValueError(f"Object name is None: {obj}")
+        posix_key = PurePosixPath(obj.name)
+        # ref is the full path used for download later on.
+        # e.g. gs://my-bucket/my_folder/my_object.pb
+        ref = f"{self._scheme}://{gcs_path.bucket}/{posix_key}"
 
-        # Always use posix paths, since that's what S3 uses.
-        posix_key = PurePosixPath(obj.name)  # the bucket key
-        posix_path = PurePosixPath(uri.bucket, uri.key)  # path without the scheme
-        posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
+        # Validate that gcs_path.key is either an exact match or a folder prefix.
+        # Partial filename prefixes are rejected (similar to `ls -R` behavior).
+        #
+        # For obj.name = "my_folder/my_object.pb":
+        #   gcs_path.key           | valid | reason
+        #   -----------------------|-------|--------------------
+        #   my_folder/my_object.pb | yes   | exact match
+        #   my_folder/             | yes   | folder prefix
+        #   my_folder              | yes   | folder prefix (no slash)
+        #   my_folder/my_obj       | no    | partial filename
+        posix_prefix = PurePosixPath(gcs_path.key)
+        is_exact_match = gcs_path.key == obj.name
+        # not using is_relative_to because of python 3.8
+        is_within_folder = posix_prefix in posix_key.parents
+        valid_prefix = is_exact_match or is_within_folder
+        if not valid_prefix:
+            raise ValueError(
+                f"Invalid reference: {gcs_path.key} is not same or a parent folder of {obj.name}"
+            )
 
+        # Compute the artifact entry name (path in manifest).
+        #
+        # Given obj.name = "my_folder/sub_folder/my_object.pb":
+        #   gcs_path.key                      | name | result
+        #   ----------------------------------|------|---------------------------
+        #   my_folder/sub_folder/my_object.pb | None | my_object.pb
+        #   my_folder/sub_folder/             | None | my_object.pb
+        #   my_folder/                        | None | sub_folder/my_object.pb
+        #   my_folder/sub_folder/my_object.pb | data | data
+        #   my_folder/sub_folder/             | data | data/my_object.pb
+        #   my_folder/                        | data | data/sub_folder/my_object.pb
         if name is None:
-            # We're adding a directory (prefix), so calculate a relative path.
-            if posix_prefix in posix_key.parents:
+            if is_within_folder:
                 posix_name = posix_key.relative_to(posix_prefix)
-                posix_ref = posix_path / posix_name
             else:
                 posix_name = PurePosixPath(posix_key.name)
-                posix_ref = posix_path
-
-        elif multi:
-            # We're adding a directory with a name override.
-            relpath = posix_key.relative_to(posix_prefix)
-            posix_name = PurePosixPath(name) / relpath
-            posix_ref = posix_path / relpath
-
         else:
-            posix_name = PurePosixPath(name or "")
-            posix_ref = posix_path
+            if is_within_folder:
+                posix_name = PurePosixPath(name) / posix_key.relative_to(posix_prefix)
+            else:
+                posix_name = PurePosixPath(name)
 
         return ArtifactManifestEntry(
             path=posix_name,
-            ref=f"{self._scheme}://{posix_ref}",
+            ref=ref,
             digest=obj.etag,
             size=obj.size,
+            # NOTE: gcs returns int for generation
+            # https://docs.cloud.google.com/python/docs/reference/storage/latest/google.cloud.storage.blob.Blob#google_cloud_storage_blob_Blob_generation
             extra={"versionID": obj.generation},
         )
 

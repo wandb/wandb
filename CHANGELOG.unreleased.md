@@ -34,3 +34,5 @@ This version drops support for Python 3.8.
 - `wandb-core` crashes no longer produce extremely long, repetitive tracebacks in older Python versions (@timoffex in https://github.com/wandb/wandb/pull/11284)
 - TensorBoard sync no longer stops after 1 MB of data (@timoffex in https://github.com/wandb/wandb/pull/11334)
   - Regression introduced in 0.24.0
+- Fixed `artifact.add_reference("gs://...")` to use `list_blobs` instead of `get_blob` when tracking external files on Google Cloud Storage. Accessing public buckets with anonymous credentials still uses `get_blob`.
+(@pingleiwandb in https://github.com/wandb/wandb/pull/11145)
