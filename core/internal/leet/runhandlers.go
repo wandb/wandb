@@ -560,7 +560,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	cmds := r.handleRecordsBatch(msg.Msgs, false)
 
 	if msg.HasMore {
-		cmds = append(cmds, ReadAllRecordsChunked(r.reader))
+		cmds = append(cmds, ReadAllRecordsChunked(r.historySource))
 		return cmds
 	}
 
@@ -580,7 +580,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	r.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := r.handleRecordsBatch(msg.Msgs, true)
-	cmds = append(cmds, ReadAvailableRecords(r.reader))
+	cmds = append(cmds, ReadAvailableRecords(r.historySource))
 	return cmds
 }
 
@@ -589,7 +589,7 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 	r.logger.Debug("model: processing HeartbeatMsg")
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadAvailableRecords(r.reader),
+		ReadAvailableRecords(r.historySource),
 		r.watcherMgr.WaitForMsg,
 	}
 }
@@ -598,7 +598,7 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 func (r *Run) handleFileChange() []tea.Cmd {
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadAvailableRecords(r.reader),
+		ReadAvailableRecords(r.historySource),
 		r.watcherMgr.WaitForMsg,
 	}
 }
