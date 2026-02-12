@@ -47,7 +47,7 @@ type Run struct {
 	liveRunning atomic.Bool
 
 	// Data reader.
-	historyource HistorySource
+	historySource HistorySource
 
 	// Transaction log (.wandb file) watch and heartbeat management.
 	watcherMgr   *WatcherManager
@@ -511,8 +511,8 @@ func (r *Run) Cleanup() {
 	if r.watcherMgr != nil {
 		r.watcherMgr.Finish()
 	}
-	if r.reader != nil {
-		r.reader.Close()
+	if r.historySource != nil {
+		r.historySource.Close()
 	}
 }
 

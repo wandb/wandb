@@ -10,12 +10,12 @@ import (
 
 const (
 	// Boot loading parameters
-	bootLoadChunkSize = 1000
-	bootLoadMaxTime   = 100 * time.Millisecond
+	BootLoadChunkSize = 1000
+	BootLoadMaxTime   = 100 * time.Millisecond
 
 	// Live monitoring parameters
-	liveMonitorChunkSize = 2000
-	liveMonitorMaxTime   = 50 * time.Millisecond
+	LiveMonitorChunkSize = 2000
+	LiveMonitorMaxTime   = 50 * time.Millisecond
 )
 
 // HistorySource is an interface for reading W&B run history data.
@@ -45,8 +45,8 @@ type HistorySource interface {
 func ReadAllRecordsChunked(source HistorySource) tea.Cmd {
 	return func() tea.Msg {
 		msgs, err := source.Read(
-			bootLoadChunkSize,
-			bootLoadMaxTime,
+			BootLoadChunkSize,
+			BootLoadMaxTime,
 		)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return ErrorMsg{Err: err}
@@ -59,8 +59,8 @@ func ReadAllRecordsChunked(source HistorySource) tea.Cmd {
 func ReadAvailableRecords(source HistorySource) tea.Cmd {
 	return func() tea.Msg {
 		msgs, err := source.Read(
-			liveMonitorChunkSize,
-			liveMonitorMaxTime,
+			LiveMonitorChunkSize,
+			LiveMonitorMaxTime,
 		)
 
 		// For live monitoring, we ignore EOF errors

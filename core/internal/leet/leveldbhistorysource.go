@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -88,8 +87,12 @@ func (hs *LevelDBHistorySource) Read(
 	for recordCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
 		record, readErr := hs.store.Read()
 		if readErr != nil {
-			if errors.Is(readErr, io.EOF) && hs.exitSeen {
-				err = io.EOF
+			if errors.Is(readErr, io.EOF) {
+				if hs.exitSeen {
+					err = io.EOF
+				} else {
+					err = nil
+				}
 			} else {
 				err = readErr
 			}
@@ -120,10 +123,10 @@ func (hs *LevelDBHistorySource) Read(
 	}
 
 	if len(histories) > 0 {
-		msgs = append(msgs, hs.ConcatenateHistory(histories))
+		msgs = append(msgs, hs.concatenateHistory(histories))
 	}
 	if len(summaries) > 0 {
-		msgs = append(msgs, hs.ConcatenateSummary(summaries))
+		msgs = append(msgs, hs.concatenateSummary(summaries))
 	}
 
 	if hs.exitSeen {
@@ -141,10 +144,10 @@ func (hs *LevelDBHistorySource) Read(
 	}, err
 }
 
-// ConcatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
+// concatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
 //
 // Assumes that the history messages are ordered.
-func (hs *LevelDBHistorySource) ConcatenateHistory(messages []HistoryMsg) HistoryMsg {
+func (hs *LevelDBHistorySource) concatenateHistory(messages []HistoryMsg) HistoryMsg {
 	h := HistoryMsg{
 		RunPath: hs.runPath,
 		Metrics: make(map[string]MetricData),
@@ -165,7 +168,7 @@ func (hs *LevelDBHistorySource) ConcatenateHistory(messages []HistoryMsg) Histor
 // ConcatenateHistory merges a slice of SummaryMsg into a single SummaryMsg.
 //
 // Assumes that the summary messages are ordered.
-func (hs *LevelDBHistorySource) ConcatenateSummary(messages []SummaryMsg) SummaryMsg {
+func (hs *LevelDBHistorySource) concatenateSummary(messages []SummaryMsg) SummaryMsg {
 	s := SummaryMsg{
 		RunPath: hs.runPath,
 		Summary: make([]*spb.SummaryRecord, 0),
@@ -183,20 +186,20 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
 		return RunMsg{
-			RunPath:     r.runPath,
+			RunPath:     hs.runPath,
 			ID:          rec.Run.GetRunId(),
 			DisplayName: rec.Run.GetDisplayName(),
 			Project:     rec.Run.GetProject(),
 			Config:      rec.Run.GetConfig(),
 		}
 	case *spb.Record_History:
-		return ParseHistory(r.runPath, rec.History)
+		return ParseHistory(hs.runPath, rec.History)
 	case *spb.Record_Stats:
-		return ParseStats(r.runPath, rec.Stats)
+		return ParseStats(hs.runPath, rec.Stats)
 	case *spb.Record_Summary:
-		return SummaryMsg{RunPath: r.runPath, Summary: []*spb.SummaryRecord{rec.Summary}}
+		return SummaryMsg{RunPath: hs.runPath, Summary: []*spb.SummaryRecord{rec.Summary}}
 	case *spb.Record_Environment:
-		return SystemInfoMsg{RunPath: r.runPath, Record: rec.Environment}
+		return SystemInfoMsg{RunPath: hs.runPath, Record: rec.Environment}
 	default:
 		return nil
 	}
@@ -206,42 +209,6 @@ func (hs *LevelDBHistorySource) Close() {
 	if hs.store != nil {
 		hs.store.Close()
 	}
-}
-
-// concatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
-//
-// Assumes that the history messages are ordered.
-func concatenateHistory(messages []HistoryMsg) HistoryMsg {
-	h := HistoryMsg{
-		Metrics: make(map[string]MetricData),
-	}
-
-	for _, msg := range messages {
-		for metricName, data := range msg.Metrics {
-			existing := h.Metrics[metricName]
-			h.Metrics[metricName] = MetricData{
-				X: slices.Concat(existing.X, data.X),
-				Y: slices.Concat(existing.Y, data.Y),
-			}
-		}
-	}
-
-	return h
-}
-
-// concatenateSummary merges a slice of SummaryMsg into a single SummaryMsg.
-//
-// Assumes that the summary messages are ordered.
-func concatenateSummary(messages []SummaryMsg) SummaryMsg {
-	s := SummaryMsg{
-		Summary: make([]*spb.SummaryRecord, 0),
-	}
-
-	for _, msg := range messages {
-		s.Summary = append(s.Summary, msg.Summary...)
-	}
-
-	return s
 }
 
 // ParseHistory extracts metrics from a history record.

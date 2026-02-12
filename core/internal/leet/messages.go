@@ -96,7 +96,7 @@ type WorkspaceRunOverviewAnimationMsg struct{}
 type WorkspaceRunInitMsg struct {
 	RunKey  string
 	RunPath string
-	Reader  *WandbReader
+	Reader  HistorySource
 }
 
 // WorkspaceChunkedBatchMsg wraps a ChunkedBatchMsg with the originating run key.
