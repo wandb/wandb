@@ -89,6 +89,14 @@ def run(path: str | None = None, pprof: str = "") -> None:
     beta_leet.launch(path, pprof)
 
 
+@leet.command()
+def config() -> None:
+    """Edit LEET configuration."""
+    from . import beta_leet
+
+    beta_leet.launch_config()
+
+
 @beta.command()
 @click.argument("paths", type=click.Path(exists=True), nargs=-1)
 @click.option(

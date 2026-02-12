@@ -112,3 +112,13 @@ def launch(path: str | None, pprof: str) -> Never:
     args.append(config.wandb_dir)
 
     _run_core(args)
+
+
+def launch_config() -> Never:
+    """Launch the LEET configuration editor."""
+    get_sentry().configure_scope(process_context="leet-config")
+
+    args = _base_args()
+    args.append("--config")
+
+    _run_core(args)

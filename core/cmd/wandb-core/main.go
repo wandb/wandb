@@ -188,9 +188,9 @@ func leetMain(args []string) int {
 		"Disables observability features such as metrics and logging analytics.")
 	runFile := fs.String("run-file", "",
 		"Path to a .wandb file to open directly in single-run view.")
-
 	pprofAddr := fs.String("pprof", "",
 		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
+	editConfig := fs.Bool("config", false, "Open config editor.")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
@@ -268,6 +268,16 @@ Flags:
 			Sentry: sentryClient,
 		},
 	)
+
+	if *editConfig {
+		editor := leet.NewConfigEditor(leet.ConfigEditorParams{Logger: logger})
+		p := tea.NewProgram(editor, tea.WithAltScreen(), tea.WithMouseCellMotion())
+		if _, err := p.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return exitCodeErrorInternal
+		}
+		return exitCodeSuccess
+	}
 
 	wandbDir := fs.Arg(0)
 	if wandbDir == "" {
