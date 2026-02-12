@@ -103,6 +103,33 @@ func (fw *Writer) NumRows() int { return fw.nrows }
 // Properties returns the writer properties that are in use for this file.
 func (fw *Writer) Properties() *parquet.WriterProperties { return fw.props }
 
+// TotalBytesWritten returns the total number of bytes that have been written
+// to the underlying sink so far.
+func (fw *Writer) TotalBytesWritten() int64 { return fw.sink.Tell() }
+
+// TotalCompressedBytes returns the total number of compressed bytes written
+// for all row groups that have been fully closed, plus the current open row
+// group (if any).
+func (fw *Writer) TotalCompressedBytes() int64 {
+	var total int64
+
+	// Closed row groups: use the metadata builder snapshot.
+	meta, err := fw.metadata.Snapshot()
+	if err == nil {
+		for i := 0; i < meta.NumRowGroups(); i++ {
+			// This uses the TotalCompressedSize recorded in the row group metadata.
+			total += meta.RowGroup(i).TotalCompressedSize()
+		}
+	}
+
+	// Currently open row group, if any: add its live compressed bytes.
+	if fw.rowGroupWriter != nil {
+		total += fw.rowGroupWriter.TotalCompressedBytes()
+	}
+
+	return total
+}
+
 // AppendBufferedRowGroup appends a rowgroup to the file and returns a writer
 // that buffers the row group in memory allowing writing multiple columns
 // at once to the row group. Data is not flushed out until the row group

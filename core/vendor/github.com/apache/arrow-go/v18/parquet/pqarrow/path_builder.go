@@ -377,42 +377,41 @@ func fixup(info pathInfo) pathInfo {
 	return info
 }
 
+// visitListLike handles the common logic for LIST, MAP, and FIXED_SIZE_LIST types.
+// Extracting this ensures nullableInParent is always set before visiting children.
+// defLevelOffset is applied to maxDefLevel AFTER all increments to compute defLevelIfEmpty.
+func (p *pathBuilder) visitListLike(arr arrow.Array, selector rangeSelector, defLevelOffset int16, childValues arrow.Array) error {
+	p.maybeAddNullable(arr)
+	p.info.maxDefLevel++
+	p.info.maxRepLevel++
+	p.info.path = append(p.info.path, &listNode{
+		selector:        selector,
+		prevRepLevel:    p.info.maxRepLevel - 1,
+		repLevel:        p.info.maxRepLevel,
+		defLevelIfEmpty: p.info.maxDefLevel + defLevelOffset,
+	})
+	p.nullableInParent = arr.DataType().(arrow.ListLikeType).ElemField().Nullable
+	return p.Visit(childValues)
+}
+
 func (p *pathBuilder) Visit(arr arrow.Array) error {
 	switch arr.DataType().ID() {
 	case arrow.LIST, arrow.MAP:
-		p.maybeAddNullable(arr)
-		// increment necessary due to empty lists
-		p.info.maxDefLevel++
-		p.info.maxRepLevel++
 		larr, ok := arr.(*array.List)
 		if !ok {
 			larr = arr.(*array.Map).List
 		}
-
-		p.info.path = append(p.info.path, &listNode{
-			selector:        varRangeSelector{larr.Offsets()[larr.Data().Offset():]},
-			prevRepLevel:    p.info.maxRepLevel - 1,
-			repLevel:        p.info.maxRepLevel,
-			defLevelIfEmpty: p.info.maxDefLevel - 1,
-		})
-		p.nullableInParent = arr.DataType().(arrow.ListLikeType).ElemField().Nullable
-		return p.Visit(larr.ListValues())
+		return p.visitListLike(arr,
+			varRangeSelector{larr.Offsets()[larr.Data().Offset():]},
+			-1, // defLevelIfEmpty = maxDefLevel - 1 (after all increments)
+			larr.ListValues())
 	case arrow.FIXED_SIZE_LIST:
-		p.maybeAddNullable(arr)
 		larr := arr.(*array.FixedSizeList)
 		listSize := larr.DataType().(*arrow.FixedSizeListType).Len()
-		// technically we could encode fixed sized lists with two level encodings
-		// but we always use 3 level encoding, so we increment def levels as well
-		p.info.maxDefLevel++
-		p.info.maxRepLevel++
-		p.info.path = append(p.info.path, &listNode{
-			selector:        fixedSizeRangeSelector{listSize},
-			prevRepLevel:    p.info.maxRepLevel - 1,
-			repLevel:        p.info.maxRepLevel,
-			defLevelIfEmpty: p.info.maxDefLevel,
-		})
-		// if arr.data.offset > 0, slice?
-		return p.Visit(larr.ListValues())
+		return p.visitListLike(arr,
+			fixedSizeRangeSelector{listSize},
+			0, // defLevelIfEmpty = maxDefLevel (after all increments)
+			larr.ListValues())
 	case arrow.DICTIONARY:
 		// only currently handle dictionaryarray where the dictionary
 		// is a primitive type

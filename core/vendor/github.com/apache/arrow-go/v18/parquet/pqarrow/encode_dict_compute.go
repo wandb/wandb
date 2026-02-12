@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build go1.18 && !parquet_read_only
+//go:build go1.18 && !pqarrow_read_only
 
 package pqarrow
 
@@ -90,12 +90,18 @@ func writeDictionaryArrow(ctx *arrowWriteContext, cw file.ColumnChunkWriter, lea
 		pageStats   = cw.PageStatistics()
 	)
 
+	normalized, err := dictEncoder.NormalizeDict(dict)
+	if err != nil {
+		return err
+	}
+	defer normalized.Release()
+
 	updateStats := func() error {
 		var referencedDict arrow.Array
 
 		ctx := compute.WithAllocator(context.Background(), ctx.props.mem)
 		// if dictionary is the same dictionary we already have, just use that
-		if preserved != nil && preserved == dict {
+		if preserved != nil && preserved == normalized {
 			referencedDict = preserved
 		} else {
 			referencedIndices, err := compute.UniqueArray(ctx, indices)
@@ -104,10 +110,10 @@ func writeDictionaryArrow(ctx *arrowWriteContext, cw file.ColumnChunkWriter, lea
 			}
 
 			// on first run, we might be able to re-use the existing dict
-			if referencedIndices.Len() == dict.Len() {
-				referencedDict = dict
+			if referencedIndices.Len() == normalized.Len() {
+				referencedDict = normalized
 			} else {
-				referencedDict, err = compute.TakeArrayOpts(ctx, dict, referencedIndices, compute.TakeOptions{BoundsCheck: false})
+				referencedDict, err = compute.TakeArrayOpts(ctx, normalized, referencedIndices, compute.TakeOptions{BoundsCheck: false})
 				if err != nil {
 					return err
 				}
@@ -117,14 +123,16 @@ func writeDictionaryArrow(ctx *arrowWriteContext, cw file.ColumnChunkWriter, lea
 		}
 
 		nonNullCount := indices.Len() - indices.NullN()
-		pageStats.IncNulls(int64(len(defLevels) - nonNullCount))
+		nullCount := max(int64(len(defLevels)-nonNullCount), 0)
+
+		pageStats.IncNulls(nullCount)
 		pageStats.IncNumValues(int64(nonNullCount))
 		return pageStats.UpdateFromArrow(referencedDict, false)
 	}
 
 	switch {
 	case preserved == nil:
-		if err := dictEncoder.PutDictionary(dict); err != nil {
+		if err := dictEncoder.PutDictionary(normalized); err != nil {
 			return err
 		}
 
@@ -132,7 +140,7 @@ func writeDictionaryArrow(ctx *arrowWriteContext, cw file.ColumnChunkWriter, lea
 		// memo table will be out of sync with the indices in the arrow array
 		// the easiest solution for this uncommon case is to fallback to plain
 		// encoding
-		if dictEncoder.NumEntries() != dict.Len() {
+		if dictEncoder.NumEntries() != normalized.Len() {
 			cw.FallbackToPlain()
 			return writeDense()
 		}
@@ -143,7 +151,7 @@ func writeDictionaryArrow(ctx *arrowWriteContext, cw file.ColumnChunkWriter, lea
 			}
 		}
 
-	case !array.Equal(dict, preserved):
+	case !array.Equal(normalized, preserved):
 		// dictionary has changed
 		cw.FallbackToPlain()
 		return writeDense()
