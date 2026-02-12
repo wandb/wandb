@@ -19,6 +19,47 @@ from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
 
 
+@pytest.fixture
+def simple_http_server():
+    """Factory fixture that creates an HTTP server serving provided content."""
+    import http.server
+    import socketserver
+    import threading
+
+    servers = []
+
+    def _create_server(test_content: bytes):
+        class SimpleHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(test_content)))
+                self.end_headers()
+                self.wfile.write(test_content)
+
+            def log_message(self, format, *args):
+                # Suppress log messages
+                pass
+
+        # Find an available port
+        with socketserver.TCPServer(("", 0), SimpleHandler) as s:
+            port = s.server_address[1]
+
+        # Start server in background thread
+        httpd = socketserver.TCPServer(("", port), SimpleHandler)
+        server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        server_thread.start()
+
+        servers.append(httpd)
+        return port
+
+    yield _create_server
+
+    # Cleanup all servers
+    for server in servers:
+        server.shutdown()
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -1490,3 +1531,117 @@ def test_run_upload_file_with_directory_traversal(
 
     mock_push.assert_called_once()
     assert "__/test.txt" in mock_push.call_args[0][0]
+
+
+def test_files_download_all(
+    wandb_backend_spy,
+    stub_run_gql_once,
+    tmp_path,
+    simple_http_server,
+):
+    test_content = b"test file content"
+    port = simple_http_server(test_content)
+    file_url = f"http://localhost:{port}/test.txt"
+    stub_run_gql_once()
+    runs_files_gql_body = {
+        "data": {
+            "project": {
+                "run": {
+                    "fileCount": 1,
+                    "files": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "name": "test.txt",
+                                    "url": file_url,
+                                }
+                            },
+                            {
+                                "node": {
+                                    "name": "test2.txt",
+                                    "url": file_url,
+                                }
+                            },
+                        ],
+                        "pageInfo": {
+                            "endCursor": None,
+                            "hasNextPage": False,
+                        },
+                    },
+                },
+            },
+        },
+    }
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RunFiles"),
+        gql.Constant(content=runs_files_gql_body),
+    )
+    api = Api()
+    run = api.run("test/test/test")
+    files = run.files()
+
+    download_dir = tmp_path / "downloads"
+    files.download_all(root=str(download_dir))
+
+    assert (download_dir / "test.txt").exists()
+    assert (download_dir / "test2.txt").exists()
+    assert (download_dir / "test.txt").read_bytes() == test_content
+    assert (download_dir / "test2.txt").read_bytes() == test_content
+
+
+def test_files_download_all_error(
+    wandb_backend_spy,
+    stub_run_gql_once,
+    tmp_path,
+    simple_http_server,
+):
+    # Use an invalid URL that will cause a download error
+    port = simple_http_server(b"")
+    url = f"http://localhost:{port}/error.txt"
+    stub_run_gql_once()
+    runs_files_gql_body = {
+        "data": {
+            "project": {
+                "run": {
+                    "fileCount": 2,
+                    "files": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "name": "error.txt",
+                                    "url": url,
+                                }
+                            },
+                        ],
+                        "pageInfo": {
+                            "endCursor": None,
+                            "hasNextPage": False,
+                        },
+                    },
+                },
+            },
+        },
+    }
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RunFiles"),
+        gql.Constant(content=runs_files_gql_body),
+    )
+    api = Api()
+    run = api.run("test/test/test")
+    files = run.files()
+    download_dir = tmp_path / "downloads"
+    download_dir.mkdir(parents=True, exist_ok=True)
+    # Create file to get file already exists error
+    (download_dir / "error.txt").touch()
+
+    results = files.download_all(
+        root=str(download_dir),
+        exist_ok=False,
+        replace=False,
+    )
+
+    assert len(results) == 1
+    assert isinstance(results[0].result, Exception)
+    assert "File already exists" in str(results[0].result)
