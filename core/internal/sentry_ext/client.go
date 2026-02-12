@@ -33,15 +33,9 @@ type Params struct {
 	Environment string
 	// BeforeSend is a callback to modify the event before sending it to sentry
 	BeforeSend func(*sentry.Event, *sentry.EventHint) *sentry.Event
-	// LRUSize is the size of the LRU cache
-	LRUSize int
 }
 
-type Client struct {
-	// Recent is the cache of recent errors sent to sentry to avoid sending
-	// the same error multiple times
-	Recent *cache
-}
+type Client struct{}
 
 // New initializes the sentry client.
 //
@@ -49,7 +43,6 @@ type Client struct {
 // any errors to sentry.
 // If we can't create the cache, we will log an error and return nil.
 func New(params Params) *Client {
-
 	if params.BeforeSend == nil {
 		params.BeforeSend = RemoveBottomFrames
 	}
@@ -82,16 +75,8 @@ func New(params Params) *Client {
 		slog.Debug("sentry_ext: New: sentry is enabled", "dsn", params.DSN)
 	}
 
-	cache, err := newCache(params.LRUSize)
-	if err != nil {
-		slog.Error("sentry_ext: New: failed to create cache", "err", err)
-		return nil
-	}
-
 	// If the DSN is not set, the client is effectively disabled.
-	return &Client{
-		Recent: cache,
-	}
+	return &Client{}
 }
 
 // SetUser sets the user information for the sentry client.
@@ -109,10 +94,6 @@ func (s *Client) SetUser(id, email, name string) {
 // Used for capturing errors. The error is sent to sentry as an error level
 // event. The event is enriched with the tags provided.
 func (s *Client) CaptureException(err error, tags map[string]string) {
-	if !s.Recent.shouldCapture(err) {
-		return
-	}
-
 	// Send the error to sentry
 	localHub := sentry.CurrentHub().Clone()
 	localHub.ConfigureScope(
@@ -127,10 +108,6 @@ func (s *Client) CaptureException(err error, tags map[string]string) {
 // Used for capturing non-error messages. The message is sent to sentry as an
 // info level event. The event is enriched with the tags provided.
 func (s *Client) CaptureMessage(msg string, tags map[string]string) {
-	if !s.Recent.shouldCapture(errors.New(msg)) {
-		return
-	}
-
 	localHub := sentry.CurrentHub().Clone()
 	localHub.ConfigureScope(
 		func(scope *sentry.Scope) {
