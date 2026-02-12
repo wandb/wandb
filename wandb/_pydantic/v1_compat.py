@@ -131,14 +131,21 @@ class V1MixinMetaclass(PydanticModelMetaclass):
                     isinstance(field := obj, FieldInfo)
                     and (ann := annotations.get(field_name))
                 ):
-                    # For list-like fields, rename:
+                    # For list-like fields, we WOULD want to rename:
                     # - `max_length (v2) -> max_items (v1)`
                     # - `min_length (v2) -> min_items (v1)`
                     # In v1: lists -> `{min,max}_items`; strings -> `{min,max}_length`.
                     # In v2: lists OR strings -> `{min,max}_length`.
+                    #
+                    # HOWEVER, this does not play well with generated code that defers
+                    # type annotations via `from __future__ import annotations`.
+                    # See: https://github.com/pydantic/pydantic/issues/3745
+                    #
+                    # Pydantic v1 users will unfortunately have to skip validation
+                    # of length constraints on any list-like fields.
                     if _is_list_like_ann(ann):
-                        field.max_items, field.max_length = field.max_length, None
-                        field.min_items, field.min_length = field.min_length, None
+                        field.max_items, field.max_length = None, None
+                        field.min_items, field.min_length = None, None
 
                     # For str-like fields, rename:
                     # - `pattern (v2) -> regex (v1)`
