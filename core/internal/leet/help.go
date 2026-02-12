@@ -90,7 +90,18 @@ func (h *HelpModel) entriesForMode() []HelpEntry {
 		entries = append(entries, helpEntriesFromCategories(WorkspaceKeyBindings())...)
 	}
 
+	entries = append(entries, tipsEntries()...)
+
 	return entries
+}
+
+// tipsEntries returns informational entries shown after the key bindings.
+func tipsEntries() []HelpEntry {
+	return []HelpEntry{
+		{Key: "Tips", Description: ""},
+		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		blankLine,
+	}
 }
 
 func (h *HelpModel) modeLabel() string {

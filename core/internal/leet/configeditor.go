@@ -18,30 +18,65 @@ const (
 	quitConfirmStatusEdit   = "Unsaved changes — press q/ctrl+c again to discard, or Esc to keep editing."
 )
 
+// ConfigEditorParams configures a [ConfigEditor].
 type ConfigEditorParams struct {
+	// Config is the config manager to read from and persist to.
+	// If nil, a default manager is created from the standard config path.
 	Config *ConfigManager
+
+	// Logger is used for error reporting.
+	// If nil, a no-op logger is used.
 	Logger *observability.CoreLogger
 }
 
-// ConfigEditor is a standalone Bubble Tea model for editing LEET config.
+// ConfigEditor is a standalone Bubble Tea model for interactively editing
+// LEET's persisted configuration.
 //
-// The editor schema is derived from the Config struct itself. Supported field
-// types are bool, int, and string enums (string fields must declare an enum
-// provider via `leet:"options=<provider>"`).
+// Launch it with `wandb beta leet config`. It reads the current config from
+// disk, presents every editable field in a navigable table, and writes changes
+// back atomically on save.
 //
-// Key bindings (browse mode):
-//   - ↑/↓: select setting
-//   - Enter: edit
-//   - ←/→: adjust (toggle bool, bump int, cycle enum)
+// # Schema derivation
+//
+// The editor schema is derived from the [Config] struct at init time via
+// [buildConfigEditorFields]. Supported field types are bool, int, and
+// string enums (string fields must declare an enum provider via
+// `leet:"options=<provider>"`). See [configeditorfields.go] for the full
+// tag grammar and reflection logic.
+//
+// # Modes
+//
+// The editor operates in one of three modes:
+//
+//   - Browse: navigate settings with ↑/↓, quick-adjust with ←/→,
+//     toggle bools with Space, or press Enter to open a type-specific
+//     sub-editor.
+//   - Enum select: pick from a list of allowed values (opened from
+//     enum fields).
+//   - Int edit: type a numeric value with validation against min/max
+//     constraints (opened from int fields).
+//
+// # Key bindings
+//
+// Browse mode:
+//   - ↑/↓ or k/j: select setting
+//   - Enter: open sub-editor for the selected field
+//   - ←/→ or h/l: quick-adjust (toggle bool, bump int, cycle enum)
 //   - Space: toggle bool (otherwise acts like Enter)
 //   - s / ctrl+s: save and quit
 //   - q / esc / ctrl+c: quit (prompts if there are unsaved changes)
 //
-// Implements tea.Model.
+// Enum select / Int edit:
+//   - Enter: apply
+//   - Esc: cancel (return to browse)
+//
+// Implements [tea.Model].
 type ConfigEditor struct {
 	cfg    *ConfigManager
 	logger *observability.CoreLogger
 
+	// original holds the config snapshot taken at editor creation.
+	// Compared with draft to detect unsaved changes.
 	original Config
 	draft    Config
 
@@ -88,6 +123,7 @@ func NewConfigEditor(params ConfigEditorParams) *ConfigEditor {
 	}
 }
 
+// editorMode tracks which interaction state the editor is in.
 type editorMode int
 
 const (
@@ -97,6 +133,7 @@ const (
 	modeIntEdit
 )
 
+// configFieldKind distinguishes the three supported field types.
 type configFieldKind int
 
 const (
@@ -106,6 +143,12 @@ const (
 	fieldEnum
 )
 
+// configField describes a single editable setting.
+//
+// Each field carries typed getter/setter closures that operate on
+// [Config] values by index path, plus display metadata (label,
+// description, JSON key) and type-specific constraints (min/max
+// for ints, allowed options for enums).
 type configField struct {
 	Label       string
 	JSONKey     string
@@ -128,12 +171,15 @@ type configField struct {
 	setEnum func(*Config, string)
 }
 
+// enumSelectState holds transient state while the user picks from an
+// enum's allowed values.
 type enumSelectState struct {
 	fieldIndex int
 	options    []string
 	index      int
 }
 
+// intEditState holds transient state while the user types an integer value.
 type intEditState struct {
 	fieldIndex int
 	input      string
@@ -146,7 +192,7 @@ func (m *ConfigEditor) dirty() bool {
 	return m.draft != m.original
 }
 
-// Implements tea.Model.Update.
+// Update implements [tea.Model].
 func (m *ConfigEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -560,6 +606,7 @@ func (m *ConfigEditor) renderIntEditor(width int) string {
 	return box
 }
 
+// availableColorSchemes returns the sorted names of all registered color schemes.
 func availableColorSchemes() []string {
 	names := make([]string, 0, len(colorSchemes))
 	for name := range colorSchemes {

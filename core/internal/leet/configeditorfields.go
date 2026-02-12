@@ -15,25 +15,35 @@ var (
 
 // buildConfigEditorFields returns the config editor schema.
 //
-// The schema is derived from the Config struct (and nested structs) by inspecting
-// `json` and `leet` struct tags.
+// The schema is derived from the [Config] struct (and nested structs) by
+// inspecting `json` and `leet` struct tags. Results are computed once and
+// cached; callers receive a defensive copy.
 //
-// The `leet` tag supports the following comma-separated settings:
+// # Tag grammar
+//
+// The `leet` tag supports the following comma-separated directives:
 //
 //   - `-`               Skip this field entirely.
-//   - `label=<string>`  Override the auto-generated label.
-//   - `desc=<string>`   Description shown in the editor footer.
-//   - `min=<int>`       Minimum value for ints (default 0).
-//   - `max=<int>`       Maximum value for ints (default 0 which means "no max").
-//   - `options=<name>`  Marks a string field as an enum and names the options
-//     provider. Only a small set of providers is supported
-//     (see buildConfigEditorFieldsFromType).
+//   - `label=<text>`    Override the auto-generated display label.
+//   - `desc=<text>`     Description shown in the editor footer when
+//     the field is selected.
+//   - `min=<int>`       Minimum value for int fields (default 0).
+//   - `max=<int>`       Maximum value for int fields (0 means no upper
+//     bound).
+//   - `options=<name>`  Marks a string field as an enum and names the
+//     options provider function. Only providers registered in
+//     [buildConfigEditorFieldsFromType] are recognized.
 //
-// Notes:
-//   - Only exported fields with a non-empty json tag name are considered.
-//   - Struct fields are traversed recursively. A struct field's `leet:"desc=..."`
-//     is treated as a *group description* for child fields to support good default
-//     descriptions for shared leaf types (e.g. GridConfig rows/cols).
+// # Field resolution rules
+//
+//   - Only exported fields with a non-empty `json` tag name are considered.
+//   - Struct fields are traversed recursively. A struct field's
+//     `leet:"desc=..."` is treated as a group description for its
+//     children, enabling nice auto-descriptions for shared leaf types
+//     (e.g. [GridConfig] rows/cols become "Rows in the main metrics grid.").
+//   - String fields without an `options` provider are skipped to avoid
+//     exposing free-text editing in the TUI.
+//   - Unknown `leet` tag keys are silently ignored for forward compatibility.
 func buildConfigEditorFields() []configField {
 	configEditorFieldsOnce.Do(func() {
 		configEditorFieldsCached = buildConfigEditorFieldsFromType(reflect.TypeOf(Config{}))
@@ -45,6 +55,7 @@ func buildConfigEditorFields() []configField {
 	return out
 }
 
+// leetTag holds the parsed result of a `leet:"..."` struct tag.
 type leetTag struct {
 	skip bool
 
@@ -58,6 +69,13 @@ type leetTag struct {
 	hasMax bool
 }
 
+// parseLeetTag parses a raw `leet` struct tag value into a [leetTag].
+//
+// Examples:
+//
+//	""                          → zero leetTag
+//	"-"                         → leetTag{skip: true}
+//	"label=Foo,desc=Bar,min=1"  → leetTag{label:"Foo", desc:"Bar", min:1, hasMin:true}
 func parseLeetTag(raw string) leetTag {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -105,6 +123,11 @@ func parseLeetTag(raw string) leetTag {
 	return t
 }
 
+// buildConfigEditorFieldsFromType reflects over a struct type and produces
+// a flat list of [configField] values for every editable leaf.
+//
+// Enum providers map provider names (from `leet:"options=<name>"`) to
+// functions that return the allowed values.
 func buildConfigEditorFieldsFromType(t reflect.Type) []configField {
 	enumProviders := map[string]func() []string{
 		"colorSchemes": availableColorSchemes,
@@ -121,6 +144,14 @@ func buildConfigEditorFieldsFromType(t reflect.Type) []configField {
 	return out
 }
 
+// walkConfigFields recursively traverses struct fields to build [configField]
+// entries for every editable leaf.
+//
+// Parameters accumulate state as we recurse into nested structs:
+//   - indexPath tracks the [reflect.StructField.Index] chain for FieldByIndex.
+//   - jsonPath tracks the dot-joined JSON key (e.g. "metrics_grid.rows").
+//   - labelSegments accumulate humanized path segments for the display label.
+//   - groupDesc propagates a parent struct's `leet:"desc=..."` to children.
 func walkConfigFields(
 	t reflect.Type,
 	indexPath []int,
@@ -274,6 +305,8 @@ func walkConfigFields(
 	}
 }
 
+// jsonTagName extracts the field name from a `json` struct tag.
+// Returns ("", false) for empty tags and the explicit skip marker "-".
 func jsonTagName(sf reflect.StructField) (string, bool) {
 	raw := sf.Tag.Get("json")
 	if raw == "" {
@@ -287,12 +320,16 @@ func jsonTagName(sf reflect.StructField) (string, bool) {
 	return name, true
 }
 
+// humanizeSegment converts a JSON key segment (e.g. "heartbeat_interval")
+// into a space-separated lowercase form ("heartbeat interval").
 func humanizeSegment(seg string) string {
 	seg = strings.ReplaceAll(seg, "_", " ")
 	seg = strings.ReplaceAll(seg, "-", " ")
 	return strings.ToLower(seg)
 }
 
+// buildLabel returns the display label for a field, using the tag override
+// if provided or joining the humanized path segments with sentence casing.
 func buildLabel(labelSegments []string, override string) string {
 	if override != "" {
 		return override
@@ -300,6 +337,7 @@ func buildLabel(labelSegments []string, override string) string {
 	return sentenceCase(strings.Join(labelSegments, " "))
 }
 
+// sentenceCase upper-cases the first rune of s.
 func sentenceCase(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -310,6 +348,7 @@ func sentenceCase(s string) string {
 	return string(r)
 }
 
+// lowerFirst lower-cases the first rune of s.
 func lowerFirst(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -320,6 +359,12 @@ func lowerFirst(s string) string {
 	return string(r)
 }
 
+// defaultDescription generates a fallback description when none is specified
+// via `leet:"desc=..."`.
+//
+// Grid leaf fields (rows/cols) get contextual descriptions like "Rows in the
+// main metrics grid." using the parent's groupDesc. Everything else falls back
+// to "Set <label>."
 func defaultDescription(jsonPath []string, groupDesc, label string) string {
 	// Special case for grid configs: infer nice descriptions automatically.
 	if len(jsonPath) >= 2 {
@@ -345,6 +390,7 @@ func defaultDescription(jsonPath []string, groupDesc, label string) string {
 	return ""
 }
 
+// appendIndex returns a new slice containing prefix followed by suffix.
 func appendIndex(prefix, suffix []int) []int {
 	out := make([]int, 0, len(prefix)+len(suffix))
 	out = append(out, prefix...)
@@ -352,12 +398,14 @@ func appendIndex(prefix, suffix []int) []int {
 	return out
 }
 
+// cloneIndex returns an independent copy of in.
 func cloneIndex(in []int) []int {
 	out := make([]int, len(in))
 	copy(out, in)
 	return out
 }
 
+// appendString returns a new slice containing prefix followed by elem.
 func appendString(prefix []string, elem string) []string {
 	out := make([]string, 0, len(prefix)+1)
 	out = append(out, prefix...)
