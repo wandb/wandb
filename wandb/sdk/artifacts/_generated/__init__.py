@@ -8,6 +8,7 @@ __all__ = [
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
+    "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL",
     "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
     "CREATE_REGISTRY_MEMBERS_GQL",
@@ -30,7 +31,6 @@ __all__ = [
     "GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL",
     "LINK_ARTIFACT_GQL",
     "PROJECT_ARTIFACTS_GQL",
-    "PROJECT_ARTIFACT_COLLECTIONS_GQL",
     "PROJECT_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
@@ -57,7 +57,7 @@ __all__ = [
     "UpdateArtifactSequenceType",
     "AddArtifactCollectionTags",
     "DeleteArtifactCollectionTags",
-    "ProjectArtifactCollections",
+    "ArtifactTypeArtifactCollections",
     "ProjectArtifactCollection",
     "ArtifactCollectionAliases",
     "GetArtifactFiles",
@@ -159,6 +159,7 @@ from .artifact_collection_aliases import ArtifactCollectionAliases
 from .artifact_created_by import ArtifactCreatedBy
 from .artifact_membership_by_name import ArtifactMembershipByName
 from .artifact_type import ArtifactType
+from .artifact_type_artifact_collections import ArtifactTypeArtifactCollections
 from .artifact_used_by import ArtifactUsedBy
 from .create_registry_members import CreateRegistryMembers
 from .delete_aliases import DeleteAliases
@@ -240,6 +241,7 @@ from .operations import (
     ARTIFACT_COLLECTION_ALIASES_GQL,
     ARTIFACT_CREATED_BY_GQL,
     ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
+    ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL,
     ARTIFACT_TYPE_GQL,
     ARTIFACT_USED_BY_GQL,
     CREATE_REGISTRY_MEMBERS_GQL,
@@ -262,7 +264,6 @@ from .operations import (
     GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
     LINK_ARTIFACT_GQL,
     PROJECT_ARTIFACT_COLLECTION_GQL,
-    PROJECT_ARTIFACT_COLLECTIONS_GQL,
     PROJECT_ARTIFACT_TYPE_GQL,
     PROJECT_ARTIFACT_TYPES_GQL,
     PROJECT_ARTIFACTS_GQL,
@@ -284,7 +285,6 @@ from .operations import (
     UPSERT_REGISTRY_GQL,
 )
 from .project_artifact_collection import ProjectArtifactCollection
-from .project_artifact_collections import ProjectArtifactCollections
 from .project_artifact_type import ProjectArtifactType
 from .project_artifact_types import ProjectArtifactTypes
 from .project_artifacts import ProjectArtifacts

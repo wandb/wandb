@@ -39,6 +39,7 @@ class ArtifactCollectionFragment(GQLResult):
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
+    updated_at: Optional[str] = Field(alias="updatedAt")
     project: Optional[ProjectInfoFragment]
     type: ArtifactCollectionFragmentType
     tags: ArtifactCollectionFragmentTags
@@ -182,6 +183,7 @@ class RegistryCollectionFragment(GQLResult):
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
+    updated_at: Optional[str] = Field(alias="updatedAt")
     project: Optional[ProjectInfoFragment]
     type: RegistryCollectionFragmentType
     tags: RegistryCollectionFragmentTags
