@@ -134,10 +134,10 @@ func (hs *LevelDBHistorySource) Read(
 	}
 
 	if len(histories) > 0 {
-		msgs = append(msgs, hs.concatenateHistory(histories))
+		msgs = append(msgs, concatenateHistory(histories, hs.runPath))
 	}
 	if len(summaries) > 0 {
-		msgs = append(msgs, hs.concatenateSummary(summaries))
+		msgs = append(msgs, concatenateSummary(summaries, hs.runPath))
 	}
 
 	if hs.exitSeen && !hs.fileCompleteEmitted {
