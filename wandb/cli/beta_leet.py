@@ -53,6 +53,12 @@ def _resolve_path(path: str | None) -> LaunchConfig:
         wandb_dir = wandb_setup.singleton().settings.wandb_dir
         return LaunchConfig(wandb_dir=str(wandb_dir))
 
+    if path.startswith("wandb://"):
+        return LaunchConfig(
+            wandb_dir=".",
+            run_file=path,
+        )
+
     resolved = pathlib.Path(path).resolve()
 
     if resolved.is_file():
