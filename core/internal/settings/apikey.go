@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// readNetrcAPIKey reads the API key from the user's netrc file for the given base URL.
+// ReadNetrcAPIKey reads the API key from the user's netrc file for the given base URL.
 //
 // The netrc file is located at:
 //   - The path specified by the NETRC environment variable, or
@@ -18,7 +18,7 @@ import (
 //   - ~/_netrc on Windows
 //
 // Returns the API key (password field in netrc) if found, or an empty string otherwise.
-func readNetrcAPIKey(baseURL string) (string, error) {
+func ReadNetrcAPIKey(baseURL string) (string, error) {
 	netrcPath := getNetrcPath()
 	if netrcPath == "" {
 		return "", nil
