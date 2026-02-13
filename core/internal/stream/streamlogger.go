@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/google/wire"
 
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 )
@@ -48,14 +48,22 @@ func symlinkDebugCore(
 func streamLogger(
 	loggerFile streamLoggerFile,
 	s *settings.Settings,
-	sentryClient *sentry_ext.Client,
 	logLevel slog.Level,
 ) *observability.CoreLogger {
-	sentryClient.SetUser(
-		s.GetEntity(),
-		s.GetEmail(),
-		s.GetUserName(),
-	)
+	var sentryHub *sentry.Hub
+	if !s.IsOffline() {
+		sentryHub = sentry.CurrentHub().Clone()
+
+		sentryHub.ConfigureScope(func(scope *sentry.Scope) {
+			scope.SetUser(sentry.User{
+				ID:    s.GetEntity(),
+				Email: s.GetEmail(),
+				Name:  s.GetUserName(),
+			})
+		})
+
+		sentryHub.CaptureMessage("wandb-core")
+	}
 
 	var writer io.Writer
 	if loggerFile != nil {
@@ -72,10 +80,7 @@ func streamLogger(
 				// AddSource: true,
 			},
 		)),
-		&observability.CoreLoggerParams{
-			Tags:   observability.Tags{},
-			Sentry: sentryClient,
-		},
+		sentryHub,
 	)
 
 	logger.Info(

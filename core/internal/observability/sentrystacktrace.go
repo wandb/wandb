@@ -1,4 +1,4 @@
-package sentry_ext
+package observability
 
 import (
 	"reflect"
@@ -7,18 +7,10 @@ import (
 	"github.com/getsentry/sentry-go"
 )
 
-var (
-	// coreLoggerPackage is the Go import path for the CoreLogger.
-	//
-	// Hard-coded to avoid import cycle. Correctness checked in unit test
-	// using reflection.
-	coreLoggerPackage = "github.com/wandb/wandb/core/internal/observability"
-
-	// sentryExtPackage is the Go import path for this package.
-	//
-	// Specifically, "github.com/wandb/wandb/core/internal/sentry_ext".
-	sentryExtPackage = reflect.TypeFor[Client]().PkgPath()
-)
+// coreLoggerPackage is the Go import path for the CoreLogger.
+//
+// Specifically, "github.com/wandb/wandb/core/internal/observability".
+var coreLoggerPackage = reflect.TypeFor[CoreLogger]().PkgPath()
 
 // RemoveLoggerFrames is a [sentry.EventProcessor] that strips internal
 // logging infrastructure frames from the top of each stack trace.
@@ -51,6 +43,5 @@ func RemoveLoggerFrames(
 // Accepts sentry.Frame by pointer as it is a large struct.
 func shouldHideFrame(frame *sentry.Frame) bool {
 	// Same strategy the Sentry SDK uses to filter out its own frames.
-	return strings.HasPrefix(frame.Module, coreLoggerPackage) ||
-		strings.HasPrefix(frame.Module, sentryExtPackage)
+	return strings.HasPrefix(frame.Module, coreLoggerPackage)
 }
