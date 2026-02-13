@@ -41,30 +41,17 @@ type HistorySource interface {
 	Close()
 }
 
-// ReadAllRecordsChunked returns a command to read records in chunks for progressive loading.
-func ReadAllRecordsChunked(source HistorySource) tea.Cmd {
+// ReadRecords returns a command to read te given number of records for the given time period.
+func ReadRecords(
+	source HistorySource,
+	chunkSize int,
+	maxTimePerChunk time.Duration,
+) tea.Cmd {
 	return func() tea.Msg {
 		msgs, err := source.Read(
 			BootLoadChunkSize,
 			BootLoadMaxTime,
 		)
-		if err != nil && !errors.Is(err, io.EOF) {
-			return ErrorMsg{Err: err}
-		}
-		return msgs
-	}
-}
-
-// ReadAvailableRecords reads new records for live monitoring.
-func ReadAvailableRecords(source HistorySource) tea.Cmd {
-	return func() tea.Msg {
-		msgs, err := source.Read(
-			LiveMonitorChunkSize,
-			LiveMonitorMaxTime,
-		)
-
-		// For live monitoring, we ignore EOF errors
-		// since we may have more data to read later.
 		if err != nil && !errors.Is(err, io.EOF) {
 			return ErrorMsg{Err: err}
 		}

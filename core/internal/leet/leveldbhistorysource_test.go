@@ -61,7 +61,7 @@ func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	s, err := leet.NewLevelDBHistorySource(path, observability.NewNoOpLogger())
 	require.NoError(t, err)
 
-	cmd := leet.ReadAllRecordsChunked(s)
+	cmd := leet.ReadRecords(s, leet.BootLoadChunkSize, leet.BootLoadMaxTime)
 	msg := cmd()
 	batch, ok := msg.(leet.ChunkedBatchMsg)
 	require.True(t, ok)
@@ -288,7 +288,7 @@ func TestReadAvailableRecords_BatchProcessing(t *testing.T) {
 	defer s.Close()
 
 	// Test ReadAvailableRecords batching
-	cmd := leet.ReadAvailableRecords(s)
+	cmd := leet.ReadRecords(s, leet.BootLoadChunkSize, leet.BootLoadMaxTime)
 	msg := cmd()
 
 	chunkedBatchMsg, ok := msg.(leet.ChunkedBatchMsg)
@@ -310,7 +310,7 @@ func TestReadAvailableRecords_BatchProcessing(t *testing.T) {
 	// Test reading when no more data available
 	// First consume all remaining data
 	for {
-		cmd = leet.ReadAvailableRecords(s)
+		cmd := leet.ReadRecords(s, leet.BootLoadChunkSize, leet.BootLoadMaxTime)
 		chunkedBatchMsg, ok := cmd().(leet.ChunkedBatchMsg)
 		require.True(t, ok, "expected ChunkedBatchMsg, got %T", cmd())
 
@@ -320,7 +320,7 @@ func TestReadAvailableRecords_BatchProcessing(t *testing.T) {
 	}
 
 	// Now verify returns nil when no data
-	cmd = leet.ReadAvailableRecords(s)
+	cmd = leet.ReadRecords(s, leet.BootLoadChunkSize, leet.BootLoadMaxTime)
 	chunkedBatchMsg, ok = cmd().(leet.ChunkedBatchMsg)
 	require.True(t, ok, "expected ChunkedBatchMsg, got %T", cmd())
 	require.False(t, chunkedBatchMsg.HasMore)
