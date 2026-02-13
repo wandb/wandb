@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -44,7 +43,7 @@ type Client struct{}
 // If we can't create the cache, we will log an error and return nil.
 func New(params Params) *Client {
 	if params.BeforeSend == nil {
-		params.BeforeSend = RemoveBottomFrames
+		params.BeforeSend = RemoveLoggerFrames
 	}
 
 	var dsn string
@@ -137,35 +136,4 @@ func (s *Client) Reraise(err any, tags map[string]string) {
 func (s *Client) Flush(timeout time.Duration) bool {
 	hub := sentry.CurrentHub()
 	return hub.Flush(timeout)
-}
-
-// RemoveBottomFrames modifies the stack trace by checking the file name of the bottom-most 3 frames
-// and removing them if they are internal to core
-func RemoveBottomFrames(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
-	for i, exception := range event.Exception {
-		if exception.Stacktrace == nil {
-			continue
-		}
-		frames := exception.Stacktrace.Frames
-		framesLen := len(frames)
-		// for the recovered panics, the bottom-most 3 frames of the stacktrace
-		// will come from client.go and logging.go, so we remove them
-		if framesLen < 3 {
-			continue
-		}
-		for j := framesLen - 1; j >= framesLen-3; j-- {
-			frame := frames[j]
-			// TODO: think of a better way to do this without hard-coding the
-			// file names this is a hack to remove the bottom-most 3 frames that
-			// are internal to core
-			if strings.HasSuffix(frame.AbsPath, "client.go") ||
-				strings.HasSuffix(frame.AbsPath, "logging.go") {
-				frames = frames[:j]
-			} else {
-				break
-			}
-		}
-		event.Exception[i].Stacktrace.Frames = frames
-	}
-	return event
 }
