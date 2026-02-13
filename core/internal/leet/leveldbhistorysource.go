@@ -126,10 +126,10 @@ func (hs *LevelDBHistorySource) Read(
 	}
 
 	if len(histories) > 0 {
-		msgs = append(msgs, hs.concatenateHistory(histories))
+		msgs = append(msgs, concatenateHistory(histories, hs.runPath))
 	}
 	if len(summaries) > 0 {
-		msgs = append(msgs, hs.concatenateSummary(summaries))
+		msgs = append(msgs, concatenateSummary(summaries, hs.runPath))
 	}
 
 	if hs.exitSeen {
@@ -145,54 +145,6 @@ func (hs *LevelDBHistorySource) Read(
 		HasMore:  hasMore,
 		Progress: recordCount,
 	}, err
-}
-
-// concatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
-//
-// Assumes that the history messages are ordered.
-func (hs *LevelDBHistorySource) concatenateHistory(messages []HistoryMsg) HistoryMsg {
-	h := HistoryMsg{
-		RunPath: hs.runPath,
-		Metrics: make(map[string]MetricData),
-		Media:   make(map[string][]MediaPoint),
-	}
-
-	for _, msg := range messages {
-		for metricName, data := range msg.Metrics {
-			existing := h.Metrics[metricName]
-			existing.X = append(existing.X, data.X...)
-			existing.Y = append(existing.Y, data.Y...)
-			h.Metrics[metricName] = existing
-		}
-		for mediaKey, points := range msg.Media {
-			h.Media[mediaKey] = append(h.Media[mediaKey], points...)
-		}
-	}
-
-	if len(h.Metrics) == 0 {
-		h.Metrics = nil
-	}
-	if len(h.Media) == 0 {
-		h.Media = nil
-	}
-
-	return h
-}
-
-// ConcatenateHistory merges a slice of SummaryMsg into a single SummaryMsg.
-//
-// Assumes that the summary messages are ordered.
-func (hs *LevelDBHistorySource) concatenateSummary(messages []SummaryMsg) SummaryMsg {
-	s := SummaryMsg{
-		RunPath: hs.runPath,
-		Summary: make([]*spb.SummaryRecord, 0),
-	}
-
-	for _, msg := range messages {
-		s.Summary = append(s.Summary, msg.Summary...)
-	}
-
-	return s
 }
 
 // recordToMsg converts a record to the appropriate message type.
