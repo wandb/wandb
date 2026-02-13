@@ -185,6 +185,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		runfilesUploader:    runfilesUploader,
 		artifactsSaver: artifacts.NewArtifactSaveManager(
 			f.Logger,
+			f.FileStreamFactory.Printer,
 			f.GraphqlClient,
 			f.FileTransferManager,
 			f.FeatureProvider.GetFeature(

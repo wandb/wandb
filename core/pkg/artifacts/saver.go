@@ -41,6 +41,7 @@ const (
 // ArtifactSaveManager manages artifact uploads.
 type ArtifactSaveManager struct {
 	logger                       *observability.CoreLogger
+	printer                      *observability.Printer
 	graphqlClient                graphql.Client
 	fileTransferManager          filetransfer.FileTransferManager
 	fileCache                    Cache
@@ -53,6 +54,7 @@ type ArtifactSaveManager struct {
 
 func NewArtifactSaveManager(
 	logger *observability.CoreLogger,
+	printer *observability.Printer,
 	graphqlClient graphql.Client,
 	fileTransferManager filetransfer.FileTransferManager,
 	useArtifactProjectEntityInfo bool,
@@ -62,6 +64,7 @@ func NewArtifactSaveManager(
 
 	return &ArtifactSaveManager{
 		logger:                       logger,
+		printer:                      printer,
 		graphqlClient:                graphqlClient,
 		fileTransferManager:          fileTransferManager,
 		fileCache:                    NewFileCache(UserCacheDir()),
@@ -104,6 +107,7 @@ func (as *ArtifactSaveManager) Save(
 		&ArtifactSaver{
 			ctx:                          ctx,
 			logger:                       as.logger,
+			printer:                      as.printer,
 			graphqlClient:                as.graphqlClient,
 			fileTransferManager:          as.fileTransferManager,
 			fileCache:                    as.fileCache,
@@ -124,6 +128,7 @@ type ArtifactSaver struct {
 	// Resources.
 	ctx                 context.Context
 	logger              *observability.CoreLogger
+	printer             *observability.Printer
 	graphqlClient       graphql.Client
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
@@ -758,6 +763,10 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 				return "", fmt.Errorf("gql.UseArtifact: %w", err)
 			}
 		}
+		as.printer.Warnf(
+			"Artifact %q already exists with the same content (digest). No new version will be created.",
+			as.artifact.Name,
+		)
 		return artifactID, nil
 	}
 	// DELETED is for old servers, see https://github.com/wandb/wandb/pull/6190
