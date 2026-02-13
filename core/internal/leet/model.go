@@ -124,14 +124,6 @@ func NewModel(params ModelParams) *Model {
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{}
 
-	var source tea.Cmd
-	if strings.HasPrefix(m.run.runPath, "wandb://") {
-		source = InitializeParquetHistorySource(m.run.runPath, m.logger)
-	} else {
-		source = InitializeLevelDBHistorySource(m.run.runPath, m.logger)
-	}
-	cmds = append(cmds, source)
-
 	// Workspace always exists; initialize its long‑running commands.
 	if m.workspace != nil {
 		if cmd := m.workspace.Init(); cmd != nil {
