@@ -1,12 +1,12 @@
 -r requirements_test.txt
 
 cloudpickle
-click~=8.1
-filelock~=3.13
-pydantic~=2.11
+click
+filelock
+pydantic
 
 # For Pydantic to work with modern type annotations in older Pythons:
-eval-type-backport~=0.2.0; python_version < '3.10'
+eval-type-backport; python_version < '3.10'
 
 Pillow
 polars
@@ -26,7 +26,7 @@ tenacity
 ipython
 jupyter
 ipykernel
-nbclient~=0.10.1
+nbclient
 
 tensorflow~=2.20; sys_platform != 'darwin'
 numpy<2.4.0  # tensorflow==2.20.0 uses deprecated args removed in numpy==2.4.0
@@ -40,7 +40,7 @@ lightning
 ray[air,tune]; sys_platform != 'win32'
 
 pyarrow
-metaflow~=2.15.21
+metaflow
 xgboost
 lightgbm
 mlflow
@@ -52,7 +52,7 @@ gymnasium
 stable_baselines3
 dspy
 
-requests~=2.23
+requests
 responses
 prometheus_client
 google-cloud-aiplatform
@@ -64,10 +64,10 @@ boto3
 botocore>=1.5.76
 
 # `ariadne-codegen` is a dev-only dependency used for GraphQL codegen.
-ariadne-codegen~=0.16.0
+ariadne-codegen
 
 .[perf]
-awscli~=1.42; sys_platform == 'win32'
+awscli; sys_platform == 'win32'
 .[launch]
 .[sweeps] ; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 .[azure]
