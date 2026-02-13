@@ -97,7 +97,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.25.0"
+__version__: str = "0.25.1.dev1"
 
 run: Run | None
 config: wandb_config.Config
