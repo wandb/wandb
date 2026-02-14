@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"reflect"
 	"slices"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	tea "github.com/charmbracelet/bubbletea"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/simplejsonext"
 
@@ -119,16 +121,29 @@ func NewParquetHistorySource(
 //
 // A run path is a string in the format of "wandb://<entity>/<project>/<runId>".
 func InitializeParquetHistorySource(
-	runPath string,
+	runURL *url.URL,
 	logger *observability.CoreLogger,
 ) tea.Cmd {
 	return func() tea.Msg {
-		entity, project, runId := parseRemoteRunPath(runPath)
+		entity, project, runId := parseRemoteRunPath(runURL)
 
-		s, err := settings.LoadSettings()
+		// Infer the base url from the provided url.
+		baseURL := runURL.Scheme + "://" + runURL.Hostname()
+		if strings.EqualFold(runURL.Hostname(), "wandb.ai") {
+			baseURL = runURL.Scheme + "://api.wandb.ai"
+		}
+
+		// Read the api key from the netrc file for the given base url.
+		apiKey, err := settings.ReadNetrcAPIKey(baseURL)
 		if err != nil {
 			return ErrorMsg{Err: err}
 		}
+
+		settingsProto := &spb.Settings{
+			ApiKey:  wrapperspb.String(apiKey),
+			BaseUrl: wrapperspb.String(baseURL),
+		}
+		s := settings.From(settingsProto)
 
 		graphqlClient := initGraphQLClient(s, logger)
 		httpClient := api.NewClient(api.ClientOptions{
@@ -221,7 +236,7 @@ func (s *ParquetHistorySource) Read(
 	}
 
 	if len(histories) > 0 {
-		msgs = append(msgs, concatenateHistory(histories))
+		msgs = append(msgs, concatenateHistory(histories, "TODO"))
 	}
 
 	if !hasMore {
@@ -339,24 +354,16 @@ func (s *ParquetHistorySource) processRunSummary() tea.Msg {
 // A run path is a string in the format of "wandb://<entity>/<project>/<runId>".
 // or alternatively in the format of "wandb://<entity>/<project>/runs/<runId>".
 func parseRemoteRunPath(
-	runPath string,
+	runURL *url.URL,
 ) (entity, project, runId string) {
-	runPath = strings.TrimPrefix(runPath, "wandb://")
-
-	runPath = strings.ReplaceAll(runPath, "/runs/", "/")
-	runPath = strings.TrimPrefix(runPath, "/")
-
-	parts := strings.Split(runPath, "/")
-	if strings.Contains(parts[len(parts)-1], ":") {
-		runId = strings.Split(parts[len(parts)-1], ":")[1]
-		parts[len(parts)-1] = strings.Split(parts[len(parts)-1], ":")[0]
-	} else if parts[len(parts)-1] != "" {
-		runId = parts[len(parts)-1]
-	}
+	path := runURL.Path
+	path = strings.TrimPrefix(path, "/")
+	path = strings.ReplaceAll(path, "/runs/", "/")
+	parts := strings.Split(path, "/")
 
 	entity = parts[0]
 	project = parts[1]
-
+	runId = parts[2]
 	return entity, project, runId
 }
 
