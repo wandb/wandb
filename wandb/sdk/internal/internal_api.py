@@ -1464,6 +1464,39 @@ class Api:
         return is_team
 
     @normalize_exceptions
+    def entity_code_saving_enabled(self, entity: str) -> bool | None:
+        """Return whether default code saving is enabled for a given entity.
+
+        This is used to decide whether `save_code` may default to True and
+        whether diffs (diff.patch) should be generated.  Server-side policy
+        can vary by entity, so callers should prefer this over the Viewer
+        ``code_saving_enabled`` flag when a target entity is known.
+
+        Returns:
+            True/False if the server reports a value, or None if the field
+            is not available (e.g. older server version).
+        """
+        query = gql(
+            """
+            query EntityCodeSavingEnabled($entity: String!) {
+                entity(name: $entity) {
+                    id
+                    codeSavingEnabled
+                }
+            }
+            """
+        )
+        variable_values = {"entity": entity}
+        try:
+            res = self.gql(query, variable_values)
+        except Exception:
+            return None
+        entity_data = res.get("entity")
+        if entity_data is None:
+            return None
+        return entity_data.get("codeSavingEnabled")
+
+    @normalize_exceptions
     def get_project_run_queues(self, entity: str, project: str) -> list[dict[str, str]]:
         query = gql(
             """
