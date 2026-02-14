@@ -165,8 +165,7 @@ func (rs *RunSyncer) markSynced() {
 	if err != nil {
 		rs.logger.Error(
 			"runsync: couldn't create .synced file",
-			"error", err,
-			"path", rs.path)
+			"error", err)
 	}
 }
 
