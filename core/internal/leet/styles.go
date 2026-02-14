@@ -119,6 +119,9 @@ const (
 	// BoxLightVertical is U+2502 and is "taller" than verticalLine.
 	boxLightVertical rune = '\u2502' // │
 
+	// unicodeEmDash is the em dash.
+	unicodeEmDash rune = '\u2014'
+
 	// unicodeSpace is the regular whitespace.
 	unicodeSpace rune = '\u0020'
 
@@ -399,6 +402,38 @@ var (
 		TopRight:    string(unicodeSpace),
 		BottomLeft:  string(unicodeSpace),
 		BottomRight: string(unicodeSpace),
+	}
+)
+
+// Bottom bar styles.
+var (
+	bottomBarBorderStyle = lipgloss.NewStyle().
+				Border(topOnlyBorder).
+				BorderForeground(colorLayout).
+				BorderTop(true).
+				BorderBottom(false).
+				BorderLeft(false).
+				BorderRight(false)
+
+	bottomBarHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorSubheading).
+				PaddingLeft(1)
+
+	bottomBarContentStyle = lipgloss.NewStyle().
+				Foreground(colorSubtle).
+				PaddingLeft(1)
+
+	// topOnlyBorder draws a single horizontal line at the top of the box.
+	topOnlyBorder = lipgloss.Border{
+		Top:         string(unicodeEmDash),
+		Bottom:      "",
+		Left:        "",
+		Right:       "",
+		TopLeft:     string(unicodeEmDash),
+		TopRight:    string(unicodeEmDash),
+		BottomLeft:  "",
+		BottomRight: "",
 	}
 )
 

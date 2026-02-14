@@ -84,7 +84,7 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	contentWidth := max(w.width-leftOffset-rightOffset, 0)
-	contentHeight := max(w.height-StatusBarHeight, 0)
+	contentHeight := max(w.height-StatusBarHeight-w.bottomBar.Height(), 0)
 	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
 
 	row := adjustedY / dims.CellHWithPadding
@@ -147,7 +147,17 @@ func (w *Workspace) handleRunOverviewAnimation() tea.Cmd {
 	return nil
 }
 
-// ---- Sidebar Toggle Handlers ----
+func (w *Workspace) handleBottomBarAnimation() tea.Cmd {
+	w.bottomBar.Update(time.Now())
+	w.recalculateLayout()
+
+	if w.bottomBar.IsAnimating() {
+		return w.bottomBarAnimationCmd()
+	}
+	return nil
+}
+
+// ---- UI components Toggle Handlers ----
 
 func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
 	leftWillBeVisible := !w.runsAnimState.IsVisible()
@@ -171,6 +181,14 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
 	w.recalculateLayout()
 
 	return w.runOverviewAnimationCmd()
+}
+
+func (w *Workspace) handleToggleBottomBar(msg tea.KeyMsg) tea.Cmd {
+	w.bottomBar.UpdateExpandedHeight(max(w.height-StatusBarHeight, 0))
+	w.bottomBar.Toggle()
+	w.recalculateLayout()
+
+	return w.bottomBarAnimationCmd()
 }
 
 // ---- Reader / Watcher Commands ----

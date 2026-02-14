@@ -145,3 +145,9 @@ type WorkspaceInitErrMsg struct {
 	RunPath string
 	Err     error
 }
+
+// BottomBarAnimationMsg drives animation for the run view bottom bar.
+type BottomBarAnimationMsg struct{}
+
+// WorkspaceBottomBarAnimationMsg drives animation for the workspace bottom bar.
+type WorkspaceBottomBarAnimationMsg struct{}

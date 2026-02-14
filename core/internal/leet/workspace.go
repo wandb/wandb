@@ -62,6 +62,8 @@ type Workspace struct {
 	focus       *Focus
 	metricsGrid *MetricsGrid
 
+	bottomBar *BottomBar
+
 	// Per‑run streaming state keyed by runDirName.
 	runsByKey map[string]*workspaceRun
 
@@ -125,6 +127,7 @@ func NewWorkspace(
 		selectedRuns:      make(map[string]bool),
 		focus:             focus,
 		metricsGrid:       NewMetricsGrid(cfg, focus, logger),
+		bottomBar:         NewBottomBar(),
 		runsByKey:         make(map[string]*workspaceRun),
 		liveChan:          ch,
 		heartbeatMgr:      NewHeartbeatManager(hbInterval, ch, logger),
@@ -175,6 +178,9 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceRunOverviewAnimationMsg:
 		return w.handleRunOverviewAnimation()
 
+	case WorkspaceBottomBarAnimationMsg:
+		return w.handleBottomBarAnimation()
+
 	case WorkspaceRunInitMsg:
 		return w.handleWorkspaceRunInit(t)
 
@@ -211,7 +217,13 @@ func (w *Workspace) View() string {
 		cols = append(cols, w.renderRunsList())
 	}
 
-	cols = append(cols, w.renderMetrics())
+	centralColumn := w.renderMetrics()
+	if w.bottomBar.IsVisible() {
+		contentWidth := max(w.width-w.runsAnimState.Width()-w.runOverviewSidebar.Width(), 0)
+		bbView := w.bottomBar.View(contentWidth)
+		centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, bbView)
+	}
+	cols = append(cols, centralColumn)
 
 	if w.runOverviewSidebar.IsVisible() {
 		cols = append(cols, w.renderRunOverview())
@@ -262,7 +274,7 @@ func (w *Workspace) computeViewports() Layout {
 	leftW, rightW := w.runsAnimState.Width(), w.runOverviewSidebar.Width()
 
 	contentW := max(w.width-leftW-rightW, 1)
-	contentH := max(w.height-StatusBarHeight, 1)
+	contentH := max(w.height-StatusBarHeight-w.bottomBar.Height(), 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
 }
@@ -303,6 +315,7 @@ func (w *Workspace) resolveSidebarFocus(leftVisible, rightVisible bool) {
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
 	w.updateSidebarDimensions(w.runsAnimState.IsVisible(), w.runOverviewSidebar.IsVisible())
+	w.bottomBar.UpdateExpandedHeight(max(height-StatusBarHeight, 0))
 	w.recalculateLayout()
 }
 
@@ -317,6 +330,12 @@ func (w *Workspace) runsAnimationCmd() tea.Cmd {
 func (w *Workspace) runOverviewAnimationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
 		return WorkspaceRunOverviewAnimationMsg{}
+	})
+}
+
+func (w *Workspace) bottomBarAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
+		return WorkspaceBottomBarAnimationMsg{}
 	})
 }
 
@@ -471,9 +490,9 @@ func (w *Workspace) renderRunOverview() string {
 
 func (w *Workspace) renderMetrics() string {
 	contentWidth := max(w.width-w.runsAnimState.Width()-w.runOverviewSidebar.Width(), 0)
-	contentHeight := max(w.height-StatusBarHeight, 0)
+	metricsHeight := max(w.height-StatusBarHeight-w.bottomBar.Height(), 0)
 
-	if contentWidth <= 0 || contentHeight <= 0 {
+	if contentWidth <= 0 || metricsHeight <= 0 {
 		return ""
 	}
 
@@ -491,7 +510,7 @@ func (w *Workspace) renderMetrics() string {
 
 		return lipgloss.Place(
 			contentWidth,
-			contentHeight,
+			metricsHeight,
 			lipgloss.Center,
 			lipgloss.Center,
 			logoContent,
@@ -499,7 +518,7 @@ func (w *Workspace) renderMetrics() string {
 	}
 
 	// When we have selected runs, render the metrics grid.
-	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
+	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, metricsHeight)
 	return w.metricsGrid.View(dims)
 }
 

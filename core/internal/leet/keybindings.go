@@ -59,6 +59,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Description: "Toggle right sidebar with system metrics",
 					Handler:     (*Run).handleToggleRightSidebar,
 				},
+				{
+					Keys:        []string{"l"},
+					Description: "Toggle console logs panel",
+					Handler:     (*Run).handleToggleBottomBar,
+				},
 			},
 		},
 		{
@@ -202,6 +207,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"]"},
 					Description: "Toggle run overview sidebar",
 					Handler:     (*Workspace).handleToggleOverviewSidebar,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Toggle console logs panel",
+					Handler:     (*Workspace).handleToggleBottomBar,
 				},
 			},
 		},

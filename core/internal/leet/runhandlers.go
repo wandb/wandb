@@ -436,6 +436,40 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 	return nil
 }
 
+func (r *Run) handleToggleBottomBar(msg tea.KeyMsg) tea.Cmd {
+	if !r.beginAnimating() {
+		return nil
+	}
+
+	r.bottomBar.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
+	r.bottomBar.Toggle()
+
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	return r.bottomBarAnimationCmd()
+}
+
+func (r *Run) handleBottomBarAnimation() []tea.Cmd {
+	r.bottomBar.Update(time.Now())
+
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	if r.bottomBar.IsAnimating() {
+		return []tea.Cmd{r.bottomBarAnimationCmd()}
+	}
+
+	r.endAnimating()
+	return nil
+}
+
+func (r *Run) bottomBarAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
+		return BottomBarAnimationMsg{}
+	})
+}
+
 // handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
 func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
 	defer timeit(r.logger, "Model.handleRecordsBatch")()
