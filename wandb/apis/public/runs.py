@@ -462,6 +462,119 @@ class Runs(SizedPaginator["Run"]):
 
             return combined_df
 
+    @normalize_exceptions
+    def scan_histories(
+        self,
+        cache_dir: str | pathlib.Path,
+        keys: list[str] | None = None,
+        max_results: int = 10_000_000,
+        page_size: int = 1_000,
+    ) -> pl.LazyFrame:
+        """Return full unsampled history for all runs as a Polars LazyFrame.
+
+        Downloads run history as parquet files to cache_dir, then returns a
+        LazyFrame that reads from those files. Data is not loaded into memory
+        until .collect() is called, and Polars pushes column/row filters down
+        to the parquet reader for efficiency.
+
+        For runs where parquet exports are not available, falls back to
+        scan_history() via GraphQL and writes the result as parquet locally.
+
+        Args:
+            cache_dir: Directory to store downloaded parquet files. Required.
+                For team usage, point this at a shared mount or sync to S3.
+            keys: Only include these metric columns in the result. If None,
+                all metrics are included. Filtering keys improves read
+                performance on wide datasets.
+            max_results: Maximum total rows in the result. Defaults to
+                10,000,000. Applied as .head() on the LazyFrame.
+            page_size: Number of rows per page for GraphQL fallback.
+                Only used when parquet exports are unavailable.
+
+        Returns:
+            polars.LazyFrame: A lazy frame over the cached parquet files.
+                Call .collect() to materialise results. Use .select() and
+                .filter() before .collect() to read only what you need.
+
+        Example:
+            ```python
+            runs = api.runs("entity/project")
+            lf = runs.scan_histories(cache_dir="/data/wandb-cache/my-project")
+
+            # Read only specific metrics — skips all other columns on disk
+            df = lf.select(["run_id", "_step", "loss"]).collect()
+
+            # Combine with configs
+            configs = runs.configs(format="polars")
+            full = df.join(configs, on="run_id")
+            ```
+        """
+        pl = util.get_module("polars", required="scan_histories requires polars")
+
+        cache_path = pathlib.Path(cache_dir)
+        cache_path.mkdir(parents=True, exist_ok=True)
+
+        parquet_files: list[pathlib.Path] = []
+
+        for run in self:
+            run_dir = cache_path / run.id
+            run_dir.mkdir(exist_ok=True)
+
+            # Check if we already have cached parquet files for this run
+            existing = list(run_dir.glob("*.parquet"))
+            if existing:
+                parquet_files.extend(existing)
+                continue
+
+            # Try parquet export (fast path)
+            try:
+                result = run.download_history_exports(
+                    download_dir=run_dir,
+                    require_complete_history=False,
+                )
+                if result.paths:
+                    for p in result.paths:
+                        # Add run_id column to the parquet file
+                        df = pl.read_parquet(p)
+                        df = df.with_columns(pl.lit(run.id).alias("run_id"))
+                        df.write_parquet(p)
+                        parquet_files.append(p)
+                    continue
+            except Exception:
+                pass
+
+            # Fallback: scan_history via GraphQL, write as parquet
+            rows = []
+            for row in run.scan_history(page_size=page_size):
+                row["run_id"] = run.id
+                rows.append(row)
+            if rows:
+                df = pl.from_dicts(rows)
+                fallback_path = run_dir / "history_fallback.parquet"
+                df.write_parquet(fallback_path)
+                parquet_files.append(fallback_path)
+
+        if not parquet_files:
+            return pl.LazyFrame()
+
+        # Build lazy frame from all parquet files
+        lazy_frames = []
+        for pf in parquet_files:
+            lazy_frames.append(pl.scan_parquet(pf))
+        combined = pl.concat(lazy_frames, how="diagonal")
+
+        # Apply key filter if specified
+        if keys:
+            select_cols = ["run_id"] + [k for k in keys if k != "run_id"]
+            available = combined.collect_schema().names()
+            select_cols = [c for c in select_cols if c in available]
+            combined = combined.select(select_cols)
+
+        # Apply max_results cap
+        combined = combined.head(max_results)
+
+        return combined
+
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {self.entity}/{self.project}>"
 
