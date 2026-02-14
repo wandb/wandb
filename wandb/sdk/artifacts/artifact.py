@@ -1434,7 +1434,7 @@ class Artifact:
             raise
 
         self.add_file(
-            path, name=name, policy="immutable", skip_cache=True, overwrite=overwrite
+            path, name=name, policy="mutable", skip_cache=True, overwrite=overwrite
         )
 
     @ensure_not_finalized
