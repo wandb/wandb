@@ -160,6 +160,12 @@ class Artifact:
         incremental: bool = False,
         use_as: str | None = None,
         storage_region: str | None = None,
+        *,
+        entity: str | None = None,
+        project: str | None = None,
+        source_entity: str | None = None,
+        source_project: str | None = None,
+        _client: RetryingClient | None = None,
     ) -> None:
         from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
@@ -179,7 +185,7 @@ class Artifact:
             termwarn("Using experimental arg `incremental`")
 
         # Internal.
-        self._client: RetryingClient | None = None
+        self._client: RetryingClient | None = _client
 
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
@@ -195,12 +201,12 @@ class Artifact:
         self._client_id: str = generate_fast_id(128)
         self._sequence_client_id: str = generate_fast_id(128)
 
-        self._entity: str | None = None
-        self._project: str | None = None
+        self._entity: str | None = entity
+        self._project: str | None = project
         self._name: str = validate_artifact_name(name)  # includes version after saving
         self._version: str | None = None
-        self._source_entity: str | None = None
-        self._source_project: str | None = None
+        self._source_entity: str | None = source_entity
+        self._source_project: str | None = source_project
         self._source_name: str = name  # includes version after saving
         self._source_version: str | None = None
         self._source_artifact: Artifact | None = None
@@ -390,11 +396,14 @@ class Artifact:
         # aliases/version_index are taken from the membership, if given
         membership: ArtifactMembershipFragment | None = None,
     ) -> Artifact:
-        # Placeholder is required to skip validation.
-        artifact = cls("placeholder", type="placeholder")
-        artifact._client = client
-        artifact._entity = path.prefix
-        artifact._project = path.project
+        # Placeholder name/type is required to deliberately skip validation.
+        artifact = cls(
+            name="placeholder",
+            type="placeholder",
+            entity=path.prefix,
+            project=path.project,
+            _client=client,
+        )
         artifact._name = path.name
 
         artifact._assign_attrs(src_art, membership=membership)
@@ -531,20 +540,23 @@ class Artifact:
         """
         # Name, _entity and _project are set to the *source* name/entity/project:
         # if this artifact is saved it must be saved to the source sequence.
-        artifact = Artifact(self.source_name.split(":")[0], self.type)
-        artifact._entity = self._source_entity
-        artifact._project = self._source_project
-        artifact._source_entity = self._source_entity
-        artifact._source_project = self._source_project
+        artifact = Artifact(
+            name=self.source_name.split(":")[0],
+            type=self.type,
+            description=self.description,
+            metadata=self.metadata,
+            entity=self._source_entity,
+            project=self._source_project,
+            source_entity=self._source_entity,
+            source_project=self._source_project,
+            _client=self._client,
+        )
 
         # This artifact's parent is the one we are making a draft from.
         artifact._base_id = self.id
 
         # We can reuse the client, and copy over all the attributes that aren't
         # version-dependent and don't depend on having been logged.
-        artifact._client = self._client
-        artifact._description = self.description
-        artifact._metadata = self.metadata
         artifact._manifest = ArtifactManifest.from_manifest_json(
             self.manifest.to_manifest_json()
         )
