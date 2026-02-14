@@ -14,7 +14,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/runsync"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/pkg/server/listeners"
 )
@@ -46,9 +45,6 @@ type Server struct {
 	// gpuResourceManager manages costly resources for GPU system metrics.
 	gpuResourceManager *monitor.GPUResourceManager
 
-	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry_ext.Client
-
 	// wg is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish
 	wg sync.WaitGroup
@@ -79,8 +75,6 @@ type ServerParams struct {
 	LoggerPath          string
 	LogLevel            slog.Level
 	ParentPID           int
-
-	SentryClient *sentry_ext.Client
 }
 
 // NewServer creates a new server
@@ -93,7 +87,6 @@ func NewServer(params ServerParams) *Server {
 		streamMux:          stream.NewStreamMux(),
 		runSyncManager:     runsync.NewRunSyncManager(),
 		gpuResourceManager: monitor.NewGPUResourceManager(params.EnableDCGMProfiling),
-		sentryClient:       params.SentryClient,
 		wg:                 sync.WaitGroup{},
 		parentPID:          params.ParentPID,
 		commit:             params.Commit,
@@ -231,7 +224,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 			StreamMux:          s.streamMux,
 			RunSyncManager:     s.runSyncManager,
 			GPUResourceManager: s.gpuResourceManager,
-			SentryClient:       s.sentryClient,
 			Commit:             s.commit,
 			LoggerPath:         s.loggerPath,
 			LogLevel:           s.logLevel,

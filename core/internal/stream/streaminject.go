@@ -15,7 +15,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
@@ -29,7 +28,6 @@ func InjectStream(
 	gpuResourceManager *monitor.GPUResourceManager,
 	debugCorePath DebugCorePath,
 	logLevel slog.Level,
-	sentry *sentry_ext.Client,
 	settings *settings.Settings,
 ) *Stream {
 	wire.Build(streamProviders)

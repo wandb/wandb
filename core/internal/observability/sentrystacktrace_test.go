@@ -1,14 +1,12 @@
-package sentry_ext_test
+package observability_test
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 )
 
 // makeStacktrace creates a stacktrace with the given sequence of modules
@@ -35,17 +33,14 @@ func TestRemoveLoggerFrames(t *testing.T) {
 		{
 			name: "removes trailing logger frames",
 			input: makeStacktrace(
-				"github.com/wandb/wandb/core/internal/sentry_ext",
 				"github.com/wandb/wandb/core/pkg/server",
 				"github.com/wandb/wandb/core/internal/observability",
 				"github.com/wandb/wandb/core/pkg/server",
 				"github.com/wandb/wandb/core/pkg/server",
 				"github.com/wandb/wandb/core/internal/observability",
-				reflect.TypeFor[observability.CoreLogger]().PkgPath(),
-				"github.com/wandb/wandb/core/internal/sentry_ext",
+				"github.com/wandb/wandb/core/internal/observability",
 			),
 			expected: makeStacktrace(
-				"github.com/wandb/wandb/core/internal/sentry_ext",
 				"github.com/wandb/wandb/core/pkg/server",
 				"github.com/wandb/wandb/core/internal/observability",
 				"github.com/wandb/wandb/core/pkg/server",
@@ -61,7 +56,7 @@ func TestRemoveLoggerFrames(t *testing.T) {
 		event.Exception = append(event.Exception,
 			sentry.Exception{Stacktrace: tt.input})
 	}
-	result := sentry_ext.RemoveLoggerFrames(event, nil)
+	result := observability.RemoveLoggerFrames(event, nil)
 
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
