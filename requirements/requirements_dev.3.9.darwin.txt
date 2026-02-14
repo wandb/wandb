@@ -300,7 +300,7 @@ google-crc32c==1.8.0
     # via
     #   google-cloud-storage
     #   google-resumable-media
-google-genai==1.2.0
+google-genai==1.47.0
     # via google-cloud-aiplatform
 google-resumable-media==2.8.0
     # via
