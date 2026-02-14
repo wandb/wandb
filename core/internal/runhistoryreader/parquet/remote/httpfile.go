@@ -9,6 +9,8 @@ import (
 
 	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/hashicorp/go-retryablehttp"
+
+	"github.com/wandb/wandb/core/internal/api"
 )
 
 var successfulResponseStatusCodes = map[int]struct{}{
@@ -24,7 +26,7 @@ var successfulResponseStatusCodes = map[int]struct{}{
 // it returns -1, and the error that occurred or the status code.
 func getObjectSize(
 	ctx context.Context,
-	client *retryablehttp.Client,
+	client api.RetryableClient,
 	url string,
 ) (int64, error) {
 	req, err := retryablehttp.NewRequestWithContext(
@@ -55,7 +57,7 @@ func getObjectSize(
 type HttpFileReader struct {
 	ctx context.Context
 
-	client   *retryablehttp.Client
+	client   api.RetryableClient
 	fileSize int64
 	offset   int64
 	url      string
@@ -65,7 +67,7 @@ var _ parquet.ReaderAtSeeker = &HttpFileReader{}
 
 func NewHttpFileReader(
 	ctx context.Context,
-	client *retryablehttp.Client,
+	client api.RetryableClient,
 	url string,
 ) (parquet.ReaderAtSeeker, error) {
 	fileSize, err := getObjectSize(ctx, client, url)

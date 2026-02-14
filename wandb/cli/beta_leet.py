@@ -5,6 +5,7 @@ import os
 import pathlib
 import subprocess
 import sys
+import urllib.parse
 
 import click
 from typing_extensions import Never
@@ -52,6 +53,13 @@ def _resolve_path(path: str | None) -> LaunchConfig:
     if not path:
         wandb_dir = wandb_setup.singleton().settings.wandb_dir
         return LaunchConfig(wandb_dir=str(wandb_dir))
+
+    if path.startswith("https://") or path.startswith("http://"):
+        parsed_url = urllib.parse.urlparse(path)
+        return LaunchConfig(
+            wandb_dir=f"{parsed_url.scheme}://{parsed_url.netloc}",
+            run_file=path,
+        )
 
     resolved = pathlib.Path(path).resolve()
 

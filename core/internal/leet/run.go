@@ -2,6 +2,7 @@ package leet
 
 import (
 	"fmt"
+	"net/url"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -121,7 +122,17 @@ func NewRun(
 // Implements tea.Model.Init.
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
-	source := InitializeLevelDBHistorySource(r.runPath, r.logger)
+	var source tea.Cmd
+
+	runPath, err := url.Parse(r.runPath)
+	if err != nil || !strings.HasPrefix(runPath.Scheme, "http") {
+		source = InitializeLevelDBHistorySource(r.runPath, r.logger)
+	} else {
+		source = InitializeParquetHistorySource(
+			runPath,
+			r.logger,
+		)
+	}
 
 	return tea.Batch(
 		windowTitleCmd(),

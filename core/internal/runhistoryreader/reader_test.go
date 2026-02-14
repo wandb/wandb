@@ -19,6 +19,19 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
 )
 
+func setEnv(t *testing.T, key, value string) {
+	t.Helper()
+	originalValue := os.Getenv(key)
+	os.Setenv(key, value)
+	t.Cleanup(func() {
+		if originalValue == "" {
+			os.Unsetenv(key)
+		} else {
+			os.Setenv(key, originalValue)
+		}
+	})
+}
+
 func respondWithParquetContent(
 	t *testing.T,
 	parquetContent []byte,
@@ -147,10 +160,7 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 	ctx := t.Context()
 	tempDir := t.TempDir()
-
-	// Ensure we use a clean cache directory for this test
-	os.Setenv("WANDB_CACHE_DIR", tempDir)
-	defer os.Unsetenv("WANDB_CACHE_DIR")
+	setEnv(t, "WANDB_CACHE_DIR", tempDir)
 
 	schema := arrow.NewSchema(
 		[]arrow.Field{

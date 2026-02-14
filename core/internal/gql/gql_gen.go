@@ -991,6 +991,38 @@ func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationC
 	return v.Entity
 }
 
+// QueryRunInfoProject includes the requested fields of the GraphQL type Project.
+type QueryRunInfoProject struct {
+	Run *QueryRunInfoProjectRun `json:"run"`
+}
+
+// GetRun returns QueryRunInfoProject.Run, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProject) GetRun() *QueryRunInfoProjectRun { return v.Run }
+
+// QueryRunInfoProjectRun includes the requested fields of the GraphQL type Run.
+type QueryRunInfoProjectRun struct {
+	DisplayName    *string  `json:"displayName"`
+	SummaryMetrics *string  `json:"summaryMetrics"`
+	Events         []string `json:"events"`
+}
+
+// GetDisplayName returns QueryRunInfoProjectRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetDisplayName() *string { return v.DisplayName }
+
+// GetSummaryMetrics returns QueryRunInfoProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetSummaryMetrics() *string { return v.SummaryMetrics }
+
+// GetEvents returns QueryRunInfoProjectRun.Events, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetEvents() []string { return v.Events }
+
+// QueryRunInfoResponse is returned by QueryRunInfo on success.
+type QueryRunInfoResponse struct {
+	Project *QueryRunInfoProject `json:"project"`
+}
+
+// GetProject returns QueryRunInfoResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoResponse) GetProject() *QueryRunInfoProject { return v.Project }
+
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
 	RewindRun *RewindRunRewindRunRewindRunPayload `json:"rewindRun"`
@@ -1996,6 +2028,22 @@ type __OrganizationCoreWeaveOrganizationIDInput struct {
 // GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
 
+// __QueryRunInfoInput is used internally by genqlient
+type __QueryRunInfoInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Run     string `json:"run"`
+}
+
+// GetEntity returns __QueryRunInfoInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryRunInfoInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetProject() string { return v.Project }
+
+// GetRun returns __QueryRunInfoInput.Run, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetRun() string { return v.Run }
+
 // __RewindRunInput is used internally by genqlient
 type __RewindRunInput struct {
 	RunName     string  `json:"runName"`
@@ -2913,6 +2961,48 @@ func OrganizationCoreWeaveOrganizationID(
 	}
 
 	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by QueryRunInfo.
+const QueryRunInfo_Operation = `
+query QueryRunInfo ($entity: String!, $project: String!, $run: String!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			displayName
+			summaryMetrics
+			events
+		}
+	}
+}
+`
+
+func QueryRunInfo(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+) (data_ *QueryRunInfoResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryRunInfo",
+		Query:  QueryRunInfo_Operation,
+		Variables: &__QueryRunInfoInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+		},
+	}
+
+	data_ = &QueryRunInfoResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
