@@ -589,10 +589,12 @@ def log(
         step: The step number to log. If `None`, then an implicit
             auto-incrementing step is used. See the notes in
             the description.
-        commit: If true, finalize and upload the step. If false, then
-            accumulate data for the step. See the notes in the description.
-            If `step` is `None`, then the default is `commit=True`;
-            otherwise, the default is `commit=False`.
+        commit: Finalize and upload the step if `True`. Accumulate data
+            for the step if `False`. When `commit=False`, accumulate
+            values for different metrics across multiple `log` calls.
+            Retain only the last value in history if the same metric
+            is logged multiple times with
+            `commit=False` (previous values are overwritten).
 
     Examples:
     For more and more detailed examples, see
