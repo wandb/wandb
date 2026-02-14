@@ -226,7 +226,10 @@ class TorchHistory:
         if tmin == tmax:
             tensor = torch.Tensor([flat.numel()])
             tensor = tensor.cpu().clone().detach()
-            bins = torch.Tensor([tmin, tmax])
+            eps_abs = float(torch.finfo(flat.dtype).eps)
+            eps_rel = abs(tmin) * 1e-6
+            eps = max(eps_abs, eps_rel)
+            bins = torch.Tensor([tmin - eps, tmax + eps])
         else:
             tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
             tensor = tensor.cpu().detach().clone()
