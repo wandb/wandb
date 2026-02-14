@@ -2177,11 +2177,9 @@ def docker(
     will be added to `docker run` before the image name is declared, we'll choose a
     default image for you if one isn't passed:
 
-    ```sh
-    wandb docker -v /mnt/dataset:/app/data
-    wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
-    wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
-    ```
+        wandb docker -v /mnt/dataset:/app/data
+        wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
+        wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
 
     By default, we override the entrypoint to check for the existence of wandb and
     install it if not present.  If you pass the --jupyter flag we will ensure jupyter is
