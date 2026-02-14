@@ -44,7 +44,7 @@ asttokens==3.0.1
     # via stack-data
 async-lru==2.1.0
     # via jupyterlab
-asyncer==0.0.8
+asyncer==0.0.12
     # via dspy
 attrs==25.4.0
     # via
