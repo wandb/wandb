@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import time
+import uuid
 from operator import attrgetter
 from pathlib import Path
 
@@ -90,7 +91,7 @@ def test_artifact_run_lookup_apis(user):
 
 
 def test_duplicate_artifact_skips_upload(user, tmp_path: Path, api: Api):
-    artifact_name = f"dedup-{time.time()}"
+    artifact_name = f"dedup-{uuid.uuid4().hex[:16]}"
     artifact_type = "dataset"
 
     # Fixed content so digest is same.
