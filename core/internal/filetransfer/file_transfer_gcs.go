@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -185,7 +184,10 @@ func (ft *GCSFileTransfer) downloadFiles(
 				return ft.formatDownloadError("", err)
 			}
 			objectRelativePath, _ := strings.CutPrefix(objectName, rootObjectName)
-			localPath := filepath.Join(task.PathOrPrefix, filepath.FromSlash(objectRelativePath))
+			localPath, err := SafeJoinPath(task.PathOrPrefix, objectRelativePath)
+			if err != nil {
+				return fmt.Errorf("invalid object key %q: %w", objectName, err)
+			}
 			return ft.downloadFile(object, localPath)
 		})
 	}

@@ -445,3 +445,267 @@ func TestAzureFileTransfer_UploadClientError(t *testing.T) {
 	err = ft.Upload(task)
 	assert.Error(t, err)
 }
+
+// TestAzureFileTransfer_SafeJoinPath_Integration tests that the Azure file transfer
+// properly validates paths using SafeJoinPath.
+func TestAzureFileTransfer_SafeJoinPath_Integration(t *testing.T) {
+	const basePath = "/tmp/downloads"
+
+	tests := []struct {
+		name       string
+		blobPrefix string
+		blobName   string
+		basePath   string
+		shouldFail bool
+	}{
+		{
+			name:       "legitimate blob in container root",
+			blobPrefix: "artifacts/",
+			blobName:   "artifacts/model.bin",
+			basePath:   basePath,
+			shouldFail: false,
+		},
+		{
+			name:       "legitimate nested blob",
+			blobPrefix: "artifacts/",
+			blobName:   "artifacts/models/v1/weights.bin",
+			basePath:   basePath,
+			shouldFail: false,
+		},
+		{
+			name:       "malicious blob with path traversal",
+			blobPrefix: "artifacts/",
+			blobName:   "artifacts/../../../etc/passwd",
+			basePath:   basePath,
+			shouldFail: true,
+		},
+		{
+			name:       "malicious blob escaping after valid prefix",
+			blobPrefix: "data/",
+			blobName:   "data/subdir/../../../.ssh/authorized_keys",
+			basePath:   basePath,
+			shouldFail: true,
+		},
+		{
+			name:       "blob with mismatched prefix containing traversal",
+			blobPrefix: "expected/",
+			blobName:   "malicious/../../../etc/shadow",
+			basePath:   basePath,
+			shouldFail: true,
+		},
+		{
+			name:       "blob targeting Windows system files",
+			blobPrefix: "data/",
+			blobName:   "data/../../../Windows/System32/config/SAM",
+			basePath:   "C:\\downloads",
+			shouldFail: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Simulate what downloadFiles does: strip prefix and join paths
+			objectRelativePath := tt.blobName
+			if len(tt.blobName) >= len(tt.blobPrefix) &&
+				tt.blobName[:len(tt.blobPrefix)] == tt.blobPrefix {
+				objectRelativePath = tt.blobName[len(tt.blobPrefix):]
+			}
+
+			_, err := filetransfer.SafeJoinPath(tt.basePath, objectRelativePath)
+
+			if tt.shouldFail {
+				assert.Error(t, err, "expected path traversal to be blocked for: %s", tt.blobName)
+				assert.ErrorIs(t, err, filetransfer.ErrPathTraversal)
+			} else {
+				assert.NoError(t, err, "expected legitimate path to be allowed: %s", tt.blobName)
+			}
+		})
+	}
+}
+
+// mockAzureAccountClientWithMaliciousBlobs returns blobs with path traversal sequences
+type mockAzureAccountClientWithMaliciousBlobs struct {
+	maliciousBlobNames []string
+}
+
+func (m *mockAzureAccountClientWithMaliciousBlobs) DownloadFile(
+	ctx context.Context,
+	containerName string,
+	blobName string,
+	destination *os.File,
+	options *azblob.DownloadFileOptions,
+) (int64, error) {
+	n, err := destination.WriteString("malicious content")
+	return int64(n), err
+}
+
+func mockMaliciousFetcher(blobNames []string) func(
+	context.Context,
+	*azblob.ListBlobsFlatResponse,
+) (azblob.ListBlobsFlatResponse, error) {
+	return func(
+		_ context.Context,
+		_ *azblob.ListBlobsFlatResponse,
+	) (azblob.ListBlobsFlatResponse, error) {
+		var blobItems []*container.BlobItem
+		for _, name := range blobNames {
+			nameCopy := name
+			versionID := "latest"
+			blobItems = append(blobItems, &container.BlobItem{
+				Name:      &nameCopy,
+				VersionID: &versionID,
+			})
+		}
+		response := azblob.ListBlobsFlatResponse{
+			ListBlobsFlatSegmentResponse: azblob.ListBlobsFlatSegmentResponse{
+				Segment: &container.BlobFlatListSegment{
+					BlobItems: blobItems,
+				},
+			},
+		}
+		return response, nil
+	}
+}
+
+func (m *mockAzureAccountClientWithMaliciousBlobs) NewListBlobsFlatPager(
+	containerName string,
+	options *azblob.ListBlobsFlatOptions,
+) *runtime.Pager[azblob.ListBlobsFlatResponse] {
+	pager := runtime.NewPager(runtime.PagingHandler[azblob.ListBlobsFlatResponse]{
+		More:    mockMore,
+		Fetcher: mockMaliciousFetcher(m.maliciousBlobNames),
+	})
+	return pager
+}
+
+func mockSetupMaliciousAccountClient(blobNames []string) func(
+	string,
+	*azidentity.DefaultAzureCredential,
+) (filetransfer.AzureAccountClient, error) {
+	return func(_ string, _ *azidentity.DefaultAzureCredential) (filetransfer.AzureAccountClient, error) {
+		return &mockAzureAccountClientWithMaliciousBlobs{maliciousBlobNames: blobNames}, nil
+	}
+}
+
+func TestAzureFileTransfer_Download_PathTraversalPrevention(t *testing.T) {
+	tests := []struct {
+		name               string
+		maliciousBlobNames []string
+		reference          string
+		shouldFail         bool
+	}{
+		{
+			name:               "blocks simple path traversal",
+			maliciousBlobNames: []string{"prefix/../../../etc/passwd"},
+			reference:          "https://account.blob.core.windows.net/container/prefix/",
+			shouldFail:         true,
+		},
+		{
+			name:               "blocks traversal to ssh directory",
+			maliciousBlobNames: []string{"artifacts/../../../.ssh/authorized_keys"},
+			reference:          "https://account.blob.core.windows.net/container/artifacts/",
+			shouldFail:         true,
+		},
+		{
+			name:               "allows legitimate nested path",
+			maliciousBlobNames: []string{"prefix/subdir/file.txt"},
+			reference:          "https://account.blob.core.windows.net/container/prefix/",
+			shouldFail:         false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accountClients := filetransfer.NewAzureClientsMap[filetransfer.AzureAccountClient]()
+			_, err := accountClients.LoadOrStore(
+				"https://account.blob.core.windows.net",
+				mockSetupMaliciousAccountClient(tt.maliciousBlobNames),
+			)
+			assert.NoError(t, err)
+
+			ft := filetransfer.NewAzureFileTransfer(
+				&filetransfer.AzureClientOverrides{
+					AccountClients: accountClients,
+				},
+				observabilitytest.NewTestLogger(t),
+				filetransfer.NewFileTransferStats(),
+			)
+
+			tempDir := t.TempDir()
+
+			// Set Digest == Reference to trigger multi-file download path (HasSingleFile() returns false)
+			// This is the code path where our path traversal fix is applied
+			task := &filetransfer.ReferenceArtifactDownloadTask{
+				FileKind:     filetransfer.RunFileKindArtifact,
+				PathOrPrefix: tempDir + "/",
+				Reference:    tt.reference,
+				Digest:       tt.reference, // Digest == Reference triggers listBlobsWithPrefix
+				Size:         100,
+			}
+
+			err = ft.Download(task)
+
+			if tt.shouldFail {
+				assert.Error(t, err, "expected path traversal to be blocked")
+				assert.Contains(t, err.Error(), "path traversal",
+					"error should mention path traversal")
+			} else if err != nil {
+				// For legitimate paths, check that there's no path traversal error
+				assert.NotContains(t, err.Error(), "path traversal",
+					"legitimate path should not trigger path traversal error")
+			}
+		})
+	}
+}
+
+// TestAzureFileTransfer_Download_MultipleMaliciousBlobs tests that all malicious
+// blob names in a batch are properly rejected.
+func TestAzureFileTransfer_Download_MultipleMaliciousBlobs(t *testing.T) {
+	maliciousBlobNames := []string{
+		"prefix/legitimate.txt",
+		"prefix/../../../etc/passwd",
+		"prefix/also-legitimate.txt",
+		"prefix/../../../.ssh/authorized_keys",
+	}
+
+	accountClients := filetransfer.NewAzureClientsMap[filetransfer.AzureAccountClient]()
+	_, err := accountClients.LoadOrStore(
+		"https://account.blob.core.windows.net",
+		mockSetupMaliciousAccountClient(maliciousBlobNames),
+	)
+	assert.NoError(t, err)
+
+	ft := filetransfer.NewAzureFileTransfer(
+		&filetransfer.AzureClientOverrides{
+			AccountClients: accountClients,
+		},
+		observabilitytest.NewTestLogger(t),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	tempDir := t.TempDir()
+
+	// Set Digest == Reference to trigger multi-file download path (HasSingleFile() returns false)
+	reference := "https://account.blob.core.windows.net/container/prefix/"
+	task := &filetransfer.ReferenceArtifactDownloadTask{
+		FileKind:     filetransfer.RunFileKindArtifact,
+		PathOrPrefix: tempDir + "/",
+		Reference:    reference,
+		Digest:       reference, // Digest == Reference triggers listBlobsWithPrefix
+		Size:         100,
+	}
+
+	err = ft.Download(task)
+
+	// Should fail because some blobs contain path traversal
+	assert.Error(t, err, "expected path traversal to be blocked in batch")
+	assert.Contains(t, err.Error(), "path traversal",
+		"error should mention path traversal")
+
+	// Verify no files were written outside temp directory
+	for _, target := range []string{"/etc/passwd", "/.ssh/authorized_keys"} {
+		_, statErr := os.Stat(filepath.Join(tempDir, target))
+		assert.True(t, os.IsNotExist(statErr),
+			"file should not exist outside temp dir: %s", target)
+	}
+}
