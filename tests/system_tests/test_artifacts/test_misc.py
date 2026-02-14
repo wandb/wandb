@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import re
 import time
+import uuid
 from operator import attrgetter
+from pathlib import Path
 
 import numpy as np
 import wandb
 from pytest import fail, raises
+from wandb import Api
 from wandb.apis import public
 
 
@@ -85,6 +88,34 @@ def test_artifact_run_lookup_apis(user):
         assert len(a2_used_by) == 2
         for expected_run, actual_run in zip(expected_used_by, a2_used_by):
             assert_eq_runs(expected_run, actual_run)
+
+
+def test_duplicate_artifact_skips_upload(user, tmp_path: Path, api: Api):
+    artifact_name = f"dedup-{uuid.uuid4().hex[:16]}"
+    artifact_type = "dataset"
+
+    # Fixed content so digest is same.
+    data_file = tmp_path / "data.txt"
+    data_file.write_text("I shall not change")
+
+    # First run create v0
+    with wandb.init() as run_a:
+        art = wandb.Artifact(artifact_name, artifact_type)
+        art.add_file(str(data_file))
+        run_a.log_artifact(art)
+
+    # Second run log is a essentially a noop, no new version is created.
+    with wandb.init() as run_b:
+        art = wandb.Artifact(artifact_name, artifact_type)
+        art.add_file(str(data_file))
+        run_b.log_artifact(art)
+
+    # Verify only one version was created.
+    versions = list(api.artifacts(artifact_type, artifact_name))
+    assert len(versions) == 1, (
+        f"Expected 1 artifact version (digest dedup), got {len(versions)}: "
+        + ", ".join(v.name for v in versions)
+    )
 
 
 def test_artifact_creation_with_diff_type(user):

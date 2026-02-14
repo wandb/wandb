@@ -9,6 +9,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -50,6 +51,7 @@ func TestSaveGraphQLRequest(t *testing.T) {
 	ftm.ShouldCompleteImmediately = true
 	saver := NewArtifactSaveManager(
 		observabilitytest.NewTestLogger(t),
+		observability.NewPrinter(),
 		mockGQL,
 		ftm,
 		true,
