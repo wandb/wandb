@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+# Copyright ijl (2019-2025)
+
+import collections
+import io
+import json
+import lzma
+import os
+from pathlib import Path
+
+from tabulate import tabulate
+
+import orjson
+
+dirname = os.path.join(os.path.dirname(__file__), "..", "data")
+
+LIBRARIES = ["orjson", "json"]
+
+
+LIBRARY_FUNC_MAP = {
+    "orjson": orjson.loads,
+    "json": json.loads,
+}
+
+
+def read_fixture_bytes(filename, subdir=None):
+    if subdir is None:
+        parts = (dirname, filename)
+    else:
+        parts = (dirname, subdir, filename)
+    path = Path(*parts)
+    if path.suffix == ".xz":
+        contents = lzma.decompress(path.read_bytes())
+    else:
+        contents = path.read_bytes()
+    return contents
+
+
+PARSING = {
+    filename: read_fixture_bytes(filename, "parsing")
+    for filename in os.listdir("data/parsing")
+}
+
+JSONCHECKER = {
+    filename: read_fixture_bytes(filename, "jsonchecker")
+    for filename in os.listdir("data/jsonchecker")
+}
+
+
+RESULTS = collections.defaultdict(dict)
+
+
+def test_passed(libname, fixture):
+    passed = []
+    loads = LIBRARY_FUNC_MAP[libname]
+    try:
+        passed.append(loads(fixture) == orjson.loads(fixture))
+        passed.append(
+            loads(fixture.decode("utf-8")) == orjson.loads(fixture.decode("utf-8")),
+        )
+    except Exception:
+        passed.append(False)
+    return all(passed)
+
+
+def test_failed(libname, fixture):
+    rejected_as_bytes = False
+    loads = LIBRARY_FUNC_MAP[libname]
+    try:
+        loads(fixture)
+    except Exception:
+        rejected_as_bytes = True
+
+    rejected_as_str = False
+    try:
+        loads(fixture.decode("utf-8"))
+    except Exception:
+        rejected_as_str = True
+    return rejected_as_bytes and rejected_as_str
+
+
+MISTAKEN_PASSES = {key: 0 for key in LIBRARIES}
+
+MISTAKEN_FAILS = {key: 0 for key in LIBRARIES}
+
+PASS_WHITELIST = ("fail01.json", "fail18.json")
+
+
+def should_pass(filename):
+    return (
+        filename.startswith("y_")
+        or filename.startswith("pass")
+        or filename in PASS_WHITELIST
+    )
+
+
+def should_fail(filename):
+    return (
+        filename.startswith("n_")
+        or filename.startswith("i_string")
+        or filename.startswith("i_object")
+        or filename.startswith("fail")
+    ) and filename not in PASS_WHITELIST
+
+
+for libname in LIBRARIES:
+    for fixture_set in (PARSING, JSONCHECKER):
+        for filename, fixture in fixture_set.items():
+            if should_pass(filename):
+                res = test_passed(libname, fixture)
+                RESULTS[filename][libname] = res
+                if not res:
+                    MISTAKEN_PASSES[libname] += 1
+
+            elif should_fail(filename):
+                res = test_failed(libname, fixture)
+                RESULTS[filename][libname] = res
+                if not res:
+                    MISTAKEN_FAILS[libname] += 1
+            elif filename.startswith("i_"):
+                continue
+            else:
+                raise NotImplementedError
+
+FILENAMES = sorted(list(PARSING.keys()) + list(JSONCHECKER.keys()))
+
+
+tab_results = []
+for filename in FILENAMES:
+    entry = [
+        filename,
+    ]
+    for libname in LIBRARIES:
+        try:
+            entry.append("ok" if RESULTS[filename][libname] else "fail")
+        except KeyError:
+            continue
+    tab_results.append(entry)
+
+buf = io.StringIO()
+buf.write(tabulate(tab_results, ["Fixture", *LIBRARIES], tablefmt="github"))
+buf.write("\n")
+print(buf.getvalue())
+
+failure_results = [
+    [libname, MISTAKEN_FAILS[libname], MISTAKEN_PASSES[libname]]
+    for libname in LIBRARIES
+]
+
+buf = io.StringIO()
+buf.write(
+    tabulate(
+        failure_results,
+        [
+            "Library",
+            "Invalid JSON documents not rejected",
+            "Valid JSON documents not deserialized",
+        ],
+        tablefmt="github",
+    ),
+)
+buf.write("\n")
+print(buf.getvalue())
+
+num_results = len([each for each in tab_results if len(each) > 1])
+
+print(f"{num_results} documents tested")

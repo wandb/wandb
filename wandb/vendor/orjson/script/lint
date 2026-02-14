@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -eou pipefail
+
+to_lint="./bench/*.py ./pysrc/orjson/__init__.pyi ./test/*.py script/pydataclass
+script/pysort script/pynumpy script/pynonstr script/pycorrectness script/graph integration/init
+integration/wsgi.py integration/typestubs.py integration/thread script/check-version
+script/check-pypi"
+
+ruff format ${to_lint}
+ruff check ${to_lint} --fix
+mypy --ignore-missing-imports --check-untyped-defs ./bench/*.py ./pysrc/orjson/__init__.pyi ./test/*.py

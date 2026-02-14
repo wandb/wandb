@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+set -eou pipefail
+
+valgrind "$@" pytest -v --ignore=test/test_memory.py test

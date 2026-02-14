@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 try:
-    import orjson  # type: ignore
+    from wandb.vendor import orjson
 
     # todo: orjson complies with the json standard and does not support
     #  NaN, Infinity, and -Infinity. Should be fixed in the future.

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+# Copyright ijl (2018-2023), Eric Jolibois (2022)
+
+set -eou pipefail
+
+_dir="$(dirname "${BASH_SOURCE[0]}")"
+
+to_run="${@:-thread http init}"
+
+export PYTHONMALLOC="debug"
+
+if [[ $to_run == *"thread"* ]]; then
+	"${_dir}"/thread
+fi
+
+if [[ $to_run == *"http"* ]]; then
+	"${_dir}"/http --daemon
+	sleep 2
+	"${_dir}"/client 8001
+	set +e
+	pkill -f 'wsgi:app' # pkill not present on all CI envs
+	set -e
+fi
+
+if [[ $to_run == *"typestubs"* ]]; then
+	python "${_dir}"/typestubs.py
+	mypy "${_dir}"/typestubs.py
+fi
+
+if [[ $to_run == *"init"* ]]; then
+	"${_dir}"/init
+fi

@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+# Copyright ijl (2019-2025), Aarni Koskela (2021)
+
+import io
+import json
+import lzma
+import os
+from pathlib import Path
+from timeit import timeit
+
+from tabulate import tabulate
+
+import orjson
+
+if hasattr(os, "sched_setaffinity"):
+    os.sched_setaffinity(os.getpid(), {0, 1})
+
+
+dirname = os.path.join(os.path.dirname(__file__), "..", "data")
+
+
+def read_fixture_obj(filename):
+    path = Path(dirname, filename)
+    if path.suffix == ".xz":
+        contents = lzma.decompress(path.read_bytes())
+    else:
+        contents = path.read_bytes()
+    return orjson.loads(contents)
+
+
+data = read_fixture_obj("twitter.json.xz")
+
+headers = ("Library", "unsorted (ms)", "sorted (ms)", "vs. orjson")
+
+LIBRARIES = ("orjson", "json")
+
+ITERATIONS = 500
+
+
+def per_iter_latency(val):
+    if val is None:
+        return None
+    return (val * 1000) / ITERATIONS
+
+
+table = []
+for lib_name in LIBRARIES:
+    if lib_name == "json":
+        time_unsorted = timeit(
+            lambda: json.dumps(data).encode("utf-8"),
+            number=ITERATIONS,
+        )
+        time_sorted = timeit(
+            lambda: json.dumps(data, sort_keys=True).encode("utf-8"),
+            number=ITERATIONS,
+        )
+    elif lib_name == "orjson":
+        time_unsorted = timeit(lambda: orjson.dumps(data), number=ITERATIONS)
+        time_sorted = timeit(
+            lambda: orjson.dumps(data, None, orjson.OPT_SORT_KEYS),
+            number=ITERATIONS,
+        )
+        orjson_time_sorted = per_iter_latency(time_sorted)
+    else:
+        raise NotImplementedError
+
+    time_unsorted = per_iter_latency(time_unsorted)
+    time_sorted = per_iter_latency(time_sorted)
+
+    if lib_name == "orjson":
+        compared_to_orjson = 1
+    elif time_unsorted:
+        compared_to_orjson = time_sorted / orjson_time_sorted
+    else:
+        compared_to_orjson = None
+
+    table.append(
+        (
+            lib_name,
+            f"{time_unsorted:,.2f}" if time_unsorted else "",
+            f"{time_sorted:,.2f}" if time_sorted else "",
+            f"{compared_to_orjson:,.1f}" if compared_to_orjson else "",
+        ),
+    )
+
+buf = io.StringIO()
+buf.write(tabulate(table, headers, tablefmt="github"))
+buf.write("\n")
+
+print(buf.getvalue())

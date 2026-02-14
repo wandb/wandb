@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: (Apache-2.0 OR MIT)
+# Copyright ijl (2020-2023)
+
+import asyncio
+import sys
+import time
+
+import httpx
+
+port = sys.argv[1]
+url = f"http://127.0.0.1:{port}"
+
+timeout = httpx.Timeout(5.0)
+client = httpx.AsyncClient(timeout=timeout)
+
+stop_time = time.time() + 5
+
+TEST_MESSAGE = "http test running..."
+
+
+async def main():
+    sys.stdout.write(TEST_MESSAGE)
+    sys.stdout.flush()
+    count = 0
+    while time.time() < stop_time:
+        res = await client.get(url)
+        count += 1
+    sys.stdout.write(f"\r{TEST_MESSAGE} ok, {count} requests made\n")
+
+
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+asyncio.run(main())
+loop.close()
