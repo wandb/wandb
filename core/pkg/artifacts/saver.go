@@ -763,10 +763,12 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 				return "", fmt.Errorf("gql.UseArtifact: %w", err)
 			}
 		}
-		as.printer.Warnf(
-			"Artifact %q already exists with the same content (digest). No new version will be created.",
-			as.artifact.Name,
-		)
+		as.printer.
+			AtMostEvery(time.Minute).
+			Warnf(
+				"Artifact %q already exists with the same content. No new version will be created.",
+				as.artifact.Name,
+			)
 		return artifactID, nil
 	}
 	// DELETED is for old servers, see https://github.com/wandb/wandb/pull/6190
