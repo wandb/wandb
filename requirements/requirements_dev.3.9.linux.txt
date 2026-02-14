@@ -1308,7 +1308,7 @@ ujson==5.11.0
     # via dspy
 uri-template==1.3.0
     # via jsonschema
-urllib3==1.26.20
+urllib3==2.6.3
     # via
     #   -r requirements/requirements_dev.txt
     #   botocore
