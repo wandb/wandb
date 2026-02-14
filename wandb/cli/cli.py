@@ -258,14 +258,80 @@ def projects(entity, display=True):
     return projects
 
 
-@cli.command(context_settings=CONTEXT)
+@cli.command(
+    context_settings=CONTEXT,
+    help="""Authenticate your machine with W&B.
+
+    Store an API key locally for authenticating with W&B services.
+    By default, credentials are stored without server-side verification.
+
+    If no API key is provided as an argument, the command looks for
+    credentials in the following order:
+
+    1. The WANDB_API_KEY environment variable
+    2. The api_key setting in a system or workspace settings file
+    3. The .netrc file (~/.netrc, ~/_netrc, or the NETRC env var path)
+    4. An interactive prompt (if a TTY is available)
+
+    For self-hosted or dedicated cloud deployments, specify the server
+    URL with --host, or set the WANDB_BASE_URL environment variable.
+
+    Examples:
+
+    Log in interactively (prompts for API key)
+
+    ```bash
+    wandb login
+    ```
+
+    Log in with an explicit API key
+
+    ```bash
+    wandb login YOUR_API_KEY
+    ```
+
+    Log in and verify the API key is valid
+
+    ```bash
+    wandb login --verify
+    ```
+
+    Log in to the W&B public cloud instead of a configured self-hosted instance
+
+    ```bash
+    wandb login --cloud
+    ```
+
+    Log in to a self-hosted W&B instance
+
+    ```bash
+    wandb login --host https://my-wandb-server.example.com
+    ```
+
+    Force a new login prompt even if already authenticated
+
+    ```bash
+    wandb login --relogin
+    ```
+    """,
+)
 @click.argument("key", nargs=-1)
-@click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
 @click.option(
-    "--host", "--base-url", default=None, help="Login to a specific instance of W&B"
+    "--cloud",
+    is_flag=True,
+    help="Log in to the W&B public cloud (https://api.wandb.ai). Mutually exclusive with --host.",
 )
 @click.option(
-    "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
+    "--host",
+    "--base-url",
+    default=None,
+    help="Log in to a specific W&B server instance by URL.",
+)
+@click.option(
+    "--relogin",
+    default=None,
+    is_flag=True,
+    help="Force a new login prompt, ignoring any existing credentials.",
 )
 @click.option(
     "--anonymously",
@@ -278,20 +344,10 @@ def projects(entity, display=True):
     "--verify/--no-verify",
     default=False,
     is_flag=True,
-    help="Verify login credentials",
+    help="Verify the API key with the W&B server after storing it.",
 )
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
-    """Verify and store your API key for authentication with W&B services.
-
-    By default, only store credentials locally without verifying them with W&B.
-    To verify credentials, set `--verify=True`.
-
-    For server deployments (dedicated cloud or customer-managed instances),
-    specify the host URL using the `--host` flag. You can also set environment
-    variables `WANDB_BASE_URL` and `WANDB_API_KEY` instead of running
-    the `login` command with host parameters.
-    """
     # TODO: handle no_offline
     if anonymously:
         wandb.termwarn(
@@ -326,18 +382,42 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Configure a directory with Weights & Biases"
+    context_settings=CONTEXT, help="""Initialize or update W&B configuration for the current directory.
+    
+    Set a project and entity, create local W&B settings, and
+    prepare the directory for experiment tracking.
+
+    Examples:
+
+    Initialize W&B configuration for the current directory
+
+    ```bash
+    wandb init --project PROJECT_NAME --entity TEAM_ENTITY
+    ```
+
+    Set the W&B mode to offline
+
+    ```bash
+    wandb init --mode offline
+    ```
+
+    Reset existing W&B configuration for the current directory
+
+    ```bash
+    wandb init --reset
+    ```
+    """
 )
-@click.option("--project", "-p", help="The project to use.")
-@click.option("--entity", "-e", help="The entity to scope the project to.")
+@click.option("--project", "-p", help="Set the project name.")
+@click.option("--entity", "-e", help="Set the entity to scope the project to.")
 # TODO(jhr): Enable these with settings rework
 # @click.option("--setting", "-s", help="enable an arbitrary setting.", multiple=True)
 # @click.option('--show', is_flag=True, help="Show settings")
-@click.option("--reset", is_flag=True, help="Reset settings")
+@click.option("--reset", is_flag=True, help="Reset existing W&B configuration for the directory.")
 @click.option(
     "--mode",
     "-m",
-    help=' Can be "online", "offline" or "disabled". Defaults to online.',
+    help="Set the W&B mode. One of 'online', 'offline', or 'disabled'.",
 )
 @click.pass_context
 @display_error
@@ -461,72 +541,160 @@ def init(ctx, project, entity, reset, mode):
     )
 
 
-@cli.command(context_settings=CONTEXT)
+@cli.command(
+    context_settings=CONTEXT,
+    help="""Upload local W&B run data to the cloud.
+
+    Sync offline or incomplete runs from the local wandb directory to
+    the W&B server. If PATH is provided, sync runs at that path. If no
+    path is given, search for a ./wandb directory, then a wandb/
+    subdirectory.
+
+    Run without arguments to print a summary of synced and unsynced
+    runs without uploading anything.
+
+    When syncing a specific path, include TensorBoard event files
+    by default. When using --sync-all, disable TensorBoard by
+    default (use --sync-tensorboard to enable it).
+
+    PATH is a .wandb file or a run directory containing a .wandb file.
+
+    Examples:
+
+    Show a summary of local runs and their sync status
+
+    ```bash
+    wandb sync
+    ```
+
+    Sync a specific run by its directory
+
+    ```bash
+    wandb sync ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID
+    ```
+
+    Sync a specific run by its .wandb filepath
+
+    ```bash
+    wandb sync ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb
+    ```
+
+    Sync all unsynced runs in the local wandb directory
+
+    ```bash
+    wandb sync --sync-all
+    ```
+
+    Sync a run to a specific project and entity
+
+    ```bash
+    wandb sync --project PROJECT_NAME --entity ENTITY ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb
+    ```
+
+    Delete local data for runs that have already been synced
+
+    ```bash
+    wandb sync --clean
+    ```
+
+    Delete synced runs older than 48 hours without a confirmation prompt
+
+    ```bash
+    wandb sync --clean --clean-old-hours 48 --clean-force
+    ```
+    """,
+)
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
-@click.option("--view", is_flag=True, default=False, help="View runs", hidden=True)
-@click.option("--verbose", is_flag=True, default=False, help="Verbose", hidden=True)
-@click.option("--id", "run_id", help="The run you want to upload to.")
-@click.option("--project", "-p", help="The project you want to upload to.")
-@click.option("--entity", "-e", help="The entity to scope to.")
+@click.option("--view", is_flag=True, default=False, help="View runs.", hidden=True)
+@click.option("--verbose", is_flag=True, default=False, help="Enable verbose output.", hidden=True)
+@click.option("--id", "run_id", help="Upload to an existing run ID.")
+@click.option("--project", "-p", help="Set the project to upload the run to.")
+@click.option("--entity", "-e", help="Set the entity to scope the project to.")
 @click.option(
     "--job_type",
     "job_type",
-    help="Specifies the type of run for grouping related runs together.",
+    help="Set the job type to group related runs.",
 )
 @click.option(
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
     default=None,
-    help="Stream tfevent files to wandb.",
+    help="Sync TensorBoard tfevent files. On by default for specific paths, off for --sync-all.",
 )
-@click.option("--include-globs", help="Comma separated list of globs to include.")
-@click.option("--exclude-globs", help="Comma separated list of globs to exclude.")
+@click.option(
+    "--include-globs",
+    help="Include only runs matching these glob patterns (comma-separated).",
+)
+@click.option(
+    "--exclude-globs",
+    help="Exclude runs matching these glob patterns (comma-separated).",
+)
 @click.option(
     "--include-online/--no-include-online",
     is_flag=True,
     default=None,
-    help="Include online runs",
+    help="Include runs created in online mode.",
 )
 @click.option(
     "--include-offline/--no-include-offline",
     is_flag=True,
     default=None,
-    help="Include offline runs",
+    help="Include runs created in offline mode.",
 )
 @click.option(
     "--include-synced/--no-include-synced",
     is_flag=True,
     default=None,
-    help="Include synced runs",
+    help="Include runs that are already synced.",
 )
 @click.option(
     "--mark-synced/--no-mark-synced",
     is_flag=True,
     default=True,
-    help="Mark runs as synced",
+    help="Mark runs as synced after upload.",
 )
-@click.option("--sync-all", is_flag=True, default=False, help="Sync all runs")
-@click.option("--clean", is_flag=True, default=False, help="Delete synced runs")
+@click.option(
+    "--sync-all",
+    is_flag=True,
+    default=False,
+    help="Sync all unsynced runs in the local wandb directory.",
+)
+@click.option(
+    "--clean",
+    is_flag=True,
+    default=False,
+    help="Delete local data for runs that are already synced.",
+)
 @click.option(
     "--clean-old-hours",
     default=24,
-    help="Delete runs created before this many hours. To be used alongside --clean flag.",
+    help="Delete only synced runs older than this many hours (use with --clean).",
     type=int,
 )
 @click.option(
     "--clean-force",
     is_flag=True,
     default=False,
-    help="Clean without confirmation prompt.",
+    help="Skip the confirmation prompt if --clean is specified.",
 )
 @click.option("--ignore", hidden=True)
-@click.option("--show", default=5, help="Number of runs to show")
-@click.option("--append", is_flag=True, default=False, help="Append run")
-@click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
+@click.option("--show", default=5, help="Set the number of runs to show in the summary.")
+@click.option(
+    "--append",
+    is_flag=True,
+    default=False,
+    help="Append data to an existing run instead of creating a new run.",
+)
+@click.option(
+    "--skip-console",
+    is_flag=True,
+    default=False,
+    help="Skip uploading console logs.",
+)
 @click.option(
     "--replace-tags",
-    help="Replace tags in the format 'old_tag1=new_tag1,old_tag2=new_tag2'",
+    help="Rename tags during sync. Use 'old=new' pairs separated by commas.",
 )
 @display_error
 def sync(
@@ -555,20 +723,6 @@ def sync(
     skip_console=None,
     replace_tags=None,
 ):
-    """Synchronize W&B run data to the cloud.
-
-    If PATH is provided, sync runs found at the given path. If a path
-    is not specified, search for `./wandb` first, then search for a
-    `wandb/` subdirectory.
-
-    To sync a specific run:
-
-        wandb sync ./wandb/run-20250813_124246-n67z9ude
-
-    Or equivalently:
-
-        wandb sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
-    """
     api = _get_cling_api()
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to sync runs")
@@ -754,53 +908,137 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
 
 @cli.command(
     context_settings=CONTEXT,
-    help="Initialize a hyperparameter sweep. Search for hyperparameters that optimizes a cost function of a machine learning model by testing various combinations.",
+    help="""Create, update, or manage a hyperparameter sweep.
+    
+    Provide a YAML config file to create a sweep. Define the search
+    strategy, parameters, and metric to optimize in the config.
+    Register the sweep with the W&B server and print the sweep ID
+    and a command to start an agent.
+    
+    Provide a sweep ID (or full path entity/project/sweep_id) with a
+    state flag (--stop, --cancel, --pause, or --resume) to manage
+    an existing sweep.
+
+    Examples:
+
+    Create a new sweep from a YAML config file
+
+    ```bash
+    wandb sweep sweep_config.yaml
+    ```
+
+    Create a sweep in a specific project and team
+
+    ```bash
+    wandb sweep -p PROJECT_NAME -e ENTITY sweep_config.yaml
+    ```
+
+    Update an existing sweep's configuration
+
+    ```bash
+    wandb sweep --update SWEEP_ID sweep_config.yaml
+    ```
+
+    Stop a sweep
+
+    ```bash
+    wandb sweep --stop ENTITY/PROJECT_NAME/SWEEP_ID
+    ```
+
+    Cancel a sweep
+
+    ```bash
+    wandb sweep --cancel SWEEP_ID
+    ```
+
+    Pause and later resume a sweep
+
+    ```bash
+    wandb sweep --pause SWEEP_ID
+    wandb sweep --resume SWEEP_ID
+    ```
+
+    Create a sweep with a local controller
+
+    ```bash
+    wandb sweep --controller sweep_config.yaml
+    ```
+
+    Attach existing runs to a new sweep
+
+    ```bash
+    wandb sweep -R RUN_ID_1 -R RUN_ID_2 sweep_config.yaml
+    ```
+    """,
 )
 @click.option(
     "--project",
     "-p",
     default=None,
-    help="""The name of the project where W&B runs created from the sweep are sent to. If the project is not specified, the run is sent to a project labeled Uncategorized.""",
+    help="Set the project for sweep runs. Use 'Uncategorized' if not set.",
 )
 @click.option(
     "--entity",
     "-e",
     default=None,
-    help="""The username or team name where you want to send W&B runs created by the sweep to. Ensure that the entity you specify already exists. If you don't specify an entity, the run will be sent to your default entity, which is usually your username.""",
+    help="Set the entity for sweep. Use the current user's default entity if not set.",
 )
-@click.option("--controller", is_flag=True, default=False, help="Run local controller")
-@click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
+@click.option(
+    "--controller",
+    is_flag=True,
+    default=False,
+    help="Start a local sweep controller after creating the sweep.",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Display verbose output."
+)
 @click.option(
     "--name",
     default=None,
-    help="The name of the sweep. The sweep ID is used if no name is specified.",
+    help="Set a display name for the sweep. Use the sweep ID if not specified.",
 )
-@click.option("--program", default=None, help="Set sweep program")
-@click.option("--settings", default=None, help="Set sweep settings", hidden=True)
-@click.option("--update", default=None, help="Update pending sweep")
+@click.option(
+    "--program",
+    default=None,
+    help="Override the training program specified in the sweep config.",
+)
+@click.option(
+    "--settings",
+    default=None,
+    help="Set sweep settings",
+    hidden=True
+)
+@click.option(
+    "--update",
+    default=None,
+    help="Update an existing sweep configuration. Pass the sweep ID.",
+)
 @click.option(
     "--stop",
     is_flag=True,
     default=False,
-    help="Finish a sweep to stop running new runs and let currently running runs finish.",
+    help="Stop a sweep. Let active runs finish but do not start new runs.",
 )
 @click.option(
     "--cancel",
     is_flag=True,
     default=False,
-    help="Cancel a sweep to kill all running runs and stop running new runs.",
+    help="Cancel a sweep. Kill active runs and stop starting new ones.",
 )
 @click.option(
     "--pause",
     is_flag=True,
     default=False,
-    help="Pause a sweep to temporarily stop running new runs.",
+    help="Pause a sweep. Temporarily stop starting new runs.",
 )
 @click.option(
     "--resume",
     is_flag=True,
     default=False,
-    help="Resume a sweep to continue running new runs.",
+    help="Resume a paused sweep.",
 )
 @click.option(
     "--prior_run",
@@ -808,7 +1046,7 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
     "prior_runs",
     multiple=True,
     default=None,
-    help="ID of an existing run to add to this sweep",
+    help="Attach an existing run to this sweep by ID. Specify multiple times to attach multiple runs."
 )
 @click.argument("config_yaml_or_sweep_id")
 @click.pass_context
@@ -2592,7 +2830,7 @@ def cleanup(target_size, remove_temp):
     wandb.termlog(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
-@cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
+@cli.command(context_settings=CONTEXT, help="Pull files from W&B")
 @click.argument("run", envvar=env.RUN_ID)
 @click.option(
     "--project", "-p", envvar=env.PROJECT, help="The project you want to download."
@@ -2830,9 +3068,26 @@ def off(ctx):
     ctx.invoke(offline)
 
 
-@cli.command("status", help="Show configuration settings")
+@cli.command(
+    "status",
+    help="""Display the current W&B configuration settings.
+
+    Print all active W&B settings as formatted JSON, including the
+    base URL, API key, project, entity, and other resolved values.
+
+    Examples:
+
+    Show current settings
+
+    ```bash
+    wandb status
+    ```
+    """,
+)
 @click.option(
-    "--settings/--no-settings", help="Show the current settings", default=True
+    "--settings/--no-settings",
+    help="Display the current settings.",
+    default=True,
 )
 def status(settings):
     api = _get_cling_api()
@@ -2878,36 +3133,46 @@ def enabled(service):
 
 @cli.command(
     context_settings=CONTEXT,
-    help="""Checks and verifies local instance of W&B. W&B checks for:
+    help="""Run integration checks against a self-hosted W&B instance.
 
-    Checks that the host is not `api.wandb.ai` (host check).
+    Validate that a self-hosted or dedicated cloud W&B deployment is configured
+    and operating correctly. Do not run this command against the public W&B
+    cloud at `api.wandb.ai`.
 
-    Verifies if the user is logged in correctly using the provided API key (login check).
+    The following checks are run in order:
+    1. Host check - Verify the host is not `api.wandb.ai`.
+    2. Login check - Verify the API key authenticates successfully.
+    3. Secure requests check - Verify requests use HTTPS.
+    4. Large payload check - Verify the instance handles large payloads (~10MB).
+    5. Secure requests check - Verify signed URL requests use HTTPS.
+    6. CORS configuration - Verify the object store allows GET and PUT requests
+        from the W&B instance.
+    7. W&B version - Verify the installed W&B package is compatible with the instance.
+    8. Run check - Log metrics, save files, and download files to verify runs
+        are recorded and accessible.
+    9. Artifact check - Save and download artifacts to verify artifact storage
+        and retrieval work correctly.
+    10. Sweeps check - Create and execute a random sweep to verify the sweep
+        system functions correctly.
 
-    Checks that requests are made over HTTPS (secure requests).
+    Exits with code 1 if any critical check fails.
 
-    Validates the CORS (Cross-Origin Resource Sharing) configuration of the
-    object store (CORS configuration).
+    Examples:
 
-    Logs metrics, saves, and downloads files to check if runs are correctly
-    recorded and accessible (run check).
+    Verify the currently configured W&B instance.
 
-    Saves and downloads artifacts to verify that the artifact storage and
-    retrieval system is working as expected (artifact check).
+    ```bash
+    wandb verify --host https://my-wandb-instance.com
+    ```
 
-    Tests the GraphQL endpoint by uploading a file to ensure it can handle
-    signed URL uploads (GraphQL PUT check).
+    Verify a specific self-hosted instance.
 
-    Checks the ability to send large payloads through the proxy (large payload check).
-
-    Verifies that the installed version of the W&B package is up-to-date and
-    compatible with the server (W&B version check).
-
-    Creates and executes a sweep to ensure that sweep functionality is
-    working correctly (sweeps check).
+    ```bash
+    wandb verify --host https://my-wandb-server.example.com 
+    ```
 """,
 )
-@click.option("--host", default=None, help="Test a specific instance of W&B")
+@click.option("--host", default=None, help="Target a specific W&B instance URL. Default to configured base URL.")
 def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
