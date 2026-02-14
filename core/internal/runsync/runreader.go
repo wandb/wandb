@@ -67,7 +67,7 @@ func (f *RunReaderFactory) New(
 
 // ExtractRunInfo reads and returns basic run information.
 func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
-	r.logger.Info("runsync: getting info", "path", r.path)
+	r.logger.Info("runsync: getting info")
 
 	reader, err := r.open()
 	if err != nil {
@@ -110,7 +110,7 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 // Closes RunWork at the end, even on error. If there was no Exit record,
 // creates one with an exit code of 1.
 func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
-	r.logger.Info("runsync: starting to read", "path", r.path)
+	r.logger.Info("runsync: starting to read")
 
 	// Abort any async work on cancellation.
 	cancelAbort := context.AfterFunc(ctx, r.runWork.Abort)
@@ -128,7 +128,7 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
 		record, err := r.nextUpdatedRecord(ctx, reader, !r.seenExit /*retryEOF*/)
 
 		if errors.Is(err, io.EOF) {
-			r.logger.Info("runsync: done reading", "path", r.path)
+			r.logger.Info("runsync: done reading")
 			return nil
 		}
 
@@ -162,7 +162,7 @@ func (r *RunReader) closeRunWork() {
 	if !r.seenExit {
 		r.logger.Warn(
 			"runsync: no exit record encountered, using exit code 1 (failed)",
-			"path", r.path)
+		)
 
 		r.parseAndAddWork(
 			&spb.Record{
@@ -223,7 +223,6 @@ func (r *RunReader) nextUpdatedRecord(
 			(retryEOF && errors.Is(err, io.EOF)) {
 			r.logger.Info(
 				"runsync: retrying read error in live mode",
-				"path", r.path,
 				"error", err)
 
 			if err := reader.ResetLastRead(); err != nil {

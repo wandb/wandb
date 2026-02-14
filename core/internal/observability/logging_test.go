@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
@@ -75,7 +76,6 @@ func TestNewNoOpLogger(t *testing.T) {
 	// Assert that the logger has the expected configuration
 	assert.NotNil(t, logger, "Expected logger to be created")
 	assert.NotNil(t, logger.Logger, "Expected logger to be created")
-	assert.Equal(t, observability.Tags{}, logger.GetTags(), "Unexpected tags in the logger")
 }
 
 func TestReraise(t *testing.T) {
@@ -124,4 +124,38 @@ func TestCaptureFatalAndPanic_Nil(t *testing.T) {
 	}()
 
 	logger.CaptureFatalAndPanic(nil)
+}
+
+func TestLoggerHierarchy(t *testing.T) {
+	baseLogger, logs, sentry := observabilitytest.NewSentryTestLogger(t)
+
+	childLogger := baseLogger.With(
+		[]any{"attr", "attr-value"},
+		map[string]string{"child-tag": "child-value"},
+	)
+
+	baseLogger.CaptureInfo("base message")
+	childLogger.CaptureInfo("child message")
+
+	sentryEvents := sentry.Events()
+	require.Len(t, sentryEvents, 2)
+	assert.Empty(t, sentryEvents[0].Tags)
+	assert.Equal(t, map[string]string{
+		// Sentry tags include attrs and tags passed to With().
+		"attr":      "attr-value",
+		"child-tag": "child-value",
+	}, sentryEvents[1].Tags)
+
+	logRecords := observabilitytest.ExtractLogs(t, logs)
+	require.Len(t, logRecords, 2)
+	assert.Equal(t, map[string]string{
+		"level": "INFO",
+		"msg":   "base message",
+	}, logRecords[0])
+	assert.Equal(t, map[string]string{
+		"level": "INFO",
+		"msg":   "child message",
+		// slog only includes the attrs passed to With().
+		"attr": "attr-value",
+	}, logRecords[1])
 }

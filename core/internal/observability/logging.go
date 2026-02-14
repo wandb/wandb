@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"maps"
-	"sync"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -44,12 +43,10 @@ func NewTags(args ...any) Tags {
 const LevelFatal = slog.Level(12)
 
 type CoreLogger struct {
-	mu sync.Mutex // for operations that use the Sentry hub's scope
-
 	*slog.Logger
-	sentryHub *sentry.Hub // nil if Sentry is disabled
+	sentryCtx *SentryContext // nil if Sentry is disabled
 
-	baseTags Tags
+	extraSentryTags Tags // extra Sentry tags for just this logger
 
 	captureRateLimiter *CaptureRateLimiter
 }
@@ -60,7 +57,7 @@ type CoreLogger struct {
 // sentryHub can be set to nil to disable Sentry.
 func NewCoreLogger(
 	logger *slog.Logger,
-	sentryHub *sentry.Hub,
+	sentryCtx *SentryContext,
 ) *CoreLogger {
 	const captureRateLimiterCacheSize = 100
 	const captureMinDuration = 5 * time.Minute
@@ -76,17 +73,10 @@ func NewCoreLogger(
 			"observability: couldn't make CaptureRateLimiter: %v", err))
 	}
 
-	if sentryHub != nil {
-		sentryHub = sentryHub.Clone()
-		sentryHub.ConfigureScope(func(scope *sentry.Scope) {
-			scope.AddEventProcessor(RemoveLoggerFrames)
-		})
-	}
-
 	return &CoreLogger{
 		Logger:             logger,
-		sentryHub:          sentryHub,
-		baseTags:           make(Tags),
+		sentryCtx:          sentryCtx,
+		extraSentryTags:    make(Tags),
 		captureRateLimiter: captureRateLimiter,
 	}
 }
@@ -97,29 +87,29 @@ func NewCoreLogger(
 // logger's base tags take precedence over args.
 func (cl *CoreLogger) withArgs(args ...any) Tags {
 	tags := NewTags(args...)
-	maps.Copy(tags, cl.baseTags)
+	maps.Copy(tags, cl.extraSentryTags)
 	return tags
 }
 
-// SetGlobalTags updates tags that are shared by all loggers related to this
-// one, including its parent and descendants.
+// With returns a derived logger with additional slog attrs and Sentry tags.
 //
-// Note that these tags take precedence over tags set by With().
-func (cl *CoreLogger) SetGlobalTags(tags Tags) {
-	maps.Copy(cl.baseTags, tags)
-}
-
-// With returns a derived logger that includes the given tags in each message.
-func (cl *CoreLogger) With(args ...any) *CoreLogger {
-	var sentryHub *sentry.Hub
-	if cl.sentryHub != nil {
-		sentryHub = cl.sentryHub.Clone()
-	}
+// The returned logger inherits the attrs and tags of this logger.
+//
+// The additional attrs are logged with every message and included as tags on
+// every Sentry event. The tags are only uploaded to Sentry, so they can
+// be more verbose.
+func (cl *CoreLogger) With(
+	attrs []any,
+	tags map[string]string,
+) *CoreLogger {
+	extraSentryTags := maps.Clone(cl.extraSentryTags)
+	maps.Copy(extraSentryTags, NewTags(attrs...))
+	maps.Copy(extraSentryTags, tags)
 
 	return &CoreLogger{
-		Logger:             cl.Logger.With(args...),
-		sentryHub:          sentryHub,
-		baseTags:           cl.baseTags,
+		Logger:             cl.Logger.With(attrs...),
+		sentryCtx:          cl.sentryCtx,
+		extraSentryTags:    extraSentryTags,
 		captureRateLimiter: cl.captureRateLimiter,
 	}
 }
@@ -149,8 +139,8 @@ func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
 	slog.Log(context.Background(), LevelFatal, err.Error(), args...)
 
 	// Try to finish uploads to Sentry before re-panicking.
-	if cl.sentryHub != nil {
-		flushed := cl.sentryHub.Flush(2 * time.Second)
+	if cl.sentryCtx != nil {
+		flushed := cl.sentryCtx.Flush(2 * time.Second)
 
 		if !flushed {
 			msg := "observability: failed to flush Sentry"
@@ -176,31 +166,25 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 
 // captureException uploads an error to Sentry if possible and allowed.
 func (cl *CoreLogger) captureException(err error, args ...any) {
-	if cl.sentryHub == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
+	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
 		return
 	}
 
-	cl.mu.Lock()
-	defer cl.mu.Unlock()
-
-	cl.sentryHub.WithScope(func(scope *sentry.Scope) {
-		scope.SetTags(cl.withArgs(args...))
-		cl.sentryHub.CaptureException(err)
+	cl.sentryCtx.WithScope(func(hub *sentry.Hub) {
+		hub.Scope().SetTags(cl.withArgs(args...))
+		hub.CaptureException(err)
 	})
 }
 
 // captureException uploads a message to Sentry if possible and allowed.
 func (cl *CoreLogger) captureMessage(msg string, args ...any) {
-	if cl.sentryHub == nil || !cl.captureRateLimiter.AllowCapture(msg) {
+	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(msg) {
 		return
 	}
 
-	cl.mu.Lock()
-	defer cl.mu.Unlock()
-
-	cl.sentryHub.WithScope(func(scope *sentry.Scope) {
-		scope.SetTags(cl.withArgs(args...))
-		cl.sentryHub.CaptureMessage(msg)
+	cl.sentryCtx.WithScope(func(hub *sentry.Hub) {
+		hub.Scope().SetTags(cl.withArgs(args...))
+		hub.CaptureMessage(msg)
 	})
 }
 
@@ -218,13 +202,6 @@ func (cl *CoreLogger) Reraise(args ...any) {
 	} else {
 		cl.CaptureFatalAndPanic(fmt.Errorf("%v", panicErr), args...)
 	}
-}
-
-// GetTags returns the tags associated with the logger.
-//
-// Used for testing.
-func (cl *CoreLogger) GetTags() Tags {
-	return cl.baseTags
 }
 
 // NewNoOpLogger returns a logger that discards all messages.
