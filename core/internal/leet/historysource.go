@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
