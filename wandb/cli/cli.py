@@ -1253,6 +1253,80 @@ def launch_sweep(
     wandb.termlog(f"Scheduler added to launch queue ({queue})")
 
 
+def _validate_run_config(
+    job_name: str,
+    run_config: Dict[str, Any],
+) -> None:
+    """Validate run_config overrides for a job.
+    
+    Args:
+        job_name: Full job name in format entity/project/job-name:version
+        run_config: The run config dict to validate
+        
+    Raises:
+        LaunchError: If validation fails or job cannot be fetched
+    """
+    # Fetch the job artifact
+    public_api = PublicApi()
+    try:
+        job = public_api.job(job_name)
+    except Exception as e:
+        raise LaunchError(f"Failed to fetch job '{job_name}': {e}")
+    
+    # Get the job artifact metadata
+    job_artifact = job._job_artifact
+    metadata = job_artifact.metadata
+    
+    # Extract the input schema for wandb.config
+    input_schemas = metadata.get("input_schemas", {})
+    config_schema = input_schemas.get("@wandb.config")
+    
+    # If no schema is defined, skip validation
+    if not config_schema:
+        wandb.termlog("No input schema found for job. Skipping validation.")
+        return
+    
+    # Validate the run_config against the schema using jsonschema
+    jsonschema = util.get_module(
+        "jsonschema",
+        required="Config validation requires the jsonschema package. Install it with `pip install 'wandb[launch]'`.",
+        lazy=False,
+    )
+    
+    try:
+        jsonschema.validate(instance=run_config, schema=config_schema)
+        wandb.termlog("Run config validated successfully.")
+    except jsonschema.ValidationError as e:
+        # Format a helpful error message
+        error_path = ".".join(str(p) for p in e.path) if e.path else "root"
+        error_msg = (
+            f"Run config validation failed:\n"
+            f"  Location: {error_path}\n"
+            f"  Error: {e.message}\n"
+        )
+        
+        # Add schema info if available
+        if e.schema:
+            expected_type = e.schema.get("type")
+            if expected_type:
+                error_msg += f"  Expected type: {expected_type}\n"
+            
+            enum_vals = e.schema.get("enum")
+            if enum_vals:
+                error_msg += f"  Allowed values: {enum_vals}\n"
+        
+        # Add the invalid value
+        if e.instance is not None:
+            error_msg += f"  Provided value: {e.instance}\n"
+        
+        raise LaunchError(error_msg)
+    except jsonschema.SchemaError as e:
+        raise LaunchError(
+            f"Job has an invalid input schema: {e.message}\n"
+            "This is likely a bug in the job creation process."
+        )
+
+
 @cli.command(help=f"Launch or queue a W&B Job. See {url_registry.url('wandb-launch')}")
 @click.option(
     "--uri",
@@ -1425,6 +1499,12 @@ def launch_sweep(
     help="""When --queue is passed, set the priority of the job. Launch jobs with higher priority
     are served first.  The order, from highest to lowest priority, is: critical, high, medium, low""",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Perform validation and show what would be launched without actually launching.",
+)
 @display_error
 def launch(
     uri,
@@ -1449,6 +1529,7 @@ def launch(
     dockerfile,
     priority,
     job_name,
+    dry_run,
 ):
     """Start a W&B run from the given URI.
 
@@ -1569,6 +1650,64 @@ def launch(
         template_variables = launch_utils.fetch_and_validate_template_variables(
             runqueue, cli_template_vars
         )
+
+    # Validate run_config if both job and run_config are provided
+    if job and config.get("overrides", {}).get("run_config"):
+        try:
+            _validate_run_config(
+                job_name=job,
+                run_config=config["overrides"]["run_config"],
+            )
+        except LaunchError as e:
+            wandb.termerror(f"Config validation failed: {e}")
+            sys.exit(1)
+    
+    # If dry-run, print what would be launched and exit
+    if dry_run:
+        priority_names = {0: "critical", 1: "high", 2: "medium", 3: "low"}
+        
+        # Build configuration details
+        details = [
+            ("Job", job),
+            ("URI", uri),
+            ("Entry point", entry_point),
+            ("Entity", entity),
+            ("Project", project),
+            ("Resource", resource),
+            ("Docker image", docker_image),
+            ("Queue", queue),
+        ]
+        
+        if queue and priority is not None:
+            details.append(("Priority", priority_names.get(priority, priority)))
+        elif not queue:
+            details.append(("Async", run_async))
+        
+        # Print header
+        separator = "=" * 60
+        wandb.termlog(f"\n{separator}")
+        wandb.termlog("DRY RUN - Launch Configuration")
+        wandb.termlog(f"{separator}\n")
+        
+        # Print basic details
+        for label, value in details:
+            if value:
+                wandb.termlog(f"{label}: {value}")
+        
+        # Print config and resource args
+        if config:
+            wandb.termlog(f"\nLaunch config:")
+            wandb.termlog(json.dumps(config, indent=2))
+        
+        if resource_args:
+            wandb.termlog(f"\nResource args:")
+            wandb.termlog(json.dumps(resource_args, indent=2))
+        
+        # Print footer
+        wandb.termlog(f"\n{separator}")
+        wandb.termlog("✓ Dry run complete. No job was launched or queued.")
+        wandb.termlog(f"{separator}\n")
+        return
 
     if queue is None:
         # direct launch
@@ -1855,19 +1994,26 @@ def _list(project, entity):
         wandb.termlog("No jobs found")
         return
 
+    # First pass: collect all job data and find max name length
+    job_data = []
+    max_name_len = 0
     for job in jobs:
-        aliases = []
         if len(job["edges"]) == 0:
             # deleted?
             continue
-
+        
         name = job["edges"][0]["node"]["artifactSequence"]["name"]
+        aliases = []
         for version in job["edges"]:
             aliases += [x["alias"] for x in version["node"]["aliases"]]
-
-        # only list the most recent 10 job versions
+        
+        job_data.append((name, aliases))
+        max_name_len = max(max_name_len, len(name))
+    
+    # Second pass: display with aligned columns
+    for name, aliases in job_data:
         aliases_str = ",".join(aliases[::-1])
-        wandb.termlog(f"{name} -- versions ({len(aliases)}): {aliases_str}")
+        wandb.termlog(f"  {name.ljust(max_name_len)} -- versions ({len(aliases)}): {aliases_str}")
 
 
 @job.command(
@@ -2073,6 +2219,80 @@ def create(
     web_url = util.app_url(api.settings().get("base_url"))
     url = click.style(f"{web_url}/{entity}/{project}/jobs", underline=True)
     wandb.termlog(f"View all jobs in project '{project}' here: {url}\n")
+
+
+@cli.group(help="Commands for managing and viewing W&B launch queues")
+def queue() -> None:
+    pass
+
+
+@queue.command("list", help="List launch queues")
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    envvar=env.ENTITY,
+    help="The entity to list queues from. Defaults to your default entity.",
+)
+@click.option(
+    "--project",
+    "-p",
+    default=None,
+    envvar=env.PROJECT,
+    help="The project to list queues from. Defaults to 'model-registry' (entity-level queues).",
+)
+@display_error
+def _queue_list(entity, project):
+    """List all launch queues.
+    
+    Queues are associated with projects. Most commonly, entity-level queues
+    are stored in the special 'model-registry' project (the default).
+    However, project-specific queues can also exist.
+    
+    Examples:
+        # List entity-level queues (uses model-registry project by default)
+        wandb queue list
+        
+        # List queues for a specific entity
+        wandb queue list --entity my-team
+        
+        # List queues for a specific project
+        wandb queue list --project my-project
+    """
+    api = _get_cling_api()
+    
+    # Get default entity if not specified
+    if entity is None:
+        entity = api.default_entity
+        if entity is None:
+            wandb.termerror("No entity specified and no default entity found. Please specify --entity.")
+            return
+    
+    # Use default project if not specified (model-registry for entity-level queues)
+    if project is None:
+        project = launch_utils.LAUNCH_DEFAULT_PROJECT
+    
+    wandb.termlog(f"Listing queues in {entity}/{project}")
+    
+    try:
+        queues = api.get_project_run_queues(entity, project)
+    except wandb.errors.CommError as e:
+        wandb.termerror(f"{e}")
+        return
+    
+    if not queues:
+        wandb.termlog("No queues found")
+        return
+    
+    # Find max name length for alignment
+    max_name_len = max(len(q.get("name", "Unknown")) for q in queues)
+    
+    # Display queues with aligned columns
+    for q in queues:
+        queue_name = q.get("name", "Unknown")
+        access = q.get("access", "unknown")
+        created_by = q.get("createdBy", "unknown")
+        wandb.termlog(f"  {queue_name.ljust(max_name_len)} -- access: {access}, created by: {created_by}")
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
