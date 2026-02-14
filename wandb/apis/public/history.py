@@ -21,7 +21,7 @@ from typing_extensions import Self, TypeAlias
 from wandb_gql import gql
 
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public.service_api import ServiceAPI
+from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as pb
 from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
@@ -41,7 +41,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
 
     def __init__(
         self,
-        service_api: ServiceAPI,
+        service_api: ServiceApi,
         run: runs.Run,
         min_step: int,
         max_step: int,
@@ -140,7 +140,7 @@ class BetaHistoryScan(Iterator[_RowDict]):
         }
 
     @staticmethod
-    def cleanup(service_api: ServiceAPI, request_id: int) -> None:
+    def cleanup(service_api: ServiceApi, request_id: int) -> None:
         scan_run_history_cleanup = pb.ScanRunHistoryCleanup(
             request_id=request_id,
         )

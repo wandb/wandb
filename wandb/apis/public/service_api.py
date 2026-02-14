@@ -7,8 +7,8 @@ from wandb.sdk.lib.service.service_connection import ServiceConnection
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 
-class ServiceAPI:
-    """Class that maintains necessary information to interact with wandb-core."""
+class ServiceApi:
+    """A lazy initialized handle to the wandb-core service."""
 
     def __init__(
         self,
@@ -39,7 +39,7 @@ class ServiceAPI:
         request: ApiRequest,
         timeout: float | None = None,
     ) -> ApiResponse:
-        """Sends an API request to the backend service.
+        """Send an API request to the backend service.
 
         Creates the backend service attribute if it has not been created yet.
 
@@ -50,12 +50,12 @@ class ServiceAPI:
         conn = self._get_service_connection()
         return conn.api_request(request, timeout=timeout)
 
-    async def _send_api_request_async(
+    async def send_api_request_async(
         self,
         request: ApiRequest,
         timeout: float | None = None,
     ) -> MailboxHandle[ApiResponse]:
-        """Sends an API request to the backend service asynchronously.
+        """Send an API request to the backend service asynchronously.
 
         Args:
             request: The API request to send.

@@ -36,7 +36,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries, Registry
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
-from wandb.apis.public.service_api import ServiceAPI
+from wandb.apis.public.service_api import ServiceApi
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
@@ -243,7 +243,7 @@ class Api:
         settings = wandb_setup.singleton().settings.model_copy()
         settings.base_url = base_url
         settings.api_key = self.api_key or ""
-        self._service_api = ServiceAPI(settings=settings)
+        self._service_api = ServiceApi(settings=settings)
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""

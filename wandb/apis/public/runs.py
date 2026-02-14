@@ -55,7 +55,7 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
-from wandb.apis.public.service_api import ServiceAPI
+from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import ipython, json_util, runid
@@ -260,7 +260,7 @@ class Runs(SizedPaginator["Run"]):
         per_page: int = 50,
         include_sweeps: bool = True,
         lazy: bool = True,
-        service_api: ServiceAPI | None = None,
+        service_api: ServiceApi | None = None,
     ):
         if not order:
             order = "+created_at"
@@ -542,7 +542,7 @@ class Run(Attrs):
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
         lazy: bool = True,
-        service_api: ServiceAPI | None = None,
+        service_api: ServiceApi | None = None,
     ):
         """Initialize a Run object.
 
@@ -572,7 +572,7 @@ class Run(Attrs):
         self.server_provides_internal_id_field: bool | None = None
         self._server_provides_project_id_field: bool | None = None
         self._is_loaded: bool = False
-        self._service_api: ServiceAPI | None = service_api
+        self._service_api: ServiceApi | None = service_api
 
         self.load(force=not _attrs)
 
@@ -1602,7 +1602,7 @@ class Run(Attrs):
         """
         if self._service_api is None:
             settings = wandb_setup.singleton().settings.model_copy()
-            self._service_api = ServiceAPI(settings=settings)
+            self._service_api = ServiceApi(settings=settings)
 
         beta_history_scan = public.BetaHistoryScan(
             service_api=self._service_api,
@@ -1652,7 +1652,7 @@ class Run(Attrs):
 
         if self._service_api is None:
             settings = wandb_setup.singleton().settings.model_copy()
-            self._service_api = ServiceAPI(settings=settings)
+            self._service_api = ServiceApi(settings=settings)
 
         response: apb.ApiResponse
         try:
