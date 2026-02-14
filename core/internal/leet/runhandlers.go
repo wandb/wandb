@@ -227,8 +227,8 @@ func (r *Run) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (r *Run) cleanup() {
-	if r.reader != nil {
-		r.reader.Close()
+	if r.historySource != nil {
+		r.historySource.Close()
 	}
 	if r.heartbeatMgr != nil {
 		r.heartbeatMgr.Stop()
@@ -462,10 +462,12 @@ func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.C
 // handleInit handles InitMsg (reader ready).
 func (r *Run) handleInit(msg InitMsg) []tea.Cmd {
 	r.logger.Debug("model: InitMsg received, reader initialized")
-	r.reader = msg.Reader
+	r.historySource = msg.Source
 	r.loadStartTime = time.Now()
 
-	return []tea.Cmd{ReadAllRecordsChunked(r.reader)}
+	return []tea.Cmd{
+		ReadRecords(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
+	}
 }
 
 // handleChunkedBatch handles boot-load chunked batches.
@@ -481,7 +483,10 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	cmds := r.handleRecordsBatch(msg.Msgs, false)
 
 	if msg.HasMore {
-		cmds = append(cmds, ReadAllRecordsChunked(r.reader))
+		cmds = append(
+			cmds,
+			ReadRecords(r.historySource, BootLoadChunkSize, BootLoadMaxTime),
+		)
 		return cmds
 	}
 
@@ -501,7 +506,10 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	r.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := r.handleRecordsBatch(msg.Msgs, true)
-	cmds = append(cmds, ReadAvailableRecords(r.reader))
+	cmds = append(
+		cmds,
+		ReadRecords(r.historySource, LiveMonitorChunkSize, LiveMonitorMaxTime),
+	)
 	return cmds
 }
 
@@ -510,7 +518,7 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 	r.logger.Debug("model: processing HeartbeatMsg")
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadAvailableRecords(r.reader),
+		ReadRecords(r.historySource, LiveMonitorChunkSize, LiveMonitorMaxTime),
 		r.watcherMgr.WaitForMsg,
 	}
 }
@@ -519,7 +527,7 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 func (r *Run) handleFileChange() []tea.Cmd {
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
-		ReadAvailableRecords(r.reader),
+		ReadRecords(r.historySource, LiveMonitorChunkSize, LiveMonitorMaxTime),
 		r.watcherMgr.WaitForMsg,
 	}
 }

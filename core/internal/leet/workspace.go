@@ -78,7 +78,7 @@ type Workspace struct {
 type workspaceRun struct {
 	key       string
 	wandbPath string
-	reader    *WandbReader
+	reader    HistorySource
 	watcher   *WatcherManager
 	state     RunState
 }
