@@ -43,6 +43,7 @@ import urllib
 from collections.abc import Collection, Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Literal
 
+from typing_extensions import override
 from wandb_gql import gql
 
 import wandb
@@ -50,6 +51,7 @@ import wandb.apis.public.runhistory as runhistory
 from wandb import env, util
 from wandb._strutils import nameof
 from wandb.apis import public
+from wandb.apis._displayable import DisplayableMixin
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
@@ -499,7 +501,7 @@ class Runs(SizedPaginator["Run"]):
                     future.result()
 
 
-class Run(Attrs):
+class Run(Attrs, DisplayableMixin):
     """A single run associated with an entity and project.
 
     Args:
@@ -1554,9 +1556,10 @@ class Run(Attrs):
         prefix = ""
         if hidden:
             style += "display:none;"
-            prefix = ipython.toggle_button()
+            prefix = ipython.toggle_button("run")
         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
 
+    @override
     def _repr_html_(self) -> str:
         if ipython.in_vscode_notebook():
             import html
