@@ -5,8 +5,7 @@ import pathlib
 import time
 from dataclasses import dataclass
 
-import wandb.sdk.wandb_setup as wandb_setup
-from wandb.apis.public import api as public
+from wandb.apis.public.service_api import ServiceAPI
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk.lib import asyncio_compat
 from wandb.sdk.lib.printer import new_printer
@@ -42,12 +41,12 @@ class DownloadHistoryResult:
 
 
 async def wait_for_download_with_progress(
-    api: public.Api,
+    service_api: ServiceAPI,
     request_id: int,
     contains_live_data: bool,
 ) -> DownloadHistoryResult:
     return await _DownloadStatusWatcher(
-        api=api,
+        service_api=service_api,
         request_id=request_id,
         contains_live_data=contains_live_data,
     ).wait_with_progress()
@@ -56,11 +55,11 @@ async def wait_for_download_with_progress(
 class _DownloadStatusWatcher:
     def __init__(
         self,
-        api: public.Api,
+        service_api: ServiceAPI,
         request_id: int,
         contains_live_data: bool,
     ):
-        self.api = api
+        self.service_api = service_api
         self.request_id = request_id
         self.contains_live_data = contains_live_data
         self.done_event = asyncio.Event()
@@ -85,12 +84,7 @@ class _DownloadStatusWatcher:
             )
         )
 
-        handle = (
-            await wandb_setup.singleton()
-            .ensure_service()
-            .api_request_async(api_request)
-        )
-        # handle = await self.api._send_api_request_async(api_request)
+        handle = await self.service_api._send_api_request_async(api_request)
         response = await handle.wait_async(timeout=None)
 
         downloaded_files = [
@@ -121,7 +115,7 @@ class _DownloadStatusWatcher:
                         )
                     )
                 )
-                handle = await self.api._send_api_request_async(status_request)
+                handle = await self.service_api._send_api_request_async(status_request)
                 last_response = await handle.wait_async(timeout=None)
 
                 if last_response is not None:
