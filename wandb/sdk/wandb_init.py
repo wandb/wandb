@@ -1513,6 +1513,8 @@ def init(  # noqa: C901
 
         wi = _WandbInit(wl, init_telemetry)
 
+        wandb.termsetup(init_settings, None)
+
         wi.maybe_login(init_settings)
         run_settings, show_warnings = wi.make_run_settings(init_settings)
 
