@@ -1228,6 +1228,111 @@ class Run(Attrs):
             )
 
     @normalize_exceptions
+    def logs(self, last: int = 10000, pandas: bool = True):
+        """Return the recent logs for a run.
+
+        This method fetches the run's log lines from the GraphQL API, 
+        including timestamps, log levels, and messages.
+        
+        Note: The W&B API only retains a rolling window of recent logs. Older logs
+        may not be accessible even if the run originally produced more logs.
+        This method can fetch up to 10,000 of the most recent available logs.
+
+        Args:
+            last: (int, optional) The number of most recent log lines to return (max 10000)
+            pandas: (bool, optional) Return a pandas dataframe (default True)
+
+        Returns:
+            pandas.DataFrame: If pandas=True, returns a DataFrame with columns:
+                - timestamp: The timestamp when the log was created
+                - level: The log level (e.g., "error", "info", "warning")
+                - message: The log message content
+            list of dicts: If pandas=False, returns a list of dicts with the same fields
+
+        Example:
+        ```python
+        import wandb
+        api = wandb.Api()
+        run = api.run("entity/project/run_id")
+        
+        # Get last 1000 logs as pandas DataFrame
+        logs_df = run.logs(last=1000)
+        print(logs_df.head())
+        
+        # Get logs as list of dicts
+        logs_list = run.logs(pandas=False)
+        for log in logs_list[:5]:
+            print(f"{log['timestamp']}: [{log['level']}] {log['message']}")
+        ```
+        """
+        # Limit to 10000 as that's the API's hard limit
+        if last > 10000:
+            wandb.termwarn(f"Requested {last} logs but API limit is 10000.")
+            last = 10000
+            
+        query = gql(
+            """
+            query RunLogLines($projectName: String!, $entityName: String!, $runName: String!, $last: Int!) {
+                project(name: $projectName, entityName: $entityName) {
+                    id
+                    run(name: $runName) {
+                        id
+                        logLines(last: $last) {
+                            edges {
+                                node {
+                                    id
+                                    line
+                                    level
+                                    timestamp
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """
+        )
+        
+        response = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "runName": self.id,
+                "last": last,
+            },
+        )
+        
+        # Parse the response
+        logs = []
+        if (
+            response
+            and response.get("project")
+            and response["project"].get("run")
+            and response["project"]["run"].get("logLines")
+            and response["project"]["run"]["logLines"].get("edges")
+        ):
+            edges = response["project"]["run"]["logLines"]["edges"]
+            for edge in edges:
+                if edge.get("node"):
+                    node = edge["node"]
+                    logs.append({
+                        "timestamp": node.get("timestamp", ""),
+                        "level": node.get("level", ""),
+                        "message": node.get("line", "").strip(),
+                    })
+        
+        if pandas:
+            pd = util.get_module("pandas")
+            if pd:
+                return pd.DataFrame(logs)
+            else:
+                wandb.termwarn("Unable to load pandas, returning list of dicts")
+                return logs
+        
+        return logs
+
+    @normalize_exceptions
     def logged_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
         """Fetches all artifacts logged by this run.
 
