@@ -191,5 +191,8 @@ def wandb_backend_spy(
         f"http://127.0.0.1:{wandb_backend_proxy_server.port}",
     )
 
+    # Disable Weave integration to prevent server checks during tests
+    monkeypatch.setenv("WANDB_DISABLE_WEAVE", "1")
+
     with wandb_backend_proxy_server.spy() as spy:
         yield spy
