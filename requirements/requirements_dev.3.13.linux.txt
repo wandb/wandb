@@ -58,7 +58,7 @@ attrs==25.4.0
     #   referencing
 autoflake==2.3.1
     # via ariadne-codegen
-awscli==1.44.38
+awscli==1.44.39
     # via wandb
 azure-containerregistry==1.2.0
     # via wandb
@@ -83,12 +83,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.8.2
     # via -r requirements/requirements_dev.txt
-boto3==1.42.48
+boto3==1.42.49
     # via
     #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
-botocore==1.42.48
+botocore==1.42.49
     # via
     #   -r requirements/requirements_dev.txt
     #   awscli
@@ -215,7 +215,7 @@ fastjsonschema==2.21.2
     # via nbformat
 fastuuid==0.14.0
     # via litellm
-filelock==3.21.1
+filelock==3.24.2
     # via
     #   -r requirements/requirements_dev.txt
     #   huggingface-hub
@@ -379,7 +379,7 @@ huey==2.6.0
     # via mlflow
 huggingface-hub==1.4.1
     # via tokenizers
-hypothesis==6.151.6
+hypothesis==6.151.8
     # via
     #   -r requirements/requirements_test.txt
     #   hypothesis-fspaths
@@ -529,7 +529,7 @@ kiwisolver==1.4.9
     # via matplotlib
 kubernetes==35.0.0
     # via wandb
-kubernetes-asyncio==34.3.3
+kubernetes-asyncio==35.0.0
     # via wandb
 lark==1.3.1
     # via rfc3987-syntax
@@ -544,7 +544,7 @@ lightning-utilities==0.15.2
     #   lightning
     #   pytorch-lightning
     #   torchmetrics
-litellm==1.81.10
+litellm==1.81.12
     # via dspy
 mako==1.3.10
     # via alembic
@@ -714,7 +714,7 @@ nvidia-nvtx-cu12==12.8.90
     # via torch
 oauthlib==3.3.1
     # via requests-oauthlib
-openai==2.20.0
+openai==2.21.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -818,7 +818,7 @@ pillow==12.1.1
     #   rdkit
     #   tensorboard
     #   torchvision
-platformdirs==4.7.0
+platformdirs==4.9.2
     # via
     #   black
     #   jupyter-core
@@ -1014,7 +1014,7 @@ pyzmq==27.1.0
     #   jupyter-server
 ray==2.53.0
     # via -r requirements/requirements_dev.txt
-rdkit==2025.9.4
+rdkit==2025.9.5
     # via -r requirements/requirements_dev.txt
 referencing==0.37.0
     # via
@@ -1099,7 +1099,7 @@ scipy==1.17.0
     #   xgboost
 send2trash==2.1.0
     # via jupyter-server
-sentry-sdk==2.52.0
+sentry-sdk==2.53.0
     # via wandb
 setuptools==82.0.0
     # via
@@ -1242,9 +1242,9 @@ traitlets==5.14.3
     #   nbformat
 triton==3.6.0
     # via torch
-typer==0.23.0
+typer==0.23.1
     # via typer-slim
-typer-slim==0.23.0
+typer-slim==0.23.1
     # via huggingface-hub
 types-pyyaml==6.0.12.20250915
     # via responses
@@ -1303,7 +1303,7 @@ uvicorn==0.32.1
     #   ray
 uvloop==0.22.1
     # via uvicorn
-virtualenv==20.36.1
+virtualenv==20.37.0
     # via ray
 .
     # via -r requirements/requirements_dev.txt
