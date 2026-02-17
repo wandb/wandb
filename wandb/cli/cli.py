@@ -271,11 +271,11 @@ def projects(entity, display=True):
 
     1. The WANDB_API_KEY environment variable
     2. The api_key setting in a system or workspace settings file
-    3. The .netrc file (~/.netrc, ~/_netrc, or the NETRC env var path)
+    3. The .netrc file (`~/.netrc`, `~/_netrc`, or the `NETRC` env var path)
     4. An interactive prompt (if a TTY is available)
 
     For self-hosted or dedicated cloud deployments, specify the server
-    URL with --host, or set the WANDB_BASE_URL environment variable.
+    URL with `--host`, or set the `WANDB_BASE_URL` environment variable.
 
     Examples:
 
