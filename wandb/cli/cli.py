@@ -2700,9 +2700,9 @@ def artifact():
 
     Upload a file, directory, or URL reference as a versioned artifact.
     The PATH can be a local file, a local directory, or a URL
-    (containing ://) to log as a reference artifact.
+    (containing `://`) to log as a reference artifact.
 
-    If --name is not specified, the artifact name defaults to the
+    If `--name` is not specified, the artifact name defaults to the
     basename of the path. If the project cannot be parsed from the
     name, you are prompted to enter one.
 
@@ -2711,19 +2711,19 @@ def artifact():
     Upload a directory as a dataset artifact
 
     ```bash
-    wandb artifact put ./my-dataset
+    wandb artifact put ./project/artifact_name --type dataset
     ```
 
     Upload a file with a specific name and type
 
     ```bash
-    wandb artifact put --name my-project/my-model --type model ./model.pt
+    wandb artifact put --name project/artifact_name --type model ./model.pt
     ```
 
-    Upload with multiple aliases
+    Upload with multiple aliases (latest and v1.0 in this example)
 
     ```bash
-    wandb artifact put --alias latest --alias v1.0 ./my-dataset
+    wandb artifact put --alias latest --alias v1.0 ./project/artifact_name
     ```
 
     Log a URL as a reference artifact
@@ -2837,13 +2837,13 @@ def put(
     Download the latest version of an artifact
 
     ```bash
-    wandb artifact get my-team/my-project/my-dataset:latest
+    wandb artifact get entity/project/artifact_name:latest
     ```
 
-    Download a specific version to a custom directory
+    Download a specific version to a custom directory ("./data" in this example)
 
     ```bash
-    wandb artifact get --root ./data my-team/my-project/my-dataset:v2
+    wandb artifact get --root ./data entity/project/artifact_name:v2
     ```
     """,
 )
@@ -3033,48 +3033,48 @@ def pull(run, project, entity):
 
     Recreate the environment of a previous W&B run so you can
     reproduce it. Run this command from the same git repository
-    as the original run, unless you pass the --no-git flag.
+    as the original run, unless you pass the `--no-git` flag.
 
     Restore in three steps:
 
-    1. Git — Check out the original commit on a new branch (wandb/RUN_ID),
+    1. Git — Check out the original commit on a new branch (`wandb/run_id`),
        fetch and apply any saved diff patch, and fall back to an upstream
        commit if the original commit cannot be found.
-    2. Config — Write the run config to wandb/config.yaml.
+    2. Config — Write the run config to `wandb/config.yaml`.
     3. Docker — If the run used Docker, start the same image with the
        original command.
 
     Accept run in any of these formats:
 
-    - RUN_ID
-    - PROJECT:RUN_ID
-    - ENTITY/PROJECT:RUN_ID
-    - ENTITY/PROJECT/RUN_ID
+    - `run_id`
+    - `project:run_id`
+    - `entity/project:run_id`
+    - `entity/project/run_id`
 
     Examples:
 
     Restore a run by ID
 
     ```bash
-    wandb restore RUN_ID
+    wandb restore abcd1234
     ```
 
     Restore a run from a specific project and entity
 
     ```bash
-    wandb restore ENTITY/PROJECT:RUN_ID
+    wandb restore entity/project:abcd1234
     ```
 
     Restore only config and Docker state, skip git checkout
 
     ```bash
-    wandb restore --no-git RUN_ID
+    wandb restore --no-git abcd1234
     ```
 
     Restore in detached HEAD mode instead of creating a branch
 
     ```bash
-    wandb restore --no-branch RUN_ID
+    wandb restore --no-branch abcd1234
     ```
     """,
 )
@@ -3089,7 +3089,7 @@ def pull(run, project, entity):
 @click.option(
     "--branch/--no-branch",
     default=True,
-    help="Create a wandb/RUN_ID branch or check out the commit in detached HEAD mode.",
+    help="Create a `wandb/run_id` branch or check out the commit in detached HEAD mode.",
 )
 @click.option(
     "--project",
