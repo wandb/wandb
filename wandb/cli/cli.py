@@ -3280,7 +3280,13 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
 @cli.command("online")
 @display_error
 def online():
-    """Undo `wandb offline`."""
+    """Re-enable cloud syncing for W&B runs.
+    
+    Clear the offline mode setting so subsequent runs in this directory
+    sync data to the W&B cloud.
+
+    Undo a previous call to ``wandb offline``.
+    """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
     system_settings.clear("mode")
     system_settings.save()
