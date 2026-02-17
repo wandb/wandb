@@ -408,7 +408,7 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     ```
     """
 )
-@click.option("--project", "-p", help="Set the project name.")
+@click.option("--project", "-p", help="Set the project to upload runs to.")
 @click.option("--entity", "-e", help="Set the entity to scope the project to.")
 # TODO(jhr): Enable these with settings rework
 # @click.option("--setting", "-s", help="enable an arbitrary setting.", multiple=True)
@@ -1965,29 +1965,72 @@ def launch_agent(
         raise
 
 
-@cli.command(context_settings=CONTEXT, help="Run the W&B agent")
+@cli.command(
+    context_settings=CONTEXT,
+    help="""Start a sweep agent.
+
+    Poll the W&B server for hyperparameter configurations from
+    the sweep and start a run for each configuration.
+    
+    The agent exits when the sweep completes, the sweep
+    is stopped/cancelled, or the `--count` limit is reached.
+
+    SWEEP_ID is printed by `wandb sweep` when a sweep is created.
+    It can include the entity and project path
+    (`entity/project/sweep_id`).
+
+    Examples:
+
+    Start an agent for a sweep
+
+    ```bash
+    wandb agent SWEEP_ID
+    ```
+
+    Start an agent with a run limit
+
+    ```bash
+    wandb agent --count 10 SWEEP_ID
+    ```
+
+    Start an agent for a sweep in a specific project
+
+    ```bash
+    wandb agent -p PROJECT_NAME -e ENTITY SWEEP_ID
+    ```
+
+    Forward signals to child runs for clean shutdown
+
+    ```bash
+    wandb agent --forward-signals SWEEP_ID
+    ```
+    """,
+)
 @click.pass_context
 @click.option(
     "--project",
     "-p",
     default=None,
-    help="""The name of the project where W&B runs created from the sweep are sent to. If the project is not specified, the run is sent to a project labeled 'Uncategorized'.""",
+    help="Set the project to upload runs to.",
 )
 @click.option(
     "--entity",
     "-e",
     default=None,
-    help="""The username or team name where you want to send W&B runs created by the sweep to. Ensure that the entity you specify already exists. If you don't specify an entity, the run will be sent to your default entity, which is usually your username.""",
+    help="Set the entity to scope the project to.",
 )
 @click.option(
-    "--count", default=None, type=int, help="The max number of runs for this agent."
+    "--count",
+    default=None,
+    type=int,
+    help="Maximum number of runs this agent will execute. Continues until the sweep completes if not set.",
 )
 @click.option(
     "--forward-signals",
     "-f",
     is_flag=True,
     default=False,
-    help="""Forward signals delivered to the agent (e.g. SIGINT/SIGTERM) to its child runs so they can shut down cleanly.""",
+    help="Forward signals (e.g. SIGINT/SIGTERM) to child runs so they can shut down cleanly.",
 )
 @click.argument("sweep_id")
 @display_error
@@ -2645,26 +2688,68 @@ def stop():
     subprocess.call(["docker", "stop", "wandb-local"])
 
 
-@cli.group(help="Commands for interacting with artifacts")
+@cli.group(help="Upload, download, and manage W&B artifacts.")
 def artifact():
     pass
 
 
-@artifact.command(context_settings=CONTEXT, help="Upload an artifact to wandb")
+@artifact.command(
+    context_settings=CONTEXT,
+    help="""Upload an artifact to W&B.
+
+    Upload a file, directory, or URL reference as a versioned artifact.
+    The PATH can be a local file, a local directory, or a URL
+    (containing ://) to log as a reference artifact.
+
+    If --name is not specified, the artifact name defaults to the
+    basename of the path. If the project cannot be parsed from the
+    name, you are prompted to enter one.
+
+    Examples:
+
+    Upload a directory as a dataset artifact
+
+    ```bash
+    wandb artifact put ./my-dataset
+    ```
+
+    Upload a file with a specific name and type
+
+    ```bash
+    wandb artifact put --name my-project/my-model --type model ./model.pt
+    ```
+
+    Upload with multiple aliases
+
+    ```bash
+    wandb artifact put --alias latest --alias v1.0 ./my-dataset
+    ```
+
+    Log a URL as a reference artifact
+
+    ```bash
+    wandb artifact put --type dataset s3://my-bucket/data
+    ```
+    """,
+)
 @click.argument("path")
 @click.option(
-    "--name", "-n", help="The name of the artifact to push: project/artifact_name"
+    "--name",
+    "-n",
+    help="Artifact name in `project/artifact_name` format. Defaults to the basename of the path.",
 )
-@click.option("--description", "-d", help="A description of this artifact")
-@click.option("--type", "-t", default="dataset", help="The type of the artifact")
+@click.option("--description", "-d", help="A description of this artifact.")
+@click.option(
+    "--type", "-t", default="dataset", help="The type of the artifact. Defaults to 'dataset'."
+)
 @click.option(
     "--alias",
     "-a",
     default=["latest"],
     multiple=True,
-    help="An alias to apply to this artifact",
+    help="An alias to apply to this artifact. Can be specified multiple times. Defaults to 'latest'.",
 )
-@click.option("--id", "run_id", help="The run you want to upload to.")
+@click.option("--id", "run_id", help="Upload to an existing run with this ID.")
 @click.option(
     "--resume",
     is_flag=True,
@@ -2681,7 +2766,7 @@ def artifact():
     "--policy",
     default="mutable",
     type=click.Choice(["mutable", "immutable"]),
-    help="Set the storage policy while uploading artifact files.",
+    help="Set the storage policy for artifact files. Either 'mutable' (default) or 'immutable'.",
 )
 @display_error
 def put(
@@ -2738,10 +2823,35 @@ def put(
     )
 
 
-@artifact.command(context_settings=CONTEXT, help="Download an artifact from wandb")
+@artifact.command(
+    context_settings=CONTEXT,
+    help="""Download an artifact from W&B.
+
+    Download an artifact by its path. The PATH format is
+    `entity/project/artifact_name:version`. If the version is omitted,
+    use the 'latest' alias.
+
+    Examples:
+
+    Download the latest version of an artifact
+
+    ```bash
+    wandb artifact get my-team/my-project/my-dataset:latest
+    ```
+
+    Download a specific version to a custom directory
+
+    ```bash
+    wandb artifact get --root ./data my-team/my-project/my-dataset:v2
+    ```
+    """,
+)
 @click.argument("path")
-@click.option("--root", help="The directory you want to download the artifact to")
-@click.option("--type", help="The type of artifact you are downloading")
+@click.option(
+    "--root",
+    help="Directory to download the artifact to. Uses the default artifact cache if not set.",
+)
+@click.option("--type", help="Expected artifact type. Fails if the artifact does not match.")
 @display_error
 def get(path, root, type):
     public_api = PublicApi()
@@ -2779,10 +2889,31 @@ def get(path, root, type):
 
 
 @artifact.command(
-    context_settings=CONTEXT, help="List all artifacts in a wandb project"
+    context_settings=CONTEXT,
+    help="""List all artifacts in a W&B project.
+
+    Display the latest version of each artifact collection in a
+    project, showing type, last updated time, size, and name.
+
+    The PATH is an `entity/project` string.
+
+    Examples:
+
+    List all artifacts in a project
+
+    ```bash
+    wandb artifact ls entity/project
+    ```
+
+    List only artifacts of a specific type
+
+    ```bash
+    wandb artifact ls --type model entity/project
+    ```
+    """,
 )
 @click.argument("path")
-@click.option("--type", "-t", help="The type of artifacts to list")
+@click.option("--type", "-t", help="Filter artifacts by type.")
 @display_error
 def ls(path, type):
     public_api = PublicApi()
@@ -2811,17 +2942,40 @@ def ls(path, type):
                 )
 
 
-@artifact.group(help="Commands for interacting with the artifact cache")
+@artifact.group(help="Manage the local artifact cache.")
 def cache():
     pass
 
 
 @cache.command(
     context_settings=CONTEXT,
-    help="Clean up less frequently used files from the artifacts cache",
+    help="""Reduce the local artifact cache size.
+
+    Remove less frequently used files until the cache is at or below
+    the TARGET_SIZE. TARGET_SIZE accepts human-readable formats (for example,
+    10GB or 500MB).
+
+    Examples:
+
+    Reduce the artifact cache to 10 GB
+
+    ```bash
+    wandb artifact cache cleanup 10GB
+    ```
+    
+    Remove temporary files
+
+    ```bash
+    wandb artifact cache cleanup --remove-temp 5GB
+    ```
+    """,
 )
 @click.argument("target_size")
-@click.option("--remove-temp/--no-remove-temp", default=False, help="Remove temp files")
+@click.option(
+    "--remove-temp/--no-remove-temp",
+    default=False,
+    help="Also remove temporary files from the cache.",
+)
 @display_error
 def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
