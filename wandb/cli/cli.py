@@ -2601,23 +2601,25 @@ def server():
     """)
 @click.pass_context
 @click.option(
-    "--port", "-p", default="8080", help="The host port to bind W&B server on"
+    "--port", "-p", default="8080", help="The host port to bind W&B server on."
 )
 @click.option(
-    "--env", "-e", default=[], multiple=True, help="Env vars to pass to wandb/local"
+    "--env", "-e", default=[], multiple=True, help="Environment variables to pass to wandb/local Docker image."
 )
 @click.option(
-    "--daemon/--no-daemon", default=True, help="Run or don't run in daemon mode"
+    "--daemon/--no-daemon",
+    default=True,
+    help="Run the server in the background. Use --no-daemon to run in the foreground.",
 )
 @click.option(
     "--upgrade",
     is_flag=True,
     default=False,
-    help="Upgrade to the most recent version",
+    help="Pull the latest `wandb/local` Docker image before starting. Stop any existing container.",
     hidden=True,
 )
 @click.option(
-    "--edge", is_flag=True, default=False, help="Run the bleeding edge", hidden=True
+    "--edge", is_flag=True, default=False, help="Use the bleeding edge", hidden=True
 )
 @display_error
 def start(ctx, port, env, daemon, upgrade, edge):
@@ -3006,17 +3008,34 @@ def cleanup(target_size, remove_temp):
     wandb.termlog(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
-@cli.command(context_settings=CONTEXT, help="Pull files from W&B")
+@cli.command(context_settings=CONTEXT, help="""Download files from a W&B run.
+
+    Fetch all files assoicated with the specified run. Skip files that already exist locally with the same content. Create subdirectories as needed to mirror the structure of the files in W&B.
+             
+    Examples:
+             
+    Download files from a run by ID (in this example, run ID is `abcd1234`)
+             
+    ```bash
+    wandb pull abcd1234
+    ```
+             
+    Download files from a run in a specific project and entity (in this example, project is `project` and entity is `entity`)
+  
+    ```bash
+    wandb pull -p project -e entity abcd1234
+    ```
+""")
 @click.argument("run", envvar=env.RUN_ID)
 @click.option(
-    "--project", "-p", envvar=env.PROJECT, help="The project you want to download."
+    "--project", "-p", envvar=env.PROJECT, help="The project containing the run to pull files from."
 )
 @click.option(
     "--entity",
     "-e",
     default="models",
     envvar=env.ENTITY,
-    help="The entity to scope the listing to.",
+    help="The entity that owns the project. Defaults to the value of the WANDB_ENTITY environment variable or the default entity if not set.",
 )
 @display_error
 def pull(run, project, entity):
@@ -3110,7 +3129,7 @@ def pull(run, project, entity):
 @click.option(
     "--branch/--no-branch",
     default=True,
-    help="Create a `wandb/run_id` branch or check out the commit in detached HEAD mode.",
+    help="Create a wandb/run_id branch or check out the commit in detached HEAD mode.",
 )
 @click.option(
     "--project",
