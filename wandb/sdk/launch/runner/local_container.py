@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import threading
@@ -203,11 +204,24 @@ def _run_entry_point(command: str, work_dir: str | None) -> AbstractRun:
     run = LocalSubmittedRun()
     thread = threading.Thread(
         target=_thread_process_runner,
-        args=(run, ["bash", "-c", command], work_dir, env),
+        args=(run, _shell_command(command), work_dir, env),
     )
     run.set_thread(thread)
     thread.start()
     return run
+
+
+def _shell_command(command: str) -> list[str]:
+    """Return a cross-platform shell invocation for command execution."""
+    if os.name == "nt":
+        return ["cmd", "/C", command]
+
+    shell = shutil.which("bash") or shutil.which("sh")
+    if shell is None:
+        raise LaunchError(
+            "Could not launch command: no compatible shell found (expected bash or sh)."
+        )
+    return [shell, "-c", command]
 
 
 def _thread_process_runner(

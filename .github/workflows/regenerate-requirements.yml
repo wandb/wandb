@@ -1,0 +1,39 @@
+name: Regenerate Python Requirements
+
+on:
+  # Allow manual runs.
+  workflow_dispatch:
+
+  # Run weekly on Monday at 9 or 10 AM Pacific time (17:00 UTC).
+  schedule: [cron: "0 17 * * 1"]
+
+jobs:
+  regenerate-requirements:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Run requirements/generate.sh
+        run: bash requirements/generate.sh
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: regenerate-requirements
+          delete-branch: true
+          title: "chore: update Python requirements"
+          body: |
+            Applies updates from `requirements/generate.sh`.
+
+            Please approve and merge if tests pass. If tests fail due to
+            a dependency update, consider improving the tests or implementation.
+            If CI fails because of a bug in a dependency, update
+            `requirements/requirements_dev.txt` and rerun the action. Consider
+            filing a bug for the dependency.

@@ -60,16 +60,16 @@ attrs==25.4.0
     #   referencing
 autoflake==2.3.1
     # via ariadne-codegen
-awscli==1.44.35
+awscli==1.44.38
     # via wandb
 azure-containerregistry==1.2.0
     # via wandb
-azure-core==1.38.0
+azure-core==1.38.1
     # via
     #   azure-containerregistry
     #   azure-identity
     #   azure-storage-blob
-azure-identity==1.25.1
+azure-identity==1.25.2
     # via wandb
 azure-storage-blob==12.28.0
     # via wandb
@@ -89,12 +89,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.4.3
     # via -r requirements/requirements_dev.txt
-boto3==1.42.45
+boto3==1.42.48
     # via
     #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
-botocore==1.42.45
+botocore==1.42.48
     # via
     #   -r requirements/requirements_dev.txt
     #   awscli
@@ -159,7 +159,7 @@ coverage==7.10.7
     # via
     #   -r requirements/requirements_test.txt
     #   pytest-cov
-cryptography==46.0.4
+cryptography==46.0.5
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -168,7 +168,7 @@ cryptography==46.0.4
     #   pyjwt
 cycler==0.12.1
     # via matplotlib
-databricks-sdk==0.85.0
+databricks-sdk==0.88.0
     # via mlflow-skinny
 datasets==2.14.4
     # via dspy
@@ -202,7 +202,7 @@ dspy==2.5.42
     # via -r requirements/requirements_dev.txt
 durationpy==0.10
     # via kubernetes
-eval-type-backport==0.2.2
+eval-type-backport==0.3.1
     # via
     #   -r requirements/requirements_dev.txt
     #   wandb
@@ -289,9 +289,9 @@ google-cloud-aiplatform==1.115.0
     # via
     #   -r requirements/requirements_dev.txt
     #   wandb
-google-cloud-artifact-registry==1.19.0
+google-cloud-artifact-registry==1.20.0
     # via wandb
-google-cloud-bigquery==3.40.0
+google-cloud-bigquery==3.40.1
     # via google-cloud-aiplatform
 google-cloud-compute==1.43.0
     # via wandb
@@ -529,7 +529,7 @@ jupyter-server==2.17.0
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.5.3
+jupyterlab==4.5.4
     # via
     #   jupyter
     #   notebook
@@ -590,7 +590,7 @@ matplotlib-inline==0.2.1
     #   ipython
 mdurl==0.1.2
     # via markdown-it-py
-metaflow==2.15.21
+metaflow==2.19.19
     # via -r requirements/requirements_dev.txt
 mistune==3.2.0
     # via nbconvert
@@ -729,7 +729,7 @@ nvidia-nvtx-cu12==12.8.90
     # via torch
 oauthlib==3.3.1
     # via requests-oauthlib
-openai==2.18.0
+openai==2.20.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy

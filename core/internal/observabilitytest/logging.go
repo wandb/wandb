@@ -17,7 +17,7 @@ func NewTestLogger(t *testing.T) *observability.CoreLogger {
 	t.Helper()
 	return observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(t.Output(), &slog.HandlerOptions{})),
-		&observability.CoreLoggerParams{},
+		nil,
 	)
 }
 
@@ -34,6 +34,6 @@ func NewRecordingTestLogger(t *testing.T) (
 
 	return observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(writer, &slog.HandlerOptions{})),
-		&observability.CoreLoggerParams{},
+		nil,
 	), recordedLogs
 }

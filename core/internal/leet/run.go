@@ -5,6 +5,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -40,6 +41,11 @@ type Run struct {
 	// successfully loaded from the transaction log.
 	isLoading bool
 
+	// liveRunning caches whether the run is in RunStateRunning.
+	//
+	// Written on the main goroutine; read from the HeartbeatManager timer goroutine.
+	liveRunning atomic.Bool
+
 	// Data reader.
 	reader *WandbReader
 
@@ -63,9 +69,6 @@ type Run struct {
 	// Loading progress.
 	recordsLoaded int
 	loadStartTime time.Time
-
-	// Restart flag.
-	shouldRestart bool
 
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
@@ -303,11 +306,6 @@ func (r *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth i
 	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 }
 
-// ShouldRestart reports whether the user requested a full restart.
-func (r *Run) ShouldRestart() bool {
-	return r.shouldRestart
-}
-
 // logPanic logs panics to the logger before re-panicking.
 func (m *Run) logPanic(context string) {
 	if r := recover(); r != nil {
@@ -319,9 +317,16 @@ func (m *Run) logPanic(context string) {
 	}
 }
 
-// isRunning returns whether the run is currently active.
+// isRunning reports whether the run is live.
+//
+// Safe to call from any goroutine (reads an atomic.Bool).
 func (r *Run) isRunning() bool {
-	return r.runState == RunStateRunning
+	return r.liveRunning.Load()
+}
+
+// syncLiveRunning updates the atomic liveness flag from the authoritative state.
+func (r *Run) syncLiveRunning() {
+	r.liveRunning.Store(r.runState == RunStateRunning)
 }
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen.

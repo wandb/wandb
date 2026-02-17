@@ -34,7 +34,7 @@ class TagFragment(GQLResult):
 
 
 class ArtifactCollectionFragment(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
+    typename__: Typename[Literal["ArtifactPortfolio", "ArtifactSequence"]]
     id: GQLId
     name: str
     description: Optional[str]
@@ -58,7 +58,7 @@ class ArtifactCollectionFragmentTagsEdges(GQLResult):
 
 
 class CollectionInfoFragment(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
+    typename__: Typename[Literal["ArtifactPortfolio", "ArtifactSequence"]]
     name: str
     project: Optional[ProjectInfoFragment]
 
@@ -178,7 +178,7 @@ class PageInfoFragment(GQLResult):
 
 
 class RegistryCollectionFragment(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
+    typename__: Typename[Literal["ArtifactPortfolio", "ArtifactSequence"]]
     id: GQLId
     name: str
     description: Optional[str]

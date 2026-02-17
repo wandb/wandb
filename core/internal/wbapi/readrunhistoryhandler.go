@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/getsentry/sentry-go"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -26,7 +26,6 @@ import (
 type RunHistoryAPIHandler struct {
 	graphqlClient graphql.Client
 	httpClient    *retryablehttp.Client
-	sentryClient  *sentry_ext.Client
 
 	// currentRequestId is the id of the last scan init request made.
 	//
@@ -46,10 +45,7 @@ type RunHistoryAPIHandler struct {
 	downloadOperations map[int32]*parquet.RunHistoryDownloadOperation
 }
 
-func NewRunHistoryAPIHandler(
-	s *settings.Settings,
-	sentryClient *sentry_ext.Client,
-) *RunHistoryAPIHandler {
+func NewRunHistoryAPIHandler(s *settings.Settings) *RunHistoryAPIHandler {
 	logger := observability.NewNoOpLogger()
 	baseURL := stream.BaseURLFromSettings(logger, s)
 	credentialProvider := stream.CredentialsFromSettings(logger, s)
@@ -77,7 +73,6 @@ func NewRunHistoryAPIHandler(
 		httpClient:         httpClient,
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
-		sentryClient:       sentryClient,
 		downloadOperations: make(map[int32]*parquet.RunHistoryDownloadOperation),
 	}
 }
@@ -113,15 +108,15 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 	request *spb.ScanRunHistoryInit,
 ) *spb.ApiResponse {
-	f.sentryClient.CaptureMessage(
-		"handleScanRunHistoryInit",
-		map[string]string{
+	localHub := sentry.CurrentHub().Clone()
+	localHub.WithScope(func(scope *sentry.Scope) {
+		scope.SetTags(map[string]string{
 			"entity":  request.Entity,
 			"project": request.Project,
 			"runId":   request.RunId,
-		},
-	)
-	defer f.sentryClient.Flush(2)
+		})
+		localHub.CaptureMessage("handleScanRunHistoryInit")
+	})
 
 	requestId := f.currentRequestId.Add(1)
 	requestKeys := request.GetKeys()
@@ -199,18 +194,21 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 		}
 	}
 	getHistoryStepsEnd := time.Now()
-	f.sentryClient.CaptureMessage(
-		fmt.Sprintf(
-			"handleScanRunHistoryRead: getHistorySteps time: %dms",
-			getHistoryStepsEnd.Sub(getHistoryStepsStart).Milliseconds(),
-		),
-		map[string]string{
+
+	localHub := sentry.CurrentHub().Clone()
+	localHub.WithScope(func(scope *sentry.Scope) {
+		scope.SetTags(map[string]string{
 			"entity":  historyReader.GetEntity(),
 			"project": historyReader.GetProject(),
 			"runId":   historyReader.GetRunId(),
-		},
-	)
-	defer f.sentryClient.Flush(2)
+		})
+		localHub.CaptureMessage(
+			fmt.Sprintf(
+				"handleScanRunHistoryRead: getHistorySteps time: %dms",
+				getHistoryStepsEnd.Sub(getHistoryStepsStart).Milliseconds(),
+			),
+		)
+	})
 
 	historyRows := make([]*spb.HistoryRow, 0, len(historySteps))
 	for _, historyStep := range historySteps {

@@ -14,7 +14,6 @@ import (
 	"github.com/wandb/wandb/core/internal/pfxout"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
@@ -81,9 +80,6 @@ type Stream struct {
 	// dispatcher is the dispatcher for the stream
 	dispatcher *Dispatcher
 
-	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry_ext.Client
-
 	// clientID is a unique ID for the stream
 	clientID sharedmode.ClientID
 }
@@ -104,7 +100,6 @@ func NewStream(
 	operations *wboperation.WandbOperations,
 	recordParserFactory *RecordParserFactory,
 	senderFactory *SenderFactory,
-	sentry *sentry_ext.Client,
 	s *settings.Settings,
 	runHandle *runhandle.RunHandle,
 	tbHandlerFactory *tensorboard.TBHandlerFactory,
@@ -133,7 +128,6 @@ func NewStream(
 		writerFactory:      writerFactory,
 		flowControlFactory: flowControlFactory,
 		sender:             senderFactory.New(runWork),
-		sentryClient:       sentry,
 		clientID:           clientID,
 	}
 

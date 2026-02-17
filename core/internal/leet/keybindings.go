@@ -38,8 +38,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"alt+r"},
-					Description: "Reload run data",
-					Handler:     (*Run).handleRestart,
+					Description: "Restart",
 				},
 				{
 					Keys:        []string{"esc"},
@@ -163,6 +162,131 @@ func RunKeyBindings() []BindingCategory[Run] {
 		},
 
 		mouseCategory[Run](),
+	}
+}
+
+// WorkspaceKeyBindings returns key bindings relevant to the workspace view.
+func WorkspaceKeyBindings() []BindingCategory[Workspace] {
+	return []BindingCategory[Workspace]{
+		{
+			Name: "General",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"h", "?"},
+					Description: "Toggle this help screen",
+				},
+				{
+					Keys:        []string{"q", "ctrl+c"},
+					Description: "Quit",
+					Handler:     (*Workspace).handleQuit,
+				},
+				{
+					Keys:        []string{"alt+r"},
+					Description: "Restart LEET",
+				},
+				{
+					Keys:        []string{"enter"},
+					Description: "View selected run (when not filtering/configuring)",
+				},
+			},
+		},
+		{
+			Name: "Panels",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"["},
+					Description: "Toggle runs sidebar",
+					Handler:     (*Workspace).handleToggleRunsSidebar,
+				},
+				{
+					Keys:        []string{"]"},
+					Description: "Toggle run overview sidebar",
+					Handler:     (*Workspace).handleToggleOverviewSidebar,
+				},
+			},
+		},
+		{
+			Name: "Navigation",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"N", "pgup"},
+					Description: "Previous chart page",
+					Handler:     (*Workspace).handlePrevPage,
+				},
+				{
+					Keys:        []string{"n", "pgdown"},
+					Description: "Next chart page",
+					Handler:     (*Workspace).handleNextPage,
+				},
+			},
+		},
+		{
+			Name: "Charts",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"/"},
+					Description: "Filter metrics by pattern",
+					Handler:     (*Workspace).handleEnterMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+l"},
+					Description: "Clear active filter",
+					Handler:     (*Workspace).handleClearMetricsFilter,
+				},
+			},
+		},
+		{
+			Name: "Configuration",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"c"},
+					Description: "Set metrics grid columns",
+					Handler:     (*Workspace).handleConfigMetricsCols,
+				},
+				{
+					Keys:        []string{"r"},
+					Description: "Set metrics grid rows",
+					Handler:     (*Workspace).handleConfigMetricsRows,
+				},
+			},
+		},
+		{
+			Name: "Sidebars (when open)",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Cycle focus between runs and overview sections",
+					Handler:     (*Workspace).handleSidebarTabNav,
+				},
+				{
+					Keys:        []string{"up", "down"},
+					Description: "Navigate focused sidebar list",
+					Handler:     (*Workspace).handleRunsVerticalNav,
+				},
+				{
+					Keys:        []string{"left", "right"},
+					Description: "Navigate pages in focused sidebar list",
+					Handler:     (*Workspace).handleRunsPageNav,
+				},
+				{
+					Keys:        []string{"home"},
+					Description: "Jump to first run",
+					Handler:     (*Workspace).handleRunsHome,
+				},
+				{
+					Keys:        []string{"space"},
+					Description: "Select/deselect run",
+					Handler:     (*Workspace).handleToggleRunSelectedKey,
+				},
+				{
+					Keys:        []string{"p"},
+					Description: "Pin/unpin selected run",
+					Handler:     (*Workspace).handlePinRunKey,
+				},
+			},
+		},
+
+		mouseCategory[Workspace](),
 	}
 }
 

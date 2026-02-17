@@ -85,3 +85,63 @@ type LeftSidebarAnimationMsg struct{}
 
 // RightSidebarAnimationMsg is sent during right sidebar animations.
 type RightSidebarAnimationMsg struct{}
+
+// WorkspaceRunsAnimationMsg drives animation for the workspace left sidebar.
+type WorkspaceRunsAnimationMsg struct{}
+
+// WorkspaceOverviewAnimationMsg drives animation for the workspace right sidebar.
+type WorkspaceRunOverviewAnimationMsg struct{}
+
+// WorkspaceRunInitMsg is emitted when a workspace run reader has been initialized.
+type WorkspaceRunInitMsg struct {
+	RunKey  string
+	RunPath string
+	Reader  *WandbReader
+}
+
+// WorkspaceChunkedBatchMsg wraps a ChunkedBatchMsg with the originating run key.
+type WorkspaceChunkedBatchMsg struct {
+	RunKey string
+	Batch  ChunkedBatchMsg
+}
+
+// WorkspaceBatchedRecordsMsg wraps a BatchedRecordsMsg with the originating run key.
+type WorkspaceBatchedRecordsMsg struct {
+	RunKey string
+	Batch  BatchedRecordsMsg
+}
+
+// WorkspaceFileChangedMsg is emitted when a watched workspace run's .wandb
+// file changes on disk.
+//
+// It carries the run key so the workspace can refresh just that run.
+type WorkspaceFileChangedMsg struct {
+	RunKey string
+}
+
+// WorkspaceRunDirsMsg is emitted after polling the wandb directory.
+//
+// RunKeys contains the set of run directory names (e.g. "run-..." / "offline-run-...").
+// If Err is non-nil, RunKeys may be nil and callers should treat the snapshot
+// as unusable.
+type WorkspaceRunDirsMsg struct {
+	RunKeys []string
+	Err     error
+}
+
+// WorkspaceRunOverviewPreloadedMsg is emitted when the workspace finishes
+// preloading the Run record for a run (used to populate the overview sidebar
+// for runs that haven't been selected/streamed yet).
+type WorkspaceRunOverviewPreloadedMsg struct {
+	RunKey string
+	Run    RunMsg
+	Err    error
+}
+
+// WorkspaceInitErrMsg is emitted when a workspace run reader failed to initialize.
+// This keeps errors keyed to the specific run so the workspace can recover cleanly.
+type WorkspaceInitErrMsg struct {
+	RunKey  string
+	RunPath string
+	Err     error
+}

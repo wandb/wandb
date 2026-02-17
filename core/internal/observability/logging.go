@@ -2,10 +2,15 @@ package observability
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"maps"
+	"sync"
+	"time"
 
-	"github.com/wandb/wandb/core/internal/sentry_ext"
+	"github.com/getsentry/sentry-go"
 )
 
 type Tags map[string]string
@@ -38,34 +43,51 @@ func NewTags(args ...any) Tags {
 
 const LevelFatal = slog.Level(12)
 
-type CoreLoggerParams struct {
-	Sentry *sentry_ext.Client
-	Tags   Tags
-}
-
 type CoreLogger struct {
+	mu sync.Mutex // for operations that use the Sentry hub's scope
+
 	*slog.Logger
+	sentryHub *sentry.Hub // nil if Sentry is disabled
+
 	baseTags Tags
-	sentry   *sentry_ext.Client
+
+	captureRateLimiter *CaptureRateLimiter
 }
 
-func NewCoreLogger(logger *slog.Logger, params *CoreLoggerParams) *CoreLogger {
+// NewCoreLogger returns a new logger that writes messages to the slog Logger
+// and uploads captured messages using a clone of the sentryHub.
+//
+// sentryHub can be set to nil to disable Sentry.
+func NewCoreLogger(
+	logger *slog.Logger,
+	sentryHub *sentry.Hub,
+) *CoreLogger {
+	const captureRateLimiterCacheSize = 100
+	const captureMinDuration = 5 * time.Minute
+	captureRateLimiter, err := NewCaptureRateLimiter(
+		captureRateLimiterCacheSize,
+		captureMinDuration,
+	)
 
-	if params == nil {
-		params = &CoreLoggerParams{}
+	if err != nil {
+		// Shouldn't happen. If it does, a nil captureRateLimiter will be
+		// used (and won't panic).
+		logger.Error(fmt.Sprintf(
+			"observability: couldn't make CaptureRateLimiter: %v", err))
 	}
 
-	tags := Tags{}
-	var args []any
-	for key, value := range params.Tags {
-		args = append(args, slog.String(key, value))
-		tags[key] = value
+	if sentryHub != nil {
+		sentryHub = sentryHub.Clone()
+		sentryHub.ConfigureScope(func(scope *sentry.Scope) {
+			scope.AddEventProcessor(RemoveLoggerFrames)
+		})
 	}
 
 	return &CoreLogger{
-		Logger:   logger.With(args...),
-		sentry:   params.Sentry,
-		baseTags: tags,
+		Logger:             logger,
+		sentryHub:          sentryHub,
+		baseTags:           make(Tags),
+		captureRateLimiter: captureRateLimiter,
 	}
 }
 
@@ -75,10 +97,7 @@ func NewCoreLogger(logger *slog.Logger, params *CoreLoggerParams) *CoreLogger {
 // logger's base tags take precedence over args.
 func (cl *CoreLogger) withArgs(args ...any) Tags {
 	tags := NewTags(args...)
-	// add tags from logger:
-	for key, value := range cl.baseTags {
-		tags[key] = value
-	}
+	maps.Copy(tags, cl.baseTags)
 	return tags
 }
 
@@ -87,72 +106,117 @@ func (cl *CoreLogger) withArgs(args ...any) Tags {
 //
 // Note that these tags take precedence over tags set by With().
 func (cl *CoreLogger) SetGlobalTags(tags Tags) {
-	for key, value := range tags {
-		cl.baseTags[key] = value
-	}
+	maps.Copy(cl.baseTags, tags)
 }
 
 // With returns a derived logger that includes the given tags in each message.
 func (cl *CoreLogger) With(args ...any) *CoreLogger {
+	var sentryHub *sentry.Hub
+	if cl.sentryHub != nil {
+		sentryHub = cl.sentryHub.Clone()
+	}
+
 	return &CoreLogger{
-		Logger:   cl.Logger.With(args...),
-		baseTags: cl.baseTags,
-		sentry:   cl.sentry,
+		Logger:             cl.Logger.With(args...),
+		sentryHub:          sentryHub,
+		baseTags:           cl.baseTags,
+		captureRateLimiter: cl.captureRateLimiter,
 	}
 }
 
 // CaptureError logs an error and sends it to Sentry.
 func (cl *CoreLogger) CaptureError(err error, args ...any) {
 	cl.Error(err.Error(), args...)
-
-	if cl.sentry != nil {
-		cl.sentry.CaptureException(err, cl.withArgs(args...))
-	}
+	cl.captureException(err, args...)
 }
 
 // CaptureFatal logs a fatal error and sends it to Sentry.
 func (cl *CoreLogger) CaptureFatal(err error, args ...any) {
 	cl.Log(context.Background(), LevelFatal, err.Error(), args...)
-
-	if cl.sentry != nil {
-		cl.sentry.CaptureException(err, cl.withArgs(args...))
-	}
+	cl.captureException(err, args...)
 }
 
 // CaptureFatalAndPanic logs a fatal error, sends it to Sentry and panics.
 func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
-	cl.CaptureFatal(err, args...)
-	if err != nil {
-		panic(err)
+	if err == nil {
+		err = errors.New("observability: panicked with nil error")
 	}
+
+	cl.CaptureFatal(err, args...)
+
+	// Log panics to debug-core.log as well. This helps debugging if there are
+	// multiple active debug files.
+	slog.Log(context.Background(), LevelFatal, err.Error(), args...)
+
+	// Try to finish uploads to Sentry before re-panicking.
+	if cl.sentryHub != nil {
+		flushed := cl.sentryHub.Flush(2 * time.Second)
+
+		if !flushed {
+			msg := "observability: failed to flush Sentry"
+			cl.Error(msg)
+			slog.Error(msg)
+		}
+	}
+
+	panic(err)
 }
 
 // CaptureWarn logs a warning and sends it to Sentry.
 func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 	cl.Warn(msg, args...)
-
-	if cl.sentry != nil {
-		cl.sentry.CaptureMessage(msg, cl.withArgs(args...))
-	}
+	cl.captureMessage(msg, args...)
 }
 
 // CaptureInfo logs an info message and sends it to Sentry.
 func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 	cl.Info(msg, args...)
-
-	if cl.sentry != nil {
-		cl.sentry.CaptureMessage(msg, cl.withArgs(args...))
-	}
+	cl.captureMessage(msg, args...)
 }
 
-// Reraise reports panics to Sentry.
-func (cl *CoreLogger) Reraise(args ...any) {
-	if cl.sentry == nil {
+// captureException uploads an error to Sentry if possible and allowed.
+func (cl *CoreLogger) captureException(err error, args ...any) {
+	if cl.sentryHub == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
 		return
 	}
 
-	if err := recover(); err != nil {
-		cl.sentry.Reraise(err, cl.withArgs(args...))
+	cl.mu.Lock()
+	defer cl.mu.Unlock()
+
+	cl.sentryHub.WithScope(func(scope *sentry.Scope) {
+		scope.SetTags(cl.withArgs(args...))
+		cl.sentryHub.CaptureException(err)
+	})
+}
+
+// captureException uploads a message to Sentry if possible and allowed.
+func (cl *CoreLogger) captureMessage(msg string, args ...any) {
+	if cl.sentryHub == nil || !cl.captureRateLimiter.AllowCapture(msg) {
+		return
+	}
+
+	cl.mu.Lock()
+	defer cl.mu.Unlock()
+
+	cl.sentryHub.WithScope(func(scope *sentry.Scope) {
+		scope.SetTags(cl.withArgs(args...))
+		cl.sentryHub.CaptureMessage(msg)
+	})
+}
+
+// Reraise logs a panic, uploads it to Sentry, and re-panics.
+//
+// It is meant to be used in a `defer` statement.
+func (cl *CoreLogger) Reraise(args ...any) {
+	panicErr := recover()
+	if panicErr == nil { // if NO error, return
+		return
+	}
+
+	if err, ok := panicErr.(error); ok {
+		cl.CaptureFatalAndPanic(err, args...)
+	} else {
+		cl.CaptureFatalAndPanic(fmt.Errorf("%v", panicErr), args...)
 	}
 }
 
@@ -163,19 +227,9 @@ func (cl *CoreLogger) GetTags() Tags {
 	return cl.baseTags
 }
 
-// GetLogger returns the underlying slog.Logger.
-//
-// Used for testing.
-func (cl *CoreLogger) GetSentry() *sentry_ext.Client {
-	return cl.sentry
-}
-
 // NewNoOpLogger returns a logger that discards all messages.
 //
 // Used for testing.
 func NewNoOpLogger() *CoreLogger {
-	return NewCoreLogger(
-		slog.New(slog.NewJSONHandler(io.Discard, nil)),
-		nil,
-	)
+	return NewCoreLogger(slog.New(slog.NewJSONHandler(io.Discard, nil)), nil)
 }

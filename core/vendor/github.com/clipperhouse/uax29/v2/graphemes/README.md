@@ -76,15 +76,17 @@ for tokens.Next() {                     // Next() returns true until end of data
 
 ### Benchmarks
 
-On a Mac M2 laptop, we see around 200MB/s, or around 100 million graphemes per second, and no allocations.
-
 ```
 goos: darwin
 goarch: arm64
 pkg: github.com/clipperhouse/uax29/graphemes/comparative
 cpu: Apple M2
-BenchmarkGraphemes/clipperhouse/uax29-8   	  171895 ns/op	   203.39 MB/s     0 B/op	     0 allocs/op
-BenchmarkGraphemes/rivo/uniseg-8          	 1980475 ns/op	    17.65 MB/s     0 B/op	     0 allocs/op
+
+BenchmarkGraphemesMixed/clipperhouse/uax29-8  	    142635 ns/op	 245.12 MB/s    0 B/op	   0 allocs/op
+BenchmarkGraphemesMixed/rivo/uniseg-8         	   2018284 ns/op	  17.32 MB/s    0 B/op	   0 allocs/op
+
+BenchmarkGraphemesASCII/clipperhouse/uax29-8  	      8846 ns/op	 508.73 MB/s    0 B/op	   0 allocs/op
+BenchmarkGraphemesASCII/rivo/uniseg-8         	    366760 ns/op	  12.27 MB/s    0 B/op	   0 allocs/op
 ```
 
 ### Invalid inputs
