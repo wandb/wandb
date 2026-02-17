@@ -1512,6 +1512,9 @@ enum ServerFeature {
 
   // Indicates that the server supports returning the total file count in a file connection.
   TOTAL_COUNT_IN_FILE_CONNECTION = 15;
+
+  // Indicates that the server supports filtering artifact collections when querying on a project
+  ARTIFACT_COLLECTIONS_FILTERING_SORTING = 16;
 }
 
 /**

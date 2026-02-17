@@ -44,6 +44,9 @@ class ArtifactCollectionData(ArtifactsBase):
     created_at: str = Field(frozen=True)
     """When this collection was created."""
 
+    updated_at: Optional[str] = None
+    """When this collection was last updated."""
+
     project: str = Field(frozen=True)
     """The name of this collection's project."""
 
@@ -103,6 +106,7 @@ class ArtifactCollectionData(ArtifactsBase):
             type=obj.type.name,
             description=obj.description,
             created_at=obj.created_at,
+            updated_at=obj.updated_at,
             project=obj.project.name,
             entity=obj.project.entity.name,
             tags=[e.node.name for e in obj.tags.edges if e.node],
