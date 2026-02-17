@@ -626,7 +626,7 @@ def init(ctx, project, entity, reset, mode):
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
     default=None,
-    help="Sync TensorBoard tfevent files. On by default for specific paths, off for `--sync-all`.",
+    help="Sync TensorBoard tfevent files. On by default for specific paths, off for --sync-all.",
 )
 @click.option(
     "--include-globs",
@@ -675,14 +675,14 @@ def init(ctx, project, entity, reset, mode):
 @click.option(
     "--clean-old-hours",
     default=24,
-    help="Delete only synced runs older than this many hours (use with `--clean`).",
+    help="Delete only synced runs older than this many hours (use with --clean).",
     type=int,
 )
 @click.option(
     "--clean-force",
     is_flag=True,
     default=False,
-    help="Skip the confirmation prompt if `--clean` is specified.",
+    help="Skip the confirmation prompt if --clean is specified.",
 )
 @click.option("--ignore", hidden=True)
 @click.option("--show", default=5, help="Set the number of runs to show in the summary.")
