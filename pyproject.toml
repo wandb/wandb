@@ -15,9 +15,7 @@ dependencies = [
     "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "sentry-sdk>=2.0.0",
-    "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<7; python_version == '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; python_version > '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; sys_platform != 'linux'",
+    "protobuf>4.21.0,!=5.28.0,!=5.29.0,<7",
     "PyYAML",
     "platformdirs",
     "typing_extensions>=4.8,<5",
@@ -239,7 +237,7 @@ classmethod-decorators = [
 
 [tool.ruff.lint.pycodestyle]
 ignore-overlong-task-comments = true
-max-doc-length = 90  # Consider this an 80-character limit with buffer
+max-doc-length = 90                  # Consider this an 80-character limit with buffer
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -285,7 +283,14 @@ ignore-decorators = [
 # TODO: Fix UP006, UP007, UP045 in wandb_run.py, then remove ignores here.
 "wandb/__init__.py" = ["I001"]
 "wandb/__init__.pyi" = ["UP006", "UP007", "UP035", "UP045", "W505"]
-"wandb/__init__.template.pyi" = ["UP006", "UP007", "UP035", "UP045", "D415", "N999"]
+"wandb/__init__.template.pyi" = [
+    "UP006",
+    "UP007",
+    "UP035",
+    "UP045",
+    "D415",
+    "N999",
+]
 
 # TODO: Use f-strings in wandb/apis/public/ for GraphQL statements.
 #   To preserve GraphQL syntax highlighting, add #graphql at the start of
