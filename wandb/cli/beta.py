@@ -78,6 +78,7 @@ def leet(ctx: click.Context) -> None:
     hidden=True,
     help="Serve /debug/pprof/* on this address (e.g. 127.0.0.1:6060).",
 )
+@click.help_option("-h", "--help")
 def run(path: str | None = None, pprof: str = "") -> None:
     """Launch the LEET TUI.
 

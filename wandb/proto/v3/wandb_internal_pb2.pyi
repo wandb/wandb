@@ -64,6 +64,8 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """
     TOTAL_COUNT_IN_FILE_CONNECTION: _ServerFeature.ValueType  # 15
     """Indicates that the server supports returning the total file count in a file connection."""
+    ARTIFACT_COLLECTIONS_FILTERING_SORTING: _ServerFeature.ValueType  # 16
+    """Indicates that the server supports filtering artifact collections when querying on a project"""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -107,6 +109,8 @@ mutation.
 """
 TOTAL_COUNT_IN_FILE_CONNECTION: ServerFeature.ValueType  # 15
 """Indicates that the server supports returning the total file count in a file connection."""
+ARTIFACT_COLLECTIONS_FILTERING_SORTING: ServerFeature.ValueType  # 16
+"""Indicates that the server supports filtering artifact collections when querying on a project"""
 global___ServerFeature = ServerFeature
 
 class Record(google.protobuf.message.Message):

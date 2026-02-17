@@ -23,12 +23,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/getsentry/sentry-go"
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pprof"
 	"github.com/wandb/wandb/core/internal/processlib"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/server"
 )
@@ -107,14 +107,22 @@ func serviceMain() int {
 	}
 
 	// Sentry (disabled if --no-observability)
-	sentryClient := sentry_ext.New(sentry_ext.Params{
-		Disabled:         *disableAnalytics,
+	var sentryDSN string
+	if !*disableAnalytics {
+		sentryDSN = observability.WandbCoreDSN
+	}
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:              sentryDSN,
 		AttachStacktrace: true,
 		Release:          version.Version,
-		Commit:           commit,
+		Dist:             commit,
 		Environment:      version.Environment,
 	})
-	defer sentryClient.Flush(2)
+	if err != nil {
+		slog.Error("main: failed to init Sentry", "error", err)
+	} else {
+		defer sentry.Flush(2 * time.Second)
+	}
 
 	// Structured logging to file selected by observability package.
 	var loggerPath string
@@ -156,7 +164,6 @@ func serviceMain() int {
 			LoggerPath:          loggerPath,
 			LogLevel:            slog.Level(*logLevel),
 			ParentPID:           *pid,
-			SentryClient:        sentryClient,
 		},
 	)
 	srvCh := make(chan error, 1)
@@ -231,15 +238,23 @@ Flags:
 	}
 
 	// Configure Sentry reporting.
-	sentryClient := sentry_ext.New(sentry_ext.Params{
-		DSN:              sentry_ext.LeetSentryDSN,
-		Disabled:         *disableAnalytics,
+	var sentryDSN string
+	if !*disableAnalytics {
+		sentryDSN = observability.LeetSentryDSN
+	}
+	err = sentry.Init(sentry.ClientOptions{
+		Dsn:              sentryDSN,
 		AttachStacktrace: true,
 		Release:          version.Version,
+		Dist:             commit,
 		Environment:      version.Environment,
 	})
-	sentryClient.CaptureMessage("wandb-leet", nil)
-	defer sentryClient.Flush(2)
+	if err != nil {
+		slog.Error("main: failed to init Sentry", "error", err)
+	} else {
+		sentry.CaptureMessage("wandb-leet")
+		defer sentry.Flush(2 * time.Second)
+	}
 
 	// Configure debug logging.
 	logWriter := io.Discard
@@ -263,10 +278,7 @@ Flags:
 			logWriter,
 			&slog.HandlerOptions{Level: slog.Level(*logLevel)},
 		)),
-		&observability.CoreLoggerParams{
-			Tags:   observability.Tags{},
-			Sentry: sentryClient,
-		},
+		sentry.CurrentHub(),
 	)
 
 	if *editConfig {
