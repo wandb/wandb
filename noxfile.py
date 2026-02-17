@@ -482,7 +482,7 @@ def _generate_proto_go(session: nox.Session) -> None:
 
 
 @nox.session(name="proto-python", tags=["proto"], python="3.10")
-@nox.parametrize("pb", [3, 4, 5, 6])
+@nox.parametrize("pb", [4, 5, 6])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
 
@@ -494,18 +494,7 @@ def proto_python(session: nox.Session, pb: int) -> None:
 
 
 def _generate_proto_python(session: nox.Session, pb: int) -> None:
-    # FIXME: Drop support for protobuf 3 and 4, as we no longer support
-    # Python 3.8 as of: https://github.com/wandb/wandb/pull/11198
-    if pb == 3:
-        session.install(
-            "protobuf==3.20.3",
-            "mypy-protobuf==3.3.0",  # 3.4.0 requires protobuf>=4.21.8
-            "grpcio==1.47.5",
-            "grpcio-tools==1.47.5",
-            "packaging",
-            "setuptools<70",  # provides pkg_resources for grpcio-tools
-        )
-    elif pb == 4:
+    if pb == 4:
         session.install(
             "protobuf~=4.23.4",
             "mypy-protobuf~=3.5.0",
@@ -531,7 +520,7 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
             "packaging",
         )
     else:
-        session.error("Invalid protobuf version given. `pb` must be 3, 4, 5, or 6.")
+        session.error("Invalid protobuf version given. `pb` must be 4, 5, or 6.")
 
     with session.chdir("wandb/proto"):
         session.run("python", "wandb_generate_proto.py")
