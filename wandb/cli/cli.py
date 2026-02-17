@@ -2583,7 +2583,23 @@ def server():
     pass
 
 
-@server.command(context_settings=RUN_CONTEXT, help="Start a local W&B server")
+@server.command(context_settings=RUN_CONTEXT,
+    help="""Start a local W&B server in a Docker container.
+
+    Pull and run the `wandb/local` Docker image (local instance
+    of the W&B server).
+
+    Map the specified port on the host to port `8080` in the container and
+    mount a persistent Docker volume named `wandb` to store data.
+
+    If a newer image is available, notify the user to upgrade to the latest version (`wandb server start --upgrade`).
+
+    If a container named `wandb-local` is already running, notify the user to stop it before starting a new one.
+
+    Set the `base_url` setting to the local server URL so that W&B client calls use the local server. If no API key is found, prompt the user to log in.
+
+    Requires Docker to be installed and running on the host machine.
+    """)
 @click.pass_context
 @click.option(
     "--port", "-p", default="8080", help="The host port to bind W&B server on"
