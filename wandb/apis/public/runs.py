@@ -729,7 +729,7 @@ class Run(Attrs):
             )
 
         query = gql(
-            f"""
+            f"""#graphql
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
                 run(name: $name) {{

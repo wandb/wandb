@@ -100,8 +100,10 @@ type Connection struct {
 	// logLevel is the log level
 	logLevel slog.Level
 
-	// apiRequestHandler handles processing API related requests from clients.
-	wbapi *wbapi.WandbAPI
+	// apiManager is a map of ids to active wandbAPI instances.
+	// It allows for multiple wandbAPI instances to be active at the same time,
+	// which might have different W&B backends, accounts, or settings.
+	apiManager *wbapi.WbApiManager
 }
 
 func NewConnection(
@@ -124,6 +126,7 @@ func NewConnection(
 		closed:             &atomic.Bool{},
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
+		apiManager:         wbapi.NewWbApiManager(),
 	}
 }
 
@@ -338,6 +341,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
 		case *spb.ServerRequest_ApiInitRequest:
 			nc.handleApiInit(msg.RequestId, x.ApiInitRequest)
+		case *spb.ServerRequest_ApiCleanupRequest:
+			nc.handleApiCleanup(msg.RequestId, x.ApiCleanupRequest)
 		case *spb.ServerRequest_ApiRequest:
 			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
@@ -639,14 +644,51 @@ func (nc *Connection) handleSyncStatus(
 	})
 }
 
+// handleApiInit sets up a new wandbAPI instance.
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
-	nc.wbapi = wbapi.NewWandbAPI(s)
+	wbapiInstance := wbapi.NewWandbAPI(s)
+	wbApiId, err := nc.apiManager.AddWandbAPI(wbapiInstance)
+	if err != nil {
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_ApiInitResponse{
+				ApiInitResponse: &spb.ServerApiInitResponse{
+					ErrorMessage: err.Error(),
+				},
+			},
+		})
+		return
+	}
+
 	nc.Respond(&spb.ServerResponse{
 		RequestId: id,
 		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
-			ApiInitResponse: &spb.ServerApiInitResponse{},
+			ApiInitResponse: &spb.ServerApiInitResponse{
+				Id: wbApiId,
+			},
 		},
+	})
+}
+
+// handleApiCleanup cleans up a wandbAPI instance related to the provided id.
+func (nc *Connection) handleApiCleanup(id string, request *spb.ServerApiCleanupRequest) {
+	streamId := request.GetId()
+	_, err := nc.apiManager.RemoveWandbAPI(streamId)
+	if err != nil {
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_ApiCleanupResponse{
+				ApiCleanupResponse: &spb.ServerApiCleanupResponse{
+					ErrorMessage: err.Error(),
+				},
+			},
+		})
+		return
+	}
+
+	nc.Respond(&spb.ServerResponse{
+		RequestId: id,
 	})
 }
 
@@ -655,7 +697,8 @@ func (nc *Connection) handleApi(
 	id string,
 	request *spb.ApiRequest,
 ) {
-	if nc.wbapi == nil {
+	wbapiInstance, err := nc.apiManager.GetWandbAPI(request.GetId())
+	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,
 			ServerResponseType: &spb.ServerResponse_ApiResponse{
@@ -672,7 +715,7 @@ func (nc *Connection) handleApi(
 	}
 
 	wg.Go(func() {
-		response := nc.wbapi.HandleRequest(id, request)
+		response := wbapiInstance.HandleRequest(id, request)
 
 		if response != nil {
 			nc.Respond(&spb.ServerResponse{

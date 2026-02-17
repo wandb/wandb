@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import contextlib
+import uuid
+import weakref
+
 from wandb.proto.wandb_api_pb2 import ApiRequest, ApiResponse
 from wandb.sdk import wandb_settings, wandb_setup
-from wandb.sdk.lib.service import service_connection
 from wandb.sdk.lib.service.service_connection import ServiceConnection
+from wandb.sdk.mailbox.mailbox import MailboxClosedError
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 
@@ -16,6 +20,13 @@ class ServiceApi:
     ):
         self._settings = settings
         self._service_connection: ServiceConnection | None = None
+        self._api_id = str(uuid.uuid4())
+        weakref.finalize(
+            self,
+            ServiceApi._cleanup,
+            self._service_connection,
+            self._api_id,
+        )
 
     def _get_service_connection(self) -> ServiceConnection:
         """Connects to the service and initializes resources for handling API requests.
@@ -24,13 +35,11 @@ class ServiceApi:
         allowing each API instance to have its own connection with independent settings.
         """
         if self._service_connection is None:
-            self._service_connection = service_connection.connect_to_service(
-                asyncer=wandb_setup.singleton().asyncer,
-                settings=self._settings,
+            self._service_connection = wandb_setup.singleton().ensure_service()
+            response = self._service_connection.api_init_request(
+                self._settings.to_proto(),
             )
-
-            # Initialize API resources with our settings
-            self._service_connection.api_init_request(self._settings.to_proto())
+            self._api_id = response.id
 
         return self._service_connection
 
@@ -41,25 +50,29 @@ class ServiceApi:
     ) -> ApiResponse:
         """Send an API request to the backend service.
 
-        Creates the backend service attribute if it has not been created yet.
-
-        TODO: remove this helper function once all requests are routed through wandb-core.
-        The backend service should be created and initialized
-        during the instantiation of the Api object.
+        Creates the backend service connection if it has not been created yet.
         """
         conn = self._get_service_connection()
+        request.id = self._api_id
         return conn.api_request(request, timeout=timeout)
 
     async def send_api_request_async(
         self,
         request: ApiRequest,
-        timeout: float | None = None,
     ) -> MailboxHandle[ApiResponse]:
         """Send an API request to the backend service asynchronously.
 
         Args:
-            request: The API request to send.
+            request: The Api request to send.
             timeout: The timeout for the request.
         """
         conn = self._get_service_connection()
+        request.id = self._api_id
         return await conn.api_request_async(request)
+
+    @staticmethod
+    def _cleanup(connection: ServiceConnection | None, api_id: str) -> None:
+        """Clean up the api resources associated with the api id."""
+        if connection is not None:
+            with contextlib.suppress(MailboxClosedError):
+                connection.api_cleanup_request(api_id)
