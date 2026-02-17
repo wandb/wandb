@@ -546,19 +546,25 @@ def init(ctx, project, entity, reset, mode):
     context_settings=CONTEXT,
     help="""Upload local W&B run data to the cloud.
 
-    Sync offline or incomplete runs from the local wandb directory to
-    the W&B server. If PATH is provided, sync runs at that path. If no
-    path is given, search for a ./wandb directory, then a wandb/
+    Sync offline or incomplete runs from the local `wandb` directory to
+    the W&B server. If `PATH` is provided, sync runs at that path. If no
+    path is given, search for a `./wandb` directory, then a `wandb/`
     subdirectory.
 
     Run without arguments to print a summary of synced and unsynced
     runs without uploading anything.
 
     When syncing a specific path, include TensorBoard event files
-    by default. When using --sync-all, disable TensorBoard by
-    default (use --sync-tensorboard to enable it).
+    by default. When using `--sync-all`, disable TensorBoard by
+    default (use `--sync-tensorboard` to enable it).
 
-    PATH is a .wandb file or a run directory containing a .wandb file.
+    `PATH` is a `.wandb` file or a run directory that contains a `.wandb` file.
+    A typical path looks like
+    `./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb`,
+    where `run-YYYYMMDD_HHMMSS-RUN_ID` is the run directory and
+    `run-RUN_ID.wandb` is the `.wandb` file. `YYYYMMDD_HHMMSS` is the
+    timestamp of when the run was created and `RUN_ID` is the unique ID
+    of the run.
 
     Examples:
 
@@ -571,13 +577,13 @@ def init(ctx, project, entity, reset, mode):
     Sync a specific run by its directory
 
     ```bash
-    wandb sync ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID
+    wandb sync ./wandb/run-20170617_000000-abcd1234
     ```
 
-    Sync a specific run by its .wandb filepath
+    Sync a specific run by its `.wandb` filepath
 
     ```bash
-    wandb sync ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb
+    wandb sync ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
     ```
 
     Sync all unsynced runs in the local wandb directory
@@ -589,7 +595,7 @@ def init(ctx, project, entity, reset, mode):
     Sync a run to a specific project and entity
 
     ```bash
-    wandb sync --project PROJECT_NAME --entity ENTITY ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb
+    wandb sync --project project --entity entity ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
     ```
 
     Delete local data for runs that have already been synced
@@ -621,7 +627,7 @@ def init(ctx, project, entity, reset, mode):
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
     default=None,
-    help="Sync TensorBoard tfevent files. On by default for specific paths, off for --sync-all.",
+    help="Sync TensorBoard tfevent files. On by default for specific paths, off for `--sync-all`.",
 )
 @click.option(
     "--include-globs",
@@ -670,14 +676,14 @@ def init(ctx, project, entity, reset, mode):
 @click.option(
     "--clean-old-hours",
     default=24,
-    help="Delete only synced runs older than this many hours (use with --clean).",
+    help="Delete only synced runs older than this many hours (use with `--clean`).",
     type=int,
 )
 @click.option(
     "--clean-force",
     is_flag=True,
     default=False,
-    help="Skip the confirmation prompt if --clean is specified.",
+    help="Skip the confirmation prompt if `--clean` is specified.",
 )
 @click.option("--ignore", hidden=True)
 @click.option("--show", default=5, help="Set the number of runs to show in the summary.")
@@ -2720,7 +2726,7 @@ def artifact():
     wandb artifact put --name project/artifact_name --type model ./model.pt
     ```
 
-    Upload with multiple aliases (latest and v1.0 in this example)
+    Upload with multiple aliases (`latest` and `v1.0` in this example)
 
     ```bash
     wandb artifact put --alias latest --alias v1.0 ./project/artifact_name
@@ -3368,7 +3374,7 @@ def enabled(service):
     10. Sweeps check - Create and execute a random sweep to verify the sweep
         system functions correctly.
 
-    Exits with code 1 if any critical check fails.
+    Exits with `code 1` if any critical check fails.
 
     Examples:
 
