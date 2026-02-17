@@ -265,7 +265,7 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"tab", "shift+tab"},
-					Description: "Cycle focus between runs and overview sections",
+					Description: "Cycle focus between runs, overview, and console logs",
 					Handler:     (*Workspace).handleSidebarTabNav,
 				},
 				{

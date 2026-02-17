@@ -61,6 +61,7 @@ type Run struct {
 	runOverview  *RunOverview
 	leftSidebar  *RunOverviewSidebar
 	rightSidebar *RightSidebar
+	consoleLogs  *RunConsoleLogs
 	bottomBar    *BottomBar
 
 	// Sidebar animation synchronization.
@@ -111,6 +112,7 @@ func NewRun(
 		runOverview:  ro,
 		leftSidebar:  NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
 		rightSidebar: NewRightSidebar(cfg, focus, logger),
+		consoleLogs:  NewRunConsoleLogs(),
 		bottomBar:    NewBottomBar(),
 		watcherMgr:   NewWatcherManager(ch, logger),
 		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, ch, logger),
@@ -267,6 +269,7 @@ func (r *Run) renderMainView() string {
 	// If bottom bar is visible, join it below the grid to form the central column.
 	centralColumn := gridView
 	if r.bottomBar.IsVisible() {
+		r.bottomBar.SetConsoleLogs(r.consoleLogs.Items())
 		bbView := r.bottomBar.View(layout.mainContentAreaWidth)
 		centralColumn = lipgloss.JoinVertical(lipgloss.Left, gridView, bbView)
 	}

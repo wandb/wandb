@@ -53,6 +53,11 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		r.leftSidebar.Sync()
 		return r, nil
 
+	case ConsoleLogMsg:
+		r.logger.Debug("model: processing ConsoleLogMsg")
+		r.consoleLogs.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
+		return r, nil
+
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
 		switch msg.ExitCode {

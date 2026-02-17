@@ -62,7 +62,9 @@ type Workspace struct {
 	focus       *Focus
 	metricsGrid *MetricsGrid
 
-	bottomBar *BottomBar
+	// Run console logs keyed by run path.
+	consoleLogs map[string]*RunConsoleLogs
+	bottomBar   *BottomBar
 
 	// Per‑run streaming state keyed by runDirName.
 	runsByKey map[string]*workspaceRun
@@ -127,6 +129,7 @@ func NewWorkspace(
 		selectedRuns:      make(map[string]bool),
 		focus:             focus,
 		metricsGrid:       NewMetricsGrid(cfg, focus, logger),
+		consoleLogs:       make(map[string]*RunConsoleLogs),
 		bottomBar:         NewBottomBar(),
 		runsByKey:         make(map[string]*workspaceRun),
 		liveChan:          ch,
@@ -220,6 +223,13 @@ func (w *Workspace) View() string {
 	centralColumn := w.renderMetrics()
 	if w.bottomBar.IsVisible() {
 		contentWidth := max(w.width-w.runsAnimState.Width()-w.runOverviewSidebar.Width(), 0)
+		if cur, ok := w.runs.CurrentItem(); ok {
+			if cl := w.consoleLogs[cur.Key]; cl != nil {
+				w.bottomBar.SetConsoleLogs(cl.Items())
+			} else {
+				w.bottomBar.SetConsoleLogs(nil)
+			}
+		}
 		bbView := w.bottomBar.View(contentWidth)
 		centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, bbView)
 	}
@@ -380,6 +390,7 @@ func (w *Workspace) dropRun(runKey string) {
 			run.reader.Close()
 		}
 		delete(w.runsByKey, runKey)
+		delete(w.consoleLogs, runKey)
 	}
 
 	w.syncLiveRunState()
@@ -398,6 +409,18 @@ func (w *Workspace) getOrCreateRunOverview(runKey string) *RunOverview {
 	ro = NewRunOverview()
 	w.runOverview[runKey] = ro
 	return ro
+}
+
+// getOrCreateConsoleLogs returns the RunConsoleLogs for the given key,
+// creating one if needed.
+func (w *Workspace) getOrCreateConsoleLogs(runKey string) *RunConsoleLogs {
+	cl := w.consoleLogs[runKey]
+	if cl != nil {
+		return cl
+	}
+	cl = NewRunConsoleLogs()
+	w.consoleLogs[runKey] = cl
+	return cl
 }
 
 // refreshPinnedRun ensures the pinned run (if any) is drawn on top in all charts.

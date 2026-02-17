@@ -420,9 +420,21 @@ var (
 				Foreground(colorSubheading).
 				PaddingLeft(1)
 
-	bottomBarContentStyle = lipgloss.NewStyle().
+	bottomBarTimestampStyle = lipgloss.NewStyle().
 				Foreground(colorSubtle).
 				PaddingLeft(1)
+
+	bottomBarValueStyle = lipgloss.NewStyle().
+				Foreground(colorItemValue)
+
+	bottomBarHighlightedTimestampStyle = lipgloss.NewStyle().
+						Background(colorSelected).
+						Foreground(colorDark).
+						PaddingLeft(1)
+
+	bottomBarHighlightedValueStyle = lipgloss.NewStyle().
+					Background(colorSelected).
+					Foreground(colorDark)
 
 	// topOnlyBorder draws a single horizontal line at the top of the box.
 	topOnlyBorder = lipgloss.Border{

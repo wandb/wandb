@@ -236,6 +236,8 @@ func (r *WandbReader) recordToMsg(record *spb.Record) tea.Msg {
 		return SummaryMsg{RunPath: r.runPath, Summary: []*spb.SummaryRecord{rec.Summary}}
 	case *spb.Record_Environment:
 		return SystemInfoMsg{RunPath: r.runPath, Record: rec.Environment}
+	case *spb.Record_OutputRaw:
+		return parseOutputRaw(r.runPath, rec.OutputRaw)
 	default:
 		return nil
 	}
@@ -320,6 +322,25 @@ func ParseStats(runPath string, stats *spb.StatsRecord) tea.Msg {
 		return StatsMsg{RunPath: runPath, Timestamp: timestamp, Metrics: metrics}
 	}
 	return nil
+}
+
+// parseOutputRaw extracts a ConsoleLogMsg from an OutputRawRecord.
+func parseOutputRaw(runPath string, rec *spb.OutputRawRecord) tea.Msg {
+	if rec == nil {
+		return nil
+	}
+
+	var ts time.Time
+	if rec.Timestamp != nil {
+		ts = time.Unix(rec.Timestamp.Seconds, int64(rec.Timestamp.Nanos))
+	}
+
+	return ConsoleLogMsg{
+		RunPath:  runPath,
+		Text:     rec.Line,
+		IsStderr: rec.OutputType == spb.OutputRawRecord_STDERR,
+		Time:     ts,
+	}
 }
 
 // Close closes the reader.
