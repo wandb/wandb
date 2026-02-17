@@ -1487,10 +1487,7 @@ class Api:
             """
         )
         variable_values = {"entity": entity}
-        try:
-            res = self.gql(query, variable_values)
-        except Exception:
-            return None
+        res = self.gql(query, variable_values)
         entity_data = res.get("entity")
         if entity_data is None:
             return None

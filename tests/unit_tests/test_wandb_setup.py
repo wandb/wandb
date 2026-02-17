@@ -8,6 +8,9 @@ def _load_user_settings(server, entity=None):
     setup = MagicMock(spec=_WandbSetup)
     setup._server = server
     setup.viewer = server.viewer
+    setup._resolve_code_saving = _WandbSetup._resolve_code_saving.__get__(
+        setup, _WandbSetup
+    )
     return _WandbSetup._load_user_settings(setup, entity=entity)
 
 

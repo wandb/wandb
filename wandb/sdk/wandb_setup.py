@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any, Union
 import wandb
 import wandb.integration.sagemaker as sagemaker
 from wandb.env import CONFIG_DIR
-from wandb.errors import UsageError
+from wandb.errors import CommError, UsageError
 from wandb.sdk.lib import asyncio_manager, import_hooks, wb_logging
 
 from .lib import config_util, server
@@ -328,6 +328,18 @@ class _WandbSetup:
 
         return self._server.viewer
 
+    def _resolve_code_saving(self, entity: str | None = None) -> bool | None:
+        if self._server is None:
+            return None
+
+        if entity:
+            try:
+                return self._server._api.entity_code_saving_enabled(entity)
+            except CommError:
+                return None
+
+        return self._server._flags.get("code_saving_enabled")
+
     def _load_user_settings(self, entity: str | None = None) -> dict[str, Any] | None:
         """Load user/org settings from the server.
 
@@ -340,20 +352,7 @@ class _WandbSetup:
             return None
 
         user_settings: dict[str, Any] = {}
-
-        # Determine code-saving policy.  Prefer entity-scoped lookup when
-        # an entity is known; fall back to the Viewer flags otherwise.
-        code_saving: bool | None = None
-        if entity:
-            try:
-                code_saving = self._server._api.entity_code_saving_enabled(
-                    entity,
-                )
-            except Exception:
-                code_saving = None
-
-        if code_saving is None:
-            code_saving = self._server._flags.get("code_saving_enabled")
+        code_saving = self._resolve_code_saving(entity)
 
         if code_saving is not None:
             user_settings["save_code"] = code_saving
