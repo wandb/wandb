@@ -2363,8 +2363,34 @@ def create(
     wandb.termlog(f"View all jobs in project '{project}' here: {url}\n")
 
 
-@cli.command(context_settings=CONTEXT, help="Run the W&B local sweep controller")
-@click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
+@cli.command(context_settings=CONTEXT,
+    help="""Start a local sweep controller for a W&B hyperparameter sweep.
+    
+    Start a local process that orchestrates the specified sweep. Read the
+    sweep configuration from W&B, select hyperparameter combinations based
+    on the configured search strategy (grid, random, Bayesian, and so on),
+    and dispatch runs to sweep agents.
+
+    By default, W&B runs sweep controllers on its managed infrastructure.
+    Use this command to run the controller locally instead. For example, you
+    can use this command to debug behavior or operate in environments with
+    limited connectivity.
+
+    'sweep_id' is printed by `wandb sweep` when you create a sweep. It
+    consists of a unique identifier for the sweep and may include the
+    entity and project path (`entity/project/sweep_id`).
+
+    Examples:
+
+    Start a local sweep controller for a sweep. In this example, `abcd1234`
+    is the sweep ID.
+
+    ```bash
+    wandb controller abcd1234
+    ```
+    """
+    )
+@click.option("--verbose", is_flag=True, default=False, help="Display verbose output from controller.")
 @click.argument("sweep_id")
 @display_error
 def controller(verbose, sweep_id):
@@ -2379,12 +2405,28 @@ def controller(verbose, sweep_id):
 @click.pass_context
 @click.argument("docker_run_args", nargs=-1)
 def docker_run(ctx, docker_run_args):
-    """Wrap `docker run` and adds WANDB_API_KEY and WANDB_DOCKER environment variables.
+    """Wrap `docker run` and inject W&B environment variables automatically.
 
-    This will also set the runtime to nvidia if the nvidia-docker executable is present
-    on the system and --runtime wasn't set.
+    Pass all arguments through to ``docker run`` while injecting:
 
-    See `docker run --help` for more details.
+    - ``WANDB_API_KEY`` — Use the current API key so the container can
+    authenticate with W&B without manual configuration.
+    - ``WANDB_DOCKER`` — Record the resolved image ID so W&B can track
+    which Docker image produced the run.
+
+    If ``nvidia-docker`` is detected on the host and ``--runtime`` is not
+    already set, add ``--runtime nvidia`` to the command to enable GPU support
+    by default.
+
+    Examples:
+
+    Run ``python train.py`` inside ``my-image`` Docker container. Inject your
+    W&B API key and the resolved Docker image ID as environment variables in
+    the container so W&B can track your runs and associate them with the image. 
+
+    ```
+    wandb docker-run my-image python train.py
+    ```
     """
     import wandb.docker
 
@@ -2459,11 +2501,14 @@ def docker(
 ):
     """Run your code in a docker container.
 
-    W&B docker lets you run your code in a docker image ensuring wandb is configured. It
-    adds the WANDB_DOCKER and WANDB_API_KEY environment variables to your container and
-    mounts the current directory in /app by default.  You can pass additional args which
-    will be added to `docker run` before the image name is declared, we'll choose a
-    default image for you if one isn't passed:
+    Run your program inside a Docker image with W&B configured. Set the
+    ``WANDB_DOCKER`` and ``WANDB_API_KEY`` environment variables in the
+    container and mount the current working directory at ``/app`` by
+    default.
+
+    Pass additional arguments to insert them into ``docker run`` before the
+    image name. If you do not specify an image, select a default image
+    automatically.
 
     ```sh
     wandb docker -v /mnt/dataset:/app/data
@@ -2471,11 +2516,14 @@ def docker(
     wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
     ```
 
-    By default, we override the entrypoint to check for the existence of wandb and
-    install it if not present.  If you pass the --jupyter flag we will ensure jupyter is
-    installed and start jupyter lab on port 8888.  If we detect nvidia-docker on your
-    system we will use the nvidia runtime.  If you just want wandb to set environment
-    variable to an existing docker run command, see the wandb docker-run command.
+    Override the container entrypoint by default to ensure ``wandb`` is
+    installed. If you pass ``--jupyter``, ensure Jupyter is installed and
+    start JupyterLab on port 8888.
+
+    If NVIDIA Docker is available, use the NVIDIA runtime automatically.
+
+    To set W&B environment variables for an existing ``docker run``
+    command without modifying the entrypoint, use ``wandb docker-run``.
     """
     api = InternalApi()
     if not _HAS_DOCKER:
