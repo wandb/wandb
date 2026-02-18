@@ -37,11 +37,17 @@ func TestRunConsoleLogs_AssemblesAcrossCallsAndPreservesTimestamps(t *testing.T)
 
 	kv1, i1, ok := findKV(items, "first")
 	require.True(t, ok, "expected to find first line")
-	require.Equal(t, ts1.Format("15:04:05"), kv1.Key, "first line should keep its creation timestamp")
+	require.Equal(t,
+		ts1.Format("15:04:05"),
+		kv1.Key,
+		"first line should keep its creation timestamp")
 
 	kv2, i2, ok := findKV(items, "second")
 	require.True(t, ok, "expected to find second line")
-	require.Equal(t, ts2.Format("15:04:05"), kv2.Key, "second line should use the second record timestamp")
+	require.Equal(t,
+		ts2.Format("15:04:05"),
+		kv2.Key,
+		"second line should use the second record timestamp")
 
 	require.Less(t, i1, i2, "expected log lines to preserve arrival order")
 }
