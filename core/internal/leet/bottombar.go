@@ -163,7 +163,8 @@ func (b *BottomBar) renderContent(
 	return lipgloss.JoinVertical(lipgloss.Left, out...)
 }
 
-func (b *BottomBar) renderEntry(item KeyValuePair, highlighted bool, maxKeyWidth, maxValueWidth, maxLines int) (string, int) {
+func (b *BottomBar) renderEntry(
+	item KeyValuePair, highlighted bool, maxKeyWidth, maxValueWidth, maxLines int) (string, int) {
 	keyStyle := bottomBarTimestampStyle
 	valueStyle := bottomBarValueStyle
 	if highlighted {
@@ -326,7 +327,8 @@ func (b *BottomBar) ensureCursorVisible() {
 		return
 	}
 
-	for b.cursor >= b.visibleEnd(b.top, b.lastValueWidth, b.lastContentLines) && b.top < len(b.logs)-1 {
+	for b.cursor >= b.visibleEnd(
+		b.top, b.lastValueWidth, b.lastContentLines) && b.top < len(b.logs)-1 {
 		b.top++
 	}
 }
