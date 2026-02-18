@@ -41,7 +41,7 @@ type ConsoleLogLine struct {
 // movements, overwrites, and newline assembly.
 //
 // Like [RunOverview], this is a data-model component; the [BottomBar]
-// handles presentation via a [PagedList].
+// handles presentation.
 type RunConsoleLogs struct {
 	stdoutTerm *terminalemulator.Terminal
 	stderrTerm *terminalemulator.Terminal
@@ -86,11 +86,6 @@ func (cl *RunConsoleLogs) ProcessRaw(text string, isStderr bool, ts time.Time) {
 	} else {
 		cl.stdoutTerm.Write(text)
 	}
-}
-
-// Len returns the number of assembled lines.
-func (cl *RunConsoleLogs) Len() int {
-	return len(cl.lines)
 }
 
 // Items converts the assembled lines into [KeyValuePair] items suitable

@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	// Same ratio you already use.
 	BottomBarHeightRatio = SidebarWidthRatio
 
 	// Minimum *total* height: border + header + 1 content line.
@@ -189,6 +188,7 @@ func (b *BottomBar) renderEntry(
 
 	var rendered []string
 	for i, v := range lines {
+		// Multi-line wrapping: print key only on the first line.
 		k := ""
 		if i == 0 {
 			k = keyStyle.Width(maxKeyWidth).Render(key)
@@ -197,7 +197,7 @@ func (b *BottomBar) renderEntry(
 		}
 
 		if highlighted {
-			gap := bottomBarHighlightedValueStyle.Render(" ")
+			gap := bottomBarHighlightedValueStyle.Render(string(unicodeSpace))
 			rendered = append(rendered, k+gap+valueStyle.Width(maxValueWidth).Render(v))
 		} else {
 			rendered = append(rendered, k+" "+valueStyle.Render(v))
@@ -429,7 +429,7 @@ func wrapText(text string, maxWidth int) []string {
 	}
 
 	var out []string
-	for _, part := range strings.Split(text, "\n") {
+	for part := range strings.SplitSeq(text, "\n") {
 		out = append(out, wrapSingleLine(part, maxWidth)...)
 	}
 	if len(out) == 0 {

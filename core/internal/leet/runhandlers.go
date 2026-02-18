@@ -573,7 +573,7 @@ func (r *Run) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
 	firstSec, lastSec := r.leftSidebar.focusableSectionBounds()
 	overviewAvail := r.leftSidebar.animState.IsExpanded() && firstSec != -1
 
-	// If logs aren't visible, preserve existing behavior: cycle overview sections.
+	// If logs aren't visible, cycle overview sections.
 	if !logsAvail {
 		if overviewAvail {
 			r.leftSidebar.navigateSection(direction)
