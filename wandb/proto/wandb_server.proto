@@ -101,6 +101,9 @@ message ServerRequest {
   // from different connections could have conflicting IDs.
   string request_id = 10;
 
+  // An ID assigned specifically for debugging.
+  string debug_id = 200;
+
   oneof server_request_type {
     ServerCancelRequest cancel = 16;
 

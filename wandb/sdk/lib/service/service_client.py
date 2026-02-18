@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import binascii
 import logging
 import struct
 import sys
+import uuid
 from types import TracebackType
 
+from wandb import env
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.mailbox.mailbox import Mailbox
@@ -77,11 +80,23 @@ class ServiceClient:
             # See https://bugs.python.org/issue45924.
             raise self._broken_exc.with_traceback(self._broken_tb)
 
+        is_debug = env.is_debug()
+        if is_debug:
+            request.debug_id = uuid.uuid4().hex
+
         header = struct.pack(_HEADER_BYTE_INT_FMT, ord("W"), request.ByteSize())
         self._writer.write(header)
 
         data = request.SerializeToString()
         self._writer.write(data)
+
+        if is_debug:  # Avoid computing checksum if not used.
+            _logger.debug(
+                "Wrote request %s of length %d with CRC-32 of %X",
+                request.debug_id,
+                len(data),
+                binascii.crc32(data),
+            )
 
         try:
             await self._drain_writer()

@@ -312,6 +312,7 @@ class ServerRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     REQUEST_ID_FIELD_NUMBER: builtins.int
+    DEBUG_ID_FIELD_NUMBER: builtins.int
     CANCEL_FIELD_NUMBER: builtins.int
     RECORD_PUBLISH_FIELD_NUMBER: builtins.int
     RECORD_COMMUNICATE_FIELD_NUMBER: builtins.int
@@ -335,6 +336,8 @@ class ServerRequest(google.protobuf.message.Message):
     IDs for requests on a single connection must be unique, but requests
     from different connections could have conflicting IDs.
     """
+    debug_id: builtins.str
+    """An ID assigned specifically for debugging."""
     @property
     def cancel(self) -> global___ServerCancelRequest: ...
     @property
@@ -367,6 +370,7 @@ class ServerRequest(google.protobuf.message.Message):
         self,
         *,
         request_id: builtins.str = ...,
+        debug_id: builtins.str = ...,
         cancel: global___ServerCancelRequest | None = ...,
         record_publish: wandb.proto.wandb_internal_pb2.Record | None = ...,
         record_communicate: wandb.proto.wandb_internal_pb2.Record | None = ...,
@@ -383,7 +387,7 @@ class ServerRequest(google.protobuf.message.Message):
         api_request: wandb.proto.wandb_api_pb2.ApiRequest | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["api_init_request", b"api_init_request", "api_request", b"api_request", "authenticate", b"authenticate", "cancel", b"cancel", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_teardown", b"inform_teardown", "init_sync", b"init_sync", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type", "sync", b"sync", "sync_status", b"sync_status"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["api_init_request", b"api_init_request", "api_request", b"api_request", "authenticate", b"authenticate", "cancel", b"cancel", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_teardown", b"inform_teardown", "init_sync", b"init_sync", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "request_id", b"request_id", "server_request_type", b"server_request_type", "sync", b"sync", "sync_status", b"sync_status"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["api_init_request", b"api_init_request", "api_request", b"api_request", "authenticate", b"authenticate", "cancel", b"cancel", "debug_id", b"debug_id", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_teardown", b"inform_teardown", "init_sync", b"init_sync", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "request_id", b"request_id", "server_request_type", b"server_request_type", "sync", b"sync", "sync_status", b"sync_status"]) -> None: ...
     def WhichOneof(self, oneof_group: typing_extensions.Literal["server_request_type", b"server_request_type"]) -> typing_extensions.Literal["cancel", "record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "authenticate", "init_sync", "sync", "sync_status", "api_init_request", "api_request"] | None: ...
 
 global___ServerRequest = ServerRequest
