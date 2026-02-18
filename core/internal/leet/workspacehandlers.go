@@ -51,7 +51,7 @@ func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 
 func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	// Clicks in the left sidebar clear metrics focus.
-	if w.runsAnimState.IsVisible() && msg.X < w.runsAnimState.Width() {
+	if w.runsAnimState.IsVisible() && msg.X < w.runsAnimState.Value() {
 		w.metricsGrid.clearFocus()
 		return nil
 	}
@@ -74,7 +74,7 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 		headerOffset = 1 // metrics header lines
 	)
 
-	leftOffset := w.runsAnimState.Width()
+	leftOffset := w.runsAnimState.Value()
 	rightOffset := w.runOverviewSidebar.Width()
 
 	adjustedX := msg.X - leftOffset - gridPaddingX

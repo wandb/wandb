@@ -14,7 +14,7 @@ import (
 )
 
 func TestSidebarFilter_AppliesAndClears(t *testing.T) {
-	as := leet.NewAnimationState(true, 120)
+	as := leet.NewAnimatedValue(true, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
@@ -42,7 +42,7 @@ func TestSidebarFilter_AppliesAndClears(t *testing.T) {
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
-	as := leet.NewAnimationState(true, 120)
+	as := leet.NewAnimatedValue(true, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
@@ -62,7 +62,7 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 }
 
 func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
-	as := leet.NewAnimationState(true, 120)
+	as := leet.NewAnimatedValue(true, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
@@ -102,7 +102,7 @@ func expandSidebar(t *testing.T, s *leet.RunOverviewSidebar, termWidth int, righ
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
-	as := leet.NewAnimationState(false, 120)
+	as := leet.NewAnimatedValue(false, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
@@ -149,7 +149,7 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
-	as := leet.NewAnimationState(false, 120)
+	as := leet.NewAnimatedValue(false, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
@@ -204,7 +204,7 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 }
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
-	as := leet.NewAnimationState(false, 120)
+	as := leet.NewAnimatedValue(false, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
@@ -245,7 +245,7 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 }
 
 func TestSidebar_TruncateValue(t *testing.T) {
-	as := leet.NewAnimationState(false, 120)
+	as := leet.NewAnimatedValue(false, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
@@ -273,7 +273,7 @@ func TestSidebar_TruncateValue(t *testing.T) {
 }
 
 func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
-	as := leet.NewAnimationState(true, 120)
+	as := leet.NewAnimatedValue(true, 120)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 
@@ -318,7 +318,7 @@ func TestSidebar_Filter_RegexAndGlob(t *testing.T) {
 }
 
 func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
-	as := leet.NewAnimationState(false, 40)
+	as := leet.NewAnimatedValue(false, 40)
 	ro := leet.NewRunOverview()
 	s := leet.NewRunOverviewSidebar(as, ro, leet.SidebarSideLeft)
 	expandSidebar(t, s, 120, false)
