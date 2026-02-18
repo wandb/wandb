@@ -404,8 +404,16 @@ class ProjectArtifactCollections(
                 else {"totalCount"}
             )
 
+            omit_variables = (
+                None
+                if server_supports(client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING)
+                else {"filters"}
+            )
+
             type(self).QUERY = gql_compat(
-                PROJECT_ARTIFACT_COLLECTIONS_GQL, omit_fields=omit_fields
+                PROJECT_ARTIFACT_COLLECTIONS_GQL,
+                omit_variables=omit_variables,
+                omit_fields=omit_fields,
             )
 
         if (order is not None or filters is not None) and not server_supports(
