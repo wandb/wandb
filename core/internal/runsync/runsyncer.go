@@ -16,7 +16,6 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -71,7 +70,7 @@ func (f *RunSyncerFactory) New(
 	sender := f.SenderFactory.New(runWork)
 	tbHandler := f.TBHandlerFactory.New(
 		runWork,
-		/*fileReadDelay=*/ waiting.NewDelay(5*time.Second),
+		/*fileReadDelay=*/ 5*time.Second,
 	)
 	recordParser := f.RecordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
 	runReader := f.RunReaderFactory.New(
