@@ -111,7 +111,7 @@ func (b *BottomBar) View(width int) string {
 
 	end := b.visibleEnd(b.top, maxValueWidth, contentLines)
 
-	header := b.renderHeader(width, b.top, end, len(b.logs))
+	header := b.renderHeader(b.top, end, len(b.logs))
 	content := b.renderContent(maxKeyWidth, maxValueWidth, contentLines, b.top, end)
 
 	body := lipgloss.JoinVertical(lipgloss.Left, header, content)
@@ -120,7 +120,7 @@ func (b *BottomBar) View(width int) string {
 	return bottomBarBorderStyle.Width(width).Height(h).Render(placed)
 }
 
-func (b *BottomBar) renderHeader(width, startIdx, endIdx, total int) string {
+func (b *BottomBar) renderHeader(startIdx, endIdx, total int) string {
 	title := bottomBarHeaderStyle.Render(bottomBarHeader)
 
 	if total == 0 {
@@ -131,7 +131,9 @@ func (b *BottomBar) renderHeader(width, startIdx, endIdx, total int) string {
 	return title + navInfoStyle.Render(info)
 }
 
-func (b *BottomBar) renderContent(maxKeyWidth, maxValueWidth, contentLines, startIdx, endIdx int) string {
+func (b *BottomBar) renderContent(
+	maxKeyWidth, maxValueWidth, contentLines, startIdx, endIdx int,
+) string {
 	if contentLines <= 0 {
 		return ""
 	}
