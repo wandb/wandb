@@ -16,15 +16,16 @@ const (
 	// Minimum *total* height: border + header + 1 content line.
 	BottomBarMinHeight = 3
 
-	bottomBarHeader      = "Console Logs"
-	bottomBarBorderLines = 1
-	bottomBarHeaderLines = 1
+	bottomBarHeader       = "Console Logs"
+	bottomBarBorderLines  = 1
+	bottomBarPaddingLines = 1
+	bottomBarHeaderLines  = 1
 
 	bottomBarKeyWidthRatio = 0.12
 )
 
 type BottomBar struct {
-	animState *AnimationState
+	animState *AnimatedValue
 
 	logs []KeyValuePair
 
@@ -43,12 +44,12 @@ type BottomBar struct {
 
 func NewBottomBar() *BottomBar {
 	return &BottomBar{
-		animState:  NewAnimationState(false, BottomBarMinHeight),
+		animState:  NewAnimatedValue(false, BottomBarMinHeight),
 		autoScroll: true,
 	}
 }
 
-func (b *BottomBar) Height() int               { return b.animState.Width() }
+func (b *BottomBar) Height() int               { return b.animState.Value() }
 func (b *BottomBar) IsVisible() bool           { return b.animState.IsVisible() }
 func (b *BottomBar) IsAnimating() bool         { return b.animState.IsAnimating() }
 func (b *BottomBar) IsExpanded() bool          { return b.animState.IsExpanded() }
@@ -59,7 +60,7 @@ func (b *BottomBar) Active() bool          { return b.active }
 func (b *BottomBar) SetActive(active bool) { b.active = active }
 
 func (b *BottomBar) SetExpandedHeight(h int) {
-	b.animState.SetExpandedWidth(max(h, BottomBarMinHeight))
+	b.animState.SetExpanded(max(h, BottomBarMinHeight))
 }
 
 func (b *BottomBar) UpdateExpandedHeight(maxTerminalHeight int) {
@@ -93,7 +94,9 @@ func (b *BottomBar) View(width int) string {
 		return ""
 	}
 
-	innerH := h - bottomBarBorderLines
+	// innerH is the content area inside border + padding.
+	// lipgloss renders: border(1) + Height(innerH) + padding(1) = h total.
+	innerH := h - bottomBarBorderLines - bottomBarPaddingLines
 	contentLines := max(innerH-bottomBarHeaderLines, 1)
 
 	maxKeyWidth := max(int(float64(width)*bottomBarKeyWidthRatio), 1)
@@ -115,9 +118,9 @@ func (b *BottomBar) View(width int) string {
 	content := b.renderContent(maxKeyWidth, maxValueWidth, contentLines, b.top, end)
 
 	body := lipgloss.JoinVertical(lipgloss.Left, header, content)
-	placed := lipgloss.Place(width, h, lipgloss.Left, lipgloss.Top, body)
+	placed := lipgloss.Place(width, innerH, lipgloss.Left, lipgloss.Top, body)
 
-	return bottomBarBorderStyle.Width(width).Height(h).Render(placed)
+	return bottomBarBorderStyle.Width(width).Height(innerH).Render(placed)
 }
 
 func (b *BottomBar) renderHeader(startIdx, endIdx, total int) string {

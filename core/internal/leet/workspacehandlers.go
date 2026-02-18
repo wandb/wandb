@@ -51,7 +51,7 @@ func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 
 func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	// Clicks in the left sidebar clear metrics focus.
-	if w.runsAnimState.IsVisible() && msg.X < w.runsAnimState.Width() {
+	if w.runsAnimState.IsVisible() && msg.X < w.runsAnimState.Value() {
 		w.metricsGrid.clearFocus()
 		return nil
 	}
@@ -74,7 +74,7 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 		headerOffset = 1 // metrics header lines
 	)
 
-	leftOffset := w.runsAnimState.Width()
+	leftOffset := w.runsAnimState.Value()
 	rightOffset := w.runOverviewSidebar.Width()
 
 	adjustedX := msg.X - leftOffset - gridPaddingX
@@ -678,98 +678,120 @@ func (w *Workspace) handleRunsVerticalNav(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+// ---- Focus Region Cycling ----
+
+// focusRegion identifies a focusable UI region in the workspace.
+type focusRegion int
+
+const (
+	focusRuns focusRegion = iota
+	focusLogs
+	focusOverview
+)
+
+// focusOrder defines the Tab-cycling order across workspace regions.
+var focusOrder = []focusRegion{focusRuns, focusLogs, focusOverview}
+
 func (w *Workspace) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
 	direction := 1
 	if msg.Type == tea.KeyShiftTab {
 		direction = -1
 	}
 
-	runsAvail := w.runsAnimState.IsExpanded()
-	logsAvail := w.bottomBar.IsExpanded()
+	cur := w.currentFocusRegion()
 
-	firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
-	overviewAvail := w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1
+	// Try cycling within overview sections before leaving the region.
+	if cur == focusOverview && w.cycleOverviewSection(direction) {
+		return nil
+	}
 
-	const (
-		fRuns = iota
-		fLogs
-		fOverview
-	)
+	w.cycleFocusRegion(cur, direction)
+	return nil
+}
 
-	cur := fOverview
+// currentFocusRegion returns which focusable region currently holds focus.
+func (w *Workspace) currentFocusRegion() focusRegion {
 	switch {
 	case w.bottomBar.Active():
-		cur = fLogs
+		return focusLogs
 	case w.runs.Active:
-		cur = fRuns
+		return focusRuns
+	default:
+		return focusOverview
+	}
+}
+
+// cycleOverviewSection tries to move within overview sections.
+//
+// Returns true if the navigation was handled (i.e. we're not at a boundary).
+func (w *Workspace) cycleOverviewSection(direction int) bool {
+	firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
+	if !w.runOverviewSidebar.animState.IsExpanded() || firstSec == -1 {
+		return false
 	}
 
-	available := func(f int) bool {
-		switch f {
-		case fRuns:
-			return runsAvail
-		case fLogs:
-			return logsAvail
-		case fOverview:
-			return overviewAvail
-		default:
-			return false
-		}
+	atBoundary := (direction == 1 && w.runOverviewSidebar.activeSection == lastSec) ||
+		(direction == -1 && w.runOverviewSidebar.activeSection == firstSec)
+	if atBoundary {
+		return false
 	}
 
-	setFocus := func(f int) {
-		// Clear all focus visuals.
-		w.runs.Active = false
-		w.bottomBar.SetActive(false)
-		w.runOverviewSidebar.deactivateAllSections()
+	w.runOverviewSidebar.navigateSection(direction)
+	return true
+}
 
-		switch f {
-		case fRuns:
-			w.runs.Active = true
-		case fLogs:
-			w.bottomBar.SetActive(true)
-		case fOverview:
-			if direction == 1 {
-				w.runOverviewSidebar.setActiveSection(firstSec)
-			} else {
-				w.runOverviewSidebar.setActiveSection(lastSec)
-			}
-		}
-	}
+// cycleFocusRegion moves focus to the next available region in the given direction.
+func (w *Workspace) cycleFocusRegion(cur focusRegion, direction int) {
+	avail := w.regionAvailability()
 
-	// If overview is focused and we are not at the boundary, Tab cycles sections.
-	if cur == fOverview && overviewAvail {
-		if (direction == 1 && w.runOverviewSidebar.activeSection != lastSec) ||
-			(direction == -1 && w.runOverviewSidebar.activeSection != firstSec) {
-			w.runOverviewSidebar.navigateSection(direction)
-			return nil
-		}
-	}
-
-	order := []int{fRuns, fLogs, fOverview}
 	curIdx := 0
-	for i, v := range order {
+	for i, v := range focusOrder {
 		if v == cur {
 			curIdx = i
 			break
 		}
 	}
 
-	for step := 1; step <= len(order); step++ {
-		nextIdx := curIdx + direction*step
-		for nextIdx < 0 {
-			nextIdx += len(order)
-		}
-		nextIdx %= len(order)
-
-		next := order[nextIdx]
-		if available(next) {
-			setFocus(next)
-			return nil
+	n := len(focusOrder)
+	for step := 1; step <= n; step++ {
+		nextIdx := ((curIdx+direction*step)%n + n) % n
+		next := focusOrder[nextIdx]
+		if avail[next] {
+			w.setFocusRegion(next, direction)
+			return
 		}
 	}
+}
 
-	return nil
+// regionAvailability returns which focus regions are currently usable.
+func (w *Workspace) regionAvailability() map[focusRegion]bool {
+	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
+	return map[focusRegion]bool{
+		focusRuns:     w.runsAnimState.IsExpanded(),
+		focusLogs:     w.bottomBar.IsExpanded(),
+		focusOverview: w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1,
+	}
+}
+
+// setFocusRegion clears all focus and activates the given region.
+func (w *Workspace) setFocusRegion(region focusRegion, direction int) {
+	w.runs.Active = false
+	w.bottomBar.SetActive(false)
+	w.runOverviewSidebar.deactivateAllSections()
+
+	switch region {
+	case focusRuns:
+		w.runs.Active = true
+	case focusLogs:
+		w.bottomBar.SetActive(true)
+	case focusOverview:
+		firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
+		if direction == 1 {
+			w.runOverviewSidebar.setActiveSection(firstSec)
+		} else {
+			w.runOverviewSidebar.setActiveSection(lastSec)
+		}
+	}
 }
 
 func (w *Workspace) handleRunsPageNav(msg tea.KeyMsg) tea.Cmd {

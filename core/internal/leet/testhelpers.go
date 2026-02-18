@@ -72,9 +72,9 @@ func (r *Run) TestClearMainChartFocus() {
 
 // TestForceExpand forces the sidebar to expanded state without animation
 func (s *RunOverviewSidebar) TestForceExpand() {
-	s.animState.currentWidth = s.animState.expandedWidth
-	s.animState.targetWidth = s.animState.expandedWidth
-	s.animState.animationStartTime = time.Now().Add(-AnimationDuration)
+	s.animState.current = s.animState.expanded
+	s.animState.target = s.animState.expanded
+	s.animState.startTime = time.Now().Add(-AnimationDuration)
 }
 
 // TestSeriesCount returns the number of series in the chart

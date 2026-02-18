@@ -413,7 +413,8 @@ var (
 				BorderTop(true).
 				BorderBottom(false).
 				BorderLeft(false).
-				BorderRight(false)
+				BorderRight(false).
+				PaddingBottom(1)
 
 	bottomBarHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
