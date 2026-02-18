@@ -684,143 +684,92 @@ func (w *Workspace) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
 		direction = -1
 	}
 
-	runsExpanded := w.runsAnimState.IsExpanded()
-	overviewExpanded := w.runOverviewSidebar.animState.IsExpanded()
-	bottomBarVisible := w.bottomBar.IsExpanded()
+	runsAvail := w.runsAnimState.IsExpanded()
+	logsAvail := w.bottomBar.IsExpanded()
 
-	// ---- Bottom bar is focused ----
-	if w.bottomBar.Active() {
-		w.bottomBar.SetActive(false)
+	firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
+	overviewAvail := w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1
 
-		if direction == 1 {
-			// Tab forward → runs list.
-			if runsExpanded {
-				w.runs.Active = true
-			} else if overviewExpanded {
-				w.runOverviewSidebar.selectFirstAvailableItem()
-			}
-			return nil
-		}
+	const (
+		fRuns = iota
+		fLogs
+		fOverview
+	)
 
-		// Shift-Tab backward → overview last section, or runs.
-		if overviewExpanded {
-			_, last := w.runOverviewSectionBounds()
-			if last != -1 {
-				w.runOverviewSidebar.setActiveSection(last)
-				return nil
-			}
-		}
-		if runsExpanded {
-			w.runs.Active = true
-		}
-		return nil
+	cur := fOverview
+	switch {
+	case w.bottomBar.Active():
+		cur = fLogs
+	case w.runs.Active:
+		cur = fRuns
 	}
 
-	// ---- Runs list is focused ----
-	if w.runs.Active {
+	available := func(f int) bool {
+		switch f {
+		case fRuns:
+			return runsAvail
+		case fLogs:
+			return logsAvail
+		case fOverview:
+			return overviewAvail
+		default:
+			return false
+		}
+	}
+
+	setFocus := func(f int) {
+		// Clear all focus visuals.
 		w.runs.Active = false
+		w.bottomBar.SetActive(false)
+		w.runOverviewSidebar.deactivateAllSections()
 
-		if direction == 1 {
-			// Tab forward → overview, or bottom bar, or stay.
-			if overviewExpanded {
-				w.runOverviewSidebar.selectFirstAvailableItem()
-				return nil
-			}
-			if bottomBarVisible {
-				w.bottomBar.SetActive(true)
-				return nil
-			}
+		switch f {
+		case fRuns:
 			w.runs.Active = true
-			return nil
-		}
-
-		// Shift-Tab backward → bottom bar, or overview last, or stay.
-		if bottomBarVisible {
+		case fLogs:
 			w.bottomBar.SetActive(true)
-			return nil
-		}
-		if overviewExpanded {
-			_, last := w.runOverviewSectionBounds()
-			if last != -1 {
-				w.runOverviewSidebar.setActiveSection(last)
-				return nil
+		case fOverview:
+			if direction == 1 {
+				w.runOverviewSidebar.setActiveSection(firstSec)
+			} else {
+				w.runOverviewSidebar.setActiveSection(lastSec)
 			}
 		}
-		w.runs.Active = true
-		return nil
 	}
 
-	// ---- Overview sidebar is focused ----
-	if !overviewExpanded {
-		w.runs.Active = true
-		w.runOverviewSidebar.deactivateAllSections()
-		return nil
+	// If overview is focused and we are not at the boundary, Tab cycles sections.
+	if cur == fOverview && overviewAvail {
+		if (direction == 1 && w.runOverviewSidebar.activeSection != lastSec) ||
+			(direction == -1 && w.runOverviewSidebar.activeSection != firstSec) {
+			w.runOverviewSidebar.navigateSection(direction)
+			return nil
+		}
 	}
 
-	first, last := w.runOverviewSectionBounds()
-	if first == -1 || last == -1 {
-		w.runs.Active = true
-		w.runOverviewSidebar.deactivateAllSections()
-		return nil
+	order := []int{fRuns, fLogs, fOverview}
+	curIdx := 0
+	for i, v := range order {
+		if v == cur {
+			curIdx = i
+			break
+		}
 	}
 
-	// At boundary: hand off to next component.
-	if direction == 1 && w.runOverviewSidebar.activeSection == last {
-		w.runOverviewSidebar.deactivateAllSections()
-		if bottomBarVisible {
-			w.bottomBar.SetActive(true)
+	for step := 1; step <= len(order); step++ {
+		nextIdx := curIdx + direction*step
+		for nextIdx < 0 {
+			nextIdx += len(order)
+		}
+		nextIdx %= len(order)
+
+		next := order[nextIdx]
+		if available(next) {
+			setFocus(next)
 			return nil
 		}
-		if runsExpanded {
-			w.runs.Active = true
-			return nil
-		}
-		// No other target; wrap within overview.
-		w.runOverviewSidebar.selectFirstAvailableItem()
-		return nil
-	}
-	if direction == -1 && w.runOverviewSidebar.activeSection == first {
-		w.runOverviewSidebar.deactivateAllSections()
-		if runsExpanded {
-			w.runs.Active = true
-			return nil
-		}
-		if bottomBarVisible {
-			w.bottomBar.SetActive(true)
-			return nil
-		}
-		// No other target; wrap within overview.
-		_, last := w.runOverviewSectionBounds()
-		if last != -1 {
-			w.runOverviewSidebar.setActiveSection(last)
-		}
-		return nil
 	}
 
-	// Still within overview sections.
-	w.runOverviewSidebar.navigateSection(direction)
 	return nil
-}
-
-// runOverviewSectionBounds returns the first and last sections with at least one
-// visible item. If none exist, returns (-1, -1).
-func (w *Workspace) runOverviewSectionBounds() (first, last int) {
-	first, last = -1, -1
-	if w.runOverviewSidebar == nil {
-		return first, last
-	}
-
-	for i := range w.runOverviewSidebar.sections {
-		section := &w.runOverviewSidebar.sections[i]
-		if section.ItemsPerPage() == 0 || len(section.FilteredItems) == 0 {
-			continue
-		}
-		if first == -1 {
-			first = i
-		}
-		last = i
-	}
-	return first, last
 }
 
 func (w *Workspace) handleRunsPageNav(msg tea.KeyMsg) tea.Cmd {

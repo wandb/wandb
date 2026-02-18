@@ -562,3 +562,104 @@ func (r *Run) handleFileChange() []tea.Cmd {
 		r.watcherMgr.WaitForMsg,
 	}
 }
+
+func (r *Run) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
+	direction := 1
+	if msg.Type == tea.KeyShiftTab {
+		direction = -1
+	}
+
+	logsAvail := r.bottomBar.IsExpanded()
+	firstSec, lastSec := r.leftSidebar.focusableSectionBounds()
+	overviewAvail := r.leftSidebar.animState.IsExpanded() && firstSec != -1
+
+	// If logs aren't visible, preserve existing behavior: cycle overview sections.
+	if !logsAvail {
+		if overviewAvail {
+			r.leftSidebar.navigateSection(direction)
+		}
+		return nil
+	}
+
+	// Logs focused -> go to overview.
+	if r.bottomBar.Active() {
+		r.bottomBar.SetActive(false)
+		if overviewAvail {
+			if direction == 1 {
+				r.leftSidebar.setActiveSection(firstSec)
+			} else {
+				r.leftSidebar.setActiveSection(lastSec)
+			}
+		}
+		return nil
+	}
+
+	// Overview focused -> exit to logs at boundaries, else cycle sections.
+	if !overviewAvail {
+		r.leftSidebar.deactivateAllSections()
+		r.bottomBar.SetActive(true)
+		return nil
+	}
+
+	if direction == 1 && r.leftSidebar.activeSection == lastSec {
+		r.leftSidebar.deactivateAllSections()
+		r.bottomBar.SetActive(true)
+		return nil
+	}
+	if direction == -1 && r.leftSidebar.activeSection == firstSec {
+		r.leftSidebar.deactivateAllSections()
+		r.bottomBar.SetActive(true)
+		return nil
+	}
+
+	r.leftSidebar.navigateSection(direction)
+	return nil
+}
+
+func (r *Run) handleSidebarVerticalNav(msg tea.KeyMsg) tea.Cmd {
+	if r.bottomBar.Active() {
+		switch msg.Type {
+		case tea.KeyUp:
+			r.bottomBar.Up()
+		case tea.KeyDown:
+			r.bottomBar.Down()
+		}
+		return nil
+	}
+
+	if !r.leftSidebar.IsVisible() {
+		return nil
+	}
+
+	switch msg.Type {
+	case tea.KeyUp:
+		r.leftSidebar.navigateUp()
+	case tea.KeyDown:
+		r.leftSidebar.navigateDown()
+	}
+	return nil
+}
+
+func (r *Run) handleSidebarPageNav(msg tea.KeyMsg) tea.Cmd {
+	if r.bottomBar.Active() {
+		switch msg.Type {
+		case tea.KeyLeft:
+			r.bottomBar.PageUp()
+		case tea.KeyRight:
+			r.bottomBar.PageDown()
+		}
+		return nil
+	}
+
+	if !r.leftSidebar.IsVisible() {
+		return nil
+	}
+
+	switch msg.Type {
+	case tea.KeyLeft:
+		r.leftSidebar.navigatePageUp()
+	case tea.KeyRight:
+		r.leftSidebar.navigatePageDown()
+	}
+	return nil
+}

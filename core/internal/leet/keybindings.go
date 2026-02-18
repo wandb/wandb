@@ -147,21 +147,23 @@ func RunKeyBindings() []BindingCategory[Run] {
 			},
 		},
 
-		// Documentation-only bindings (handled by subcomponents, not via Run.keyMap).
 		{
-			Name: "Run Overview Navigation (when sidebar open)",
+			Name: "Sidebars (when open)",
 			Bindings: []KeyBinding[Run]{
 				{
-					Keys:        []string{"up", "down"},
-					Description: "Navigate items in section",
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Cycle focus: overview ↔ logs (overview cycles sections)",
+					Handler:     (*Run).handleSidebarTabNav,
 				},
 				{
-					Keys:        []string{"tab", "shift+tab"},
-					Description: "Switch between sections",
+					Keys:        []string{"up", "down"},
+					Description: "Navigate focused sidebar/list",
+					Handler:     (*Run).handleSidebarVerticalNav,
 				},
 				{
 					Keys:        []string{"left", "right"},
-					Description: "Navigate pages in section",
+					Description: "Page in focused sidebar/list",
+					Handler:     (*Run).handleSidebarPageNav,
 				},
 			},
 		},

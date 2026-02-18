@@ -482,3 +482,42 @@ func (s *RunOverviewSidebar) hasNextVisibleSection(idx int) bool {
 	}
 	return false
 }
+
+// activateSelection ensures that exactly one section is marked active (if possible).
+// It is used when the sidebar gains focus after being deactivated.
+func (s *RunOverviewSidebar) activateSelection() {
+	if len(s.sections) == 0 {
+		return
+	}
+	if s.hasActiveSection() {
+		return
+	}
+
+	// Prefer the current activeSection if it is still usable.
+	if s.isValidActiveSection() {
+		sec := &s.sections[s.activeSection]
+		if sec.ItemsPerPage() > 0 && len(sec.FilteredItems) > 0 {
+			s.setActiveSection(s.activeSection)
+			return
+		}
+	}
+
+	s.selectFirstAvailableItem()
+}
+
+// focusableSectionBounds returns the first and last sections that currently have
+// visible items and can accept navigation. If none exist, it returns (-1, -1).
+func (s *RunOverviewSidebar) focusableSectionBounds() (first, last int) {
+	first, last = -1, -1
+	for i := range s.sections {
+		sec := &s.sections[i]
+		if sec.ItemsPerPage() == 0 || len(sec.FilteredItems) == 0 {
+			continue
+		}
+		if first == -1 {
+			first = i
+		}
+		last = i
+	}
+	return first, last
+}

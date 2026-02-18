@@ -439,12 +439,13 @@ func (w *Workspace) refreshPinnedRun() {
 
 func (w *Workspace) runSelectorActive() bool {
 	return w.runs.Active &&
+		!w.bottomBar.Active() &&
 		w.runsAnimState.IsVisible() &&
 		len(w.runs.FilteredItems) > 0
 }
 
 func (w *Workspace) runOverviewActive() bool {
-	return !w.runs.Active && w.runOverviewSidebar.animState.IsVisible()
+	return !w.runs.Active && !w.bottomBar.Active() && w.runOverviewSidebar.IsVisible()
 }
 
 // ---- Rendering ----
@@ -495,14 +496,10 @@ func (w *Workspace) renderRunOverview() string {
 	w.runOverviewSidebar.SetRunOverview(ro)
 	w.runOverviewSidebar.Sync()
 
-	// Manage section activation based on which sidebar has keyboard focus.
-	// When the run selector owns focus, show overview data without any
-	// highlighted row. When the overview owns focus, ensure at least one
-	// section is active so the user can navigate.
-	if w.runs.Active {
+	if w.runOverviewActive() {
+		w.runOverviewSidebar.activateSelection()
+	} else {
 		w.runOverviewSidebar.deactivateAllSections()
-	} else if !w.runOverviewSidebar.hasActiveSection() {
-		w.runOverviewSidebar.selectFirstAvailableItem()
 	}
 
 	sidebarH := max(w.height-StatusBarHeight, 0)

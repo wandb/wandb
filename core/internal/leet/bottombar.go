@@ -6,45 +6,41 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
-// Bottom bar constants.
 const (
-	// BottomBarHeightRatio is the fraction of content height allocated to the
-	// bottom panel. Derived from the golden ratio: 1 − 1/φ ≈ 0.382.
-	BottomBarHeightRatio = SidebarWidthRatio // 0.382
+	// Same ratio you already use.
+	BottomBarHeightRatio = SidebarWidthRatio
 
-	// BottomBarMinHeight is the minimum usable height for the panel.
-	BottomBarMinHeight = 2
+	// Minimum *total* height: border + header + 1 content line.
+	BottomBarMinHeight = 3
 
-	// bottomBarHeader is the default title rendered in the panel header.
-	bottomBarHeader = "Console Logs"
-
-	// bottomBarBorderLines accounts for the top-border decoration.
+	bottomBarHeader      = "Console Logs"
 	bottomBarBorderLines = 1
-
-	// bottomBarHeaderLines accounts for the header row inside the panel.
 	bottomBarHeaderLines = 1
 
-	// bottomBarKeyWidthRatio controls the timestamp column width.
 	bottomBarKeyWidthRatio = 0.12
 )
 
-// BottomBar represents a collapsible bottom panel for console logs.
-//
-// It reuses [AnimationState] to animate the panel height, mirroring how
-// sidebars animate their width. Console log content is rendered through
-// a [PagedList] using key-value pairs (timestamp → content).
 type BottomBar struct {
-	animState   *AnimationState
-	consoleLogs PagedList
+	animState *AnimationState
 
-	// autoScroll tracks whether the view follows new output.
-	// Enabled by default, disabled when the user scrolls away from the end.
+	logs []KeyValuePair
+
+	// cursor is the selected log index (logical row).
+	cursor int
+	// top is the first visible log index.
+	top int
+
+	active     bool
 	autoScroll bool
+
+	// Cached layout params from most recent View().
+	lastValueWidth   int
+	lastContentLines int
 }
 
-// NewBottomBar creates a new collapsed bottom bar.
 func NewBottomBar() *BottomBar {
 	return &BottomBar{
 		animState:  NewAnimationState(false, BottomBarMinHeight),
@@ -52,339 +48,413 @@ func NewBottomBar() *BottomBar {
 	}
 }
 
-// Toggle toggles between expanded and collapsed states.
-func (b *BottomBar) Toggle() {
-	b.animState.Toggle()
-}
+func (b *BottomBar) Height() int               { return b.animState.Width() }
+func (b *BottomBar) IsVisible() bool           { return b.animState.IsVisible() }
+func (b *BottomBar) IsAnimating() bool         { return b.animState.IsAnimating() }
+func (b *BottomBar) IsExpanded() bool          { return b.animState.IsExpanded() }
+func (b *BottomBar) Toggle()                   { b.animState.Toggle() }
+func (b *BottomBar) Update(now time.Time) bool { return b.animState.Update(now) }
 
-// Height returns the current animated height (0 when fully collapsed).
-func (b *BottomBar) Height() int {
-	return b.animState.Width()
-}
+func (b *BottomBar) Active() bool          { return b.active }
+func (b *BottomBar) SetActive(active bool) { b.active = active }
 
-// IsVisible reports whether the panel occupies any vertical space.
-func (b *BottomBar) IsVisible() bool {
-	return b.animState.IsVisible()
-}
-
-// IsAnimating reports whether the panel is mid-animation.
-func (b *BottomBar) IsAnimating() bool {
-	return b.animState.IsAnimating()
-}
-
-// IsExpanded reports whether the panel is stably expanded.
-func (b *BottomBar) IsExpanded() bool {
-	return b.animState.IsExpanded()
-}
-
-// Active reports whether the bottom bar currently has keyboard focus.
-func (b *BottomBar) Active() bool {
-	return b.consoleLogs.Active
-}
-
-// SetActive sets the keyboard focus state.
-func (b *BottomBar) SetActive(active bool) {
-	b.consoleLogs.Active = active
-}
-
-// Update advances the animation; returns true when complete.
-func (b *BottomBar) Update(now time.Time) bool {
-	return b.animState.Update(now)
-}
-
-// SetExpandedHeight updates the target expanded height, typically called
-// on window resize so the panel tracks the golden-ratio proportion.
 func (b *BottomBar) SetExpandedHeight(h int) {
 	b.animState.SetExpandedWidth(max(h, BottomBarMinHeight))
 }
 
-// UpdateExpandedHeight recalculates the expanded height from the total
-// content height (the area above the status bar).
-func (b *BottomBar) UpdateExpandedHeight(totalContentHeight int) {
-	h := int(float64(totalContentHeight) * BottomBarHeightRatio)
-	b.SetExpandedHeight(h)
+func (b *BottomBar) UpdateExpandedHeight(maxTerminalHeight int) {
+	maxHeight := int(float64(maxTerminalHeight) * BottomBarHeightRatio)
+	b.SetExpandedHeight(maxHeight)
 }
 
-// SetConsoleLogs updates the displayed log lines from the data model.
-//
-// When auto-scroll is enabled (the default), the view jumps to the last
-// page whenever new items arrive. Scrolling away from the last page
-// disables auto-scroll; scrolling back to the end re-enables it.
 func (b *BottomBar) SetConsoleLogs(items []KeyValuePair) {
-	prevLen := len(b.consoleLogs.FilteredItems)
-	b.consoleLogs.Items = items
-	b.consoleLogs.FilteredItems = items
+	b.logs = items
 
-	if b.autoScroll && len(items) > prevLen {
+	if len(b.logs) == 0 {
+		b.cursor = 0
+		b.top = 0
+		b.autoScroll = true
+		return
+	}
+
+	b.cursor = clamp(b.cursor, 0, len(b.logs)-1)
+	b.top = clamp(b.top, 0, len(b.logs)-1)
+
+	if b.autoScroll {
 		b.scrollToEnd()
+	} else {
+		b.ensureCursorVisible()
 	}
 }
 
-// ---- Navigation ----
-
-// Up navigates one line up.
-func (b *BottomBar) Up() {
-	b.consoleLogs.Up()
-	b.updateAutoScroll()
-}
-
-// Down navigates one line down.
-func (b *BottomBar) Down() {
-	b.consoleLogs.Down()
-	b.updateAutoScroll()
-}
-
-// PageUp navigates one page up.
-func (b *BottomBar) PageUp() {
-	b.consoleLogs.PageUp()
-	b.updateAutoScroll()
-}
-
-// PageDown navigates one page down.
-func (b *BottomBar) PageDown() {
-	b.consoleLogs.PageDown()
-	b.updateAutoScroll()
-}
-
-// ScrollToEnd jumps to the last page and re-enables auto-scroll.
-func (b *BottomBar) ScrollToEnd() {
-	b.scrollToEnd()
-	b.autoScroll = true
-}
-
-func (b *BottomBar) scrollToEnd() {
-	total := len(b.consoleLogs.FilteredItems)
-	if total == 0 || b.consoleLogs.ItemsPerPage() == 0 {
-		return
-	}
-	lastPage := (total - 1) / b.consoleLogs.ItemsPerPage()
-	lastLine := (total - 1) % b.consoleLogs.ItemsPerPage()
-	b.consoleLogs.SetPageAndLine(lastPage, lastLine)
-}
-
-// updateAutoScroll disables auto-scroll when the user navigates away
-// from the last page, and re-enables it when they return.
-func (b *BottomBar) updateAutoScroll() {
-	total := len(b.consoleLogs.FilteredItems)
-	if total == 0 || b.consoleLogs.ItemsPerPage() == 0 {
-		return
-	}
-	lastPage := (total - 1) / b.consoleLogs.ItemsPerPage()
-	b.autoScroll = b.consoleLogs.CurrentPage() == lastPage
-}
-
-// ---- Rendering ----
-
-// View renders the bottom bar panel.
 func (b *BottomBar) View(width int) string {
 	h := b.Height()
-	if h <= 0 || width <= 0 {
+	if width <= 0 || h < BottomBarMinHeight {
 		return ""
 	}
 
 	innerH := h - bottomBarBorderLines
-	if innerH <= BottomBarMinHeight {
-		return ""
-	}
-
 	contentLines := max(innerH-bottomBarHeaderLines, 1)
 
-	// Column layout: key occupies maxKeyWidth cols (its PaddingLeft is
-	// inside that width), then a 1-col gap, then value fills the rest.
-	// No padding on the value — mirrors renderItem in RunOverviewSidebar.
-	maxKeyWidth := int(float64(width) * bottomBarKeyWidthRatio)
-	maxValueWidth := width - maxKeyWidth - 1
+	maxKeyWidth := max(int(float64(width)*bottomBarKeyWidthRatio), 1)
+	maxKeyWidth = min(maxKeyWidth, max(width-2, 1))
+	maxValueWidth := max(width-maxKeyWidth-1, 1)
 
-	// Set items-per-page to an upper bound (one item per line), then
-	// refine based on how many items actually fit with multi-line wrapping.
-	b.consoleLogs.SetItemsPerPage(contentLines)
-	visibleItems := b.countVisibleItems(maxValueWidth, contentLines)
-	b.consoleLogs.SetItemsPerPage(visibleItems)
+	b.lastValueWidth = maxValueWidth
+	b.lastContentLines = contentLines
 
-	header := b.renderHeader(width)
-	content := b.renderContent(maxKeyWidth, maxValueWidth, contentLines)
+	if b.autoScroll {
+		b.scrollToEnd()
+	} else {
+		b.ensureCursorVisible()
+	}
+
+	end := b.visibleEnd(b.top, maxValueWidth, contentLines)
+
+	header := b.renderHeader(width, b.top, end, len(b.logs))
+	content := b.renderContent(maxKeyWidth, maxValueWidth, contentLines, b.top, end)
+
 	body := lipgloss.JoinVertical(lipgloss.Left, header, content)
+	placed := lipgloss.Place(width, h, lipgloss.Left, lipgloss.Top, body)
 
-	rendered := bottomBarBorderStyle.
-		Width(width).
-		MaxWidth(width).
-		Render(body)
-
-	// Force exact dimensions: clips overflow (small h) and pads
-	// underflow (border/content height mismatch) so the caller can
-	// rely on Height() for arithmetic without visual surprises.
-	return lipgloss.Place(width, h, lipgloss.Left, lipgloss.Top, rendered)
+	return bottomBarBorderStyle.Width(width).Height(h).Render(placed)
 }
 
-// countVisibleItems returns how many items fit in contentLines visual
-// rows, accounting for multi-line wrapping.
-func (b *BottomBar) countVisibleItems(maxValueWidth, contentLines int) int {
-	total := len(b.consoleLogs.FilteredItems)
-	if total == 0 {
-		return max(contentLines, 1)
-	}
-
-	startIdx := b.consoleLogs.CurrentPage() * b.consoleLogs.ItemsPerPage()
-	usedLines := 0
-	count := 0
-
-	for i := startIdx; i < total && usedLines < contentLines; i++ {
-		n := wrappedLineCount(b.consoleLogs.FilteredItems[i].Value, maxValueWidth)
-		if usedLines+n > contentLines && count > 0 {
-			break
-		}
-		usedLines += n
-		count++
-	}
-
-	return max(count, 1)
-}
-
-// renderHeader renders the panel title with optional pagination info.
-//
-// The header style is constant regardless of focus state, matching the
-// behavior of run list and overview sidebar headers.
-func (b *BottomBar) renderHeader(width int) string {
+func (b *BottomBar) renderHeader(width, startIdx, endIdx, total int) string {
 	title := bottomBarHeaderStyle.Render(bottomBarHeader)
 
-	total := len(b.consoleLogs.FilteredItems)
 	if total == 0 {
 		return title
 	}
 
-	startIdx := b.consoleLogs.CurrentPage() * b.consoleLogs.ItemsPerPage()
-	endIdx := min(startIdx+b.consoleLogs.ItemsPerPage(), total)
-	info := navInfoStyle.Render(
-		fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, total),
-	)
-
-	return title + info
+	info := fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, total)
+	return title + navInfoStyle.Render(info)
 }
 
-// renderContent renders the visible page of log lines, wrapping long
-// values across multiple visual rows.
-func (b *BottomBar) renderContent(maxKeyWidth, maxValueWidth, contentLines int) string {
-	total := len(b.consoleLogs.FilteredItems)
-	if total == 0 {
-		return strings.Repeat("\n", max(contentLines-1, 0))
+func (b *BottomBar) renderContent(maxKeyWidth, maxValueWidth, contentLines, startIdx, endIdx int) string {
+	if contentLines <= 0 {
+		return ""
+	}
+	if len(b.logs) == 0 {
+		return strings.Repeat("\n", contentLines-1)
 	}
 
-	startIdx := b.consoleLogs.CurrentPage() * b.consoleLogs.ItemsPerPage()
-	endIdx := min(startIdx+b.consoleLogs.ItemsPerPage(), total)
+	startIdx = clamp(startIdx, 0, len(b.logs)-1)
+	endIdx = clamp(endIdx, startIdx, len(b.logs))
 
-	var lines []string
-	usedLines := 0
+	var out []string
+	used := 0
 
-	for i := startIdx; i < endIdx && usedLines < contentLines; i++ {
-		item := b.consoleLogs.FilteredItems[i]
-		posInPage := i - startIdx
-		remaining := contentLines - usedLines
-
-		entry := b.renderEntry(item, posInPage, maxKeyWidth, maxValueWidth, remaining)
-		entryHeight := strings.Count(entry, "\n") + 1
-
-		lines = append(lines, entry)
-		usedLines += entryHeight
+	for i := startIdx; i < endIdx && used < contentLines; i++ {
+		remaining := contentLines - used
+		entry, lines := b.renderEntry(b.logs[i], i == b.cursor && b.active, maxKeyWidth, maxValueWidth, remaining)
+		out = append(out, entry)
+		used += lines
 	}
 
-	// Pad remaining lines to fill the content area exactly.
-	for usedLines < contentLines {
-		lines = append(lines, "")
-		usedLines++
+	for used < contentLines {
+		out = append(out, "")
+		used++
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	return lipgloss.JoinVertical(lipgloss.Left, out...)
 }
 
-// renderEntry renders a single log entry, potentially spanning multiple
-// visual lines. Long values wrap at maxValueWidth; if the wrapped output
-// exceeds maxLines the final visual line is truncated with "...".
-func (b *BottomBar) renderEntry(
-	item KeyValuePair,
-	posInPage, maxKeyWidth, maxValueWidth, maxLines int,
-) string {
-	isHighlighted := b.consoleLogs.Active && posInPage == b.consoleLogs.CurrentLine()
-
-	// Default styles mirror the RunOverviewSidebar pattern:
-	//   key   = subtle timestamp with left indent (PaddingLeft baked in)
-	//   value = colorItemValue, no padding
+func (b *BottomBar) renderEntry(item KeyValuePair, highlighted bool, maxKeyWidth, maxValueWidth, maxLines int) (string, int) {
 	keyStyle := bottomBarTimestampStyle
 	valueStyle := bottomBarValueStyle
-
-	if isHighlighted {
-		// Selection background on both columns. PaddingLeft on the key
-		// preserves the indent that bottomBarTimestampStyle provides.
+	if highlighted {
 		keyStyle = bottomBarHighlightedTimestampStyle
 		valueStyle = bottomBarHighlightedValueStyle
 	}
 
 	key := truncateValue(item.Key, maxKeyWidth)
-	valueLines := wrapText(item.Value, maxValueWidth)
+	lines := wrapText(item.Value, maxValueWidth)
 
-	// Truncate wrapped lines that exceed available visual space.
-	if len(valueLines) > maxLines {
-		valueLines = valueLines[:maxLines]
-		last := valueLines[len(valueLines)-1]
-		valueLines[len(valueLines)-1] = truncateValue(last, maxValueWidth)
+	truncated := false
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+		truncated = true
+	}
+	if truncated && len(lines) > 0 {
+		lines[len(lines)-1] = withEllipsis(lines[len(lines)-1], maxValueWidth)
 	}
 
-	rendered := make([]string, 0, len(valueLines))
-	for i, vline := range valueLines {
-		var k string
+	var rendered []string
+	for i, v := range lines {
+		k := ""
 		if i == 0 {
 			k = keyStyle.Width(maxKeyWidth).Render(key)
 		} else {
-			// Continuation line: blank key column preserves alignment.
 			k = keyStyle.Width(maxKeyWidth).Render("")
 		}
 
-		if isHighlighted {
+		if highlighted {
 			gap := bottomBarHighlightedValueStyle.Render(" ")
-			rendered = append(rendered, k+gap+valueStyle.Width(maxValueWidth).Render(vline))
+			rendered = append(rendered, k+gap+valueStyle.Width(maxValueWidth).Render(v))
 		} else {
-			rendered = append(rendered, k+" "+valueStyle.Render(vline))
+			rendered = append(rendered, k+" "+valueStyle.Render(v))
 		}
 	}
 
-	return strings.Join(rendered, "\n")
+	if len(rendered) == 0 {
+		k := keyStyle.Width(maxKeyWidth).Render(key)
+		rendered = []string{k + " " + valueStyle.Width(maxValueWidth).Render("")}
+	}
+
+	return strings.Join(rendered, "\n"), len(rendered)
 }
 
-// ---- Text wrapping ----
+func (b *BottomBar) Up() {
+	if len(b.logs) == 0 {
+		return
+	}
+	if b.cursor == 0 {
+		b.cursor = len(b.logs) - 1
+		b.scrollToEnd()
+	} else {
+		b.cursor--
+		b.ensureCursorVisible()
+	}
+	b.updateAutoScroll()
+}
 
-// wrapText breaks text into lines of at most maxWidth visual columns,
-// splitting at character boundaries. Returns a single-element slice when
-// the text fits or maxWidth is non-positive.
+func (b *BottomBar) Down() {
+	if len(b.logs) == 0 {
+		return
+	}
+	if b.cursor == len(b.logs)-1 {
+		b.cursor = 0
+		b.top = 0
+	} else {
+		b.cursor++
+		b.ensureCursorVisible()
+	}
+	b.updateAutoScroll()
+}
+
+func (b *BottomBar) PageDown() {
+	if len(b.logs) == 0 {
+		return
+	}
+	if b.lastContentLines <= 0 || b.lastValueWidth <= 0 {
+		b.Down()
+		return
+	}
+
+	end := b.visibleEnd(b.top, b.lastValueWidth, b.lastContentLines)
+	if end >= len(b.logs) {
+		b.cursor = 0
+		b.top = 0
+		b.updateAutoScroll()
+		return
+	}
+
+	b.top = end
+	b.cursor = end
+	b.ensureCursorVisible()
+	b.updateAutoScroll()
+}
+
+func (b *BottomBar) PageUp() {
+	if len(b.logs) == 0 {
+		return
+	}
+	if b.lastContentLines <= 0 || b.lastValueWidth <= 0 {
+		b.Up()
+		return
+	}
+
+	if b.top == 0 {
+		b.cursor = len(b.logs) - 1
+		b.scrollToEnd()
+		b.updateAutoScroll()
+		return
+	}
+
+	newTop := b.top
+	used := 0
+	for newTop > 0 && used < b.lastContentLines {
+		prev := newTop - 1
+		h := wrappedLineCount(b.logs[prev].Value, b.lastValueWidth)
+		if used+h > b.lastContentLines && used > 0 {
+			break
+		}
+		used += min(h, b.lastContentLines-used)
+		newTop = prev
+	}
+
+	b.top = newTop
+	b.cursor = newTop
+	b.ensureCursorVisible()
+	b.updateAutoScroll()
+}
+
+func (b *BottomBar) ScrollToEnd() {
+	b.autoScroll = true
+	b.scrollToEnd()
+}
+
+func (b *BottomBar) updateAutoScroll() {
+	if len(b.logs) == 0 {
+		b.autoScroll = true
+		return
+	}
+	if b.cursor == len(b.logs)-1 {
+		b.autoScroll = true
+		b.scrollToEnd()
+		return
+	}
+	b.autoScroll = false
+}
+
+func (b *BottomBar) ensureCursorVisible() {
+	if len(b.logs) == 0 {
+		b.cursor = 0
+		b.top = 0
+		return
+	}
+
+	b.cursor = clamp(b.cursor, 0, len(b.logs)-1)
+	b.top = clamp(b.top, 0, len(b.logs)-1)
+
+	if b.cursor < b.top {
+		b.top = b.cursor
+		return
+	}
+
+	for b.cursor >= b.visibleEnd(b.top, b.lastValueWidth, b.lastContentLines) && b.top < len(b.logs)-1 {
+		b.top++
+	}
+}
+
+func (b *BottomBar) scrollToEnd() {
+	if len(b.logs) == 0 {
+		b.cursor = 0
+		b.top = 0
+		return
+	}
+	b.cursor = len(b.logs) - 1
+
+	if b.lastContentLines <= 0 || b.lastValueWidth <= 0 {
+		b.top = b.cursor
+		return
+	}
+
+	top := b.cursor
+	used := min(wrappedLineCount(b.logs[top].Value, b.lastValueWidth), b.lastContentLines)
+
+	for top > 0 && used < b.lastContentLines {
+		prev := top - 1
+		h := wrappedLineCount(b.logs[prev].Value, b.lastValueWidth)
+		if used+h > b.lastContentLines {
+			break
+		}
+		used += h
+		top = prev
+	}
+
+	b.top = top
+}
+
+func (b *BottomBar) visibleEnd(startIdx, maxValueWidth, contentLines int) int {
+	if len(b.logs) == 0 {
+		return 0
+	}
+	startIdx = clamp(startIdx, 0, len(b.logs)-1)
+
+	used := 0
+	i := startIdx
+	for i < len(b.logs) && used < contentLines {
+		remaining := contentLines - used
+		h := wrappedLineCount(b.logs[i].Value, maxValueWidth)
+		used += min(h, remaining)
+		i++
+	}
+	return i
+}
+
+func withEllipsis(line string, maxWidth int) string {
+	const marker = "..."
+	mw := runewidth.StringWidth(marker)
+	if maxWidth <= mw {
+		return marker[:max(0, maxWidth)]
+	}
+
+	target := maxWidth - mw
+	var b strings.Builder
+	w := 0
+	for _, r := range line {
+		rw := runewidth.RuneWidth(r)
+		if w+rw > target {
+			break
+		}
+		b.WriteRune(r)
+		w += rw
+	}
+	b.WriteString(marker)
+	return b.String()
+}
+
+// wrappedLineCount counts how many screen lines text occupies when wrapped at maxWidth.
+func wrappedLineCount(text string, maxWidth int) int {
+	if maxWidth <= 0 {
+		return 1
+	}
+	parts := strings.Split(text, "\n")
+	total := 0
+	for _, p := range parts {
+		w := runewidth.StringWidth(p)
+		if w == 0 {
+			total++
+			continue
+		}
+		total += (w + maxWidth - 1) / maxWidth
+	}
+	return max(total, 1)
+}
+
+// wrapText wraps text into multiple lines at maxWidth (preserving embedded newlines).
 func wrapText(text string, maxWidth int) []string {
-	if maxWidth <= 0 || lipgloss.Width(text) <= maxWidth {
+	if maxWidth <= 0 {
 		return []string{text}
 	}
 
-	runes := []rune(text)
-	var lines []string
-	start := 0
+	var out []string
+	for _, part := range strings.Split(text, "\n") {
+		out = append(out, wrapSingleLine(part, maxWidth)...)
+	}
+	if len(out) == 0 {
+		return []string{""}
+	}
+	return out
+}
 
-	for start < len(runes) {
+func wrapSingleLine(s string, maxWidth int) []string {
+	if runewidth.StringWidth(s) <= maxWidth {
+		return []string{s}
+	}
+
+	runes := []rune(s)
+	var lines []string
+
+	for start := 0; start < len(runes); {
+		w := 0
 		end := start
-		for end < len(runes) && lipgloss.Width(string(runes[start:end+1])) <= maxWidth {
+		for end < len(runes) {
+			rw := runewidth.RuneWidth(runes[end])
+			if w+rw > maxWidth && end > start {
+				break
+			}
+			w += rw
 			end++
-		}
-		if end == start {
-			// At least one rune per line to guarantee progress.
-			end = start + 1
+			if w >= maxWidth {
+				break
+			}
 		}
 		lines = append(lines, string(runes[start:end]))
 		start = end
 	}
 
 	return lines
-}
-
-// wrappedLineCount returns the number of visual lines needed to display
-// text within maxWidth columns, without allocating the line slices.
-func wrappedLineCount(text string, maxWidth int) int {
-	w := lipgloss.Width(text)
-	if maxWidth <= 0 || w <= maxWidth {
-		return 1
-	}
-	return (w + maxWidth - 1) / maxWidth
 }

@@ -145,13 +145,13 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Forward UI messages to children if not in filter mode.
 	if isUIMsg(msg) && !r.metricsGrid.IsFilterMode() && !r.leftSidebar.IsFilterMode() {
-		if s, c := r.leftSidebar.Update(msg); c != nil {
-			r.leftSidebar = s
-			cmds = append(cmds, c)
-		}
-		if rs, c := r.rightSidebar.Update(msg); c != nil {
-			r.rightSidebar = rs
-			cmds = append(cmds, c)
+		if _, ok := msg.(tea.KeyMsg); !ok {
+			if _, cmd := r.leftSidebar.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			if _, cmd := r.rightSidebar.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 	}
 
