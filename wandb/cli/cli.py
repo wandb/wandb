@@ -543,7 +543,7 @@ def init(ctx, project, entity, reset, mode):
 
 @cli.command(
     context_settings=CONTEXT,
-    help="""Upload local W&B run data to the cloud.
+    help="""Upload existing local W&B run data to the cloud.
 
     Sync offline or incomplete runs from the local `wandb` directory to
     the W&B server. If `PATH` is provided, sync runs at that path. If no
@@ -2966,7 +2966,13 @@ def ls(path, type):
                 )
 
 
-@artifact.group(help="Manage the local artifact cache.")
+@artifact.group(help="""Manage the local artifact cache.
+
+    Cache downloaded artifact files locally to avoid redundant downloads.
+
+    Use subcommands to inspect and reclaim disk space used by the cache.
+    """
+)
 def cache():
     pass
 
@@ -3008,7 +3014,8 @@ def cleanup(target_size, remove_temp):
     wandb.termlog(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
-@cli.command(context_settings=CONTEXT, help="""Download files from a W&B run.
+@cli.command(context_settings=CONTEXT,
+    help="""Download files from a W&B run.
 
     Fetch all files assoicated with the specified run. Skip files that already exist locally with the same content. Create subdirectories as needed to mirror the structure of the files in W&B.
              
@@ -3302,6 +3309,24 @@ def offline():
     """Save data logged to W&B locally without uploading it to the cloud.
 
     Use `wandb online` or `wandb sync` to upload offline runs.
+
+    Examples:
+
+    Run a script in offline mode to log data locally without syncing to the cloud
+
+    ```bash
+    wandb offline
+    python train.py  # Logs data locally, does not sync to W&B cloud
+    ```
+
+    Run a script in offline mode, then sync the run to the cloud when ready
+
+    ```bash
+    wandb offline
+    python train.py
+    wandb sync --sync-all  # Sync all offline runs to the cloud
+    ```
+
     """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
     system_settings.set("mode", "offline")
@@ -3358,13 +3383,39 @@ def status(settings):
         )
 
 
-@cli.command("disabled", help="Disable W&B.")
+@cli.command("disabled",
+    help="""Completely disable W&B.
+
+    Set the mode to `disable` to prevent all W&B functionality. Do not log
+    or sync data while disabled.
+
+    Use `wandb enable` to restore W&B functionality.
+
+    Use `wandb offline` to stop cloud syncing while continuning to log data
+    locally.
+
+    Examples:
+
+    Turn off W&B for scripts that don't need tracking
+
+    ```bash
+    wandb disabled
+    python train.py  # Does not log or sync data to W&B
+    ```
+
+    Restore W&B functionality when ready to log and sync again
+
+    ```bash
+    wandb enabled
+    ```
+    """
+    )
 @click.option(
     "--service",
     is_flag=True,
     show_default=True,
     default=True,
-    help="Disable W&B service",
+    help="No effect. Accepted for backwards compatibility.",
 )
 def disabled(service):
     system_settings = wandb_setup.singleton().settings.read_system_settings()
@@ -3374,13 +3425,35 @@ def disabled(service):
     click.echo("W&B disabled.")
 
 
-@cli.command("enabled", help="Enable W&B.")
+@cli.command("enabled",
+    help="""Re-enable W&B after it was deactivated.
+
+    Set the mode to `online` to restore full W&B functionality,
+    including cloud syncing and artifact storage.
+    
+    Undos a previous call to `wandb disabled`. Do not
+    upload data logged while W&B was set to `disabled`, but allow
+    new data to be logged and synced.
+
+    To switch between online and offline modes without fully deactivating W&B,
+    use ``wandb online`` or ``wandb offline`` instead.
+
+    Examples:
+
+    Restore W&B functionality after deactivating it with `wandb disabled`
+
+    ```bash
+    wandb enabled
+    python train.py # Log and sync data to W&B
+    ```
+    """
+    )
 @click.option(
     "--service",
     is_flag=True,
     show_default=True,
     default=True,
-    help="Enable W&B service",
+    help="No effect. Accepted for backwards compatibility.",
 )
 def enabled(service):
     system_settings = wandb_setup.singleton().settings.read_system_settings()
