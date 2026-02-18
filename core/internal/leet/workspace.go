@@ -510,9 +510,9 @@ func (w *Workspace) renderRunOverview() string {
 
 func (w *Workspace) renderMetrics() string {
 	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
-	metricsHeight := max(w.height-StatusBarHeight-w.bottomBar.Height(), 0)
+	contentHeight := max(w.height-StatusBarHeight-w.bottomBar.Height(), 0)
 
-	if contentWidth <= 0 || metricsHeight <= 0 {
+	if contentWidth <= 0 || contentHeight <= 0 {
 		return ""
 	}
 
@@ -530,7 +530,7 @@ func (w *Workspace) renderMetrics() string {
 
 		return lipgloss.Place(
 			contentWidth,
-			metricsHeight,
+			contentHeight,
 			lipgloss.Center,
 			lipgloss.Center,
 			logoContent,
@@ -538,7 +538,7 @@ func (w *Workspace) renderMetrics() string {
 	}
 
 	// When we have selected runs, render the metrics grid.
-	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, metricsHeight)
+	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
 	return w.metricsGrid.View(dims)
 }
 
