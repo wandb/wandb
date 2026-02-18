@@ -23,7 +23,7 @@ class ProjectArtifactCollectionsProject(GQLResult):
 
 
 class ProjectArtifactCollectionsProjectArtifactCollections(GQLResult):
-    total_count: int = Field(alias="totalCount")
+    total_count: Optional[int] = Field(alias="totalCount", default=None)
     page_info: PageInfoFragment = Field(alias="pageInfo")
     edges: List[ProjectArtifactCollectionsProjectArtifactCollectionsEdges]
 

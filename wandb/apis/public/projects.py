@@ -234,7 +234,7 @@ class Project(Attrs):
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
         per_page: int = 50,
-    ) -> public.ArtifactCollections:
+    ) -> public.ProjectArtifactCollections:
         """Returns all artifact collections associated with this project.
 
         Args:
@@ -245,7 +245,7 @@ class Project(Attrs):
             per_page: The number of artifact collections to fetch per page.
                 Default is 50.
         """
-        return public.ArtifactCollections(
+        return public.ProjectArtifactCollections(
             self.client,
             self.entity,
             self.name,

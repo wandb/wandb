@@ -314,7 +314,7 @@ query ProjectArtifactCollections($entity: String!, $project: String!, $cursor: S
       filters: $filters
       order: $order
     ) {
-      totalCount
+      totalCount @include(if: true)
       pageInfo {
         ...PageInfoFragment
       }

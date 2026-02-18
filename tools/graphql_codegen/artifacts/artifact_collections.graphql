@@ -120,7 +120,7 @@ query ProjectArtifactCollections(
       filters: $filters
       order: $order
     ) {
-      totalCount
+      totalCount @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
       pageInfo {
         ...PageInfoFragment
       }

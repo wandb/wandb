@@ -282,7 +282,6 @@ class ArtifactCollections(
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact collections.
         type_name: The name of the artifact type for which to fetch collections.
-            If not provided, collections across all types in the project are fetched.
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
             If you prepend order with a + order is ascending (default).
@@ -292,7 +291,7 @@ class ArtifactCollections(
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: Document  # Must be set per-instance
+    QUERY: ClassVar[Document | None] = None
     last_response: ArtifactCollectionConnection | None
 
     def __init__(
@@ -300,33 +299,25 @@ class ArtifactCollections(
         client: RetryingClient,
         entity: str,
         project: str,
-        type_name: str | None = None,
+        type_name: str,
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
         per_page: int = 50,
     ):
-        if type_name is None:
-            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
-
-            self.QUERY = gql(PROJECT_ARTIFACT_COLLECTIONS_GQL)
-        else:
+        if self.QUERY is None:
             from wandb.sdk.artifacts._generated import (
                 ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL,
             )
 
-            self.QUERY = gql(ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL)
+            type(self).QUERY = gql(ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL)
 
-        if not server_supports(client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
-            if type_name is None:
-                raise RuntimeError(
-                    "Fetching artifact collections by project is not supported on this wandb server version. "
-                    "Please upgrade your server version or contact support at support@wandb.com."
-                )
-            elif order is not None or filters is not None:
-                raise RuntimeError(
-                    "Filtering and ordering of artifact collections is not supported on this wandb server version. "
-                    "Please upgrade your server version or contact support at support@wandb.com."
-                )
+        if (order is not None or filters is not None) and not server_supports(
+            client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
+        ):
+            raise RuntimeError(
+                "Filtering and ordering of artifact collections is not supported on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
 
         self.entity = entity
         self.project = project
@@ -337,42 +328,123 @@ class ArtifactCollections(
             "entity": entity,
             "project": project,
             "type": type_name,
-            "filters": json.dumps(filters),
             "order": order,
+            "filters": json.dumps(filters),
         }
         super().__init__(client, variables=variables, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
-        from wandb.sdk.artifacts._generated import (
-            ArtifactTypeArtifactCollections,
-            ProjectArtifactCollections,
-        )
+        from wandb.sdk.artifacts._generated import ArtifactTypeArtifactCollections
         from wandb.sdk.artifacts._models.pagination import ArtifactCollectionConnection
 
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        if self.type_name is None:
-            result = ProjectArtifactCollections.model_validate(data)
-            if not ((proj := result.project) and (conn := proj.artifact_collections)):
-                raise ValueError(
-                    f"Unable to parse {nameof(type(self))!r} response data"
-                )
+        result = ArtifactTypeArtifactCollections.model_validate(data)
 
-            self.last_response = ArtifactCollectionConnection.model_validate(conn)
-        else:
-            result = ArtifactTypeArtifactCollections.model_validate(data)
-            # Extract the inner `*Connection` result for faster/easier access.
-            if not (
-                (proj := result.project)
-                and (artifact_type := proj.artifact_type)
-                and (conn := artifact_type.artifact_collections)
-            ):
-                raise ValueError(
-                    f"Unable to parse {nameof(type(self))!r} response data"
-                )
+        # Extract the inner `*Connection` result for faster/easier access.
+        if not (
+            (proj := result.project)
+            and (artifact_type := proj.artifact_type)
+            and (conn := artifact_type.artifact_collections)
+        ):
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-            self.last_response = ArtifactCollectionConnection.model_validate(conn)
+        self.last_response = ArtifactCollectionConnection.model_validate(conn)
+
+    def _convert(self, node: ArtifactCollectionFragment) -> ArtifactCollection | None:
+        if not node.project:
+            return None
+        return ArtifactCollection(
+            client=self.client,
+            entity=node.project.entity.name,
+            project=node.project.name,
+            name=node.name,
+            type=node.type.name,
+            attrs=node,
+        )
+
+
+class ProjectArtifactCollections(
+    SizedRelayPaginator["ArtifactCollectionFragment", "ArtifactCollection"]
+):
+    """Artifact collections in a project.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifact collections.
+        filters: Optional mapping of filters to apply to the query.
+        order: Optional string to specify the order of the results.
+            If you prepend order with a + order is ascending (default).
+            If you prepend order with a - order is descending.
+        per_page: The number of artifact collections to fetch per page. Default is 50.
+
+    <!-- lazydoc-ignore-init: internal -->
+    """
+
+    QUERY: ClassVar[Document | None] = None
+    last_response: ArtifactCollectionConnection | None
+
+    def __init__(
+        self,
+        client: RetryingClient,
+        entity: str,
+        project: str,
+        filters: Mapping[str, Any] | None = None,
+        order: str | None = None,
+        per_page: int = 50,
+    ):
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
+
+            omit_fields = (
+                None
+                if server_supports(client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING)
+                else {"totalCount"}
+            )
+
+            type(self).QUERY = gql_compat(
+                PROJECT_ARTIFACT_COLLECTIONS_GQL, omit_fields=omit_fields
+            )
+
+        if (order is not None or filters is not None) and not server_supports(
+            client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
+        ):
+            raise RuntimeError(
+                "Filtering and ordering of artifact collections is not supported on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
+
+        self.entity = entity
+        self.project = project
+        self.filters = filters
+        self.order = order
+        variables = {
+            "entity": entity,
+            "project": project,
+            "order": order,
+            "filters": json.dumps(filters),
+        }
+
+        super().__init__(client, variables=variables, per_page=per_page)
+
+    @override
+    def _update_response(self) -> None:
+        """Fetch and validate the response data for the current page."""
+        from wandb.sdk.artifacts._generated import ProjectArtifactCollections
+        from wandb.sdk.artifacts._models.pagination import (
+            ProjectArtifactCollectionConnection,
+        )
+
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        result = ProjectArtifactCollections.model_validate(data)
+
+        # Extract the inner `*Connection` result for faster/easier access.
+        if not ((proj := result.project) and (conn := proj.artifact_collections)):
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
+
+        self.last_response = ProjectArtifactCollectionConnection.model_validate(conn)
 
     def _convert(self, node: ArtifactCollectionFragment) -> ArtifactCollection | None:
         if not node.project:

@@ -141,9 +141,17 @@ def test_project_collections(api: Api):
         assert len(cols) == 2
         assert cols[0].name == "another-collection" and cols[1].name == "mnist"
     else:
+        # fetching all collections in the project should work, but length will be None
+        cols = project.collections()
+        names = {c.name for c in cols}
+        assert names == {"mnist", artifact_name}
+        with raises(NotImplementedError):
+            len(cols)
+
+        # fetching collections with filters/ordering should raise an error
         with raises(
             CommError,
-            match="Fetching artifact collections by project is not supported on this wandb server version.",
+            match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
         ):
             project.collections(filters={"name": "mnist"})
 

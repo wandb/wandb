@@ -15,6 +15,7 @@ from .._generated.fragments import (
 
 ArtifactTypeConnection = Connection[ArtifactTypeFragment]
 ArtifactCollectionConnection = ConnectionWithTotal[ArtifactCollectionFragment]
+ProjectArtifactCollectionConnection = Connection[ArtifactCollectionFragment]
 ArtifactMembershipConnection = Connection[ArtifactMembershipFragment]
 
 FileWithUrlConnection = Connection[FileWithUrlFragment]

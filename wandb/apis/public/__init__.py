@@ -4,6 +4,7 @@ __all__ = (
     "requests",  # doc:exclude
     "ArtifactCollection",
     "ArtifactCollections",
+    "ProjectArtifactCollections",
     "ArtifactFiles",
     "Artifacts",
     "ArtifactType",
@@ -51,6 +52,7 @@ from wandb.apis.public.artifacts import (
     Artifacts,
     ArtifactType,
     ArtifactTypes,
+    ProjectArtifactCollections,
     RunArtifacts,
 )
 from wandb.apis.public.automations import Automations
