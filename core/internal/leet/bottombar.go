@@ -149,7 +149,8 @@ func (b *BottomBar) renderContent(
 
 	for i := startIdx; i < endIdx && used < contentLines; i++ {
 		remaining := contentLines - used
-		entry, lines := b.renderEntry(b.logs[i], i == b.cursor && b.active, maxKeyWidth, maxValueWidth, remaining)
+		entry, lines := b.renderEntry(
+			b.logs[i], i == b.cursor && b.active, maxKeyWidth, maxValueWidth, remaining)
 		out = append(out, entry)
 		used += lines
 	}
