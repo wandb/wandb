@@ -185,6 +185,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		runfilesUploader:    runfilesUploader,
 		artifactsSaver: artifacts.NewArtifactSaveManager(
 			f.Logger,
+			f.FileStreamFactory.Printer,
 			f.GraphqlClient,
 			f.FileTransferManager,
 			f.FeatureProvider.GetFeature(
@@ -216,7 +217,7 @@ func (h *Sender) ResponseChan() <-chan *spb.Result {
 // Do processes all work on the input channel.
 func (s *Sender) Do(allWork <-chan runwork.Work) {
 	defer s.logger.Reraise()
-	s.logger.Info("sender: started", "stream_id", s.settings.GetRunID())
+	s.logger.Info("sender: started")
 
 	hangDetectionInChan := make(chan runwork.Work, 32)
 	hangDetectionOutChan := make(chan struct{}, 32)
@@ -225,11 +226,7 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	for work := range allWork {
 		hangDetectionInChan <- work
 
-		s.logger.Debug(
-			"sender: got work",
-			"work", work,
-			"stream_id", s.settings.GetRunID(),
-		)
+		s.logger.Debug("sender: got work", "work", work)
 
 		s.mu.Lock()
 		work.Process(s.sendRecord, s.outChan)
@@ -242,7 +239,7 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	close(hangDetectionOutChan)
 
 	s.Close()
-	s.logger.Info("sender: closed", "stream_id", s.settings.GetRunID())
+	s.logger.Info("sender: closed")
 }
 
 // warnOnLongOperations logs a warning for each message received
