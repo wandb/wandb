@@ -307,7 +307,8 @@ func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
 //
 // If the currently focused region will remain available, focus is left
 // unchanged. Otherwise it advances to the next available region.
-func (w *Workspace) resolveFocusAfterVisibilityChange(leftVisible, rightVisible, bottomVisible bool) {
+func (w *Workspace) resolveFocusAfterVisibilityChange(
+	leftVisible, rightVisible, bottomVisible bool) {
 	cur := w.currentFocusRegion()
 
 	// Build the future availability map from the post-toggle state.
