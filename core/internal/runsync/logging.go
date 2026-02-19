@@ -82,6 +82,6 @@ func NewSyncLogger(
 				logFile.Writer(),
 				&slog.HandlerOptions{Level: logLevel},
 			)),
-		sentry.CurrentHub(),
+		observability.NewSentryContext(sentry.CurrentHub()),
 	)
 }

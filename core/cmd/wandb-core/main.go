@@ -278,7 +278,7 @@ Flags:
 			logWriter,
 			&slog.HandlerOptions{Level: slog.Level(*logLevel)},
 		)),
-		sentry.CurrentHub(),
+		observability.NewSentryContext(sentry.CurrentHub()),
 	)
 
 	if *editConfig {

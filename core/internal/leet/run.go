@@ -95,7 +95,7 @@ func NewRun(
 	ch := make(chan tea.Msg, 4096)
 
 	ro := NewRunOverview()
-	runOverviewAnimState := NewAnimationState(cfg.LeftSidebarVisible(), SidebarMinWidth)
+	runOverviewAnimState := NewAnimatedValue(cfg.LeftSidebarVisible(), SidebarMinWidth)
 
 	metricsGrid := NewMetricsGrid(cfg, focus, logger)
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
@@ -267,11 +267,11 @@ func (r *Run) renderMainView() string {
 	totalSidebarWidth := leftWidth + rightWidth
 	if totalSidebarWidth >= r.width-minMainContentWidth {
 		if rightWidth > 0 {
-			r.rightSidebar.animState.currentWidth = 0
+			r.rightSidebar.animState.current = 0
 			rightWidth = 0
 		}
 		if leftWidth+minMainContentWidth >= r.width {
-			r.leftSidebar.animState.currentWidth = 0
+			r.leftSidebar.animState.current = 0
 			leftWidth = 0
 		}
 	}

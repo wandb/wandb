@@ -164,13 +164,9 @@ func (h *Handler) OutChan() <-chan runwork.Work {
 //gocyclo:ignore
 func (h *Handler) Do(allWork <-chan runwork.Work) {
 	defer h.logger.Reraise()
-	h.logger.Info("handler: started", "stream_id", h.settings.GetRunID())
+	h.logger.Info("handler: started")
 	for work := range allWork {
-		h.logger.Debug(
-			"handler: got work",
-			"work", work,
-			"stream_id", h.settings.GetRunID(),
-		)
+		h.logger.Debug("handler: got work", "work", work)
 
 		if work.Accept(h.handleRecord) {
 			h.fwdWork(work)
@@ -180,7 +176,7 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 }
 
 func (h *Handler) Close() {
-	h.logger.Info("handler: closed", "stream_id", h.settings.GetRunID())
+	h.logger.Info("handler: closed")
 	close(h.outChan)
 	close(h.fwdChan)
 }
