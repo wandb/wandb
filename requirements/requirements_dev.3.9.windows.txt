@@ -55,13 +55,13 @@ attrs==25.4.0
     #   referencing
 autoflake==2.3.1
     # via ariadne-codegen
-awscli==1.44.39
+awscli==1.44.43
     # via
     #   -r requirements/requirements_dev.txt
     #   wandb
 azure-containerregistry==1.2.0
     # via wandb
-azure-core==1.38.1
+azure-core==1.38.2
     # via
     #   azure-containerregistry
     #   azure-identity
@@ -86,12 +86,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.4.3
     # via -r requirements/requirements_dev.txt
-boto3==1.42.49
+boto3==1.42.53
     # via
     #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
-botocore==1.42.49
+botocore==1.42.53
     # via
     #   -r requirements/requirements_dev.txt
     #   awscli
@@ -102,7 +102,7 @@ cachetools==6.2.6
     # via
     #   dspy
     #   mlflow-skinny
-catboost==1.2.8
+catboost==1.2.10
     # via -r requirements/requirements_dev.txt
 certifi==2026.1.4
     # via
@@ -168,7 +168,7 @@ cryptography==46.0.5
     #   pyjwt
 cycler==0.12.1
     # via matplotlib
-databricks-sdk==0.88.0
+databricks-sdk==0.91.0
     # via mlflow-skinny
 datasets==2.14.4
     # via dspy
@@ -256,7 +256,7 @@ gitpython==3.1.46
     # via
     #   mlflow-skinny
     #   wandb
-google-api-core==2.29.0
+google-api-core==2.30.0
     # via
     #   google-cloud-aiplatform
     #   google-cloud-artifact-registry
@@ -987,7 +987,7 @@ rfc3986-validator==0.1.1
     #   jupyter-events
 rfc3987-syntax==1.1.0
     # via jsonschema
-rich==14.3.2
+rich==14.3.3
     # via keras
 rpds-py==0.27.1
     # via
@@ -1244,7 +1244,7 @@ websocket-client==1.9.0
     #   kubernetes
 websockets==14.2
     # via google-genai
-werkzeug==3.1.5
+werkzeug==3.1.6
     # via
     #   flask
     #   tensorboard
