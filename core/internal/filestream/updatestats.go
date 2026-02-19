@@ -1,11 +1,12 @@
 package filestream
 
 import (
-	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/wandb/simplejsonext"
 
+	"github.com/wandb/wandb/core/internal/observability/wberrors"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -28,8 +29,8 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 		val, err := simplejsonext.UnmarshalString(item.ValueJson)
 		if err != nil {
 			ctx.Logger.CaptureError(
-				fmt.Errorf("filestream: failed to marshal StatsItem: %v", err),
-				"key", item.Key,
+				wberrors.Enrichf(err, "filestream: failed to marshal StatsItem").
+					Attr(slog.String("key", item.Key)),
 			)
 			continue
 		}
@@ -48,11 +49,8 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	switch {
 	case err != nil:
 		// This is a non-blocking failure, so we don't return an error.
-		ctx.Logger.CaptureError(
-			fmt.Errorf(
-				"filestream: failed to marshal system metrics: %v",
-				err,
-			))
+		ctx.Logger.CaptureError(wberrors.Enrichf(err,
+			"filestream: failed to marshal system metrics"))
 	case len(line) > int(maxLineBytes):
 		// This is a non-blocking failure as well.
 		ctx.Logger.CaptureWarn(

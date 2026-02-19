@@ -1,13 +1,13 @@
 package filestream
 
 import (
-	"fmt"
 	"maps"
 	"slices"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observability/wberrors"
 	"github.com/wandb/wandb/core/internal/runsummary"
 )
 
@@ -199,16 +199,16 @@ func (s *FileStreamState) popSummary(
 
 		if err != nil {
 			// A partial success is possible, so we log and continue.
-			logger.CaptureError(
-				fmt.Errorf("filestream: error applying summary updates: %v", err))
+			logger.CaptureError(wberrors.Enrichf(err,
+				"filestream: error applying summary updates"))
 		}
 
 		summaryJSON, err := s.RunSummary.Serialize()
 		if err != nil {
 			// On error, we don't modify UnsentSummary so that we still upload
 			// a previous successfully-serialized value.
-			logger.CaptureError(
-				fmt.Errorf("filestream: failed to serialize summary: %v", err))
+			logger.CaptureError(wberrors.Enrichf(err,
+				"filestream: failed to serialize summary"))
 		} else {
 			s.UnsentSummary = string(summaryJSON)
 			s.LastRunSummarySize = len(summaryJSON)
