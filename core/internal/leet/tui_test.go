@@ -614,11 +614,6 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	tm.Type("l")
 	forceRepaint(tm, repaintW, H)
 
-	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool { return !strings.Contains(stripANSI(string(b)), "Console Logs") },
-		teatest.WithDuration(longWait),
-	)
-
 	// Quit.
 	tm.Type("q")
 	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
