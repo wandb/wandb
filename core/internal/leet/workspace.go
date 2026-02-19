@@ -31,7 +31,7 @@ type Workspace struct {
 	keyMap map[string]func(*Workspace, tea.KeyMsg) tea.Cmd
 
 	// Runs sidebar animation state.
-	runsAnimState *AnimationState
+	runsAnimState *AnimatedValue
 
 	// runs is the run selector.
 	runs         PagedList
@@ -108,11 +108,11 @@ func NewWorkspace(
 	hbInterval := cfg.HeartbeatInterval()
 	logger.Info(fmt.Sprintf("workspace: heartbeat interval set to %v", hbInterval))
 
-	runOverviewAnimState := NewAnimationState(true, SidebarMinWidth)
+	runOverviewAnimState := NewAnimatedValue(true, SidebarMinWidth)
 
 	// TODO: make sidebar visibility configurable.
 	return &Workspace{
-		runsAnimState: NewAnimationState(true, SidebarMinWidth),
+		runsAnimState: NewAnimatedValue(true, SidebarMinWidth),
 		wandbDir:      wandbDir,
 		config:        cfg,
 		keyMap:        buildKeyMap(WorkspaceKeyBindings()),
@@ -259,7 +259,7 @@ func (w *Workspace) recalculateLayout() {
 
 // computeViewports returns the computed layout dimensions.
 func (w *Workspace) computeViewports() Layout {
-	leftW, rightW := w.runsAnimState.Width(), w.runOverviewSidebar.Width()
+	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
 
 	contentW := max(w.width-leftW-rightW, 1)
 	contentH := max(w.height-StatusBarHeight, 1)
@@ -276,7 +276,7 @@ func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
 	} else {
 		leftWidth = int(float64(w.width) * SidebarWidthRatio)
 	}
-	w.runsAnimState.SetExpandedWidth(clamp(leftWidth, SidebarMinWidth, SidebarMaxWidth))
+	w.runsAnimState.SetExpanded(clamp(leftWidth, SidebarMinWidth, SidebarMaxWidth))
 	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
 }
 
@@ -410,7 +410,7 @@ func (w *Workspace) runOverviewActive() bool {
 func (w *Workspace) renderRunsList() string {
 	startIdx, endIdx := w.syncRunsPage()
 
-	sidebarW := w.runsAnimState.Width()
+	sidebarW := w.runsAnimState.Value()
 	sidebarH := max(w.height-StatusBarHeight, 0)
 	if sidebarW <= 1 || sidebarH <= 1 {
 		return ""
@@ -470,7 +470,7 @@ func (w *Workspace) renderRunOverview() string {
 }
 
 func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Width()-w.runOverviewSidebar.Width(), 0)
+	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
 	contentHeight := max(w.height-StatusBarHeight, 0)
 
 	if contentWidth <= 0 || contentHeight <= 0 {

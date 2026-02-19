@@ -28,7 +28,7 @@ const (
 // It handles presentation concerns: sections, filtering, navigation, layout, and rendering.
 // All data processing is delegated to the RunOverview model.
 type RunOverviewSidebar struct {
-	animState   *AnimationState
+	animState   *AnimatedValue
 	runOverview *RunOverview
 
 	// UI state: sections, filtering, navigation.
@@ -45,7 +45,7 @@ type RunOverviewSidebar struct {
 }
 
 func NewRunOverviewSidebar(
-	animState *AnimationState,
+	animState *AnimatedValue,
 	runOverview *RunOverview,
 	side SidebarSide,
 ) *RunOverviewSidebar {
@@ -151,7 +151,7 @@ func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
 
 // View renders the sidebar.
 func (s *RunOverviewSidebar) View(height int) string {
-	if s.animState.Width() <= 0 {
+	if s.animState.Value() <= 0 {
 		return ""
 	}
 
@@ -163,7 +163,7 @@ func (s *RunOverviewSidebar) View(height int) string {
 
 	if s.runOverview != nil {
 		headerLines := s.buildHeaderLines()
-		contentWidth := s.animState.Width() - s.contentPadding()
+		contentWidth := s.animState.Value() - s.contentPadding()
 		s.updateSectionHeights()
 		sectionLines := s.buildSectionLines(contentWidth)
 
@@ -175,16 +175,16 @@ func (s *RunOverviewSidebar) View(height int) string {
 	content := lipgloss.JoinVertical(lipgloss.Top, lines...)
 
 	styledContent := s.style().
-		Width(s.animState.Width()).
+		Width(s.animState.Value()).
 		Height(height).
-		MaxWidth(s.animState.Width()).
+		MaxWidth(s.animState.Value()).
 		MaxHeight(height).
 		Render(content)
 
 	return s.borderStyle().
-		Width(s.animState.Width() - 2).
+		Width(s.animState.Value() - 2).
 		Height(height + 1).
-		MaxWidth(s.animState.Width()).
+		MaxWidth(s.animState.Value()).
 		MaxHeight(height + 1).
 		Render(styledContent)
 }
@@ -239,12 +239,12 @@ func (s *RunOverviewSidebar) UpdateDimensions(terminalWidth int, oppositeSidebar
 	}
 
 	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
-	s.animState.SetExpandedWidth(expandedWidth)
+	s.animState.SetExpanded(expandedWidth)
 }
 
 // Width returns the current width of the sidebar.
 func (s *RunOverviewSidebar) Width() int {
-	return s.animState.Width()
+	return s.animState.Value()
 }
 
 // IsVisible returns true if the sidebar is visible.
