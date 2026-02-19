@@ -35,10 +35,6 @@ message ServerApiCleanupRequest {
   string id = 1;
 }
 
-message ServerApiCleanupResponse {
-  string error_message = 1;
-}
-
 // ApiResponse is a response from the backend process for an ApiRequest.
 message ApiResponse {
   oneof response {

@@ -122,21 +122,6 @@ class ServerApiCleanupRequest(google.protobuf.message.Message):
 global___ServerApiCleanupRequest = ServerApiCleanupRequest
 
 @typing.final
-class ServerApiCleanupResponse(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    ERROR_MESSAGE_FIELD_NUMBER: builtins.int
-    error_message: builtins.str
-    def __init__(
-        self,
-        *,
-        error_message: builtins.str = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["error_message", b"error_message"]) -> None: ...
-
-global___ServerApiCleanupResponse = ServerApiCleanupResponse
-
-@typing.final
 class ApiResponse(google.protobuf.message.Message):
     """ApiResponse is a response from the backend process for an ApiRequest."""
 

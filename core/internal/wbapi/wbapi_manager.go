@@ -6,8 +6,6 @@ import (
 )
 
 // WbApiManager is a manager for wandbAPI instances.
-// It is thread-safe and is used to ensure that
-// only one wandbAPI instance exists for a given streamId.
 type WbApiManager struct {
 	mu sync.Mutex
 
@@ -25,11 +23,10 @@ func NewWbApiManager() *WbApiManager {
 	}
 }
 
-// AddWandbAPI adds a wandbAPI instance to the mux if it doesn't already exist.
-// If the wandbAPI instance already exists, it returns an error.
+// AddWandbAPI creates a new WandbAPI instance and returns the id assigned to it.
 func (mgr *WbApiManager) AddWandbAPI(
 	wandbAPI *WandbAPI,
-) (string, error) {
+) string {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
 
@@ -37,10 +34,11 @@ func (mgr *WbApiManager) AddWandbAPI(
 	mgr.nextId++
 
 	mgr.apis[id] = wandbAPI
-	return id, nil
+	return id
 }
 
-// GetWandbAPI gets a wandbAPI instance from the mux.
+// GetWandbAPI gets a wandbAPI instance for the given id.
+//
 // If the wandbAPI instance does not exist, it returns an error.
 func (mgr *WbApiManager) GetWandbAPI(id string) (*WandbAPI, error) {
 	mgr.mu.Lock()
@@ -53,15 +51,17 @@ func (mgr *WbApiManager) GetWandbAPI(id string) (*WandbAPI, error) {
 	}
 }
 
-// RemoveWandbAPI removes a wandbAPI instance from the mux, and return it.
+// RemoveWandbAPI removes a wandbAPI instance for the given id from the mapping and returns it.
+//
 // If the wandbAPI instance does not exist, it returns an error.
-func (mgr *WbApiManager) RemoveWandbAPI(id string) (*WandbAPI, error) {
+func (mgr *WbApiManager) RemoveWandbAPI(id string) *WandbAPI {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
+
 	if wandbAPI, ok := mgr.apis[id]; !ok {
-		return nil, fmt.Errorf("wandbAPI not found")
+		return nil
 	} else {
 		delete(mgr.apis, id)
-		return wandbAPI, nil
+		return wandbAPI
 	}
 }

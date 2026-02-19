@@ -648,18 +648,7 @@ func (nc *Connection) handleSyncStatus(
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
 	wbapiInstance := wbapi.NewWandbAPI(s)
-	wbApiId, err := nc.apiManager.AddWandbAPI(wbapiInstance)
-	if err != nil {
-		nc.Respond(&spb.ServerResponse{
-			RequestId: id,
-			ServerResponseType: &spb.ServerResponse_ApiInitResponse{
-				ApiInitResponse: &spb.ServerApiInitResponse{
-					ErrorMessage: err.Error(),
-				},
-			},
-		})
-		return
-	}
+	wbApiId := nc.apiManager.AddWandbAPI(wbapiInstance)
 
 	nc.Respond(&spb.ServerResponse{
 		RequestId: id,
@@ -673,23 +662,7 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 
 // handleApiCleanup cleans up a wandbAPI instance related to the provided id.
 func (nc *Connection) handleApiCleanup(id string, request *spb.ServerApiCleanupRequest) {
-	streamId := request.GetId()
-	_, err := nc.apiManager.RemoveWandbAPI(streamId)
-	if err != nil {
-		nc.Respond(&spb.ServerResponse{
-			RequestId: id,
-			ServerResponseType: &spb.ServerResponse_ApiCleanupResponse{
-				ApiCleanupResponse: &spb.ServerApiCleanupResponse{
-					ErrorMessage: err.Error(),
-				},
-			},
-		})
-		return
-	}
-
-	nc.Respond(&spb.ServerResponse{
-		RequestId: id,
-	})
+	nc.apiManager.RemoveWandbAPI(request.GetId())
 }
 
 func (nc *Connection) handleApi(

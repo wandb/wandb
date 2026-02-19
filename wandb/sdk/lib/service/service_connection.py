@@ -171,10 +171,21 @@ class ServiceConnection:
             settings=settings,
         )
         request = spb.ServerRequest(api_init_request=api_init_request)
-        response = self._send_api_management_request(
-            request=request,
-            operation="initialize",
-        )
+        handle = self._asyncer.run(lambda: self._client.deliver(request))
+
+        try:
+            response = handle.wait_or(timeout=10)
+        except (MailboxClosedError, HandleAbandonedError):
+            raise WandbApiFailedError(
+                "Failed to initialize API resources:"
+                + " the service process is not running.",
+            ) from None
+        except TimeoutError:
+            raise WandbApiFailedError(
+                "Failed to initialize API resources:"
+                + " the service process is busy and did not respond in time.",
+            ) from None
+
         if response.api_init_response.error_message:
             raise WandbApiFailedError(response.api_init_response.error_message)
 
@@ -186,41 +197,7 @@ class ServiceConnection:
             id=api_id,
         )
         request = spb.ServerRequest(api_cleanup_request=api_cleanup_request)
-        response = self._send_api_management_request(
-            request=request,
-            operation="cleanup",
-        )
-        if response.api_cleanup_response.error_message:
-            raise WandbApiFailedError(response.api_cleanup_response.error_message)
-
-    def _send_api_management_request(
-        self,
-        request: spb.ServerRequest,
-        operation: str,
-    ) -> spb.ServerResponse:
-        """Helper method for API initialization and cleanup requests.
-
-        Args:
-            request: The ServerRequest to send.
-            operation: A description of the operation (e.g., "initialize", "cleanup").
-            response_getter: A function to extract the response from ServerResponse.
-        """
-        handle = self._asyncer.run(lambda: self._client.deliver(request))
-
-        try:
-            response = handle.wait_or(timeout=10)
-        except (MailboxClosedError, HandleAbandonedError):
-            raise WandbApiFailedError(
-                f"Failed to {operation} API resources:"
-                + " the service process is not running.",
-            ) from None
-        except TimeoutError:
-            raise WandbApiFailedError(
-                f"Failed to {operation} API resources:"
-                + " the service process is busy and did not respond in time.",
-            ) from None
-
-        return response
+        self._asyncer.run(lambda: self._client.publish(request))
 
     async def sync_status(
         self,
