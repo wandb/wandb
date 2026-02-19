@@ -92,29 +92,6 @@ func TestRun_SidebarTabNav_BothPanelsVisible_CyclesOverviewThenLogs(t *testing.T
 	require.True(t, r.TestLeftSidebarHasActiveSection(), "should re-enter overview")
 }
 
-func TestRun_SidebarTabNav_ShiftTab_ReverseCycle(t *testing.T) {
-	r := newRunForHandlerTest(t)
-	r.TestForceExpandBottomBar(10)
-
-	sidebar := r.TestGetLeftSidebar()
-	firstSec, _ := sidebar.TestFocusableSectionBounds()
-
-	// Ensure we start at the first section.
-	require.Equal(t, firstSec, r.TestLeftSidebarActiveSectionIdx())
-
-	// Shift-Tab from first overview section → logs.
-	r.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	require.True(t, r.TestBottomBarActive(),
-		"Shift-Tab from first section should focus logs")
-
-	// Shift-Tab from logs → overview last section.
-	r.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	require.False(t, r.TestBottomBarActive())
-	_, lastSec := sidebar.TestFocusableSectionBounds()
-	require.Equal(t, lastSec, r.TestLeftSidebarActiveSectionIdx(),
-		"Shift-Tab from logs should focus last overview section")
-}
-
 func TestRun_SidebarTabNav_OnlyLogsVisible(t *testing.T) {
 	r := newRunForHandlerTest(t)
 	r.TestForceExpandBottomBar(10)

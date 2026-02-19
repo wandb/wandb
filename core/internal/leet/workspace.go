@@ -302,23 +302,47 @@ func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
 	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
 }
 
-// resolveSidebarFocus ensures runs.Active reflects which sidebar should
-// receive keyboard input after a visibility change.
+// resolveFocusAfterVisibilityChange ensures focus stays on a valid region
+// after a panel visibility change.
 //
-// Rules:
-//   - Exactly one sidebar visible → that sidebar gets focus.
-//   - Both hidden → default to runs focus.
-//   - Both visible → keep current focus.
-func (w *Workspace) resolveSidebarFocus(leftVisible, rightVisible bool) {
-	switch {
-	case leftVisible && !rightVisible:
-		w.runs.Active = true
-	case !leftVisible && rightVisible:
-		w.runs.Active = false
-	case !leftVisible && !rightVisible:
-		w.runs.Active = true
-		// Both visible: preserve current focus.
+// If the currently focused region will remain available, focus is left
+// unchanged. Otherwise it advances to the next available region.
+func (w *Workspace) resolveFocusAfterVisibilityChange(leftVisible, rightVisible, bottomVisible bool) {
+	cur := w.currentFocusRegion()
+
+	// Build the future availability map from the post-toggle state.
+	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
+	avail := map[focusRegion]bool{
+		focusRuns:     leftVisible,
+		focusLogs:     bottomVisible,
+		focusOverview: rightVisible && firstSec != -1,
 	}
+
+	if avail[cur] {
+		return
+	}
+
+	// Current region is being collapsed — find the next available one.
+	curIdx := 0
+	for i, v := range focusOrder {
+		if v == cur {
+			curIdx = i
+			break
+		}
+	}
+
+	n := len(focusOrder)
+	for step := 1; step <= n; step++ {
+		nextIdx := ((curIdx + step) % n)
+		next := focusOrder[nextIdx]
+		if avail[next] {
+			w.setFocusRegion(next, 1)
+			return
+		}
+	}
+
+	// Nothing available — default to runs (it will show inactive styling).
+	w.setFocusRegion(focusRuns, 1)
 }
 
 // handleWindowResize handles window resize messages.
@@ -442,6 +466,13 @@ func (w *Workspace) runSelectorActive() bool {
 		!w.bottomBar.Active() &&
 		w.runsAnimState.IsVisible() &&
 		len(w.runs.FilteredItems) > 0
+}
+
+// RunSelectorActive reports whether the runs list sidebar is focused,
+// visible, and has items. Used by the top-level Model to gate Enter
+// (switch to single-run view) so it only fires when the run list owns focus.
+func (w *Workspace) RunSelectorActive() bool {
+	return w.runSelectorActive()
 }
 
 func (w *Workspace) runOverviewActive() bool {

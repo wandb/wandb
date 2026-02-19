@@ -163,7 +163,7 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
 	leftWillBeVisible := !w.runsAnimState.IsVisible()
 	rightIsVisible := w.runOverviewSidebar.IsVisible()
 
-	w.resolveSidebarFocus(leftWillBeVisible, rightIsVisible)
+	w.resolveFocusAfterVisibilityChange(leftWillBeVisible, rightIsVisible, w.bottomBar.IsExpanded())
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
 	w.recalculateLayout()
@@ -175,7 +175,7 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
 	rightWillBeVisible := !w.runOverviewSidebar.IsVisible()
 	leftIsVisible := w.runsAnimState.IsVisible()
 
-	w.resolveSidebarFocus(leftIsVisible, rightWillBeVisible)
+	w.resolveFocusAfterVisibilityChange(leftIsVisible, rightWillBeVisible, w.bottomBar.IsExpanded())
 	w.updateSidebarDimensions(leftIsVisible, rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
 	w.recalculateLayout()
@@ -184,13 +184,10 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleToggleBottomBar(msg tea.KeyMsg) tea.Cmd {
-	// If collapsing, return focus to runs list.
-	if w.bottomBar.IsExpanded() {
-		if w.bottomBar.Active() {
-			w.bottomBar.SetActive(false)
-			w.runs.Active = true
-		}
-	}
+	bottomWillBeVisible := !w.bottomBar.IsExpanded()
+
+	w.resolveFocusAfterVisibilityChange(
+		w.runsAnimState.IsExpanded(), w.runOverviewSidebar.IsExpanded(), bottomWillBeVisible)
 	w.bottomBar.UpdateExpandedHeight(max(w.height-StatusBarHeight, 0))
 	w.bottomBar.Toggle()
 	w.recalculateLayout()

@@ -69,10 +69,6 @@ func NewRunOverviewSidebar(
 // Toggle toggles the sidebar between expanded and collapsed states.
 func (s *RunOverviewSidebar) Toggle() {
 	s.animState.Toggle()
-
-	if s.animState.IsExpanding() {
-		s.selectFirstAvailableItem()
-	}
 }
 
 // Update handles animation and input updates for the sidebar.
@@ -151,7 +147,9 @@ func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
 
 // View renders the sidebar.
 func (s *RunOverviewSidebar) View(height int) string {
-	if s.animState.Value() <= 0 {
+	width := s.animState.Value()
+	// Avoid negative/degenerate widths during animation.
+	if width <= s.contentPadding() {
 		return ""
 	}
 
@@ -163,7 +161,7 @@ func (s *RunOverviewSidebar) View(height int) string {
 
 	if s.runOverview != nil {
 		headerLines := s.buildHeaderLines()
-		contentWidth := s.animState.Value() - s.contentPadding()
+		contentWidth := width - s.contentPadding()
 		s.updateSectionHeights()
 		sectionLines := s.buildSectionLines(contentWidth)
 
@@ -175,16 +173,16 @@ func (s *RunOverviewSidebar) View(height int) string {
 	content := lipgloss.JoinVertical(lipgloss.Top, lines...)
 
 	styledContent := s.style().
-		Width(s.animState.Value()).
+		Width(width).
 		Height(height).
-		MaxWidth(s.animState.Value()).
+		MaxWidth(width).
 		MaxHeight(height).
 		Render(content)
 
 	return s.borderStyle().
-		Width(s.animState.Value() - 2).
+		Width(width - sidebarVerticalBorderCols*2).
 		Height(height + 1).
-		MaxWidth(s.animState.Value()).
+		MaxWidth(width).
 		MaxHeight(height + 1).
 		Render(styledContent)
 }
@@ -255,6 +253,11 @@ func (s *RunOverviewSidebar) IsVisible() bool {
 // IsAnimating returns true if the sidebar is currently animating.
 func (s *RunOverviewSidebar) IsAnimating() bool {
 	return s.animState.IsAnimating()
+}
+
+// IsExpanded returns true if the sidebar is currently expanded.
+func (s *RunOverviewSidebar) IsExpanded() bool {
+	return s.animState.IsExpanded()
 }
 
 // SelectedItem returns the currently selected key-value pair.

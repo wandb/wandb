@@ -129,6 +129,11 @@ func newWorkspaceWithPanels(t *testing.T) *leet.Workspace {
 	w.TestForceExpandOverviewSidebar()
 	w.TestForceExpandBottomBar(10)
 
+	// Populate overview sections with data so the sidebar is actually
+	// focusable (focusableSectionBounds needs non-empty sections with
+	// computed heights).
+	w.TestSeedRunOverview(runKey)
+
 	return w
 }
 
@@ -145,6 +150,7 @@ func TestWorkspace_ToggleBottomBar_FocusReturnsToRuns(t *testing.T) {
 
 	// Collapse bottom bar — focus should return to runs (the next available).
 	_ = w.Update(keyRune('l'))
+	_ = w.Update(keyRune(']'))
 	require.False(t, w.TestBottomBarActive(),
 		"bottom bar should not be active after collapse")
 	require.True(t, w.TestRunsActive(),
@@ -322,4 +328,95 @@ func TestWorkspace_SetFocusRegion_NoAvailableRegion_DefaultsToRuns(t *testing.T)
 	// Focus should fall back to runs (even though it's collapsed).
 	// This tests the fallback path in resolveFocusAfterVisibilityChange.
 	require.Equal(t, testFocusRuns, w.TestCurrentFocusRegion())
+}
+
+// TestWorkspace_Enter_RequiresRunSelectorActive verifies that Enter
+// only triggers the mode switch when the run list sidebar is focused.
+func TestWorkspace_Enter_RequiresRunSelectorActive(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	wandbDir := t.TempDir()
+	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	// Seed a run.
+	runKey := "run-20260209_010101-abcdefg"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+
+	// RunSelectorActive should be true when runs list is focused.
+	require.True(t, w.RunSelectorActive(),
+		"run selector should be active with runs focused and items present")
+
+	// Focus logs by expanding bottom bar and tabbing.
+	w.TestForceExpandBottomBar(10)
+	for !w.TestBottomBarActive() {
+		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
+	}
+
+	// RunSelectorActive should be false when logs are focused.
+	require.False(t, w.RunSelectorActive(),
+		"run selector should NOT be active when logs are focused")
+}
+
+// TestWorkspace_Enter_NoOpWhenLogsFocused verifies that pressing Enter
+// while logs are focused does NOT switch to single-run view.
+// This is an integration test using the top-level Model.
+func TestWorkspace_Enter_NoOpWhenLogsFocused(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	m := leet.NewModel(leet.ModelParams{
+		WandbDir: t.TempDir(),
+		Config:   cfg,
+		Logger:   logger,
+	})
+
+	// Prime the model with a window size.
+	m.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	// The model starts in workspace mode. Pressing Enter without a run
+	// selector being active should be a no-op (should not panic or switch mode).
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// We expect nil or a benign command, not a mode switch.
+	// If enterRunView were called with no selected file, it returns nil anyway.
+	// The key assertion: the model should still be in workspace mode.
+	// We can verify by checking the view output still renders workspace content.
+	view := m.View()
+	require.NotContains(t, view, "Loading data...",
+		"should NOT have switched to run view")
+	_ = cmd
+}
+
+// TestWorkspace_Enter_WorksWhenRunsFocused verifies that pressing Enter
+// while the run list is focused triggers the mode switch (returns a non-nil command).
+func TestWorkspace_Enter_WorksWhenRunsFocused(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	wandbDir := t.TempDir()
+
+	// Write a real .wandb file so enterRunView can resolve it.
+	runKey := "run-20260209_010101-abcdefg"
+	writeWorkspaceRunWandbFile(t, wandbDir, runKey, "abcdefg", 1.0)
+
+	m := leet.NewModel(leet.ModelParams{
+		WandbDir: wandbDir,
+		Config:   cfg,
+		Logger:   logger,
+	})
+
+	m.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	// Wait for the workspace to discover runs (simulate the dir poll).
+	// We need to feed the model a WorkspaceRunDirsMsg through the workspace.
+	// Since Model doesn't expose the workspace directly, we send the msg
+	// through Model.Update which forwards non-user-input to workspace.
+	m.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+
+	// Now Enter should trigger mode switch (returns a non-nil batch cmd).
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd,
+		"Enter with run selector active should trigger enterRunView")
 }

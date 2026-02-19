@@ -134,9 +134,9 @@ func (rs *RightSidebar) View(height int) string {
 	content := lipgloss.JoinVertical(lipgloss.Left, header, metricsView)
 
 	styledContent := rightSidebarStyle.
-		Width(rs.animState.Value() - 1).
+		Width(rs.animState.Value() - sidebarVerticalBorderCols).
 		Height(height).
-		MaxWidth(rs.animState.Value() - 1).
+		MaxWidth(rs.animState.Value() - sidebarVerticalBorderCols).
 		MaxHeight(height).
 		Render(content)
 

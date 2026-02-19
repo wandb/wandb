@@ -8,7 +8,8 @@ package leet
 type runFocusRegion int
 
 const (
-	runFocusOverview runFocusRegion = iota
+	runFocusNone runFocusRegion = iota
+	runFocusOverview
 	runFocusLogs
 )
 
@@ -17,82 +18,107 @@ var runFocusOrder = []runFocusRegion{runFocusOverview, runFocusLogs}
 
 // currentRunFocusRegion returns which focusable region currently holds focus.
 func (r *Run) currentRunFocusRegion() runFocusRegion {
-	if r.bottomBar.Active() {
+	switch {
+	case r.bottomBar.Active():
 		return runFocusLogs
+	case r.leftSidebar.hasActiveSection():
+		return runFocusOverview
+	default:
+		return runFocusNone
 	}
-	return runFocusOverview
 }
 
-// runRegionAvailability returns which focus regions are currently usable.
-func (r *Run) runRegionAvailability() map[runFocusRegion]bool {
+// runRegionAvailability returns which regions are currently focusable.
+func (r *Run) runRegionAvailability() (overview, logs bool) {
 	firstSec, _ := r.leftSidebar.focusableSectionBounds()
-	return map[runFocusRegion]bool{
-		runFocusOverview: r.leftSidebar.animState.IsExpanded() && firstSec != -1,
-		runFocusLogs:     r.bottomBar.IsExpanded(),
+	overview = r.leftSidebar.animState.IsExpanded() && firstSec != -1
+	logs = r.bottomBar.IsExpanded()
+	return overview, logs
+}
+
+func runFocusRegionAvailable(region runFocusRegion, overviewAvail, logsAvail bool) bool {
+	switch region {
+	case runFocusOverview:
+		return overviewAvail
+	case runFocusLogs:
+		return logsAvail
+	default:
+		return false
 	}
+}
+
+func indexRunFocusRegion(order []runFocusRegion, region runFocusRegion) int {
+	for i, v := range order {
+		if v == region {
+			return i
+		}
+	}
+	return -1
 }
 
 // resolveRunFocusAfterVisibilityChange ensures focus stays on a valid region
-// after a panel visibility change.
-//
-// The caller passes the post-toggle visibility for each region. If the
-// currently focused region will remain available, focus is left unchanged.
-// Otherwise it advances to the next available region. When nothing is
-// available, all focus is cleared.
+// after a panel visibility change. It mirrors Workspace.resolveFocusAfterVisibilityChange
+// but is specialized for the single-run view (overview + logs).
 func (r *Run) resolveRunFocusAfterVisibilityChange(overviewVisible, logsVisible bool) {
 	cur := r.currentRunFocusRegion()
 
-	// Build the future availability map from the post-toggle state.
 	firstSec, _ := r.leftSidebar.focusableSectionBounds()
-	avail := map[runFocusRegion]bool{
-		runFocusOverview: overviewVisible && firstSec != -1,
-		runFocusLogs:     logsVisible,
-	}
-
-	if avail[cur] {
+	overviewAvail := overviewVisible && firstSec != -1
+	logsAvail := logsVisible
+	if runFocusRegionAvailable(cur, overviewAvail, logsAvail) {
 		return
 	}
 
-	// Current region is being collapsed — find the next available one.
-	curIdx := 0
-	for i, v := range runFocusOrder {
-		if v == cur {
-			curIdx = i
-			break
-		}
+	n := len(runFocusOrder)
+	if n == 0 {
+		r.clearAllRunFocus()
+		return
 	}
 
-	n := len(runFocusOrder)
+	// If nothing is focused, start from the beginning of the focus order.
+	// Using -1 means step=1 evaluates index 0 first.
+	curIdx := indexRunFocusRegion(runFocusOrder, cur)
+
+	// Current region is being collapsed — find the next available one.
 	for step := 1; step <= n; step++ {
 		next := runFocusOrder[(curIdx+step)%n]
-		if avail[next] {
+		if runFocusRegionAvailable(next, overviewAvail, logsAvail) {
 			r.setRunFocusRegion(next, 1)
 			return
 		}
 	}
 
-	// Nothing available — clear all focus.
+	// Nothing available — clear focus.
 	r.clearAllRunFocus()
 }
 
-// cycleRunFocusRegion moves focus to the next available region in the given
-// direction, wrapping around the focus order.
+// cycleRunFocusRegion cycles focus among available regions in the given direction.
 func (r *Run) cycleRunFocusRegion(cur runFocusRegion, direction int) {
-	avail := r.runRegionAvailability()
+	overviewAvail, logsAvail := r.runRegionAvailability()
 
-	curIdx := 0
-	for i, v := range runFocusOrder {
-		if v == cur {
-			curIdx = i
-			break
+	// Find current index in order.
+	n := len(runFocusOrder)
+	if n == 0 {
+		return
+	}
+
+	curIdx := indexRunFocusRegion(runFocusOrder, cur)
+	if curIdx == -1 {
+		// With no current focus, Tab should pick the first available region and
+		// Shift-Tab should pick the last.
+		if direction >= 0 {
+			curIdx = -1
+		} else {
+			curIdx = 0
 		}
 	}
 
-	n := len(runFocusOrder)
+	// Attempt each region in order.
 	for step := 1; step <= n; step++ {
-		nextIdx := ((curIdx+direction*step)%n + n) % n
+		nextIdx := curIdx + direction*step
+		nextIdx = ((nextIdx % n) + n) % n
 		next := runFocusOrder[nextIdx]
-		if avail[next] {
+		if runFocusRegionAvailable(next, overviewAvail, logsAvail) {
 			r.setRunFocusRegion(next, direction)
 			return
 		}

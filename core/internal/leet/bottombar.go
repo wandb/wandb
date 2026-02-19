@@ -9,10 +9,15 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
+// BottomBar layout constants.
 const (
+	// BottomBarHeightRatio controls the fraction of total terminal height
+	// allocated to the bottom bar when expanded. Uses the same golden-ratio
+	// derived value as the sidebar width.
 	BottomBarHeightRatio = SidebarWidthRatio
 
-	// Minimum *total* height: border + header + 1 content line.
+	// BottomBarMinHeight is the minimum total height for the bottom bar:
+	// border (1) + header (1) + at least 1 content line.
 	BottomBarMinHeight = 3
 
 	bottomBarHeader       = "Console Logs"
@@ -20,9 +25,18 @@ const (
 	bottomBarPaddingLines = 1
 	bottomBarHeaderLines  = 1
 
+	// bottomBarKeyWidthRatio is the fraction of the bar's width reserved
+	// for the timestamp key column.
 	bottomBarKeyWidthRatio = 0.12
 )
 
+// BottomBar is a collapsible, scrollable panel that displays console log
+// output below the main metrics area.
+//
+// It supports animated expand/collapse via [AnimatedValue], virtual
+// scrolling over wrapped log entries, auto-scroll to follow new output,
+// and manual navigation (up/down/page-up/page-down) that freezes
+// auto-scroll when the user moves away from the tail.
 type BottomBar struct {
 	animState *AnimatedValue
 
@@ -36,11 +50,14 @@ type BottomBar struct {
 	active     bool
 	autoScroll bool
 
-	// Cached layout params from most recent View().
+	// Cached layout params from the most recent [View] call, used by
+	// navigation methods (PageUp/PageDown) to compute page boundaries
+	// without re-deriving the layout.
 	lastValueWidth   int
 	lastContentLines int
 }
 
+// NewBottomBar returns a collapsed BottomBar with auto-scroll enabled.
 func NewBottomBar() *BottomBar {
 	return &BottomBar{
 		animState:  NewAnimatedValue(false, BottomBarMinHeight),
@@ -48,25 +65,44 @@ func NewBottomBar() *BottomBar {
 	}
 }
 
-func (b *BottomBar) Height() int               { return b.animState.Value() }
-func (b *BottomBar) IsVisible() bool           { return b.animState.IsVisible() }
-func (b *BottomBar) IsAnimating() bool         { return b.animState.IsAnimating() }
-func (b *BottomBar) IsExpanded() bool          { return b.animState.IsExpanded() }
-func (b *BottomBar) Toggle()                   { b.animState.Toggle() }
+// Height returns the current rendered height (may be mid-animation).
+func (b *BottomBar) Height() int { return b.animState.Value() }
+
+// IsVisible reports whether the bar occupies any screen space.
+func (b *BottomBar) IsVisible() bool { return b.animState.IsVisible() }
+
+// IsAnimating reports whether an expand/collapse animation is in progress.
+func (b *BottomBar) IsAnimating() bool { return b.animState.IsAnimating() }
+
+// IsExpanded reports whether the bar is stably at its expanded height.
+func (b *BottomBar) IsExpanded() bool { return b.animState.IsExpanded() }
+
+// Toggle initiates an expand or collapse animation.
+func (b *BottomBar) Toggle() { b.animState.Toggle() }
+
+// Update advances the animation by one frame. Returns true when complete.
 func (b *BottomBar) Update(now time.Time) bool { return b.animState.Update(now) }
 
-func (b *BottomBar) Active() bool          { return b.active }
+// Active reports whether the bottom bar currently holds keyboard focus.
+func (b *BottomBar) Active() bool { return b.active }
+
+// SetActive sets whether the bottom bar holds keyboard focus.
 func (b *BottomBar) SetActive(active bool) { b.active = active }
 
+// SetExpandedHeight sets the expanded height, clamped to [BottomBarMinHeight].
 func (b *BottomBar) SetExpandedHeight(h int) {
 	b.animState.SetExpanded(max(h, BottomBarMinHeight))
 }
 
+// UpdateExpandedHeight recalculates the expanded height from the terminal
+// height using [BottomBarHeightRatio].
 func (b *BottomBar) UpdateExpandedHeight(maxTerminalHeight int) {
 	maxHeight := int(float64(maxTerminalHeight) * BottomBarHeightRatio)
 	b.SetExpandedHeight(maxHeight)
 }
 
+// SetConsoleLogs replaces the displayed log entries and adjusts the
+// viewport. If auto-scroll is enabled, the view snaps to the tail.
 func (b *BottomBar) SetConsoleLogs(items []KeyValuePair) {
 	b.logs = items
 
@@ -87,6 +123,11 @@ func (b *BottomBar) SetConsoleLogs(items []KeyValuePair) {
 	}
 }
 
+// View renders the bottom bar at the given width.
+//
+// Returns an empty string when the bar is collapsed or the width is
+// insufficient. The rendered output includes the border, header with
+// range indicator, and wrapped/truncated log content.
 func (b *BottomBar) View(width int) string {
 	h := b.Height()
 	if width <= 0 || h < BottomBarMinHeight {
@@ -122,6 +163,7 @@ func (b *BottomBar) View(width int) string {
 	return bottomBarBorderStyle.Width(width).Height(innerH).Render(placed)
 }
 
+// renderHeader returns the "Console Logs [X-Y of N]" line.
 func (b *BottomBar) renderHeader(startIdx, endIdx, total int) string {
 	title := bottomBarHeaderStyle.Render(bottomBarHeader)
 
@@ -133,6 +175,8 @@ func (b *BottomBar) renderHeader(startIdx, endIdx, total int) string {
 	return title + navInfoStyle.Render(info)
 }
 
+// renderContent builds the visible log lines, padding with blank lines
+// if the content doesn't fill the available space.
 func (b *BottomBar) renderContent(
 	maxKeyWidth, maxValueWidth, contentLines, startIdx, endIdx int,
 ) string {
@@ -140,7 +184,11 @@ func (b *BottomBar) renderContent(
 		return ""
 	}
 	if len(b.logs) == 0 {
-		return strings.Repeat("\n", contentLines-1)
+		if contentLines <= 1 {
+			return bottomBarTimestampStyle.Render("No data.")
+		}
+		return bottomBarTimestampStyle.Render(
+			"No data." + strings.Repeat("\n", contentLines-1))
 	}
 
 	startIdx = clamp(startIdx, 0, len(b.logs)-1)
@@ -165,6 +213,9 @@ func (b *BottomBar) renderContent(
 	return lipgloss.JoinVertical(lipgloss.Left, out...)
 }
 
+// renderEntry renders a single log entry, wrapping the value and showing
+// the timestamp key only on the first line. If the entry exceeds maxLines,
+// it is truncated with an ellipsis.
 func (b *BottomBar) renderEntry(
 	item KeyValuePair, highlighted bool, maxKeyWidth, maxValueWidth, maxLines int) (string, int) {
 	keyStyle := bottomBarTimestampStyle
@@ -175,7 +226,7 @@ func (b *BottomBar) renderEntry(
 	}
 
 	key := truncateValue(item.Key, maxKeyWidth)
-	lines := wrapText(item.Value, maxValueWidth)
+	lines := WrapText(item.Value, maxValueWidth)
 
 	truncated := false
 	if len(lines) > maxLines {
@@ -183,12 +234,11 @@ func (b *BottomBar) renderEntry(
 		truncated = true
 	}
 	if truncated && len(lines) > 0 {
-		lines[len(lines)-1] = withEllipsis(lines[len(lines)-1], maxValueWidth)
+		lines[len(lines)-1] = WithEllipsis(lines[len(lines)-1], maxValueWidth)
 	}
 
 	var rendered []string
 	for i, v := range lines {
-		// Multi-line wrapping: print key only on the first line.
 		k := ""
 		if i == 0 {
 			k = keyStyle.Width(maxKeyWidth).Render(key)
@@ -197,7 +247,7 @@ func (b *BottomBar) renderEntry(
 		}
 
 		if highlighted {
-			gap := bottomBarHighlightedValueStyle.Render(string(unicodeSpace))
+			gap := bottomBarHighlightedValueStyle.Render(" ")
 			rendered = append(rendered, k+gap+valueStyle.Width(maxValueWidth).Render(v))
 		} else {
 			rendered = append(rendered, k+" "+valueStyle.Render(v))
@@ -212,6 +262,10 @@ func (b *BottomBar) renderEntry(
 	return strings.Join(rendered, "\n"), len(rendered)
 }
 
+// ---- Navigation ----
+
+// Up moves the cursor one entry toward the top, wrapping to the last
+// entry when at the beginning.
 func (b *BottomBar) Up() {
 	if len(b.logs) == 0 {
 		return
@@ -226,6 +280,8 @@ func (b *BottomBar) Up() {
 	b.updateAutoScroll()
 }
 
+// Down moves the cursor one entry toward the bottom, wrapping to the
+// first entry when at the end.
 func (b *BottomBar) Down() {
 	if len(b.logs) == 0 {
 		return
@@ -240,6 +296,8 @@ func (b *BottomBar) Down() {
 	b.updateAutoScroll()
 }
 
+// PageDown advances the viewport by one screenful, wrapping to the top
+// when past the end.
 func (b *BottomBar) PageDown() {
 	if len(b.logs) == 0 {
 		return
@@ -263,6 +321,8 @@ func (b *BottomBar) PageDown() {
 	b.updateAutoScroll()
 }
 
+// PageUp moves the viewport back by one screenful, wrapping to the end
+// when before the start.
 func (b *BottomBar) PageUp() {
 	if len(b.logs) == 0 {
 		return
@@ -297,11 +357,17 @@ func (b *BottomBar) PageUp() {
 	b.updateAutoScroll()
 }
 
+// ScrollToEnd snaps the viewport to show the last log entry and
+// re-enables auto-scroll.
 func (b *BottomBar) ScrollToEnd() {
 	b.autoScroll = true
 	b.scrollToEnd()
 }
 
+// ---- Internal scrolling ----
+
+// updateAutoScroll enables auto-scroll when the cursor is on the last
+// entry, and disables it otherwise.
 func (b *BottomBar) updateAutoScroll() {
 	if len(b.logs) == 0 {
 		b.autoScroll = true
@@ -315,6 +381,8 @@ func (b *BottomBar) updateAutoScroll() {
 	b.autoScroll = false
 }
 
+// ensureCursorVisible adjusts top so that the cursor entry is within the
+// visible window.
 func (b *BottomBar) ensureCursorVisible() {
 	if len(b.logs) == 0 {
 		b.cursor = 0
@@ -336,6 +404,7 @@ func (b *BottomBar) ensureCursorVisible() {
 	}
 }
 
+// scrollToEnd positions the viewport so the last entry is at the bottom.
 func (b *BottomBar) scrollToEnd() {
 	if len(b.logs) == 0 {
 		b.cursor = 0
@@ -365,6 +434,9 @@ func (b *BottomBar) scrollToEnd() {
 	b.top = top
 }
 
+// visibleEnd returns the exclusive end index of log entries that fit
+// within contentLines screen rows starting from startIdx, accounting
+// for line wrapping.
 func (b *BottomBar) visibleEnd(startIdx, maxValueWidth, contentLines int) int {
 	if len(b.logs) == 0 {
 		return 0
@@ -382,7 +454,11 @@ func (b *BottomBar) visibleEnd(startIdx, maxValueWidth, contentLines int) int {
 	return i
 }
 
-func withEllipsis(line string, maxWidth int) string {
+// ---- Text utilities ----
+
+// WithEllipsis truncates line so that the visible width including a
+// trailing "..." marker fits within maxWidth.
+func WithEllipsis(line string, maxWidth int) string {
 	const marker = "..."
 	mw := runewidth.StringWidth(marker)
 	if maxWidth <= mw {
@@ -404,7 +480,8 @@ func withEllipsis(line string, maxWidth int) string {
 	return b.String()
 }
 
-// wrappedLineCount counts how many screen lines text occupies when wrapped at maxWidth.
+// wrappedLineCount counts how many screen lines text occupies when
+// soft-wrapped at maxWidth. Embedded newlines are respected.
 func wrappedLineCount(text string, maxWidth int) int {
 	if maxWidth <= 0 {
 		return 1
@@ -422,14 +499,15 @@ func wrappedLineCount(text string, maxWidth int) int {
 	return max(total, 1)
 }
 
-// wrapText wraps text into multiple lines at maxWidth (preserving embedded newlines).
-func wrapText(text string, maxWidth int) []string {
+// WrapText soft-wraps text into multiple lines at maxWidth, preserving
+// embedded newlines.
+func WrapText(text string, maxWidth int) []string {
 	if maxWidth <= 0 {
 		return []string{text}
 	}
 
 	var out []string
-	for part := range strings.SplitSeq(text, "\n") {
+	for _, part := range strings.Split(text, "\n") {
 		out = append(out, wrapSingleLine(part, maxWidth)...)
 	}
 	if len(out) == 0 {
@@ -438,6 +516,8 @@ func wrapText(text string, maxWidth int) []string {
 	return out
 }
 
+// wrapSingleLine breaks a single line (no embedded newlines) into
+// chunks that each fit within maxWidth display columns.
 func wrapSingleLine(s string, maxWidth int) []string {
 	if runewidth.StringWidth(s) <= maxWidth {
 		return []string{s}

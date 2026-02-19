@@ -271,12 +271,17 @@ func (r *Run) endAnimating() {
 	r.animationMu.Unlock()
 }
 
+// handleToggleLeftSidebar toggles the left overview sidebar and resolves
+// focus so a collapsing sidebar loses focus and an expanding sidebar
+// gains it when nothing else is focused.
 func (r *Run) handleToggleLeftSidebar(msg tea.KeyMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
 	}
 
 	leftWillBeVisible := !r.leftSidebar.IsVisible()
+
+	r.resolveRunFocusAfterVisibilityChange(leftWillBeVisible, r.bottomBar.IsExpanded())
 
 	if err := r.config.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
@@ -441,10 +446,18 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 	return nil
 }
 
+// handleToggleBottomBar toggles the console logs bottom bar and resolves
+// focus so a collapsing bar loses focus and an expanding bar gains it
+// when nothing else is focused.
 func (r *Run) handleToggleBottomBar(msg tea.KeyMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
 	}
+
+	bottomWillBeVisible := !r.bottomBar.IsExpanded()
+
+	r.resolveRunFocusAfterVisibilityChange(
+		r.leftSidebar.animState.IsExpanded(), bottomWillBeVisible)
 
 	r.bottomBar.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
 	r.bottomBar.Toggle()
@@ -563,56 +576,25 @@ func (r *Run) handleFileChange() []tea.Cmd {
 	}
 }
 
+// handleSidebarTabNav cycles focus between overview sections and the
+// console logs bar, mirroring the workspace's Tab cycling pattern.
+//
+// Within the overview region, Tab first cycles through sections. At the
+// boundary, it moves to the next available region.
 func (r *Run) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
 	direction := 1
 	if msg.Type == tea.KeyShiftTab {
 		direction = -1
 	}
 
-	logsAvail := r.bottomBar.IsExpanded()
-	firstSec, lastSec := r.leftSidebar.focusableSectionBounds()
-	overviewAvail := r.leftSidebar.animState.IsExpanded() && firstSec != -1
+	cur := r.currentRunFocusRegion()
 
-	// If logs aren't visible, cycle overview sections.
-	if !logsAvail {
-		if overviewAvail {
-			r.leftSidebar.navigateSection(direction)
-		}
+	// Try cycling within overview sections before leaving the region.
+	if cur == runFocusOverview && r.cycleRunOverviewSection(direction) {
 		return nil
 	}
 
-	// Logs focused -> go to overview.
-	if r.bottomBar.Active() {
-		r.bottomBar.SetActive(false)
-		if overviewAvail {
-			if direction == 1 {
-				r.leftSidebar.setActiveSection(firstSec)
-			} else {
-				r.leftSidebar.setActiveSection(lastSec)
-			}
-		}
-		return nil
-	}
-
-	// Overview focused -> exit to logs at boundaries, else cycle sections.
-	if !overviewAvail {
-		r.leftSidebar.deactivateAllSections()
-		r.bottomBar.SetActive(true)
-		return nil
-	}
-
-	if direction == 1 && r.leftSidebar.activeSection == lastSec {
-		r.leftSidebar.deactivateAllSections()
-		r.bottomBar.SetActive(true)
-		return nil
-	}
-	if direction == -1 && r.leftSidebar.activeSection == firstSec {
-		r.leftSidebar.deactivateAllSections()
-		r.bottomBar.SetActive(true)
-		return nil
-	}
-
-	r.leftSidebar.navigateSection(direction)
+	r.cycleRunFocusRegion(cur, direction)
 	return nil
 }
 

@@ -104,6 +104,11 @@ const (
 	// Sidebar content padding (accounts for borders and internal spacing).
 	rightSidebarContentPadding = 3
 
+	// sidebarVerticalBorderCols is the width (in terminal columns)
+	// consumed by a sidebar's vertical border.
+	// Both LeftBorder and RightBorder draw a single vertical rule.
+	sidebarVerticalBorderCols = 1
+
 	// Default grid height for system metrics when not calculated from terminal height.
 	defaultSystemMetricsGridHeight = 40
 
@@ -384,7 +389,7 @@ var (
 
 // Right sidebar styles.
 var (
-	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
+	rightSidebarStyle       = lipgloss.NewStyle().PaddingLeft(1)
 	rightSidebarBorderStyle = lipgloss.NewStyle().
 				Border(LeftBorder).
 				BorderForeground(colorLayout).
