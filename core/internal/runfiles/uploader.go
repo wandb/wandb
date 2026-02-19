@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
@@ -59,7 +59,7 @@ type uploader struct {
 
 func newUploader(
 	f *UploaderFactory,
-	batchDelay waiting.Delay,
+	batchDelay time.Duration,
 	extraWork runwork.ExtraWork,
 	fileStream filestream.FileStream,
 ) *uploader {
