@@ -9,7 +9,6 @@ aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.13.3
     # via
-    #   datasets
     #   fsspec
     #   kubernetes-asyncio
     #   litellm
@@ -19,6 +18,8 @@ alembic==1.16.5
     # via
     #   mlflow
     #   optuna
+annotated-doc==0.0.4
+    # via typer
 annotated-types==0.7.0
     # via pydantic
 anyio==4.12.1
@@ -55,13 +56,13 @@ attrs==25.4.0
     #   referencing
 autoflake==2.3.1
     # via ariadne-codegen
-awscli==1.44.39
+awscli==1.44.43
     # via
     #   -r requirements/requirements_dev.txt
     #   wandb
 azure-containerregistry==1.2.0
     # via wandb
-azure-core==1.38.1
+azure-core==1.38.2
     # via
     #   azure-containerregistry
     #   azure-identity
@@ -86,12 +87,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.4.3
     # via -r requirements/requirements_dev.txt
-boto3==1.42.49
+boto3==1.42.53
     # via
     #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
-botocore==1.42.49
+botocore==1.42.53
     # via
     #   -r requirements/requirements_dev.txt
     #   awscli
@@ -102,7 +103,7 @@ cachetools==6.2.6
     # via
     #   dspy
     #   mlflow-skinny
-catboost==1.2.8
+catboost==1.2.10
     # via -r requirements/requirements_dev.txt
 certifi==2026.1.4
     # via
@@ -129,11 +130,13 @@ click==8.1.8
     #   flask
     #   litellm
     #   mlflow-skinny
+    #   typer
     #   uvicorn
     #   wandb
 cloudpickle==3.1.2
     # via
     #   -r requirements/requirements_dev.txt
+    #   dspy
     #   gymnasium
     #   mlflow-skinny
     #   stable-baselines3
@@ -168,9 +171,9 @@ cryptography==46.0.5
     #   pyjwt
 cycler==0.12.1
     # via matplotlib
-databricks-sdk==0.88.0
+databricks-sdk==0.91.0
     # via mlflow-skinny
-datasets==2.14.4
+datasets==4.0.0
     # via dspy
 debugpy==1.8.20
     # via ipykernel
@@ -180,7 +183,7 @@ decorator==4.4.2
     #   moviepy
 defusedxml==0.7.1
     # via nbconvert
-dill==0.3.7
+dill==0.3.8
     # via
     #   datasets
     #   multiprocess
@@ -196,7 +199,7 @@ docstring-parser==0.17.0
     # via google-cloud-aiplatform
 docutils==0.19
     # via awscli
-dspy==2.5.42
+dspy==2.6.13
     # via -r requirements/requirements_dev.txt
 durationpy==0.10
     # via kubernetes
@@ -222,9 +225,12 @@ fastapi==0.115.14
     #   mlflow-skinny
 fastjsonschema==2.21.2
     # via nbformat
+fastuuid==0.14.0
+    # via litellm
 filelock==3.19.1
     # via
     #   -r requirements/requirements_dev.txt
+    #   datasets
     #   huggingface-hub
     #   torch
 flask==2.3.3
@@ -241,7 +247,7 @@ frozenlist==1.8.0
     # via
     #   aiohttp
     #   aiosignal
-fsspec==2025.10.0
+fsspec==2025.3.0
     # via
     #   datasets
     #   huggingface-hub
@@ -256,7 +262,7 @@ gitpython==3.1.46
     # via
     #   mlflow-skinny
     #   wandb
-google-api-core==2.29.0
+google-api-core==2.30.0
     # via
     #   google-cloud-aiplatform
     #   google-cloud-artifact-registry
@@ -365,10 +371,11 @@ httpx==0.27.2
     # via
     #   -r requirements/requirements_test.txt
     #   ariadne-codegen
-    #   dspy
+    #   huggingface-hub
     #   jupyterlab
+    #   litellm
     #   openai
-huggingface-hub==0.36.2
+huggingface-hub==1.4.1
     # via
     #   datasets
     #   tokenizers
@@ -548,7 +555,7 @@ lightning-utilities==0.15.2
     #   lightning
     #   pytorch-lightning
     #   torchmetrics
-litellm==1.51.0
+litellm==1.81.13
     # via dspy
 magicattr==0.1.6
     # via dspy
@@ -604,7 +611,7 @@ multidict==6.7.1
     # via
     #   aiohttp
     #   yarl
-multiprocess==0.70.15
+multiprocess==0.70.16
     # via datasets
 mypy-extensions==1.1.0
     # via black
@@ -958,10 +965,8 @@ requests==2.32.5
     #   google-cloud-bigquery
     #   google-cloud-storage
     #   google-genai
-    #   huggingface-hub
     #   jupyterlab-server
     #   kubernetes
-    #   litellm
     #   metaflow
     #   mlflow-skinny
     #   moviepy
@@ -987,8 +992,10 @@ rfc3986-validator==0.1.1
     #   jupyter-events
 rfc3987-syntax==1.1.0
     # via jsonschema
-rich==14.3.2
-    # via keras
+rich==14.3.3
+    # via
+    #   keras
+    #   typer
 rpds-py==0.27.1
     # via
     #   jsonschema
@@ -1028,6 +1035,10 @@ setuptools==82.0.0
     #   tensorflow
 shapely==2.0.7
     # via google-cloud-aiplatform
+shellingham==1.5.4
+    # via
+    #   huggingface-hub
+    #   typer
 six==1.17.0
     # via
     #   astunparse
@@ -1153,6 +1164,10 @@ traitlets==5.14.3
     #   nbclient
     #   nbconvert
     #   nbformat
+typer==0.23.2
+    # via typer-slim
+typer-slim==0.23.2
+    # via huggingface-hub
 types-pyyaml==6.0.12.20250915
     # via responses
 typing-extensions==4.15.0
@@ -1244,7 +1259,7 @@ websocket-client==1.9.0
     #   kubernetes
 websockets==14.2
     # via google-genai
-werkzeug==3.1.5
+werkzeug==3.1.6
     # via
     #   flask
     #   tensorboard
