@@ -14,6 +14,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observability/wberrors"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -219,7 +220,8 @@ func (fs *fileStream) StreamUpdate(update Update) {
 	defer fs.mu.Unlock()
 
 	if fs.isFinished {
-		fs.logger.CaptureError(fmt.Errorf("filestream: StreamUpdate after Finish"))
+		fs.logger.CaptureError(
+			wberrors.Newf("filestream: StreamUpdate after Finish"))
 		return
 	}
 
@@ -259,7 +261,7 @@ func (fs *fileStream) IsStopped() bool { return fs.stopState.Load() }
 // when we can't guarantee correctness, in which case we stop uploading
 // data but continue to save it to disk to avoid data loss.
 func (fs *fileStream) logFatalAndStopWorking(err error) {
-	fs.logger.CaptureFatal(fmt.Errorf("filestream: fatal error: %v", err))
+	fs.logger.CaptureFatal(wberrors.Enrichf(err, "filestream: fatal error"))
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
 		fs.printer.Errorf(

@@ -1,9 +1,10 @@
 package filestream
 
 import (
-	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/observability/wberrors"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -19,21 +20,16 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 	for _, item := range u.Record.Item {
 		err := rh.SetFromRecord(item)
 		if err != nil {
-
 			ctx.Logger.CaptureError(
-				fmt.Errorf(
-					"filestream: failed to apply history record: %v",
-					err,
-				),
-				"key", item.Key,
-				"nested_key", item.NestedKey,
+				wberrors.Enrichf(err, "filestream: failed to apply history").
+					Attr(slog.String("key", item.Key)).
+					Attr(slog.Any("nested_key", item.NestedKey)), // TODO: check
 			)
 		}
 	}
 	line, err := rh.ToExtendedJSON()
 	if err != nil {
-		return fmt.Errorf(
-			"filestream: failed to serialize history: %v", err)
+		return wberrors.Enrichf(err, "filestream: failed to serialize history")
 	}
 
 	// Override the default max line length if the user has set a custom value.

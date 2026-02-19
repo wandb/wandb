@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/observability/wberrors"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
@@ -126,12 +128,12 @@ func (fs *fileStream) send(
 ) error {
 	// Stop working after death to avoid data corruption.
 	if fs.isDead() {
-		return fmt.Errorf("filestream: can't send because I am dead")
+		return wberrors.Newf("filestream: can't send because I am dead")
 	}
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
+		return wberrors.Enrichf(err, "filestream: json marshal error in send()")
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
@@ -145,7 +147,7 @@ func (fs *fileStream) send(
 		bytes.NewReader(jsonData),
 	)
 	if err != nil {
-		return fmt.Errorf("filestream: error constructing request: %v", err)
+		return wberrors.Enrichf(err, "filestream: error constructing request")
 	}
 	req.Header.Set("Content-Type", "application/json")
 
@@ -153,37 +155,32 @@ func (fs *fileStream) send(
 
 	switch {
 	case err != nil:
-		return fmt.Errorf(
-			"filestream: error making HTTP request: %v. got response: %v",
-			err,
-			resp,
-		)
+		return wberrors.Enrichf(err, "filestream: error making HTTP request")
+
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
 		_ = resp.Body.Close()
 
-		return fmt.Errorf(
-			"filestream: failed to upload: %v url=%v: %s",
-			resp.Status,
-			req.URL,
-			string(body),
-		)
+		return wberrors.Newf("filestream: failed to upload").
+			Attr(slog.String("status", resp.Status)).
+			Attr(slog.String("url", req.URL.String())).
+			Attr(slog.String("response", string(body)))
 	}
 
 	defer func(Body io.ReadCloser) {
 		if err = Body.Close(); err != nil {
-			fs.logger.CaptureError(
-				fmt.Errorf("filestream: error closing response body: %v", err))
+			fs.logger.CaptureError(wberrors.Enrichf(err,
+				"filestream: error closing response body"))
 		}
 	}(resp.Body)
 
 	var res map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
-		fs.logger.CaptureError(
-			fmt.Errorf("filestream: json decode error: %v", err))
+		fs.logger.CaptureError(wberrors.Enrichf(err,
+			"filestream: json decode error"))
 	}
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)
