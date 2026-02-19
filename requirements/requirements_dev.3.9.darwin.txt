@@ -55,7 +55,7 @@ attrs==25.4.0
     #   referencing
 autoflake==2.3.1
     # via ariadne-codegen
-awscli==1.44.38
+awscli==1.44.39
     # via wandb
 azure-containerregistry==1.2.0
     # via wandb
@@ -84,12 +84,12 @@ blinker==1.9.0
     # via flask
 bokeh==3.4.3
     # via -r requirements/requirements_dev.txt
-boto3==1.42.48
+boto3==1.42.49
     # via
     #   -r requirements/requirements_dev.txt
     #   metaflow
     #   wandb
-botocore==1.42.48
+botocore==1.42.49
     # via
     #   -r requirements/requirements_dev.txt
     #   awscli
@@ -647,7 +647,7 @@ numpy==1.26.4
     #   xgboost
 oauthlib==3.3.1
     # via requests-oauthlib
-openai==2.20.0
+openai==2.21.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -1004,7 +1004,7 @@ scipy==1.13.1
     #   xgboost
 send2trash==2.1.0
     # via jupyter-server
-sentry-sdk==2.52.0
+sentry-sdk==2.53.0
     # via wandb
 setuptools==82.0.0
     # via
@@ -1204,7 +1204,7 @@ uvicorn==0.32.1
     #   ray
 uvloop==0.22.1
     # via uvicorn
-virtualenv==20.36.1
+virtualenv==20.37.0
     # via ray
 .
     # via -r requirements/requirements_dev.txt

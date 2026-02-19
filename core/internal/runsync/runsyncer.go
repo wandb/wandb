@@ -144,6 +144,17 @@ func (rs *RunSyncer) Sync(ctx context.Context) error {
 		return nil
 	})
 
+	// Consume the Sender's output channel to prevent it from blocking.
+	//
+	// This is one of the expectations of using the Sender, but we don't
+	// currently process the responses. The channel closes when `sender.Do()`
+	// finishes.
+	g.Go(func() error {
+		for range rs.sender.ResponseChan() {
+		}
+		return nil
+	})
+
 	err := g.Wait()
 	if err != nil {
 		return err

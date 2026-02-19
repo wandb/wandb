@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,6 @@ import (
 	. "github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watchertest"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -74,7 +74,7 @@ func TestUploader(t *testing.T) {
 	var uploader Uploader
 
 	// Optional batch delay to use in the uploader.
-	var batchDelay *waitingtest.FakeDelay
+	var batchDelay time.Duration
 
 	// The sync_dir to set on Settings.
 	var syncDir string
@@ -95,7 +95,7 @@ func TestUploader(t *testing.T) {
 		test func(t *testing.T),
 	) {
 		// Set a default and allow tests to override it.
-		batchDelay = nil
+		batchDelay = 0
 		syncDir = t.TempDir()
 		ignoreGlobs = []string{}
 		isOffline = false
@@ -301,7 +301,7 @@ func TestUploader(t *testing.T) {
 		})
 
 	runTest("upload batches and deduplicates CreateRunFiles calls",
-		func() { batchDelay = waitingtest.NewFakeDelay() },
+		func() { batchDelay = time.Hour }, // Force batching until Finish() call
 		func(t *testing.T) {
 			writeEmptyFile(t, filepath.Join(filesDir, "test1.txt"))
 			writeEmptyFile(t, filepath.Join(filesDir, "test2.txt"))
@@ -333,7 +333,6 @@ func TestUploader(t *testing.T) {
 			uploader.UploadNow("test1.txt", filetransfer.RunFileKindOther)
 			uploader.UploadNow("test2.txt", filetransfer.RunFileKindOther)
 			uploader.UploadNow("test2.txt", filetransfer.RunFileKindOther)
-			batchDelay.SetZero()
 			uploader.Finish()
 
 			assert.True(t, mockGQLClient.AllStubsUsed())

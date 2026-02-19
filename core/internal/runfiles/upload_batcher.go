@@ -2,9 +2,9 @@ package runfiles
 
 import (
 	"sync"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/paths"
-	"github.com/wandb/wandb/core/internal/waiting"
 )
 
 // uploadBatcher helps batch many simultaneous upload operations.
@@ -27,20 +27,16 @@ type uploadBatcher struct {
 	isQueued bool
 
 	// How long to wait to collect a batch before sending it.
-	delay waiting.Delay
+	delay time.Duration
 
 	// Callback to upload a list of files.
 	upload func([]paths.RelativePath)
 }
 
 func newUploadBatcher(
-	delay waiting.Delay,
+	delay time.Duration,
 	upload func([]paths.RelativePath),
 ) *uploadBatcher {
-	if delay == nil {
-		delay = waiting.NoDelay()
-	}
-
 	return &uploadBatcher{
 		done:     make(chan struct{}),
 		addWG:    &sync.WaitGroup{},
@@ -53,7 +49,7 @@ func newUploadBatcher(
 
 // Add adds files to the next upload batch, scheduling one if necessary.
 func (b *uploadBatcher) Add(runPaths []paths.RelativePath) {
-	if b.delay.IsZero() {
+	if b.delay == 0 {
 		b.upload(runPaths)
 		return
 	}
@@ -72,12 +68,9 @@ func (b *uploadBatcher) Add(runPaths []paths.RelativePath) {
 		go func() {
 			defer b.addWG.Done()
 
-			delay, cancelDelay := b.delay.Wait()
-
 			select {
-			case <-delay:
+			case <-time.After(b.delay):
 			case <-b.done:
-				cancelDelay()
 			}
 
 			b.uploadBatch()

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -19,8 +20,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/internal/waiting"
-	"github.com/wandb/wandb/core/internal/waitingtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -37,7 +36,6 @@ func runRecord(run *spb.RunRecord) *spb.Record {
 func testParams(t *testing.T) runupserter.RunUpserterParams {
 	t.Helper()
 	return runupserter.RunUpserterParams{
-		DebounceDelay:   waiting.NoDelay(),
 		Settings:        settings.New(),
 		BeforeRunEndCtx: context.Background(),
 		Operations:      nil,
@@ -256,9 +254,8 @@ func TestFork(t *testing.T) {
 }
 
 type variablesForUpdateTest struct {
-	MockClient    *gqlmock.MockClient
-	DebounceDelay *waitingtest.FakeDelay
-	Upserter      *runupserter.RunUpserter
+	MockClient *gqlmock.MockClient
+	Upserter   *runupserter.RunUpserter
 }
 
 // setupUpdateTest returns an initialized RunUpserter and a mock GraphQL client
@@ -267,9 +264,8 @@ func setupUpdateTest(t *testing.T) variablesForUpdateTest {
 	t.Helper()
 
 	params := testParams(t)
-	fakeDebounceDelay := waitingtest.NewFakeDelay()
 	mockClient := gqlmock.NewMockClient()
-	params.DebounceDelay = fakeDebounceDelay
+	params.DebounceDelay = 5 * time.Second // just needs to be >0 for tests
 	params.GraphqlClientOrNil = mockClient
 
 	// There will be two upserts: the initial one, and a single update.
@@ -280,133 +276,138 @@ func setupUpdateTest(t *testing.T) variablesForUpdateTest {
 
 	require.NoError(t, err)
 	return variablesForUpdateTest{
-		MockClient:    mockClient,
-		DebounceDelay: fakeDebounceDelay,
-		Upserter:      upserter,
+		MockClient: mockClient,
+		Upserter:   upserter,
 	}
 }
 
 func TestUpdate_Debounces(t *testing.T) {
-	vars := setupUpdateTest(t)
+	synctest.Test(t, func(t *testing.T) {
+		vars := setupUpdateTest(t)
 
-	vars.Upserter.Update(&spb.RunRecord{})
-	vars.Upserter.UpdateConfig(&spb.ConfigRecord{})
-	vars.Upserter.UpdateTelemetry(&spb.TelemetryRecord{})
-	vars.Upserter.UpdateMetrics(&spb.MetricRecord{})
-	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Upserter.Finish()
+		vars.Upserter.Update(&spb.RunRecord{})
+		vars.Upserter.UpdateConfig(&spb.ConfigRecord{})
+		vars.Upserter.UpdateTelemetry(&spb.TelemetryRecord{})
+		vars.Upserter.UpdateMetrics(&spb.MetricRecord{})
+		vars.Upserter.Finish()
 
-	requests := vars.MockClient.AllRequests()
-	assert.Len(t, requests, 2)
+		requests := vars.MockClient.AllRequests()
+		assert.Len(t, requests, 2)
+	})
 }
 
 func TestUpdate_Uploads(t *testing.T) {
-	vars := setupUpdateTest(t)
+	synctest.Test(t, func(t *testing.T) {
+		vars := setupUpdateTest(t)
 
-	vars.Upserter.Update(&spb.RunRecord{RunId: "test run ID"})
-	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Upserter.Finish()
+		vars.Upserter.Update(&spb.RunRecord{RunId: "test run ID"})
+		vars.Upserter.Finish()
 
-	requests := vars.MockClient.AllRequests()
-	assert.Len(t, requests, 2)
-	gqlmock.AssertVariables(t,
-		requests[1],
-		gqlmock.GQLVar("name", gomock.Eq("test run ID")),
-		gqlmock.GQLVar("config", gomock.Eq(nil)))
+		requests := vars.MockClient.AllRequests()
+		assert.Len(t, requests, 2)
+		gqlmock.AssertVariables(t,
+			requests[1],
+			gqlmock.GQLVar("name", gomock.Eq("test run ID")),
+			gqlmock.GQLVar("config", gomock.Eq(nil)))
+	})
 }
 
 func TestUpdateConfig_Uploads(t *testing.T) {
-	vars := setupUpdateTest(t)
+	synctest.Test(t, func(t *testing.T) {
+		vars := setupUpdateTest(t)
 
-	vars.Upserter.UpdateConfig(
-		&spb.ConfigRecord{
-			Update: []*spb.ConfigItem{{
-				Key:       "test key",
-				ValueJson: `"test value"`,
-			}},
-		},
-	)
-	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Upserter.Finish()
+		vars.Upserter.UpdateConfig(
+			&spb.ConfigRecord{
+				Update: []*spb.ConfigItem{{
+					Key:       "test key",
+					ValueJson: `"test value"`,
+				}},
+			},
+		)
+		vars.Upserter.Finish()
 
-	requests := vars.MockClient.AllRequests()
-	assert.Len(t, requests, 2)
-	gqlmock.AssertVariables(t,
-		requests[1],
-		gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
-				{
-					"_wandb": {"value": {"m": [], "t": {"12": "%s"}}},
-					"test key": {"value": "test value"}
-				}
-			`, version.Version))))
+		requests := vars.MockClient.AllRequests()
+		assert.Len(t, requests, 2)
+		gqlmock.AssertVariables(t,
+			requests[1],
+			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
+					{
+						"_wandb": {"value": {"m": [], "t": {"12": "%s"}}},
+						"test key": {"value": "test value"}
+					}
+				`, version.Version))))
+	})
 }
 
 func TestUpdateEnvironment_Uploads(t *testing.T) {
-	vars := setupUpdateTest(t)
+	synctest.Test(t, func(t *testing.T) {
+		vars := setupUpdateTest(t)
 
-	vars.Upserter.UpdateEnvironment(
-		&spb.EnvironmentRecord{
-			WriterId: "test",
-		},
-	)
-	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Upserter.Finish()
+		vars.Upserter.UpdateEnvironment(
+			&spb.EnvironmentRecord{
+				WriterId: "test",
+			},
+		)
+		vars.Upserter.Finish()
 
-	requests := vars.MockClient.AllRequests()
-	assert.Len(t, requests, 2)
-	gqlmock.AssertVariables(t,
-		requests[1],
-		gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
-				{
-					"_wandb": {"value": {"m": [], "e": {"test": {"writerId": "test"}}, "t": {"12": "%s"}}}
-				}
-			`, version.Version))))
+		requests := vars.MockClient.AllRequests()
+		assert.Len(t, requests, 2)
+		gqlmock.AssertVariables(t,
+			requests[1],
+			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
+					{
+						"_wandb": {"value": {"m": [], "e": {"test": {"writerId": "test"}}, "t": {"12": "%s"}}}
+					}
+				`, version.Version))))
+	})
 }
 
 func TestUpdateTelemetry_Uploads(t *testing.T) {
-	vars := setupUpdateTest(t)
+	synctest.Test(t, func(t *testing.T) {
+		vars := setupUpdateTest(t)
 
-	vars.Upserter.UpdateTelemetry(
-		&spb.TelemetryRecord{PythonVersion: "test python version"},
-	)
-	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Upserter.Finish()
+		vars.Upserter.UpdateTelemetry(
+			&spb.TelemetryRecord{PythonVersion: "test python version"},
+		)
+		vars.Upserter.Finish()
 
-	requests := vars.MockClient.AllRequests()
-	assert.Len(t, requests, 2)
-	gqlmock.AssertVariables(t,
-		requests[1],
-		gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
-				{
-					"_wandb": {"value": {
-						"python_version": "test python version",
-						"m": [],
-						"t": {
-							"4": "test python version",
-							"12": "%s"
-						}
-					}}
-				}
-			`, version.Version))))
+		requests := vars.MockClient.AllRequests()
+		assert.Len(t, requests, 2)
+		gqlmock.AssertVariables(t,
+			requests[1],
+			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
+					{
+						"_wandb": {"value": {
+							"python_version": "test python version",
+							"m": [],
+							"t": {
+								"4": "test python version",
+								"12": "%s"
+							}
+						}}
+					}
+				`, version.Version))))
+	})
 }
 
 func TestUpdateMetrics_Uploads(t *testing.T) {
-	vars := setupUpdateTest(t)
+	synctest.Test(t, func(t *testing.T) {
+		vars := setupUpdateTest(t)
 
-	vars.Upserter.UpdateMetrics(&spb.MetricRecord{Name: "test metric"})
-	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Upserter.Finish()
+		vars.Upserter.UpdateMetrics(&spb.MetricRecord{Name: "test metric"})
+		vars.Upserter.Finish()
 
-	requests := vars.MockClient.AllRequests()
-	assert.Len(t, requests, 2)
-	gqlmock.AssertVariables(t,
-		requests[1],
-		gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
-				{
-					"_wandb": {"value": {
-						"m": [{"1": "test metric", "6": [3], "7": []}],
-						"t": {"12": "%s"}
-					}}
-				}
-			`, version.Version))))
+		requests := vars.MockClient.AllRequests()
+		assert.Len(t, requests, 2)
+		gqlmock.AssertVariables(t,
+			requests[1],
+			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
+					{
+						"_wandb": {"value": {
+							"m": [{"1": "test metric", "6": [3], "7": []}],
+							"t": {"12": "%s"}
+						}}
+					}
+				`, version.Version))))
+	})
 }

@@ -27,7 +27,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -151,7 +150,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	var runfilesUploader runfiles.Uploader
 	if !f.Settings.IsOffline() {
 		runfilesUploader = f.RunfilesUploaderFactory.New(
-			/*batchDelay=*/ waiting.NewDelay(5*time.Second),
+			/*batchDelay=*/ 5*time.Second,
 			runWork,
 			fileStream,
 		)
