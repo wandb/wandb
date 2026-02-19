@@ -144,7 +144,7 @@ def run_pytest(
     session.notify("combine_test_results")
 
     # (pytest-timeout) Per-test timeout.
-    pytest_opts.append(f"--timeout={opts.get('timeout', 300)}")
+    pytest_opts.append(f"--timeout={opts.get('timeout', 60)}")
 
     # (pytest-xdist) Run tests in parallel.
     pytest_opts.append(f"-n={opts.get('n', 'auto')}")
