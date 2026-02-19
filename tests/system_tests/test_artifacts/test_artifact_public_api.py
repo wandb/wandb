@@ -14,7 +14,7 @@ from pytest import MonkeyPatch, fixture, mark, raises, skip
 from pytest_mock import MockerFixture
 from wandb import Api
 from wandb._strutils import nameof
-from wandb.errors import CommError
+from wandb.errors import CommError, UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
     ArtifactByName,
@@ -97,12 +97,12 @@ def test_artifact_type_collections(api: Api):
         assert cols[0].name == "another-collection" and cols[1].name == "mnist"
     else:
         with raises(
-            CommError,
+            UnsupportedError,
             match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
         ):
             atype.collections(filters={"name": "mnist"})
         with raises(
-            CommError,
+            UnsupportedError,
             match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
         ):
             atype.collections(order="name")
@@ -150,7 +150,7 @@ def test_project_collections(api: Api):
 
         # fetching collections with filters/ordering should raise an error
         with raises(
-            CommError,
+            UnsupportedError,
             match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
         ):
             project.collections(filters={"name": "mnist"})

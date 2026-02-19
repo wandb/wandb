@@ -20,6 +20,7 @@ from wandb._pydantic import Connection, ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
+from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
@@ -314,7 +315,7 @@ class ArtifactCollections(
         if (order is not None or filters is not None) and not server_supports(
             client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
         ):
-            raise RuntimeError(
+            raise UnsupportedError(
                 "Filtering and ordering of artifact collections is not supported on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
@@ -329,7 +330,7 @@ class ArtifactCollections(
             "project": project,
             "type": type_name,
             "order": order,
-            "filters": json.dumps(filters),
+            "filters": json.dumps(f) if (f := filters) else None,
         }
         super().__init__(client, variables=variables, per_page=per_page)
 
@@ -419,7 +420,7 @@ class ProjectArtifactCollections(
         if (order is not None or filters is not None) and not server_supports(
             client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
         ):
-            raise RuntimeError(
+            raise UnsupportedError(
                 "Filtering and ordering of artifact collections is not supported on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
@@ -432,7 +433,7 @@ class ProjectArtifactCollections(
             "entity": entity,
             "project": project,
             "order": order,
-            "filters": json.dumps(filters),
+            "filters": json.dumps(f) if (f := filters) else None,
         }
 
         super().__init__(client, variables=variables, per_page=per_page)
