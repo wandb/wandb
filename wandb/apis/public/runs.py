@@ -520,9 +520,7 @@ class Runs(SizedPaginator["Run"]):
 
             max_workers = min(len(lazy_runs), 10)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [
-                    executor.submit(run.load_full_data) for run in lazy_runs
-                ]
+                futures = [executor.submit(run.load_full_data) for run in lazy_runs]
                 for future in futures:
                     future.result()
 
