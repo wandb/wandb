@@ -19,3 +19,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Run console logs panel in W&B LEET TUI (`wandb beta leet` command, toggle with `l`). (@dmitryduev in https://github.com/wandb/wandb/pull/11345)
 - `ArtifactType.collections()` now supports filtering and ordering of collections. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11268)
 - Warning message when `run.log_artifact` does not create a new version because the artifact content is identical to an existing version. (@pingleiwandb in https://github.com/wandb/wandb/pull/11340)
+- `Files.download_all` function to download all files for a run retrieved from `wandb.Api.run()` (@jacobromero in https://github.com/wandb/wandb/pull/11332)

@@ -34,8 +34,12 @@ Note:
 
 from __future__ import annotations
 
+import asyncio
 import io
 import os
+import time
+from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
 from wandb_gql import gql
@@ -49,7 +53,11 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.runs import Run, _server_provides_internal_id_for_project
-from wandb.sdk.lib import retry
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk import wandb_setup
+from wandb.sdk.lib import asyncio_compat, retry
+from wandb.sdk.lib.printer import new_printer
+from wandb.sdk.lib.progress import progress_printer
 from wandb.util import POW_2_BYTES, download_file_from_url, no_retry_auth, to_human_size
 
 if TYPE_CHECKING:
@@ -78,6 +86,154 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
         }
     }
 }"""
+
+
+@dataclass(frozen=True)
+class DownloadFileResult:
+    """Result of a file download operation.
+
+    Stores the outcome of attempting to download a file from W&B.
+    The result can be either a successfully opened file or an exception if the
+    download failed.
+
+    Attributes:
+        file: The File object that was attempted to be downloaded.
+        result: Either an opened TextIOWrapper for the file on success,
+            or an Exception if the download failed.
+    """
+
+    file: File
+    result: io.TextIOWrapper | Exception
+
+
+@dataclass
+class DownloadFileTaskWrapper:
+    """Wraps a File.download operation to track the time it started.
+
+    <!-- lazydoc-ignore-init: internal -->
+    """
+
+    file: File
+
+    def download(
+        self,
+        download_dir: str,
+        replace: bool,
+        exist_ok: bool,
+        api: Api | None = None,
+    ) -> DownloadFileResult:
+        self.time_started = time.monotonic()
+        try:
+            result = self.file.download(
+                root=download_dir,
+                replace=replace,
+                exist_ok=exist_ok,
+                api=api,
+            )
+            return DownloadFileResult(file=self.file, result=result)
+        except Exception as e:
+            return DownloadFileResult(file=self.file, result=e)
+
+
+class DownloadFileManager:
+    """Handles downloading files in parallel and displays the progress.
+
+    Args:
+        files: List of files to download.
+        download_dir: Directory in which the files should be downloaded.
+        replace: Whether to replace existing files.
+        exist_ok: Whether to raise an error if the file already exists.
+        parallel: The number of files to download in parallel.
+            If None, uses the ThreadPoolExecutor default.
+        api: The API instance to use to download the files.
+
+    <!-- lazydoc-ignore-init: internal -->
+    """
+
+    _POLL_WAIT_SECONDS = 0.1
+
+    def __init__(
+        self,
+        files: list[File],
+        download_dir: str,
+        replace: bool,
+        exist_ok: bool,
+        parallel: int | None = None,
+        api: Api | None = None,
+    ):
+        self.rate_limit_last_time: float | None = None
+        self.start_time = time.monotonic()
+        self.done_event = asyncio.Event()
+        self.executor = ThreadPoolExecutor(max_workers=parallel)
+        self.tasks: list[tuple[DownloadFileTaskWrapper, Future[DownloadFileResult]]] = [
+            (
+                task := DownloadFileTaskWrapper(file),
+                self.executor.submit(
+                    task.download,
+                    download_dir,
+                    replace,
+                    exist_ok,
+                    api=api,
+                ),
+            )
+            for file in files
+        ]
+
+    async def wait_with_progress(self) -> list[DownloadFileResult]:
+        """Wait for all files to be downloaded and return the results."""
+        try:
+            async with asyncio_compat.open_task_group() as group:
+                group.start_soon(self._wait_then_mark_done())
+                group.start_soon(self._show_progress_until_done())
+            return self.results
+        finally:
+            self.executor.shutdown(wait=False)
+
+    async def _wait_then_mark_done(self) -> None:
+        self.results = await asyncio.gather(
+            *[asyncio.wrap_future(future) for _, future in self.tasks],
+        )
+        self.done_event.set()
+
+    async def _show_progress_until_done(self) -> None:
+        p = new_printer()
+        with progress_printer(p, "Downloading files...") as progress:
+            while not await self._rate_limit_check_done():
+                num_done = len([future for _, future in self.tasks if future.done()])
+                progress.update(
+                    pb.OperationStats(
+                        operations=[
+                            pb.Operation(
+                                desc="downloading files",
+                                progress=f"{num_done}/{len(self.tasks)} files",
+                                runtime_seconds=time.monotonic() - self.start_time,
+                                subtasks=[
+                                    pb.Operation(
+                                        desc=task.file.name,
+                                        runtime_seconds=time.monotonic()
+                                        - (task.time_started or time.monotonic()),
+                                    )
+                                    for task, future in self.tasks
+                                    if future.running()
+                                ],
+                            )
+                        ]
+                    )
+                )
+
+    async def _rate_limit_check_done(self) -> bool:
+        """Wait for rate limit and return whether _done is set."""
+        now = time.monotonic()
+        last_time = self.rate_limit_last_time
+        self.rate_limit_last_time = now
+
+        if last_time and (time_since_last := now - last_time) < self._POLL_WAIT_SECONDS:
+            await asyncio_compat.race(
+                asyncio.sleep(self._POLL_WAIT_SECONDS - time_since_last),
+                self.done_event.wait(),
+            )
+
+        return self.done_event.is_set()
 
 
 class Files(SizedPaginator["File"]):
@@ -112,7 +268,7 @@ class Files(SizedPaginator["File"]):
         """Generate query dynamically based on server capabilities."""
         with_internal_id = _server_provides_internal_id_for_project(self.client)
         return gql(
-            f"""
+            f"""#graphql
             query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
                 $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
                 project(name: $project, entityName: $entity) {{
@@ -216,6 +372,37 @@ class Files(SizedPaginator["File"]):
         <!-- lazydoc-ignore: internal -->
         """
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
+
+    def download_all(
+        self,
+        root: str = ".",
+        replace: bool = False,
+        exist_ok: bool = False,
+        api: Api | None = None,
+        parallel: int | None = None,
+    ) -> list[DownloadFileResult]:
+        """Downloads all files in the run to the given root directory.
+
+        Args:
+            root: The root directory to save the files.
+            replace: Whether to replace existing files.
+            exist_ok: Whether to raise an error if the file already exists.
+            parallel: The number of files to download in parallel.
+            api: The API instance to use to download the files.
+        """
+        files_list = list(self)
+        if not files_list:
+            return []
+
+        download_manager = DownloadFileManager(
+            files_list,
+            download_dir=root,
+            replace=replace,
+            exist_ok=exist_ok,
+            parallel=parallel,
+            api=api,
+        )
+        return wandb_setup.singleton().asyncer.run(download_manager.wait_with_progress)
 
     def convert_objects(self) -> list[File]:
         """Converts GraphQL edges to File objects.
