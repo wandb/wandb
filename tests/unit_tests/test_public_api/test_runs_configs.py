@@ -27,6 +27,7 @@ def _make_mock_runs(run_specs: list[tuple[str, dict | None]]):
     mock_runs = mock.MagicMock(spec=Runs)
     mock_run_objects = [_make_mock_run(rid, cfg) for rid, cfg in run_specs]
     mock_runs.__iter__ = mock.MagicMock(return_value=iter(mock_run_objects))
+    mock_runs.objects = mock_run_objects
     return mock_runs
 
 
@@ -169,3 +170,44 @@ class TestConfigsValidation:
         runs = _make_mock_runs([("run1", {"lr": 0.01})])
         with pytest.raises(Exception, match="Invalid format"):
             Runs.configs(runs, format="csv")
+
+
+class TestConfigsDoesNotMutate:
+    """Verify configs() does not mutate run.config in-place."""
+
+    def test_original_config_unchanged(self):
+        original_config = {"lr": 0.01, "epochs": 10}
+        runs = _make_mock_runs([("run1", original_config)])
+        Runs.configs(runs, format="default")
+        assert "run_id" not in original_config
+
+
+class TestConfigsParallelLoading:
+    """Verify parallel pre-loading of lazy run data."""
+
+    def test_parallel_loads_lazy_runs(self):
+        mock_runs = mock.MagicMock(spec=Runs)
+        run1 = _make_mock_run("run1", {"lr": 0.01})
+        run1._lazy = True
+        run1._full_data_loaded = False
+        run2 = _make_mock_run("run2", {"lr": 0.02})
+        run2._lazy = True
+        run2._full_data_loaded = False
+        mock_runs.objects = [run1, run2]
+        mock_runs.__iter__ = mock.MagicMock(return_value=iter([run1, run2]))
+
+        Runs.configs(mock_runs, format="default")
+
+        run1.load_full_data.assert_called_once()
+        run2.load_full_data.assert_called_once()
+
+    def test_skips_non_lazy_runs(self):
+        mock_runs = mock.MagicMock(spec=Runs)
+        run1 = _make_mock_run("run1", {"lr": 0.01})
+        run1._lazy = False
+        mock_runs.objects = [run1]
+        mock_runs.__iter__ = mock.MagicMock(return_value=iter([run1]))
+
+        Runs.configs(mock_runs, format="default")
+
+        run1.load_full_data.assert_not_called()

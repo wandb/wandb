@@ -508,48 +508,53 @@ class Runs(SizedPaginator["Run"]):
                 f"Invalid format: {format}. Must be one of 'default', 'pandas', 'polars'"
             )
 
-        configs = []
+        # Parallel pre-load for lazy runs
+        lazy_runs = [
+            run
+            for run in self.objects
+            if getattr(run, "_lazy", False)
+            and not getattr(run, "_full_data_loaded", False)
+        ]
+        if lazy_runs:
+            from concurrent.futures import ThreadPoolExecutor
 
+            max_workers = min(len(lazy_runs), 10)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(run.load_full_data) for run in lazy_runs
+                ]
+                for future in futures:
+                    future.result()
+
+        # Single collection pass — copy config to avoid mutating run.config
+        configs = []
+        for run in self:
+            config_data = run.config
+            if not config_data:
+                continue
+            configs.append({**config_data, "run_id": run.id})
+
+        # Format conversion
         if format == "default":
-            for run in self:
-                config_data = run.config
-                if not config_data:
-                    continue
-                config_data["run_id"] = run.id
-                configs.append(config_data)
             return configs
 
         if format == "pandas":
             pd = util.get_module(
                 "pandas", required="Exporting pandas DataFrame requires pandas"
             )
-            for run in self:
-                config_data = run.config
-                if not config_data:
-                    continue
-                config_data["run_id"] = run.id
-                configs.append(config_data)
             if not configs:
                 return pd.DataFrame()
             combined_df = pd.DataFrame.from_records(configs)
-            # sort columns for consistency
-            combined_df = combined_df[(sorted(combined_df.columns))]
+            combined_df = combined_df[sorted(combined_df.columns)]
             return combined_df
 
         if format == "polars":
             pl = util.get_module(
                 "polars", required="Exporting polars DataFrame requires polars"
             )
-            for run in self:
-                config_data = run.config
-                if not config_data:
-                    continue
-                config_data["run_id"] = run.id
-                configs.append(config_data)
             if not configs:
                 return pl.DataFrame()
             combined_df = pl.from_dicts(configs)
-            # sort columns for consistency
             combined_df = combined_df.select(sorted(combined_df.columns))
             return combined_df
 
