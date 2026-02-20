@@ -51,6 +51,7 @@ executors:
         environment:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
+          MIGRATE_SQUASH: true # temporary fix for flakiness
     resource_class: xlarge
 
   local-testcontainer-importers:
