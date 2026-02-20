@@ -1980,7 +1980,7 @@ def get_core_path() -> str:
     return str(bin_path)
 
 
-def parse_time_period(time_str: str) -> int:
+def time_string_to_seconds(time_str: str) -> int:
     """Parse a time period string and return seconds.
 
     Args:

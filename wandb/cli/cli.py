@@ -3,10 +3,10 @@ from __future__ import annotations
 import asyncio
 import datetime
 import getpass
-import glob
 import json
 import logging
 import os
+import pathlib
 import shlex
 import shutil
 import subprocess
@@ -2983,13 +2983,13 @@ def purge_cache(
     force: bool,
 ):
     try:
-        age_seconds = util.parse_time_period(age)
+        age_seconds = util.time_string_to_seconds(age)
     except ValueError as e:
         wandb.termerror(str(e))
         sys.exit(1)
 
-    cache_dir = env.get_cache_dir()
-    if not os.path.exists(cache_dir):
+    cache_dir = pathlib.Path(env.get_cache_dir())
+    if not cache_dir.exists():
         wandb.termlog(f"Cache directory does not exist: {cache_dir}")
         return
 
@@ -2997,22 +2997,21 @@ def purge_cache(
     purged_count = 0
     data_deleted = 0
 
-    files = glob.glob(os.path.join(cache_dir, "**"), recursive=True)
+    files = cache_dir.glob("**/*")
     for file in files:
-        if os.path.getmtime(file) > cutoff_time or os.path.isdir(file):
+        if file.stat().st_mtime > cutoff_time or file.is_dir():
             continue
 
         if not force:
-            response = click.prompt(
-                f"Are you sure you want to delete cache file {file}? [y/N]: ",
-                type=click.Choice(["y", "yes", "n", "no"], case_sensitive=False),
+            confirm = click.confirm(
+                f"Are you sure you want to delete cache file {file}?",
             )
-            if response not in ["y", "yes"]:
+            if not confirm:
                 wandb.termlog(f"Skipping cache file: {file}")
                 continue
 
-        data_deleted += os.path.getsize(file)
-        os.remove(file)
+        data_deleted += file.stat().st_size
+        file.unlink(missing_ok=True)
         purged_count += 1
 
     wandb.termlog(
