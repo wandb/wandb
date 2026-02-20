@@ -486,33 +486,42 @@ class Runs(SizedPaginator["Run"]):
             return combined_df
 
     @normalize_exceptions
-    def scan_histories(
+    def aggregate_history(
         self,
-        cache_dir: str | pathlib.Path,
+        cache_dir: str | pathlib.Path | None = None,
         keys: list[str] | None = None,
         max_results: int = 10_000_000,
+        max_workers: int = 10,
         page_size: int = 1_000,
     ) -> pl.LazyFrame:
         """Return full unsampled history for all runs as a Polars LazyFrame.
 
-        Downloads run history as parquet files to cache_dir, then returns a
-        LazyFrame that reads from those files. Data is not loaded into memory
-        until .collect() is called, and Polars pushes column/row filters down
-        to the parquet reader for efficiency.
+        Downloads run history as parquet files, then returns a LazyFrame that
+        reads from those files. Data is not loaded into memory until .collect()
+        is called, and Polars pushes column/row filters down to the parquet
+        reader for efficiency.
 
-        For runs where parquet exports are not available, falls back to
-        scan_history() via GraphQL and writes the result as parquet locally.
+        Downloads run in parallel using a thread pool. If a run's download
+        fails, it is skipped with a warning and does not abort other downloads.
+
+        The ``run_id`` column is added lazily at scan time -- parquet files on
+        disk are not rewritten.
 
         Args:
-            cache_dir: Directory to store downloaded parquet files. Required.
+            cache_dir: Directory to store downloaded parquet files.
+                Defaults to ``$WANDB_CACHE_DIR/history`` (or the platform
+                cache directory if ``WANDB_CACHE_DIR`` is unset).
                 For team usage, point this at a shared mount or sync to S3.
+                The cache is a snapshot; delete a run's directory to re-download.
             keys: Only include these metric columns in the result. If None,
                 all metrics are included. Filtering keys improves read
                 performance on wide datasets.
             max_results: Maximum total rows in the result. Defaults to
                 10,000,000. Applied as .head() on the LazyFrame.
-            page_size: Number of rows per page for GraphQL fallback.
-                Only used when parquet exports are unavailable.
+            max_workers: Maximum number of parallel download threads.
+                Defaults to 10.
+            page_size: Number of rows per page (retained for backward
+                compatibility).
 
         Returns:
             polars.LazyFrame: A lazy frame over the cached parquet files.
@@ -522,9 +531,9 @@ class Runs(SizedPaginator["Run"]):
         Example:
             ```python
             runs = api.runs("entity/project")
-            lf = runs.scan_histories(cache_dir="/data/wandb-cache/my-project")
+            lf = runs.aggregate_history()
 
-            # Read only specific metrics — skips all other columns on disk
+            # Read only specific metrics -- skips all other columns on disk
             df = lf.select(["run_id", "_step", "loss"]).collect()
 
             # Combine with configs
@@ -532,58 +541,92 @@ class Runs(SizedPaginator["Run"]):
             full = df.join(configs, on="run_id")
             ```
         """
-        pl = util.get_module("polars", required="scan_histories requires polars")
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        cache_path = pathlib.Path(cache_dir)
+        pl = util.get_module("polars", required="aggregate_history requires polars")
+
+        if cache_dir is None:
+            cache_path = env.get_cache_dir() / "history"
+        else:
+            cache_path = pathlib.Path(cache_dir)
         cache_path.mkdir(parents=True, exist_ok=True)
 
+        # Phase 1: Identify cached vs. needs-download runs
         parquet_files: list[pathlib.Path] = []
+        runs_to_download = []
+        run_dirs: dict[str, pathlib.Path] = {}
 
         for run in self:
             run_dir = cache_path / run.id
             run_dir.mkdir(exist_ok=True)
 
-            # Check if we already have cached parquet files for this run
-            existing = list(run_dir.glob("*.parquet"))
-            if existing:
+            sentinel = run_dir / ".complete"
+            if sentinel.exists():
+                existing = list(run_dir.glob("*.parquet"))
                 parquet_files.extend(existing)
                 continue
 
-            # Try parquet export (fast path)
-            try:
+            # Clean up partial downloads before re-downloading
+            for old_file in run_dir.glob("*.parquet"):
+                old_file.unlink()
+
+            runs_to_download.append(run)
+            run_dirs[run.id] = run_dir
+
+        # Phase 2: Parallel downloads with per-run error isolation
+        if runs_to_download:
+
+            def _download_run(run):
+                run_dir = run_dirs[run.id]
                 result = run.download_history_exports(
                     download_dir=run_dir,
                     require_complete_history=False,
                 )
-                if result.paths:
-                    for p in result.paths:
-                        # Add run_id column to the parquet file
-                        df = pl.read_parquet(p)
-                        df = df.with_columns(pl.lit(run.id).alias("run_id"))
-                        df.write_parquet(p)
-                        parquet_files.append(p)
-                    continue
-            except Exception:
-                pass
+                return (run.id, result.paths, result.contains_live_data)
 
-            # Fallback: scan_history via GraphQL, write as parquet
-            rows = []
-            for row in run.scan_history(page_size=page_size):
-                row["run_id"] = run.id
-                rows.append(row)
-            if rows:
-                df = pl.from_dicts(rows)
-                fallback_path = run_dir / "history_fallback.parquet"
-                df.write_parquet(fallback_path)
-                parquet_files.append(fallback_path)
+            n_workers = min(len(runs_to_download), max_workers)
+            failed_runs: list[str] = []
 
+            with ThreadPoolExecutor(max_workers=n_workers) as executor:
+                future_to_run = {
+                    executor.submit(_download_run, run): run for run in runs_to_download
+                }
+
+                for future in as_completed(future_to_run):
+                    run = future_to_run[future]
+                    try:
+                        run_id, paths, has_live_data = future.result()
+
+                        if paths:
+                            (run_dirs[run_id] / ".complete").touch()
+                            parquet_files.extend(paths)
+
+                        if has_live_data:
+                            wandb.termwarn(
+                                f"Run {run_id} has history data not yet exported "
+                                "to parquet. Results may be incomplete."
+                            )
+
+                    except (WandbApiFailedError, wandb.Error, OSError) as e:
+                        wandb.termwarn(f"Run {run.id} failed to download: {e}")
+                        failed_runs.append(run.id)
+
+            if failed_runs:
+                wandb.termwarn(
+                    f"{len(failed_runs)}/{len(runs_to_download)} runs failed "
+                    f"to download ({', '.join(failed_runs)})"
+                )
+
+        # Phase 3: Build LazyFrame
         if not parquet_files:
             return pl.LazyFrame()
 
-        # Build lazy frame from all parquet files
         lazy_frames = []
         for pf in parquet_files:
-            lazy_frames.append(pl.scan_parquet(pf))
+            run_id = pf.parent.name
+            lf = pl.scan_parquet(pf).with_columns(pl.lit(run_id).alias("run_id"))
+            lazy_frames.append(lf)
+
         combined = pl.concat(lazy_frames, how="diagonal")
 
         # Apply key filter if specified
