@@ -838,3 +838,100 @@ def test_has_internet(internet_state):
         mock_create_connection = mock.MagicMock(side_effect=OSError)
     with mock.patch("socket.create_connection", new=mock_create_connection):
         assert util._has_internet() is internet_state
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        "user/proj/runs/run",  # URL style
+        "user/proj/run",  # regular path
+        "/user/proj/run",  # leading slash
+        "user/proj:run",  # docker
+    ),
+)
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_parse_path(path: str):
+    user, project, run = util.parse_path(
+        path,
+        "test-default-entity",
+        "test-default-project",
+    )
+    assert user == "user"
+    assert project == "proj"
+    assert run == "run"
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        "project/run",
+        "project:run",
+    ),
+)
+@pytest.mark.usefixtures("skip_verify_login")
+def test_parse_path_default_entity(path: str):
+    user, project, run = util.parse_path(
+        path,
+        "test-default-entity",
+        "test-default-project",
+    )
+
+    assert user == "test-default-entity"
+    assert project == "project"
+    assert run == "run"
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        "project/run",
+        "project:run",
+        "run",
+    ),
+)
+@pytest.mark.usefixtures("skip_verify_login")
+def test_parse_path_no_entity(path: str):
+    with pytest.raises(ValueError, match="missing entity"):
+        util.parse_path(path, None, "test-default-project")
+
+
+@pytest.mark.usefixtures("skip_verify_login")
+def test_parse_path_default_project():
+    user, project, run = util.parse_path(
+        "run",
+        "test-default-entity",
+        "test-default-project",
+    )
+
+    assert user == "test-default-entity"
+    assert project == "test-default-project"
+    assert run == "run"
+
+
+@pytest.mark.usefixtures("skip_verify_login")
+def test_parse_path_no_project():
+    with pytest.raises(ValueError, match="missing project"):
+        util.parse_path("run", "test-default-entity", None)
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_parse_project_path():
+    entity, project = util.parse_project_path(
+        "user/proj",
+        "test-default-entity",
+        "test-default-project",
+    )
+    assert entity == "user"
+    assert project == "proj"
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_parse_project_path_proj():
+    with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
+        entity, project = util.parse_project_path(
+            "proj",
+            "mock_entity",
+            "test-default-project",
+        )
+        assert entity == "mock_entity"
+        assert project == "proj"
