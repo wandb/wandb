@@ -3,7 +3,6 @@ package leet
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"runtime/debug"
 	"strings"
 	"sync"
