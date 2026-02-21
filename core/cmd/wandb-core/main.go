@@ -222,6 +222,28 @@ func leetMain(args []string) int {
 		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
 	editConfig := fs.Bool("config", false, "Open config editor.")
 
+	// Remote runs flags
+	baseUrl := fs.String(
+		"base-url",
+		"",
+		"Specifies the base URL of the W&B server for querying remote runs.",
+	)
+	entity := fs.String(
+		"entity",
+		"",
+		"Specifies the entity who owns the run.",
+	)
+	project := fs.String(
+		"project",
+		"",
+		"Specifies the project the remote run belongs to.",
+	)
+	runId := fs.String(
+		"run-id",
+		"",
+		"Specifies the run ID of the remote run.",
+	)
+
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
 A terminal UI for viewing your W&B runs locally.
@@ -230,11 +252,10 @@ Usage:
   wandb-core leet [flags] <wandb-file/wandb-run-path>
 
 Arguments:
-  <wandb-file/wandb-run-path> Path to the .wandb file of a W&B run or a W&B run path.
-		When a run path is prefixed with "wandb://", the run metrics are read from the W&B backend.
+  <wandb-file> Path to the .wandb file of a W&B run or a W&B run path.
 		Example:
 		  /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb
-		  wandb://wandbUser/wandbProject/run-1234567890
+	If
 
 Options:
   -h, --help         Show this help message
@@ -317,7 +338,26 @@ Flags:
 		return exitCodeSuccess
 	}
 
+	var runParams *leet.RunParams
 	wandbDir := fs.Arg(0)
+	if *baseUrl != "" {
+		wandbDir = *baseUrl
+		runParams = &leet.RunParams{
+			RemoteRunParams: &leet.RemoteRunParams{
+				BaseURL: *baseUrl,
+				Entity:  *entity,
+				Project: *project,
+				RunId:   *runId,
+			},
+		}
+	} else if *runFile != "" {
+		runParams = &leet.RunParams{
+			LocalRunParams: &leet.LocalRunParams{
+				RunFile: *runFile,
+			},
+		}
+	}
+
 	if wandbDir == "" {
 		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
 		fs.Usage()
@@ -326,9 +366,9 @@ Flags:
 
 	for {
 		m := leet.NewModel(leet.ModelParams{
-			WandbDir: wandbDir,
-			RunFile:  *runFile,
-			Logger:   logger,
+			WandbDir:  wandbDir,
+			RunParams: runParams,
+			Logger:    logger,
 		})
 		program := tea.NewProgram(m)
 
