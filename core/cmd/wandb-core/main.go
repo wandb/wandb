@@ -23,6 +23,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/containerd/continuity/fs"
 	"github.com/getsentry/sentry-go"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -246,6 +247,11 @@ type leetOptions struct {
 	symonMode        bool
 	symonInterval    time.Duration
 	wandbDir         string
+	
+	baseUrl          string
+	entity           string
+	project          string
+	runId            string
 }
 
 func parseLeetOptions(args []string) (leetOptions, error) {
@@ -301,6 +307,30 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		leet.DefaultSymonSamplingInterval,
 		"Sampling interval for standalone system metrics (e.g. 500ms, 2s, 1m).",
 	)
+	fs.StringVar(
+		&opts.baseUrl,
+		"base-url",
+		"",
+		"Base URL of the W&B server to open.",
+	)
+	fs.StringVar(
+		&opts.entity,
+		"entity",
+		"",
+		"Entity of the W&B run to open.",
+	)
+	fs.StringVar(
+		&opts.project,
+		"project",
+		"",
+		"Project of the W&B run to open.",
+	)
+	fs.StringVar(
+		&opts.runId,
+		"run-id",
+		"",
+		"Run ID of the W&B run to open.",
+	)
 }
 
 func printLeetUsage(fs *flag.FlagSet) {
@@ -313,11 +343,13 @@ Usage:
   wandb-core leet --symon [flags]
 
 Arguments:
-  <wandb-file/wandb-run-path> Path to the .wandb file of a W&B run or a W&B run path.
-		When a run path is prefixed with "wandb://", the run metrics are read from the W&B backend.
+  <wandb-file> Path to the .wandb file of a W&B run or a W&B run path.
 		Example:
 		  /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb
-		  wandb://wandbUser/wandbProject/run-1234567890
+		  
+   <wandb-run-url> URL of a W&B run to open.
+		Example:
+		  https://wandb.ai/wandbEntity/wandbProject/run-1234567890
 
 Options:
   -h, --help         Show this help message
@@ -463,10 +495,36 @@ func runSymon(opts leetOptions, logger *observability.CoreLogger) int {
 }
 
 func runLeetWorkspace(opts leetOptions, logger *observability.CoreLogger) int {
+	var runParams *leet.RunParams
+	wandbDir := opts.wandbDir
+	if opts.baseUrl != "" {
+		wandbDir = opts.baseUrl
+		runParams = &leet.RunParams{
+			RemoteRunParams: &leet.RemoteRunParams{
+				BaseURL: opts.baseUrl,
+				Entity:  opts.entity,
+				Project: opts.project,
+				RunId:   opts.runId,
+			},
+		}
+	} else if opts.runFile != "" {
+		runParams = &leet.RunParams{
+			LocalRunParams: &leet.LocalRunParams{
+				RunFile: opts.runFile,
+			},
+		}
+	}
+
+	if wandbDir == "" {
+		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
+		fs.Usage()
+		return exitCodeErrorArgs
+	}
+
 	for {
 		m := leet.NewModel(leet.ModelParams{
 			WandbDir: opts.wandbDir,
-			RunFile:  opts.runFile,
+			RunParams: runParams,
 			Logger:   logger,
 		})
 		program := tea.NewProgram(m)
