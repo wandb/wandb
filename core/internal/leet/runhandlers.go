@@ -809,7 +809,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 
 	// Boot load complete -> begin live mode once.
 	if r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
-		if err := r.watcherMgr.Start(r.runPath); err != nil {
+		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
 			r.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
 		} else {
 			r.logger.Info("model: watcher started successfully")

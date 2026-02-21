@@ -66,10 +66,10 @@ type ModelParams struct {
 	// that contains run directories and the "latest-run" symlink.
 	WandbDir string
 
-	// RunFile, if non-empty, LEET launches directly into the single-run
-	// view for the specified .wandb file. When empty, LEET starts in
-	// Config.StartupMode.
-	RunFile string
+	// RunParams contains information about the run to load.
+	//
+	// When RunParams is nil, LEET starts in Config.StartupMode.
+	RunParams *RunParams
 
 	Config *ConfigManager
 	Logger *observability.CoreLogger
@@ -90,13 +90,17 @@ func NewModel(params ModelParams) *Model {
 		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
 	}
 
-	if params.RunFile == "" && params.Config.StartupMode() == StartupModeSingleRunLatest {
+	if params.RunParams == nil && params.Config.StartupMode() == StartupModeSingleRunLatest {
 		latest, err := wandbFileFromLatestRunLink(params.WandbDir)
 		if err != nil {
 			params.Logger.Error(fmt.Sprintf("model: failed to find latest run: %v", err))
 		}
 		if latest != "" {
-			params.RunFile = latest
+			params.RunParams = &RunParams{
+				LocalRunParams: &LocalRunParams{
+					RunFile: latest,
+				},
+			}
 		}
 	}
 
@@ -108,8 +112,8 @@ func NewModel(params ModelParams) *Model {
 		logger:    params.Logger,
 	}
 
-	if params.RunFile != "" {
-		m.run = NewRun(params.RunFile, params.Config, params.Logger)
+	if params.RunParams != nil {
+		m.run = NewRun(params.RunParams, params.Config, params.Logger)
 		m.mode = viewModeRun
 	}
 
@@ -357,7 +361,12 @@ func (m *Model) enterRunView() tea.Cmd {
 		return nil
 	}
 
-	m.run = NewRun(wandbFile, m.config, m.logger)
+	runParams := &RunParams{
+		LocalRunParams: &LocalRunParams{
+			RunFile: wandbFile,
+		},
+	}
+	m.run = NewRun(runParams, m.config, m.logger)
 	m.mode = viewModeRun
 
 	// Share the workspace's media store so data persists across transitions.

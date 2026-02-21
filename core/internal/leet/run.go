@@ -2,7 +2,6 @@ package leet
 
 import (
 	"fmt"
-	"net/url"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -14,6 +13,21 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
+
+type RunParams struct {
+	*RemoteRunParams
+	*LocalRunParams
+}
+type RemoteRunParams struct {
+	BaseURL string
+	Entity  string
+	Project string
+	RunId   string
+}
+
+type LocalRunParams struct {
+	RunFile string
+}
 
 // Run holds data/state related to a single W&B run.
 //
@@ -30,8 +44,8 @@ type Run struct {
 	// Terminal dimensions.
 	width, height int
 
-	// Run file path.
-	runPath string
+	// runParams contains the information about the run.
+	runParams *RunParams
 
 	// Run state tracking.
 	runState RunState
@@ -85,12 +99,10 @@ type Run struct {
 }
 
 func NewRun(
-	runPath string,
+	runParams *RunParams,
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
 ) *Run {
-	logger.Info(fmt.Sprintf("run: creating new run model for runPath: %s", runPath))
-
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
 	}
@@ -117,13 +129,12 @@ func NewRun(
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
 
 	mediaStore := NewMediaStore()
-
 	run := &Run{
 		config:               cfg,
 		keyMap:               buildKeyMap(RunKeyBindings()),
 		focus:                focus,
 		isLoading:            true,
-		runPath:              runPath,
+		runParams:            runParams,
 		metricsGridAnimState: metricsGridAnimState,
 		metricsGrid:          metricsGrid,
 		runOverview:          ro,
@@ -154,12 +165,14 @@ func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
 	var source tea.Cmd
 
-	runPath, err := url.Parse(r.runPath)
-	if err != nil || !strings.HasPrefix(runPath.Scheme, "http") {
-		source = InitializeLevelDBHistorySource(r.runPath, r.logger)
-	} else {
+	if r.runParams.RemoteRunParams != nil {
 		source = InitializeParquetHistorySource(
-			runPath,
+			r.runParams.RemoteRunParams,
+			r.logger,
+		)
+	} else {
+		source = InitializeLevelDBHistorySource(
+			r.runParams.LocalRunParams,
 			r.logger,
 		)
 	}

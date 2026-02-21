@@ -47,9 +47,10 @@ func NewLevelDBHistorySource(
 // InitializeLevelDBHistorySource returns a tea.Cmd that initializes a
 // LevelDBHistorySource for the given run path.
 func InitializeLevelDBHistorySource(
-	runPath string,
+	runParams *LocalRunParams,
 	logger *observability.CoreLogger,
 ) tea.Cmd {
+	runPath := runParams.RunFile
 	return func() tea.Msg {
 		source, err := NewLevelDBHistorySource(runPath, logger)
 		if err != nil {

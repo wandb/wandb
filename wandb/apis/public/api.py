@@ -769,93 +769,6 @@ class Api:
             "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
         )
 
-    def _parse_project_path(self, path):
-        """Return project and entity for project specified by path."""
-        project = self.settings["project"] or "uncategorized"
-        entity = self.settings["entity"] or self.default_entity
-        if path is None:
-            return entity, project
-        parts = path.split("/", 1)
-        if len(parts) == 1:
-            return entity, path
-        return parts
-
-    def _parse_path(self, path: str) -> tuple[str, str, str]:
-        """Parse url, filepath, or docker paths.
-
-        Allows paths in the following formats:
-        - entity/project/runs/id (URL)
-        - entity/project/id
-        - entity/project:id (Docker style)
-        - project/id
-        - project:id
-        - id (cannot contain colons)
-
-        The path may also start with /runs/ or /sweeps/.
-
-        Returns:
-            A tuple with the extracted (entity, project, id).
-
-        Raises:
-            ValueError: If the path is in an invalid format or is missing
-                an entity that is not otherwise provided.
-        """
-        # NOTE: This may result in a GQL call. Ideally we'd only access
-        # `self.default_entity` lazily, but changing this requires care as it
-        # changes when `self._default_entity` is cached and could impact other
-        # code.
-        entity: str | None = self.settings["entity"] or self.default_entity
-        project: str | None = self.settings["project"]
-        id: str | None = None
-
-        input_path = path
-        path = path.replace("/runs/", "/")
-        path = path.replace("/sweeps/", "/")
-        path = path.strip("/ ")  # slashes and spaces
-
-        parts = path.split("/")
-
-        # "entity/project/runs/id"
-        if len(parts) == 4 and parts[2] == "runs":
-            entity, project, id = parts[0], parts[1], parts[3]
-
-        # "entity/project/id"
-        elif len(parts) == 3:
-            entity, project, id = parts[0], parts[1], parts[2]
-
-        elif len(parts) == 2:
-            # "entity/project:id"
-            if ":" in parts[1]:
-                entity = parts[0]
-                project, id = parts[1].split(":", maxsplit=1)
-
-            # "project/id"
-            else:
-                project, id = parts[0], parts[1]
-
-        elif len(parts) == 1 and parts[0]:  # Don't match the empty string.
-            # "project:id"
-            if ":" in parts[0]:
-                project, id = parts[0].split(":", maxsplit=1)
-
-            # "id"
-            else:
-                id = parts[0]
-
-        # Ignore whitespace.
-        entity = entity and entity.strip()
-        project = project and project.strip()
-        id = id and id.strip()
-
-        if not entity:
-            raise ValueError(f"Invalid path: {input_path!r} (missing entity)")
-        if not project:
-            raise ValueError(f"Invalid path: {input_path!r} (missing project)")
-        if not id:
-            raise ValueError(f"Invalid path: {input_path!r}")
-
-        return entity, project, id
-
     @overload
     def _parse_artifact_path(self, path: None) -> tuple[str | None, str]: ...
     @overload
@@ -956,7 +869,11 @@ class Api:
         wandb.Api.reports("entity/project")
         ```
         """
-        entity, project, _ = self._parse_path(path + "/fake_run")
+        entity, project, _ = util.parse_path(
+            path + "/fake_run",
+            self.settings["entity"] or self.default_entity,
+            str(self.settings["project"]),
+        )
 
         if name:
             name = urllib.parse.unquote(name)
@@ -1157,7 +1074,11 @@ class Api:
         Api.runs(path="my_entity/project", order="+summary_metrics.loss")
         ```
         """
-        entity, project = self._parse_project_path(path)
+        entity, project = util.parse_project_path(
+            path,
+            self.settings["entity"] or self.default_entity,
+            self.settings["project"] or "uncategorized",
+        )
         filters = filters or {}
         key = (path or "") + str(filters) + str(order)
 
@@ -1195,7 +1116,11 @@ class Api:
         Returns:
             A `Run` object.
         """
-        entity, project, run_id = self._parse_path(path)
+        entity, project, run_id = util.parse_path(
+            path,
+            self.settings["entity"] or self.default_entity,
+            str(self.settings["project"]),
+        )
         if not self._runs.get(path):
             # Individual runs should load full data by default
             self._runs[path] = public.Run(
@@ -1259,7 +1184,11 @@ class Api:
         Returns:
             A `Sweep` object.
         """
-        entity, project, sweep_id = self._parse_path(path)
+        entity, project, sweep_id = util.parse_path(
+            path,
+            self.settings["entity"] or self.default_entity,
+            str(self.settings["project"]),
+        )
         if not self._sweeps.get(path):
             self._sweeps[path] = public.Sweep(self.client, entity, project, sweep_id)
         return self._sweeps[path]
@@ -1279,7 +1208,11 @@ class Api:
         from .artifacts import ArtifactTypes
 
         project_path = project
-        entity, project = self._parse_project_path(project_path)
+        entity, project = util.parse_project_path(
+            project_path,
+            self.settings["entity"] or self.default_entity,
+            self.settings["project"] or "uncategorized",
+        )
         # If its a Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
             settings_entity = self.settings["entity"] or self.default_entity
@@ -1305,7 +1238,11 @@ class Api:
         from .artifacts import ArtifactType
 
         project_path = project
-        entity, project = self._parse_project_path(project_path)
+        entity, project = util.parse_project_path(
+            project_path,
+            self.settings["entity"] or self.default_entity,
+            self.settings["project"] or "uncategorized",
+        )
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_path, PathType.PROJECT)
@@ -1334,7 +1271,11 @@ class Api:
 
         from .artifacts import ArtifactCollections
 
-        entity, project = self._parse_project_path(project_name)
+        entity, project = util.parse_project_path(
+            project_name,
+            self.settings["entity"] or self.default_entity,
+            self.settings["project"] or "uncategorized",
+        )
         # If iterating through Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
             org = parse_org_from_registry_path(project_name, PathType.PROJECT)
