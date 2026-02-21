@@ -23,7 +23,12 @@ func newRunForHandlerTest(t *testing.T) *leet.Run {
 	_ = cfg.SetLeftSidebarVisible(true)
 	_ = cfg.SetRightSidebarVisible(true)
 
-	r := leet.NewRun("testdata/fake.wandb", cfg, logger)
+	runParams := &leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: "testdata/fake.wandb",
+		},
+	}
+	r := leet.NewRun(runParams, cfg, logger)
 	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	// Force left sidebar expanded so section navigation is testable.
