@@ -20,7 +20,12 @@ import (
 func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewRun("dummy", cfg, logger)
+	runParams := &leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: "dummy",
+		},
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
 
 	model := m.(*leet.Run)
@@ -48,7 +53,12 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 func TestFocus_Clicks_SetClear(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewRun("dummy", cfg, logger)
+	runParams := &leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: "dummy",
+		},
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 	d := map[string]leet.MetricData{
@@ -84,7 +94,12 @@ func TestFocus_Clicks_SetClear(t *testing.T) {
 func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewRun("dummy", cfg, logger)
+	runParams := &leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: "dummy",
+		},
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 
 	// Enter overview filter mode
@@ -114,7 +129,12 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	var m tea.Model = leet.NewRun("dummy", cfg, logger)
+	runParams := &leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: "dummy",
+		},
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 50})
 
 	// Toggle left sidebar
@@ -187,7 +207,12 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 	w.Close()
 
 	// Create model
-	m := leet.NewRun(path, cfg, logger)
+	runParams := &leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: path,
+		},
+	}
+	m := leet.NewRun(runParams, cfg, logger)
 
 	// Track heartbeat messages
 	heartbeatCount := 0
@@ -317,7 +342,12 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	w.Close()
 
 	// Create model
-	m := leet.NewRun(path, cfg, logger)
+	runParams := &leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: path,
+		},
+	}
+	m := leet.NewRun(runParams, cfg, logger)
 
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
@@ -379,7 +409,12 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		require.NoError(t, cfg.SetLeftSidebarVisible(true))
 		require.NoError(t, cfg.SetRightSidebarVisible(true))
 
-		m := leet.NewRun("dummy", cfg, logger)
+		runParams := &leet.RunParams{
+			LocalRunParams: &leet.LocalRunParams{
+				RunFile: "dummy",
+			},
+		}
+		m := leet.NewRun(runParams, cfg, logger)
 
 		var model tea.Model = m
 		model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})

@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/url"
+	"os"
 	"reflect"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -121,27 +120,23 @@ func NewParquetHistorySource(
 //
 // A run path is a string in the format of "wandb://<entity>/<project>/<runId>".
 func InitializeParquetHistorySource(
-	runURL *url.URL,
+	runParams *RemoteRunParams,
 	logger *observability.CoreLogger,
 ) tea.Cmd {
 	return func() tea.Msg {
-		entity, project, runId := parseRemoteRunPath(runURL)
-
-		// Infer the base url from the provided url.
-		baseURL := runURL.Scheme + "://" + runURL.Hostname()
-		if strings.EqualFold(runURL.Hostname(), "wandb.ai") {
-			baseURL = runURL.Scheme + "://api.wandb.ai"
-		}
+		entity := runParams.Entity
+		project := runParams.Project
+		runId := runParams.RunId
 
 		// Read the api key from the netrc file for the given base url.
-		apiKey, err := settings.ReadNetrcAPIKey(baseURL)
-		if err != nil {
-			return ErrorMsg{Err: err}
+		apiKey := os.Getenv("WANDB_API_KEY")
+		if apiKey == "" {
+			return ErrorMsg{Err: fmt.Errorf("WANDB_API_KEY is not set")}
 		}
 
 		settingsProto := &spb.Settings{
 			ApiKey:  wrapperspb.String(apiKey),
-			BaseUrl: wrapperspb.String(baseURL),
+			BaseUrl: wrapperspb.String(runParams.BaseURL),
 		}
 		s := settings.From(settingsProto)
 
@@ -346,24 +341,6 @@ func (s *ParquetHistorySource) processRunSummary() tea.Msg {
 			},
 		},
 	}
-}
-
-// parseRemoteRunPath parses a run path into entity, project, and run id.
-//
-// A run path is a string in the format of "wandb://<entity>/<project>/<runId>".
-// or alternatively in the format of "wandb://<entity>/<project>/runs/<runId>".
-func parseRemoteRunPath(
-	runURL *url.URL,
-) (entity, project, runId string) {
-	path := runURL.Path
-	path = strings.TrimPrefix(path, "/")
-	path = strings.ReplaceAll(path, "/runs/", "/")
-	parts := strings.Split(path, "/")
-
-	entity = parts[0]
-	project = parts[1]
-	runId = parts[2]
-	return entity, project, runId
 }
 
 func initGraphQLClient(
