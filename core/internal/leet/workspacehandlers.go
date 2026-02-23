@@ -157,6 +157,15 @@ func (w *Workspace) handleBottomBarAnimation() tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) handleSystemMetricsPaneAnimation(now time.Time) tea.Cmd {
+	done := w.systemMetricsPane.Update(now)
+	w.recalculateLayout()
+	if done {
+		return nil
+	}
+	return w.systemMetricsPaneAnimationCmd()
+}
+
 // ---- UI components Toggle Handlers ----
 
 func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
@@ -432,6 +441,12 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 		}
 		if w.hasLiveRuns.Load() {
 			w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
+		}
+
+	case StatsMsg:
+		grid := w.getOrCreateSystemMetricsGrid(run.key)
+		for metricName, value := range m.Metrics {
+			grid.AddDataPoint(metricName, m.Timestamp, value)
 		}
 
 	case SystemInfoMsg:
@@ -823,5 +838,47 @@ func (w *Workspace) handleRunsHome(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	w.runs.Home()
+	return nil
+}
+
+func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyMsg) tea.Cmd {
+	sysWillBeVisible := !w.systemMetricsPane.IsExpanded()
+	logsVisible := w.bottomBar.IsExpanded()
+
+	w.updateMiddlePaneHeights(sysWillBeVisible, logsVisible)
+	w.systemMetricsPane.Toggle()
+	w.recalculateLayout()
+	return w.systemMetricsPaneAnimationCmd()
+}
+
+func (w *Workspace) activeSystemMetricsGrid() *SystemMetricsGrid {
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return nil
+	}
+	return w.systemMetrics[cur.Key]
+}
+
+func (w *Workspace) handlePrevSystemMetricsPage(tea.KeyMsg) tea.Cmd {
+	if g := w.activeSystemMetricsGrid(); g != nil {
+		g.Navigate(-1)
+	}
+	return nil
+}
+
+func (w *Workspace) handleNextSystemMetricsPage(tea.KeyMsg) tea.Cmd {
+	if g := w.activeSystemMetricsGrid(); g != nil {
+		g.Navigate(1)
+	}
+	return nil
+}
+
+func (w *Workspace) handleConfigSystemCols(tea.KeyMsg) tea.Cmd {
+	w.config.SetPendingGridConfig(gridConfigSystemCols)
+	return nil
+}
+
+func (w *Workspace) handleConfigSystemRows(tea.KeyMsg) tea.Cmd {
+	w.config.SetPendingGridConfig(gridConfigSystemRows)
 	return nil
 }
