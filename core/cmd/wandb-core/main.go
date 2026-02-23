@@ -339,9 +339,8 @@ Flags:
 	}
 
 	var runParams *leet.RunParams
-	wandbDir := fs.Arg(0)
+	var wandbDir string
 	if *baseUrl != "" {
-		wandbDir = *baseUrl
 		runParams = &leet.RunParams{
 			RemoteRunParams: &leet.RemoteRunParams{
 				BaseURL: *baseUrl,
@@ -351,18 +350,20 @@ Flags:
 			},
 		}
 	} else if *runFile != "" {
+		wandbDir = fs.Arg(0)
 		runParams = &leet.RunParams{
 			LocalRunParams: &leet.LocalRunParams{
 				RunFile: *runFile,
 			},
 		}
+
+		if wandbDir == "" {
+			fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
+			fs.Usage()
+			return exitCodeErrorArgs
+		}
 	}
 
-	if wandbDir == "" {
-		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
-		fs.Usage()
-		return exitCodeErrorArgs
-	}
 
 	for {
 		m := leet.NewModel(leet.ModelParams{
