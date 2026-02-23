@@ -326,21 +326,22 @@ Flags:
 				RunId:   *runId,
 			},
 		}
-	} else if *runFile != "" {
+	} else {
 		wandbDir = fs.Arg(0)
-		runParams = &leet.RunParams{
-			LocalRunParams: &leet.LocalRunParams{
-				RunFile: *runFile,
-			},
-		}
-
 		if wandbDir == "" {
 			fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
 			fs.Usage()
 			return exitCodeErrorArgs
 		}
-	}
 
+		if *runFile != "" {
+			runParams = &leet.RunParams{
+				LocalRunParams: &leet.LocalRunParams{
+					RunFile: *runFile,
+				},
+			}
+		}
+	}
 
 	for {
 		m := leet.NewModel(leet.ModelParams{
