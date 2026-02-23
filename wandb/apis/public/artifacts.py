@@ -396,6 +396,14 @@ class ProjectArtifactCollections(
         order: str | None = None,
         per_page: int = 50,
     ):
+        if (order is not None or filters is not None) and not server_supports(
+            client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
+        ):
+            raise UnsupportedError(
+                "Filtering and ordering of artifact collections is not supported on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
+
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
 
@@ -415,14 +423,6 @@ class ProjectArtifactCollections(
                 PROJECT_ARTIFACT_COLLECTIONS_GQL,
                 omit_variables=omit_variables,
                 omit_fields=omit_fields,
-            )
-
-        if (order is not None or filters is not None) and not server_supports(
-            client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
-        ):
-            raise UnsupportedError(
-                "Filtering and ordering of artifact collections is not supported on this wandb server version. "
-                "Please upgrade your server version or contact support at support@wandb.com."
             )
 
         self.entity = entity
