@@ -655,6 +655,10 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 	}
 }
 
+func (r *Run) IsRemote() bool {
+	return r.runParams.RemoteRunParams != nil
+}
+
 // Layout represents the computed layout dimensions for the main UI.
 type Layout struct {
 	leftSidebarWidth       int

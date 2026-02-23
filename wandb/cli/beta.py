@@ -68,7 +68,9 @@ def leet(ctx: click.Context) -> None:
         wandb beta leet ./wandb         View runs in directory
         wandb beta leet symon           View live local system metrics
         wandb beta leet https://wandb.ai/wandbEntity/wandbProject/runId
-            View completed run stored on the W&B backend
+            View completed run stored on the W&B backend.
+            Run history is downloaded and stored locally,
+            and can be cleaned up with `wandb purge-cache`.
     """
     pass
 

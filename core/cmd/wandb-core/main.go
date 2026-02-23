@@ -246,11 +246,11 @@ type leetOptions struct {
 	symonMode        bool
 	symonInterval    time.Duration
 	wandbDir         string
-	
-	baseUrl          string
-	entity           string
-	project          string
-	runId            string
+
+	baseUrl string
+	entity  string
+	project string
+	runId   string
 }
 
 func parseLeetOptions(args []string) (leetOptions, error) {

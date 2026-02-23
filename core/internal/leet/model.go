@@ -391,7 +391,7 @@ func (m *Model) enterRunView() tea.Cmd {
 // exitRunView returns to the workspace view.
 func (m *Model) exitRunView() tea.Cmd {
 	// Do not exit to workspace view for remote projects.
-	if m.workspace.IsRemote() {
+	if m.run.IsRemote() {
 		return nil
 	}
 
