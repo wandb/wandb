@@ -84,18 +84,23 @@ class ServiceClient:
         if is_debug:
             request.debug_id = uuid.uuid4().hex
 
-        header = struct.pack(_HEADER_BYTE_INT_FMT, ord("W"), request.ByteSize())
-        self._writer.write(header)
+        data = bytes(request.SerializeToString())
 
-        data = request.SerializeToString()
+        crc1 = None
+        if is_debug:
+            crc1 = binascii.crc32(data)
+
+        self._writer.write(struct.pack(_HEADER_BYTE_INT_FMT, ord("W"), len(data)))
         self._writer.write(data)
 
-        if is_debug:  # Avoid computing checksum if not used.
+        if is_debug:
+            crc2 = binascii.crc32(data)
             _logger.debug(
-                "Wrote request %s of length %d with CRC-32 of %X",
+                "Wrote request %s, length %d, CRC-32 %X (%X)",
                 request.debug_id,
                 len(data),
-                binascii.crc32(data),
+                crc1,
+                crc2,
             )
 
         try:
