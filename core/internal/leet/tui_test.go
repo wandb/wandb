@@ -445,3 +445,176 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 	tm.Type("q")
 	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
 }
+
+func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	// Keep layout stable and the test focused on the bottom logs panel.
+	require.NoError(t, cfg.SetMetricsRows(1))
+	require.NoError(t, cfg.SetMetricsCols(1))
+	require.NoError(t, cfg.SetLeftSidebarVisible(false))
+	require.NoError(t, cfg.SetRightSidebarVisible(false))
+
+	// Create a writable .wandb file and keep it open to simulate a live run.
+	tmp, err := os.CreateTemp(t.TempDir(), "logs-*.wandb")
+	require.NoError(t, err)
+	defer tmp.Close()
+
+	writer := leveldb.NewWriterExt(tmp, leveldb.CRCAlgoIEEE, 0)
+	defer func() { _ = writer.Close() }()
+
+	// Minimal Run record (avoid loading screen).
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_Run{
+			Run: &spb.RunRecord{
+				RunId:       "test-run",
+				DisplayName: "Test Run",
+				Project:     "test-project",
+			},
+		},
+	})
+
+	// Minimal History record so the MetricsGrid renders ("loss").
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Step: &spb.HistoryStep{Num: 1},
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"_step"}, ValueJson: "1"},
+					{NestedKey: []string{"loss"}, ValueJson: "1.0"},
+				},
+			},
+		},
+	})
+	require.NoError(t, writer.Flush())
+
+	// Height chosen so BottomBar expands to 4 lines (ratio * (H-1) => 4),
+	// which yields 2 content lines. That makes paging assertions crisp.
+	const W, H = 120, 15
+	tm := newTestModel(t, cfg, tmp.Name(), W, H)
+
+	// Wait for the main chart to show.
+	teatest.WaitFor(t, tm.Output(),
+		func(b []byte) bool { return bytes.Contains(b, []byte("loss")) },
+		teatest.WithDuration(longWait),
+	)
+
+	// Open console logs panel.
+	tm.Type("l")
+	teatest.WaitFor(t, tm.Output(),
+		func(b []byte) bool { return bytes.Contains(b, []byte("Console Logs")) },
+		teatest.WithDuration(longWait),
+	)
+
+	parseRange := func(s string) (start, end, total int, ok bool) {
+		idx := strings.LastIndex(s, "Console Logs")
+		if idx == -1 {
+			return 0, 0, 0, false
+		}
+		line := s[idx:]
+		if nl := strings.IndexByte(line, '\n'); nl != -1 {
+			line = line[:nl]
+		}
+		lb := strings.IndexByte(line, '[')
+		rb := strings.IndexByte(line, ']')
+		if lb == -1 || rb == -1 || rb <= lb {
+			return 0, 0, 0, false
+		}
+		content := strings.TrimSpace(line[lb+1 : rb])
+		if _, err := fmt.Sscanf(content, "%d-%d of %d", &start, &end, &total); err != nil {
+			return 0, 0, 0, false
+		}
+		return start, end, total, true
+	}
+
+	// Append output_raw console logs.
+	baseTS := time.Now().Unix()
+	for i := 1; i <= 10; i++ {
+		writeRecord(t, writer, &spb.Record{
+			RecordType: &spb.Record_OutputRaw{
+				OutputRaw: &spb.OutputRawRecord{
+					Line:       fmt.Sprintf("log %02d\n", i),
+					OutputType: spb.OutputRawRecord_STDOUT,
+					Timestamp:  &timestamppb.Timestamp{Seconds: baseTS + int64(i)},
+				},
+			},
+		})
+	}
+	require.NoError(t, writer.Flush())
+
+	// Trigger live read + redraw.
+	tm.Send(leet.FileChangedMsg{})
+
+	// Track width bumps so we always get fresh bytes after WaitFor consumes output.
+	repaintW := W
+	forceRepaint(tm, repaintW, H)
+	repaintW++
+
+	// Wait until:
+	// - log 10 is visible (auto-scroll)
+	// - range is present and shows 2 visible rows (expanded height 4 => 2 content lines)
+	var start0, end0, total0 int
+	teatest.WaitFor(t, tm.Output(),
+		func(b []byte) bool {
+			s := stripANSI(string(b))
+			if !strings.Contains(s, "log 10") {
+				return false
+			}
+			st, en, tot, ok := parseRange(s)
+			if !ok || tot < 2 {
+				return false
+			}
+			if en-st+1 != 2 {
+				// Not fully expanded yet (during animation it may show fewer rows).
+				return false
+			}
+			start0, end0, total0 = st, en, tot
+			_ = end0 // captured for debugging; start0/total0 used below
+			return true
+		},
+		teatest.WithDuration(longWait),
+	)
+
+	// Focus logs (tab) and page up (left).
+	tm.Send(tea.KeyMsg{Type: tea.KeyTab})
+	tm.Send(tea.KeyMsg{Type: tea.KeyLeft})
+	forceRepaint(tm, repaintW, H)
+	repaintW++
+
+	var start1, total1 int
+	teatest.WaitFor(t, tm.Output(),
+		func(b []byte) bool {
+			s := stripANSI(string(b))
+			st, _, tot, ok := parseRange(s)
+			if !ok {
+				return false
+			}
+			start1, total1 = st, tot
+			return total1 == total0 && start1 < start0
+		},
+		teatest.WithDuration(longWait),
+	)
+
+	// Page down (right) back toward the end.
+	tm.Send(tea.KeyMsg{Type: tea.KeyRight})
+	forceRepaint(tm, repaintW, H)
+	repaintW++
+
+	teatest.WaitFor(t, tm.Output(),
+		func(b []byte) bool {
+			s := stripANSI(string(b))
+			st, _, tot, ok := parseRange(s)
+			return ok && tot == total0 && st > start1 && strings.Contains(s, "log 10")
+		},
+		teatest.WithDuration(longWait),
+	)
+
+	// Close console logs panel.
+	tm.Type("l")
+	forceRepaint(tm, repaintW, H)
+
+	// Quit.
+	tm.Type("q")
+	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
+}

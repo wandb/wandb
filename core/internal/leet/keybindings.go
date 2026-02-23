@@ -59,6 +59,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Description: "Toggle right sidebar with system metrics",
 					Handler:     (*Run).handleToggleRightSidebar,
 				},
+				{
+					Keys:        []string{"l"},
+					Description: "Toggle console logs panel",
+					Handler:     (*Run).handleToggleBottomBar,
+				},
 			},
 		},
 		{
@@ -142,21 +147,23 @@ func RunKeyBindings() []BindingCategory[Run] {
 			},
 		},
 
-		// Documentation-only bindings (handled by subcomponents, not via Run.keyMap).
 		{
-			Name: "Run Overview Navigation (when sidebar open)",
+			Name: "Sidebars (when open)",
 			Bindings: []KeyBinding[Run]{
 				{
-					Keys:        []string{"up", "down"},
-					Description: "Navigate items in section",
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Cycle focus: overview ↔ logs (overview cycles sections)",
+					Handler:     (*Run).handleSidebarTabNav,
 				},
 				{
-					Keys:        []string{"tab", "shift+tab"},
-					Description: "Switch between sections",
+					Keys:        []string{"up", "down"},
+					Description: "Navigate focused sidebar/list",
+					Handler:     (*Run).handleSidebarVerticalNav,
 				},
 				{
 					Keys:        []string{"left", "right"},
-					Description: "Navigate pages in section",
+					Description: "Page in focused sidebar/list",
+					Handler:     (*Run).handleSidebarPageNav,
 				},
 			},
 		},
@@ -202,6 +209,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"]"},
 					Description: "Toggle run overview sidebar",
 					Handler:     (*Workspace).handleToggleOverviewSidebar,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Toggle console logs panel",
+					Handler:     (*Workspace).handleToggleBottomBar,
 				},
 			},
 		},
@@ -255,7 +267,7 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			Bindings: []KeyBinding[Workspace]{
 				{
 					Keys:        []string{"tab", "shift+tab"},
-					Description: "Cycle focus between runs and overview sections",
+					Description: "Cycle focus between runs, overview, and console logs",
 					Handler:     (*Workspace).handleSidebarTabNav,
 				},
 				{

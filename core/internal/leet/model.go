@@ -182,7 +182,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch m.mode {
 		case viewModeWorkspace:
-			if keyMsg.Type == tea.KeyEnter && !awaitingUserInput {
+			if keyMsg.Type == tea.KeyEnter &&
+				!awaitingUserInput &&
+				m.workspace.RunSelectorActive() {
 				cmd := m.enterRunView()
 				return m, cmd
 			}

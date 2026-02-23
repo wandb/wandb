@@ -18,7 +18,6 @@ import (
 	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/transactionlog"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -110,7 +109,7 @@ func NewStream(
 	runWork := runwork.New(BufferSize, logger)
 	tbHandler := tbHandlerFactory.New(
 		runWork,
-		/*fileReadDelay=*/ waiting.NewDelay(5*time.Second),
+		/*fileReadDelay=*/ 5*time.Second,
 	)
 	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
 

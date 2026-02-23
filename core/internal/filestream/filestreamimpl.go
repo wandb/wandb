@@ -90,7 +90,7 @@ func (fs *fileStream) startTransmitting(
 	}.Start(state, requests)
 
 	feedback := TransmitLoop{
-		HeartbeatStopwatch:     fs.heartbeatStopwatch,
+		HeartbeatPeriod:        fs.heartbeatPeriod,
 		Send:                   fs.send,
 		LogFatalAndStopWorking: fs.logFatalAndStopWorking,
 	}.Start(transmissions)

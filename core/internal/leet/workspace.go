@@ -62,6 +62,10 @@ type Workspace struct {
 	focus       *Focus
 	metricsGrid *MetricsGrid
 
+	// Run console logs keyed by run path.
+	consoleLogs map[string]*RunConsoleLogs
+	bottomBar   *BottomBar
+
 	// Per‑run streaming state keyed by runDirName.
 	runsByKey map[string]*workspaceRun
 
@@ -125,6 +129,8 @@ func NewWorkspace(
 		selectedRuns:      make(map[string]bool),
 		focus:             focus,
 		metricsGrid:       NewMetricsGrid(cfg, focus, logger),
+		consoleLogs:       make(map[string]*RunConsoleLogs),
+		bottomBar:         NewBottomBar(),
 		runsByKey:         make(map[string]*workspaceRun),
 		liveChan:          ch,
 		heartbeatMgr:      NewHeartbeatManager(hbInterval, ch, logger),
@@ -175,6 +181,9 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceRunOverviewAnimationMsg:
 		return w.handleRunOverviewAnimation()
 
+	case WorkspaceBottomBarAnimationMsg:
+		return w.handleBottomBarAnimation()
+
 	case WorkspaceRunInitMsg:
 		return w.handleWorkspaceRunInit(t)
 
@@ -211,7 +220,20 @@ func (w *Workspace) View() string {
 		cols = append(cols, w.renderRunsList())
 	}
 
-	cols = append(cols, w.renderMetrics())
+	centralColumn := w.renderMetrics()
+	if w.bottomBar.IsVisible() {
+		contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
+		if cur, ok := w.runs.CurrentItem(); ok {
+			if cl := w.consoleLogs[cur.Key]; cl != nil {
+				w.bottomBar.SetConsoleLogs(cl.Items())
+			} else {
+				w.bottomBar.SetConsoleLogs(nil)
+			}
+		}
+		bbView := w.bottomBar.View(contentWidth)
+		centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, bbView)
+	}
+	cols = append(cols, centralColumn)
 
 	if w.runOverviewSidebar.IsVisible() {
 		cols = append(cols, w.renderRunOverview())
@@ -262,7 +284,7 @@ func (w *Workspace) computeViewports() Layout {
 	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
 
 	contentW := max(w.width-leftW-rightW, 1)
-	contentH := max(w.height-StatusBarHeight, 1)
+	contentH := max(w.height-StatusBarHeight-w.bottomBar.Height(), 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
 }
@@ -280,29 +302,55 @@ func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
 	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
 }
 
-// resolveSidebarFocus ensures runs.Active reflects which sidebar should
-// receive keyboard input after a visibility change.
+// resolveFocusAfterVisibilityChange ensures focus stays on a valid region
+// after a panel visibility change.
 //
-// Rules:
-//   - Exactly one sidebar visible → that sidebar gets focus.
-//   - Both hidden → default to runs focus.
-//   - Both visible → keep current focus.
-func (w *Workspace) resolveSidebarFocus(leftVisible, rightVisible bool) {
-	switch {
-	case leftVisible && !rightVisible:
-		w.runs.Active = true
-	case !leftVisible && rightVisible:
-		w.runs.Active = false
-	case !leftVisible && !rightVisible:
-		w.runs.Active = true
-		// Both visible: preserve current focus.
+// If the currently focused region will remain available, focus is left
+// unchanged. Otherwise it advances to the next available region.
+func (w *Workspace) resolveFocusAfterVisibilityChange(
+	leftVisible, rightVisible, bottomVisible bool) {
+	cur := w.currentFocusRegion()
+
+	// Build the future availability map from the post-toggle state.
+	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
+	avail := map[focusRegion]bool{
+		focusRuns:     leftVisible,
+		focusLogs:     bottomVisible,
+		focusOverview: rightVisible && firstSec != -1,
 	}
+
+	if avail[cur] {
+		return
+	}
+
+	// Current region is being collapsed — find the next available one.
+	curIdx := 0
+	for i, v := range focusOrder {
+		if v == cur {
+			curIdx = i
+			break
+		}
+	}
+
+	n := len(focusOrder)
+	for step := 1; step <= n; step++ {
+		nextIdx := ((curIdx + step) % n)
+		next := focusOrder[nextIdx]
+		if avail[next] {
+			w.setFocusRegion(next, 1)
+			return
+		}
+	}
+
+	// Nothing available — default to runs (it will show inactive styling).
+	w.setFocusRegion(focusRuns, 1)
 }
 
 // handleWindowResize handles window resize messages.
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
 	w.updateSidebarDimensions(w.runsAnimState.IsVisible(), w.runOverviewSidebar.IsVisible())
+	w.bottomBar.UpdateExpandedHeight(max(height-StatusBarHeight, 0))
 	w.recalculateLayout()
 }
 
@@ -317,6 +365,12 @@ func (w *Workspace) runsAnimationCmd() tea.Cmd {
 func (w *Workspace) runOverviewAnimationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(t time.Time) tea.Msg {
 		return WorkspaceRunOverviewAnimationMsg{}
+	})
+}
+
+func (w *Workspace) bottomBarAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
+		return WorkspaceBottomBarAnimationMsg{}
 	})
 }
 
@@ -361,6 +415,7 @@ func (w *Workspace) dropRun(runKey string) {
 			run.reader.Close()
 		}
 		delete(w.runsByKey, runKey)
+		delete(w.consoleLogs, runKey)
 	}
 
 	w.syncLiveRunState()
@@ -381,6 +436,18 @@ func (w *Workspace) getOrCreateRunOverview(runKey string) *RunOverview {
 	return ro
 }
 
+// getOrCreateConsoleLogs returns the RunConsoleLogs for the given key,
+// creating one if needed.
+func (w *Workspace) getOrCreateConsoleLogs(runKey string) *RunConsoleLogs {
+	cl := w.consoleLogs[runKey]
+	if cl != nil {
+		return cl
+	}
+	cl = NewRunConsoleLogs()
+	w.consoleLogs[runKey] = cl
+	return cl
+}
+
 // refreshPinnedRun ensures the pinned run (if any) is drawn on top in all charts.
 func (w *Workspace) refreshPinnedRun() {
 	if w.pinnedRun == "" {
@@ -397,12 +464,20 @@ func (w *Workspace) refreshPinnedRun() {
 
 func (w *Workspace) runSelectorActive() bool {
 	return w.runs.Active &&
+		!w.bottomBar.Active() &&
 		w.runsAnimState.IsVisible() &&
 		len(w.runs.FilteredItems) > 0
 }
 
+// RunSelectorActive reports whether the runs list sidebar is focused,
+// visible, and has items. Used by the top-level Model to gate Enter
+// (switch to single-run view) so it only fires when the run list owns focus.
+func (w *Workspace) RunSelectorActive() bool {
+	return w.runSelectorActive()
+}
+
 func (w *Workspace) runOverviewActive() bool {
-	return !w.runs.Active && w.runOverviewSidebar.animState.IsVisible()
+	return !w.runs.Active && !w.bottomBar.Active() && w.runOverviewSidebar.IsVisible()
 }
 
 // ---- Rendering ----
@@ -453,14 +528,10 @@ func (w *Workspace) renderRunOverview() string {
 	w.runOverviewSidebar.SetRunOverview(ro)
 	w.runOverviewSidebar.Sync()
 
-	// Manage section activation based on which sidebar has keyboard focus.
-	// When the run selector owns focus, show overview data without any
-	// highlighted row. When the overview owns focus, ensure at least one
-	// section is active so the user can navigate.
-	if w.runs.Active {
+	if w.runOverviewActive() {
+		w.runOverviewSidebar.activateSelection()
+	} else {
 		w.runOverviewSidebar.deactivateAllSections()
-	} else if !w.runOverviewSidebar.hasActiveSection() {
-		w.runOverviewSidebar.selectFirstAvailableItem()
 	}
 
 	sidebarH := max(w.height-StatusBarHeight, 0)
@@ -471,7 +542,7 @@ func (w *Workspace) renderRunOverview() string {
 
 func (w *Workspace) renderMetrics() string {
 	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
-	contentHeight := max(w.height-StatusBarHeight, 0)
+	contentHeight := max(w.height-StatusBarHeight-w.bottomBar.Height(), 0)
 
 	if contentWidth <= 0 || contentHeight <= 0 {
 		return ""

@@ -66,16 +66,19 @@ class ApiRequest(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    ID_FIELD_NUMBER: builtins.int
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: builtins.int
+    id: builtins.str
     @property
     def read_run_history_request(self) -> global___ReadRunHistoryRequest: ...
     def __init__(
         self,
         *,
+        id: builtins.str = ...,
         read_run_history_request: global___ReadRunHistoryRequest | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["read_run_history_request", b"read_run_history_request", "request", b"request"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["read_run_history_request", b"read_run_history_request", "request", b"request"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["id", b"id", "read_run_history_request", b"read_run_history_request", "request", b"request"]) -> None: ...
     def WhichOneof(self, oneof_group: typing_extensions.Literal["request", b"request"]) -> typing_extensions.Literal["read_run_history_request"] | None: ...
 
 global___ApiRequest = ApiRequest
@@ -85,15 +88,37 @@ class ServerApiInitResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     ERROR_MESSAGE_FIELD_NUMBER: builtins.int
+    ID_FIELD_NUMBER: builtins.int
     error_message: builtins.str
+    id: builtins.str
     def __init__(
         self,
         *,
         error_message: builtins.str = ...,
+        id: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["error_message", b"error_message"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["error_message", b"error_message", "id", b"id"]) -> None: ...
 
 global___ServerApiInitResponse = ServerApiInitResponse
+
+@typing_extensions.final
+class ServerApiCleanupRequest(google.protobuf.message.Message):
+    """ServerApiCleanupRequest instructs the backend process
+    to cleanup API resources associated with an id.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    ID_FIELD_NUMBER: builtins.int
+    id: builtins.str
+    def __init__(
+        self,
+        *,
+        id: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["id", b"id"]) -> None: ...
+
+global___ServerApiCleanupRequest = ServerApiCleanupRequest
 
 @typing_extensions.final
 class ApiResponse(google.protobuf.message.Message):

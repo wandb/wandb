@@ -104,6 +104,11 @@ const (
 	// Sidebar content padding (accounts for borders and internal spacing).
 	rightSidebarContentPadding = 3
 
+	// sidebarVerticalBorderCols is the width (in terminal columns)
+	// consumed by a sidebar's vertical border.
+	// Both LeftBorder and RightBorder draw a single vertical rule.
+	sidebarVerticalBorderCols = 1
+
 	// Default grid height for system metrics when not calculated from terminal height.
 	defaultSystemMetricsGridHeight = 40
 
@@ -118,6 +123,9 @@ const (
 
 	// BoxLightVertical is U+2502 and is "taller" than verticalLine.
 	boxLightVertical rune = '\u2502' // │
+
+	// unicodeEmDash is the em dash.
+	unicodeEmDash rune = '\u2014'
 
 	// unicodeSpace is the regular whitespace.
 	unicodeSpace rune = '\u0020'
@@ -381,7 +389,7 @@ var (
 
 // Right sidebar styles.
 var (
-	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
+	rightSidebarStyle       = lipgloss.NewStyle().PaddingLeft(1)
 	rightSidebarBorderStyle = lipgloss.NewStyle().
 				Border(LeftBorder).
 				BorderForeground(colorLayout).
@@ -399,6 +407,51 @@ var (
 		TopRight:    string(unicodeSpace),
 		BottomLeft:  string(unicodeSpace),
 		BottomRight: string(unicodeSpace),
+	}
+)
+
+// Bottom bar styles.
+var (
+	bottomBarBorderStyle = lipgloss.NewStyle().
+				Border(topOnlyBorder).
+				BorderForeground(colorLayout).
+				BorderTop(true).
+				BorderBottom(false).
+				BorderLeft(false).
+				BorderRight(false).
+				PaddingBottom(1)
+
+	bottomBarHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(colorSubheading).
+				PaddingLeft(1)
+
+	bottomBarTimestampStyle = lipgloss.NewStyle().
+				Foreground(colorSubtle).
+				PaddingLeft(1)
+
+	bottomBarValueStyle = lipgloss.NewStyle().
+				Foreground(colorItemValue)
+
+	bottomBarHighlightedTimestampStyle = lipgloss.NewStyle().
+						Background(colorSelected).
+						Foreground(colorDark).
+						PaddingLeft(1)
+
+	bottomBarHighlightedValueStyle = lipgloss.NewStyle().
+					Background(colorSelected).
+					Foreground(colorDark)
+
+	// topOnlyBorder draws a single horizontal line at the top of the box.
+	topOnlyBorder = lipgloss.Border{
+		Top:         string(unicodeEmDash),
+		Bottom:      "",
+		Left:        "",
+		Right:       "",
+		TopLeft:     string(unicodeEmDash),
+		TopRight:    string(unicodeEmDash),
+		BottomLeft:  "",
+		BottomRight: "",
 	}
 )
 

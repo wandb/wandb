@@ -84,7 +84,7 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	contentWidth := max(w.width-leftOffset-rightOffset, 0)
-	contentHeight := max(w.height-StatusBarHeight, 0)
+	contentHeight := max(w.height-StatusBarHeight-w.bottomBar.Height(), 0)
 	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
 
 	row := adjustedY / dims.CellHWithPadding
@@ -147,13 +147,23 @@ func (w *Workspace) handleRunOverviewAnimation() tea.Cmd {
 	return nil
 }
 
-// ---- Sidebar Toggle Handlers ----
+func (w *Workspace) handleBottomBarAnimation() tea.Cmd {
+	w.bottomBar.Update(time.Now())
+	w.recalculateLayout()
+
+	if w.bottomBar.IsAnimating() {
+		return w.bottomBarAnimationCmd()
+	}
+	return nil
+}
+
+// ---- UI components Toggle Handlers ----
 
 func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
 	leftWillBeVisible := !w.runsAnimState.IsVisible()
 	rightIsVisible := w.runOverviewSidebar.IsVisible()
 
-	w.resolveSidebarFocus(leftWillBeVisible, rightIsVisible)
+	w.resolveFocusAfterVisibilityChange(leftWillBeVisible, rightIsVisible, w.bottomBar.IsExpanded())
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
 	w.recalculateLayout()
@@ -165,12 +175,24 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
 	rightWillBeVisible := !w.runOverviewSidebar.IsVisible()
 	leftIsVisible := w.runsAnimState.IsVisible()
 
-	w.resolveSidebarFocus(leftIsVisible, rightWillBeVisible)
+	w.resolveFocusAfterVisibilityChange(leftIsVisible, rightWillBeVisible, w.bottomBar.IsExpanded())
 	w.updateSidebarDimensions(leftIsVisible, rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
 	w.recalculateLayout()
 
 	return w.runOverviewAnimationCmd()
+}
+
+func (w *Workspace) handleToggleBottomBar(msg tea.KeyMsg) tea.Cmd {
+	bottomWillBeVisible := !w.bottomBar.IsExpanded()
+
+	w.resolveFocusAfterVisibilityChange(
+		w.runsAnimState.IsExpanded(), w.runOverviewSidebar.IsExpanded(), bottomWillBeVisible)
+	w.bottomBar.UpdateExpandedHeight(max(w.height-StatusBarHeight, 0))
+	w.bottomBar.Toggle()
+	w.recalculateLayout()
+
+	return w.bottomBarAnimationCmd()
 }
 
 // ---- Reader / Watcher Commands ----
@@ -418,6 +440,9 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 	case SummaryMsg:
 		w.getOrCreateRunOverview(run.key).ProcessSummaryMsg(m.Summary)
 
+	case ConsoleLogMsg:
+		w.getOrCreateConsoleLogs(run.key).ProcessRaw(m.Text, m.IsStderr, m.Time)
+
 	case FileCompleteMsg:
 		switch m.ExitCode {
 		case 0:
@@ -625,6 +650,13 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyMsg) tea.Cmd {
 
 func (w *Workspace) handleRunsVerticalNav(msg tea.KeyMsg) tea.Cmd {
 	switch {
+	case w.bottomBar.Active():
+		switch msg.String() {
+		case "up":
+			w.bottomBar.Up()
+		case "down":
+			w.bottomBar.Down()
+		}
 	case w.runSelectorActive():
 		switch msg.String() {
 		case "up":
@@ -643,96 +675,131 @@ func (w *Workspace) handleRunsVerticalNav(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+// ---- Focus Region Cycling ----
+
+// focusRegion identifies a focusable UI region in the workspace.
+type focusRegion int
+
+const (
+	focusRuns focusRegion = iota
+	focusLogs
+	focusOverview
+)
+
+// focusOrder defines the Tab-cycling order across workspace regions.
+var focusOrder = []focusRegion{focusRuns, focusLogs, focusOverview}
+
 func (w *Workspace) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
 	direction := 1
 	if msg.Type == tea.KeyShiftTab {
 		direction = -1
 	}
 
-	runsExpanded := w.runsAnimState.IsExpanded()
-	overviewExpanded := w.runOverviewSidebar.animState.IsExpanded()
+	cur := w.currentFocusRegion()
 
-	if w.runs.Active {
-		if !overviewExpanded {
-			return nil
-		}
-
-		w.runs.Active = false
-
-		if direction == 1 {
-			w.runOverviewSidebar.selectFirstAvailableItem()
-			return nil
-		}
-
-		_, last := w.runOverviewSectionBounds()
-		if last != -1 {
-			w.runOverviewSidebar.setActiveSection(last)
-			return nil
-		}
-
-		w.runOverviewSidebar.selectFirstAvailableItem()
+	// Try cycling within overview sections before leaving the region.
+	if cur == focusOverview && w.cycleOverviewSection(direction) {
 		return nil
 	}
 
-	// Overview sidebar is focused.
-	if !overviewExpanded {
-		// Can't keep focus on a hidden/collapsed sidebar.
-		w.runs.Active = true
-		w.runOverviewSidebar.deactivateAllSections()
-		return nil
-	}
-	if !runsExpanded {
-		// With no runs sidebar, keep cycling within the overview sections.
-		w.runOverviewSidebar.navigateSection(direction)
-		return nil
-	}
-
-	first, last := w.runOverviewSectionBounds()
-	if first == -1 || last == -1 {
-		// No navigable sections; return focus to the runs list.
-		w.runs.Active = true
-		w.runOverviewSidebar.deactivateAllSections()
-		return nil
-	}
-
-	if direction == 1 && w.runOverviewSidebar.activeSection == last {
-		w.runs.Active = true
-		w.runOverviewSidebar.deactivateAllSections()
-		return nil
-	}
-	if direction == -1 && w.runOverviewSidebar.activeSection == first {
-		w.runs.Active = true
-		w.runOverviewSidebar.deactivateAllSections()
-		return nil
-	}
-
-	w.runOverviewSidebar.navigateSection(direction)
+	w.cycleFocusRegion(cur, direction)
 	return nil
 }
 
-// runOverviewSectionBounds returns the first and last sections with at least one
-// visible item. If none exist, returns (-1, -1).
-func (w *Workspace) runOverviewSectionBounds() (first, last int) {
-	first, last = -1, -1
-	if w.runOverviewSidebar == nil {
-		return first, last
+// currentFocusRegion returns which focusable region currently holds focus.
+func (w *Workspace) currentFocusRegion() focusRegion {
+	switch {
+	case w.bottomBar.Active():
+		return focusLogs
+	case w.runs.Active:
+		return focusRuns
+	default:
+		return focusOverview
+	}
+}
+
+// cycleOverviewSection tries to move within overview sections.
+//
+// Returns true if the navigation was handled (i.e. we're not at a boundary).
+func (w *Workspace) cycleOverviewSection(direction int) bool {
+	firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
+	if !w.runOverviewSidebar.animState.IsExpanded() || firstSec == -1 {
+		return false
 	}
 
-	for i := range w.runOverviewSidebar.sections {
-		section := &w.runOverviewSidebar.sections[i]
-		if section.ItemsPerPage() == 0 || len(section.FilteredItems) == 0 {
-			continue
-		}
-		if first == -1 {
-			first = i
-		}
-		last = i
+	atBoundary := (direction == 1 && w.runOverviewSidebar.activeSection == lastSec) ||
+		(direction == -1 && w.runOverviewSidebar.activeSection == firstSec)
+	if atBoundary {
+		return false
 	}
-	return first, last
+
+	w.runOverviewSidebar.navigateSection(direction)
+	return true
+}
+
+// cycleFocusRegion moves focus to the next available region in the given direction.
+func (w *Workspace) cycleFocusRegion(cur focusRegion, direction int) {
+	avail := w.regionAvailability()
+
+	curIdx := 0
+	for i, v := range focusOrder {
+		if v == cur {
+			curIdx = i
+			break
+		}
+	}
+
+	n := len(focusOrder)
+	for step := 1; step <= n; step++ {
+		nextIdx := ((curIdx+direction*step)%n + n) % n
+		next := focusOrder[nextIdx]
+		if avail[next] {
+			w.setFocusRegion(next, direction)
+			return
+		}
+	}
+}
+
+// regionAvailability returns which focus regions are currently usable.
+func (w *Workspace) regionAvailability() map[focusRegion]bool {
+	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
+	return map[focusRegion]bool{
+		focusRuns:     w.runsAnimState.IsExpanded(),
+		focusLogs:     w.bottomBar.IsExpanded(),
+		focusOverview: w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1,
+	}
+}
+
+// setFocusRegion clears all focus and activates the given region.
+func (w *Workspace) setFocusRegion(region focusRegion, direction int) {
+	w.runs.Active = false
+	w.bottomBar.SetActive(false)
+	w.runOverviewSidebar.deactivateAllSections()
+
+	switch region {
+	case focusRuns:
+		w.runs.Active = true
+	case focusLogs:
+		w.bottomBar.SetActive(true)
+	case focusOverview:
+		firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
+		if direction == 1 {
+			w.runOverviewSidebar.setActiveSection(firstSec)
+		} else {
+			w.runOverviewSidebar.setActiveSection(lastSec)
+		}
+	}
 }
 
 func (w *Workspace) handleRunsPageNav(msg tea.KeyMsg) tea.Cmd {
 	switch {
+	case w.bottomBar.Active():
+		switch msg.String() {
+		case "left":
+			w.bottomBar.PageUp()
+		case "right":
+			w.bottomBar.PageDown()
+		}
 	case w.runSelectorActive():
 		switch msg.String() {
 		case "left":

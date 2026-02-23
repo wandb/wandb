@@ -140,6 +140,26 @@ func (a *AnimatedValue) IsCollapsing() bool {
 	return a.current > a.target
 }
 
+// ForceCollapse immediately snaps to zero without animation.
+func (a *AnimatedValue) ForceCollapse() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.current = 0
+	a.target = 0
+	a.startTime = time.Time{}
+}
+
+// ForceExpand immediately snaps to the expanded value without animation.
+//
+// Intended for tests that need to skip animation.
+func (a *AnimatedValue) ForceExpand() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.current = a.expanded
+	a.target = a.expanded
+	a.startTime = time.Time{}
+}
+
 // easeOutCubic maps t ∈ [0, 1] -> [0, 1] with deceleration near the end.
 //
 // Values outside [0,1] are acceptable; callers clamp at 1.

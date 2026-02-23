@@ -6,6 +6,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // TestFocusState returns the current focus state
@@ -150,4 +152,181 @@ func (w *Workspace) TestRunOverviewID(runKey string) string {
 		return ""
 	}
 	return ro.runID
+}
+
+// ---- Run bottom bar / sidebar test helpers ----
+
+// TestBottomBarActive reports whether the bottom bar has focus.
+func (r *Run) TestBottomBarActive() bool {
+	return r.bottomBar.Active()
+}
+
+// TestBottomBarExpanded reports whether the bottom bar is fully expanded.
+func (r *Run) TestBottomBarExpanded() bool {
+	return r.bottomBar.IsExpanded()
+}
+
+// TestLeftSidebarActiveSectionIdx returns the active section index.
+func (r *Run) TestLeftSidebarActiveSectionIdx() int {
+	return r.leftSidebar.activeSection
+}
+
+// TestLeftSidebarHasActiveSection reports whether any section has focus.
+func (r *Run) TestLeftSidebarHasActiveSection() bool {
+	return r.leftSidebar.hasActiveSection()
+}
+
+// TestForceExpandBottomBar instantly expands the bottom bar to height h.
+func (r *Run) TestForceExpandBottomBar(h int) {
+	r.bottomBar.SetExpandedHeight(h)
+	r.bottomBar.animState.ForceExpand()
+}
+
+// TestForceExpandLeftSidebar instantly expands the left sidebar.
+func (r *Run) TestForceExpandLeftSidebar() {
+	r.leftSidebar.animState.ForceExpand()
+}
+
+// TestForceCollapseLeftSidebar instantly collapses the left sidebar.
+func (r *Run) TestForceCollapseLeftSidebar() {
+	r.leftSidebar.animState.ForceCollapse()
+}
+
+// ---- Workspace bottom bar / focus test helpers ----
+
+// TestBottomBarActive reports whether the workspace bottom bar has focus.
+func (w *Workspace) TestBottomBarActive() bool {
+	return w.bottomBar.Active()
+}
+
+// TestBottomBarExpanded reports whether the workspace bottom bar is expanded.
+func (w *Workspace) TestBottomBarExpanded() bool {
+	return w.bottomBar.IsExpanded()
+}
+
+// TestRunsActive reports whether the runs list has focus.
+func (w *Workspace) TestRunsActive() bool {
+	return w.runs.Active
+}
+
+// TestCurrentFocusRegion returns the current focus region as an int.
+// Maps to the focusRegion enum: 0=focusRuns, 1=focusLogs, 2=focusOverview.
+func (w *Workspace) TestCurrentFocusRegion() int {
+	return int(w.currentFocusRegion())
+}
+
+// TestForceExpandBottomBar instantly expands the workspace bottom bar.
+func (w *Workspace) TestForceExpandBottomBar(h int) {
+	w.bottomBar.SetExpandedHeight(h)
+	w.bottomBar.animState.ForceExpand()
+}
+
+// TestForceCollapseOverviewSidebar instantly collapses the overview sidebar.
+func (w *Workspace) TestForceCollapseOverviewSidebar() {
+	w.runOverviewSidebar.animState.ForceCollapse()
+}
+
+// TestForceExpandOverviewSidebar instantly expands the overview sidebar.
+func (w *Workspace) TestForceExpandOverviewSidebar() {
+	w.runOverviewSidebar.animState.ForceExpand()
+}
+
+// TestForceCollapseRunsSidebar instantly collapses the runs sidebar.
+func (w *Workspace) TestForceCollapseRunsSidebar() {
+	w.runsAnimState.ForceCollapse()
+}
+
+// TestForceExpandRunsSidebar instantly expands the runs sidebar.
+func (w *Workspace) TestForceExpandRunsSidebar() {
+	w.runsAnimState.ForceExpand()
+}
+
+// TestConsoleLogs returns the console logs map for assertion.
+func (w *Workspace) TestConsoleLogs() map[string]*RunConsoleLogs {
+	return w.consoleLogs
+}
+
+// TestRunOverviewSidebarHasActiveSection reports whether the overview sidebar
+// has an active section.
+func (w *Workspace) TestRunOverviewSidebarHasActiveSection() bool {
+	return w.runOverviewSidebar.hasActiveSection()
+}
+
+// TestFocusableSectionBounds exposes the sidebar's focusable section range.
+func (s *RunOverviewSidebar) TestFocusableSectionBounds() (first, last int) {
+	return s.focusableSectionBounds()
+}
+
+// TestSeedRunOverview populates the workspace's overview data for the given
+// run key with sample config, summary, and environment items, then syncs the
+// sidebar so that overview sections become focusable.
+//
+// This mirrors the data-seeding pattern used by Run-level handler tests
+// (e.g. newRunForHandlerTest) and is required whenever a test needs to Tab
+// into the overview region.
+func (w *Workspace) TestSeedRunOverview(runKey string) {
+	ro := NewRunOverview()
+	ro.ProcessRunMsg(RunMsg{
+		ID:      "test-id",
+		Project: "test-project",
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"lr"}, ValueJson: "0.01"},
+				{NestedKey: []string{"epochs"}, ValueJson: "10"},
+			},
+		},
+	})
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{{
+		Update: []*spb.SummaryItem{
+			{NestedKey: []string{"loss"}, ValueJson: "0.42"},
+		},
+	}})
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+		WriterId: "w1",
+		Os:       "linux",
+	})
+
+	w.runOverview[runKey] = ro
+	w.runOverviewSidebar.SetRunOverview(ro)
+	w.runOverviewSidebar.Sync()
+
+	// Trigger section height calculation so ItemsPerPage > 0.
+	sidebarH := max(w.height-StatusBarHeight, 0)
+	innerH := max(sidebarH-workspaceTopMarginLines, 0)
+	_ = w.runOverviewSidebar.View(innerH)
+}
+
+// TestCurrentRunFocusRegion returns the current focus region as an int.
+// Maps to the runFocusRegion enum: 0=runFocusOverview, 1=runFocusLogs.
+func (r *Run) TestCurrentRunFocusRegion() int {
+	return int(r.currentRunFocusRegion())
+}
+
+// TestSeedLeftSidebarOverview populates the left sidebar with enough
+// overview data to make sections focusable, then syncs and renders
+// to trigger section height calculation.
+func (r *Run) TestSeedLeftSidebarOverview() {
+	r.TestHandleRecordMsg(RunMsg{
+		ID:      "test-id",
+		Project: "test-project",
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"lr"}, ValueJson: "0.01"},
+				{NestedKey: []string{"epochs"}, ValueJson: "10"},
+			},
+		},
+	})
+	r.TestHandleRecordMsg(SummaryMsg{
+		Summary: []*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{
+				{NestedKey: []string{"loss"}, ValueJson: "0.42"},
+			},
+		}},
+	})
+	r.TestHandleRecordMsg(SystemInfoMsg{
+		Record: &spb.EnvironmentRecord{WriterId: "w1", Os: "linux"},
+	})
+
+	r.leftSidebar.Sync()
+	_ = r.leftSidebar.View(50)
 }

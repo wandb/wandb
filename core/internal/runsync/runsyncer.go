@@ -16,7 +16,6 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -71,7 +70,7 @@ func (f *RunSyncerFactory) New(
 	sender := f.SenderFactory.New(runWork)
 	tbHandler := f.TBHandlerFactory.New(
 		runWork,
-		/*fileReadDelay=*/ waiting.NewDelay(5*time.Second),
+		/*fileReadDelay=*/ 5*time.Second,
 	)
 	recordParser := f.RecordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
 	runReader := f.RunReaderFactory.New(
@@ -141,6 +140,17 @@ func (rs *RunSyncer) Sync(ctx context.Context) error {
 	// This ends after an Exit record is emitted and RunWork is closed.
 	g.Go(func() error {
 		rs.sender.Do(rs.runWork.Chan())
+		return nil
+	})
+
+	// Consume the Sender's output channel to prevent it from blocking.
+	//
+	// This is one of the expectations of using the Sender, but we don't
+	// currently process the responses. The channel closes when `sender.Do()`
+	// finishes.
+	g.Go(func() error {
+		for range rs.sender.ResponseChan() {
+		}
 		return nil
 	})
 
