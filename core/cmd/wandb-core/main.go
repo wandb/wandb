@@ -247,11 +247,11 @@ type leetOptions struct {
 	symonMode        bool
 	symonInterval    time.Duration
 	wandbDir         string
-	
-	baseUrl          string
-	entity           string
-	project          string
-	runId            string
+
+	baseUrl string
+	entity  string
+	project string
+	runId   string
 }
 
 func parseLeetOptions(args []string) (leetOptions, error) {
@@ -513,19 +513,19 @@ func runLeetWorkspace(opts leetOptions, logger *observability.CoreLogger) int {
 				RunFile: opts.runFile,
 			},
 		}
-	}
 
-	if wandbDir == "" {
-		fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
-		fs.Usage()
-		return exitCodeErrorArgs
+		if wandbDir == "" {
+			fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
+			fs.Usage()
+			return exitCodeErrorArgs
+		}
 	}
 
 	for {
 		m := leet.NewModel(leet.ModelParams{
-			WandbDir: opts.wandbDir,
+			WandbDir:  opts.wandbDir,
 			RunParams: runParams,
-			Logger:   logger,
+			Logger:    logger,
 		})
 		program := tea.NewProgram(m)
 
