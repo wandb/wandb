@@ -53,6 +53,11 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		r.leftSidebar.Sync()
 		return r, nil
 
+	case ConsoleLogMsg:
+		r.logger.Debug("model: processing ConsoleLogMsg")
+		r.consoleLogs.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
+		return r, nil
+
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
 		switch msg.ExitCode {
@@ -266,12 +271,17 @@ func (r *Run) endAnimating() {
 	r.animationMu.Unlock()
 }
 
+// handleToggleLeftSidebar toggles the left overview sidebar and resolves
+// focus so a collapsing sidebar loses focus and an expanding sidebar
+// gains it when nothing else is focused.
 func (r *Run) handleToggleLeftSidebar(msg tea.KeyMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
 	}
 
 	leftWillBeVisible := !r.leftSidebar.IsVisible()
+
+	r.resolveRunFocusAfterVisibilityChange(leftWillBeVisible, r.bottomBar.IsExpanded())
 
 	if err := r.config.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
@@ -436,6 +446,48 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 	return nil
 }
 
+// handleToggleBottomBar toggles the console logs bottom bar and resolves
+// focus so a collapsing bar loses focus and an expanding bar gains it
+// when nothing else is focused.
+func (r *Run) handleToggleBottomBar(msg tea.KeyMsg) tea.Cmd {
+	if !r.beginAnimating() {
+		return nil
+	}
+
+	bottomWillBeVisible := !r.bottomBar.IsExpanded()
+
+	r.resolveRunFocusAfterVisibilityChange(
+		r.leftSidebar.animState.IsExpanded(), bottomWillBeVisible)
+
+	r.bottomBar.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
+	r.bottomBar.Toggle()
+
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	return r.bottomBarAnimationCmd()
+}
+
+func (r *Run) handleBottomBarAnimation() []tea.Cmd {
+	r.bottomBar.Update(time.Now())
+
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	if r.bottomBar.IsAnimating() {
+		return []tea.Cmd{r.bottomBarAnimationCmd()}
+	}
+
+	r.endAnimating()
+	return nil
+}
+
+func (r *Run) bottomBarAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
+		return BottomBarAnimationMsg{}
+	})
+}
+
 // handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
 func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
 	defer timeit(r.logger, "Model.handleRecordsBatch")()
@@ -522,4 +574,74 @@ func (r *Run) handleFileChange() []tea.Cmd {
 		ReadAvailableRecords(r.reader),
 		r.watcherMgr.WaitForMsg,
 	}
+}
+
+// handleSidebarTabNav cycles focus between overview sections and the
+// console logs bar, mirroring the workspace's Tab cycling pattern.
+//
+// Within the overview region, Tab first cycles through sections. At the
+// boundary, it moves to the next available region.
+func (r *Run) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
+	direction := 1
+	if msg.Type == tea.KeyShiftTab {
+		direction = -1
+	}
+
+	cur := r.currentRunFocusRegion()
+
+	// Try cycling within overview sections before leaving the region.
+	if cur == runFocusOverview && r.cycleRunOverviewSection(direction) {
+		return nil
+	}
+
+	r.cycleRunFocusRegion(cur, direction)
+	return nil
+}
+
+func (r *Run) handleSidebarVerticalNav(msg tea.KeyMsg) tea.Cmd {
+	if r.bottomBar.Active() {
+		switch msg.Type {
+		case tea.KeyUp:
+			r.bottomBar.Up()
+		case tea.KeyDown:
+			r.bottomBar.Down()
+		}
+		return nil
+	}
+
+	if !r.leftSidebar.IsVisible() {
+		return nil
+	}
+
+	switch msg.Type {
+	case tea.KeyUp:
+		r.leftSidebar.navigateUp()
+	case tea.KeyDown:
+		r.leftSidebar.navigateDown()
+	}
+	return nil
+}
+
+func (r *Run) handleSidebarPageNav(msg tea.KeyMsg) tea.Cmd {
+	if r.bottomBar.Active() {
+		switch msg.Type {
+		case tea.KeyLeft:
+			r.bottomBar.PageUp()
+		case tea.KeyRight:
+			r.bottomBar.PageDown()
+		}
+		return nil
+	}
+
+	if !r.leftSidebar.IsVisible() {
+		return nil
+	}
+
+	switch msg.Type {
+	case tea.KeyLeft:
+		r.leftSidebar.navigatePageUp()
+	case tea.KeyRight:
+		r.leftSidebar.navigatePageDown()
+	}
+	return nil
 }

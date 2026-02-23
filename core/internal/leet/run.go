@@ -61,6 +61,8 @@ type Run struct {
 	runOverview  *RunOverview
 	leftSidebar  *RunOverviewSidebar
 	rightSidebar *RightSidebar
+	consoleLogs  *RunConsoleLogs
+	bottomBar    *BottomBar
 
 	// Sidebar animation synchronization.
 	animationMu sync.Mutex
@@ -110,6 +112,8 @@ func NewRun(
 		runOverview:  ro,
 		leftSidebar:  NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
 		rightSidebar: NewRightSidebar(cfg, focus, logger),
+		consoleLogs:  NewRunConsoleLogs(),
+		bottomBar:    NewBottomBar(),
 		watcherMgr:   NewWatcherManager(ch, logger),
 		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, ch, logger),
 		logger:       logger,
@@ -141,13 +145,13 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Forward UI messages to children if not in filter mode.
 	if isUIMsg(msg) && !r.metricsGrid.IsFilterMode() && !r.leftSidebar.IsFilterMode() {
-		if s, c := r.leftSidebar.Update(msg); c != nil {
-			r.leftSidebar = s
-			cmds = append(cmds, c)
-		}
-		if rs, c := r.rightSidebar.Update(msg); c != nil {
-			r.rightSidebar = rs
-			cmds = append(cmds, c)
+		if _, ok := msg.(tea.KeyMsg); !ok {
+			if _, cmd := r.leftSidebar.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			if _, cmd := r.rightSidebar.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 	}
 
@@ -182,6 +186,7 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 
 	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.IsVisible())
 	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.IsVisible())
+	r.bottomBar.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -191,7 +196,8 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 func isUIMsg(msg tea.Msg) bool {
 	switch msg.(type) {
 	case tea.KeyMsg, tea.MouseMsg, tea.WindowSizeMsg,
-		LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
+		LeftSidebarAnimationMsg, RightSidebarAnimationMsg,
+		BottomBarAnimationMsg:
 		return true
 	default:
 		return false
@@ -215,6 +221,8 @@ func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 		r.handleWindowResize(t)
 	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
 		return r.handleSidebarAnimation(msg)
+	case BottomBarAnimationMsg:
+		return r.handleBottomBarAnimation()
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
 		if _, cmd := r.handleRecordMsg(msg); cmd != nil {
@@ -258,6 +266,14 @@ func (r *Run) renderMainView() string {
 	dims := r.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
 	gridView := r.metricsGrid.View(dims)
 
+	// If bottom bar is visible, join it below the grid to form the central column.
+	centralColumn := gridView
+	if r.bottomBar.IsVisible() {
+		r.bottomBar.SetConsoleLogs(r.consoleLogs.Items())
+		bbView := r.bottomBar.View(layout.mainContentAreaWidth)
+		centralColumn = lipgloss.JoinVertical(lipgloss.Left, gridView, bbView)
+	}
+
 	leftWidth := r.leftSidebar.Width()
 	rightWidth := r.rightSidebar.Width()
 
@@ -276,7 +292,7 @@ func (r *Run) renderMainView() string {
 		}
 	}
 
-	mainView := r.buildMainViewWithSidebars(gridView, leftWidth, rightWidth)
+	mainView := r.buildMainViewWithSidebars(centralColumn, leftWidth, rightWidth)
 	statusBar := r.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
@@ -491,7 +507,7 @@ func (r *Run) computeViewports() Layout {
 	rightW := r.rightSidebar.Width()
 
 	contentW := max(r.width-leftW-rightW-2, 1)
-	contentH := max(r.height-StatusBarHeight, 1)
+	contentH := max(r.height-StatusBarHeight-r.bottomBar.Height(), 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
 }

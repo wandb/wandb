@@ -2,8 +2,6 @@ package filestream
 
 import (
 	"time"
-
-	"github.com/wandb/wandb/core/internal/waiting"
 )
 
 // TransmitChan is a channel of FileStreamRequestJSON values.
@@ -36,11 +34,11 @@ func NewTransmitChan() *TransmitChan {
 }
 
 // NextRequest returns the next request to make or a heartbeat
-// if enough time has passed.
+// if the heartbeatCh produces a value.
 //
 // If the channel is closed, returns (nil, false).
 // Otherwise, returns a non-nil value and true.
-func (tc *TransmitChan) NextRequest(heartbeat waiting.Stopwatch) (
+func (tc *TransmitChan) NextRequest(heartbeatCh <-chan time.Time) (
 	*FileStreamRequestJSON,
 	bool,
 ) {
@@ -61,10 +59,8 @@ func (tc *TransmitChan) NextRequest(heartbeat waiting.Stopwatch) (
 	}
 
 	// Otherwise, wait for a request or a heartbeat.
-	heartbeatCh, heartbeatCancel := heartbeat.Wait()
 	select {
 	case x, ok := <-tc.requests:
-		heartbeatCancel()
 		return x, ok
 
 	case <-heartbeatCh:
@@ -94,8 +90,9 @@ func (tc *TransmitChan) Push(request *FileStreamRequestJSON) {
 func (tc *TransmitChan) IgnoreFutureRequests() {
 	// This goroutine gets garbage collected after Close() is called.
 	go func() {
+		noHeartbeat := make(<-chan time.Time)
 		for {
-			_, ok := tc.NextRequest(waiting.NewStopwatch(time.Hour))
+			_, ok := tc.NextRequest(noHeartbeat)
 			if !ok {
 				return
 			}

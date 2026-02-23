@@ -12,5 +12,5 @@ else:
     raise ImportError(
         "Failed to import protobufs for protobuf version"
         f" {google.protobuf.__version__}. `wandb` only works with major"
-        " versions 3, 4, 5, and 6 of the protobuf package.",
+        " versions 4, 5, and 6 of the protobuf package.",
     )

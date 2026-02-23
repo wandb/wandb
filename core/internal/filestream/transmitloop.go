@@ -1,12 +1,10 @@
 package filestream
 
-import (
-	"github.com/wandb/wandb/core/internal/waiting"
-)
+import "time"
 
 // TransmitLoop makes requests to the backend.
 type TransmitLoop struct {
-	HeartbeatStopwatch     waiting.Stopwatch
+	HeartbeatPeriod        time.Duration
 	Send                   func(*FileStreamRequestJSON, chan<- map[string]any) error
 	LogFatalAndStopWorking func(error)
 }
@@ -25,13 +23,15 @@ func (tr TransmitLoop) Start(
 			close(feedback)
 		}()
 
+		heartbeat := time.NewTicker(tr.HeartbeatPeriod)
+
 		for {
-			x, ok := data.NextRequest(tr.HeartbeatStopwatch)
+			x, ok := data.NextRequest(heartbeat.C)
 			if !ok {
 				break
 			}
 
-			tr.HeartbeatStopwatch.Reset()
+			heartbeat.Reset(tr.HeartbeatPeriod)
 			err := tr.Send(x, feedback)
 
 			if err != nil {

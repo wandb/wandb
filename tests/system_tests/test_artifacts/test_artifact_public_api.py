@@ -14,7 +14,7 @@ from pytest import MonkeyPatch, fixture, mark, raises, skip
 from pytest_mock import MockerFixture
 from wandb import Api
 from wandb._strutils import nameof
-from wandb.errors import CommError
+from wandb.errors import CommError, UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
     ArtifactByName,
@@ -97,12 +97,12 @@ def test_artifact_type_collections(api: Api):
         assert cols[0].name == "another-collection" and cols[1].name == "mnist"
     else:
         with raises(
-            CommError,
+            UnsupportedError,
             match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
         ):
             atype.collections(filters={"name": "mnist"})
         with raises(
-            CommError,
+            UnsupportedError,
             match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
         ):
             atype.collections(order="name")
@@ -112,6 +112,48 @@ def test_artifact_type_collections(api: Api):
 def test_artifact_types(api: Api):
     atypes = api.artifact_types()
     assert {atype.name for atype in atypes} == {"dataset"}
+
+
+@mark.usefixtures("sample_data")
+def test_project_collections(api: Api):
+    # creating a new artifact
+    artifact_name = "another-collection"
+    artifact = wandb.Artifact(name=artifact_name, type="different-type")
+    with artifact.new_file("file.txt") as f:
+        f.write("test")
+    artifact.save()
+    artifact.wait()
+
+    project_name = artifact.project
+    project = api.project(project_name)
+
+    if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+        # fetching all collections in the project
+        cols = project.collections()
+        assert len(cols) == 2
+        names = {c.name for c in cols}
+        assert names == {"mnist", artifact_name}
+
+        # fetching collections with filters/ordering
+        cols = project.collections(filters={"name": "mnist"})
+        assert len(cols) == 1 and cols[0].name == "mnist"
+        cols = project.collections(order="name")
+        assert len(cols) == 2
+        assert cols[0].name == "another-collection" and cols[1].name == "mnist"
+    else:
+        # fetching all collections in the project should work, but length will be None
+        cols = project.collections()
+        names = {c.name for c in cols}
+        assert names == {"mnist", artifact_name}
+        with raises(NotImplementedError):
+            len(cols)
+
+        # fetching collections with filters/ordering should raise an error
+        with raises(
+            UnsupportedError,
+            match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
+        ):
+            project.collections(filters={"name": "mnist"})
 
 
 @mark.usefixtures("sample_data")

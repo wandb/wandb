@@ -42,7 +42,7 @@ repos:
         exclude: ^(wandb/|tests/|landfill/)
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.8.0
+    rev: v2.9.0
     hooks:
       - id: golangci-lint
         entry: bash -c 'cd core && golangci-lint run'
