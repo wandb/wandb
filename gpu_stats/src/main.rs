@@ -26,11 +26,12 @@ mod gpu_nvidia_dcgm;
 
 use clap::Parser;
 use env_logger::Builder;
-use log::{debug, LevelFilter};
+use log::{debug, info, LevelFilter};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::net::TcpListener;
-use tokio::task::JoinHandle;
+use tokio::sync::Mutex;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{transport::Server, Request, Response, Status};
 
@@ -68,8 +69,29 @@ struct Args {
     ///
     /// Used to establish communication between the parent process (wandb-core) and the service.
     /// Supports Unix and TCP sockets.
+    ///
+    /// Not required when --bind-socket is provided; the caller already knows
+    /// the socket path and polls it directly for readiness.
     #[arg(long)]
-    portfile: String,
+    portfile: Option<String>,
+
+    /// Bind to a specific Unix socket path (shared-collector mode).
+    ///
+    /// When set the service listens on this path instead of generating a
+    /// random per-process socket. The service exits after being idle (no
+    /// requests) for --idle-timeout-secs seconds, allowing the OS to reclaim
+    /// it once all clients are done.
+    ///
+    /// Mutually exclusive with --listen-on-localhost.
+    #[arg(long)]
+    bind_socket: Option<String>,
+
+    /// Idle timeout in seconds for shared-collector mode.
+    ///
+    /// The service exits after this many seconds with no incoming gRPC requests.
+    /// Only meaningful when --bind-socket is set. Default: 300 (5 minutes).
+    #[arg(long, default_value_t = 300)]
+    idle_timeout_secs: u64,
 
     /// Parent process ID.
     ///
@@ -101,35 +123,34 @@ struct Args {
 /// System monitor service implementation.
 pub struct SystemMonitorServiceImpl {
     /// Sender handle for the shutdown channel.
-    shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
-    /// Handle to the task that monitors the parent process.
-    parent_monitor_handle: Option<JoinHandle<()>>,
+    shutdown_sender: Arc<Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     /// GPU monitoring components
     gpu_monitors: GpuMonitors,
+    /// Timestamp of the last received gRPC request.
+    ///
+    /// Updated on every GetStats / GetMetadata call. The idle watchdog uses
+    /// this to decide when to shut down in shared-collector mode.
+    last_activity: Arc<Mutex<Instant>>,
 }
 
 impl SystemMonitorServiceImpl {
     fn new(
         parent_pid: i32,
         enable_dcgm_profiling: bool,
-        shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
+        idle_timeout_secs: Option<u64>,
+        shutdown_sender: Arc<Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
         let gpu_monitors = GpuMonitors::new(enable_dcgm_profiling);
-
-        let mut system_monitor = SystemMonitorServiceImpl {
-            shutdown_sender: shutdown_sender.clone(),
-            parent_monitor_handle: None,
-            gpu_monitors,
-        };
+        let last_activity = Arc::new(Mutex::new(Instant::now()));
 
         // An async task that monitors the parent process id, if provided.
+        // Not used in shared-collector mode (no single owner).
         if parent_pid > 0 {
             let shutdown_sender_clone = shutdown_sender.clone();
-            let handle = tokio::spawn(async move {
+            tokio::spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     if !is_parent_alive(parent_pid) {
-                        // Trigger shutdown
                         let mut sender = shutdown_sender_clone.lock().await;
                         if let Some(sender) = sender.take() {
                             sender.send(()).ok();
@@ -138,18 +159,49 @@ impl SystemMonitorServiceImpl {
                     }
                 }
             });
-            system_monitor.parent_monitor_handle = Some(handle);
         };
 
-        system_monitor
+        // In shared-collector mode, exit after idle_timeout_secs of inactivity
+        // so the process doesn't linger after all clients have finished.
+        if let Some(timeout_secs) = idle_timeout_secs {
+            let shutdown_sender_clone = shutdown_sender.clone();
+            let last_activity_clone = last_activity.clone();
+            let idle_timeout = std::time::Duration::from_secs(timeout_secs);
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                    let elapsed = last_activity_clone.lock().await.elapsed();
+                    if elapsed >= idle_timeout {
+                        info!(
+                            "gpu_stats: idle for {:?}, shutting down shared collector",
+                            elapsed
+                        );
+                        let mut sender = shutdown_sender_clone.lock().await;
+                        if let Some(sender) = sender.take() {
+                            sender.send(()).ok();
+                        }
+                        break;
+                    }
+                }
+            });
+        }
+
+        SystemMonitorServiceImpl {
+            shutdown_sender,
+            gpu_monitors,
+            last_activity,
+        }
     }
 
-    /// Collect system metrics.
+    /// Collect system metrics and record activity for the idle watchdog.
     async fn sample(
         &self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
     ) -> Vec<(String, metrics::MetricValue)> {
+        // Record that we are active so the idle watchdog doesn't shut us down.
+        *self.last_activity.lock().await = Instant::now();
+
         let mut all_metrics = Vec::new();
 
         let timestamp = std::time::SystemTime::now()
@@ -286,8 +338,54 @@ enum ListenerType {
 }
 
 /// Create and configure the appropriate listener based on platform and settings.
+///
+/// Two modes:
+///
+/// **Per-process mode** (legacy): `--portfile PATH` is required. A random
+/// socket is created and its path is written to the portfile so the spawning
+/// wandb-core process can connect.
+///
+/// **Shared-collector mode**: `--bind-socket PATH` is provided. The service
+/// binds to the specified path. No portfile is written; the caller already
+/// knows the socket path and polls it directly for readiness.
 async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error::Error>> {
-    // On Windows, always use TCP; on other platforms, respect the flag
+    // Shared-collector mode: bind to the caller-specified socket path.
+    #[cfg(not(target_os = "windows"))]
+    if let Some(ref bind_path) = args.bind_socket {
+        use std::path::Path;
+        let socket_path = Path::new(bind_path);
+
+        // Create the parent directory if needed (e.g. $TMPDIR/wandb/).
+        if let Some(parent) = socket_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        // Remove stale socket from a previous run if present.
+        if socket_path.exists() {
+            std::fs::remove_file(socket_path)?;
+        }
+
+        let listener = UnixListener::bind(socket_path)?;
+        let stream = UnixListenerStream::new(listener);
+
+        info!("gpu_stats: shared collector listening on {}", bind_path);
+
+        // Clean up socket file on exit (best-effort).
+        let cleanup_path = bind_path.clone();
+        tokio::spawn(async move {
+            tokio::signal::ctrl_c().await.ok();
+            let _ = std::fs::remove_file(&cleanup_path);
+        });
+
+        return Ok(ListenerType::Unix(stream));
+    }
+
+    // Per-process mode: portfile is required.
+    let portfile = args.portfile.as_deref().ok_or(
+        "gpu_stats: --portfile is required when --bind-socket is not set",
+    )?;
+
+    // On Windows, always use TCP; on other platforms, respect the flag.
     #[cfg(target_os = "windows")]
     let use_tcp = true;
     #[cfg(not(target_os = "windows"))]
@@ -299,14 +397,14 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
         let local_addr = listener.local_addr()?;
         let stream = TcpListenerStream::new(listener);
 
-        // Write the server port to the portfile
+        // Write the server port to the portfile.
         let token = format!("sock={}", local_addr.port());
-        std::fs::write(&args.portfile, token)?;
+        std::fs::write(portfile, token)?;
         debug!("System metrics service listening on {}", local_addr);
 
         Ok(ListenerType::Tcp(stream))
     } else {
-        // Unix Domain Socket listener (only available on non-Windows platforms)
+        // Unix Domain Socket listener (only available on non-Windows platforms).
         #[cfg(not(target_os = "windows"))]
         {
             let mut socket_path = std::env::temp_dir();
@@ -322,7 +420,7 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
             );
             socket_path.push(socket_filename);
 
-            // Ensure the socket is removed if it already exists
+            // Ensure the socket is removed if it already exists.
             if socket_path.exists() {
                 let _ = std::fs::remove_file(&socket_path);
             }
@@ -330,13 +428,13 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
             let listener = UnixListener::bind(&socket_path)?;
             let stream = UnixListenerStream::new(listener);
 
-            // Use `to_str()` for a clean string representation without quotes
+            // Use `to_str()` for a clean string representation without quotes.
             if let Some(path_str) = socket_path.to_str() {
                 let token = format!("unix={}", path_str);
-                std::fs::write(&args.portfile, token)?;
+                std::fs::write(portfile, token)?;
                 debug!("System metrics service listening on {}", path_str);
 
-                // Store path for cleanup
+                // Clean up socket on Ctrl+C.
                 let cleanup_path = socket_path.clone();
                 tokio::spawn(async move {
                     tokio::signal::ctrl_c().await.ok();
@@ -378,9 +476,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
+    // Enable idle timeout only in shared-collector mode (--bind-socket).
+    // In per-process mode the parent's death or explicit TearDown stops the service.
+    let idle_timeout = args.bind_socket.as_ref().map(|_| args.idle_timeout_secs);
+
     let system_monitor_service = SystemMonitorServiceImpl::new(
         args.parent_pid,
         args.enable_dcgm_profiling,
+        idle_timeout,
         shutdown_sender.clone(),
     );
 

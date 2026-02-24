@@ -26,6 +26,9 @@ type GPUResourceManager struct {
 	mu sync.Mutex
 
 	// collectorProcess is the side process for reading GPU metrics.
+	//
+	// This is nil when connected to a shared collector that this instance
+	// did not spawn. In that case, TearDown is not sent on Release.
 	collectorProcess *exec.Cmd
 
 	// collectorConn is the gRPC connection to the GPU collector process.
@@ -61,8 +64,14 @@ func NewGPUResourceManager(enableDCGMProfiling bool) *GPUResourceManager {
 
 // Acquire returns a gRPC client for the GPU monitoring process.
 //
-// The first call to Acquire starts the process. The returned reference ID
-// must eventually be passed to Release to free resources.
+// The first call to Acquire starts (or connects to) the GPU stats process.
+// Subsequent calls within the same instance reuse the existing connection.
+//
+// On Unix systems the manager first tries to connect to a shared GPU stats
+// process shared across all wandb-core instances on the machine. If that
+// fails it falls back to spawning a per-process collector.
+//
+// The returned reference ID must eventually be passed to Release.
 func (m *GPUResourceManager) Acquire() (
 	spb.SystemMonitorServiceClient,
 	GPUResourceManagerRef,
@@ -72,8 +81,7 @@ func (m *GPUResourceManager) Acquire() (
 	defer m.mu.Unlock()
 
 	if m.collectorConn == nil {
-		err := m.startGPUCollector()
-		if err != nil {
+		if err := m.connectCollector(); err != nil {
 			return nil, 0, err
 		}
 	}
@@ -84,11 +92,49 @@ func (m *GPUResourceManager) Acquire() (
 	return m.collectorClient, refID, nil
 }
 
+// connectCollector establishes a connection to a GPU stats collector.
+//
+// It first attempts to connect to a shared collector (Unix only), then falls
+// back to spawning a per-process collector.
+//
+// Must be called with m.mu held.
+func (m *GPUResourceManager) connectCollector() error {
+	// On Unix, try the shared collector first. A shared collector is a single
+	// gpu_stats process that all wandb-core instances on the machine connect
+	// to, avoiding redundant per-process collectors.
+	//
+	// cmdPath is looked up after the fast-path connect attempt so that a
+	// missing binary doesn't prevent connecting to an already-running collector
+	// (e.g. one started by a different wandb installation).
+	if supportsUDS() {
+		cmdPath, _ := getGPUCollectorCmdPath() // empty string disables start-if-missing
+		conn, err := connectOrStartSharedCollector(cmdPath, m.enableDCGMProfiling)
+		if err == nil {
+			// Connected to shared collector. collectorProcess stays nil
+			// because we do NOT own the lifecycle of this process.
+			m.collectorConn = conn
+			m.collectorClient = spb.NewSystemMonitorServiceClient(conn)
+			return nil
+		}
+		// Shared mode failed; fall through to per-process mode.
+	}
+
+	// Per-process fallback: spawn a dedicated gpu_stats for this wandb-core.
+	cmdPath, err := getGPUCollectorCmdPath()
+	if err != nil {
+		return fmt.Errorf("monitor: could not find GPU binary: %v", err)
+	}
+	return m.startGPUCollector(cmdPath)
+}
+
 // Release marks the reference unused.
 //
 // Releasing the same ref twice is a no-op.
 //
-// If the reference count hits zero, it shuts down the GPU collector process.
+// If the reference count hits zero and this instance owns the collector
+// process (i.e. it was started in per-process mode), the process is shut down.
+// Shared-mode connections are simply closed; the shared collector manages
+// its own lifetime.
 func (m *GPUResourceManager) Release(ref GPUResourceManagerRef) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -106,40 +152,41 @@ func (m *GPUResourceManager) Release(ref GPUResourceManagerRef) {
 	m.collectorClient = nil
 
 	go func() {
-		// We shut down the client on a best-effort basis.
-		// Any errors are ignored.
-		_, _ = client.TearDown(context.Background(), &spb.TearDownRequest{})
+		if proc != nil {
+			// We own this process; request a clean shutdown.
+			// Errors are ignored: we shut down on a best-effort basis.
+			_, _ = client.TearDown(context.Background(), &spb.TearDownRequest{})
+		}
 		_ = conn.Close()
-
-		// NOTE: This may block indefinitely if the process fails to exit.
-		_ = proc.Wait()
+		if proc != nil {
+			// NOTE: This may block indefinitely if the process fails to exit.
+			_ = proc.Wait()
+		}
 	}()
 }
 
-func (m *GPUResourceManager) startGPUCollector() error {
+// startGPUCollector spawns a per-process gpu_stats binary and connects to it.
+//
+// Must be called with m.mu held.
+func (m *GPUResourceManager) startGPUCollector(cmdPath string) error {
 	pf := NewPortfile()
 	if pf == nil {
 		return errors.New("monitor: could not create portfile")
 	}
 	defer func() { _ = pf.Delete() }()
 
-	cmdPath, err := getGPUCollectorCmdPath()
-	if err != nil {
-		return fmt.Errorf("monitor: could not get path to GPU binary: %v", err)
-	}
-
-	cmd := exec.Command(
-		cmdPath,
+	args := []string{
 		"--portfile", pf.Path,
 		"--parent-pid", strconv.Itoa(os.Getpid()),
-	)
+	}
 	if m.enableDCGMProfiling {
-		cmd.Args = append(cmd.Args, "--enable-dcgm-profiling")
+		args = append(args, "--enable-dcgm-profiling")
 	}
 	if !supportsUDS() {
-		cmd.Args = append(cmd.Args, "--listen-on-localhost")
+		args = append(args, "--listen-on-localhost")
 	}
 
+	cmd := exec.Command(cmdPath, args...)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("monitor: could not start GPU binary: %v", err)
 	}
@@ -156,12 +203,9 @@ func (m *GPUResourceManager) startGPUCollector() error {
 		targetURI,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
-
 	if err != nil {
 		_ = cmd.Process.Kill()
-		return fmt.Errorf(
-			"monitor: could not make gRPC connection to GPU binary: %v",
-			err)
+		return fmt.Errorf("monitor: could not make gRPC connection to GPU binary: %v", err)
 	}
 
 	m.collectorProcess = cmd
