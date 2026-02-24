@@ -12,7 +12,11 @@ const (
 	systemMetricsPaneContentPadding = 1
 	systemMetricsPaneBorderLines    = 1
 	systemMetricsPaneHeaderLines    = 1
-	systemMetricsPaneMinHeight      = systemMetricsPaneBorderLines + systemMetricsPaneHeaderLines + 1
+	systemMetricsPaneMinHeight      = systemMetricsPaneBorderLines +
+		systemMetricsPaneHeaderLines +
+		MinMetricChartHeight + ChartBorderSize + ChartTitleHeight
+
+	WorkspaceSystemMetricsPaneHeader = "System Metrics"
 )
 
 var (
@@ -52,11 +56,6 @@ func (p *SystemMetricsPane) SetExpandedHeight(height int) {
 }
 
 // View renders the system metrics pane.
-//
-// width is the full available width for the pane.
-// runLabel is shown in the header (and may be empty).
-// grid is the active SystemMetricsGrid to render.
-// hint is shown when grid is nil or empty.
 func (p *SystemMetricsPane) View(
 	width int, runLabel string, grid *SystemMetricsGrid, hint string) string {
 	height := p.Height()
@@ -64,35 +63,31 @@ func (p *SystemMetricsPane) View(
 		return ""
 	}
 
-	contentWidth := max(width-systemMetricsPaneContentPadding, 0)
-	contentHeight := max(height-systemMetricsPaneBorderLines, 0)
-	gridHeight := max(contentHeight-systemMetricsPaneHeaderLines, 0)
+	innerW := max(width-systemMetricsPaneContentPadding, 0)
+	innerH := max(height-systemMetricsPaneBorderLines, 0)
+	gridH := max(innerH-systemMetricsPaneHeaderLines, 0)
 
-	header := p.renderHeader(contentWidth, runLabel, grid)
+	header := p.renderHeader(innerW, runLabel, grid)
 	body := header
-
-	if gridHeight > 0 {
+	if gridH > 0 {
 		body = lipgloss.JoinVertical(
 			lipgloss.Left,
 			header,
-			p.renderGrid(contentWidth, gridHeight, grid, hint),
+			p.renderGrid(innerW, gridH, grid, hint),
 		)
 	}
 
-	paneContent := systemMetricsPaneStyle.
-		Width(contentWidth).
-		Height(contentHeight).
-		Render(body)
+	// Render into the unpadded content area first, then apply padding and border.
+	body = lipgloss.Place(innerW, innerH, lipgloss.Left, lipgloss.Top, body)
+	padded := systemMetricsPaneStyle.Render(body)
+	bordered := systemMetricsPaneBorderStyle.Render(padded)
 
-	return systemMetricsPaneBorderStyle.
-		Width(width).
-		Height(contentHeight).
-		Render(paneContent)
+	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, bordered)
 }
 
 func (p *SystemMetricsPane) renderHeader(
 	contentWidth int, runLabel string, grid *SystemMetricsGrid) string {
-	title := headerStyle.Render("System Metrics")
+	title := headerStyle.Render(WorkspaceSystemMetricsPaneHeader)
 	navInfo := navInfoStyle.Render(p.buildNavigationInfo(grid))
 
 	left := title

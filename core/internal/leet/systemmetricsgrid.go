@@ -21,8 +21,9 @@ const (
 // SystemMetricsGrid manages the grid of system metric charts.
 type SystemMetricsGrid struct {
 	// Configuration and logging.
-	config *ConfigManager
-	logger *observability.CoreLogger
+	config     *ConfigManager
+	gridConfig func() (int, int)
+	logger     *observability.CoreLogger
 
 	// Viewport dimensions.
 	width, height int
@@ -45,17 +46,19 @@ type SystemMetricsGrid struct {
 func NewSystemMetricsGrid(
 	width, height int,
 	config *ConfigManager,
+	gridConfig func() (int, int),
 	focusState *Focus,
 	logger *observability.CoreLogger,
 ) *SystemMetricsGrid {
 	smg := &SystemMetricsGrid{
-		config:    config,
-		byBaseKey: make(map[string]*TimeSeriesLineChart),
-		ordered:   make([]*TimeSeriesLineChart, 0),
-		focus:     focusState,
-		width:     width,
-		height:    height,
-		logger:    logger,
+		config:     config,
+		gridConfig: gridConfig,
+		byBaseKey:  make(map[string]*TimeSeriesLineChart),
+		ordered:    make([]*TimeSeriesLineChart, 0),
+		focus:      focusState,
+		width:      width,
+		height:     height,
+		logger:     logger,
 	}
 
 	size := smg.effectiveGridSize()
@@ -72,7 +75,7 @@ func NewSystemMetricsGrid(
 
 // calculateChartDimensions computes dimensions for system metric charts.
 func (g *SystemMetricsGrid) calculateChartDimensions() GridDims {
-	cfgRows, cfgCols := g.config.SystemGrid()
+	cfgRows, cfgCols := g.gridConfig()
 	return ComputeGridDims(g.width, g.height, GridSpec{
 		Rows:        cfgRows,
 		Cols:        cfgCols,
@@ -84,7 +87,7 @@ func (g *SystemMetricsGrid) calculateChartDimensions() GridDims {
 
 // effectiveGridSize returns the grid size that can fit in the current viewport.
 func (g *SystemMetricsGrid) effectiveGridSize() GridSize {
-	cfgRows, cfgCols := g.config.SystemGrid()
+	cfgRows, cfgCols := g.gridConfig()
 	return EffectiveGridSize(g.width, g.height, GridSpec{
 		Rows:        cfgRows,
 		Cols:        cfgCols,

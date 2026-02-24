@@ -27,7 +27,7 @@ func newMetricsGrid(
 		focus = leet.NewFocus()
 	}
 
-	grid := leet.NewMetricsGrid(cfg, focus, logger)
+	grid := leet.NewMetricsGrid(cfg, cfg.MetricsGrid, focus, logger)
 	grid.UpdateDimensions(width, height)
 	return grid
 }

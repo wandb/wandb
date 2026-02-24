@@ -70,21 +70,21 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 	const (
 		gridPaddingX = 1
-		gridPaddingY = 1
-		headerOffset = 1 // metrics header lines
+		headerOffset = 1 // metrics header line
 	)
 
 	leftOffset := w.runsAnimState.Value()
 	rightOffset := w.runOverviewSidebar.Width()
 
 	adjustedX := msg.X - leftOffset - gridPaddingX
-	adjustedY := msg.Y - gridPaddingY - headerOffset
+	adjustedY := msg.Y - headerOffset
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
 	}
 
 	contentWidth := max(w.width-leftOffset-rightOffset, 0)
-	contentHeight := max(w.height-StatusBarHeight-w.bottomBar.Height(), 0)
+	reserved := w.bottomBar.Height() + w.systemMetricsPane.Height()
+	contentHeight := max(w.height-StatusBarHeight-reserved, 0)
 	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
 
 	row := adjustedY / dims.CellHWithPadding
@@ -197,7 +197,7 @@ func (w *Workspace) handleToggleBottomBar(msg tea.KeyMsg) tea.Cmd {
 
 	w.resolveFocusAfterVisibilityChange(
 		w.runsAnimState.IsExpanded(), w.runOverviewSidebar.IsExpanded(), bottomWillBeVisible)
-	w.bottomBar.UpdateExpandedHeight(max(w.height-StatusBarHeight, 0))
+	w.updateMiddlePaneHeights(w.systemMetricsPane.IsExpanded(), bottomWillBeVisible)
 	w.bottomBar.Toggle()
 	w.recalculateLayout()
 
@@ -565,12 +565,12 @@ func (w *Workspace) handleClearMetricsFilter(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleConfigMetricsCols(msg tea.KeyMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigMetricsCols)
+	w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsCols)
 	return nil
 }
 
 func (w *Workspace) handleConfigMetricsRows(msg tea.KeyMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigMetricsRows)
+	w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsRows)
 	return nil
 }
 
@@ -874,11 +874,11 @@ func (w *Workspace) handleNextSystemMetricsPage(tea.KeyMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleConfigSystemCols(tea.KeyMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigSystemCols)
+	w.config.SetPendingGridConfig(gridConfigWorkspaceSystemCols)
 	return nil
 }
 
 func (w *Workspace) handleConfigSystemRows(tea.KeyMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigSystemRows)
+	w.config.SetPendingGridConfig(gridConfigWorkspaceSystemRows)
 	return nil
 }

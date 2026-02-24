@@ -99,7 +99,7 @@ func NewRun(
 	ro := NewRunOverview()
 	runOverviewAnimState := NewAnimatedValue(cfg.LeftSidebarVisible(), SidebarMinWidth)
 
-	metricsGrid := NewMetricsGrid(cfg, focus, logger)
+	metricsGrid := NewMetricsGrid(cfg, cfg.MetricsGrid, focus, logger)
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
 
 	return &Run{
@@ -270,7 +270,7 @@ func (r *Run) renderMainView() string {
 	centralColumn := gridView
 	if r.bottomBar.IsVisible() {
 		r.bottomBar.SetConsoleLogs(r.consoleLogs.Items())
-		bbView := r.bottomBar.View(layout.mainContentAreaWidth)
+		bbView := r.bottomBar.View(layout.mainContentAreaWidth, "", "")
 		centralColumn = lipgloss.JoinVertical(lipgloss.Left, gridView, bbView)
 	}
 

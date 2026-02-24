@@ -23,8 +23,9 @@ type MetricsGrid struct {
 	mu sync.RWMutex
 
 	// Configuration and logging.
-	config *ConfigManager
-	logger *observability.CoreLogger
+	config     *ConfigManager
+	gridConfig func() (int, int)
+	logger     *observability.CoreLogger
 
 	// Viewport dimensions.
 	width, height int
@@ -69,15 +70,17 @@ type MetricsGrid struct {
 
 func NewMetricsGrid(
 	config *ConfigManager,
+	gridConfig func() (int, int),
 	focus *Focus,
 	logger *observability.CoreLogger,
 ) *MetricsGrid {
-	gridRows, gridCols := config.MetricsGrid()
+	gridRows, gridCols := gridConfig()
 	palette := GraphColors(config.ColorScheme())
 	perPlotPalette := GraphColors(config.PerPlotColorScheme())
 
 	mg := &MetricsGrid{
 		config:                config,
+		gridConfig:            gridConfig,
 		all:                   make([]*EpochLineChart, 0),
 		byTitle:               make(map[string]*EpochLineChart),
 		filtered:              make([]*EpochLineChart, 0),
@@ -117,7 +120,7 @@ func (mg *MetricsGrid) ChartCount() int {
 
 // CalculateChartDimensions computes chart dimensions.
 func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) GridDims {
-	gridRows, gridCols := mg.config.MetricsGrid()
+	gridRows, gridCols := mg.gridConfig()
 	return ComputeGridDims(windowWidth, windowHeight, GridSpec{
 		Rows:        gridRows,
 		Cols:        gridCols,
@@ -177,7 +180,7 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 
 // effectiveGridSize returns the grid size that can fit in the current viewport.
 func (mg *MetricsGrid) effectiveGridSize() GridSize {
-	gridRows, gridCols := mg.config.MetricsGrid()
+	gridRows, gridCols := mg.gridConfig()
 	return EffectiveGridSize(mg.width, mg.height, GridSpec{
 		Rows:        gridRows,
 		Cols:        gridCols,

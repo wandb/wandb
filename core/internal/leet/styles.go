@@ -81,10 +81,17 @@ const (
 
 // Default grid sizes
 const (
+	// Single-run mode.
 	DefaultMetricsGridRows = 4
 	DefaultMetricsGridCols = 3
 	DefaultSystemGridRows  = 6
 	DefaultSystemGridCols  = 2
+
+	// Workspace mode.
+	DefaultWorkspaceMetricsGridRows = 3
+	DefaultWorkspaceMetricsGridCols = 3
+	DefaultWorkspaceSystemGridRows  = 3
+	DefaultWorkspaceSystemGridCols  = 3
 )
 
 // Sidebar constants.

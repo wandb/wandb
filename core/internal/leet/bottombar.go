@@ -16,9 +16,9 @@ const (
 	// derived value as the sidebar width.
 	BottomBarHeightRatio = SidebarWidthRatio
 
-	// BottomBarMinHeight is the minimum total height for the bottom bar:
-	// border (1) + header (1) + at least 1 content line.
-	BottomBarMinHeight = 3
+	// BottomBarMinHeight is the minimum total height for the bottom bar.
+	BottomBarMinHeight = bottomBarBorderLines +
+		bottomBarPaddingLines + bottomBarHeaderLines + 1
 
 	bottomBarHeader       = "Console Logs"
 	bottomBarBorderLines  = 1
@@ -128,7 +128,7 @@ func (b *BottomBar) SetConsoleLogs(items []KeyValuePair) {
 // Returns an empty string when the bar is collapsed or the width is
 // insufficient. The rendered output includes the border, header with
 // range indicator, and wrapped/truncated log content.
-func (b *BottomBar) View(width int) string {
+func (b *BottomBar) View(width int, runLabel, hint string) string {
 	h := b.Height()
 	if width <= 0 || h < BottomBarMinHeight {
 		return ""
@@ -154,8 +154,8 @@ func (b *BottomBar) View(width int) string {
 
 	end := b.visibleEnd(b.top, maxValueWidth, contentLines)
 
-	header := b.renderHeader(b.top, end, len(b.logs))
-	content := b.renderContent(maxKeyWidth, maxValueWidth, contentLines, b.top, end)
+	header := b.renderHeader(width, runLabel, b.top, end, len(b.logs))
+	content := b.renderContent(maxKeyWidth, maxValueWidth, contentLines, b.top, end, hint)
 
 	body := lipgloss.JoinVertical(lipgloss.Left, header, content)
 	placed := lipgloss.Place(width, innerH, lipgloss.Left, lipgloss.Top, body)
@@ -163,32 +163,55 @@ func (b *BottomBar) View(width int) string {
 	return bottomBarBorderStyle.Width(width).Height(innerH).Render(placed)
 }
 
-// renderHeader returns the "Console Logs [X-Y of N]" line.
-func (b *BottomBar) renderHeader(startIdx, endIdx, total int) string {
+// renderHeader returns the "Console Logs • <runLabel>     [X-Y of N]" line,
+func (b *BottomBar) renderHeader(width int, runLabel string, startIdx, endIdx, total int) string {
 	title := bottomBarHeaderStyle.Render(bottomBarHeader)
+	navInfo := navInfoStyle.Render(b.buildNavigationInfo(startIdx, endIdx, total))
 
-	if total == 0 {
-		return title
+	left := title
+	if runLabel != "" {
+		sep := " • "
+		maxRunWidth := width - lipgloss.Width(title) - lipgloss.Width(navInfo) - lipgloss.Width(sep)
+		if maxRunWidth > 0 {
+			left = lipgloss.JoinHorizontal(
+				lipgloss.Left,
+				title,
+				navInfoStyle.Render(sep+truncateValue(runLabel, maxRunWidth)),
+			)
+		}
 	}
 
-	info := fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, total)
-	return title + navInfoStyle.Render(info)
+	fillerWidth := width - lipgloss.Width(left) - lipgloss.Width(navInfo)
+	filler := strings.Repeat(" ", max(fillerWidth, 0))
+	return lipgloss.JoinHorizontal(lipgloss.Left, left, filler, navInfo)
+}
+
+// buildNavigationInfo formats the "[X-Y of N]" range indicator.
+func (b *BottomBar) buildNavigationInfo(startIdx, endIdx, total int) string {
+	if total == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, total)
 }
 
 // renderContent builds the visible log lines, padding with blank lines
 // if the content doesn't fill the available space.
 func (b *BottomBar) renderContent(
 	maxKeyWidth, maxValueWidth, contentLines, startIdx, endIdx int,
+	hint string,
 ) string {
 	if contentLines <= 0 {
 		return ""
 	}
 	if len(b.logs) == 0 {
+		if hint == "" {
+			hint = "No data."
+		}
 		if contentLines <= 1 {
-			return bottomBarTimestampStyle.Render("No data.")
+			return bottomBarTimestampStyle.Render(hint)
 		}
 		return bottomBarTimestampStyle.Render(
-			"No data." + strings.Repeat("\n", contentLines-1))
+			hint + strings.Repeat("\n", contentLines-1))
 	}
 
 	startIdx = clamp(startIdx, 0, len(b.logs)-1)

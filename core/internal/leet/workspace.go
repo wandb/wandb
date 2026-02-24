@@ -133,7 +133,7 @@ func NewWorkspace(
 		overviewPreloader:  newRunOverviewPreloader(maxConcurrentPreloads),
 		selectedRuns:       make(map[string]bool),
 		focus:              focus,
-		metricsGrid:        NewMetricsGrid(cfg, focus, logger),
+		metricsGrid:        NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger),
 		systemMetrics:      make(map[string]*SystemMetricsGrid),
 		systemMetricsPane:  NewSystemMetricsPane(),
 		systemMetricsFocus: focus,
@@ -233,12 +233,12 @@ func (w *Workspace) View() string {
 
 	centralColumn := w.renderMetrics()
 
-	if w.systemMetricsPane.IsVisible() {
-		contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
+	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
+	var runLabel string
+	var hint string
 
-		runLabel := ""
+	if w.systemMetricsPane.IsVisible() {
 		var grid *SystemMetricsGrid
-		hint := "No system metrics."
 
 		if cur, ok := w.runs.CurrentItem(); ok {
 			runLabel = cur.Key
@@ -246,8 +246,6 @@ func (w *Workspace) View() string {
 			if _, selected := w.selectedRuns[cur.Key]; !selected {
 				hint = "Select this run (Space) to load system metrics."
 			}
-		} else {
-			hint = "No run selected."
 		}
 
 		smView := w.systemMetricsPane.View(contentWidth, runLabel, grid, hint)
@@ -255,15 +253,18 @@ func (w *Workspace) View() string {
 	}
 
 	if w.bottomBar.IsVisible() {
-		contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
 		if cur, ok := w.runs.CurrentItem(); ok {
+			runLabel = cur.Key
 			if cl := w.consoleLogs[cur.Key]; cl != nil {
 				w.bottomBar.SetConsoleLogs(cl.Items())
 			} else {
 				w.bottomBar.SetConsoleLogs(nil)
 			}
+			if _, selected := w.selectedRuns[cur.Key]; !selected {
+				hint = "Select this run (Space) to load console logs."
+			}
 		}
-		bbView := w.bottomBar.View(contentWidth)
+		bbView := w.bottomBar.View(contentWidth, runLabel, hint)
 		centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, bbView)
 	}
 	cols = append(cols, centralColumn)
@@ -403,7 +404,7 @@ func (w *Workspace) resolveFocusAfterVisibilityChange(
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
 	w.updateSidebarDimensions(w.runsAnimState.IsVisible(), w.runOverviewSidebar.IsVisible())
-	w.bottomBar.UpdateExpandedHeight(max(height-StatusBarHeight, 0))
+	w.updateMiddlePaneHeights(w.systemMetricsPane.IsVisible(), w.bottomBar.IsVisible())
 	w.recalculateLayout()
 }
 
@@ -517,7 +518,8 @@ func (w *Workspace) getOrCreateSystemMetricsGrid(runKey string) *SystemMetricsGr
 	initW := MinMetricChartWidth * cols
 	initH := MinMetricChartHeight * rows
 
-	g := NewSystemMetricsGrid(initW, initH, w.config, w.systemMetricsFocus, w.logger)
+	g := NewSystemMetricsGrid(
+		initW, initH, w.config, w.config.WorkspaceSystemGrid, w.systemMetricsFocus, w.logger)
 	w.systemMetrics[runKey] = g
 	return g
 }

@@ -275,6 +275,16 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Set metrics grid rows",
 					Handler:     (*Workspace).handleConfigMetricsRows,
 				},
+				{
+					Keys:        []string{"C"},
+					Description: "Set system grid columns (Shift+c)",
+					Handler:     (*Workspace).handleConfigSystemCols,
+				},
+				{
+					Keys:        []string{"R"},
+					Description: "Set system grid rows (Shift+r)",
+					Handler:     (*Workspace).handleConfigSystemRows,
+				},
 			},
 		},
 		{

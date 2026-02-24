@@ -157,10 +157,9 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, te
 func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
 	const gridPaddingX = 1
 	const gridPaddingY = 1
-	const headerOffset = 1
 
 	adjustedX := msg.X - layout.leftSidebarWidth - gridPaddingX
-	adjustedY := msg.Y - gridPaddingY - headerOffset
+	adjustedY := msg.Y - gridPaddingY
 
 	dims := r.metricsGrid.CalculateChartDimensions(
 		layout.mainContentAreaWidth,
