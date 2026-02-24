@@ -2,7 +2,6 @@ package rules
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
-
 	//nolint:staticcheck // Validator rules each use dot imports for convenience.
 	. "github.com/vektah/gqlparser/v2/validator/core"
 )
@@ -21,7 +20,12 @@ func ruleFuncKnownArgumentNames(observers *Events, addError AddErrFunc, disableS
 
 			if disableSuggestion {
 				addError(
-					Message(`Unknown argument "%s" on field "%s.%s".`, arg.Name, field.ObjectDefinition.Name, field.Name),
+					Message(
+						`Unknown argument "%s" on field "%s.%s".`,
+						arg.Name,
+						field.ObjectDefinition.Name,
+						field.Name,
+					),
 					At(field.Position),
 				)
 			} else {
@@ -30,7 +34,12 @@ func ruleFuncKnownArgumentNames(observers *Events, addError AddErrFunc, disableS
 					suggestions = append(suggestions, argDef.Name)
 				}
 				addError(
-					Message(`Unknown argument "%s" on field "%s.%s".`, arg.Name, field.ObjectDefinition.Name, field.Name),
+					Message(
+						`Unknown argument "%s" on field "%s.%s".`,
+						arg.Name,
+						field.ObjectDefinition.Name,
+						field.Name,
+					),
 					SuggestListQuoted("Did you mean", arg.Name, suggestions),
 					At(field.Position),
 				)

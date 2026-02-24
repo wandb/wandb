@@ -2,7 +2,6 @@ package rules
 
 import (
 	"github.com/vektah/gqlparser/v2/ast"
-
 	//nolint:staticcheck // Validator rules each use dot imports for convenience.
 	. "github.com/vektah/gqlparser/v2/validator/core"
 )
@@ -16,7 +15,10 @@ var UniqueDirectivesPerLocationRule = Rule{
 			for _, dir := range directives {
 				if dir.Name != "repeatable" && seen[dir.Name] {
 					addError(
-						Message(`The directive "@%s" can only be used once at this location.`, dir.Name),
+						Message(
+							`The directive "@%s" can only be used once at this location.`,
+							dir.Name,
+						),
 						At(dir.Position),
 					)
 				}
