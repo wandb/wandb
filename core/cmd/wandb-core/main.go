@@ -209,69 +209,15 @@ func serviceMain() int {
 
 // leetMain runs the TUI subcommand.
 func leetMain(args []string) int {
-	fs := flag.NewFlagSet("leet", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-
-	logLevel := fs.Int("log-level", 0,
-		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
-	disableAnalytics := fs.Bool("no-observability", false,
-		"Disables observability features such as metrics and logging analytics.")
-	runFile := fs.String("run-file", "",
-		"Path to a .wandb file to open directly in single-run view.")
-	pprofAddr := fs.String("pprof", "",
-		"If set, serves /debug/pprof/* on this address (e.g. 127.0.0.1:6060).")
-	editConfig := fs.Bool("config", false, "Open config editor.")
-
-	// Remote runs flags
-	baseUrl := fs.String(
-		"base-url",
-		"",
-		"Specifies the base URL of the W&B server for querying remote runs.",
-	)
-	entity := fs.String(
-		"entity",
-		"",
-		"Specifies the entity who owns the run.",
-	)
-	project := fs.String(
-		"project",
-		"",
-		"Specifies the project the remote run belongs to.",
-	)
-	runId := fs.String(
-		"run-id",
-		"",
-		"Specifies the run ID of the remote run.",
-	)
-
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, `wandb-core leet - Lightweight Experiment Exploration Tool
-A terminal UI for viewing your W&B runs locally.
-
-Usage:
-  wandb-core leet [flags] <wandb-file/wandb-run-path>
-
-Arguments:
-  <wandb-file> Path to the .wandb file of a W&B run or a W&B run path.
-		Example:
-		  /path/to/.wandb/run-20250731_170606-iazb7i1k/run-iazb7i1k.wandb
-	If
-
-Options:
-  -h, --help         Show this help message
-Flags:
-`)
-		fs.PrintDefaults()
-	}
-
-	if err := fs.Parse(args); err != nil {
+	startupArgs, err := leet.ParseStartupArgs(args)
+	if err != nil {
 		if err == flag.ErrHelp {
 			return exitCodeSuccess
 		}
 		return exitCodeErrorArgs
 	}
 
-	pprofStop, err := pprof.StartServer(*pprofAddr)
+	pprofStop, err := pprof.StartServer(*startupArgs.PprofAddr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "pprof:", err)
 		return exitCodeErrorArgs
@@ -286,7 +232,7 @@ Flags:
 
 	// Configure Sentry reporting.
 	var sentryDSN string
-	if !*disableAnalytics {
+	if !*startupArgs.DisableAnalytics {
 		sentryDSN = observability.LeetSentryDSN
 	}
 	err = sentry.Init(sentry.ClientOptions{
@@ -306,7 +252,7 @@ Flags:
 	// Configure debug logging.
 	logWriter := io.Discard
 	// TODO: Create a log file not only if debug logging is requested.
-	if *logLevel == -4 {
+	if *startupArgs.LogLevel == -4 {
 		loggerFile, err := os.OpenFile(
 			"wandb-leet.debug.log",
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
@@ -323,12 +269,12 @@ Flags:
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(
 			logWriter,
-			&slog.HandlerOptions{Level: slog.Level(*logLevel)},
+			&slog.HandlerOptions{Level: slog.Level(*startupArgs.LogLevel)},
 		)),
 		observability.NewSentryContext(sentry.CurrentHub()),
 	)
 
-	if *editConfig {
+	if *startupArgs.EditConfig {
 		editor := leet.NewConfigEditor(leet.ConfigEditorParams{Logger: logger})
 		p := tea.NewProgram(editor)
 		if _, err := p.Run(); err != nil {
@@ -338,40 +284,15 @@ Flags:
 		return exitCodeSuccess
 	}
 
-	var runParams *leet.RunParams
-	var wandbDir string
-	if *baseUrl != "" {
-		runParams = &leet.RunParams{
-			RemoteRunParams: &leet.RemoteRunParams{
-				BaseURL: *baseUrl,
-				Entity:  *entity,
-				Project: *project,
-				RunId:   *runId,
-			},
-		}
-	} else {
-		wandbDir = fs.Arg(0)
-		if wandbDir == "" {
-			fmt.Fprintln(os.Stderr, "Error: wandb directory path required")
-			fs.Usage()
-			return exitCodeErrorArgs
-		}
-
-		if *runFile != "" {
-			runParams = &leet.RunParams{
-				LocalRunParams: &leet.LocalRunParams{
-					RunFile: *runFile,
-				},
-			}
-		}
+	modelParams := leet.CreateModelParams(startupArgs, logger)
+	if modelParams.WandbDir == "" && modelParams.RunParams.LocalRunParams != nil {
+		fmt.Fprintln(os.Stderr, "Error: wandb directory path or base URL required")
+		startupArgs.Usage()
+		return exitCodeErrorArgs
 	}
 
 	for {
-		m := leet.NewModel(leet.ModelParams{
-			WandbDir:  wandbDir,
-			RunParams: runParams,
-			Logger:    logger,
-		})
+		m := leet.NewModel(*modelParams)
 		program := tea.NewProgram(m)
 
 		finalModel, err := program.Run()
