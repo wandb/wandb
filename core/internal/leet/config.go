@@ -68,7 +68,7 @@ type Config struct {
 
 	// Grid dimensions in Workspace view.
 	WorkspaceMetricsGrid GridConfig `json:"workspace_metrics_grid" leet:"desc=workspace metrics grid"`
-	WorkspaceSystemGrid  GridConfig `json:"workspace_system_grid" leet:"desc=workspace system metrics grid"`
+	WorkspaceSystemGrid  GridConfig `json:"workspace_system_grid"  leet:"desc=workspace system metrics grid"`
 
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
