@@ -708,20 +708,14 @@ func (w *Workspace) buildActiveStatus() string {
 		))
 	}
 
-	totalRuns := len(w.runs.Items)
-	if totalRuns > 0 {
-		selected := len(w.selectedRuns)
-		parts = append(parts, fmt.Sprintf("Runs: %d/%d selected", selected, totalRuns))
-	}
-
-	if w.pinnedRun != "" {
-		parts = append(parts, fmt.Sprintf("Pinned: %s", w.pinnedRun))
+	if w.focus.Type != FocusNone {
+		parts = append(parts, w.focus.Title)
 	}
 
 	if len(parts) == 0 {
 		return w.wandbDir
 	}
-	return strings.Join(parts, " • ")
+	return w.wandbDir + " • " + strings.Join(parts, " • ")
 }
 
 // buildHelpText builds the help text for the status bar.

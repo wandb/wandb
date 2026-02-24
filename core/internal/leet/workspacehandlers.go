@@ -52,14 +52,14 @@ func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	// Clicks in the left sidebar clear all chart focus.
 	if w.runsAnimState.IsVisible() && msg.X < w.runsAnimState.Value() {
-		w.clearAllChartFocus()
+		w.clearChartFocus()
 		return nil
 	}
 
 	// Clicks in the right sidebar clear all chart focus.
 	if w.runOverviewSidebar.IsVisible() {
 		if msg.X >= w.width-w.runOverviewSidebar.Width() {
-			w.clearAllChartFocus()
+			w.clearChartFocus()
 			return nil
 		}
 	}
@@ -75,6 +75,12 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	if w.systemMetricsPane.IsVisible() &&
 		msg.Y < metricsHeight+w.systemMetricsPane.Height() {
 		return w.handleSystemMetricsMouse(msg, metricsHeight)
+	}
+
+	// Clicks in the logs pane clear all chart focus.
+	if w.bottomBar.IsVisible() && msg.Y >= metricsHeight+w.systemMetricsPane.Height() {
+		w.clearChartFocus()
+		return nil
 	}
 
 	// Bottom bar area — no chart interaction.
@@ -161,9 +167,9 @@ func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int
 	return nil
 }
 
-// clearAllChartFocus clears focus from both the main metrics grid
+// clearChartFocus clears focus from both the main metrics grid
 // and the current run's system metrics grid.
-func (w *Workspace) clearAllChartFocus() {
+func (w *Workspace) clearChartFocus() {
 	w.metricsGrid.clearFocus()
 	w.clearCurrentSystemMetricsFocus()
 }
