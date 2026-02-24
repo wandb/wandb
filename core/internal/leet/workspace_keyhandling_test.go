@@ -46,8 +46,8 @@ func TestWorkspace_KeyHandling_GridConfigCaptureHasPriority(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	// Start from a known value.
-	require.NoError(t, cfg.SetMetricsCols(1))
-	require.NoError(t, cfg.SetMetricsRows(1))
+	require.NoError(t, cfg.SetWorkspaceMetricsCols(1))
+	require.NoError(t, cfg.SetWorkspaceMetricsRows(1))
 
 	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 140, Height: 45})
