@@ -79,6 +79,16 @@ when calculating the display width. When `false` (default), ANSI escape
 sequences are treated as just a series of characters. When `true`, they are
 treated as a single zero-width unit.
 
+#### ControlSequences8Bit
+
+`ControlSequences8Bit` specifies whether to ignore 8-bit ECMA-48 escape sequences
+when calculating the display width. When `false` (default), these are treated
+as just a series of characters. When `true`, they are treated as a single
+zero-width unit.
+
+Note: this option is ignored by the `Truncate` methods, as the concatenation
+can lead to unintended UTF-8 semantics.
+
 #### EastAsianWidth
 
 `EastAsianWidth` defines how
@@ -103,11 +113,21 @@ and [regional indicator pairs](https://en.wikipedia.org/wiki/Regional_indicator_
 for emojis. We are keeping an eye on
 [emerging standards](https://www.jeffquast.com/post/state-of-terminal-emulation-2025/).
 
-For control sequences, we implement the [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) standard for 7-bit ASCII control sequences.
+For control sequences, we implement the [ECMA-48](https://ecma-international.org/publications-and-standards/standards/ecma-48/) standard for 7-bit and 8-bit control sequences.
 
 `clipperhouse/displaywidth`, `mattn/go-runewidth`, and `rivo/uniseg` will
 give the same outputs for most real-world text. Extensive details are in the
 [compatibility analysis](comparison/COMPATIBILITY_ANALYSIS.md).
+
+## Invalid UTF-8
+
+This package does not validate UTF-8. If you pass invalid UTF-8, the results
+are undefined. We fuzz against invalid UTF-8 to ensure we don't panic or
+loop indefinitely.
+
+The `ControlSequences8Bit` option means that we will segment valid 8-bit
+control sequences, which are typically _not_ valid UTF-8. 8-bit control bytes
+happen to also be UTF-8 continuation bytes. Use with caution.
 
 ## Prior Art
 

@@ -3,7 +3,7 @@ package ast
 type DirectiveLocation string
 
 const (
-	// Executable
+	// Executable.
 	LocationQuery              DirectiveLocation = `QUERY`
 	LocationMutation           DirectiveLocation = `MUTATION`
 	LocationSubscription       DirectiveLocation = `SUBSCRIPTION`
@@ -12,7 +12,7 @@ const (
 	LocationFragmentSpread     DirectiveLocation = `FRAGMENT_SPREAD`
 	LocationInlineFragment     DirectiveLocation = `INLINE_FRAGMENT`
 
-	// Type System
+	// Type System.
 	LocationSchema               DirectiveLocation = `SCHEMA`
 	LocationScalar               DirectiveLocation = `SCALAR`
 	LocationObject               DirectiveLocation = `OBJECT`
@@ -38,7 +38,7 @@ type Directive struct {
 	Location         DirectiveLocation
 }
 
-func (d *Directive) ArgumentMap(vars map[string]interface{}) map[string]interface{} {
+func (d *Directive) ArgumentMap(vars map[string]any) map[string]any {
 	if d.Definition == nil {
 		return nil
 	}

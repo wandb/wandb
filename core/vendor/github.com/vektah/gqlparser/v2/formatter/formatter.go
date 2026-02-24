@@ -15,7 +15,7 @@ type Formatter interface {
 	FormatQueryDocument(doc *ast.QueryDocument)
 }
 
-//nolint:revive // Ignore "stuttering" name format.FormatterOption
+//nolint:revive // Ignore "stuttering" name formatter.FormatterOption
 type FormatterOption func(*formatter)
 
 // WithIndent uses the given string for indenting block bodies in the output,
@@ -35,6 +35,16 @@ func WithComments() FormatterOption {
 
 // WithBuiltin includes builtin fields/directives/etc from the source/AST in the formatted output.
 func WithBuiltin() FormatterOption {
+	return func(f *formatter) {
+		f.emitBuiltin = true
+		f.emitIntrospection = true
+	}
+}
+
+// WithNonIntrospectionBuiltin includes builtin fields/directives/etc from the
+// source/AST in the formatted output, but excludes the introspection types and
+// fields that starts with "__".
+func WithNonIntrospectionBuiltin() FormatterOption {
 	return func(f *formatter) {
 		f.emitBuiltin = true
 	}
@@ -68,12 +78,13 @@ func NewFormatter(w io.Writer, options ...FormatterOption) Formatter {
 type formatter struct {
 	writer io.Writer
 
-	indent          string
-	indentSize      int
-	emitBuiltin     bool
-	emitComments    bool
-	omitDescription bool
-	compacted       bool
+	indent            string
+	indentSize        int
+	emitBuiltin       bool
+	emitIntrospection bool
+	emitComments      bool
+	omitDescription   bool
+	compacted         bool
 
 	padNext  bool
 	lineHead bool
@@ -281,18 +292,26 @@ func (f *formatter) FormatSchemaDefinitionList(lists ast.SchemaDefinitionList, e
 		description            string
 	)
 
+	var descriptionSb284 strings.Builder
 	for _, def := range lists {
 		if def.BeforeDescriptionComment != nil {
-			beforeDescComment.List = append(beforeDescComment.List, def.BeforeDescriptionComment.List...)
+			beforeDescComment.List = append(
+				beforeDescComment.List,
+				def.BeforeDescriptionComment.List...)
 		}
 		if def.AfterDescriptionComment != nil {
-			afterDescComment.List = append(afterDescComment.List, def.AfterDescriptionComment.List...)
+			afterDescComment.List = append(
+				afterDescComment.List,
+				def.AfterDescriptionComment.List...)
 		}
 		if def.EndOfDefinitionComment != nil {
-			endOfDefinitionComment.List = append(endOfDefinitionComment.List, def.EndOfDefinitionComment.List...)
+			endOfDefinitionComment.List = append(
+				endOfDefinitionComment.List,
+				def.EndOfDefinitionComment.List...)
 		}
-		description += def.Description
+		descriptionSb284.WriteString(def.Description)
 	}
+	description += descriptionSb284.String()
 
 	f.FormatCommentGroup(beforeDescComment)
 	f.WriteDescription(description)
@@ -373,7 +392,11 @@ func (f *formatter) FormatFieldList(fieldList ast.FieldList, endOfDefComment *as
 }
 
 func (f *formatter) FormatFieldDefinition(field *ast.FieldDefinition) {
-	if !f.emitBuiltin && strings.HasPrefix(field.Name, "__") {
+	if !f.emitIntrospection && strings.HasPrefix(field.Name, "__") {
+		return
+	}
+	if !f.emitBuiltin &&
+		(field.Position != nil && field.Position.Src != nil && field.Position.Src.BuiltIn) {
 		return
 	}
 
@@ -457,10 +480,9 @@ func (f *formatter) FormatDirectiveDefinitionList(lists ast.DirectiveDefinitionL
 }
 
 func (f *formatter) FormatDirectiveDefinition(def *ast.DirectiveDefinition) {
-	if !f.emitBuiltin {
-		if def.Position.Src.BuiltIn {
-			return
-		}
+	if !f.emitBuiltin &&
+		(def.Position != nil && def.Position.Src != nil && def.Position.Src.BuiltIn) {
+		return
 	}
 
 	f.FormatCommentGroup(def.BeforeDescriptionComment)
@@ -506,6 +528,9 @@ func (f *formatter) FormatDefinitionList(lists ast.DefinitionList, extend bool) 
 }
 
 func (f *formatter) FormatDefinition(def *ast.Definition, extend bool) {
+	if !f.emitIntrospection && strings.HasPrefix(def.Name, "__") {
+		return
+	}
 	if !f.emitBuiltin && def.BuiltIn {
 		return
 	}
@@ -557,7 +582,10 @@ func (f *formatter) FormatDefinition(def *ast.Definition, extend bool) {
 	f.WriteNewline()
 }
 
-func (f *formatter) FormatEnumValueList(lists ast.EnumValueList, endOfDefComment *ast.CommentGroup) {
+func (f *formatter) FormatEnumValueList(
+	lists ast.EnumValueList,
+	endOfDefComment *ast.CommentGroup,
+) {
 	if len(lists) == 0 {
 		return
 	}
