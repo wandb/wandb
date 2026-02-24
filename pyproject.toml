@@ -106,6 +106,7 @@ models = ["cloudpickle"]
 perf = ["orjson"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
+aviato = ["aviato"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

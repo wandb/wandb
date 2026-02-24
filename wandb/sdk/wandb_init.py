@@ -33,6 +33,7 @@ from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker, weave
+from wandb.integration.aviato import setup as aviato_setup
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import progress, runid, wb_logging
@@ -1579,6 +1580,9 @@ def init(  # noqa: C901
 
             # Set up automatic Weave integration if Weave is installed
             weave.setup(run_settings.entity, run_settings.project)
+
+            # Patch aviato.Session to inject W&B env vars into sandboxes
+            aviato_setup()
 
             return run
 
