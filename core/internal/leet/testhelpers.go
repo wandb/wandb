@@ -296,37 +296,33 @@ func (w *Workspace) TestSeedRunOverview(runKey string) {
 	_ = w.runOverviewSidebar.View(innerH)
 }
 
-// TestCurrentRunFocusRegion returns the current focus region as an int.
-// Maps to the runFocusRegion enum: 0=runFocusOverview, 1=runFocusLogs.
-func (r *Run) TestCurrentRunFocusRegion() int {
-	return int(r.currentRunFocusRegion())
+// SystemMetricsPaneMinHeight returns the minimum pane height (for testing).
+func SystemMetricsPaneMinHeight() int {
+	return systemMetricsPaneMinHeight
 }
 
-// TestSeedLeftSidebarOverview populates the left sidebar with enough
-// overview data to make sections focusable, then syncs and renders
-// to trigger section height calculation.
-func (r *Run) TestSeedLeftSidebarOverview() {
-	r.TestHandleRecordMsg(RunMsg{
-		ID:      "test-id",
-		Project: "test-project",
-		Config: &spb.ConfigRecord{
-			Update: []*spb.ConfigItem{
-				{NestedKey: []string{"lr"}, ValueJson: "0.01"},
-				{NestedKey: []string{"epochs"}, ValueJson: "10"},
-			},
-		},
-	})
-	r.TestHandleRecordMsg(SummaryMsg{
-		Summary: []*spb.SummaryRecord{{
-			Update: []*spb.SummaryItem{
-				{NestedKey: []string{"loss"}, ValueJson: "0.42"},
-			},
-		}},
-	})
-	r.TestHandleRecordMsg(SystemInfoMsg{
-		Record: &spb.EnvironmentRecord{WriterId: "w1", Os: "linux"},
-	})
+// TestForceExpandSystemMetricsPane instantly expands the system metrics pane.
+func (w *Workspace) TestForceExpandSystemMetricsPane(h int) {
+	w.systemMetricsPane.SetExpandedHeight(h)
+	w.systemMetricsPane.animState.ForceExpand()
+}
 
-	r.leftSidebar.Sync()
-	_ = r.leftSidebar.View(50)
+// TestForceCollapseSystemMetricsPane instantly collapses the system metrics pane.
+func (w *Workspace) TestForceCollapseSystemMetricsPane() {
+	w.systemMetricsPane.animState.ForceCollapse()
+}
+
+// TestSystemMetricsPane returns the system metrics pane for testing.
+func (w *Workspace) TestSystemMetricsPane() *SystemMetricsPane {
+	return w.systemMetricsPane
+}
+
+// TestSystemMetrics returns the system metrics grids map for testing.
+func (w *Workspace) TestSystemMetrics() map[string]*SystemMetricsGrid {
+	return w.systemMetrics
+}
+
+// TestFocus returns the workspace focus state for testing.
+func (w *Workspace) TestFocus() *Focus {
+	return w.focus
 }
