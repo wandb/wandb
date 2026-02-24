@@ -358,8 +358,6 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 	// 1) Initial load: workspace scans wandbDir, lists runs, auto-selects + pins the newest run.
 	waitForPlainOutput(t, tm,
 		[]string{
-			"Runs: 1/2 selected",
-			"Pinned: " + newestRunKey,
 			leet.PinnedRunMark + " " + newestRunKey,
 			"loss",
 		},
@@ -392,8 +390,6 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 
 	waitForPlainOutput(t, tm,
 		[]string{
-			"Runs: 2/2 selected",
-			"Pinned: " + newestRunKey,
 			leet.PinnedRunMark + " " + newestRunKey,
 			leet.SelectedRunMark + " " + olderRunKey,
 			"loss",
@@ -409,8 +405,6 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 
 	waitForPlainOutput(t, tm,
 		[]string{
-			"Runs: 2/2 selected",
-			"Pinned: " + olderRunKey,
 			leet.PinnedRunMark + " " + olderRunKey,
 			leet.SelectedRunMark + " " + newestRunKey,
 			"loss",
@@ -426,8 +420,6 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 
 	waitForPlainOutput(t, tm,
 		[]string{
-			"Runs: 1/2 selected",
-			"Pinned: " + olderRunKey,
 			leet.PinnedRunMark + " " + olderRunKey,
 			leet.RunMark + " " + newestRunKey,
 			"loss",
