@@ -50,24 +50,38 @@ func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
-	// Clicks in the left sidebar clear metrics focus.
+	// Clicks in the left sidebar clear all chart focus.
 	if w.runsAnimState.IsVisible() && msg.X < w.runsAnimState.Value() {
-		w.metricsGrid.clearFocus()
+		w.clearAllChartFocus()
 		return nil
 	}
 
-	// Clicks in the right sidebar clear metrics focus.
+	// Clicks in the right sidebar clear all chart focus.
 	if w.runOverviewSidebar.IsVisible() {
 		if msg.X >= w.width-w.runOverviewSidebar.Width() {
-			w.metricsGrid.clearFocus()
+			w.clearAllChartFocus()
 			return nil
 		}
 	}
 
-	return w.handleMetricsMouse(msg)
+	// Determine vertical region within the central column.
+	reserved := w.bottomBar.Height() + w.systemMetricsPane.Height()
+	metricsHeight := max(w.height-StatusBarHeight-reserved, 1)
+
+	if msg.Y < metricsHeight {
+		return w.handleMetricsMouse(msg, metricsHeight)
+	}
+
+	if w.systemMetricsPane.IsVisible() &&
+		msg.Y < metricsHeight+w.systemMetricsPane.Height() {
+		return w.handleSystemMetricsMouse(msg, metricsHeight)
+	}
+
+	// Bottom bar area — no chart interaction.
+	return nil
 }
 
-func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
+func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
 	const (
 		gridPaddingX = 1
 		headerOffset = 1 // metrics header line
@@ -83,9 +97,7 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	contentWidth := max(w.width-leftOffset-rightOffset, 0)
-	reserved := w.bottomBar.Height() + w.systemMetricsPane.Height()
-	contentHeight := max(w.height-StatusBarHeight-reserved, 0)
-	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
+	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, metricsHeight)
 
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
@@ -95,13 +107,11 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 	switch me.Button {
 	case tea.MouseButtonLeft:
 		if me.Action == tea.MouseActionPress {
+			w.clearCurrentSystemMetricsFocus()
 			w.metricsGrid.HandleClick(row, col)
 		}
 	case tea.MouseButtonRight:
-		// Holding Alt activates synchronised inspection across all charts
-		// visible on the current page.
-		alt := tea.MouseEvent(msg).Alt
-
+		alt := me.Alt
 		switch me.Action {
 		case tea.MouseActionPress:
 			w.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
@@ -117,6 +127,57 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	return nil
+}
+
+func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
+	me := tea.MouseEvent(msg)
+	if me.Button != tea.MouseButtonLeft || me.Action != tea.MouseActionPress {
+		return nil
+	}
+
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return nil
+	}
+	grid := w.systemMetrics[cur.Key]
+	if grid == nil {
+		return nil
+	}
+
+	leftOffset := w.runsAnimState.Value()
+	adjustedX := msg.X - leftOffset - systemMetricsPaneContentPadding
+	adjustedY := msg.Y - metricsHeight - systemMetricsPaneBorderLines - systemMetricsPaneHeaderLines
+	if adjustedX < 0 || adjustedY < 0 {
+		return nil
+	}
+
+	dims := grid.calculateChartDimensions()
+	row := adjustedY / dims.CellHWithPadding
+	col := adjustedX / dims.CellWWithPadding
+
+	w.metricsGrid.clearFocus()
+	grid.HandleMouseClick(row, col)
+
+	return nil
+}
+
+// clearAllChartFocus clears focus from both the main metrics grid
+// and the current run's system metrics grid.
+func (w *Workspace) clearAllChartFocus() {
+	w.metricsGrid.clearFocus()
+	w.clearCurrentSystemMetricsFocus()
+}
+
+// clearCurrentSystemMetricsFocus clears focus from the system metrics
+// grid of the currently highlighted run (if any).
+func (w *Workspace) clearCurrentSystemMetricsFocus() {
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return
+	}
+	if grid := w.systemMetrics[cur.Key]; grid != nil {
+		grid.ClearFocus()
+	}
 }
 
 // ---- Animation Handlers ----

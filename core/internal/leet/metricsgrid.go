@@ -538,10 +538,7 @@ func (mg *MetricsGrid) setFocus(row, col int) {
 	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
 		mg.currentPage[row][col] != nil {
 		chart := mg.currentPage[row][col]
-		mg.focus.Type = FocusMainChart
-		mg.focus.Row = row
-		mg.focus.Col = col
-		mg.focus.Title = chart.Title()
+		mg.focus.Set(FocusMainChart, row, col, chart.Title())
 		chart.SetFocused(true)
 	}
 }
@@ -558,10 +555,7 @@ func (mg *MetricsGrid) clearFocus() {
 			mg.currentPage[mg.focus.Row][mg.focus.Col] != nil {
 			mg.currentPage[mg.focus.Row][mg.focus.Col].SetFocused(false)
 		}
-		mg.focus.Type = FocusNone
-		mg.focus.Row = -1
-		mg.focus.Col = -1
-		mg.focus.Title = ""
+		mg.focus.Reset()
 	}
 }
 
