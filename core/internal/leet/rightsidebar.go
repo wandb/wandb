@@ -31,11 +31,12 @@ func NewRightSidebar(
 	initH := MinMetricChartHeight * rows
 
 	return &RightSidebar{
-		config:      config,
-		animState:   NewAnimatedValue(config.RightSidebarVisible(), SidebarMinWidth),
-		metricsGrid: NewSystemMetricsGrid(initW, initH, config, focusState, logger),
-		logger:      logger,
-		focusState:  focusState,
+		config:    config,
+		animState: NewAnimatedValue(config.RightSidebarVisible(), SidebarMinWidth),
+		metricsGrid: NewSystemMetricsGrid(
+			initW, initH, config, config.SystemGrid, focusState, logger),
+		logger:     logger,
+		focusState: focusState,
 	}
 }
 

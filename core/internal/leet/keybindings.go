@@ -206,6 +206,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleToggleRunsSidebar,
 				},
 				{
+					Keys:        []string{"s"},
+					Description: "Toggle system metrics panel",
+					Handler:     (*Workspace).handleToggleSystemMetricsPane,
+				},
+				{
 					Keys:        []string{"]"},
 					Description: "Toggle run overview sidebar",
 					Handler:     (*Workspace).handleToggleOverviewSidebar,
@@ -229,6 +234,16 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"n", "pgdown"},
 					Description: "Next chart page",
 					Handler:     (*Workspace).handleNextPage,
+				},
+				{
+					Keys:        []string{"M"},
+					Description: "Previous system metrics page",
+					Handler:     (*Workspace).handlePrevSystemMetricsPage,
+				},
+				{
+					Keys:        []string{"m"},
+					Description: "Next system metrics page",
+					Handler:     (*Workspace).handleNextSystemMetricsPage,
 				},
 			},
 		},
@@ -259,6 +274,16 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"r"},
 					Description: "Set metrics grid rows",
 					Handler:     (*Workspace).handleConfigMetricsRows,
+				},
+				{
+					Keys:        []string{"C"},
+					Description: "Set system grid columns (Shift+c)",
+					Handler:     (*Workspace).handleConfigSystemCols,
+				},
+				{
+					Keys:        []string{"R"},
+					Description: "Set system grid rows (Shift+r)",
+					Handler:     (*Workspace).handleConfigSystemRows,
 				},
 			},
 		},

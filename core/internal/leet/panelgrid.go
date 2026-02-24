@@ -36,10 +36,19 @@ func NewFocus() *Focus {
 	return &Focus{Type: FocusNone, Row: -1, Col: -1}
 }
 
+// Set sets the focus state.
+func (f *Focus) Set(t FocusType, row, col int, title string) {
+	f.Type = t
+	f.Row = row
+	f.Col = col
+	f.Title = title
+}
+
 // Reset resets the focus state to factory settings.
 func (f *Focus) Reset() {
 	f.Type = FocusNone
 	f.Row, f.Col = -1, -1
+	f.Title = ""
 }
 
 // FocusType indicates what type of UI element is focused.

@@ -162,3 +162,5 @@ type BottomBarAnimationMsg struct{}
 
 // WorkspaceBottomBarAnimationMsg drives animation for the workspace bottom bar.
 type WorkspaceBottomBarAnimationMsg struct{}
+
+type WorkspaceSystemMetricsPaneAnimationMsg struct{}

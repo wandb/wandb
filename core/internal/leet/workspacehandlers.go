@@ -50,42 +50,60 @@ func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
-	// Clicks in the left sidebar clear metrics focus.
+	// Clicks in the left sidebar clear all chart focus.
 	if w.runsAnimState.IsVisible() && msg.X < w.runsAnimState.Value() {
-		w.metricsGrid.clearFocus()
+		w.clearChartFocus()
 		return nil
 	}
 
-	// Clicks in the right sidebar clear metrics focus.
+	// Clicks in the right sidebar clear all chart focus.
 	if w.runOverviewSidebar.IsVisible() {
 		if msg.X >= w.width-w.runOverviewSidebar.Width() {
-			w.metricsGrid.clearFocus()
+			w.clearChartFocus()
 			return nil
 		}
 	}
 
-	return w.handleMetricsMouse(msg)
+	// Determine vertical region within the central column.
+	reserved := w.bottomBar.Height() + w.systemMetricsPane.Height()
+	metricsHeight := max(w.height-StatusBarHeight-reserved, 1)
+
+	if msg.Y < metricsHeight {
+		return w.handleMetricsMouse(msg, metricsHeight)
+	}
+
+	if w.systemMetricsPane.IsVisible() &&
+		msg.Y < metricsHeight+w.systemMetricsPane.Height() {
+		return w.handleSystemMetricsMouse(msg, metricsHeight)
+	}
+
+	// Clicks in the logs pane clear all chart focus.
+	if w.bottomBar.IsVisible() && msg.Y >= metricsHeight+w.systemMetricsPane.Height() {
+		w.clearChartFocus()
+		return nil
+	}
+
+	// Bottom bar area — no chart interaction.
+	return nil
 }
 
-func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
+func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
 	const (
 		gridPaddingX = 1
-		gridPaddingY = 1
-		headerOffset = 1 // metrics header lines
+		headerOffset = 1 // metrics header line
 	)
 
 	leftOffset := w.runsAnimState.Value()
 	rightOffset := w.runOverviewSidebar.Width()
 
 	adjustedX := msg.X - leftOffset - gridPaddingX
-	adjustedY := msg.Y - gridPaddingY - headerOffset
+	adjustedY := msg.Y - headerOffset
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
 	}
 
 	contentWidth := max(w.width-leftOffset-rightOffset, 0)
-	contentHeight := max(w.height-StatusBarHeight-w.bottomBar.Height(), 0)
-	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
+	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, metricsHeight)
 
 	row := adjustedY / dims.CellHWithPadding
 	col := adjustedX / dims.CellWWithPadding
@@ -95,13 +113,11 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 	switch me.Button {
 	case tea.MouseButtonLeft:
 		if me.Action == tea.MouseActionPress {
+			w.clearCurrentSystemMetricsFocus()
 			w.metricsGrid.HandleClick(row, col)
 		}
 	case tea.MouseButtonRight:
-		// Holding Alt activates synchronised inspection across all charts
-		// visible on the current page.
-		alt := tea.MouseEvent(msg).Alt
-
+		alt := me.Alt
 		switch me.Action {
 		case tea.MouseActionPress:
 			w.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
@@ -117,6 +133,57 @@ func (w *Workspace) handleMetricsMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	return nil
+}
+
+func (w *Workspace) handleSystemMetricsMouse(msg tea.MouseMsg, metricsHeight int) tea.Cmd {
+	me := tea.MouseEvent(msg)
+	if me.Button != tea.MouseButtonLeft || me.Action != tea.MouseActionPress {
+		return nil
+	}
+
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return nil
+	}
+	grid := w.systemMetrics[cur.Key]
+	if grid == nil {
+		return nil
+	}
+
+	leftOffset := w.runsAnimState.Value()
+	adjustedX := msg.X - leftOffset - systemMetricsPaneContentPadding
+	adjustedY := msg.Y - metricsHeight - systemMetricsPaneBorderLines - systemMetricsPaneHeaderLines
+	if adjustedX < 0 || adjustedY < 0 {
+		return nil
+	}
+
+	dims := grid.calculateChartDimensions()
+	row := adjustedY / dims.CellHWithPadding
+	col := adjustedX / dims.CellWWithPadding
+
+	w.metricsGrid.clearFocus()
+	grid.HandleMouseClick(row, col)
+
+	return nil
+}
+
+// clearChartFocus clears focus from both the main metrics grid
+// and the current run's system metrics grid.
+func (w *Workspace) clearChartFocus() {
+	w.metricsGrid.clearFocus()
+	w.clearCurrentSystemMetricsFocus()
+}
+
+// clearCurrentSystemMetricsFocus clears focus from the system metrics
+// grid of the currently highlighted run (if any).
+func (w *Workspace) clearCurrentSystemMetricsFocus() {
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return
+	}
+	if grid := w.systemMetrics[cur.Key]; grid != nil {
+		grid.ClearFocus()
+	}
 }
 
 // ---- Animation Handlers ----
@@ -157,6 +224,15 @@ func (w *Workspace) handleBottomBarAnimation() tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) handleSystemMetricsPaneAnimation(now time.Time) tea.Cmd {
+	done := w.systemMetricsPane.Update(now)
+	w.recalculateLayout()
+	if done {
+		return nil
+	}
+	return w.systemMetricsPaneAnimationCmd()
+}
+
 // ---- UI components Toggle Handlers ----
 
 func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
@@ -188,7 +264,7 @@ func (w *Workspace) handleToggleBottomBar(msg tea.KeyMsg) tea.Cmd {
 
 	w.resolveFocusAfterVisibilityChange(
 		w.runsAnimState.IsExpanded(), w.runOverviewSidebar.IsExpanded(), bottomWillBeVisible)
-	w.bottomBar.UpdateExpandedHeight(max(w.height-StatusBarHeight, 0))
+	w.updateMiddlePaneHeights(w.systemMetricsPane.IsExpanded(), bottomWillBeVisible)
 	w.bottomBar.Toggle()
 	w.recalculateLayout()
 
@@ -434,6 +510,12 @@ func (w *Workspace) handleWorkspaceRecord(run *workspaceRun, msg tea.Msg) {
 			w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 		}
 
+	case StatsMsg:
+		grid := w.getOrCreateSystemMetricsGrid(run.key)
+		for metricName, value := range m.Metrics {
+			grid.AddDataPoint(metricName, m.Timestamp, value)
+		}
+
 	case SystemInfoMsg:
 		w.getOrCreateRunOverview(run.key).ProcessSystemInfoMsg(m.Record)
 
@@ -550,12 +632,12 @@ func (w *Workspace) handleClearMetricsFilter(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleConfigMetricsCols(msg tea.KeyMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigMetricsCols)
+	w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsCols)
 	return nil
 }
 
 func (w *Workspace) handleConfigMetricsRows(msg tea.KeyMsg) tea.Cmd {
-	w.config.SetPendingGridConfig(gridConfigMetricsRows)
+	w.config.SetPendingGridConfig(gridConfigWorkspaceMetricsRows)
 	return nil
 }
 
@@ -823,5 +905,47 @@ func (w *Workspace) handleRunsHome(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	w.runs.Home()
+	return nil
+}
+
+func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyMsg) tea.Cmd {
+	sysWillBeVisible := !w.systemMetricsPane.IsExpanded()
+	logsVisible := w.bottomBar.IsExpanded()
+
+	w.updateMiddlePaneHeights(sysWillBeVisible, logsVisible)
+	w.systemMetricsPane.Toggle()
+	w.recalculateLayout()
+	return w.systemMetricsPaneAnimationCmd()
+}
+
+func (w *Workspace) activeSystemMetricsGrid() *SystemMetricsGrid {
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return nil
+	}
+	return w.systemMetrics[cur.Key]
+}
+
+func (w *Workspace) handlePrevSystemMetricsPage(tea.KeyMsg) tea.Cmd {
+	if g := w.activeSystemMetricsGrid(); g != nil {
+		g.Navigate(-1)
+	}
+	return nil
+}
+
+func (w *Workspace) handleNextSystemMetricsPage(tea.KeyMsg) tea.Cmd {
+	if g := w.activeSystemMetricsGrid(); g != nil {
+		g.Navigate(1)
+	}
+	return nil
+}
+
+func (w *Workspace) handleConfigSystemCols(tea.KeyMsg) tea.Cmd {
+	w.config.SetPendingGridConfig(gridConfigWorkspaceSystemCols)
+	return nil
+}
+
+func (w *Workspace) handleConfigSystemRows(tea.KeyMsg) tea.Cmd {
+	w.config.SetPendingGridConfig(gridConfigWorkspaceSystemRows)
 	return nil
 }

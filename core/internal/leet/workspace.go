@@ -62,6 +62,11 @@ type Workspace struct {
 	focus       *Focus
 	metricsGrid *MetricsGrid
 
+	// System metrics
+	systemMetrics      map[string]*SystemMetricsGrid
+	systemMetricsPane  *SystemMetricsPane
+	systemMetricsFocus *Focus
+
 	// Run console logs keyed by run path.
 	consoleLogs map[string]*RunConsoleLogs
 	bottomBar   *BottomBar
@@ -125,16 +130,19 @@ func NewWorkspace(
 		runOverview:   make(map[string]*RunOverview),
 		runOverviewSidebar: NewRunOverviewSidebar(
 			runOverviewAnimState, NewRunOverview(), SidebarSideRight),
-		overviewPreloader: newRunOverviewPreloader(maxConcurrentPreloads),
-		selectedRuns:      make(map[string]bool),
-		focus:             focus,
-		metricsGrid:       NewMetricsGrid(cfg, focus, logger),
-		consoleLogs:       make(map[string]*RunConsoleLogs),
-		bottomBar:         NewBottomBar(),
-		runsByKey:         make(map[string]*workspaceRun),
-		liveChan:          ch,
-		heartbeatMgr:      NewHeartbeatManager(hbInterval, ch, logger),
-		filter:            NewFilter(),
+		overviewPreloader:  newRunOverviewPreloader(maxConcurrentPreloads),
+		selectedRuns:       make(map[string]bool),
+		focus:              focus,
+		metricsGrid:        NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger),
+		systemMetrics:      make(map[string]*SystemMetricsGrid),
+		systemMetricsPane:  NewSystemMetricsPane(),
+		systemMetricsFocus: focus,
+		consoleLogs:        make(map[string]*RunConsoleLogs),
+		bottomBar:          NewBottomBar(),
+		runsByKey:          make(map[string]*workspaceRun),
+		liveChan:           ch,
+		heartbeatMgr:       NewHeartbeatManager(hbInterval, ch, logger),
+		filter:             NewFilter(),
 	}
 }
 
@@ -184,6 +192,9 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceBottomBarAnimationMsg:
 		return w.handleBottomBarAnimation()
 
+	case WorkspaceSystemMetricsPaneAnimationMsg:
+		return w.handleSystemMetricsPaneAnimation(time.Now())
+
 	case WorkspaceRunInitMsg:
 		return w.handleWorkspaceRunInit(t)
 
@@ -221,16 +232,39 @@ func (w *Workspace) View() string {
 	}
 
 	centralColumn := w.renderMetrics()
-	if w.bottomBar.IsVisible() {
-		contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
+
+	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
+	var runLabel string
+	var hint string
+
+	if w.systemMetricsPane.IsVisible() {
+		var grid *SystemMetricsGrid
+
 		if cur, ok := w.runs.CurrentItem(); ok {
+			runLabel = cur.Key
+			grid = w.systemMetrics[cur.Key]
+			if _, selected := w.selectedRuns[cur.Key]; !selected {
+				hint = "Select this run (Space) to load system metrics."
+			}
+		}
+
+		smView := w.systemMetricsPane.View(contentWidth, runLabel, grid, hint)
+		centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, smView)
+	}
+
+	if w.bottomBar.IsVisible() {
+		if cur, ok := w.runs.CurrentItem(); ok {
+			runLabel = cur.Key
 			if cl := w.consoleLogs[cur.Key]; cl != nil {
 				w.bottomBar.SetConsoleLogs(cl.Items())
 			} else {
 				w.bottomBar.SetConsoleLogs(nil)
 			}
+			if _, selected := w.selectedRuns[cur.Key]; !selected {
+				hint = "Select this run (Space) to load console logs."
+			}
 		}
-		bbView := w.bottomBar.View(contentWidth)
+		bbView := w.bottomBar.View(contentWidth, runLabel, hint)
 		centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, bbView)
 	}
 	cols = append(cols, centralColumn)
@@ -284,7 +318,8 @@ func (w *Workspace) computeViewports() Layout {
 	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
 
 	contentW := max(w.width-leftW-rightW, 1)
-	contentH := max(w.height-StatusBarHeight-w.bottomBar.Height(), 1)
+	reserved := w.bottomBar.Height() + w.systemMetricsPane.Height()
+	contentH := max(w.height-StatusBarHeight-reserved, 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
 }
@@ -300,6 +335,25 @@ func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
 	}
 	w.runsAnimState.SetExpanded(clamp(leftWidth, SidebarMinWidth, SidebarMaxWidth))
 	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
+}
+
+func (w *Workspace) updateMiddlePaneHeights(sysVisible, logsVisible bool) {
+	maxH := max(w.height-StatusBarHeight, 0)
+
+	if sysVisible && logsVisible {
+		each := int(float64(maxH) * SidebarWidthRatioBoth) // 0.236
+		w.systemMetricsPane.SetExpandedHeight(each)
+		w.bottomBar.SetExpandedHeight(each)
+		return
+	}
+
+	h := int(float64(maxH) * BottomBarHeightRatio) // 0.382
+	if sysVisible {
+		w.systemMetricsPane.SetExpandedHeight(h)
+	}
+	if logsVisible {
+		w.bottomBar.SetExpandedHeight(h)
+	}
 }
 
 // resolveFocusAfterVisibilityChange ensures focus stays on a valid region
@@ -350,7 +404,7 @@ func (w *Workspace) resolveFocusAfterVisibilityChange(
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
 	w.updateSidebarDimensions(w.runsAnimState.IsVisible(), w.runOverviewSidebar.IsVisible())
-	w.bottomBar.UpdateExpandedHeight(max(height-StatusBarHeight, 0))
+	w.updateMiddlePaneHeights(w.systemMetricsPane.IsVisible(), w.bottomBar.IsVisible())
 	w.recalculateLayout()
 }
 
@@ -371,6 +425,12 @@ func (w *Workspace) runOverviewAnimationCmd() tea.Cmd {
 func (w *Workspace) bottomBarAnimationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
 		return WorkspaceBottomBarAnimationMsg{}
+	})
+}
+
+func (w *Workspace) systemMetricsPaneAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
+		return WorkspaceSystemMetricsPaneAnimationMsg{}
 	})
 }
 
@@ -416,6 +476,7 @@ func (w *Workspace) dropRun(runKey string) {
 		}
 		delete(w.runsByKey, runKey)
 		delete(w.consoleLogs, runKey)
+		delete(w.systemMetrics, runKey)
 	}
 
 	w.syncLiveRunState()
@@ -446,6 +507,21 @@ func (w *Workspace) getOrCreateConsoleLogs(runKey string) *RunConsoleLogs {
 	cl = NewRunConsoleLogs()
 	w.consoleLogs[runKey] = cl
 	return cl
+}
+
+func (w *Workspace) getOrCreateSystemMetricsGrid(runKey string) *SystemMetricsGrid {
+	if g := w.systemMetrics[runKey]; g != nil {
+		return g
+	}
+
+	rows, cols := w.config.SystemGrid()
+	initW := MinMetricChartWidth * cols
+	initH := MinMetricChartHeight * rows
+
+	g := NewSystemMetricsGrid(
+		initW, initH, w.config, w.config.WorkspaceSystemGrid, w.systemMetricsFocus, w.logger)
+	w.systemMetrics[runKey] = g
+	return g
 }
 
 // refreshPinnedRun ensures the pinned run (if any) is drawn on top in all charts.
@@ -542,7 +618,8 @@ func (w *Workspace) renderRunOverview() string {
 
 func (w *Workspace) renderMetrics() string {
 	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
-	contentHeight := max(w.height-StatusBarHeight-w.bottomBar.Height(), 0)
+	reserved := w.bottomBar.Height() + w.systemMetricsPane.Height()
+	contentHeight := max(w.height-StatusBarHeight-reserved, 1)
 
 	if contentWidth <= 0 || contentHeight <= 0 {
 		return ""
@@ -631,20 +708,14 @@ func (w *Workspace) buildActiveStatus() string {
 		))
 	}
 
-	totalRuns := len(w.runs.Items)
-	if totalRuns > 0 {
-		selected := len(w.selectedRuns)
-		parts = append(parts, fmt.Sprintf("Runs: %d/%d selected", selected, totalRuns))
-	}
-
-	if w.pinnedRun != "" {
-		parts = append(parts, fmt.Sprintf("Pinned: %s", w.pinnedRun))
+	if w.focus.Type != FocusNone {
+		parts = append(parts, w.focus.Title)
 	}
 
 	if len(parts) == 0 {
 		return w.wandbDir
 	}
-	return strings.Join(parts, " • ")
+	return w.wandbDir + " • " + strings.Join(parts, " • ")
 }
 
 // buildHelpText builds the help text for the status bar.

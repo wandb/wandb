@@ -358,8 +358,6 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 	// 1) Initial load: workspace scans wandbDir, lists runs, auto-selects + pins the newest run.
 	waitForPlainOutput(t, tm,
 		[]string{
-			"Runs: 1/2 selected",
-			"Pinned: " + newestRunKey,
 			leet.PinnedRunMark + " " + newestRunKey,
 			"loss",
 		},
@@ -392,8 +390,6 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 
 	waitForPlainOutput(t, tm,
 		[]string{
-			"Runs: 2/2 selected",
-			"Pinned: " + newestRunKey,
 			leet.PinnedRunMark + " " + newestRunKey,
 			leet.SelectedRunMark + " " + olderRunKey,
 			"loss",
@@ -409,8 +405,6 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 
 	waitForPlainOutput(t, tm,
 		[]string{
-			"Runs: 2/2 selected",
-			"Pinned: " + olderRunKey,
 			leet.PinnedRunMark + " " + olderRunKey,
 			leet.SelectedRunMark + " " + newestRunKey,
 			"loss",
@@ -426,8 +420,6 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 
 	waitForPlainOutput(t, tm,
 		[]string{
-			"Runs: 1/2 selected",
-			"Pinned: " + olderRunKey,
 			leet.PinnedRunMark + " " + olderRunKey,
 			leet.RunMark + " " + newestRunKey,
 			"loss",
@@ -615,6 +607,177 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	forceRepaint(tm, repaintW, H)
 
 	// Quit.
+	tm.Type("q")
+	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
+}
+
+func writeWorkspaceRunWandbFileWithStatsAndLogs(
+	t *testing.T,
+	wandbDir, runKey, runID string,
+) string {
+	t.Helper()
+
+	runFile := filepath.Join(wandbDir, runKey, "run-"+runID+".wandb")
+	require.NoError(t, os.MkdirAll(filepath.Dir(runFile), 0o755))
+
+	f, err := os.Create(runFile)
+	require.NoError(t, err)
+	defer func() { _ = f.Close() }()
+
+	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, 0)
+
+	// Run record.
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_Run{
+			Run: &spb.RunRecord{
+				RunId:       runID,
+				DisplayName: runID,
+				Project:     "test-project",
+			},
+		},
+	})
+
+	// History record.
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Step: &spb.HistoryStep{Num: 1},
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"_step"}, ValueJson: "1"},
+					{NestedKey: []string{"loss"}, ValueJson: "0.5"},
+				},
+			},
+		},
+	})
+
+	// Stats records (two timestamps → chart can render).
+	ts := time.Now().Unix()
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_Stats{
+			Stats: &spb.StatsRecord{
+				Timestamp: &timestamppb.Timestamp{Seconds: ts},
+				Item: []*spb.StatsItem{
+					{Key: "gpu.0.temp", ValueJson: "45"},
+					{Key: "cpu.0.cpu_percent", ValueJson: "60"},
+				},
+			},
+		},
+	})
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_Stats{
+			Stats: &spb.StatsRecord{
+				Timestamp: &timestamppb.Timestamp{Seconds: ts + 1},
+				Item: []*spb.StatsItem{
+					{Key: "gpu.0.temp", ValueJson: "47"},
+					{Key: "cpu.0.cpu_percent", ValueJson: "62"},
+				},
+			},
+		},
+	})
+
+	// Console log record.
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_OutputRaw{
+			OutputRaw: &spb.OutputRawRecord{
+				Line:       "epoch 1 complete\n",
+				OutputType: spb.OutputRawRecord_STDOUT,
+				Timestamp:  &timestamppb.Timestamp{Seconds: ts},
+			},
+		},
+	})
+
+	// Exit record so the reader processes everything.
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_Exit{
+			Exit: &spb.RunExitRecord{ExitCode: 0},
+		},
+	})
+
+	require.NoError(t, writer.Flush())
+	require.NoError(t, writer.Close())
+
+	return runFile
+}
+
+func TestWorkspace_SystemMetricsPaneAndConsoleLogs(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	require.NoError(t, cfg.SetStartupMode(leet.StartupModeWorkspaceLatest))
+
+	wandbDir := t.TempDir()
+	runKey := "run-20260209_010101-smlogtest"
+	writeWorkspaceRunWandbFileWithStatsAndLogs(t, wandbDir, runKey, "smlogtest")
+
+	const W, H = 240, 80
+	tm := newWorkspaceTestModel(t, cfg, wandbDir, W, H)
+	repaintW := W
+
+	// 1) Wait for workspace to discover the run and render the main metrics.
+	waitForPlainOutput(t, tm,
+		[]string{"loss", runKey},
+		nil,
+	)
+
+	// 2) Toggle system metrics pane ('s').
+	tm.Type("s")
+	forceRepaint(tm, repaintW, H)
+	repaintW++
+
+	waitForPlainOutput(t, tm,
+		[]string{leet.WorkspaceSystemMetricsPaneHeader},
+		nil,
+	)
+
+	// After the pane animation + data load, GPU Temp chart should appear.
+	forceRepaint(tm, repaintW, H)
+	repaintW++
+
+	waitForPlainOutput(t, tm,
+		[]string{"GPU Temp"},
+		nil,
+	)
+
+	// 3) Toggle console logs ('l').
+	tm.Type("l")
+	forceRepaint(tm, repaintW, H)
+	repaintW++
+
+	waitForPlainOutput(t, tm,
+		[]string{"Console Logs"},
+		nil,
+	)
+
+	// Console log content from the OutputRaw record.
+	forceRepaint(tm, repaintW, H)
+	repaintW++
+
+	waitForPlainOutput(t, tm,
+		[]string{"epoch 1 complete"},
+		nil,
+	)
+
+	// 4) Both panes visible simultaneously.
+	forceRepaint(tm, repaintW, H)
+	repaintW++
+
+	waitForPlainOutput(t, tm,
+		[]string{leet.WorkspaceSystemMetricsPaneHeader, "Console Logs", "loss"},
+		nil,
+	)
+
+	// 5) Close both panes.
+	tm.Type("s")
+	forceRepaint(tm, repaintW, H)
+	repaintW++
+
+	tm.Type("l")
+	forceRepaint(tm, repaintW, H)
+
+	// 6) Quit.
 	tm.Type("q")
 	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
 }

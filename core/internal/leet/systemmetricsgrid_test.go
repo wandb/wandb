@@ -22,6 +22,7 @@ func TestSystemMetricsGrid(t *testing.T) {
 		2*leet.MinMetricChartWidth,
 		2*leet.MinMetricChartHeight,
 		cfg,
+		cfg.SystemGrid,
 		focusState,
 		logger,
 	)
@@ -43,7 +44,8 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 	gridWidth := leet.MinMetricChartWidth * gridCols * 2
 	gridHeight := leet.MinMetricChartHeight * gridRows * 2
 	focusState := &leet.Focus{}
-	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, cfg, focusState, logger)
+	grid := leet.NewSystemMetricsGrid(
+		gridWidth, gridHeight, cfg, cfg.SystemGrid, focusState, logger)
 
 	ts := time.Now().Unix()
 	// Add multiple data points to ensure chart is properly created and visible
@@ -83,7 +85,8 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 	gridWidth := leet.MinMetricChartWidth * gridCols * 2
 	gridHeight := leet.MinMetricChartHeight * gridRows * 2
 	focusState := &leet.Focus{}
-	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, cfg, focusState, logger)
+	grid := leet.NewSystemMetricsGrid(
+		gridWidth, gridHeight, cfg, cfg.SystemGrid, focusState, logger)
 
 	ts := time.Now().Unix()
 

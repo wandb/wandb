@@ -46,8 +46,8 @@ func TestWorkspace_KeyHandling_GridConfigCaptureHasPriority(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	// Start from a known value.
-	require.NoError(t, cfg.SetMetricsCols(1))
-	require.NoError(t, cfg.SetMetricsRows(1))
+	require.NoError(t, cfg.SetWorkspaceMetricsCols(1))
+	require.NoError(t, cfg.SetWorkspaceMetricsRows(1))
 
 	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 140, Height: 45})
@@ -61,7 +61,7 @@ func TestWorkspace_KeyHandling_GridConfigCaptureHasPriority(t *testing.T) {
 	require.Nil(t, w.Update(keyRune('q')))
 	require.False(t, cfg.IsAwaitingGridConfig(), "expected capture cleared after non-numeric key")
 
-	_, cols := cfg.MetricsGrid()
+	_, cols := cfg.WorkspaceMetricsGrid()
 	require.Equal(t, 1, cols, "non-numeric key should not change metrics cols")
 
 	// Start capture again and apply a numeric value.
@@ -71,7 +71,7 @@ func TestWorkspace_KeyHandling_GridConfigCaptureHasPriority(t *testing.T) {
 	require.Nil(t, w.Update(keyRune('2')))
 	require.False(t, cfg.IsAwaitingGridConfig())
 
-	_, cols = cfg.MetricsGrid()
+	_, cols = cfg.WorkspaceMetricsGrid()
 	require.Equal(t, 2, cols, "expected metrics cols updated by captured numeric key")
 }
 
