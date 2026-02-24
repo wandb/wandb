@@ -25,6 +25,6 @@ compile 3.9 darwin
 compile 3.9 linux
 compile 3.9 windows
 
-compile 3.13 darwin
-compile 3.13 linux
-compile 3.13 windows
+compile 3.14 darwin
+compile 3.14 linux
+compile 3.14 windows
