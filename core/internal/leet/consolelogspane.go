@@ -42,7 +42,7 @@ const (
 func consoleLogKeyForWidth(
 	key string,
 	maxKeyWidth int,
-	keyStyle lipgloss.Style,
+	keyStyle *lipgloss.Style,
 ) string {
 	// The timestamp styles include padding. Subtract the style's "empty render" width
 	// so we only consider the columns available for the timestamp text itself.
@@ -275,7 +275,7 @@ func (c *ConsoleLogsPane) renderEntry(
 		valueStyle = consoleLogsPaneHighlightedValueStyle
 	}
 
-	key := consoleLogKeyForWidth(item.Key, maxKeyWidth, keyStyle)
+	key := consoleLogKeyForWidth(item.Key, maxKeyWidth, &keyStyle)
 	lines := WrapText(item.Value, maxValueWidth)
 
 	truncated := false
