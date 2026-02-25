@@ -481,7 +481,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	})
 	require.NoError(t, writer.Flush())
 
-	// Height chosen so BottomBar expands to 4 lines (ratio * (H-1) => 4),
+	// Height chosen so ConsoleLogsPane expands to 4 lines (ratio * (H-1) => 4),
 	// which yields 2 content lines. That makes paging assertions crisp.
 	const W, H = 120, 15
 	tm := newTestModel(t, cfg, tmp.Name(), W, H)

@@ -62,13 +62,13 @@ func newRunForHandlerTest(t *testing.T) *leet.Run {
 
 func TestRun_SidebarTabNav_BothPanelsVisible_CyclesOverviewThenLogs(t *testing.T) {
 	r := newRunForHandlerTest(t)
-	r.TestForceExpandBottomBar(10)
+	r.TestForceExpandConsoleLogsPane(10)
 
 	// Initial state: overview section 0 should be active.
 	sidebar := r.TestGetLeftSidebar()
 	require.True(t, r.TestLeftSidebarHasActiveSection(),
 		"overview should start with an active section")
-	require.False(t, r.TestBottomBarActive(),
+	require.False(t, r.TestConsoleLogsPaneActive(),
 		"bottom bar should not be active initially")
 
 	// Tab through overview sections until we reach the last one, then
@@ -82,31 +82,31 @@ func TestRun_SidebarTabNav_BothPanelsVisible_CyclesOverviewThenLogs(t *testing.T
 
 	// One more Tab → logs.
 	r.Update(tea.KeyMsg{Type: tea.KeyTab})
-	require.True(t, r.TestBottomBarActive(), "Tab past last section should focus logs")
+	require.True(t, r.TestConsoleLogsPaneActive(), "Tab past last section should focus logs")
 	require.False(t, r.TestLeftSidebarHasActiveSection(),
 		"overview sections should be deactivated when logs focused")
 
 	// Tab from logs → overview first section.
 	r.Update(tea.KeyMsg{Type: tea.KeyTab})
-	require.False(t, r.TestBottomBarActive(), "Tab from logs should leave logs")
+	require.False(t, r.TestConsoleLogsPaneActive(), "Tab from logs should leave logs")
 	require.True(t, r.TestLeftSidebarHasActiveSection(), "should re-enter overview")
 }
 
 func TestRun_SidebarTabNav_OnlyLogsVisible(t *testing.T) {
 	r := newRunForHandlerTest(t)
-	r.TestForceExpandBottomBar(10)
+	r.TestForceExpandConsoleLogsPane(10)
 	r.TestForceCollapseLeftSidebar()
 
 	// With overview collapsed, Tab should activate logs.
 	r.Update(tea.KeyMsg{Type: tea.KeyTab})
-	require.True(t, r.TestBottomBarActive(),
+	require.True(t, r.TestConsoleLogsPaneActive(),
 		"Tab with collapsed overview should still reach logs")
 }
 
 func TestRun_SidebarTabNav_OnlyOverviewVisible(t *testing.T) {
 	r := newRunForHandlerTest(t)
 	// Bottom bar collapsed (default).
-	require.False(t, r.TestBottomBarExpanded(), "bottom bar should start collapsed")
+	require.False(t, r.TestConsoleLogsPaneExpanded(), "bottom bar should start collapsed")
 
 	// Tab should cycle through overview sections without reaching logs.
 	initialSection := r.TestLeftSidebarActiveSectionIdx()
@@ -114,7 +114,7 @@ func TestRun_SidebarTabNav_OnlyOverviewVisible(t *testing.T) {
 	nextSection := r.TestLeftSidebarActiveSectionIdx()
 	require.NotEqual(t, initialSection, nextSection,
 		"Tab should cycle overview sections")
-	require.False(t, r.TestBottomBarActive(),
+	require.False(t, r.TestConsoleLogsPaneActive(),
 		"logs should never get focus when collapsed")
 }
 
@@ -122,11 +122,11 @@ func TestRun_SidebarTabNav_OnlyOverviewVisible(t *testing.T) {
 
 func TestRun_SidebarVerticalNav_LogsFocused(t *testing.T) {
 	r := newRunForHandlerTest(t)
-	r.TestForceExpandBottomBar(10)
+	r.TestForceExpandConsoleLogsPane(10)
 
 	// Focus logs and add some data.
 	r.Update(tea.KeyMsg{Type: tea.KeyTab})
-	for !r.TestBottomBarActive() {
+	for !r.TestConsoleLogsPaneActive() {
 		r.Update(tea.KeyMsg{Type: tea.KeyTab})
 	}
 
@@ -165,11 +165,11 @@ func TestRun_SidebarVerticalNav_SidebarCollapsed(t *testing.T) {
 
 func TestRun_SidebarPageNav_LogsFocused(t *testing.T) {
 	r := newRunForHandlerTest(t)
-	r.TestForceExpandBottomBar(10)
+	r.TestForceExpandConsoleLogsPane(10)
 
 	// Focus logs.
 	r.Update(tea.KeyMsg{Type: tea.KeyTab})
-	for !r.TestBottomBarActive() {
+	for !r.TestConsoleLogsPaneActive() {
 		r.Update(tea.KeyMsg{Type: tea.KeyTab})
 	}
 

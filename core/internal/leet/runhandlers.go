@@ -280,7 +280,7 @@ func (r *Run) handleToggleLeftSidebar(msg tea.KeyMsg) tea.Cmd {
 
 	leftWillBeVisible := !r.leftSidebar.IsVisible()
 
-	r.resolveRunFocusAfterVisibilityChange(leftWillBeVisible, r.bottomBar.IsExpanded())
+	r.resolveRunFocusAfterVisibilityChange(leftWillBeVisible, r.consoleLogsPane.IsExpanded())
 
 	if err := r.config.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
@@ -445,45 +445,45 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 	return nil
 }
 
-// handleToggleBottomBar toggles the console logs bottom bar and resolves
+// handleToggleConsoleLogsPane toggles the console logs bottom bar and resolves
 // focus so a collapsing bar loses focus and an expanding bar gains it
 // when nothing else is focused.
-func (r *Run) handleToggleBottomBar(msg tea.KeyMsg) tea.Cmd {
+func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
 	}
 
-	bottomWillBeVisible := !r.bottomBar.IsExpanded()
+	bottomWillBeVisible := !r.consoleLogsPane.IsExpanded()
 
 	r.resolveRunFocusAfterVisibilityChange(
 		r.leftSidebar.animState.IsExpanded(), bottomWillBeVisible)
 
-	r.bottomBar.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
-	r.bottomBar.Toggle()
+	r.consoleLogsPane.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
+	r.consoleLogsPane.Toggle()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
-	return r.bottomBarAnimationCmd()
+	return r.consoleLogsPaneAnimationCmd()
 }
 
-func (r *Run) handleBottomBarAnimation() []tea.Cmd {
-	r.bottomBar.Update(time.Now())
+func (r *Run) handleConsoleLogsPaneAnimation() []tea.Cmd {
+	r.consoleLogsPane.Update(time.Now())
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
-	if r.bottomBar.IsAnimating() {
-		return []tea.Cmd{r.bottomBarAnimationCmd()}
+	if r.consoleLogsPane.IsAnimating() {
+		return []tea.Cmd{r.consoleLogsPaneAnimationCmd()}
 	}
 
 	r.endAnimating()
 	return nil
 }
 
-func (r *Run) bottomBarAnimationCmd() tea.Cmd {
+func (r *Run) consoleLogsPaneAnimationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
-		return BottomBarAnimationMsg{}
+		return ConsoleLogsPaneAnimationMsg{}
 	})
 }
 
@@ -598,12 +598,12 @@ func (r *Run) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (r *Run) handleSidebarVerticalNav(msg tea.KeyMsg) tea.Cmd {
-	if r.bottomBar.Active() {
+	if r.consoleLogsPane.Active() {
 		switch msg.Type {
 		case tea.KeyUp:
-			r.bottomBar.Up()
+			r.consoleLogsPane.Up()
 		case tea.KeyDown:
-			r.bottomBar.Down()
+			r.consoleLogsPane.Down()
 		}
 		return nil
 	}
@@ -622,12 +622,12 @@ func (r *Run) handleSidebarVerticalNav(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (r *Run) handleSidebarPageNav(msg tea.KeyMsg) tea.Cmd {
-	if r.bottomBar.Active() {
+	if r.consoleLogsPane.Active() {
 		switch msg.Type {
 		case tea.KeyLeft:
-			r.bottomBar.PageUp()
+			r.consoleLogsPane.PageUp()
 		case tea.KeyRight:
-			r.bottomBar.PageDown()
+			r.consoleLogsPane.PageDown()
 		}
 		return nil
 	}

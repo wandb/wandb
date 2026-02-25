@@ -127,7 +127,7 @@ func newWorkspaceWithPanels(t *testing.T) *leet.Workspace {
 	// Force all panels expanded.
 	w.TestForceExpandRunsSidebar()
 	w.TestForceExpandOverviewSidebar()
-	w.TestForceExpandBottomBar(10)
+	w.TestForceExpandConsoleLogsPane(10)
 
 	// Populate overview sections with data so the sidebar is actually
 	// focusable (focusableSectionBounds needs non-empty sections with
@@ -137,13 +137,13 @@ func newWorkspaceWithPanels(t *testing.T) *leet.Workspace {
 	return w
 }
 
-// ---- handleToggleBottomBar ----
+// ---- handleToggleConsoleLogsPane ----
 
-func TestWorkspace_ToggleBottomBar_FocusReturnsToRuns(t *testing.T) {
+func TestWorkspace_ToggleConsoleLogsPane_FocusReturnsToRuns(t *testing.T) {
 	w := newWorkspaceWithPanels(t)
 
 	// Focus logs via Tab until bottom bar is active.
-	for !w.TestBottomBarActive() {
+	for !w.TestConsoleLogsPaneActive() {
 		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
 	}
 	require.Equal(t, testFocusLogs, w.TestCurrentFocusRegion())
@@ -151,13 +151,13 @@ func TestWorkspace_ToggleBottomBar_FocusReturnsToRuns(t *testing.T) {
 	// Collapse bottom bar — focus should return to runs (the next available).
 	_ = w.Update(keyRune('l'))
 	_ = w.Update(keyRune(']'))
-	require.False(t, w.TestBottomBarActive(),
+	require.False(t, w.TestConsoleLogsPaneActive(),
 		"bottom bar should not be active after collapse")
 	require.True(t, w.TestRunsActive(),
 		"runs list should be focused after collapsing logs")
 }
 
-func TestWorkspace_ToggleBottomBar_FocusStaysOnRuns(t *testing.T) {
+func TestWorkspace_ToggleConsoleLogsPane_FocusStaysOnRuns(t *testing.T) {
 	w := newWorkspaceWithPanels(t)
 
 	// Focus should start on runs.
@@ -179,11 +179,11 @@ func TestWorkspace_CollapseOverview_FocusStaysOnLogs(t *testing.T) {
 	for w.TestCurrentFocusRegion() != testFocusLogs {
 		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
 	}
-	require.True(t, w.TestBottomBarActive())
+	require.True(t, w.TestConsoleLogsPaneActive())
 
 	// Collapse overview sidebar — focus should stay on logs, NOT jump to runs.
 	_ = w.Update(keyRune(']'))
-	require.True(t, w.TestBottomBarActive(),
+	require.True(t, w.TestConsoleLogsPaneActive(),
 		"logs should remain focused after collapsing overview")
 	require.False(t, w.TestRunsActive(),
 		"runs should NOT get focus when collapsing overview while logs focused")
@@ -200,26 +200,26 @@ func TestWorkspace_CollapseRuns_FocusStaysOnLogs(t *testing.T) {
 
 	// Collapse runs sidebar — focus should stay on logs.
 	_ = w.Update(keyRune('['))
-	require.True(t, w.TestBottomBarActive(),
+	require.True(t, w.TestConsoleLogsPaneActive(),
 		"logs should remain focused after collapsing runs sidebar")
 	require.Equal(t, testFocusLogs, w.TestCurrentFocusRegion())
 }
 
 // ---- handleRunsVerticalNav with different focus targets ----
 
-func TestWorkspace_RunsVerticalNav_BottomBarActive(t *testing.T) {
+func TestWorkspace_RunsVerticalNav_ConsoleLogsPaneConsoleLogsPaneActive(t *testing.T) {
 	w := newWorkspaceWithPanels(t)
 
 	// Focus logs.
 	for w.TestCurrentFocusRegion() != testFocusLogs {
 		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
 	}
-	require.True(t, w.TestBottomBarActive())
+	require.True(t, w.TestConsoleLogsPaneActive())
 
 	// Up/Down should route to bottom bar, not runs list.
 	_ = w.Update(tea.KeyMsg{Type: tea.KeyUp})
 	_ = w.Update(tea.KeyMsg{Type: tea.KeyDown})
-	require.True(t, w.TestBottomBarActive(),
+	require.True(t, w.TestConsoleLogsPaneActive(),
 		"bottom bar should still be active after vertical nav")
 }
 
@@ -231,7 +231,7 @@ func TestWorkspace_RunsVerticalNav_OverviewActive(t *testing.T) {
 		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
 	}
 	require.False(t, w.TestRunsActive())
-	require.False(t, w.TestBottomBarActive())
+	require.False(t, w.TestConsoleLogsPaneActive())
 
 	// Up/Down should route to overview sidebar, not runs list.
 	_ = w.Update(tea.KeyMsg{Type: tea.KeyUp})
@@ -291,7 +291,7 @@ func TestWorkspace_CycleOverviewSection_StaysInOverview(t *testing.T) {
 	case testFocusRuns:
 		require.True(t, w.TestRunsActive())
 	case testFocusLogs:
-		require.True(t, w.TestBottomBarActive())
+		require.True(t, w.TestConsoleLogsPaneActive())
 	}
 }
 
@@ -307,7 +307,7 @@ func TestWorkspace_SetFocusRegion_ClearsOtherRegions(t *testing.T) {
 	}
 
 	// Exactly one region should have focus.
-	require.True(t, w.TestBottomBarActive(), "logs should be active")
+	require.True(t, w.TestConsoleLogsPaneActive(), "logs should be active")
 	require.False(t, w.TestRunsActive(), "runs should be inactive")
 	require.False(t, w.TestRunOverviewSidebarHasActiveSection(),
 		"overview should be inactive")
@@ -349,8 +349,8 @@ func TestWorkspace_Enter_RequiresRunSelectorActive(t *testing.T) {
 		"run selector should be active with runs focused and items present")
 
 	// Focus logs by expanding bottom bar and tabbing.
-	w.TestForceExpandBottomBar(10)
-	for !w.TestBottomBarActive() {
+	w.TestForceExpandConsoleLogsPane(10)
+	for !w.TestConsoleLogsPaneActive() {
 		_ = w.Update(tea.KeyMsg{Type: tea.KeyTab})
 	}
 

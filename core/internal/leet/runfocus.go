@@ -19,7 +19,7 @@ var runFocusOrder = []runFocusRegion{runFocusOverview, runFocusLogs}
 // currentRunFocusRegion returns which focusable region currently holds focus.
 func (r *Run) currentRunFocusRegion() runFocusRegion {
 	switch {
-	case r.bottomBar.Active():
+	case r.consoleLogsPane.Active():
 		return runFocusLogs
 	case r.leftSidebar.hasActiveSection():
 		return runFocusOverview
@@ -32,7 +32,7 @@ func (r *Run) currentRunFocusRegion() runFocusRegion {
 func (r *Run) runRegionAvailability() (overview, logs bool) {
 	firstSec, _ := r.leftSidebar.focusableSectionBounds()
 	overview = r.leftSidebar.animState.IsExpanded() && firstSec != -1
-	logs = r.bottomBar.IsExpanded()
+	logs = r.consoleLogsPane.IsExpanded()
 	return overview, logs
 }
 
@@ -138,13 +138,13 @@ func (r *Run) setRunFocusRegion(region runFocusRegion, direction int) {
 			r.leftSidebar.setActiveSection(lastSec)
 		}
 	case runFocusLogs:
-		r.bottomBar.SetActive(true)
+		r.consoleLogsPane.SetActive(true)
 	}
 }
 
 // clearAllRunFocus removes focus from all regions.
 func (r *Run) clearAllRunFocus() {
-	r.bottomBar.SetActive(false)
+	r.consoleLogsPane.SetActive(false)
 	r.leftSidebar.deactivateAllSections()
 }
 

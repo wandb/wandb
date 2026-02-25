@@ -139,7 +139,7 @@ func TestWorkspace_View_SystemMetricsPaneShowsSelectHint(t *testing.T) {
 		"unselected run should show select hint in system metrics pane")
 }
 
-func TestWorkspace_View_BottomBarRendersWhenVisible(t *testing.T) {
+func TestWorkspace_View_ConsoleLogsPaneRendersWhenVisible(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
@@ -150,15 +150,15 @@ func TestWorkspace_View_BottomBarRendersWhenVisible(t *testing.T) {
 	runKey := "run-20260209_010101-abcdefg"
 	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
 
-	w.TestForceExpandBottomBar(10)
-	require.True(t, w.TestBottomBarExpanded())
+	w.TestForceExpandConsoleLogsPane(10)
+	require.True(t, w.TestConsoleLogsPaneExpanded())
 
 	view := stripANSI(w.View())
 	require.Contains(t, view, "Console Logs",
 		"workspace view should include Console Logs header when bottom bar is visible")
 }
 
-func TestWorkspace_View_BottomBarShowsNoDataWithoutLogs(t *testing.T) {
+func TestWorkspace_View_ConsoleLogsPaneShowsNoDataWithoutLogs(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
@@ -169,7 +169,7 @@ func TestWorkspace_View_BottomBarShowsNoDataWithoutLogs(t *testing.T) {
 	runKey := "run-20260209_010101-abcdefg"
 	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
 
-	w.TestForceExpandBottomBar(10)
+	w.TestForceExpandConsoleLogsPane(10)
 
 	view := stripANSI(w.View())
 	require.Contains(t, view, "No data.",
@@ -185,7 +185,7 @@ func TestWorkspace_View_HiddenPanesNotRendered(t *testing.T) {
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	require.False(t, w.TestSystemMetricsPane().IsVisible())
-	require.False(t, w.TestBottomBarExpanded())
+	require.False(t, w.TestConsoleLogsPaneExpanded())
 
 	view := stripANSI(w.View())
 	require.NotContains(t, view, "Console Logs",
@@ -204,7 +204,7 @@ func TestWorkspace_View_BothPanesVisibleSimultaneously(t *testing.T) {
 	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
 
 	w.TestForceExpandSystemMetricsPane(15)
-	w.TestForceExpandBottomBar(10)
+	w.TestForceExpandConsoleLogsPane(10)
 
 	view := stripANSI(w.View())
 	require.Contains(t, view, leet.WorkspaceSystemMetricsPaneHeader,

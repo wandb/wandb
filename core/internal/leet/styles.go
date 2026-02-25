@@ -417,37 +417,37 @@ var (
 	}
 )
 
-// Bottom bar styles.
+// Console logs pane styles.
 var (
-	bottomBarBorderStyle = lipgloss.NewStyle().
-				Border(topOnlyBorder).
-				BorderForeground(colorLayout).
-				BorderTop(true).
-				BorderBottom(false).
-				BorderLeft(false).
-				BorderRight(false).
-				PaddingBottom(1)
+	consoleLogsPaneBorderStyle = lipgloss.NewStyle().
+					Border(topOnlyBorder).
+					BorderForeground(colorLayout).
+					BorderTop(true).
+					BorderBottom(false).
+					BorderLeft(false).
+					BorderRight(false).
+					PaddingBottom(1)
 
-	bottomBarHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(colorSubheading).
-				PaddingLeft(1)
+	consoleLogsPaneHeaderStyle = lipgloss.NewStyle().
+					Bold(true).
+					Foreground(colorSubheading).
+					PaddingLeft(1)
 
-	bottomBarTimestampStyle = lipgloss.NewStyle().
-				Foreground(colorSubtle).
-				PaddingLeft(1)
+	consoleLogsPaneTimestampStyle = lipgloss.NewStyle().
+					Foreground(colorSubtle).
+					PaddingLeft(1)
 
-	bottomBarValueStyle = lipgloss.NewStyle().
-				Foreground(colorItemValue)
+	consoleLogsPaneValueStyle = lipgloss.NewStyle().
+					Foreground(colorItemValue)
 
-	bottomBarHighlightedTimestampStyle = lipgloss.NewStyle().
+	consoleLogsPaneHighlightedTimestampStyle = lipgloss.NewStyle().
+							Background(colorSelected).
+							Foreground(colorDark).
+							PaddingLeft(1)
+
+	consoleLogsPaneHighlightedValueStyle = lipgloss.NewStyle().
 						Background(colorSelected).
-						Foreground(colorDark).
-						PaddingLeft(1)
-
-	bottomBarHighlightedValueStyle = lipgloss.NewStyle().
-					Background(colorSelected).
-					Foreground(colorDark)
+						Foreground(colorDark)
 
 	// topOnlyBorder draws a single horizontal line at the top of the box.
 	topOnlyBorder = lipgloss.Border{

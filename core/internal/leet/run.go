@@ -57,12 +57,12 @@ type Run struct {
 	focus *Focus
 
 	// UI components.
-	metricsGrid  *MetricsGrid
-	runOverview  *RunOverview
-	leftSidebar  *RunOverviewSidebar
-	rightSidebar *RightSidebar
-	consoleLogs  *RunConsoleLogs
-	bottomBar    *BottomBar
+	metricsGrid     *MetricsGrid
+	runOverview     *RunOverview
+	leftSidebar     *RunOverviewSidebar
+	rightSidebar    *RightSidebar
+	consoleLogs     *RunConsoleLogs
+	consoleLogsPane *ConsoleLogsPane
 
 	// Sidebar animation synchronization.
 	animationMu sync.Mutex
@@ -103,20 +103,20 @@ func NewRun(
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
 
 	return &Run{
-		config:       cfg,
-		keyMap:       buildKeyMap(RunKeyBindings()),
-		focus:        focus,
-		isLoading:    true,
-		runPath:      runPath,
-		metricsGrid:  metricsGrid,
-		runOverview:  ro,
-		leftSidebar:  NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
-		rightSidebar: NewRightSidebar(cfg, focus, logger),
-		consoleLogs:  NewRunConsoleLogs(),
-		bottomBar:    NewBottomBar(),
-		watcherMgr:   NewWatcherManager(ch, logger),
-		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, ch, logger),
-		logger:       logger,
+		config:          cfg,
+		keyMap:          buildKeyMap(RunKeyBindings()),
+		focus:           focus,
+		isLoading:       true,
+		runPath:         runPath,
+		metricsGrid:     metricsGrid,
+		runOverview:     ro,
+		leftSidebar:     NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
+		rightSidebar:    NewRightSidebar(cfg, focus, logger),
+		consoleLogs:     NewRunConsoleLogs(),
+		consoleLogsPane: NewConsoleLogsPane(),
+		watcherMgr:      NewWatcherManager(ch, logger),
+		heartbeatMgr:    NewHeartbeatManager(heartbeatInterval, ch, logger),
+		logger:          logger,
 	}
 }
 
@@ -186,7 +186,7 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 
 	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.IsVisible())
 	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.IsVisible())
-	r.bottomBar.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
+	r.consoleLogsPane.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -197,7 +197,7 @@ func isUIMsg(msg tea.Msg) bool {
 	switch msg.(type) {
 	case tea.KeyMsg, tea.MouseMsg, tea.WindowSizeMsg,
 		LeftSidebarAnimationMsg, RightSidebarAnimationMsg,
-		BottomBarAnimationMsg:
+		ConsoleLogsPaneAnimationMsg:
 		return true
 	default:
 		return false
@@ -221,8 +221,8 @@ func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 		r.handleWindowResize(t)
 	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
 		return r.handleSidebarAnimation(msg)
-	case BottomBarAnimationMsg:
-		return r.handleBottomBarAnimation()
+	case ConsoleLogsPaneAnimationMsg:
+		return r.handleConsoleLogsPaneAnimation()
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
 		if _, cmd := r.handleRecordMsg(msg); cmd != nil {
@@ -268,9 +268,9 @@ func (r *Run) renderMainView() string {
 
 	// If bottom bar is visible, join it below the grid to form the central column.
 	centralColumn := gridView
-	if r.bottomBar.IsVisible() {
-		r.bottomBar.SetConsoleLogs(r.consoleLogs.Items())
-		bbView := r.bottomBar.View(layout.mainContentAreaWidth, "", "")
+	if r.consoleLogsPane.IsVisible() {
+		r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
+		bbView := r.consoleLogsPane.View(layout.mainContentAreaWidth, "", "")
 		centralColumn = lipgloss.JoinVertical(lipgloss.Left, gridView, bbView)
 	}
 
@@ -507,7 +507,7 @@ func (r *Run) computeViewports() Layout {
 	rightW := r.rightSidebar.Width()
 
 	contentW := max(r.width-leftW-rightW-2, 1)
-	contentH := max(r.height-StatusBarHeight-r.bottomBar.Height(), 1)
+	contentH := max(r.height-StatusBarHeight-r.consoleLogsPane.Height(), 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
 }

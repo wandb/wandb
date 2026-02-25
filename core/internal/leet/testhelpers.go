@@ -156,14 +156,14 @@ func (w *Workspace) TestRunOverviewID(runKey string) string {
 
 // ---- Run bottom bar / sidebar test helpers ----
 
-// TestBottomBarActive reports whether the bottom bar has focus.
-func (r *Run) TestBottomBarActive() bool {
-	return r.bottomBar.Active()
+// TestConsoleLogsPaneActive reports whether the bottom bar has focus.
+func (r *Run) TestConsoleLogsPaneActive() bool {
+	return r.consoleLogsPane.Active()
 }
 
-// TestBottomBarExpanded reports whether the bottom bar is fully expanded.
-func (r *Run) TestBottomBarExpanded() bool {
-	return r.bottomBar.IsExpanded()
+// TestConsoleLogsPaneExpanded reports whether the bottom bar is fully expanded.
+func (r *Run) TestConsoleLogsPaneExpanded() bool {
+	return r.consoleLogsPane.IsExpanded()
 }
 
 // TestLeftSidebarActiveSectionIdx returns the active section index.
@@ -176,10 +176,10 @@ func (r *Run) TestLeftSidebarHasActiveSection() bool {
 	return r.leftSidebar.hasActiveSection()
 }
 
-// TestForceExpandBottomBar instantly expands the bottom bar to height h.
-func (r *Run) TestForceExpandBottomBar(h int) {
-	r.bottomBar.SetExpandedHeight(h)
-	r.bottomBar.animState.ForceExpand()
+// TestForceExpandConsoleLogsPane instantly expands the bottom bar to height h.
+func (r *Run) TestForceExpandConsoleLogsPane(h int) {
+	r.consoleLogsPane.SetExpandedHeight(h)
+	r.consoleLogsPane.animState.ForceExpand()
 }
 
 // TestForceExpandLeftSidebar instantly expands the left sidebar.
@@ -194,14 +194,14 @@ func (r *Run) TestForceCollapseLeftSidebar() {
 
 // ---- Workspace bottom bar / focus test helpers ----
 
-// TestBottomBarActive reports whether the workspace bottom bar has focus.
-func (w *Workspace) TestBottomBarActive() bool {
-	return w.bottomBar.Active()
+// TestConsoleLogsPaneActive reports whether the workspace bottom bar has focus.
+func (w *Workspace) TestConsoleLogsPaneActive() bool {
+	return w.consoleLogsPane.Active()
 }
 
-// TestBottomBarExpanded reports whether the workspace bottom bar is expanded.
-func (w *Workspace) TestBottomBarExpanded() bool {
-	return w.bottomBar.IsExpanded()
+// TestConsoleLogsPaneExpanded reports whether the workspace bottom bar is expanded.
+func (w *Workspace) TestConsoleLogsPaneExpanded() bool {
+	return w.consoleLogsPane.IsExpanded()
 }
 
 // TestRunsActive reports whether the runs list has focus.
@@ -215,10 +215,10 @@ func (w *Workspace) TestCurrentFocusRegion() int {
 	return int(w.currentFocusRegion())
 }
 
-// TestForceExpandBottomBar instantly expands the workspace bottom bar.
-func (w *Workspace) TestForceExpandBottomBar(h int) {
-	w.bottomBar.SetExpandedHeight(h)
-	w.bottomBar.animState.ForceExpand()
+// TestForceExpandConsoleLogsPane instantly expands the workspace bottom bar.
+func (w *Workspace) TestForceExpandConsoleLogsPane(h int) {
+	w.consoleLogsPane.SetExpandedHeight(h)
+	w.consoleLogsPane.animState.ForceExpand()
 }
 
 // TestForceCollapseOverviewSidebar instantly collapses the overview sidebar.

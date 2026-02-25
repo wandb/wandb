@@ -40,7 +40,7 @@ type ConsoleLogLine struct {
 // gets its own [terminalemulator.Terminal] that correctly handles cursor
 // movements, overwrites, and newline assembly.
 //
-// Like [RunOverview], this is a data-model component; the [BottomBar]
+// Like [RunOverview], this is a data-model component; the [ConsoleLogsPane]
 // handles presentation.
 type RunConsoleLogs struct {
 	stdoutTerm *terminalemulator.Terminal
