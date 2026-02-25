@@ -65,7 +65,7 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	// Determine vertical region within the central column.
-	reserved := w.bottomBar.Height() + w.systemMetricsPane.Height()
+	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
 	metricsHeight := max(w.height-StatusBarHeight-reserved, 1)
 
 	if msg.Y < metricsHeight {
@@ -78,7 +78,7 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	// Clicks in the logs pane clear all chart focus.
-	if w.bottomBar.IsVisible() && msg.Y >= metricsHeight+w.systemMetricsPane.Height() {
+	if w.consoleLogsPane.IsVisible() && msg.Y >= metricsHeight+w.systemMetricsPane.Height() {
 		w.clearChartFocus()
 		return nil
 	}
@@ -214,12 +214,12 @@ func (w *Workspace) handleRunOverviewAnimation() tea.Cmd {
 	return nil
 }
 
-func (w *Workspace) handleBottomBarAnimation() tea.Cmd {
-	w.bottomBar.Update(time.Now())
+func (w *Workspace) handleConsoleLogsPaneAnimation() tea.Cmd {
+	w.consoleLogsPane.Update(time.Now())
 	w.recalculateLayout()
 
-	if w.bottomBar.IsAnimating() {
-		return w.bottomBarAnimationCmd()
+	if w.consoleLogsPane.IsAnimating() {
+		return w.consoleLogsPaneAnimationCmd()
 	}
 	return nil
 }
@@ -239,7 +239,8 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
 	leftWillBeVisible := !w.runsAnimState.IsVisible()
 	rightIsVisible := w.runOverviewSidebar.IsVisible()
 
-	w.resolveFocusAfterVisibilityChange(leftWillBeVisible, rightIsVisible, w.bottomBar.IsExpanded())
+	w.resolveFocusAfterVisibilityChange(
+		leftWillBeVisible, rightIsVisible, w.consoleLogsPane.IsExpanded())
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
 	w.recalculateLayout()
@@ -251,7 +252,8 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
 	rightWillBeVisible := !w.runOverviewSidebar.IsVisible()
 	leftIsVisible := w.runsAnimState.IsVisible()
 
-	w.resolveFocusAfterVisibilityChange(leftIsVisible, rightWillBeVisible, w.bottomBar.IsExpanded())
+	w.resolveFocusAfterVisibilityChange(
+		leftIsVisible, rightWillBeVisible, w.consoleLogsPane.IsExpanded())
 	w.updateSidebarDimensions(leftIsVisible, rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
 	w.recalculateLayout()
@@ -259,16 +261,16 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyMsg) tea.Cmd {
 	return w.runOverviewAnimationCmd()
 }
 
-func (w *Workspace) handleToggleBottomBar(msg tea.KeyMsg) tea.Cmd {
-	bottomWillBeVisible := !w.bottomBar.IsExpanded()
+func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyMsg) tea.Cmd {
+	bottomWillBeVisible := !w.consoleLogsPane.IsExpanded()
 
 	w.resolveFocusAfterVisibilityChange(
 		w.runsAnimState.IsExpanded(), w.runOverviewSidebar.IsExpanded(), bottomWillBeVisible)
 	w.updateMiddlePaneHeights(w.systemMetricsPane.IsExpanded(), bottomWillBeVisible)
-	w.bottomBar.Toggle()
+	w.consoleLogsPane.Toggle()
 	w.recalculateLayout()
 
-	return w.bottomBarAnimationCmd()
+	return w.consoleLogsPaneAnimationCmd()
 }
 
 // ---- Reader / Watcher Commands ----
@@ -732,12 +734,12 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyMsg) tea.Cmd {
 
 func (w *Workspace) handleRunsVerticalNav(msg tea.KeyMsg) tea.Cmd {
 	switch {
-	case w.bottomBar.Active():
+	case w.consoleLogsPane.Active():
 		switch msg.String() {
 		case "up":
-			w.bottomBar.Up()
+			w.consoleLogsPane.Up()
 		case "down":
-			w.bottomBar.Down()
+			w.consoleLogsPane.Down()
 		}
 	case w.runSelectorActive():
 		switch msg.String() {
@@ -791,7 +793,7 @@ func (w *Workspace) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
 // currentFocusRegion returns which focusable region currently holds focus.
 func (w *Workspace) currentFocusRegion() focusRegion {
 	switch {
-	case w.bottomBar.Active():
+	case w.consoleLogsPane.Active():
 		return focusLogs
 	case w.runs.Active:
 		return focusRuns
@@ -847,7 +849,7 @@ func (w *Workspace) regionAvailability() map[focusRegion]bool {
 	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
 	return map[focusRegion]bool{
 		focusRuns:     w.runsAnimState.IsExpanded(),
-		focusLogs:     w.bottomBar.IsExpanded(),
+		focusLogs:     w.consoleLogsPane.IsExpanded(),
 		focusOverview: w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1,
 	}
 }
@@ -855,14 +857,14 @@ func (w *Workspace) regionAvailability() map[focusRegion]bool {
 // setFocusRegion clears all focus and activates the given region.
 func (w *Workspace) setFocusRegion(region focusRegion, direction int) {
 	w.runs.Active = false
-	w.bottomBar.SetActive(false)
+	w.consoleLogsPane.SetActive(false)
 	w.runOverviewSidebar.deactivateAllSections()
 
 	switch region {
 	case focusRuns:
 		w.runs.Active = true
 	case focusLogs:
-		w.bottomBar.SetActive(true)
+		w.consoleLogsPane.SetActive(true)
 	case focusOverview:
 		firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
 		if direction == 1 {
@@ -875,12 +877,12 @@ func (w *Workspace) setFocusRegion(region focusRegion, direction int) {
 
 func (w *Workspace) handleRunsPageNav(msg tea.KeyMsg) tea.Cmd {
 	switch {
-	case w.bottomBar.Active():
+	case w.consoleLogsPane.Active():
 		switch msg.String() {
 		case "left":
-			w.bottomBar.PageUp()
+			w.consoleLogsPane.PageUp()
 		case "right":
-			w.bottomBar.PageDown()
+			w.consoleLogsPane.PageDown()
 		}
 	case w.runSelectorActive():
 		switch msg.String() {
@@ -910,7 +912,7 @@ func (w *Workspace) handleRunsHome(msg tea.KeyMsg) tea.Cmd {
 
 func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyMsg) tea.Cmd {
 	sysWillBeVisible := !w.systemMetricsPane.IsExpanded()
-	logsVisible := w.bottomBar.IsExpanded()
+	logsVisible := w.consoleLogsPane.IsExpanded()
 
 	w.updateMiddlePaneHeights(sysWillBeVisible, logsVisible)
 	w.systemMetricsPane.Toggle()

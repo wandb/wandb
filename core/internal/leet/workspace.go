@@ -68,8 +68,8 @@ type Workspace struct {
 	systemMetricsFocus *Focus
 
 	// Run console logs keyed by run path.
-	consoleLogs map[string]*RunConsoleLogs
-	bottomBar   *BottomBar
+	consoleLogs     map[string]*RunConsoleLogs
+	consoleLogsPane *ConsoleLogsPane
 
 	// Per‑run streaming state keyed by runDirName.
 	runsByKey map[string]*workspaceRun
@@ -138,7 +138,7 @@ func NewWorkspace(
 		systemMetricsPane:  NewSystemMetricsPane(),
 		systemMetricsFocus: focus,
 		consoleLogs:        make(map[string]*RunConsoleLogs),
-		bottomBar:          NewBottomBar(),
+		consoleLogsPane:    NewConsoleLogsPane(),
 		runsByKey:          make(map[string]*workspaceRun),
 		liveChan:           ch,
 		heartbeatMgr:       NewHeartbeatManager(hbInterval, ch, logger),
@@ -189,8 +189,8 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceRunOverviewAnimationMsg:
 		return w.handleRunOverviewAnimation()
 
-	case WorkspaceBottomBarAnimationMsg:
-		return w.handleBottomBarAnimation()
+	case WorkspaceConsoleLogsPaneAnimationMsg:
+		return w.handleConsoleLogsPaneAnimation()
 
 	case WorkspaceSystemMetricsPaneAnimationMsg:
 		return w.handleSystemMetricsPaneAnimation(time.Now())
@@ -252,19 +252,19 @@ func (w *Workspace) View() string {
 		centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, smView)
 	}
 
-	if w.bottomBar.IsVisible() {
+	if w.consoleLogsPane.IsVisible() {
 		if cur, ok := w.runs.CurrentItem(); ok {
 			runLabel = cur.Key
 			if cl := w.consoleLogs[cur.Key]; cl != nil {
-				w.bottomBar.SetConsoleLogs(cl.Items())
+				w.consoleLogsPane.SetConsoleLogs(cl.Items())
 			} else {
-				w.bottomBar.SetConsoleLogs(nil)
+				w.consoleLogsPane.SetConsoleLogs(nil)
 			}
 			if _, selected := w.selectedRuns[cur.Key]; !selected {
 				hint = "Select this run (Space) to load console logs."
 			}
 		}
-		bbView := w.bottomBar.View(contentWidth, runLabel, hint)
+		bbView := w.consoleLogsPane.View(contentWidth, runLabel, hint)
 		centralColumn = lipgloss.JoinVertical(lipgloss.Left, centralColumn, bbView)
 	}
 	cols = append(cols, centralColumn)
@@ -318,7 +318,7 @@ func (w *Workspace) computeViewports() Layout {
 	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
 
 	contentW := max(w.width-leftW-rightW, 1)
-	reserved := w.bottomBar.Height() + w.systemMetricsPane.Height()
+	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
 	contentH := max(w.height-StatusBarHeight-reserved, 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
@@ -343,16 +343,16 @@ func (w *Workspace) updateMiddlePaneHeights(sysVisible, logsVisible bool) {
 	if sysVisible && logsVisible {
 		each := int(float64(maxH) * SidebarWidthRatioBoth) // 0.236
 		w.systemMetricsPane.SetExpandedHeight(each)
-		w.bottomBar.SetExpandedHeight(each)
+		w.consoleLogsPane.SetExpandedHeight(each)
 		return
 	}
 
-	h := int(float64(maxH) * BottomBarHeightRatio) // 0.382
+	h := int(float64(maxH) * ConsoleLogsPaneHeightRatio) // 0.382
 	if sysVisible {
 		w.systemMetricsPane.SetExpandedHeight(h)
 	}
 	if logsVisible {
-		w.bottomBar.SetExpandedHeight(h)
+		w.consoleLogsPane.SetExpandedHeight(h)
 	}
 }
 
@@ -404,7 +404,7 @@ func (w *Workspace) resolveFocusAfterVisibilityChange(
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
 	w.updateSidebarDimensions(w.runsAnimState.IsVisible(), w.runOverviewSidebar.IsVisible())
-	w.updateMiddlePaneHeights(w.systemMetricsPane.IsVisible(), w.bottomBar.IsVisible())
+	w.updateMiddlePaneHeights(w.systemMetricsPane.IsVisible(), w.consoleLogsPane.IsVisible())
 	w.recalculateLayout()
 }
 
@@ -422,9 +422,9 @@ func (w *Workspace) runOverviewAnimationCmd() tea.Cmd {
 	})
 }
 
-func (w *Workspace) bottomBarAnimationCmd() tea.Cmd {
+func (w *Workspace) consoleLogsPaneAnimationCmd() tea.Cmd {
 	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
-		return WorkspaceBottomBarAnimationMsg{}
+		return WorkspaceConsoleLogsPaneAnimationMsg{}
 	})
 }
 
@@ -540,7 +540,7 @@ func (w *Workspace) refreshPinnedRun() {
 
 func (w *Workspace) runSelectorActive() bool {
 	return w.runs.Active &&
-		!w.bottomBar.Active() &&
+		!w.consoleLogsPane.Active() &&
 		w.runsAnimState.IsVisible() &&
 		len(w.runs.FilteredItems) > 0
 }
@@ -553,7 +553,7 @@ func (w *Workspace) RunSelectorActive() bool {
 }
 
 func (w *Workspace) runOverviewActive() bool {
-	return !w.runs.Active && !w.bottomBar.Active() && w.runOverviewSidebar.IsVisible()
+	return !w.runs.Active && !w.consoleLogsPane.Active() && w.runOverviewSidebar.IsVisible()
 }
 
 // ---- Rendering ----
@@ -618,7 +618,7 @@ func (w *Workspace) renderRunOverview() string {
 
 func (w *Workspace) renderMetrics() string {
 	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
-	reserved := w.bottomBar.Height() + w.systemMetricsPane.Height()
+	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
 	contentHeight := max(w.height-StatusBarHeight-reserved, 1)
 
 	if contentWidth <= 0 || contentHeight <= 0 {

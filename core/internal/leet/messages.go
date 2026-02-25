@@ -157,10 +157,11 @@ type WorkspaceInitErrMsg struct {
 	Err     error
 }
 
-// BottomBarAnimationMsg drives animation for the run view bottom bar.
-type BottomBarAnimationMsg struct{}
+// ConsoleLogsPaneAnimationMsg drives animation for the run view console logs pane.
+type ConsoleLogsPaneAnimationMsg struct{}
 
-// WorkspaceBottomBarAnimationMsg drives animation for the workspace bottom bar.
-type WorkspaceBottomBarAnimationMsg struct{}
+// WorkspaceConsoleLogsPaneAnimationMsg drives animation for the workspace console logs pane.
+type WorkspaceConsoleLogsPaneAnimationMsg struct{}
 
+// WorkspaceSystemMetricsPaneAnimationMsg drives animation for the workspace system metrics pane.
 type WorkspaceSystemMetricsPaneAnimationMsg struct{}
