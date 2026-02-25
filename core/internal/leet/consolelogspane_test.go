@@ -205,3 +205,55 @@ func TestConsoleLogsPane_Down_EmptyLogs(t *testing.T) {
 	out := clp.View(80, "", "")
 	require.NotEmpty(t, out, "view should render (empty content area)")
 }
+
+func TestConsoleLogsPane_TimestampAdaptsToAvailableWidth(t *testing.T) {
+	tests := []struct {
+		name        string
+		width       int
+		wantFull    bool
+		wantMinutes bool
+	}{
+		{
+			name:     "enough_space_shows_hhmmss",
+			width:    80, // int(80*0.12)=9 -> enough room after padding for 8 chars
+			wantFull: true,
+		},
+		{
+			name:        "narrow_truncates_to_hhmm",
+			width:       70, // int(70*0.12)=8 -> NOT enough after padding for 8 chars
+			wantMinutes: true,
+		},
+		{
+			name:  "very_narrow_hides_timestamp",
+			width: 30, // int(30*0.12)=3 -> too small even for HH:MM
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clp := leet.NewConsoleLogsPane()
+			expandConsoleLogsPane(t, clp, 4) // minimum height: border + header + 1 content line
+
+			clp.SetConsoleLogs([]leet.KeyValuePair{
+				{Key: "10:11:12", Value: "hello"},
+			})
+
+			out := stripANSI(clp.View(tt.width, "", ""))
+			require.Contains(t, out, "hello", "log content should still render")
+
+			switch {
+			case tt.wantFull:
+				require.Contains(t, out, "10:11:12")
+			case tt.wantMinutes:
+				require.Contains(t, out, "10:11")
+				require.NotContains(t, out, "10:11:12")
+				require.NotContains(t, out, "...", "timestamps should not use ellipsis truncation")
+				require.NotContains(t, out, "10:11:", "should not show partial seconds")
+			default:
+				require.NotContains(t, out, "10:11:12")
+				require.NotContains(t, out, "10:11")
+				require.NotContains(t, out, "...", "hidden timestamps should not use ellipsis")
+			}
+		})
+	}
+}
