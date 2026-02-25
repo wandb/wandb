@@ -211,3 +211,24 @@ def test_regular_key_still_uses_basic_auth():
     requests_auth(request)
 
     assert request.headers["Authorization"].startswith("Basic ")
+
+
+def test_jwt_passes_validation():
+    """Internal client JWTs (3 dot-separated segments) should bypass legacy validation."""
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0MiJ9.HMAC_SIGNATURE_HERE"
+    auth = AuthApiKey(host="https://test", api_key=jwt)
+    assert auth.api_key == jwt
+
+
+def test_jwt_uses_basic_auth():
+    """Internal client JWTs should use BasicAuth so the server can detect the JWT format."""
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0MiJ9.HMAC_SIGNATURE_HERE"
+    auth = AuthApiKey(host="https://test", api_key=jwt)
+    requests_auth = auth.as_requests_auth()
+
+    request = Mock()
+    request.headers = {}
+
+    requests_auth(request)
+
+    assert request.headers["Authorization"].startswith("Basic ")

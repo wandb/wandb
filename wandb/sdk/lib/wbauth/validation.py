@@ -23,6 +23,13 @@ def check_api_key(key: str) -> str | None:
     if key.startswith("wb_at_"):
         return None
 
+    # Internal client JWTs have 3 dot-separated base64url segments
+    # (header.payload.signature). They bypass legacy API key validation
+    # and are sent via BasicAuth so the server can detect the JWT format.
+    jwt_parts = key.split(".")
+    if len(jwt_parts) == 3 and all(jwt_parts):
+        return None
+
     # On-prem API keys have a variable-length prefix followed by a dash.
     #
     # NOTE: This should be rsplit(), but it is split() to be backward compatible
