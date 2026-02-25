@@ -420,3 +420,138 @@ func TestWorkspace_Enter_WorksWhenRunsFocused(t *testing.T) {
 	require.NotNil(t, cmd,
 		"Enter with run selector active should trigger enterRunView")
 }
+
+// ---- Overview filter mode ----
+
+func TestWorkspace_OverviewFilterMode_ConsumesQuit(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Enter overview filter input mode ("o").
+	require.Nil(t, w.Update(keyRune('o')))
+	require.True(t, w.TestOverviewFilterMode(),
+		"expected overview filter mode active after 'o'")
+	require.True(t, w.IsFiltering(),
+		"expected IsFiltering true during overview filter input")
+
+	// While overview filter is active, 'q' should be consumed (not quit).
+	require.Nil(t, w.Update(keyRune('q')))
+	require.True(t, w.TestOverviewFilterMode(),
+		"overview filter should still be active after 'q'")
+
+	// Escape cancels filter mode.
+	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEsc}))
+	require.False(t, w.TestOverviewFilterMode(),
+		"overview filter should be inactive after Esc")
+	require.False(t, w.IsFiltering(),
+		"IsFiltering should be false after cancelling overview filter")
+}
+
+func TestWorkspace_OverviewFilter_ApplyAndClear(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Enter filter, type "lr", and apply.
+	require.Nil(t, w.Update(keyRune('o')))
+	for _, r := range "lr" {
+		require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}))
+	}
+	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEnter}))
+
+	require.False(t, w.TestOverviewFilterMode(),
+		"filter input mode should end after Enter")
+	require.True(t, w.TestOverviewFiltering(),
+		"applied filter should be active")
+	require.Equal(t, "lr", w.TestOverviewFilterQuery())
+	require.NotEmpty(t, w.TestOverviewFilterInfo(),
+		"filter info should show match summary")
+
+	// Clear the filter with ctrl+k.
+	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyCtrlK}))
+	require.False(t, w.TestOverviewFiltering(),
+		"filter should be cleared after ctrl+k")
+	require.Empty(t, w.TestOverviewFilterInfo())
+}
+
+func TestWorkspace_OverviewFilter_EscCancelsDraft(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Enter filter, type something, then Esc to cancel.
+	require.Nil(t, w.Update(keyRune('o')))
+	for _, r := range "xyz" {
+		require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}))
+	}
+	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEsc}))
+
+	require.False(t, w.TestOverviewFilterMode())
+	require.False(t, w.TestOverviewFiltering(),
+		"cancelled draft should not persist as applied filter")
+}
+
+func TestWorkspace_OverviewFilter_ToggleMode(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Enter filter mode and toggle regex -> glob via Tab.
+	require.Nil(t, w.Update(keyRune('o')))
+	require.True(t, w.TestOverviewFilterMode())
+
+	// Tab toggles match mode (regex -> glob).
+	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyTab}))
+
+	// Apply and verify it took effect (mode persists after apply).
+	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEnter}))
+	require.False(t, w.TestOverviewFilterMode())
+}
+
+func TestWorkspace_OverviewFilter_StatusBarShowsFilter(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Apply a filter so it shows in the idle status bar.
+	require.Nil(t, w.Update(keyRune('o')))
+	for _, r := range "loss" {
+		require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}))
+	}
+	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEnter}))
+
+	// The full View includes the status bar at the bottom.
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	view := w.View()
+	require.Contains(t, view, "Overview:")
+	require.Contains(t, view, "loss")
+}
+
+func TestWorkspace_OverviewFilter_LivePreviewDuringInput(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// During filter input, the status bar should show the live prompt.
+	require.Nil(t, w.Update(keyRune('o')))
+	for _, r := range "ep" {
+		require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}))
+	}
+
+	// While still in filter mode, check the view.
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	view := w.View()
+	require.Contains(t, view, "Overview filter")
+	require.Contains(t, view, "ep")
+
+	// Cancel to clean up.
+	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEsc}))
+}
+
+func TestWorkspace_OverviewFilter_PriorityOverMetricsFilter(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Enter overview filter mode.
+	require.Nil(t, w.Update(keyRune('o')))
+	require.True(t, w.TestOverviewFilterMode())
+
+	// '/' should be consumed by overview filter (as a typed character),
+	// NOT enter metrics filter mode.
+	require.Nil(t, w.Update(keyRune('/')))
+	require.True(t, w.TestOverviewFilterMode(),
+		"overview filter should still be active")
+	require.Equal(t, "/", w.TestOverviewFilterQuery(),
+		"'/' should appear as typed text in the overview filter draft")
+
+	// Escape out.
+	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyEsc}))
+}

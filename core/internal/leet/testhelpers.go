@@ -326,3 +326,23 @@ func (w *Workspace) TestSystemMetrics() map[string]*SystemMetricsGrid {
 func (w *Workspace) TestFocus() *Focus {
 	return w.focus
 }
+
+// TestOverviewFilterMode reports whether the overview sidebar is in filter input mode.
+func (w *Workspace) TestOverviewFilterMode() bool {
+	return w.runOverviewSidebar.IsFilterMode()
+}
+
+// TestOverviewFiltering reports whether an applied (non-empty) overview filter exists.
+func (w *Workspace) TestOverviewFiltering() bool {
+	return w.runOverviewSidebar.IsFiltering()
+}
+
+// TestOverviewFilterQuery returns the current overview filter query string.
+func (w *Workspace) TestOverviewFilterQuery() string {
+	return w.runOverviewSidebar.FilterQuery()
+}
+
+// TestOverviewFilterInfo returns the compact match summary for the overview filter.
+func (w *Workspace) TestOverviewFilterInfo() string {
+	return w.runOverviewSidebar.FilterInfo()
+}
