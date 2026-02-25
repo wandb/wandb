@@ -268,9 +268,9 @@ def projects(entity, display=True):
     If no API key is provided as an argument, the command looks for
     credentials in the following order:
 
-    1. The WANDB_API_KEY environment variable
-    2. The api_key setting in a system or workspace settings file
-    3. The .netrc file (`~/.netrc`, `~/_netrc`, or the `NETRC` env var path)
+    1. The `WANDB_API_KEY` environment variable
+    2. The `api_key` setting in a system or workspace settings file
+    3. The `.netrc` file (`~/.netrc`, `~/_netrc`, or the `NETRC` env var path)
     4. An interactive prompt (if a TTY is available)
 
     For self-hosted or dedicated cloud deployments, specify the server
@@ -284,10 +284,10 @@ def projects(entity, display=True):
     wandb login
     ```
 
-    Log in with an explicit API key
+    Log in with an explicit API key ("WANDB_API_KEY_EXAMPLE")
 
     ```bash
-    wandb login YOUR_API_KEY
+    wandb login WANDB_API_KEY_EXAMPLE
     ```
 
     Log in and verify the API key is valid
@@ -325,7 +325,7 @@ def projects(entity, display=True):
     "--host",
     "--base-url",
     default=None,
-    help="Log in to a specific W&B server instance by URL.",
+    help="Log in to a specific W&B server instance by URL (e.g. https://my-wandb.example.com). Mutually exclusive with --cloud.",
 )
 @click.option(
     "--relogin",
@@ -338,13 +338,13 @@ def projects(entity, display=True):
     default=False,
     hidden=True,
     is_flag=True,
-    help="Log in anonymously",
+    help="Deprecated. Has no effect and will be removed in a future version.",
 )
 @click.option(
     "--verify/--no-verify",
     default=False,
     is_flag=True,
-    help="Verify the API key with the W&B server after storing it.",
+    help="Verify the API key with W&B after storing it. If verification is successful, display the source of the credentials and the default team.",
 )
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
@@ -389,10 +389,18 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
     Examples:
 
-    Initialize W&B configuration for the current directory
+    Set up W&B for the current directory with guided prompts for team and
+    project selection. 
 
     ```bash
-    wandb init --project PROJECT_NAME --entity TEAM_ENTITY
+    wandb init
+    ```
+
+    Set the default project to "foobar-project" and the default entity to
+    "team-awesome" without prompts.
+
+    ```bash
+    wandb init --project foobar-project --entity team-awesome
     ```
 
     Set the W&B mode to offline
@@ -573,7 +581,7 @@ def init(ctx, project, entity, reset, mode):
     wandb sync
     ```
 
-    Sync a specific run by its directory
+    Sync a run that is locally saved at `./wandb/run-20170617_000000-abcd1234`
 
     ```bash
     wandb sync ./wandb/run-20170617_000000-abcd1234
@@ -591,10 +599,10 @@ def init(ctx, project, entity, reset, mode):
     wandb sync --sync-all
     ```
 
-    Sync a run to a specific project and entity
+    Sync a run in the "foobar-project" project and "team-awesome" entity by its `.wandb` filepath
 
     ```bash
-    wandb sync --project project --entity entity ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
+    wandb sync --project foobar-project --entity team-awesome ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
     ```
 
     Delete local data for runs that have already been synced
@@ -931,54 +939,61 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
 
     Examples:
 
-    Create a new sweep from a YAML config file
+    Create a sweep using the configuration defined in `sweep_config.yaml`. Use
+    the current user's default entity and project.
 
     ```bash
     wandb sweep sweep_config.yaml
     ```
 
-    Create a sweep in a specific project and team.
+    Create a sweep and store the results under the "team-awesome" entity
+    and "foobar-project" project.
 
     ```bash
-    wandb sweep -p project -e entity sweep_config.yaml
+    wandb sweep -p foobar-project -e team-awesome sweep_config.yaml
     ```
 
-    Update an existing sweep's configuration.
+    Update sweep `abcd1234` with a new configuration from `sweep_config.yaml`.
+    This is useful for changing the parameters or search strategy of an
+    active sweep.
 
     ```bash
     wandb sweep --update abcd1234 sweep_config.yaml
     ```
 
-    Stop a sweep
+    Stop sweep `abcd1234` under the "team-awesome" entity and "foobar-project" project.
 
     ```bash
-    wandb sweep --stop entity/project/abcd1234
+    wandb sweep --stop team-awesome/foobar-project/abcd1234
     ```
 
-    Cancel a sweep
+    Cancel sweep `abcd1234` in the current user's default entity and project.
 
     ```bash
     wandb sweep --cancel abcd1234
     ```
 
-    Pause and later resume a sweep
+    Pause sweep `abcd1234` in the current user's default entity and
+    project. Later, resume the sweep.
 
     ```bash
     wandb sweep --pause abcd1234
     wandb sweep --resume abcd1234
     ```
 
-    Create a sweep with a local controller
+    Create a sweep with a local controller that uses the configuration
+    in `sweep_config.yaml`.
 
     ```bash
     wandb sweep --controller sweep_config.yaml
     ```
-
-    Attach existing runs to a new sweep. Replace run_ID_1 and run_ID_2 with
-    the unique IDs (not sweep IDs) of the runs you want to attach.
+    
+    Create a new sweep and include two previously completed runs
+    (run ID `abcd1234` and run ID `efgh5678`) so their results are incorporated
+    into the sweep's hyperparameter search.
 
     ```bash
-    wandb sweep -R run_ID_1 -R run_ID_2 sweep_config.yaml
+    wandb sweep -R abcd1234 -R efgh5678 sweep_config.yaml
     ```
     """,
 )
@@ -1984,36 +1999,41 @@ def launch_agent(
     the sweep and start a run for each configuration.
     
     The agent exits when the sweep completes, the sweep
-    is stopped/cancelled, or the `--count` limit is reached.
+    is stopped, cancelled, or the `--count` limit is reached.
 
-    SWEEP_ID is printed by `wandb sweep` when a sweep is created.
-    It can include the entity and project path
-    (`entity/project/sweep_id`).
+    Find the sweep ID in:
+      * The W&B App at `https://wandb.ai/entity/project/sweeps`. Replace
+        `entity` and `project` with your entity and project names.
+      * The output of the `wandb sweep` command when you create a new sweep.
+    
+    The sweep ID can include the entity and project path
+    (`entity/project/sweep_id`) or the eight character sweep ID alone.
 
     Examples:
 
-    Start an agent for a sweep
+    Start an agent for a sweep with a sweep ID of "wbyz9876"
 
     ```bash
-    wandb agent SWEEP_ID
+    wandb agent wbyz9876
     ```
 
-    Start an agent with a run limit
+    Start an agent with a run limit of 10 runs for the sweep
 
     ```bash
-    wandb agent --count 10 SWEEP_ID
+    wandb agent --count 10 wbyz9876
     ```
 
-    Start an agent for a sweep in a specific project
+    Start an agent for a sweep and save it to a project
+    called "sweeps-project" that belongs to the "team-awesome" entity
 
     ```bash
-    wandb agent -p PROJECT_NAME -e ENTITY SWEEP_ID
+    wandb agent -p sweeps-project -e team-awesome wbyz9876
     ```
 
     Forward signals to child runs for clean shutdown
 
     ```bash
-    wandb agent --forward-signals SWEEP_ID
+    wandb agent --forward-signals wbyz9876
     ```
     """,
 )
@@ -2380,17 +2400,16 @@ def create(
     can use this command to debug behavior or operate in environments with
     limited connectivity.
 
-    'sweep_id' is printed by `wandb sweep` when you create a sweep. It
+    ``sweep_id`` is printed by `wandb sweep` when you create a sweep. It
     consists of a unique identifier for the sweep and may include the
     entity and project path (`entity/project/sweep_id`).
 
     Examples:
 
-    Start a local sweep controller for a sweep. In this example, `abcd1234`
-    is the sweep ID.
+    Start a local sweep controller for a sweep with sweep ID "wbyz9876"
 
     ```bash
-    wandb controller abcd1234
+    wandb controller wbyz9876
     ```
     """
     )
@@ -2424,9 +2443,8 @@ def docker_run(ctx, docker_run_args):
 
     Examples:
 
-    Run ``python train.py`` inside ``my-image`` Docker container. Inject your
-    W&B API key and the resolved Docker image ID as environment variables in
-    the container so W&B can track your runs and associate them with the image. 
+    Run `python train.py` inside the "my-image" container. W&B automatically
+    injects your API key and the resolved image ID.
 
     ```
     wandb docker-run my-image python train.py
@@ -2644,13 +2662,36 @@ def server():
     Map the specified port on the host to port `8080` in the container and
     mount a persistent Docker volume named `wandb` to store data.
 
-    If a newer image is available, notify the user to upgrade to the latest version (`wandb server start --upgrade`).
+    If a newer image is available, notify the user to upgrade to the latest
+    version (`wandb server start --upgrade`).
 
-    If a container named `wandb-local` is already running, notify the user to stop it before starting a new one.
+    If a container named `wandb-local` is already running, notify the user
+    to stop it before starting a new one.
 
-    Set the `base_url` setting to the local server URL so that W&B client calls use the local server. If no API key is found, prompt the user to log in.
+    Set the `base_url` setting to the local server URL so that W&B client
+    calls use the local server. If no API key is found, prompt the user to log in.
 
     Requires Docker to be installed and running on the host machine.
+
+    Examples:
+
+    Launch a local W&B server on port 8080 in the background.
+
+    ```bash
+    wandb server start
+    ```
+
+    Run the server on port 9090 instead of the default 8080.
+
+    ```bash
+    wandb server start -p 9090
+    ```
+
+    Run the server in the foreground so logs stream directly to the terminal
+
+    ```bash
+    wandb server start --no-daemon
+    ```
     """)
 @click.pass_context
 @click.option(
@@ -2668,7 +2709,7 @@ def server():
     "--upgrade",
     is_flag=True,
     default=False,
-    help="Pull the latest `wandb/local` Docker image before starting. Stop any existing container.",
+    help="Pull the latest wandb/local Docker image before starting. Stop any existing container.",
     hidden=True,
 )
 @click.option(
@@ -2758,7 +2799,18 @@ def start(ctx, port, env, daemon, upgrade, edge):
                 ctx.invoke(login, host=host)
 
 
-@server.command(context_settings=RUN_CONTEXT, help="Stop a local W&B server")
+@server.command(context_settings=RUN_CONTEXT,
+    help="""Stop a running local W&B server.
+
+    Stops the Docker container named ``wandb-local`` that was started
+    by ``wandb server start``. Requires Docker to be installed.
+
+    Examples:
+
+    ```bash
+    wandb server stop
+    ```
+    """)
 def stop():
     if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
@@ -2775,7 +2827,8 @@ def artifact():
     help="""Upload an artifact to W&B.
 
     Upload a file, directory, or URL reference as a versioned artifact.
-    The PATH can be a local file, a local directory, or a URL
+
+    The `PATH` can be a local file, a local directory, or a URL
     (containing `://`) to log as a reference artifact.
 
     If `--name` is not specified, the artifact name defaults to the
@@ -2784,28 +2837,34 @@ def artifact():
 
     Examples:
 
-    Upload a directory as a dataset artifact
+    Upload all files in a local directory ./data/training as a dataset artifact in W&B.
 
     ```bash
-    wandb artifact put ./project/artifact_name --type dataset
+    wandb artifact put --type dataset ./data/training
     ```
 
-    Upload a file with a specific name and type
+    Upload "model.pt" to the "foobar" project and assign "trained-model" as the artifact name.
 
     ```bash
-    wandb artifact put --name project/artifact_name --type model ./model.pt
+    wandb artifact put --name foobar/trained-model --type model ./model.pt
     ```
 
-    Upload with multiple aliases (`latest` and `v1.0` in this example)
+    Tag the artifact with both "latest" and "v2.0" so it can be referenced by either alias.
 
     ```bash
-    wandb artifact put --alias latest --alias v1.0 ./project/artifact_name
+    wandb artifact put --alias latest --alias v2.0 --type model ./model.pt
+    ``` 
+
+    Record an Amazon S3 path as a reference without downloading or re-uploading the data.
+
+    ```bash
+    wandb artifact put --type dataset s3://my-bucket/datasets/training
     ```
-
-    Log a URL as a reference artifact
+    
+    Attach a human-readable description to a dataset artifact for documentation.
 
     ```bash
-    wandb artifact put --type dataset s3://my-bucket/data
+    wandb artifact put --type dataset --description "Training data, Jan 2025" ./data/training
     ```
     """,
 )
@@ -2813,7 +2872,7 @@ def artifact():
 @click.option(
     "--name",
     "-n",
-    help="Artifact name in `project/artifact_name` format. Defaults to the basename of the path.",
+    help="Artifact name in project/artifact_name format. Defaults to the basename of the path.",
 )
 @click.option("--description", "-d", help="A description of this artifact.")
 @click.option(
@@ -2902,24 +2961,25 @@ def put(
 
 @artifact.command(
     context_settings=CONTEXT,
-    help="""Download an artifact from W&B.
+    help="""Download an artifact from W&B by its path.
 
-    Download an artifact by its path. The PATH format is
-    `entity/project/artifact_name:version`. If the version is omitted,
-    use the 'latest' alias.
+    The `PATH` format is `entity/project/artifact_name:version`. If
+    the version is omitted, use the `latest` alias.
 
     Examples:
 
-    Download the latest version of an artifact
+    Download the latest version of an artifact called "processed-training-set"
+    from the "foobar-project" project under the "team-awesome" entity.
 
     ```bash
-    wandb artifact get entity/project/artifact_name:latest
+    wandb artifact get team-awesome/foobar-project/processed-training-set:latest
     ```
 
-    Download a specific version to a custom directory ("./data" in this example)
+    Download a specific version (v2) of the "processed-training-set" artifact
+    to a local directory (./data).
 
     ```bash
-    wandb artifact get --root ./data entity/project/artifact_name:v2
+    wandb artifact get --root ./data team-awesome/foobar-project/processed-training-set:v2
     ```
     """,
 )
@@ -2970,22 +3030,23 @@ def get(path, root, type):
     help="""List all artifacts in a W&B project.
 
     Display the latest version of each artifact collection in a
-    project, showing type, last updated time, size, and name.
+    project. Show the type, last updated time, size, and name.
 
-    The PATH is an `entity/project` string.
+    The `PATH` consists of the entity and project (`entity/project`) to
+    list artifacts from.
 
     Examples:
 
-    List all artifacts in a project
+    List all artifacts in a project called "foobar-project" under the "team-awesome" entity
 
     ```bash
-    wandb artifact ls entity/project
+    wandb artifact ls team-awesome/foobar-project
     ```
 
-    List only artifacts of a specific type
+    List only artifacts of type "model" in the same project
 
     ```bash
-    wandb artifact ls --type model entity/project
+    wandb artifact ls --type model team-awesome/foobar-project
     ```
     """,
 )
@@ -3035,7 +3096,7 @@ def cache():
     help="""Reduce the local artifact cache size.
 
     Remove less frequently used files until the cache is at or below
-    the TARGET_SIZE. TARGET_SIZE accepts human-readable formats (for example,
+    the `TARGET_SIZE`. `TARGET_SIZE` accepts human-readable formats (for example,
     10GB or 500MB).
 
     Examples:
@@ -3046,7 +3107,7 @@ def cache():
     wandb artifact cache cleanup 10GB
     ```
     
-    Remove temporary files
+    Remove temporary files and reduce the artifact cache to 5 GB
 
     ```bash
     wandb artifact cache cleanup --remove-temp 5GB
@@ -3070,20 +3131,25 @@ def cleanup(target_size, remove_temp):
 @cli.command(context_settings=CONTEXT,
     help="""Download files from a W&B run.
 
-    Fetch all files assoicated with the specified run. Skip files that already exist locally with the same content. Create subdirectories as needed to mirror the structure of the files in W&B.
+    Fetch all files assoicated with the specified run. Skip files that already
+    exist locally with the same content. Create subdirectories as needed to
+    mirror the structure of the files in W&B.
+    
+    Use the run ID to reference the run, and optionally specify the project
+    and entity if not included in the run argument.
              
     Examples:
              
-    Download files from a run by ID (in this example, run ID is `abcd1234`)
+    Download files from a run with a run ID "abcd1234" in the default project and entity
              
     ```bash
     wandb pull abcd1234
     ```
              
-    Download files from a run in a specific project and entity (in this example, project is `project` and entity is `entity`)
+    Download files from a run with run ID "abcd1234" in the "foobar" project and "team-awesome" entity
   
     ```bash
-    wandb pull -p project -e entity abcd1234
+    wandb pull -p foobar -e team-awesome abcd1234
     ```
 """)
 @click.argument("run", envvar=env.RUN_ID)
@@ -3153,25 +3219,27 @@ def pull(run, project, entity):
 
     Examples:
 
-    Restore a run by ID
+    Restore a run with run ID "abcd1234" in the default project and entity
 
     ```bash
     wandb restore abcd1234
     ```
 
-    Restore a run from a specific project and entity
+    Restore a run from the "foobar" project and "team-awesome" entity with
+    run ID "abcd1234"
 
     ```bash
-    wandb restore entity/project:abcd1234
+    wandb restore team-awesome/foobar-project:abcd1234
     ```
 
-    Restore only config and Docker state, skip git checkout
+    Restore run "abcd1234" without restoring git state. Only restore config
+    and Docker state.
 
     ```bash
     wandb restore --no-git abcd1234
     ```
 
-    Restore in detached HEAD mode instead of creating a branch
+    Restore run "abcd1234" in detached HEAD mode instead of creating a branch
 
     ```bash
     wandb restore --no-branch abcd1234
@@ -3449,7 +3517,8 @@ def status(settings):
 
     Examples:
 
-    Turn off W&B for scripts that don't need tracking
+    Turn off W&B so that the train.py script executes without logging or
+    syncing data to W&B.
 
     ```bash
     wandb disabled
