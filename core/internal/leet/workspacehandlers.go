@@ -239,7 +239,8 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyMsg) tea.Cmd {
 	leftWillBeVisible := !w.runsAnimState.IsVisible()
 	rightIsVisible := w.runOverviewSidebar.IsVisible()
 
-	w.resolveFocusAfterVisibilityChange(leftWillBeVisible, rightIsVisible, w.consoleLogsPane.IsExpanded())
+	w.resolveFocusAfterVisibilityChange(
+		leftWillBeVisible, rightIsVisible, w.consoleLogsPane.IsExpanded())
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
 	w.recalculateLayout()
