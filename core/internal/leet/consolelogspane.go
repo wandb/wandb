@@ -39,7 +39,11 @@ const (
 //   - "HH:MM:SS" when there is room
 //   - "HH:MM" when there is room for minutes but not seconds
 //   - "" when there isn't room for "HH:MM"
-func consoleLogKeyForWidth(key string, maxKeyWidth int, keyStyle lipgloss.Style) string {
+func consoleLogKeyForWidth(
+	key string,
+	maxKeyWidth int,
+	keyStyle lipgloss.Style,
+) string {
 	// The timestamp styles include padding. Subtract the style's "empty render" width
 	// so we only consider the columns available for the timestamp text itself.
 	available := maxKeyWidth - lipgloss.Width(keyStyle.Render(""))
