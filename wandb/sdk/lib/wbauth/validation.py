@@ -18,6 +18,11 @@ def check_api_key(key: str) -> str | None:
     if not key:
         return "API key is empty."
 
+    # wb_at_ tokens are short-lived OAuth access tokens, not API keys.
+    # They have a different format (contain dots) so skip legacy validation.
+    if key.startswith("wb_at_"):
+        return None
+
     # On-prem API keys have a variable-length prefix followed by a dash.
     #
     # NOTE: This should be rsplit(), but it is split() to be backward compatible

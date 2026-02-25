@@ -280,7 +280,10 @@ class Api:
 
         auth = None
         api_key = api_key or self.default_settings.get("api_key")
-        if api_key:
+        if api_key and api_key.startswith("wb_at_"):
+            # Short-lived OAuth token — use Bearer instead of Basic
+            self._extra_http_headers["Authorization"] = f"Bearer {api_key}"
+        elif api_key:
             auth = ("api", api_key)
         elif self.access_token is not None:
             self._extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
