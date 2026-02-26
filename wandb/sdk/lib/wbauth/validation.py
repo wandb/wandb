@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+
 def check_api_key(key: str) -> str | None:
     """Returns text describing problems with the API key, or None.
 
