@@ -13,7 +13,6 @@ from wandb.sdk.lib import credentials
 
 from . import validation
 from .host_url import HostUrl
-from .validation import WB_AT_PREFIX
 
 
 # We use an abstract base class instead of a union because
@@ -92,26 +91,14 @@ class AuthApiKey(Auth):
 
     @override
     def as_requests_auth(self) -> requests.auth.AuthBase:
-        """Return a requests auth handler.
+        """Return a requests auth handler using HTTP Basic Auth.
 
-        For regular API keys, returns HTTP Basic Auth with "api" as the
-        username. For ``wb_at_`` tokens (short-lived OAuth access tokens),
-        returns a Bearer auth handler instead.
+        Returns:
+            An auth handler that sets the Authorization header with
+            Basic auth using "api" as the username and the API key
+            as the password.
         """
-        if self._api_key.startswith(WB_AT_PREFIX):
-            return _BearerAuth(self._api_key)
         return requests.auth.HTTPBasicAuth("api", self._api_key)
-
-
-class _BearerAuth(requests.auth.AuthBase):
-    """Requests auth handler that sends a static Bearer token."""
-
-    def __init__(self, token: str) -> None:
-        self._token = token
-
-    def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
-        r.headers["Authorization"] = f"Bearer {self._token}"
-        return r
 
 
 class _IdentityTokenAuth(requests.auth.AuthBase):
