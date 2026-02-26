@@ -540,6 +540,56 @@ def test_audio_refs():
     assert subdict(audio_obj.to_json(art), audio_expected) == audio_expected
 
 
+def test_video_refs():
+    video_obj = wandb.Video(
+        "s3://my-bucket/videos/sample.mp4"
+    )
+    art = wandb.Artifact("video_ref_test", "dataset")
+    art.add(video_obj, "video_ref")
+
+    video_expected = {
+        "_type": "video-file",
+    }
+    assert subdict(video_obj.to_json(art), video_expected) == video_expected
+
+
+def test_video_refs_https():
+    video_obj = wandb.Video(
+        "https://example.com/videos/sample.webm"
+    )
+    art = wandb.Artifact("video_ref_test_https", "dataset")
+    art.add(video_obj, "video_ref")
+
+    json_obj = video_obj.to_json(art)
+    assert json_obj["_type"] == "video-file"
+    assert "path" in json_obj
+    assert "sha256" in json_obj
+
+
+def test_video_refs_gs():
+    video_obj = wandb.Video(
+        "gs://my-bucket/videos/sample.ogg"
+    )
+    art = wandb.Artifact("video_ref_test_gs", "dataset")
+    art.add(video_obj, "video_ref")
+
+    json_obj = video_obj.to_json(art)
+    assert json_obj["_type"] == "video-file"
+    assert "path" in json_obj
+    assert "sha256" in json_obj
+
+
+def test_video_refs_in_table():
+    video_obj = wandb.Video(
+        "s3://my-bucket/videos/sample.mp4"
+    )
+    table = wandb.Table(columns=["video"])
+    table.add_data(video_obj)
+
+    art = wandb.Artifact("video_table_ref_test", "dataset")
+    art.add(table, "video_table")
+
+
 ################################################################################
 # Test wandb.Plotly
 ################################################################################

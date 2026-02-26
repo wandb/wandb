@@ -173,7 +173,7 @@ class Media(WBValue):
         """
         # NOTE: uses of Audio in this class are a temporary hack -- when Ref support moves up
         # into Media itself we should get rid of them
-        from wandb import Image
+        from wandb import Image, Video
         from wandb.data_types import Audio
 
         json_obj: dict[str, Any] = {}
@@ -252,7 +252,7 @@ class Media(WBValue):
                         # Add this image as a reference
                         path = self._artifact_source.artifact.get_entry(name)
                         artifact.add_reference(path.ref_url(), name=name)
-                    elif (isinstance(self, (Audio, Image))) and self.path_is_reference(
+                    elif (isinstance(self, (Audio, Image, Video))) and self.path_is_reference(
                         self._path
                     ):
                         artifact.add_reference(self._path, name=name)
