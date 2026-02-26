@@ -191,10 +191,15 @@ def test_jwt_bypasses_validation_and_uses_basic_auth():
     assert request.headers["Authorization"].startswith("Basic ")
 
 
-def test_dot_separated_key_with_wrong_segment_count_fails():
-    """Dot-separated strings that aren't 3-segment JWTs should fail validation."""
+@pytest.mark.parametrize(
+    "key",
+    [
+        "header.payload",  # 2 segments
+        "header.payload.signature.extra",  # 4 segments
+        "bad header!.payload.signature",  # non-base64url character
+    ],
+)
+def test_invalid_jwt_like_key_fails(key: str):
+    """Dot-separated strings that don't match valid JWT structure are rejected."""
     with pytest.raises(AuthenticationError):
-        AuthApiKey(host="https://test", api_key="part1.part2")
-
-    with pytest.raises(AuthenticationError):
-        AuthApiKey(host="https://test", api_key="part1.part2.part3.part4")
+        AuthApiKey(host="https://test", api_key=key)
