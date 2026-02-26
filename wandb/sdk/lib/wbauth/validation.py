@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-#: Matches a JWT: three non-empty base64url segments separated by dots.
+# Matches a JWT: three non-empty base64url segments separated by dots.
 _JWT_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
 
 
