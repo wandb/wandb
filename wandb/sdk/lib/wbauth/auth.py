@@ -13,6 +13,7 @@ from wandb.sdk.lib import credentials
 
 from . import validation
 from .host_url import HostUrl
+from .validation import WB_AT_PREFIX
 
 
 # We use an abstract base class instead of a union because
@@ -97,7 +98,7 @@ class AuthApiKey(Auth):
         username. For ``wb_at_`` tokens (short-lived OAuth access tokens),
         returns a Bearer auth handler instead.
         """
-        if self._api_key.startswith("wb_at_"):
+        if self._api_key.startswith(WB_AT_PREFIX):
             return _BearerAuth(self._api_key)
         return requests.auth.HTTPBasicAuth("api", self._api_key)
 

@@ -45,6 +45,7 @@ from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import retry, wbauth
+from ..lib.wbauth.validation import WB_AT_PREFIX
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from . import context
 from .progress import Progress
@@ -280,7 +281,7 @@ class Api:
 
         auth = None
         api_key = api_key or self.default_settings.get("api_key")
-        if api_key and api_key.startswith("wb_at_"):
+        if api_key and api_key.startswith(WB_AT_PREFIX):
             # Short-lived OAuth token — use Bearer instead of Basic
             self._extra_http_headers["Authorization"] = f"Bearer {api_key}"
         elif api_key:

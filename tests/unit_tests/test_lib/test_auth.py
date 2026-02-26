@@ -11,6 +11,7 @@ from wandb.sdk.lib.wbauth import (
     session_credentials,
     use_explicit_auth,
 )
+from wandb.sdk.lib.wbauth.validation import WB_AT_PREFIX
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 
@@ -180,7 +181,7 @@ def test_identity_token_as_requests_auth(tmp_path: pathlib.Path, monkeypatch):
 
 def test_wb_at_token_uses_bearer_auth():
     """wb_at_ tokens should use Bearer auth instead of Basic auth."""
-    token = "wb_at_" + "x" * 50 + ".signature"
+    token = WB_AT_PREFIX + "x" * 50 + ".signature"
     auth = AuthApiKey(host="https://test", api_key=token)
     requests_auth = auth.as_requests_auth()
 
@@ -194,7 +195,7 @@ def test_wb_at_token_uses_bearer_auth():
 
 def test_wb_at_token_passes_validation():
     """wb_at_ tokens should bypass the legacy API key validation."""
-    token = "wb_at_" + "x" * 50 + ".signature"
+    token = WB_AT_PREFIX + "x" * 50 + ".signature"
     # Should not raise AuthenticationError despite having dots
     auth = AuthApiKey(host="https://test", api_key=token)
     assert auth.api_key == token

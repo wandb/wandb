@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import re
 
+#: Prefix for short-lived OAuth access tokens issued by W&B.
+WB_AT_PREFIX = "wb_at_"
+
 
 def check_api_key(key: str) -> str | None:
     """Returns text describing problems with the API key, or None.
@@ -20,7 +23,7 @@ def check_api_key(key: str) -> str | None:
 
     # wb_at_ tokens are short-lived OAuth access tokens, not API keys.
     # They have a different format (contain dots) so skip legacy validation.
-    if key.startswith("wb_at_"):
+    if key.startswith(WB_AT_PREFIX):
         return None
 
     # Internal client JWTs have 3 dot-separated base64url segments
