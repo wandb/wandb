@@ -282,7 +282,9 @@ func (w *Workspace) View() string {
 
 // IsFiltering reports whether any workspace-level filter UI is active.
 func (w *Workspace) IsFiltering() bool {
-	return w.metricsGrid.IsFilterMode() || w.filter.IsActive()
+	return w.metricsGrid.IsFilterMode() ||
+		w.runOverviewSidebar.IsFilterMode() ||
+		w.filter.IsActive()
 }
 
 // SelectedRunWandbFile returns the full path to the .wandb file for the selected run.
@@ -672,6 +674,9 @@ func (w *Workspace) buildStatusText() string {
 	if w.metricsGrid.IsFilterMode() {
 		return w.buildMetricsFilterStatus()
 	}
+	if w.runOverviewSidebar.IsFilterMode() {
+		return w.buildOverviewFilterStatus()
+	}
 
 	// Grid layout prompt (rows/cols) for metrics/system grids.
 	if w.config != nil && w.config.IsAwaitingGridConfig() {
@@ -693,6 +698,20 @@ func (w *Workspace) buildMetricsFilterStatus() string {
 	)
 }
 
+func (w *Workspace) buildOverviewFilterStatus() string {
+	filterInfo := w.runOverviewSidebar.FilterInfo()
+	if filterInfo == "" {
+		filterInfo = "no matches"
+	}
+	return fmt.Sprintf(
+		"Overview filter (%s): %s%s [%s] (Enter to apply • Tab to toggle mode)",
+		w.runOverviewSidebar.FilterMode().String(),
+		w.runOverviewSidebar.FilterQuery(),
+		string(mediumShadeBlock),
+		filterInfo,
+	)
+}
+
 // buildActiveStatus summarizes the active filters and selection when no
 // dedicated input mode (filter / grid config) is active.
 func (w *Workspace) buildActiveStatus() string {
@@ -705,6 +724,14 @@ func (w *Workspace) buildActiveStatus() string {
 			w.metricsGrid.FilterQuery(),
 			w.metricsGrid.FilteredChartCount(),
 			w.metricsGrid.ChartCount(),
+		))
+	}
+
+	if w.runOverviewSidebar.IsVisible() && w.runOverviewSidebar.IsFiltering() {
+		parts = append(parts, fmt.Sprintf(
+			"Overview: %q [%s] (o to change, ctrl+k to clear)",
+			w.runOverviewSidebar.FilterQuery(),
+			w.runOverviewSidebar.FilterInfo(),
 		))
 	}
 

@@ -28,7 +28,33 @@ const (
 	// consoleLogsKeyWidthRatio is the fraction of the bar's width reserved
 	// for the timestamp key column.
 	consoleLogsKeyWidthRatio = 0.12
+
+	consoleLogTimestampFullWidth  = len("00:00:00") // HH:MM:SS
+	consoleLogTimestampShortWidth = len("00:00")    // HH:MM
 )
+
+// consoleLogKeyForWidth returns the key text to render within the timestamp column.
+//
+// It adapts to narrow columns to avoid showing partial timestamps:
+//   - "HH:MM:SS" when there is room
+//   - "HH:MM" when there is room for minutes but not seconds
+//   - "" when there isn't room for "HH:MM"
+func consoleLogKeyForWidth(
+	key string,
+	maxKeyWidth int,
+	keyStyle *lipgloss.Style,
+) string {
+	// The timestamp styles include padding. Subtract the style's "empty render" width
+	// so we only consider the columns available for the timestamp text itself.
+	available := maxKeyWidth - lipgloss.Width(keyStyle.Render(""))
+	if available < consoleLogTimestampShortWidth {
+		return ""
+	}
+	if available < consoleLogTimestampFullWidth {
+		return key[:consoleLogTimestampShortWidth]
+	}
+	return key
+}
 
 // ConsoleLogsPane is a collapsible, scrollable panel that displays console log
 // output at the bottom of the main content area.
@@ -249,7 +275,7 @@ func (c *ConsoleLogsPane) renderEntry(
 		valueStyle = consoleLogsPaneHighlightedValueStyle
 	}
 
-	key := truncateValue(item.Key, maxKeyWidth)
+	key := consoleLogKeyForWidth(item.Key, maxKeyWidth, &keyStyle)
 	lines := WrapText(item.Value, maxValueWidth)
 
 	truncated := false

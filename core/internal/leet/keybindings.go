@@ -263,6 +263,21 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 			},
 		},
 		{
+			Name: "Run Overview",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"o"},
+					Description: "Filter overview items",
+					Handler:     (*Workspace).handleEnterOverviewFilter,
+				},
+				{
+					Keys:        []string{"ctrl+k"},
+					Description: "Clear overview filter",
+					Handler:     (*Workspace).handleClearOverviewFilter,
+				},
+			},
+		},
+		{
 			Name: "Configuration",
 			Bindings: []KeyBinding[Workspace]{
 				{
