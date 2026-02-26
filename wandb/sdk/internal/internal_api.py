@@ -45,8 +45,8 @@ from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import retry, wbauth
-from ..lib.wbauth.validation import WB_AT_PREFIX
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
+from ..lib.wbauth.validation import WB_AT_PREFIX
 from . import context
 from .progress import Progress
 

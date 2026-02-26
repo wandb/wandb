@@ -27,6 +27,7 @@ from wandb.sdk.internal.internal_api import (
 )
 from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib import retry
+from wandb.sdk.lib.wbauth.validation import WB_AT_PREFIX
 
 from .test_retry import MockTime, mock_time  # noqa: F401
 
@@ -1069,3 +1070,25 @@ class TestJWTAuth:
 
         with pytest.raises(wandb.errors.AuthenticationError, match="not found"):
             internal.InternalApi(environ=environ)
+
+
+class TestWBATAuth:
+    def test_wb_at_token_sets_bearer_header(self):
+        """wb_at_ tokens should set Bearer auth in extra HTTP headers."""
+        token = WB_AT_PREFIX + "x" * 50 + ".signature"
+        api = internal.InternalApi(
+            default_settings={"api_key": token},
+            environ={},
+        )
+
+        assert api._extra_http_headers["Authorization"] == f"Bearer {token}"
+
+    def test_wb_at_token_does_not_set_basic_auth(self):
+        """wb_at_ tokens should not use Basic auth on the transport."""
+        token = WB_AT_PREFIX + "x" * 50 + ".signature"
+        api = internal.InternalApi(
+            default_settings={"api_key": token},
+            environ={},
+        )
+
+        assert api.client.transport.session.auth is None
