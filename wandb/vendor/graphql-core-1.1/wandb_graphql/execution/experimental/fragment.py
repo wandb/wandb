@@ -11,7 +11,7 @@ from ..values import get_argument_values
 from ...error import GraphQLError
 try:
     from itertools import izip as zip
-except:
+except Exception:
     pass
 
 

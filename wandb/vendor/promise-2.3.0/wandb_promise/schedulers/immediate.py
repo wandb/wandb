@@ -10,7 +10,7 @@ class ImmediateScheduler(object):
         # type: (Callable) -> None
         try:
             fn()
-        except:
+        except Exception:
             pass
 
     def wait(self, promise, timeout=None):

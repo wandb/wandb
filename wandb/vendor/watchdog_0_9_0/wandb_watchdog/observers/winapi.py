@@ -284,7 +284,7 @@ def close_directory_handle(handle):
     except WindowsError:
         try:
             CloseHandle(handle)   # close directory handle
-        except:
+        except Exception:
             return
 
 

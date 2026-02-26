@@ -68,13 +68,13 @@ elif platform.is_darwin():
     # FIXME: catching too broad. Error prone
     try:
         from .fsevents import FSEventsObserver as Observer
-    except:
+    except Exception:
         try:
             from .kqueue import KqueueObserver as Observer
             # Note: (tim): Commenting out these warnings since the _watchdog_fsevents
             # module is not available unless installed directly.
             # warnings.warn("Failed to import fsevents. Fall back to kqueue")
-        except:
+        except Exception:
             from .polling import PollingObserver as Observer
             # Note: (tim): Commenting out these warnings since the _watchdog_fsevents
             # module is not available unless installed directly.
@@ -88,7 +88,7 @@ elif platform.is_windows():
     # polling explicitly for Windows XP
     try:
         from .read_directory_changes import WindowsApiObserver as Observer
-    except:
+    except Exception:
         from .polling import PollingObserver as Observer
         warnings.warn("Failed to import read_directory_changes. Fall back to polling.")
 

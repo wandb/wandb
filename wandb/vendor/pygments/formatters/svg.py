@@ -87,7 +87,7 @@ class SvgFormatter(Formatter):
         if fs.endswith('px'): fs = fs[:-2].strip()
         try:
             int_fs = int(fs)
-        except:
+        except Exception:
             int_fs = 20
         self.yoffset = get_int_opt(options, 'yoffset', int_fs)
         self.ystep = get_int_opt(options, 'ystep', int_fs + 5)
