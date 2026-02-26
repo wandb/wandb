@@ -23,6 +23,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `Project.collections()` to fetch filtered and ordered artifact collections in a project. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11319)
 - `wandb purge-cache` command to clean up cached files (@jacobromero in https://github.com/wandb/wandb/pull/10996)
 
+### Changed
+
+- `wandb.api.File.download` returns a path to the file downloaded, rather than opening the file and returning a handle (@jacobromero in https://github.com/wandb/wandb/pull/11408)
+
 ### Fixed
 
 - Fixed a rare deadlock caused when GC triggers at an unlucky time and runs a `__del__` method that prints (@timoffex in https://github.com/wandb/wandb/pull/11402)
