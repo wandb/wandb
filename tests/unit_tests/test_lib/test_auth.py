@@ -178,22 +178,23 @@ def test_identity_token_as_requests_auth(tmp_path: pathlib.Path, monkeypatch):
     assert request.headers["Authorization"] == "Bearer test_access_token"
 
 
-def test_jwt_passes_validation():
-    """Internal client JWTs (3 dot-separated segments) should bypass legacy validation."""
+def test_jwt_bypasses_validation_and_uses_basic_auth():
+    """Internal client JWTs (3 dot-separated segments) bypass legacy validation and use BasicAuth."""
     jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0MiJ9.HMAC_SIGNATURE_HERE"
     auth = AuthApiKey(host="https://test", api_key=jwt)
     assert auth.api_key == jwt
 
-
-def test_jwt_uses_basic_auth():
-    """Internal client JWTs should use BasicAuth so the server can detect the JWT format."""
-    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0MiJ9.HMAC_SIGNATURE_HERE"
-    auth = AuthApiKey(host="https://test", api_key=jwt)
-    requests_auth = auth.as_requests_auth()
-
     request = Mock()
     request.headers = {}
-
-    requests_auth(request)
+    auth.as_requests_auth()(request)
 
     assert request.headers["Authorization"].startswith("Basic ")
+
+
+def test_dot_separated_key_with_wrong_segment_count_fails():
+    """Dot-separated strings that aren't 3-segment JWTs should fail validation."""
+    with pytest.raises(AuthenticationError):
+        AuthApiKey(host="https://test", api_key="part1.part2")
+
+    with pytest.raises(AuthenticationError):
+        AuthApiKey(host="https://test", api_key="part1.part2.part3.part4")
