@@ -465,7 +465,7 @@ func TestWorkspace_OverviewFilter_ApplyAndClear(t *testing.T) {
 		"filter info should show match summary")
 
 	// Clear the filter with ctrl+k.
-	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyCtrlK}))
+	require.Nil(t, w.Update(tea.KeyMsg{Type: tea.KeyCtrlO}))
 	require.False(t, w.TestOverviewFiltering(),
 		"filter should be cleared after ctrl+k")
 	require.Empty(t, w.TestOverviewFilterInfo())
