@@ -13,8 +13,8 @@ import (
 func TestSystemMetricsGrid_Filter(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	cfg.SetSystemRows(1)
-	cfg.SetSystemCols(2)
+	_ = cfg.SetSystemRows(1)
+	_ = cfg.SetSystemCols(2)
 
 	grid := leet.NewSystemMetricsGrid(
 		80,

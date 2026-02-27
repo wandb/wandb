@@ -711,7 +711,7 @@ func (w *Workspace) buildMetricsFilterStatus() string {
 }
 
 func (w *Workspace) buildSystemMetricsFilterStatus(grid *SystemMetricsGrid) string {
-	if grid == nil {
+	if grid == nil || !w.systemMetricsPane.IsVisible() {
 		return ""
 	}
 	return fmt.Sprintf(
@@ -739,7 +739,9 @@ func (w *Workspace) buildActiveStatus() string {
 		))
 	}
 
-	if g := w.activeSystemMetricsGrid(); g != nil && g.IsFiltering() {
+	if g := w.activeSystemMetricsGrid(); g != nil &&
+		g.IsFiltering() &&
+		w.systemMetricsPane.IsVisible() {
 		parts = append(parts, fmt.Sprintf(
 			"System filter (%s): %q [%d/%d] (\\ to change, ctrl+\\ to clear)",
 			g.FilterMode().String(),
