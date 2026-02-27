@@ -18,7 +18,7 @@ from core import hatch as hatch_core
 from gpu_stats import hatch as hatch_gpu_stats
 
 _hatch_orjson_path = (
-    pathlib.Path(__file__).parent / "wandb" / "vendor" / "wandb-orjson" / "hatch.py"
+    pathlib.Path(__file__).parent / "wandb" / "vendor" / "wandb_orjson" / "hatch.py"
 )
 _spec = importlib.util.spec_from_file_location("hatch_orjson", _hatch_orjson_path)
 hatch_orjson = importlib.util.module_from_spec(_spec)
@@ -217,7 +217,7 @@ class CustomBuildHook(BuildHookInterface):
 
     def _build_orjson(self) -> list[str]:
         """Build the vendored orjson library."""
-        output = pathlib.Path("wandb", "vendor", "wandb-orjson")
+        output = pathlib.Path("wandb", "vendor", "wandb_orjson")
 
         self.app.display_waiting("Building vendored orjson library...")
         artifacts = hatch_orjson.build_orjson(
