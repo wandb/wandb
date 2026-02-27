@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: MPL-2.0
 # Copyright ijl (2023)
 
+# ---
+# Modified by Weights & Biases on 2026-02-24.
+# See WANDB_VENDOR.md for details.
+# ---
+
 from .orjson import *
 from .orjson import __version__
 
@@ -12,6 +17,7 @@ __all__ = (
     "JSONEncodeError",
     "loads",
     "OPT_APPEND_NEWLINE",
+    "OPT_FAIL_ON_INVALID_FLOAT",
     "OPT_INDENT_2",
     "OPT_NAIVE_UTC",
     "OPT_NON_STR_KEYS",

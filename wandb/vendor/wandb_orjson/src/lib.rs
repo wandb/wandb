@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright ijl (2018-2026)
 
+// ---
+// Modified by Weights & Biases on 2026-02-24.
+// See WANDB_VENDOR.md for details.
+// ---
+
 #![cfg_attr(feature = "optimize", feature(optimize_attribute))]
 #![cfg_attr(feature = "generic_simd", feature(portable_simd))]
 #![cfg_attr(feature = "cold_path", feature(cold_path))]
@@ -149,6 +154,7 @@ pub(crate) unsafe extern "C" fn orjson_init_exec(mptr: *mut PyObject) -> c_int {
         add!(mptr, c"Fragment", typeref::FRAGMENT_TYPE.cast::<PyObject>());
 
         opt!(mptr, c"OPT_APPEND_NEWLINE", opt::APPEND_NEWLINE);
+        opt!(mptr, c"OPT_FAIL_ON_INVALID_FLOAT", opt::FAIL_ON_INVALID_FLOAT);
         opt!(mptr, c"OPT_INDENT_2", opt::INDENT_2);
         opt!(mptr, c"OPT_NAIVE_UTC", opt::NAIVE_UTC);
         opt!(mptr, c"OPT_NON_STR_KEYS", opt::NON_STR_KEYS);
