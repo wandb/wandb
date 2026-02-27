@@ -81,22 +81,9 @@ func (g *SystemMetricsGrid) FilterQuery() string {
 	return g.filter.Query()
 }
 
-func (g *SystemMetricsGrid) handleSystemMetricsFilterKey(msg tea.KeyMsg) {
-	switch msg.Type {
-	case tea.KeyEsc:
-		g.ExitFilterMode(false)
-		return
-	case tea.KeyEnter:
-		g.ExitFilterMode(true)
-		return
-	case tea.KeyTab:
-		g.ToggleFilterMatchMode()
-		return
-	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
-		g.UpdateFilterDraft(msg)
+// handleFilterKey processes a key event while the system metrics filter is active.
+func (g *SystemMetricsGrid) handleFilterKey(msg tea.KeyMsg) {
+	if g.filter.HandleKey(msg) {
 		g.ApplyFilter()
-		return
-	default:
-		return
 	}
 }

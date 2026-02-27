@@ -163,6 +163,11 @@ func (rs *RightSidebar) IsAnimating() bool {
 	return rs.animState.IsAnimating()
 }
 
+// HandleFilterKey delegates filter key handling to the inner metrics grid.
+func (rs *RightSidebar) HandleFilterKey(msg tea.KeyMsg) {
+	rs.metricsGrid.handleFilterKey(msg)
+}
+
 // IsFilterMode returns true if the metrics grid is currently in filter input mode.
 func (rs *RightSidebar) IsFilterMode() bool {
 	return rs.metricsGrid.filter.IsActive()
