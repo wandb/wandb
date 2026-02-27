@@ -34,7 +34,11 @@ type SystemMetricsGrid struct {
 	// Charts state.
 	byBaseKey   map[string]*TimeSeriesLineChart // baseKey -> chart
 	ordered     []*TimeSeriesLineChart          // charts sorted by title
+	filtered    []*TimeSeriesLineChart          // charts matching current filter
 	currentPage [][]*TimeSeriesLineChart        // current page view
+
+	// Filter state.
+	filter *Filter
 
 	// Chart focus management.
 	focus *Focus
@@ -48,6 +52,7 @@ func NewSystemMetricsGrid(
 	config *ConfigManager,
 	gridConfig func() (int, int),
 	focusState *Focus,
+	filter *Filter,
 	logger *observability.CoreLogger,
 ) *SystemMetricsGrid {
 	smg := &SystemMetricsGrid{
@@ -55,6 +60,8 @@ func NewSystemMetricsGrid(
 		gridConfig: gridConfig,
 		byBaseKey:  make(map[string]*TimeSeriesLineChart),
 		ordered:    make([]*TimeSeriesLineChart, 0),
+		filtered:   make([]*TimeSeriesLineChart, 0),
+		filter:     filter,
 		focus:      focusState,
 		width:      width,
 		height:     height,
@@ -180,24 +187,22 @@ func (g *SystemMetricsGrid) getOrCreateChart(baseKey string, def *MetricDef) *Ti
 		g.logger.Debug(fmt.Sprintf("systemmetricsgrid: creating new chart for baseKey=%s", baseKey))
 		chart = g.createMetricChart(def)
 		g.byBaseKey[baseKey] = chart
-		g.addChartToGrid(chart)
+		g.addChart(chart)
 	}
 	return chart
 }
 
-// addChartToGrid adds a chart to the ordered list and updates pagination.
-func (g *SystemMetricsGrid) addChartToGrid(chart *TimeSeriesLineChart) {
+// addChart adds a chart to the ordered list and updates pagination.
+func (g *SystemMetricsGrid) addChart(chart *TimeSeriesLineChart) {
 	g.ordered = append(g.ordered, chart)
 	sort.Slice(g.ordered, func(i, j int) bool {
 		return g.ordered[i].Title() < g.ordered[j].Title()
 	})
 
-	size := g.effectiveGridSize()
-	g.nav.UpdateTotalPages(len(g.ordered), ItemsPerPage(size))
-	g.LoadCurrentPage()
+	g.ApplyFilter()
 
 	g.logger.Debug(fmt.Sprintf(
-		"SystemMetricsGrid.addChartToGrid: chart added, total=%d, pages=%d",
+		"SystemMetricsGrid.addChart: chart added, total=%d, pages=%d",
 		len(g.ordered), g.nav.TotalPages()))
 }
 
@@ -220,15 +225,17 @@ func (g *SystemMetricsGrid) LoadCurrentPage() {
 		}
 	}
 
-	startIdx, endIdx := g.nav.PageBounds(len(g.ordered), ItemsPerPage(size))
+	startIdx, endIdx := g.nav.PageBounds(len(g.filtered), ItemsPerPage(size))
 
 	idx := startIdx
 	for row := 0; row < size.Rows && idx < endIdx; row++ {
 		for col := 0; col < size.Cols && idx < endIdx; col++ {
-			g.currentPage[row][col] = g.ordered[idx]
+			g.currentPage[row][col] = g.filtered[idx]
 			idx++
 		}
 	}
+
+	g.syncFocusToCurrentPage()
 }
 
 // Navigate changes pages.
@@ -316,7 +323,7 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 	}
 
 	size := g.effectiveGridSize()
-	g.nav.UpdateTotalPages(len(g.ordered), ItemsPerPage(size))
+	g.nav.UpdateTotalPages(len(g.filtered), ItemsPerPage(size))
 
 	for _, metricChart := range g.byBaseKey {
 		if metricChart == nil || metricChart.chart == nil {
@@ -338,6 +345,26 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 	}
 
 	g.LoadCurrentPage()
+}
+
+func (g *SystemMetricsGrid) syncFocusToCurrentPage() {
+	if g.focus.Type != FocusSystemChart || g.focus.Title == "" {
+		return
+	}
+
+	for row := range g.currentPage {
+		for col := range g.currentPage[row] {
+			ch := g.currentPage[row][col]
+			if ch != nil && ch.Title() == g.focus.Title {
+				g.focus.Row = row
+				g.focus.Col = col
+				return
+			}
+		}
+	}
+
+	// Focused chart is not visible on this page.
+	g.ClearFocus()
 }
 
 // View renders the system metrics grid.

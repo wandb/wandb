@@ -100,9 +100,19 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterMetricsFilter,
 				},
 				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Run).handleEnterSystemMetricsFilter,
+				},
+				{
 					Keys:        []string{"ctrl+l"},
-					Description: "Clear active filter",
+					Description: "Clear metrics filter",
 					Handler:     (*Run).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Run).handleClearSystemMetricsFilter,
 				},
 			},
 		},
@@ -256,9 +266,19 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleEnterMetricsFilter,
 				},
 				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Workspace).handleEnterSystemMetricsFilter,
+				},
+				{
 					Keys:        []string{"ctrl+l"},
-					Description: "Clear active filter",
+					Description: "Clear metrics filter",
 					Handler:     (*Workspace).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Workspace).handleClearSystemMetricsFilter,
 				},
 			},
 		},

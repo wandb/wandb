@@ -59,7 +59,7 @@ func (s *RunOverviewSidebar) FilterQuery() string {
 
 // IsFiltering returns true if an applied (non‑empty) filter exists.
 func (s *RunOverviewSidebar) IsFiltering() bool {
-	return s.filter.Query() != ""
+	return !s.filter.IsActive() && s.filter.Query() != ""
 }
 
 // ApplyFilter recomputes FilteredItems for each section based on the current matcher.

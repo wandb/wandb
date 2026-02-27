@@ -217,6 +217,9 @@ func (r *Run) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 	if r.metricsGrid.IsFilterMode() {
 		return r.handleMetricsFilter(msg)
 	}
+	if r.rightSidebar.IsFilterMode() {
+		return r.handleSystemMetricsFilter(msg)
+	}
 
 	// Grid config capture takes priority.
 	if r.config.IsAwaitingGridConfig() {
@@ -406,6 +409,32 @@ func (r *Run) handleOverviewFilter(msg tea.KeyMsg) tea.Cmd {
 		r.leftSidebar.ApplyFilter()
 		r.leftSidebar.updateSectionHeights()
 	}
+	return nil
+}
+
+func (r *Run) handleEnterSystemMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	var cmd tea.Cmd
+	if !r.config.RightSidebarVisible() {
+		cmd = r.handleToggleRightSidebar(msg)
+	}
+	r.rightSidebar.metricsGrid.EnterFilterMode()
+	r.rightSidebar.metricsGrid.ApplyFilter()
+
+	return cmd
+}
+
+func (r *Run) handleClearSystemMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	if r.rightSidebar.metricsGrid.FilterQuery() != "" {
+		r.rightSidebar.metricsGrid.ClearFilter()
+	}
+	if r.focus.Type == FocusSystemChart {
+		r.focus.Reset()
+	}
+	return nil
+}
+
+func (r *Run) handleSystemMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	r.rightSidebar.metricsGrid.handleSystemMetricsFilterKey(msg)
 	return nil
 }
 

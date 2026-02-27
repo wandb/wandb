@@ -394,6 +394,9 @@ func (r *Run) buildStatusText() string {
 	if r.metricsGrid.IsFilterMode() {
 		return r.buildMetricsFilterStatus()
 	}
+	if r.rightSidebar.IsFilterMode() {
+		return r.buildSystemMetricsFilterStatus()
+	}
 	if r.config.IsAwaitingGridConfig() {
 		return r.config.GridConfigStatus()
 	}
@@ -430,6 +433,21 @@ func (r *Run) buildMetricsFilterStatus() string {
 		r.metricsGrid.FilteredChartCount(), r.metricsGrid.ChartCount())
 }
 
+func (r *Run) buildSystemMetricsFilterStatus() string {
+	if r.rightSidebar == nil || r.rightSidebar.metricsGrid == nil {
+		return ""
+	}
+	grid := r.rightSidebar.metricsGrid
+	return fmt.Sprintf(
+		"System filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
+		grid.FilterMode().String(),
+		grid.FilterQuery(),
+		string(mediumShadeBlock),
+		grid.FilteredChartCount(),
+		grid.ChartCount(),
+	)
+}
+
 // buildLoadingStatus builds status for loading mode.
 func (r *Run) buildLoadingStatus() string {
 	if r.recordsLoaded > 0 {
@@ -460,6 +478,17 @@ func (r *Run) buildActiveStatus() string {
 		))
 	}
 
+	if r.rightSidebar.IsFiltering() {
+		grid := r.rightSidebar.metricsGrid
+		parts = append(parts, fmt.Sprintf(
+			"System filter (%s): %q [%d/%d] (\\ to change, Ctrl+\\ to clear)",
+			grid.FilterMode().String(),
+			grid.FilterQuery(),
+			grid.FilteredChartCount(),
+			grid.ChartCount(),
+		))
+	}
+
 	// Add selected overview item if sidebar is visible.
 	if r.leftSidebar.IsVisible() {
 		key, value := r.leftSidebar.SelectedItem()
@@ -483,14 +512,18 @@ func (r *Run) buildActiveStatus() string {
 
 // buildHelpText builds the help text for the status bar.
 func (r *Run) buildHelpText() string {
-	if r.metricsGrid.IsFilterMode() || r.leftSidebar.IsFilterMode() {
+	if r.metricsGrid.IsFilterMode() ||
+		r.leftSidebar.IsFilterMode() ||
+		r.rightSidebar.IsFilterMode() {
 		return ""
 	}
 	return "h: help"
 }
 
 func (r *Run) IsFiltering() bool {
-	return r.metricsGrid.IsFilterMode() || r.leftSidebar.IsFilterMode()
+	return r.metricsGrid.IsFilterMode() ||
+		r.leftSidebar.IsFilterMode() ||
+		r.rightSidebar.IsFilterMode()
 }
 
 // Layout represents the computed layout dimensions for the main UI.

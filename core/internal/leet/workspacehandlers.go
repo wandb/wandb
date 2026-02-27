@@ -35,6 +35,10 @@ func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 		w.metricsGrid.handleMetricsFilterKey(msg)
 		return nil
 	}
+	if g := w.activeSystemMetricsGrid(); g != nil && g.IsFilterMode() {
+		g.handleSystemMetricsFilterKey(msg)
+		return nil
+	}
 
 	// Grid config capture takes priority.
 	if w.config.IsAwaitingGridConfig() {
@@ -623,11 +627,41 @@ func (w *Workspace) handleEnterMetricsFilter(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) handleEnterSystemMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	var cmds []tea.Cmd
+	if !w.systemMetricsPane.IsExpanded() && !w.systemMetricsPane.IsAnimating() {
+		cmds = append(cmds, w.handleToggleSystemMetricsPane(msg))
+	}
+
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return batchCmds(cmds...)
+	}
+	if _, selected := w.selectedRuns[cur.Key]; !selected {
+		return batchCmds(cmds...)
+	}
+
+	grid := w.getOrCreateSystemMetricsGrid(cur.Key)
+	grid.EnterFilterMode()
+	grid.ApplyFilter()
+	return batchCmds(cmds...)
+}
+
 func (w *Workspace) handleClearMetricsFilter(msg tea.KeyMsg) tea.Cmd {
 	if w.metricsGrid.FilterQuery() != "" {
 		w.metricsGrid.ClearFilter()
 	}
 	if w.focus != nil {
+		w.focus.Reset()
+	}
+	return nil
+}
+
+func (w *Workspace) handleClearSystemMetricsFilter(tea.KeyMsg) tea.Cmd {
+	if g := w.activeSystemMetricsGrid(); g != nil && g.FilterQuery() != "" {
+		g.ClearFilter()
+	}
+	if w.focus != nil && w.focus.Type == FocusSystemChart {
 		w.focus.Reset()
 	}
 	return nil

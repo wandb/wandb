@@ -63,9 +63,10 @@ type Workspace struct {
 	metricsGrid *MetricsGrid
 
 	// System metrics
-	systemMetrics      map[string]*SystemMetricsGrid
-	systemMetricsPane  *SystemMetricsPane
-	systemMetricsFocus *Focus
+	systemMetrics       map[string]*SystemMetricsGrid
+	systemMetricsPane   *SystemMetricsPane
+	systemMetricsFocus  *Focus
+	systemMetricsFilter *Filter
 
 	// Run console logs keyed by run path.
 	consoleLogs     map[string]*RunConsoleLogs
@@ -112,6 +113,8 @@ func NewWorkspace(
 
 	focus := NewFocus()
 
+	smf := NewFilter()
+
 	// Heartbeat for all live workspace runs shares a single channel.
 	ch := make(chan tea.Msg, 4096)
 	hbInterval := cfg.HeartbeatInterval()
@@ -130,19 +133,20 @@ func NewWorkspace(
 		runOverview:   make(map[string]*RunOverview),
 		runOverviewSidebar: NewRunOverviewSidebar(
 			runOverviewAnimState, NewRunOverview(), SidebarSideRight),
-		overviewPreloader:  newRunOverviewPreloader(maxConcurrentPreloads),
-		selectedRuns:       make(map[string]bool),
-		focus:              focus,
-		metricsGrid:        NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger),
-		systemMetrics:      make(map[string]*SystemMetricsGrid),
-		systemMetricsPane:  NewSystemMetricsPane(),
-		systemMetricsFocus: focus,
-		consoleLogs:        make(map[string]*RunConsoleLogs),
-		consoleLogsPane:    NewConsoleLogsPane(),
-		runsByKey:          make(map[string]*workspaceRun),
-		liveChan:           ch,
-		heartbeatMgr:       NewHeartbeatManager(hbInterval, ch, logger),
-		filter:             NewFilter(),
+		overviewPreloader:   newRunOverviewPreloader(maxConcurrentPreloads),
+		selectedRuns:        make(map[string]bool),
+		focus:               focus,
+		metricsGrid:         NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger),
+		systemMetrics:       make(map[string]*SystemMetricsGrid),
+		systemMetricsPane:   NewSystemMetricsPane(),
+		systemMetricsFocus:  focus,
+		systemMetricsFilter: smf,
+		consoleLogs:         make(map[string]*RunConsoleLogs),
+		consoleLogsPane:     NewConsoleLogsPane(),
+		runsByKey:           make(map[string]*workspaceRun),
+		liveChan:            ch,
+		heartbeatMgr:        NewHeartbeatManager(hbInterval, ch, logger),
+		filter:              NewFilter(),
 	}
 }
 
@@ -282,7 +286,13 @@ func (w *Workspace) View() string {
 
 // IsFiltering reports whether any workspace-level filter UI is active.
 func (w *Workspace) IsFiltering() bool {
-	return w.metricsGrid.IsFilterMode() || w.filter.IsActive()
+	if w.metricsGrid.IsFilterMode() || w.filter.IsActive() {
+		return true
+	}
+	if g := w.activeSystemMetricsGrid(); g != nil && g.IsFilterMode() {
+		return true
+	}
+	return false
 }
 
 // SelectedRunWandbFile returns the full path to the .wandb file for the selected run.
@@ -519,7 +529,11 @@ func (w *Workspace) getOrCreateSystemMetricsGrid(runKey string) *SystemMetricsGr
 	initH := MinMetricChartHeight * rows
 
 	g := NewSystemMetricsGrid(
-		initW, initH, w.config, w.config.WorkspaceSystemGrid, w.systemMetricsFocus, w.logger)
+		initW, initH,
+		w.config, w.config.WorkspaceSystemGrid,
+		w.systemMetricsFocus,
+		w.systemMetricsFilter,
+		w.logger)
 	w.systemMetrics[runKey] = g
 	return g
 }
@@ -672,6 +686,9 @@ func (w *Workspace) buildStatusText() string {
 	if w.metricsGrid.IsFilterMode() {
 		return w.buildMetricsFilterStatus()
 	}
+	if g := w.activeSystemMetricsGrid(); g != nil && g.IsFilterMode() {
+		return w.buildSystemMetricsFilterStatus(g)
+	}
 
 	// Grid layout prompt (rows/cols) for metrics/system grids.
 	if w.config != nil && w.config.IsAwaitingGridConfig() {
@@ -693,6 +710,20 @@ func (w *Workspace) buildMetricsFilterStatus() string {
 	)
 }
 
+func (w *Workspace) buildSystemMetricsFilterStatus(grid *SystemMetricsGrid) string {
+	if grid == nil {
+		return ""
+	}
+	return fmt.Sprintf(
+		"System filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
+		grid.FilterMode().String(),
+		grid.FilterQuery(),
+		string(mediumShadeBlock),
+		grid.FilteredChartCount(),
+		grid.ChartCount(),
+	)
+}
+
 // buildActiveStatus summarizes the active filters and selection when no
 // dedicated input mode (filter / grid config) is active.
 func (w *Workspace) buildActiveStatus() string {
@@ -705,6 +736,16 @@ func (w *Workspace) buildActiveStatus() string {
 			w.metricsGrid.FilterQuery(),
 			w.metricsGrid.FilteredChartCount(),
 			w.metricsGrid.ChartCount(),
+		))
+	}
+
+	if g := w.activeSystemMetricsGrid(); g != nil && g.IsFiltering() {
+		parts = append(parts, fmt.Sprintf(
+			"System filter (%s): %q [%d/%d] (\\ to change, ctrl+\\ to clear)",
+			g.FilterMode().String(),
+			g.FilterQuery(),
+			g.FilteredChartCount(),
+			g.ChartCount(),
 		))
 	}
 

@@ -34,7 +34,7 @@ func NewRightSidebar(
 		config:    config,
 		animState: NewAnimatedValue(config.RightSidebarVisible(), SidebarMinWidth),
 		metricsGrid: NewSystemMetricsGrid(
-			initW, initH, config, config.SystemGrid, focusState, logger),
+			initW, initH, config, config.SystemGrid, focusState, NewFilter(), logger),
 		logger:     logger,
 		focusState: focusState,
 	}
@@ -163,6 +163,16 @@ func (rs *RightSidebar) IsAnimating() bool {
 	return rs.animState.IsAnimating()
 }
 
+// IsFilterMode returns true if the metrics grid is currently in filter input mode.
+func (rs *RightSidebar) IsFilterMode() bool {
+	return rs.metricsGrid.filter.IsActive()
+}
+
+// IsFiltering returns true if the metrics grid has an applied filter.
+func (rs *RightSidebar) IsFiltering() bool {
+	return !rs.metricsGrid.filter.IsActive() && rs.metricsGrid.filter.Query() != ""
+}
+
 // ProcessStatsMsg processes a stats message and updates the metrics.
 func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	rs.logger.Debug(fmt.Sprintf(
@@ -202,19 +212,30 @@ func (rs *RightSidebar) renderHeader() string {
 
 // buildNavigationInfo builds the navigation info string for the header.
 func (rs *RightSidebar) buildNavigationInfo() string {
-	chartCount := rs.metricsGrid.ChartCount()
+	totalCount := rs.metricsGrid.ChartCount()
+	filteredCount := rs.metricsGrid.FilteredChartCount()
 	size := rs.metricsGrid.effectiveGridSize()
 	itemsPerPage := ItemsPerPage(size)
 
 	// Only show navigation if we have charts and pagination.
-	if rs.metricsGrid.nav.TotalPages() == 0 || chartCount == 0 || itemsPerPage == 0 {
+	if rs.metricsGrid.nav.TotalPages() == 0 || filteredCount == 0 || itemsPerPage == 0 {
 		return ""
 	}
 
-	startIdx, endIdx := rs.metricsGrid.nav.PageBounds(chartCount, itemsPerPage)
+	startIdx, endIdx := rs.metricsGrid.nav.PageBounds(filteredCount, itemsPerPage)
 	startIdx++ // Display as 1-indexed
 
-	return navInfoStyle.Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, chartCount))
+	if filteredCount != totalCount {
+		return navInfoStyle.Render(fmt.Sprintf(
+			" [%d-%d of %d filtered from %d total]",
+			startIdx,
+			endIdx,
+			filteredCount,
+			totalCount,
+		))
+	}
+
+	return navInfoStyle.Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, filteredCount))
 }
 
 // animationCmd returns a command to continue the animation.

@@ -124,6 +124,16 @@ func (p *SystemMetricsPane) renderGrid(
 		)
 	}
 
+	if grid.FilterQuery() != "" && grid.FilteredChartCount() == 0 {
+		return lipgloss.Place(
+			contentWidth,
+			gridHeight,
+			lipgloss.Left,
+			lipgloss.Top,
+			navInfoStyle.Render("No matching system metrics."),
+		)
+	}
+
 	grid.Resize(contentWidth, gridHeight)
 	return grid.View()
 }
@@ -132,15 +142,26 @@ func (p *SystemMetricsPane) buildNavigationInfo(grid *SystemMetricsGrid) string 
 	if grid == nil {
 		return ""
 	}
-	chartCount := grid.ChartCount()
-	if chartCount == 0 {
+	totalCount := grid.ChartCount()
+	filteredCount := grid.FilteredChartCount()
+	if totalCount == 0 || filteredCount == 0 {
 		return ""
 	}
 
 	size := grid.effectiveGridSize()
 	itemsPerPage := ItemsPerPage(size)
-	start, end := grid.nav.PageBounds(chartCount, itemsPerPage)
+	start, end := grid.nav.PageBounds(filteredCount, itemsPerPage)
 	start++ // Convert to 1-indexed.
 
-	return fmt.Sprintf(" [%d-%d of %d]", start, end, chartCount)
+	if filteredCount != totalCount {
+		return fmt.Sprintf(
+			" [%d-%d of %d filtered from %d total]",
+			start,
+			end,
+			filteredCount,
+			totalCount,
+		)
+	}
+
+	return fmt.Sprintf(" [%d-%d of %d]", start, end, filteredCount)
 }
