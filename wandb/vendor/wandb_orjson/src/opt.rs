@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright ijl (2020-2025)
 
+// ---
+// Modified by Weights & Biases on 2026-02-24.
+// See WANDB_VENDOR.md for details.
+// ---
+
 pub(crate) type Opt = u32;
 
 pub(crate) const INDENT_2: Opt = 1;
@@ -15,6 +20,7 @@ pub(crate) const PASSTHROUGH_SUBCLASS: Opt = 1 << 8;
 pub(crate) const PASSTHROUGH_DATETIME: Opt = 1 << 9;
 pub(crate) const APPEND_NEWLINE: Opt = 1 << 10;
 pub(crate) const PASSTHROUGH_DATACLASS: Opt = 1 << 11;
+pub(crate) const FAIL_ON_INVALID_FLOAT: Opt = 1 << 12;
 
 // deprecated
 pub(crate) const SERIALIZE_DATACLASS: Opt = 0;
@@ -27,6 +33,7 @@ pub(crate) const NOT_PASSTHROUGH: Opt =
 
 #[allow(clippy::cast_possible_wrap)]
 pub(crate) const MAX_OPT: i32 = (APPEND_NEWLINE
+    | FAIL_ON_INVALID_FLOAT
     | INDENT_2
     | NAIVE_UTC
     | NON_STR_KEYS

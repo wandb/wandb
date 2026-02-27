@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 # Copyright ijl (2018-2025), hauntsaninja (2020)
 
+# ---
+# Modified by Weights & Biases on 2026-02-24.
+# See WANDB_VENDOR.md for details.
+# ---
+
 import datetime
 import inspect
 import json
@@ -171,7 +176,7 @@ class TestApi:
         dumps() option out of range high
         """
         with pytest.raises(orjson.JSONEncodeError):
-            orjson.dumps(True, option=1 << 12)
+            orjson.dumps(True, option=1 << 13)
 
     def test_opts_multiple(self):
         """

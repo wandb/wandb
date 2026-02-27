@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright ijl (2018-2026)
 
+// ---
+// Modified by Weights & Biases on 2026-02-24.
+// See WANDB_VENDOR.md for details.
+// ---
+
 use crate::ffi::{
     PyBoolRef, PyDictRef, PyFloatRef, PyFragmentRef, PyIntRef, PyListRef, PyStrRef,
     PyStrSubclassRef, PyUuidRef,
@@ -79,8 +84,12 @@ impl Serialize for PyObjectSerializer {
                 )
                 .serialize(serializer),
                 ObType::None => NoneSerializer::new().serialize(serializer),
-                ObType::Float => FloatSerializer::new(PyFloatRef::from_ptr_unchecked(self.ptr))
-                    .serialize(serializer),
+                ObType::Float => {
+                    FloatSerializer::new(
+                        PyFloatRef::from_ptr_unchecked(self.ptr),
+                        self.state.opts(),
+                    ).serialize(serializer)
+                },
                 ObType::Bool => {
                     BoolSerializer::new(unsafe { PyBoolRef::from_ptr_unchecked(self.ptr) })
                         .serialize(serializer)
