@@ -10,3 +10,10 @@
 /target
 /vendor
 __pycache__
+
+# Ignore build artifacts
+./__init__.py
+./__init__.pyi
+./py.typed
+./orjson.so
+./orjson.pyd

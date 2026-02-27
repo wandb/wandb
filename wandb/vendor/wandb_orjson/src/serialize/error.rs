@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright ijl (2021-2025)
 
+// ---
+// Modified by Weights & Biases on 2026-02-24.
+// See WANDB_VENDOR.md for details.
+// ---
+
 use core::ffi::CStr;
 use core::ptr::NonNull;
 
@@ -9,6 +14,7 @@ pub(crate) enum SerializeError {
     DefaultRecursionLimit,
     Integer53Bits,
     Integer64Bits,
+    InvalidFloat,
     InvalidStr,
     InvalidFragment,
     KeyMustBeStr,
@@ -37,6 +43,7 @@ impl core::fmt::Display for SerializeError {
             }
             SerializeError::Integer53Bits => write!(f, "Integer exceeds 53-bit range"),
             SerializeError::Integer64Bits => write!(f, "Integer exceeds 64-bit range"),
+            SerializeError::InvalidFloat => write!(f, "Invalid float value"),
             SerializeError::InvalidStr => write!(f, "{}", crate::util::INVALID_STR),
             SerializeError::InvalidFragment => {
                 write!(f, "orjson.Fragment's content is not of type bytes or str")
