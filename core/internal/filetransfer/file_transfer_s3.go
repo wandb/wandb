@@ -3,7 +3,6 @@ package filetransfer
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -286,7 +285,10 @@ func (ft *S3FileTransfer) downloadFiles(
 	for _, input := range getObjectInputs {
 		g.Go(func() error {
 			objectRelativePath, _ := strings.CutPrefix(*input.Key, rootObjectName)
-			localPath := filepath.Join(basePath, filepath.FromSlash(objectRelativePath))
+			localPath, err := SafeJoinPath(basePath, objectRelativePath)
+			if err != nil {
+				return fmt.Errorf("invalid object key %q: %w", *input.Key, err)
+			}
 			return ft.downloadFile(input, localPath)
 		})
 	}
