@@ -24,7 +24,9 @@ try:
                 if cls:
                     _kwargs["default"] = cls.default
                 encoded = orjson.dumps(
-                    obj, option=orjson.OPT_NON_STR_KEYS, **_kwargs
+                    obj,
+                    option=orjson.OPT_NON_STR_KEYS | orjson.OPT_FAIL_ON_INVALID_FLOAT,
+                    **_kwargs,
                 ).decode()
             except Exception:
                 logger.exception("Error using orjson.dumps")
@@ -41,7 +43,11 @@ try:
                 _kwargs = kwargs.copy()
                 if cls:
                     _kwargs["default"] = cls.default
-                encoded = orjson.dumps(obj, option=orjson.OPT_NON_STR_KEYS, **_kwargs)
+                encoded = orjson.dumps(
+                    obj,
+                    option=orjson.OPT_NON_STR_KEYS | orjson.OPT_FAIL_ON_INVALID_FLOAT,
+                    **_kwargs,
+                )
                 fp.write(encoded)
             except Exception:
                 logger.exception("Error using orjson.dump")
