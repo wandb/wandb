@@ -139,11 +139,13 @@ func (nc *Connection) ManageConnectionData() {
 	slog.Info("connection: ManageConnectionData: new connection created", "id", nc.id)
 
 	wg := sync.WaitGroup{}
+	incomingDone := make(chan struct{})
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		nc.processIncomingData()
+		close(incomingDone)
 	}()
 
 	wg.Add(1)
@@ -158,7 +160,12 @@ func (nc *Connection) ManageConnectionData() {
 		nc.processOutgoingData()
 	}()
 
-	<-nc.connLifetimeCtx.Done()
+	select {
+	case <-nc.connLifetimeCtx.Done():
+		// Server is shutting down.
+	case <-incomingDone:
+		// Peer closed the connection.
+	}
 
 	// Close the underlying connection, which allows the above goroutines
 	// to eventually exit if the connection was not already closed.

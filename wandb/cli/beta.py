@@ -222,3 +222,40 @@ def sync(
         verbose=verbose,
         parallelism=n,
     )
+
+
+@beta.group()
+def core() -> None:
+    """Manage a detached local wandb-core service."""
+
+
+@core.command()
+@click.option(
+    "--idle-timeout-seconds",
+    type=int,
+    default=0,
+    show_default=True,
+    help=(
+        "If > 0, shut down wandb-core after this many seconds with no connected "
+        "clients. 0 disables the idle shutdown."
+    ),
+)
+def start(idle_timeout_seconds: int) -> None:
+    """Start a detached wandb-core service.
+
+    Prints an `export WANDB_SERVICE=...` command that you can apply in your shell.
+    """
+    from . import beta_core
+
+    beta_core.start(idle_timeout_seconds=idle_timeout_seconds)
+
+
+@core.command()
+def stop() -> None:
+    """Stop a detached wandb-core service.
+
+    The service address is taken from the WANDB_SERVICE environment variable.
+    """
+    from . import beta_core
+
+    beta_core.stop(exit_code=0)

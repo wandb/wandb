@@ -30,7 +30,38 @@ def start(settings: Settings) -> ServiceProcess:
     get_sentry().configure_scope(tags=dict(settings), process_context="service")
 
     try:
-        return _launch_server(settings)
+        return _launch_server(settings, detached=False, idle_timeout_seconds=0)
+    except Exception as e:
+        get_sentry().reraise(e)
+
+
+def start_detached(
+    settings: Settings,
+    *,
+    idle_timeout_seconds: int = 0,
+) -> ServiceProcess:
+    """Start the internal service process in detached mode.
+
+    In detached mode, the service process does not automatically exit when the
+    starting process exits.
+
+    Args:
+        settings: SDK settings.
+        idle_timeout_seconds: If > 0, the service will shut down after this many
+            seconds with no connected clients. A value of 0 disables the idle
+            shutdown.
+
+    Returns:
+        A handle to the process.
+    """
+    get_sentry().configure_scope(tags=dict(settings), process_context="service")
+
+    try:
+        return _launch_server(
+            settings,
+            detached=True,
+            idle_timeout_seconds=idle_timeout_seconds,
+        )
     except Exception as e:
         get_sentry().reraise(e)
 
@@ -57,7 +88,12 @@ class ServiceProcess:
         return self._process.wait()
 
 
-def _launch_server(settings: Settings) -> ServiceProcess:
+def _launch_server(
+    settings: Settings,
+    *,
+    detached: bool,
+    idle_timeout_seconds: int,
+) -> ServiceProcess:
     """Launch server and set ports."""
     if platform.system() == "Windows":
         creationflags: int = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
@@ -90,6 +126,13 @@ def _launch_server(settings: Settings) -> ServiceProcess:
 
         service_args.extend(["--port-filename", str(port_file)])
         service_args.extend(["--pid", pid])
+
+        if detached:
+            service_args.append("--detached")
+            if idle_timeout_seconds > 0:
+                service_args.extend(
+                    ["--idle-timeout-seconds", str(idle_timeout_seconds)]
+                )
 
         if not ipc_support.SUPPORTS_UNIX:
             service_args.append("--listen-on-localhost")

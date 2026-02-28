@@ -48,6 +48,10 @@ from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
 
+# Used to avoid printing the same notice repeatedly
+# for multiple runs in the same process.
+_shared_service_notice_shown = False
+
 
 def _huggingface_version() -> str | None:
     if "transformers" in sys.modules:
@@ -892,6 +896,17 @@ class _WandbInit:
         self._logger.info("starting backend")
 
         service = self._wl.ensure_service()
+
+        global _shared_service_notice_shown
+        if not service.owns_service and not _shared_service_notice_shown:
+            run_printer.display(
+                "Using an existing wandb-core service via WANDB_SERVICE."
+            )
+            self._logger.info(
+                "Connected to an existing wandb-core service via WANDB_SERVICE"
+            )
+            _shared_service_notice_shown = True
+
         self._logger.info("sending inform_init request")
         service.inform_init(
             settings=settings.to_proto(),

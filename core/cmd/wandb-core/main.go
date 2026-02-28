@@ -68,6 +68,18 @@ func serviceMain() int {
 			"communicate with clients.")
 	pid := flag.Int("pid", 0,
 		"Specifies the process ID (PID) of the external process that spins up this service.")
+	detached := flag.Bool(
+		"detached",
+		false,
+		"Run the service detached from its parent process. In detached mode, "+
+			"the service does not automatically exit when the parent process exits.",
+	)
+	idleTimeoutSeconds := flag.Int(
+		"idle-timeout-seconds",
+		0,
+		"If > 0 and --detached is set, shut down the service after this many seconds "+
+			"with no connected clients. 0 disables the idle shutdown.",
+	)
 	logLevel := flag.Int("log-level", 0,
 		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
 	disableAnalytics := flag.Bool("no-observability", false,
@@ -102,7 +114,7 @@ func serviceMain() int {
 	flag.Parse()
 
 	var shutdownOnParentExitEnabled bool
-	if *pid != 0 && *enableOsPidShutdown {
+	if *pid != 0 && *enableOsPidShutdown && !*detached {
 		shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
 	}
 
@@ -143,6 +155,8 @@ func serviceMain() int {
 			"main: starting server",
 			"port-filename", *portFilename,
 			"pid", *pid,
+			"detached", *detached,
+			"idle-timeout-seconds", *idleTimeoutSeconds,
 			"log-level", *logLevel,
 			"disable-analytics", *disableAnalytics,
 			"shutdown-on-parent-exit", shutdownOnParentExitEnabled,
@@ -164,6 +178,8 @@ func serviceMain() int {
 			LoggerPath:          loggerPath,
 			LogLevel:            slog.Level(*logLevel),
 			ParentPID:           *pid,
+			Detached:            *detached,
+			IdleTimeout:         time.Duration(*idleTimeoutSeconds) * time.Second,
 		},
 	)
 	srvCh := make(chan error, 1)

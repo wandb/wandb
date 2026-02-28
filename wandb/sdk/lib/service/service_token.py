@@ -76,6 +76,10 @@ class ServiceToken(abc.ABC):
         """Save the token in this process's environment variables."""
         os.environ[env.SERVICE] = self._as_env_string()
 
+    def as_env_string(self) -> str:
+        """Return the token string used by the WANDB_SERVICE environment variable."""
+        return self._as_env_string()
+
     @abc.abstractmethod
     def _as_env_string(self) -> str:
         """Returns a string representation of this token."""

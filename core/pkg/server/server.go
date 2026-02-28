@@ -54,6 +54,20 @@ type Server struct {
 	// The server exits if the parent process is gone.
 	parentPID int
 
+	// detached is whether the server should ignore parent process lifetime.
+	detached bool
+
+	// idleTimeout specifies how long the server should stay alive without any
+	// connected clients before shutting down in detached mode.
+	idleTimeout time.Duration
+
+	// activeConnections is the number of currently connected clients.
+	activeConnections atomic.Int64
+
+	// idleTimer is started when the server has zero connected clients.
+	idleTimerMu sync.Mutex
+	idleTimer   *time.Timer
+
 	// commit is the W&B Git commit hash.
 	commit string
 
@@ -75,9 +89,10 @@ type ServerParams struct {
 	LoggerPath          string
 	LogLevel            slog.Level
 	ParentPID           int
+	Detached            bool
+	IdleTimeout         time.Duration
 }
 
-// NewServer creates a new server
 func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
 
@@ -89,6 +104,8 @@ func NewServer(params ServerParams) *Server {
 		gpuResourceManager: monitor.NewGPUResourceManager(params.EnableDCGMProfiling),
 		wg:                 sync.WaitGroup{},
 		parentPID:          params.ParentPID,
+		detached:           params.Detached,
+		idleTimeout:        params.IdleTimeout,
 		commit:             params.Commit,
 		listenOnLocalhost:  params.ListenOnLocalhost,
 		loggerPath:         params.LoggerPath,
@@ -124,8 +141,13 @@ func (s *Server) Serve(portFile string) error {
 		return err
 	}
 
-	if s.parentPID != 0 {
+	if s.parentPID != 0 && !s.detached {
 		go s.exitWhenParentIsGone()
+	}
+
+	if s.detached && s.idleTimeout > 0 {
+		// Start the idle timer immediately. If a client connects, it will be stopped.
+		s.startIdleTimer()
 	}
 
 	for _, listener := range listenerList {
@@ -139,6 +161,8 @@ func (s *Server) Serve(portFile string) error {
 	// Wait for the signal to shut down.
 	<-s.serverLifetimeCtx.Done()
 	slog.Info("server is shutting down")
+
+	s.stopIdleTimer()
 
 	// Stop accepting new connections.
 	for idx, listener := range listenerList {
@@ -198,8 +222,10 @@ func (s *Server) acceptConnections(listener net.Listener) {
 
 		s.wg.Add(1)
 		go func() {
+			defer s.wg.Done()
+			s.onConnectionStart()
+			defer s.onConnectionEnd()
 			s.handleConnection(conn)
-			s.wg.Done()
 		}()
 	}
 }
@@ -229,4 +255,59 @@ func (s *Server) handleConnection(conn net.Conn) {
 			LogLevel:           s.logLevel,
 		},
 	).ManageConnectionData()
+}
+
+func (s *Server) onConnectionStart() {
+	if !s.detached || s.idleTimeout <= 0 {
+		return
+	}
+
+	// Stop the idle timer when the first client connects.
+	if s.activeConnections.Add(1) == 1 {
+		s.stopIdleTimer()
+	}
+}
+
+func (s *Server) onConnectionEnd() {
+	if !s.detached || s.idleTimeout <= 0 {
+		return
+	}
+
+	// Start the idle timer when the last client disconnects.
+	if s.activeConnections.Add(-1) == 0 {
+		s.startIdleTimer()
+	}
+}
+
+func (s *Server) startIdleTimer() {
+	s.idleTimerMu.Lock()
+	defer s.idleTimerMu.Unlock()
+
+	if s.idleTimer != nil {
+		s.idleTimer.Stop()
+	}
+
+	s.idleTimer = time.AfterFunc(s.idleTimeout, func() {
+		// Race-safe check: only shut down if we're still idle.
+		if s.activeConnections.Load() != 0 {
+			return
+		}
+
+		slog.Info("server: idle timeout reached, shutting down", "idleTimeout", s.idleTimeout)
+		s.stopServer()
+		// Gracefully finish and close all streams.
+		s.streamMux.FinishAndCloseAllStreams(0)
+	})
+}
+
+func (s *Server) stopIdleTimer() {
+	s.idleTimerMu.Lock()
+	defer s.idleTimerMu.Unlock()
+
+	if s.idleTimer == nil {
+		return
+	}
+
+	s.idleTimer.Stop()
+	s.idleTimer = nil
 }
