@@ -228,8 +228,10 @@ def wandb_log_v2(  # noqa: C901
 
     def _is_output_annotation(ann):
         try:
-            from kfp.dsl.types.type_annotations import OutputPath
-            from kfp.dsl.types.type_annotations import is_artifact_wrapped_in_Output
+            from kfp.dsl.types.type_annotations import (
+                OutputPath,
+                is_artifact_wrapped_in_Output,
+            )
 
             return is_artifact_wrapped_in_Output(ann) or isinstance(ann, OutputPath)
         except Exception:
@@ -238,30 +240,58 @@ def wandb_log_v2(  # noqa: C901
 
     def _is_input_annotation(ann):
         try:
-            from kfp.dsl.types.type_annotations import InputPath
-            from kfp.dsl.types.type_annotations import is_artifact_wrapped_in_Input
+            from kfp.dsl.types.type_annotations import (
+                InputPath,
+                is_artifact_wrapped_in_Input,
+            )
 
             return is_artifact_wrapped_in_Input(ann) or isinstance(ann, InputPath)
         except Exception:
             ann_str = str(ann)
             return "Input" in ann_str and "Output" not in ann_str
 
-    def decorator(func):
-        input_scalars = {}
-        input_artifacts = {}
-        output_scalars = {}
-        output_artifacts = {}
+    def _get_artifact_path(value):
+        """Return the file path for a KFP artifact value, or None."""
+        if _is_kfp_artifact_value(value):
+            return value.path if os.path.exists(value.path) else None
+        if isinstance(value, str) and os.path.exists(value):
+            return value
+        return None
 
+    def _log_artifact(run, name, value, *, use=False):
+        """Log or use a single artifact, returns True on success."""
+        path = _get_artifact_path(value)
+        if path is None:
+            return False
+        artifact = wandb.Artifact(name, type="kfp_artifact")
+        artifact.add_file(path)
+        if use:
+            run.use_artifact(artifact)
+            wandb.termlog(f"Using artifact: {name}")
+        else:
+            run.log_artifact(artifact)
+            wandb.termlog(f"Logging artifact: {name}")
+        return True
+
+    def _classify_annotations(func):
+        """Split function annotations into scalars and artifacts."""
+        scalars_in, artifacts_in = {}, {}
+        scalars_out, artifacts_out = {}, {}
         for name, ann in func.__annotations__.items():
             if name == "return":
-                output_scalars[name] = ann
+                scalars_out[name] = ann
             elif _is_output_annotation(ann):
-                output_artifacts[name] = ann
+                artifacts_out[name] = ann
             elif _is_input_annotation(ann):
-                input_artifacts[name] = ann
+                artifacts_in[name] = ann
             else:
-                input_scalars[name] = ann
+                scalars_in[name] = ann
+        return scalars_in, artifacts_in, scalars_out, artifacts_out
 
+    def decorator(func):
+        input_scalars, input_artifacts, _, output_artifacts = _classify_annotations(
+            func
+        )
         func_sig = signature(func)
 
         @wraps(func)
@@ -290,19 +320,8 @@ def wandb_log_v2(  # noqa: C901
 
                 for name in input_artifacts:
                     if name in bound.arguments:
-                        value = bound.arguments[name]
                         try:
-                            if _is_kfp_artifact_value(value):
-                                if os.path.exists(value.path):
-                                    artifact = wandb.Artifact(name, type="kfp_artifact")
-                                    artifact.add_file(value.path)
-                                    run.use_artifact(artifact)
-                                    wandb.termlog(f"Using artifact: {name}")
-                            elif isinstance(value, str) and os.path.exists(value):
-                                artifact = wandb.Artifact(name, type="kfp_artifact")
-                                artifact.add_file(value)
-                                run.use_artifact(artifact)
-                                wandb.termlog(f"Using artifact: {name}")
+                            _log_artifact(run, name, bound.arguments[name], use=True)
                         except Exception as e:
                             wandb.termwarn(
                                 f"Failed to log input artifact '{name}': {e}"
@@ -322,19 +341,8 @@ def wandb_log_v2(  # noqa: C901
 
                 for name in output_artifacts:
                     if name in bound.arguments:
-                        value = bound.arguments[name]
                         try:
-                            if _is_kfp_artifact_value(value):
-                                if os.path.exists(value.path):
-                                    artifact = wandb.Artifact(name, type="kfp_artifact")
-                                    artifact.add_file(value.path)
-                                    run.log_artifact(artifact)
-                                    wandb.termlog(f"Logging artifact: {name}")
-                            elif isinstance(value, str) and os.path.exists(value):
-                                artifact = wandb.Artifact(name, type="kfp_artifact")
-                                artifact.add_file(value)
-                                run.log_artifact(artifact)
-                                wandb.termlog(f"Logging artifact: {name}")
+                            _log_artifact(run, name, bound.arguments[name], use=False)
                         except Exception as e:
                             wandb.termwarn(
                                 f"Failed to log output artifact '{name}': {e}"

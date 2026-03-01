@@ -292,7 +292,7 @@ def _patch_kfp_v2():
     _orig_get_cmd = _component_factory._get_command_and_args_for_lightweight_component
 
     def _get_function_source_definition(func: Callable) -> str:
-        """kfp v2 patched: preserve @wandb_log decorator in serialized source."""
+        """Kfp v2 patched: preserve @wandb_log decorator in serialized source."""
         func_code = inspect.getsource(func)
         func_code = textwrap.dedent(func_code)
         func_code_lines = func_code.split("\n")
@@ -311,7 +311,7 @@ def _patch_kfp_v2():
         return "\n".join(func_code_lines)
 
     def create_component_from_func(func, packages_to_install=None, **kwargs):
-        """kfp v2 patched: auto-add wandb to packages_to_install."""
+        """Kfp v2 patched: auto-add wandb to packages_to_install."""
         if getattr(func, "_wandb_logged", False):
             packages_to_install = list(packages_to_install or [])
             if not any(p.startswith("wandb") for p in packages_to_install):
@@ -319,7 +319,7 @@ def _patch_kfp_v2():
         return _orig_create(func, packages_to_install=packages_to_install, **kwargs)
 
     def _get_command_and_args_for_lightweight_component(func, **kwargs):
-        """kfp v2 patched: inject wandb decorator source into component."""
+        """Kfp v2 patched: inject wandb decorator source into component."""
         command, args = _orig_get_cmd(func, **kwargs)
 
         if getattr(func, "_wandb_logged", False) and len(command) > 3:
