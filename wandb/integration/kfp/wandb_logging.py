@@ -187,8 +187,6 @@ def wandb_log(  # noqa: C901
 
 def wandb_log_v2(  # noqa: C901
     func=None,
-    # /,  # py38 only
-    log_component_file=True,
 ):
     """Wrap a kfp v2 component function and log to W&B.
 
@@ -233,7 +231,7 @@ def wandb_log_v2(  # noqa: C901
             from kfp.dsl.types.type_annotations import is_artifact_wrapped_in_Output
 
             return is_artifact_wrapped_in_Output(ann) or isinstance(ann, OutputPath)
-        except (ImportError, Exception):
+        except Exception:
             ann_str = str(ann)
             return "Output" in ann_str
 
@@ -243,7 +241,7 @@ def wandb_log_v2(  # noqa: C901
             from kfp.dsl.types.type_annotations import is_artifact_wrapped_in_Input
 
             return is_artifact_wrapped_in_Input(ann) or isinstance(ann, InputPath)
-        except (ImportError, Exception):
+        except Exception:
             ann_str = str(ann)
             return "Input" in ann_str and "Output" not in ann_str
 
@@ -275,12 +273,7 @@ def wandb_log_v2(  # noqa: C901
                 or os.getenv("KFP_RUN_NAME")
                 or os.getenv("ARGO_WORKFLOW_NAME")
             )
-            wandb_project = os.getenv("WANDB_PROJECT")
-            wandb_entity = os.getenv("WANDB_ENTITY")
-
             with wandb.init(
-                project=wandb_project,
-                entity=wandb_entity,
                 job_type=func.__name__,
                 group=wandb_group,
             ) as run:
@@ -311,8 +304,10 @@ def wandb_log_v2(  # noqa: C901
                                 artifact.add_file(value)
                                 run.use_artifact(artifact)
                                 wandb.termlog(f"Using artifact: {name}")
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            wandb.termwarn(
+                                f"Failed to log input artifact '{name}': {e}"
+                            )
 
                 with wb_telemetry.context(run=run) as tel:
                     tel.feature.kfp_wandb_log = True
@@ -343,8 +338,10 @@ def wandb_log_v2(  # noqa: C901
                                 artifact.add_file(value)
                                 run.log_artifact(artifact)
                                 wandb.termlog(f"Logging artifact: {name}")
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            wandb.termwarn(
+                                f"Failed to log output artifact '{name}': {e}"
+                            )
 
             return result
 

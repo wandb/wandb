@@ -3,7 +3,7 @@ try:
     from packaging.version import parse as _parse_version
 
     _KFP_V2 = _parse_version(_kfp_version) >= _parse_version("2.0.0")
-except (ImportError, Exception):
+except Exception:
     _KFP_V2 = False
 
 if _KFP_V2:

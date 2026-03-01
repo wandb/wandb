@@ -13,7 +13,7 @@ try:
     from packaging.version import parse
 
     _KFP_V2 = parse(kfp_version) >= parse("2.0.0")
-except (ImportError, Exception):
+except Exception:
     _KFP_V2 = False
 
 if _KFP_V2:
@@ -36,7 +36,7 @@ import wandb
 
 {_decorator_code_v2}
 """
-    except ImportError:
+    except Exception:
         wandb.termerror(
             "kfp>=2.0.0 detected but failed to import kfp internals. "
             "Please ensure kfp is installed correctly."
@@ -288,7 +288,6 @@ def _unpatch_kfp_v2():
 
 
 def _patch_kfp_v2():
-    _orig_get_src = _component_factory._get_function_source_definition
     _orig_create = _component_factory.create_component_from_func
     _orig_get_cmd = (
         _component_factory._get_command_and_args_for_lightweight_component
