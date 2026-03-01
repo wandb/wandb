@@ -3,7 +3,10 @@ def wandb_log(  # noqa: C901
     # /,  # py38 only
     log_component_file=True,
 ):
-    """Wrap a standard python function and log to W&B."""
+    """Wrap a kfp v1 python functional component and log to W&B.
+
+    Requires kfp<2.0.0. For kfp>=2.0.0, use wandb_log_v2.
+    """
     import json
     import os
     from functools import wraps
@@ -174,6 +177,173 @@ def wandb_log(  # noqa: C901
 
         wrapper.__signature__ = new_sig
         wrapper.__annotations__ = new_anns
+        return wrapper
+
+    if func is None:
+        return decorator
+    else:
+        return decorator(func)
+
+
+def wandb_log_v2(  # noqa: C901
+    func=None,
+    # /,  # py38 only
+    log_component_file=True,
+):
+    """Wrap a kfp v2 component function and log to W&B.
+
+    Compatible with kfp>=2.0.0. Automatically logs input parameters to
+    wandb.config and output scalars via wandb.log. Artifacts annotated
+    with kfp's Input/Output types are logged as W&B Artifacts.
+
+    Usage::
+
+        from kfp import dsl
+        from wandb.integration.kfp import wandb_log
+
+        @dsl.component
+        @wandb_log
+        def add(a: float, b: float) -> float:
+            return a + b
+    """
+    import os
+    from functools import wraps
+    from inspect import signature
+
+    import wandb
+    from wandb.sdk.lib import telemetry as wb_telemetry
+
+    def isinstance_namedtuple(x):
+        t = type(x)
+        b = t.__bases__
+        if len(b) != 1 or b[0] is not tuple:
+            return False
+        f = getattr(t, "_fields", None)
+        if not isinstance(f, tuple):
+            return False
+        return all(isinstance(n, str) for n in f)
+
+    def _is_kfp_artifact_value(value):
+        """Check if a runtime value is a kfp v2 artifact object."""
+        return hasattr(value, "path") and hasattr(value, "uri")
+
+    def _is_output_annotation(ann):
+        try:
+            from kfp.dsl.types.type_annotations import OutputPath
+            from kfp.dsl.types.type_annotations import is_artifact_wrapped_in_Output
+
+            return is_artifact_wrapped_in_Output(ann) or isinstance(ann, OutputPath)
+        except (ImportError, Exception):
+            ann_str = str(ann)
+            return "Output" in ann_str
+
+    def _is_input_annotation(ann):
+        try:
+            from kfp.dsl.types.type_annotations import InputPath
+            from kfp.dsl.types.type_annotations import is_artifact_wrapped_in_Input
+
+            return is_artifact_wrapped_in_Input(ann) or isinstance(ann, InputPath)
+        except (ImportError, Exception):
+            ann_str = str(ann)
+            return "Input" in ann_str and "Output" not in ann_str
+
+    def decorator(func):
+        input_scalars = {}
+        input_artifacts = {}
+        output_scalars = {}
+        output_artifacts = {}
+
+        for name, ann in func.__annotations__.items():
+            if name == "return":
+                output_scalars[name] = ann
+            elif _is_output_annotation(ann):
+                output_artifacts[name] = ann
+            elif _is_input_annotation(ann):
+                input_artifacts[name] = ann
+            else:
+                input_scalars[name] = ann
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            sig = signature(func)
+            bound = sig.bind(*args, **kwargs)
+            bound.apply_defaults()
+
+            wandb_group = (
+                os.getenv("WANDB_RUN_GROUP")
+                or os.getenv("KFP_RUN_NAME")
+                or os.getenv("ARGO_WORKFLOW_NAME")
+            )
+
+            with wandb.init(
+                job_type=func.__name__,
+                group=wandb_group,
+            ) as run:
+                kubeflow_url = os.getenv("WANDB_KUBEFLOW_URL")
+                if kubeflow_url:
+                    run.config["LINK_TO_KUBEFLOW"] = kubeflow_url
+
+                for name in input_scalars:
+                    if name in bound.arguments:
+                        value = bound.arguments[name]
+                        run.config[name] = value
+                        wandb.termlog(f"Setting config: {name} to {value}")
+
+                for name in input_artifacts:
+                    if name in bound.arguments:
+                        value = bound.arguments[name]
+                        try:
+                            if _is_kfp_artifact_value(value):
+                                if os.path.exists(value.path):
+                                    artifact = wandb.Artifact(
+                                        name, type="kfp_artifact"
+                                    )
+                                    artifact.add_file(value.path)
+                                    run.use_artifact(artifact)
+                                    wandb.termlog(f"Using artifact: {name}")
+                            elif isinstance(value, str) and os.path.exists(value):
+                                artifact = wandb.Artifact(name, type="kfp_artifact")
+                                artifact.add_file(value)
+                                run.use_artifact(artifact)
+                                wandb.termlog(f"Using artifact: {name}")
+                        except Exception:
+                            pass
+
+                with wb_telemetry.context(run=run) as tel:
+                    tel.feature.kfp_wandb_log = True
+
+                result = func(*bound.args, **bound.kwargs)
+
+                if result is not None:
+                    if isinstance_namedtuple(result):
+                        for k, v in zip(result._fields, result):
+                            run.log({f"{func.__name__}.{k}": v})
+                    else:
+                        run.log({func.__name__: result})
+
+                for name in output_artifacts:
+                    if name in bound.arguments:
+                        value = bound.arguments[name]
+                        try:
+                            if _is_kfp_artifact_value(value):
+                                if os.path.exists(value.path):
+                                    artifact = wandb.Artifact(
+                                        name, type="kfp_artifact"
+                                    )
+                                    artifact.add_file(value.path)
+                                    run.log_artifact(artifact)
+                                    wandb.termlog(f"Logging artifact: {name}")
+                            elif isinstance(value, str) and os.path.exists(value):
+                                artifact = wandb.Artifact(name, type="kfp_artifact")
+                                artifact.add_file(value)
+                                run.log_artifact(artifact)
+                                wandb.termlog(f"Logging artifact: {name}")
+                        except Exception:
+                            pass
+
+            return result
+
+        wrapper._wandb_logged = True
         return wrapper
 
     if func is None:
