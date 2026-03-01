@@ -199,6 +199,7 @@ def wandb_log_v2(  # noqa: C901
         from kfp import dsl
         from wandb.integration.kfp import wandb_log
 
+
         @dsl.component
         @wandb_log
         def add(a: float, b: float) -> float:
@@ -293,9 +294,7 @@ def wandb_log_v2(  # noqa: C901
                         try:
                             if _is_kfp_artifact_value(value):
                                 if os.path.exists(value.path):
-                                    artifact = wandb.Artifact(
-                                        name, type="kfp_artifact"
-                                    )
+                                    artifact = wandb.Artifact(name, type="kfp_artifact")
                                     artifact.add_file(value.path)
                                     run.use_artifact(artifact)
                                     wandb.termlog(f"Using artifact: {name}")
@@ -314,7 +313,7 @@ def wandb_log_v2(  # noqa: C901
 
                 result = func(*bound.args, **bound.kwargs)
 
-                if result is not None:
+                if result is not None and not run._is_finished:
                     if isinstance_namedtuple(result):
                         for k, v in zip(result._fields, result):
                             run.log({f"{func.__name__}.{k}": v})
@@ -327,9 +326,7 @@ def wandb_log_v2(  # noqa: C901
                         try:
                             if _is_kfp_artifact_value(value):
                                 if os.path.exists(value.path):
-                                    artifact = wandb.Artifact(
-                                        name, type="kfp_artifact"
-                                    )
+                                    artifact = wandb.Artifact(name, type="kfp_artifact")
                                     artifact.add_file(value.path)
                                     run.log_artifact(artifact)
                                     wandb.termlog(f"Logging artifact: {name}")

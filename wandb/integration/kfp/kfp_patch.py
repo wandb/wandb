@@ -221,7 +221,7 @@ def _v1_create_component_from_func(
     packages_to_install: list[str] | None = None,
     annotations: Mapping[str, str] | None = None,
 ):
-    '''Convert a Python function to a component and returns a task factory.
+    """Convert a Python function to a component and returns a task factory.
 
     The returned task factory accepts arguments and returns a task object.
 
@@ -238,7 +238,7 @@ def _v1_create_component_from_func(
     Returns:
         A factory function with a strongly-typed signature taken from the python function.
         Once called with the required arguments, the factory constructs a task instance that can run the original function in a container.
-    '''
+    """
     core_packages = ["wandb", "kfp"]
 
     if not packages_to_install:
@@ -289,9 +289,7 @@ def _unpatch_kfp_v2():
 
 def _patch_kfp_v2():
     _orig_create = _component_factory.create_component_from_func
-    _orig_get_cmd = (
-        _component_factory._get_command_and_args_for_lightweight_component
-    )
+    _orig_get_cmd = _component_factory._get_command_and_args_for_lightweight_component
 
     def _get_function_source_definition(func: Callable) -> str:
         """kfp v2 patched: preserve @wandb_log decorator in serialized source."""
@@ -306,7 +304,7 @@ def _patch_kfp_v2():
 
         if not func_code_lines:
             raise ValueError(
-                f'Failed to dedent and clean up the source of function '
+                f"Failed to dedent and clean up the source of function "
                 f'"{func.__name__}". It is probably not properly indented.'
             )
 
@@ -318,9 +316,7 @@ def _patch_kfp_v2():
             packages_to_install = list(packages_to_install or [])
             if not any(p.startswith("wandb") for p in packages_to_install):
                 packages_to_install.append("wandb")
-        return _orig_create(
-            func, packages_to_install=packages_to_install, **kwargs
-        )
+        return _orig_create(func, packages_to_install=packages_to_install, **kwargs)
 
     def _get_command_and_args_for_lightweight_component(func, **kwargs):
         """kfp v2 patched: inject wandb decorator source into component."""
