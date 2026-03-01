@@ -263,10 +263,11 @@ def wandb_log_v2(  # noqa: C901
             else:
                 input_scalars[name] = ann
 
+        func_sig = signature(func)
+
         @wraps(func)
         def wrapper(*args, **kwargs):
-            sig = signature(func)
-            bound = sig.bind(*args, **kwargs)
+            bound = func_sig.bind(*args, **kwargs)
             bound.apply_defaults()
 
             wandb_group = (
@@ -274,8 +275,12 @@ def wandb_log_v2(  # noqa: C901
                 or os.getenv("KFP_RUN_NAME")
                 or os.getenv("ARGO_WORKFLOW_NAME")
             )
+            wandb_project = os.getenv("WANDB_PROJECT")
+            wandb_entity = os.getenv("WANDB_ENTITY")
 
             with wandb.init(
+                project=wandb_project,
+                entity=wandb_entity,
                 job_type=func.__name__,
                 group=wandb_group,
             ) as run:
@@ -344,6 +349,7 @@ def wandb_log_v2(  # noqa: C901
             return result
 
         wrapper._wandb_logged = True
+        wrapper.__signature__ = func_sig
         return wrapper
 
     if func is None:
