@@ -143,6 +143,8 @@ def stop(
             f'  eval "$(wandb beta core start --print)"\n'
         )
 
+    unset_cmd = _format_env_unset(shell=shell)
+
     asyncer = asyncio_manager.AsyncioManager()
     asyncer.start()
     try:
@@ -162,6 +164,8 @@ def stop(
         _logger.exception("Failed to connect to wandb-core for stop")
         raise click.ClickException(
             f"Failed to connect to wandb-core using {wandb_env.SERVICE}: {e}"
+            "\nTo remove WANDB_SERVICE from your current shell:"
+            f"\n  {unset_cmd}"
         ) from e
 
     except Exception as e:
@@ -172,8 +176,6 @@ def stop(
 
     # Clear in this process for programmatic use.
     service_token.clear_service_in_env()
-
-    unset_cmd = _format_env_unset(shell=shell)
 
     if print_only:
         click.echo(unset_cmd)
