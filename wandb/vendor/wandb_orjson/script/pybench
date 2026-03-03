@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -eou pipefail
+
+pytest \
+    --verbose \
+    --benchmark-min-time=1 \
+    --benchmark-max-time=5 \
+    --benchmark-disable-gc \
+    --benchmark-autosave \
+    --benchmark-save-data \
+    --random-order \
+    "bench/benchmark_$1.py"
