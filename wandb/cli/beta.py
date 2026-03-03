@@ -240,22 +240,51 @@ def core() -> None:
         "clients. 0 disables the idle shutdown."
     ),
 )
-def start(idle_timeout_seconds: int) -> None:
-    """Start a detached wandb-core service.
-
-    Prints an `export WANDB_SERVICE=...` command that you can apply in your shell.
-    """
+@click.option(
+    "--print",
+    "print_only",
+    is_flag=True,
+    default=False,
+    help="Print only a shell command to set WANDB_SERVICE (for eval/source).",
+)
+@click.option(
+    "--shell",
+    type=click.Choice(["posix", "fish", "powershell", "cmd"]),
+    default="posix",
+    show_default=True,
+    help="Shell syntax to use with --print.",
+)
+def start(idle_timeout_seconds: int, print_only: bool, shell: str) -> None:
+    """Start a detached wandb-core service."""
     from . import beta_core
 
-    beta_core.start(idle_timeout_seconds=idle_timeout_seconds)
+    beta_core.start(
+        idle_timeout_seconds=idle_timeout_seconds,
+        print_only=print_only,
+        shell=shell,
+    )
 
 
 @core.command()
-def stop() -> None:
+@click.option(
+    "--print",
+    "print_only",
+    is_flag=True,
+    default=False,
+    help="Print only a shell command to unset WANDB_SERVICE (for eval/source).",
+)
+@click.option(
+    "--shell",
+    type=click.Choice(["posix", "fish", "powershell", "cmd"]),
+    default="posix",
+    show_default=True,
+    help="Shell syntax to use with --print.",
+)
+def stop(print_only: bool, shell: str) -> None:
     """Stop a detached wandb-core service.
 
     The service address is taken from the WANDB_SERVICE environment variable.
     """
     from . import beta_core
 
-    beta_core.stop(exit_code=0)
+    beta_core.stop(print_only=print_only, shell=shell)

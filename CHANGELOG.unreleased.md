@@ -23,6 +23,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Warning message when `run.log_artifact` does not create a new version because the artifact content is identical to an existing version. (@pingleiwandb in https://github.com/wandb/wandb/pull/11340)
 - `Project.collections()` to fetch filtered and ordered artifact collections in a project. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11319)
 - `wandb purge-cache` command to clean up cached files (@jacobromero in https://github.com/wandb/wandb/pull/10996)
+- `wandb beta core start|stop` commands to run a detached `wandb-core` service and reuse it across multiple processes via the `WANDB_SERVICE` env var. (@dmitryduev in https://github.com/wandb/wandb/pull/11420)
 
 ### Fixed
 
