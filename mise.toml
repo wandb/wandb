@@ -1,0 +1,9 @@
+[tools]
+go = "1.26"
+prek = "0.3.4"
+python = "3.13"
+rust = "latest"
+
+[settings]
+python.uv_venv_auto = "source"
+
