@@ -369,7 +369,7 @@ var runDirRe = regexp.MustCompile(`run-\d{8}_\d{6}-`)
 // Returns "" if the folder name doesn't match.
 func extractRunID(folderName string) string {
 	loc := runDirRe.FindStringIndex(folderName)
-	if loc == nil || loc[1] == len(folderName) {
+	if len(loc) == 0 || loc[1] == len(folderName) {
 		return ""
 	}
 	return folderName[loc[1]:]
