@@ -1,0 +1,12 @@
+*.patch
+/.benchmarks
+/.coverage
+/.mypy_cache
+/.pytest_cache
+/.venv*
+/build
+/include/cargo
+/perf.*
+/target
+/vendor
+__pycache__

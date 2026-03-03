@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -e
+
+_dir="$(dirname "${BASH_SOURCE[0]}")"
+
+PYTHONPATH=${_dir} gunicorn --preload --bind localhost:8001 --workers 2 "$@" wsgi:app
