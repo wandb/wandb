@@ -527,3 +527,8 @@ reportUnusedCallResult = false
 # Any is frequently unavoidable when forwarding an argument with a generic type
 # to a library function that didn't specify the generic type parameters.
 reportExplicitAny = "hint"
+
+[dependency-groups]
+dev = [
+    "nox>=2026.2.9",
+]

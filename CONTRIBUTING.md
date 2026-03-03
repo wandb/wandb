@@ -212,11 +212,6 @@ uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-Install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation) into your environment:
-```shell
-uv pip install nox
-```
-
 ### Setting up Go
 
 Install Go version `1.26.0` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
