@@ -367,7 +367,7 @@ func extractRunID(folderName string) string {
 	// Normalize: strip optional "offline-" prefix.
 	name := strings.TrimPrefix(folderName, "offline-")
 
-	const prefixLen = len("run-") + len("YYYYMMDD_HHMMSS-") // 20
+	const prefixLen = len("run-YYYYMMDD_HHMMSS-") // 20
 	if len(name) <= prefixLen || !strings.HasPrefix(name, "run-") {
 		return ""
 	}
