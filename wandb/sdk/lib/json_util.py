@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 try:
-    from wandb.vendor.wandb_orjson import orjson
+    import wandb.vendor.wandb_orjson as orjson
 
     # Allow disabling orjson for compatibility and safety.
     if not os.environ.get(env.DISABLE_ORJSON):
@@ -25,7 +25,7 @@ try:
                     _kwargs["default"] = cls.default
                 encoded = orjson.dumps(
                     obj,
-                    option=orjson.OPT_NON_STR_KEYS | orjson.OPT_FAIL_ON_INVALID_FLOAT,
+                    option=orjson.OPT_NON_STR_KEYS | orjson.OPT_FAIL_ON_INVALID_FLOAT,  # type: ignore[attr-defined]
                     **_kwargs,
                 ).decode()
             except Exception:
@@ -45,7 +45,7 @@ try:
                     _kwargs["default"] = cls.default
                 encoded = orjson.dumps(
                     obj,
-                    option=orjson.OPT_NON_STR_KEYS | orjson.OPT_FAIL_ON_INVALID_FLOAT,
+                    option=orjson.OPT_NON_STR_KEYS | orjson.OPT_FAIL_ON_INVALID_FLOAT,  # type: ignore[attr-defined]
                     **_kwargs,
                 )
                 fp.write(encoded)
