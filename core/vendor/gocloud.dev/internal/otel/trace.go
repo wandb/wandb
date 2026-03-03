@@ -58,7 +58,7 @@ func ProviderName(driver any) string {
 		return ""
 	}
 	t := reflect.TypeOf(driver)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	return t.PkgPath()

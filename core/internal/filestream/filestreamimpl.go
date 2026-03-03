@@ -149,6 +149,7 @@ func (fs *fileStream) send(
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	fs.logRequestSummary(data)
 	resp, err := fs.apiClient.Do(req)
 
 	switch {
@@ -170,6 +171,11 @@ func (fs *fileStream) send(
 			req.URL,
 			string(body),
 		)
+
+	default:
+		// Log after sending to record that the backend responded and should
+		// have the data in the request.
+		fs.logger.Info("filestream: request sent", "status", resp.Status)
 	}
 
 	defer func(Body io.ReadCloser) {
@@ -221,4 +227,47 @@ func (fs *fileStream) trackUploadOperation(
 	} else {
 		return fs.operations.New("uploading " + strings.Join(parts, ", "))
 	}
+}
+
+// logRequestSummary logs a little information about a request at INFO level.
+//
+// When metrics don't show up in the UI, this helps determine whether they were
+// even sent.
+func (fs *fileStream) logRequestSummary(data *FileStreamRequestJSON) {
+	// 11 = number of attribute pairs logged below
+	attrs := make([]any, 0, 11*2)
+
+	attrs = append(attrs, "total_files", len(data.Files))
+
+	if history, ok := data.Files[HistoryFileName]; ok {
+		attrs = append(attrs,
+			"history_offset", history.Offset,
+			"history_lines", len(history.Content))
+	}
+	if events, ok := data.Files[EventsFileName]; ok {
+		attrs = append(attrs,
+			"events_offset", events.Offset,
+			"events_lines", len(events.Content))
+	}
+	if console, ok := data.Files[OutputFileName]; ok {
+		attrs = append(attrs,
+			"console_offset", console.Offset,
+			"console_lines", len(console.Content))
+	}
+
+	if len(data.Uploaded) > 0 {
+		attrs = append(attrs, "uploaded_len", len(data.Uploaded))
+	}
+
+	if data.Preempting != nil {
+		attrs = append(attrs, "preempting", *data.Preempting)
+	}
+	if data.Complete != nil {
+		attrs = append(attrs, "complete", *data.Complete)
+	}
+	if data.ExitCode != nil {
+		attrs = append(attrs, "exit_code", *data.ExitCode)
+	}
+
+	fs.logger.Info("filestream: sending request", attrs...)
 }

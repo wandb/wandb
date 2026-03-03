@@ -129,7 +129,7 @@ func readDefaultCredentials(credFileAsJSON []byte) (AccessID string, PrivateKey 
 	}
 	if err := json.Unmarshal(credFileAsJSON, &contentVariantB); err == nil {
 		nextFieldIsAccessID := false
-		for _, s := range strings.Split(contentVariantB.Name, "/") {
+		for s := range strings.SplitSeq(contentVariantB.Name, "/") {
 			if nextFieldIsAccessID {
 				AccessID = s
 				break
@@ -158,7 +158,15 @@ func (o *lazyCredsOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.
 			creds, _ = google.CredentialsFromJSON(ctx, []byte(`{"type": "service_account", "project_id": "my-project-id"}`))
 		} else {
 			var err error
-			creds, err = gcp.DefaultCredentials(ctx)
+			// Check if universe_domain is specified in the URL query parameters
+			universeDomain := u.Query().Get("universe_domain")
+			if universeDomain != "" {
+				creds, err = gcp.DefaultCredentialsWithParams(ctx, google.CredentialsParams{
+					UniverseDomain: universeDomain,
+				})
+			} else {
+				creds, err = gcp.DefaultCredentials(ctx)
+			}
 			if err != nil {
 				fmt.Printf("Warning: unable to load GCP Default Credentials: %v", err)
 				// Use empty credentials, in case the user isn't going to actually use
@@ -168,6 +176,13 @@ func (o *lazyCredsOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.
 
 			// Populate default values from credentials files, where available.
 			opts.GoogleAccessID, opts.PrivateKey = readDefaultCredentials(creds.JSON)
+
+			ud, err := creds.GetUniverseDomain()
+			if err != nil {
+				fmt.Printf("Warning: unable to load GCP Universe Domain: %v", err)
+			} else if ud != "" {
+				opts.ClientOptions = append(opts.ClientOptions, option.WithUniverseDomain(ud))
+			}
 
 			// ... else, on GCE, at least get the instance's main service account.
 			if opts.GoogleAccessID == "" && metadata.OnGCE() {
@@ -211,6 +226,7 @@ const Scheme = "gs"
 //   - access_id: Sets Options.GoogleAccessID; only used in SignedURL, except that
 //     a value of "-" forces the use of an unauthenticated client.
 //   - private_key_path: Path to read for Options.PrivateKey; only used in SignedURL.
+//   - universe_domain: Sets the universe domain for the client.
 type URLOpener struct {
 	// Client must be set to a non-nil HTTP client authenticated with
 	// Cloud Storage scope or equivalent (unless anonymous=true).
@@ -231,7 +247,7 @@ func (o *URLOpener) OpenBucketURL(ctx context.Context, u *url.URL) (*blob.Bucket
 
 func (o *URLOpener) forParams(ctx context.Context, q url.Values) (*Options, *gcp.HTTPClient, error) {
 	for k := range q {
-		if k != "access_id" && k != "private_key_path" && k != "anonymous" {
+		if k != "access_id" && k != "private_key_path" && k != "anonymous" && k != "universe_domain" {
 			return nil, nil, fmt.Errorf("invalid query parameter %q", k)
 		}
 	}
