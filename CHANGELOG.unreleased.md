@@ -27,3 +27,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Fixed a rare deadlock caused when GC triggers at an unlucky time and runs a `__del__` method that prints (@timoffex in https://github.com/wandb/wandb/pull/11402)
+- `api.Run.user` raising `AttributeError` when accessing runs from an `api.Runs` iteration (@jacobromero in https://github.com/wandb/wandb/pull/11439)
