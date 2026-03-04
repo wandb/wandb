@@ -69,6 +69,6 @@
 /tests/unit_tests/test_automations/   @wandb/art-reg-team @wandb/sdk-team
 
 # Launch
-/wandb/sdk/launch/                    @wandb/sweeps-launch-team @wandb/sdk-team
-/tests/system_tests/test_launch/      @wandb/sweeps-launch-team @wandb/sdk-team
-/tests/unit_tests/test_launch/        @wandb/sweeps-launch-team @wandb/sdk-team
+/wandb/sdk/launch/                    @wandb/launch-reviewers @wandb/sdk-team
+/tests/system_tests/test_launch/      @wandb/launch-reviewers @wandb/sdk-team
+/tests/unit_tests/test_launch/        @wandb/launch-reviewers @wandb/sdk-team
