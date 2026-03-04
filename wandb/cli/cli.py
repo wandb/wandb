@@ -2473,10 +2473,6 @@ def docker(
     image name. If you do not specify an image, select a default image
     automatically.
 
-        $ wandb docker -v /mnt/dataset:/app/data
-        $ wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
-        $ wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
-
     Override the container entrypoint by default to ensure ``wandb`` is
     installed. If you pass ``--jupyter``, ensure Jupyter is installed and
     start JupyterLab on port 8888.
@@ -2485,6 +2481,23 @@ def docker(
 
     To set W&B environment variables for an existing ``docker run``
     command without modifying the entrypoint, use ``wandb docker-run``.
+
+    Examples:
+
+    Run the default W&B Docker image and mount ``/mnt/dataset`` into the container
+    at ``/app/data``.
+
+        $ wandb docker -v /mnt/dataset:/app/data
+
+    Run the specified TensorFlow notebook image and start JupyterLab in the
+    container (port 8888 by default).
+        
+        $ wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
+
+    Run the specified GPU-enabled image, disable TTY allocation, and execute the
+    given training command.
+
+        $ wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
     """
     api = InternalApi()
     if not _HAS_DOCKER:
@@ -3341,7 +3354,6 @@ def offline():
 
     Run a script in offline mode, then sync the run to the cloud when ready
 
-
         $ wandb offline
         $ python train.py
         $ wandb sync --sync-all  # Sync all offline runs to the cloud
@@ -3418,6 +3430,9 @@ def status(settings):
     syncing data to W&B.
 
         $ wandb disabled
+    
+    Train the model without logging or syncing to W&B
+
         $ python train.py  # Does not log or sync data to W&B
 
     Restore W&B functionality when ready to log and sync again
@@ -3458,6 +3473,9 @@ def disabled(service):
     Restore W&B functionality after deactivating it with `wandb disabled`
 
         $ wandb enabled
+    
+    Run training script with W&B logging and syncing restored
+
         $ python train.py # Log and sync data to W&B
     """
     )
