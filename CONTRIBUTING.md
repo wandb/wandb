@@ -344,10 +344,10 @@ follow the instructions:
 ### Using pytest
 
 We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
-All test dependencies should be in `requirements_dev.txt` so you could just run:
+All test dependencies should be in `requirements/requirements_dev.txt` so you could just run:
 
 ```shell
-uv pip install -r requirements_dev.txt
+uv pip install -r requirements/requirements_dev.txt
 ```
 
 After that you can run your test using the standard `pytest` commands. For example:

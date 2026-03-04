@@ -9,7 +9,7 @@ description = "A CLI and library for interacting with the Weights & Biases API."
 authors = [{ name = "Weights & Biases", email = "support@wandb.com" }]
 readme = "package_readme.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.9,<=3.13"
 dependencies = [
     "Click>=8.0.1",
     "GitPython>=1.0.0,!=3.1.29",
