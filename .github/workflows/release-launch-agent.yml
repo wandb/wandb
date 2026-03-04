@@ -40,8 +40,12 @@ jobs:
           docker pull $IMAGE
 
           # Get full tag
-          SDK_RELEASE_VERSION=$(docker run --rm --entrypoint wandb $IMAGE --version | awk '{print $3}')
+          SDK_RELEASE_VERSION=$(docker run --rm --entrypoint /usr/bin/python3 $IMAGE -m wandb --version | awk '{print $3}')
 
+          if [[ -z "$SDK_RELEASE_VERSION" ]]; then
+            echo "Failed to get SDK version from image (is wandb installed?)"
+            exit 1
+          fi
           if [[ $SDK_RELEASE_VERSION == *"dev"* ]]; then
             echo "selected image to be promoted is not based on a release"
             exit 1
