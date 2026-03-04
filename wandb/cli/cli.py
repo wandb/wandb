@@ -281,39 +281,27 @@ def projects(entity, display=True):
 
     Log in interactively (prompts for API key)
 
-    ```bash
-    wandb login
-    ```
+        $ wandb login
 
     Log in with an explicit API key ("WANDB_API_KEY_EXAMPLE")
 
-    ```bash
-    wandb login WANDB_API_KEY_EXAMPLE
-    ```
+        $ wandb login WANDB_API_KEY_EXAMPLE
 
     Log in and verify the API key is valid
 
-    ```bash
-    wandb login --verify
-    ```
+        $ wandb login --verify
 
     Log in to the W&B public cloud instead of a configured self-hosted instance
 
-    ```bash
-    wandb login --cloud
-    ```
+        $ wandb login --cloud
 
     Log in to a self-hosted W&B instance
 
-    ```bash
-    wandb login --host https://my-wandb-server.example.com
-    ```
+        $ wandb login --host https://my-wandb-server.example.com
 
     Force a new login prompt even if already authenticated
 
-    ```bash
-    wandb login --relogin
-    ```
+        $ wandb login --relogin
     """,
 )
 @click.argument("key", nargs=-1)
@@ -393,28 +381,20 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     Set up W&B for the current directory with guided prompts for team and
     project selection. 
 
-    ```bash
-    wandb init
-    ```
+        $ wandb init
 
     Set the default project to "foobar-project" and the default entity to
     "team-awesome" without prompts.
 
-    ```bash
-    wandb init --project foobar-project --entity team-awesome
-    ```
+        $ wandb init --project foobar-project --entity team-awesome
 
     Set the W&B mode to offline
 
-    ```bash
-    wandb init --mode offline
-    ```
+        $ wandb init --mode offline
 
     Reset existing W&B configuration for the current directory
 
-    ```bash
-    wandb init --reset
-    ```
+        $ wandb init --reset
     """
 )
 @click.option("--project", "-p", help="Set the project to upload runs to.")
@@ -578,45 +558,31 @@ def init(ctx, project, entity, reset, mode):
 
     Show a summary of local runs and their sync status
 
-    ```bash
-    wandb sync
-    ```
+        $ wandb sync
 
     Sync a run that is locally saved at `./wandb/run-20170617_000000-abcd1234`
 
-    ```bash
-    wandb sync ./wandb/run-20170617_000000-abcd1234
-    ```
+        $ wandb sync ./wandb/run-20170617_000000-abcd1234
 
     Sync a specific run by its `.wandb` filepath
 
-    ```bash
-    wandb sync ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
-    ```
+        $ wandb sync ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
 
     Sync all unsynced runs in the local wandb directory
 
-    ```bash
-    wandb sync --sync-all
-    ```
+        $ wandb sync --sync-all
 
     Sync a run in the "foobar-project" project and "team-awesome" entity by its `.wandb` filepath
 
-    ```bash
-    wandb sync --project foobar-project --entity team-awesome ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
-    ```
+        $ wandb sync --project foobar-project --entity team-awesome ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
 
     Delete local data for runs that have already been synced
 
-    ```bash
-    wandb sync --clean
-    ```
+        $ wandb sync --clean
 
     Delete synced runs older than 48 hours without a confirmation prompt
 
-    ```bash
-    wandb sync --clean --clean-old-hours 48 --clean-force
-    ```
+        $ wandb sync --clean --clean-old-hours 48 --clean-force
     """,
 )
 @click.pass_context
@@ -1946,7 +1912,7 @@ def launch(
     hidden=True,
     help="a wandb client registration URL, this is generated in the UI",
 )
-@click.option("--verbose", "-v", count=True, help="Display verbose output")
+@click.option("--verbose", "-v", default=0, count=True, help="Display verbose output")
 @display_error
 def launch_agent(
     ctx,
@@ -3615,16 +3581,13 @@ def enabled(service):
     Examples:
 
     Verify the currently configured W&B instance.
-
-    ```bash
-    wandb verify --host https://my-wandb-instance.com
-    ```
+    
+        $ wandb verify --host https://my-wandb-instance.com
 
     Verify a specific self-hosted instance.
+    
+        $ wandb verify --host https://my-wandb-server.example.com 
 
-    ```bash
-    wandb verify --host https://my-wandb-server.example.com 
-    ```
 """,
 )
 @click.option("--host", default=None, help="Target a specific W&B instance URL. Default to configured base URL.")
