@@ -173,7 +173,6 @@ class KubernetesSubmittedRun(AbstractRun):
             await asyncio.sleep(5)
 
         await self._delete_secret()
-        # await self._delete_auxiliary_resources_by_label()
         return (
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
@@ -182,7 +181,6 @@ class KubernetesSubmittedRun(AbstractRun):
         status = LaunchKubernetesMonitor.get_status(self.name)
         if status in ["stopped", "failed", "finished", "preempted"]:
             await self._delete_secret()
-            # await self._delete_auxiliary_resources_by_label()
         return status
 
     async def cancel(self) -> None:
@@ -193,7 +191,6 @@ class KubernetesSubmittedRun(AbstractRun):
                 name=self.name,
             )
             await self._delete_secret()
-            # await self._delete_auxiliary_resources_by_label()
         except ApiException as e:
             raise LaunchError(
                 f"Failed to delete Kubernetes Job {self.name} in namespace {self.namespace}: {str(e)}"
