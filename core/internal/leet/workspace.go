@@ -182,7 +182,7 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 		w.handleWindowResize(t.Width, t.Height)
 
 	case tea.KeyPressMsg:
-		return w.handleKeyMsg(t)
+		return w.handleKeyPressMsg(t)
 
 	case tea.MouseMsg:
 		return w.handleMouse(t)

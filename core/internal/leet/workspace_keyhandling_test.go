@@ -13,7 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-func keyRune(r rune) tea.KeyMsg {
+func keyRune(r rune) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: r}
 }
 

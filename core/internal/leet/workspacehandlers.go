@@ -29,7 +29,7 @@ func batchCmds(cmds ...tea.Cmd) tea.Cmd {
 
 // ---- Key / Mouse Dispatch ----
 
-func (w *Workspace) handleKeyMsg(msg tea.KeyPressMsg) tea.Cmd {
+func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	// Filter mode takes priority.
 	if w.runOverviewSidebar.IsFilterMode() {
 		w.runOverviewSidebar.HandleFilterKey(msg)

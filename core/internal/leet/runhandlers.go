@@ -209,8 +209,8 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 	return r, nil
 }
 
-// handleKeyMsg processes keyboard events using the centralized key bindings.
-func (r *Run) handleKeyMsg(msg tea.KeyPressMsg) tea.Cmd {
+// handleKeyPressMsg processes keyboard events using the centralized key bindings.
+func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	// Filter modes take priority.
 	if r.leftSidebar.IsFilterMode() {
 		r.leftSidebar.HandleFilterKey(msg)

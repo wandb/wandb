@@ -256,7 +256,7 @@ func (m *ConfigEditor) handleSave() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-func (m *ConfigEditor) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *ConfigEditor) updateBrowse(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if len(m.fields) == 0 {
 		return m, nil
 	}
@@ -361,7 +361,7 @@ func (m *ConfigEditor) bumpSelected(delta int) {
 	}
 }
 
-func (m *ConfigEditor) updateEnumSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *ConfigEditor) updateEnumSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeBrowse

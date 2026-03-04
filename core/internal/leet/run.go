@@ -157,7 +157,7 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Route message to appropriate handler.
 	switch t := msg.(type) {
 	case tea.KeyPressMsg:
-		if c := r.handleKeyMsg(t); c != nil {
+		if c := r.handleKeyPressMsg(t); c != nil {
 			cmds = append(cmds, c)
 		}
 		return r, tea.Batch(cmds...)
@@ -194,7 +194,7 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 // isUIMsg returns true for messages that should flow to child view models.
 func isUIMsg(msg tea.Msg) bool {
 	switch msg.(type) {
-	case tea.KeyMsg, tea.MouseMsg, tea.WindowSizeMsg,
+	case tea.KeyPressMsg, tea.MouseMsg, tea.WindowSizeMsg,
 		LeftSidebarAnimationMsg, RightSidebarAnimationMsg,
 		ConsoleLogsPaneAnimationMsg:
 		return true

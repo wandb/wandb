@@ -261,7 +261,7 @@ func (m *Model) isAwaitingUserInput() bool {
 // the workspace to keep its background state current.
 func isUserInputMsg(msg tea.Msg) bool {
 	switch msg.(type) {
-	case tea.KeyMsg, tea.MouseMsg:
+	case tea.KeyPressMsg, tea.MouseMsg:
 		return true
 	default:
 		return false
@@ -279,7 +279,7 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	}
 
 	// Toggle on 'h' / '?'
-	if km, ok := msg.(tea.KeyMsg); ok {
+	if km, ok := msg.(tea.KeyPressMsg); ok {
 		switch km.String() {
 		case "h", "?":
 			m.help.SetMode(m.mode)
@@ -291,7 +291,7 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	// When help is visible, it owns key/mouse events.
 	if m.help.IsActive() {
 		switch msg.(type) {
-		case tea.KeyMsg, tea.MouseMsg:
+		case tea.KeyPressMsg, tea.MouseMsg:
 			updated, cmd := m.help.Update(msg)
 			m.help = updated
 			return true, cmd
@@ -302,7 +302,7 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 
 func (m *Model) handleRestart(msg tea.Msg) (bool, tea.Cmd) {
 	// Toggle on 'h' / '?'
-	if km, ok := msg.(tea.KeyMsg); ok {
+	if km, ok := msg.(tea.KeyPressMsg); ok {
 		if km.String() == "alt+r" {
 			m.logger.Debug("model: restart requested")
 			m.shouldRestart = true

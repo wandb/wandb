@@ -383,7 +383,7 @@ func buildKeyMap[T any](
 	return keyMap
 }
 
-// normalizeKey normalizes Bubble Tea's KeyMsg.String() into a stable key used by our maps.
+// normalizeKey normalizes Bubble Tea's KeyPressMsg into a stable key used by our maps.
 //
 // Bubble Tea has historically reported space as " " in some situations; we want a
 // help-friendly, explicit key name.
