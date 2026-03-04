@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -17,10 +17,10 @@ func selectField(t *testing.T, m tea.Model, jsonKey string) tea.Model {
 
 	needle := "(" + jsonKey + ")"
 	for range 50 {
-		if strings.Contains(m.View(), needle) {
+		if strings.Contains(m.View().Content, needle) {
 			return m
 		}
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+		m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
 	require.Failf(t, "field not found", "expected %q in view output", needle)
 	return m
@@ -37,12 +37,12 @@ func TestConfigEditor_EnumChange_SaveAndPersists(t *testing.T) {
 	m = selectField(t, m, "startup_mode")
 
 	// Enter opens enum selection; Down selects single_run_latest.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// Save & quit.
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 's'})
 	require.NotNil(t, cmd)
 	_, ok := cmd().(tea.QuitMsg)
 	require.True(t, ok)
@@ -62,23 +62,23 @@ func TestConfigEditor_QuitConfirmation_RespectsCtrlCAndClearsOnOtherKeys(t *test
 	m = selectField(t, m, "startup_mode")
 
 	// Make the model dirty (cycle the startup mode enum).
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 
 	// First Ctrl+C should prompt (no quit).
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	require.Nil(t, cmd)
 	require.Contains(t, m.View(), "Unsaved changes")
 
 	// Any other key clears the confirmation prompt.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	require.NotContains(t, m.View(), "Unsaved changes")
 
 	// Ctrl+C again: prompt again.
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	m, cmd = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	require.Nil(t, cmd)
 
 	// Ctrl+C again: now quit.
-	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	require.NotNil(t, cmd)
 	_, ok := cmd().(tea.QuitMsg)
 	require.True(t, ok)
@@ -94,8 +94,8 @@ func TestConfigEditor_CtrlCQuitsFromEnumModal_WhenClean(t *testing.T) {
 	m = selectField(t, m, "startup_mode")
 
 	// Enter enum modal, then Ctrl+C should quit immediately (no unsaved changes).
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	require.NotNil(t, cmd)
 	_, ok := cmd().(tea.QuitMsg)
 	require.True(t, ok)
@@ -112,23 +112,24 @@ func TestConfigEditor_IntEdit_ValidatesAndApplies(t *testing.T) {
 	m = selectField(t, m, "heartbeat_interval_seconds")
 
 	// Enter int edit mode.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// Clear current input (default 15) and enter an invalid value 0.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'0'}})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '0'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.Contains(t, m.View(), "Must be >= 1")
 
 	// Replace with valid value 10.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("10")})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '1'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '0'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotContains(t, m.View(), "Must be >= 1")
 
 	// Save & quit.
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 's'})
 	require.NotNil(t, cmd)
 	_, ok := cmd().(tea.QuitMsg)
 	require.True(t, ok)

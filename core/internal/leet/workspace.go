@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -28,7 +28,7 @@ type Workspace struct {
 
 	// Configuration and key bindings.
 	config *ConfigManager
-	keyMap map[string]func(*Workspace, tea.KeyMsg) tea.Cmd
+	keyMap map[string]func(*Workspace, tea.KeyPressMsg) tea.Cmd
 
 	// Runs sidebar animation state.
 	runsAnimState *AnimatedValue
@@ -181,7 +181,7 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case tea.WindowSizeMsg:
 		w.handleWindowResize(t.Width, t.Height)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return w.handleKeyMsg(t)
 
 	case tea.MouseMsg:
@@ -228,7 +228,7 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 }
 
 // View renders the runs section: header + paginated list with zebra rows.
-func (w *Workspace) View() string {
+func (w *Workspace) View() tea.View {
 	var cols []string
 
 	if w.runsAnimState.IsVisible() {
@@ -281,7 +281,13 @@ func (w *Workspace) View() string {
 	statusBar := w.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
-	return lipgloss.Place(w.width, w.height, lipgloss.Left, lipgloss.Top, fullView)
+	return tea.NewView(
+		lipgloss.Place(
+			w.width, w.height,
+			lipgloss.Left, lipgloss.Top,
+			fullView,
+		),
+	)
 }
 
 // IsFiltering reports whether any workspace-level filter UI is active.

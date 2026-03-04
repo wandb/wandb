@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/exp/teatest"
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/exp/teatest/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -370,7 +370,7 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 	tm.Type("o")
 	tm.Type("s")
 	tm.Type("s")
-	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 	waitForPlainOutput(t, tm,
 		[]string{
 			"Filter",
@@ -379,11 +379,11 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 		},
 		nil,
 	)
-	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlL})
+	tm.Send(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
 
 	// 2) Select the older run (down + space). Expect multi-series overlay.
-	tm.Send(tea.KeyMsg{Type: tea.KeyDown})
-	tm.Send(tea.KeyMsg{Type: tea.KeySpace})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyDown})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeySpace})
 
 	forceRepaint(tm, repaintW, H)
 	repaintW++
@@ -413,8 +413,8 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 	)
 
 	// 4) Deselect the newest run (up + space). Should drop back to single run.
-	tm.Send(tea.KeyMsg{Type: tea.KeyUp})
-	tm.Send(tea.KeyMsg{Type: tea.KeySpace})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyUp})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeySpace})
 
 	forceRepaint(tm, repaintW, H)
 
@@ -428,10 +428,10 @@ func TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount(t *testing.T) {
 	)
 
 	// Exercise navigation.
-	tm.Send(tea.KeyMsg{Type: tea.KeyLeft})
-	tm.Send(tea.KeyMsg{Type: tea.KeyRight})
-	tm.Send(tea.KeyMsg{Type: tea.KeyTab})
-	tm.Send(tea.KeyMsg{Type: tea.KeyTab})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyLeft})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyRight})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyTab})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyTab})
 
 	// Quit.
 	tm.Type("q")
@@ -569,8 +569,8 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	)
 
 	// Focus logs (tab) and page up (left).
-	tm.Send(tea.KeyMsg{Type: tea.KeyTab})
-	tm.Send(tea.KeyMsg{Type: tea.KeyLeft})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyTab})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyLeft})
 	forceRepaint(tm, repaintW, H)
 	repaintW++
 
@@ -589,7 +589,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	)
 
 	// Page down (right) back toward the end.
-	tm.Send(tea.KeyMsg{Type: tea.KeyRight})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyRight})
 	forceRepaint(tm, repaintW, H)
 	repaintW++
 

@@ -1,7 +1,7 @@
 package leet
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // KeyBinding defines a key binding for a particular target type.
@@ -12,7 +12,7 @@ import (
 type KeyBinding[T any] struct {
 	Keys        []string
 	Description string
-	Handler     func(*T, tea.KeyMsg) tea.Cmd
+	Handler     func(*T, tea.KeyPressMsg) tea.Cmd
 }
 
 // BindingCategory groups related key bindings (primarily for help display).
@@ -367,8 +367,9 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 }
 
 // buildKeyMap builds a fast lookup map from key string to handler.
-func buildKeyMap[T any](categories []BindingCategory[T]) map[string]func(*T, tea.KeyMsg) tea.Cmd {
-	keyMap := make(map[string]func(*T, tea.KeyMsg) tea.Cmd)
+func buildKeyMap[T any](
+	categories []BindingCategory[T]) map[string]func(*T, tea.KeyPressMsg) tea.Cmd {
+	keyMap := make(map[string]func(*T, tea.KeyPressMsg) tea.Cmd)
 	for _, category := range categories {
 		for _, binding := range category.Bindings {
 			if binding.Handler == nil {

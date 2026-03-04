@@ -5,8 +5,8 @@ import (
 	"slices"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type SidebarSide int
@@ -76,16 +76,18 @@ func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) 
 	// Handle key input only when expanded.
 	// TODO: hook up with keybindings.
 	if s.animState.IsExpanded() {
-		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			switch keyMsg.Type {
+		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+			switch keyMsg.Code {
 			case tea.KeyUp:
 				s.navigateUp()
 			case tea.KeyDown:
 				s.navigateDown()
 			case tea.KeyTab:
-				s.navigateSection(1)
-			case tea.KeyShiftTab:
-				s.navigateSection(-1)
+				if keyMsg.Mod == tea.ModShift {
+					s.navigateSection(-1)
+				} else {
+					s.navigateSection(1)
+				}
 			case tea.KeyLeft:
 				s.navigatePageUp()
 			case tea.KeyRight:

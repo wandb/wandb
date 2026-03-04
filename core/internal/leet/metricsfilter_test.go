@@ -6,19 +6,19 @@ import (
 	"sync"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
 )
 
 type ComponentWithContentFilter interface {
-	UpdateFilterDraft(msg tea.KeyMsg)
+	UpdateFilterDraft(msg tea.KeyPressMsg)
 }
 
 func typeString(c ComponentWithContentFilter, s string) {
 	for _, r := range s {
-		c.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		c.UpdateFilterDraft(tea.KeyPressMsg{Code: r})
 	}
 }
 
@@ -240,8 +240,8 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 
 	// Start typing "lo", then cancel (Esc behavior).
 	grid.EnterFilterMode()
-	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
-	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	grid.UpdateFilterDraft(tea.KeyPressMsg{Code: 'l'})
+	grid.UpdateFilterDraft(tea.KeyPressMsg{Code: 'o'})
 	require.GreaterOrEqual(t, grid.FilteredChartCount(), 1)
 	grid.ExitFilterMode(false) // cancel
 
@@ -252,9 +252,9 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 
 	// Start another filter "acc", add data while typing, then apply.
 	grid.EnterFilterMode()
-	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	grid.UpdateFilterDraft(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	grid.UpdateFilterDraft(tea.KeyPressMsg{Code: 'a'})
+	grid.UpdateFilterDraft(tea.KeyPressMsg{Code: 'c'})
+	grid.UpdateFilterDraft(tea.KeyPressMsg{Code: 'c'})
 	m = leet.HistoryMsg{Metrics: map[string]leet.MetricData{
 		"val/loss": {X: []float64{1}, Y: []float64{5}},
 	}}

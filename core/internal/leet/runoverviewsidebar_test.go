@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
@@ -180,25 +180,25 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 	s.Sync()
 
 	// Start in Environment; Tab to Config (navigateSection).
-	s.Update(tea.KeyMsg{Type: tea.KeyTab})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	key, _ := s.SelectedItem()
 	require.True(t, strings.HasPrefix(key, "alpha.") || strings.HasPrefix(key, "beta."))
 
 	// Height=15 -> 1 item/page; Down moves to next page/next item (navigateDown + navigatePage).
 	_ = s.View(15)
-	s.Update(tea.KeyMsg{Type: tea.KeyDown})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	key2, _ := s.SelectedItem()
 	require.NotEqual(t, key2, key)
 
 	// Page right, then left, then Up; remain in Config.
-	s.Update(tea.KeyMsg{Type: tea.KeyRight})
-	s.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	s.Update(tea.KeyMsg{Type: tea.KeyUp})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	key3, _ := s.SelectedItem()
 	require.True(t, strings.HasPrefix(key3, "alpha.") || strings.HasPrefix(key3, "beta."))
 
 	// Shift-Tab back to previous section (Environment).
-	s.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	s.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 	key4, _ := s.SelectedItem()
 	require.False(t, strings.HasPrefix(key4, "alpha.") || strings.HasPrefix(key4, "beta."))
 }
@@ -342,7 +342,7 @@ func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
 
 	// Navigate down a few items to force CurrentPage > 0.
 	for range 5 {
-		s.Update(tea.KeyMsg{Type: tea.KeyDown})
+		s.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
 
 	// Larger height -> ItemsPerPage increases. This used to panic.

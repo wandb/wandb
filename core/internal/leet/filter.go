@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // FilterMatchMode selects the string-matching engine for metric titles.
@@ -74,34 +74,36 @@ func (f *Filter) ToggleMode() {
 }
 
 // UpdateDraft updates the in-progress filter text based on provided input.
-func (f *Filter) UpdateDraft(msg tea.KeyMsg) {
-	switch msg.Type {
+func (f *Filter) UpdateDraft(msg tea.KeyPressMsg) {
+	switch msg.Code {
 	case tea.KeyBackspace:
 		if f.draft != "" {
 			f.draft = f.draft[:len(f.draft)-1]
 		}
 	case tea.KeySpace:
 		f.draft += " "
-	case tea.KeyRunes:
-		f.draft += string(msg.Runes)
+	default:
+		f.draft += msg.Text
 	}
 }
 
 // HandleKey processes a filter-mode key event, mutating filter state accordingly.
 //
 // Returns true if the filter state changed (i.e. the caller should reapply).
-func (f *Filter) HandleKey(msg tea.KeyMsg) bool {
-	switch msg.Type {
+func (f *Filter) HandleKey(msg tea.KeyPressMsg) bool {
+	switch msg.Code {
 	case tea.KeyEsc:
 		f.Cancel()
 	case tea.KeyEnter:
 		f.Commit()
 	case tea.KeyTab:
 		f.ToggleMode()
-	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
+	case tea.KeyBackspace, tea.KeySpace:
 		f.UpdateDraft(msg)
 	default:
-		return false
+		if len(msg.Text) > 0 {
+			f.UpdateDraft(msg)
+		}
 	}
 	return true
 }

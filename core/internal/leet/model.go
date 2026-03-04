@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -121,7 +121,7 @@ func NewModel(params ModelParams) *Model {
 // regardless of the starting mode. If starting in single-run mode, the run's
 // reader and watcher commands are also started.
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{windowTitleCmd()}
+	cmds := []tea.Cmd{}
 
 	// Workspace always exists; initialize its long‑running commands.
 	if m.workspace != nil {
@@ -179,17 +179,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle mode switching.
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		switch m.mode {
 		case viewModeWorkspace:
-			if keyMsg.Type == tea.KeyEnter &&
+			if keyMsg.Code == tea.KeyEnter &&
 				!awaitingUserInput &&
 				m.workspace.RunSelectorActive() {
 				cmd := m.enterRunView()
 				return m, cmd
 			}
 		case viewModeRun:
-			if keyMsg.Type == tea.KeyEsc && !awaitingUserInput {
+			if keyMsg.Code == tea.KeyEsc && !awaitingUserInput {
 				cmd := m.exitRunView()
 				return m, cmd
 			}
@@ -202,19 +202,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the UI based on the data in the model.
 //
 // Implements tea.Model.View.
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
+	vs := ""
+
 	if m.help.IsActive() {
-		return m.renderHelpScreen()
+		vs = m.renderHelpScreen()
 	}
 
 	switch m.mode {
 	case viewModeWorkspace:
-		return m.workspace.View()
+		vs = m.workspace.View().Content
 	case viewModeRun:
-		return m.run.View()
-	default:
-		return ""
+		vs = m.run.View().Content
 	}
+
+	v := tea.NewView(vs)
+
+	v.WindowTitle = "wandb leet"
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+
+	return v
 }
 
 // ShouldRestart reports whether the application should perform a full restart.

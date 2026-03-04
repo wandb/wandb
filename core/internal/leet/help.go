@@ -3,9 +3,9 @@ package leet
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/version"
 )
@@ -29,7 +29,7 @@ type HelpModel struct {
 }
 
 func NewHelp() *HelpModel {
-	vp := viewport.New(80, 20)
+	vp := viewport.New(viewport.WithHeight(80), viewport.WithHeight(20))
 	return &HelpModel{
 		viewport: vp,
 		active:   false,
@@ -134,8 +134,8 @@ func helpEntriesFromCategories[T any](categories []BindingCategory[T]) []HelpEnt
 func (h *HelpModel) SetSize(width, height int) {
 	h.width = width
 	h.height = height - StatusBarHeight
-	h.viewport.Width = width
-	h.viewport.Height = h.height
+	h.viewport.SetWidth(width)
+	h.viewport.SetHeight(h.height)
 
 	if h.active {
 		h.viewport.SetContent(h.generateHelpContent())

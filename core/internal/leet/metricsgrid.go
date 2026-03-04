@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"sync"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -51,14 +52,14 @@ type MetricsGrid struct {
 	filter *Filter
 
 	// Stable color assignment.
-	colorOfTitle map[string]lipgloss.AdaptiveColor
+	colorOfTitle map[string]compat.AdaptiveColor
 	nextColorIdx int
 
 	// Palette for main metrics charts (derived from config.ColorScheme()).
-	palette []lipgloss.AdaptiveColor
+	palette []compat.AdaptiveColor
 
 	// Palette for per-plot mode in single-run view (derived from config.PerPlotColorScheme()).
-	perPlotPalette []lipgloss.AdaptiveColor
+	perPlotPalette []compat.AdaptiveColor
 
 	// When set to ColorModePerPlot, single-series charts are colored per chart title.
 	// Default is ColorModePerSeries (stable run-id color).
@@ -88,7 +89,7 @@ func NewMetricsGrid(
 		focus:                 focus,
 		filter:                NewFilter(),
 		logger:                logger,
-		colorOfTitle:          make(map[string]lipgloss.AdaptiveColor),
+		colorOfTitle:          make(map[string]compat.AdaptiveColor),
 		palette:               palette,
 		perPlotPalette:        perPlotPalette,
 		singleSeriesColorMode: ColorModePerSeries,
@@ -211,7 +212,7 @@ func (mg *MetricsGrid) effectiveChartCountNoLock() int {
 }
 
 // colorForNoLock returns a stable color for a given metric title.
-func (mg *MetricsGrid) colorForNoLock(title string) lipgloss.AdaptiveColor {
+func (mg *MetricsGrid) colorForNoLock(title string) compat.AdaptiveColor {
 	if c, ok := mg.colorOfTitle[title]; ok {
 		return c
 	}
@@ -745,7 +746,7 @@ func (mg *MetricsGrid) broadcastEndInspection() {
 }
 
 // handleFilterKey processes a key event while the metrics filter is active.
-func (mg *MetricsGrid) handleFilterKey(msg tea.KeyMsg) {
+func (mg *MetricsGrid) handleFilterKey(msg tea.KeyPressMsg) {
 	mg.mu.Lock()
 	changed := mg.filter.HandleKey(msg)
 	mg.mu.Unlock()
@@ -757,7 +758,7 @@ func (mg *MetricsGrid) handleFilterKey(msg tea.KeyMsg) {
 }
 
 // Grid-layout config handler.
-func (mg *MetricsGrid) handleGridConfigNumberKey(msg tea.KeyMsg, layout Layout) {
+func (mg *MetricsGrid) handleGridConfigNumberKey(msg tea.KeyPressMsg, layout Layout) {
 	defer mg.config.SetPendingGridConfig(gridConfigNone)
 
 	if msg.String() == "esc" {

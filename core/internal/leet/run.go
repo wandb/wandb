@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -24,7 +24,7 @@ type Run struct {
 
 	// Configuration and key bindings.
 	config *ConfigManager
-	keyMap map[string]func(*Run, tea.KeyMsg) tea.Cmd
+	keyMap map[string]func(*Run, tea.KeyPressMsg) tea.Cmd
 
 	// Terminal dimensions.
 	width, height int
@@ -126,7 +126,6 @@ func NewRun(
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
 	return tea.Batch(
-		windowTitleCmd(),
 		InitializeReader(r.runPath, r.logger),
 		r.watcherMgr.WaitForMsg,
 	)
@@ -145,7 +144,7 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Forward UI messages to children if not in filter mode.
 	if isUIMsg(msg) && !r.metricsGrid.IsFilterMode() && !r.leftSidebar.IsFilterMode() {
-		if _, ok := msg.(tea.KeyMsg); !ok {
+		if _, ok := msg.(tea.KeyPressMsg); !ok {
 			if _, cmd := r.leftSidebar.Update(msg); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -157,7 +156,7 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Route message to appropriate handler.
 	switch t := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if c := r.handleKeyMsg(t); c != nil {
 			cmds = append(cmds, c)
 		}
@@ -243,21 +242,21 @@ func (r *Run) FocusedTitle() string {
 // View renders the UI based on the data in the model.
 //
 // Implements tea.Model.View.
-func (r *Run) View() string {
+func (r *Run) View() tea.View {
 	defer r.logPanic("View")
 
 	r.stateMu.RLock()
 	defer r.stateMu.RUnlock()
 
 	if r.width == 0 || r.height == 0 {
-		return "Loading..."
+		return tea.NewView("Loading...")
 	}
 
 	if r.isLoading {
-		return r.renderLoadingScreen()
+		return tea.NewView(r.renderLoadingScreen())
 	}
 
-	return r.renderMainView()
+	return tea.NewView(r.renderMainView())
 }
 
 // renderMainView renders the main application view.

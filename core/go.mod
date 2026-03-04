@@ -3,20 +3,21 @@ module github.com/wandb/wandb/core
 go 1.26.0
 
 require (
+	charm.land/bubbles/v2 v2.0.0
+	charm.land/bubbletea/v2 v2.0.1
+	charm.land/lipgloss/v2 v2.0.0
 	cloud.google.com/go/storage v1.60.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4
 	github.com/Khan/genqlient v0.8.1
-	github.com/NimbleMarkets/ntcharts v0.4.0
+	github.com/NimbleMarkets/ntcharts/v2 v2.0.0
 	github.com/apache/arrow-go/v18 v18.5.1
 	github.com/aws/aws-sdk-go-v2 v1.41.2
 	github.com/aws/aws-sdk-go-v2/config v1.32.10
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.2
-	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
-	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/charmbracelet/x/exp/teatest v0.0.0-20251023181713-f594ac034d6b
+	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260302105528-e9b285c73169
 	github.com/getsentry/sentry-go v0.43.0
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/google/wire v0.7.0
@@ -83,15 +84,21 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.7 // indirect
 	github.com/aws/smithy-go v1.24.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/aymanbagabas/go-udiff v0.3.1 // indirect
+	github.com/aymanbagabas/go-udiff v0.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/charmbracelet/bubbletea/v2 v2.0.0-beta.3.0.20250617194119-3f1d09f7d826 // indirect
 	github.com/charmbracelet/colorprofile v0.4.2 // indirect
+	github.com/charmbracelet/lipgloss v1.1.0 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20260223171050-89c142e4aa73 // indirect
 	github.com/charmbracelet/x/ansi v0.11.6 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
-	github.com/charmbracelet/x/exp/golden v0.0.0-20241011142426-46044092ad91 // indirect
+	github.com/charmbracelet/x/exp/golden v0.0.0-20250806222409-83e3a29d542f // indirect
+	github.com/charmbracelet/x/input v0.3.5-0.20250509021451-13796e822d86 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
+	github.com/charmbracelet/x/termios v0.1.1 // indirect
+	github.com/charmbracelet/x/windows v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
@@ -129,7 +136,7 @@ require (
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/lrstanley/bubblezone v1.0.0 // indirect
+	github.com/lrstanley/bubblezone/v2 v2.0.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect

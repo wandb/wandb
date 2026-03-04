@@ -1,6 +1,17 @@
 # cel.dev/expr v0.25.1
 ## explicit; go 1.23.0
 cel.dev/expr
+# charm.land/bubbles/v2 v2.0.0
+## explicit; go 1.24.2
+charm.land/bubbles/v2/key
+charm.land/bubbles/v2/viewport
+# charm.land/bubbletea/v2 v2.0.1
+## explicit; go 1.24.2
+charm.land/bubbletea/v2
+# charm.land/lipgloss/v2 v2.0.0
+## explicit; go 1.24.2
+charm.land/lipgloss/v2
+charm.land/lipgloss/v2/compat
 # cloud.google.com/go v0.123.0
 ## explicit; go 1.24.0
 cloud.google.com/go/internal
@@ -155,14 +166,14 @@ github.com/Microsoft/go-winio/internal/fs
 github.com/Microsoft/go-winio/internal/socket
 github.com/Microsoft/go-winio/internal/stringbuffer
 github.com/Microsoft/go-winio/pkg/guid
-# github.com/NimbleMarkets/ntcharts v0.4.0
-## explicit; go 1.22.0
-github.com/NimbleMarkets/ntcharts/canvas
-github.com/NimbleMarkets/ntcharts/canvas/buffer
-github.com/NimbleMarkets/ntcharts/canvas/graph
-github.com/NimbleMarkets/ntcharts/canvas/runes
-github.com/NimbleMarkets/ntcharts/linechart
-github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart
+# github.com/NimbleMarkets/ntcharts/v2 v2.0.0
+## explicit; go 1.24.2
+github.com/NimbleMarkets/ntcharts/v2/canvas
+github.com/NimbleMarkets/ntcharts/v2/canvas/buffer
+github.com/NimbleMarkets/ntcharts/v2/canvas/graph
+github.com/NimbleMarkets/ntcharts/v2/canvas/runes
+github.com/NimbleMarkets/ntcharts/v2/linechart
+github.com/NimbleMarkets/ntcharts/v2/linechart/timeserieslinechart
 # github.com/ProtonMail/go-crypto v1.3.0
 ## explicit; go 1.22.0
 github.com/ProtonMail/go-crypto/bitcurves
@@ -387,8 +398,8 @@ github.com/aws/smithy-go/waiter
 # github.com/aymanbagabas/go-osc52/v2 v2.0.1
 ## explicit; go 1.16
 github.com/aymanbagabas/go-osc52/v2
-# github.com/aymanbagabas/go-udiff v0.3.1
-## explicit; go 1.23
+# github.com/aymanbagabas/go-udiff v0.4.0
+## explicit; go 1.24
 github.com/aymanbagabas/go-udiff
 github.com/aymanbagabas/go-udiff/lcs
 # github.com/beorn7/perks v1.0.1
@@ -400,35 +411,47 @@ github.com/bmatcuk/doublestar/v4
 # github.com/cespare/xxhash/v2 v2.3.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/charmbracelet/bubbles v1.0.0
-## explicit; go 1.24.2
-github.com/charmbracelet/bubbles/key
-github.com/charmbracelet/bubbles/viewport
 # github.com/charmbracelet/bubbletea v1.3.10
 ## explicit; go 1.24.0
 github.com/charmbracelet/bubbletea
+# github.com/charmbracelet/bubbletea/v2 v2.0.0-beta.3.0.20250617194119-3f1d09f7d826
+## explicit; go 1.23.0
+github.com/charmbracelet/bubbletea/v2
 # github.com/charmbracelet/colorprofile v0.4.2
 ## explicit; go 1.24.2
 github.com/charmbracelet/colorprofile
 # github.com/charmbracelet/lipgloss v1.1.0
 ## explicit; go 1.18
 github.com/charmbracelet/lipgloss
+# github.com/charmbracelet/ultraviolet v0.0.0-20260223171050-89c142e4aa73
+## explicit; go 1.24.2
+github.com/charmbracelet/ultraviolet
 # github.com/charmbracelet/x/ansi v0.11.6
 ## explicit; go 1.24.2
 github.com/charmbracelet/x/ansi
+github.com/charmbracelet/x/ansi/kitty
 github.com/charmbracelet/x/ansi/parser
 # github.com/charmbracelet/x/cellbuf v0.0.15
 ## explicit; go 1.24.2
 github.com/charmbracelet/x/cellbuf
-# github.com/charmbracelet/x/exp/golden v0.0.0-20241011142426-46044092ad91
-## explicit; go 1.19
+# github.com/charmbracelet/x/exp/golden v0.0.0-20250806222409-83e3a29d542f
+## explicit; go 1.23.0
 github.com/charmbracelet/x/exp/golden
-# github.com/charmbracelet/x/exp/teatest v0.0.0-20251023181713-f594ac034d6b
+# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260302105528-e9b285c73169
 ## explicit; go 1.24.0
-github.com/charmbracelet/x/exp/teatest
+github.com/charmbracelet/x/exp/teatest/v2
+# github.com/charmbracelet/x/input v0.3.5-0.20250509021451-13796e822d86
+## explicit; go 1.23.0
+github.com/charmbracelet/x/input
 # github.com/charmbracelet/x/term v0.2.2
 ## explicit; go 1.24.0
 github.com/charmbracelet/x/term
+# github.com/charmbracelet/x/termios v0.1.1
+## explicit; go 1.18
+github.com/charmbracelet/x/termios
+# github.com/charmbracelet/x/windows v0.2.2
+## explicit; go 1.23.0
+github.com/charmbracelet/x/windows
 # github.com/clipperhouse/displaywidth v0.11.0
 ## explicit; go 1.18
 github.com/clipperhouse/displaywidth
@@ -741,9 +764,9 @@ github.com/klauspost/cpuid/v2
 ## explicit; go 1.11
 github.com/kylelemons/godebug/diff
 github.com/kylelemons/godebug/pretty
-# github.com/lrstanley/bubblezone v1.0.0
-## explicit; go 1.23.0
-github.com/lrstanley/bubblezone
+# github.com/lrstanley/bubblezone/v2 v2.0.0
+## explicit; go 1.24.2
+github.com/lrstanley/bubblezone/v2
 # github.com/lucasb-eyer/go-colorful v1.3.0
 ## explicit; go 1.12
 github.com/lucasb-eyer/go-colorful

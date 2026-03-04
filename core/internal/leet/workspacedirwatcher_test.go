@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -25,7 +25,7 @@ func TestWorkspace_PinSelectsAndPinsWhenNotSelected(t *testing.T) {
 	require.Equal(t, run1, w.TestPinnedRun())
 
 	// Unpin.
-	w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	w.Update(tea.KeyPressMsg{Code: 'p'})
 
 	require.Equal(t, 1, w.TestSelectedRunCount())
 	require.True(t, w.TestIsRunSelected(run1))
@@ -48,21 +48,21 @@ func TestWorkspace_SelectAndPinRuns_StateTransitions(t *testing.T) {
 	require.Equal(t, run1, w.TestPinnedRun())
 
 	// Move to second run + select it.
-	w.Update(tea.KeyMsg{Type: tea.KeyDown})
+	w.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	require.Equal(t, run2, w.TestCurrentRunKey())
 
-	w.Update(tea.KeyMsg{Type: tea.KeySpace})
+	w.Update(tea.KeyPressMsg{Code: tea.KeySpace})
 	require.Equal(t, 2, w.TestSelectedRunCount())
 	require.True(t, w.TestIsRunSelected(run2))
 	require.Equal(t, run1, w.TestPinnedRun(),
 		"auto-pin stays on first selection until explicitly pinned")
 
 	// Pin the second run.
-	w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	w.Update(tea.KeyPressMsg{Code: 'p'})
 	require.Equal(t, run2, w.TestPinnedRun())
 
 	// Deselect pinned run => pin clears (current behavior).
-	w.Update(tea.KeyMsg{Type: tea.KeySpace})
+	w.Update(tea.KeyPressMsg{Code: tea.KeySpace})
 	require.Equal(t, 1, w.TestSelectedRunCount())
 	require.False(t, w.TestIsRunSelected(run2))
 	require.Equal(t, "", w.TestPinnedRun())
