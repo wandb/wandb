@@ -908,59 +908,44 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
     Create a sweep using the configuration defined in `sweep_config.yaml`. Use
     the current user's default entity and project.
 
-    ```bash
-    wandb sweep sweep_config.yaml
-    ```
+        $ wandb sweep sweep_config.yaml
 
     Create a sweep and store the results under the "team-awesome" entity
     and "foobar-project" project.
 
-    ```bash
-    wandb sweep -p foobar-project -e team-awesome sweep_config.yaml
-    ```
+        $ wandb sweep -p foobar-project -e team-awesome sweep_config.yaml
 
     Update sweep `abcd1234` with a new configuration from `sweep_config.yaml`.
     This is useful for changing the parameters or search strategy of an
     active sweep.
 
-    ```bash
-    wandb sweep --update abcd1234 sweep_config.yaml
-    ```
+        $ wandb sweep --update abcd1234 sweep_config.yaml
 
     Stop sweep `abcd1234` under the "team-awesome" entity and "foobar-project" project.
 
-    ```bash
-    wandb sweep --stop team-awesome/foobar-project/abcd1234
-    ```
+        $ wandb sweep --stop team-awesome/foobar-project/abcd1234
 
     Cancel sweep `abcd1234` in the current user's default entity and project.
 
-    ```bash
-    wandb sweep --cancel abcd1234
-    ```
+        $ wandb sweep --cancel abcd1234
 
     Pause sweep `abcd1234` in the current user's default entity and
     project. Later, resume the sweep.
 
-    ```bash
-    wandb sweep --pause abcd1234
-    wandb sweep --resume abcd1234
-    ```
+        $ wandb sweep --pause abcd1234
+        $ wandb sweep --resume abcd1234
 
     Create a sweep with a local controller that uses the configuration
     in `sweep_config.yaml`.
 
-    ```bash
-    wandb sweep --controller sweep_config.yaml
-    ```
+        $ wandb sweep --controller sweep_config.yaml
     
     Create a new sweep and include two previously completed runs
     (run ID `abcd1234` and run ID `efgh5678`) so their results are incorporated
     into the sweep's hyperparameter search.
 
-    ```bash
-    wandb sweep -R abcd1234 -R efgh5678 sweep_config.yaml
-    ```
+        $ wandb sweep -R abcd1234 -R efgh5678 sweep_config.yaml
+
     """,
 )
 @click.option(
@@ -1979,28 +1964,21 @@ def launch_agent(
 
     Start an agent for a sweep with a sweep ID of "wbyz9876"
 
-    ```bash
-    wandb agent wbyz9876
-    ```
+        $ wandb agent wbyz9876
 
     Start an agent with a run limit of 10 runs for the sweep
 
-    ```bash
-    wandb agent --count 10 wbyz9876
-    ```
+        $ wandb agent --count 10 wbyz9876
 
     Start an agent for a sweep and save it to a project
     called "sweeps-project" that belongs to the "team-awesome" entity
 
-    ```bash
-    wandb agent -p sweeps-project -e team-awesome wbyz9876
-    ```
+        $ wandb agent -p sweeps-project -e team-awesome wbyz9876
 
     Forward signals to child runs for clean shutdown
 
-    ```bash
-    wandb agent --forward-signals wbyz9876
-    ```
+        $ wandb agent --forward-signals wbyz9876
+
     """,
 )
 @click.pass_context
@@ -2374,9 +2352,7 @@ def create(
 
     Start a local sweep controller for a sweep with sweep ID "wbyz9876"
 
-    ```bash
-    wandb controller wbyz9876
-    ```
+        $ wandb controller wbyz9876
     """
     )
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output from controller.")
@@ -2412,9 +2388,7 @@ def docker_run(ctx, docker_run_args):
     Run `python train.py` inside the "my-image" container. W&B automatically
     injects your API key and the resolved image ID.
 
-    ```
-    wandb docker-run my-image python train.py
-    ```
+        $ wandb docker-run my-image python train.py
     """
     import wandb.docker
 
@@ -2498,11 +2472,9 @@ def docker(
     image name. If you do not specify an image, select a default image
     automatically.
 
-    ```sh
-    wandb docker -v /mnt/dataset:/app/data
-    wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
-    wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
-    ```
+        $ wandb docker -v /mnt/dataset:/app/data
+        $ wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
+        $ wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py --epochs=5"
 
     Override the container entrypoint by default to ensure ``wandb`` is
     installed. If you pass ``--jupyter``, ensure Jupyter is installed and
@@ -2643,21 +2615,16 @@ def server():
 
     Launch a local W&B server on port 8080 in the background.
 
-    ```bash
-    wandb server start
-    ```
+        $ wandb server start
 
     Run the server on port 9090 instead of the default 8080.
 
-    ```bash
-    wandb server start -p 9090
-    ```
+        $ wandb server start -p 9090
 
     Run the server in the foreground so logs stream directly to the terminal
 
-    ```bash
-    wandb server start --no-daemon
-    ```
+        $ wandb server start --no-daemon
+
     """)
 @click.pass_context
 @click.option(
@@ -2773,9 +2740,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
 
     Examples:
 
-    ```bash
-    wandb server stop
-    ```
+        $ wandb server stop
     """)
 def stop():
     if not _HAS_DOCKER:
@@ -2805,33 +2770,24 @@ def artifact():
 
     Upload all files in a local directory ./data/training as a dataset artifact in W&B.
 
-    ```bash
-    wandb artifact put --type dataset ./data/training
-    ```
+        $ wandb artifact put --type dataset ./data/training
 
     Upload "model.pt" to the "foobar" project and assign "trained-model" as the artifact name.
 
-    ```bash
-    wandb artifact put --name foobar/trained-model --type model ./model.pt
-    ```
+        $ wandb artifact put --name foobar/trained-model --type model ./model.pt
 
     Tag the artifact with both "latest" and "v2.0" so it can be referenced by either alias.
 
-    ```bash
-    wandb artifact put --alias latest --alias v2.0 --type model ./model.pt
-    ``` 
+        $ wandb artifact put --alias latest --alias v2.0 --type model ./model.pt
 
     Record an Amazon S3 path as a reference without downloading or re-uploading the data.
 
-    ```bash
-    wandb artifact put --type dataset s3://my-bucket/datasets/training
-    ```
+        $ wandb artifact put --type dataset s3://my-bucket/datasets/training
     
     Attach a human-readable description to a dataset artifact for documentation.
 
-    ```bash
-    wandb artifact put --type dataset --description "Training data, Jan 2025" ./data/training
-    ```
+        $ wandb artifact put --type dataset --description "Training data, Jan 2025" ./data/training
+
     """,
 )
 @click.argument("path")
@@ -2937,16 +2893,12 @@ def put(
     Download the latest version of an artifact called "processed-training-set"
     from the "foobar-project" project under the "team-awesome" entity.
 
-    ```bash
-    wandb artifact get team-awesome/foobar-project/processed-training-set:latest
-    ```
+        $ wandb artifact get team-awesome/foobar-project/processed-training-set:latest
 
     Download a specific version (v2) of the "processed-training-set" artifact
     to a local directory (./data).
 
-    ```bash
-    wandb artifact get --root ./data team-awesome/foobar-project/processed-training-set:v2
-    ```
+        $ wandb artifact get --root ./data team-awesome/foobar-project/processed-training-set:v2
     """,
 )
 @click.argument("path")
@@ -3005,15 +2957,11 @@ def get(path, root, type):
 
     List all artifacts in a project called "foobar-project" under the "team-awesome" entity
 
-    ```bash
-    wandb artifact ls team-awesome/foobar-project
-    ```
+        $ wandb artifact ls team-awesome/foobar-project
 
     List only artifacts of type "model" in the same project
 
-    ```bash
-    wandb artifact ls --type model team-awesome/foobar-project
-    ```
+        $ wandb artifact ls --type model team-awesome/foobar-project
     """,
 )
 @click.argument("path")
@@ -3069,15 +3017,12 @@ def cache():
 
     Reduce the artifact cache to 10 GB
 
-    ```bash
-    wandb artifact cache cleanup 10GB
-    ```
+        $ wandb artifact cache cleanup 10GB
     
     Remove temporary files and reduce the artifact cache to 5 GB
 
-    ```bash
-    wandb artifact cache cleanup --remove-temp 5GB
-    ```
+        $ wandb artifact cache cleanup --remove-temp 5GB
+    
     """,
 )
 @click.argument("target_size")
@@ -3108,15 +3053,12 @@ def cleanup(target_size, remove_temp):
              
     Download files from a run with a run ID "abcd1234" in the default project and entity
              
-    ```bash
-    wandb pull abcd1234
-    ```
+        $ wandb pull abcd1234
              
     Download files from a run with run ID "abcd1234" in the "foobar" project and "team-awesome" entity
   
-    ```bash
-    wandb pull -p foobar -e team-awesome abcd1234
-    ```
+        $ wandb pull -p foobar -e team-awesome abcd1234
+    
 """)
 @click.argument("run", envvar=env.RUN_ID)
 @click.option(
@@ -3187,29 +3129,21 @@ def pull(run, project, entity):
 
     Restore a run with run ID "abcd1234" in the default project and entity
 
-    ```bash
-    wandb restore abcd1234
-    ```
+        $ wandb restore abcd1234
 
     Restore a run from the "foobar" project and "team-awesome" entity with
     run ID "abcd1234"
 
-    ```bash
-    wandb restore team-awesome/foobar-project:abcd1234
-    ```
+        $ wandb restore team-awesome/foobar-project:abcd1234
 
     Restore run "abcd1234" without restoring git state. Only restore config
     and Docker state.
 
-    ```bash
-    wandb restore --no-git abcd1234
-    ```
+        $ wandb restore --no-git abcd1234
 
     Restore run "abcd1234" in detached HEAD mode instead of creating a branch
 
-    ```bash
-    wandb restore --no-branch abcd1234
-    ```
+        $ wandb restore --no-branch abcd1234
     """,
 )
 @click.pass_context
@@ -3401,18 +3335,16 @@ def offline():
 
     Run a script in offline mode to log data locally without syncing to the cloud
 
-    ```bash
-    wandb offline
-    python train.py  # Logs data locally, does not sync to W&B cloud
-    ```
+        $ wandb offline
+        $ python train.py  # Logs data locally, does not sync to W&B cloud
 
     Run a script in offline mode, then sync the run to the cloud when ready
 
-    ```bash
-    wandb offline
-    python train.py
-    wandb sync --sync-all  # Sync all offline runs to the cloud
-    ```
+
+        $ wandb offline
+        $ python train.py
+        $ wandb sync --sync-all  # Sync all offline runs to the cloud
+    
 
     """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
@@ -3450,9 +3382,7 @@ def off(ctx):
 
     Show current settings
 
-    ```bash
-    wandb status
-    ```
+        $ wandb status
     """,
 )
 @click.option(
@@ -3486,16 +3416,12 @@ def status(settings):
     Turn off W&B so that the train.py script executes without logging or
     syncing data to W&B.
 
-    ```bash
-    wandb disabled
-    python train.py  # Does not log or sync data to W&B
-    ```
+        $ wandb disabled
+        $ python train.py  # Does not log or sync data to W&B
 
     Restore W&B functionality when ready to log and sync again
 
-    ```bash
-    wandb enabled
-    ```
+        $ wandb enabled
     """
     )
 @click.option(
@@ -3530,10 +3456,8 @@ def disabled(service):
 
     Restore W&B functionality after deactivating it with `wandb disabled`
 
-    ```bash
-    wandb enabled
-    python train.py # Log and sync data to W&B
-    ```
+        $ wandb enabled
+        $ python train.py # Log and sync data to W&B
     """
     )
 @click.option(
