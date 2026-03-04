@@ -2344,7 +2344,7 @@ def create(
     can use this command to debug behavior or operate in environments with
     limited connectivity.
 
-    ``sweep_id`` is printed by `wandb sweep` when you create a sweep. It
+    `sweep_id` is printed by `wandb sweep` when you create a sweep. It
     consists of a unique identifier for the sweep and may include the
     entity and project path (`entity/project/sweep_id`).
 
@@ -2372,15 +2372,15 @@ def controller(verbose, sweep_id):
 def docker_run(ctx, docker_run_args):
     """Wrap `docker run` and inject W&B environment variables automatically.
 
-    Pass all arguments through to ``docker run`` while injecting:
+    Pass all arguments through to `docker run` while injecting:
 
-    - ``WANDB_API_KEY`` — Use the current API key so the container can
+    - `WANDB_API_KEY` — Use the current API key so the container can
     authenticate with W&B without manual configuration.
-    - ``WANDB_DOCKER`` — Record the resolved image ID so W&B can track
+    - `WANDB_DOCKER` — Record the resolved image ID so W&B can track
     which Docker image produced the run.
 
-    If ``nvidia-docker`` is detected on the host and ``--runtime`` is not
-    already set, add ``--runtime nvidia`` to the command to enable GPU support
+    If `nvidia-docker` is detected on the host and `--runtime` is not
+    already set, add `--runtime nvidia` to the command to enable GPU support
     by default.
 
     Examples:
@@ -2464,27 +2464,27 @@ def docker(
     """Run your code in a docker container.
 
     Run your program inside a Docker image with W&B configured. Set the
-    ``WANDB_DOCKER`` and ``WANDB_API_KEY`` environment variables in the
-    container and mount the current working directory at ``/app`` by
+    `WANDB_DOCKER` and `WANDB_API_KEY` environment variables in the
+    container and mount the current working directory at `/app` by
     default.
 
-    Pass additional arguments to insert them into ``docker run`` before the
+    Pass additional arguments to insert them into `docker run` before the
     image name. If you do not specify an image, select a default image
     automatically.
 
-    Override the container entrypoint by default to ensure ``wandb`` is
-    installed. If you pass ``--jupyter``, ensure Jupyter is installed and
+    Override the container entrypoint by default to ensure `wandb` is
+    installed. If you pass `--jupyter`, ensure Jupyter is installed and
     start JupyterLab on port 8888.
 
     If NVIDIA Docker is available, use the NVIDIA runtime automatically.
 
-    To set W&B environment variables for an existing ``docker run``
-    command without modifying the entrypoint, use ``wandb docker-run``.
+    To set W&B environment variables for an existing `docker run`
+    command without modifying the entrypoint, use `wandb docker-run`.
 
     Examples:
 
-    Run the default W&B Docker image and mount ``/mnt/dataset`` into the container
-    at ``/app/data``.
+    Run the default W&B Docker image and mount `/mnt/dataset` into the container
+    at `/app/data`.
 
         $ wandb docker -v /mnt/dataset:/app/data
 
@@ -2748,8 +2748,8 @@ def start(ctx, port, env, daemon, upgrade, edge):
 @server.command(context_settings=RUN_CONTEXT,
     help="""Stop a running local W&B server.
 
-    Stops the Docker container named ``wandb-local`` that was started
-    by ``wandb server start``. Requires Docker to be installed.
+    Stops the Docker container named `wandb-local` that was started
+    by `wandb server start`. Requires Docker to be installed.
 
     Examples:
 
@@ -3326,7 +3326,7 @@ def online():
     Clear the offline mode setting so subsequent runs in this directory
     sync data to the W&B cloud.
 
-    Undo a previous call to ``wandb offline``.
+    Undo a previous call to `wandb offline`.
     """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
     system_settings.clear("mode")
@@ -3348,15 +3348,15 @@ def offline():
 
     Run a script in offline mode to log data locally without syncing to the cloud
 
-        $ wandb offline
-        $ python train.py  # Logs data locally, does not sync to W&B cloud
+        $ wandb offline && python train.py
 
-    Run a script in offline mode, then sync the run to the cloud when ready
+    Run a script in offline mode
 
-        $ wandb offline
-        $ python train.py
-        $ wandb sync --sync-all  # Sync all offline runs to the cloud
-    
+        $ wandb offline && python train.py
+
+    At a later time, sync all offline runs to the cloud
+
+        $ wandb sync --sync-all
 
     """
     system_settings = wandb_setup.singleton().settings.read_system_settings()
@@ -3465,7 +3465,7 @@ def disabled(service):
     new data to be logged and synced.
 
     To switch between online and offline modes without fully deactivating W&B,
-    use ``wandb online`` or ``wandb offline`` instead.
+    use `wandb online` or `wandb offline` instead.
 
     Examples:
 
