@@ -15,6 +15,11 @@ SWEEP_CONFIG_GRID: dict[str, Any] = {
     "method": "grid",
     "parameters": {"param1": {"values": [1, 2, 3]}},
 }
+SWEEP_CONFIG_GRID_PARAM_WHITESPACE: dict[str, Any] = {
+    "name": "mock-sweep-grid",
+    "method": "grid",
+    "parameters": {"param1": {"values": ["one two", "three four", "\"five six\""]}},
+}
 SWEEP_CONFIG_GRID_HYPERBAND: dict[str, Any] = {
     "name": "mock-sweep-grid-hyperband",
     "method": "grid",
@@ -121,6 +126,7 @@ VALID_SWEEP_CONFIGS_ALL: list[dict[str, Any]] = [
     SWEEP_CONFIG_GRID,
     SWEEP_CONFIG_GRID_NESTED,
     SWEEP_CONFIG_GRID_HYPERBAND,
+    SWEEP_CONFIG_GRID_PARAM_WHITESPACE
 ]
 
 
@@ -212,6 +218,10 @@ def test_nones_validation():
     assert filled["parameters"]["param1"]["values"] == [None, 1, 2, 3]
     assert filled["parameters"]["param2"]["value"] is None
 
+def test_whitespace_parameters():
+    api = wandb.apis.InternalApi()
+    filled = api.api._validate_config_and_fill_distribution(SWEEP_CONFIG_GRID_PARAM_WHITESPACE)
+    assert filled["parameters"]["param1"]["values"] == ["one two", "three four", "\"five six\""]
 
 @pytest.mark.parametrize("stop_method", ["cancel", "stop"])
 def test_sweep_pause(runner, user, mocker, stop_method, monkeypatch):
