@@ -3056,23 +3056,23 @@ def cleanup(target_size, remove_temp):
 @cli.command(context_settings=CONTEXT,
     help="""Download files from a W&B run.
 
-    Fetch all files assoicated with the specified run. Skip files that already
+    Fetch all files associated with the specified run. Skip files that already
     exist locally with the same content. Create subdirectories as needed to
     mirror the structure of the files in W&B.
-    
+
     Use the run ID to reference the run, and optionally specify the project
     and entity if not included in the run argument.
-             
+
     Examples:
-             
+
     Download files from a run with a run ID "abcd1234" in the default project and entity
-             
+
         $ wandb pull abcd1234
-             
+
     Download files from a run with run ID "abcd1234" in the "foobar" project and "team-awesome" entity
-  
+
         $ wandb pull -p foobar -e team-awesome abcd1234
-    
+
 """)
 @click.argument("run", envvar=env.RUN_ID)
 @click.option(
@@ -3323,7 +3323,7 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
 @display_error
 def online():
     """Re-enable cloud syncing for W&B runs.
-    
+
     Clear the offline mode setting so subsequent runs in this directory
     sync data to the W&B cloud.
 
@@ -3430,7 +3430,7 @@ def status(settings):
     syncing data to W&B.
 
         $ wandb disabled
-    
+
     Train the model without logging or syncing to W&B
 
         $ python train.py  # Does not log or sync data to W&B
@@ -3460,7 +3460,7 @@ def disabled(service):
 
     Set the mode to `online` to restore full W&B functionality,
     including cloud syncing and artifact storage.
-    
+
     Undos a previous call to `wandb disabled`. Do not
     upload data logged while W&B was set to `disabled`, but allow
     new data to be logged and synced.
@@ -3470,11 +3470,11 @@ def disabled(service):
 
     Examples:
 
-    Restore W&B functionality after deactivating it with `wandb disabled`
+    Restore W&B functionality after deactivating it with `wandb disabled`:
 
         $ wandb enabled
-    
-    Run training script with W&B logging and syncing restored
+
+    Run training script with W&B logging and syncing restored:
 
         $ python train.py # Log and sync data to W&B
     """
@@ -3527,8 +3527,8 @@ def enabled(service):
         $ wandb verify --host https://my-wandb-instance.com
 
     Verify a specific self-hosted instance.
-    
-        $ wandb verify --host https://my-wandb-server.example.com 
+
+        $ wandb verify --host https://my-wandb-server.example.com
 
 """,
 )
