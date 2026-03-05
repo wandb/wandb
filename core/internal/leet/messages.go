@@ -130,12 +130,15 @@ type WorkspaceFileChangedMsg struct {
 	RunKey string
 }
 
-// WorkspaceRunDirsMsg is emitted after polling the wandb directory.
+// WorkspaceRunDiscoveryMsg is emitted after discovering available runs
+// (either by polling the filesystem or querying the backend).
 //
-// RunKeys contains the set of run directory names (e.g. "run-..." / "offline-run-...").
+// RunKeys contains run identifiers: which is either a directory name for local workspace,
+// or a run ID for remote workspace.
+//
 // If Err is non-nil, RunKeys may be nil and callers should treat the snapshot
 // as unusable.
-type WorkspaceRunDirsMsg struct {
+type WorkspaceRunDiscoveryMsg struct {
 	RunKeys []string
 	Err     error
 }
