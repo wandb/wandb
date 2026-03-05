@@ -3,9 +3,10 @@ query QueryProjectRuns(
     $project: String!,
     $first: Int,
     $order: String,
+    $cursor: String,
 ) {
     project(name: $project, entityName: $entity) {
-        runs(first: $first, order: $order) {
+        runs(first: $first, order: $order, after: $cursor) {
             edges {
                 node {
                     name
@@ -14,6 +15,10 @@ query QueryProjectRuns(
                     createdAt
                     summaryMetrics
                 }
+            }
+            pageInfo {
+                endCursor
+                hasNextPage
             }
         }
     }
