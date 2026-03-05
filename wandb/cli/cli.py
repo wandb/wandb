@@ -3369,15 +3369,15 @@ def offline():
 
     Examples:
 
-    Run a script in offline mode to log data locally without syncing to the cloud
+    Run a script in offline mode to log data locally without syncing to the cloud:
 
         $ wandb offline && python train.py
 
-    Run a script in offline mode
+    Run a script in offline mode:
 
         $ wandb offline && python train.py
 
-    At a later time, sync all offline runs to the cloud
+    At a later time, sync all offline runs to the cloud:
 
         $ wandb sync --sync-all
 
@@ -3415,7 +3415,7 @@ def off(ctx):
 
     Examples:
 
-    Show current settings
+    Show current settings:
 
         $ wandb status
     """,
@@ -3450,15 +3450,15 @@ def status(settings):
     Examples:
 
     Turn off W&B so that the train.py script executes without logging or
-    syncing data to W&B.
+    syncing data to W&B:
 
         $ wandb disabled
 
-    Train the model without logging or syncing to W&B
+    Next, train the model without logging or syncing to W&B:
 
         $ python train.py  # Does not log or sync data to W&B
 
-    Restore W&B functionality when ready to log and sync again
+    Restore W&B functionality when ready to log and sync again:
 
         $ wandb enabled
     """,
@@ -3546,11 +3546,11 @@ def enabled(service):
 
     Examples:
 
-    Verify the currently configured W&B instance.
+    Verify the currently configured W&B instance:
     
         $ wandb verify --host https://my-wandb-instance.com
 
-    Verify a specific self-hosted instance.
+    Verify a specific self-hosted instance:
 
         $ wandb verify --host https://my-wandb-server.example.com
 
