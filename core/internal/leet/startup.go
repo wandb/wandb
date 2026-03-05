@@ -149,8 +149,27 @@ func CreateModelParams(
 		}
 	}
 
+	// If no explicit run was requested, check if the config says to open the
+	// latest run in single-run view. This resolves the latest-run symlink
+	// from the wandb directory.
+	if runParams == nil && startupArgs.WandbDir != "" {
+		cfg := NewConfigManager(leetConfigPath(), logger)
+		if cfg.StartupMode() == StartupModeSingleRunLatest {
+			latest, err := wandbFileFromLatestRunLink(startupArgs.WandbDir)
+			if err != nil {
+				logger.Error(fmt.Sprintf("startup: failed to find latest run: %v", err))
+			}
+			if latest != "" {
+				runParams = &RunParams{
+					LocalRunParams: &LocalRunParams{
+						RunFile: latest,
+					},
+				}
+			}
+		}
+	}
+
 	return &ModelParams{
-		WandbDir:  startupArgs.WandbDir,
 		Backend:   backend,
 		RunParams: runParams,
 		Logger:    logger,
