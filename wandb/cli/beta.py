@@ -50,10 +50,10 @@ def leet(
 ) -> None:
     """Launch W&B LEET: the Lightweight Experiment Exploration Tool.
 
-    LEET is a terminal UI for viewing a W&B run specified by an optional PATH.
+    LEET is a terminal UI for viewing a W&B run specified by an optional `PATH`.
 
-    PATH can include a .wandb file or a run directory containing a .wandb file.
-    If PATH is not provided, the command will look for the latest run.
+    `PATH` can include a `.wandb` file or a run directory containing a `.wandb` file.
+    If `PATH` is not provided, the command will look for the latest run.
     """
     from . import beta_leet
 
@@ -148,26 +148,26 @@ def sync(
     verbose: bool,
     n: int,
 ) -> None:
-    """Upload .wandb files specified by PATHS.
+    """Upload `.wandb` files specified by `PATHS`.
 
     This is a beta re-implementation of `wandb sync`.
     It is not feature complete, not guaranteed to work, and may change
     in backward-incompatible ways in any release of wandb.
 
-    PATHS can include .wandb files, run directories containing .wandb files,
+    `PATHS` can include `.wandb` files, run directories containing `.wandb` files,
     and "wandb" directories containing run directories.
 
     For example, to sync all runs in a directory:
 
-        wandb beta sync ./wandb
+        $ wandb beta sync ./wandb
 
     To sync a specific run:
 
-        wandb beta sync ./wandb/run-20250813_124246-n67z9ude
+        $ wandb beta sync ./wandb/run-20250813_124246-n67z9ude
 
     Or equivalently:
 
-        wandb beta sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
+        $ wandb beta sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
     """
     from . import beta_sync
 
