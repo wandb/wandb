@@ -39,6 +39,9 @@ type RemoteWorkspaceBackend struct {
 	runInfos map[string]*RunInfo
 
 	logger *observability.CoreLogger
+
+	hasMore bool
+	cursor  *string
 }
 
 // NewRemoteWorkspaceBackend creates a backend for a remote W&B project.
@@ -72,13 +75,14 @@ func NewRemoteWorkspaceBackend(
 	})
 
 	return &RemoteWorkspaceBackend{
-		baseURL:  baseURL,
-		entity:   entity,
-		project:  project,
-		runInfos: make(map[string]*RunInfo),
-		logger:   logger,
+		baseURL:       baseURL,
+		entity:        entity,
+		project:       project,
+		runInfos:      make(map[string]*RunInfo),
+		logger:        logger,
+		hasMore:       false,
 		graphqlClient: graphqlClient,
-		httpClient: httpClient,
+		httpClient:    httpClient,
 	}
 }
 
@@ -101,6 +105,7 @@ func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
 			project,
 			&first,
 			&order,
+			b.cursor,
 		)
 		if err != nil {
 			return WorkspaceRunDiscoveryMsg{Err: err}
@@ -112,8 +117,10 @@ func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
 			}
 		}
 
+		b.hasMore = response.Project.Runs.PageInfo.HasNextPage
+		b.cursor = response.Project.Runs.PageInfo.EndCursor
+
 		edges := response.Project.Runs.Edges
-		runKeys := make([]string, 0, len(edges))
 		for _, edge := range edges {
 			node := edge.Node
 			runKey := node.Name
@@ -141,7 +148,10 @@ func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
 				runSummary,
 				displayName,
 			)
+		}
 
+		runKeys := make([]string, 0, len(b.runInfos))
+		for runKey := range b.runInfos {
 			runKeys = append(runKeys, runKey)
 		}
 
@@ -151,7 +161,11 @@ func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
 
 func (b *RemoteWorkspaceBackend) NextDiscoveryCmd() tea.Cmd {
 	// Remote workspaces only poll once during startup.
-	return nil
+	if !b.hasMore {
+		return nil
+	}
+
+	return b.DiscoverRunsCmd(0)
 }
 
 func (b *RemoteWorkspaceBackend) InitReaderCmd(runKey string) tea.Cmd {
