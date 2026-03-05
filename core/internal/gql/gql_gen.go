@@ -1002,12 +1002,18 @@ func (v *QueryProjectRunsProject) GetRuns() *QueryProjectRunsProjectRunsRunConne
 
 // QueryProjectRunsProjectRunsRunConnection includes the requested fields of the GraphQL type RunConnection.
 type QueryProjectRunsProjectRunsRunConnection struct {
-	Edges []QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge `json:"edges"`
+	Edges    []QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge `json:"edges"`
+	PageInfo QueryProjectRunsProjectRunsRunConnectionPageInfo       `json:"pageInfo"`
 }
 
 // GetEdges returns QueryProjectRunsProjectRunsRunConnection.Edges, and is useful for accessing the field via an interface.
 func (v *QueryProjectRunsProjectRunsRunConnection) GetEdges() []QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge {
 	return v.Edges
+}
+
+// GetPageInfo returns QueryProjectRunsProjectRunsRunConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnection) GetPageInfo() QueryProjectRunsProjectRunsRunConnectionPageInfo {
+	return v.PageInfo
 }
 
 // QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge includes the requested fields of the GraphQL type RunEdge.
@@ -1050,6 +1056,20 @@ func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetCreated
 // GetSummaryMetrics returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.SummaryMetrics, and is useful for accessing the field via an interface.
 func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetSummaryMetrics() *string {
 	return v.SummaryMetrics
+}
+
+// QueryProjectRunsProjectRunsRunConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type QueryProjectRunsProjectRunsRunConnectionPageInfo struct {
+	EndCursor   *string `json:"endCursor"`
+	HasNextPage bool    `json:"hasNextPage"`
+}
+
+// GetEndCursor returns QueryProjectRunsProjectRunsRunConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionPageInfo) GetEndCursor() *string { return v.EndCursor }
+
+// GetHasNextPage returns QueryProjectRunsProjectRunsRunConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
 }
 
 // QueryProjectRunsResponse is returned by QueryProjectRuns on success.
@@ -2099,6 +2119,7 @@ type __QueryProjectRunsInput struct {
 	Project string  `json:"project"`
 	First   *int    `json:"first"`
 	Order   *string `json:"order"`
+	Cursor  *string `json:"cursor"`
 }
 
 // GetEntity returns __QueryProjectRunsInput.Entity, and is useful for accessing the field via an interface.
@@ -2112,6 +2133,9 @@ func (v *__QueryProjectRunsInput) GetFirst() *int { return v.First }
 
 // GetOrder returns __QueryProjectRunsInput.Order, and is useful for accessing the field via an interface.
 func (v *__QueryProjectRunsInput) GetOrder() *string { return v.Order }
+
+// GetCursor returns __QueryProjectRunsInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__QueryProjectRunsInput) GetCursor() *string { return v.Cursor }
 
 // __QueryRunInfoInput is used internally by genqlient
 type __QueryRunInfoInput struct {
@@ -3059,9 +3083,9 @@ func OrganizationCoreWeaveOrganizationID(
 
 // The query executed by QueryProjectRuns.
 const QueryProjectRuns_Operation = `
-query QueryProjectRuns ($entity: String!, $project: String!, $first: Int, $order: String) {
+query QueryProjectRuns ($entity: String!, $project: String!, $first: Int, $order: String, $cursor: String) {
 	project(name: $project, entityName: $entity) {
-		runs(first: $first, order: $order) {
+		runs(first: $first, order: $order, after: $cursor) {
 			edges {
 				node {
 					name
@@ -3070,6 +3094,10 @@ query QueryProjectRuns ($entity: String!, $project: String!, $first: Int, $order
 					createdAt
 					summaryMetrics
 				}
+			}
+			pageInfo {
+				endCursor
+				hasNextPage
 			}
 		}
 	}
@@ -3083,6 +3111,7 @@ func QueryProjectRuns(
 	project string,
 	first *int,
 	order *string,
+	cursor *string,
 ) (data_ *QueryProjectRunsResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "QueryProjectRuns",
@@ -3092,6 +3121,7 @@ func QueryProjectRuns(
 			Project: project,
 			First:   first,
 			Order:   order,
+			Cursor:  cursor,
 		},
 	}
 

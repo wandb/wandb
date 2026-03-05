@@ -840,6 +840,7 @@ func TestCreateModelParams_LocalRun(t *testing.T) {
 }
 
 func TestCreateModelParams_RemoteRun(t *testing.T) {
+	t.Setenv("WANDB_API_KEY", "test-api-key")
 	baseURL := "https://api.wandb.ai"
 	entity := "test-entity"
 	project := "test-project"
