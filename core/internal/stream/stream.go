@@ -235,9 +235,14 @@ func (s *Stream) maybeSavingToTransactionLog(
 }
 
 // HandleRecord ingests a record from the client.
-func (s *Stream) HandleRecord(record *spb.Record) {
+func (s *Stream) HandleRecord(record *spb.Record, request *runwork.Request) {
 	s.logger.Debug("handling record", "record", record.GetRecordType())
-	work := s.recordParser.Parse(record)
+
+	work := runwork.Work{
+		WorkImpl: s.recordParser.Parse(record),
+		Request:  request,
+	}
+
 	work.Schedule(&sync.WaitGroup{}, func() { s.runWork.AddWork(work) })
 }
 
@@ -263,7 +268,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 				ExitCode: exitCode,
 			}},
 		Control: &spb.Control{AlwaysSend: true},
-	})
+	}, nil)
 
 	s.Close()
 

@@ -726,13 +726,17 @@ func TestHandlePartialHistory(t *testing.T) {
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
-				inChan <- runwork.WorkRecord{Record: record}
+				inChan <- runwork.NoRequest(
+					runwork.WorkRecord{Record: record},
+				)
 			}
 
-			inChan <- runwork.WorkRecord{Record: makeFlushRecord()}
+			inChan <- runwork.NoRequest(
+				runwork.WorkRecord{Record: makeFlushRecord()},
+			)
 
 			for i, d := range tc.expected {
-				record := (<-handler.OutChan()).(runwork.WorkRecord).Record
+				record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
 				actual := makeOutput(record)
 				assert.Equal(t, d.step, actual.step, "wrong step in record %d", i)
 				for k, v := range d.items {
@@ -824,13 +828,17 @@ func TestHandleHistory(t *testing.T) {
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
-				inChan <- runwork.WorkRecord{Record: record}
+				inChan <- runwork.NoRequest(
+					runwork.WorkRecord{Record: record},
+				)
 			}
 
-			inChan <- runwork.WorkRecord{Record: makeFlushRecord()}
+			inChan <- runwork.NoRequest(
+				runwork.WorkRecord{Record: makeFlushRecord()},
+			)
 
 			for _, d := range tc.expected {
-				record := (<-handler.OutChan()).(runwork.WorkRecord).Record
+				record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
 				actual := makeOutput(record)
 				if actual.step != d.step {
 					t.Errorf("expected step %v, got %v", d.step, actual.step)
@@ -861,9 +869,9 @@ func TestHandleHeader(t *testing.T) {
 			Header: &spb.HeaderRecord{},
 		},
 	}
-	inChan <- runwork.WorkRecord{Record: record}
+	inChan <- runwork.NoRequest(runwork.WorkRecord{Record: record})
 
-	record = (<-handler.OutChan()).(runwork.WorkRecord).Record
+	record = (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
 
 	versionInfo := fmt.Sprintf("%s+%s", version.Version, sha)
 	assert.Equal(
@@ -963,13 +971,13 @@ func TestHandleDerivedSummary(t *testing.T) {
 			handler := makeHandler(t, inChan, "" /*commit*/, tc.skipDerivedSummary)
 
 			for _, record := range tc.records {
-				inChan <- runwork.WorkRecord{Record: record}
+				inChan <- runwork.NoRequest(runwork.WorkRecord{Record: record})
 			}
 
 			seenSummaryRecords := 0
 			for range tc.expectedSummaryRecords + tc.expectedHistoryRecords + tc.expectedExitRecords {
 				work := <-handler.OutChan()
-				record := work.(runwork.WorkRecord).Record
+				record := work.WorkImpl.(runwork.WorkRecord).Record
 				if _, ok := record.GetRecordType().(*spb.Record_Summary); ok {
 					seenSummaryRecords++
 				}
