@@ -15,11 +15,15 @@ func TestWorkspace_PinSelectsAndPinsWhenNotSelected(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(
+		leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+		cfg,
+		logger,
+	)
 	require.Equal(t, 0, w.TestSelectedRunCount())
 
 	run1 := "run-20250731_170606-iazb7i1k"
-	w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1}})
+	w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{run1}})
 
 	require.Equal(t, 1, w.TestSelectedRunCount()) // autoselect and pin
 	require.Equal(t, run1, w.TestPinnedRun())
@@ -36,11 +40,15 @@ func TestWorkspace_SelectAndPinRuns_StateTransitions(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(
+		leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+		cfg,
+		logger,
+	)
 
 	run1 := "run-20250731_170606-iazb7i1k"
 	run2 := "run-20250731_170607-zzzzzzzz"
-	w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{run1, run2}})
+	w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{run1, run2}})
 
 	// First run is autoselected.
 	require.Equal(t, 1, w.TestSelectedRunCount())
@@ -72,7 +80,11 @@ func TestWorkspace_RunOverviewPreloads_BoundedConcurrency(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(
+		leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+		cfg,
+		logger,
+	)
 
 	runKeys := []string{
 		"run-20250731_170606-a1aaaaaa",
@@ -85,7 +97,7 @@ func TestWorkspace_RunOverviewPreloads_BoundedConcurrency(t *testing.T) {
 	}
 
 	// Seeds queue and starts up to maxConcurrentPreloads immediately.
-	w.Update(leet.WorkspaceRunDirsMsg{RunKeys: runKeys})
+	w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: runKeys})
 
 	require.Equal(t, 4, w.TestRunOverviewPreloadsInFlight())
 	require.Equal(t, 3, w.TestRunOverviewPreloadQueueLen())

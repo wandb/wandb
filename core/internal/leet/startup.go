@@ -101,32 +101,57 @@ func CreateModelParams(
 	startupArgs *StartupArgs,
 	logger *observability.CoreLogger,
 ) *ModelParams {
-	var wandbDir string
-	var runParams *RunParams
-	if startupArgs.BaseURL != nil && *startupArgs.BaseURL != "" {
-		logger.Debug("remote run because base URL is set")
-		runParams = &RunParams{
-			RemoteRunParams: &RemoteRunParams{
-				BaseURL: *startupArgs.BaseURL,
-				Entity:  *startupArgs.Entity,
-				Project: *startupArgs.Project,
-				RunId:   *startupArgs.RunId,
-			},
-		}
-	} else {
-		wandbDir = startupArgs.WandbDir
+	hasBaseURL := startupArgs.BaseURL != nil && *startupArgs.BaseURL != ""
+	hasRunId := startupArgs.RunId != nil && *startupArgs.RunId != ""
 
-		if *startupArgs.RunFile != "" {
+	if hasBaseURL {
+		backend := NewRemoteWorkspaceBackend(
+			*startupArgs.BaseURL,
+			*startupArgs.Entity,
+			*startupArgs.Project,
+			logger,
+		)
+
+		var runParams *RunParams
+		if hasRunId {
+			logger.Debug("remote single-run view because base URL and run-id are set")
 			runParams = &RunParams{
-				LocalRunParams: &LocalRunParams{
-					RunFile: *startupArgs.RunFile,
+				RemoteRunParams: &RemoteRunParams{
+					BaseURL: *startupArgs.BaseURL,
+					Entity:  *startupArgs.Entity,
+					Project: *startupArgs.Project,
+					RunId:   *startupArgs.RunId,
 				},
 			}
+		} else {
+			logger.Debug("remote workspace because base URL is set without run-id")
+		}
+
+		return &ModelParams{
+			Backend:   backend,
+			RunParams: runParams,
+			Logger:    logger,
+		}
+	}
+
+	// Local mode: always create a local backend when we have a wandb dir.
+	var backend WorkspaceBackend
+	if startupArgs.WandbDir != "" {
+		backend = NewLocalWorkspaceBackend(startupArgs.WandbDir, logger)
+	}
+
+	var runParams *RunParams
+	if startupArgs.RunFile != nil && *startupArgs.RunFile != "" {
+		runParams = &RunParams{
+			LocalRunParams: &LocalRunParams{
+				RunFile: *startupArgs.RunFile,
+			},
 		}
 	}
 
 	return &ModelParams{
-		WandbDir:  wandbDir,
+		WandbDir:  startupArgs.WandbDir,
+		Backend:   backend,
 		RunParams: runParams,
 		Logger:    logger,
 	}

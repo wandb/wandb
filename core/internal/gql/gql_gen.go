@@ -5,6 +5,7 @@ package gql
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 )
@@ -990,6 +991,74 @@ type OrganizationCoreWeaveOrganizationIDResponse struct {
 func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationCoreWeaveOrganizationIDEntity {
 	return v.Entity
 }
+
+// QueryProjectRunsProject includes the requested fields of the GraphQL type Project.
+type QueryProjectRunsProject struct {
+	Runs *QueryProjectRunsProjectRunsRunConnection `json:"runs"`
+}
+
+// GetRuns returns QueryProjectRunsProject.Runs, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProject) GetRuns() *QueryProjectRunsProjectRunsRunConnection { return v.Runs }
+
+// QueryProjectRunsProjectRunsRunConnection includes the requested fields of the GraphQL type RunConnection.
+type QueryProjectRunsProjectRunsRunConnection struct {
+	Edges []QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge `json:"edges"`
+}
+
+// GetEdges returns QueryProjectRunsProjectRunsRunConnection.Edges, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnection) GetEdges() []QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge {
+	return v.Edges
+}
+
+// QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge includes the requested fields of the GraphQL type RunEdge.
+type QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge struct {
+	Node QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun `json:"node"`
+}
+
+// GetNode returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge.Node, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdge) GetNode() QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun {
+	return v.Node
+}
+
+// QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun includes the requested fields of the GraphQL type Run.
+type QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun struct {
+	Name           string    `json:"name"`
+	DisplayName    *string   `json:"displayName"`
+	State          *string   `json:"state"`
+	CreatedAt      time.Time `json:"createdAt"`
+	SummaryMetrics *string   `json:"summaryMetrics"`
+}
+
+// GetName returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.Name, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetName() string { return v.Name }
+
+// GetDisplayName returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetDisplayName() *string {
+	return v.DisplayName
+}
+
+// GetState returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.State, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetState() *string {
+	return v.State
+}
+
+// GetCreatedAt returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.CreatedAt, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetCreatedAt() time.Time {
+	return v.CreatedAt
+}
+
+// GetSummaryMetrics returns QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsProjectRunsRunConnectionEdgesRunEdgeNodeRun) GetSummaryMetrics() *string {
+	return v.SummaryMetrics
+}
+
+// QueryProjectRunsResponse is returned by QueryProjectRuns on success.
+type QueryProjectRunsResponse struct {
+	Project *QueryProjectRunsProject `json:"project"`
+}
+
+// GetProject returns QueryProjectRunsResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryProjectRunsResponse) GetProject() *QueryProjectRunsProject { return v.Project }
 
 // QueryRunInfoProject includes the requested fields of the GraphQL type Project.
 type QueryRunInfoProject struct {
@@ -2024,6 +2093,26 @@ type __OrganizationCoreWeaveOrganizationIDInput struct {
 // GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
 
+// __QueryProjectRunsInput is used internally by genqlient
+type __QueryProjectRunsInput struct {
+	Entity  string  `json:"entity"`
+	Project string  `json:"project"`
+	First   *int    `json:"first"`
+	Order   *string `json:"order"`
+}
+
+// GetEntity returns __QueryProjectRunsInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryProjectRunsInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryProjectRunsInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryProjectRunsInput) GetProject() string { return v.Project }
+
+// GetFirst returns __QueryProjectRunsInput.First, and is useful for accessing the field via an interface.
+func (v *__QueryProjectRunsInput) GetFirst() *int { return v.First }
+
+// GetOrder returns __QueryProjectRunsInput.Order, and is useful for accessing the field via an interface.
+func (v *__QueryProjectRunsInput) GetOrder() *string { return v.Order }
+
 // __QueryRunInfoInput is used internally by genqlient
 type __QueryRunInfoInput struct {
 	Entity  string `json:"entity"`
@@ -2957,6 +3046,56 @@ func OrganizationCoreWeaveOrganizationID(
 	}
 
 	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by QueryProjectRuns.
+const QueryProjectRuns_Operation = `
+query QueryProjectRuns ($entity: String!, $project: String!, $first: Int, $order: String) {
+	project(name: $project, entityName: $entity) {
+		runs(first: $first, order: $order) {
+			edges {
+				node {
+					name
+					displayName
+					state
+					createdAt
+					summaryMetrics
+				}
+			}
+		}
+	}
+}
+`
+
+func QueryProjectRuns(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	first *int,
+	order *string,
+) (data_ *QueryProjectRunsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryProjectRuns",
+		Query:  QueryProjectRuns_Operation,
+		Variables: &__QueryProjectRunsInput{
+			Entity:  entity,
+			Project: project,
+			First:   first,
+			Order:   order,
+		},
+	}
+
+	data_ = &QueryProjectRunsResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

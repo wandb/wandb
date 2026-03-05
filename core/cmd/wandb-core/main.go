@@ -285,7 +285,7 @@ func leetMain(args []string) int {
 	}
 
 	modelParams := leet.CreateModelParams(startupArgs, logger)
-	if modelParams.WandbDir == "" && modelParams.RunParams.LocalRunParams != nil {
+	if modelParams.Backend == nil && modelParams.RunParams == nil {
 		fmt.Fprintln(os.Stderr, "Error: wandb directory path or base URL required")
 		startupArgs.Usage()
 		return exitCodeErrorArgs
