@@ -49,42 +49,37 @@ func NewRemoteWorkspaceBackend(
 	project string,
 	logger *observability.CoreLogger,
 ) *RemoteWorkspaceBackend {
+	apiKey := os.Getenv("WANDB_API_KEY")
+	if apiKey == "" {
+		return nil
+	}
+
+	settingsProto := &spb.Settings{
+		ApiKey:  wrapperspb.String(apiKey),
+		BaseUrl: wrapperspb.String(baseURL),
+	}
+	s := settings.From(settingsProto)
+
+	graphqlClient := initGraphQLClient(s, logger)
+	httpClient := api.NewClient(api.ClientOptions{
+		BaseURL:            stream.BaseURLFromSettings(logger, s),
+		RetryMax:           3,
+		RetryWaitMin:       1 * time.Second,
+		RetryWaitMax:       10 * time.Second,
+		NonRetryTimeout:    10 * time.Second,
+		CredentialProvider: stream.CredentialsFromSettings(logger, s),
+		Logger:             logger.Logger,
+	})
+
 	return &RemoteWorkspaceBackend{
 		baseURL:  baseURL,
 		entity:   entity,
 		project:  project,
 		runInfos: make(map[string]*RunInfo),
 		logger:   logger,
+		graphqlClient: graphqlClient,
+		httpClient: httpClient,
 	}
-}
-
-func (b *RemoteWorkspaceBackend) initClients() error {
-	if b.graphqlClient != nil {
-		return nil
-	}
-
-	apiKey := os.Getenv("WANDB_API_KEY")
-	if apiKey == "" {
-		return fmt.Errorf("WANDB_API_KEY is not set")
-	}
-
-	settingsProto := &spb.Settings{
-		ApiKey:  wrapperspb.String(apiKey),
-		BaseUrl: wrapperspb.String(b.baseURL),
-	}
-	s := settings.From(settingsProto)
-
-	b.graphqlClient = initGraphQLClient(s, b.logger)
-	b.httpClient = api.NewClient(api.ClientOptions{
-		BaseURL:            stream.BaseURLFromSettings(b.logger, s),
-		RetryMax:           3,
-		RetryWaitMin:       1 * time.Second,
-		RetryWaitMax:       10 * time.Second,
-		NonRetryTimeout:    10 * time.Second,
-		CredentialProvider: stream.CredentialsFromSettings(b.logger, s),
-		Logger:             b.logger.Logger,
-	})
-	return nil
 }
 
 func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
@@ -97,10 +92,6 @@ func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
 	logger := b.logger
 
 	return tea.Tick(delay, func(time.Time) tea.Msg {
-		if err := b.initClients(); err != nil {
-			return WorkspaceRunDiscoveryMsg{Err: err}
-		}
-
 		first := defaultRemoteRunLimit
 		order := "-created_at"
 		response, err := gql.QueryProjectRuns(
