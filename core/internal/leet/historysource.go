@@ -6,6 +6,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -22,6 +24,8 @@ const (
 //
 // Implementations:
 //   - LevelDBHistorySource: Reads from a LevelDB-style .wandb transaction log
+//   - ParquetHistorySource: Reads from a run's exported parquet history files.
+//     The files are downloaded from the W&B backend.
 //
 // The Read method returns a ChunkedBatchMsg containing processed records,
 // and may return io.EOF when the stream is complete.
@@ -57,4 +61,31 @@ func ReadRecords(
 		}
 		return msgs
 	}
+}
+
+func concatenateHistory(messages []HistoryMsg, runPath string) HistoryMsg {
+	h := HistoryMsg{
+		RunPath: runPath,
+		Metrics: make(map[string]MetricData),
+	}
+	for _, msg := range messages {
+		for metricName, data := range msg.Metrics {
+			existing := h.Metrics[metricName]
+			existing.X = append(existing.X, data.X...)
+			existing.Y = append(existing.Y, data.Y...)
+			h.Metrics[metricName] = existing
+		}
+	}
+	return h
+}
+
+func concatenateSummary(messages []SummaryMsg, runPath string) SummaryMsg {
+	s := SummaryMsg{
+		RunPath: runPath,
+		Summary: make([]*spb.SummaryRecord, 0),
+	}
+	for _, msg := range messages {
+		s.Summary = append(s.Summary, msg.Summary...)
+	}
+	return s
 }

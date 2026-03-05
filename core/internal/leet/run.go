@@ -14,6 +14,21 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+type RunParams struct {
+	*RemoteRunParams
+	*LocalRunParams
+}
+type RemoteRunParams struct {
+	BaseURL string
+	Entity  string
+	Project string
+	RunId   string
+}
+
+type LocalRunParams struct {
+	RunFile string
+}
+
 // Run holds data/state related to a single W&B run.
 //
 // Implements tea.Model.
@@ -29,8 +44,8 @@ type Run struct {
 	// Terminal dimensions.
 	width, height int
 
-	// Run file path.
-	runPath string
+	// runParams contains the information about the run.
+	runParams *RunParams
 
 	// Run state tracking.
 	runState RunState
@@ -80,12 +95,10 @@ type Run struct {
 }
 
 func NewRun(
-	runPath string,
+	runParams *RunParams,
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
 ) *Run {
-	logger.Info(fmt.Sprintf("run: creating new run model for runPath: %s", runPath))
-
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
 	}
@@ -107,7 +120,7 @@ func NewRun(
 		keyMap:          buildKeyMap(RunKeyBindings()),
 		focus:           focus,
 		isLoading:       true,
-		runPath:         runPath,
+		runParams:       runParams,
 		metricsGrid:     metricsGrid,
 		runOverview:     ro,
 		leftSidebar:     NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
@@ -125,7 +138,19 @@ func NewRun(
 // Implements tea.Model.Init.
 func (r *Run) Init() tea.Cmd {
 	r.logger.Debug("run: Init called")
-	source := InitializeLevelDBHistorySource(r.runPath, r.logger)
+	var source tea.Cmd
+
+	if r.runParams.RemoteRunParams != nil {
+		source = InitializeParquetHistorySource(
+			r.runParams.RemoteRunParams,
+			r.logger,
+		)
+	} else {
+		source = InitializeLevelDBHistorySource(
+			r.runParams.LocalRunParams,
+			r.logger,
+		)
+	}
 
 	return tea.Batch(
 		windowTitleCmd(),
@@ -526,6 +551,10 @@ func (r *Run) IsFiltering() bool {
 	return r.metricsGrid.IsFilterMode() ||
 		r.leftSidebar.IsFilterMode() ||
 		r.rightSidebar.IsFilterMode()
+}
+
+func (r *Run) IsRemote() bool {
+	return r.runParams.RemoteRunParams != nil
 }
 
 // Layout represents the computed layout dimensions for the main UI.

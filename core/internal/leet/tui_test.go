@@ -38,9 +38,13 @@ func newTestModel(
 	t.Helper()
 	logger := observability.NewNoOpLogger()
 	m := leet.NewModel(leet.ModelParams{
-		RunFile: runPath,
-		Config:  cfg,
-		Logger:  logger,
+		RunParams: &leet.RunParams{
+			LocalRunParams: &leet.LocalRunParams{
+				RunFile: runPath,
+			},
+		},
+		Config: cfg,
+		Logger: logger,
 	})
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(w, h))
 	tm.Send(tea.WindowSizeMsg{Width: w, Height: h})
@@ -780,4 +784,82 @@ func TestWorkspace_SystemMetricsPaneAndConsoleLogs(t *testing.T) {
 	// 6) Quit.
 	tm.Type("q")
 	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
+}
+
+func TestParseStartupArgs(t *testing.T) {
+	args := []string{
+		"-base-url",
+		"https://api.wandb.ai",
+		"-entity",
+		"test-entity",
+		"-project",
+		"test-project",
+		"-run-id",
+		"test-run-id",
+	}
+	startupArgs, err := leet.ParseStartupArgs(args)
+
+	require.NoError(t, err)
+	require.Equal(t, "https://api.wandb.ai", *startupArgs.BaseURL)
+	require.Equal(t, "test-entity", *startupArgs.Entity)
+	require.Equal(t, "test-project", *startupArgs.Project)
+	require.Equal(t, "test-run-id", *startupArgs.RunId)
+}
+
+func TestParseStartupArgs_InvalidArgs(t *testing.T) {
+	args := []string{
+		"-invalid-arg",
+		"invalid",
+		"-entity",
+		"test-entity",
+		"-project",
+		"test-project",
+	}
+	_, err := leet.ParseStartupArgs(args)
+	require.Error(t, err)
+}
+
+func TestCreateModelParams_LocalRun(t *testing.T) {
+	wandbDir := "testdata/wandb"
+	runFile := "testdata/wandb/run-1234567890.wandb"
+	startupArgs := &leet.StartupArgs{
+		RunFile:  &runFile,
+		WandbDir: wandbDir,
+	}
+
+	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+
+	// Ensure WandbDir is set for local runs
+	require.Equal(t, wandbDir, modelParams.WandbDir)
+	require.Equal(t, &leet.RunParams{
+		LocalRunParams: &leet.LocalRunParams{
+			RunFile: runFile,
+		},
+	}, modelParams.RunParams)
+}
+
+func TestCreateModelParams_RemoteRun(t *testing.T) {
+	baseURL := "https://api.wandb.ai"
+	entity := "test-entity"
+	project := "test-project"
+	runId := "test-run-id"
+	startupArgs := &leet.StartupArgs{
+		BaseURL: &baseURL,
+		Entity:  &entity,
+		Project: &project,
+		RunId:   &runId,
+	}
+
+	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+
+	// Ensure WandbDir is not set for remote runs
+	require.Equal(t, modelParams.WandbDir, "")
+	require.Equal(t, &leet.RunParams{
+		RemoteRunParams: &leet.RemoteRunParams{
+			BaseURL: baseURL,
+			Entity:  entity,
+			Project: project,
+			RunId:   runId,
+		},
+	}, modelParams.RunParams)
 }
