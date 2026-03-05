@@ -3,7 +3,6 @@ package leet
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"slices"
 	"strings"
@@ -97,17 +96,6 @@ func (p *runOverviewPreloader) MarkDone(runKey string) {
 	delete(p.pending, runKey)
 }
 
-func (w *Workspace) pollWandbDirCmd(delay time.Duration) tea.Cmd {
-	wandbDir := w.wandbDir
-	if delay < 0 {
-		delay = 0
-	}
-	return tea.Tick(delay, func(time.Time) tea.Msg {
-		runKeys, err := scanWandbRunDirs(wandbDir)
-		return WorkspaceRunDirsMsg{RunKeys: runKeys, Err: err}
-	})
-}
-
 func scanWandbRunDirs(wandbDir string) ([]string, error) {
 	if wandbDir == "" {
 		return nil, nil
@@ -165,20 +153,22 @@ func parseRunDirTimestamp(name string) time.Time {
 	return t
 }
 
-func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
-	pollCmd := w.pollWandbDirCmd(wandbDirPollInterval)
+func (w *Workspace) handleWorkspaceRunDiscovery(msg WorkspaceRunDiscoveryMsg) tea.Cmd {
+	nextDiscoveryCmd := w.backend.NextDiscoveryCmd()
 
 	if msg.Err != nil {
-		w.logger.CaptureError(fmt.Errorf("workspace: wandb dir scan: %v", msg.Err))
-		return pollCmd
+		w.logger.CaptureError(fmt.Errorf("workspace: run discovery: %v", msg.Err))
+		return nextDiscoveryCmd
 	}
 
 	var selectLatestCmd tea.Cmd
 	if !w.runKeysEqual(msg.RunKeys) {
 		w.applyRunKeys(msg.RunKeys)
 		// Auto-select the latest run on initial workspace load.
-		w.autoSelectLatestRunOnLoad.Do(
-			func() { selectLatestCmd = w.toggleRunSelected(msg.RunKeys[0]) })
+		if len(msg.RunKeys) > 0 {
+			w.autoSelectLatestRunOnLoad.Do(
+				func() { selectLatestCmd = w.toggleRunSelected(msg.RunKeys[0]) })
+		}
 	}
 	// Enqueue missing run overviews (even if the run list is unchanged).
 	// This makes new run overviews eventually consistent even if the .wandb file
@@ -187,9 +177,9 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 
 	startCmd := w.startRunOverviewPreloadsCmd()
 	if startCmd == nil {
-		return pollCmd
+		return nextDiscoveryCmd
 	}
-	return tea.Batch(pollCmd, startCmd, selectLatestCmd)
+	return tea.Batch(nextDiscoveryCmd, startCmd, selectLatestCmd)
 }
 
 // enqueueMissingRunOverviews queues runs that don't yet have overview state and
@@ -212,66 +202,9 @@ func (w *Workspace) startRunOverviewPreloadsCmd() tea.Cmd {
 	}
 	cmds := make([]tea.Cmd, 0, len(runKeys))
 	for _, runKey := range runKeys {
-		cmds = append(cmds, w.preloadRunOverviewCmd(runKey))
+		cmds = append(cmds, w.backend.PreloadOverviewCmd(runKey))
 	}
 	return tea.Batch(cmds...)
-}
-
-// preloadRunOverviewCmd reads up to maxRecordsToScan records looking for the
-// first RunMsg with a populated run ID.
-//
-// HistorySource.Read batches records into ChunkedBatchMsg, so the preloader
-// must search inside the batch rather than expecting a direct RunMsg.
-func (w *Workspace) preloadRunOverviewCmd(runKey string) tea.Cmd {
-	wandbFile := runWandbFile(w.wandbDir, runKey)
-	logger := w.logger
-
-	return func() tea.Msg {
-		if runKey == "" || wandbFile == "" {
-			return WorkspaceRunOverviewPreloadedMsg{
-				RunKey: runKey,
-				Err:    errRunRecordNotFound,
-			}
-		}
-
-		reader, err := NewLevelDBHistorySource(wandbFile, logger)
-		if err != nil {
-			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
-		}
-		defer reader.Close()
-
-		msg, err := reader.Read(maxRecordsToScan, maxRecordsToScanTimeout)
-		if err != nil && !errors.Is(err, io.EOF) {
-			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: err}
-		}
-
-		if rm, ok := FindRunMsg(msg); ok {
-			return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Run: &rm}
-		}
-
-		return WorkspaceRunOverviewPreloadedMsg{RunKey: runKey, Err: errRunRecordNotFound}
-	}
-}
-
-func FindRunMsg(msg tea.Msg) (RunMsg, bool) {
-	switch m := msg.(type) {
-	case RunMsg:
-		return m, m.ID != ""
-	case ChunkedBatchMsg:
-		for _, sub := range m.Msgs {
-			if rm, ok := FindRunMsg(sub); ok {
-				return rm, true
-			}
-		}
-	case BatchedRecordsMsg:
-		for _, sub := range m.Msgs {
-			if rm, ok := FindRunMsg(sub); ok {
-				return rm, true
-			}
-		}
-	}
-
-	return RunMsg{}, false
 }
 
 func (w *Workspace) handleWorkspaceRunOverviewPreloaded(

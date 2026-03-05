@@ -1,0 +1,20 @@
+query QueryProjectRuns(
+    $entity: String!,
+    $project: String!,
+    $first: Int,
+    $order: String,
+) {
+    project(name: $project, entityName: $entity) {
+        runs(first: $first, order: $order) {
+            edges {
+                node {
+                    name
+                    displayName
+                    state
+                    createdAt
+                    summaryMetrics
+                }
+            }
+        }
+    }
+}
