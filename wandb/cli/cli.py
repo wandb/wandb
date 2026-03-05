@@ -371,7 +371,8 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="""Initialize or update W&B configuration for the current directory.
+    context_settings=CONTEXT,
+    help="""Initialize or update W&B configuration for the current directory.
     
     Set a project and entity, create local W&B settings, and
     prepare the directory for experiment tracking.
@@ -395,14 +396,16 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     Reset existing W&B configuration for the current directory
 
         $ wandb init --reset
-    """
+    """,
 )
 @click.option("--project", "-p", help="Set the project to upload runs to.")
 @click.option("--entity", "-e", help="Set the entity to scope the project to.")
 # TODO(jhr): Enable these with settings rework
 # @click.option("--setting", "-s", help="enable an arbitrary setting.", multiple=True)
 # @click.option('--show', is_flag=True, help="Show settings")
-@click.option("--reset", is_flag=True, help="Reset existing W&B configuration for the directory.")
+@click.option(
+    "--reset", is_flag=True, help="Reset existing W&B configuration for the directory."
+)
 @click.option(
     "--mode",
     "-m",
@@ -588,7 +591,9 @@ def init(ctx, project, entity, reset, mode):
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
 @click.option("--view", is_flag=True, default=False, help="View runs.", hidden=True)
-@click.option("--verbose", is_flag=True, default=False, help="Enable verbose output.", hidden=True)
+@click.option(
+    "--verbose", is_flag=True, default=False, help="Enable verbose output.", hidden=True
+)
 @click.option("--id", "run_id", help="Upload to an existing run ID.")
 @click.option("--project", "-p", help="Set the project to upload the run to.")
 @click.option("--entity", "-e", help="Set the entity to scope the project to.")
@@ -660,7 +665,9 @@ def init(ctx, project, entity, reset, mode):
     help="Skip the confirmation prompt if --clean is specified.",
 )
 @click.option("--ignore", hidden=True)
-@click.option("--show", default=5, help="Set the number of runs to show in the summary.")
+@click.option(
+    "--show", default=5, help="Set the number of runs to show in the summary."
+)
 @click.option(
     "--append",
     is_flag=True,
@@ -967,12 +974,7 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
     default=False,
     help="Start a local sweep controller after creating the sweep.",
 )
-@click.option(
-    "--verbose",
-    is_flag=True,
-    default=False,
-    help="Display verbose output."
-)
+@click.option("--verbose", is_flag=True, default=False, help="Display verbose output.")
 @click.option(
     "--name",
     default=None,
@@ -983,12 +985,7 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
     default=None,
     help="Override the training program specified in the sweep config.",
 )
-@click.option(
-    "--settings",
-    default=None,
-    help="Set sweep settings",
-    hidden=True
-)
+@click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option(
     "--update",
     default=None,
@@ -1024,7 +1021,7 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
     "prior_runs",
     multiple=True,
     default=None,
-    help="Attach an existing run to this sweep by ID. Specify multiple times to attach multiple runs."
+    help="Attach an existing run to this sweep by ID. Specify multiple times to attach multiple runs.",
 )
 @click.argument("config_yaml_or_sweep_id")
 @click.pass_context
@@ -2332,7 +2329,8 @@ def create(
     wandb.termlog(f"View all jobs in project '{project}' here: {url}\n")
 
 
-@cli.command(context_settings=CONTEXT,
+@cli.command(
+    context_settings=CONTEXT,
     help="""Start a local sweep controller for a W&B hyperparameter sweep.
     
     Start a local process that orchestrates the specified sweep. Read the
@@ -2354,9 +2352,14 @@ def create(
     Start a local sweep controller for a sweep with sweep ID "wbyz9876"
 
         $ wandb controller wbyz9876
-    """
-    )
-@click.option("--verbose", is_flag=True, default=False, help="Display verbose output from controller.")
+    """,
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Display verbose output from controller.",
+)
 @click.argument("sweep_id")
 @display_error
 def controller(verbose, sweep_id):
@@ -2491,7 +2494,7 @@ def docker(
 
     Run the specified TensorFlow notebook image and start JupyterLab in the
     container (port 8888 by default).
-        
+
         $ wandb docker gcr.io/kubeflow-images-public/tensorflow-1.12.0-notebook-cpu:v0.4.0 --jupyter
 
     Run the specified GPU-enabled image, disable TTY allocation, and execute the
@@ -2605,7 +2608,8 @@ def server():
     pass
 
 
-@server.command(context_settings=RUN_CONTEXT,
+@server.command(
+    context_settings=RUN_CONTEXT,
     help="""Start a local W&B server in a Docker container.
 
     Pull and run the `wandb/local` Docker image (local instance
@@ -2639,13 +2643,18 @@ def server():
 
         $ wandb server start --no-daemon
 
-    """)
+    """,
+)
 @click.pass_context
 @click.option(
     "--port", "-p", default="8080", help="The host port to bind W&B server on."
 )
 @click.option(
-    "--env", "-e", default=[], multiple=True, help="Environment variables to pass to wandb/local Docker image."
+    "--env",
+    "-e",
+    default=[],
+    multiple=True,
+    help="Environment variables to pass to wandb/local Docker image.",
 )
 @click.option(
     "--daemon/--no-daemon",
@@ -2746,7 +2755,8 @@ def start(ctx, port, env, daemon, upgrade, edge):
                 ctx.invoke(login, host=host)
 
 
-@server.command(context_settings=RUN_CONTEXT,
+@server.command(
+    context_settings=RUN_CONTEXT,
     help="""Stop a running local W&B server.
 
     Stops the Docker container named `wandb-local` that was started
@@ -2755,7 +2765,8 @@ def start(ctx, port, env, daemon, upgrade, edge):
     Examples:
 
         $ wandb server stop
-    """)
+    """,
+)
 def stop():
     if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
@@ -2812,7 +2823,10 @@ def artifact():
 )
 @click.option("--description", "-d", help="A description of this artifact.")
 @click.option(
-    "--type", "-t", default="dataset", help="The type of the artifact. Defaults to 'dataset'."
+    "--type",
+    "-t",
+    default="dataset",
+    help="The type of the artifact. Defaults to 'dataset'.",
 )
 @click.option(
     "--alias",
@@ -2920,7 +2934,9 @@ def put(
     "--root",
     help="Directory to download the artifact to. Uses the default artifact cache if not set.",
 )
-@click.option("--type", help="Expected artifact type. Fails if the artifact does not match.")
+@click.option(
+    "--type", help="Expected artifact type. Fails if the artifact does not match."
+)
 @display_error
 def get(path, root, type):
     public_api = PublicApi()
@@ -3008,7 +3024,8 @@ def ls(path, type):
                 )
 
 
-@artifact.group(help="""Manage the local artifact cache.
+@artifact.group(
+    help="""Manage the local artifact cache.
 
     Cache downloaded artifact files locally to avoid redundant downloads.
 
@@ -3053,7 +3070,8 @@ def cleanup(target_size, remove_temp):
     wandb.termlog(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
-@cli.command(context_settings=CONTEXT,
+@cli.command(
+    context_settings=CONTEXT,
     help="""Download files from a W&B run.
 
     Fetch all files associated with the specified run. Skip files that already
@@ -3073,10 +3091,14 @@ def cleanup(target_size, remove_temp):
 
         $ wandb pull -p foobar -e team-awesome abcd1234
 
-""")
+""",
+)
 @click.argument("run", envvar=env.RUN_ID)
 @click.option(
-    "--project", "-p", envvar=env.PROJECT, help="The project containing the run to pull files from."
+    "--project",
+    "-p",
+    envvar=env.PROJECT,
+    help="The project containing the run to pull files from.",
 )
 @click.option(
     "--entity",
@@ -3413,7 +3435,8 @@ def status(settings):
         )
 
 
-@cli.command("disabled",
+@cli.command(
+    "disabled",
     help="""Completely disable W&B.
 
     Set the mode to `disable` to prevent all W&B functionality. Do not log
@@ -3438,8 +3461,8 @@ def status(settings):
     Restore W&B functionality when ready to log and sync again
 
         $ wandb enabled
-    """
-    )
+    """,
+)
 @click.option(
     "--service",
     is_flag=True,
@@ -3455,7 +3478,8 @@ def disabled(service):
     click.echo("W&B disabled.")
 
 
-@cli.command("enabled",
+@cli.command(
+    "enabled",
     help="""Re-enable W&B after it was deactivated.
 
     Set the mode to `online` to restore full W&B functionality,
@@ -3477,8 +3501,8 @@ def disabled(service):
     Run training script with W&B logging and syncing restored:
 
         $ python train.py # Log and sync data to W&B
-    """
-    )
+    """,
+)
 @click.option(
     "--service",
     is_flag=True,
@@ -3532,7 +3556,11 @@ def enabled(service):
 
 """,
 )
-@click.option("--host", default=None, help="Target a specific W&B instance URL. Default to configured base URL.")
+@click.option(
+    "--host",
+    default=None,
+    help="Target a specific W&B instance URL. Default to configured base URL.",
+)
 def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
