@@ -37,7 +37,9 @@ func newTestModel(
 ) *teatest.TestModel {
 	t.Helper()
 	logger := observability.NewNoOpLogger()
+	wandbDir := filepath.Dir(runPath)
 	m := leet.NewModel(leet.ModelParams{
+		Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
 		RunParams: &leet.RunParams{
 			LocalRunParams: &leet.LocalRunParams{
 				RunFile: runPath,
@@ -248,9 +250,9 @@ func newWorkspaceTestModel(
 	logger := observability.NewNoOpLogger()
 
 	m := leet.NewModel(leet.ModelParams{
-		WandbDir: wandbDir,
-		Config:   cfg,
-		Logger:   logger,
+		Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+		Config:  cfg,
+		Logger:  logger,
 	})
 
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(w, h))
@@ -829,8 +831,7 @@ func TestCreateModelParams_LocalRun(t *testing.T) {
 
 	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
 
-	// Ensure WandbDir is set for local runs
-	require.Equal(t, wandbDir, modelParams.WandbDir)
+	require.NotNil(t, modelParams.Backend)
 	require.Equal(t, &leet.RunParams{
 		LocalRunParams: &leet.LocalRunParams{
 			RunFile: runFile,
@@ -852,8 +853,7 @@ func TestCreateModelParams_RemoteRun(t *testing.T) {
 
 	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
 
-	// Ensure WandbDir is not set for remote runs
-	require.Equal(t, modelParams.WandbDir, "")
+	require.NotNil(t, modelParams.Backend)
 	require.Equal(t, &leet.RunParams{
 		RemoteRunParams: &leet.RemoteRunParams{
 			BaseURL: baseURL,

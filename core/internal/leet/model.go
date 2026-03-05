@@ -1,7 +1,6 @@
 package leet
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -61,12 +60,8 @@ type Model struct {
 }
 
 type ModelParams struct {
-	// WandbDir is the path to the wandb directory (typically "./wandb")
-	// that contains run directories and the "latest-run" symlink.
-	// Used for resolving the latest-run symlink on startup.
-	WandbDir string
-
 	// Backend is the workspace backend (local or remote).
+	// If nil, a LocalWorkspaceBackend for an empty dir is used as a fallback.
 	Backend WorkspaceBackend
 
 	// RunParams contains information about the run to load.
@@ -82,29 +77,14 @@ type ModelParams struct {
 //
 // Startup behavior depends on the combination of RunFile and Config.StartupMode:
 //
-//   - RunFile is set → start in single-run view for that file.
-//   - RunFile is empty + StartupModeSingleRunLatest → resolve the "latest-run"
-//     symlink and start in single-run view.
-//   - RunFile is empty + StartupModeWorkspaceLatest (default) → start in
+//   - RunParams is set → start in single-run view.
+//   - RunParams is nil + StartupModeSingleRunLatest → resolve the "latest-run"
+//   - RunParams is nil + StartupModeWorkspaceLatest (default) → start in
 //     workspace view; the workspace will auto-select the latest run once
 //     the directory poll completes.
 func NewModel(params ModelParams) *Model {
 	if params.Config == nil {
 		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
-	}
-
-	if params.RunParams == nil && params.Config.StartupMode() == StartupModeSingleRunLatest {
-		latest, err := wandbFileFromLatestRunLink(params.WandbDir)
-		if err != nil {
-			params.Logger.Error(fmt.Sprintf("model: failed to find latest run: %v", err))
-		}
-		if latest != "" {
-			params.RunParams = &RunParams{
-				LocalRunParams: &LocalRunParams{
-					RunFile: latest,
-				},
-			}
-		}
 	}
 
 	m := &Model{
