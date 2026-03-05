@@ -61,27 +61,34 @@ def test_agent_config_merge(user, monkeypatch):
     assert len(sweep_configs) == 1
     assert sweep_configs[0] == {"a": 1, "extra": 2}
 
+
 def test_agent_config_whitespace_py_agent(user, monkeypatch):
     ran = False
+
     def train():
         nonlocal ran
         run = wandb.init()
         assert run.config["a"] == "one two"
         assert run.config["b"] == "three four"
-        assert run.config["c"] == "\"five six\""
+        assert run.config["c"] == '"five six"'
         run.finish()
         ran = True
 
     sweep_config = {
         "name": "My Sweep",
         "method": "grid",
-        "parameters": {"a": {"values": ["one two"]}, "b": {"value": "three four"}, "c": {"value": "\"five six\""}},
+        "parameters": {
+            "a": {"values": ["one two"]},
+            "b": {"value": "three four"},
+            "c": {"value": '"five six"'},
+        },
     }
 
     monkeypatch.setenv("WANDB_CONSOLE", "off")
     sweep_id = wandb.sweep(sweep_config)
     wandb.agent(sweep_id, function=train, count=1)
     assert ran
+
 
 def test_agent_config_whitespace_cli_agent(runner, user):
     project = "test-whitespace-cli-agent"
