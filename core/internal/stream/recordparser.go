@@ -28,8 +28,8 @@ var RecordParserProviders = wire.NewSet(
 // Records coming from the client via interprocess communication, or those
 // read from a transaction log, pass through here first.
 type RecordParser interface {
-	// Parse returns the Work corresponding to a Record.
-	Parse(record *spb.Record) runwork.Work
+	// Parse returns the WorkImpl corresponding to a Record.
+	Parse(record *spb.Record) runwork.WorkImpl
 }
 
 // RecordParserFactory constructs the real RecordParser.
@@ -64,7 +64,7 @@ type recordParser struct {
 var _ RecordParser = &recordParser{}
 
 // Parse implements RecordParser.Parse.
-func (p *recordParser) Parse(record *spb.Record) runwork.Work {
+func (p *recordParser) Parse(record *spb.Record) runwork.WorkImpl {
 	switch {
 	case record.GetRun() != nil:
 		return &runupserter.RunUpdateWork{

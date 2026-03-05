@@ -548,7 +548,7 @@ func (nc *Connection) handleInformRecord(msg *spb.Record) {
 	}
 
 	// Delegate the handling of the record to the stream
-	strm.HandleRecord(msg)
+	strm.HandleRecord(msg, nil) // TODO: Pass the Request.
 }
 
 // handleInformFinish processes a finish message from the client.
