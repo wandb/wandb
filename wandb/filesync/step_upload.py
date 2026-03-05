@@ -7,7 +7,8 @@ import logging
 import queue
 import sys
 import threading
-from collections.abc import MutableMapping, MutableSequence, MutableSet
+from collections import deque
+from collections.abc import MutableMapping, MutableSet
 from typing import TYPE_CHECKING, Callable, NamedTuple, Union
 
 from wandb.errors.term import termerror
@@ -90,7 +91,7 @@ class StepUpload:
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
         self._running_jobs: MutableMapping[LogicalPath, RequestUpload] = {}
-        self._pending_jobs: MutableSequence[RequestUpload] = []
+        self._pending_jobs: deque[RequestUpload] = deque()
 
         self._artifacts: MutableMapping[str, ArtifactStatus] = {}
 
@@ -149,7 +150,7 @@ class StepUpload:
             self._running_jobs.pop(job.save_name)
             # If we have any pending jobs, start one now
             if self._pending_jobs:
-                event = self._pending_jobs.pop(0)
+                event = self._pending_jobs.popleft()
                 self._start_upload_job(event)
         elif isinstance(event, RequestCommitArtifact):
             if event.artifact_id not in self._artifacts:
