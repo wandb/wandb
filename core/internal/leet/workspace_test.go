@@ -30,7 +30,7 @@ func TestModel_WorkspaceFilterDoesNotLeakIntoRunView(t *testing.T) {
 	})
 
 	// Seed workspace run list.
-	model, _ = model.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runDir}})
+	model, _ = model.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runDir}})
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Workspace: set metrics filter to "train".
@@ -73,7 +73,7 @@ func TestModel_CtrlLInRunViewDoesNotClearWorkspaceFilter(t *testing.T) {
 		Logger:   logger,
 	})
 
-	model, _ = model.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runDir}})
+	model, _ = model.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runDir}})
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Workspace: set filter to "train".
@@ -101,11 +101,11 @@ func TestWorkspace_View_SystemMetricsPaneShowsRunLabel(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	w.TestForceExpandSystemMetricsPane(20)
 	require.True(t, w.TestSystemMetricsPane().IsVisible())
@@ -121,11 +121,11 @@ func TestWorkspace_View_SystemMetricsPaneShowsSelectHint(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	// Deselect the run if auto-selected.
 	if w.TestIsRunSelected(runKey) {
@@ -145,11 +145,11 @@ func TestWorkspace_View_ConsoleLogsPaneRendersWhenVisible(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	w.TestForceExpandConsoleLogsPane(10)
 	require.True(t, w.TestConsoleLogsPaneExpanded())
@@ -164,11 +164,11 @@ func TestWorkspace_View_ConsoleLogsPaneShowsNoDataWithoutLogs(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	w.TestForceExpandConsoleLogsPane(10)
 
@@ -182,7 +182,7 @@ func TestWorkspace_View_HiddenPanesNotRendered(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	require.False(t, w.TestSystemMetricsPane().IsVisible())
@@ -198,11 +198,11 @@ func TestWorkspace_View_BothPanesVisibleSimultaneously(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(wandbDir, cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 80})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 
 	w.TestForceExpandSystemMetricsPane(15)
 	w.TestForceExpandConsoleLogsPane(10)

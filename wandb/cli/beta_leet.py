@@ -206,9 +206,40 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
     parsed_url = urllib.parse.urlparse(path)
     entity, project, run_id = _parse_path(parsed_url.path)
 
-    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-    if parsed_url.netloc == "wandb.ai":
+    Supports:
+        https://wandb.ai/entity/project              -> workspace mode
+        https://wandb.ai/entity/project/runs/run_id   -> single-run mode
+        https://wandb.ai/entity/project/run_id         -> single-run mode
+    """
+    parsed = urllib.parse.urlparse(url)
+
+    base_url = f"{parsed.scheme}://{parsed.netloc}"
+    if parsed.netloc == "wandb.ai":
         base_url = "https://api.wandb.ai"
+
+    path = parsed.path.strip("/")
+    parts = path.split("/")
+
+    # Filter out the "runs" segment to normalise the path.
+    # e.g. /entity/project/runs/run_id -> /entity/project/run_id
+    parts = [p for p in parts if p != "runs"]
+
+    if len(parts) == 2:
+        entity, project = parts
+        return base_url, entity, project, None
+    elif len(parts) == 3:
+        entity, project, run_id = parts
+        return base_url, entity, project, run_id
+    else:
+        _fatal(
+            f"Cannot parse W&B URL: {url}\n"
+            "  Expected: https://wandb.ai/<entity>/<project>[/runs/<run_id>]"
+        )
+
+
+def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
+    """Create a LEET launch configuration for a remote project or run."""
+    base_url, entity, project, run_id = _parse_wandb_url(path)
 
     auth = wbauth.authenticate_session(
         host=base_url,
