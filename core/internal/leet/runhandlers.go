@@ -212,10 +212,16 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 func (r *Run) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 	// Filter modes take priority.
 	if r.leftSidebar.IsFilterMode() {
-		return r.handleOverviewFilter(msg)
+		r.leftSidebar.HandleFilterKey(msg)
+		return nil
 	}
 	if r.metricsGrid.IsFilterMode() {
-		return r.handleMetricsFilter(msg)
+		r.metricsGrid.handleFilterKey(msg)
+		return nil
+	}
+	if r.rightSidebar.IsFilterMode() {
+		r.rightSidebar.HandleFilterKey(msg)
+		return nil
 	}
 
 	// Grid config capture takes priority.
@@ -386,25 +392,23 @@ func (r *Run) handleConfigSystemRows(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// handleMetricsFilter handles filter mode input for metrics
-func (r *Run) handleMetricsFilter(msg tea.KeyMsg) tea.Cmd {
-	r.metricsGrid.handleMetricsFilterKey(msg)
-	return nil
+func (r *Run) handleEnterSystemMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	var cmd tea.Cmd
+	if !r.config.RightSidebarVisible() {
+		cmd = r.handleToggleRightSidebar(msg)
+	}
+	r.rightSidebar.metricsGrid.EnterFilterMode()
+	r.rightSidebar.metricsGrid.ApplyFilter()
+
+	return cmd
 }
 
-// handleOverviewFilter handles overview filter keyboard input.
-func (r *Run) handleOverviewFilter(msg tea.KeyMsg) tea.Cmd {
-	switch msg.Type {
-	case tea.KeyEsc:
-		r.leftSidebar.ExitFilterMode(false)
-	case tea.KeyEnter:
-		r.leftSidebar.ExitFilterMode(true)
-	case tea.KeyTab:
-		r.leftSidebar.ToggleFilterMatchMode()
-	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
-		r.leftSidebar.UpdateFilterDraft(msg)
-		r.leftSidebar.ApplyFilter()
-		r.leftSidebar.updateSectionHeights()
+func (r *Run) handleClearSystemMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	if r.rightSidebar.metricsGrid.FilterQuery() != "" {
+		r.rightSidebar.metricsGrid.ClearFilter()
+	}
+	if r.focus.Type == FocusSystemChart {
+		r.focus.Reset()
 	}
 	return nil
 }

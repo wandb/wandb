@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	"regexp"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -357,16 +357,22 @@ func (m *Model) exitRunView() tea.Cmd {
 // Path resolution utilities
 // --------------------------------------------------------------------
 
-// extractRunID extracts the run ID from a folder name.
+var runDirRe = regexp.MustCompile(`run-\d{8}_\d{6}-`)
+
+// extractRunID extracts the run ID from a run directory name.
 //
-// "run-20250731_170606-iazb7i1k" -> "iazb7i1k"
-// "offline-run-20250731_170606-abc123" -> "abc123"
+// The expected formats are:
+//
+//	"run-YYYYMMDD_HHMMSS-<run_id>"
+//	"offline-run-YYYYMMDD_HHMMSS-<run_id>"
+//
+// Returns "" if the folder name doesn't match.
 func extractRunID(folderName string) string {
-	lastHyphen := strings.LastIndex(folderName, "-")
-	if lastHyphen == -1 || lastHyphen == len(folderName)-1 {
+	loc := runDirRe.FindStringIndex(folderName)
+	if len(loc) == 0 || loc[1] == len(folderName) {
 		return ""
 	}
-	return folderName[lastHyphen+1:]
+	return folderName[loc[1]:]
 }
 
 // runWandbFile returns the full path to the .wandb file for the given run folder.

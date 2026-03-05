@@ -16,14 +16,16 @@ func TestSystemMetricsGrid(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_, _ = cfg.SetSystemRows(2), cfg.SetSystemCols(1)
 
-	focusState := &leet.Focus{}
+	focus := leet.NewFocus()
+	filter := leet.NewFilter()
 	// Give the grid enough space (any positive multiples will do).
 	grid := leet.NewSystemMetricsGrid(
 		2*leet.MinMetricChartWidth,
 		2*leet.MinMetricChartHeight,
 		cfg,
 		cfg.SystemGrid,
-		focusState,
+		focus,
+		filter,
 		logger,
 	)
 
@@ -43,9 +45,10 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 	// Create grid with sufficient size
 	gridWidth := leet.MinMetricChartWidth * gridCols * 2
 	gridHeight := leet.MinMetricChartHeight * gridRows * 2
-	focusState := &leet.Focus{}
+	focus := leet.NewFocus()
+	filter := leet.NewFilter()
 	grid := leet.NewSystemMetricsGrid(
-		gridWidth, gridHeight, cfg, cfg.SystemGrid, focusState, logger)
+		gridWidth, gridHeight, cfg, cfg.SystemGrid, focus, filter, logger)
 
 	ts := time.Now().Unix()
 	// Add multiple data points to ensure chart is properly created and visible
@@ -84,9 +87,10 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 
 	gridWidth := leet.MinMetricChartWidth * gridCols * 2
 	gridHeight := leet.MinMetricChartHeight * gridRows * 2
-	focusState := &leet.Focus{}
+	focus := leet.NewFocus()
+	filter := leet.NewFilter()
 	grid := leet.NewSystemMetricsGrid(
-		gridWidth, gridHeight, cfg, cfg.SystemGrid, focusState, logger)
+		gridWidth, gridHeight, cfg, cfg.SystemGrid, focus, filter, logger)
 
 	ts := time.Now().Unix()
 

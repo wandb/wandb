@@ -100,9 +100,19 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterMetricsFilter,
 				},
 				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Run).handleEnterSystemMetricsFilter,
+				},
+				{
 					Keys:        []string{"ctrl+l"},
-					Description: "Clear active filter",
+					Description: "Clear metrics filter",
 					Handler:     (*Run).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Run).handleClearSystemMetricsFilter,
 				},
 			},
 		},
@@ -115,7 +125,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterOverviewFilter,
 				},
 				{
-					Keys:        []string{"ctrl+k"},
+					Keys:        []string{"ctrl+o"},
 					Description: "Clear overview filter",
 					Handler:     (*Run).handleClearOverviewFilter,
 				},
@@ -256,9 +266,23 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleEnterMetricsFilter,
 				},
 				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Workspace).handleEnterSystemMetricsFilter,
+				},
+				{
+					// TODO: "ctrl+/", which would be preferable,
+					// is usually sent as 0x1F (Unit Separator) and is not
+					// cleanly handled by BubbleTea v1.
+					// Try after the upgrade to v2.
 					Keys:        []string{"ctrl+l"},
-					Description: "Clear active filter",
+					Description: "Clear metrics filter",
 					Handler:     (*Workspace).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Workspace).handleClearSystemMetricsFilter,
 				},
 			},
 		},
@@ -271,7 +295,7 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleEnterOverviewFilter,
 				},
 				{
-					Keys:        []string{"ctrl+k"},
+					Keys:        []string{"ctrl+o"},
 					Description: "Clear overview filter",
 					Handler:     (*Workspace).handleClearOverviewFilter,
 				},

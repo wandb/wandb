@@ -7,6 +7,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// HandleFilterKey processes a key event while the overview filter is active.
+func (s *RunOverviewSidebar) HandleFilterKey(msg tea.KeyMsg) {
+	if s.filter.HandleKey(msg) {
+		s.ApplyFilter()
+		s.updateSectionHeights()
+	}
+}
+
 // EnterFilterMode activates filter mode (draft initialized from applied).
 func (s *RunOverviewSidebar) EnterFilterMode() {
 	s.filter.Activate()
@@ -59,7 +67,7 @@ func (s *RunOverviewSidebar) FilterQuery() string {
 
 // IsFiltering returns true if an applied (non‑empty) filter exists.
 func (s *RunOverviewSidebar) IsFiltering() bool {
-	return s.filter.Query() != ""
+	return !s.filter.IsActive() && s.filter.Query() != ""
 }
 
 // ApplyFilter recomputes FilteredItems for each section based on the current matcher.
