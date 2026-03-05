@@ -24,7 +24,8 @@ const (
 //
 // Implements tea.Model.
 type Workspace struct {
-	wandbDir string
+	// backend delegates mode-specific operations to the local or remote workspace.
+	backend WorkspaceBackend
 
 	// focusMgr is the single source of truth for UI focus state.
 	focusMgr *FocusManager
@@ -120,11 +121,11 @@ type WorkspaceRun struct {
 }
 
 func NewWorkspace(
-	wandbDir string,
+	backend WorkspaceBackend,
 	cfg *ConfigManager,
 	logger *observability.CoreLogger,
 ) *Workspace {
-	logger.Info(fmt.Sprintf("workspace: creating new workspace for wandbDir: %s", wandbDir))
+	logger.Info(fmt.Sprintf("workspace: creating new workspace for %s", backend.DisplayLabel()))
 
 	if cfg == nil {
 		cfg = NewConfigManager(leetConfigPath(), logger)
@@ -163,6 +164,7 @@ func NewWorkspace(
 	w := &Workspace{
 		runsAnimState:        NewAnimatedValue(true, SidebarMinWidth),
 		metricsGridAnimState: metricsGridAnimState,
+		backend:              backend,
 		wandbDir:             wandbDir,
 		config:               cfg,
 		keyMap:               buildKeyMap(WorkspaceKeyBindings()),
@@ -218,11 +220,11 @@ func (w *Workspace) SetSize(width, height int) {
 func (w *Workspace) Init() tea.Cmd {
 	var cmds []tea.Cmd
 
-	// Start polling immediately; subsequent polls are scheduled by the handler.
-	cmds = append(cmds, w.pollWandbDirCmd(0))
+	// Start polling immediately; subsequent pools are scheduled by the backend.
+	cmds = append(cmds, w.backend.DiscoverRunsCmd(0))
 
 	// Start listening; the heartbeat manager will decide when to emit.
-	if w.heartbeatMgr != nil && w.liveChan != nil {
+	if w.backend.SupportsLiveStreaming() && w.heartbeatMgr != nil && w.liveChan != nil {
 		cmds = append(cmds, w.waitForLiveMsg)
 	}
 	cmds = append(cmds, w.mediaPane.Init())
@@ -276,8 +278,8 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceInitErrMsg:
 		return w.handleWorkspaceInitErr(t)
 
-	case WorkspaceRunDirsMsg:
-		return w.handleWorkspaceRunDirs(t)
+	case WorkspaceRunDiscoveryMsg:
+		return w.handleWorkspaceRunDiscovery(t)
 
 	case WorkspaceRunOverviewPreloadedMsg:
 		return w.handleWorkspaceRunOverviewPreloaded(t)
@@ -412,10 +414,9 @@ func (w *Workspace) IsFiltering() bool {
 	return false
 }
 
-// SelectedRunWandbFile returns the full path to the .wandb file for the selected run.
-//
-// Returns empty string if no run is selected.
-func (w *Workspace) SelectedRunWandbFile() string {
+// SelectedRunKey returns the run key of the currently highlighted run.
+// Returns empty string if no run is highlighted.
+func (w *Workspace) SelectedRunKey() string {
 	total := len(w.runs.FilteredItems)
 	if total == 0 {
 		return ""
@@ -427,7 +428,17 @@ func (w *Workspace) SelectedRunWandbFile() string {
 		return ""
 	}
 
-	return runWandbFile(w.wandbDir, w.runs.FilteredItems[idx].Key)
+	return w.runs.FilteredItems[idx].Key
+}
+
+// SelectedRunParams returns RunParams for the currently highlighted run,
+// suitable for entering single-run view.
+func (w *Workspace) SelectedRunParams() *RunParams {
+	runKey := w.SelectedRunKey()
+	if runKey == "" {
+		return nil
+	}
+	return w.backend.RunParams(runKey)
 }
 
 // SelectedRunKey returns the run key (directory name) of the currently selected run.
@@ -941,8 +952,8 @@ func (w *Workspace) dropRun(runKey string) {
 
 	run, ok := w.runsByKey[runKey]
 	if ok && run != nil {
-		if run.wandbPath != "" {
-			w.metricsGrid.RemoveSeries(run.wandbPath)
+		if run.seriesKey != "" {
+			w.metricsGrid.RemoveSeries(run.seriesKey)
 		}
 		w.stopWatcher(run)
 		if run.Reader != nil {
@@ -1020,10 +1031,10 @@ func (w *Workspace) refreshPinnedRun() {
 		return
 	}
 	run, ok := w.runsByKey[w.pinnedRun]
-	if !ok || run == nil || run.wandbPath == "" {
+	if !ok || run == nil || run.seriesKey == "" {
 		return
 	}
-	w.metricsGrid.PromoteSeriesToTop(run.wandbPath)
+	w.metricsGrid.PromoteSeriesToTop(run.seriesKey)
 }
 
 // ---- Focus Query Helpers ----
@@ -1311,9 +1322,9 @@ func (w *Workspace) buildActiveStatus() string {
 	// Never leave the status bar blank (e.g. Esc cleared focus and no
 	// filters are active).
 	if len(parts) == 0 {
-		return "wandb dir: " + w.wandbDir
+		return w.backend.DisplayLabel()
 	}
-	return strings.Join(parts, " • ")
+	return w.backend.DisplayLabel() + " • " + strings.Join(parts, " • ")
 }
 
 // activeFilterStatus collects status fragments for all active filters.
@@ -1502,7 +1513,7 @@ func (w *Workspace) runPathForKey(runKey string) string {
 	if runKey == "" {
 		return ""
 	}
-	return runWandbFile(w.wandbDir, runKey)
+	return w.backend.SeriesKey(runKey)
 }
 
 func (w *Workspace) runColorForKey(runKey string) AdaptiveColor {

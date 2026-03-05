@@ -73,7 +73,11 @@ type Model struct {
 type ModelParams struct {
 	// WandbDir is the path to the wandb directory (typically "./wandb")
 	// that contains run directories and the "latest-run" symlink.
+	// Used for resolving the latest-run symlink on startup.
 	WandbDir string
+
+	// Backend is the workspace backend (local or remote).
+	Backend WorkspaceBackend
 
 	// RunParams contains information about the run to load.
 	//
@@ -111,7 +115,7 @@ func NewModel(params ModelParams) *Model {
 
 	m := &Model{
 		mode:      viewModeWorkspace,
-		workspace: NewWorkspace(params.WandbDir, params.Config, params.Logger),
+		workspace: NewWorkspace(params.Backend, params.Config, params.Logger),
 		help:      NewHelp(),
 		config:    params.Config,
 		filters:   loadDirFilters(params.WandbDir, params.Logger),
@@ -432,12 +436,12 @@ func (m *Model) renderHelpScreen() string {
 
 // enterRunView switches to single-run view for the selected run.
 func (m *Model) enterRunView() tea.Cmd {
-	wandbFile := m.workspace.SelectedRunWandbFile()
-	if wandbFile == "" {
+	runParams := m.workspace.SelectedRunParams()
+	if runParams == nil {
 		return nil
 	}
 
-	m.run = NewRun(&RunParams{RunFile: wandbFile}, m.config, m.logger)
+	m.run = NewRun(runParams, m.config, m.logger)
 	m.run.attachFilters(m.filters)
 	m.mode = viewModeRun
 
