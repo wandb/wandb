@@ -380,9 +380,9 @@ func TestWorkspace_Enter_NoOpWhenLogsFocused(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	m := leet.NewModel(leet.ModelParams{
-		WandbDir: t.TempDir(),
-		Config:   cfg,
-		Logger:   logger,
+		Backend: leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+		Config:  cfg,
+		Logger:  logger,
 	})
 
 	// Prime the model with a window size.
@@ -415,9 +415,9 @@ func TestWorkspace_Enter_WorksWhenRunsFocused(t *testing.T) {
 	writeWorkspaceRunWandbFile(t, wandbDir, runKey, "abcdefg", 1.0)
 
 	m := leet.NewModel(leet.ModelParams{
-		WandbDir: wandbDir,
-		Config:   cfg,
-		Logger:   logger,
+		Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+		Config:  cfg,
+		Logger:  logger,
 	})
 
 	m.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
