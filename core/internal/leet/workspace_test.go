@@ -24,9 +24,9 @@ func TestModel_WorkspaceFilterDoesNotLeakIntoRunView(t *testing.T) {
 	require.NoError(t, os.WriteFile(runFile, nil, 0o644))
 
 	var model tea.Model = leet.NewModel(leet.ModelParams{
-		WandbDir: wandbDir,
-		Config:   cfg,
-		Logger:   logger,
+		Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+		Config:  cfg,
+		Logger:  logger,
 	})
 
 	// Seed workspace run list.
@@ -68,9 +68,9 @@ func TestModel_CtrlLInRunViewDoesNotClearWorkspaceFilter(t *testing.T) {
 	require.NoError(t, os.WriteFile(runFile, nil, 0o644))
 
 	var model tea.Model = leet.NewModel(leet.ModelParams{
-		WandbDir: wandbDir,
-		Config:   cfg,
-		Logger:   logger,
+		Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+		Config:  cfg,
+		Logger:  logger,
 	})
 
 	model, _ = model.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runDir}})
