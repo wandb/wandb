@@ -12,7 +12,10 @@ from wandb.sdk.launch.create_job import (
     _create_artifact_metadata,
     _create_repo_metadata,
     _dump_metadata_and_requirements,
+    _get_exclude_paths,
+    _load_wandbignore,
     _make_code_artifact_name,
+    _should_exclude,
 )
 from wandb.sdk.launch.utils import get_current_python_version
 
@@ -171,3 +174,42 @@ def test_create_repo_metadata_custom_dockerfile(monkeypatch, tmp_path):
     # dockerfile.write_text("FROM python:3.9")
     # result = _create_repo_metadata("", "", dockerfile=dockerfile)
     # assert result["dockerfile"] == "Dockerfile"
+
+
+def test_load_wandbignore_no_file(tmp_path):
+    assert _load_wandbignore(str(tmp_path)) == []
+
+
+def test_load_wandbignore_with_file(tmp_path):
+    ignore_file = tmp_path / ".wandbignore"
+    ignore_file.write_text("   \n# comment\ndata/\n*.log\n")
+    assert _load_wandbignore(str(tmp_path)) == ["data/", "*.log"]
+
+
+def test_get_exclude_paths_defaults(tmp_path):
+    excludes = _get_exclude_paths(str(tmp_path))
+    assert ".venv" in excludes
+    assert "__pycache__" in excludes
+    assert "wandb" in excludes
+
+
+def test_get_exclude_paths_env_var(monkeypatch, tmp_path):
+    monkeypatch.setenv("WANDB_LAUNCH_CODE_EXCLUDE", " a , b/c ")
+    excludes = _get_exclude_paths(str(tmp_path))
+    assert "a" in excludes
+    assert "b/c" in excludes
+
+
+def test_get_exclude_paths_explicit(tmp_path):
+    excludes = _get_exclude_paths(str(tmp_path), extra_excludes=["explicit_dir/"])
+    assert "explicit_dir/" in excludes
+
+
+def test_should_exclude():
+    excludes = ["venv", "*.egg-info", "data/"]
+    assert _should_exclude("venv/bin/activate", excludes) is True
+    assert _should_exclude("venv", excludes) is True
+    assert _should_exclude("my_lib.egg-info/PKG-INFO", excludes) is True
+    assert _should_exclude("data/train.csv", excludes) is True
+    assert _should_exclude("src/venv_utils.py", excludes) is False
+

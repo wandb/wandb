@@ -1968,6 +1968,13 @@ def describe(job):
     type=click.Choice(("git", "code", "image")),
 )
 @click.option(
+    "--exclude",
+    "-x",
+    "exclude_paths",
+    help="Paths or glob patterns to exclude from the code artifact. Can be repeated.",
+    multiple=True,
+)
+@click.option(
     "--service",
     "-s",
     "services",
@@ -1999,6 +2006,7 @@ def create(
     dockerfile,
     services,
     schema,
+    exclude_paths,
 ):
     """Create a job from a source, without a wandb run.
 
@@ -2056,6 +2064,7 @@ def create(
         dockerfile=dockerfile,
         services=services,
         schema=schema_dict if schema else None,
+        exclude_paths=list(exclude_paths) if exclude_paths else None,
     )
     if not artifact:
         wandb.termerror("Job creation failed")

@@ -86,6 +86,7 @@ _EXECUTABLE = "WANDB_X_EXECUTABLE"
 LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
+LAUNCH_CODE_EXCLUDE = "WANDB_LAUNCH_CODE_EXCLUDE"
 ENABLE_DCGM_PROFILING = "WANDB_ENABLE_DCGM_PROFILING"
 
 # For testing, to be removed in future version
@@ -506,6 +507,21 @@ def get_launch_trace_id(env: MutableMapping | None = None) -> str | None:
         env = os.environ
     val = env.get(LAUNCH_TRACE_ID, None)
     return val
+
+
+def get_code_artifact_exclude(
+    default: list[str] | None = None, env: MutableMapping | None = None
+) -> list[str]:
+    """Return extra paths to exclude when creating code artifacts.
+
+    The value of WANDB_LAUNCH_CODE_EXCLUDE should be a comma-separated list of
+    path names or glob patterns, e.g. ``data,*.egg-info``.
+    """
+    if env is None:
+        env = os.environ
+    val = env.get(LAUNCH_CODE_EXCLUDE, "")
+    extra = [p.strip() for p in val.split(",") if p.strip()]
+    return extra if extra else (default or [])
 
 
 def get_credentials_file(default: str, env: MutableMapping | None = None) -> Path:

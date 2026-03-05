@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- `wandb job create` code artifacts now support customizable exclude lists via `--exclude` CLI flag, `WANDB_LAUNCH_CODE_EXCLUDE` environment variable, and `.wandbignore` file in the source directory. Common virtual environment and cache directories (`.venv`, `__pycache__`, etc.) are excluded by default. (Fixes #11427)
 - Run console logs pane in W&B LEET TUI (`wandb beta leet` command, toggle with `l`). (@dmitryduev in https://github.com/wandb/wandb/pull/11345)
 - System metrics pane in multi-run workspace mode in W&B LEET TUI (`wandb beta leet` command, toggle with `s`). (@dmitryduev in https://github.com/wandb/wandb/pull/11391)
 - System metrics filtering in W&B LEET TUI (`wandb beta leet` command, toggle with `\`). (@dmitryduev in https://github.com/wandb/wandb/pull/11391)
