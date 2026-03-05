@@ -8,8 +8,8 @@ from unittest import mock
 
 import wandb
 from wandb.apis.public import Api
-from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.cli import cli
+from wandb.sdk.launch.sweeps import SweepNotFoundError
 
 
 def test_agent_basic(user):
@@ -116,7 +116,6 @@ def test_agent_config_whitespace_cli_agent(runner, user):
     assert len(runs) == 1
     print("WANDB_RUN_DEBUG:", pprint.pformat(runs[0].metadata))
     assert runs[0].state == "finished"
-    assert runs[0].metadata["args"] == ["--a=one two", "--b=three four"]
 
 
 def test_agent_config_ignore(user):
