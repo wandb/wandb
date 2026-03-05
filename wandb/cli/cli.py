@@ -373,14 +373,14 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 @cli.command(
     context_settings=CONTEXT,
     help="""Initialize or update W&B configuration for the current directory.
-    
+
     Set a project and entity, create local W&B settings, and
     prepare the directory for experiment tracking.
 
     Examples:
 
     Set up W&B for the current directory with guided prompts for team and
-    project selection. 
+    project selection.
 
         $ wandb init
 
@@ -897,12 +897,12 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
 @cli.command(
     context_settings=CONTEXT,
     help="""Create, update, or manage a hyperparameter sweep.
-    
+
     Provide a YAML config file to create a sweep. Define the search
     strategy, parameters, and metric to optimize in the config.
     Register the sweep with the W&B server and print the sweep ID
     and a command to start an agent.
-    
+
     Provide a sweep ID (or full path `entity/project/sweep_id`) with a
     state flag (`--stop`, `--cancel`, `--pause`, or `--resume`) to manage
     an existing sweep.
@@ -947,7 +947,7 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
     in `sweep_config.yaml`.
 
         $ wandb sweep --controller sweep_config.yaml
-    
+
     Create a new sweep and include two previously completed runs
     (run ID `abcd1234` and run ID `efgh5678`) so their results are incorporated
     into the sweep's hyperparameter search.
@@ -1946,7 +1946,7 @@ def launch_agent(
 
     Poll the W&B server for hyperparameter configurations from
     the sweep and start a run for each configuration.
-    
+
     The agent exits when the sweep completes, the sweep
     is stopped, cancelled, or the `--count` limit is reached.
 
@@ -1954,7 +1954,7 @@ def launch_agent(
       * The W&B App at `https://wandb.ai/entity/project/sweeps`. Replace
         `entity` and `project` with your entity and project names.
       * The output of the `wandb sweep` command when you create a new sweep.
-    
+
     The sweep ID can include the entity and project path
     (`entity/project/sweep_id`) or the eight character sweep ID alone.
 
@@ -2332,7 +2332,7 @@ def create(
 @cli.command(
     context_settings=CONTEXT,
     help="""Start a local sweep controller for a W&B hyperparameter sweep.
-    
+
     Start a local process that orchestrates the specified sweep. Read the
     sweep configuration from W&B, select hyperparameter combinations based
     on the configured search strategy (grid, random, Bayesian, and so on),
@@ -2388,7 +2388,6 @@ def docker_run(ctx, docker_run_args):
     by default.
 
     Examples:
-
     Run `python train.py` inside the "my-image" container. W&B automatically
     injects your API key and the resolved image ID.
 
@@ -2486,7 +2485,6 @@ def docker(
     command without modifying the entrypoint, use `wandb docker-run`.
 
     Examples:
-
     Run the default W&B Docker image and mount `/mnt/dataset` into the container
     at `/app/data`.
 
@@ -2808,7 +2806,7 @@ def artifact():
     Record an Amazon S3 path as a reference without downloading or re-uploading the data.
 
         $ wandb artifact put --type dataset s3://my-bucket/datasets/training
-    
+
     Attach a human-readable description to a dataset artifact for documentation.
 
         $ wandb artifact put --type dataset --description "Training data, Jan 2025" ./data/training
@@ -3049,11 +3047,11 @@ def cache():
     Reduce the artifact cache to 10 GB
 
         $ wandb artifact cache cleanup 10GB
-    
+
     Remove temporary files and reduce the artifact cache to 5 GB
 
         $ wandb artifact cache cleanup --remove-temp 5GB
-    
+
     """,
 )
 @click.argument("target_size")
@@ -3368,7 +3366,6 @@ def offline():
     Use `wandb online` or `wandb sync` to upload offline runs.
 
     Examples:
-
     Run a script in offline mode to log data locally without syncing to the cloud:
 
         $ wandb offline && python train.py
@@ -3547,7 +3544,7 @@ def enabled(service):
     Examples:
 
     Verify the currently configured W&B instance:
-    
+
         $ wandb verify --host https://my-wandb-instance.com
 
     Verify a specific self-hosted instance:
