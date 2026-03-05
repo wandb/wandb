@@ -18,13 +18,21 @@ message ServerApiInitRequest {
 // ApiRequest is a request to the backend process
 // to perform an action related to an API call.
 message ApiRequest {
+  string id = 1;
   oneof request {
-    ReadRunHistoryRequest read_run_history_request = 1;
+    ReadRunHistoryRequest read_run_history_request = 2;
   }
 }
 
 message ServerApiInitResponse {
   string error_message = 1;
+  string id = 2;
+}
+
+// ServerApiCleanupRequest instructs the backend process
+// to cleanup API resources associated with an id.
+message ServerApiCleanupRequest {
+  string id = 1;
 }
 
 // ApiResponse is a response from the backend process for an ApiRequest.

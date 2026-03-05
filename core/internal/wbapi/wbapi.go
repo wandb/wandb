@@ -4,7 +4,6 @@
 package wbapi
 
 import (
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -24,19 +23,13 @@ type WandbAPI struct {
 	settings *settings.Settings
 
 	runHistoryApiHandler *RunHistoryAPIHandler
-
-	sentryClient *sentry_ext.Client
 }
 
-func NewWandbAPI(
-	s *settings.Settings,
-	sentryClient *sentry_ext.Client,
-) *WandbAPI {
+func NewWandbAPI(s *settings.Settings) *WandbAPI {
 	return &WandbAPI{
 		semaphore:            make(chan struct{}, maxConcurrency),
 		settings:             s,
-		runHistoryApiHandler: NewRunHistoryAPIHandler(s, sentryClient),
-		sentryClient:         sentryClient,
+		runHistoryApiHandler: NewRunHistoryAPIHandler(s),
 	}
 }
 

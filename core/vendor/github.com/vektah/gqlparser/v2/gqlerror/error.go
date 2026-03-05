@@ -11,12 +11,12 @@ import (
 
 // Error is the standard graphql error type described in https://spec.graphql.org/draft/#sec-Errors
 type Error struct {
-	Err        error                  `json:"-"`
-	Message    string                 `json:"message"`
-	Path       ast.Path               `json:"path,omitempty"`
-	Locations  []Location             `json:"locations,omitempty"`
-	Extensions map[string]interface{} `json:"extensions,omitempty"`
-	Rule       string                 `json:"-"`
+	Err        error          `json:"-"`
+	Message    string         `json:"message"`
+	Path       ast.Path       `json:"path,omitempty"`
+	Locations  []Location     `json:"locations,omitempty"`
+	Extensions map[string]any `json:"extensions,omitempty"`
+	Rule       string         `json:"-"`
 }
 
 func (err *Error) SetFile(file string) {
@@ -24,7 +24,7 @@ func (err *Error) SetFile(file string) {
 		return
 	}
 	if err.Extensions == nil {
-		err.Extensions = map[string]interface{}{}
+		err.Extensions = map[string]any{}
 	}
 
 	err.Extensions["file"] = file
@@ -99,7 +99,7 @@ func (errs List) Is(target error) bool {
 	return false
 }
 
-func (errs List) As(target interface{}) bool {
+func (errs List) As(target any) bool {
 	for _, err := range errs {
 		if errors.As(err, target) {
 			return true
@@ -141,7 +141,8 @@ func WrapIfUnwrapped(err error) *Error {
 	if err == nil {
 		return nil
 	}
-	if gqlErr, ok := err.(*Error); ok {
+	gqlErr := &Error{}
+	if errors.As(err, &gqlErr) {
 		return gqlErr
 	}
 	return &Error{
@@ -150,20 +151,20 @@ func WrapIfUnwrapped(err error) *Error {
 	}
 }
 
-func Errorf(message string, args ...interface{}) *Error {
+func Errorf(message string, args ...any) *Error {
 	return &Error{
 		Message: fmt.Sprintf(message, args...),
 	}
 }
 
-func ErrorPathf(path ast.Path, message string, args ...interface{}) *Error {
+func ErrorPathf(path ast.Path, message string, args ...any) *Error {
 	return &Error{
 		Message: fmt.Sprintf(message, args...),
 		Path:    path,
 	}
 }
 
-func ErrorPosf(pos *ast.Position, message string, args ...interface{}) *Error {
+func ErrorPosf(pos *ast.Position, message string, args ...any) *Error {
 	if pos == nil {
 		return ErrorLocf(
 			"",
@@ -182,10 +183,10 @@ func ErrorPosf(pos *ast.Position, message string, args ...interface{}) *Error {
 	)
 }
 
-func ErrorLocf(file string, line int, col int, message string, args ...interface{}) *Error {
-	var extensions map[string]interface{}
+func ErrorLocf(file string, line, col int, message string, args ...any) *Error {
+	var extensions map[string]any
 	if file != "" {
-		extensions = map[string]interface{}{"file": file}
+		extensions = map[string]any{"file": file}
 	}
 	return &Error{
 		Message:    fmt.Sprintf(message, args...),

@@ -48,7 +48,7 @@ func (h *TFEventConverter) ConvertNext(
 			continue
 		}
 
-		taggedLogger := logger.With("tag", tag)
+		taggedLogger := logger.With([]any{"tag", tag}, nil)
 
 		switch h.rememberPluginName(tag, value) {
 		case "":

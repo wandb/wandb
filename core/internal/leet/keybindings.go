@@ -38,8 +38,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"alt+r"},
-					Description: "Reload run data",
-					Handler:     (*Run).handleRestart,
+					Description: "Restart",
 				},
 				{
 					Keys:        []string{"esc"},
@@ -59,6 +58,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Keys:        []string{"]"},
 					Description: "Toggle right sidebar with system metrics",
 					Handler:     (*Run).handleToggleRightSidebar,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Toggle console logs panel",
+					Handler:     (*Run).handleToggleConsoleLogsPane,
 				},
 			},
 		},
@@ -96,9 +100,19 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterMetricsFilter,
 				},
 				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Run).handleEnterSystemMetricsFilter,
+				},
+				{
 					Keys:        []string{"ctrl+l"},
-					Description: "Clear active filter",
+					Description: "Clear metrics filter",
 					Handler:     (*Run).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Run).handleClearSystemMetricsFilter,
 				},
 			},
 		},
@@ -111,7 +125,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleEnterOverviewFilter,
 				},
 				{
-					Keys:        []string{"ctrl+k"},
+					Keys:        []string{"ctrl+o"},
 					Description: "Clear overview filter",
 					Handler:     (*Run).handleClearOverviewFilter,
 				},
@@ -143,26 +157,212 @@ func RunKeyBindings() []BindingCategory[Run] {
 			},
 		},
 
-		// Documentation-only bindings (handled by subcomponents, not via Run.keyMap).
 		{
-			Name: "Run Overview Navigation (when sidebar open)",
+			Name: "Sidebars (when open)",
 			Bindings: []KeyBinding[Run]{
 				{
-					Keys:        []string{"up", "down"},
-					Description: "Navigate items in section",
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Cycle focus: overview ↔ logs (overview cycles sections)",
+					Handler:     (*Run).handleSidebarTabNav,
 				},
 				{
-					Keys:        []string{"tab", "shift+tab"},
-					Description: "Switch between sections",
+					Keys:        []string{"up", "down"},
+					Description: "Navigate focused sidebar/list",
+					Handler:     (*Run).handleSidebarVerticalNav,
 				},
 				{
 					Keys:        []string{"left", "right"},
-					Description: "Navigate pages in section",
+					Description: "Page in focused sidebar/list",
+					Handler:     (*Run).handleSidebarPageNav,
 				},
 			},
 		},
 
 		mouseCategory[Run](),
+	}
+}
+
+// WorkspaceKeyBindings returns key bindings relevant to the workspace view.
+func WorkspaceKeyBindings() []BindingCategory[Workspace] {
+	return []BindingCategory[Workspace]{
+		{
+			Name: "General",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"h", "?"},
+					Description: "Toggle this help screen",
+				},
+				{
+					Keys:        []string{"q", "ctrl+c"},
+					Description: "Quit",
+					Handler:     (*Workspace).handleQuit,
+				},
+				{
+					Keys:        []string{"alt+r"},
+					Description: "Restart LEET",
+				},
+				{
+					Keys:        []string{"enter"},
+					Description: "View selected run (when not filtering/configuring)",
+				},
+			},
+		},
+		{
+			Name: "Panels",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"["},
+					Description: "Toggle runs sidebar",
+					Handler:     (*Workspace).handleToggleRunsSidebar,
+				},
+				{
+					Keys:        []string{"s"},
+					Description: "Toggle system metrics panel",
+					Handler:     (*Workspace).handleToggleSystemMetricsPane,
+				},
+				{
+					Keys:        []string{"]"},
+					Description: "Toggle run overview sidebar",
+					Handler:     (*Workspace).handleToggleOverviewSidebar,
+				},
+				{
+					Keys:        []string{"l"},
+					Description: "Toggle console logs panel",
+					Handler:     (*Workspace).handleToggleConsoleLogsPane,
+				},
+			},
+		},
+		{
+			Name: "Navigation",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"N", "pgup"},
+					Description: "Previous chart page",
+					Handler:     (*Workspace).handlePrevPage,
+				},
+				{
+					Keys:        []string{"n", "pgdown"},
+					Description: "Next chart page",
+					Handler:     (*Workspace).handleNextPage,
+				},
+				{
+					Keys:        []string{"M"},
+					Description: "Previous system metrics page",
+					Handler:     (*Workspace).handlePrevSystemMetricsPage,
+				},
+				{
+					Keys:        []string{"m"},
+					Description: "Next system metrics page",
+					Handler:     (*Workspace).handleNextSystemMetricsPage,
+				},
+			},
+		},
+		{
+			Name: "Charts",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"/"},
+					Description: "Filter metrics by pattern",
+					Handler:     (*Workspace).handleEnterMetricsFilter,
+				},
+				{
+					Keys:        []string{"\\"},
+					Description: "Filter system metrics by pattern",
+					Handler:     (*Workspace).handleEnterSystemMetricsFilter,
+				},
+				{
+					// TODO: "ctrl+/", which would be preferable,
+					// is usually sent as 0x1F (Unit Separator) and is not
+					// cleanly handled by BubbleTea v1.
+					// Try after the upgrade to v2.
+					Keys:        []string{"ctrl+l"},
+					Description: "Clear metrics filter",
+					Handler:     (*Workspace).handleClearMetricsFilter,
+				},
+				{
+					Keys:        []string{"ctrl+\\"},
+					Description: "Clear system metrics filter",
+					Handler:     (*Workspace).handleClearSystemMetricsFilter,
+				},
+			},
+		},
+		{
+			Name: "Run Overview",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"o"},
+					Description: "Filter overview items",
+					Handler:     (*Workspace).handleEnterOverviewFilter,
+				},
+				{
+					Keys:        []string{"ctrl+o"},
+					Description: "Clear overview filter",
+					Handler:     (*Workspace).handleClearOverviewFilter,
+				},
+			},
+		},
+		{
+			Name: "Configuration",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"c"},
+					Description: "Set metrics grid columns",
+					Handler:     (*Workspace).handleConfigMetricsCols,
+				},
+				{
+					Keys:        []string{"r"},
+					Description: "Set metrics grid rows",
+					Handler:     (*Workspace).handleConfigMetricsRows,
+				},
+				{
+					Keys:        []string{"C"},
+					Description: "Set system grid columns (Shift+c)",
+					Handler:     (*Workspace).handleConfigSystemCols,
+				},
+				{
+					Keys:        []string{"R"},
+					Description: "Set system grid rows (Shift+r)",
+					Handler:     (*Workspace).handleConfigSystemRows,
+				},
+			},
+		},
+		{
+			Name: "Sidebars (when open)",
+			Bindings: []KeyBinding[Workspace]{
+				{
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Cycle focus between runs, overview, and console logs",
+					Handler:     (*Workspace).handleSidebarTabNav,
+				},
+				{
+					Keys:        []string{"up", "down"},
+					Description: "Navigate focused sidebar list",
+					Handler:     (*Workspace).handleRunsVerticalNav,
+				},
+				{
+					Keys:        []string{"left", "right"},
+					Description: "Navigate pages in focused sidebar list",
+					Handler:     (*Workspace).handleRunsPageNav,
+				},
+				{
+					Keys:        []string{"home"},
+					Description: "Jump to first run",
+					Handler:     (*Workspace).handleRunsHome,
+				},
+				{
+					Keys:        []string{"space"},
+					Description: "Select/deselect run",
+					Handler:     (*Workspace).handleToggleRunSelectedKey,
+				},
+				{
+					Keys:        []string{"p"},
+					Description: "Pin/unpin selected run",
+					Handler:     (*Workspace).handlePinRunKey,
+				},
+			},
+		},
+
+		mouseCategory[Workspace](),
 	}
 }
 

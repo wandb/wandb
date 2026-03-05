@@ -37,6 +37,7 @@ func NewHeartbeatManager(
 // arm arms the timer for the current interval using the provided generation.
 //
 // The caller must hold hm.mu.
+// isRunning is called from the timer goroutine and must be safe for concurrent use.
 func (hm *HeartbeatManager) arm(gen uint64, isRunning func() bool) {
 	hm.timer = time.AfterFunc(hm.interval, func() {
 		// Discard stale callbacks (racing AfterFunc from a previous reset/start/stop).
@@ -54,6 +55,10 @@ func (hm *HeartbeatManager) arm(gen uint64, isRunning func() bool) {
 }
 
 // Start starts the heartbeat timer.
+//
+// isRunning is called both synchronously (to gate arming) and later from
+// the timer goroutine (to gate sending). It must be safe for concurrent use
+// (e.g., an atomic.Bool.Load or other goroutine-safe function).
 func (hm *HeartbeatManager) Start(isRunning func() bool) {
 	hm.mu.Lock()
 	defer hm.mu.Unlock()
@@ -76,6 +81,8 @@ func (hm *HeartbeatManager) Start(isRunning func() bool) {
 }
 
 // Reset resets the heartbeat timer.
+//
+// isRunning has the same concurrency requirements as in Start.
 func (hm *HeartbeatManager) Reset(isRunning func() bool) {
 	hm.mu.Lock()
 	defer hm.mu.Unlock()

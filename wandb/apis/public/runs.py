@@ -55,6 +55,7 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import ipython, json_util, runid
@@ -259,7 +260,7 @@ class Runs(SizedPaginator["Run"]):
         per_page: int = 50,
         include_sweeps: bool = True,
         lazy: bool = True,
-        api: public.Api | None = None,
+        service_api: ServiceApi | None = None,
     ):
         if not order:
             order = "+created_at"
@@ -278,7 +279,7 @@ class Runs(SizedPaginator["Run"]):
         self._sweeps: dict[str, public.Sweep] = {}
         self._include_sweeps = include_sweeps
         self._lazy = lazy
-        self._api = api
+        self._service_api = service_api
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -338,7 +339,7 @@ class Runs(SizedPaginator["Run"]):
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
                 lazy=self._lazy,
-                api=self._api,
+                service_api=self._service_api,
             )
             objs.append(run)
 
@@ -541,7 +542,7 @@ class Run(Attrs):
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
         lazy: bool = True,
-        api: public.Api | None = None,
+        service_api: ServiceApi | None = None,
     ):
         """Initialize a Run object.
 
@@ -571,7 +572,7 @@ class Run(Attrs):
         self.server_provides_internal_id_field: bool | None = None
         self._server_provides_project_id_field: bool | None = None
         self._is_loaded: bool = False
-        self._api: public.Api | None = api
+        self._service_api: ServiceApi | None = service_api
 
         self.load(force=not _attrs)
 
@@ -728,7 +729,7 @@ class Run(Attrs):
             )
 
         query = gql(
-            f"""
+            f"""#graphql
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
                 run(name: $name) {{
@@ -831,10 +832,17 @@ class Run(Attrs):
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
 
+        if "user" in self._attrs:
+            self.user = public.User(self.client, self._attrs["user"])
+
         return self._attrs
 
     def load(self, force: bool = False) -> dict[str, Any]:
         """Load run data using appropriate fragment based on lazy mode."""
+        # Load any provided attrs
+        if self._attrs:
+            self._load_from_attrs()
+
         if self._lazy:
             return self._load_with_fragment(
                 LIGHTWEIGHT_RUN_FRAGMENT, LIGHTWEIGHT_RUN_FRAGMENT_NAME, force
@@ -1599,11 +1607,12 @@ class Run(Attrs):
             A BetaHistoryScan object,
             which can be iterator over to get history records.
         """
-        if self._api is None:
-            self._api = public.Api()
+        if self._service_api is None:
+            settings = wandb_setup.singleton().settings.model_copy()
+            self._service_api = ServiceApi(settings=settings)
 
         beta_history_scan = public.BetaHistoryScan(
-            api=self._api,
+            service_api=self._service_api,
             run=self,
             min_step=min_step,
             max_step=max_step or self.lastHistoryStep + 1,
@@ -1635,9 +1644,6 @@ class Run(Attrs):
             WandbApiFailedError: If the API request fails for reasons other than
                 incomplete history.
         """
-        if self._api is None:
-            self._api: public.Api = public.Api()
-
         init_download_request = apb.DownloadRunHistoryInit(
             entity=self.entity,
             project=self.project,
@@ -1651,9 +1657,13 @@ class Run(Attrs):
             )
         )
 
+        if self._service_api is None:
+            settings = wandb_setup.singleton().settings.model_copy()
+            self._service_api = ServiceApi(settings=settings)
+
         response: apb.ApiResponse
         try:
-            response = self._api._send_api_request(api_request)
+            response = self._service_api.send_api_request(api_request)
         except WandbApiFailedError as e:
             if (
                 e.response is not None
@@ -1669,7 +1679,7 @@ class Run(Attrs):
         )
         return wandb_setup.singleton().asyncer.run(
             lambda: runhistory.wait_for_download_with_progress(
-                self._api,
+                self._service_api,
                 request_id,
                 contains_live_data,
             )

@@ -1,10 +1,68 @@
 package leet
 
 import (
+	"fmt"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
+
+// Terminal background detection (cached).
+var (
+	termBgOnce     sync.Once
+	termBgR        uint8
+	termBgG        uint8
+	termBgB        uint8
+	termBgDetected bool
+)
+
+// initTerminalBg queries the terminal for its background color (once).
+func initTerminalBg() {
+	termBgOnce.Do(func() {
+		output := termenv.NewOutput(os.Stdout)
+		bg := output.BackgroundColor()
+		if bg == nil {
+			return
+		}
+
+		// termenv.RGBColor is a string type like "#RRGGBB"
+		if rgb, ok := bg.(termenv.RGBColor); ok {
+			var r, g, b uint8
+			if _, err := fmt.Sscanf(string(rgb), "#%02x%02x%02x", &r, &g, &b); err != nil {
+				return
+			}
+			termBgR, termBgG, termBgB = r, g, b
+			termBgDetected = true
+		}
+	})
+}
+
+// blendRGB blends (r,g,b) toward (tr,tg,tb) by alpha (0.0–1.0).
+func blendRGB(r, g, b, tr, tg, tb uint8, alpha float64) lipgloss.Color {
+	blend := func(base, target uint8) uint8 {
+		return uint8(float64(base)*(1-alpha) + float64(target)*alpha)
+	}
+	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x",
+		blend(r, tr), blend(g, tg), blend(b, tb),
+	))
+}
+
+// getOddRunStyleColor returns a color 5% darker than the terminal background.
+func getOddRunStyleColor() lipgloss.TerminalColor {
+	initTerminalBg()
+
+	if termBgDetected {
+		return blendRGB(termBgR, termBgG, termBgB, 128, 128, 128, 0.05)
+	}
+
+	return lipgloss.AdaptiveColor{
+		Light: "#d0d0d0",
+		Dark:  "#1c1c1c",
+	}
+}
 
 // Immutable UI constants.
 const (
@@ -18,15 +76,22 @@ const (
 	MinMetricChartHeight = 4
 	ChartBorderSize      = 2
 	ChartTitleHeight     = 1
-	ChartHeaderHeight    = 2
+	ChartHeaderHeight    = 1
 )
 
 // Default grid sizes
 const (
+	// Single-run mode.
 	DefaultMetricsGridRows = 4
 	DefaultMetricsGridCols = 3
 	DefaultSystemGridRows  = 6
 	DefaultSystemGridCols  = 2
+
+	// Workspace mode.
+	DefaultWorkspaceMetricsGridRows = 3
+	DefaultWorkspaceMetricsGridCols = 3
+	DefaultWorkspaceSystemGridRows  = 3
+	DefaultWorkspaceSystemGridCols  = 3
 )
 
 // Sidebar constants.
@@ -46,6 +111,11 @@ const (
 	// Sidebar content padding (accounts for borders and internal spacing).
 	rightSidebarContentPadding = 3
 
+	// sidebarVerticalBorderCols is the width (in terminal columns)
+	// consumed by a sidebar's vertical border.
+	// Both LeftBorder and RightBorder draw a single vertical rule.
+	sidebarVerticalBorderCols = 1
+
 	// Default grid height for system metrics when not calculated from terminal height.
 	defaultSystemMetricsGridHeight = 40
 
@@ -56,10 +126,13 @@ const (
 // Rune constants for UI drawing.
 const (
 	// verticalLine is ASCII vertical bar U+007C.
-	verticalLine rune = '\u007C' // |
+	// verticalLine rune = '\u007C' // |
 
 	// BoxLightVertical is U+2502 and is "taller" than verticalLine.
 	boxLightVertical rune = '\u2502' // │
+
+	// unicodeEmDash is the em dash.
+	unicodeEmDash rune = '\u2014'
 
 	// unicodeSpace is the regular whitespace.
 	unicodeSpace rune = '\u0020'
@@ -130,6 +203,12 @@ var (
 		Light: "#262626",
 		Dark:  "#d0d0d0",
 	}
+
+	// Color used for the selected line in lists.
+	colorSelected = lipgloss.AdaptiveColor{
+		Dark:  "#FCBC32",
+		Light: "#FCBC32",
+	}
 )
 
 // ASCII art for the loading screen and the help page.
@@ -139,7 +218,6 @@ var wandbArt = `
 ██  █  ██ ███████ ██ ██  ██ ██   ██ ██████
 ██ ███ ██ ██   ██ ██  ██ ██ ██   ██ ██   ██
  ███ ███  ██   ██ ██   ████ ██████  ██████
-
 `
 
 const leetArt = `
@@ -168,39 +246,63 @@ var colorSchemes = map[string][]lipgloss.AdaptiveColor{
 		lipgloss.AdaptiveColor{Light: "#D19038", Dark: "#FBC36B"},
 		lipgloss.AdaptiveColor{Light: "#D59C1C", Dark: "#FFCF4F"},
 	},
+	"blush-tide": { // Pink-teal gradient
+		lipgloss.AdaptiveColor{Light: "#D94F8C", Dark: "#F9A7CC"},
+		lipgloss.AdaptiveColor{Light: "#CA60AC", Dark: "#EEB3E0"},
+		lipgloss.AdaptiveColor{Light: "#B96FC4", Dark: "#E4BFEE"},
+		lipgloss.AdaptiveColor{Light: "#A77DD4", Dark: "#DBC9F7"},
+		lipgloss.AdaptiveColor{Light: "#9489DF", Dark: "#D5D3FC"},
+		lipgloss.AdaptiveColor{Light: "#8095E5", Dark: "#D1DCFE"},
+		lipgloss.AdaptiveColor{Light: "#6AA1E6", Dark: "#D0E5FF"},
+		lipgloss.AdaptiveColor{Light: "#50ACE2", Dark: "#D3ECFE"},
+		lipgloss.AdaptiveColor{Light: "#33B6D9", Dark: "#D8F2FC"},
+		lipgloss.AdaptiveColor{Light: "#10BFCC", Dark: "#E1F7FA"}, // == teal450
+	},
+	"gilded-lagoon": { // Golden-teal gradient
+		lipgloss.AdaptiveColor{Light: "#D59C1C", Dark: "#FFCF4F"},
+		lipgloss.AdaptiveColor{Light: "#C2A636", Dark: "#EADB74"},
+		lipgloss.AdaptiveColor{Light: "#AFAD4C", Dark: "#DAE492"},
+		lipgloss.AdaptiveColor{Light: "#9CB35F", Dark: "#CFEBAB"},
+		lipgloss.AdaptiveColor{Light: "#8AB872", Dark: "#C8EFC0"},
+		lipgloss.AdaptiveColor{Light: "#77BB83", Dark: "#C5F3D2"},
+		lipgloss.AdaptiveColor{Light: "#62BE95", Dark: "#C7F5E1"},
+		lipgloss.AdaptiveColor{Light: "#4CBFA6", Dark: "#CDF6ED"},
+		lipgloss.AdaptiveColor{Light: "#32C0B9", Dark: "#D5F7F5"},
+		lipgloss.AdaptiveColor{Light: "#10BFCC", Dark: "#E1F7FA"}, // == teal450
+	},
 	"wandb-vibe-10": {
-		lipgloss.AdaptiveColor{Light: "#B1B4B9", Dark: "#B1B4B9"},
-		lipgloss.AdaptiveColor{Light: "#58D3DB", Dark: "#58D3DB"},
-		lipgloss.AdaptiveColor{Light: "#5ED6A4", Dark: "#5ED6A4"},
-		lipgloss.AdaptiveColor{Light: "#FCA36F", Dark: "#FCA36F"},
-		lipgloss.AdaptiveColor{Light: "#FF7A88", Dark: "#FF7A88"},
-		lipgloss.AdaptiveColor{Light: "#7DB1FA", Dark: "#7DB1FA"},
-		lipgloss.AdaptiveColor{Light: "#BBE06B", Dark: "#BBE06B"},
-		lipgloss.AdaptiveColor{Light: "#FFCF4D", Dark: "#FFCF4D"},
-		lipgloss.AdaptiveColor{Light: "#E180FF", Dark: "#E180FF"},
-		lipgloss.AdaptiveColor{Light: "#B199FF", Dark: "#B199FF"},
+		lipgloss.AdaptiveColor{Light: "#8A8D91", Dark: "#B1B4B9"},
+		lipgloss.AdaptiveColor{Light: "#3DBAC4", Dark: "#58D3DB"},
+		lipgloss.AdaptiveColor{Light: "#42B88A", Dark: "#5ED6A4"},
+		lipgloss.AdaptiveColor{Light: "#E07040", Dark: "#FCA36F"},
+		lipgloss.AdaptiveColor{Light: "#E85565", Dark: "#FF7A88"},
+		lipgloss.AdaptiveColor{Light: "#5A96E0", Dark: "#7DB1FA"},
+		lipgloss.AdaptiveColor{Light: "#9AC24A", Dark: "#BBE06B"},
+		lipgloss.AdaptiveColor{Light: "#E0AD20", Dark: "#FFCF4D"},
+		lipgloss.AdaptiveColor{Light: "#C85EE8", Dark: "#E180FF"},
+		lipgloss.AdaptiveColor{Light: "#9475E8", Dark: "#B199FF"},
 	},
 	"wandb-vibe-20": {
-		lipgloss.AdaptiveColor{Light: "#D4D5D9", Dark: "#D4D5D9"},
-		lipgloss.AdaptiveColor{Light: "#565C66", Dark: "#565C66"},
-		lipgloss.AdaptiveColor{Light: "#A9EDF2", Dark: "#A9EDF2"},
-		lipgloss.AdaptiveColor{Light: "#038194", Dark: "#038194"},
-		lipgloss.AdaptiveColor{Light: "#A1F0CB", Dark: "#A1F0CB"},
-		lipgloss.AdaptiveColor{Light: "#00875A", Dark: "#00875A"},
-		lipgloss.AdaptiveColor{Light: "#FFCFB2", Dark: "#FFCFB2"},
-		lipgloss.AdaptiveColor{Light: "#C2562F", Dark: "#C2562F"},
-		lipgloss.AdaptiveColor{Light: "#FFC7CA", Dark: "#FFC7CA"},
-		lipgloss.AdaptiveColor{Light: "#CC2944", Dark: "#CC2944"},
-		lipgloss.AdaptiveColor{Light: "#BDD9FF", Dark: "#BDD9FF"},
-		lipgloss.AdaptiveColor{Light: "#1F59C4", Dark: "#1F59C4"},
-		lipgloss.AdaptiveColor{Light: "#D0ED9D", Dark: "#D0ED9D"},
-		lipgloss.AdaptiveColor{Light: "#5F8A2D", Dark: "#5F8A2D"},
-		lipgloss.AdaptiveColor{Light: "#FFE49E", Dark: "#FFE49E"},
-		lipgloss.AdaptiveColor{Light: "#B8740F", Dark: "#B8740F"},
-		lipgloss.AdaptiveColor{Light: "#EFC2FC", Dark: "#EFC2FC"},
-		lipgloss.AdaptiveColor{Light: "#9E36C2", Dark: "#9E36C2"},
-		lipgloss.AdaptiveColor{Light: "#D6C9FF", Dark: "#D6C9FF"},
-		lipgloss.AdaptiveColor{Light: "#6645D1", Dark: "#6645D1"},
+		lipgloss.AdaptiveColor{Light: "#AEAFB3", Dark: "#D4D5D9"},
+		lipgloss.AdaptiveColor{Light: "#454B54", Dark: "#565C66"},
+		lipgloss.AdaptiveColor{Light: "#7AD4DB", Dark: "#A9EDF2"},
+		lipgloss.AdaptiveColor{Light: "#04707F", Dark: "#038194"},
+		lipgloss.AdaptiveColor{Light: "#6DDBA8", Dark: "#A1F0CB"},
+		lipgloss.AdaptiveColor{Light: "#00704A", Dark: "#00875A"},
+		lipgloss.AdaptiveColor{Light: "#EAB08A", Dark: "#FFCFB2"},
+		lipgloss.AdaptiveColor{Light: "#A84728", Dark: "#C2562F"},
+		lipgloss.AdaptiveColor{Light: "#EAA0A5", Dark: "#FFC7CA"},
+		lipgloss.AdaptiveColor{Light: "#B82038", Dark: "#CC2944"},
+		lipgloss.AdaptiveColor{Light: "#8FBDE8", Dark: "#BDD9FF"},
+		lipgloss.AdaptiveColor{Light: "#2850A8", Dark: "#1F59C4"},
+		lipgloss.AdaptiveColor{Light: "#B0D470", Dark: "#D0ED9D"},
+		lipgloss.AdaptiveColor{Light: "#4E7424", Dark: "#5F8A2D"},
+		lipgloss.AdaptiveColor{Light: "#EAC860", Dark: "#FFE49E"},
+		lipgloss.AdaptiveColor{Light: "#9A5E10", Dark: "#B8740F"},
+		lipgloss.AdaptiveColor{Light: "#D99DE8", Dark: "#EFC2FC"},
+		lipgloss.AdaptiveColor{Light: "#8528A8", Dark: "#9E36C2"},
+		lipgloss.AdaptiveColor{Light: "#B8A8E8", Dark: "#D6C9FF"},
+		lipgloss.AdaptiveColor{Light: "#5538B0", Dark: "#6645D1"},
 	},
 }
 
@@ -220,7 +322,7 @@ var (
 
 	navInfoStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
-	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(1).MarginBottom(0)
+	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(0).MarginBottom(0)
 
 	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginRight(1)
 )
@@ -256,20 +358,17 @@ var (
 		Padding(0, StatusBarPadding)
 )
 
+var errorStyle = lipgloss.NewStyle()
+
 // Run overview styles.
 var (
-	colorSelectedRunStyle = lipgloss.AdaptiveColor{
-		Dark:  "#FCBC32",
-		Light: "#FCBC32",
-	}
-
 	runOverviewSidebarSectionHeaderStyle = lipgloss.
 						NewStyle().Bold(true).Foreground(colorSubheading)
 	runOverviewSidebarSectionStyle    = lipgloss.NewStyle().Foreground(colorText).Bold(true)
 	runOverviewSidebarKeyStyle        = lipgloss.NewStyle().Foreground(colorItemKey)
 	runOverviewSidebarValueStyle      = lipgloss.NewStyle().Foreground(colorItemValue)
 	runOverviewSidebarHighlightedItem = lipgloss.NewStyle().
-						Foreground(colorDark).Background(colorSelectedRunStyle)
+						Foreground(colorDark).Background(colorSelected)
 )
 
 // Left sidebar styles.
@@ -277,11 +376,12 @@ var (
 	leftSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
 	leftSidebarBorderStyle = lipgloss.NewStyle().
 				Border(RightBorder).
-				BorderForeground(colorLayout)
+				BorderForeground(colorLayout).
+				BorderTop(false)
 	leftSidebarHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(colorSubheading).
-				MarginBottom(1)
+				MarginBottom(0)
 	RightBorder = lipgloss.Border{
 		Top:         string(unicodeSpace),
 		Bottom:      string(unicodeSpace),
@@ -290,18 +390,21 @@ var (
 		TopLeft:     string(unicodeSpace),
 		TopRight:    string(unicodeSpace),
 		BottomLeft:  string(unicodeSpace),
-		BottomRight: string(boxLightVertical),
+		BottomRight: string(unicodeSpace),
 	}
 )
 
 // Right sidebar styles.
 var (
-	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
-	rightSidebarBorderStyle = lipgloss.NewStyle().Border(LeftBorder).BorderForeground(colorLayout)
+	rightSidebarStyle       = lipgloss.NewStyle().PaddingLeft(1)
+	rightSidebarBorderStyle = lipgloss.NewStyle().
+				Border(LeftBorder).
+				BorderForeground(colorLayout).
+				BorderTop(false)
 	rightSidebarHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(colorSubheading).
-				MarginLeft(1)
+				MarginLeft(0)
 	LeftBorder = lipgloss.Border{
 		Top:         string(unicodeSpace),
 		Bottom:      string(unicodeSpace),
@@ -309,8 +412,53 @@ var (
 		Right:       "",
 		TopLeft:     string(unicodeSpace),
 		TopRight:    string(unicodeSpace),
-		BottomLeft:  string(verticalLine),
+		BottomLeft:  string(unicodeSpace),
 		BottomRight: string(unicodeSpace),
+	}
+)
+
+// Console logs pane styles.
+var (
+	consoleLogsPaneBorderStyle = lipgloss.NewStyle().
+					Border(topOnlyBorder).
+					BorderForeground(colorLayout).
+					BorderTop(true).
+					BorderBottom(false).
+					BorderLeft(false).
+					BorderRight(false).
+					PaddingBottom(1)
+
+	consoleLogsPaneHeaderStyle = lipgloss.NewStyle().
+					Bold(true).
+					Foreground(colorSubheading).
+					PaddingLeft(1)
+
+	consoleLogsPaneTimestampStyle = lipgloss.NewStyle().
+					Foreground(colorSubtle).
+					PaddingLeft(1)
+
+	consoleLogsPaneValueStyle = lipgloss.NewStyle().
+					Foreground(colorItemValue)
+
+	consoleLogsPaneHighlightedTimestampStyle = lipgloss.NewStyle().
+							Background(colorSelected).
+							Foreground(colorDark).
+							PaddingLeft(1)
+
+	consoleLogsPaneHighlightedValueStyle = lipgloss.NewStyle().
+						Background(colorSelected).
+						Foreground(colorDark)
+
+	// topOnlyBorder draws a single horizontal line at the top of the box.
+	topOnlyBorder = lipgloss.Border{
+		Top:         string(unicodeEmDash),
+		Bottom:      "",
+		Left:        "",
+		Right:       "",
+		TopLeft:     string(unicodeEmDash),
+		TopRight:    string(unicodeEmDash),
+		BottomLeft:  "",
+		BottomRight: "",
 	}
 )
 
@@ -332,4 +480,21 @@ var (
 	helpSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(colorHeading)
 
 	helpContentStyle = lipgloss.NewStyle().MarginLeft(2).MarginTop(1)
+)
+
+// Workspace view mode styles.
+var (
+	workspaceTopMarginLines = 1
+	workspaceHeaderLines    = 1
+	runsSidebarBorderCols   = 2
+
+	colorSelectedRunInactiveStyle = lipgloss.AdaptiveColor{
+		Light: "#F5D28A",
+		Dark:  "#6B5200",
+	}
+
+	evenRunStyle             = lipgloss.NewStyle()
+	oddRunStyle              = lipgloss.NewStyle().Background(getOddRunStyleColor())
+	selectedRunStyle         = lipgloss.NewStyle().Background(colorSelected)
+	selectedRunInactiveStyle = lipgloss.NewStyle().Background(colorSelectedRunInactiveStyle)
 )

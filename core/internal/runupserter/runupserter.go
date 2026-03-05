@@ -25,7 +25,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -39,7 +38,7 @@ type RunUpserter struct {
 	mu sync.Mutex
 	wg sync.WaitGroup
 
-	debounceDelay waiting.Delay
+	debounceDelay time.Duration
 
 	settings           *settings.Settings
 	beforeRunEndCtx    context.Context
@@ -64,7 +63,7 @@ type RunUpserter struct {
 }
 
 type RunUpserterParams struct {
-	DebounceDelay waiting.Delay
+	DebounceDelay time.Duration
 
 	ClientID           string
 	Settings           *settings.Settings
@@ -77,8 +76,6 @@ type RunUpserterParams struct {
 
 func (params *RunUpserterParams) panicIfNotFilled() {
 	switch {
-	case params.DebounceDelay == nil:
-		panic("runupserter: DebounceDelay is nil")
 	case params.Settings == nil:
 		panic("runupserter: Settings is nil")
 	case params.BeforeRunEndCtx == nil:
@@ -491,11 +488,8 @@ func (upserter *RunUpserter) syncPeriodically() {
 //
 // It is immediate if finishing.
 func (upserter *RunUpserter) debounce() {
-	delay, cancel := upserter.debounceDelay.Wait()
-	defer cancel()
-
 	select {
-	case <-delay:
+	case <-time.After(upserter.debounceDelay):
 	case <-upserter.done:
 	}
 }

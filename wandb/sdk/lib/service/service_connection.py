@@ -165,9 +165,11 @@ class ServiceConnection:
     def api_init_request(
         self,
         settings: wandb_settings_pb2.Settings,
-    ) -> None:
+    ) -> wandb_api_pb2.ServerApiInitResponse:
         """Tells wandb-core to initialize resources for handling API requests."""
-        api_init_request = wandb_api_pb2.ServerApiInitRequest(settings=settings)
+        api_init_request = wandb_api_pb2.ServerApiInitRequest(
+            settings=settings,
+        )
         request = spb.ServerRequest(api_init_request=api_init_request)
         handle = self._asyncer.run(lambda: self._client.deliver(request))
 
@@ -184,9 +186,18 @@ class ServiceConnection:
                 + " the service process is busy and did not respond in time.",
             ) from None
 
-        api_init_response = response.api_init_response
-        if api_init_response.error_message:
-            raise WandbApiFailedError(api_init_response.error_message)
+        if response.api_init_response.error_message:
+            raise WandbApiFailedError(response.api_init_response.error_message)
+
+        return response.api_init_response
+
+    def api_cleanup_request(self, api_id: str) -> None:
+        """Tells wandb-core to cleanup API resources."""
+        api_cleanup_request = wandb_api_pb2.ServerApiCleanupRequest(
+            id=api_id,
+        )
+        request = spb.ServerRequest(api_cleanup_request=api_cleanup_request)
+        self._asyncer.run(lambda: self._client.publish(request))
 
     async def sync_status(
         self,

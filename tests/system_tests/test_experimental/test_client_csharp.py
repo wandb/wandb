@@ -2,7 +2,10 @@ import os
 import pathlib
 import subprocess
 
+import pytest
 
+
+@pytest.mark.timeout(300)
 def test_client_sharp(wandb_backend_spy):
     script_path = (
         pathlib.Path(__file__).parent.parent.parent.parent

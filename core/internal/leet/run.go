@@ -5,6 +5,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -40,6 +41,11 @@ type Run struct {
 	// successfully loaded from the transaction log.
 	isLoading bool
 
+	// liveRunning caches whether the run is in RunStateRunning.
+	//
+	// Written on the main goroutine; read from the HeartbeatManager timer goroutine.
+	liveRunning atomic.Bool
+
 	// Data reader.
 	reader *WandbReader
 
@@ -51,10 +57,12 @@ type Run struct {
 	focus *Focus
 
 	// UI components.
-	metricsGrid  *MetricsGrid
-	runOverview  *RunOverview
-	leftSidebar  *RunOverviewSidebar
-	rightSidebar *RightSidebar
+	metricsGrid     *MetricsGrid
+	runOverview     *RunOverview
+	leftSidebar     *RunOverviewSidebar
+	rightSidebar    *RightSidebar
+	consoleLogs     *RunConsoleLogs
+	consoleLogsPane *ConsoleLogsPane
 
 	// Sidebar animation synchronization.
 	animationMu sync.Mutex
@@ -63,9 +71,6 @@ type Run struct {
 	// Loading progress.
 	recordsLoaded int
 	loadStartTime time.Time
-
-	// Restart flag.
-	shouldRestart bool
 
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
@@ -92,24 +97,26 @@ func NewRun(
 	ch := make(chan tea.Msg, 4096)
 
 	ro := NewRunOverview()
-	runOverviewAnimState := NewAnimationState(cfg.LeftSidebarVisible(), SidebarMinWidth)
+	runOverviewAnimState := NewAnimatedValue(cfg.LeftSidebarVisible(), SidebarMinWidth)
 
-	metricsGrid := NewMetricsGrid(cfg, focus, logger)
+	metricsGrid := NewMetricsGrid(cfg, cfg.MetricsGrid, focus, logger)
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
 
 	return &Run{
-		config:       cfg,
-		keyMap:       buildKeyMap(RunKeyBindings()),
-		focus:        focus,
-		isLoading:    true,
-		runPath:      runPath,
-		metricsGrid:  metricsGrid,
-		runOverview:  ro,
-		leftSidebar:  NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
-		rightSidebar: NewRightSidebar(cfg, focus, logger),
-		watcherMgr:   NewWatcherManager(ch, logger),
-		heartbeatMgr: NewHeartbeatManager(heartbeatInterval, ch, logger),
-		logger:       logger,
+		config:          cfg,
+		keyMap:          buildKeyMap(RunKeyBindings()),
+		focus:           focus,
+		isLoading:       true,
+		runPath:         runPath,
+		metricsGrid:     metricsGrid,
+		runOverview:     ro,
+		leftSidebar:     NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
+		rightSidebar:    NewRightSidebar(cfg, focus, logger),
+		consoleLogs:     NewRunConsoleLogs(),
+		consoleLogsPane: NewConsoleLogsPane(),
+		watcherMgr:      NewWatcherManager(ch, logger),
+		heartbeatMgr:    NewHeartbeatManager(heartbeatInterval, ch, logger),
+		logger:          logger,
 	}
 }
 
@@ -138,13 +145,13 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Forward UI messages to children if not in filter mode.
 	if isUIMsg(msg) && !r.metricsGrid.IsFilterMode() && !r.leftSidebar.IsFilterMode() {
-		if s, c := r.leftSidebar.Update(msg); c != nil {
-			r.leftSidebar = s
-			cmds = append(cmds, c)
-		}
-		if rs, c := r.rightSidebar.Update(msg); c != nil {
-			r.rightSidebar = rs
-			cmds = append(cmds, c)
+		if _, ok := msg.(tea.KeyMsg); !ok {
+			if _, cmd := r.leftSidebar.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			if _, cmd := r.rightSidebar.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 	}
 
@@ -179,6 +186,7 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 
 	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.IsVisible())
 	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.IsVisible())
+	r.consoleLogsPane.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -188,7 +196,8 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 func isUIMsg(msg tea.Msg) bool {
 	switch msg.(type) {
 	case tea.KeyMsg, tea.MouseMsg, tea.WindowSizeMsg,
-		LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
+		LeftSidebarAnimationMsg, RightSidebarAnimationMsg,
+		ConsoleLogsPaneAnimationMsg:
 		return true
 	default:
 		return false
@@ -212,6 +221,8 @@ func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 		r.handleWindowResize(t)
 	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
 		return r.handleSidebarAnimation(msg)
+	case ConsoleLogsPaneAnimationMsg:
+		return r.handleConsoleLogsPaneAnimation()
 	default:
 		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error
 		if _, cmd := r.handleRecordMsg(msg); cmd != nil {
@@ -255,6 +266,14 @@ func (r *Run) renderMainView() string {
 	dims := r.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
 	gridView := r.metricsGrid.View(dims)
 
+	// If bottom bar is visible, join it below the grid to form the central column.
+	centralColumn := gridView
+	if r.consoleLogsPane.IsVisible() {
+		r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
+		bbView := r.consoleLogsPane.View(layout.mainContentAreaWidth, "", "")
+		centralColumn = lipgloss.JoinVertical(lipgloss.Left, gridView, bbView)
+	}
+
 	leftWidth := r.leftSidebar.Width()
 	rightWidth := r.rightSidebar.Width()
 
@@ -264,16 +283,16 @@ func (r *Run) renderMainView() string {
 	totalSidebarWidth := leftWidth + rightWidth
 	if totalSidebarWidth >= r.width-minMainContentWidth {
 		if rightWidth > 0 {
-			r.rightSidebar.animState.currentWidth = 0
+			r.rightSidebar.animState.current = 0
 			rightWidth = 0
 		}
 		if leftWidth+minMainContentWidth >= r.width {
-			r.leftSidebar.animState.currentWidth = 0
+			r.leftSidebar.animState.current = 0
 			leftWidth = 0
 		}
 	}
 
-	mainView := r.buildMainViewWithSidebars(gridView, leftWidth, rightWidth)
+	mainView := r.buildMainViewWithSidebars(centralColumn, leftWidth, rightWidth)
 	statusBar := r.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
@@ -303,11 +322,6 @@ func (r *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth i
 	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 }
 
-// ShouldRestart reports whether the user requested a full restart.
-func (r *Run) ShouldRestart() bool {
-	return r.shouldRestart
-}
-
 // logPanic logs panics to the logger before re-panicking.
 func (m *Run) logPanic(context string) {
 	if r := recover(); r != nil {
@@ -319,9 +333,16 @@ func (m *Run) logPanic(context string) {
 	}
 }
 
-// isRunning returns whether the run is currently active.
+// isRunning reports whether the run is live.
+//
+// Safe to call from any goroutine (reads an atomic.Bool).
 func (r *Run) isRunning() bool {
-	return r.runState == RunStateRunning
+	return r.liveRunning.Load()
+}
+
+// syncLiveRunning updates the atomic liveness flag from the authoritative state.
+func (r *Run) syncLiveRunning() {
+	r.liveRunning.Store(r.runState == RunStateRunning)
 }
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen.
@@ -373,6 +394,9 @@ func (r *Run) buildStatusText() string {
 	if r.metricsGrid.IsFilterMode() {
 		return r.buildMetricsFilterStatus()
 	}
+	if r.rightSidebar.IsFilterMode() {
+		return r.buildSystemMetricsFilterStatus()
+	}
 	if r.config.IsAwaitingGridConfig() {
 		return r.config.GridConfigStatus()
 	}
@@ -409,6 +433,21 @@ func (r *Run) buildMetricsFilterStatus() string {
 		r.metricsGrid.FilteredChartCount(), r.metricsGrid.ChartCount())
 }
 
+func (r *Run) buildSystemMetricsFilterStatus() string {
+	if r.rightSidebar == nil || r.rightSidebar.metricsGrid == nil {
+		return ""
+	}
+	grid := r.rightSidebar.metricsGrid
+	return fmt.Sprintf(
+		"System filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
+		grid.FilterMode().String(),
+		grid.FilterQuery(),
+		string(mediumShadeBlock),
+		grid.FilteredChartCount(),
+		grid.ChartCount(),
+	)
+}
+
 // buildLoadingStatus builds status for loading mode.
 func (r *Run) buildLoadingStatus() string {
 	if r.recordsLoaded > 0 {
@@ -439,6 +478,17 @@ func (r *Run) buildActiveStatus() string {
 		))
 	}
 
+	if r.rightSidebar.IsFiltering() {
+		grid := r.rightSidebar.metricsGrid
+		parts = append(parts, fmt.Sprintf(
+			"System filter (%s): %q [%d/%d] (\\ to change, Ctrl+\\ to clear)",
+			grid.FilterMode().String(),
+			grid.FilterQuery(),
+			grid.FilteredChartCount(),
+			grid.ChartCount(),
+		))
+	}
+
 	// Add selected overview item if sidebar is visible.
 	if r.leftSidebar.IsVisible() {
 		key, value := r.leftSidebar.SelectedItem()
@@ -462,14 +512,18 @@ func (r *Run) buildActiveStatus() string {
 
 // buildHelpText builds the help text for the status bar.
 func (r *Run) buildHelpText() string {
-	if r.metricsGrid.IsFilterMode() || r.leftSidebar.IsFilterMode() {
+	if r.metricsGrid.IsFilterMode() ||
+		r.leftSidebar.IsFilterMode() ||
+		r.rightSidebar.IsFilterMode() {
 		return ""
 	}
 	return "h: help"
 }
 
 func (r *Run) IsFiltering() bool {
-	return r.metricsGrid.IsFilterMode() || r.leftSidebar.IsFilterMode()
+	return r.metricsGrid.IsFilterMode() ||
+		r.leftSidebar.IsFilterMode() ||
+		r.rightSidebar.IsFilterMode()
 }
 
 // Layout represents the computed layout dimensions for the main UI.
@@ -486,7 +540,7 @@ func (r *Run) computeViewports() Layout {
 	rightW := r.rightSidebar.Width()
 
 	contentW := max(r.width-leftW-rightW-2, 1)
-	contentH := max(r.height-StatusBarHeight, 1)
+	contentH := max(r.height-StatusBarHeight-r.consoleLogsPane.Height(), 1)
 
 	return Layout{leftW, contentW, rightW, contentH}
 }

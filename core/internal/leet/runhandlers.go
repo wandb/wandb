@@ -22,6 +22,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		r.runOverview.ProcessRunMsg(msg)
 		r.leftSidebar.Sync()
 		r.runState = RunStateRunning
+		r.syncLiveRunning()
 		r.isLoading = false
 		return r, nil
 
@@ -52,6 +53,11 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		r.leftSidebar.Sync()
 		return r, nil
 
+	case ConsoleLogMsg:
+		r.logger.Debug("model: processing ConsoleLogMsg")
+		r.consoleLogs.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
+		return r, nil
+
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
 		switch msg.ExitCode {
@@ -60,6 +66,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 		default:
 			r.runState = RunStateFailed
 		}
+		r.syncLiveRunning()
 		r.runOverview.SetRunState(r.runState)
 		r.leftSidebar.Sync()
 
@@ -72,6 +79,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) { // TODO: return jus
 	case ErrorMsg:
 		r.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
 		r.runState = RunStateFailed
+		r.syncLiveRunning()
 		r.runOverview.SetRunState(r.runState)
 		r.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
 		r.heartbeatMgr.Stop()
@@ -149,10 +157,9 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Run, te
 func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea.Cmd) {
 	const gridPaddingX = 1
 	const gridPaddingY = 1
-	const headerOffset = 1
 
 	adjustedX := msg.X - layout.leftSidebarWidth - gridPaddingX
-	adjustedY := msg.Y - gridPaddingY - headerOffset
+	adjustedY := msg.Y - gridPaddingY
 
 	dims := r.metricsGrid.CalculateChartDimensions(
 		layout.mainContentAreaWidth,
@@ -205,10 +212,16 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Run, tea
 func (r *Run) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 	// Filter modes take priority.
 	if r.leftSidebar.IsFilterMode() {
-		return r.handleOverviewFilter(msg)
+		r.leftSidebar.HandleFilterKey(msg)
+		return nil
 	}
 	if r.metricsGrid.IsFilterMode() {
-		return r.handleMetricsFilter(msg)
+		r.metricsGrid.handleFilterKey(msg)
+		return nil
+	}
+	if r.rightSidebar.IsFilterMode() {
+		r.rightSidebar.HandleFilterKey(msg)
+		return nil
 	}
 
 	// Grid config capture takes priority.
@@ -242,14 +255,6 @@ func (r *Run) handleQuit(msg tea.KeyMsg) tea.Cmd {
 	return tea.Quit
 }
 
-func (r *Run) handleRestart(msg tea.KeyMsg) tea.Cmd {
-	r.logger.Debug("model: restart requested")
-	r.shouldRestart = true
-
-	r.cleanup()
-	return tea.Quit
-}
-
 // beginAnimating tries to acquire the one-shot animation token.
 //
 // Returns true if the caller owns the token and may initiate an animation.
@@ -271,12 +276,17 @@ func (r *Run) endAnimating() {
 	r.animationMu.Unlock()
 }
 
+// handleToggleLeftSidebar toggles the left overview sidebar and resolves
+// focus so a collapsing sidebar loses focus and an expanding sidebar
+// gains it when nothing else is focused.
 func (r *Run) handleToggleLeftSidebar(msg tea.KeyMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
 	}
 
 	leftWillBeVisible := !r.leftSidebar.IsVisible()
+
+	r.resolveRunFocusAfterVisibilityChange(leftWillBeVisible, r.consoleLogsPane.IsExpanded())
 
 	if err := r.config.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
 		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
@@ -382,25 +392,23 @@ func (r *Run) handleConfigSystemRows(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// handleMetricsFilter handles filter mode input for metrics
-func (r *Run) handleMetricsFilter(msg tea.KeyMsg) tea.Cmd {
-	r.metricsGrid.handleMetricsFilterKey(msg)
-	return nil
+func (r *Run) handleEnterSystemMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	var cmd tea.Cmd
+	if !r.config.RightSidebarVisible() {
+		cmd = r.handleToggleRightSidebar(msg)
+	}
+	r.rightSidebar.metricsGrid.EnterFilterMode()
+	r.rightSidebar.metricsGrid.ApplyFilter()
+
+	return cmd
 }
 
-// handleOverviewFilter handles overview filter keyboard input.
-func (r *Run) handleOverviewFilter(msg tea.KeyMsg) tea.Cmd {
-	switch msg.Type {
-	case tea.KeyEsc:
-		r.leftSidebar.ExitFilterMode(false)
-	case tea.KeyEnter:
-		r.leftSidebar.ExitFilterMode(true)
-	case tea.KeyTab:
-		r.leftSidebar.ToggleFilterMatchMode()
-	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
-		r.leftSidebar.UpdateFilterDraft(msg)
-		r.leftSidebar.ApplyFilter()
-		r.leftSidebar.updateSectionHeights()
+func (r *Run) handleClearSystemMetricsFilter(msg tea.KeyMsg) tea.Cmd {
+	if r.rightSidebar.metricsGrid.FilterQuery() != "" {
+		r.rightSidebar.metricsGrid.ClearFilter()
+	}
+	if r.focus.Type == FocusSystemChart {
+		r.focus.Reset()
 	}
 	return nil
 }
@@ -439,6 +447,48 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 	}
 
 	return nil
+}
+
+// handleToggleConsoleLogsPane toggles the console logs bottom bar and resolves
+// focus so a collapsing bar loses focus and an expanding bar gains it
+// when nothing else is focused.
+func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyMsg) tea.Cmd {
+	if !r.beginAnimating() {
+		return nil
+	}
+
+	bottomWillBeVisible := !r.consoleLogsPane.IsExpanded()
+
+	r.resolveRunFocusAfterVisibilityChange(
+		r.leftSidebar.animState.IsExpanded(), bottomWillBeVisible)
+
+	r.consoleLogsPane.UpdateExpandedHeight(max(r.height-StatusBarHeight, 0))
+	r.consoleLogsPane.Toggle()
+
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	return r.consoleLogsPaneAnimationCmd()
+}
+
+func (r *Run) handleConsoleLogsPaneAnimation() []tea.Cmd {
+	r.consoleLogsPane.Update(time.Now())
+
+	layout := r.computeViewports()
+	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	if r.consoleLogsPane.IsAnimating() {
+		return []tea.Cmd{r.consoleLogsPaneAnimationCmd()}
+	}
+
+	r.endAnimating()
+	return nil
+}
+
+func (r *Run) consoleLogsPaneAnimationCmd() tea.Cmd {
+	return tea.Tick(AnimationFrame, func(time.Time) tea.Msg {
+		return ConsoleLogsPaneAnimationMsg{}
+	})
 }
 
 // handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
@@ -527,4 +577,74 @@ func (r *Run) handleFileChange() []tea.Cmd {
 		ReadAvailableRecords(r.reader),
 		r.watcherMgr.WaitForMsg,
 	}
+}
+
+// handleSidebarTabNav cycles focus between overview sections and the
+// console logs bar, mirroring the workspace's Tab cycling pattern.
+//
+// Within the overview region, Tab first cycles through sections. At the
+// boundary, it moves to the next available region.
+func (r *Run) handleSidebarTabNav(msg tea.KeyMsg) tea.Cmd {
+	direction := 1
+	if msg.Type == tea.KeyShiftTab {
+		direction = -1
+	}
+
+	cur := r.currentRunFocusRegion()
+
+	// Try cycling within overview sections before leaving the region.
+	if cur == runFocusOverview && r.cycleRunOverviewSection(direction) {
+		return nil
+	}
+
+	r.cycleRunFocusRegion(cur, direction)
+	return nil
+}
+
+func (r *Run) handleSidebarVerticalNav(msg tea.KeyMsg) tea.Cmd {
+	if r.consoleLogsPane.Active() {
+		switch msg.Type {
+		case tea.KeyUp:
+			r.consoleLogsPane.Up()
+		case tea.KeyDown:
+			r.consoleLogsPane.Down()
+		}
+		return nil
+	}
+
+	if !r.leftSidebar.IsVisible() {
+		return nil
+	}
+
+	switch msg.Type {
+	case tea.KeyUp:
+		r.leftSidebar.navigateUp()
+	case tea.KeyDown:
+		r.leftSidebar.navigateDown()
+	}
+	return nil
+}
+
+func (r *Run) handleSidebarPageNav(msg tea.KeyMsg) tea.Cmd {
+	if r.consoleLogsPane.Active() {
+		switch msg.Type {
+		case tea.KeyLeft:
+			r.consoleLogsPane.PageUp()
+		case tea.KeyRight:
+			r.consoleLogsPane.PageDown()
+		}
+		return nil
+	}
+
+	if !r.leftSidebar.IsVisible() {
+		return nil
+	}
+
+	switch msg.Type {
+	case tea.KeyLeft:
+		r.leftSidebar.navigatePageUp()
+	case tea.KeyRight:
+		r.leftSidebar.navigatePageDown()
+	}
+	return nil
 }

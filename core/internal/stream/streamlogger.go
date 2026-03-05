@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/google/wire"
 
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 )
@@ -20,6 +20,7 @@ type streamLoggerFile *os.File
 // streamLoggerProviders provides stream logging-related bindings.
 var streamLoggerProviders = wire.NewSet(
 	openStreamLoggerFile,
+	streamSentryContext,
 	streamLogger,
 )
 
@@ -44,24 +45,45 @@ func symlinkDebugCore(
 	}
 }
 
+// streamSentryContext returns the Sentry context for the stream.
+//
+// Returns nil if the run is offline.
+func streamSentryContext(s *settings.Settings) *observability.SentryContext {
+	if s.IsOffline() {
+		return nil
+	}
+
+	sentryCtx := observability.NewSentryContext(sentry.CurrentHub())
+	sentryCtx.SetUser(sentry.User{
+		ID:    s.GetEntity(),
+		Email: s.GetEmail(),
+		Name:  s.GetUserName(),
+	})
+	return sentryCtx
+}
+
 // streamLogger initializes a logger for the run.
 func streamLogger(
 	loggerFile streamLoggerFile,
+	sentryCtx *observability.SentryContext,
 	s *settings.Settings,
-	sentryClient *sentry_ext.Client,
 	logLevel slog.Level,
 ) *observability.CoreLogger {
-	sentryClient.SetUser(
-		s.GetEntity(),
-		s.GetEmail(),
-		s.GetUserName(),
-	)
-
 	var writer io.Writer
 	if loggerFile != nil {
 		writer = (*os.File)(loggerFile)
 	} else {
 		writer = io.Discard
+	}
+
+	sentryOnlyTags := observability.Tags{
+		"run_id":   s.GetRunID(),
+		"run_url":  s.GetRunURL(),
+		"project":  s.GetProject(),
+		"base_url": s.GetBaseURL(),
+	}
+	if s.GetSweepURL() != "" {
+		sentryOnlyTags["sweep_url"] = s.GetSweepURL()
 	}
 
 	logger := observability.NewCoreLogger(
@@ -72,27 +94,11 @@ func streamLogger(
 				// AddSource: true,
 			},
 		)),
-		&observability.CoreLoggerParams{
-			Tags:   observability.Tags{},
-			Sentry: sentryClient,
-		},
-	)
+		sentryCtx,
+	).With(nil, sentryOnlyTags)
 
-	logger.Info(
-		"stream: starting",
-		"core version", version.Version)
-
-	tags := observability.Tags{
-		"run_id":   s.GetRunID(),
-		"run_url":  s.GetRunURL(),
-		"project":  s.GetProject(),
-		"base_url": s.GetBaseURL(),
-	}
-	if s.GetSweepURL() != "" {
-		tags["sweep_url"] = s.GetSweepURL()
-	}
-	logger.SetGlobalTags(tags)
-
+	logger.CaptureInfo("wandb-core")
+	logger.Info("stream: starting", "core version", version.Version)
 	return logger
 }
 

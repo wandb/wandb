@@ -87,6 +87,25 @@ func (f *Filter) UpdateDraft(msg tea.KeyMsg) {
 	}
 }
 
+// HandleKey processes a filter-mode key event, mutating filter state accordingly.
+//
+// Returns true if the filter state changed (i.e. the caller should reapply).
+func (f *Filter) HandleKey(msg tea.KeyMsg) bool {
+	switch msg.Type {
+	case tea.KeyEsc:
+		f.Cancel()
+	case tea.KeyEnter:
+		f.Commit()
+	case tea.KeyTab:
+		f.ToggleMode()
+	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
+		f.UpdateDraft(msg)
+	default:
+		return false
+	}
+	return true
+}
+
 // Query returns the current filter pattern (draft if active, applied otherwise).
 func (f *Filter) Query() string {
 	if f.inputActive {

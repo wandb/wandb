@@ -15,7 +15,6 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
@@ -123,9 +122,9 @@ type fileStream struct {
 	// The rate limit for sending data to the backend.
 	transmitRateLimit *rate.Limiter
 
-	// A schedule on which to send heartbeats to the backend
+	// How long to wait between sending heartbeats to the backend
 	// to prove the run is still alive.
-	heartbeatStopwatch waiting.Stopwatch
+	heartbeatPeriod time.Duration
 
 	// A channel that is closed if there is a fatal error.
 	deadChan     chan struct{}
@@ -154,7 +153,7 @@ type FileStreamFactory struct {
 func (f *FileStreamFactory) New(
 	apiClient api.RetryableClient,
 	beforeRunEndCtx context.Context,
-	heartbeatStopwatch waiting.Stopwatch,
+	heartbeatPeriod time.Duration,
 	transmitRateLimit *rate.Limiter,
 ) FileStream {
 	// Panic early to avoid surprises. These fields are required.
@@ -179,9 +178,9 @@ func (f *FileStreamFactory) New(
 		deadChan:        make(chan struct{}),
 	}
 
-	fs.heartbeatStopwatch = heartbeatStopwatch
-	if fs.heartbeatStopwatch == nil {
-		fs.heartbeatStopwatch = waiting.NewStopwatch(defaultHeartbeatInterval)
+	fs.heartbeatPeriod = heartbeatPeriod
+	if fs.heartbeatPeriod < time.Second { // Prevent spammy mistakes.
+		fs.heartbeatPeriod = defaultHeartbeatInterval
 	}
 
 	fs.transmitRateLimit = transmitRateLimit

@@ -21,6 +21,10 @@ const (
 	gridConfigMetricsCols
 	gridConfigSystemRows
 	gridConfigSystemCols
+	gridConfigWorkspaceMetricsRows
+	gridConfigWorkspaceMetricsCols
+	gridConfigWorkspaceSystemRows
+	gridConfigWorkspaceSystemCols
 )
 
 const (
@@ -56,11 +60,15 @@ type Config struct {
 	//  - single_run_latest: open the latest run directly in single-run view
 	StartupMode string `json:"startup_mode" leet:"label=Startup mode,desc=Initial view when launched without a run path.,options=startupModes"`
 
-	// MetricsGrid is the dimensions for the main metrics chart grid.
+	// MetricsGrid is the dimensions for the metrics chart grid in single-run mode.
 	MetricsGrid GridConfig `json:"metrics_grid" leet:"desc=main metrics grid"`
 
-	// SystemGrid is the dimensions for the system metrics chart grid.
+	// SystemGrid is the dimensions for the system metrics chart grid in single-run mode.
 	SystemGrid GridConfig `json:"system_grid" leet:"desc=system metrics grid"`
+
+	// Grid dimensions in Workspace view.
+	WorkspaceMetricsGrid GridConfig `json:"workspace_metrics_grid" leet:"desc=workspace metrics grid"`
+	WorkspaceSystemGrid  GridConfig `json:"workspace_system_grid"  leet:"desc=workspace system metrics grid"`
 
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
@@ -125,6 +133,14 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Rows: DefaultSystemGridRows,
 				Cols: DefaultSystemGridCols,
 			},
+			WorkspaceMetricsGrid: GridConfig{
+				Rows: DefaultWorkspaceMetricsGridRows,
+				Cols: DefaultWorkspaceMetricsGridCols,
+			},
+			WorkspaceSystemGrid: GridConfig{
+				Rows: DefaultWorkspaceSystemGridRows,
+				Cols: DefaultWorkspaceSystemGridCols,
+			},
 			StartupMode:         DefaultStartupMode,
 			ColorScheme:         DefaultColorScheme,
 			PerPlotColorScheme:  DefaultPerPlotColorScheme,
@@ -175,6 +191,15 @@ func (cm *ConfigManager) normalizeConfig() {
 	cm.config.MetricsGrid.Cols = clamp(cm.config.MetricsGrid.Cols, MinGridSize, MaxGridSize)
 	cm.config.SystemGrid.Rows = clamp(cm.config.SystemGrid.Rows, MinGridSize, MaxGridSize)
 	cm.config.SystemGrid.Cols = clamp(cm.config.SystemGrid.Cols, MinGridSize, MaxGridSize)
+
+	cm.config.WorkspaceMetricsGrid.Cols = clamp(
+		cm.config.WorkspaceMetricsGrid.Cols, MinGridSize, MaxGridSize)
+	cm.config.WorkspaceMetricsGrid.Rows = clamp(
+		cm.config.WorkspaceMetricsGrid.Rows, MinGridSize, MaxGridSize)
+	cm.config.WorkspaceSystemGrid.Rows = clamp(
+		cm.config.WorkspaceSystemGrid.Rows, MinGridSize, MaxGridSize)
+	cm.config.WorkspaceSystemGrid.Cols = clamp(
+		cm.config.WorkspaceSystemGrid.Cols, MinGridSize, MaxGridSize)
 
 	if _, ok := colorSchemes[cm.config.ColorScheme]; !ok {
 		cm.config.ColorScheme = DefaultColorScheme
@@ -300,6 +325,64 @@ func (cm *ConfigManager) SetSystemCols(cols int) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.SystemGrid.Cols = cols
+	return cm.save()
+}
+
+// WorkspaceMetricsGrid returns the workspace metrics grid configuration.
+func (cm *ConfigManager) WorkspaceMetricsGrid() (rows, cols int) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceMetricsGrid.Rows, cm.config.WorkspaceMetricsGrid.Cols
+}
+
+func (cm *ConfigManager) SetWorkspaceMetricsRows(rows int) error {
+	if rows < MinGridSize || rows > MaxGridSize {
+		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceMetricsGrid.Rows = rows
+	return cm.save()
+}
+
+func (cm *ConfigManager) SetWorkspaceMetricsCols(cols int) error {
+	if cols < MinGridSize || cols > MaxGridSize {
+		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceMetricsGrid.Cols = cols
+	return cm.save()
+}
+
+// WorkspaceSystemGrid returns the workspace system grid configuration.
+func (cm *ConfigManager) WorkspaceSystemGrid() (rows, cols int) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceSystemGrid.Rows, cm.config.WorkspaceSystemGrid.Cols
+}
+
+func (cm *ConfigManager) SetWorkspaceSystemRows(rows int) error {
+	if rows < MinGridSize || rows > MaxGridSize {
+		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceSystemGrid.Rows = rows
+	return cm.save()
+}
+
+func (cm *ConfigManager) SetWorkspaceSystemCols(cols int) error {
+	if cols < MinGridSize || cols > MaxGridSize {
+		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceSystemGrid.Cols = cols
 	return cm.save()
 }
 
@@ -516,6 +599,22 @@ func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
 	case gridConfigSystemRows:
 		if err = cm.SetSystemRows(num); err == nil { // success
 			return fmt.Sprintf("System grid rows set to %d", num), nil
+		}
+	case gridConfigWorkspaceMetricsCols:
+		if err = cm.SetWorkspaceMetricsCols(num); err == nil { // success
+			return fmt.Sprintf("Workspace metrics grid columns set to %d", num), nil
+		}
+	case gridConfigWorkspaceMetricsRows:
+		if err = cm.SetWorkspaceMetricsRows(num); err == nil { // success
+			return fmt.Sprintf("Workspace metrics grid rows set to %d", num), nil
+		}
+	case gridConfigWorkspaceSystemCols:
+		if err = cm.SetWorkspaceSystemCols(num); err == nil { // success
+			return fmt.Sprintf("Workspace system grid columns set to %d", num), nil
+		}
+	case gridConfigWorkspaceSystemRows:
+		if err = cm.SetWorkspaceSystemRows(num); err == nil { // success
+			return fmt.Sprintf("Workspace system grid rows set to %d", num), nil
 		}
 	}
 
