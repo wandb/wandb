@@ -744,16 +744,13 @@ func (mg *MetricsGrid) broadcastEndInspection() {
 	}
 }
 
-func (mg *MetricsGrid) handleMetricsFilterKey(msg tea.KeyMsg) {
-	switch msg.Type {
-	case tea.KeyEsc:
-		mg.ExitFilterMode(false)
-	case tea.KeyEnter:
-		mg.ExitFilterMode(true)
-	case tea.KeyTab:
-		mg.ToggleFilterMatchMode()
-	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
-		mg.UpdateFilterDraft(msg)
+// handleFilterKey processes a key event while the metrics filter is active.
+func (mg *MetricsGrid) handleFilterKey(msg tea.KeyMsg) {
+	mg.mu.Lock()
+	changed := mg.filter.HandleKey(msg)
+	mg.mu.Unlock()
+
+	if changed {
 		mg.ApplyFilter()
 		mg.drawVisible()
 	}

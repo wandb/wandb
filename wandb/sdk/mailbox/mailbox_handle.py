@@ -15,6 +15,13 @@ class HandleAbandonedError(Exception):
     """The handle has no response and has been abandoned."""
 
 
+class ServerResponseError(Exception):
+    """The handle received a generic error response.
+
+    In practice, this corresponds to receiving the ServerErrorResponse message.
+    """
+
+
 class MailboxHandle(abc.ABC, Generic[_T]):
     """A handle for waiting on a response to a request."""
 
@@ -70,6 +77,7 @@ class MailboxHandle(abc.ABC, Generic[_T]):
         Raises:
             TimeoutError: If the timeout is reached.
             HandleAbandonedError: If the handle becomes abandoned.
+            ServerResponseError: If the handle received an error response.
         """
 
     @abc.abstractmethod
@@ -89,6 +97,7 @@ class MailboxHandle(abc.ABC, Generic[_T]):
         Raises:
             TimeoutError: If the timeout is reached.
             HandleAbandonedError: If the handle becomes abandoned.
+            ServerResponseError: If the handle received an error response.
         """
 
 

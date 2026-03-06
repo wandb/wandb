@@ -32,14 +32,15 @@ func batchCmds(cmds ...tea.Cmd) tea.Cmd {
 func (w *Workspace) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 	// Filter mode takes priority.
 	if w.runOverviewSidebar.IsFilterMode() {
-		return w.handleOverviewFilter(msg)
+		w.runOverviewSidebar.HandleFilterKey(msg)
+		return nil
 	}
 	if w.metricsGrid.IsFilterMode() {
-		w.metricsGrid.handleMetricsFilterKey(msg)
+		w.metricsGrid.handleFilterKey(msg)
 		return nil
 	}
 	if g := w.activeSystemMetricsGrid(); g != nil && g.IsFilterMode() {
-		g.handleSystemMetricsFilterKey(msg)
+		g.handleFilterKey(msg)
 		return nil
 	}
 
@@ -678,23 +679,6 @@ func (w *Workspace) handleEnterOverviewFilter(tea.KeyMsg) tea.Cmd {
 func (w *Workspace) handleClearOverviewFilter(tea.KeyMsg) tea.Cmd {
 	if w.runOverviewSidebar.IsFiltering() {
 		w.runOverviewSidebar.ClearFilter()
-	}
-	return nil
-}
-
-// handleOverviewFilter handles overview filter keyboard input.
-func (w *Workspace) handleOverviewFilter(msg tea.KeyMsg) tea.Cmd {
-	switch msg.Type {
-	case tea.KeyEsc:
-		w.runOverviewSidebar.ExitFilterMode(false)
-	case tea.KeyEnter:
-		w.runOverviewSidebar.ExitFilterMode(true)
-	case tea.KeyTab:
-		w.runOverviewSidebar.ToggleFilterMatchMode()
-	case tea.KeyBackspace, tea.KeySpace, tea.KeyRunes:
-		w.runOverviewSidebar.UpdateFilterDraft(msg)
-		w.runOverviewSidebar.ApplyFilter()
-		w.runOverviewSidebar.updateSectionHeights()
 	}
 	return nil
 }
