@@ -56,7 +56,10 @@ type RunUpdateWork struct {
 }
 
 // Accept implements WorkImpl.Accept.
-func (w *RunUpdateWork) Accept(_ func(*spb.Record)) bool {
+func (w *RunUpdateWork) Accept(
+	_ *runwork.Request,
+	_ func(*spb.Record, *runwork.Request),
+) bool {
 	return true
 }
 
@@ -67,13 +70,13 @@ func (w *RunUpdateWork) ToRecord() *spb.Record {
 
 // Process implements WorkImpl.Process.
 func (w *RunUpdateWork) Process(
-	_ func(*spb.Record),
-	results chan<- *spb.Result,
+	request *runwork.Request,
+	_ func(*spb.Record, *runwork.Request),
 ) {
 	if upserter, _ := w.RunHandle.Upserter(); upserter != nil {
 		w.updateRun(upserter)
 	} else {
-		w.initRun(results)
+		w.initRun(request)
 	}
 }
 
@@ -83,7 +86,7 @@ func (w *RunUpdateWork) updateRun(run *RunUpserter) {
 }
 
 // initRun creates a run for the first time.
-func (w *RunUpdateWork) initRun(results chan<- *spb.Result) {
+func (w *RunUpdateWork) initRun(request *runwork.Request) {
 	upserter, err := InitRun(w.Record, RunUpserterParams{
 		Settings: w.Settings,
 
@@ -101,7 +104,7 @@ func (w *RunUpdateWork) initRun(results chan<- *spb.Result) {
 		w.Logger.Error("runupserter: failed to init run", "error", err)
 
 		if w.Record.Control.GetMailboxSlot() != "" {
-			respondRunUpdate(results, w.Record, runInitErrorResult(err))
+			respondRunUpdate(request, runInitErrorResult(err))
 		}
 
 		return
@@ -115,7 +118,7 @@ func (w *RunUpdateWork) initRun(results chan<- *spb.Result) {
 				err))
 
 		if w.Record.Control.GetMailboxSlot() != "" {
-			respondRunUpdate(results, w.Record, runInitErrorResult(err))
+			respondRunUpdate(request, runInitErrorResult(err))
 		}
 
 		return
@@ -124,23 +127,24 @@ func (w *RunUpdateWork) initRun(results chan<- *spb.Result) {
 	if w.Record.Control.GetMailboxSlot() != "" {
 		updatedRun := proto.CloneOf(w.Record.GetRun())
 		upserter.FillRunRecord(updatedRun)
-		respondRunUpdate(results, w.Record, &spb.RunUpdateResult{Run: updatedRun})
+		respondRunUpdate(request, &spb.RunUpdateResult{Run: updatedRun})
 	}
 }
 
-// respondRunUpdate pushes a RunUpdateResult to the result channel.
+// respondRunUpdate responds with a RunUpdateResult to the request.
 func respondRunUpdate(
-	outChan chan<- *spb.Result,
-	record *spb.Record,
+	request *runwork.Request,
 	result *spb.RunUpdateResult,
 ) {
-	outChan <- &spb.Result{
-		ResultType: &spb.Result_RunResult{
-			RunResult: result,
+	request.Respond(&spb.ServerResponse{
+		ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+			ResultCommunicate: &spb.Result{
+				ResultType: &spb.Result_RunResult{
+					RunResult: result,
+				},
+			},
 		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-	}
+	})
 }
 
 // runInitErrorResult produces a RunUpdateResult for an initialization error.
