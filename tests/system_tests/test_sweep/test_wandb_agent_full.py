@@ -114,7 +114,6 @@ def test_agent_config_whitespace_cli_agent(runner, user):
 
     runs = Api().runs(project, {"sweep": sweep_id})
     assert len(runs) == 1
-    print("WANDB_RUN_DEBUG:", pprint.pformat(runs[0].metadata))
     assert runs[0].state == "finished"
 
 
