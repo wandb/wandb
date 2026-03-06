@@ -864,3 +864,40 @@ func TestCreateModelParams_RemoteRun(t *testing.T) {
 		},
 	}, modelParams.RunParams)
 }
+
+func TestCreateModelParams_RemoteWorkspace_StartsInWorkspaceMode(t *testing.T) {
+	t.Setenv("WANDB_API_KEY", "test-api-key")
+	baseURL := "https://api.wandb.ai"
+	entity := "test-entity"
+	project := "test-project"
+	startupArgs := &leet.StartupArgs{
+		BaseURL: &baseURL,
+		Entity:  &entity,
+		Project: &project,
+	}
+
+	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+
+	require.NotNil(t, modelParams.Backend)
+	require.Nil(t, modelParams.RunParams)
+}
+
+func TestCreateModelParams_RemoteWorkspace_NoApiKey(t *testing.T) {
+	t.Setenv("WANDB_API_KEY", "")
+	baseURL := "https://api.wandb.ai"
+	entity := "test-entity"
+	project := "test-project"
+	startupArgs := &leet.StartupArgs{
+		BaseURL: &baseURL,
+		Entity:  &entity,
+		Project: &project,
+	}
+
+	modelParams := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
+
+	require.Nil(
+		t,
+		modelParams.Backend,
+		"backend should be nil when WANDB_API_KEY is not set",
+	)
+}
