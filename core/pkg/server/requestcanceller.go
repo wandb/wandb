@@ -2,9 +2,15 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
+
+	"github.com/getsentry/sentry-go"
 )
+
+// requestCountWarnInterval is the default RequestCanceller.warnInterval value.
+const requestCountWarnInterval = 100
 
 // RequestCanceller manages contexts for cancellable requests to wandb-core.
 type RequestCanceller struct {
@@ -13,11 +19,18 @@ type RequestCanceller struct {
 	// requestCtxCancel maps some active server request IDs to functions
 	// that can be used to cancel their operations.
 	requestCtxCancel map[string]func()
+
+	// warnInterval and lastWarnCount help detect and debug context leaks.
+	//
+	// A warning is logged each time the requestCtxCancel map's size reaches
+	// a new multiple of warnInterval.
+	warnInterval, lastWarnCount int
 }
 
 func NewRequestCanceller() *RequestCanceller {
 	return &RequestCanceller{
 		requestCtxCancel: make(map[string]func()),
+		warnInterval:     requestCountWarnInterval,
 	}
 }
 
@@ -53,6 +66,20 @@ func (rc *RequestCanceller) Context(id string) (context.Context, func()) {
 		defer rc.mu.Unlock()
 		delete(rc.requestCtxCancel, id)
 	})
+
+	// Warn whenever the number of requests reaches a new threshold.
+	count := len(rc.requestCtxCancel)
+	if count > rc.lastWarnCount && count%rc.warnInterval == 0 {
+		rc.lastWarnCount = count
+
+		message := "server: requestcanceller: many unfinished requests"
+		slog.Warn(message, "count", count)
+
+		sentry.WithScope(func(scope *sentry.Scope) {
+			scope.SetTag("count", fmt.Sprintf("%d", count))
+			sentry.CaptureMessage(message)
+		})
+	}
 
 	return ctx, cancel
 }
