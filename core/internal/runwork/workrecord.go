@@ -25,8 +25,11 @@ func WorkFromRecord(record *spb.Record) WorkImpl {
 	return WorkRecord{Record: record}
 }
 
-func (wr WorkRecord) Accept(fn func(*spb.Record)) bool {
-	fn(wr.Record)
+func (wr WorkRecord) Accept(
+	request *Request,
+	fn func(*spb.Record, *Request),
+) bool {
+	fn(wr.Record, request)
 
 	switch wr.Record.RecordType.(type) {
 	case *spb.Record_Exit:
@@ -65,8 +68,11 @@ func (wr WorkRecord) BypassOfflineMode() bool {
 	return wr.Record.GetControl().GetAlwaysSend()
 }
 
-func (wr WorkRecord) Process(fn func(*spb.Record), _ chan<- *spb.Result) {
-	fn(wr.Record)
+func (wr WorkRecord) Process(
+	request *Request,
+	fn func(*spb.Record, *Request),
+) {
+	fn(wr.Record, request)
 }
 
 func (wr WorkRecord) DebugInfo() string {
