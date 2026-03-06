@@ -2,6 +2,7 @@ package leet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -23,6 +24,8 @@ import (
 const (
 	defaultRemoteRunLimit = 100
 )
+
+var ErrRunNotFound = errors.New("run not found")
 
 // RemoteWorkspaceBackend discovers runs via GraphQL and reads history
 // from parquet files hosted on the W&B backend.
@@ -205,7 +208,7 @@ func (b *RemoteWorkspaceBackend) PreloadOverviewCmd(runKey string) tea.Cmd {
 		if info == nil {
 			return WorkspaceRunOverviewPreloadedMsg{
 				RunKey: runKey,
-				Err:    errRunRecordNotFound,
+				Err:    ErrRunNotFound,
 			}
 		}
 		return WorkspaceRunOverviewPreloadedMsg{

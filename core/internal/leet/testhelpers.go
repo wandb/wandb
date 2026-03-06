@@ -8,6 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -741,4 +743,22 @@ func (w *Workspace) TestFilteredRunKeys() []string {
 // TestRunByKey returns the workspace's streaming state for a run key.
 func (w *Workspace) TestRunByKey(key string) *WorkspaceRun {
 	return w.runsByKey[key]
+}
+
+// TestRemoteWorkspaceBackend creates a RemoteWorkspaceBackend for testing.
+func TestRemoteWorkspaceBackend(
+	baseURL, entity, project string,
+	graphqlClient graphql.Client,
+	httpClient api.RetryableClient,
+	logger *observability.CoreLogger,
+) *RemoteWorkspaceBackend {
+	return &RemoteWorkspaceBackend{
+		baseURL:       baseURL,
+		entity:        entity,
+		project:       project,
+		runInfos:      make(map[string]*RunInfo),
+		logger:        logger,
+		graphqlClient: graphqlClient,
+		httpClient:    httpClient,
+	}
 }

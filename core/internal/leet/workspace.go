@@ -165,7 +165,6 @@ func NewWorkspace(
 		runsAnimState:        NewAnimatedValue(true, SidebarMinWidth),
 		metricsGridAnimState: metricsGridAnimState,
 		backend:              backend,
-		wandbDir:             wandbDir,
 		config:               cfg,
 		keyMap:               buildKeyMap(WorkspaceKeyBindings()),
 		logger:               logger,
@@ -439,20 +438,6 @@ func (w *Workspace) SelectedRunParams() *RunParams {
 		return nil
 	}
 	return w.backend.RunParams(runKey)
-}
-
-// SelectedRunKey returns the run key (directory name) of the currently selected run.
-func (w *Workspace) SelectedRunKey() string {
-	total := len(w.runs.FilteredItems)
-	if total == 0 {
-		return ""
-	}
-	startIdx := w.runs.CurrentPage() * w.runs.ItemsPerPage()
-	idx := startIdx + w.runs.CurrentLine()
-	if idx < 0 || idx >= total {
-		return ""
-	}
-	return w.runs.FilteredItems[idx].Key
 }
 
 // MediaStoreForRun returns the workspace's MediaStore for a given run key.
@@ -952,8 +937,8 @@ func (w *Workspace) dropRun(runKey string) {
 
 	run, ok := w.runsByKey[runKey]
 	if ok && run != nil {
-		if run.seriesKey != "" {
-			w.metricsGrid.RemoveSeries(run.seriesKey)
+		if w.backend.SeriesKey(runKey) != "" {
+			w.metricsGrid.RemoveSeries(w.backend.SeriesKey(runKey))
 		}
 		w.stopWatcher(run)
 		if run.Reader != nil {
@@ -1031,10 +1016,10 @@ func (w *Workspace) refreshPinnedRun() {
 		return
 	}
 	run, ok := w.runsByKey[w.pinnedRun]
-	if !ok || run == nil || run.seriesKey == "" {
+	if !ok || run == nil || w.backend.SeriesKey(run.Key) == "" {
 		return
 	}
-	w.metricsGrid.PromoteSeriesToTop(run.seriesKey)
+	w.metricsGrid.PromoteSeriesToTop(w.backend.SeriesKey(run.Key))
 }
 
 // ---- Focus Query Helpers ----
@@ -1309,10 +1294,10 @@ func (w *Workspace) buildOverviewFilterStatus() string {
 func (w *Workspace) buildActiveStatus() string {
 	var parts []string
 
-	// The wandb dir answers "which runs am I browsing?", so it belongs to
+	// The backend label answers "which runs am I browsing?", so it belongs to
 	// the run list; other panes put their own context in the status bar.
 	if w.focusMgr.IsTarget(FocusTargetRunsList) {
-		parts = append(parts, "wandb dir: "+w.wandbDir)
+		parts = append(parts, w.backend.DisplayLabel())
 	}
 
 	parts = append(parts, w.activeFilterStatus()...)
@@ -1324,7 +1309,7 @@ func (w *Workspace) buildActiveStatus() string {
 	if len(parts) == 0 {
 		return w.backend.DisplayLabel()
 	}
-	return w.backend.DisplayLabel() + " • " + strings.Join(parts, " • ")
+	return strings.Join(parts, " • ")
 }
 
 // activeFilterStatus collects status fragments for all active filters.
