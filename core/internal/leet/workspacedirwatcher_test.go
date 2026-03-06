@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -116,4 +118,53 @@ func TestWorkspace_RunOverviewPreloads_BoundedConcurrency(t *testing.T) {
 
 	require.Equal(t, 0, w.TestRunOverviewPreloadQueueLen())
 	require.Equal(t, 0, w.TestRunOverviewPreloadsInFlight())
+}
+
+func TestWorkspace_RemoteBackend_DiscoveryAndPreload(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	mockGQL := gqlmock.NewMockClient()
+	backend := leet.TestRemoteWorkspaceBackend(
+		"https://api.wandb.ai",
+		"test-entity",
+		"test-project",
+		mockGQL,
+		nil,
+		logger,
+	)
+	w := leet.NewWorkspace(backend, cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	run1 := "run-abc"
+	run2 := "run-def"
+
+	// Feed discovery message (simulating what DiscoverRunsCmd would produce).
+	w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{run1, run2}})
+
+	// First run should be autoselected and pinned.
+	require.Equal(t, 1, w.TestSelectedRunCount())
+	require.True(t, w.TestIsRunSelected(run1))
+	require.Equal(t, run1, w.TestPinnedRun())
+
+	// Preload overview should be in flight for the non-selected run.
+	require.True(t, w.TestRunOverviewPreloadsInFlight() > 0,
+		"expected at least one preload in flight")
+
+	// Complete the preload for run2.
+	w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run2,
+		Run: leet.RunMsg{
+			ID:          run2,
+			Project:     "test-project",
+			DisplayName: "Second Run",
+		},
+	})
+
+	assert.Equal(t, run2, w.TestRunOverviewID(run2))
+	params := backend.RunParams(run1)
+	require.NotNil(t, params)
+	require.NotNil(t, params.RemoteRunParams)
+	assert.Equal(t, "test-entity", params.Entity)
+	assert.Equal(t, "test-project", params.Project)
+	assert.Equal(t, run1, params.RunId)
 }
