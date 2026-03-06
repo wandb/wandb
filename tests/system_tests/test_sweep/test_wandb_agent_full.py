@@ -3,7 +3,6 @@
 import contextlib
 import io
 import pathlib
-import pprint
 from unittest import mock
 
 import wandb
