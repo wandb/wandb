@@ -99,6 +99,9 @@ func NewRun(
 	ro := NewRunOverview()
 	runOverviewAnimState := NewAnimatedValue(cfg.LeftSidebarVisible(), SidebarMinWidth)
 
+	// TODO: make it configurable?
+	consoleLogsPaneAnimState := NewAnimatedValue(false, ConsoleLogsPaneMinHeight)
+
 	metricsGrid := NewMetricsGrid(cfg, cfg.MetricsGrid, focus, logger)
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
 
@@ -113,7 +116,7 @@ func NewRun(
 		leftSidebar:     NewRunOverviewSidebar(runOverviewAnimState, ro, SidebarSideLeft),
 		rightSidebar:    NewRightSidebar(cfg, focus, logger),
 		consoleLogs:     NewRunConsoleLogs(),
-		consoleLogsPane: NewConsoleLogsPane(),
+		consoleLogsPane: NewConsoleLogsPane(consoleLogsPaneAnimState),
 		watcherMgr:      NewWatcherManager(ch, logger),
 		heartbeatMgr:    NewHeartbeatManager(heartbeatInterval, ch, logger),
 		logger:          logger,
@@ -307,7 +310,7 @@ func (r *Run) buildMainViewWithSidebars(gridView string, leftWidth, rightWidth i
 	var parts []string
 
 	if leftWidth > 0 {
-		leftView := r.leftSidebar.View(r.height - StatusBarHeight - 1)
+		leftView := r.leftSidebar.View(r.height - StatusBarHeight - 1).Content
 		parts = append(parts, leftView)
 	}
 

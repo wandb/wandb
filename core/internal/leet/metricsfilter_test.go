@@ -18,7 +18,7 @@ type ComponentWithContentFilter interface {
 
 func typeString(c ComponentWithContentFilter, s string) {
 	for _, r := range s {
-		c.UpdateFilterDraft(tea.KeyPressMsg{Code: r})
+		c.UpdateFilterDraft(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 }
 
@@ -240,8 +240,7 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 
 	// Start typing "lo", then cancel (Esc behavior).
 	grid.EnterFilterMode()
-	grid.UpdateFilterDraft(tea.KeyPressMsg{Code: 'l'})
-	grid.UpdateFilterDraft(tea.KeyPressMsg{Code: 'o'})
+	typeString(grid, "lo")
 	require.GreaterOrEqual(t, grid.FilteredChartCount(), 1)
 	grid.ExitFilterMode(false) // cancel
 
@@ -252,9 +251,7 @@ func TestMetricsGridFilter_PreviewAndCancelAndApply(t *testing.T) {
 
 	// Start another filter "acc", add data while typing, then apply.
 	grid.EnterFilterMode()
-	grid.UpdateFilterDraft(tea.KeyPressMsg{Code: 'a'})
-	grid.UpdateFilterDraft(tea.KeyPressMsg{Code: 'c'})
-	grid.UpdateFilterDraft(tea.KeyPressMsg{Code: 'c'})
+	typeString(grid, "acc")
 	m = leet.HistoryMsg{Metrics: map[string]leet.MetricData{
 		"val/loss": {X: []float64{1}, Y: []float64{5}},
 	}}

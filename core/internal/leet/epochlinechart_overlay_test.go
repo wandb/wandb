@@ -11,10 +11,14 @@ import (
 	"github.com/wandb/wandb/core/internal/leet"
 )
 
+var ansiRE = regexp.MustCompile(
+	`\x1b\[[0-9;?]*[ -/]*[@-~]` + // CSI sequences
+		`|\x1b\][^\x07]*(?:\x07|\x1b\\)`, // OSC sequences
+)
+
 // stripANSI removes ANSI color/style sequences so we can assert on plain text.
 func stripANSI(s string) string {
-	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
-	return re.ReplaceAllString(s, "")
+	return ansiRE.ReplaceAllString(s, "")
 }
 
 func seedXY(n int) leet.MetricData {

@@ -135,13 +135,13 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 	s.Sync()
 
 	// Small height -> ItemsPerPage=1 -> expect "[1-1 of N]" pagination per section.
-	view := s.View(15)
+	view := stripANSI(s.View(15).Content)
 	require.Contains(t, view, "Config [1-2 of 5]")
 	require.Contains(t, view, "Summary [1-1 of 2]")
 	require.Contains(t, view, "Environment")
 
 	// Larger height -> enough space -> expect "[N items]" (non-paginated).
-	view = s.View(40)
+	view = stripANSI(s.View(40).Content)
 	require.Contains(t, view, "Config [5 items]")
 	require.Contains(t, view, "Summary [2 items]")
 
@@ -240,7 +240,7 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 
 	s.ClearFilter()
 	require.Empty(t, s.FilterInfo())
-	view := s.View(40)
+	view := stripANSI(s.View(40).Content)
 	require.Contains(t, view, "Config [2 items]")
 }
 
@@ -267,7 +267,7 @@ func TestSidebar_TruncateValue(t *testing.T) {
 
 	s.Sync()
 
-	view := s.View(12)
+	view := stripANSI(s.View(12).Content)
 	require.Contains(t, view, "a.k")
 	require.Contains(t, view, "...")
 }
@@ -347,7 +347,7 @@ func TestSidebar_Pagination_ResizeFromLaterPage(t *testing.T) {
 
 	// Larger height -> ItemsPerPage increases. This used to panic.
 	require.NotPanics(t, func() {
-		view := s.View(40)
+		view := stripANSI(s.View(40).Content)
 		require.NotEmpty(t, view)
 	})
 }

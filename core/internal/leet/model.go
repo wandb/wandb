@@ -203,17 +203,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 //
 // Implements tea.Model.View.
 func (m *Model) View() tea.View {
-	vs := ""
+	var vs string
 
 	if m.help.IsActive() {
 		vs = m.renderHelpScreen()
-	}
-
-	switch m.mode {
-	case viewModeWorkspace:
-		vs = m.workspace.View().Content
-	case viewModeRun:
-		vs = m.run.View().Content
+	} else {
+		switch m.mode {
+		case viewModeWorkspace:
+			vs = m.workspace.View().Content
+		case viewModeRun:
+			vs = m.run.View().Content
+		}
 	}
 
 	v := tea.NewView(vs)
@@ -280,8 +280,8 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 
 	// Toggle on 'h' / '?'
 	if km, ok := msg.(tea.KeyPressMsg); ok {
-		switch km.String() {
-		case "h", "?":
+		switch km.Code {
+		case 'h', '?':
 			m.help.SetMode(m.mode)
 			m.help.Toggle()
 			return true, nil
@@ -315,7 +315,7 @@ func (m *Model) handleRestart(msg tea.Msg) (bool, tea.Cmd) {
 
 // renderHelpScreen renders the help screen.
 func (m *Model) renderHelpScreen() string {
-	helpView := m.help.View()
+	helpView := m.help.View().Content
 
 	helpText := "h: help"
 	spaceForHelp := max(m.width-2*StatusBarPadding, 0)

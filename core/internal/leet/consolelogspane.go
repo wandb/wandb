@@ -85,9 +85,9 @@ type ConsoleLogsPane struct {
 }
 
 // NewConsoleLogsPane returns a collapsed ConsoleLogsPane with auto-scroll enabled.
-func NewConsoleLogsPane() *ConsoleLogsPane {
+func NewConsoleLogsPane(animState *AnimatedValue) *ConsoleLogsPane {
 	return &ConsoleLogsPane{
-		animState:  NewAnimatedValue(false, ConsoleLogsPaneMinHeight),
+		animState:  animState,
 		autoScroll: true,
 	}
 }
@@ -189,6 +189,9 @@ func (c *ConsoleLogsPane) View(width int, runLabel, hint string) string {
 
 	return consoleLogsPaneBorderStyle.Width(width).Height(innerH).Render(placed)
 }
+
+// HasData reports whether the pane has any log entries to display.
+func (c *ConsoleLogsPane) HasData() bool { return len(c.logs) > 0 }
 
 // renderHeader returns the "Console Logs • <runLabel>     [X-Y of N]" line,
 func (c *ConsoleLogsPane) renderHeader(

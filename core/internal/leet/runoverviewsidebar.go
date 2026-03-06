@@ -148,11 +148,11 @@ func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
 }
 
 // View renders the sidebar.
-func (s *RunOverviewSidebar) View(height int) string {
+func (s *RunOverviewSidebar) View(height int) tea.View {
 	width := s.animState.Value()
 	// Avoid negative/degenerate widths during animation.
 	if width <= s.contentPadding() {
-		return ""
+		return tea.NewView("")
 	}
 
 	s.height = height
@@ -169,7 +169,7 @@ func (s *RunOverviewSidebar) View(height int) string {
 
 		lines = slices.Concat(lines, headerLines, sectionLines)
 	} else {
-		lines = append(lines, "No data.")
+		lines = append(lines, navInfoStyle.Render("No data."))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Top, lines...)
@@ -181,12 +181,14 @@ func (s *RunOverviewSidebar) View(height int) string {
 		MaxHeight(height).
 		Render(content)
 
-	return s.borderStyle().
+	styledContentBordered := s.borderStyle().
 		Width(width - sidebarVerticalBorderCols*2).
 		Height(height + 1).
 		MaxWidth(width).
 		MaxHeight(height + 1).
 		Render(styledContent)
+
+	return tea.NewView(styledContentBordered)
 }
 
 func (s *RunOverviewSidebar) SetRunOverview(ro *RunOverview) {
@@ -305,7 +307,17 @@ func truncateValue(value string, maxWidth int) string {
 	if maxWidth <= 3 {
 		return "..."
 	}
-	return value[:maxWidth-3] + "..."
+
+	available := maxWidth - 4
+	w := 0
+	for i, r := range value {
+		rw := lipgloss.Width(string(r))
+		if w+rw > available {
+			return value[:i] + "..."
+		}
+		w += rw
+	}
+	return value + "..."
 }
 
 // buildHeaderLines builds the header section from the data model.
@@ -423,7 +435,7 @@ func (s *RunOverviewSidebar) buildSectionInfo(
 // renderSectionItems renders the items for a section.
 func (s *RunOverviewSidebar) renderSectionItems(section *PagedList, width int) []string {
 	maxKeyWidth := int(float64(width) * sidebarKeyWidthRatio)
-	maxValueWidth := width - maxKeyWidth - 1
+	maxValueWidth := width - maxKeyWidth - 3
 
 	itemCount := len(section.FilteredItems)
 	if itemCount == 0 {
@@ -471,11 +483,13 @@ func (s *RunOverviewSidebar) renderItem(
 
 	renderedKey := keyStyle.Width(maxKeyWidth).Render(key)
 
+	gap := " "
 	if isHighlighted {
-		gap := runOverviewSidebarHighlightedItem.Render(" ")
-		return renderedKey + gap + valueStyle.Width(maxValueWidth).Render(value)
+		gap = runOverviewSidebarHighlightedItem.Render(" ")
+		renderedValue := valueStyle.Width(maxValueWidth).Render(value)
+		return renderedKey + gap + renderedValue
 	}
-	return renderedKey + " " + valueStyle.Render(value)
+	return renderedKey + gap + valueStyle.MaxWidth(maxValueWidth).Render(value)
 }
 
 // hasNextVisibleSection returns true if there's another visible section after idx.

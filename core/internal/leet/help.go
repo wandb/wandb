@@ -29,7 +29,7 @@ type HelpModel struct {
 }
 
 func NewHelp() *HelpModel {
-	vp := viewport.New(viewport.WithHeight(80), viewport.WithHeight(20))
+	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	return &HelpModel{
 		viewport: vp,
 		active:   false,
@@ -186,18 +186,18 @@ func (h *HelpModel) Update(msg tea.Msg) (*HelpModel, tea.Cmd) {
 }
 
 // View renders the help screen.
-func (h *HelpModel) View() string {
+func (h *HelpModel) View() tea.View {
 	if !h.active {
-		return ""
+		return tea.NewView("")
 	}
 
 	content := helpContentStyle.Render(h.viewport.View())
 
-	return lipgloss.Place(
+	return tea.NewView(lipgloss.Place(
 		h.width,
 		h.height,
 		lipgloss.Left,
 		lipgloss.Top,
 		content,
-	)
+	))
 }

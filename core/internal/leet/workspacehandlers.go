@@ -270,6 +270,10 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	rightWillBeVisible := !w.runOverviewSidebar.IsVisible()
 	leftIsVisible := w.runsAnimState.IsVisible()
 
+	if err := w.config.SetWorkspaceOverviewVisible(rightWillBeVisible); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save overview state: %v", err))
+	}
+
 	w.resolveFocusAfterVisibilityChange(
 		leftIsVisible, rightWillBeVisible, w.consoleLogsPane.IsExpanded())
 	w.updateSidebarDimensions(leftIsVisible, rightWillBeVisible)
@@ -282,6 +286,10 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 	bottomWillBeVisible := !w.consoleLogsPane.IsExpanded()
 
+	if err := w.config.SetWorkspaceConsoleLogsVisible(bottomWillBeVisible); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save console logs state: %v", err))
+	}
+
 	w.resolveFocusAfterVisibilityChange(
 		w.runsAnimState.IsExpanded(), w.runOverviewSidebar.IsExpanded(), bottomWillBeVisible)
 	w.updateMiddlePaneHeights(w.systemMetricsPane.IsExpanded(), bottomWillBeVisible)
@@ -289,6 +297,20 @@ func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 	w.recalculateLayout()
 
 	return w.consoleLogsPaneAnimationCmd()
+}
+
+func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
+	sysWillBeVisible := !w.systemMetricsPane.IsExpanded()
+	logsVisible := w.consoleLogsPane.IsExpanded()
+
+	if err := w.config.SetWorkspaceSystemMetricsVisible(sysWillBeVisible); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save system metrics state: %v", err))
+	}
+
+	w.updateMiddlePaneHeights(sysWillBeVisible, logsVisible)
+	w.systemMetricsPane.Toggle()
+	w.recalculateLayout()
+	return w.systemMetricsPaneAnimationCmd()
 }
 
 // ---- Reader / Watcher Commands ----
@@ -909,7 +931,7 @@ func (w *Workspace) regionAvailability() map[focusRegion]bool {
 	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
 	return map[focusRegion]bool{
 		focusRuns:     w.runsAnimState.IsExpanded(),
-		focusLogs:     w.consoleLogsPane.IsExpanded(),
+		focusLogs:     w.consoleLogsPane.IsExpanded() && w.consoleLogsPane.HasData(),
 		focusOverview: w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1,
 	}
 }
@@ -968,16 +990,6 @@ func (w *Workspace) handleRunsHome(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	w.runs.Home()
 	return nil
-}
-
-func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
-	sysWillBeVisible := !w.systemMetricsPane.IsExpanded()
-	logsVisible := w.consoleLogsPane.IsExpanded()
-
-	w.updateMiddlePaneHeights(sysWillBeVisible, logsVisible)
-	w.systemMetricsPane.Toggle()
-	w.recalculateLayout()
-	return w.systemMetricsPaneAnimationCmd()
 }
 
 func (w *Workspace) activeSystemMetricsGrid() *SystemMetricsGrid {

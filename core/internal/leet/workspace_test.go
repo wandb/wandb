@@ -34,9 +34,9 @@ func TestModel_WorkspaceFilterDoesNotLeakIntoRunView(t *testing.T) {
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Workspace: set metrics filter to "train".
-	model, _ = model.Update(tea.KeyPressMsg{Code: '/'})
+	model, _ = model.Update(keyPressMsg('/'))
 	for _, r := range "train" {
-		model, _ = model.Update(tea.KeyPressMsg{Code: r})
+		model, _ = model.Update(keyPressMsg(r))
 	}
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // apply
 
@@ -44,8 +44,8 @@ func TestModel_WorkspaceFilterDoesNotLeakIntoRunView(t *testing.T) {
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// Run view: apply metrics filter "x".
-	model, _ = model.Update(tea.KeyPressMsg{Code: '/'})
-	model, _ = model.Update(tea.KeyPressMsg{Code: 'x'})
+	model, _ = model.Update(keyPressMsg('/'))
+	model, _ = model.Update(keyPressMsg('x'))
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// Exit run view.
@@ -77,9 +77,9 @@ func TestModel_CtrlLInRunViewDoesNotClearWorkspaceFilter(t *testing.T) {
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Workspace: set filter to "train".
-	model, _ = model.Update(tea.KeyPressMsg{Code: '/'})
+	model, _ = model.Update(keyPressMsg('/'))
 	for _, r := range "train" {
-		model, _ = model.Update(tea.KeyPressMsg{Code: r})
+		model, _ = model.Update(keyPressMsg(r))
 	}
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 

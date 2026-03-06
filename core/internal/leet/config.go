@@ -100,6 +100,11 @@ type Config struct {
 	// Single-run view sidebar visibility states.
 	LeftSidebarVisible  bool `json:"left_sidebar_visible"  leet:"desc=Show left sidebar in single run view by default."`
 	RightSidebarVisible bool `json:"right_sidebar_visible" leet:"desc=Show right sidebar in single run view by default."`
+
+	// Workspace view pane visibility states.
+	WorkspaceOverviewVisible      bool `json:"workspace_overview_visible"       leet:"desc=Show run overview sidebar in workspace mode by default."`
+	WorkspaceSystemMetricsVisible bool `json:"workspace_system_metrics_visible" leet:"desc=Show system metrics pane in workspace mode by default."`
+	WorkspaceConsoleLogsVisible   bool `json:"workspace_console_logs_visible"   leet:"desc=Show console logs pane in workspace mode by default."`
 }
 
 // GridConfig represents grid dimensions.
@@ -141,15 +146,18 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Rows: DefaultWorkspaceSystemGridRows,
 				Cols: DefaultWorkspaceSystemGridCols,
 			},
-			StartupMode:         DefaultStartupMode,
-			ColorScheme:         DefaultColorScheme,
-			PerPlotColorScheme:  DefaultPerPlotColorScheme,
-			SingleRunColorMode:  DefaultSingleRunColorMode,
-			SystemColorScheme:   DefaultSystemColorScheme,
-			SystemColorMode:     DefaultSystemColorMode,
-			HeartbeatInterval:   DefaultHeartbeatInterval,
-			LeftSidebarVisible:  true,
-			RightSidebarVisible: true,
+			StartupMode:                   DefaultStartupMode,
+			ColorScheme:                   DefaultColorScheme,
+			PerPlotColorScheme:            DefaultPerPlotColorScheme,
+			SingleRunColorMode:            DefaultSingleRunColorMode,
+			SystemColorScheme:             DefaultSystemColorScheme,
+			SystemColorMode:               DefaultSystemColorMode,
+			HeartbeatInterval:             DefaultHeartbeatInterval,
+			LeftSidebarVisible:            true,
+			RightSidebarVisible:           true,
+			WorkspaceOverviewVisible:      true,
+			WorkspaceSystemMetricsVisible: false,
+			WorkspaceConsoleLogsVisible:   false,
 		},
 		logger: logger,
 	}
@@ -647,6 +655,54 @@ func (cm *ConfigManager) GridConfigStatus() string {
 	default:
 		return ""
 	}
+}
+
+// WorkspaceOverviewVisible returns whether the overview sidebar should be
+// visible in workspace mode.
+func (cm *ConfigManager) WorkspaceOverviewVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceOverviewVisible
+}
+
+// SetWorkspaceOverviewVisible sets the workspace overview sidebar visibility.
+func (cm *ConfigManager) SetWorkspaceOverviewVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceOverviewVisible = visible
+	return cm.save()
+}
+
+// WorkspaceSystemMetricsVisible returns whether the system metrics pane
+// should be visible in workspace mode.
+func (cm *ConfigManager) WorkspaceSystemMetricsVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceSystemMetricsVisible
+}
+
+// SetWorkspaceSystemMetricsVisible sets the workspace system metrics pane visibility.
+func (cm *ConfigManager) SetWorkspaceSystemMetricsVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceSystemMetricsVisible = visible
+	return cm.save()
+}
+
+// WorkspaceConsoleLogsVisible returns whether the console logs pane
+// should be visible in workspace mode.
+func (cm *ConfigManager) WorkspaceConsoleLogsVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceConsoleLogsVisible
+}
+
+// SetWorkspaceConsoleLogsVisible sets the workspace console logs pane visibility.
+func (cm *ConfigManager) SetWorkspaceConsoleLogsVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceConsoleLogsVisible = visible
+	return cm.save()
 }
 
 // leetConfigPath returns the path where the config should be stored.

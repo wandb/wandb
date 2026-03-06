@@ -347,6 +347,21 @@ func (mg *MetricsGrid) renderHeader(size GridSize) string {
 }
 
 func (mg *MetricsGrid) renderGrid(dims GridDims, size GridSize) string {
+	mg.mu.RLock()
+	noData := len(mg.all) == 0
+	mg.mu.RUnlock()
+
+	if noData {
+		availableHeight := max(mg.height-ChartHeaderHeight, 0)
+		return lipgloss.Place(
+			mg.width+1,
+			availableHeight,
+			lipgloss.Center,
+			lipgloss.Center,
+			navInfoStyle.Render("No metric data for selected runs."),
+		)
+	}
+
 	var rows []string
 	for row := range size.Rows {
 		var cols []string
@@ -428,11 +443,12 @@ func (mg *MetricsGrid) Navigate(direction int) {
 // drawVisible draws charts that are currently visible.
 //
 // Charts no longer visible are parked to reduce memory usage.
-// Do not hold mg.mu while drawing.
 func (mg *MetricsGrid) drawVisible() {
 	dims := mg.CalculateChartDimensions(mg.width, mg.height)
 
 	mg.mu.Lock()
+	defer mg.mu.Unlock()
+
 	currentCharts := make(map[*EpochLineChart]struct{})
 	for row := range mg.currentPage {
 		for col := range mg.currentPage[row] {
@@ -443,7 +459,6 @@ func (mg *MetricsGrid) drawVisible() {
 	}
 	lastDrawnCharts := mg.lastDrawnCharts
 	mg.lastDrawnCharts = currentCharts
-	mg.mu.Unlock()
 
 	for ch := range lastDrawnCharts {
 		if ch != nil {
@@ -453,7 +468,8 @@ func (mg *MetricsGrid) drawVisible() {
 		}
 	}
 
-	// Resize and draw visible charts.
+	// Resize and draw visible charts under lock to serialize with
+	// ProcessHistory's AddData calls on the same chart internals.
 	for ch := range currentCharts {
 		ch.Resize(dims.CellW, dims.CellH)
 		ch.Draw()

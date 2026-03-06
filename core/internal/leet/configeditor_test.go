@@ -42,7 +42,7 @@ func TestConfigEditor_EnumChange_SaveAndPersists(t *testing.T) {
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// Save & quit.
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 's'})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
 	require.NotNil(t, cmd)
 	_, ok := cmd().(tea.QuitMsg)
 	require.True(t, ok)
@@ -67,11 +67,11 @@ func TestConfigEditor_QuitConfirmation_RespectsCtrlCAndClearsOnOtherKeys(t *test
 	// First Ctrl+C should prompt (no quit).
 	m, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	require.Nil(t, cmd)
-	require.Contains(t, m.View(), "Unsaved changes")
+	require.Contains(t, m.View().Content, "Unsaved changes")
 
 	// Any other key clears the confirmation prompt.
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	require.NotContains(t, m.View(), "Unsaved changes")
+	require.NotContains(t, m.View().Content, "Unsaved changes")
 
 	// Ctrl+C again: prompt again.
 	m, cmd = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
@@ -117,19 +117,19 @@ func TestConfigEditor_IntEdit_ValidatesAndApplies(t *testing.T) {
 	// Clear current input (default 15) and enter an invalid value 0.
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
-	m, _ = m.Update(tea.KeyPressMsg{Code: '0'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '0', Text: "0"})
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	require.Contains(t, m.View(), "Must be >= 1")
+	require.Contains(t, m.View().Content, "Must be >= 1")
 
 	// Replace with valid value 10.
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
-	m, _ = m.Update(tea.KeyPressMsg{Code: '1'})
-	m, _ = m.Update(tea.KeyPressMsg{Code: '0'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '0', Text: "0"})
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	require.NotContains(t, m.View(), "Must be >= 1")
+	require.NotContains(t, m.View().Content, "Must be >= 1")
 
 	// Save & quit.
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 's'})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
 	require.NotNil(t, cmd)
 	_, ok := cmd().(tea.QuitMsg)
 	require.True(t, ok)
@@ -147,7 +147,7 @@ func TestConfigEditor_DefaultDescriptionsForGridConfig(t *testing.T) {
 
 	m = selectField(t, m, "metrics_grid.rows")
 
-	view := m.View()
+	view := m.View().Content
 	require.Contains(t, view, "Rows in the main metrics grid.")
 	require.Contains(t, view, "(metrics_grid.rows)")
 }

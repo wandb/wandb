@@ -14,7 +14,7 @@ import (
 )
 
 func keyRune(r rune) tea.KeyPressMsg {
-	return tea.KeyPressMsg{Code: r}
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
 }
 
 func TestWorkspace_KeyHandling_FilterModeConsumesQuit(t *testing.T) {
@@ -384,7 +384,7 @@ func TestWorkspace_Enter_NoOpWhenLogsFocused(t *testing.T) {
 	// If enterRunView were called with no selected file, it returns nil anyway.
 	// The key assertion: the model should still be in workspace mode.
 	// We can verify by checking the view output still renders workspace content.
-	view := m.View()
+	view := m.View().Content
 	require.NotContains(t, view, "Loading data...",
 		"should NOT have switched to run view")
 	_ = cmd
@@ -453,7 +453,7 @@ func TestWorkspace_OverviewFilter_ApplyAndClear(t *testing.T) {
 	// Enter filter, type "lr", and apply.
 	require.Nil(t, w.Update(keyRune('o')))
 	for _, r := range "lr" {
-		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r}))
+		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r, Text: string(r)}))
 	}
 	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
 
@@ -478,7 +478,7 @@ func TestWorkspace_OverviewFilter_EscCancelsDraft(t *testing.T) {
 	// Enter filter, type something, then Esc to cancel.
 	require.Nil(t, w.Update(keyRune('o')))
 	for _, r := range "xyz" {
-		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r}))
+		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r, Text: string(r)}))
 	}
 	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEsc}))
 
@@ -508,13 +508,13 @@ func TestWorkspace_OverviewFilter_StatusBarShowsFilter(t *testing.T) {
 	// Apply a filter so it shows in the idle status bar.
 	require.Nil(t, w.Update(keyRune('o')))
 	for _, r := range "loss" {
-		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r}))
+		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r, Text: string(r)}))
 	}
 	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
 
 	// The full View includes the status bar at the bottom.
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
-	view := w.View()
+	view := w.View().Content
 	require.Contains(t, view, "Overview:")
 	require.Contains(t, view, "loss")
 }
@@ -525,12 +525,12 @@ func TestWorkspace_OverviewFilter_LivePreviewDuringInput(t *testing.T) {
 	// During filter input, the status bar should show the live prompt.
 	require.Nil(t, w.Update(keyRune('o')))
 	for _, r := range "ep" {
-		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r}))
+		require.Nil(t, w.Update(tea.KeyPressMsg{Code: r, Text: string(r)}))
 	}
 
 	// While still in filter mode, check the view.
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
-	view := w.View()
+	view := w.View().Content
 	require.Contains(t, view, "Overview filter")
 	require.Contains(t, view, "ep")
 

@@ -120,9 +120,13 @@ func NewWorkspace(
 	hbInterval := cfg.HeartbeatInterval()
 	logger.Info(fmt.Sprintf("workspace: heartbeat interval set to %v", hbInterval))
 
-	runOverviewAnimState := NewAnimatedValue(true, SidebarMinWidth)
+	runOverviewAnimState := NewAnimatedValue(
+		cfg.WorkspaceOverviewVisible(), SidebarMinWidth)
+	systemMetricsPaneAnimState := NewAnimatedValue(
+		cfg.WorkspaceSystemMetricsVisible(), systemMetricsPaneMinHeight)
+	consoleLogsPaneAnimState := NewAnimatedValue(
+		cfg.WorkspaceConsoleLogsVisible(), ConsoleLogsPaneMinHeight)
 
-	// TODO: make sidebar visibility configurable.
 	return &Workspace{
 		runsAnimState: NewAnimatedValue(true, SidebarMinWidth),
 		wandbDir:      wandbDir,
@@ -138,11 +142,11 @@ func NewWorkspace(
 		focus:               focus,
 		metricsGrid:         NewMetricsGrid(cfg, cfg.WorkspaceMetricsGrid, focus, logger),
 		systemMetrics:       make(map[string]*SystemMetricsGrid),
-		systemMetricsPane:   NewSystemMetricsPane(),
+		systemMetricsPane:   NewSystemMetricsPane(systemMetricsPaneAnimState),
 		systemMetricsFocus:  focus,
 		systemMetricsFilter: smf,
 		consoleLogs:         make(map[string]*RunConsoleLogs),
-		consoleLogsPane:     NewConsoleLogsPane(),
+		consoleLogsPane:     NewConsoleLogsPane(consoleLogsPaneAnimState),
 		runsByKey:           make(map[string]*workspaceRun),
 		liveChan:            ch,
 		heartbeatMgr:        NewHeartbeatManager(hbInterval, ch, logger),
@@ -593,7 +597,7 @@ func (w *Workspace) renderRunsList() string {
 	lines := w.renderRunLines(contentWidth)
 
 	if len(lines) == 0 {
-		lines = []string{"No runs found."}
+		lines = []string{navInfoStyle.Render("No runs found.")}
 	}
 
 	contentLines := make([]string, 0, 1+len(lines))
@@ -635,11 +639,11 @@ func (w *Workspace) renderRunOverview() string {
 	sidebarH := max(w.height-StatusBarHeight, 0)
 	innerH := max(sidebarH-workspaceTopMarginLines, 0)
 
-	return w.runOverviewSidebar.View(innerH)
+	return w.runOverviewSidebar.View(innerH).Content
 }
 
 func (w *Workspace) renderMetrics() string {
-	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width(), 0)
+	contentWidth := max(w.width-w.runsAnimState.Value()-w.runOverviewSidebar.Width()+1, 0)
 	reserved := w.consoleLogsPane.Height() + w.systemMetricsPane.Height()
 	contentHeight := max(w.height-StatusBarHeight-reserved, 1)
 
@@ -782,6 +786,14 @@ func (w *Workspace) buildActiveStatus() string {
 			w.runOverviewSidebar.FilterQuery(),
 			w.runOverviewSidebar.FilterInfo(),
 		))
+	}
+
+	// Show the highlighted overview key/value when the sidebar is visible.
+	if w.runOverviewActive() {
+		key, value := w.runOverviewSidebar.SelectedItem()
+		if key != "" {
+			parts = append(parts, fmt.Sprintf("%s: %s", key, value))
+		}
 	}
 
 	if w.focus.Type != FocusNone {
