@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/golden"
 )
 
