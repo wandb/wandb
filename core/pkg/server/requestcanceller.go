@@ -34,6 +34,15 @@ func NewRequestCanceller() *RequestCanceller {
 	}
 }
 
+// SetWarnInterval updates the warning interval for leak detection.
+//
+// See RequestCanceller.warnInterval.
+func (rc *RequestCanceller) SetWarnInterval(warnInterval int) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.warnInterval = warnInterval
+}
+
 // Context returns a new cancellable context for the given request ID
 // along with its cancellation function.
 //
