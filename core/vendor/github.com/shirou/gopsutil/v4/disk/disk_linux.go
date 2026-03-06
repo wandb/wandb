@@ -371,17 +371,24 @@ func parseFieldsOnMountinfo(ctx context.Context, lines []string, all bool, filen
 		if strings.HasPrefix(mntSrc, "/") {
 			device = mntSrc
 		} else if rootDir == "/" {
-			device = "none"
+			device = mntSrc
 		}
 
-		if _, ok := seenDevIDs[blockDeviceID]; ok {
-			// Bind mount; set the underlying mount path as the device.
-			device = seenDevIDs[blockDeviceID]
+		// Track device paths by block device ID to resolve bind mounts.
+		// A bind mount is identified by rootDir != "/" (mounting a subdirectory of a filesystem).
+		// Only apply bind detection for storage-backed filesystems (mntSrc starts with "/"),
+		// since virtual filesystems (e.g. nsfs) use rootDir for non-path identifiers.
+		if firstDev, ok := seenDevIDs[blockDeviceID]; ok {
+			// Same block device seen before - use the original device path.
+			device = firstDev
+		}
+		if strings.HasPrefix(mntSrc, "/") && rootDir != "/" {
 			isBind = true
 			mountOpts = append(mountOpts, "bind")
 		}
-
-		seenDevIDs[blockDeviceID] = mountPoint
+		if _, ok := seenDevIDs[blockDeviceID]; !ok {
+			seenDevIDs[blockDeviceID] = device
+		}
 
 		if !all && isBind {
 			continue

@@ -197,7 +197,7 @@ func NewDefaultServiceURLOptions() *ServiceURLOptions {
 	if connectionString != "" {
 		// Parse the connection string to get a default account name and protocol.
 		// Format: DefaultEndpointsProtocol=https;AccountName=some-account;AccountKey=very-secure;EndpointSuffix=core.windows.net
-		for _, part := range strings.Split(connectionString, ";") {
+		for part := range strings.SplitSeq(connectionString, ";") {
 			keyval := strings.Split(part, "=")
 			if len(keyval) == 2 {
 				if accountName == "" && keyval[0] == "AccountName" {
@@ -764,7 +764,6 @@ func (b *bucket) ListPaged(ctx context.Context, opts *driver.ListOptions) (*driv
 	page.Objects = []*driver.ListObject{}
 	segment := resp.ListBlobsHierarchySegmentResponse.Segment
 	for _, blobPrefix := range segment.BlobPrefixes {
-		blobPrefix := blobPrefix // capture loop variable for use in AsFunc
 		page.Objects = append(page.Objects, &driver.ListObject{
 			Key:   unescapeKey(to.String(blobPrefix.Name)),
 			Size:  0,
@@ -779,7 +778,6 @@ func (b *bucket) ListPaged(ctx context.Context, opts *driver.ListOptions) (*driv
 		})
 	}
 	for _, blobInfo := range segment.BlobItems {
-		blobInfo := blobInfo // capture loop variable for use in AsFunc
 		page.Objects = append(page.Objects, &driver.ListObject{
 			Key:     unescapeKey(to.String(blobInfo.Name)),
 			ModTime: *blobInfo.Properties.LastModified,
