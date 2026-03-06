@@ -434,7 +434,7 @@ func (m *ConfigEditor) updateIntEdit(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.intE.err = ""
 		return m, nil
 	default:
-		if len(msg.Text) > 0 {
+		if msg.Text != "" {
 			for _, r := range msg.Text {
 				if unicode.IsDigit(r) {
 					m.intE.input += string(r)

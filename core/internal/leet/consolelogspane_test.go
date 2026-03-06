@@ -231,7 +231,8 @@ func TestConsoleLogsPane_TimestampAdaptsToAvailableWidth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
+			clp := leet.NewConsoleLogsPane(
+				leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 			expandConsoleLogsPane(t, clp, 4) // minimum height: border + header + 1 content line
 
 			clp.SetConsoleLogs([]leet.KeyValuePair{

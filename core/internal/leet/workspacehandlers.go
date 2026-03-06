@@ -258,7 +258,7 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	rightIsVisible := w.runOverviewSidebar.IsVisible()
 
 	w.resolveFocusAfterVisibilityChange(
-		leftWillBeVisible, rightIsVisible, w.consoleLogsPane.IsExpanded())
+		leftWillBeVisible, rightIsVisible, w.consoleLogsPane.animState.TargetVisible())
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
 	w.recalculateLayout()
@@ -275,7 +275,7 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.resolveFocusAfterVisibilityChange(
-		leftIsVisible, rightWillBeVisible, w.consoleLogsPane.IsExpanded())
+		leftIsVisible, rightWillBeVisible, w.consoleLogsPane.animState.TargetVisible())
 	w.updateSidebarDimensions(leftIsVisible, rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
 	w.recalculateLayout()
@@ -284,7 +284,7 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
-	bottomWillBeVisible := !w.consoleLogsPane.IsExpanded()
+	bottomWillBeVisible := !w.consoleLogsPane.animState.TargetVisible()
 
 	if err := w.config.SetWorkspaceConsoleLogsVisible(bottomWillBeVisible); err != nil {
 		w.logger.Error(fmt.Sprintf("workspace: failed to save console logs state: %v", err))
@@ -852,9 +852,6 @@ const (
 	focusOverview
 )
 
-// focusOrder defines the Tab-cycling order across workspace regions.
-var focusOrder = []focusRegion{focusRuns, focusLogs, focusOverview}
-
 func (w *Workspace) handleSidebarTabNav(msg tea.KeyPressMsg) tea.Cmd {
 	direction := 1
 	if msg.Code == tea.KeyTab && msg.Mod == tea.ModShift {
@@ -905,7 +902,14 @@ func (w *Workspace) cycleOverviewSection(direction int) bool {
 
 // cycleFocusRegion moves focus to the next available region in the given direction.
 func (w *Workspace) cycleFocusRegion(cur focusRegion, direction int) {
-	avail := w.regionAvailability()
+	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
+
+	runsAvail := w.runsAnimState.TargetVisible()
+	logsAvail := w.consoleLogsPane.animState.TargetVisible()
+	overviewAvail := w.runOverviewSidebar.animState.TargetVisible() && firstSec != -1
+
+	focusOrder := []focusRegion{focusRuns, focusLogs, focusOverview}
+	n := len(focusOrder)
 
 	curIdx := 0
 	for i, v := range focusOrder {
@@ -915,24 +919,27 @@ func (w *Workspace) cycleFocusRegion(cur focusRegion, direction int) {
 		}
 	}
 
-	n := len(focusOrder)
 	for step := 1; step <= n; step++ {
 		nextIdx := ((curIdx+direction*step)%n + n) % n
-		next := focusOrder[nextIdx]
-		if avail[next] {
-			w.setFocusRegion(next, direction)
-			return
-		}
-	}
-}
+		candidate := focusOrder[nextIdx]
 
-// regionAvailability returns which focus regions are currently usable.
-func (w *Workspace) regionAvailability() map[focusRegion]bool {
-	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
-	return map[focusRegion]bool{
-		focusRuns:     w.runsAnimState.IsExpanded(),
-		focusLogs:     w.consoleLogsPane.IsExpanded() && w.consoleLogsPane.HasData(),
-		focusOverview: w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1,
+		switch candidate {
+		case focusRuns:
+			if runsAvail {
+				w.setFocusRegion(candidate, direction)
+				return
+			}
+		case focusLogs:
+			if logsAvail {
+				w.setFocusRegion(candidate, direction)
+				return
+			}
+		case focusOverview:
+			if overviewAvail {
+				w.setFocusRegion(candidate, direction)
+				return
+			}
+		}
 	}
 }
 

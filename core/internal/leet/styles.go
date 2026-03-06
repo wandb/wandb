@@ -258,7 +258,8 @@ var colorSchemes = map[string][]compat.AdaptiveColor{
 		compat.AdaptiveColor{Light: lipgloss.Color("#6AA1E6"), Dark: lipgloss.Color("#D0E5FF")},
 		compat.AdaptiveColor{Light: lipgloss.Color("#50ACE2"), Dark: lipgloss.Color("#D3ECFE")},
 		compat.AdaptiveColor{Light: lipgloss.Color("#33B6D9"), Dark: lipgloss.Color("#D8F2FC")},
-		compat.AdaptiveColor{Light: lipgloss.Color("#10BFCC"), Dark: lipgloss.Color("#E1F7FA")}, // == teal450
+		compat.AdaptiveColor{
+			Light: lipgloss.Color("#10BFCC"), Dark: lipgloss.Color("#E1F7FA")}, // == teal450
 	},
 	"gilded-lagoon": { // Golden-teal gradient
 		compat.AdaptiveColor{Light: lipgloss.Color("#D59C1C"), Dark: lipgloss.Color("#FFCF4F")},
@@ -270,7 +271,8 @@ var colorSchemes = map[string][]compat.AdaptiveColor{
 		compat.AdaptiveColor{Light: lipgloss.Color("#62BE95"), Dark: lipgloss.Color("#C7F5E1")},
 		compat.AdaptiveColor{Light: lipgloss.Color("#4CBFA6"), Dark: lipgloss.Color("#CDF6ED")},
 		compat.AdaptiveColor{Light: lipgloss.Color("#32C0B9"), Dark: lipgloss.Color("#D5F7F5")},
-		compat.AdaptiveColor{Light: lipgloss.Color("#10BFCC"), Dark: lipgloss.Color("#E1F7FA")}, // == teal450
+		compat.AdaptiveColor{
+			Light: lipgloss.Color("#10BFCC"), Dark: lipgloss.Color("#E1F7FA")}, // == teal450
 	},
 	"wandb-vibe-10": {
 		compat.AdaptiveColor{Light: lipgloss.Color("#8A8D91"), Dark: lipgloss.Color("#B1B4B9")},

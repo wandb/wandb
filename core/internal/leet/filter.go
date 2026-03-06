@@ -101,7 +101,7 @@ func (f *Filter) HandleKey(msg tea.KeyPressMsg) bool {
 	case tea.KeyBackspace, tea.KeySpace:
 		f.UpdateDraft(msg)
 	default:
-		if len(msg.Text) > 0 {
+		if msg.Text != "" {
 			f.UpdateDraft(msg)
 		}
 	}

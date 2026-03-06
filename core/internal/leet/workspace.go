@@ -384,22 +384,36 @@ func (w *Workspace) updateMiddlePaneHeights(sysVisible, logsVisible bool) {
 // If the currently focused region will remain available, focus is left
 // unchanged. Otherwise it advances to the next available region.
 func (w *Workspace) resolveFocusAfterVisibilityChange(
-	leftVisible, rightVisible, bottomVisible bool) {
+	leftVisible, rightVisible, bottomVisible bool,
+) {
 	cur := w.currentFocusRegion()
 
-	// Build the future availability map from the post-toggle state.
 	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
-	avail := map[focusRegion]bool{
-		focusRuns:     leftVisible,
-		focusLogs:     bottomVisible,
-		focusOverview: rightVisible && firstSec != -1,
+
+	runsAvail := leftVisible
+	logsAvail := bottomVisible
+	overviewAvail := rightVisible && firstSec != -1
+
+	regionAvailable := func(r focusRegion) bool {
+		switch r {
+		case focusRuns:
+			return runsAvail
+		case focusLogs:
+			return logsAvail
+		case focusOverview:
+			return overviewAvail
+		default:
+			return false
+		}
 	}
 
-	if avail[cur] {
+	if regionAvailable(cur) {
 		return
 	}
 
-	// Current region is being collapsed — find the next available one.
+	focusOrder := []focusRegion{focusRuns, focusLogs, focusOverview}
+	n := len(focusOrder)
+
 	curIdx := 0
 	for i, v := range focusOrder {
 		if v == cur {
@@ -408,18 +422,13 @@ func (w *Workspace) resolveFocusAfterVisibilityChange(
 		}
 	}
 
-	n := len(focusOrder)
 	for step := 1; step <= n; step++ {
-		nextIdx := ((curIdx + step) % n)
-		next := focusOrder[nextIdx]
-		if avail[next] {
-			w.setFocusRegion(next, 1)
+		nextIdx := (curIdx + step) % n
+		if regionAvailable(focusOrder[nextIdx]) {
+			w.setFocusRegion(focusOrder[nextIdx], 1)
 			return
 		}
 	}
-
-	// Nothing available — default to runs (it will show inactive styling).
-	w.setFocusRegion(focusRuns, 1)
 }
 
 // handleWindowResize handles window resize messages.

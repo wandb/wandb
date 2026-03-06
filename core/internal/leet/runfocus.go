@@ -32,7 +32,7 @@ func (r *Run) currentRunFocusRegion() runFocusRegion {
 func (r *Run) runRegionAvailability() (overview, logs bool) {
 	firstSec, _ := r.leftSidebar.focusableSectionBounds()
 	overview = r.leftSidebar.animState.IsExpanded() && firstSec != -1
-	logs = r.consoleLogsPane.IsExpanded() && r.consoleLogsPane.HasData()
+	logs = r.consoleLogsPane.IsExpanded()
 	return overview, logs
 }
 

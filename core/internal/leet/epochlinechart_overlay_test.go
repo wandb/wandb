@@ -12,7 +12,7 @@ import (
 )
 
 var ansiRE = regexp.MustCompile(
-	`\x1b\[[0-9;?]*[ -/]*[@-~]` + // CSI sequences
+	`\x1b\[[0-9;?]*[\x20-\x2f]*[\x40-\x7e]` + // CSI sequences
 		`|\x1b\][^\x07]*(?:\x07|\x1b\\)`, // OSC sequences
 )
 
