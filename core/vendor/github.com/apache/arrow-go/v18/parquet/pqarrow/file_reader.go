@@ -606,7 +606,22 @@ func (fr *FileReader) getReader(ctx context.Context, field *SchemaField, arrowFi
 		out = newStructReader(&rctx, &filtered, field.LevelInfo, childReaders, fr.Props)
 	case arrow.LIST, arrow.FIXED_SIZE_LIST, arrow.MAP:
 		child := field.Children[0]
-		childReader, err := fr.getReader(ctx, &child, *child.Field)
+
+		// For maps, we must read BOTH key and value columns, regardless of column selection.
+		// Map arrays require a complete key-value struct with exactly 2 fields.
+		// Disable leaf filtering when reading a map's key-value struct.
+		childCtx := ctx
+		if _, isMap := arrowField.Type.(*arrow.MapType); isMap {
+			childCtx = context.WithValue(ctx, rdrCtxKey{}, readerCtx{
+				rdr:            rctx.rdr,
+				mem:            rctx.mem,
+				colFactory:     rctx.colFactory,
+				filterLeaves:   false, // Don't filter leaves for map key-value struct
+				includedLeaves: rctx.includedLeaves,
+			})
+		}
+
+		childReader, err := fr.getReader(childCtx, &child, *child.Field)
 		if err != nil {
 			return nil, err
 		}

@@ -1371,7 +1371,50 @@ func (w *ByteArrayColumnChunkWriter) WriteDictIndices(indices arrow.Array, defLe
 }
 
 func (w *ByteArrayColumnChunkWriter) writeValues(values []parquet.ByteArray, numNulls int64) {
-	w.currentEncoder.(encoding.ByteArrayEncoder).Put(values)
+	// For variable-length types, we need to check buffer size to prevent int32 overflow
+	// For small values (<1MB), checking frequently adds negligible overhead
+	// For large values (>1MB), we MUST check before each value
+	const maxSafeBufferSize = 1.0 * 1024 * 1024 * 1024 // 1GB threshold
+	const largeValueThreshold = 1.0 * 1024 * 1024      // 1MB
+
+	encoder := w.currentEncoder.(encoding.ByteArrayEncoder)
+	currentSize := w.currentEncoder.EstimatedDataEncodedSize()
+
+	// Batch process small values, check individually for large values
+	batchStart := 0
+	for i := 0; i < len(values); i++ {
+		valueSize := int64(len(values[i]))
+
+		// If this value might cause overflow, flush first
+		if currentSize+valueSize >= maxSafeBufferSize {
+			// Add accumulated batch before flushing
+			if i > batchStart {
+				encoder.Put(values[batchStart:i])
+				currentSize = w.currentEncoder.EstimatedDataEncodedSize()
+			}
+			// Flush the page
+			if err := w.FlushCurrentPage(); err != nil {
+				panic(err)
+			}
+			batchStart = i
+			currentSize = 0
+		}
+
+		// Track size estimate
+		currentSize += valueSize + 4 // +4 for length prefix
+
+		// For large values, add and flush immediately if needed
+		if valueSize >= largeValueThreshold {
+			encoder.Put(values[i : i+1])
+			batchStart = i + 1
+			currentSize = w.currentEncoder.EstimatedDataEncodedSize()
+		}
+	}
+
+	// Add remaining batch
+	if batchStart < len(values) {
+		encoder.Put(values[batchStart:])
+	}
 	if w.pageStatistics != nil {
 		w.pageStatistics.(*metadata.ByteArrayStatistics).Update(values, numNulls)
 	}
@@ -1382,10 +1425,41 @@ func (w *ByteArrayColumnChunkWriter) writeValues(values []parquet.ByteArray, num
 }
 
 func (w *ByteArrayColumnChunkWriter) writeValuesSpaced(spacedValues []parquet.ByteArray, numRead, numValues int64, validBits []byte, validBitsOffset int64) {
-	if len(spacedValues) != int(numRead) {
-		w.currentEncoder.(encoding.ByteArrayEncoder).PutSpaced(spacedValues, validBits, validBitsOffset)
-	} else {
-		w.currentEncoder.(encoding.ByteArrayEncoder).Put(spacedValues)
+	// For variable-length types, we need to check buffer size to prevent int32 overflow
+	// For small values (<1MB), checking frequently adds negligible overhead
+	// For large values (>1MB), we MUST check before each value
+	const maxSafeBufferSize = 1.0 * 1024 * 1024 * 1024 // 1GB threshold
+	const largeValueThreshold = 1.0 * 1024 * 1024      // 1MB
+
+	encoder := w.currentEncoder.(encoding.ByteArrayEncoder)
+	currentSize := w.currentEncoder.EstimatedDataEncodedSize()
+
+	for i := 0; i < len(spacedValues); i++ {
+		valueSize := int64(len(spacedValues[i]))
+
+		// If this value might cause overflow, flush first
+		if currentSize+valueSize >= maxSafeBufferSize {
+			if err := w.FlushCurrentPage(); err != nil {
+				// If flush fails, panic will be caught by WriteBatch's defer recover
+				panic(err)
+			}
+			currentSize = 0
+		}
+
+		// Add the value
+		chunk := spacedValues[i : i+1]
+		if len(spacedValues) != int(numRead) && validBits != nil {
+			encoder.PutSpaced(chunk, validBits, validBitsOffset+int64(i))
+		} else {
+			encoder.Put(chunk)
+		}
+
+		// Track size estimate (only update for large values or every 100 values)
+		if valueSize >= largeValueThreshold || i%100 == 0 {
+			currentSize = w.currentEncoder.EstimatedDataEncodedSize()
+		} else {
+			currentSize += valueSize + 4 // +4 for length prefix
+		}
 	}
 	if w.pageStatistics != nil {
 		nulls := numValues - numRead
@@ -1569,7 +1643,50 @@ func (w *FixedLenByteArrayColumnChunkWriter) WriteDictIndices(indices arrow.Arra
 }
 
 func (w *FixedLenByteArrayColumnChunkWriter) writeValues(values []parquet.FixedLenByteArray, numNulls int64) {
-	w.currentEncoder.(encoding.FixedLenByteArrayEncoder).Put(values)
+	// For variable-length types, we need to check buffer size to prevent int32 overflow
+	// For small values (<1MB), checking frequently adds negligible overhead
+	// For large values (>1MB), we MUST check before each value
+	const maxSafeBufferSize = 1.0 * 1024 * 1024 * 1024 // 1GB threshold
+	const largeValueThreshold = 1.0 * 1024 * 1024      // 1MB
+
+	encoder := w.currentEncoder.(encoding.FixedLenByteArrayEncoder)
+	currentSize := w.currentEncoder.EstimatedDataEncodedSize()
+
+	// Batch process small values, check individually for large values
+	batchStart := 0
+	for i := 0; i < len(values); i++ {
+		valueSize := int64(w.descr.TypeLength())
+
+		// If this value might cause overflow, flush first
+		if currentSize+valueSize >= maxSafeBufferSize {
+			// Add accumulated batch before flushing
+			if i > batchStart {
+				encoder.Put(values[batchStart:i])
+				currentSize = w.currentEncoder.EstimatedDataEncodedSize()
+			}
+			// Flush the page
+			if err := w.FlushCurrentPage(); err != nil {
+				panic(err)
+			}
+			batchStart = i
+			currentSize = 0
+		}
+
+		// Track size estimate
+		currentSize += valueSize + 4 // +4 for length prefix
+
+		// For large values, add and flush immediately if needed
+		if valueSize >= largeValueThreshold {
+			encoder.Put(values[i : i+1])
+			batchStart = i + 1
+			currentSize = w.currentEncoder.EstimatedDataEncodedSize()
+		}
+	}
+
+	// Add remaining batch
+	if batchStart < len(values) {
+		encoder.Put(values[batchStart:])
+	}
 	if w.pageStatistics != nil {
 		if w.Descr().LogicalType().Equals(schema.Float16LogicalType{}) {
 			w.pageStatistics.(*metadata.Float16Statistics).Update(values, numNulls)
@@ -1584,10 +1701,41 @@ func (w *FixedLenByteArrayColumnChunkWriter) writeValues(values []parquet.FixedL
 }
 
 func (w *FixedLenByteArrayColumnChunkWriter) writeValuesSpaced(spacedValues []parquet.FixedLenByteArray, numRead, numValues int64, validBits []byte, validBitsOffset int64) {
-	if len(spacedValues) != int(numRead) {
-		w.currentEncoder.(encoding.FixedLenByteArrayEncoder).PutSpaced(spacedValues, validBits, validBitsOffset)
-	} else {
-		w.currentEncoder.(encoding.FixedLenByteArrayEncoder).Put(spacedValues)
+	// For variable-length types, we need to check buffer size to prevent int32 overflow
+	// For small values (<1MB), checking frequently adds negligible overhead
+	// For large values (>1MB), we MUST check before each value
+	const maxSafeBufferSize = 1.0 * 1024 * 1024 * 1024 // 1GB threshold
+	const largeValueThreshold = 1.0 * 1024 * 1024      // 1MB
+
+	encoder := w.currentEncoder.(encoding.FixedLenByteArrayEncoder)
+	currentSize := w.currentEncoder.EstimatedDataEncodedSize()
+
+	for i := 0; i < len(spacedValues); i++ {
+		valueSize := int64(w.descr.TypeLength())
+
+		// If this value might cause overflow, flush first
+		if currentSize+valueSize >= maxSafeBufferSize {
+			if err := w.FlushCurrentPage(); err != nil {
+				// If flush fails, panic will be caught by WriteBatch's defer recover
+				panic(err)
+			}
+			currentSize = 0
+		}
+
+		// Add the value
+		chunk := spacedValues[i : i+1]
+		if len(spacedValues) != int(numRead) && validBits != nil {
+			encoder.PutSpaced(chunk, validBits, validBitsOffset+int64(i))
+		} else {
+			encoder.Put(chunk)
+		}
+
+		// Track size estimate (only update for large values or every 100 values)
+		if valueSize >= largeValueThreshold || i%100 == 0 {
+			currentSize = w.currentEncoder.EstimatedDataEncodedSize()
+		} else {
+			currentSize += valueSize + 4 // +4 for length prefix
+		}
 	}
 	if w.pageStatistics != nil {
 		nulls := numValues - numRead
