@@ -207,7 +207,7 @@ To install `uv`, follow [these instructions](https://docs.astral.sh/uv/getting-s
 
 Then install a supported Python version and set up your environment:
 ```shell
-uv python install 3.13
+uv python install 3.14
 uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```

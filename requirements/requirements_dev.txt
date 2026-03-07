@@ -28,7 +28,7 @@ jupyter
 ipykernel
 nbclient
 
-tensorflow~=2.20; sys_platform != 'darwin'
+tensorflow~=2.20; sys_platform != 'darwin' and python_version < '3.14'
 numpy<2.4.0  # tensorflow==2.20.0 uses deprecated args removed in numpy==2.4.0
 
 scikit-learn
@@ -37,7 +37,7 @@ torchvision
 jax[cpu]
 lightning
 # As of 2025/10/08, ray wheels for python>=3.13 are not available for Windows.
-ray[air,tune]; sys_platform != 'win32'
+ray[air,tune]; sys_platform != 'win32' and python_version < '3.14'
 
 pyarrow
 metaflow
