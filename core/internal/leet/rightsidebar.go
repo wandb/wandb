@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -164,7 +164,7 @@ func (rs *RightSidebar) IsAnimating() bool {
 }
 
 // HandleFilterKey delegates filter key handling to the inner metrics grid.
-func (rs *RightSidebar) HandleFilterKey(msg tea.KeyMsg) {
+func (rs *RightSidebar) HandleFilterKey(msg tea.KeyPressMsg) {
 	rs.metricsGrid.handleFilterKey(msg)
 }
 

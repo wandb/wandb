@@ -3,9 +3,9 @@ package leet
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/version"
 )
@@ -29,7 +29,7 @@ type HelpModel struct {
 }
 
 func NewHelp() *HelpModel {
-	vp := viewport.New(80, 20)
+	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	return &HelpModel{
 		viewport: vp,
 		active:   false,
@@ -134,8 +134,8 @@ func helpEntriesFromCategories[T any](categories []BindingCategory[T]) []HelpEnt
 func (h *HelpModel) SetSize(width, height int) {
 	h.width = width
 	h.height = height - StatusBarHeight
-	h.viewport.Width = width
-	h.viewport.Height = h.height
+	h.viewport.SetWidth(width)
+	h.viewport.SetHeight(h.height)
 
 	if h.active {
 		h.viewport.SetContent(h.generateHelpContent())
@@ -165,7 +165,7 @@ func (h *HelpModel) Update(msg tea.Msg) (*HelpModel, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "h", "?", "esc":
 			h.Toggle()
@@ -186,18 +186,18 @@ func (h *HelpModel) Update(msg tea.Msg) (*HelpModel, tea.Cmd) {
 }
 
 // View renders the help screen.
-func (h *HelpModel) View() string {
+func (h *HelpModel) View() tea.View {
 	if !h.active {
-		return ""
+		return tea.NewView("")
 	}
 
 	content := helpContentStyle.Render(h.viewport.View())
 
-	return lipgloss.Place(
+	return tea.NewView(lipgloss.Place(
 		h.width,
 		h.height,
 		lipgloss.Left,
 		lipgloss.Top,
 		content,
-	)
+	))
 }

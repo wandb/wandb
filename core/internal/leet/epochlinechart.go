@@ -9,11 +9,12 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/NimbleMarkets/ntcharts/canvas"
-	"github.com/NimbleMarkets/ntcharts/canvas/graph"
-	"github.com/NimbleMarkets/ntcharts/canvas/runes"
-	"github.com/NimbleMarkets/ntcharts/linechart"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
+	"github.com/NimbleMarkets/ntcharts/v2/canvas"
+	"github.com/NimbleMarkets/ntcharts/v2/canvas/graph"
+	"github.com/NimbleMarkets/ntcharts/v2/canvas/runes"
+	"github.com/NimbleMarkets/ntcharts/v2/linechart"
 )
 
 const (
@@ -61,7 +62,7 @@ type Series struct {
 	yMin, yMax float64
 }
 
-func NewSeries(name string, palette []lipgloss.AdaptiveColor) *Series {
+func NewSeries(name string, palette []compat.AdaptiveColor) *Series {
 	md := MetricData{
 		X: make([]float64, 0, initDataSliceCap),
 		Y: make([]float64, 0, initDataSliceCap),
@@ -128,7 +129,7 @@ type EpochLineChart struct {
 	order []string
 
 	// palette provides colors for new series added to this chart.
-	palette []lipgloss.AdaptiveColor
+	palette []compat.AdaptiveColor
 
 	// focused indicates whether this chart has input focus in the grid.
 	focused bool
@@ -215,7 +216,7 @@ func (c *EpochLineChart) maxXLabelWidth() int {
 
 // SetPalette updates the color palette for new series.
 // Existing series retain their current colors.
-func (c *EpochLineChart) SetPalette(colors []lipgloss.AdaptiveColor) {
+func (c *EpochLineChart) SetPalette(colors []compat.AdaptiveColor) {
 	if len(colors) == 0 {
 		colors = GraphColors(DefaultColorScheme)
 	}

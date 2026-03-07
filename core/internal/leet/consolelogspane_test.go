@@ -36,7 +36,7 @@ func makeLogs(n int) []leet.KeyValuePair {
 }
 
 func TestConsoleLogsPane_AutoScrollFreezesWhenUserScrollsUp(t *testing.T) {
-	clp := leet.NewConsoleLogsPane()
+	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 5) // border + header + 3 content lines
 
 	clp.SetConsoleLogs(makeLogs(10))
@@ -58,7 +58,7 @@ func TestConsoleLogsPane_AutoScrollFreezesWhenUserScrollsUp(t *testing.T) {
 }
 
 func TestConsoleLogsPane_PageUpDown_WrapsAround(t *testing.T) {
-	clp := leet.NewConsoleLogsPane()
+	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 4) // border + header + 2 content lines
 
 	clp.SetConsoleLogs(makeLogs(5))
@@ -171,7 +171,7 @@ func TestWithEllipsis(t *testing.T) {
 }
 
 func TestConsoleLogsPane_Down_CyclesAndWraps(t *testing.T) {
-	clp := leet.NewConsoleLogsPane()
+	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 5) // border + header + 3 content lines
 
 	clp.SetConsoleLogs(makeLogs(5))
@@ -197,7 +197,7 @@ func TestConsoleLogsPane_Down_CyclesAndWraps(t *testing.T) {
 }
 
 func TestConsoleLogsPane_Down_EmptyLogs(t *testing.T) {
-	clp := leet.NewConsoleLogsPane()
+	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 5)
 
 	// Down on empty logs should be a no-op.
@@ -231,7 +231,8 @@ func TestConsoleLogsPane_TimestampAdaptsToAvailableWidth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clp := leet.NewConsoleLogsPane()
+			clp := leet.NewConsoleLogsPane(
+				leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 			expandConsoleLogsPane(t, clp, 4) // minimum height: border + header + 1 content line
 
 			clp.SetConsoleLogs([]leet.KeyValuePair{

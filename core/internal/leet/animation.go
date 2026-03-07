@@ -160,6 +160,15 @@ func (a *AnimatedValue) ForceExpand() {
 	a.startTime = time.Time{}
 }
 
+// TargetVisible reports whether the animation's target is expanded.
+// Unlike IsVisible (current > 0) and IsExpanded (current == target),
+// this reflects the intended logical visibility.
+func (a *AnimatedValue) TargetVisible() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.target > 0
+}
+
 // easeOutCubic maps t ∈ [0, 1] -> [0, 1] with deceleration near the end.
 //
 // Values outside [0,1] are acceptable; callers clamp at 1.
