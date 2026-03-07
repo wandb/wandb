@@ -7,6 +7,8 @@ package udiff
 import (
 	"fmt"
 	"log"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -114,7 +116,7 @@ func toUnified(fromName, toName string, content string, edits []Edit, contextLin
 	if err != nil {
 		return u, err
 	}
-	lines := splitLines(content)
+	lines, _ := splitLines(content)
 	var h *hunk
 	last := 0
 	toLine := 0
@@ -129,12 +131,12 @@ func toUnified(fromName, toName string, content string, edits []Edit, contextLin
 
 		switch {
 		case h != nil && start == last:
-			// direct extension
+			//direct extension
 		case h != nil && start <= last+gap:
-			// within range of previous lines, add the joiners
+			//within range of previous lines, add the joiners
 			addEqualLines(h, lines, last, start)
 		default:
-			// need to start a new hunk
+			//need to start a new hunk
 			if h != nil {
 				// add the edge to the previous hunk
 				addEqualLines(h, lines, last, last+contextLines)
@@ -156,7 +158,8 @@ func toUnified(fromName, toName string, content string, edits []Edit, contextLin
 			last++
 		}
 		if edit.New != "" {
-			for _, content := range splitLines(edit.New) {
+			v, _ := splitLines(edit.New)
+			for _, content := range v {
 				h.Lines = append(h.Lines, line{Kind: Insert, Content: content})
 				toLine++
 			}
@@ -170,12 +173,24 @@ func toUnified(fromName, toName string, content string, edits []Edit, contextLin
 	return u, nil
 }
 
-func splitLines(text string) []string {
-	lines := strings.SplitAfter(text, "\n")
-	if lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
+// split into lines removing a final empty line,
+// and also return the offsets of the line beginnings.
+func splitLines(text string) ([]string, []int) {
+	var lines []string
+	offsets := []int{0}
+	start := 0
+	for i, r := range text {
+		if r == '\n' {
+			lines = append(lines, text[start:i+1])
+			start = i + 1
+			offsets = append(offsets, start)
+		}
 	}
-	return lines
+	if start < len(text) {
+		lines = append(lines, text[start:])
+		offsets = append(offsets, len(text))
+	}
+	return lines, offsets
 }
 
 func addEqualLines(h *hunk, lines []string, start, end int) int {
@@ -249,3 +264,51 @@ func (u unified) String() string {
 	}
 	return b.String()
 }
+
+// ApplyUnified applies the unified diffs.
+func ApplyUnified(udiffs, bef string) (string, error) {
+	before := strings.Split(bef, "\n")
+	unif := strings.Split(udiffs, "\n")
+	var got []string
+	left := 0
+	// parse and apply the unified diffs
+	for _, l := range unif {
+		if len(l) == 0 {
+			continue // probably the last line (from Split)
+		}
+		switch l[0] {
+		case '@': // The @@ line
+			m := atregexp.FindStringSubmatch(l)
+			fromLine, err := strconv.Atoi(m[1])
+			if err != nil {
+				return "", fmt.Errorf("missing line number in %q", l)
+			}
+			// before is a slice, so0-based; fromLine is 1-based
+			for ; left < fromLine-1; left++ {
+				got = append(got, before[left])
+			}
+		case '+': // add this line
+			if strings.HasPrefix(l, "+++ ") {
+				continue
+			}
+			got = append(got, l[1:])
+		case '-': // delete this line
+			if strings.HasPrefix(l, "--- ") {
+				continue
+			}
+			left++
+		case ' ':
+			return "", fmt.Errorf("unexpected line %q", l)
+		default:
+			return "", fmt.Errorf("impossible unified %q", udiffs)
+		}
+	}
+	// copy any remaining lines
+	for ; left < len(before); left++ {
+		got = append(got, before[left])
+	}
+	return strings.Join(got, "\n"), nil
+}
+
+// The first number in the @@ lines is the line number in the 'before' data
+var atregexp = regexp.MustCompile(`@@ -(\d+).* @@`)
