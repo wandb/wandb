@@ -41,11 +41,10 @@ class Reports(SizedPaginator["BetaReport"]):
 
     QUERY = gql(
         """
-        query ProjectViews($project: String!, $entity: String!, $reportCursor: String,
-            $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
+        query ProjectViews($project: String!, $entity: String!, $cursor: String,
+            $perPage: Int!, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
-                allViews(viewType: $viewType, viewName: $viewName, first:
-                    $reportLimit, after: $reportCursor) {
+                allViews(viewType: $viewType, viewName: $viewName, first: $perPage, after: $cursor) {
                     edges {
                         node {
                             id
@@ -123,12 +122,6 @@ class Reports(SizedPaginator["BetaReport"]):
         if self.last_response:
             return self.last_response["project"]["allViews"]["edges"][-1]["cursor"]
         return None
-
-    def update_variables(self) -> None:
-        """Updates the GraphQL query variables for pagination."""
-        self.variables.update(
-            {"reportCursor": self.cursor, "reportLimit": self.per_page}
-        )
 
     def convert_objects(self) -> list[BetaReport]:
         """Converts GraphQL edges to File objects."""
