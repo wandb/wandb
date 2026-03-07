@@ -1,7 +1,17 @@
 package leet_test
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/pkg/leveldb"
+	"google.golang.org/protobuf/proto"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -48,16 +58,16 @@ const (
 // 	return tm
 // }
 
-// // writeRecord marshals and writes a single protobuf record to the leveldb writer.
-// func writeRecord(t *testing.T, w *leveldb.Writer, rec *spb.Record) {
-// 	t.Helper()
-// 	data, err := proto.Marshal(rec)
-// 	require.NoError(t, err)
-// 	dst, err := w.Next()
-// 	require.NoError(t, err)
-// 	_, err = dst.Write(data)
-// 	require.NoError(t, err)
-// }
+// writeRecord marshals and writes a single protobuf record to the leveldb writer.
+func writeRecord(t *testing.T, w *leveldb.Writer, rec *spb.Record) {
+	t.Helper()
+	data, err := proto.Marshal(rec)
+	require.NoError(t, err)
+	dst, err := w.Next()
+	require.NoError(t, err)
+	_, err = dst.Write(data)
+	require.NoError(t, err)
+}
 
 // // forceRepaint nudges Bubble Tea to produce a fresh frame.
 // // Why needed: teatest.WaitFor consumes tm.Output(). Without a new render, a second
@@ -261,51 +271,51 @@ const (
 // 	return tm
 // }
 
-// func writeWorkspaceRunWandbFile(
-// 	t *testing.T,
-// 	wandbDir, runKey, runID string,
-// 	loss float64,
-// ) string {
-// 	t.Helper()
+func writeWorkspaceRunWandbFile(
+	t *testing.T,
+	wandbDir, runKey, runID string,
+	loss float64,
+) string {
+	t.Helper()
 
-// 	runFile := filepath.Join(wandbDir, runKey, "run-"+runID+".wandb")
-// 	require.NoError(t, os.MkdirAll(filepath.Dir(runFile), 0o755))
+	runFile := filepath.Join(wandbDir, runKey, "run-"+runID+".wandb")
+	require.NoError(t, os.MkdirAll(filepath.Dir(runFile), 0o755))
 
-// 	f, err := os.Create(runFile)
-// 	require.NoError(t, err)
-// 	defer func() { _ = f.Close() }()
+	f, err := os.Create(runFile)
+	require.NoError(t, err)
+	defer func() { _ = f.Close() }()
 
-// 	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, 0)
+	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, 0)
 
-// 	// Minimal Run record (powers run overview preload + nicer UI).
-// 	writeRecord(t, writer, &spb.Record{
-// 		RecordType: &spb.Record_Run{
-// 			Run: &spb.RunRecord{
-// 				RunId:       runID,
-// 				DisplayName: runID,
-// 				Project:     "test-project",
-// 			},
-// 		},
-// 	})
+	// Minimal Run record (powers run overview preload + nicer UI).
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_Run{
+			Run: &spb.RunRecord{
+				RunId:       runID,
+				DisplayName: runID,
+				Project:     "test-project",
+			},
+		},
+	})
 
-// 	// Minimal History record with a single metric ("loss") so the MetricsGrid renders.
-// 	writeRecord(t, writer, &spb.Record{
-// 		RecordType: &spb.Record_History{
-// 			History: &spb.HistoryRecord{
-// 				Step: &spb.HistoryStep{Num: 1},
-// 				Item: []*spb.HistoryItem{
-// 					{NestedKey: []string{"_step"}, ValueJson: "1"},
-// 					{NestedKey: []string{"loss"}, ValueJson: fmt.Sprintf("%g", loss)},
-// 				},
-// 			},
-// 		},
-// 	})
+	// Minimal History record with a single metric ("loss") so the MetricsGrid renders.
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Step: &spb.HistoryStep{Num: 1},
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"_step"}, ValueJson: "1"},
+					{NestedKey: []string{"loss"}, ValueJson: fmt.Sprintf("%g", loss)},
+				},
+			},
+		},
+	})
 
-// 	require.NoError(t, writer.Flush())
-// 	require.NoError(t, writer.Close())
+	require.NoError(t, writer.Flush())
+	require.NoError(t, writer.Close())
 
-// 	return runFile
-// }
+	return runFile
+}
 
 // // waitForPlainOutput is an accumulating WaitFor that strips all ANSI sequences
 // // before checking want/notWant substrings.
