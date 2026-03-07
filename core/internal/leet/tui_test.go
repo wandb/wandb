@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/pkg/leveldb"
@@ -14,10 +13,10 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-const (
-	shortWait = 2 * time.Second
-	longWait  = 3 * time.Second
-)
+// const (
+// 	shortWait = 2 * time.Second
+// 	longWait  = 3 * time.Second
+// )
 
 // TODO: teatest is not yet fully compatible with bubbletea v2.
 
