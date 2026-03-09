@@ -94,9 +94,15 @@ class Paginator(Iterator[_WandbT], ABC):
 
         Returns an empty list when there are no more pages.
         """
-        self._load_page()
+        next_page_start = len(self.objects)
+
+        self._load_page()  # Note: this currently mutates self.objects in-place
+
+        next_page = self.objects[next_page_start:]
+        # Keep the iterator state consistent: items returned by next_page()
+        # should not be re-yielded by __next__().
         self.index = len(self.objects) - 1
-        return self.objects[self.index + 1 :]
+        return next_page
 
     @overload
     def __getitem__(self, index: int) -> _WandbT: ...
