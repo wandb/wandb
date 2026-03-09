@@ -99,8 +99,8 @@ func NewRun(
 	ro := NewRunOverview()
 	runOverviewAnimState := NewAnimatedValue(cfg.LeftSidebarVisible(), SidebarMinWidth)
 
-	// TODO: make it configurable?
-	consoleLogsPaneAnimState := NewAnimatedValue(false, ConsoleLogsPaneMinHeight)
+	consoleLogsPaneAnimState := NewAnimatedValue(
+		cfg.ConsoleLogsVisible(), ConsoleLogsPaneMinHeight)
 
 	metricsGrid := NewMetricsGrid(cfg, cfg.MetricsGrid, focus, logger)
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
