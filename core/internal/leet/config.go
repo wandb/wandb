@@ -662,14 +662,15 @@ func (cm *ConfigManager) GridConfigStatus() string {
 	defer cm.mu.RUnlock()
 
 	switch cm.pendingGridConfig {
-	case gridConfigMetricsCols:
+	case gridConfigMetricsCols, gridConfigWorkspaceMetricsCols:
 		return "Press 1-9 to set metrics grid columns (ESC to cancel)"
-	case gridConfigMetricsRows:
+	case gridConfigMetricsRows, gridConfigWorkspaceMetricsRows:
 		return "Press 1-9 to set metrics grid rows (ESC to cancel)"
-	case gridConfigSystemCols:
+	case gridConfigSystemCols, gridConfigWorkspaceSystemCols:
 		return "Press 1-9 to set system grid columns (ESC to cancel)"
-	case gridConfigSystemRows:
+	case gridConfigSystemRows, gridConfigWorkspaceSystemRows:
 		return "Press 1-9 to set system grid rows (ESC to cancel)"
+
 	default:
 		return ""
 	}
