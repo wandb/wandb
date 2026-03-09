@@ -146,7 +146,7 @@ class WandBUltralyticsCallback:
         self.task = model.task
         self.task_map = model.task_map
         self.model_name = (
-            model.overrides["model"].split(".")[0]
+            str(model.overrides["model"]).split(".")[0]
             if "model" in model.overrides
             else None
         )
