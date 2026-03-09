@@ -138,12 +138,21 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) error {
 			return err
 		}
 
-		r.parseAndAddWork(record)
-
 		switch {
+		default: // No special handling for most records.
+			r.parseAndAddWork(record)
+
 		case record.GetExit() != nil:
+			r.parseAndAddWork(record)
 			r.seenExit = true
+
 		case record.GetRun() != nil:
+			// Fail early if initializing the run (UpsertBucket) fails.
+			err := r.waitForRunRecord(ctx, record)
+			if err != nil {
+				return err
+			}
+
 			// The RunStart request is required to come after a Run record,
 			// but its contents are irrelevant when syncing. It causes
 			// the Sender to start FileStream.
@@ -252,10 +261,80 @@ func (r *RunReader) nextUpdatedRecord(
 	return
 }
 
+// waitForRunRecord sends the given Run record and waits for a response.
+//
+// Returns an error if the run fails to initialize.
+func (r *RunReader) waitForRunRecord(
+	ctx context.Context,
+	record *spb.Record,
+) error {
+	response, err := r.parseAndDoRequest(ctx, "sync-run-init", record)
+	if err != nil {
+		return err
+	}
+
+	// Check the error built into the RunResult type.
+	errMsg := response.GetResultCommunicate().
+		GetRunResult().
+		GetError().
+		GetMessage()
+	if errMsg != "" {
+		return &SyncError{
+			Message:  fmt.Sprintf("runreader: init error: %v", errMsg),
+			UserText: errMsg,
+		}
+	}
+
+	return nil
+}
+
+// parseAndDoRequest pushes a record to RunWork and waits for a response.
+//
+// The request ID is only used for debugging.
+//
+// Returns an error on ServerErrorResponse.
+func (r *RunReader) parseAndDoRequest(
+	ctx context.Context,
+	id string,
+	record *spb.Record,
+) (*spb.ServerResponse, error) {
+	requestCtx, cancelRequest := context.WithCancel(ctx)
+	defer cancelRequest()
+
+	responseCh := make(chan *spb.ServerResponse, 1)
+	request := runwork.NewRequest(id, requestCtx, cancelRequest, responseCh)
+
+	r.addWork(runwork.Work{
+		WorkImpl: r.recordParser.Parse(record),
+		Request:  request,
+	})
+
+	select {
+	case response := <-responseCh:
+		if message := response.GetErrorResponse().GetMessage(); message != "" {
+			return nil, &SyncError{
+				Message: fmt.Sprintf(
+					"runsync: error response to %s: %s",
+					id, message),
+				UserText: message,
+			}
+		}
+
+		return response, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
 // parseAndAddWork parses the record and pushes it to RunWork.
 func (r *RunReader) parseAndAddWork(record *spb.Record) {
 	work := runwork.NoRequest(r.recordParser.Parse(record))
+	r.addWork(work)
+}
 
+// addWork pushes a work item to RunWork.
+func (r *RunReader) addWork(work runwork.Work) {
 	wg := &sync.WaitGroup{}
 
 	// NOTE: Don't use AddWorkOrCancel to avoid setting seenExit for
