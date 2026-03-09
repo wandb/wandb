@@ -11,6 +11,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/gitops"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
@@ -108,7 +109,7 @@ func addAndCommitWithContent(
 	err = os.WriteFile(
 		filepath.Join(worktree.Filesystem.Root(), file),
 		[]byte(content),
-		0644,
+		0o644,
 	)
 	if err != nil {
 		return "", err
@@ -364,12 +365,16 @@ func TestGetUpstreamForkPoint_MultipleTrackingBranches(t *testing.T) {
 	}
 
 	// Create a new branch based on feature2 branch HEAD
-	branch2Head, _ := baseRepo.Reference(plumbing.ReferenceName("refs/remotes/origin/feature2"), true)
-	_ = worktree.Checkout(&git.CheckoutOptions{
+	branch2Head, _ := baseRepo.Reference(
+		plumbing.ReferenceName("refs/remotes/origin/feature2"),
+		true,
+	)
+	err = worktree.Checkout(&git.CheckoutOptions{
 		Hash:   branch2Head.Hash(),
 		Branch: plumbing.NewBranchReferenceName("feature4"),
 		Create: true,
 	})
+	require.NoError(t, err)
 
 	// Add a commit on the new branch
 	commit, _ := addAndCommitWithContent(baseRepo, "newbranch.txt", "new branch content")
@@ -385,8 +390,14 @@ func TestGetUpstreamForkPoint_MultipleTrackingBranches(t *testing.T) {
 	assert.NotEmpty(t, forkPoint)
 	assert.NotEqual(t, commit, forkPoint)
 	assert.Equal(t, branch2Head.Hash().String(), forkPoint)
-	branch1Head, _ := baseRepo.Reference(plumbing.ReferenceName("refs/remotes/origin/feature1"), true)
-	branch3Head, _ := baseRepo.Reference(plumbing.ReferenceName("refs/remotes/origin/feature3"), true)
+	branch1Head, _ := baseRepo.Reference(
+		plumbing.ReferenceName("refs/remotes/origin/feature1"),
+		true,
+	)
+	branch3Head, _ := baseRepo.Reference(
+		plumbing.ReferenceName("refs/remotes/origin/feature3"),
+		true,
+	)
 	assert.NotEqual(t, branch1Head.Hash().String(), forkPoint)
 	assert.NotEqual(t, branch3Head.Hash().String(), forkPoint)
 }

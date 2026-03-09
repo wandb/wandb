@@ -197,7 +197,7 @@ class Settings(BaseModel, validate_assignment=True):
     disable_git: bool = False
     """Whether to disable capturing the git state."""
 
-    disable_infer_git_fork_point: bool = True
+    disable_git_fork_point: bool = True
     """Whether to disable inferring fork point from remote branches
 
     When set to True, the SDK will use the latest commir from the upstream
