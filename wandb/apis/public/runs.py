@@ -508,21 +508,8 @@ class Runs(SizedPaginator["Run"]):
                 f"Invalid format: {format}. Must be one of 'default', 'pandas', 'polars'"
             )
 
-        # Parallel pre-load for lazy runs
-        lazy_runs = [
-            run
-            for run in self.objects
-            if getattr(run, "_lazy", False)
-            and not getattr(run, "_full_data_loaded", False)
-        ]
-        if lazy_runs:
-            from concurrent.futures import ThreadPoolExecutor
-
-            max_workers = min(len(lazy_runs), 10)
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [executor.submit(run.load_full_data) for run in lazy_runs]
-                for future in futures:
-                    future.result()
+        # Ensure all runs have full data loaded
+        self.upgrade_to_full()
 
         # Single collection pass — copy config to avoid mutating run.config
         configs = []

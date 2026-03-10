@@ -182,32 +182,14 @@ class TestConfigsDoesNotMutate:
         assert "run_id" not in original_config
 
 
-class TestConfigsParallelLoading:
-    """Verify parallel pre-loading of lazy run data."""
+class TestConfigsUpgradeToFull:
+    """Verify configs() calls upgrade_to_full() to load lazy run data."""
 
-    def test_parallel_loads_lazy_runs(self):
+    def test_calls_upgrade_to_full(self):
         mock_runs = mock.MagicMock(spec=Runs)
         run1 = _make_mock_run("run1", {"lr": 0.01})
-        run1._lazy = True
-        run1._full_data_loaded = False
-        run2 = _make_mock_run("run2", {"lr": 0.02})
-        run2._lazy = True
-        run2._full_data_loaded = False
-        mock_runs.objects = [run1, run2]
-        mock_runs.__iter__ = mock.MagicMock(return_value=iter([run1, run2]))
-
-        Runs.configs(mock_runs, format="default")
-
-        run1.load_full_data.assert_called_once()
-        run2.load_full_data.assert_called_once()
-
-    def test_skips_non_lazy_runs(self):
-        mock_runs = mock.MagicMock(spec=Runs)
-        run1 = _make_mock_run("run1", {"lr": 0.01})
-        run1._lazy = False
-        mock_runs.objects = [run1]
         mock_runs.__iter__ = mock.MagicMock(return_value=iter([run1]))
 
         Runs.configs(mock_runs, format="default")
 
-        run1.load_full_data.assert_not_called()
+        mock_runs.upgrade_to_full.assert_called_once()
