@@ -813,6 +813,23 @@ class Run:
         return self._torch_history
 
     @property
+    def SandboxSession(self) -> type:  # noqa: N802
+        """Return the aviato SandboxSession class with W&B integration.
+
+        Requires aviato to be installed. The returned class is a subclass
+        of ``aviato.Session`` that automatically injects W&B credentials,
+        tags sandboxes with the run name, and logs sandbox IDs.
+
+        Example::
+
+            with run.SandboxSession() as session:
+                sb = session.sandbox(container_image="python:3.11")
+        """
+        from wandb.integration.aviato.session import SandboxSession
+
+        return SandboxSession
+
+    @property
     @_log_to_run
     @_attach
     def settings(self) -> Settings:
