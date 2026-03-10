@@ -1,0 +1,229 @@
+# THIS FILE IS GENERATED! DO NOT EDIT! Maintained by Terraform.
+#
+# golangci-lint:       https://golangci-lint.run/
+# false-positives:     https://golangci-lint.run/usage/false-positives/
+# actual source:       https://github.com/lrstanley/.github/blob/master/terraform/github-common-files/templates/.golangci.yml
+# modified variant of: https://gist.github.com/maratori/47a4d00457a92aa426dbd48a18776322
+
+version: "2"
+
+formatters:
+  enable: [gofumpt]
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 50
+
+severity:
+  default: error
+  rules:
+    - linters:
+        - errcheck
+        - gocritic
+      severity: warning
+
+linters:
+  default: none
+  enable:
+    - asasalint # checks for pass []any as any in variadic func(...any)
+    - asciicheck # checks that your code does not contain non-ASCII identifiers
+    - bidichk # checks for dangerous unicode character sequences
+    - bodyclose # checks whether HTTP response body is closed successfully
+    - canonicalheader # checks whether net/http.Header uses canonical header
+    - copyloopvar # detects places where loop variables are copied (Go 1.22+)
+    - depguard # checks if package imports are in a list of acceptable packages
+    - dupl # tool for code clone detection
+    - durationcheck # checks for two durations multiplied together
+    - errcheck # checking for unchecked errors, these unchecked errors can be critical bugs in some cases
+    - errname # checks that sentinel errors are prefixed with the Err and error types are suffixed with the Error
+    - errorlint # finds code that will cause problems with the error wrapping scheme introduced in Go 1.13
+    - exhaustive # checks exhaustiveness of enum switch statements
+    - exptostd # detects functions from golang.org/x/exp/ that can be replaced by std functions
+    - fatcontext # detects nested contexts in loops
+    - forbidigo # forbids identifiers
+    - funlen # tool for detection of long functions
+    - gocheckcompilerdirectives # validates go compiler directive comments (//go:)
+    - gochecknoinits # checks that no init functions are present in Go code
+    - gochecksumtype # checks exhaustiveness on Go "sum types"
+    - gocognit # computes and checks the cognitive complexity of functions
+    - goconst # finds repeated strings that could be replaced by a constant
+    - gocritic # provides diagnostics that check for bugs, performance and style issues
+    - godot # checks if comments end in a period
+    - gomoddirectives # manages the use of 'replace', 'retract', and 'excludes' directives in go.mod
+    - goprintffuncname # checks that printf-like functions are named with f at the end
+    - gosec # inspects source code for security problems
+    - govet # reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
+    - iface # checks the incorrect use of interfaces, helping developers avoid interface pollution
+    - ineffassign # detects when assignments to existing variables are not used
+    - intrange # finds places where for loops could make use of an integer range
+    - loggercheck # checks key value pairs for common logger libraries (kitlog,klog,logr,zap)
+    - makezero # finds slice declarations with non-zero initial length
+    - mirror # reports wrong mirror patterns of bytes/strings usage
+    - misspell # [useless] finds commonly misspelled English words in comments
+    - musttag # enforces field tags in (un)marshaled structs
+    - nakedret # finds naked returns in functions greater than a specified function length
+    - nestif # reports deeply nested if statements
+    - nilerr # finds the code that returns nil even if it checks that the error is not nil
+    - nilnesserr # reports that it checks for err != nil, but it returns a different nil value error (powered by nilness and nilerr)
+    - nilnil # checks that there is no simultaneous return of nil error and an invalid value
+    - noctx # finds sending http request without context.Context
+    - nosprintfhostport # checks for misuse of Sprintf to construct a host with port in a URL
+    - perfsprint # checks that fmt.Sprintf can be replaced with a faster alternative
+    - predeclared # finds code that shadows one of Go's predeclared identifiers
+    - promlinter # checks Prometheus metrics naming via promlint
+    - reassign # checks that package variables are not reassigned
+    - recvcheck # checks for receiver type consistency
+    - revive # fast, configurable, extensible, flexible, and beautiful linter for Go, drop-in replacement of golint
+    - rowserrcheck # checks whether Err of rows is checked successfully
+    - sloglint # ensure consistent code style when using log/slog
+    - sqlclosecheck # checks that sql.Rows and sql.Stmt are closed
+    - staticcheck # is a go vet on steroids, applying a ton of static analysis checks
+    - testableexamples # checks if examples are testable (have an expected output)
+    - testifylint # checks usage of github.com/stretchr/testify
+    - tparallel # detects inappropriate usage of t.Parallel() method in your Go test codes
+    - unconvert # removes unnecessary type conversions
+    - unparam # reports unused function parameters
+    - unused # checks for unused constants, variables, functions and types
+    - usestdlibvars # detects the possibility to use variables/constants from the Go standard library
+    - usetesting # reports uses of functions with replacement inside the testing package
+    - wastedassign # finds wasted assignment statements
+    - whitespace # detects leading and trailing whitespace
+
+  settings:
+    gocognit:
+      min-complexity: 40
+    errcheck:
+      check-type-assertions: true
+    funlen:
+      lines: 150
+      statements: 75
+      ignore-comments: true
+    gocritic:
+      disabled-checks:
+        - whyNoLint
+        - hugeParam
+        - ifElseChain
+        - singleCaseSwitch
+      enabled-tags:
+        - diagnostic
+        - opinionated
+        - performance
+        - style
+      settings:
+        captLocal:
+          paramsOnly: false
+        underef:
+          skipRecvDeref: false
+        rangeValCopy:
+          sizeThreshold: 512
+    depguard:
+      rules:
+        "deprecated":
+          files: ["$all"]
+          deny:
+            - pkg: github.com/golang/protobuf
+              desc: Use google.golang.org/protobuf instead, see https://developers.google.com/protocol-buffers/docs/reference/go/faq#modules
+            - pkg: github.com/satori/go.uuid
+              desc: Use github.com/google/uuid instead, satori's package is not maintained
+            - pkg: github.com/gofrs/uuid$
+              desc: Use github.com/gofrs/uuid/v5 or later, it was not a go module before v5
+            - pkg: github.com/lrstanley/clix$
+              desc: Use github.com/lrstanley/clix/v2 instead
+            - pkg: github.com/lrstanley/chix$
+              desc: Use github.com/lrstanley/chix/v2 instead
+            - pkg: log$
+              desc: Use log/slog instead, see https://go.dev/blog/slog
+        "non-test files":
+          files: ["!$test"]
+          deny:
+            - pkg: math/rand$
+              desc: Use math/rand/v2 instead, see https://go.dev/blog/randv2
+        "incorrect import":
+          files: ["$test"]
+          deny:
+            - pkg: github.com/tj/assert$
+              desc: Use github.com/stretchr/testify/assert instead, see
+    gochecksumtype:
+      default-signifies-exhaustive: false
+    exhaustive:
+      check:
+        - switch
+        - map
+    govet:
+      disable:
+        - fieldalignment
+      enable-all: true
+      settings:
+        shadow:
+          strict: true
+    perfsprint:
+      strconcat: false
+    nakedret:
+      max-func-lines: 0
+    nestif:
+      min-complexity: 10
+    rowserrcheck:
+      packages:
+        - github.com/jmoiron/sqlx
+    sloglint:
+      no-global: default
+      context: scope
+      msg-style: lowercased
+      static-msg: true
+      forbidden-keys:
+        - time
+        - level
+        - source
+    staticcheck:
+      checks:
+        - all
+        # Incorrect or missing package comment: https://staticcheck.dev/docs/checks/#ST1000
+        - -ST1000
+        # Use consistent method receiver names: https://staticcheck.dev/docs/checks/#ST1016
+        - -ST1016
+        # Omit embedded fields from selector expression: https://staticcheck.dev/docs/checks/#QF1008
+        - -QF1008
+        # duplicate struct tags -- used commonly for things like go-flags.
+        - -SA5008
+    usetesting:
+      os-temp-dir: true
+  exclusions:
+    warn-unused: true
+    generated: lax
+    presets:
+      - common-false-positives
+      - std-error-handling
+    paths:
+      - ".*\\.gen\\.go$"
+      - ".*\\.gen_test\\.go$"
+    rules:
+      - source: "TODO"
+        linters: [godot]
+      - text: "should have a package comment"
+        linters: [revive]
+      - text: 'exported \S+ \S+ should have comment( \(or a comment on this block\))? or be unexported'
+        linters: [revive]
+      - text: 'package comment should be of the form ".+"'
+        source: "// ?(nolint|TODO)"
+        linters: [revive]
+      - text: 'comment on exported \S+ \S+ should be of the form ".+"'
+        source: "// ?(nolint|TODO)"
+        linters: [revive, staticcheck]
+      - text: 'unexported-return: exported func \S+ returns unexported type \S+ .*'
+        linters: [revive]
+      - text: "var-declaration: should drop .* from declaration of .*; it is the zero value"
+        linters: [revive]
+      - text: ".*use ALL_CAPS in Go names.*"
+        linters: [revive, staticcheck]
+      - text: '.* always receives \S+'
+        linters: [unparam]
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - dupl
+          - funlen
+          - gocognit
+          - goconst
+          - gosec
+          - noctx
+          - wrapcheck

@@ -300,6 +300,30 @@ class ServerCancelRequest(google.protobuf.message.Message):
 global___ServerCancelRequest = ServerCancelRequest
 
 @typing.final
+class ServerErrorResponse(google.protobuf.message.Message):
+    """A generic error response for server requests.
+
+    Some older response messages already embed error information.
+    Those messages rely on the client to process the error and not ignore it.
+    In contrast, this message is automatically translated into an exception,
+    making error handling opt-out rather than opt-in.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    MESSAGE_FIELD_NUMBER: builtins.int
+    message: builtins.str
+    """An error message describing the problem."""
+    def __init__(
+        self,
+        *,
+        message: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["message", b"message"]) -> None: ...
+
+global___ServerErrorResponse = ServerErrorResponse
+
+@typing.final
 class ServerRequest(google.protobuf.message.Message):
     """
     ServerRequest, ServerResponse: used in sock server
@@ -405,6 +429,7 @@ class ServerResponse(google.protobuf.message.Message):
     SYNC_STATUS_RESPONSE_FIELD_NUMBER: builtins.int
     API_INIT_RESPONSE_FIELD_NUMBER: builtins.int
     API_RESPONSE_FIELD_NUMBER: builtins.int
+    ERROR_RESPONSE_FIELD_NUMBER: builtins.int
     request_id: builtins.str
     """The ID of the request this is a response to.
 
@@ -435,6 +460,8 @@ class ServerResponse(google.protobuf.message.Message):
     def api_init_response(self) -> wandb.proto.wandb_api_pb2.ServerApiInitResponse: ...
     @property
     def api_response(self) -> wandb.proto.wandb_api_pb2.ApiResponse: ...
+    @property
+    def error_response(self) -> global___ServerErrorResponse: ...
     def __init__(
         self,
         *,
@@ -451,9 +478,10 @@ class ServerResponse(google.protobuf.message.Message):
         sync_status_response: wandb.proto.wandb_sync_pb2.ServerSyncStatusResponse | None = ...,
         api_init_response: wandb.proto.wandb_api_pb2.ServerApiInitResponse | None = ...,
         api_response: wandb.proto.wandb_api_pb2.ApiResponse | None = ...,
+        error_response: global___ServerErrorResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["api_init_response", b"api_init_response", "api_response", b"api_response", "authenticate_response", b"authenticate_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_teardown_response", b"inform_teardown_response", "init_sync_response", b"init_sync_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type", "sync_response", b"sync_response", "sync_status_response", b"sync_status_response"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["api_init_response", b"api_init_response", "api_response", b"api_response", "authenticate_response", b"authenticate_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_teardown_response", b"inform_teardown_response", "init_sync_response", b"init_sync_response", "request_id", b"request_id", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type", "sync_response", b"sync_response", "sync_status_response", b"sync_status_response"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["server_response_type", b"server_response_type"]) -> typing.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "authenticate_response", "init_sync_response", "sync_response", "sync_status_response", "api_init_response", "api_response"] | None: ...
+    def HasField(self, field_name: typing.Literal["api_init_response", b"api_init_response", "api_response", b"api_response", "authenticate_response", b"authenticate_response", "error_response", b"error_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_teardown_response", b"inform_teardown_response", "init_sync_response", b"init_sync_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type", "sync_response", b"sync_response", "sync_status_response", b"sync_status_response"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["api_init_response", b"api_init_response", "api_response", b"api_response", "authenticate_response", b"authenticate_response", "error_response", b"error_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_teardown_response", b"inform_teardown_response", "init_sync_response", b"init_sync_response", "request_id", b"request_id", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type", "sync_response", b"sync_response", "sync_status_response", b"sync_status_response"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["server_response_type", b"server_response_type"]) -> typing.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "authenticate_response", "init_sync_response", "sync_response", "sync_status_response", "api_init_response", "api_response", "error_response"] | None: ...
 
 global___ServerResponse = ServerResponse

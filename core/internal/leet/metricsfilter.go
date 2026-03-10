@@ -1,7 +1,7 @@
 package leet
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // ApplyFilter applies the filter pattern to charts.
@@ -47,7 +47,7 @@ func (mg *MetricsGrid) EnterFilterMode() {
 }
 
 // UpdateFilterDraft updates the in-progress filter text (for live preview).
-func (mg *MetricsGrid) UpdateFilterDraft(msg tea.KeyMsg) {
+func (mg *MetricsGrid) UpdateFilterDraft(msg tea.KeyPressMsg) {
 	mg.mu.Lock()
 	defer mg.mu.Unlock()
 	mg.filter.UpdateDraft(msg)

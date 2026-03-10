@@ -220,6 +220,7 @@ namespace Wandb.Internal
         {
             ArgumentNullException.ThrowIfNull(record);
 
+            string requestId = Guid.NewGuid().ToString();
             record.Info = new _RecordInfo
             {
                 StreamId = _streamId
@@ -227,11 +228,12 @@ namespace Wandb.Internal
             record.Control = new Control
             {
                 ReqResp = true,
-                MailboxSlot = Guid.NewGuid().ToString()
+                MailboxSlot = requestId
             };
 
             ServerRequest request = new()
             {
+                RequestId = requestId,
                 RecordCommunicate = record
             };
             ServerResponse? response = await _client.SendAsync(request, timeoutMilliseconds).ConfigureAwait(false) ?? throw new TimeoutException("The request timed out.");

@@ -22,7 +22,7 @@ import (
 	"syscall"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/getsentry/sentry-go"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -299,7 +299,7 @@ Flags:
 
 	if *editConfig {
 		editor := leet.NewConfigEditor(leet.ConfigEditorParams{Logger: logger})
-		p := tea.NewProgram(editor, tea.WithAltScreen(), tea.WithMouseCellMotion())
+		p := tea.NewProgram(editor)
 		if _, err := p.Run(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return exitCodeErrorInternal
@@ -320,7 +320,7 @@ Flags:
 			RunFile:  *runFile,
 			Logger:   logger,
 		})
-		program := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+		program := tea.NewProgram(m)
 
 		finalModel, err := program.Run()
 		if err != nil {

@@ -5,7 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -105,7 +106,7 @@ func (g *SystemMetricsGrid) effectiveGridSize() GridSize {
 }
 
 // nextColorHex returns the next color from the palette.
-func (g *SystemMetricsGrid) nextColorHex() lipgloss.AdaptiveColor {
+func (g *SystemMetricsGrid) nextColorHex() compat.AdaptiveColor {
 	colors := colorSchemes[g.config.SystemColorScheme()]
 	color := colors[g.nextColor%len(colors)]
 	g.nextColor++
@@ -117,10 +118,10 @@ func (g *SystemMetricsGrid) nextColorHex() lipgloss.AdaptiveColor {
 //
 // The first call returns the color *after* the base color,
 // so the base can be used for the first series.
-func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() lipgloss.AdaptiveColor {
+func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() compat.AdaptiveColor {
 	colors := colorSchemes[g.config.SystemColorScheme()]
 	idx := baseIdx + 1
-	return func() lipgloss.AdaptiveColor {
+	return func() compat.AdaptiveColor {
 		c := colors[idx%len(colors)]
 		idx++
 		return c
@@ -139,7 +140,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) *TimeSeriesLineCha
 
 	// Base color by color mode.
 	var (
-		baseColor lipgloss.AdaptiveColor
+		baseColor compat.AdaptiveColor
 		baseIdx   int
 	)
 	colorMode := g.config.SystemColorMode()

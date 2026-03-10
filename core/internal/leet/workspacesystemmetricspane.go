@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 const (
@@ -38,10 +38,8 @@ type SystemMetricsPane struct {
 	animState *AnimatedValue
 }
 
-func NewSystemMetricsPane() *SystemMetricsPane {
-	return &SystemMetricsPane{
-		animState: NewAnimatedValue(false, systemMetricsPaneMinHeight),
-	}
+func NewSystemMetricsPane(animState *AnimatedValue) *SystemMetricsPane {
+	return &SystemMetricsPane{animState: animState}
 }
 
 func (p *SystemMetricsPane) Height() int             { return p.animState.Value() }

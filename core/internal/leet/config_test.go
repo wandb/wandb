@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -20,26 +20,26 @@ func TestConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// metrics rows: 'r' then '5'
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'5'}})
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'r'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '5'})
 	gridRows, _ := cfg.MetricsGrid()
 	require.Equal(t, gridRows, 5)
 
 	// metrics cols: 'c' then '4'
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'4'}})
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'c'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '4'})
 	_, gridCols := cfg.MetricsGrid()
 	require.Equal(t, gridCols, 4)
 
 	// system rows: 'R' then '2'
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'R'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '2'})
 	gridRows, _ = cfg.SystemGrid()
 	require.Equal(t, gridRows, 2)
 
 	// system cols: 'C' then '3'
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
-	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'C'})
+	_, _ = m.Update(tea.KeyPressMsg{Code: '3'})
 	_, gridCols = cfg.SystemGrid()
 	require.Equal(t, gridCols, 3)
 }

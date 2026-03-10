@@ -90,7 +90,7 @@ jobs:
           cache-dependency-path: core/go.sum
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.3.1
+        uses: pypa/cibuildwheel@v3.4.0
         with:
           package-dir: .
           output-dir: dist
@@ -140,7 +140,7 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.3.1
+        uses: pypa/cibuildwheel@v3.4.0
         with:
           package-dir: .
           output-dir: dist
@@ -189,7 +189,7 @@ jobs:
           python-version: "3.10"
 
       - name: Install Hatch
-        run: pip install hatch==1.12
+        run: pip install hatch~=1.16
 
       - name: Create sdist
         run: hatch build -t sdist
