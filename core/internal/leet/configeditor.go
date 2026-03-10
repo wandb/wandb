@@ -464,12 +464,10 @@ func (m *ConfigEditor) View() tea.View {
 	)
 
 	table := m.renderTable(w)
-
 	footer := m.renderFooter(w)
 
 	view := lipgloss.JoinVertical(lipgloss.Left, top, "", table, "", footer)
 
-	// Inline "modal" area for edit states.
 	switch m.mode {
 	case modeEnumSelect:
 		view = lipgloss.JoinVertical(lipgloss.Left, view, "", m.renderEnumPicker(w))
@@ -477,7 +475,9 @@ func (m *ConfigEditor) View() tea.View {
 		view = lipgloss.JoinVertical(lipgloss.Left, view, "", m.renderIntEditor(w))
 	}
 
-	return tea.NewView(lipgloss.NewStyle().Padding(1, 2).Render(view))
+	v := tea.NewView(lipgloss.NewStyle().Padding(1, 2).Render(view))
+	v.AltScreen = true
+	return v
 }
 
 func (m *ConfigEditor) renderTable(width int) string {

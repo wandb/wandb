@@ -99,8 +99,8 @@ func NewRun(
 	ro := NewRunOverview()
 	runOverviewAnimState := NewAnimatedValue(cfg.LeftSidebarVisible(), SidebarMinWidth)
 
-	// TODO: make it configurable?
-	consoleLogsPaneAnimState := NewAnimatedValue(false, ConsoleLogsPaneMinHeight)
+	consoleLogsPaneAnimState := NewAnimatedValue(
+		cfg.ConsoleLogsVisible(), ConsoleLogsPaneMinHeight)
 
 	metricsGrid := NewMetricsGrid(cfg, cfg.MetricsGrid, focus, logger)
 	metricsGrid.SetSingleSeriesColorMode(cfg.SingleRunColorMode())
@@ -276,25 +276,11 @@ func (r *Run) renderMainView() string {
 		centralColumn = lipgloss.JoinVertical(lipgloss.Left, gridView, bbView)
 	}
 
-	leftWidth := r.leftSidebar.Width()
-	rightWidth := r.rightSidebar.Width()
-
-	const minMainContentWidth = 10
-
-	// Ensure sidebars don't take up too much space.
-	totalSidebarWidth := leftWidth + rightWidth
-	if totalSidebarWidth >= r.width-minMainContentWidth {
-		if rightWidth > 0 {
-			r.rightSidebar.animState.current = 0
-			rightWidth = 0
-		}
-		if leftWidth+minMainContentWidth >= r.width {
-			r.leftSidebar.animState.current = 0
-			leftWidth = 0
-		}
-	}
-
-	mainView := r.buildMainViewWithSidebars(centralColumn, leftWidth, rightWidth)
+	mainView := r.buildMainViewWithSidebars(
+		centralColumn,
+		layout.leftSidebarWidth,
+		layout.rightSidebarWidth,
+	)
 	statusBar := r.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
@@ -536,10 +522,35 @@ type Layout struct {
 	height               int
 }
 
+// effectiveSidebarWidths returns the widths that can actually be rendered
+// without starving the main content area.
+//
+// The visibility preferences remain unchanged: this method only clamps the
+// current render/layout pass and does not mutate animation state.
+func (r *Run) effectiveSidebarWidths() (leftW, rightW int) {
+	const minRunMainContentWidth = 10
+
+	leftW = r.leftSidebar.Width()
+	rightW = r.rightSidebar.Width()
+
+	if leftW+rightW < r.width-minRunMainContentWidth {
+		return leftW, rightW
+	}
+	if rightW > 0 {
+		rightW = 0
+	}
+	if leftW+rightW < r.width-minRunMainContentWidth {
+		return leftW, rightW
+	}
+	if leftW > 0 {
+		leftW = 0
+	}
+	return leftW, rightW
+}
+
 // computeViewports returns (leftW, contentW, rightW, contentH).
 func (r *Run) computeViewports() Layout {
-	leftW := r.leftSidebar.Width()
-	rightW := r.rightSidebar.Width()
+	leftW, rightW := r.effectiveSidebarWidths()
 
 	contentW := max(r.width-leftW-rightW-2, 1)
 	contentH := max(r.height-StatusBarHeight-r.consoleLogsPane.Height(), 1)

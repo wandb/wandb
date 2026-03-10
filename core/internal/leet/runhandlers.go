@@ -460,6 +460,10 @@ func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 
 	bottomWillBeVisible := !r.consoleLogsPane.IsExpanded()
 
+	if err := r.config.SetConsoleLogsVisible(bottomWillBeVisible); err != nil {
+		r.logger.Error(fmt.Sprintf("runhandlers: failed to save console logs state: %v", err))
+	}
+
 	r.resolveRunFocusAfterVisibilityChange(
 		r.leftSidebar.animState.IsExpanded(), bottomWillBeVisible)
 

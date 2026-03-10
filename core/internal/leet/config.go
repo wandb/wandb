@@ -100,6 +100,7 @@ type Config struct {
 	// Single-run view sidebar visibility states.
 	LeftSidebarVisible  bool `json:"left_sidebar_visible"  leet:"desc=Show left sidebar in single run view by default."`
 	RightSidebarVisible bool `json:"right_sidebar_visible" leet:"desc=Show right sidebar in single run view by default."`
+	ConsoleLogsVisible  bool `json:"console_logs_visible"  leet:"desc=Show console logs pane in single run mode by default."`
 
 	// Workspace view pane visibility states.
 	WorkspaceOverviewVisible      bool `json:"workspace_overview_visible"       leet:"desc=Show run overview sidebar in workspace mode by default."`
@@ -155,6 +156,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 			HeartbeatInterval:             DefaultHeartbeatInterval,
 			LeftSidebarVisible:            true,
 			RightSidebarVisible:           true,
+			ConsoleLogsVisible:            false,
 			WorkspaceOverviewVisible:      true,
 			WorkspaceSystemMetricsVisible: false,
 			WorkspaceConsoleLogsVisible:   false,
@@ -570,6 +572,22 @@ func (cm *ConfigManager) SetRightSidebarVisible(visible bool) error {
 	return cm.save()
 }
 
+// ConsoleLogsVisible returns whether the console logs pane
+// should be visible in single-run mode.
+func (cm *ConfigManager) ConsoleLogsVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.ConsoleLogsVisible
+}
+
+// SetConsoleLogsVisible sets the single-run console logs pane visibility.
+func (cm *ConfigManager) SetConsoleLogsVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.ConsoleLogsVisible = visible
+	return cm.save()
+}
+
 func (cm *ConfigManager) IsAwaitingGridConfig() bool {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
@@ -644,14 +662,15 @@ func (cm *ConfigManager) GridConfigStatus() string {
 	defer cm.mu.RUnlock()
 
 	switch cm.pendingGridConfig {
-	case gridConfigMetricsCols:
+	case gridConfigMetricsCols, gridConfigWorkspaceMetricsCols:
 		return "Press 1-9 to set metrics grid columns (ESC to cancel)"
-	case gridConfigMetricsRows:
+	case gridConfigMetricsRows, gridConfigWorkspaceMetricsRows:
 		return "Press 1-9 to set metrics grid rows (ESC to cancel)"
-	case gridConfigSystemCols:
+	case gridConfigSystemCols, gridConfigWorkspaceSystemCols:
 		return "Press 1-9 to set system grid columns (ESC to cancel)"
-	case gridConfigSystemRows:
+	case gridConfigSystemRows, gridConfigWorkspaceSystemRows:
 		return "Press 1-9 to set system grid rows (ESC to cancel)"
+
 	default:
 		return ""
 	}

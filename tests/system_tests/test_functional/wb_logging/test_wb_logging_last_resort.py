@@ -10,7 +10,9 @@ def test_wb_logging_last_resort():
         stderr=subprocess.STDOUT,
     ).splitlines()
 
-    assert output == [
+    # Trim initial lines, which may include 3rd party warnings
+    # depending on versions of installed packages.
+    assert output[-2:] == [
         b"lastResort (before configuring)",
         b"stream handler (after configuring)",
     ]
