@@ -42,8 +42,12 @@ try:
                 _kwargs = kwargs.copy()
                 if cls:
                     _kwargs["default"] = cls.default
-                encoded = orjson.dumps(obj, option=orjson.OPT_NON_STR_KEYS, **_kwargs)
-                fp.write(encoded)
+                encoded = orjson.dumps(
+                    obj,
+                    option=orjson.OPT_NON_STR_KEYS,
+                    **_kwargs,
+                )
+                fp.write(encoded.decode())
             except Exception:
                 logger.exception("Error using orjson.dump")
                 if cls:

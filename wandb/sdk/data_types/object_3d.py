@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import codecs
 import itertools
-import json
 import os
 import pathlib
 from collections.abc import Sequence
@@ -10,7 +9,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal, TextIO, TypedDict, Union
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import runid
+from wandb.sdk.lib import json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
 
 from . import _dtypes
@@ -347,13 +346,7 @@ class Object3D(BatchableMedia):
 
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
-                json.dump(
-                    data,
-                    fp,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                    indent=4,
-                )
+                json_util.dump(data, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         elif util.is_numpy_array(data_or_path):
             np_data = data_or_path
@@ -380,13 +373,7 @@ class Object3D(BatchableMedia):
             list_data = np_data.tolist()
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
-                json.dump(
-                    list_data,
-                    fp,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                    indent=4,
-                )
+                json_util.dump(list_data, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         else:
             raise ValueError("data must be a numpy array, dict or a file object")
