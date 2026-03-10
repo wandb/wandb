@@ -292,7 +292,7 @@ class TestAggregateHistoryDefaultCacheDir:
         df = lf.collect()
 
         assert len(df) == 2
-        expected_dir = mock_cache_base / "history" / "run1"
+        expected_dir = mock_cache_base / "runhistory" / "run1"
         assert expected_dir.exists()
         parquet_files = list(expected_dir.glob("*.parquet"))
         assert len(parquet_files) > 0
@@ -318,7 +318,7 @@ class TestAggregateHistoryDefaultCacheDir:
 
         assert len(df) == 1
         assert (explicit_dir / "run1").exists()
-        env_history_dir = mock_cache_base / "history"
+        env_history_dir = mock_cache_base / "runhistory"
         assert not env_history_dir.exists() or not list(
             env_history_dir.glob("**/run1/*.parquet")
         )

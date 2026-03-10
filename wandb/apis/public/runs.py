@@ -509,7 +509,7 @@ class Runs(SizedPaginator["Run"]):
 
         Args:
             cache_dir: Directory to store downloaded parquet files.
-                Defaults to ``$WANDB_CACHE_DIR/history`` (or the platform
+                Defaults to ``$WANDB_CACHE_DIR/runhistory`` (or the platform
                 cache directory if ``WANDB_CACHE_DIR`` is unset).
                 For team usage, point this at a shared mount or sync to S3.
                 The cache is a snapshot; delete a run's directory to re-download.
@@ -546,7 +546,7 @@ class Runs(SizedPaginator["Run"]):
         pl = util.get_module("polars", required="aggregate_history requires polars")
 
         if cache_dir is None:
-            cache_path = env.get_cache_dir() / "history"
+            cache_path = env.get_cache_dir() / "runhistory"
         else:
             cache_path = pathlib.Path(cache_dir)
         cache_path.mkdir(parents=True, exist_ok=True)
