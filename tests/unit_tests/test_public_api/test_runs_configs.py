@@ -193,3 +193,25 @@ class TestConfigsUpgradeToFull:
         Runs.configs(mock_runs, format="default")
 
         mock_runs.upgrade_to_full.assert_called_once()
+
+
+class TestConfigsErrorHandling:
+    """Verify individual run failures don't break the whole collection."""
+
+    def test_failing_run_skipped_with_warning(self):
+        mock_runs = mock.MagicMock(spec=Runs)
+        run1 = _make_mock_run("run1", {"lr": 0.01})
+        run2 = mock.MagicMock()
+        run2.id = "run2"
+        type(run2).config = mock.PropertyMock(side_effect=RuntimeError("API error"))
+        run3 = _make_mock_run("run3", {"lr": 0.03})
+        mock_runs.__iter__ = mock.MagicMock(return_value=iter([run1, run2, run3]))
+
+        with mock.patch("wandb.termwarn") as mock_warn:
+            result = Runs.configs(mock_runs, format="default")
+
+        assert len(result) == 2
+        assert result[0]["run_id"] == "run1"
+        assert result[1]["run_id"] == "run3"
+        mock_warn.assert_called_once()
+        assert "run2" in mock_warn.call_args[0][0]

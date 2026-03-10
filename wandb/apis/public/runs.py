@@ -514,10 +514,16 @@ class Runs(SizedPaginator["Run"]):
         # Single collection pass — copy config to avoid mutating run.config
         configs = []
         for run in self:
-            config_data = run.config
-            if not config_data:
+            try:
+                config_data = run.config
+                if not config_data:
+                    continue
+                configs.append({**config_data, "run_id": run.id})
+            except Exception as e:
+                wandb.termwarn(
+                    f"Failed to collect config for run {run.id}: {e}"
+                )
                 continue
-            configs.append({**config_data, "run_id": run.id})
 
         # Format conversion
         if format == "default":
