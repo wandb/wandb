@@ -502,6 +502,12 @@ class Runs(SizedPaginator["Run"]):
                 of run configs.
             list of dicts: If `format="default"`, returns a list of dicts
                 containing run configs with a `run_id` key.
+
+        Note:
+            Returned config dicts are shallow copies. Nested values (e.g. dicts
+            within configs) share references with the underlying run objects.
+            Mutating nested values will not affect the server unless
+            ``Run.update()`` is called.
         """
         if format not in ("default", "pandas", "polars"):
             raise ValueError(
