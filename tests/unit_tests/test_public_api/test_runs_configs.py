@@ -163,12 +163,12 @@ class TestConfigsPandasFormat:
 class TestConfigsValidation:
     def test_invalid_format_raises_error(self):
         runs = _make_mock_runs([("run1", {"lr": 0.01})])
-        with pytest.raises(Exception, match="Invalid format"):
+        with pytest.raises(ValueError, match="Invalid format"):
             Runs.configs(runs, format="invalid")
 
     def test_invalid_format_csv(self):
         runs = _make_mock_runs([("run1", {"lr": 0.01})])
-        with pytest.raises(Exception, match="Invalid format"):
+        with pytest.raises(ValueError, match="Invalid format"):
             Runs.configs(runs, format="csv")
 
 
