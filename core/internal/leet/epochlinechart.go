@@ -235,6 +235,10 @@ func (c *EpochLineChart) AddData(key string, data MetricData) {
 		c.order = append(c.order, key)
 	}
 
+	// Safety checks.
+	if len(data.X) != len(data.Y) {
+		return
+	}
 	if len(data.X) == 0 || len(data.Y) == 0 {
 		return
 	}

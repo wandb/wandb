@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"math"
 	"sync"
 	"time"
 )
@@ -19,6 +20,9 @@ type AnimatedValue struct {
 	// expanded is the fully-expanded size.
 	expanded int
 
+	// startValue is the rendered size at the beginning of the current animation.
+	startValue int
+
 	// startTime indicates when the current animation started.
 	startTime time.Time
 }
@@ -28,24 +32,35 @@ func NewAnimatedValue(isExpanded bool, expandedSize int) *AnimatedValue {
 	if isExpanded {
 		a.current = expandedSize
 		a.target = expandedSize
+		a.startValue = expandedSize
 	}
 	return a
 }
 
 // Toggle toggles between expanded and collapsed targets.
 //
-// No-op while animating to match current model gating semantics.
+// If the value is already animating, Toggle reverses direction from the current
+// interpolated value rather than jumping back to 0 or expanded.
 func (a *AnimatedValue) Toggle() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.startTime = time.Now()
+	now := time.Now()
+	a.advanceLocked(now)
 
 	if a.target == 0 {
 		a.target = a.expanded
 	} else {
 		a.target = 0
 	}
+	if a.current == a.target {
+		a.startValue = a.current
+		a.startTime = time.Time{}
+		return
+	}
+
+	a.startValue = a.current
+	a.startTime = now
 }
 
 // Update advances the animation given a wall-clock time and returns
@@ -53,24 +68,40 @@ func (a *AnimatedValue) Toggle() {
 func (a *AnimatedValue) Update(now time.Time) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.advanceLocked(now)
+}
 
+// advanceLocked updates current to match now.
+//
+// The caller must hold a.mu.
+func (a *AnimatedValue) advanceLocked(now time.Time) bool {
 	if a.current == a.target {
+		a.startValue = a.current
+		a.startTime = time.Time{}
 		return true
 	}
+	if a.startTime.IsZero() {
+		a.startValue = a.current
+		a.startTime = now
+		return a.current == a.target
+	}
+
 	elapsed := now.Sub(a.startTime)
+	if elapsed <= 0 {
+		return false
+	}
+
 	progress := float64(elapsed) / float64(AnimationDuration)
 	if progress >= 1 {
 		a.current = a.target
+		a.startValue = a.target
 		a.startTime = time.Time{}
 		return true
 	}
 
-	if a.current < a.target {
-		a.current = int(easeOutCubic(progress) * float64(a.expanded))
-	} else {
-		a.current = int((1 - easeOutCubic(progress)) * float64(a.expanded))
-	}
-
+	eased := easeOutCubic(progress)
+	next := float64(a.startValue) + eased*float64(a.target-a.startValue)
+	a.current = int(math.Round(next))
 	return false
 }
 
@@ -79,16 +110,33 @@ func (a *AnimatedValue) SetExpanded(size int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	now := time.Now()
 	wasExpanded := a.target > 0 && a.current == a.target
 
+	a.advanceLocked(now)
 	a.expanded = size
-	if a.target > 0 {
-		a.target = size
+
+	if a.target == 0 {
+		return
 	}
 	if wasExpanded {
 		// We were stably expanded; snap immediately to the new size.
 		a.current = size
+		a.startValue = size
+		a.target = size
+		a.startTime = time.Time{}
+		return
 	}
+
+	// Preserve the current rendered value and animate smoothly toward the new
+	// expanded size.
+	a.target = size
+	a.startValue = a.current
+	if a.current == a.target {
+		a.startTime = time.Time{}
+		return
+	}
+	a.startTime = now
 }
 
 // Value returns the current animated value.
@@ -145,6 +193,7 @@ func (a *AnimatedValue) ForceCollapse() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.current = 0
+	a.startValue = 0
 	a.target = 0
 	a.startTime = time.Time{}
 }
@@ -156,6 +205,7 @@ func (a *AnimatedValue) ForceExpand() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.current = a.expanded
+	a.startValue = a.expanded
 	a.target = a.expanded
 	a.startTime = time.Time{}
 }

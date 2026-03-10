@@ -545,7 +545,7 @@ func (w *Workspace) getOrCreateSystemMetricsGrid(runKey string) *SystemMetricsGr
 		return g
 	}
 
-	rows, cols := w.config.SystemGrid()
+	rows, cols := w.config.WorkspaceSystemGrid()
 	initW := MinMetricChartWidth * cols
 	initH := MinMetricChartHeight * rows
 
@@ -598,7 +598,7 @@ func (w *Workspace) renderRunsList() string {
 
 	sidebarW := w.runsAnimState.Value()
 	sidebarH := max(w.height-StatusBarHeight, 0)
-	if sidebarW <= 1 || sidebarH <= 1 {
+	if sidebarW <= 2 || sidebarH <= 2 {
 		return ""
 	}
 	contentWidth := max(sidebarW-leftSidebarContentPadding, 1)

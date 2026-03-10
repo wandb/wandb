@@ -271,11 +271,8 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleEnterSystemMetricsFilter,
 				},
 				{
-					// TODO: "ctrl+/", which would be preferable,
-					// is usually sent as 0x1F (Unit Separator) and is not
-					// cleanly handled by BubbleTea v1.
-					// Try after the upgrade to v2.
-					Keys:        []string{"ctrl+l"},
+					// TODO: remove ctrl+l.
+					Keys:        []string{"ctrl+/", "ctrl+l"},
 					Description: "Clear metrics filter",
 					Handler:     (*Workspace).handleClearMetricsFilter,
 				},
