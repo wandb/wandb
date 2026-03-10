@@ -76,9 +76,6 @@ type Stream struct {
 	// sender is the sender for the stream
 	sender *Sender
 
-	// dispatcher is the dispatcher for the stream
-	dispatcher *Dispatcher
-
 	// clientID is a unique ID for the stream
 	clientID sharedmode.ClientID
 }
@@ -130,15 +127,8 @@ func NewStream(
 		clientID:           clientID,
 	}
 
-	stream.dispatcher = NewDispatcher(logger)
-
 	logger.Info("stream: created new stream", "id", stream.settings.GetRunID())
 	return stream
-}
-
-// AddResponders adds the given responders to the stream's dispatcher.
-func (s *Stream) AddResponders(entries ...ResponderEntry) {
-	s.dispatcher.AddResponders(entries...)
 }
 
 // GetSettings returns the stream's settings.
@@ -161,20 +151,6 @@ func (s *Stream) Start() {
 		s.sender.Do(maybeSavedWork)
 		s.wg.Done()
 	}()
-
-	// handle dispatching between components
-	for _, ch := range []<-chan *spb.Result{
-		s.handler.ResponseChan(),
-		s.sender.ResponseChan(),
-	} {
-		s.wg.Add(1)
-		go func(ch <-chan *spb.Result) {
-			for result := range ch {
-				s.dispatcher.handleRespond(result)
-			}
-			s.wg.Done()
-		}(ch)
-	}
 
 	s.logger.Info("stream: started")
 }
