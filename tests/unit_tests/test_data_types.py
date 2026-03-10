@@ -540,6 +540,36 @@ def test_audio_refs():
     assert subdict(audio_obj.to_json(art), audio_expected) == audio_expected
 
 
+@pytest.mark.parametrize(
+    "uri, artifact_name",
+    [
+        ("s3://my-bucket/videos/sample.mp4", "video_ref_test_s3"),
+        ("https://example.com/videos/sample.webm", "video_ref_test_https"),
+        ("gs://my-bucket/videos/sample.ogg", "video_ref_test_gs"),
+    ],
+)
+def test_video_refs(uri, artifact_name):
+    video_obj = wandb.Video(uri)
+    art = wandb.Artifact(artifact_name, "dataset")
+    art.add(video_obj, "video_ref")
+
+    json_obj = video_obj.to_json(art)
+    assert json_obj["_type"] == "video-file"
+    assert "path" in json_obj
+    assert "sha256" in json_obj
+
+
+def test_video_refs_in_table():
+    video_obj = wandb.Video(
+        "s3://my-bucket/videos/sample.mp4"
+    )
+    table = wandb.Table(columns=["video"])
+    table.add_data(video_obj)
+
+    art = wandb.Artifact("video_table_ref_test", "dataset")
+    art.add(table, "video_table")
+
+
 ################################################################################
 # Test wandb.Plotly
 ################################################################################

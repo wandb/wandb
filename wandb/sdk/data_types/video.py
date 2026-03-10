@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import hashlib
 import logging
 import os
 import pathlib
@@ -125,6 +126,25 @@ class Video(BatchableMedia):
         """
         super().__init__(caption=caption)
 
+        self._width = None
+        self._height = None
+        self._channels = None
+
+        # Handle reference URIs (s3://, gs://, http(s)://) early —
+        # no local file access is needed, only metadata is stored.
+        if isinstance(data_or_path, (str, pathlib.Path)) and self.path_is_reference(
+            str(data_or_path)
+        ):
+            data_or_path = str(data_or_path)
+            self._path = data_or_path
+            self._sha256 = hashlib.sha256(
+                data_or_path.encode("utf-8")
+            ).hexdigest()
+            self._is_tmp = False
+            ext = os.path.splitext(data_or_path)[1].lstrip(".").lower()
+            self._format = ext if ext in Video.EXTS else (format or "gif")
+            return
+
         if format is None:
             wandb.termwarn(
                 "`format` argument was not provided, defaulting to `gif`. "
@@ -132,9 +152,6 @@ class Video(BatchableMedia):
                 "please specify the format explicitly."
             )
         self._format = format or "gif"
-        self._width = None
-        self._height = None
-        self._channels = None
         if self._format not in Video.EXTS:
             raise ValueError(
                 "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
@@ -156,12 +173,13 @@ class Video(BatchableMedia):
             self._set_file(filename, is_tmp=True)
         elif isinstance(data_or_path, (str, pathlib.Path)):
             data_or_path = str(data_or_path)
-
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:
                 raise ValueError(
-                    "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
+                    "wandb.Video accepts {} formats".format(
+                        ", ".join(Video.EXTS)
+                    )
                 )
             self._set_file(data_or_path, is_tmp=False)
             # ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
@@ -184,6 +202,25 @@ class Video(BatchableMedia):
                 )
             else:
                 self.encode(fps=fps)
+
+    def bind_to_run(
+        self,
+        run: LocalRun,
+        key: int | str,
+        step: int | str,
+        id_: int | str | None = None,
+        ignore_copy_err: bool | None = None,
+    ) -> None:
+        """Bind this object to a run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if self.path_is_reference(self._path):
+            raise ValueError(
+                "Video media created by a reference to external storage cannot currently be added to a run"
+            )
+
+        return super().bind_to_run(run, key, step, id_, ignore_copy_err)
 
     def encode(self, fps: int = 4) -> None:
         """Encode the video data to a file.
