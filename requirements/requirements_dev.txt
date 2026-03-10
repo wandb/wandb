@@ -28,6 +28,7 @@ jupyter
 ipykernel
 nbclient
 
+tensorboard
 tensorflow~=2.20; sys_platform != 'darwin'
 numpy<2.4.0  # tensorflow==2.20.0 uses deprecated args removed in numpy==2.4.0
 

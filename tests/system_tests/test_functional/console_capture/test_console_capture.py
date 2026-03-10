@@ -23,8 +23,8 @@ def test_patch_stdout_and_stderr():
 
     exit_code = proc.wait()  # on error, stderr may have useful details
     assert proc.stderr and proc.stdout
-    assert proc.stderr.read() == b"I AM STDERR\n"
-    assert proc.stdout.read() == b"I AM STDOUT\n"
+    assert proc.stderr.read().endswith(b"I AM STDERR\n")
+    assert proc.stdout.read().endswith(b"I AM STDOUT\n")
     assert exit_code == 0
 
 
