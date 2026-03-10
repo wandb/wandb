@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fnmatch
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ import tempfile
 from typing import Any
 
 import wandb
+from wandb import env as wandb_env
 from wandb.apis.internal import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
@@ -26,7 +28,75 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger("wandb")
 
 
-CODE_ARTIFACT_EXCLUDE_PATHS = ["wandb", ".git"]
+CODE_ARTIFACT_EXCLUDE_PATHS = [
+    "wandb",
+    ".git",
+    ".venv",
+    "venv",
+    "env",
+    "__pycache__",
+    ".tox",
+    ".nox",
+    "node_modules",
+    ".mypy_cache",
+    ".pytest_cache",
+]
+
+
+def _load_wandbignore(path: str) -> list[str]:
+    """Read exclusion patterns from a .wandbignore file in `path`.
+
+    Lines starting with ``#`` and blank lines are ignored, matching
+    the behaviour of ``.gitignore``.
+    """
+    ignore_file = os.path.join(path, ".wandbignore")
+    if not os.path.exists(ignore_file):
+        return []
+    patterns: list[str] = []
+    with open(ignore_file) as f:
+        for line in f:
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                patterns.append(stripped)
+    return patterns
+
+
+def _get_exclude_paths(
+    path: str,
+    extra_excludes: list[str] | None = None,
+) -> list[str]:
+    """Return the merged exclude list from all four priority layers.
+
+    Priority order (highest to lowest):
+    1. ``extra_excludes`` – explicit API / CLI argument
+    2. ``WANDB_LAUNCH_CODE_EXCLUDE`` env var (comma-separated)
+    3. `.wandbignore` file in the source directory
+    4. ``CODE_ARTIFACT_EXCLUDE_PATHS`` hardcoded defaults
+    """
+    excludes: list[str] = list(CODE_ARTIFACT_EXCLUDE_PATHS)
+    excludes.extend(_load_wandbignore(path))
+    excludes.extend(wandb_env.get_code_artifact_exclude())
+    if extra_excludes:
+        excludes.extend(extra_excludes)
+    return excludes
+
+
+def _should_exclude(rel_path: str, excludes: list[str]) -> bool:
+    """Return True if *rel_path* matches any pattern in *excludes*.
+
+    Matching is done against both the top-level path component and the
+    full relative path so that both bare names (``venv``) and glob
+    patterns (``*.egg-info``) work as expected.
+    """
+    top_component = rel_path.split(os.sep)[0]
+    for pattern in excludes:
+        # Strip trailing slashes so a pattern like "data/" matches a top component "data"
+        pattern = pattern.rstrip("/\\")
+        if fnmatch.fnmatch(top_component, pattern):
+            return True
+        if fnmatch.fnmatch(rel_path, pattern):
+            return True
+    return False
 
 
 def create_job(
@@ -42,6 +112,7 @@ def create_job(
     git_hash: str | None = None,
     build_context: str | None = None,
     dockerfile: str | None = None,
+    exclude_paths: list[str] | None = None,
 ) -> Artifact | None:
     """Create a job from a path, not as the output of a run.
 
@@ -77,6 +148,7 @@ def create_job(
             aliases=["train"],
             runtime="3.9",
             entrypoint="train.py",
+            exclude_paths=[".venv", "data"],
         )
         # then run the newly created job
         artifact_job.call()
@@ -98,6 +170,7 @@ def create_job(
         git_hash,
         build_context,
         dockerfile,
+        exclude_paths=exclude_paths,
     )
 
     return artifact_job
@@ -120,6 +193,7 @@ def _create_job(
     base_image: str | None = None,
     services: dict[str, str] | None = None,
     schema: dict[str, Any] | None = None,
+    exclude_paths: list[str] | None = None,
 ) -> tuple[Artifact | None, str, list[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 
@@ -185,6 +259,7 @@ def _create_job(
             entity=entity,
             project=project,
             name=name,
+            exclude_paths=exclude_paths,
         )
         if not job_name:
             return None, "", []
@@ -442,16 +517,17 @@ def _make_code_artifact(
     entity: str | None,
     project: str | None,
     name: str | None,
+    exclude_paths: list[str] | None = None,
 ) -> str | None:
     """Helper for creating and logging code artifacts.
+
+    Walks the source directory, skipping any paths that match the
+    merged exclude list (defaults + .wandbignore + env var +
+    explicit ``exclude_paths`` argument).
 
     Returns the name of the eventual job.
     """
     entrypoint_list = entrypoint.split(" ")
-    # We no longer require the entrypoint to end in an existing file. But we
-    # need something to use as the default job artifact name. In the future we
-    # may require the user to provide a job name explicitly when calling
-    # wandb job create.
     entrypoint_file = entrypoint_list[-1]
     artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint_file), name)
     code_artifact = wandb.Artifact(
@@ -460,22 +536,37 @@ def _make_code_artifact(
         description="Code artifact for job",
     )
 
+    # Build the merged exclusion list once, then walk the source tree,
+    # pruning excluded directories *before* os.walk descends into them.
+    # This is more efficient than adding everything then calling remove().
+    excludes = _get_exclude_paths(path, extra_excludes=exclude_paths)
     try:
-        code_artifact.add_dir(path)
+        for dirpath, dirnames, filenames in os.walk(path, followlinks=True):
+            rel_dir = os.path.relpath(dirpath, path)
+            # Prune excluded subdirectories in-place so os.walk skips them.
+            dirnames[:] = [
+                d for d in dirnames
+                if not _should_exclude(
+                    d if rel_dir == "." else os.path.join(rel_dir, d),
+                    excludes,
+                )
+            ]
+            for fname in filenames:
+                physical_path = os.path.join(dirpath, fname)
+                logical_path = os.path.relpath(physical_path, path)
+                if not _should_exclude(logical_path, excludes):
+                    code_artifact._add_local_file(
+                        name=logical_path,
+                        path=physical_path,
+                    )
     except Exception as e:
         if os.path.islink(path):
             wandb.termerror(
-                "Symlinks are not supported for code artifact jobs, please copy the code into a directory and try again"
+                "Symlinks are not supported for code artifact jobs, please copy "
+                "the code into a directory and try again"
             )
         wandb.termerror(f"Error adding to code artifact: {e}")
         return None
-
-    # Remove paths we don't want to include, if present
-    for item in CODE_ARTIFACT_EXCLUDE_PATHS:
-        try:
-            code_artifact.remove(item)
-        except FileNotFoundError:
-            pass
 
     res, _ = api.create_artifact(
         artifact_type_name="code",
