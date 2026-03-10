@@ -6,13 +6,12 @@ def test_wb_logging_last_resort():
     script = pathlib.Path(__file__).parent / "last_resort.py"
 
     output = subprocess.check_output(
-        ["python", str(script)],
+        # Prevent warnings from 3rd party libraries from polluting the output.
+        ["python", "-W", "ignore", str(script)],
         stderr=subprocess.STDOUT,
     ).splitlines()
 
-    # Trim initial lines, which may include 3rd party warnings
-    # depending on versions of installed packages.
-    assert output[-2:] == [
+    assert output == [
         b"lastResort (before configuring)",
         b"stream handler (after configuring)",
     ]
