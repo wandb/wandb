@@ -493,3 +493,116 @@ class TestAggregateHistoryLiveData:
             "not yet exported to parquet" in msg or "incomplete" in msg.lower()
             for msg in termwarn_messages
         ), f"Expected live data warning in termwarn calls: {termwarn_messages}"
+
+
+class TestAggregateHistoryForceRedownload:
+    """Tests for force_redownload parameter."""
+
+    def test_force_redownload_redownloads_cached_run(self, tmp_path):
+        """When force_redownload=True, runs with .complete sentinel are re-downloaded."""
+        run = _make_mock_run_with_parquet(
+            "run1",
+            {"_step": [0, 1], "loss": [1.0, 0.5]},
+            tmp_path,
+        )
+        runs = _make_mock_runs([run])
+        cache_dir = tmp_path / "cache"
+
+        # First download -- populates cache
+        lf = Runs.aggregate_history(runs, cache_dir=str(cache_dir))
+        lf.collect()
+        assert (cache_dir / "run1" / ".complete").exists()
+        assert run.download_history_exports.call_count == 1
+
+        # Second download without force -- should use cache
+        runs2 = _make_mock_runs([run])
+        lf2 = Runs.aggregate_history(runs2, cache_dir=str(cache_dir))
+        lf2.collect()
+        assert run.download_history_exports.call_count == 1  # not called again
+
+        # Third download with force -- should re-download
+        runs3 = _make_mock_runs([run])
+        lf3 = Runs.aggregate_history(
+            runs3, cache_dir=str(cache_dir), force_redownload=True
+        )
+        df3 = lf3.collect()
+        assert run.download_history_exports.call_count == 2
+        assert len(df3) == 2
+
+    def test_force_redownload_removes_sentinel(self, tmp_path):
+        """force_redownload removes the .complete sentinel before re-downloading."""
+        run = _make_mock_run_with_parquet(
+            "run1",
+            {"_step": [0], "loss": [1.0]},
+            tmp_path,
+        )
+        runs = _make_mock_runs([run])
+        cache_dir = tmp_path / "cache"
+
+        # First download
+        Runs.aggregate_history(runs, cache_dir=str(cache_dir)).collect()
+        sentinel = cache_dir / "run1" / ".complete"
+        assert sentinel.exists()
+
+        # Force re-download
+        runs2 = _make_mock_runs([run])
+        Runs.aggregate_history(
+            runs2, cache_dir=str(cache_dir), force_redownload=True
+        ).collect()
+        # Sentinel should be recreated after successful re-download
+        assert sentinel.exists()
+
+
+class TestAggregateHistoryRequireComplete:
+    """Tests for require_complete parameter."""
+
+    def test_require_complete_raises_on_live_data(self, tmp_path):
+        """When require_complete=True and a run has live data, raise ValueError."""
+        run = _make_mock_run_with_live_data(
+            "run1",
+            {"_step": [0, 1], "loss": [1.0, 0.5]},
+            tmp_path,
+        )
+        runs = _make_mock_runs([run])
+        cache_dir = tmp_path / "cache"
+
+        with pytest.raises(ValueError, match="not yet exported to parquet"):
+            Runs.aggregate_history(
+                runs, cache_dir=str(cache_dir), require_complete=True
+            ).collect()
+
+    @mock.patch("wandb.termwarn")
+    def test_require_complete_false_warns_on_live_data(
+        self, mock_termwarn, tmp_path
+    ):
+        """Default behavior: live data produces warning, not error."""
+        run = _make_mock_run_with_live_data(
+            "run1",
+            {"_step": [0], "loss": [1.0]},
+            tmp_path,
+        )
+        runs = _make_mock_runs([run])
+        cache_dir = tmp_path / "cache"
+
+        lf = Runs.aggregate_history(
+            runs, cache_dir=str(cache_dir), require_complete=False
+        )
+        df = lf.collect()
+        assert len(df) == 1
+        mock_termwarn.assert_called()
+
+    def test_require_complete_no_error_when_all_complete(self, tmp_path):
+        """When all runs are complete, require_complete=True succeeds."""
+        run = _make_mock_run_with_parquet(
+            "run1",
+            {"_step": [0, 1], "loss": [1.0, 0.5]},
+            tmp_path,
+        )
+        runs = _make_mock_runs([run])
+        cache_dir = tmp_path / "cache"
+
+        lf = Runs.aggregate_history(
+            runs, cache_dir=str(cache_dir), require_complete=True
+        )
+        df = lf.collect()
+        assert len(df) == 2

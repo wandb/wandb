@@ -493,6 +493,8 @@ class Runs(SizedPaginator["Run"]):
         max_results: int = 10_000_000,
         max_workers: int = 10,
         page_size: int = 1_000,
+        force_redownload: bool = False,
+        require_complete: bool = False,
     ) -> pl.LazyFrame:
         """Return full unsampled history for all runs as a Polars LazyFrame.
 
@@ -522,6 +524,13 @@ class Runs(SizedPaginator["Run"]):
                 Defaults to 10.
             page_size: Number of rows per page (retained for backward
                 compatibility).
+            force_redownload: If True, ignore cached data and re-download
+                all runs. Useful when history data has been updated since
+                the last download.
+            require_complete: If True, raise ``ValueError`` if any run
+                has history data not yet exported to parquet (i.e. the
+                run is still live). By default, incomplete runs produce
+                a warning but are still included.
 
         Returns:
             polars.LazyFrame: A lazy frame over the cached parquet files.
@@ -561,10 +570,13 @@ class Runs(SizedPaginator["Run"]):
             run_dir.mkdir(exist_ok=True)
 
             sentinel = run_dir / ".complete"
-            if sentinel.exists():
+            if sentinel.exists() and not force_redownload:
                 existing = list(run_dir.glob("*.parquet"))
                 parquet_files.extend(existing)
                 continue
+
+            if force_redownload and sentinel.exists():
+                sentinel.unlink()
 
             # Clean up partial downloads before re-downloading
             for old_file in run_dir.glob("*.parquet"):
@@ -602,10 +614,13 @@ class Runs(SizedPaginator["Run"]):
                             parquet_files.extend(paths)
 
                         if has_live_data:
-                            wandb.termwarn(
+                            msg = (
                                 f"Run {run_id} has history data not yet exported "
                                 "to parquet. Results may be incomplete."
                             )
+                            if require_complete:
+                                raise ValueError(msg)
+                            wandb.termwarn(msg)
 
                     except (WandbApiFailedError, wandb.Error, OSError) as e:
                         wandb.termwarn(f"Run {run.id} failed to download: {e}")
