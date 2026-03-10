@@ -1,7 +1,7 @@
 package leet
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // ApplyFilter applies the current filter pattern to system metric charts.
@@ -35,7 +35,7 @@ func (g *SystemMetricsGrid) EnterFilterMode() {
 }
 
 // UpdateFilterDraft updates the in-progress filter text (for live preview).
-func (g *SystemMetricsGrid) UpdateFilterDraft(msg tea.KeyMsg) {
+func (g *SystemMetricsGrid) UpdateFilterDraft(msg tea.KeyPressMsg) {
 	g.filter.UpdateDraft(msg)
 }
 
@@ -82,7 +82,7 @@ func (g *SystemMetricsGrid) FilterQuery() string {
 }
 
 // handleFilterKey processes a key event while the system metrics filter is active.
-func (g *SystemMetricsGrid) handleFilterKey(msg tea.KeyMsg) {
+func (g *SystemMetricsGrid) handleFilterKey(msg tea.KeyPressMsg) {
 	if g.filter.HandleKey(msg) {
 		g.ApplyFilter()
 	}

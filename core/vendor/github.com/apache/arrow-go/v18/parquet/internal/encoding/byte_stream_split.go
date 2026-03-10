@@ -88,38 +88,6 @@ func encodeByteStreamSplitWidth8(data []byte, in []byte) {
 	}
 }
 
-// decodeByteStreamSplitBatchWidth4 decodes the batch of nValues raw bytes representing a 4-byte datatype provided by 'data',
-// into the output buffer 'out' using BYTE_STREAM_SPLIT encoding.
-// 'out' must have space for at least len(data) bytes.
-func decodeByteStreamSplitBatchWidth4(data []byte, nValues, stride int, out []byte) {
-	const width = 4
-	debug.Assert(len(out) >= nValues*width, fmt.Sprintf("not enough space in output buffer for decoding, out: %d bytes, data: %d bytes", len(out), len(data)))
-	for element := 0; element < nValues; element++ {
-		out[width*element] = data[element]
-		out[width*element+1] = data[stride+element]
-		out[width*element+2] = data[2*stride+element]
-		out[width*element+3] = data[3*stride+element]
-	}
-}
-
-// decodeByteStreamSplitBatchWidth8 decodes the batch of nValues raw bytes representing a 8-byte datatype provided by 'data',
-// into the output buffer 'out' using BYTE_STREAM_SPLIT encoding.
-// 'out' must have space for at least len(data) bytes.
-func decodeByteStreamSplitBatchWidth8(data []byte, nValues, stride int, out []byte) {
-	const width = 8
-	debug.Assert(len(out) >= nValues*width, fmt.Sprintf("not enough space in output buffer for decoding, out: %d bytes, data: %d bytes", len(out), len(data)))
-	for element := 0; element < nValues; element++ {
-		out[width*element] = data[element]
-		out[width*element+1] = data[stride+element]
-		out[width*element+2] = data[2*stride+element]
-		out[width*element+3] = data[3*stride+element]
-		out[width*element+4] = data[4*stride+element]
-		out[width*element+5] = data[5*stride+element]
-		out[width*element+6] = data[6*stride+element]
-		out[width*element+7] = data[7*stride+element]
-	}
-}
-
 // decodeByteStreamSplitBatchFLBA decodes the batch of nValues FixedLenByteArrays provided by 'data',
 // into the output slice 'out' using BYTE_STREAM_SPLIT encoding.
 // 'out' must have space for at least nValues slices.
@@ -303,12 +271,15 @@ func (dec *ByteStreamSplitDecoder[T]) Decode(out []T) (int, error) {
 		return 0, xerrors.New("parquet: eof exception")
 	}
 
+	// reinterpret the output slice as bytes so that we can decode directly into it without an intermediate copy
+	// however, the byte stream split encoding is defined in little-endian order, so we need to decode the bytes
+	// into the output slice in the correct order based on the machine's endianness
 	outBytes := arrow.GetBytes(out)
 	switch typeLen {
 	case 4:
-		decodeByteStreamSplitBatchWidth4(dec.data, toRead, dec.stride, outBytes)
+		decodeByteStreamSplitBatchWidth4InByteOrder(dec.data, toRead, dec.stride, outBytes)
 	case 8:
-		decodeByteStreamSplitBatchWidth8(dec.data, toRead, dec.stride, outBytes)
+		decodeByteStreamSplitBatchWidth8InByteOrder(dec.data, toRead, dec.stride, outBytes)
 	default:
 		return 0, fmt.Errorf("encoding ByteStreamSplit is only defined for numeric type of width 4 or 8, found: %d", typeLen)
 	}

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -199,7 +199,7 @@ func (m *ConfigEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		key := msg.String()
 
 		// Global quit keys.
@@ -256,7 +256,7 @@ func (m *ConfigEditor) handleSave() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-func (m *ConfigEditor) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *ConfigEditor) updateBrowse(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if len(m.fields) == 0 {
 		return m, nil
 	}
@@ -361,7 +361,7 @@ func (m *ConfigEditor) bumpSelected(delta int) {
 	}
 }
 
-func (m *ConfigEditor) updateEnumSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *ConfigEditor) updateEnumSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeBrowse
@@ -395,7 +395,7 @@ func (m *ConfigEditor) updateEnumSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m *ConfigEditor) updateIntEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *ConfigEditor) updateIntEdit(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = modeBrowse
@@ -434,8 +434,8 @@ func (m *ConfigEditor) updateIntEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.intE.err = ""
 		return m, nil
 	default:
-		if msg.Type == tea.KeyRunes {
-			for _, r := range msg.Runes {
+		if msg.Text != "" {
+			for _, r := range msg.Text {
 				if unicode.IsDigit(r) {
 					m.intE.input += string(r)
 					m.intE.err = ""
@@ -446,7 +446,7 @@ func (m *ConfigEditor) updateIntEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m *ConfigEditor) View() string {
+func (m *ConfigEditor) View() tea.View {
 	w := m.width
 	if w <= 0 {
 		w = 80
@@ -464,12 +464,10 @@ func (m *ConfigEditor) View() string {
 	)
 
 	table := m.renderTable(w)
-
 	footer := m.renderFooter(w)
 
 	view := lipgloss.JoinVertical(lipgloss.Left, top, "", table, "", footer)
 
-	// Inline "modal" area for edit states.
 	switch m.mode {
 	case modeEnumSelect:
 		view = lipgloss.JoinVertical(lipgloss.Left, view, "", m.renderEnumPicker(w))
@@ -477,7 +475,9 @@ func (m *ConfigEditor) View() string {
 		view = lipgloss.JoinVertical(lipgloss.Left, view, "", m.renderIntEditor(w))
 	}
 
-	return lipgloss.NewStyle().Padding(1, 2).Render(view)
+	v := tea.NewView(lipgloss.NewStyle().Padding(1, 2).Render(view))
+	v.AltScreen = true
+	return v
 }
 
 func (m *ConfigEditor) renderTable(width int) string {

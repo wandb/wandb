@@ -167,7 +167,9 @@ def test_basic_prompt():
         tester.wait_for_text(b"PROMPT: ")
         tester.send_input(b"the prompt\n")
 
-    assert tester.unstyled_output() == [
+    # Trim initial lines, which may include 3rd party warnings
+    # depending on versions of installed packages.
+    assert tester.unstyled_output()[-3:] == [
         "wandb: PROMPT: the prompt",
         "Got result: the prompt",
         "DONE",
@@ -183,15 +185,13 @@ def test_abort():
         tester.send_input(b"\x03")
 
     lines = tester.unstyled_output()
-    assert lines[0] in (
+    assert lines[-2] in (
         # On macOS:
         "wandb: PROMPT: ^C",
         # On Linux:
         "wandb: PROMPT: this may be ignored^C",
     )
-    assert lines[1:] == [
-        "INTERRUPT!",
-    ]
+    assert lines[-1] == "INTERRUPT!"
 
 
 def test_abort_timeout():
@@ -203,15 +203,13 @@ def test_abort_timeout():
         tester.send_input(b"\x03")
 
     lines = tester.unstyled_output()
-    assert lines[0] in (
+    assert lines[-2] in (
         # On macOS:
         "wandb: PROMPT: (10 second timeout) ^C",
         # On Linux:
         "wandb: PROMPT: (10 second timeout) this may be ignored^C",
     )
-    assert lines[1:] == [
-        "INTERRUPT!",
-    ]
+    assert lines[-1] == "INTERRUPT!"
 
 
 def test_hidden_prompt():
@@ -219,7 +217,7 @@ def test_hidden_prompt():
         tester.wait_for_text(b"PROMPT: ")
         tester.send_input(b"the prompt\n")
 
-    assert tester.unstyled_output() == [
+    assert tester.unstyled_output()[-3:] == [
         "wandb: PROMPT: ",
         "Got result: the prompt",
         "DONE",
@@ -231,7 +229,7 @@ def test_timeout():
         # Don't send any input, just let it time out.
         pass
 
-    assert tester.unstyled_output() == [
+    assert tester.unstyled_output()[-2:] == [
         "wandb: PROMPT: (0 second timeout) ",
         "TIMEOUT!",
     ]
