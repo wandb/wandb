@@ -67,7 +67,7 @@ class CustomBuildHook(BuildHookInterface):
         if self._include_orjson():
             artifacts.extend(self._build_orjson())
 
-    def _prepare_editable(self, build_data: Dict[str, Any]) -> None:
+    def _prepare_editable(self, build_data: dict[str, Any]) -> None:
         """Build native extensions for editable installs.
 
         For editable installs, we need to build the native extensions and place
@@ -156,7 +156,7 @@ class CustomBuildHook(BuildHookInterface):
 
         return [output.as_posix()]
 
-    def _build_arrow_rs_wrapper(self) -> List[str]:
+    def _build_arrow_rs_wrapper(self) -> list[str]:
         """Build the arrow-rs-wrapper dynamic library."""
         plat = self._target_platform()
 
