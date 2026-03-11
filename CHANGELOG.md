@@ -11,6 +11,23 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.25.1] - 2026-03-10
+
+### Added
+
+- Run console logs pane in W&B LEET TUI (`wandb beta leet` command, toggle with `l`). (@dmitryduev in https://github.com/wandb/wandb/pull/11345)
+- System metrics pane in multi-run workspace mode in W&B LEET TUI (`wandb beta leet` command, toggle with `s`). (@dmitryduev in https://github.com/wandb/wandb/pull/11391)
+- System metrics filtering in W&B LEET TUI (`wandb beta leet` command, toggle with `\`). (@dmitryduev in https://github.com/wandb/wandb/pull/11391)
+- `ArtifactType.collections()` now supports filtering and ordering of collections. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11268)
+- Warning message when `run.log_artifact` does not create a new version because the artifact content is identical to an existing version. (@pingleiwandb in https://github.com/wandb/wandb/pull/11340)
+- `Project.collections()` to fetch filtered and ordered artifact collections in a project. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/11319)
+- `wandb purge-cache` command to clean up cached files (@jacobromero in https://github.com/wandb/wandb/pull/10996)
+
+### Fixed
+
+- Fixed a rare deadlock caused when GC triggers at an unlucky time and runs a `__del__` method that prints (@timoffex in https://github.com/wandb/wandb/pull/11402)
+- `api.Run.user` raising `AttributeError` when accessing runs from an `api.Runs` iteration (@jacobromero in https://github.com/wandb/wandb/pull/11439)
+
 ## [0.25.0] - 2026-02-12
 
 ### Notable Changes
