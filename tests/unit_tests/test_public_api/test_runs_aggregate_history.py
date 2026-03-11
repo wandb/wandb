@@ -572,9 +572,7 @@ class TestAggregateHistoryRequireComplete:
             ).collect()
 
     @mock.patch("wandb.termwarn")
-    def test_require_complete_false_warns_on_live_data(
-        self, mock_termwarn, tmp_path
-    ):
+    def test_require_complete_false_warns_on_live_data(self, mock_termwarn, tmp_path):
         """Default behavior: live data produces warning, not error."""
         run = _make_mock_run_with_live_data(
             "run1",
