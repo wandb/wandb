@@ -3,89 +3,88 @@
 isort:skip_file
 """
 
-from collections import abc as _abc
-from google.protobuf import descriptor as _descriptor
-from google.protobuf import message as _message
-from google.protobuf.internal import containers as _containers
-from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
-from wandb.proto import wandb_internal_pb2 as _wandb_internal_pb2
-from wandb.proto import wandb_settings_pb2 as _wandb_settings_pb2
-import builtins as _builtins
+import builtins
+import collections.abc
+import google.protobuf.descriptor
+import google.protobuf.internal.containers
+import google.protobuf.internal.enum_type_wrapper
+import google.protobuf.message
 import sys
-import typing as _typing
+import typing
+import wandb.proto.wandb_internal_pb2
+import wandb.proto.wandb_settings_pb2
 
 if sys.version_info >= (3, 10):
-    from typing import TypeAlias as _TypeAlias
+    import typing as typing_extensions
 else:
-    from typing_extensions import TypeAlias as _TypeAlias
+    import typing_extensions
 
-DESCRIPTOR: _descriptor.FileDescriptor
+DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
-@_typing.final
-class ServerInitSyncRequest(_message.Message):
+@typing.final
+class ServerInitSyncRequest(google.protobuf.message.Message):
     """Prepares a sync operation to replay one or more .wandb files.
 
     The response is immediate and includes an ID to use in future requests.
     A separate request starts the operation.
     """
 
-    DESCRIPTOR: _descriptor.Descriptor
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    @_typing.final
-    class TagReplacementsEntry(_message.Message):
-        DESCRIPTOR: _descriptor.Descriptor
+    @typing.final
+    class TagReplacementsEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-        KEY_FIELD_NUMBER: _builtins.int
-        VALUE_FIELD_NUMBER: _builtins.int
-        key: _builtins.str
-        value: _builtins.str
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: builtins.str
+        value: builtins.str
         def __init__(
             self,
             *,
-            key: _builtins.str = ...,
-            value: _builtins.str = ...,
+            key: builtins.str = ...,
+            value: builtins.str = ...,
         ) -> None: ...
-        _ClearFieldArgType: _TypeAlias = _typing.Literal["key", b"key", "value", b"value"]  # noqa: Y015
-        def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+        def ClearField(self, field_name: typing.Literal["key", b"key", "value", b"value"]) -> None: ...
 
-    PATH_FIELD_NUMBER: _builtins.int
-    CWD_FIELD_NUMBER: _builtins.int
-    LIVE_FIELD_NUMBER: _builtins.int
-    SETTINGS_FIELD_NUMBER: _builtins.int
-    NEW_ENTITY_FIELD_NUMBER: _builtins.int
-    NEW_PROJECT_FIELD_NUMBER: _builtins.int
-    NEW_RUN_ID_FIELD_NUMBER: _builtins.int
-    NEW_JOB_TYPE_FIELD_NUMBER: _builtins.int
-    TAG_REPLACEMENTS_FIELD_NUMBER: _builtins.int
-    cwd: _builtins.str
+    PATH_FIELD_NUMBER: builtins.int
+    CWD_FIELD_NUMBER: builtins.int
+    LIVE_FIELD_NUMBER: builtins.int
+    SETTINGS_FIELD_NUMBER: builtins.int
+    NEW_ENTITY_FIELD_NUMBER: builtins.int
+    NEW_PROJECT_FIELD_NUMBER: builtins.int
+    NEW_RUN_ID_FIELD_NUMBER: builtins.int
+    NEW_JOB_TYPE_FIELD_NUMBER: builtins.int
+    TAG_REPLACEMENTS_FIELD_NUMBER: builtins.int
+    cwd: builtins.str
     """An absolute path to the user's current working directory.
 
     Paths are displayed relative to this if the result is shorter.
     """
-    live: _builtins.bool
+    live: builtins.bool
     """Whether to perform a live sync."""
-    new_entity: _builtins.str
+    new_entity: builtins.str
     """An updated entity to use for all paths being synced."""
-    new_project: _builtins.str
+    new_project: builtins.str
     """An updated project to use for all paths being synced."""
-    new_run_id: _builtins.str
+    new_run_id: builtins.str
     """A new ID to use for all paths being synced."""
-    new_job_type: _builtins.str
+    new_job_type: builtins.str
     """A new job type to set for all runs being synced."""
-    @_builtins.property
-    def path(self) -> _containers.RepeatedScalarFieldContainer[_builtins.str]:
+    @property
+    def path(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
         """Paths to the .wandb files to upload.
 
         Paths should either be absolute or relative to the cwd, and all paths
         should refer to different files.
         """
 
-    @_builtins.property
-    def settings(self) -> _wandb_settings_pb2.Settings:
+    @property
+    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings:
         """Settings to use when syncing."""
 
-    @_builtins.property
-    def tag_replacements(self) -> _containers.ScalarMap[_builtins.str, _builtins.str]:
+    @property
+    def tag_replacements(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]:
         """A map from old tag names to new ones.
 
         Mapping a tag to an empty string deletes it.
@@ -94,56 +93,53 @@ class ServerInitSyncRequest(_message.Message):
     def __init__(
         self,
         *,
-        path: _abc.Iterable[_builtins.str] | None = ...,
-        cwd: _builtins.str = ...,
-        live: _builtins.bool = ...,
-        settings: _wandb_settings_pb2.Settings | None = ...,
-        new_entity: _builtins.str = ...,
-        new_project: _builtins.str = ...,
-        new_run_id: _builtins.str = ...,
-        new_job_type: _builtins.str = ...,
-        tag_replacements: _abc.Mapping[_builtins.str, _builtins.str] | None = ...,
+        path: collections.abc.Iterable[builtins.str] | None = ...,
+        cwd: builtins.str = ...,
+        live: builtins.bool = ...,
+        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
+        new_entity: builtins.str = ...,
+        new_project: builtins.str = ...,
+        new_run_id: builtins.str = ...,
+        new_job_type: builtins.str = ...,
+        tag_replacements: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["settings", b"settings"]  # noqa: Y015
-    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["cwd", b"cwd", "live", b"live", "new_entity", b"new_entity", "new_job_type", b"new_job_type", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings", "tag_replacements", b"tag_replacements"]  # noqa: Y015
-    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def HasField(self, field_name: typing.Literal["settings", b"settings"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["cwd", b"cwd", "live", b"live", "new_entity", b"new_entity", "new_job_type", b"new_job_type", "new_project", b"new_project", "new_run_id", b"new_run_id", "path", b"path", "settings", b"settings", "tag_replacements", b"tag_replacements"]) -> None: ...
 
-Global___ServerInitSyncRequest: _TypeAlias = ServerInitSyncRequest  # noqa: Y015
+global___ServerInitSyncRequest = ServerInitSyncRequest
 
-@_typing.final
-class ServerInitSyncResponse(_message.Message):
+@typing.final
+class ServerInitSyncResponse(google.protobuf.message.Message):
     """Indicates a sync operation is ready."""
 
-    DESCRIPTOR: _descriptor.Descriptor
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    ID_FIELD_NUMBER: _builtins.int
-    id: _builtins.str
+    ID_FIELD_NUMBER: builtins.int
+    id: builtins.str
     """An ID to use to start and query the operation."""
     def __init__(
         self,
         *,
-        id: _builtins.str = ...,
+        id: builtins.str = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["id", b"id"]  # noqa: Y015
-    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def ClearField(self, field_name: typing.Literal["id", b"id"]) -> None: ...
 
-Global___ServerInitSyncResponse: _TypeAlias = ServerInitSyncResponse  # noqa: Y015
+global___ServerInitSyncResponse = ServerInitSyncResponse
 
-@_typing.final
-class ServerSyncRequest(_message.Message):
+@typing.final
+class ServerSyncRequest(google.protobuf.message.Message):
     """Begins a sync operation created by ServerInitSyncRequest.
 
     The response is delivered once the operation completes.
     """
 
-    DESCRIPTOR: _descriptor.Descriptor
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    ID_FIELD_NUMBER: _builtins.int
-    PARALLELISM_FIELD_NUMBER: _builtins.int
-    id: _builtins.str
+    ID_FIELD_NUMBER: builtins.int
+    PARALLELISM_FIELD_NUMBER: builtins.int
+    id: builtins.str
     """The operation's ID, as returned by ServerInitSyncResponse."""
-    parallelism: _builtins.int
+    parallelism: builtins.int
     """How many runs to sync at once, if syncing multiple.
 
     Syncing is generally IO bound, and the ideal parallelism depends
@@ -152,95 +148,91 @@ class ServerSyncRequest(_message.Message):
     def __init__(
         self,
         *,
-        id: _builtins.str = ...,
-        parallelism: _builtins.int = ...,
+        id: builtins.str = ...,
+        parallelism: builtins.int = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["id", b"id", "parallelism", b"parallelism"]  # noqa: Y015
-    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def ClearField(self, field_name: typing.Literal["id", b"id", "parallelism", b"parallelism"]) -> None: ...
 
-Global___ServerSyncRequest: _TypeAlias = ServerSyncRequest  # noqa: Y015
+global___ServerSyncRequest = ServerSyncRequest
 
-@_typing.final
-class ServerSyncResponse(_message.Message):
+@typing.final
+class ServerSyncResponse(google.protobuf.message.Message):
     """Indicates a sync operation completed, either successfully or with errors."""
 
-    DESCRIPTOR: _descriptor.Descriptor
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    MESSAGES_FIELD_NUMBER: _builtins.int
-    @_builtins.property
-    def messages(self) -> _containers.RepeatedCompositeFieldContainer[Global___ServerSyncMessage]:
+    MESSAGES_FIELD_NUMBER: builtins.int
+    @property
+    def messages(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerSyncMessage]:
         """Any messages that were not returned via a status response."""
 
     def __init__(
         self,
         *,
-        messages: _abc.Iterable[Global___ServerSyncMessage] | None = ...,
+        messages: collections.abc.Iterable[global___ServerSyncMessage] | None = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["messages", b"messages"]  # noqa: Y015
-    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def ClearField(self, field_name: typing.Literal["messages", b"messages"]) -> None: ...
 
-Global___ServerSyncResponse: _TypeAlias = ServerSyncResponse  # noqa: Y015
+global___ServerSyncResponse = ServerSyncResponse
 
-@_typing.final
-class ServerSyncStatusRequest(_message.Message):
+@typing.final
+class ServerSyncStatusRequest(google.protobuf.message.Message):
     """Checks the status of an ongoing sync operation."""
 
-    DESCRIPTOR: _descriptor.Descriptor
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    ID_FIELD_NUMBER: _builtins.int
-    id: _builtins.str
+    ID_FIELD_NUMBER: builtins.int
+    id: builtins.str
     """The operation's ID, as returned by ServerInitSyncResponse."""
     def __init__(
         self,
         *,
-        id: _builtins.str = ...,
+        id: builtins.str = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["id", b"id"]  # noqa: Y015
-    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def ClearField(self, field_name: typing.Literal["id", b"id"]) -> None: ...
 
-Global___ServerSyncStatusRequest: _TypeAlias = ServerSyncStatusRequest  # noqa: Y015
+global___ServerSyncStatusRequest = ServerSyncStatusRequest
 
-@_typing.final
-class ServerSyncStatusResponse(_message.Message):
+@typing.final
+class ServerSyncStatusResponse(google.protobuf.message.Message):
     """The status of a sync operation."""
 
-    DESCRIPTOR: _descriptor.Descriptor
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    STATS_FIELD_NUMBER: _builtins.int
-    NEW_MESSAGES_FIELD_NUMBER: _builtins.int
-    @_builtins.property
-    def stats(self) -> _containers.RepeatedCompositeFieldContainer[_wandb_internal_pb2.OperationStats]:
+    STATS_FIELD_NUMBER: builtins.int
+    NEW_MESSAGES_FIELD_NUMBER: builtins.int
+    @property
+    def stats(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[wandb.proto.wandb_internal_pb2.OperationStats]:
         """The status of any ongoing work (such as network requests),
         labeled by the run it's for.
         """
 
-    @_builtins.property
-    def new_messages(self) -> _containers.RepeatedCompositeFieldContainer[Global___ServerSyncMessage]:
+    @property
+    def new_messages(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerSyncMessage]:
         """New messages since the last status request."""
 
     def __init__(
         self,
         *,
-        stats: _abc.Iterable[_wandb_internal_pb2.OperationStats] | None = ...,
-        new_messages: _abc.Iterable[Global___ServerSyncMessage] | None = ...,
+        stats: collections.abc.Iterable[wandb.proto.wandb_internal_pb2.OperationStats] | None = ...,
+        new_messages: collections.abc.Iterable[global___ServerSyncMessage] | None = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["new_messages", b"new_messages", "stats", b"stats"]  # noqa: Y015
-    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def ClearField(self, field_name: typing.Literal["new_messages", b"new_messages", "stats", b"stats"]) -> None: ...
 
-Global___ServerSyncStatusResponse: _TypeAlias = ServerSyncStatusResponse  # noqa: Y015
+global___ServerSyncStatusResponse = ServerSyncStatusResponse
 
-@_typing.final
-class ServerSyncMessage(_message.Message):
+@typing.final
+class ServerSyncMessage(google.protobuf.message.Message):
     """ServerSyncMessage is a console message generated during a sync operation."""
 
-    DESCRIPTOR: _descriptor.Descriptor
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     class _Severity:
-        ValueType = _typing.NewType("ValueType", _builtins.int)
-        V: _TypeAlias = ValueType  # noqa: Y015
+        ValueType = typing.NewType("ValueType", builtins.int)
+        V: typing_extensions.TypeAlias = ValueType
 
-    class _SeverityEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[ServerSyncMessage._Severity.ValueType], _builtins.type):
-        DESCRIPTOR: _descriptor.EnumDescriptor
+    class _SeverityEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ServerSyncMessage._Severity.ValueType], builtins.type):
+        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         SEVERITY_NOTSET: ServerSyncMessage._Severity.ValueType  # 0
         SEVERITY_INFO: ServerSyncMessage._Severity.ValueType  # 20
         SEVERITY_WARNING: ServerSyncMessage._Severity.ValueType  # 30
@@ -254,17 +246,16 @@ class ServerSyncMessage(_message.Message):
     SEVERITY_WARNING: ServerSyncMessage.Severity.ValueType  # 30
     SEVERITY_ERROR: ServerSyncMessage.Severity.ValueType  # 40
 
-    SEVERITY_FIELD_NUMBER: _builtins.int
-    CONTENT_FIELD_NUMBER: _builtins.int
-    severity: Global___ServerSyncMessage.Severity.ValueType
-    content: _builtins.str
+    SEVERITY_FIELD_NUMBER: builtins.int
+    CONTENT_FIELD_NUMBER: builtins.int
+    severity: global___ServerSyncMessage.Severity.ValueType
+    content: builtins.str
     def __init__(
         self,
         *,
-        severity: Global___ServerSyncMessage.Severity.ValueType = ...,
-        content: _builtins.str = ...,
+        severity: global___ServerSyncMessage.Severity.ValueType = ...,
+        content: builtins.str = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["content", b"content", "severity", b"severity"]  # noqa: Y015
-    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def ClearField(self, field_name: typing.Literal["content", b"content", "severity", b"severity"]) -> None: ...
 
-Global___ServerSyncMessage: _TypeAlias = ServerSyncMessage  # noqa: Y015
+global___ServerSyncMessage = ServerSyncMessage

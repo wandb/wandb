@@ -67,6 +67,8 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports returning the total file count in a file connection."""
     ARTIFACT_COLLECTIONS_FILTERING_SORTING: _ServerFeature.ValueType  # 16
     """Indicates that the server supports filtering artifact collections when querying on a project"""
+    ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: _ServerFeature.ValueType  # 17
+    """Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download url."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -112,6 +114,8 @@ TOTAL_COUNT_IN_FILE_CONNECTION: ServerFeature.ValueType  # 15
 """Indicates that the server supports returning the total file count in a file connection."""
 ARTIFACT_COLLECTIONS_FILTERING_SORTING: ServerFeature.ValueType  # 16
 """Indicates that the server supports filtering artifact collections when querying on a project"""
+ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID: ServerFeature.ValueType  # 17
+"""Indicates that the server supports both the artifact id and the birth artifact id in the artifact file download url."""
 global___ServerFeature = ServerFeature
 
 @typing.final

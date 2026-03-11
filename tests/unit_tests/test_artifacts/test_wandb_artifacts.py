@@ -393,12 +393,8 @@ class TestFileUrl:
 
     def test_file_url_v2_layout_with_artifact_id_support(self):
         """V2 layout with ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID includes artifact_id and birth_artifact_id."""
-        artifact = Artifact("my-artifact:v0", type="dataset")
+        artifact = Artifact("my-entity/my-project/my-artifact:v0", type="dataset")
         artifact._id = "artifact-123"
-        artifact._state = ArtifactState.COMMITTED
-        artifact._entity = "my-entity"
-        artifact._project = "my-project"
-        artifact._name = "my-artifact:v0"
 
         entry = ArtifactManifestEntry(
             path="subdir/model.pt",
@@ -434,12 +430,8 @@ class TestFileUrl:
 
     def test_file_url_v2_layout_with_collection_membership_handler(self):
         """V2 layout with ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER uses birth_artifact_id and entry.path.name (no artifact_id)."""
-        artifact = Artifact("my-artifact:v0", type="dataset")
+        artifact = Artifact("my-entity/my-project/my-artifact:v0", type="dataset")
         artifact._id = "artifact-123"
-        artifact._state = ArtifactState.COMMITTED
-        artifact._entity = "my-entity"
-        artifact._project = "my-project"
-        artifact._name = "my-artifact:v0"
 
         entry = ArtifactManifestEntry(
             path="subdir/model.pt",
@@ -475,12 +467,8 @@ class TestFileUrl:
 
     def test_file_url_v2_layout_fallback(self):
         """V2 fallback URL is {base_url}/artifactsV2/{region}/{entity}/{birth_artifact_id}/{hexhash}."""
-        artifact = Artifact("my-artifact:v0", type="dataset")
+        artifact = Artifact("my-entity/my-project/my-artifact:v0", type="dataset")
         artifact._id = "artifact-123"
-        artifact._state = ArtifactState.COMMITTED
-        artifact._entity = "my-entity"
-        artifact._project = "my-project"
-        artifact._name = "my-artifact:v0"
 
         entry = ArtifactManifestEntry(
             path="subdir/model.pt",

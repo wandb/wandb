@@ -3,74 +3,65 @@
 isort:skip_file
 """
 
-from google.protobuf import descriptor as _descriptor
-from google.protobuf import message as _message
-import builtins as _builtins
-import sys
-import typing as _typing
+import builtins
+import google.protobuf.descriptor
+import google.protobuf.message
+import typing
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias as _TypeAlias
-else:
-    from typing_extensions import TypeAlias as _TypeAlias
+DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
-DESCRIPTOR: _descriptor.FileDescriptor
-
-@_typing.final
-class _RecordInfo(_message.Message):
+@typing.final
+class _RecordInfo(google.protobuf.message.Message):
     """
     _RecordInfo, _RequestInfo: extra info for all records and requests
     """
 
-    DESCRIPTOR: _descriptor.Descriptor
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    STREAM_ID_FIELD_NUMBER: _builtins.int
-    _TRACELOG_ID_FIELD_NUMBER: _builtins.int
-    stream_id: _builtins.str
-    _tracelog_id: _builtins.str
+    STREAM_ID_FIELD_NUMBER: builtins.int
+    _TRACELOG_ID_FIELD_NUMBER: builtins.int
+    stream_id: builtins.str
+    _tracelog_id: builtins.str
     def __init__(
         self,
         *,
-        stream_id: _builtins.str = ...,
-        _tracelog_id: _builtins.str = ...,
+        stream_id: builtins.str = ...,
+        _tracelog_id: builtins.str = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["_tracelog_id", b"_tracelog_id", "stream_id", b"stream_id"]  # noqa: Y015
-    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def ClearField(self, field_name: typing.Literal["_tracelog_id", b"_tracelog_id", "stream_id", b"stream_id"]) -> None: ...
 
-Global____RecordInfo: _TypeAlias = _RecordInfo  # noqa: Y015
+global____RecordInfo = _RecordInfo
 
-@_typing.final
-class _RequestInfo(_message.Message):
-    DESCRIPTOR: _descriptor.Descriptor
+@typing.final
+class _RequestInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    STREAM_ID_FIELD_NUMBER: _builtins.int
-    stream_id: _builtins.str
+    STREAM_ID_FIELD_NUMBER: builtins.int
+    stream_id: builtins.str
     def __init__(
         self,
         *,
-        stream_id: _builtins.str = ...,
+        stream_id: builtins.str = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["stream_id", b"stream_id"]  # noqa: Y015
-    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def ClearField(self, field_name: typing.Literal["stream_id", b"stream_id"]) -> None: ...
 
-Global____RequestInfo: _TypeAlias = _RequestInfo  # noqa: Y015
+global____RequestInfo = _RequestInfo
 
-@_typing.final
-class _ResultInfo(_message.Message):
+@typing.final
+class _ResultInfo(google.protobuf.message.Message):
     """
     _ResultInfo: extra info for all results
     """
 
-    DESCRIPTOR: _descriptor.Descriptor
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    _TRACELOG_ID_FIELD_NUMBER: _builtins.int
-    _tracelog_id: _builtins.str
+    _TRACELOG_ID_FIELD_NUMBER: builtins.int
+    _tracelog_id: builtins.str
     def __init__(
         self,
         *,
-        _tracelog_id: _builtins.str = ...,
+        _tracelog_id: builtins.str = ...,
     ) -> None: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["_tracelog_id", b"_tracelog_id"]  # noqa: Y015
-    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def ClearField(self, field_name: typing.Literal["_tracelog_id", b"_tracelog_id"]) -> None: ...
 
-Global____ResultInfo: _TypeAlias = _ResultInfo  # noqa: Y015
+global____ResultInfo = _ResultInfo
